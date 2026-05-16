@@ -5,7 +5,11 @@ import path from "node:path";
 
 import type { TaskPackInput, TokenPilotPaths } from "../types.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
-import { tokenPilotAuthPlugin } from "./auth.js";
+import {
+  isAuthRequired,
+  tokenPilotAuthPlugin,
+  validateServerAuthConfig
+} from "./auth.js";
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -118,6 +122,8 @@ function sanitizeForApi(value: unknown, repoRoot: string): unknown {
 }
 
 export function buildServer(paths: TokenPilotPaths) {
+  validateServerAuthConfig();
+
   const app = Fastify({ logger: true });
   app.register(tokenPilotAuthPlugin);
 
@@ -125,7 +131,7 @@ export function buildServer(paths: TokenPilotPaths) {
     return {
       ok: true,
       mode: "phase1-local",
-      authRequired: Boolean(process.env.TOKENPILOT_API_TOKEN?.trim())
+      authRequired: isAuthRequired()
     };
   };
 

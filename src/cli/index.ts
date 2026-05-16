@@ -22,7 +22,8 @@ Usage:
   tokenpilot jobs
   tokenpilot job --id "<job-id>"
   tokenpilot server
-  tokenpilot runner
+  tokenpilot runner [--once]
+  tokenpilot runner --watch --interval 3
 `);
 }
 
@@ -114,7 +115,23 @@ async function main(): Promise<void> {
       return;
     }
     case "runner": {
-      await runRunner(paths);
+      const once = process.argv.includes("--once");
+      const watch = process.argv.includes("--watch");
+      const intervalValue = getFlag("--interval");
+
+      if (once && watch) {
+        throw new Error("runner accepts either --once or --watch, not both");
+      }
+
+      const intervalSeconds = intervalValue ? Number(intervalValue) : 3;
+      if (!Number.isFinite(intervalSeconds) || intervalSeconds <= 0) {
+        throw new Error("runner --interval must be a positive number");
+      }
+
+      await runRunner(paths, {
+        watch,
+        intervalSeconds
+      });
       return;
     }
     default:

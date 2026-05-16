@@ -15,6 +15,7 @@ npm run build
 
 ```bash
 TOKENPILOT_API_TOKEN=your-secret \
+TOKENPILOT_EXPOSED=false \
 TOKENPILOT_HOST=127.0.0.1 \
 TOKENPILOT_PORT=4318 \
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com \
@@ -33,6 +34,7 @@ Example:
 
 ```bash
 TOKENPILOT_API_TOKEN=replace-with-your-builder-token
+TOKENPILOT_EXPOSED=false
 TOKENPILOT_HOST=127.0.0.1
 TOKENPILOT_PORT=4318
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
@@ -40,11 +42,28 @@ TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 
 `macos-manage-local-server.sh` will load this file automatically when it exists.
 
+## Exposed Mode
+
+- `TOKENPILOT_EXPOSED=false` is the default local-development mode. If `TOKENPILOT_API_TOKEN` is omitted, private job APIs remain open for local-only testing.
+- `TOKENPILOT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, or Custom GPT Actions access. In this mode, `TOKENPILOT_API_TOKEN` is mandatory and the server will refuse to start without it.
+
+Example:
+
+```bash
+TOKENPILOT_EXPOSED=true
+TOKENPILOT_API_TOKEN=replace-with-a-real-secret
+TOKENPILOT_HOST=127.0.0.1
+TOKENPILOT_PORT=4318
+TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
+```
+
 ## Check Status
 
 ```bash
 ./scripts/macos-manage-local-server.sh status
 curl http://127.0.0.1:4318/api/health
+npm run runner -- --once
+npm run runner -- --watch --interval 3
 ```
 
 ## Stop Or Restart

@@ -29,12 +29,15 @@ npm run pack
 npm run manifest
 npm run taskpack -- --title "Fix X" --problem "Describe the issue"
 npm run server
-npm run runner
+npm run runner -- --once
+npm run runner -- --watch --interval 3
 ```
 
 Note:
 
 - Phase 1 uses a shared file-backed queue under `.tokenpilot/jobs/`.
+- `runner --once` keeps the original manual behavior and processes at most one queued job.
+- `runner --watch --interval 3` keeps polling locally for the next queued job and is the recommended stepping stone toward a longer-lived Phase 2 runner.
 - Run a single local runner at a time for predictable behavior.
 - Concurrent runners can legitimately compete for the same queued jobs because lease/lock coordination is intentionally deferred to a later phase.
 

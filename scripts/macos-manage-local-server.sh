@@ -50,6 +50,8 @@ write_plist() {
   <dict>
     <key>TOKENPILOT_API_TOKEN</key>
     <string>${TOKENPILOT_API_TOKEN:-}</string>
+    <key>TOKENPILOT_EXPOSED</key>
+    <string>${TOKENPILOT_EXPOSED:-false}</string>
     <key>TOKENPILOT_HOST</key>
     <string>${TOKENPILOT_HOST:-127.0.0.1}</string>
     <key>TOKENPILOT_PORT</key>
