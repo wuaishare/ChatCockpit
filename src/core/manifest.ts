@@ -4,6 +4,23 @@ import path from "node:path";
 import { writeJson, writeText } from "./files.js";
 import type { RepoBundleManifest } from "../types.js";
 
+interface RepomixConfig {
+  include?: string[];
+}
+
+function readRepomixIncludeFiles(repoRoot: string): string[] {
+  const configPath = path.join(repoRoot, ".repomix.config.json");
+  if (!fs.existsSync(configPath)) {
+    return [];
+  }
+
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as RepomixConfig;
+  return (config.include || [])
+    .filter((entry) => !entry.endsWith("/**"))
+    .map((entry) => entry.replace(/^\.\//, ""))
+    .sort();
+}
+
 export function buildBundleManifest(
   repoRoot: string,
   bundlesDir: string,
@@ -13,11 +30,7 @@ export function buildBundleManifest(
   const repoName = path.basename(repoRoot);
   const promptPath = path.join(bundlesDir, "bundle-prompt.md");
   const summaryPath = path.join(bundlesDir, "bundle-summary.md");
-  const sourceFiles = fs
-    .readdirSync(repoRoot, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .sort();
+  const sourceFiles = readRepomixIncludeFiles(repoRoot);
 
   const manifest: RepoBundleManifest = {
     createdAt,
