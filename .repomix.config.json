@@ -1,0 +1,28 @@
+{
+  "output": {
+    "filePath": ".tokenpilot/repomix-output.xml",
+    "style": "xml"
+  },
+  "include": [
+    "docs/**",
+    "src/**",
+    "openapi/**",
+    "README.md",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    ".repomix.config.json",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "customPatterns": [
+      ".git/**",
+      ".codex/**",
+      "dist/**",
+      "node_modules/**",
+      ".tokenpilot/**"
+    ]
+  }
+}

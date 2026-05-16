@@ -1,0 +1,263 @@
+openapi: 3.1.0
+info:
+  title: TokenPilot Local Control Plane API
+  version: 0.1.0-alpha
+  description: >
+    Local-first automation surface for TokenPilot. Phase 1 keeps execution local and
+    preserves the existing manual workflow while exposing the future HTTPS control-plane shape.
+servers:
+  - url: https://tokenpilot.example.com
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        mode:
+          type: string
+        authRequired:
+          type: boolean
+      required: [ok, mode, authRequired]
+    PackJobPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          description: Public repository alias resolved to a private local path by the operator.
+      required: [repoId]
+    TaskPackJobPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        problem:
+          type: string
+        contextSummary:
+          type: string
+        mustInspect:
+          type: array
+          items:
+            type: string
+        mayInspect:
+          type: array
+          items:
+            type: string
+        mustNotModify:
+          type: array
+          items:
+            type: string
+        verificationCommands:
+          type: array
+          items:
+            type: string
+        acceptanceCriteria:
+          type: array
+          items:
+            type: string
+      required: [title, problem]
+    PackJobRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: Unique job id
+        type:
+          type: string
+          enum: [pack]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        payload:
+          $ref: '#/components/schemas/PackJobPayload'
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, payload]
+    TaskPackJobRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: Unique job id
+        type:
+          type: string
+          enum: [taskpack]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        payload:
+          $ref: '#/components/schemas/TaskPackJobPayload'
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, payload]
+    CreatePackResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        job:
+          $ref: '#/components/schemas/PackJobRecord'
+      required: [ok, job]
+    CreateTaskPackResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        job:
+          $ref: '#/components/schemas/TaskPackJobRecord'
+      required: [ok, job]
+    JobListItem:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, payload]
+    JobsListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobListItem'
+      required: [ok, jobs]
+    GetJobResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        job:
+          $ref: '#/components/schemas/JobListItem'
+      required: [ok, job]
+paths:
+  /api/health:
+    get:
+      operationId: health
+      summary: Health check
+      description: Returns the current TokenPilot control-plane health information.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/jobs/pack:
+    post:
+      operationId: createPack
+      summary: Queue a repo bundle job
+      description: Creates a queued pack job that produces a repomix bundle and bundle manifest for an approved repo alias.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackJobPayload'
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePackResponse'
+  /api/jobs/taskpack:
+    post:
+      operationId: createTaskPack
+      summary: Queue a Codex task pack job
+      description: Creates a queued task-pack job from a structured problem description.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskPackJobPayload'
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTaskPackResponse'
+  /api/jobs:
+    get:
+      operationId: listJobs
+      summary: List queued and completed jobs
+      description: Returns the current job list from the local TokenPilot queue.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Jobs list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsListResponse'
+  /api/jobs/{id}:
+    get:
+      operationId: getJob
+      summary: Get a single job status
+      description: Returns a single queued, running, completed, or failed job by id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetJobResponse'

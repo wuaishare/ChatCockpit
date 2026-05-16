@@ -1,0 +1,47 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+coverage/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env / secrets
+.env
+.env.*
+!.env.example
+*.local
+server.env
+
+# TokenPilot local runtime / generated artifacts
+.tokenpilot/
+.tokenpilot/**
+
+# local agent state
+.codex/
+.codex/**
+
+# local server / reverse proxy / machine-specific config
+.servbay/
+.servbay/**
+
+# private/internal planning artifacts
+docs/superpowers/
+docs/superpowers/**
+
+# generated repomix outputs if accidentally written outside .tokenpilot
+repomix-output*.xml
