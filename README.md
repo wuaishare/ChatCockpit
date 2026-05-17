@@ -39,18 +39,7 @@ TokenPilot 不是为了少用 AI，而是为了更会用 AI：
 
 ## 文档治理约定
 
-仓库中的公开文档按用途拆分：
-
-- `docs/architecture/`：公开保留。用于记录 TokenPilot 的本地优先控制面、任务循环与演进方向。
-- `docs/deployment/`：公开保留，但只允许泛化示例。域名、Token、路径都必须使用占位值。
-- `docs/governance/`：公开保留。用于解释公开仓库、私有运维仓库与 local-only 产物的边界。
-- `docs/proof/` 与 `docs/assets/`：按需保留。只提交适合公开展示、且不包含个人隐私或本机敏感信息的证明材料。
-- `docs/superpowers/`：默认不提交。它属于 agent 计划、规格、执行草稿，应进入私有运维仓库或保持 local-only。
-
-开源协作默认遵循一条原则：
-
-> 对外提交“可复现的公开知识”，不要提交“本地过程痕迹”和“个人环境信息”。
-
+公开文档按架构、部署、治理、证明材料分层维护；本地运行态和私有过程材料不进入公开仓库。<br>
 边界说明见：[`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
 
 ---
