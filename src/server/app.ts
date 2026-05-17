@@ -23,9 +23,13 @@ const taskPackSchema = z.object({
   acceptanceCriteria: z.array(z.string()).optional()
 });
 
-const packJobSchema = z.object({
-  repoId: z.string().min(1)
-});
+const packJobSchema = z
+  .object({
+    repoId: z.string().min(1).default("tokenpilot")
+  })
+  .default({
+    repoId: "tokenpilot"
+  });
 
 const fileReadSchema = z.object({
   repoId: z.string().min(1),
@@ -190,7 +194,8 @@ export function buildServer(paths: TokenPilotPaths) {
 
   const createPackHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = reply as { code: (statusCode: number) => void };
-    const parsed = packJobSchema.safeParse((request as { body: unknown }).body);
+    const body = (request as { body?: unknown }).body ?? {};
+    const parsed = packJobSchema.safeParse(body);
     if (!parsed.success) {
       fastifyReply.code(400);
       return {

@@ -30,8 +30,7 @@ components:
       properties:
         repoId:
           type: string
-          description: Public repository alias resolved to a private local path by the operator.
-      required: [repoId]
+          description: Public repository alias resolved to a private local path by the operator. Defaults to tokenpilot in the current single-repo local-first setup.
     TaskPackJobPayload:
       type: object
       additionalProperties: false
@@ -107,7 +106,7 @@ components:
         updatedAt:
           type: string
         payload:
-          $ref: '#/components/schemas/TaskPackJobPayload'
+          $ref: '#/components/schemas/TaskPackJobPublicPayload'
         result:
           oneOf:
             - $ref: '#/components/schemas/TaskPackJobResult'
@@ -328,9 +327,9 @@ paths:
     post:
       operationId: createPack
       summary: Queue a repo bundle job
-      description: Creates a queued pack job that produces a repomix bundle and bundle manifest for an approved repo alias.
+      description: Creates a queued pack job that produces a repomix bundle and bundle manifest for an approved repo alias. If repoId is omitted, the current default repo tokenpilot is used.
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
