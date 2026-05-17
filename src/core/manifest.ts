@@ -40,6 +40,7 @@ export function buildBundleManifest(
     promptPath: ".tokenpilot/bundles/bundle-prompt.md",
     summaryPath: ".tokenpilot/bundles/bundle-summary.md",
     publicIncludeEntries,
+    // Deprecated compatibility field. New code should read publicIncludeEntries.
     sourceFiles: publicIncludeEntries
   };
 

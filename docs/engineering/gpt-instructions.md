@@ -1,5 +1,11 @@
 # GPT Instructions
 
+## Status
+
+This document is a transitional helper for manually configuring Custom GPT / GPT Actions during the local-first alpha stage.
+
+Once the Web UI provides a built-in GPT Instructions helper, this generated document and the related generation script may be removed or deprecated.
+
 如果你要给 TokenPilot 配置一个 Custom GPT，建议同时准备两样东西：
 
 - 一份适合粘贴进 GPT 编辑页主说明框的指令

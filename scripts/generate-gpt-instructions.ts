@@ -1,3 +1,8 @@
+/**
+ * Transitional helper for generating GPT editor instructions during the
+ * local-first alpha stage. This is not intended to remain a long-term core
+ * module once the Web UI can generate GPT instructions directly.
+ */
 const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const publicBaseUrl =
   process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim() || "https://tokenpilot.example.com";

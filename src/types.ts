@@ -29,6 +29,9 @@ export interface RepoBundleManifest {
   promptPath: string;
   summaryPath: string;
   publicIncludeEntries: string[];
+  /**
+   * Deprecated compatibility field. Use publicIncludeEntries instead.
+   */
   sourceFiles?: string[];
 }
 
