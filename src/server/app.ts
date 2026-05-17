@@ -41,6 +41,27 @@ function normalizePackLikeObject(value: unknown): unknown {
   return record;
 }
 
+function projectPackLikeObject(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = normalizePackLikeObject(value) as Record<string, unknown>;
+  return {
+    ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
+    ...(typeof record.repoId === "string" ? { repoId: record.repoId } : {}),
+    ...(typeof record.repoName === "string" ? { repoName: record.repoName } : {}),
+    ...(typeof record.repomixXmlPath === "string"
+      ? { repomixXmlPath: record.repomixXmlPath }
+      : {}),
+    ...(typeof record.promptPath === "string" ? { promptPath: record.promptPath } : {}),
+    ...(typeof record.summaryPath === "string" ? { summaryPath: record.summaryPath } : {}),
+    ...(Array.isArray(record.publicIncludeEntries)
+      ? { publicIncludeEntries: record.publicIncludeEntries }
+      : {})
+  };
+}
+
 function projectTaskPackLikeObject(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
@@ -88,7 +109,7 @@ function sanitizeForApi(value: unknown, repoRoot: string): unknown {
       sanitized.payload &&
       typeof sanitized.payload === "object"
     ) {
-      sanitized.payload = normalizePackLikeObject(sanitized.payload);
+      sanitized.payload = projectPackLikeObject(sanitized.payload);
     }
 
     if (
@@ -96,7 +117,7 @@ function sanitizeForApi(value: unknown, repoRoot: string): unknown {
       sanitized.result &&
       typeof sanitized.result === "object"
     ) {
-      sanitized.result = normalizePackLikeObject(sanitized.result);
+      sanitized.result = projectPackLikeObject(sanitized.result);
     }
 
     if (
