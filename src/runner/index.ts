@@ -13,7 +13,22 @@ function isTaskPackPayload(payload: TokenPilotJobPayload): payload is TaskPackJo
 }
 
 function isPackPayload(payload: TokenPilotJobPayload): payload is PackJobPayload {
-  return typeof (payload as PackJobPayload).repoId === "string";
+  return (
+    typeof (payload as PackJobPayload).repoId === "string" ||
+    typeof (payload as { repoRoot?: string }).repoRoot === "string"
+  );
+}
+
+function resolvePackRepoId(payload: TokenPilotJobPayload): string {
+  if (typeof (payload as PackJobPayload).repoId === "string") {
+    return (payload as PackJobPayload).repoId;
+  }
+
+  if (typeof (payload as { repoRoot?: string }).repoRoot === "string") {
+    return "tokenpilot";
+  }
+
+  return "";
 }
 
 export interface RunnerOptions {
@@ -45,8 +60,9 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
 
   try {
     if (job.type === "pack" && isPackPayload(job.payload)) {
-      if (job.payload.repoId !== "tokenpilot") {
-        failJob(paths, job.id, `Unsupported repoId: ${job.payload.repoId}`);
+      const repoId = resolvePackRepoId(job.payload);
+      if (repoId !== "tokenpilot") {
+        failJob(paths, job.id, `Unsupported repoId: ${repoId}`);
         return true;
       }
       const manifest = runPack(paths);
