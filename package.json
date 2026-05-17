@@ -22,6 +22,7 @@
     "server": "tsx src/cli/index.ts server",
     "server:dist": "node dist/cli/index.js server",
     "runner": "tsx src/cli/index.ts runner",
+    "gpt:instructions": "tsx scripts/generate-gpt-instructions.ts",
     "verify:e2e": "tsx scripts/verify-local-e2e.ts",
     "verify:smoke": "tsx scripts/verify-local-smoke.ts",
     "mvp:start": "./scripts/macos-manage-local-server.sh start",
