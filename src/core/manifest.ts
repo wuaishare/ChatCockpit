@@ -8,7 +8,7 @@ interface RepomixConfig {
   include?: string[];
 }
 
-function readRepomixIncludeFiles(repoRoot: string): string[] {
+function readRepomixIncludeEntries(repoRoot: string): string[] {
   const configPath = path.join(repoRoot, ".repomix.config.json");
   if (!fs.existsSync(configPath)) {
     return [];
@@ -30,7 +30,7 @@ export function buildBundleManifest(
   const repoName = path.basename(repoRoot);
   const promptPath = path.join(bundlesDir, "bundle-prompt.md");
   const summaryPath = path.join(bundlesDir, "bundle-summary.md");
-  const sourceFiles = readRepomixIncludeFiles(repoRoot);
+  const publicIncludeEntries = readRepomixIncludeEntries(repoRoot);
 
   const manifest: RepoBundleManifest = {
     createdAt,
@@ -39,7 +39,8 @@ export function buildBundleManifest(
     repomixXmlPath: ".tokenpilot/repomix-output.xml",
     promptPath: ".tokenpilot/bundles/bundle-prompt.md",
     summaryPath: ".tokenpilot/bundles/bundle-summary.md",
-    sourceFiles
+    publicIncludeEntries,
+    sourceFiles: publicIncludeEntries
   };
 
   writeText(
@@ -65,7 +66,7 @@ export function buildBundleManifest(
       "",
       `- Repo id: \`${manifest.repoId}\``,
       `- XML bundle: \`${manifest.repomixXmlPath}\``,
-      `- Top-level files counted: \`${sourceFiles.length}\``
+      `- Explicit public include entries: \`${publicIncludeEntries.length}\``
     ].join("\n")
   );
 

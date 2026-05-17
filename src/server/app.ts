@@ -152,7 +152,7 @@ export function buildServer(paths: TokenPilotPaths) {
     }
     return {
       ok: true,
-      job: sanitizeForApi(job, paths.repoRoot)
+      job: sanitizeForApi(job.job, paths.repoRoot)
     };
   };
 

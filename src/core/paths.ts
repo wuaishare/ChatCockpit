@@ -13,11 +13,16 @@ export function resolveRepoRoot(): string {
 
 export function buildPaths(repoRoot = resolveRepoRoot()): TokenPilotPaths {
   const workspaceDir = path.join(repoRoot, ".tokenpilot");
+  const jobsDir = path.join(workspaceDir, "jobs");
   return {
     repoRoot,
     workspaceDir,
     bundlesDir: path.join(workspaceDir, "bundles"),
-    jobsDir: path.join(workspaceDir, "jobs"),
+    jobsDir,
+    queuedJobsDir: path.join(jobsDir, "queued"),
+    runningJobsDir: path.join(jobsDir, "running"),
+    completedJobsDir: path.join(jobsDir, "completed"),
+    failedJobsDir: path.join(jobsDir, "failed"),
     manifestsDir: path.join(workspaceDir, "manifests")
   };
 }
@@ -27,6 +32,10 @@ export function ensureWorkspaceDirs(paths: TokenPilotPaths): void {
     paths.workspaceDir,
     paths.bundlesDir,
     paths.jobsDir,
+    paths.queuedJobsDir,
+    paths.runningJobsDir,
+    paths.completedJobsDir,
+    paths.failedJobsDir,
     paths.manifestsDir
   ]) {
     fs.mkdirSync(dir, { recursive: true });

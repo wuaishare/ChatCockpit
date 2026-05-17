@@ -39,6 +39,11 @@ export const tokenPilotAuthPlugin = fp(async (app) => {
       return;
     }
 
+    if (isExposedMode() && !process.env.TOKENPILOT_API_TOKEN?.trim()) {
+      reply.code(503);
+      throw new Error("Exposed mode is missing TOKENPILOT_API_TOKEN");
+    }
+
     const configured = process.env.TOKENPILOT_API_TOKEN?.trim();
     if (!configured) {
       return;

@@ -5,6 +5,10 @@ export interface TokenPilotPaths {
   workspaceDir: string;
   bundlesDir: string;
   jobsDir: string;
+  queuedJobsDir: string;
+  runningJobsDir: string;
+  completedJobsDir: string;
+  failedJobsDir: string;
   manifestsDir: string;
 }
 
@@ -15,7 +19,8 @@ export interface RepoBundleManifest {
   repomixXmlPath: string;
   promptPath: string;
   summaryPath: string;
-  sourceFiles: string[];
+  publicIncludeEntries: string[];
+  sourceFiles?: string[];
 }
 
 export interface TaskPackInput {

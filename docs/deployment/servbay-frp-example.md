@@ -4,6 +4,24 @@
 
 Expose the TokenPilot control plane as a stable HTTPS endpoint so a ChatGPT Custom GPT Action can create jobs and poll job status, while local execution still happens through the local runner.
 
+## Scope Boundary
+
+This document describes the next deployment stage, not a completed production capability.
+
+Already completed in the public repo:
+
+- local-first CLI / server / runner scaffold
+- exposed-mode auth groundwork
+- local E2E verification
+
+Still not completed here:
+
+- long-running HTTPS stability proof
+- real Custom GPT Actions end-to-end validation
+- GPT-side artifact/result consumption loop
+
+Full HTTPS / Custom GPT Actions automation loop is still under validation.
+
 ## Public URL Pattern
 
 - `https://tokenpilot.example.com`

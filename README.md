@@ -7,6 +7,7 @@
 ## **项目状态：探索中，已落地第一阶段本地骨架**  
 > TokenPilot 目前仍处在探索早期，但已经不再只是概念说明。  
 > 仓库内已补上第一阶段本地自动化骨架：`repomix` 打包、任务包生成、最小 CLI、本地控制面和本地 runner 占位。  
+> 当前状态应理解为：**local-first 自动化骨架已完成，Phase 2 安全基础与本地 E2E 已完成，完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。**  
 > **如果你对 ChatGPT + Codex 协同开发、Token 优化、任务边界设计这类话题感兴趣，欢迎参与讨论：[GitHub Discussions](https://github.com/wuaishare/TokenPilot/discussions)。**  
 > 欢迎分享经验、反例和有价值的思路。
 

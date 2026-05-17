@@ -22,12 +22,13 @@
     "server": "tsx src/cli/index.ts server",
     "server:dist": "node dist/cli/index.js server",
     "runner": "tsx src/cli/index.ts runner",
+    "verify:e2e": "tsx scripts/verify-local-e2e.ts",
     "verify:smoke": "tsx scripts/verify-local-smoke.ts",
     "mvp:start": "./scripts/macos-manage-local-server.sh start",
     "mvp:stop": "./scripts/macos-manage-local-server.sh stop",
     "mvp:restart": "./scripts/macos-manage-local-server.sh restart",
     "mvp:status": "./scripts/macos-manage-local-server.sh status",
-    "verify": "npm run typecheck && npm run doctor && npm run verify:smoke"
+    "verify": "npm run typecheck && npm run doctor && npm run verify:smoke && npm run verify:e2e"
   },
   "dependencies": {
     "fastify": "^5.6.1",

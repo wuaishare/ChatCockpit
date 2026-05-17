@@ -104,7 +104,7 @@ async function main(): Promise<void> {
       if (!job) {
         throw new Error(`Job not found: ${id}`);
       }
-      process.stdout.write(`${JSON.stringify(job, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify(job.job, null, 2)}\n`);
       return;
     }
     case "server": {

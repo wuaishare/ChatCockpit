@@ -83,8 +83,9 @@ components:
         payload:
           $ref: '#/components/schemas/PackJobPayload'
         result:
-          type: object
-          additionalProperties: true
+          oneOf:
+            - $ref: '#/components/schemas/PackJobResult'
+            - type: 'null'
         error:
           type: string
       required: [id, type, status, createdAt, updatedAt, payload]
@@ -108,8 +109,101 @@ components:
         payload:
           $ref: '#/components/schemas/TaskPackJobPayload'
         result:
-          type: object
-          additionalProperties: true
+          oneOf:
+            - $ref: '#/components/schemas/TaskPackJobResult'
+            - type: 'null'
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, payload]
+    PackJobResult:
+      type: object
+      additionalProperties: false
+      properties:
+        createdAt:
+          type: string
+        repoId:
+          type: string
+        repoName:
+          type: string
+        repomixXmlPath:
+          type: string
+        promptPath:
+          type: string
+        summaryPath:
+          type: string
+        publicIncludeEntries:
+          type: array
+          items:
+            type: string
+      required:
+        [createdAt, repoId, repoName, repomixXmlPath, promptPath, summaryPath, publicIncludeEntries]
+    TaskPackJobPublicPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+      required: [title]
+    TaskPackJobResult:
+      type: object
+      additionalProperties: false
+      properties:
+        createdAt:
+          type: string
+        title:
+          type: string
+        markdownPath:
+          type: string
+        jsonPath:
+          type: string
+      required: [createdAt, title, markdownPath, jsonPath]
+    PackJobSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [pack]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        payload:
+          $ref: '#/components/schemas/PackJobPayload'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/PackJobResult'
+            - type: 'null'
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, payload]
+    TaskPackJobSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [taskpack]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        payload:
+          $ref: '#/components/schemas/TaskPackJobPublicPayload'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/TaskPackJobResult'
+            - type: 'null'
         error:
           type: string
       required: [id, type, status, createdAt, updatedAt, payload]
@@ -131,29 +225,6 @@ components:
         job:
           $ref: '#/components/schemas/TaskPackJobRecord'
       required: [ok, job]
-    JobListItem:
-      type: object
-      additionalProperties: true
-      properties:
-        id:
-          type: string
-        type:
-          type: string
-        status:
-          type: string
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-        payload:
-          type: object
-          additionalProperties: true
-        result:
-          type: object
-          additionalProperties: true
-        error:
-          type: string
-      required: [id, type, status, createdAt, updatedAt, payload]
     JobsListResponse:
       type: object
       additionalProperties: false
@@ -163,7 +234,9 @@ components:
         jobs:
           type: array
           items:
-            $ref: '#/components/schemas/JobListItem'
+            oneOf:
+              - $ref: '#/components/schemas/PackJobSummary'
+              - $ref: '#/components/schemas/TaskPackJobSummary'
       required: [ok, jobs]
     GetJobResponse:
       type: object
@@ -172,7 +245,9 @@ components:
         ok:
           type: boolean
         job:
-          $ref: '#/components/schemas/JobListItem'
+          oneOf:
+            - $ref: '#/components/schemas/PackJobSummary'
+            - $ref: '#/components/schemas/TaskPackJobSummary'
       required: [ok, job]
 paths:
   /api/health:
