@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { TaskPackInput, TokenPilotPaths } from "../types.js";
+import { readRepoFile, readRepoFiles } from "../core/files-api.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import {
   isAuthRequired,
@@ -24,6 +25,16 @@ const taskPackSchema = z.object({
 
 const packJobSchema = z.object({
   repoId: z.string().min(1)
+});
+
+const fileReadSchema = z.object({
+  repoId: z.string().min(1),
+  path: z.string().min(1)
+});
+
+const fileReadBatchSchema = z.object({
+  repoId: z.string().min(1),
+  paths: z.array(z.string().min(1)).min(1).max(10)
 });
 
 function normalizePackLikeObject(value: unknown): unknown {
@@ -213,6 +224,50 @@ export function buildServer(paths: TokenPilotPaths) {
     };
   };
 
+  const readFileHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = fileReadSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: parsed.error.flatten()
+      };
+    }
+
+    try {
+      return readRepoFile(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const readFilesHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = fileReadBatchSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: parsed.error.flatten()
+      };
+    }
+
+    try {
+      return readRepoFiles(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
   app.get("/api/health", healthHandler);
   app.get("/tokenpilot/api/health", healthHandler);
 
@@ -227,6 +282,12 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.post("/api/jobs/taskpack", createTaskPackHandler);
   app.post("/tokenpilot/api/jobs/taskpack", createTaskPackHandler);
+
+  app.post("/api/files/read", readFileHandler);
+  app.post("/tokenpilot/api/files/read", readFileHandler);
+
+  app.post("/api/files/read-batch", readFilesHandler);
+  app.post("/tokenpilot/api/files/read-batch", readFilesHandler);
 
   app.get("/openapi.yaml", async (_request, reply) => {
     reply.type("text/yaml");

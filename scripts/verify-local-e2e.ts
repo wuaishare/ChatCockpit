@@ -28,6 +28,11 @@ function makeTempRepoRoot(): string {
     ) + "\n",
     "utf8"
   );
+  fs.writeFileSync(
+    path.join(repoRoot, "docs", "readme-note.md"),
+    "# E2E Read File Fixture\n\nThis file should be readable through the files API.\n",
+    "utf8"
+  );
   return repoRoot;
 }
 
@@ -131,6 +136,24 @@ async function runE2E(): Promise<void> {
   const fixtureRepoRoot = makeTempRepoRoot();
   const paths = buildPaths(fixtureRepoRoot);
   ensureWorkspaceDirs(paths);
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-config-"));
+  const configPath = path.join(configDir, "config.json");
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        workspaceAllowlist: [fixtureRepoRoot],
+        repoMappings: {
+          tokenpilot: {
+            path: fixtureRepoRoot
+          }
+        }
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
 
   const failClosed = runCommand(projectRoot, ["run", "server"], {
     TOKENPILOT_EXPOSED: "true",
@@ -147,7 +170,8 @@ async function runE2E(): Promise<void> {
     TOKENPILOT_EXPOSED: "true",
     TOKENPILOT_API_TOKEN: "test-token",
     TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com",
-    TOKENPILOT_REPO_ROOT: fixtureRepoRoot
+    TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
+    TOKENPILOT_CONFIG_PATH: configPath
   });
 
   try {
@@ -168,6 +192,35 @@ async function runE2E(): Promise<void> {
     });
     assert.equal(authedJobs.status, 200);
 
+    const fileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        path: "docs/readme-note.md"
+      })
+    });
+    assert.equal(fileRead.status, 200);
+    const fileReadBody = await fileRead.json();
+    assert.match(fileReadBody.file.content, /E2E Read File Fixture/);
+    assert.doesNotMatch(JSON.stringify(fileReadBody), /\/Users\//);
+
+    const blockedRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        path: ".tokenpilot/runtime/server.env"
+      })
+    });
+    assert.equal(blockedRead.status, 400);
+
     const taskpackResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/taskpack`, {
       method: "POST",
       headers: {
@@ -185,6 +238,8 @@ async function runE2E(): Promise<void> {
 
     const onceRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
       TOKENPILOT_REPO_ROOT: fixtureRepoRoot
+      ,
+      TOKENPILOT_CONFIG_PATH: configPath
     });
     assert.equal(onceRun.code, 0);
     assert.match(`${onceRun.stdout}${onceRun.stderr}`, /type=taskpack/);
@@ -247,7 +302,8 @@ async function runE2E(): Promise<void> {
         cwd: projectRoot,
         env: {
           ...process.env,
-          TOKENPILOT_REPO_ROOT: fixtureRepoRoot
+          TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
+          TOKENPILOT_CONFIG_PATH: configPath
         },
         stdio: ["ignore", "pipe", "pipe"]
       }
@@ -269,6 +325,29 @@ async function runE2E(): Promise<void> {
     assert.match(watchOutput, /mode=watch/);
     assert.match(watchOutput, /Graceful shutdown complete/);
 
+    let secondTaskpackFinal: Record<string, unknown> | null = null;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const secondTaskpackDetail = await fetch(
+        `http://127.0.0.1:${port}/api/jobs/${secondTaskpackId}`,
+        {
+          headers: { Authorization: "Bearer test-token" }
+        }
+      );
+      assert.equal(secondTaskpackDetail.status, 200);
+      const detail = (await secondTaskpackDetail.json()) as {
+        job: Record<string, unknown>;
+      };
+      secondTaskpackFinal = detail.job;
+      const status = detail.job.status;
+      if (status === "completed" || status === "failed") {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+
+    assert.ok(secondTaskpackFinal, "Expected second taskpack detail payload");
+    assert.equal(secondTaskpackFinal?.status, "completed");
+
     const completedJobs = await fetch(`http://127.0.0.1:${port}/api/jobs`, {
       headers: { Authorization: "Bearer test-token" }
     });
@@ -286,15 +365,7 @@ async function runE2E(): Promise<void> {
     assert.equal(markdownPaths.length >= 2, true);
     assert.equal(new Set(markdownPaths).size, markdownPaths.length);
 
-    const secondTaskpackDetail = await fetch(
-      `http://127.0.0.1:${port}/api/jobs/${secondTaskpackId}`,
-      {
-        headers: { Authorization: "Bearer test-token" }
-      }
-    );
-    assert.equal(secondTaskpackDetail.status, 200);
-    const secondDetailBody = await secondTaskpackDetail.json();
-    assert.doesNotMatch(JSON.stringify(secondDetailBody), /task-pack\.md|task-pack\.json/);
+    assert.doesNotMatch(JSON.stringify(secondTaskpackFinal), /task-pack\.md|task-pack\.json/);
   } finally {
     await stopChild(server.child);
   }

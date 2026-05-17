@@ -326,6 +326,7 @@ TokenPilot 适合：
 - Web UI / Provider 策略：[`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
 - 本地运行参考：[`docs/deployment/local-runtime-ops.md`](./docs/deployment/local-runtime-ops.md)
 - ServBay / frp 泛化示例：[`docs/deployment/servbay-frp-example.md`](./docs/deployment/servbay-frp-example.md)
+- Files Read API：[`docs/engineering/files-read-api.md`](./docs/engineering/files-read-api.md)
 - 边界治理：[`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
 - RTK 工程说明：[`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
 

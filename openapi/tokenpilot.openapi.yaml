@@ -157,6 +157,68 @@ components:
         jsonPath:
           type: string
       required: [createdAt, title, markdownPath, jsonPath]
+    FileReadPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+        path:
+          type: string
+          description: Relative text file path inside the mapped repository.
+      required: [repoId, path]
+    FileReadBatchPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+        paths:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 10
+      required: [repoId, paths]
+    FileReadResult:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        truncated:
+          type: boolean
+        size:
+          type: integer
+        encoding:
+          type: string
+      required: [path, content, truncated, size, encoding]
+    ReadFileResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        file:
+          $ref: '#/components/schemas/FileReadResult'
+      required: [ok, repoId, file]
+    ReadFilesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileReadResult'
+      required: [ok, repoId, files]
     PackJobSummary:
       type: object
       additionalProperties: false
@@ -336,3 +398,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetJobResponse'
+  /api/files/read:
+    post:
+      operationId: readFile
+      summary: Read a single allowlisted text file
+      description: Reads a single relative text file from an allowlisted repository mapping.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileReadPayload'
+      responses:
+        "200":
+          description: File content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadFileResponse'
+  /api/files/read-batch:
+    post:
+      operationId: readFiles
+      summary: Read multiple allowlisted text files
+      description: Reads up to 10 relative text files from an allowlisted repository mapping.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileReadBatchPayload'
+      responses:
+        "200":
+          description: File contents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadFilesResponse'

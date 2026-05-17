@@ -12,6 +12,15 @@ export interface TokenPilotPaths {
   manifestsDir: string;
 }
 
+export interface TokenPilotRepoMapping {
+  path: string;
+}
+
+export interface TokenPilotUserConfig {
+  workspaceAllowlist: string[];
+  repoMappings: Record<string, TokenPilotRepoMapping>;
+}
+
 export interface RepoBundleManifest {
   createdAt: string;
   repoId: string;
@@ -60,3 +69,13 @@ export interface PackJobPayload {
 export interface TaskPackJobPayload extends TaskPackInput {}
 
 export type TokenPilotJobPayload = PackJobPayload | TaskPackJobPayload;
+
+export interface FileReadPayload {
+  repoId: string;
+  path: string;
+}
+
+export interface FileReadBatchPayload {
+  repoId: string;
+  paths: string[];
+}

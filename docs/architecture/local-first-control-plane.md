@@ -12,6 +12,7 @@ Turn TokenPilot from a purely manual workflow note set into a self-usable local 
 - Task pack artifact generation
 - Local HTTP control surface
 - Local runner that processes queued file-backed jobs
+- Controlled read-only file access for allowlisted repositories
 
 ## What Phase 1 Does Not Yet Do
 
@@ -52,6 +53,18 @@ Generated artifacts live under `.tokenpilot/`:
 - `.tokenpilot/jobs/*.json`
 - `.tokenpilot/manifests/*.md`
 - `.tokenpilot/manifests/*.json`
+
+## Controlled File Read
+
+The current control plane can expose selected repository files through a read-only API, but only under strict constraints:
+
+- callers must use `repoId`, not absolute local paths
+- files must stay within the mapped repository root
+- files must be under the workspace allowlist
+- only text-like files are allowed
+- local runtime, secrets, logs, and internal state paths are blocked
+
+This is intended for GPT / automation read access, not as a general remote filesystem API.
 
 ## Phase 2 Direction
 
