@@ -24,10 +24,11 @@
 
 ```text
 ChatGPT：规划者 / 审查者 / 上下文压缩器
+TokenPilot：本地任务编排者 / 状态持久化层
 Codex：执行者 / 编码者 / 验证者
 ```
 
-ChatGPT 负责把问题想清楚、边界压清楚、任务写清楚；Codex 负责进入真实仓库改代码、跑测试、交付结果。
+ChatGPT 负责把问题想清楚、边界压清楚、任务写清楚；TokenPilot 负责把结构化任务落成本地 job、维护状态与结果；Codex 负责进入真实仓库执行、验证并交付产物。
 
 TokenPilot 不是为了少用 AI，而是为了更会用 AI：
 
@@ -162,9 +163,13 @@ TokenPilot 要求每一次较大推进前，都先生成任务契约；每一次
 ```text
 用户提出需求
   ↓
-ChatGPT：澄清目标、压缩上下文、生成任务包
+ChatGPT：澄清目标、压缩上下文、生成结构化任务包
   ↓
-Codex：读取关键文件、修改代码、运行验证
+TokenPilot：创建本地 job（taskpack / pack）
+  ↓
+Local Runner / Codex：claim job、读取关键文件、执行修改或生成产物、运行验证
+  ↓
+TokenPilot：持久化 job 状态与脱敏后的公开结果
   ↓
 ChatGPT：审查结果、识别风险、沉淀经验
   ↓
@@ -173,7 +178,7 @@ ChatGPT：审查结果、识别风险、沉淀经验
 
 一句话：
 
-> ChatGPT 谋定，Codex 执行。
+> ChatGPT 谋定，TokenPilot 编排，Codex 执行。
 
 ---
 

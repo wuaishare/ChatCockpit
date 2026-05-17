@@ -52,7 +52,7 @@ Run locally first:
 
 ```bash
 npm run server
-npm run runner
+npm run runner -- --watch --interval 3
 ```
 
 Verify:
