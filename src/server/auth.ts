@@ -3,6 +3,18 @@ import type { FastifyRequest } from "fastify";
 
 type EnvLike = Record<string, string | undefined>;
 
+function isPublicPath(url: string): boolean {
+  return (
+    url === "/api/health" ||
+    url === "/tokenpilot/api/health" ||
+    url === "/openapi.yaml" ||
+    url === "/privacy-policy" ||
+    url === "/ui" ||
+    url === "/ui/" ||
+    url.startsWith("/ui/")
+  );
+}
+
 function readBearerToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
   if (!header) return null;
@@ -30,12 +42,7 @@ export function validateServerAuthConfig(env: EnvLike = process.env): void {
 
 export const tokenPilotAuthPlugin = fp(async (app) => {
   app.addHook("preHandler", async (request, reply) => {
-    if (
-      request.url === "/api/health" ||
-      request.url === "/tokenpilot/api/health" ||
-      request.url === "/openapi.yaml" ||
-      request.url === "/privacy-policy"
-    ) {
+    if (isPublicPath(request.url)) {
       return;
     }
 

@@ -4,10 +4,12 @@
 
 
 
-## **项目状态：探索中，已落地第一阶段本地骨架**
+## **项目状态：v0.1.0-alpha local-first public preview**
 > TokenPilot 目前仍处在探索早期，但已经不再只是概念说明。<br>
-> 仓库内已补上第一阶段本地自动化骨架：`repomix` 打包、任务包生成、最小 CLI、本地控制面和本地 runner 占位。<br>
-> 当前状态应理解为：**local-first 自动化骨架已完成，Phase 2 安全基础与本地 E2E 已完成，完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。**<br>
+> 当前已具备 **local-first CLI / server / runner、本地 file-backed job queue、OpenAPI、Files Read API、exposed-mode auth、本地 E2E 验证，以及第一版只读 Web UI MVP**。<br>
+> 当前 Web UI 是 **local-first read-only console**，用于查看运行状态、Jobs 和 GPT Helper。<br>
+> **Full HTTPS / Custom GPT Actions automation loop is still under validation.**<br>
+> 当前仓库可以描述为：**可验证、可继续演进的本地公开预览版本**，而不是完整 HTTPS 管理平台。<br>
 > **如果你对 ChatGPT + Codex 协同开发、Token 优化、任务边界设计这类话题感兴趣，欢迎参与讨论：[GitHub Discussions](https://github.com/wuaishare/TokenPilot/discussions)。**
 > 欢迎分享经验、反例和有价值的思路。
 
@@ -313,6 +315,7 @@ TokenPilot 适合：
 - 架构说明：[`docs/architecture/local-first-control-plane.md`](./docs/architecture/local-first-control-plane.md)
 - GPT Actions 循环：[`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
 - Web UI / Provider 策略：[`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
+- Web UI MVP 计划：[`docs/architecture/web-ui-mvp-plan.md`](./docs/architecture/web-ui-mvp-plan.md)
 - 本地运行参考：[`docs/deployment/local-runtime-ops.md`](./docs/deployment/local-runtime-ops.md)
 - ServBay / frp 泛化示例：[`docs/deployment/servbay-frp-example.md`](./docs/deployment/servbay-frp-example.md)
 - Files Read API：[`docs/engineering/files-read-api.md`](./docs/engineering/files-read-api.md)
@@ -321,25 +324,32 @@ TokenPilot 适合：
 
 ## 后续计划
 
-- [x] 落地第一阶段本地 CLI / repomix / task pack 骨架
-- [x] 提供本地控制面和 runner 的可执行占位
+- [x] 落地本地 CLI / repomix / task pack 骨架
+- [x] 落地 file-backed job queue
+- [x] 落地本地控制面和 runner
 - [x] 写出 GPT Actions / HTTPS 控制面 / 本地 runner 的 OpenAPI 草案
+- [x] 落地 exposed-mode auth
+- [x] 完成本地 E2E 验证
+- [x] 落地 read-only Web UI MVP
 - [ ] 提供 `templates/` 模板库
 - [ ] 提供真实案例 `examples/`
 - [ ] 整理 Token Optimization Log
-- [ ] 将本地 runner 接到真实 job 队列
 - [ ] 通过自有 HTTPS 控制面暴露异步 job API
 - [ ] 接入 ChatGPT 自定义 GPT Actions
+- [ ] 完成 HTTPS / Custom GPT Actions 全流程真实验证
+- [ ] 实现 Provider Adapter
+- [ ] 提供 Setup Wizard
 - [ ] 补充 English / 繁體中文 README
 
 ---
 
-## 第一阶段已具备什么？
+## 当前已具备什么？
 
-当前仓库已经可以作为 **TokenPilot 的本地自用骨架** 使用：
+当前仓库已经可以作为 **TokenPilot 的本地实验骨架** 使用：
 
 ```bash
 npm install
+npm run build:web
 npm run doctor
 npm run pack
 npm run manifest
@@ -348,7 +358,13 @@ npm run server
 npm run runner
 ```
 
-第一阶段目标不是直接打通公网或网页端，而是先把下面这条本地链路跑顺：
+如果你已经构建了前端，也可以访问只读型本地控制台：
+
+```text
+http://127.0.0.1:4318/ui
+```
+
+`v0.1.0-alpha` 当前目标不是直接把 Web UI 写成公网管理平台，而是先把下面这条本地链路跑顺：
 
 ```text
 仓库源码
@@ -359,10 +375,10 @@ bundle / manifest / prompt
   ↓
 task pack
   ↓
-本地控制面 / runner 骨架
+  本地控制面 / runner
 ```
 
-这意味着 TokenPilot 已经从“纯手动流程说明”进入了“可自用、可继续演进”的状态。
+这意味着 TokenPilot 已经从“纯手动流程说明”进入了“可验证、可继续演进”的状态；第一版 Web UI 也只定位为 local-first read-only console。Full HTTPS / Custom GPT Actions automation loop is still under validation.
 
 ---
 

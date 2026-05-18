@@ -11,7 +11,9 @@ import type { TokenPilotPaths } from "../src/types.ts";
 function makeTempRepoRoot(): string {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-e2e-"));
   fs.mkdirSync(path.join(repoRoot, "docs"), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, "web", "dist", "assets"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# TokenPilot E2E Fixture\n", "utf8");
   fs.writeFileSync(
     path.join(repoRoot, ".repomix.config.json"),
@@ -31,6 +33,20 @@ function makeTempRepoRoot(): string {
   fs.writeFileSync(
     path.join(repoRoot, "docs", "readme-note.md"),
     "# E2E Read File Fixture\n\nThis file should be readable through the files API.\n",
+    "utf8"
+  );
+  fs.copyFileSync(
+    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
+    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+  );
+  fs.writeFileSync(
+    path.join(repoRoot, "web", "dist", "index.html"),
+    "<!doctype html><html><body><div id=\"root\">TokenPilot Web UI Fixture</div></body></html>",
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(repoRoot, "web", "dist", "assets", "app.js"),
+    "console.log('tokenpilot-web-ui-fixture')",
     "utf8"
   );
   return repoRoot;
@@ -87,6 +103,21 @@ function runCommand(
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? ""
   };
+}
+
+async function waitForOutputMatch(
+  getOutput: () => string,
+  pattern: RegExp,
+  timeoutMs = 8000
+): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (pattern.test(getOutput())) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Timed out waiting for output to match ${pattern}`);
 }
 
 async function waitForJobTerminalState(
@@ -190,6 +221,26 @@ async function runE2E(): Promise<void> {
     /TOKENPILOT_EXPOSED=true requires TOKENPILOT_API_TOKEN/
   );
 
+  const noUiRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-e2e-no-ui-"));
+  fs.mkdirSync(path.join(noUiRepoRoot, "openapi"), { recursive: true });
+  fs.copyFileSync(
+    path.join(projectRoot, "openapi", "tokenpilot.openapi.yaml"),
+    path.join(noUiRepoRoot, "openapi", "tokenpilot.openapi.yaml")
+  );
+  const noUiPort = await findFreePort();
+  const noUiServer = await startServer(projectRoot, noUiPort, {
+    TOKENPILOT_EXPOSED: "false",
+    TOKENPILOT_REPO_ROOT: noUiRepoRoot
+  });
+
+  try {
+    const noUiResponse = await fetch(`http://127.0.0.1:${noUiPort}/ui`);
+    assert.equal(noUiResponse.status, 200);
+    assert.match(await noUiResponse.text(), /Web UI is not built yet/);
+  } finally {
+    await stopChild(noUiServer.child);
+  }
+
   const port = await findFreePort();
   const server = await startServer(projectRoot, port, {
     TOKENPILOT_EXPOSED: "true",
@@ -204,10 +255,25 @@ async function runE2E(): Promise<void> {
     assert.equal(health.status, 200);
     const healthBody = await health.json();
     assert.equal(healthBody.authRequired, true);
+    assert.equal(healthBody.exposed, true);
+    assert.equal(healthBody.publicBaseUrl, "https://tokenpilot.example.com");
+    assert.equal(healthBody.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
 
     const openapi = await fetch(`http://127.0.0.1:${port}/openapi.yaml`);
     assert.equal(openapi.status, 200);
     assert.match(await openapi.text(), /TokenPilot Local Control Plane API/);
+
+    const ui = await fetch(`http://127.0.0.1:${port}/ui`);
+    assert.equal(ui.status, 200);
+    assert.match(await ui.text(), /TokenPilot Web UI Fixture/);
+
+    const uiDeepLink = await fetch(`http://127.0.0.1:${port}/ui/jobs/demo`);
+    assert.equal(uiDeepLink.status, 200);
+    assert.match(await uiDeepLink.text(), /TokenPilot Web UI Fixture/);
+
+    const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
+    assert.equal(uiAsset.status, 200);
+    assert.match(await uiAsset.text(), /tokenpilot-web-ui-fixture/);
 
     const noAuthJobs = await fetch(`http://127.0.0.1:${port}/api/jobs`);
     assert.equal(noAuthJobs.status, 401);
@@ -350,7 +416,7 @@ async function runE2E(): Promise<void> {
       watchOutput += chunk.toString();
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 2200));
+    await waitForOutputMatch(() => watchOutput, /mode=watch/);
     watchRun.kill("SIGINT");
     await new Promise<void>((resolve) => {
       watchRun.once("exit", () => resolve());

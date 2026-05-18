@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" role="img" aria-label="Vectorized blue and purple hexagonal T logo">
+  <defs>
+    <linearGradient id="logoGradient" x1="132" y1="1120" x2="1128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8731ff"/>
+      <stop offset="0.23" stop-color="#5d45fe"/>
+      <stop offset="0.46" stop-color="#1d83fe"/>
+      <stop offset="0.72" stop-color="#00abfd"/>
+      <stop offset="1" stop-color="#00c7fb"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#logoGradient)" stroke-linecap="round" stroke-linejoin="round">
+    <path
+      d="M627 58
+         C651 58 675 65 696 79
+         L1055 309
+         C1082 326 1097 356 1097 388
+         L1097 866
+         C1097 898 1082 928 1055 945
+         L696 1175
+         C675 1189 651 1208 627 1208
+         C603 1208 579 1189 558 1175
+         L199 945
+         C172 928 157 898 157 866
+         L157 388
+         C157 356 172 326 199 309
+         L558 79
+         C579 65 603 58 627 58 Z"
+      stroke-width="91"/>
+  </g>
+  <g fill="url(#logoGradient)">
+    <rect x="334" y="407" width="586" height="109" rx="38" ry="38"/>
+    <rect x="571" y="482" width="110" height="494" rx="29" ry="29"/>
+  </g>
+</svg>

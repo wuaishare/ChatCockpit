@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { createTaskPack } from "../src/core/taskpack.ts";
+import { buildServer } from "../src/server/app.ts";
 import {
   isAuthRequired,
   validateServerAuthConfig
@@ -105,7 +106,56 @@ function verifyAuthConfig(): void {
   );
 }
 
+async function verifyUiServing(): Promise<void> {
+  const paths = buildTempPaths();
+  const uiDistDir = path.join(paths.repoRoot, "web", "dist", "assets");
+  fs.mkdirSync(uiDistDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(paths.repoRoot, "web", "dist", "index.html"),
+    "<!doctype html><html><body><div id=\"root\">TokenPilot UI</div></body></html>",
+    "utf8"
+  );
+  fs.writeFileSync(path.join(uiDistDir, "app.js"), "console.log('ok')", "utf8");
+
+  const app = buildServer(paths);
+  await app.ready();
+
+  const uiResponse = await app.inject({
+    method: "GET",
+    url: "/ui"
+  });
+  assert.equal(uiResponse.statusCode, 200);
+  assert.match(uiResponse.body, /TokenPilot UI/);
+
+  const assetResponse = await app.inject({
+    method: "GET",
+    url: "/ui/assets/app.js"
+  });
+  assert.equal(assetResponse.statusCode, 200);
+  assert.match(assetResponse.body, /console\.log/);
+
+  const fallbackResponse = await app.inject({
+    method: "GET",
+    url: "/ui/jobs/123"
+  });
+  assert.equal(fallbackResponse.statusCode, 200);
+  assert.match(fallbackResponse.body, /TokenPilot UI/);
+
+  const healthResponse = await app.inject({
+    method: "GET",
+    url: "/api/health"
+  });
+  assert.equal(healthResponse.statusCode, 200);
+  const health = healthResponse.json();
+  assert.equal(health.ok, true);
+  assert.equal(typeof health.exposed, "boolean");
+  assert.equal(typeof health.openapiUrl, "string");
+
+  await app.close();
+}
+
 verifyTaskPackNaming();
 verifyAuthConfig();
+await verifyUiServing();
 
 process.stdout.write("VERIFY_LOCAL_SMOKE_OK\n");

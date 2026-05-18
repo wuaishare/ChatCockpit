@@ -5,6 +5,14 @@ node_modules/
 dist/
 build/
 coverage/
+web/dist/
+web/build/
+playwright-report/
+test-results/
+.playwright/
+.playwright-mcp/
+.playwright-mcp/**
+web/.auth/
 
 # OS / editor
 .DS_Store
@@ -34,6 +42,7 @@ server.env
 # local agent state
 .codex/
 .codex/**
+.codex/screenshots/
 
 # local server / reverse proxy / machine-specific config
 .servbay/

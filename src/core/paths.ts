@@ -8,6 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function resolveRepoRoot(): string {
+  const envRepoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim();
+  if (envRepoRoot) {
+    return path.resolve(envRepoRoot);
+  }
   return path.resolve(__dirname, "../../");
 }
 

@@ -82,3 +82,26 @@ export interface FileReadBatchPayload {
   repoId: string;
   paths: string[];
 }
+
+export interface TokenPilotHealthStatus {
+  ok: true;
+  mode: string;
+  authRequired: boolean;
+  exposed: boolean;
+  publicBaseUrl: string | null;
+  openapiUrl: string;
+}
+
+export interface TokenPilotPublicJobRecord {
+  id: string;
+  type: JobType;
+  status: "queued" | "running" | "completed" | "failed";
+  createdAt: string;
+  updatedAt: string;
+  headline: string;
+  hasResult: boolean;
+  hasError: boolean;
+  payload: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  error?: string;
+}
