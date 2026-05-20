@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { loadUserConfig } from "./config.js";
+import { loadUserConfig, resolveRepoMapping } from "./config.js";
 import type {
   FileReadBatchPayload,
   FileReadPayload,
@@ -84,13 +84,10 @@ function resolveRepoPath(
   config: TokenPilotUserConfig,
   repoId: string
 ): { repoRoot: string; workspaceAllowlist: string[] } {
-  const mapping = config.repoMappings[repoId];
-  if (!mapping) {
-    throw new Error(`Unknown repoId: ${repoId}`);
-  }
+  const mapping = resolveRepoMapping(config, repoId);
 
   return {
-    repoRoot: mapping.path,
+    repoRoot: mapping.repoRoot,
     workspaceAllowlist: config.workspaceAllowlist
   };
 }

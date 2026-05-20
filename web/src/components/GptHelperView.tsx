@@ -1,5 +1,6 @@
 import { CopyButton, Text } from "@lobehub/ui";
 import { useMemo } from "react";
+import { ClipboardCopy } from "lucide-react";
 import type { GptConfigModel, HealthModel } from "../types";
 import { buildGptHelperText, formatDateTime } from "../utils";
 import { SectionCard } from "./SectionCard";
@@ -91,7 +92,13 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
         <SectionCard
           title={copy.gpt.copyTitle}
           description={copy.gpt.copyDescription}
-          extra={<CopyButton content={helperText}>{copy.gpt.copyInstructionsAction}</CopyButton>}
+          extra={
+            <CopyButton
+              aria-label={copy.gpt.copyInstructionsAction}
+              content={helperText}
+              icon={ClipboardCopy}
+            />
+          }
         >
           <div className="copy-snippet">
             <pre className="text-snippet">{helperText}</pre>
@@ -100,7 +107,11 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
           <div className="job-detail__block">
             <strong>{copy.gpt.quickCopyTitle}</strong>
             <div className="quick-actions__actions">
-              <CopyButton content={summaryText}>{copy.gpt.copySummaryAction}</CopyButton>
+              <CopyButton
+                aria-label={copy.gpt.copySummaryAction}
+                content={summaryText}
+                icon={ClipboardCopy}
+              />
             </div>
           </div>
 
@@ -109,7 +120,11 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
             <div className="notes-block">{copy.gpt.importHintBody}</div>
             <pre className="job-detail__preview">{importUrl}</pre>
             <div className="quick-actions__actions">
-              <CopyButton content={importUrl}>{copy.gpt.copySchemaAction}</CopyButton>
+              <CopyButton
+                aria-label={copy.gpt.copySchemaAction}
+                content={importUrl}
+                icon={ClipboardCopy}
+              />
             </div>
           </div>
         </SectionCard>

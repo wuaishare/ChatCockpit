@@ -1,4 +1,4 @@
-export type JobType = "pack" | "taskpack";
+export type JobType = "pack" | "taskpack" | "codex-run";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
 export interface HealthResponse {
@@ -26,7 +26,19 @@ export interface JobBase {
 }
 
 export interface JobArtifactSummary {
-  key: "repomixXml" | "prompt" | "summary" | "manifest" | "markdown" | "json";
+  key:
+    | "repomixXml"
+    | "prompt"
+    | "summary"
+    | "manifest"
+    | "markdown"
+    | "json"
+    | "codexPrompt"
+    | "codexStdout"
+    | "codexStderr"
+    | "codexDiff"
+    | "codexReview"
+    | "codexSummary";
   label: string;
   path: string;
   contentType: string;
@@ -50,10 +62,27 @@ export interface JobArtifactsListResponse {
 export interface JobArtifactReadResponse {
   ok: boolean;
   artifact: JobArtifactSummary;
-  content: string;
-  truncated: boolean;
-  size: number;
-  encoding: string;
+  file: {
+    path: string;
+    content: string;
+    truncated: boolean;
+    size: number;
+    encoding: string;
+    returnedBytes: number;
+    maxBytes: number;
+    previewMode: "head";
+    offset: number;
+    nextOffset: number | null;
+    eof: boolean;
+  };
+}
+
+export interface JobControlResponse {
+  ok: boolean;
+  jobId: string;
+  action: "pause" | "resume" | "terminate";
+  state: string;
+  message: string;
 }
 
 export interface ApiProblem {

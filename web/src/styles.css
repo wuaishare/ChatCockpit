@@ -957,6 +957,17 @@ button,
   font-weight: 680;
 }
 
+.job-detail__controls p {
+  margin: 4px 0 0;
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-sm);
+}
+
+.job-detail__control-message {
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-sm);
+}
+
 .job-detail__artifact {
   display: grid;
   gap: 4px;

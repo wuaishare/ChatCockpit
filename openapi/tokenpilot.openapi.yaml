@@ -130,6 +130,53 @@ components:
           items:
             type: string
       required: [title, problem]
+    CodexRunJobPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          description: Public repository alias resolved by the local allowlist. Defaults to tokenpilot.
+        title:
+          type: string
+        instructions:
+          type: string
+          description: Task instructions passed to local Codex CLI.
+        executionMode:
+          type: string
+          enum: [plan, review, develop]
+          default: develop
+        worktreePolicy:
+          type: string
+          enum: [auto, always, never]
+          default: auto
+        branchName:
+          type: string
+        approvalPolicy:
+          type: string
+          enum: [untrusted, on-request, never]
+          default: never
+        sandbox:
+          type: string
+          enum: [read-only, workspace-write, danger-full-access]
+          default: workspace-write
+        verificationCommands:
+          type: array
+          items:
+            type: string
+        acceptanceCriteria:
+          type: array
+          items:
+            type: string
+        commitPolicy:
+          type: string
+          enum: [none, propose, commit]
+          default: propose
+        commitTitle:
+          type: string
+        commitBody:
+          type: string
+      required: [title, instructions]
     PackJobRecord:
       type: object
       additionalProperties: false
@@ -182,6 +229,32 @@ components:
         error:
           type: string
       required: [id, type, status, createdAt, updatedAt, payload]
+    CodexRunJobRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: Unique job id
+        type:
+          type: string
+          enum: [codex-run]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        payload:
+          $ref: '#/components/schemas/CodexRunJobPublicPayload'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/CodexRunJobResult'
+            - type: 'null'
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, payload]
     PackJobResult:
       type: object
       additionalProperties: false
@@ -213,6 +286,24 @@ components:
         title:
           type: string
       required: [title]
+    CodexRunJobPublicPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+        title:
+          type: string
+        executionMode:
+          type: string
+          enum: [plan, review, develop]
+        worktreePolicy:
+          type: string
+          enum: [auto, always, never]
+        commitPolicy:
+          type: string
+          enum: [none, propose, commit]
+      required: [repoId, title]
     TaskPackJobResult:
       type: object
       additionalProperties: false
@@ -226,6 +317,65 @@ components:
         jsonPath:
           type: string
       required: [createdAt, title, markdownPath, jsonPath]
+    CodexRunCommitResult:
+      type: object
+      additionalProperties: false
+      properties:
+        committed:
+          type: boolean
+        commitHash:
+          type: string
+        commitMessage:
+          type: string
+        error:
+          type: string
+      required: [committed]
+    CodexRunJobResult:
+      type: object
+      additionalProperties: false
+      properties:
+        createdAt:
+          type: string
+        repoId:
+          type: string
+        title:
+          type: string
+        executionMode:
+          type: string
+          enum: [plan, review, develop]
+        worktreePolicy:
+          type: string
+          enum: [auto, always, never]
+        worktreeCreated:
+          type: boolean
+        branchName:
+          type: string
+        statusSummary:
+          type: string
+        codexExitCode:
+          type: integer
+        reviewExitCode:
+          type: integer
+        gitStatus:
+          type: string
+        hasDiff:
+          type: boolean
+        commit:
+          $ref: '#/components/schemas/CodexRunCommitResult'
+        promptPath:
+          type: string
+        stdoutPath:
+          type: string
+        stderrPath:
+          type: string
+        diffPath:
+          type: string
+        reviewPath:
+          type: string
+        summaryPath:
+          type: string
+      required:
+        [createdAt, repoId, title, executionMode, worktreePolicy, worktreeCreated, statusSummary, codexExitCode, reviewExitCode, gitStatus, hasDiff, commit, promptPath, stdoutPath, stderrPath, diffPath, reviewPath, summaryPath]
     FileReadPayload:
       type: object
       additionalProperties: false
@@ -293,7 +443,7 @@ components:
       properties:
         key:
           type: string
-          enum: [repomixXml, prompt, summary, manifest, markdown, json]
+          enum: [repomixXml, prompt, summary, manifest, markdown, json, codexPrompt, codexStdout, codexStderr, codexDiff, codexReview, codexSummary]
         label:
           type: string
         path:
@@ -417,6 +567,41 @@ components:
         error:
           type: string
       required: [id, type, status, createdAt, updatedAt, headline, hasResult, hasError, payload]
+    CodexRunJobSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [codex-run]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        headline:
+          type: string
+        hasResult:
+          type: boolean
+        hasError:
+          type: boolean
+        payload:
+          $ref: '#/components/schemas/CodexRunJobPublicPayload'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobArtifactSummary'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/CodexRunJobResult'
+            - type: 'null'
+        error:
+          type: string
+      required: [id, type, status, createdAt, updatedAt, headline, hasResult, hasError, payload]
     CreatePackResponse:
       type: object
       additionalProperties: false
@@ -435,6 +620,30 @@ components:
         job:
           $ref: '#/components/schemas/TaskPackJobRecord'
       required: [ok, job]
+    CreateCodexRunResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        job:
+          $ref: '#/components/schemas/CodexRunJobRecord'
+      required: [ok, job]
+    JobControlResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        jobId:
+          type: string
+        action:
+          type: string
+        state:
+          type: string
+        message:
+          type: string
+      required: [ok, jobId, action, state, message]
     JobsListResponse:
       type: object
       additionalProperties: false
@@ -447,6 +656,7 @@ components:
             oneOf:
               - $ref: '#/components/schemas/PackJobSummary'
               - $ref: '#/components/schemas/TaskPackJobSummary'
+              - $ref: '#/components/schemas/CodexRunJobSummary'
       required: [ok, jobs]
     GetJobResponse:
       type: object
@@ -458,6 +668,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/PackJobSummary'
             - $ref: '#/components/schemas/TaskPackJobSummary'
+            - $ref: '#/components/schemas/CodexRunJobSummary'
       required: [ok, job]
 paths:
   /api/health:
@@ -548,6 +759,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateTaskPackResponse'
+  /api/jobs/codex-run:
+    post:
+      operationId: createCodexRun
+      summary: Queue a local Codex CLI execution job
+      description: Creates a queued write-side job that the local runner executes through Codex CLI in an allowlisted repo. This is not a raw shell endpoint.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodexRunJobPayload'
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCodexRunResponse'
   /api/jobs:
     get:
       operationId: listJobs
@@ -620,7 +851,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [repomixXml, prompt, summary, manifest, markdown, json]
+            enum: [repomixXml, prompt, summary, manifest, markdown, json, codexPrompt, codexStdout, codexStderr, codexDiff, codexReview, codexSummary]
         - name: offset
           in: query
           required: false
@@ -640,6 +871,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobArtifactReadResponse'
+  /api/jobs/{id}/control/{action}:
+    post:
+      operationId: controlJob
+      summary: Pause, resume, or terminate a tracked local job process
+      description: Sends process-control signals to the local runner's tracked Codex process. Supported actions are pause, resume, and terminate.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [pause, resume, terminate]
+      responses:
+        "200":
+          description: Control result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobControlResponse'
+  /api/jobs/control/terminate-all:
+    post:
+      operationId: terminateAllJobs
+      summary: Terminate all tracked local Codex job processes
+      description: Emergency stop for TokenPilot-tracked Codex job processes. This is not a raw shell endpoint.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Termination summary
+          content:
+            application/json:
+              schema:
+                type: object
   /api/files/read:
     post:
       operationId: readFile

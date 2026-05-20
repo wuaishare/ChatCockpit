@@ -26,6 +26,7 @@
     "taskpack": "tsx src/cli/index.ts taskpack",
     "queue-pack": "tsx src/cli/index.ts queue-pack",
     "queue-taskpack": "tsx src/cli/index.ts queue-taskpack",
+    "queue-codex-run": "tsx src/cli/index.ts queue-codex-run",
     "jobs": "tsx src/cli/index.ts jobs",
     "job": "tsx src/cli/index.ts job",
     "server": "tsx src/cli/index.ts server",

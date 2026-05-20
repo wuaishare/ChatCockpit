@@ -2,6 +2,7 @@ import type {
   ApiProblem,
   GptConfigResponse,
   HealthResponse,
+  JobControlResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
   JobDetailResponse,
@@ -75,14 +76,47 @@ export async function fetchJobArtifacts(
 export async function fetchJobArtifactContent(
   id: string,
   artifactKey: string,
+  options?: { offset?: number; limit?: number },
   token?: string | null
 ): Promise<JobArtifactReadResponse> {
+  const query = new URLSearchParams();
+  if (typeof options?.offset === "number") query.set("offset", String(options.offset));
+  if (typeof options?.limit === "number") query.set("limit", String(options.limit));
+  const suffix = query.size ? `?${query.toString()}` : "";
   return requestJson<JobArtifactReadResponse>(
-    `/api/jobs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactKey)}`,
+    `/api/jobs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactKey)}${suffix}`,
     token
   );
 }
 
 export async function fetchGptConfig(token?: string | null): Promise<GptConfigResponse> {
   return requestJson<GptConfigResponse>("/api/gpt/config", token);
+}
+
+async function postJson<T>(path: string, token?: string | null): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: buildHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw await parseProblem(response);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function controlJob(
+  id: string,
+  action: "pause" | "resume" | "terminate",
+  token?: string | null
+): Promise<JobControlResponse> {
+  return postJson<JobControlResponse>(
+    `/api/jobs/${encodeURIComponent(id)}/control/${encodeURIComponent(action)}`,
+    token
+  );
+}
+
+export async function terminateAllJobs(token?: string | null): Promise<{ ok: boolean }> {
+  return postJson<{ ok: boolean }>("/api/jobs/control/terminate-all", token);
 }

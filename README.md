@@ -6,8 +6,8 @@
 
 ## **项目状态：v0.1.0-alpha local-first public preview**
 > TokenPilot 目前仍处在探索早期，但已经不再只是概念说明。<br>
-> 当前已具备 **local-first CLI / server / runner、本地 file-backed job queue、OpenAPI、Files Read API、exposed-mode auth、本地 E2E 验证，以及第一版只读 Web UI MVP**。<br>
-> 当前 Web UI 是 **local-first read-only console**，用于查看运行状态、Jobs 和 GPT Helper。<br>
+> 当前已具备 **local-first CLI / server / runner、本地 file-backed job queue、OpenAPI、Files Read API、Codex Run job、exposed-mode auth、本地 E2E 验证，以及第一版本地操作员 Web UI**。<br>
+> 当前 Web UI 用于查看运行状态、Jobs、GPT Helper，并提供受控任务暂停 / 继续 / 终止入口；写入类任务通过 job API 交给本地 runner 与 Codex CLI。<br>
 > **Full HTTPS / Custom GPT Actions automation loop is still under validation.**<br>
 > 当前仓库可以描述为：**可验证、可继续演进的本地公开预览版本**，而不是完整 HTTPS 管理平台。<br>
 > **如果你对 ChatGPT + Codex 协同开发、Token 优化、任务边界设计这类话题感兴趣，欢迎参与讨论：[GitHub Discussions](https://github.com/wuaishare/TokenPilot/discussions)。**
@@ -30,7 +30,7 @@ TokenPilot：本地任务编排者 / 状态持久化层
 Codex：执行者 / 编码者 / 验证者
 ```
 
-ChatGPT 负责把问题想清楚、边界压清楚、任务写清楚；TokenPilot 负责把结构化任务落成本地 job、维护状态与结果；Codex 负责进入真实仓库执行、验证并交付产物。
+ChatGPT 负责把问题想清楚、边界压清楚、任务写清楚；TokenPilot 负责把结构化任务落成本地 job、维护状态与结果；Codex 负责进入真实仓库执行、验证、自动审查并交付产物。
 
 TokenPilot 不是为了少用 AI，而是为了更会用 AI：
 
@@ -156,9 +156,9 @@ TokenPilot 要求每一次较大推进前，都先生成任务契约；每一次
   ↓
 ChatGPT：澄清目标、压缩上下文、生成结构化任务包
   ↓
-TokenPilot：创建本地 job（taskpack / pack）
+TokenPilot：创建本地 job（taskpack / pack / codex-run）
   ↓
-Local Runner / Codex：claim job、读取关键文件、执行修改或生成产物、运行验证
+Local Runner / Codex：claim job、按 repoId 进入本地 allowlist 仓库，可选 worktree，执行修改或生成产物、运行验证与自动审查
   ↓
 TokenPilot：持久化 job 状态与脱敏后的公开结果
   ↓
@@ -330,7 +330,10 @@ TokenPilot 适合：
 - [x] 写出 GPT Actions / HTTPS 控制面 / 本地 runner 的 OpenAPI 草案
 - [x] 落地 exposed-mode auth
 - [x] 完成本地 E2E 验证
-- [x] 落地 read-only Web UI MVP
+- [x] 落地本地操作员 Web UI MVP
+- [x] 落地 `createCodexRun` 写入类 job：通过本地 Codex CLI 执行、审查并输出 public-safe artifacts
+- [x] 加入默认多 repo 映射治理：`tokenpilot`、`sourceflow-refactor`、`ai-wuaishare-cn`
+- [x] 支持 codex-run 可选 worktree、任务进程控制、diff/review/summary artifacts、显式 commit policy
 - [ ] 提供 `templates/` 模板库
 - [ ] 提供真实案例 `examples/`
 - [ ] 整理 Token Optimization Log
@@ -354,6 +357,7 @@ npm run doctor
 npm run pack
 npm run manifest
 npm run taskpack -- --title "..." --problem "..."
+npm run queue-codex-run -- --title "..." --instructions "..."
 npm run server
 npm run runner
 ```
@@ -362,7 +366,7 @@ npm run runner
 当前本地运行模型是：
 
 ```text
-HTTPS / GPT Actions -> control plane -> queued jobs -> local runner consume -> terminal result
+HTTPS / GPT Actions -> control plane -> queued jobs -> local runner -> Codex CLI -> diff/review/artifacts
 ```
 
 在 macOS 上，推荐直接使用：
@@ -375,7 +379,7 @@ npm run doctor:runtime
 
 这样会把本地 control plane 和 paired runner 一起纳入 LaunchAgent 长跑管理，避免出现 “job 能入队，但一直停留在 queued” 的假健康状态。
 
-如果你已经构建了前端，也可以访问只读型本地控制台：
+如果你已经构建了前端，也可以访问本地操作员控制台：
 
 ```text
 http://127.0.0.1:4318/ui
@@ -395,7 +399,7 @@ task pack
   本地控制面 / runner
 ```
 
-这意味着 TokenPilot 已经从“纯手动流程说明”进入了“可验证、可继续演进”的状态；第一版 Web UI 也只定位为 local-first read-only console。Full HTTPS / Custom GPT Actions automation loop is still under validation.
+这意味着 TokenPilot 已经从“纯手动流程说明”进入了“可验证、可继续演进”的状态；第一版 Web UI 定位为 local-first operator console，提供查看、artifact 预览和受控任务进程控制，不是公网管理平台。Full HTTPS / Custom GPT Actions automation loop is still under validation.
 
 ---
 

@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type {
+  CodexRunJobPayload,
   JobRecord,
   TaskPackInput,
   TokenPilotCommitSummary,
@@ -14,6 +15,7 @@ import type {
   TokenPilotPaths,
   TokenPilotPublicJobRecord
 } from "../types.js";
+import { controlJobProcess, terminateAllJobProcesses } from "../core/job-processes.js";
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { readRecentGitCommits } from "../core/git-history.js";
@@ -45,6 +47,22 @@ const packJobSchema = z
     repoId: "tokenpilot"
   });
 
+const codexRunSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  title: z.string().min(1),
+  instructions: z.string().min(1),
+  executionMode: z.enum(["plan", "review", "develop"]).default("develop"),
+  worktreePolicy: z.enum(["auto", "always", "never"]).default("auto"),
+  branchName: z.string().min(1).optional(),
+  approvalPolicy: z.enum(["untrusted", "on-request", "never"]).default("never"),
+  sandbox: z.enum(["read-only", "workspace-write", "danger-full-access"]).default("workspace-write"),
+  verificationCommands: z.array(z.string()).optional(),
+  acceptanceCriteria: z.array(z.string()).optional(),
+  commitPolicy: z.enum(["none", "propose", "commit"]).default("propose"),
+  commitTitle: z.string().min(1).optional(),
+  commitBody: z.string().min(1).optional()
+});
+
 const fileReadSchema = z.object({
   repoId: z.string().min(1),
   path: z.string().min(1),
@@ -63,7 +81,20 @@ const recentCommitsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(50).optional()
 });
 
-const artifactKeySchema = z.enum(["repomixXml", "prompt", "summary", "manifest", "markdown", "json"]);
+const artifactKeySchema = z.enum([
+  "repomixXml",
+  "prompt",
+  "summary",
+  "manifest",
+  "markdown",
+  "json",
+  "codexPrompt",
+  "codexStdout",
+  "codexStderr",
+  "codexDiff",
+  "codexReview",
+  "codexSummary"
+]);
 
 function normalizePackLikeObject(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -116,6 +147,36 @@ function projectTaskPackLikeObject(value: unknown): unknown {
       ? { markdownPath: record.markdownPath }
       : {}),
     ...(typeof record.jsonPath === "string" ? { jsonPath: record.jsonPath } : {})
+  };
+}
+
+function projectCodexRunLikeObject(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
+    ...(typeof record.repoId === "string" ? { repoId: record.repoId } : {}),
+    ...(typeof record.title === "string" ? { title: record.title } : {}),
+    ...(typeof record.executionMode === "string" ? { executionMode: record.executionMode } : {}),
+    ...(typeof record.worktreePolicy === "string" ? { worktreePolicy: record.worktreePolicy } : {}),
+    ...(typeof record.worktreeCreated === "boolean" ? { worktreeCreated: record.worktreeCreated } : {}),
+    ...(typeof record.branchName === "string" ? { branchName: record.branchName } : {}),
+    ...(typeof record.statusSummary === "string" ? { statusSummary: record.statusSummary } : {}),
+    ...(typeof record.codexExitCode === "number" ? { codexExitCode: record.codexExitCode } : {}),
+    ...(typeof record.reviewExitCode === "number" ? { reviewExitCode: record.reviewExitCode } : {}),
+    ...(typeof record.gitStatus === "string" ? { gitStatus: record.gitStatus } : {}),
+    ...(typeof record.hasDiff === "boolean" ? { hasDiff: record.hasDiff } : {}),
+    ...(record.commit && typeof record.commit === "object" ? { commit: record.commit } : {}),
+    ...(typeof record.promptPath === "string" ? { promptPath: record.promptPath } : {}),
+    ...(typeof record.stdoutPath === "string" ? { stdoutPath: record.stdoutPath } : {}),
+    ...(typeof record.stderrPath === "string" ? { stderrPath: record.stderrPath } : {}),
+    ...(typeof record.diffPath === "string" ? { diffPath: record.diffPath } : {}),
+    ...(typeof record.reviewPath === "string" ? { reviewPath: record.reviewPath } : {}),
+    ...(typeof record.summaryPath === "string" ? { summaryPath: record.summaryPath } : {}),
+    ...(Array.isArray(record.artifacts) ? { artifacts: record.artifacts } : {})
   };
 }
 
@@ -180,6 +241,22 @@ function sanitizeForApi(value: unknown, repoRoot: string): unknown {
       sanitized.result = projectTaskPackLikeObject(sanitized.result);
     }
 
+    if (
+      sanitized.type === "codex-run" &&
+      sanitized.payload &&
+      typeof sanitized.payload === "object"
+    ) {
+      sanitized.payload = projectCodexRunLikeObject(sanitized.payload);
+    }
+
+    if (
+      sanitized.type === "codex-run" &&
+      sanitized.result &&
+      typeof sanitized.result === "object"
+    ) {
+      sanitized.result = projectCodexRunLikeObject(sanitized.result);
+    }
+
     return sanitized;
   }
 
@@ -212,6 +289,14 @@ function deriveJobHeadline(job: JobRecord<TokenPilotJobPayload>): string {
     return "Pack job";
   }
 
+  if (job.type === "codex-run") {
+    const title = (job.payload as { title?: unknown }).title;
+    if (typeof title === "string" && title.trim()) {
+      return title.trim();
+    }
+    return "Codex run job";
+  }
+
   return "TokenPilot job";
 }
 
@@ -230,6 +315,17 @@ function projectJobPayloadForUi(
     const payload = sanitizeForApi(job.payload, repoRoot) as Record<string, unknown>;
     return {
       repoId: typeof payload.repoId === "string" ? payload.repoId : undefined
+    };
+  }
+
+  if (job.type === "codex-run") {
+    const payload = sanitizeForApi(job.payload, repoRoot) as Record<string, unknown>;
+    return {
+      repoId: typeof payload.repoId === "string" ? payload.repoId : undefined,
+      title: typeof payload.title === "string" ? payload.title : undefined,
+      executionMode: typeof payload.executionMode === "string" ? payload.executionMode : undefined,
+      worktreePolicy: typeof payload.worktreePolicy === "string" ? payload.worktreePolicy : undefined,
+      commitPolicy: typeof payload.commitPolicy === "string" ? payload.commitPolicy : undefined
     };
   }
 
@@ -269,6 +365,31 @@ function projectJobResultForUi(
       publicIncludeEntries: Array.isArray(result.publicIncludeEntries)
         ? result.publicIncludeEntries
         : undefined
+    };
+  }
+
+  if (job.type === "codex-run") {
+    return {
+      createdAt: typeof result.createdAt === "string" ? result.createdAt : undefined,
+      repoId: typeof result.repoId === "string" ? result.repoId : undefined,
+      title: typeof result.title === "string" ? result.title : undefined,
+      executionMode: typeof result.executionMode === "string" ? result.executionMode : undefined,
+      worktreePolicy: typeof result.worktreePolicy === "string" ? result.worktreePolicy : undefined,
+      worktreeCreated:
+        typeof result.worktreeCreated === "boolean" ? result.worktreeCreated : undefined,
+      branchName: typeof result.branchName === "string" ? result.branchName : undefined,
+      statusSummary: typeof result.statusSummary === "string" ? result.statusSummary : undefined,
+      codexExitCode: typeof result.codexExitCode === "number" ? result.codexExitCode : undefined,
+      reviewExitCode: typeof result.reviewExitCode === "number" ? result.reviewExitCode : undefined,
+      gitStatus: typeof result.gitStatus === "string" ? result.gitStatus : undefined,
+      hasDiff: typeof result.hasDiff === "boolean" ? result.hasDiff : undefined,
+      commit: result.commit && typeof result.commit === "object" ? result.commit : undefined,
+      promptPath: typeof result.promptPath === "string" ? result.promptPath : undefined,
+      stdoutPath: typeof result.stdoutPath === "string" ? result.stdoutPath : undefined,
+      stderrPath: typeof result.stderrPath === "string" ? result.stderrPath : undefined,
+      diffPath: typeof result.diffPath === "string" ? result.diffPath : undefined,
+      reviewPath: typeof result.reviewPath === "string" ? result.reviewPath : undefined,
+      summaryPath: typeof result.summaryPath === "string" ? result.summaryPath : undefined
     };
   }
 
@@ -383,7 +504,7 @@ function renderUiNotBuiltPage(): string {
   <body>
     <main>
       <h1>TokenPilot Web UI is not built yet</h1>
-      <p>The local-first read-only Web UI is served from built static assets under <code>web/dist</code>.</p>
+      <p>The local-first operator Web UI is served from built static assets under <code>web/dist</code>.</p>
       <p>Build the frontend first, then restart the server and open <code>/ui</code> again.</p>
       <ul>
         <li><code>npm run build:web</code></li>
@@ -572,6 +693,39 @@ export function buildServer(paths: TokenPilotPaths) {
     };
   };
 
+  const createCodexRunHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = codexRunSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: parsed.error.flatten()
+      };
+    }
+
+    const job = createJob(paths, "codex-run", parsed.data as CodexRunJobPayload);
+    return {
+      ok: true,
+      job: sanitizeForApi(job, paths.repoRoot)
+    };
+  };
+
+  const controlJobHandler = async (request: unknown, reply: unknown) => {
+    const params = (request as { params: { id: string; action: string } }).params;
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    if (!["pause", "resume", "terminate"].includes(params.action)) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: "Unsupported control action"
+      };
+    }
+    return controlJobProcess(paths, params.id, params.action as "pause" | "resume" | "terminate");
+  };
+
+  const terminateAllJobsHandler = async () => terminateAllJobProcesses(paths);
+
   const readFileHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = reply as { code: (statusCode: number) => void };
     const parsed = fileReadSchema.safeParse((request as { body: unknown }).body);
@@ -658,6 +812,15 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.post("/api/jobs/taskpack", createTaskPackHandler);
   app.post("/tokenpilot/api/jobs/taskpack", createTaskPackHandler);
+
+  app.post("/api/jobs/codex-run", createCodexRunHandler);
+  app.post("/tokenpilot/api/jobs/codex-run", createCodexRunHandler);
+
+  app.post("/api/jobs/:id/control/:action", controlJobHandler);
+  app.post("/tokenpilot/api/jobs/:id/control/:action", controlJobHandler);
+
+  app.post("/api/jobs/control/terminate-all", terminateAllJobsHandler);
+  app.post("/tokenpilot/api/jobs/control/terminate-all", terminateAllJobsHandler);
 
   app.post("/api/files/read", readFileHandler);
   app.post("/tokenpilot/api/files/read", readFileHandler);

@@ -1,4 +1,5 @@
 import { completeJob, claimNextQueuedJob, failJob } from "../core/jobs.js";
+import { runCodexRunJob } from "../core/codex-run.js";
 import { runPack } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
 import {
@@ -11,13 +12,25 @@ import {
 } from "./status.js";
 import type {
   PackJobPayload,
+  CodexRunJobPayload,
   TaskPackJobPayload,
   TokenPilotJobPayload,
   TokenPilotPaths
 } from "../types.js";
 
 function isTaskPackPayload(payload: TokenPilotJobPayload): payload is TaskPackJobPayload {
-  return typeof (payload as TaskPackJobPayload).title === "string";
+  return (
+    typeof (payload as TaskPackJobPayload).title === "string" &&
+    typeof (payload as CodexRunJobPayload).instructions !== "string"
+  );
+}
+
+function isCodexRunPayload(payload: TokenPilotJobPayload): payload is CodexRunJobPayload {
+  return (
+    typeof (payload as CodexRunJobPayload).repoId === "string" &&
+    typeof (payload as CodexRunJobPayload).title === "string" &&
+    typeof (payload as CodexRunJobPayload).instructions === "string"
+  );
 }
 
 function isPackPayload(payload: TokenPilotJobPayload): payload is PackJobPayload {
@@ -84,6 +97,13 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
     if (job.type === "taskpack" && isTaskPackPayload(job.payload)) {
       const artifact = createTaskPack(paths, job.payload);
       completeJob(paths, job.id, artifact);
+      markRunnerCompleted(paths);
+      return true;
+    }
+
+    if (job.type === "codex-run" && isCodexRunPayload(job.payload)) {
+      const result = await runCodexRunJob(paths, job.id, job.payload);
+      completeJob(paths, job.id, result);
       markRunnerCompleted(paths);
       return true;
     }

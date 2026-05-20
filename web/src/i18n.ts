@@ -146,6 +146,13 @@ export interface UiCopy {
     rowArtifacts: string;
     rowIncludeEntries: string;
     rowArtifactPreview: string;
+    controlTitle: string;
+    controlDescription: string;
+    controlPause: string;
+    controlResume: string;
+    controlTerminate: string;
+    controlTerminateAll: string;
+    controlTerminateAllComplete: string;
   };
   gpt: {
     boundaryTitle: string;
@@ -182,7 +189,7 @@ const zhCN: UiCopy = {
   pageTitle: "TokenPilot 控制台",
   header: {
     title: "TokenPilot 控制台",
-    subtitle: "本地优先、只读工作流控制台。",
+    subtitle: "本地优先的工作流操作员控制台。",
     refresh: "刷新",
     refreshTooltip: "刷新健康状态与任务数据",
     dashboard: "总览",
@@ -218,7 +225,8 @@ const zhCN: UiCopy = {
   },
   type: {
     pack: "打包",
-    taskpack: "任务包"
+    taskpack: "任务包",
+    "codex-run": "Codex 执行"
   },
   notices: {
     loadingConsoleTitle: "正在加载 TokenPilot 控制台",
@@ -239,7 +247,7 @@ const zhCN: UiCopy = {
   dashboard: {
     boundaryTitle: "当前阶段边界",
     boundaryDescription:
-      "当前为本地优先的只读 Web UI MVP。完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
+      "当前为本地优先 Web UI MVP，支持状态查看与受控任务进程控制。完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
     healthCard: "健康状态",
     modeCard: "运行模式",
     authCard: "鉴权状态",
@@ -293,7 +301,7 @@ const zhCN: UiCopy = {
     emptyTitle: "暂无任务",
     emptyDescription: "当前本地队列为空。",
     queueTitle: "任务队列",
-    queueDescription: "只读队列视图。",
+    queueDescription: "队列状态与任务控制入口。",
     detailTitle: "所选任务详情",
     detailDescription: "受保护的任务详情视图。",
     detailRefreshing: "正在刷新详情…",
@@ -318,7 +326,14 @@ const zhCN: UiCopy = {
     rowError: "错误信息",
     rowArtifacts: "可见 artifacts",
     rowIncludeEntries: "公开 include 条目",
-    rowArtifactPreview: "artifact 预览"
+    rowArtifactPreview: "artifact 预览",
+    controlTitle: "任务控制",
+    controlDescription: "对当前运行任务发出暂停、继续或终止信号。",
+    controlPause: "暂停",
+    controlResume: "继续",
+    controlTerminate: "终止",
+    controlTerminateAll: "终止所有运行任务",
+    controlTerminateAllComplete: "已向所有已跟踪运行任务发送终止信号"
   },
   gpt: {
     boundaryTitle: "阶段边界提醒",
@@ -354,7 +369,7 @@ const zhCN: UiCopy = {
       "- 确认 /api/health 可访问。",
       "- 使用 /openapi.yaml 作为 schema 来源。",
       "- 如果需要鉴权，只在当前本地浏览器会话中提供访问令牌。",
-      "- 将预期控制在本地优先只读 MVP 范围内。",
+      "- 将预期控制在本地优先操作员 MVP 范围内。",
       "- 不要把当前状态当作完整 HTTPS / Custom GPT Actions 生产闭环。"
     ]
   }
@@ -364,7 +379,7 @@ const enUS: UiCopy = {
   pageTitle: "TokenPilot Operator Console",
   header: {
     title: "TokenPilot Operator Console",
-    subtitle: "Local-first, read-only workflow console.",
+    subtitle: "Local-first workflow operator console.",
     refresh: "Refresh",
     refreshTooltip: "Refresh health and job data",
     dashboard: "Dashboard",
@@ -400,7 +415,8 @@ const enUS: UiCopy = {
   },
   type: {
     pack: "Pack",
-    taskpack: "Task Pack"
+    taskpack: "Task Pack",
+    "codex-run": "Codex Run"
   },
   notices: {
     loadingConsoleTitle: "Loading TokenPilot console",
@@ -476,7 +492,7 @@ const enUS: UiCopy = {
     emptyTitle: "No jobs yet",
     emptyDescription: "The local queue is currently empty.",
     queueTitle: "Jobs Queue",
-    queueDescription: "Read-only queue view from /api/jobs.",
+    queueDescription: "Queue status and job control entry points.",
     detailTitle: "Selected Job Detail",
     detailDescription: "Protected detail view from /api/jobs/:id.",
     detailRefreshing: "Refreshing detail…",
@@ -502,7 +518,14 @@ const enUS: UiCopy = {
     rowError: "Error",
     rowArtifacts: "Visible artifacts",
     rowIncludeEntries: "Public include entries",
-    rowArtifactPreview: "Artifact preview"
+    rowArtifactPreview: "Artifact preview",
+    controlTitle: "Job Controls",
+    controlDescription: "Send pause, resume, or terminate signals to the selected running job.",
+    controlPause: "Pause",
+    controlResume: "Resume",
+    controlTerminate: "Terminate",
+    controlTerminateAll: "Terminate all running jobs",
+    controlTerminateAllComplete: "Terminate signals were sent to all tracked running jobs"
   },
   gpt: {
     boundaryTitle: "Phase-2 boundary reminder",
@@ -538,7 +561,7 @@ const enUS: UiCopy = {
       "- Confirm /api/health is reachable.",
       "- Use /openapi.yaml as the schema source.",
       "- If auth is required, provide the access token only in this local browser session.",
-      "- Keep expectations within local-first read-only MVP scope.",
+      "- Keep expectations within the local-first operator MVP scope.",
       "- Do not treat current status as a complete HTTPS / Custom GPT Actions production loop."
     ]
   }

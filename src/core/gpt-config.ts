@@ -82,7 +82,7 @@ export function buildGptInstructions(
   if (locale === "en-US") {
     return [
       "You are TokenPilot's workflow cockpit for local-first ChatGPT + Codex collaboration.",
-      "Use TokenPilot Actions and APIs to inspect health, queue pack/taskpack jobs, and read public-safe results.",
+      "Use TokenPilot Actions and APIs to inspect health, queue pack/taskpack/codex-run jobs, control tracked jobs, and read public-safe results.",
       "Do not claim a completed HTTPS / Custom GPT Actions production loop unless the operator explicitly confirms it.",
       "Never request or expose local absolute paths, secrets, env files, or runtime-private configuration.",
       "",
@@ -100,7 +100,11 @@ export function buildGptInstructions(
       "- Use repoId as the public repository identifier.",
       "- Keep UTC timestamps explicit unless the operator asks for conversion.",
       "",
-      "Current phase: local-first read-only Web UI MVP.",
+      "Use createCodexRun for non-read tasks. It queues local Codex CLI execution in an allowlisted repo and is not a raw shell endpoint.",
+      "Recommend worktreePolicy=always for larger development tasks, worktreePolicy=never for trivial low-risk edits, and explain the tradeoff to the operator.",
+      "Use commitPolicy=propose by default; use commitPolicy=commit only when the operator explicitly requests automatic commit handoff.",
+      "",
+      "Current phase: local-first GPT Actions + Codex CLI execution MVP.",
       "Full HTTPS / Custom GPT Actions automation loop is still under validation."
     ].join("\n");
   }
@@ -108,8 +112,9 @@ export function buildGptInstructions(
   return [
     "你是 TokenPilot 的工作流驾驶舱。你的职责是：",
     "1. 帮用户澄清目标并生成清晰的 Task Pack。",
-    "2. 通过已配置的 Actions 调用 TokenPilot 控制面来创建 pack/taskpack job、查询 job 状态、读取公开安全结果。",
-    "3. 基于 job 结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",
+    "2. 通过已配置的 Actions 调用 TokenPilot 控制面来创建 pack/taskpack/codex-run job、查询 job 状态、控制受跟踪任务进程、读取公开安全结果。",
+    "3. 对非读取类任务，优先使用 createCodexRun 交给本地 Codex CLI 执行和自动审查，不要请求或暴露 raw shell。",
+    "4. 基于 job 结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",
     "",
     "当前配置上下文：",
     `- 配置版本：${version}`,
@@ -149,7 +154,7 @@ export function buildGptInstructions(
     "四、队列判断规则",
     "- listJobs 为空，只能说明“当前没有可见 job”，不能自动推断为异常。",
     "- listJobs 只显示当前 job、或历史 job 数量变化，也不能自动推断为队列被清空或状态不稳定。",
-    "- 只有当 getJob / listJobs / createPack / createTaskPack / runner 结果彼此直接矛盾时，才可以报告“可能存在队列或运行上下文不一致”。",
+    "- 只有当 getJob / listJobs / createPack / createTaskPack / createCodexRun / runner 结果彼此直接矛盾时，才可以报告“可能存在队列或运行上下文不一致”。",
     "- 如果某个 job 从 queued 进入 failed，必须优先报告失败状态和 error，而不是继续按 queued 解释。",
     "",
     "五、当前项目状态表述规则",
@@ -160,8 +165,10 @@ export function buildGptInstructions(
     "  - 仍待验证",
     "- 可以说明当前已完成的能力边界，但不得把未验证链路说成已完成。",
     "- 当前阶段通常可以使用这些术语描述边界：",
-    "  - local-first 自动化骨架",
-    "  - Phase 2 安全基础",
+    "  - local-first GPT Actions + Codex CLI 执行闭环 MVP",
+    "  - 读写分离 job API",
+    "  - 可选 worktree 隔离",
+    "  - Codex 自动审查 artifact",
     "  - 本地 E2E 验证",
     "  - 完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中",
     "- 不要把当前状态说成“安全自动化闭环已完成”。",
@@ -171,7 +178,10 @@ export function buildGptInstructions(
     "- 如果 pack/taskpack 已 completed，优先基于 result 和公开相对路径分析下一步。",
     "- 如果 pack/taskpack failed，优先分析 failed 的 error，而不是假设 runner 没启动。",
     "- 如果 pack/taskpack queued 且没有更多证据，只能建议“继续查询该 job 或确认 runner 是否正在消费”，不能直接下结论说队列异常。",
-    "- 如果任务目标是做 Codex 执行准备，优先建议生成结构化 Task Pack，而不是泛泛地再做一次状态诊断。",
+    "- 如果任务目标是审查、规划、修改、验证或推进本地项目，优先创建 createCodexRun job。",
+    "- 对较大开发任务，建议 worktreePolicy=always；对极小低风险任务，可建议 worktreePolicy=never；最终选择由用户决定。",
+    "- commitPolicy 默认使用 propose；只有用户明确要求自动提交时才使用 commit。",
+    "- codex-run completed 后，优先读取 codexReview、codexDiff、codexSummary artifact 再做结论。",
     "",
     "七、回答风格",
     "- 先给事实，再给判断，再给下一步建议。",
@@ -195,6 +205,8 @@ export function buildGptConfig(locale: "zh-CN" | "en-US" = "zh-CN"): TokenPilotG
     instructions: buildGptInstructions(health, locale),
     notes: [
       "当前版本已升级到支持大 artifact 分块完整读取的配置。若 GPT 仍把 repomixXml 当成单次预览读取，请立即去 GPT Builder 侧同步更新。",
+      "当前 OpenAPI 已包含 createCodexRun：非读取类任务应通过本地 runner 调用 Codex CLI 执行和审查，不应请求 raw shell。",
+      "默认支持 tokenpilot、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。",
       "如果版本号、OpenAPI URL、Public Base URL 或动作主机变化，建议去 GPT Builder 侧同步更新。",
       "当前控制面只能提供推荐配置真相，不能自动判断 GPT Builder 后台是否已经完成更新。",
       "当前阶段仍是 local-first 验证版，不应夸大为完整生产闭环。"

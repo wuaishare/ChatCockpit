@@ -49,6 +49,21 @@ function makeTempRepoRoot(): string {
     "console.log('tokenpilot-web-ui-fixture')",
     "utf8"
   );
+  for (const args of [
+    ["init"],
+    ["config", "user.email", "tokenpilot@example.com"],
+    ["config", "user.name", "TokenPilot Test"],
+    ["add", "-A"],
+    ["commit", "-m", "init"]
+  ]) {
+    const result = spawnSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8"
+    });
+    if ((result.status ?? 1) !== 0) {
+      throw new Error(result.stderr || `git ${args.join(" ")} failed`);
+    }
+  }
   return repoRoot;
 }
 
@@ -139,6 +154,26 @@ async function waitForJobTerminalState(
   }
 
   throw new Error(`Timed out waiting for job ${jobId} to reach a terminal state`);
+}
+
+async function runRunnerUntilJobTerminal(
+  projectRoot: string,
+  port: number,
+  jobId: string,
+  token: string,
+  env: Record<string, string>,
+  maxRuns = 10
+): Promise<Record<string, unknown>> {
+  for (let attempt = 0; attempt < maxRuns; attempt += 1) {
+    const run = runCommand(projectRoot, ["run", "runner", "--", "--once"], env);
+    assert.equal(run.code, 0);
+    try {
+      return await waitForJobTerminalState(port, jobId, token);
+    } catch {
+      // Another queued job may have been consumed first; continue.
+    }
+  }
+  return await waitForJobTerminalState(port, jobId, token);
 }
 
 function isTerminalStatus(value: unknown): boolean {
@@ -274,7 +309,7 @@ async function runE2E(): Promise<void> {
     assert.equal(typeof gptConfigBody.config.instructions, "string");
     assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
     assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
-    assert.match(gptConfigBody.config.version, /^\d{2}\.\d{4}\.\d{6} \(\d+\)$/);
+    assert.match(gptConfigBody.config.version, /^\d{2}\.\d{3}\.\d{8} \(\d+\)$/);
 
     const recentCommits = await fetch(`http://127.0.0.1:${port}/api/git/recent-commits?limit=5`, {
       headers: { Authorization: "Bearer test-token" }
@@ -395,6 +430,25 @@ async function runE2E(): Promise<void> {
     const secondTaskpackJob = await secondTaskpackResponse.json();
     const secondTaskpackId = secondTaskpackJob.job.id as string;
 
+    const codexRunResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/codex-run`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        title: "Codex run mock E2E",
+        instructions: "Create a tiny mock change and return public-safe artifacts.",
+        executionMode: "develop",
+        worktreePolicy: "never",
+        commitPolicy: "propose"
+      })
+    });
+    assert.equal(codexRunResponse.status, 200);
+    const codexRunJob = await codexRunResponse.json();
+    const codexRunId = codexRunJob.job.id as string;
+
     const packJobResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/pack`, {
       method: "POST",
       headers: {
@@ -416,6 +470,58 @@ async function runE2E(): Promise<void> {
     assert.equal(defaultPackJobResponse.status, 200);
     const defaultPackJobBody = await defaultPackJobResponse.json();
     assert.equal(defaultPackJobBody.job.payload.repoId, "tokenpilot");
+
+    const codexRunFinal = await runRunnerUntilJobTerminal(
+      projectRoot,
+      port,
+      codexRunId,
+      "test-token",
+      {
+        TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
+        TOKENPILOT_CONFIG_PATH: configPath,
+        TOKENPILOT_CODEX_RUNNER_MODE: "mock"
+      }
+    );
+    assert.equal(codexRunFinal.status, "completed");
+    assert.doesNotMatch(JSON.stringify(codexRunFinal), /\/Users\//);
+    assert.equal((codexRunFinal.result as Record<string, unknown>)?.hasDiff, true);
+
+    const codexArtifactsResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${codexRunId}/artifacts`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(codexArtifactsResponse.status, 200);
+    const codexArtifactsBody = (await codexArtifactsResponse.json()) as {
+      artifacts: Array<{ key: string; path: string }>;
+    };
+    assert.ok(codexArtifactsBody.artifacts.some((artifact) => artifact.key === "codexDiff"));
+    assert.ok(codexArtifactsBody.artifacts.some((artifact) => artifact.key === "codexReview"));
+
+    const codexDiffResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${codexRunId}/artifacts/codexDiff`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(codexDiffResponse.status, 200);
+    const codexDiffBody = (await codexDiffResponse.json()) as {
+      file: { content: string };
+    };
+    assert.match(codexDiffBody.file.content, /mock codex run/);
+    assert.doesNotMatch(codexDiffBody.file.content, /\/Users\//);
+
+    const controlMissingResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${codexRunId}/control/terminate`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(controlMissingResponse.status, 200);
+    const controlMissingBody = await controlMissingResponse.json();
+    assert.equal(typeof controlMissingBody.message, "string");
 
     const watchRun = spawn(
       "npm",

@@ -21,8 +21,12 @@ interface JobsViewProps {
   artifactContent: string | null;
   selectedArtifactKey: string | null;
   error: string | null;
+  controlLoading: boolean;
+  controlMessage: string | null;
   onSelectJob: (jobId: string) => void;
   onSelectArtifact: (artifactKey: string) => void;
+  onControlJob: (action: "pause" | "resume" | "terminate") => void;
+  onTerminateAll: () => void;
   onRefresh: () => void;
 }
 
@@ -149,8 +153,12 @@ export function JobsView({
   artifactContent,
   selectedArtifactKey,
   error,
+  controlLoading,
+  controlMessage,
   onSelectJob,
   onSelectArtifact,
+  onControlJob,
+  onTerminateAll,
   onRefresh
 }: JobsViewProps) {
   const copy = getUiCopy(locale);
@@ -304,6 +312,42 @@ export function JobsView({
         {selectedJob ? (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             {detailLoading ? <div className="detail-loading">{copy.jobs.detailRefreshing}</div> : null}
+
+            <div className="job-detail__block job-detail__controls">
+              <div>
+                <strong>{copy.jobs.controlTitle}</strong>
+                <p>{copy.jobs.controlDescription}</p>
+              </div>
+              <Space wrap>
+                <Button
+                  size="small"
+                  onClick={() => onControlJob("pause")}
+                  disabled={controlLoading || selectedJob.status !== "running"}
+                >
+                  {copy.jobs.controlPause}
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => onControlJob("resume")}
+                  loading={controlLoading}
+                  disabled={selectedJob.status !== "running"}
+                >
+                  {copy.jobs.controlResume}
+                </Button>
+                <Button
+                  size="small"
+                  danger
+                  onClick={() => onControlJob("terminate")}
+                  disabled={controlLoading || selectedJob.status !== "running"}
+                >
+                  {copy.jobs.controlTerminate}
+                </Button>
+                <Button size="small" danger loading={controlLoading} onClick={onTerminateAll}>
+                  {copy.jobs.controlTerminateAll}
+                </Button>
+              </Space>
+              {controlMessage ? <span className="job-detail__control-message">{controlMessage}</span> : null}
+            </div>
 
             <Descriptions column={1} size="small">
               {details.map((row) => (

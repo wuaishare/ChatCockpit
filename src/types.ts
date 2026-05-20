@@ -1,4 +1,4 @@
-export type JobType = "pack" | "taskpack";
+export type JobType = "pack" | "taskpack" | "codex-run";
 
 export interface TokenPilotPaths {
   repoRoot: string;
@@ -60,6 +60,66 @@ export interface TaskPackArtifact {
   input: TaskPackInput;
 }
 
+export type CodexRunExecutionMode = "plan" | "review" | "develop";
+export type CodexRunWorktreePolicy = "auto" | "always" | "never";
+export type CodexRunCommitPolicy = "none" | "propose" | "commit";
+export type CodexRunSandbox = "read-only" | "workspace-write" | "danger-full-access";
+export type CodexRunApprovalPolicy = "untrusted" | "on-request" | "never";
+
+export interface CodexRunJobPayload {
+  repoId: string;
+  title: string;
+  instructions: string;
+  executionMode?: CodexRunExecutionMode;
+  worktreePolicy?: CodexRunWorktreePolicy;
+  branchName?: string;
+  approvalPolicy?: CodexRunApprovalPolicy;
+  sandbox?: CodexRunSandbox;
+  verificationCommands?: string[];
+  acceptanceCriteria?: string[];
+  commitPolicy?: CodexRunCommitPolicy;
+  commitTitle?: string;
+  commitBody?: string;
+}
+
+export interface CodexRunArtifact {
+  key: Extract<
+    JobArtifactKey,
+    "codexPrompt" | "codexStdout" | "codexStderr" | "codexDiff" | "codexReview" | "codexSummary"
+  >;
+  label: string;
+  path: string;
+  contentType: string;
+}
+
+export interface CodexRunJobResult {
+  createdAt: string;
+  repoId: string;
+  title: string;
+  executionMode: CodexRunExecutionMode;
+  worktreePolicy: CodexRunWorktreePolicy;
+  worktreeCreated: boolean;
+  branchName?: string;
+  statusSummary: string;
+  codexExitCode: number;
+  reviewExitCode: number;
+  gitStatus: string;
+  hasDiff: boolean;
+  commit: {
+    committed: boolean;
+    commitHash?: string;
+    commitMessage?: string;
+    error?: string;
+  };
+  promptPath: string;
+  stdoutPath: string;
+  stderrPath: string;
+  diffPath: string;
+  reviewPath: string;
+  summaryPath: string;
+  artifacts: CodexRunArtifact[];
+}
+
 export interface JobRecord<TPayload = unknown> {
   id: string;
   type: JobType;
@@ -77,7 +137,7 @@ export interface PackJobPayload {
 
 export interface TaskPackJobPayload extends TaskPackInput {}
 
-export type TokenPilotJobPayload = PackJobPayload | TaskPackJobPayload;
+export type TokenPilotJobPayload = PackJobPayload | TaskPackJobPayload | CodexRunJobPayload;
 
 export interface FileReadPayload {
   repoId: string;
@@ -135,7 +195,19 @@ export interface TokenPilotPublicJobRecord {
   error?: string;
 }
 
-export type JobArtifactKey = "repomixXml" | "prompt" | "summary" | "manifest" | "markdown" | "json";
+export type JobArtifactKey =
+  | "repomixXml"
+  | "prompt"
+  | "summary"
+  | "manifest"
+  | "markdown"
+  | "json"
+  | "codexPrompt"
+  | "codexStdout"
+  | "codexStderr"
+  | "codexDiff"
+  | "codexReview"
+  | "codexSummary";
 
 export interface TokenPilotJobArtifactSummary {
   key: JobArtifactKey;

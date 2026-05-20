@@ -1,6 +1,6 @@
 # TokenPilot Web UI Design System
 
-> Status: Implemented for the read-only Web UI MVP.
+> Status: Implemented for the local-first operator Web UI MVP.
 >
 > This document records the project-owned visual system. It uses Lobe UI and Ant Design as implementation references, but TokenPilot owns the palette, theme tokens, layout rhythm, and component vocabulary.
 
@@ -62,7 +62,7 @@ LobeHub-aligned implementation notes:
 - Panel: translucent but readable control surface, one border, one shadow vocabulary, no nested glass stacks.
 - Summary block: single source of truth for health, mode, auth, OpenAPI URL, and public base URL.
 - Secondary metrics: compact only, and only when they add new information.
-- Jobs and GPT Helper: read-only operator surfaces, no write-capable management affordances.
+- Jobs and GPT Helper: compact operator surfaces. Job control affordances are limited to tracked-process pause, resume, and terminate actions.
 
 Decorative icons must not render as unnamed buttons. Use non-interactive icon wrappers for visual markers and reserve real buttons for actions.
 

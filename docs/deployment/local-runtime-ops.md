@@ -6,7 +6,7 @@ Provide a stable way to keep the local TokenPilot control plane alive for develo
 
 Current boundary:
 
-- this document covers the local runtime for the control plane and the local-first read-only Web UI
+- this document covers the local runtime for the control plane, runner, and local-first operator Web UI
 - it does not imply that provider adapters or the full HTTPS / Custom GPT Actions production loop are complete
 - for GPT HTTPS loop validation, the operator must treat `control plane + runner` as one runtime pair; starting only the control plane is not enough
 
@@ -69,7 +69,7 @@ http://127.0.0.1:4318/ui
 
 Current boundary:
 
-- the Web UI is read-only
+- the Web UI can inspect public-safe status/artifacts and send controlled pause/resume/terminate signals for tracked jobs
 - it is intended for a local human operator
 - in auth-required mode, protected data still requires the operator to provide a bearer token in the browser session
 - it is not a public internet management console
@@ -78,7 +78,7 @@ Current boundary:
 
 - `TOKENPILOT_EXPOSED=false` is the default local-development mode. If `TOKENPILOT_API_TOKEN` is omitted, private job APIs remain open for local-only testing.
 - `TOKENPILOT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, or Custom GPT Actions access. In this mode, `TOKENPILOT_API_TOKEN` is mandatory and the server will refuse to start without it.
-- even in exposed mode, the current Web UI MVP remains read-only and the full HTTPS / Custom GPT Actions automation loop is still under validation
+- even in exposed mode, the current Web UI MVP remains an operator console rather than a public management platform, and the full HTTPS / Custom GPT Actions automation loop is still under validation
 
 Example:
 

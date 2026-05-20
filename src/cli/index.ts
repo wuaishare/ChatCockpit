@@ -19,6 +19,7 @@ Usage:
   tokenpilot taskpack --title "..." --problem "..."
   tokenpilot queue-pack
   tokenpilot queue-taskpack --title "..." --problem "..."
+  tokenpilot queue-codex-run --title "..." --instructions "..." [--repo-id tokenpilot]
   tokenpilot jobs
   tokenpilot job --id "<job-id>"
   tokenpilot server
@@ -87,6 +88,36 @@ async function main(): Promise<void> {
       const job = createJob(paths, "taskpack", {
         title,
         problem
+      });
+      process.stdout.write(`${JSON.stringify(job, null, 2)}\n`);
+      return;
+    }
+    case "queue-codex-run": {
+      const repoId = getFlag("--repo-id") || "tokenpilot";
+      const title = getFlag("--title");
+      const instructions = getFlag("--instructions");
+      const executionMode = getFlag("--execution-mode") || "develop";
+      const worktreePolicy = getFlag("--worktree-policy") || "auto";
+      const commitPolicy = getFlag("--commit-policy") || "propose";
+      if (!title || !instructions) {
+        throw new Error("queue-codex-run requires --title and --instructions");
+      }
+      if (!["plan", "review", "develop"].includes(executionMode)) {
+        throw new Error("queue-codex-run --execution-mode must be plan, review, or develop");
+      }
+      if (!["auto", "always", "never"].includes(worktreePolicy)) {
+        throw new Error("queue-codex-run --worktree-policy must be auto, always, or never");
+      }
+      if (!["none", "propose", "commit"].includes(commitPolicy)) {
+        throw new Error("queue-codex-run --commit-policy must be none, propose, or commit");
+      }
+      const job = createJob(paths, "codex-run", {
+        repoId,
+        title,
+        instructions,
+        executionMode: executionMode as "plan" | "review" | "develop",
+        worktreePolicy: worktreePolicy as "auto" | "always" | "never",
+        commitPolicy: commitPolicy as "none" | "propose" | "commit"
       });
       process.stdout.write(`${JSON.stringify(job, null, 2)}\n`);
       return;

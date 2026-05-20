@@ -12,7 +12,7 @@ import type {
 
 const MAX_ARTIFACT_BYTES = 64 * 1024;
 const MAX_ARTIFACT_CHUNK_BYTES = 64 * 1024;
-const TEXT_ARTIFACT_EXTENSIONS = new Set([".md", ".txt", ".json", ".xml"]);
+const TEXT_ARTIFACT_EXTENSIONS = new Set([".md", ".txt", ".json", ".xml", ".jsonl", ".patch", ".diff"]);
 
 interface ResolvedJobArtifact extends TokenPilotJobArtifactSummary {
   diskPath: string;
@@ -124,6 +124,17 @@ export function listJobArtifacts(
     return [
       buildArtifactSummary("markdown", "Task Pack Markdown", "text/markdown", result.markdownPath, paths),
       buildArtifactSummary("json", "Task Pack JSON", "application/json", result.jsonPath, paths)
+    ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
+  }
+
+  if (job.type === "codex-run") {
+    return [
+      buildArtifactSummary("codexPrompt", "Codex Prompt", "text/markdown", result.promptPath, paths),
+      buildArtifactSummary("codexStdout", "Codex JSONL Output", "application/jsonl", result.stdoutPath, paths),
+      buildArtifactSummary("codexStderr", "Codex Stderr", "text/plain", result.stderrPath, paths),
+      buildArtifactSummary("codexDiff", "Git Diff", "text/x-diff", result.diffPath, paths),
+      buildArtifactSummary("codexReview", "Codex Review", "text/markdown", result.reviewPath, paths),
+      buildArtifactSummary("codexSummary", "Codex Summary", "application/json", result.summaryPath, paths)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 

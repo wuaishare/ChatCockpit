@@ -9,12 +9,14 @@ import {
   UnorderedListOutlined
 } from "@ant-design/icons";
 import {
+  controlJob,
   fetchGptConfig,
   fetchHealth,
   fetchJob,
   fetchJobArtifactContent,
   fetchJobArtifacts,
-  fetchJobs
+  fetchJobs,
+  terminateAllJobs
 } from "./api";
 import tokenPilotLogo from "./assets/tokenpilot-logo.svg";
 import { DashboardView } from "./components/DashboardView";
@@ -101,6 +103,8 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
   const [artifactContent, setArtifactContent] = useState<string | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
+  const [controlLoading, setControlLoading] = useState(false);
+  const [controlMessage, setControlMessage] = useState<string | null>(null);
   const copy = getUiCopy(locale);
 
   useEffect(() => {
@@ -255,8 +259,8 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
     setArtifactError(null);
 
     try {
-      const response = await fetchJobArtifactContent(jobId, artifactKey, currentToken);
-      setArtifactContent(response.content);
+      const response = await fetchJobArtifactContent(jobId, artifactKey, undefined, currentToken);
+      setArtifactContent(response.file.content);
     } catch (error) {
       setArtifactContent(null);
       setArtifactError(getErrorMessage(error));
@@ -282,6 +286,44 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
   function updateLocale(nextLocale: LocaleCode) {
     sessionStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
     setLocale(nextLocale);
+  }
+
+  async function controlSelectedJob(action: "pause" | "resume" | "terminate") {
+    if (!selectedJobId) {
+      return;
+    }
+
+    const targetJobId = selectedJobId;
+    setControlLoading(true);
+    setControlMessage(null);
+    setJobsError(null);
+
+    try {
+      const response = await controlJob(targetJobId, action, token);
+      setControlMessage(response.message);
+      await loadJobDetail(targetJobId, token);
+      await loadJobs(token, health.authRequired, false);
+    } catch (error) {
+      setJobsError(getErrorMessage(error));
+    } finally {
+      setControlLoading(false);
+    }
+  }
+
+  async function terminateRunningJobs() {
+    setControlLoading(true);
+    setControlMessage(null);
+    setJobsError(null);
+
+    try {
+      await terminateAllJobs(token);
+      setControlMessage(copy.jobs.controlTerminateAllComplete);
+      await loadJobs(token, health.authRequired, activeView === "jobs");
+    } catch (error) {
+      setJobsError(getErrorMessage(error));
+    } finally {
+      setControlLoading(false);
+    }
   }
 
   const counts = countJobs(jobs);
@@ -443,9 +485,12 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
               artifactContent={artifactContent}
               selectedArtifactKey={selectedArtifactKey}
               error={jobsError}
+              controlLoading={controlLoading}
+              controlMessage={controlMessage}
               onRefresh={() => void loadJobs(token, health.authRequired, true)}
               onSelectJob={(jobId) => {
                 setSelectedJobId(jobId);
+                setControlMessage(null);
                 void loadJobDetail(jobId, token);
               }}
               onSelectArtifact={(artifactKey) => {
@@ -453,6 +498,8 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
                 setSelectedArtifactKey(artifactKey);
                 void loadArtifactContent(selectedJobId, artifactKey, token);
               }}
+              onControlJob={(action) => void controlSelectedJob(action)}
+              onTerminateAll={() => void terminateRunningJobs()}
             />
           </Suspense>
         ) : null}

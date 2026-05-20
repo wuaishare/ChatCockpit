@@ -65,6 +65,9 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 - `queued/running` 只能当作中间态，不能直接判异常
 - 不输出本地绝对路径
 - 对外统一使用 `repoId`
+- 对审查、规划、开发、验证等非读取类任务，优先使用 `createCodexRun`
+- 较大开发任务建议 `worktreePolicy=always`，极小任务可建议 `worktreePolicy=never`，最终由用户决定
+- 默认 `commitPolicy=propose`；只有用户明确要求自动提交时才使用 `commitPolicy=commit`
 - 不夸大当前阶段完成度
 
 ## 当前阶段推荐边界表述
