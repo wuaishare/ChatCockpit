@@ -15,3 +15,7 @@ npm run ingress:install
 echo
 echo "== production verification =="
 npm run doctor:production
+
+echo
+echo "== public loop verification =="
+npm run verify:public-gpt-loop

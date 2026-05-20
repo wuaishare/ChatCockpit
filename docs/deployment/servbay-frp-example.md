@@ -97,6 +97,7 @@ This script:
 - writes a proxy-first vhost that routes `/api/*`, `/openapi.yaml`, `/ui`, `/favicon.ico`, and `/`
   to `127.0.0.1:4318`
 - reloads nginx through `servbayctl`
+- probes read paths and a minimal `createPack` write path before returning success
 
 For a fresh public loop regression after ingress changes:
 

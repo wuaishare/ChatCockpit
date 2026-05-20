@@ -233,11 +233,11 @@ case "${ACTION}" in
     write_runner_plist
     install_plists
     if is_running; then
-      if launchctl_runner_registered; then
-        echo "TokenPilot server already running with PID $(cat "${PID_FILE}") and runner LaunchAgent is already registered"
+      if launchctl_service_registered && launchctl_runner_registered; then
+        echo "TokenPilot server already running with PID $(cat "${PID_FILE}") and both LaunchAgents are already registered"
         exit 0
       fi
-      echo "TokenPilot server already running with PID $(cat "${PID_FILE}"); refreshing runner LaunchAgent registration"
+      echo "TokenPilot server already running with PID $(cat "${PID_FILE}"); refreshing LaunchAgent registration"
     fi
     bootout_services
     bootstrap_services

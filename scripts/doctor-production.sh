@@ -22,4 +22,3 @@ cd "${ROOT_DIR}"
 run_check "runtime-status" npm run mvp:status
 run_check "runtime-doctor" npm run doctor:runtime
 run_check "ingress-doctor" npm run doctor:ingress
-run_check "public-gpt-loop" npm run verify:public-gpt-loop

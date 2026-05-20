@@ -137,6 +137,18 @@ For a broader production-style view that chains runtime, ingress, and public GPT
 npm run doctor:production
 ```
 
+`doctor:production` is intentionally read-only. It validates:
+
+- current paired LaunchAgent state
+- current runtime truth
+- current ingress truth
+
+If you also want a write-path proof through the public HTTPS loop, run:
+
+```bash
+npm run verify:public-gpt-loop
+```
+
 If the goal is recovery rather than diagnosis, use:
 
 ```bash
@@ -147,7 +159,8 @@ Current repair order is intentionally simple and explicit:
 
 1. restart paired control-plane + runner LaunchAgents
 2. reinstall the repo-native ingress truth for `tokenpilot.example.com`
-3. rerun the production doctor, including the public GPT-loop regression
+3. rerun the read-only production doctor
+4. rerun the public GPT-loop regression
 
 For public HTTPS stability, also use:
 

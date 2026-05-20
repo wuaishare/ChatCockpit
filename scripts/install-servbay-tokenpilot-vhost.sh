@@ -97,3 +97,4 @@ echo "Ingress probes:"
 probe_until_ok "health" "https://${HOST}/api/health"
 probe_until_ok "openapi" "https://${HOST}/openapi.yaml"
 probe_until_ok "ui" "https://${HOST}/ui"
+probe_until_ok "create-pack" "https://${HOST}/api/jobs/pack" "POST" '{"repoId":"tokenpilot"}'
