@@ -132,3 +132,14 @@ export interface TokenPilotJobArtifactSummary {
   path: string;
   contentType: string;
 }
+
+export interface TokenPilotTextPreview {
+  path: string;
+  content: string;
+  truncated: boolean;
+  size: number;
+  encoding: string;
+  returnedBytes: number;
+  maxBytes: number;
+  previewMode: "head";
+}

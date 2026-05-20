@@ -6,10 +6,11 @@ import type {
   JobRecord,
   TokenPilotJobArtifactSummary,
   TokenPilotJobPayload,
+  TokenPilotTextPreview,
   TokenPilotPaths
 } from "../types.js";
 
-const MAX_ARTIFACT_BYTES = 256 * 1024;
+const MAX_ARTIFACT_BYTES = 64 * 1024;
 const TEXT_ARTIFACT_EXTENSIONS = new Set([".md", ".txt", ".json", ".xml"]);
 
 interface ResolvedJobArtifact extends TokenPilotJobArtifactSummary {
@@ -101,10 +102,7 @@ export function readJobArtifact(
   artifactKey: JobArtifactKey
 ): {
   artifact: TokenPilotJobArtifactSummary;
-  content: string;
-  truncated: boolean;
-  size: number;
-  encoding: string;
+  preview: TokenPilotTextPreview;
 } {
   const artifact = listJobArtifacts(job, paths).find((entry) => entry.key === artifactKey);
   if (!artifact) {
@@ -114,9 +112,10 @@ export function readJobArtifact(
   const raw = fs.readFileSync(artifact.diskPath, "utf8");
   const size = Buffer.byteLength(raw, "utf8");
   const truncated = size > MAX_ARTIFACT_BYTES;
-  const content = truncated
-    ? Buffer.from(raw, "utf8").subarray(0, MAX_ARTIFACT_BYTES).toString("utf8")
-    : raw;
+  const previewBuffer = truncated
+    ? Buffer.from(raw, "utf8").subarray(0, MAX_ARTIFACT_BYTES)
+    : Buffer.from(raw, "utf8");
+  const content = previewBuffer.toString("utf8");
 
   return {
     artifact: {
@@ -125,9 +124,15 @@ export function readJobArtifact(
       path: artifact.path,
       contentType: artifact.contentType
     },
-    content,
-    truncated,
-    size,
-    encoding: "utf8"
+    preview: {
+      path: artifact.path,
+      content,
+      truncated,
+      size,
+      encoding: "utf8",
+      returnedBytes: Buffer.byteLength(content, "utf8"),
+      maxBytes: MAX_ARTIFACT_BYTES,
+      previewMode: "head"
+    }
   };
 }

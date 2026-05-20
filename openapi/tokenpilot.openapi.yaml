@@ -237,7 +237,14 @@ components:
           type: integer
         encoding:
           type: string
-      required: [path, content, truncated, size, encoding]
+        returnedBytes:
+          type: integer
+        maxBytes:
+          type: integer
+        previewMode:
+          type: string
+          enum: [head]
+      required: [path, content, truncated, size, encoding, returnedBytes, maxBytes, previewMode]
     JobArtifactSummary:
       type: object
       additionalProperties: false
@@ -260,15 +267,9 @@ components:
           type: boolean
         artifact:
           $ref: '#/components/schemas/JobArtifactSummary'
-        content:
-          type: string
-        truncated:
-          type: boolean
-        size:
-          type: integer
-        encoding:
-          type: string
-      required: [ok, artifact, content, truncated, size, encoding]
+        file:
+          $ref: '#/components/schemas/FileReadResult'
+      required: [ok, artifact, file]
     JobArtifactsListResponse:
       type: object
       additionalProperties: false

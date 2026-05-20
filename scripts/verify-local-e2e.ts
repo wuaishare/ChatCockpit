@@ -508,9 +508,13 @@ async function runE2E(): Promise<void> {
       }
     );
     assert.equal(packPromptResponse.status, 200);
-    const packPromptBody = (await packPromptResponse.json()) as { content: string };
-    assert.match(packPromptBody.content, /TokenPilot Repo Bundle Prompt/);
-    assert.doesNotMatch(packPromptBody.content, /\/Users\//);
+    const packPromptBody = (await packPromptResponse.json()) as {
+      file: { content: string; previewMode: string; maxBytes: number };
+    };
+    assert.match(packPromptBody.file.content, /TokenPilot Repo Bundle Prompt/);
+    assert.doesNotMatch(packPromptBody.file.content, /\/Users\//);
+    assert.equal(packPromptBody.file.previewMode, "head");
+    assert.equal(typeof packPromptBody.file.maxBytes, "number");
 
     const packPromptFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
       method: "POST",
@@ -525,9 +529,10 @@ async function runE2E(): Promise<void> {
     });
     assert.equal(packPromptFileRead.status, 200);
     const packPromptFileReadBody = (await packPromptFileRead.json()) as {
-      file: { content: string };
+      file: { content: string; previewMode: string; maxBytes: number };
     };
     assert.match(packPromptFileReadBody.file.content, /TokenPilot Repo Bundle Prompt/);
+    assert.equal(packPromptFileReadBody.file.previewMode, "head");
 
     const packSummaryFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
       method: "POST",
@@ -555,9 +560,11 @@ async function runE2E(): Promise<void> {
     });
     assert.equal(packXmlFileRead.status, 200);
     const packXmlFileReadBody = (await packXmlFileRead.json()) as {
-      file: { content: string };
+      file: { content: string; truncated: boolean; previewMode: string; maxBytes: number };
     };
     assert.match(packXmlFileReadBody.file.content, /repoBundle|file_summary/);
+    assert.equal(packXmlFileReadBody.file.previewMode, "head");
+    assert.equal(typeof packXmlFileReadBody.file.maxBytes, "number");
 
     assert.doesNotMatch(JSON.stringify(secondTaskpackFinal), /task-pack\.md|task-pack\.json/);
   } finally {

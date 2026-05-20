@@ -5,11 +5,12 @@ import { loadUserConfig } from "./config.js";
 import type {
   FileReadBatchPayload,
   FileReadPayload,
+  TokenPilotTextPreview,
   TokenPilotPaths,
   TokenPilotUserConfig
 } from "../types.js";
 
-const MAX_FILE_BYTES = 128 * 1024;
+const MAX_FILE_BYTES = 64 * 1024;
 const MAX_BATCH_FILES = 10;
 
 const BLOCKED_SEGMENTS = [
@@ -125,13 +126,7 @@ function ensureTextFile(filePath: string): void {
 function readFileContent(
   repoRoot: string,
   relativePath: string
-): {
-  path: string;
-  content: string;
-  truncated: boolean;
-  size: number;
-  encoding: string;
-} {
+): TokenPilotTextPreview {
   const diskPath = path.join(repoRoot, relativePath);
   if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
     throw new Error(`File not found: ${relativePath}`);
@@ -142,16 +137,20 @@ function readFileContent(
   const raw = fs.readFileSync(diskPath, "utf8");
   const size = Buffer.byteLength(raw, "utf8");
   const truncated = size > MAX_FILE_BYTES;
-  const content = truncated
-    ? Buffer.from(raw, "utf8").subarray(0, MAX_FILE_BYTES).toString("utf8")
-    : raw;
+  const previewBuffer = truncated
+    ? Buffer.from(raw, "utf8").subarray(0, MAX_FILE_BYTES)
+    : Buffer.from(raw, "utf8");
+  const content = previewBuffer.toString("utf8");
 
   return {
     path: relativePath,
     content,
     truncated,
     size,
-    encoding: "utf8"
+    encoding: "utf8",
+    returnedBytes: Buffer.byteLength(content, "utf8"),
+    maxBytes: MAX_FILE_BYTES,
+    previewMode: "head"
   };
 }
 

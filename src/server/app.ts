@@ -476,10 +476,7 @@ export function buildServer(paths: TokenPilotPaths) {
       return {
         ok: true,
         artifact: artifact.artifact,
-        content: artifact.content,
-        truncated: artifact.truncated,
-        size: artifact.size,
-        encoding: artifact.encoding
+        file: artifact.preview
       };
     } catch (error) {
       fastifyReply.code(404);
