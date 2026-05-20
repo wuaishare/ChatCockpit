@@ -14,7 +14,6 @@ const MAX_BATCH_FILES = 10;
 
 const BLOCKED_SEGMENTS = [
   ".git",
-  ".tokenpilot",
   ".codex",
   ".servbay",
   "node_modules",
@@ -90,6 +89,12 @@ function validateRelativePath(inputPath: string): string {
     throw new Error("Requested path is blocked");
   }
 
+  if (normalized.startsWith(".tokenpilot/")) {
+    if (!isAllowedTokenPilotArtifactPath(normalized)) {
+      throw new Error("Requested path is blocked");
+    }
+  }
+
   const basename = parts[parts.length - 1] || "";
   if (
     basename.startsWith(".env") ||
@@ -100,6 +105,14 @@ function validateRelativePath(inputPath: string): string {
   }
 
   return normalized;
+}
+
+function isAllowedTokenPilotArtifactPath(relativePath: string): boolean {
+  return (
+    /^\.tokenpilot\/repomix-output(?:-[A-Za-z0-9TZ:-]+-[0-9a-f]{8})?\.xml$/i.test(relativePath) ||
+    /^\.tokenpilot\/bundles\/bundle-(?:prompt|summary|manifest)\.(md|json)$/i.test(relativePath) ||
+    /^\.tokenpilot\/bundles\/bundle-[A-Za-z0-9TZ:-]+-[0-9a-f]{8}-(prompt|summary|manifest)\.(md|json)$/i.test(relativePath)
+  );
 }
 
 function ensureTextFile(filePath: string): void {

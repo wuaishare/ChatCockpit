@@ -46,7 +46,7 @@ The API only reads files when all of these are true:
 
 ## Why `.tokenpilot/` stays blocked
 
-Direct reads into `.tokenpilot/` remain blocked on purpose.
+Direct reads into most of `.tokenpilot/` remain blocked on purpose.
 
 That directory contains mixed local runtime state, queue files, logs, and generated artifacts. Opening it up as a generic read surface would weaken the control-plane boundary and make it easier to accidentally expose internal runtime data.
 
@@ -60,7 +60,14 @@ These endpoints only allow public-safe artifact reads that are already declared 
 - pack: `repomixXml`, `prompt`, `summary`, `manifest`
 - taskpack: `markdown`, `json`
 
-This keeps GPT / automation artifact consumption possible without turning `.tokenpilot/` into a generic remote file browser.
+For compatibility, `POST /api/files/read` and `POST /api/files/read-batch` also allow a narrow subset of public-safe artifact paths under `.tokenpilot/`, including:
+
+- `.tokenpilot/repomix-output-*.xml`
+- `.tokenpilot/bundles/bundle-*-prompt.md`
+- `.tokenpilot/bundles/bundle-*-summary.md`
+- `.tokenpilot/bundles/bundle-*-manifest.json`
+
+Legacy fixed filenames such as `.tokenpilot/repomix-output.xml`, `.tokenpilot/bundles/bundle-prompt.md`, and `.tokenpilot/bundles/bundle-summary.md` remain readable for backward compatibility, but new pack runs now produce timestamped artifact names.
 
 ## Output model
 

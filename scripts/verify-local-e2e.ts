@@ -500,6 +500,53 @@ async function runE2E(): Promise<void> {
     assert.match(packPromptBody.content, /TokenPilot Repo Bundle Prompt/);
     assert.doesNotMatch(packPromptBody.content, /\/Users\//);
 
+    const packPromptFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        path: (packResults[0]?.result as Record<string, unknown>).promptPath
+      })
+    });
+    assert.equal(packPromptFileRead.status, 200);
+    const packPromptFileReadBody = (await packPromptFileRead.json()) as {
+      file: { content: string };
+    };
+    assert.match(packPromptFileReadBody.file.content, /TokenPilot Repo Bundle Prompt/);
+
+    const packSummaryFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        path: (packResults[0]?.result as Record<string, unknown>).summaryPath
+      })
+    });
+    assert.equal(packSummaryFileRead.status, 200);
+
+    const packXmlFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        path: (packResults[0]?.result as Record<string, unknown>).repomixXmlPath
+      })
+    });
+    assert.equal(packXmlFileRead.status, 200);
+    const packXmlFileReadBody = (await packXmlFileRead.json()) as {
+      file: { content: string };
+    };
+    assert.match(packXmlFileReadBody.file.content, /repoBundle|file_summary/);
+
     assert.doesNotMatch(JSON.stringify(secondTaskpackFinal), /task-pack\.md|task-pack\.json/);
   } finally {
     await stopChild(server.child);
