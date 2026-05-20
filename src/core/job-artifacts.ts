@@ -18,6 +18,39 @@ interface ResolvedJobArtifact extends TokenPilotJobArtifactSummary {
   diskPath: string;
 }
 
+function isUtf8Boundary(buffer: Buffer, offset: number): boolean {
+  if (offset <= 0 || offset >= buffer.length) {
+    return true;
+  }
+
+  return (buffer[offset] & 0b1100_0000) !== 0b1000_0000;
+}
+
+function assertUtf8Boundary(buffer: Buffer, offset: number): void {
+  if (!isUtf8Boundary(buffer, offset)) {
+    throw new Error("offset must align to a UTF-8 boundary");
+  }
+}
+
+function resolveChunkEnd(buffer: Buffer, offset: number, requestedEnd: number): number {
+  let end = Math.min(buffer.length, requestedEnd);
+
+  while (end > offset && !isUtf8Boundary(buffer, end)) {
+    end -= 1;
+  }
+
+  if (end > offset) {
+    return end;
+  }
+
+  end = Math.min(buffer.length, requestedEnd);
+  while (end < buffer.length && !isUtf8Boundary(buffer, end)) {
+    end += 1;
+  }
+
+  return end;
+}
+
 function ensureArtifactPath(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) {
     return null;
@@ -111,17 +144,18 @@ export function readJobArtifact(
     throw new Error(`Artifact not found for key: ${artifactKey}`);
   }
 
-  const raw = fs.readFileSync(artifact.diskPath, "utf8");
-  const size = Buffer.byteLength(raw, "utf8");
-  const sourceBuffer = Buffer.from(raw, "utf8");
+  const sourceBuffer = fs.readFileSync(artifact.diskPath);
+  const size = sourceBuffer.length;
   const offset = Math.max(0, Math.floor(options?.offset ?? 0));
   const limit = Math.max(
     1,
     Math.min(MAX_ARTIFACT_CHUNK_BYTES, Math.floor(options?.limit ?? MAX_ARTIFACT_BYTES))
   );
-  const previewBuffer = sourceBuffer.subarray(offset, offset + limit);
+  assertUtf8Boundary(sourceBuffer, offset);
+  const end = resolveChunkEnd(sourceBuffer, offset, offset + limit);
+  const previewBuffer = sourceBuffer.subarray(offset, end);
   const content = previewBuffer.toString("utf8");
-  const nextOffset = offset + previewBuffer.length;
+  const nextOffset = end;
   const eof = nextOffset >= size;
   const truncated = offset > 0 || !eof;
 
@@ -138,7 +172,7 @@ export function readJobArtifact(
       truncated,
       size,
       encoding: "utf8",
-      returnedBytes: Buffer.byteLength(content, "utf8"),
+      returnedBytes: previewBuffer.length,
       maxBytes: limit,
       previewMode: "head",
       offset,
