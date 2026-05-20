@@ -11,6 +11,7 @@ import type {
 } from "../types.js";
 
 const MAX_ARTIFACT_BYTES = 64 * 1024;
+const MAX_ARTIFACT_CHUNK_BYTES = 64 * 1024;
 const TEXT_ARTIFACT_EXTENSIONS = new Set([".md", ".txt", ".json", ".xml"]);
 
 interface ResolvedJobArtifact extends TokenPilotJobArtifactSummary {
@@ -99,7 +100,8 @@ export function listJobArtifacts(
 export function readJobArtifact(
   job: JobRecord<TokenPilotJobPayload>,
   paths: TokenPilotPaths,
-  artifactKey: JobArtifactKey
+  artifactKey: JobArtifactKey,
+  options?: { offset?: number; limit?: number }
 ): {
   artifact: TokenPilotJobArtifactSummary;
   preview: TokenPilotTextPreview;
@@ -111,11 +113,17 @@ export function readJobArtifact(
 
   const raw = fs.readFileSync(artifact.diskPath, "utf8");
   const size = Buffer.byteLength(raw, "utf8");
-  const truncated = size > MAX_ARTIFACT_BYTES;
-  const previewBuffer = truncated
-    ? Buffer.from(raw, "utf8").subarray(0, MAX_ARTIFACT_BYTES)
-    : Buffer.from(raw, "utf8");
+  const sourceBuffer = Buffer.from(raw, "utf8");
+  const offset = Math.max(0, Math.floor(options?.offset ?? 0));
+  const limit = Math.max(
+    1,
+    Math.min(MAX_ARTIFACT_CHUNK_BYTES, Math.floor(options?.limit ?? MAX_ARTIFACT_BYTES))
+  );
+  const previewBuffer = sourceBuffer.subarray(offset, offset + limit);
   const content = previewBuffer.toString("utf8");
+  const nextOffset = offset + previewBuffer.length;
+  const eof = nextOffset >= size;
+  const truncated = offset > 0 || !eof;
 
   return {
     artifact: {
@@ -131,8 +139,11 @@ export function readJobArtifact(
       size,
       encoding: "utf8",
       returnedBytes: Buffer.byteLength(content, "utf8"),
-      maxBytes: MAX_ARTIFACT_BYTES,
-      previewMode: "head"
+      maxBytes: limit,
+      previewMode: "head",
+      offset,
+      nextOffset: eof ? null : nextOffset,
+      eof
     }
   };
 }

@@ -45,7 +45,9 @@ const packJobSchema = z
 
 const fileReadSchema = z.object({
   repoId: z.string().min(1),
-  path: z.string().min(1)
+  path: z.string().min(1),
+  offset: z.number().int().nonnegative().optional(),
+  limit: z.number().int().positive().optional()
 });
 
 const fileReadBatchSchema = z.object({
@@ -454,7 +456,13 @@ export function buildServer(paths: TokenPilotPaths) {
   };
 
   const readJobArtifactHandler = async (request: unknown, reply: unknown) => {
-    const params = (request as { params: { id: string; artifactKey: string } }).params;
+    const params = (request as {
+      params: { id: string; artifactKey: string };
+      query?: { offset?: string; limit?: string };
+    }).params;
+    const query = (request as {
+      query?: { offset?: string; limit?: string };
+    }).query ?? {};
     const fastifyReply = reply as { code: (statusCode: number) => void };
     const job = getJob(paths, params.id);
     if (!job) {
@@ -472,7 +480,10 @@ export function buildServer(paths: TokenPilotPaths) {
     }
 
     try {
-      const artifact = readJobArtifact(job.job, paths, parsedArtifactKey.data);
+      const artifact = readJobArtifact(job.job, paths, parsedArtifactKey.data, {
+        offset: query.offset ? Number(query.offset) : undefined,
+        limit: query.limit ? Number(query.limit) : undefined
+      });
       return {
         ok: true,
         artifact: artifact.artifact,

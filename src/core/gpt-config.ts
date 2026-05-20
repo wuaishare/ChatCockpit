@@ -119,6 +119,7 @@ export function buildGptInstructions(
     "- 不要把受控只读能力说成任意远程文件系统访问，更不要暗示已经具备任意写入能力。",
     "- 如果接口返回 truncated=true，只能表述为“已读取到预览片段/前段内容”，不能声称已完整读取大文件正文。",
     "- 对于 pack artifact，优先使用 job artifact read 接口；如果需要完整大文件，应明确说明当前只拿到了受控预览。",
+    "- 如果需要完整读取大型 repomixXml，应使用 offset/limit 继续分块读取，直到 nextOffset=null 或 eof=true。",
     "",
     "四、队列判断规则",
     "- listJobs 为空，只能说明“当前没有可见 job”，不能自动推断为异常。",

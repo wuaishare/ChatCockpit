@@ -82,6 +82,8 @@ export type TokenPilotJobPayload = PackJobPayload | TaskPackJobPayload;
 export interface FileReadPayload {
   repoId: string;
   path: string;
+  offset?: number;
+  limit?: number;
 }
 
 export interface FileReadBatchPayload {
@@ -142,4 +144,7 @@ export interface TokenPilotTextPreview {
   returnedBytes: number;
   maxBytes: number;
   previewMode: "head";
+  offset?: number;
+  nextOffset?: number | null;
+  eof?: boolean;
 }

@@ -11,6 +11,7 @@ import type {
 } from "../types.js";
 
 const MAX_FILE_BYTES = 64 * 1024;
+const MAX_FILE_CHUNK_BYTES = 64 * 1024;
 const MAX_BATCH_FILES = 10;
 
 const BLOCKED_SEGMENTS = [
@@ -125,7 +126,8 @@ function ensureTextFile(filePath: string): void {
 
 function readFileContent(
   repoRoot: string,
-  relativePath: string
+  relativePath: string,
+  options?: { offset?: number; limit?: number }
 ): TokenPilotTextPreview {
   const diskPath = path.join(repoRoot, relativePath);
   if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
@@ -136,11 +138,14 @@ function readFileContent(
 
   const raw = fs.readFileSync(diskPath, "utf8");
   const size = Buffer.byteLength(raw, "utf8");
-  const truncated = size > MAX_FILE_BYTES;
-  const previewBuffer = truncated
-    ? Buffer.from(raw, "utf8").subarray(0, MAX_FILE_BYTES)
-    : Buffer.from(raw, "utf8");
+  const sourceBuffer = Buffer.from(raw, "utf8");
+  const offset = Math.max(0, Math.floor(options?.offset ?? 0));
+  const limit = Math.max(1, Math.min(MAX_FILE_CHUNK_BYTES, Math.floor(options?.limit ?? MAX_FILE_BYTES)));
+  const previewBuffer = sourceBuffer.subarray(offset, offset + limit);
   const content = previewBuffer.toString("utf8");
+  const nextOffset = offset + previewBuffer.length;
+  const eof = nextOffset >= size;
+  const truncated = offset > 0 || !eof;
 
   return {
     path: relativePath,
@@ -149,8 +154,11 @@ function readFileContent(
     size,
     encoding: "utf8",
     returnedBytes: Buffer.byteLength(content, "utf8"),
-    maxBytes: MAX_FILE_BYTES,
-    previewMode: "head"
+    maxBytes: limit,
+    previewMode: "head",
+    offset,
+    nextOffset: eof ? null : nextOffset,
+    eof
   };
 }
 
@@ -166,7 +174,10 @@ export function readRepoFile(paths: TokenPilotPaths, payload: FileReadPayload) {
   return {
     ok: true,
     repoId: payload.repoId,
-    file: readFileContent(repoRoot, relativePath)
+    file: readFileContent(repoRoot, relativePath, {
+      offset: payload.offset,
+      limit: payload.limit
+    })
   };
 }
 

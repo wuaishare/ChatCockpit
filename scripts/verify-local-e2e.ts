@@ -560,11 +560,46 @@ async function runE2E(): Promise<void> {
     });
     assert.equal(packXmlFileRead.status, 200);
     const packXmlFileReadBody = (await packXmlFileRead.json()) as {
-      file: { content: string; truncated: boolean; previewMode: string; maxBytes: number };
+      file: {
+        content: string;
+        truncated: boolean;
+        previewMode: string;
+        maxBytes: number;
+        nextOffset: number | null;
+        eof: boolean;
+      };
     };
     assert.match(packXmlFileReadBody.file.content, /repoBundle|file_summary/);
     assert.equal(packXmlFileReadBody.file.previewMode, "head");
     assert.equal(typeof packXmlFileReadBody.file.maxBytes, "number");
+    if (packXmlFileReadBody.file.truncated) {
+      assert.equal(typeof packXmlFileReadBody.file.nextOffset, "number");
+      assert.equal(packXmlFileReadBody.file.eof, false);
+
+      const packXmlFileReadChunk2 = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer test-token",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          repoId: "tokenpilot",
+          path: (packResults[0]?.result as Record<string, unknown>).repomixXmlPath,
+          offset: packXmlFileReadBody.file.nextOffset,
+          limit: 4096
+        })
+      });
+      assert.equal(packXmlFileReadChunk2.status, 200);
+      const packXmlFileReadChunk2Body = (await packXmlFileReadChunk2.json()) as {
+        file: { content: string; offset: number; returnedBytes: number };
+      };
+      assert.equal(typeof packXmlFileReadChunk2Body.file.offset, "number");
+      assert.equal(packXmlFileReadChunk2Body.file.offset, packXmlFileReadBody.file.nextOffset);
+      assert.equal(packXmlFileReadChunk2Body.file.returnedBytes > 0, true);
+    } else {
+      assert.equal(packXmlFileReadBody.file.nextOffset, null);
+      assert.equal(packXmlFileReadBody.file.eof, true);
+    }
 
     assert.doesNotMatch(JSON.stringify(secondTaskpackFinal), /task-pack\.md|task-pack\.json/);
   } finally {

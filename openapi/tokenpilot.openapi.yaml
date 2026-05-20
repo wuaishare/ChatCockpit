@@ -209,6 +209,14 @@ components:
         path:
           type: string
           description: Relative text file path inside the mapped repository.
+        offset:
+          type: integer
+          minimum: 0
+          description: Optional byte offset for chunked reading.
+        limit:
+          type: integer
+          minimum: 1
+          description: Optional maximum byte count for chunked reading.
       required: [repoId, path]
     FileReadBatchPayload:
       type: object
@@ -244,7 +252,15 @@ components:
         previewMode:
           type: string
           enum: [head]
-      required: [path, content, truncated, size, encoding, returnedBytes, maxBytes, previewMode]
+        offset:
+          type: integer
+        nextOffset:
+          oneOf:
+            - type: integer
+            - type: "null"
+        eof:
+          type: boolean
+      required: [path, content, truncated, size, encoding, returnedBytes, maxBytes, previewMode, offset, nextOffset, eof]
     JobArtifactSummary:
       type: object
       additionalProperties: false
@@ -557,6 +573,18 @@ paths:
           schema:
             type: string
             enum: [repomixXml, prompt, summary, manifest, markdown, json]
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
       responses:
         "200":
           description: Artifact content
