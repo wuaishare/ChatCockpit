@@ -69,7 +69,7 @@ write_server_plist() {
     <key>TOKENPILOT_PORT</key>
     <string>${PORT}</string>
     <key>TOKENPILOT_PUBLIC_BASE_URL</key>
-    <string>${TOKENPILOT_PUBLIC_BASE_URL:-https://tokenpilot.example.com}</string>
+    <string>${TOKENPILOT_PUBLIC_BASE_URL:-}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
@@ -111,7 +111,7 @@ write_runner_plist() {
     <key>TOKENPILOT_PORT</key>
     <string>${PORT}</string>
     <key>TOKENPILOT_PUBLIC_BASE_URL</key>
-    <string>${TOKENPILOT_PUBLIC_BASE_URL:-https://tokenpilot.example.com}</string>
+    <string>${TOKENPILOT_PUBLIC_BASE_URL:-}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
