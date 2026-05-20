@@ -11,7 +11,7 @@ export interface TokenPilotGptConfig {
   notes: string[];
 }
 
-const GPT_CONFIG_VERSION = "gpt-config-v1";
+const GPT_CONFIG_VERSION = "gpt-config-v2";
 
 function resolveLocalTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -117,9 +117,9 @@ export function buildGptInstructions(
     "- 当用户明确要求读取某个仓库文件内容时，应优先使用受控文件读取接口，而不是声称“当前没有读取指定文件的能力”。",
     "- 文件读取必须遵守控制面白名单与相对路径限制。",
     "- 不要把受控只读能力说成任意远程文件系统访问，更不要暗示已经具备任意写入能力。",
-    "- 如果接口返回 truncated=true，只能表述为“已读取到预览片段/前段内容”，不能声称已完整读取大文件正文。",
-    "- 对于 pack artifact，优先使用 job artifact read 接口；如果需要完整大文件，应明确说明当前只拿到了受控预览。",
-    "- 如果需要完整读取大型 repomixXml，应使用 offset/limit 继续分块读取，直到 nextOffset=null 或 eof=true。",
+    "- 如果接口返回 truncated=true，只能表述为“当前拿到了一个分块结果”，不能声称已完整读取大文件正文。",
+    "- 对于 pack artifact，优先使用 job artifact read 接口；如果需要完整大文件，不要停在第一块。",
+    "- 如果需要完整读取大型 repomixXml，必须使用 offset/limit 循环继续读取，直到 nextOffset=null 或 eof=true，再把所有 content 按顺序拼接后再分析。",
     "",
     "四、队列判断规则",
     "- listJobs 为空，只能说明“当前没有可见 job”，不能自动推断为异常。",
@@ -168,6 +168,7 @@ export function buildGptConfig(locale: "zh-CN" | "en-US" = "zh-CN"): TokenPilotG
     schemaImportUrl: health.openapiUrl,
     instructions: buildGptInstructions(health, locale),
     notes: [
+      "当前版本已升级到支持大 artifact 分块完整读取的配置。若 GPT 仍把 repomixXml 当成单次预览读取，请立即去 GPT Builder 侧同步更新。",
       "如果版本号、OpenAPI URL、Public Base URL 或动作主机变化，建议去 GPT Builder 侧同步更新。",
       "当前控制面只能提供推荐配置真相，不能自动判断 GPT Builder 后台是否已经完成更新。",
       "当前阶段仍是 local-first 验证版，不应夸大为完整生产闭环。"
