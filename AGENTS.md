@@ -17,4 +17,5 @@
 ## Commit Message Rule
 
 - Git commit titles in this repo should use simplified Chinese by default.
-- If bilingual context is useful, keep the Chinese summary in the commit title and put any English explanation in the commit body.
+- Commit descriptions in this repo should use simplified Chinese only; do not add English in the commit body.
+- When a commit body is needed, prefer short bullet-style lists to improve readability.
