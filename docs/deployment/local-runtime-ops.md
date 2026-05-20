@@ -8,6 +8,7 @@ Current boundary:
 
 - this document covers the local runtime for the control plane and the local-first read-only Web UI
 - it does not imply that provider adapters or the full HTTPS / Custom GPT Actions production loop are complete
+- for GPT HTTPS loop validation, the operator must treat `control plane + runner` as one runtime pair; starting only the control plane is not enough
 
 ## Build Once
 
@@ -27,6 +28,16 @@ TOKENPILOT_PORT=4318 \
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com \
 ./scripts/macos-manage-local-server.sh start
 ```
+
+This macOS helper now installs and manages two LaunchAgents together:
+
+- `com.wuaishare.tokenpilot.control-plane`
+- `com.wuaishare.tokenpilot.runner`
+
+The intent is explicit:
+
+- HTTPS / GPT Actions can create jobs through the control plane
+- the local runner must stay alive to consume the same queue and advance jobs out of `queued`
 
 ## Recommended Persistent Env File
 
@@ -85,9 +96,78 @@ TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 ./scripts/macos-manage-local-server.sh status
 curl http://127.0.0.1:4318/api/health
 curl http://127.0.0.1:4318/ui
+npm run doctor:runtime
 npm run runner -- --once
 npm run runner -- --watch --interval 3
 ```
+
+On macOS, `status` should be read as two separate truths:
+
+- whether the TokenPilot process is currently listening on `127.0.0.1:4318`
+- whether the persistent LaunchAgent is actually installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.control-plane.plist`
+- whether the paired runner LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.runner.plist`
+
+If a public ServBay site or reverse proxy still appears "started" but the upstream control plane did not come back after reboot, check these in order:
+
+```bash
+npm run doctor:runtime
+./scripts/macos-manage-local-server.sh status
+lsof -nP -iTCP:4318 -sTCP:LISTEN
+launchctl print gui/$(id -u)/com.wuaishare.tokenpilot.control-plane | sed -n '1,80p'
+curl -H 'Host: tokenpilot.example.com' http://127.0.0.1:4318/api/health
+curl -H 'Host: tokenpilot.example.com' http://127.0.0.1:4318/
+```
+
+`npm run doctor:runtime` is the fastest truth source for this incident class. It prints:
+
+- current local control-plane host/port/public base URL
+- LaunchAgent registration truth
+- runner LaunchAgent registration truth
+- listener truth on `127.0.0.1:4318`
+- runner status file truth, including heartbeat and last consumed job when available
+- direct local `/api/health`
+- local `/ui`
+- `Host:`-routed health check for the configured public hostname when available
+- root probe for the public hostname, which should now return a small public JSON payload instead of an auth error
+- recent server log tail
+
+For a broader production-style view that chains runtime, ingress, and public GPT-loop truth together:
+
+```bash
+npm run doctor:production
+```
+
+If the goal is recovery rather than diagnosis, use:
+
+```bash
+npm run repair:production
+```
+
+Current repair order is intentionally simple and explicit:
+
+1. restart paired control-plane + runner LaunchAgents
+2. reinstall the repo-native ingress truth for `tokenpilot.example.com`
+3. rerun the production doctor, including the public GPT-loop regression
+
+For public HTTPS stability, also use:
+
+```bash
+npm run doctor:ingress
+```
+
+This check does not mutate ServBay. It compares the current live vhost shape against
+the routing invariants TokenPilot expects:
+
+- `/api/*` should proxy to `127.0.0.1:4318`
+- `/openapi.yaml` should proxy to `127.0.0.1:4318`
+- `/ui` should proxy to `127.0.0.1:4318`
+- the site should not silently drift back to a static-root-only `try_files` fallback for control-plane paths
+
+Important operational boundary:
+
+- a ServBay site being "started" only proves the reverse-proxy layer is up
+- it does **not** prove the TokenPilot local control-plane process behind `127.0.0.1:4318` has been restored
+- if the site is up but the control plane is down, external callers will typically see `502`
 
 ## Stop Or Restart
 

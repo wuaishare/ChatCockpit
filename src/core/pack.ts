@@ -7,8 +7,15 @@ import type { RepoBundleManifest, TokenPilotPaths } from "../types.js";
 
 export function runPack(paths: TokenPilotPaths): RepoBundleManifest {
   const repomixBin = path.join(paths.repoRoot, "node_modules", ".bin", "repomix");
+  const repomixCli = path.join(paths.repoRoot, "node_modules", "repomix", "bin", "repomix.cjs");
 
-  if (fs.existsSync(repomixBin)) {
+  if (fs.existsSync(repomixCli)) {
+    const result = runCommand(process.execPath, [repomixCli, "--config", ".repomix.config.json"], paths.repoRoot);
+
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr || "repomix failed");
+    }
+  } else if (fs.existsSync(repomixBin)) {
     const result = runCommand(repomixBin, ["--config", ".repomix.config.json"], paths.repoRoot);
 
     if (result.exitCode !== 0) {

@@ -10,6 +10,11 @@ export interface TokenPilotPaths {
   completedJobsDir: string;
   failedJobsDir: string;
   manifestsDir: string;
+  runtimeDir: string;
+  runnerStatusPath: string;
+  runnerLogPath: string;
+  runnerPidPath: string;
+  runnerPlistPath: string;
 }
 
 export interface TokenPilotRepoMapping {

@@ -504,6 +504,22 @@ export function buildServer(paths: TokenPilotPaths) {
   app.get("/api/health", healthHandler);
   app.get("/tokenpilot/api/health", healthHandler);
 
+  app.get("/", async (_request, reply) => {
+    reply.type("application/json; charset=utf-8");
+    return {
+      ok: true,
+      service: "tokenpilot-control-plane",
+      health: buildHealthStatus(paths),
+      ui: "/ui",
+      openapi: "/openapi.yaml"
+    };
+  });
+
+  app.get("/favicon.ico", async (_request, reply) => {
+    reply.code(204);
+    return reply.send();
+  });
+
   app.get("/api/jobs", listJobsHandler);
   app.get("/tokenpilot/api/jobs", listJobsHandler);
 

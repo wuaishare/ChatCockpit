@@ -75,6 +75,42 @@ Requirements:
 - no overlap with the main WordPress app routing
 - path passthrough for `/api/*` and `/openapi.yaml`
 
+Repo-native guardrails now exist for this layer:
+
+```bash
+npm run doctor:ingress
+```
+
+This reports whether the current live ServBay vhost has drifted away from the
+TokenPilot control-plane routing invariants.
+
+For local installation/sync of the expected TokenPilot-focused vhost shape:
+
+```bash
+npm run ingress:install
+```
+
+This script:
+
+- backs up the current `tokenpilot.example.com.conf`
+- renders the repo template under `ops/servbay/`
+- writes a proxy-first vhost that routes `/api/*`, `/openapi.yaml`, `/ui`, `/favicon.ico`, and `/`
+  to `127.0.0.1:4318`
+- reloads nginx through `servbayctl`
+
+For a fresh public loop regression after ingress changes:
+
+```bash
+npm run verify:public-gpt-loop
+```
+
+This performs a minimal HTTPS GPT-facing regression:
+
+- `GET /api/health`
+- `POST /api/jobs/pack`
+- `POST /api/jobs/taskpack`
+- poll both jobs until `completed` or `failed`
+
 ### 3. Publish through built-in frp
 
 Use your own frps server and token from private/local ops config.

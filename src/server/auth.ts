@@ -5,6 +5,8 @@ type EnvLike = Record<string, string | undefined>;
 
 function isPublicPath(url: string): boolean {
   return (
+    url === "/" ||
+    url === "/favicon.ico" ||
     url === "/api/health" ||
     url === "/tokenpilot/api/health" ||
     url === "/openapi.yaml" ||

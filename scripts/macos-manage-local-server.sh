@@ -9,10 +9,18 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RUNTIME_DIR="${ROOT_DIR}/.tokenpilot/runtime"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"
+RUNNER_PID_FILE="${RUNTIME_DIR}/runner.pid"
+RUNNER_LOG_FILE="${RUNTIME_DIR}/runner.log"
 ENV_FILE="${RUNTIME_DIR}/server.env"
 PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.control-plane.plist"
+RUNNER_PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.runner.plist"
+LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
 SERVICE_LABEL="com.wuaishare.tokenpilot.control-plane"
+INSTALLED_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${SERVICE_LABEL}.plist"
+RUNNER_SERVICE_LABEL="com.wuaishare.tokenpilot.runner"
+INSTALLED_RUNNER_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${RUNNER_SERVICE_LABEL}.plist"
 PORT="${TOKENPILOT_PORT:-4318}"
+RUNNER_INTERVAL="${TOKENPILOT_RUNNER_INTERVAL:-3}"
 USER_DOMAIN="gui/$(id -u)"
 
 mkdir -p "${RUNTIME_DIR}"
@@ -28,7 +36,11 @@ usage() {
   echo "Usage: $0 {start|stop|restart|status}"
 }
 
-write_plist() {
+ensure_launch_agents_dir() {
+  mkdir -p "${LAUNCH_AGENTS_DIR}"
+}
+
+write_server_plist() {
   cat > "${PLIST_FILE}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -70,6 +82,86 @@ write_plist() {
 EOF
 }
 
+write_runner_plist() {
+  cat > "${RUNNER_PLIST_FILE}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${RUNNER_SERVICE_LABEL}</string>
+  <key>WorkingDirectory</key>
+  <string>${ROOT_DIR}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${RUNNER_LOG_FILE}</string>
+  <key>StandardErrorPath</key>
+  <string>${RUNNER_LOG_FILE}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TOKENPILOT_API_TOKEN</key>
+    <string>${TOKENPILOT_API_TOKEN:-}</string>
+    <key>TOKENPILOT_EXPOSED</key>
+    <string>${TOKENPILOT_EXPOSED:-false}</string>
+    <key>TOKENPILOT_HOST</key>
+    <string>${TOKENPILOT_HOST:-127.0.0.1}</string>
+    <key>TOKENPILOT_PORT</key>
+    <string>${PORT}</string>
+    <key>TOKENPILOT_PUBLIC_BASE_URL</key>
+    <string>${TOKENPILOT_PUBLIC_BASE_URL:-https://tokenpilot.example.com}</string>
+  </dict>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(command -v node)</string>
+    <string>${ROOT_DIR}/dist/cli/index.js</string>
+    <string>runner</string>
+    <string>--watch</string>
+    <string>--interval</string>
+    <string>${RUNNER_INTERVAL}</string>
+  </array>
+</dict>
+</plist>
+EOF
+}
+
+install_plists() {
+  ensure_launch_agents_dir
+  cp "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}"
+  cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
+}
+
+remove_installed_plists() {
+  rm -f "${INSTALLED_PLIST_FILE}"
+  rm -f "${INSTALLED_RUNNER_PLIST_FILE}"
+}
+
+bootout_services() {
+  launchctl bootout "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl bootout "${USER_DOMAIN}" "${INSTALLED_PLIST_FILE}" >/dev/null 2>&1 || true
+  launchctl bootout "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl bootout "${USER_DOMAIN}" "${INSTALLED_RUNNER_PLIST_FILE}" >/dev/null 2>&1 || true
+}
+
+bootstrap_services() {
+  launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_PLIST_FILE}"
+  launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_RUNNER_PLIST_FILE}"
+  launchctl enable "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl enable "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl kickstart -k "${USER_DOMAIN}/${SERVICE_LABEL}"
+  launchctl kickstart -k "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}"
+}
+
+launchctl_service_registered() {
+  launchctl print "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1
+}
+
+launchctl_runner_registered() {
+  launchctl print "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1
+}
+
 is_running() {
   local port_pid=""
   port_pid="$(lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
@@ -97,6 +189,17 @@ stop_port_process() {
   fi
 }
 
+stop_runner_process() {
+  local runner_pid=""
+  if [[ -f "${RUNNER_PID_FILE}" ]]; then
+    runner_pid="$(cat "${RUNNER_PID_FILE}")"
+    if [[ -n "${runner_pid}" ]]; then
+      kill "${runner_pid}" >/dev/null 2>&1 || true
+      sleep 1
+    fi
+  fi
+}
+
 wait_for_listen() {
   local attempts="${1:-20}"
   local idx=0
@@ -110,38 +213,55 @@ wait_for_listen() {
   return 1
 }
 
+wait_for_runner_registration() {
+  local attempts="${1:-20}"
+  local idx=0
+  while (( idx < attempts )); do
+    if launchctl_runner_registered; then
+      return 0
+    fi
+    sleep 1
+    ((idx+=1))
+  done
+  return 1
+}
+
 case "${ACTION}" in
   start)
-    if is_running; then
-      echo "TokenPilot server already running with PID $(cat "${PID_FILE}")"
-      exit 0
-    fi
     cd "${ROOT_DIR}"
-    write_plist
-    launchctl bootout "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
-    launchctl bootout "${USER_DOMAIN}" "${PLIST_FILE}" >/dev/null 2>&1 || true
-    launchctl bootstrap "${USER_DOMAIN}" "${PLIST_FILE}"
-    launchctl kickstart -k "${USER_DOMAIN}/${SERVICE_LABEL}"
-    if wait_for_listen 30; then
+    write_server_plist
+    write_runner_plist
+    install_plists
+    if is_running; then
+      if launchctl_runner_registered; then
+        echo "TokenPilot server already running with PID $(cat "${PID_FILE}") and runner LaunchAgent is already registered"
+        exit 0
+      fi
+      echo "TokenPilot server already running with PID $(cat "${PID_FILE}"); refreshing runner LaunchAgent registration"
+    fi
+    bootout_services
+    bootstrap_services
+    if wait_for_listen 30 && wait_for_runner_registration 30; then
       echo "TokenPilot server started with PID $(cat "${PID_FILE}")"
     else
       cat "${LOG_FILE}" 2>/dev/null || true
+      cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
       echo "Failed to start TokenPilot server"
       exit 1
     fi
     ;;
   stop)
     if ! is_running; then
-      launchctl bootout "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
-      launchctl bootout "${USER_DOMAIN}" "${PLIST_FILE}" >/dev/null 2>&1 || true
+      bootout_services
       echo "TokenPilot server is not running"
       exit 0
     fi
-    launchctl bootout "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
-    launchctl bootout "${USER_DOMAIN}" "${PLIST_FILE}" >/dev/null 2>&1 || true
+    bootout_services
     sleep 2
     stop_port_process
+    stop_runner_process
     rm -f "${PID_FILE}"
+    rm -f "${RUNNER_PID_FILE}"
     echo "TokenPilot server stopped"
     ;;
   restart)
@@ -150,10 +270,22 @@ case "${ACTION}" in
     ;;
   status)
     if is_running; then
-      echo "TokenPilot server is running with PID $(cat "${PID_FILE}")"
+      runner_state="runner LaunchAgent NOT registered"
+      if launchctl_runner_registered; then
+        runner_state="runner LaunchAgent is registered"
+      fi
+      if launchctl_service_registered; then
+        echo "TokenPilot server is running with PID $(cat "${PID_FILE}"), LaunchAgent ${SERVICE_LABEL} is registered, and ${runner_state}"
+      else
+        echo "TokenPilot server is running with PID $(cat "${PID_FILE}") but LaunchAgent ${SERVICE_LABEL} is NOT registered; ${runner_state}"
+      fi
       exit 0
     fi
-    echo "TokenPilot server is not running"
+    if [[ -f "${INSTALLED_PLIST_FILE}" ]]; then
+      echo "TokenPilot server is not running; LaunchAgent plist exists at ${INSTALLED_PLIST_FILE}"
+    else
+      echo "TokenPilot server is not running; LaunchAgent plist is not installed"
+    fi
     exit 1
     ;;
   *)

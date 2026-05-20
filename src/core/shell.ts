@@ -13,7 +13,12 @@ export function runCommand(
 ): ShellResult {
   const result = spawnSync(command, args, {
     cwd,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${process.env.PATH || ""}:${cwd}/node_modules/.bin`,
+      NODE: process.execPath
+    }
   });
 
   return {

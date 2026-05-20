@@ -1,6 +1,14 @@
 import { completeJob, claimNextQueuedJob, failJob } from "../core/jobs.js";
 import { runPack } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
+import {
+  markRunnerClaimed,
+  markRunnerCompleted,
+  markRunnerFailed,
+  markRunnerHeartbeat,
+  markRunnerStarted,
+  markRunnerStopped
+} from "./status.js";
 import type {
   PackJobPayload,
   TaskPackJobPayload,
@@ -48,6 +56,8 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
     return false;
   }
 
+  markRunnerClaimed(paths, job.id, job.type);
+
   process.stdout.write(
     [
       "[TokenPilot runner]",
@@ -67,22 +77,27 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
       }
       const manifest = runPack(paths);
       completeJob(paths, job.id, manifest);
+      markRunnerCompleted(paths);
       return true;
     }
 
     if (job.type === "taskpack" && isTaskPackPayload(job.payload)) {
       const artifact = createTaskPack(paths, job.payload);
       completeJob(paths, job.id, artifact);
+      markRunnerCompleted(paths);
       return true;
     }
 
     failJob(paths, job.id, `Unsupported job payload for type: ${job.type}`);
+    markRunnerFailed(paths, `Unsupported job payload for type: ${job.type}`);
   } catch (error) {
+    const message = error instanceof Error ? error.stack || error.message : String(error);
     failJob(
       paths,
       job.id,
-      error instanceof Error ? error.stack || error.message : String(error)
+      message
     );
+    markRunnerFailed(paths, message);
   }
 
   return true;
@@ -93,9 +108,11 @@ export async function runRunner(
   options: RunnerOptions = {}
 ): Promise<void> {
   const intervalSeconds = options.intervalSeconds ?? 3;
+  markRunnerStarted(paths, options.watch ? "watch" : "once");
 
   if (!options.watch) {
     const didProcessJob = await runNextJob(paths);
+    markRunnerHeartbeat(paths);
     if (!didProcessJob) {
       process.stdout.write(
         [
@@ -107,6 +124,7 @@ export async function runRunner(
         ].join(" ") + "\n"
       );
     }
+    markRunnerStopped(paths);
     return;
   }
 
@@ -135,6 +153,7 @@ export async function runRunner(
 
   try {
     while (!stopRequested) {
+      markRunnerHeartbeat(paths);
       const didProcessJob = await runNextJob(paths);
 
       if (didProcessJob) {
@@ -152,6 +171,7 @@ export async function runRunner(
       await sleep(intervalSeconds);
     }
   } finally {
+    markRunnerStopped(paths);
     process.stdout.write("[TokenPilot runner] mode=watch Graceful shutdown complete.\n");
   }
 }

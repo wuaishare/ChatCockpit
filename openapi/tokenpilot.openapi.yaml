@@ -23,7 +23,15 @@ components:
           type: string
         authRequired:
           type: boolean
-      required: [ok, mode, authRequired]
+        exposed:
+          type: boolean
+        publicBaseUrl:
+          oneOf:
+            - type: string
+            - type: "null"
+        openapiUrl:
+          type: string
+      required: [ok, mode, authRequired, exposed, publicBaseUrl, openapiUrl]
     PackJobPayload:
       type: object
       additionalProperties: false
@@ -234,6 +242,12 @@ components:
           type: string
         updatedAt:
           type: string
+        headline:
+          type: string
+        hasResult:
+          type: boolean
+        hasError:
+          type: boolean
         payload:
           $ref: '#/components/schemas/PackJobPayload'
         result:
@@ -242,7 +256,7 @@ components:
             - type: 'null'
         error:
           type: string
-      required: [id, type, status, createdAt, updatedAt, payload]
+      required: [id, type, status, createdAt, updatedAt, headline, hasResult, hasError, payload]
     TaskPackJobSummary:
       type: object
       additionalProperties: false
@@ -259,6 +273,12 @@ components:
           type: string
         updatedAt:
           type: string
+        headline:
+          type: string
+        hasResult:
+          type: boolean
+        hasError:
+          type: boolean
         payload:
           $ref: '#/components/schemas/TaskPackJobPublicPayload'
         result:
@@ -267,7 +287,7 @@ components:
             - type: 'null'
         error:
           type: string
-      required: [id, type, status, createdAt, updatedAt, payload]
+      required: [id, type, status, createdAt, updatedAt, headline, hasResult, hasError, payload]
     CreatePackResponse:
       type: object
       additionalProperties: false

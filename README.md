@@ -358,6 +358,23 @@ npm run server
 npm run runner
 ```
 
+如果你在验证 GPT HTTPS 远程闭环，不要只启动 control plane。
+当前本地运行模型是：
+
+```text
+HTTPS / GPT Actions -> control plane -> queued jobs -> local runner consume -> terminal result
+```
+
+在 macOS 上，推荐直接使用：
+
+```bash
+npm run mvp:start
+npm run mvp:status
+npm run doctor:runtime
+```
+
+这样会把本地 control plane 和 paired runner 一起纳入 LaunchAgent 长跑管理，避免出现 “job 能入队，但一直停留在 queued” 的假健康状态。
+
 如果你已经构建了前端，也可以访问只读型本地控制台：
 
 ```text

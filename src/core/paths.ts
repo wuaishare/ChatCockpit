@@ -18,6 +18,7 @@ export function resolveRepoRoot(): string {
 export function buildPaths(repoRoot = resolveRepoRoot()): TokenPilotPaths {
   const workspaceDir = path.join(repoRoot, ".tokenpilot");
   const jobsDir = path.join(workspaceDir, "jobs");
+  const runtimeDir = path.join(workspaceDir, "runtime");
   return {
     repoRoot,
     workspaceDir,
@@ -27,7 +28,12 @@ export function buildPaths(repoRoot = resolveRepoRoot()): TokenPilotPaths {
     runningJobsDir: path.join(jobsDir, "running"),
     completedJobsDir: path.join(jobsDir, "completed"),
     failedJobsDir: path.join(jobsDir, "failed"),
-    manifestsDir: path.join(workspaceDir, "manifests")
+    manifestsDir: path.join(workspaceDir, "manifests"),
+    runtimeDir,
+    runnerStatusPath: path.join(runtimeDir, "runner-status.json"),
+    runnerLogPath: path.join(runtimeDir, "runner.log"),
+    runnerPidPath: path.join(runtimeDir, "runner.pid"),
+    runnerPlistPath: path.join(runtimeDir, "com.wuaishare.tokenpilot.runner.plist")
   };
 }
 
@@ -40,7 +46,8 @@ export function ensureWorkspaceDirs(paths: TokenPilotPaths): void {
     paths.runningJobsDir,
     paths.completedJobsDir,
     paths.failedJobsDir,
-    paths.manifestsDir
+    paths.manifestsDir,
+    paths.runtimeDir
   ]) {
     fs.mkdirSync(dir, { recursive: true });
   }
