@@ -1,6 +1,8 @@
 import type {
   ApiProblem,
   HealthResponse,
+  JobArtifactReadResponse,
+  JobArtifactsListResponse,
   JobDetailResponse,
   JobsListResponse
 } from "./types";
@@ -57,4 +59,25 @@ export async function fetchJobs(token?: string | null): Promise<JobsListResponse
 
 export async function fetchJob(id: string, token?: string | null): Promise<JobDetailResponse> {
   return requestJson<JobDetailResponse>(`/api/jobs/${encodeURIComponent(id)}`, token);
+}
+
+export async function fetchJobArtifacts(
+  id: string,
+  token?: string | null
+): Promise<JobArtifactsListResponse> {
+  return requestJson<JobArtifactsListResponse>(
+    `/api/jobs/${encodeURIComponent(id)}/artifacts`,
+    token
+  );
+}
+
+export async function fetchJobArtifactContent(
+  id: string,
+  artifactKey: string,
+  token?: string | null
+): Promise<JobArtifactReadResponse> {
+  return requestJson<JobArtifactReadResponse>(
+    `/api/jobs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactKey)}`,
+    token
+  );
 }

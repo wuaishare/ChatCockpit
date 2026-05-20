@@ -1,7 +1,7 @@
 import { Button, Descriptions, List, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { LockOutlined } from "@ant-design/icons";
-import type { JobSummary } from "../types";
+import type { JobArtifactSummary, JobSummary } from "../types";
 import { formatDateTime, safePathList, safeText } from "../utils";
 import { SectionCard } from "./SectionCard";
 import { StateNotice } from "./StateNotice";
@@ -16,8 +16,13 @@ interface JobsViewProps {
   selectedJob: JobSummary | null;
   loading: boolean;
   detailLoading: boolean;
+  artifactLoading: boolean;
+  artifactError: string | null;
+  artifactContent: string | null;
+  selectedArtifactKey: string | null;
   error: string | null;
   onSelectJob: (jobId: string) => void;
+  onSelectArtifact: (artifactKey: string) => void;
   onRefresh: () => void;
 }
 
@@ -32,17 +37,13 @@ function renderStatus(status: JobSummary["status"], label: string) {
   return <Tag color={colorMap[status]}>{label}</Tag>;
 }
 
-function buildRows(
+function detailEntries(
   job: JobSummary | null,
   locale: LocaleCode
-): Array<{ label: string; value: string | string[] }> {
+): Array<{ label: string; value: string }> {
   if (!job) return [];
   const copy = getUiCopy(locale);
-
-  const paths =
-    safePathList(job.result?.publicIncludeEntries, locale) ||
-    safePathList(job.result?.sourceFiles, locale) ||
-    safePathList(job.result?.paths, locale);
+  const result = job.result ?? {};
 
   return [
     { label: copy.jobs.rowType, value: getTypeLabel(locale, job.type) },
@@ -50,9 +51,89 @@ function buildRows(
     { label: copy.jobs.rowCreated, value: formatDateTime(job.createdAt) },
     { label: copy.jobs.rowUpdated, value: formatDateTime(job.updatedAt) },
     { label: copy.jobs.rowHeadline, value: job.headline },
-    { label: copy.jobs.rowError, value: safeText(job.error, locale) || copy.common.none },
-    { label: copy.jobs.rowArtifacts, value: paths.length ? paths : [copy.common.none] }
+    {
+      label: copy.jobs.rowRepo,
+      value:
+        safeText(result.repoId, locale) ||
+        safeText(job.payload.repoId, locale) ||
+        copy.common.none
+    },
+    {
+      label: copy.jobs.rowPromptPath,
+      value: safeText(result.promptPath, locale) || copy.common.none
+    },
+    {
+      label: copy.jobs.rowSummaryPath,
+      value: safeText(result.summaryPath, locale) || copy.common.none
+    },
+    {
+      label: copy.jobs.rowRepomixPath,
+      value: safeText(result.repomixXmlPath, locale) || copy.common.none
+    },
+    {
+      label: copy.jobs.rowManifestPath,
+      value: safeText(result.manifestPath, locale) || copy.common.none
+    },
+    {
+      label: copy.jobs.rowMarkdownPath,
+      value: safeText(result.markdownPath, locale) || copy.common.none
+    },
+    {
+      label: copy.jobs.rowJsonPath,
+      value: safeText(result.jsonPath, locale) || copy.common.none
+    },
+    {
+      label: copy.jobs.rowError,
+      value: safeText(job.error, locale) || copy.common.none
+    }
   ];
+}
+
+function renderArtifactList(
+  artifacts: JobArtifactSummary[] | undefined,
+  locale: LocaleCode
+) {
+  const copy = getUiCopy(locale);
+  if (!artifacts?.length) {
+    return <span>{copy.common.none}</span>;
+  }
+
+  return (
+    <List
+      size="small"
+      dataSource={artifacts}
+      renderItem={(artifact) => (
+        <List.Item>
+          <div className="job-detail__artifact">
+            <strong>{artifact.label}</strong>
+            <span>{safeText(artifact.path, locale)}</span>
+          </div>
+        </List.Item>
+      )}
+    />
+  );
+}
+
+function renderIncludeEntries(job: JobSummary | null, locale: LocaleCode) {
+  const copy = getUiCopy(locale);
+  if (!job) return <span>{copy.common.none}</span>;
+
+  const includeEntries =
+    safePathList(job.result?.publicIncludeEntries, locale) ||
+    safePathList(job.result?.sourceFiles, locale) ||
+    safePathList(job.result?.paths, locale);
+
+  if (!includeEntries.length) {
+    return <span>{copy.common.none}</span>;
+  }
+
+  return (
+    <List
+      size="small"
+      dataSource={includeEntries}
+      renderItem={(item) => <List.Item>{item}</List.Item>}
+    />
+  );
 }
 
 export function JobsView({
@@ -63,8 +144,13 @@ export function JobsView({
   selectedJob,
   loading,
   detailLoading,
+  artifactLoading,
+  artifactError,
+  artifactContent,
+  selectedArtifactKey,
   error,
   onSelectJob,
+  onSelectArtifact,
   onRefresh
 }: JobsViewProps) {
   const copy = getUiCopy(locale);
@@ -74,11 +160,7 @@ export function JobsView({
       <SectionCard
         title={copy.jobs.sectionTitle}
         description={copy.jobs.authRequiredSectionDescription}
-        extra={
-          <Tag color="warning">
-            {copy.status.authRequired}
-          </Tag>
-        }
+        extra={<Tag color="warning">{copy.status.authRequired}</Tag>}
       >
         <div className="jobs-gate">
           <div className="jobs-gate__status">
@@ -158,7 +240,7 @@ export function JobsView({
     );
   }
 
-  const detailRows = buildRows(selectedJob, locale);
+  const details = detailEntries(selectedJob, locale);
   const columns: ColumnsType<JobSummary> = [
     {
       title: copy.jobs.columnHeadline,
@@ -222,23 +304,65 @@ export function JobsView({
         {selectedJob ? (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             {detailLoading ? <div className="detail-loading">{copy.jobs.detailRefreshing}</div> : null}
+
             <Descriptions column={1} size="small">
-              {detailRows.map((row) => (
+              {details.map((row) => (
                 <Descriptions.Item key={row.label} label={row.label}>
-                  {Array.isArray(row.value) ? (
-                    <List
-                      size="small"
-                      dataSource={row.value}
-                      renderItem={(item) => <List.Item>{item}</List.Item>}
-                    />
-                  ) : row.label === copy.jobs.rowStatus ? (
-                    renderStatus(selectedJob.status, getStatusLabel(locale, selectedJob.status))
-                  ) : (
-                    row.value
-                  )}
+                  {row.label === copy.jobs.rowStatus
+                    ? renderStatus(selectedJob.status, getStatusLabel(locale, selectedJob.status))
+                    : row.value}
                 </Descriptions.Item>
               ))}
             </Descriptions>
+
+            <div className="job-detail__block">
+              <strong>{copy.jobs.rowArtifacts}</strong>
+              {selectedJob.artifacts?.length ? (
+                <List
+                  size="small"
+                  dataSource={selectedJob.artifacts}
+                  renderItem={(artifact) => (
+                    <List.Item
+                      actions={[
+                        <Button
+                          key={artifact.key}
+                          type={artifact.key === selectedArtifactKey ? "primary" : "link"}
+                          size="small"
+                          onClick={() => onSelectArtifact(artifact.key)}
+                        >
+                          {copy.common.inspect}
+                        </Button>
+                      ]}
+                    >
+                      <div className="job-detail__artifact">
+                        <strong>{artifact.label}</strong>
+                        <span>{safeText(artifact.path, locale)}</span>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                renderArtifactList(selectedJob.artifacts, locale)
+              )}
+            </div>
+
+            <div className="job-detail__block">
+              <strong>{copy.jobs.rowIncludeEntries}</strong>
+              {renderIncludeEntries(selectedJob, locale)}
+            </div>
+
+            <div className="job-detail__block">
+              <strong>{copy.jobs.rowArtifactPreview}</strong>
+              {artifactLoading ? (
+                <div className="detail-loading">{copy.jobs.detailRefreshing}</div>
+              ) : artifactError ? (
+                <div className="notes-block">{artifactError}</div>
+              ) : artifactContent ? (
+                <pre className="job-detail__preview">{artifactContent}</pre>
+              ) : (
+                <span>{copy.common.none}</span>
+              )}
+            </div>
           </Space>
         ) : (
           <StateNotice

@@ -13,6 +13,7 @@ import type {
   TokenPilotPublicJobRecord
 } from "../types.js";
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
+import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import {
   isExposedMode,
@@ -50,6 +51,8 @@ const fileReadBatchSchema = z.object({
   paths: z.array(z.string().min(1)).min(1).max(10)
 });
 
+const artifactKeySchema = z.enum(["repomixXml", "prompt", "summary", "manifest", "markdown", "json"]);
+
 function normalizePackLikeObject(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
@@ -80,6 +83,7 @@ function projectPackLikeObject(value: unknown): unknown {
       : {}),
     ...(typeof record.promptPath === "string" ? { promptPath: record.promptPath } : {}),
     ...(typeof record.summaryPath === "string" ? { summaryPath: record.summaryPath } : {}),
+    ...(typeof record.manifestPath === "string" ? { manifestPath: record.manifestPath } : {}),
     ...(Array.isArray(record.publicIncludeEntries)
       ? { publicIncludeEntries: record.publicIncludeEntries }
       : {})
@@ -249,6 +253,7 @@ function projectJobResultForUi(
         typeof result.repomixXmlPath === "string" ? result.repomixXmlPath : undefined,
       promptPath: typeof result.promptPath === "string" ? result.promptPath : undefined,
       summaryPath: typeof result.summaryPath === "string" ? result.summaryPath : undefined,
+      manifestPath: typeof result.manifestPath === "string" ? result.manifestPath : undefined,
       publicIncludeEntries: Array.isArray(result.publicIncludeEntries)
         ? result.publicIncludeEntries
         : undefined
@@ -260,10 +265,18 @@ function projectJobResultForUi(
 
 function projectJobForUi(
   job: JobRecord<TokenPilotJobPayload>,
-  repoRoot: string
+  paths: TokenPilotPaths
 ): TokenPilotPublicJobRecord {
-  const projectedResult = projectJobResultForUi(job, repoRoot);
-  const projectedError = maskError(job.error, repoRoot);
+  const projectedResult = projectJobResultForUi(job, paths.repoRoot);
+  const projectedError = maskError(job.error, paths.repoRoot);
+  const artifacts = projectedResult
+    ? listJobArtifacts(job, paths).map((artifact) => ({
+        key: artifact.key,
+        label: artifact.label,
+        path: artifact.path,
+        contentType: artifact.contentType
+      }))
+    : [];
   return {
     id: job.id,
     type: job.type,
@@ -273,7 +286,8 @@ function projectJobForUi(
     headline: deriveJobHeadline(job),
     hasResult: Boolean(job.result),
     hasError: Boolean(job.error),
-    payload: projectJobPayloadForUi(job, repoRoot),
+    payload: projectJobPayloadForUi(job, paths.repoRoot),
+    ...(artifacts.length ? { artifacts } : {}),
     ...(projectedResult ? { result: projectedResult } : {}),
     ...(projectedError ? { error: projectedError } : {})
   };
@@ -402,7 +416,7 @@ export function buildServer(paths: TokenPilotPaths) {
   const listJobsHandler = async () => {
     return {
       ok: true,
-      jobs: listJobs(paths).map((job) => projectJobForUi(job, paths.repoRoot))
+      jobs: listJobs(paths).map((job) => projectJobForUi(job, paths))
     };
   };
 
@@ -416,8 +430,65 @@ export function buildServer(paths: TokenPilotPaths) {
     }
     return {
       ok: true,
-      job: projectJobForUi(job.job, paths.repoRoot)
+      job: projectJobForUi(job.job, paths)
     };
+  };
+
+  const listJobArtifactsHandler = async (request: unknown, reply: unknown) => {
+    const params = (request as { params: { id: string } }).params;
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const job = getJob(paths, params.id);
+    if (!job) {
+      fastifyReply.code(404);
+      return { ok: false, error: "Job not found" };
+    }
+
+    return {
+      ok: true,
+      artifacts: listJobArtifacts(job.job, paths).map((artifact) => ({
+        key: artifact.key,
+        label: artifact.label,
+        path: artifact.path,
+        contentType: artifact.contentType
+      }))
+    };
+  };
+
+  const readJobArtifactHandler = async (request: unknown, reply: unknown) => {
+    const params = (request as { params: { id: string; artifactKey: string } }).params;
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const job = getJob(paths, params.id);
+    if (!job) {
+      fastifyReply.code(404);
+      return { ok: false, error: "Job not found" };
+    }
+
+    const parsedArtifactKey = artifactKeySchema.safeParse(params.artifactKey);
+    if (!parsedArtifactKey.success) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: "Unsupported artifact key"
+      };
+    }
+
+    try {
+      const artifact = readJobArtifact(job.job, paths, parsedArtifactKey.data);
+      return {
+        ok: true,
+        artifact: artifact.artifact,
+        content: artifact.content,
+        truncated: artifact.truncated,
+        size: artifact.size,
+        encoding: artifact.encoding
+      };
+    } catch (error) {
+      fastifyReply.code(404);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   };
 
   const createPackHandler = async (request: unknown, reply: unknown) => {
@@ -525,6 +596,12 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.get("/api/jobs/:id", getJobHandler);
   app.get("/tokenpilot/api/jobs/:id", getJobHandler);
+
+  app.get("/api/jobs/:id/artifacts", listJobArtifactsHandler);
+  app.get("/tokenpilot/api/jobs/:id/artifacts", listJobArtifactsHandler);
+
+  app.get("/api/jobs/:id/artifacts/:artifactKey", readJobArtifactHandler);
+  app.get("/tokenpilot/api/jobs/:id/artifacts/:artifactKey", readJobArtifactHandler);
 
   app.post("/api/jobs/pack", createPackHandler);
   app.post("/tokenpilot/api/jobs/pack", createPackHandler);

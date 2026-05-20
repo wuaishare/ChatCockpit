@@ -147,7 +147,7 @@ export function DashboardView({
                   >
                     <List.Item.Meta
                       title={`${job.headline} · ${getTypeLabel(locale, job.type)}`}
-                      description={`${getStatusLabel(locale, job.status)} · ${copy.dashboard.recentJobUpdatedPrefix} ${formatDateTime(job.updatedAt)}`}
+                      description={`${getStatusLabel(locale, job.status)} · ${copy.dashboard.recentJobUpdatedPrefix} ${formatDateTime(job.updatedAt)} · ${job.id}`}
                     />
                   </List.Item>
                 )}

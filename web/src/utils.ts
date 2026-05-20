@@ -1,4 +1,4 @@
-import type { JobCounts, JobSummary } from "./types";
+import type { JobArtifactSummary, JobCounts, JobSummary } from "./types";
 import type { LocaleCode } from "./i18n";
 import { getUiCopy } from "./i18n";
 
@@ -6,7 +6,7 @@ const SUSPICIOUS_PATH_PATTERNS = [
   /^\/(Users|home|var|private|Volumes)\//i,
   /^[A-Za-z]:\\/,
   /(^|\/)\.\.(\/|$)/,
-  /(^|\/)\.tokenpilot(\/|$)/i,
+  /(^|\/)\.tokenpilot\/(runtime|jobs)(\/|$)/i,
   /(^|\/)\.codex(\/|$)/i,
   /(^|\/)\.servbay(\/|$)/i
 ];
@@ -34,6 +34,26 @@ export function safePathList(values: unknown, locale: LocaleCode): string[] {
     .filter(Boolean);
 }
 
+export function safeArtifactList(values: unknown, locale: LocaleCode): JobArtifactSummary[] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter(
+      (value): value is JobArtifactSummary =>
+        Boolean(value) &&
+        typeof value === "object" &&
+        typeof (value as JobArtifactSummary).key === "string" &&
+        typeof (value as JobArtifactSummary).label === "string" &&
+        typeof (value as JobArtifactSummary).path === "string" &&
+        typeof (value as JobArtifactSummary).contentType === "string"
+    )
+    .map((value) => ({
+      ...value,
+      label: safeText(value.label, locale) || value.label,
+      path: safeText(value.path, locale) || value.path,
+      contentType: safeText(value.contentType, locale) || value.contentType
+    }));
+}
+
 export function formatDateTime(value: string): string {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return value;
@@ -51,6 +71,7 @@ export function summarizeJob(job: {
   hasError: boolean;
   payload: Record<string, unknown>;
   result?: Record<string, unknown> | null;
+  artifacts?: JobArtifactSummary[];
   error?: string;
   status: string;
   createdAt: string;
@@ -65,6 +86,7 @@ export function summarizeJob(job: {
       `${job.type.toUpperCase()} job`,
     hasResult: Boolean(job.hasResult ?? job.result),
     hasError: Boolean(job.hasError ?? job.error),
+    artifacts: safeArtifactList(job.artifacts, locale),
     error: safeText(job.error, locale)
   } as JobSummary;
 }

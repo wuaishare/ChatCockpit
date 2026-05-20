@@ -138,12 +138,14 @@ components:
           type: string
         summaryPath:
           type: string
+        manifestPath:
+          type: string
         publicIncludeEntries:
           type: array
           items:
             type: string
       required:
-        [createdAt, repoId, repoName, repomixXmlPath, promptPath, summaryPath, publicIncludeEntries]
+        [createdAt, repoId, repoName, repomixXmlPath, promptPath, summaryPath, manifestPath, publicIncludeEntries]
     TaskPackJobPublicPayload:
       type: object
       additionalProperties: false
@@ -202,6 +204,48 @@ components:
         encoding:
           type: string
       required: [path, content, truncated, size, encoding]
+    JobArtifactSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          enum: [repomixXml, prompt, summary, manifest, markdown, json]
+        label:
+          type: string
+        path:
+          type: string
+        contentType:
+          type: string
+      required: [key, label, path, contentType]
+    JobArtifactReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        artifact:
+          $ref: '#/components/schemas/JobArtifactSummary'
+        content:
+          type: string
+        truncated:
+          type: boolean
+        size:
+          type: integer
+        encoding:
+          type: string
+      required: [ok, artifact, content, truncated, size, encoding]
+    JobArtifactsListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobArtifactSummary'
+      required: [ok, artifacts]
     ReadFileResponse:
       type: object
       additionalProperties: false
@@ -250,6 +294,10 @@ components:
           type: boolean
         payload:
           $ref: '#/components/schemas/PackJobPayload'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobArtifactSummary'
         result:
           oneOf:
             - $ref: '#/components/schemas/PackJobResult'
@@ -281,6 +329,10 @@ components:
           type: boolean
         payload:
           $ref: '#/components/schemas/TaskPackJobPublicPayload'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobArtifactSummary'
         result:
           oneOf:
             - $ref: '#/components/schemas/TaskPackJobResult'
@@ -417,6 +469,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetJobResponse'
+  /api/jobs/{id}/artifacts:
+    get:
+      operationId: listJobArtifacts
+      summary: List public-safe artifacts for a job
+      description: Returns the artifact entries declared by the selected job result.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobArtifactsListResponse'
+  /api/jobs/{id}/artifacts/{artifactKey}:
+    get:
+      operationId: readJobArtifact
+      summary: Read a public-safe artifact by key
+      description: Reads a single text-like artifact that was declared by a completed job result.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: artifactKey
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [repomixXml, prompt, summary, manifest, markdown, json]
+      responses:
+        "200":
+          description: Artifact content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobArtifactReadResponse'
   /api/files/read:
     post:
       operationId: readFile

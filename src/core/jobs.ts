@@ -149,7 +149,7 @@ export function listJobs(paths: TokenPilotPaths): JobRecord<TokenPilotJobPayload
     ...listStatusJobs(paths.failedJobsDir)
   ]
     .map(({ job }) => job)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.createdAt.localeCompare(a.createdAt));
 }
 
 export function claimNextQueuedJob(

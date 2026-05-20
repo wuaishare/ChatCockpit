@@ -20,8 +20,16 @@ export interface JobBase {
   hasResult: boolean;
   hasError: boolean;
   payload: Record<string, unknown>;
+  artifacts?: JobArtifactSummary[];
   result?: Record<string, unknown> | null;
   error?: string;
+}
+
+export interface JobArtifactSummary {
+  key: "repomixXml" | "prompt" | "summary" | "manifest" | "markdown" | "json";
+  label: string;
+  path: string;
+  contentType: string;
 }
 
 export interface JobsListResponse {
@@ -32,6 +40,20 @@ export interface JobsListResponse {
 export interface JobDetailResponse {
   ok: boolean;
   job: JobBase;
+}
+
+export interface JobArtifactsListResponse {
+  ok: boolean;
+  artifacts: JobArtifactSummary[];
+}
+
+export interface JobArtifactReadResponse {
+  ok: boolean;
+  artifact: JobArtifactSummary;
+  content: string;
+  truncated: boolean;
+  size: number;
+  encoding: string;
 }
 
 export interface ApiProblem {

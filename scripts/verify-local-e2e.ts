@@ -448,6 +448,11 @@ async function runE2E(): Promise<void> {
       jobs: Array<Record<string, unknown>>;
     };
     assert.doesNotMatch(JSON.stringify(completedBody), /\/Users\//);
+    const updatedAtValues = completedBody.jobs
+      .map((job) => (typeof job.updatedAt === "string" ? job.updatedAt : ""))
+      .filter(Boolean);
+    const sortedUpdatedAtValues = [...updatedAtValues].sort((a, b) => b.localeCompare(a));
+    assert.deepEqual(updatedAtValues, sortedUpdatedAtValues);
 
     const taskpackResults = completedBody.jobs.filter(
       (job) => job.type === "taskpack" && job.status === "completed"
@@ -457,6 +462,43 @@ async function runE2E(): Promise<void> {
       .filter((value): value is string => typeof value === "string");
     assert.equal(markdownPaths.length >= 2, true);
     assert.equal(new Set(markdownPaths).size, markdownPaths.length);
+
+    const packResults = completedBody.jobs.filter(
+      (job) => job.type === "pack" && job.status === "completed"
+    );
+    assert.equal(packResults.length >= 1, true);
+    const packJobId = packResults[0]?.id as string;
+
+    const packArtifactsResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${packJobId}/artifacts`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(packArtifactsResponse.status, 200);
+    const packArtifactsBody = (await packArtifactsResponse.json()) as {
+      artifacts: Array<{ key: string; path: string }>;
+    };
+    assert.equal(packArtifactsBody.artifacts.length >= 3, true);
+    assert.ok(packArtifactsBody.artifacts.some((artifact) => artifact.key === "repomixXml"));
+    assert.ok(packArtifactsBody.artifacts.some((artifact) => artifact.key === "prompt"));
+    assert.ok(packArtifactsBody.artifacts.some((artifact) => artifact.key === "summary"));
+    assert.ok(packArtifactsBody.artifacts.some((artifact) => artifact.key === "manifest"));
+    assert.match(
+      packArtifactsBody.artifacts.find((artifact) => artifact.key === "repomixXml")?.path ?? "",
+      /^\.tokenpilot\/repomix-output-/
+    );
+
+    const packPromptResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${packJobId}/artifacts/prompt`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(packPromptResponse.status, 200);
+    const packPromptBody = (await packPromptResponse.json()) as { content: string };
+    assert.match(packPromptBody.content, /TokenPilot Repo Bundle Prompt/);
+    assert.doesNotMatch(packPromptBody.content, /\/Users\//);
 
     assert.doesNotMatch(JSON.stringify(secondTaskpackFinal), /task-pack\.md|task-pack\.json/);
   } finally {

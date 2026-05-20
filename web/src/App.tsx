@@ -8,7 +8,13 @@ import {
   ReloadOutlined,
   UnorderedListOutlined
 } from "@ant-design/icons";
-import { fetchHealth, fetchJob, fetchJobs } from "./api";
+import {
+  fetchHealth,
+  fetchJob,
+  fetchJobArtifactContent,
+  fetchJobArtifacts,
+  fetchJobs
+} from "./api";
 import tokenPilotLogo from "./assets/tokenpilot-logo.svg";
 import { DashboardView } from "./components/DashboardView";
 import { StateNotice } from "./components/StateNotice";
@@ -88,6 +94,10 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
+  const [artifactContent, setArtifactContent] = useState<string | null>(null);
+  const [artifactLoading, setArtifactLoading] = useState(false);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
   const copy = getUiCopy(locale);
 
   useEffect(() => {
@@ -150,6 +160,9 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
       setJobsError(null);
       setJobsLoading(false);
       setSelectedJobId(null);
+      setSelectedArtifactKey(null);
+      setArtifactContent(null);
+      setArtifactError(null);
       return;
     }
 
@@ -172,6 +185,9 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
         }
       } else {
         setSelectedJobId(null);
+        setSelectedArtifactKey(null);
+        setArtifactContent(null);
+        setArtifactError(null);
       }
     } catch (error) {
       const message = getErrorMessage(error);
@@ -191,13 +207,50 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
 
     try {
       const response = await fetchJob(jobId, currentToken);
-      const detail = summarizeJob(response.job, locale);
+      let detailSource = response.job;
+      try {
+        const artifactResponse = await fetchJobArtifacts(jobId, currentToken);
+        detailSource = {
+          ...response.job,
+          artifacts: artifactResponse.artifacts
+        };
+      } catch {
+        // keep the detail view available even when artifact metadata is temporarily unavailable
+      }
+      const detail = summarizeJob(detailSource, locale);
       setJobs(currentJobs.map((job) => (job.id === jobId ? detail : job)));
+      const firstArtifactKey = detail.artifacts?.[0]?.key ?? null;
+      setSelectedArtifactKey(firstArtifactKey);
+      if (firstArtifactKey) {
+        void loadArtifactContent(jobId, firstArtifactKey, currentToken);
+      } else {
+        setArtifactContent(null);
+        setArtifactError(null);
+      }
     } catch (error) {
       const message = getErrorMessage(error);
       setJobsError(message);
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function loadArtifactContent(
+    jobId: string,
+    artifactKey: string,
+    currentToken: string | null
+  ) {
+    setArtifactLoading(true);
+    setArtifactError(null);
+
+    try {
+      const response = await fetchJobArtifactContent(jobId, artifactKey, currentToken);
+      setArtifactContent(response.content);
+    } catch (error) {
+      setArtifactContent(null);
+      setArtifactError(getErrorMessage(error));
+    } finally {
+      setArtifactLoading(false);
     }
   }
 
@@ -374,11 +427,20 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
               selectedJob={selectedJob}
               loading={jobsLoading}
               detailLoading={detailLoading}
+              artifactLoading={artifactLoading}
+              artifactError={artifactError}
+              artifactContent={artifactContent}
+              selectedArtifactKey={selectedArtifactKey}
               error={jobsError}
               onRefresh={() => void loadJobs(token, health.authRequired, true)}
               onSelectJob={(jobId) => {
                 setSelectedJobId(jobId);
                 void loadJobDetail(jobId, token);
+              }}
+              onSelectArtifact={(artifactKey) => {
+                if (!selectedJobId) return;
+                setSelectedArtifactKey(artifactKey);
+                void loadArtifactContent(selectedJobId, artifactKey, token);
               }}
             />
           </Suspense>

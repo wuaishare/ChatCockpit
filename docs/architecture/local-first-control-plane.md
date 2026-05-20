@@ -46,13 +46,15 @@ Note:
 
 Generated artifacts live under `.tokenpilot/`:
 
-- `.tokenpilot/repomix-output.xml`
-- `.tokenpilot/bundles/bundle-manifest.json`
-- `.tokenpilot/bundles/bundle-prompt.md`
-- `.tokenpilot/bundles/bundle-summary.md`
+- `.tokenpilot/repomix-output-<timestamp>-<suffix>.xml`
+- `.tokenpilot/bundles/bundle-<timestamp>-<suffix>-manifest.json`
+- `.tokenpilot/bundles/bundle-<timestamp>-<suffix>-prompt.md`
+- `.tokenpilot/bundles/bundle-<timestamp>-<suffix>-summary.md`
 - `.tokenpilot/jobs/*.json`
 - `.tokenpilot/manifests/*.md`
 - `.tokenpilot/manifests/*.json`
+
+Pack artifacts are versioned per run rather than overwritten in place. The local runtime also keeps only a bounded number of recent repomix XML outputs to avoid unbounded disk growth.
 
 ## Controlled File Read
 

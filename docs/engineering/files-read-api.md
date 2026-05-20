@@ -44,6 +44,24 @@ The API only reads files when all of these are true:
   - `*.log`
 - the file looks like a text file
 
+## Why `.tokenpilot/` stays blocked
+
+Direct reads into `.tokenpilot/` remain blocked on purpose.
+
+That directory contains mixed local runtime state, queue files, logs, and generated artifacts. Opening it up as a generic read surface would weaken the control-plane boundary and make it easier to accidentally expose internal runtime data.
+
+Instead, TokenPilot exposes a narrower job-driven artifact surface:
+
+- `GET /api/jobs/{id}/artifacts`
+- `GET /api/jobs/{id}/artifacts/{artifactKey}`
+
+These endpoints only allow public-safe artifact reads that are already declared by a completed job result, such as:
+
+- pack: `repomixXml`, `prompt`, `summary`, `manifest`
+- taskpack: `markdown`, `json`
+
+This keeps GPT / automation artifact consumption possible without turning `.tokenpilot/` into a generic remote file browser.
+
 ## Output model
 
 The response returns:

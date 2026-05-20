@@ -53,7 +53,7 @@ async function main(): Promise<void> {
       const manifest = buildBundleManifest(
         paths.repoRoot,
         paths.bundlesDir,
-        `${paths.workspaceDir}/repomix-output.xml`
+        `${paths.workspaceDir}/repomix-output-manual.xml`
       );
       process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
       return;

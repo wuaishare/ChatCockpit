@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { runPack } from "../src/core/pack.ts";
 import { createTaskPack } from "../src/core/taskpack.ts";
 import { buildServer } from "../src/server/app.ts";
 import {
@@ -72,6 +73,38 @@ function verifyTaskPackNaming(): void {
     /english-title-task\.md$/,
     "Expected english title slug to remain readable"
   );
+}
+
+function verifyPackArtifactNaming(): void {
+  const paths = buildTempPaths();
+  fs.writeFileSync(
+    path.join(paths.repoRoot, ".repomix.config.json"),
+    JSON.stringify(
+      {
+        output: {
+          filePath: ".tokenpilot/repomix-output.xml",
+          style: "xml"
+        },
+        include: ["README.md"]
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+  fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Smoke fixture\n", "utf8");
+
+  const first = runPack(paths);
+  const second = runPack(paths);
+
+  assert.match(first.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
+  assert.match(second.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
+  assert.notEqual(first.repomixXmlPath, second.repomixXmlPath);
+  assert.match(first.promptPath, /^\.tokenpilot\/bundles\/bundle-/);
+  assert.match(first.summaryPath, /^\.tokenpilot\/bundles\/bundle-/);
+  assert.match(first.manifestPath, /^\.tokenpilot\/bundles\/bundle-/);
+  assert.ok(fs.existsSync(path.join(paths.repoRoot, first.repomixXmlPath)));
+  assert.ok(fs.existsSync(path.join(paths.repoRoot, second.repomixXmlPath)));
 }
 
 function verifyAuthConfig(): void {
@@ -155,6 +188,7 @@ async function verifyUiServing(): Promise<void> {
 }
 
 verifyTaskPackNaming();
+verifyPackArtifactNaming();
 verifyAuthConfig();
 await verifyUiServing();
 

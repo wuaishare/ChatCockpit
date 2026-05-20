@@ -135,8 +135,17 @@ export interface UiCopy {
     rowCreated: string;
     rowUpdated: string;
     rowHeadline: string;
+    rowRepo: string;
+    rowPromptPath: string;
+    rowSummaryPath: string;
+    rowRepomixPath: string;
+    rowManifestPath: string;
+    rowMarkdownPath: string;
+    rowJsonPath: string;
     rowError: string;
     rowArtifacts: string;
+    rowIncludeEntries: string;
+    rowArtifactPreview: string;
   };
   gpt: {
     boundaryTitle: string;
@@ -286,8 +295,17 @@ const zhCN: UiCopy = {
     rowCreated: "创建时间",
     rowUpdated: "更新时间",
     rowHeadline: "标题 / 摘要",
+    rowRepo: "仓库标识",
+    rowPromptPath: "提示词路径",
+    rowSummaryPath: "摘要路径",
+    rowRepomixPath: "Repomix XML 路径",
+    rowManifestPath: "Manifest 路径",
+    rowMarkdownPath: "Markdown 路径",
+    rowJsonPath: "JSON 路径",
     rowError: "错误信息",
-    rowArtifacts: "产物路径"
+    rowArtifacts: "可见 artifacts",
+    rowIncludeEntries: "公开 include 条目",
+    rowArtifactPreview: "artifact 预览"
   },
   gpt: {
     boundaryTitle: "阶段边界提醒",
@@ -448,8 +466,17 @@ const enUS: UiCopy = {
     rowCreated: "Created",
     rowUpdated: "Updated",
     rowHeadline: "Headline",
+    rowRepo: "Repo",
+    rowPromptPath: "Prompt path",
+    rowSummaryPath: "Summary path",
+    rowRepomixPath: "Repomix XML path",
+    rowManifestPath: "Manifest path",
+    rowMarkdownPath: "Markdown path",
+    rowJsonPath: "JSON path",
     rowError: "Error",
-    rowArtifacts: "Artifact paths"
+    rowArtifacts: "Visible artifacts",
+    rowIncludeEntries: "Public include entries",
+    rowArtifactPreview: "Artifact preview"
   },
   gpt: {
     boundaryTitle: "Phase-2 boundary reminder",

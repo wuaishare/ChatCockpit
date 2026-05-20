@@ -33,6 +33,7 @@ export interface RepoBundleManifest {
   repomixXmlPath: string;
   promptPath: string;
   summaryPath: string;
+  manifestPath: string;
   publicIncludeEntries: string[];
   /**
    * Deprecated compatibility field. Use publicIncludeEntries instead.
@@ -107,6 +108,16 @@ export interface TokenPilotPublicJobRecord {
   hasResult: boolean;
   hasError: boolean;
   payload: Record<string, unknown>;
+  artifacts?: TokenPilotJobArtifactSummary[];
   result?: Record<string, unknown>;
   error?: string;
+}
+
+export type JobArtifactKey = "repomixXml" | "prompt" | "summary" | "manifest" | "markdown" | "json";
+
+export interface TokenPilotJobArtifactSummary {
+  key: JobArtifactKey;
+  label: string;
+  path: string;
+  contentType: string;
 }

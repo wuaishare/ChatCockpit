@@ -944,6 +944,49 @@ button,
   font-size: var(--tp-text-sm);
 }
 
+.job-detail__block {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.job-detail__block strong {
+  color: var(--tp-text-strong);
+  font-size: var(--tp-text-sm);
+  font-weight: 680;
+}
+
+.job-detail__artifact {
+  display: grid;
+  gap: 4px;
+}
+
+.job-detail__artifact strong {
+  font-size: var(--tp-text-sm);
+}
+
+.job-detail__artifact span {
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+  word-break: break-all;
+}
+
+.job-detail__preview {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--tp-panel-soft) 72%, white 28%);
+  border: 1px solid var(--tp-line);
+  color: var(--tp-text);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .state-notice {
   display: grid;
   place-items: center;
