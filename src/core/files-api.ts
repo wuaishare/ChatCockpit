@@ -232,7 +232,10 @@ export function readRepoFiles(paths: TokenPilotPaths, payload: FileReadBatchPayl
   }
 
   const files = payload.paths.map((inputPath) =>
-    readFileContent(repoRoot, validateRelativePath(inputPath))
+    readFileContent(repoRoot, validateRelativePath(inputPath), {
+      offset: payload.offset,
+      limit: payload.limit
+    })
   );
 
   return {

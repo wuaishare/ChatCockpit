@@ -274,6 +274,16 @@ async function runE2E(): Promise<void> {
     assert.equal(typeof gptConfigBody.config.instructions, "string");
     assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
     assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
+    assert.match(gptConfigBody.config.version, /^\d{2}\.\d{4}\.\d{6} \(\d+\)$/);
+
+    const recentCommits = await fetch(`http://127.0.0.1:${port}/api/git/recent-commits?limit=5`, {
+      headers: { Authorization: "Bearer test-token" }
+    });
+    assert.equal(recentCommits.status, 200);
+    const recentCommitsBody = await recentCommits.json();
+    assert.equal(recentCommitsBody.ok, true);
+    assert.equal(recentCommitsBody.repoId, "tokenpilot");
+    assert.equal(Array.isArray(recentCommitsBody.commits), true);
 
     const ui = await fetch(`http://127.0.0.1:${port}/ui`);
     assert.equal(ui.status, 200);
@@ -546,6 +556,26 @@ async function runE2E(): Promise<void> {
       })
     });
     assert.equal(packSummaryFileRead.status, 200);
+
+    const packBatchRead = await fetch(`http://127.0.0.1:${port}/api/files/read-batch`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "tokenpilot",
+        paths: [
+          (packResults[0]?.result as Record<string, unknown>).promptPath,
+          (packResults[0]?.result as Record<string, unknown>).summaryPath
+        ],
+        limit: 2048
+      })
+    });
+    assert.equal(packBatchRead.status, 200);
+    const packBatchReadBody = await packBatchRead.json();
+    assert.equal(Array.isArray(packBatchReadBody.files), true);
+    assert.equal(packBatchReadBody.files.length, 2);
 
     const packXmlFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
       method: "POST",

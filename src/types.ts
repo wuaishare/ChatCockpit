@@ -89,6 +89,8 @@ export interface FileReadPayload {
 export interface FileReadBatchPayload {
   repoId: string;
   paths: string[];
+  offset?: number;
+  limit?: number;
 }
 
 export interface TokenPilotHealthStatus {
@@ -109,6 +111,13 @@ export interface TokenPilotGptConfigRecord {
   schemaImportUrl: string;
   instructions: string;
   notes: string[];
+}
+
+export interface TokenPilotCommitSummary {
+  hash: string;
+  shortHash: string;
+  subject: string;
+  committedAt: string;
 }
 
 export interface TokenPilotPublicJobRecord {

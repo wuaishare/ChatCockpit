@@ -7,6 +7,7 @@ import path from "node:path";
 import type {
   JobRecord,
   TaskPackInput,
+  TokenPilotCommitSummary,
   TokenPilotGptConfigRecord,
   TokenPilotHealthStatus,
   TokenPilotJobPayload,
@@ -15,6 +16,7 @@ import type {
 } from "../types.js";
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
+import { readRecentGitCommits } from "../core/git-history.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import {
@@ -52,7 +54,13 @@ const fileReadSchema = z.object({
 
 const fileReadBatchSchema = z.object({
   repoId: z.string().min(1),
-  paths: z.array(z.string().min(1)).min(1).max(10)
+  paths: z.array(z.string().min(1)).min(1).max(10),
+  offset: z.number().int().nonnegative().optional(),
+  limit: z.number().int().positive().optional()
+});
+
+const recentCommitsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(50).optional()
 });
 
 const artifactKeySchema = z.enum(["repomixXml", "prompt", "summary", "manifest", "markdown", "json"]);
@@ -414,6 +422,35 @@ export function buildServer(paths: TokenPilotPaths) {
     };
   };
 
+  const recentCommitsHandler = async (request: unknown, reply: unknown) => {
+    const parsed = recentCommitsQuerySchema.safeParse(
+      (request as { query?: unknown }).query ?? {}
+    );
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        error: parsed.error.flatten()
+      };
+    }
+
+    try {
+      const commits = readRecentGitCommits(paths.repoRoot, parsed.data.limit ?? 10);
+      return {
+        ok: true,
+        repoId: "tokenpilot",
+        commits
+      };
+    } catch (error) {
+      fastifyReply.code(500);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
   const listJobsHandler = async () => {
     return {
       ok: true,
@@ -584,6 +621,9 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
+
+  app.get("/api/git/recent-commits", recentCommitsHandler);
+  app.get("/tokenpilot/api/git/recent-commits", recentCommitsHandler);
 
   app.get("/", async (_request, reply) => {
     reply.type("application/json; charset=utf-8");

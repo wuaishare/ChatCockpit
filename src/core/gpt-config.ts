@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import type { TokenPilotHealthStatus } from "../types.js";
 
 export interface TokenPilotGptConfig {
@@ -11,7 +13,28 @@ export interface TokenPilotGptConfig {
   notes: string[];
 }
 
-const GPT_CONFIG_VERSION = "gpt-config-v2";
+function buildGptConfigVersion(): string {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const dd = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const dayOfYear = Math.floor(
+    (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
+      Date.UTC(now.getFullYear(), 0, 0)) /
+      86400000
+  );
+  const doy = String(dayOfYear).padStart(3, "0");
+
+  const gitCount = spawnSync("git", ["rev-list", "--count", "HEAD"], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+  const buildNumber = gitCount.status === 0 ? gitCount.stdout.trim() : "0";
+
+  return `${yy}.${doy}.${dd}${hh}${min}${ss} (${buildNumber})`;
+}
 
 function resolveLocalTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -54,6 +77,7 @@ export function buildGptInstructions(
 ): string {
   const localTimeZone = resolveLocalTimeZone();
   const actionHost = resolveActionHost(health.publicBaseUrl);
+  const version = buildGptConfigVersion();
 
   if (locale === "en-US") {
     return [
@@ -62,7 +86,7 @@ export function buildGptInstructions(
       "Do not claim a completed HTTPS / Custom GPT Actions production loop unless the operator explicitly confirms it.",
       "Never request or expose local absolute paths, secrets, env files, or runtime-private configuration.",
       "",
-      `Configuration context version: ${GPT_CONFIG_VERSION}`,
+      `Configuration context version: ${version}`,
       `Local timezone: ${localTimeZone}`,
       `Mode: ${health.mode}`,
       `Auth required: ${health.authRequired ? "yes" : "no"}`,
@@ -88,7 +112,7 @@ export function buildGptInstructions(
     "3. 基于 job 结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",
     "",
     "当前配置上下文：",
-    `- 配置版本：${GPT_CONFIG_VERSION}`,
+    `- 配置版本：${version}`,
     `- 本机时区：${localTimeZone}`,
     `- 当前模式：${health.mode}`,
     `- 需要鉴权：${health.authRequired ? "是" : "否"}`,
@@ -120,6 +144,7 @@ export function buildGptInstructions(
     "- 如果接口返回 truncated=true，只能表述为“当前拿到了一个分块结果”，不能声称已完整读取大文件正文。",
     "- 对于 pack artifact，优先使用 job artifact read 接口；如果需要完整大文件，不要停在第一块。",
     "- 如果需要完整读取大型 repomixXml，必须使用 offset/limit 循环继续读取，直到 nextOffset=null 或 eof=true，再把所有 content 按顺序拼接后再分析。",
+    "- 如果用户要了解最近改动，优先读取最近 git 提交摘要，而不是只靠 README 或单个任务包猜测。",
     "",
     "四、队列判断规则",
     "- listJobs 为空，只能说明“当前没有可见 job”，不能自动推断为异常。",
@@ -159,8 +184,9 @@ export function buildGptConfig(locale: "zh-CN" | "en-US" = "zh-CN"): TokenPilotG
   const updatedAt = new Date().toISOString();
   const health = buildHealthStatusSnapshot();
   const actionHost = resolveActionHost(health.publicBaseUrl);
+  const version = buildGptConfigVersion();
   return {
-    version: GPT_CONFIG_VERSION,
+    version,
     updatedAt,
     actionHost,
     openapiUrl: health.openapiUrl,

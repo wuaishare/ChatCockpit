@@ -66,6 +66,32 @@ components:
         config:
           $ref: '#/components/schemas/GptConfig'
       required: [ok, config]
+    GitCommitSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        hash:
+          type: string
+        shortHash:
+          type: string
+        subject:
+          type: string
+        committedAt:
+          type: string
+      required: [hash, shortHash, subject, committedAt]
+    RecentCommitsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        commits:
+          type: array
+          items:
+            $ref: '#/components/schemas/GitCommitSummary'
+      required: [ok, repoId, commits]
     PackJobPayload:
       type: object
       additionalProperties: false
@@ -460,6 +486,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GptConfigResponse'
+  /api/git/recent-commits:
+    get:
+      operationId: getRecentCommits
+      summary: Get recent git commit summaries
+      description: Returns recent commit metadata so GPT and operators can inspect the latest repository changes without reading the full git history.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: Recent commits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecentCommitsResponse'
   /api/jobs/pack:
     post:
       operationId: createPack
