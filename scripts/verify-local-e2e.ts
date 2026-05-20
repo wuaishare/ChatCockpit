@@ -263,6 +263,18 @@ async function runE2E(): Promise<void> {
     assert.equal(openapi.status, 200);
     assert.match(await openapi.text(), /TokenPilot Local Control Plane API/);
 
+    const gptConfig = await fetch(`http://127.0.0.1:${port}/api/gpt/config`, {
+      headers: { Authorization: "Bearer test-token" }
+    });
+    assert.equal(gptConfig.status, 200);
+    const gptConfigBody = await gptConfig.json();
+    assert.equal(gptConfigBody.ok, true);
+    assert.equal(typeof gptConfigBody.config.version, "string");
+    assert.equal(typeof gptConfigBody.config.updatedAt, "string");
+    assert.equal(typeof gptConfigBody.config.instructions, "string");
+    assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
+    assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
+
     const ui = await fetch(`http://127.0.0.1:${port}/ui`);
     assert.equal(ui.status, 200);
     assert.match(await ui.text(), /TokenPilot Web UI Fixture/);

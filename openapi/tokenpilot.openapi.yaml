@@ -32,6 +32,40 @@ components:
         openapiUrl:
           type: string
       required: [ok, mode, authRequired, exposed, publicBaseUrl, openapiUrl]
+    GptConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        version:
+          type: string
+        updatedAt:
+          type: string
+        actionHost:
+          type: string
+        openapiUrl:
+          type: string
+        publicBaseUrl:
+          oneOf:
+            - type: string
+            - type: "null"
+        schemaImportUrl:
+          type: string
+        instructions:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+      required: [version, updatedAt, actionHost, openapiUrl, publicBaseUrl, schemaImportUrl, instructions, notes]
+    GptConfigResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        config:
+          $ref: '#/components/schemas/GptConfig'
+      required: [ok, config]
     PackJobPayload:
       type: object
       additionalProperties: false
@@ -395,6 +429,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/gpt/config:
+    get:
+      operationId: getGptConfig
+      summary: Get the current GPT configuration recommendation
+      description: Returns the current recommended GPT configuration, including version, update time, OpenAPI URL, schema import URL, and instructions text.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: GPT config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GptConfigResponse'
   /api/jobs/pack:
     post:
       operationId: createPack

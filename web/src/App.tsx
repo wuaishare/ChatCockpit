@@ -9,6 +9,7 @@ import {
   UnorderedListOutlined
 } from "@ant-design/icons";
 import {
+  fetchGptConfig,
   fetchHealth,
   fetchJob,
   fetchJobArtifactContent,
@@ -19,7 +20,7 @@ import tokenPilotLogo from "./assets/tokenpilot-logo.svg";
 import { DashboardView } from "./components/DashboardView";
 import { StateNotice } from "./components/StateNotice";
 import { TokenBar } from "./components/TokenBar";
-import type { HealthModel, JobSummary } from "./types";
+import type { GptConfigModel, HealthModel, JobSummary } from "./types";
 import { countJobs, summarizeJob } from "./utils";
 import {
   getUiCopy,
@@ -89,6 +90,8 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [gptConfig, setGptConfig] = useState<GptConfigModel | null>(null);
+  const [gptConfigError, setGptConfigError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState<string | null>(null);
@@ -143,6 +146,14 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
     try {
       const healthResponse = await fetchHealth();
       setHealth(healthResponse);
+      try {
+        const gptConfigResponse = await fetchGptConfig(token);
+        setGptConfig(gptConfigResponse.config);
+        setGptConfigError(null);
+      } catch (error) {
+        setGptConfig(null);
+        setGptConfigError(getErrorMessage(error));
+      }
     } catch (error) {
       setHealthError(getErrorMessage(error));
     } finally {
@@ -456,7 +467,12 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
               />
             }
           >
-            <GptHelperView locale={locale} health={health} />
+            <GptHelperView
+              locale={locale}
+              health={health}
+              config={gptConfig}
+              configError={gptConfigError}
+            />
           </Suspense>
         ) : null}
       </Layout.Content>

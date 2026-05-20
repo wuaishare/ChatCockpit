@@ -98,6 +98,17 @@ export interface TokenPilotHealthStatus {
   openapiUrl: string;
 }
 
+export interface TokenPilotGptConfigRecord {
+  version: string;
+  updatedAt: string;
+  actionHost: string;
+  openapiUrl: string;
+  publicBaseUrl: string | null;
+  schemaImportUrl: string;
+  instructions: string;
+  notes: string[];
+}
+
 export interface TokenPilotPublicJobRecord {
   id: string;
   type: JobType;

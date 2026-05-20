@@ -7,12 +7,14 @@ import path from "node:path";
 import type {
   JobRecord,
   TaskPackInput,
+  TokenPilotGptConfigRecord,
   TokenPilotHealthStatus,
   TokenPilotJobPayload,
   TokenPilotPaths,
   TokenPilotPublicJobRecord
 } from "../types.js";
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
+import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import {
@@ -294,17 +296,7 @@ function projectJobForUi(
 }
 
 function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
-  const publicBaseUrl = process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim() || null;
-  return {
-    ok: true,
-    mode: "phase1-local",
-    authRequired: isAuthRequired(),
-    exposed: isExposedMode(),
-    publicBaseUrl,
-    openapiUrl: publicBaseUrl
-      ? `${publicBaseUrl.replace(/\/+$/, "")}/openapi.yaml`
-      : "/openapi.yaml"
-  };
+  return buildHealthStatusSnapshot();
 }
 
 function renderUiNotBuiltPage(): string {
@@ -411,6 +403,13 @@ export function buildServer(paths: TokenPilotPaths) {
 
   const healthHandler = async () => {
     return buildHealthStatus(paths);
+  };
+
+  const gptConfigHandler = async () => {
+    return {
+      ok: true,
+      config: buildGptConfig("zh-CN")
+    };
   };
 
   const listJobsHandler = async () => {
@@ -574,6 +573,9 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.get("/api/health", healthHandler);
   app.get("/tokenpilot/api/health", healthHandler);
+
+  app.get("/api/gpt/config", gptConfigHandler);
+  app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
 
   app.get("/", async (_request, reply) => {
     reply.type("application/json; charset=utf-8");

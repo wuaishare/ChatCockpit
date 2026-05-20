@@ -4,7 +4,15 @@
 
 This document is a transitional helper for manually configuring Custom GPT / GPT Actions during the local-first alpha stage.
 
-Once the Web UI provides a built-in GPT Instructions helper, this generated document and the related generation script may be removed or deprecated.
+The Web UI now provides a built-in GPT configuration panel, including:
+
+- configuration version
+- updatedAt
+- OpenAPI URL
+- schema import URL
+- current recommended instructions
+
+This document and the related generation script remain as a CLI-compatible companion, but the Web UI should now be treated as the primary operator-facing source of GPT configuration truth.
 
 如果你要给 TokenPilot 配置一个 Custom GPT，建议同时准备两样东西：
 

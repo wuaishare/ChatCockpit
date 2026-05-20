@@ -70,6 +70,22 @@ export interface HealthModel {
   publicBaseUrl: string | null;
 }
 
+export interface GptConfigModel {
+  version: string;
+  updatedAt: string;
+  actionHost: string;
+  openapiUrl: string;
+  publicBaseUrl: string | null;
+  schemaImportUrl: string;
+  instructions: string;
+  notes: string[];
+}
+
+export interface GptConfigResponse {
+  ok: boolean;
+  config: GptConfigModel;
+}
+
 export interface JobCounts {
   total: number;
   queued: number;

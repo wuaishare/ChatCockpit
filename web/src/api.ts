@@ -1,5 +1,6 @@
 import type {
   ApiProblem,
+  GptConfigResponse,
   HealthResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
@@ -80,4 +81,8 @@ export async function fetchJobArtifactContent(
     `/api/jobs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactKey)}`,
     token
   );
+}
+
+export async function fetchGptConfig(token?: string | null): Promise<GptConfigResponse> {
+  return requestJson<GptConfigResponse>("/api/gpt/config", token);
 }

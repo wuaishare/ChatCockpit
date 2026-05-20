@@ -115,39 +115,13 @@ export function buildGptHelperText(health: {
   openapiUrl: string;
 }, locale: LocaleCode): string {
   const copy = getUiCopy(locale);
-  if (locale === "zh-CN") {
-    return [
-      "你当前连接的是 TokenPilot，一个面向 ChatGPT + Codex 协作流程的本地优先控制台。",
-      "请使用 TokenPilot API 查看任务状态，并创建边界清晰的 taskpack / pack 任务。",
-      "除非操作员明确确认，否则不要把当前状态视为已经具备完整 HTTPS / Custom GPT Actions 生产闭环。",
-      "不要请求或暴露本地绝对路径、密钥、环境文件或运行时私有配置。",
-      "",
-      `${copy.gpt.modeLabel}: ${health.mode}`,
-      `${copy.gpt.authRequiredLabel}: ${health.authRequired ? copy.status.yes : copy.status.no}`,
-      `${copy.gpt.openapiLabel}: ${health.openapiUrl}`,
-      `API base URL: ${health.publicBaseUrl ?? "仅本地 / 未暴露"}`,
-      health.authRequired
-        ? "当前需要访问令牌。请只在本地操作员控制的浏览器会话中提供 TOKENPILOT_API_TOKEN。"
-        : "当前模式在本地可不带访问令牌使用，但暴露模式仍然需要鉴权。",
-      "当前阶段: local-first 只读 Web UI MVP。",
-      "完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。"
-    ].join("\n");
-  }
-
   return [
-    "You are connected to TokenPilot, a local-first ChatGPT + Codex workflow control plane.",
-    "Use TokenPilot APIs to inspect job status and create narrowly scoped taskpack / pack jobs.",
-    "Do not assume the full HTTPS / Custom GPT Actions automation loop is production-ready unless the operator confirms it.",
-    "Never request or expose local absolute paths, secrets, env files, or runtime-private configuration.",
-    "",
+    locale === "zh-CN"
+      ? "你当前连接的是 TokenPilot 的本地优先工作流控制面。"
+      : "You are connected to the TokenPilot local-first workflow control plane.",
     `${copy.gpt.modeLabel}: ${health.mode}`,
-    `${copy.gpt.authRequiredLabel}: ${health.authRequired ? "yes" : "no"}`,
+    `${copy.gpt.authRequiredLabel}: ${health.authRequired ? copy.status.yes : copy.status.no}`,
     `${copy.gpt.openapiLabel}: ${health.openapiUrl}`,
-    `API base URL: ${health.publicBaseUrl ?? "local-only / not exposed"}`,
-    health.authRequired
-      ? "An access token is required. Provide TOKENPILOT_API_TOKEN only in the local operator-controlled browser session."
-      : "Current mode can be used locally without an access token, but exposed mode still requires authentication.",
-    "Current phase: local-first read-only Web UI MVP.",
-    "Full HTTPS / Custom GPT Actions automation loop is still under validation."
+    `${copy.gpt.publicBaseUrlLabel}: ${health.publicBaseUrl ?? copy.common.notAvailable}`
   ].join("\n");
 }

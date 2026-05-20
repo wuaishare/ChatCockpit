@@ -152,12 +152,21 @@ export interface UiCopy {
     boundaryDescription: string;
     snapshotTitle: string;
     snapshotDescription: string;
+    versionLabel: string;
+    updatedAtLabel: string;
     modeLabel: string;
     authRequiredLabel: string;
     openapiLabel: string;
     publicBaseUrlLabel: string;
+    actionHostLabel: string;
+    schemaImportUrlLabel: string;
     copyTitle: string;
     copyDescription: string;
+    quickCopyTitle: string;
+    importHintTitle: string;
+    importHintBody: string;
+    updateTitle: string;
+    fallbackNote: string;
     notesTitle: string;
     notesDescription: string;
     tokenNote: string;
@@ -313,12 +322,21 @@ const zhCN: UiCopy = {
       "这里只用于 OpenAPI 接入辅助与操作说明，完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
     snapshotTitle: "GPT 接入概览",
     snapshotDescription: "当前机器侧接口面。",
+    versionLabel: "配置版本",
+    updatedAtLabel: "更新时间",
     modeLabel: "模式",
     authRequiredLabel: "需要鉴权",
     openapiLabel: "OpenAPI 地址",
     publicBaseUrlLabel: "公网基址",
+    actionHostLabel: "动作主机",
+    schemaImportUrlLabel: "Schema 导入 URL",
     copyTitle: "可复制文本",
     copyDescription: "可用于操作说明或 GPT 配置的安全文本。",
+    quickCopyTitle: "快速复制",
+    importHintTitle: "URL 导入提示",
+    importHintBody: "可在 GPT Builder 里直接使用下面这条 URL 作为 schema 导入地址。",
+    updateTitle: "更新提醒",
+    fallbackNote: "当前回退到了本地拼装的说明文本，建议检查 GPT 配置接口是否可达。",
     notesTitle: "操作员备注",
     notesDescription: "面向鉴权模式下的人类操作员。",
     tokenNote:
@@ -484,12 +502,21 @@ const enUS: UiCopy = {
       "This helper is only for OpenAPI wiring and operator guidance. Full HTTPS / Custom GPT Actions automation is still under validation.",
     snapshotTitle: "GPT Integration Snapshot",
     snapshotDescription: "Current machine-facing surface.",
+    versionLabel: "Config Version",
+    updatedAtLabel: "Updated At",
     modeLabel: "Mode",
     authRequiredLabel: "Auth Required",
     openapiLabel: "OpenAPI URL",
     publicBaseUrlLabel: "Public Base URL",
+    actionHostLabel: "Action Host",
+    schemaImportUrlLabel: "Schema Import URL",
     copyTitle: "Copy Text",
     copyDescription: "Safe to copy into operator notes or setup prompts.",
+    quickCopyTitle: "Quick Copy",
+    importHintTitle: "URL Import Hint",
+    importHintBody: "Use the URL below directly in GPT Builder as the schema import address.",
+    updateTitle: "Update Reminder",
+    fallbackNote: "The UI fell back to a locally assembled helper text. Check whether the GPT config endpoint is reachable.",
     notesTitle: "Operator Notes",
     notesDescription: "Compact reminders for human operators using auth-required mode.",
     tokenNote:
