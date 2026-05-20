@@ -1,5 +1,4 @@
 import { CopyButton, Text } from "@lobehub/ui";
-import { Button } from "antd";
 import { useMemo } from "react";
 import type { GptConfigModel, HealthModel } from "../types";
 import { buildGptHelperText, formatDateTime } from "../utils";
@@ -18,6 +17,9 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   const copy = getUiCopy(locale);
   const fallbackText = useMemo(() => buildGptHelperText(health, locale), [health, locale]);
   const helperText = config?.instructions ?? fallbackText;
+  const importUrl = config?.schemaImportUrl ?? health.openapiUrl;
+  const openapiUrl = config?.openapiUrl ?? health.openapiUrl;
+  const showSeparateSchemaUrl = importUrl !== openapiUrl;
   const facts = [
     { label: copy.gpt.versionLabel, value: config?.version ?? copy.common.notAvailable },
     {
@@ -26,10 +28,10 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
     },
     { label: copy.gpt.modeLabel, value: health.mode },
     { label: copy.gpt.authRequiredLabel, value: health.authRequired ? copy.status.yes : copy.status.no },
-    { label: copy.gpt.openapiLabel, value: config?.openapiUrl ?? health.openapiUrl },
+    { label: copy.gpt.openapiLabel, value: openapiUrl },
     { label: copy.gpt.publicBaseUrlLabel, value: config?.publicBaseUrl ?? health.publicBaseUrl ?? copy.common.notAvailable },
     { label: copy.gpt.actionHostLabel, value: config?.actionHost ?? copy.common.notAvailable },
-    { label: copy.gpt.schemaImportUrlLabel, value: config?.schemaImportUrl ?? health.openapiUrl }
+    ...(showSeparateSchemaUrl ? [{ label: copy.gpt.schemaImportUrlLabel, value: importUrl }] : [])
   ];
 
   const checklistItems = copy.gpt.checklist.slice(1);
@@ -37,10 +39,10 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   const summaryText = [
     `${copy.gpt.versionLabel}: ${config?.version ?? copy.common.notAvailable}`,
     `${copy.gpt.updatedAtLabel}: ${config?.updatedAt ?? copy.common.notAvailable}`,
-    `${copy.gpt.openapiLabel}: ${config?.openapiUrl ?? health.openapiUrl}`,
+    `${copy.gpt.openapiLabel}: ${openapiUrl}`,
     `${copy.gpt.publicBaseUrlLabel}: ${config?.publicBaseUrl ?? health.publicBaseUrl ?? copy.common.notAvailable}`,
     `${copy.gpt.actionHostLabel}: ${config?.actionHost ?? copy.common.notAvailable}`,
-    `${copy.gpt.schemaImportUrlLabel}: ${config?.schemaImportUrl ?? health.openapiUrl}`
+    ...(showSeparateSchemaUrl ? [`${copy.gpt.schemaImportUrlLabel}: ${importUrl}`] : [])
   ].join("\n");
 
   return (
@@ -89,7 +91,7 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
         <SectionCard
           title={copy.gpt.copyTitle}
           description={copy.gpt.copyDescription}
-          extra={<CopyButton content={helperText} />}
+          extra={<CopyButton content={helperText}>{copy.gpt.copyInstructionsAction}</CopyButton>}
         >
           <div className="copy-snippet">
             <pre className="text-snippet">{helperText}</pre>
@@ -98,16 +100,18 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
           <div className="job-detail__block">
             <strong>{copy.gpt.quickCopyTitle}</strong>
             <div className="quick-actions__actions">
-              <CopyButton content={config?.openapiUrl ?? health.openapiUrl} />
-              <CopyButton content={config?.schemaImportUrl ?? health.openapiUrl} />
-              <CopyButton content={summaryText} />
+              <CopyButton content={openapiUrl}>{copy.gpt.copyOpenapiAction}</CopyButton>
+              {showSeparateSchemaUrl ? (
+                <CopyButton content={importUrl}>{copy.gpt.copySchemaAction}</CopyButton>
+              ) : null}
+              <CopyButton content={summaryText}>{copy.gpt.copySummaryAction}</CopyButton>
             </div>
           </div>
 
           <div className="job-detail__block">
             <strong>{copy.gpt.importHintTitle}</strong>
             <div className="notes-block">{copy.gpt.importHintBody}</div>
-            <pre className="job-detail__preview">{config?.schemaImportUrl ?? health.openapiUrl}</pre>
+            <pre className="job-detail__preview">{importUrl}</pre>
           </div>
         </SectionCard>
       </div>

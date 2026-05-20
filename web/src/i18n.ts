@@ -162,6 +162,10 @@ export interface UiCopy {
     schemaImportUrlLabel: string;
     copyTitle: string;
     copyDescription: string;
+    copyInstructionsAction: string;
+    copyOpenapiAction: string;
+    copySchemaAction: string;
+    copySummaryAction: string;
     quickCopyTitle: string;
     importHintTitle: string;
     importHintBody: string;
@@ -330,11 +334,15 @@ const zhCN: UiCopy = {
     publicBaseUrlLabel: "公网基址",
     actionHostLabel: "动作主机",
     schemaImportUrlLabel: "Schema 导入 URL",
-    copyTitle: "可复制文本",
-    copyDescription: "可用于操作说明或 GPT 配置的安全文本。",
+    copyTitle: "推荐指令",
+    copyDescription: "复制到 GPT 主说明框前，先确认版本、导入地址与更新提醒。",
+    copyInstructionsAction: "复制指令",
+    copyOpenapiAction: "复制 OpenAPI URL",
+    copySchemaAction: "复制导入 URL",
+    copySummaryAction: "复制配置摘要",
     quickCopyTitle: "快速复制",
-    importHintTitle: "URL 导入提示",
-    importHintBody: "可在 GPT Builder 里直接使用下面这条 URL 作为 schema 导入地址。",
+    importHintTitle: "Schema 导入地址",
+    importHintBody: "在 GPT Builder 中可直接使用下面这条 URL 导入 Actions schema。",
     updateTitle: "更新提醒",
     fallbackNote: "当前回退到了本地拼装的说明文本，建议检查 GPT 配置接口是否可达。",
     notesTitle: "操作员备注",
@@ -510,11 +518,15 @@ const enUS: UiCopy = {
     publicBaseUrlLabel: "Public Base URL",
     actionHostLabel: "Action Host",
     schemaImportUrlLabel: "Schema Import URL",
-    copyTitle: "Copy Text",
-    copyDescription: "Safe to copy into operator notes or setup prompts.",
+    copyTitle: "Recommended Instructions",
+    copyDescription: "Confirm the version, import URL, and update notes before pasting this into the GPT instructions field.",
+    copyInstructionsAction: "Copy Instructions",
+    copyOpenapiAction: "Copy OpenAPI URL",
+    copySchemaAction: "Copy Import URL",
+    copySummaryAction: "Copy Config Summary",
     quickCopyTitle: "Quick Copy",
-    importHintTitle: "URL Import Hint",
-    importHintBody: "Use the URL below directly in GPT Builder as the schema import address.",
+    importHintTitle: "Schema Import URL",
+    importHintBody: "Use the URL below directly in GPT Builder to import the Actions schema.",
     updateTitle: "Update Reminder",
     fallbackNote: "The UI fell back to a locally assembled helper text. Check whether the GPT config endpoint is reachable.",
     notesTitle: "Operator Notes",
