@@ -133,6 +133,24 @@ install_plists() {
   cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
 }
 
+sync_plists_if_needed() {
+  ensure_launch_agents_dir
+  local changed=1
+
+  if [[ -f "${INSTALLED_PLIST_FILE}" ]] && [[ -f "${INSTALLED_RUNNER_PLIST_FILE}" ]]; then
+    if cmp -s "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}" && cmp -s "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"; then
+      changed=0
+    fi
+  fi
+
+  if (( changed != 0 )); then
+    cp "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}"
+    cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
+    return 1
+  fi
+  return 0
+}
+
 remove_installed_plists() {
   rm -f "${INSTALLED_PLIST_FILE}"
   rm -f "${INSTALLED_RUNNER_PLIST_FILE}"
@@ -150,6 +168,11 @@ bootstrap_services() {
   launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_RUNNER_PLIST_FILE}"
   launchctl enable "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
   launchctl enable "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl kickstart -k "${USER_DOMAIN}/${SERVICE_LABEL}"
+  launchctl kickstart -k "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}"
+}
+
+kickstart_services() {
   launchctl kickstart -k "${USER_DOMAIN}/${SERVICE_LABEL}"
   launchctl kickstart -k "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}"
 }
@@ -231,16 +254,23 @@ case "${ACTION}" in
     cd "${ROOT_DIR}"
     write_server_plist
     write_runner_plist
-    install_plists
+    sync_plists_if_needed
+    plist_changed=$?
     if is_running; then
       if launchctl_service_registered && launchctl_runner_registered; then
-        echo "TokenPilot server already running with PID $(cat "${PID_FILE}") and both LaunchAgents are already registered"
-        exit 0
+        if (( plist_changed == 0 )); then
+          echo "TokenPilot server already running with PID $(cat "${PID_FILE}") and both LaunchAgents are already registered"
+          exit 0
+        fi
       fi
       echo "TokenPilot server already running with PID $(cat "${PID_FILE}"); refreshing LaunchAgent registration"
     fi
-    bootout_services
-    bootstrap_services
+    if launchctl_service_registered && launchctl_runner_registered && (( plist_changed == 0 )); then
+      kickstart_services
+    else
+      bootout_services
+      bootstrap_services
+    fi
     if wait_for_listen 30 && wait_for_runner_registration 30; then
       echo "TokenPilot server started with PID $(cat "${PID_FILE}")"
     else
@@ -265,6 +295,25 @@ case "${ACTION}" in
     echo "TokenPilot server stopped"
     ;;
   restart)
+    cd "${ROOT_DIR}"
+    write_server_plist
+    write_runner_plist
+    sync_plists_if_needed
+    plist_changed=$?
+
+    if launchctl_service_registered && launchctl_runner_registered && (( plist_changed == 0 )); then
+      kickstart_services
+      if wait_for_listen 30 && wait_for_runner_registration 30; then
+        echo "TokenPilot server restarted with PID $(cat "${PID_FILE}")"
+      else
+        cat "${LOG_FILE}" 2>/dev/null || true
+        cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
+        echo "Failed to restart TokenPilot server"
+        exit 1
+      fi
+      exit 0
+    fi
+
     "${0}" stop
     "${0}" start
     ;;
