@@ -296,7 +296,8 @@ const zhCN: UiCopy = {
     gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址，可一键复制完整文本。",
     repoGovernanceTitle: "Repo 治理",
     repoGovernanceDescription: "当前允许 GPT Actions 与本地 Codex 协同使用的公开 repoId；本机路径只在私有配置中解析。",
-    repoGovernanceConfigScope: "配置来源：本机私有 TokenPilot 配置",
+    repoGovernanceConfigScope:
+      "配置来源：本机私有 TokenPilot 配置（默认 ~/.tokenpilot/config.json，可用 TOKENPILOT_CONFIG_PATH 覆盖）",
     repoGovernancePathHidden: "路径已隐藏",
     repoGovernanceDefaultLabel: "默认",
     repoGovernanceMissingHint: "未发现对应仓库目录，当前不可执行。",
@@ -500,7 +501,8 @@ const enUS: UiCopy = {
     gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL with one-click copy for the full text.",
     repoGovernanceTitle: "Repo Governance",
     repoGovernanceDescription: "Public repoIds currently available to GPT Actions and local Codex collaboration. Local paths resolve only inside private operator config.",
-    repoGovernanceConfigScope: "Config source: local private TokenPilot config",
+    repoGovernanceConfigScope:
+      "Config source: local private TokenPilot config (default ~/.tokenpilot/config.json, override with TOKENPILOT_CONFIG_PATH)",
     repoGovernancePathHidden: "Path hidden",
     repoGovernanceDefaultLabel: "Default",
     repoGovernanceMissingHint: "Repository directory was not found; execution is unavailable.",
