@@ -43,13 +43,24 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
     `${copy.gpt.publicBaseUrlLabel}: ${config?.publicBaseUrl ?? health.publicBaseUrl ?? copy.common.notAvailable}`,
     `${copy.gpt.actionHostLabel}: ${config?.actionHost ?? copy.common.notAvailable}`,
     `${copy.gpt.openapiLabel}: ${openapiUrl}`,
-    ...(showSeparateSchemaUrl ? [`${copy.gpt.schemaImportUrlLabel}: ${importUrl}`] : [])
+    ...(showSeparateSchemaUrl ? [`${copy.gpt.schemaImportUrlLabel}: ${importUrl}`] : []),
+    config?.repoGovernance
+      ? `repoId: ${config.repoGovernance.repos.map((repo) => `${repo.repoId}=${repo.status}`).join(", ")}`
+      : ""
   ].join("\n");
 
   return (
     <div className="view-stack">
       <div className="gpt-layout">
         <SectionCard title={copy.gpt.snapshotTitle} description={copy.gpt.snapshotDescription}>
+          <div className="gpt-overview-actions">
+            <CopyButton
+              aria-label={copy.gpt.copySummaryAction}
+              content={summaryText}
+              icon={ClipboardCopy}
+            />
+          </div>
+
           <div className="section-note section-note--warning">
             <strong>{copy.gpt.boundaryTitle}</strong>
             <span>{copy.gpt.boundaryDescription}</span>
@@ -105,21 +116,10 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
           </div>
 
           <div className="job-detail__block">
-            <strong>{copy.gpt.quickCopyTitle}</strong>
-            <div className="quick-actions__actions">
-              <CopyButton
-                aria-label={copy.gpt.copySummaryAction}
-                content={summaryText}
-                icon={ClipboardCopy}
-              />
-            </div>
-          </div>
-
-          <div className="job-detail__block">
             <strong>{copy.gpt.importHintTitle}</strong>
             <div className="notes-block">{copy.gpt.importHintBody}</div>
-            <pre className="job-detail__preview">{importUrl}</pre>
-            <div className="quick-actions__actions">
+            <div className="gpt-schema-line">
+              <pre className="job-detail__preview">{importUrl}</pre>
               <CopyButton
                 aria-label={copy.gpt.copySchemaAction}
                 content={importUrl}

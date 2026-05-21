@@ -1,6 +1,12 @@
 import { Button, Descriptions, List, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { LockOutlined } from "@ant-design/icons";
+import {
+  LockOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+  StopOutlined
+} from "@ant-design/icons";
 import type { JobArtifactSummary, JobSummary } from "../types";
 import { formatDateTime, safePathList, safeText } from "../utils";
 import { SectionCard } from "./SectionCard";
@@ -162,6 +168,14 @@ export function JobsView({
   onRefresh
 }: JobsViewProps) {
   const copy = getUiCopy(locale);
+  const statusCounts = jobs.reduce(
+    (counts, job) => {
+      counts[job.status] += 1;
+      counts.total += 1;
+      return counts;
+    },
+    { total: 0, queued: 0, running: 0, completed: 0, failed: 0 }
+  );
 
   if (authRequired && !hasToken && !jobs.length) {
     return (
@@ -285,15 +299,45 @@ export function JobsView({
   ];
 
   return (
-    <div className="jobs-layout">
+    <div className="jobs-workbench">
+      <div className="jobs-opsbar panel">
+        <div className="jobs-opsbar__metrics">
+          <div className="jobs-opsbar__metric">
+            <span>{copy.dashboard.running}</span>
+            <strong>{statusCounts.running}</strong>
+          </div>
+          <div className="jobs-opsbar__metric">
+            <span>{copy.dashboard.queued}</span>
+            <strong>{statusCounts.queued}</strong>
+          </div>
+          <div className="jobs-opsbar__metric">
+            <span>{copy.dashboard.failed}</span>
+            <strong>{statusCounts.failed}</strong>
+          </div>
+          <div className="jobs-opsbar__metric">
+            <span>{copy.dashboard.total}</span>
+            <strong>{statusCounts.total}</strong>
+          </div>
+        </div>
+        <div className="jobs-opsbar__actions">
+          <Button icon={<ReloadOutlined />} onClick={onRefresh} loading={loading}>
+            {copy.common.refresh}
+          </Button>
+          <Button
+            danger
+            icon={<StopOutlined />}
+            loading={controlLoading}
+            onClick={onTerminateAll}
+          >
+            {copy.jobs.controlTerminateAll}
+          </Button>
+        </div>
+      </div>
+
+      <div className="jobs-layout">
       <SectionCard
         title={copy.jobs.queueTitle}
         description={copy.jobs.queueDescription}
-        extra={
-          <Button onClick={onRefresh} loading={loading}>
-            {copy.common.refresh}
-          </Button>
-        }
       >
         <Table
           columns={columns}
@@ -313,14 +357,23 @@ export function JobsView({
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             {detailLoading ? <div className="detail-loading">{copy.jobs.detailRefreshing}</div> : null}
 
-            <div className="job-detail__block job-detail__controls">
-              <div>
+            <div className="job-detail__hero">
+              <div className="job-detail__hero-copy">
+                <div className="jobs-table__headline">{selectedJob.headline}</div>
+                <div className="jobs-table__subline">{selectedJob.id}</div>
+              </div>
+              {renderStatus(selectedJob.status, getStatusLabel(locale, selectedJob.status))}
+            </div>
+
+            <div className="job-detail__controls">
+              <div className="job-detail__controls-copy">
                 <strong>{copy.jobs.controlTitle}</strong>
                 <p>{copy.jobs.controlDescription}</p>
               </div>
-              <Space wrap>
+              <div className="job-detail__control-actions">
                 <Button
                   size="small"
+                  icon={<PauseCircleOutlined />}
                   onClick={() => onControlJob("pause")}
                   disabled={controlLoading || selectedJob.status !== "running"}
                 >
@@ -328,6 +381,7 @@ export function JobsView({
                 </Button>
                 <Button
                   size="small"
+                  icon={<PlayCircleOutlined />}
                   onClick={() => onControlJob("resume")}
                   loading={controlLoading}
                   disabled={selectedJob.status !== "running"}
@@ -337,19 +391,17 @@ export function JobsView({
                 <Button
                   size="small"
                   danger
+                  icon={<StopOutlined />}
                   onClick={() => onControlJob("terminate")}
                   disabled={controlLoading || selectedJob.status !== "running"}
                 >
                   {copy.jobs.controlTerminate}
                 </Button>
-                <Button size="small" danger loading={controlLoading} onClick={onTerminateAll}>
-                  {copy.jobs.controlTerminateAll}
-                </Button>
-              </Space>
+              </div>
               {controlMessage ? <span className="job-detail__control-message">{controlMessage}</span> : null}
             </div>
 
-            <Descriptions column={1} size="small">
+            <Descriptions column={2} size="small" className="job-detail__descriptions">
               {details.map((row) => (
                 <Descriptions.Item key={row.label} label={row.label}>
                   {row.label === copy.jobs.rowStatus
@@ -362,29 +414,23 @@ export function JobsView({
             <div className="job-detail__block">
               <strong>{copy.jobs.rowArtifacts}</strong>
               {selectedJob.artifacts?.length ? (
-                <List
-                  size="small"
-                  dataSource={selectedJob.artifacts}
-                  renderItem={(artifact) => (
-                    <List.Item
-                      actions={[
+                <div className="job-artifact-tabs">
+                  {selectedJob.artifacts.map((artifact) => (
+                    <div key={artifact.key} className="job-artifact-tab">
+                      <div className="job-detail__artifact">
+                        <strong>{artifact.label}</strong>
+                        <span>{safeText(artifact.path, locale)}</span>
+                      </div>
                         <Button
-                          key={artifact.key}
                           type={artifact.key === selectedArtifactKey ? "primary" : "link"}
                           size="small"
                           onClick={() => onSelectArtifact(artifact.key)}
                         >
                           {copy.common.inspect}
                         </Button>
-                      ]}
-                    >
-                      <div className="job-detail__artifact">
-                        <strong>{artifact.label}</strong>
-                        <span>{safeText(artifact.path, locale)}</span>
-                      </div>
-                    </List.Item>
-                  )}
-                />
+                    </div>
+                  ))}
+                </div>
               ) : (
                 renderArtifactList(selectedJob.artifacts, locale)
               )}
@@ -417,6 +463,7 @@ export function JobsView({
           />
         )}
       </SectionCard>
+      </div>
     </div>
   );
 }

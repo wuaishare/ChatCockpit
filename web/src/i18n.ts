@@ -100,6 +100,19 @@ export interface UiCopy {
     gptPreviewTitle: string;
     gptPreviewDescription: string;
     gptPreviewCompact: string;
+    repoGovernanceTitle: string;
+    repoGovernanceDescription: string;
+    repoGovernanceConfigScope: string;
+    repoGovernancePathHidden: string;
+    repoGovernanceDefaultLabel: string;
+    repoGovernanceMissingHint: string;
+    repoGovernanceBlockedHint: string;
+    repoCapabilityPack: string;
+    repoCapabilityFilesRead: string;
+    repoCapabilityCodexRun: string;
+    repoSourceDefault: string;
+    repoSourceDefaultSibling: string;
+    repoSourceLocalConfig: string;
   };
   jobs: {
     sectionTitle: string;
@@ -280,7 +293,20 @@ const zhCN: UiCopy = {
     recentJobUpdatedPrefix: "最近更新于",
     gptPreviewTitle: "GPT 助手预览",
     gptPreviewDescription: "可复制的操作员指引。",
-    gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址，可一键复制完整文本。"
+    gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址，可一键复制完整文本。",
+    repoGovernanceTitle: "Repo 治理",
+    repoGovernanceDescription: "当前允许 GPT Actions 与本地 Codex 协同使用的公开 repoId；本机路径只在私有配置中解析。",
+    repoGovernanceConfigScope: "配置来源：本机私有 TokenPilot 配置",
+    repoGovernancePathHidden: "路径已隐藏",
+    repoGovernanceDefaultLabel: "默认",
+    repoGovernanceMissingHint: "未发现对应仓库目录，当前不可执行。",
+    repoGovernanceBlockedHint: "已配置路径但未进入 allowlist，请检查本机私有配置。",
+    repoCapabilityPack: "打包",
+    repoCapabilityFilesRead: "只读文件",
+    repoCapabilityCodexRun: "Codex 执行",
+    repoSourceDefault: "默认仓库",
+    repoSourceDefaultSibling: "默认相邻仓库",
+    repoSourceLocalConfig: "本机配置"
   },
   jobs: {
     sectionTitle: "任务",
@@ -471,7 +497,20 @@ const enUS: UiCopy = {
     recentJobUpdatedPrefix: "updated",
     gptPreviewTitle: "GPT Helper Preview",
     gptPreviewDescription: "Copy-safe operator guidance.",
-    gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL with one-click copy for the full text."
+    gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL with one-click copy for the full text.",
+    repoGovernanceTitle: "Repo Governance",
+    repoGovernanceDescription: "Public repoIds currently available to GPT Actions and local Codex collaboration. Local paths resolve only inside private operator config.",
+    repoGovernanceConfigScope: "Config source: local private TokenPilot config",
+    repoGovernancePathHidden: "Path hidden",
+    repoGovernanceDefaultLabel: "Default",
+    repoGovernanceMissingHint: "Repository directory was not found; execution is unavailable.",
+    repoGovernanceBlockedHint: "A path is configured but not allowlisted. Check local private config.",
+    repoCapabilityPack: "Pack",
+    repoCapabilityFilesRead: "Files read",
+    repoCapabilityCodexRun: "Codex run",
+    repoSourceDefault: "Default repo",
+    repoSourceDefaultSibling: "Default sibling repo",
+    repoSourceLocalConfig: "Local config"
   },
   jobs: {
     sectionTitle: "Jobs",

@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
-import type { TokenPilotHealthStatus } from "../types.js";
+import type { TokenPilotHealthStatus, TokenPilotRepoGovernanceRecord } from "../types.js";
+import { buildRepoGovernance } from "./config.js";
 
 export interface TokenPilotGptConfig {
   version: string;
@@ -9,6 +10,7 @@ export interface TokenPilotGptConfig {
   openapiUrl: string;
   publicBaseUrl: string | null;
   schemaImportUrl: string;
+  repoGovernance: TokenPilotRepoGovernanceRecord;
   instructions: string;
   notes: string[];
 }
@@ -136,7 +138,7 @@ export function buildGptInstructions(
     "- 如果需要最新快照，应明确说明：createPack 只代表任务已入队，必须继续查询该 job，直到 completed 或 failed。",
     "",
     "二、输出边界规则",
-    "- 不要在最终回答中输出任何本地绝对路径，例如 /path/to/user/...",
+    "- 不要在最终回答中输出任何本机绝对路径。",
     "- 如果接口返回了本地路径，也不要复述，改写成“当前仓库已识别”或“当前运行目标已识别”。",
     "- 不要暴露 token、真实私有配置、内部运行态细节。",
     "- 不要把旧语义 repoRoot 当成对外稳定接口字段；对外统一使用 repoId。",
@@ -190,11 +192,15 @@ export function buildGptInstructions(
   ].join("\n");
 }
 
-export function buildGptConfig(locale: "zh-CN" | "en-US" = "zh-CN"): TokenPilotGptConfig {
+export function buildGptConfig(
+  locale: "zh-CN" | "en-US" = "zh-CN",
+  repoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim() || process.cwd()
+): TokenPilotGptConfig {
   const updatedAt = new Date().toISOString();
   const health = buildHealthStatusSnapshot();
   const actionHost = resolveActionHost(health.publicBaseUrl);
   const version = buildGptConfigVersion();
+  const repoGovernance = buildRepoGovernance(repoRoot);
   return {
     version,
     updatedAt,
@@ -202,6 +208,7 @@ export function buildGptConfig(locale: "zh-CN" | "en-US" = "zh-CN"): TokenPilotG
     openapiUrl: health.openapiUrl,
     publicBaseUrl: health.publicBaseUrl,
     schemaImportUrl: health.openapiUrl,
+    repoGovernance,
     instructions: buildGptInstructions(health, locale),
     notes: [
       "当前版本已升级到支持大 artifact 分块完整读取的配置。若 GPT 仍把 repomixXml 当成单次预览读取，请立即去 GPT Builder 侧同步更新。",

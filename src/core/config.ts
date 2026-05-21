@@ -2,9 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { TokenPilotUserConfig } from "../types.js";
+import type {
+  TokenPilotRepoGovernanceEntry,
+  TokenPilotRepoGovernanceRecord,
+  TokenPilotUserConfig
+} from "../types.js";
 
-const DEFAULT_REPO_ID = "tokenpilot";
+export const DEFAULT_REPO_ID = "tokenpilot";
 const DEFAULT_SIBLING_REPOS: Record<string, string> = {
   "sourceflow-refactor": "sourceflow-refactor",
   "ai-wuaishare-cn": "ai.wuaishare.cn"
@@ -136,4 +140,53 @@ export function resolveRepoMapping(
   }
 
   return { repoId, repoRoot };
+}
+
+function getDefaultRepoIds(): string[] {
+  return [DEFAULT_REPO_ID, ...Object.keys(DEFAULT_SIBLING_REPOS)].sort();
+}
+
+export function buildRepoGovernance(repoRoot: string): TokenPilotRepoGovernanceRecord {
+  const config = loadUserConfig(repoRoot);
+  const repoIds = Array.from(
+    new Set([...getDefaultRepoIds(), ...Object.keys(config.repoMappings)])
+  ).sort((a, b) => {
+    if (a === DEFAULT_REPO_ID) return -1;
+    if (b === DEFAULT_REPO_ID) return 1;
+    return a.localeCompare(b);
+  });
+
+  const repos: TokenPilotRepoGovernanceEntry[] = repoIds.map((repoId) => {
+    const mapping = config.repoMappings[repoId];
+    const pathConfigured = Boolean(mapping?.path);
+    const allowlisted = pathConfigured
+      ? isWithinWorkspaceAllowlist(mapping.path, config.workspaceAllowlist)
+      : false;
+    const isKnownDefault = getDefaultRepoIds().includes(repoId);
+    const status = pathConfigured ? (allowlisted ? "enabled" : "blocked") : "missing";
+    const source =
+      repoId === DEFAULT_REPO_ID
+        ? "default"
+        : isKnownDefault
+          ? "default-sibling"
+          : "local-config";
+
+    return {
+      repoId,
+      status,
+      defaultRepo: repoId === DEFAULT_REPO_ID,
+      source,
+      pathConfigured,
+      allowlisted,
+      pathVisibility: "hidden",
+      capabilities: allowlisted ? ["pack", "files-read", "codex-run"] : []
+    };
+  });
+
+  return {
+    defaultRepoId: DEFAULT_REPO_ID,
+    configScope: "local-private",
+    pathVisibility: "hidden",
+    repos
+  };
 }

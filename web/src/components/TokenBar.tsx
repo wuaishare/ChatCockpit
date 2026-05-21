@@ -22,11 +22,11 @@ interface TokenBarProps {
 
 export function TokenBar({ locale, authRequired, token, onSave, onClear }: TokenBarProps) {
   const [draft, setDraft] = useState("");
-  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const copy = getUiCopy(locale);
 
   return (
-    <div className="token-bar panel">
+    <div className={`token-bar${expanded ? " token-bar--expanded" : ""}`}>
       <div className="token-bar__summary">
         <div className="token-bar__meta">
           <div className="token-bar__icon" aria-hidden="true">
@@ -48,47 +48,18 @@ export function TokenBar({ locale, authRequired, token, onSave, onClear }: Token
             {maskToken(token, locale)}
           </Tag>
           <Button
-            className="token-bar__mobile-toggle"
-            icon={mobileExpanded ? <UpOutlined /> : <DownOutlined />}
-            onClick={() => setMobileExpanded((value) => !value)}
-            aria-expanded={mobileExpanded}
+            size="small"
+            className="token-bar__toggle"
+            icon={expanded ? <UpOutlined /> : <DownOutlined />}
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
           >
-            {mobileExpanded ? copy.tokenBar.collapse : copy.tokenBar.expand}
+            {expanded ? copy.tokenBar.collapse : copy.tokenBar.expand}
           </Button>
         </div>
       </div>
 
-      <div className="token-bar__desktop-group">
-        <Input.Password
-          className="token-bar__input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={copy.tokenBar.placeholder}
-          autoComplete="off"
-        />
-        <Button
-          className="token-bar__save-btn"
-          type="primary"
-          onClick={() => {
-            onSave(draft);
-            setDraft("");
-          }}
-          disabled={!draft.trim()}
-        >
-          {copy.common.save}
-        </Button>
-        <Button
-          icon={<LogoutOutlined />}
-          onClick={() => {
-            onClear();
-          }}
-          disabled={!token}
-        >
-          {copy.common.clear}
-        </Button>
-      </div>
-
-      <div className={`token-bar__controls${mobileExpanded ? " token-bar__controls--mobile-open" : ""}`}>
+      <div className="token-bar__controls">
         <Input.Password
           className="token-bar__input"
           value={draft}
@@ -103,7 +74,7 @@ export function TokenBar({ locale, authRequired, token, onSave, onClear }: Token
             onClick={() => {
               onSave(draft);
               setDraft("");
-              setMobileExpanded(false);
+              setExpanded(false);
             }}
             disabled={!draft.trim()}
           >
@@ -113,7 +84,7 @@ export function TokenBar({ locale, authRequired, token, onSave, onClear }: Token
             icon={<LogoutOutlined />}
             onClick={() => {
               onClear();
-              setMobileExpanded(false);
+              setExpanded(false);
             }}
             disabled={!token}
           >

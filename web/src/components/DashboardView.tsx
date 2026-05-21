@@ -1,6 +1,12 @@
 import { Button, List, Tag } from "antd";
 import { Text } from "@lobehub/ui";
-import type { HealthModel, JobCounts, JobSummary } from "../types";
+import type {
+  HealthModel,
+  JobCounts,
+  JobSummary,
+  RepoGovernanceEntry,
+  RepoGovernanceModel
+} from "../types";
 import { formatDateTime } from "../utils";
 import { SectionCard } from "./SectionCard";
 import type { LocaleCode } from "../i18n";
@@ -9,6 +15,7 @@ import { getStatusLabel, getTypeLabel, getUiCopy } from "../i18n";
 interface DashboardViewProps {
   locale: LocaleCode;
   health: HealthModel;
+  repoGovernance?: RepoGovernanceModel;
   counts: JobCounts;
   recentJobs: JobSummary[];
   onSelectJob: (jobId: string) => void;
@@ -19,6 +26,7 @@ interface DashboardViewProps {
 export function DashboardView({
   locale,
   health,
+  repoGovernance,
   counts,
   recentJobs,
   onSelectJob,
@@ -28,6 +36,26 @@ export function DashboardView({
   const throughput = counts.total ? Math.round((counts.completed / counts.total) * 100) : 0;
   const copy = getUiCopy(locale);
   const hasAnyJobs = counts.total > 0;
+  const capabilityLabels = {
+    pack: copy.dashboard.repoCapabilityPack,
+    "files-read": copy.dashboard.repoCapabilityFilesRead,
+    "codex-run": copy.dashboard.repoCapabilityCodexRun
+  } as const;
+  const sourceLabels = {
+    default: copy.dashboard.repoSourceDefault,
+    "default-sibling": copy.dashboard.repoSourceDefaultSibling,
+    "local-config": copy.dashboard.repoSourceLocalConfig
+  } as const;
+
+  function renderRepoStatus(repo: RepoGovernanceEntry) {
+    if (repo.status === "enabled") {
+      return <Tag color="success">{copy.status.healthOk}</Tag>;
+    }
+    if (repo.status === "blocked") {
+      return <Tag color="error">{copy.status.failed}</Tag>;
+    }
+    return <Tag>{copy.common.notAvailable}</Tag>;
+  }
 
   return (
     <div className="view-stack">
@@ -81,6 +109,54 @@ export function DashboardView({
           </div>
         </div>
       </SectionCard>
+
+      {repoGovernance ? (
+        <SectionCard
+          title={copy.dashboard.repoGovernanceTitle}
+          description={copy.dashboard.repoGovernanceDescription}
+          extra={<Tag>{copy.dashboard.repoGovernancePathHidden}</Tag>}
+        >
+          <div className="repo-governance">
+            <div className="repo-governance__meta">
+              <span>{copy.dashboard.repoGovernanceConfigScope}</span>
+              <strong>{repoGovernance.defaultRepoId}</strong>
+            </div>
+            <div className="repo-governance__grid">
+              {repoGovernance.repos.map((repo) => (
+                <div key={repo.repoId} className={`repo-card repo-card--${repo.status}`}>
+                  <div className="repo-card__header">
+                    <div className="repo-card__title">
+                      <strong>{repo.repoId}</strong>
+                      {repo.defaultRepo ? (
+                        <Tag color="processing">{copy.dashboard.repoGovernanceDefaultLabel}</Tag>
+                      ) : null}
+                    </div>
+                    {renderRepoStatus(repo)}
+                  </div>
+                  <div className="repo-card__source">
+                    {sourceLabels[repo.source]}
+                    {" · "}
+                    {copy.dashboard.repoGovernancePathHidden}
+                  </div>
+                  {repo.capabilities.length ? (
+                    <div className="repo-card__capabilities">
+                      {repo.capabilities.map((capability) => (
+                        <Tag key={capability}>{capabilityLabels[capability]}</Tag>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="repo-card__warning">
+                      {repo.status === "blocked"
+                        ? copy.dashboard.repoGovernanceBlockedHint
+                        : copy.dashboard.repoGovernanceMissingHint}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
 
       <SectionCard title={copy.dashboard.distributionTitle} description={copy.dashboard.distributionDescription}>
         <div className="distribution-stack">

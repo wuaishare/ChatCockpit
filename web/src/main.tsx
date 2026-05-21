@@ -50,7 +50,6 @@ function TokenPilotRoot() {
         >
           <AntApp>
             <App
-              appearance={appearance}
               themeMode={themeMode}
               onThemeModeChange={setThemeMode}
             />

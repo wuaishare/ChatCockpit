@@ -539,7 +539,7 @@ export function buildServer(paths: TokenPilotPaths) {
   const gptConfigHandler = async () => {
     return {
       ok: true,
-      config: buildGptConfig("zh-CN")
+      config: buildGptConfig("zh-CN", paths.repoRoot)
     };
   };
 

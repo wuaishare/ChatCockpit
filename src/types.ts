@@ -26,6 +26,28 @@ export interface TokenPilotUserConfig {
   repoMappings: Record<string, TokenPilotRepoMapping>;
 }
 
+export type TokenPilotRepoGovernanceStatus = "enabled" | "missing" | "blocked";
+export type TokenPilotRepoGovernanceSource = "default" | "default-sibling" | "local-config";
+export type TokenPilotRepoGovernanceCapability = "pack" | "files-read" | "codex-run";
+
+export interface TokenPilotRepoGovernanceEntry {
+  repoId: string;
+  status: TokenPilotRepoGovernanceStatus;
+  defaultRepo: boolean;
+  source: TokenPilotRepoGovernanceSource;
+  pathConfigured: boolean;
+  allowlisted: boolean;
+  pathVisibility: "hidden";
+  capabilities: TokenPilotRepoGovernanceCapability[];
+}
+
+export interface TokenPilotRepoGovernanceRecord {
+  defaultRepoId: string;
+  configScope: "local-private";
+  pathVisibility: "hidden";
+  repos: TokenPilotRepoGovernanceEntry[];
+}
+
 export interface RepoBundleManifest {
   createdAt: string;
   repoId: string;
@@ -169,6 +191,7 @@ export interface TokenPilotGptConfigRecord {
   openapiUrl: string;
   publicBaseUrl: string | null;
   schemaImportUrl: string;
+  repoGovernance: TokenPilotRepoGovernanceRecord;
   instructions: string;
   notes: string[];
 }

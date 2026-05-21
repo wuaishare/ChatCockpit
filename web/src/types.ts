@@ -108,6 +108,28 @@ export interface HealthModel {
   publicBaseUrl: string | null;
 }
 
+export type RepoGovernanceStatus = "enabled" | "missing" | "blocked";
+export type RepoGovernanceSource = "default" | "default-sibling" | "local-config";
+export type RepoGovernanceCapability = "pack" | "files-read" | "codex-run";
+
+export interface RepoGovernanceEntry {
+  repoId: string;
+  status: RepoGovernanceStatus;
+  defaultRepo: boolean;
+  source: RepoGovernanceSource;
+  pathConfigured: boolean;
+  allowlisted: boolean;
+  pathVisibility: "hidden";
+  capabilities: RepoGovernanceCapability[];
+}
+
+export interface RepoGovernanceModel {
+  defaultRepoId: string;
+  configScope: "local-private";
+  pathVisibility: "hidden";
+  repos: RepoGovernanceEntry[];
+}
+
 export interface GptConfigModel {
   version: string;
   updatedAt: string;
@@ -115,6 +137,7 @@ export interface GptConfigModel {
   openapiUrl: string;
   publicBaseUrl: string | null;
   schemaImportUrl: string;
+  repoGovernance: RepoGovernanceModel;
   instructions: string;
   notes: string[];
 }

@@ -50,13 +50,59 @@ components:
             - type: "null"
         schemaImportUrl:
           type: string
+        repoGovernance:
+          $ref: '#/components/schemas/RepoGovernance'
         instructions:
           type: string
         notes:
           type: array
           items:
             type: string
-      required: [version, updatedAt, actionHost, openapiUrl, publicBaseUrl, schemaImportUrl, instructions, notes]
+      required: [version, updatedAt, actionHost, openapiUrl, publicBaseUrl, schemaImportUrl, repoGovernance, instructions, notes]
+    RepoGovernance:
+      type: object
+      additionalProperties: false
+      properties:
+        defaultRepoId:
+          type: string
+        configScope:
+          type: string
+          enum: [local-private]
+        pathVisibility:
+          type: string
+          enum: [hidden]
+        repos:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepoGovernanceEntry'
+      required: [defaultRepoId, configScope, pathVisibility, repos]
+    RepoGovernanceEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+        status:
+          type: string
+          enum: [enabled, missing, blocked]
+        defaultRepo:
+          type: boolean
+        source:
+          type: string
+          enum: [default, default-sibling, local-config]
+        pathConfigured:
+          type: boolean
+        allowlisted:
+          type: boolean
+        pathVisibility:
+          type: string
+          enum: [hidden]
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum: [pack, files-read, codex-run]
+      required: [repoId, status, defaultRepo, source, pathConfigured, allowlisted, pathVisibility, capabilities]
     GptConfigResponse:
       type: object
       additionalProperties: false

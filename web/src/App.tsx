@@ -30,7 +30,7 @@ import {
   localeOptions,
   type LocaleCode
 } from "./i18n";
-import { themeLabels, type TokenPilotAppearance } from "./theme";
+import { themeLabels } from "./theme";
 import type { ApiProblem } from "./types";
 
 const SESSION_TOKEN_KEY = "tokenpilot:web:bearer-token";
@@ -44,10 +44,15 @@ const GptHelperView = lazy(() =>
 type ViewKey = "dashboard" | "jobs" | "gpt-helper";
 
 interface AppProps {
-  appearance: TokenPilotAppearance;
   themeMode: ThemeMode;
   onThemeModeChange: (themeMode: ThemeMode) => void;
 }
+
+const VIEW_PATHS: Record<ViewKey, string> = {
+  dashboard: "/ui",
+  jobs: "/ui/jobs",
+  "gpt-helper": "/ui/gpt-helper"
+};
 
 const INITIAL_HEALTH: HealthModel = {
   ok: false,
@@ -79,13 +84,31 @@ function ViewLoadingState({
   );
 }
 
-export default function App({ appearance, themeMode, onThemeModeChange }: AppProps) {
+function parseRoute(): { view: ViewKey; jobId: string | null } {
+  if (typeof window === "undefined") {
+    return { view: "dashboard", jobId: null };
+  }
+
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/ui";
+  if (pathname === "/ui/jobs" || pathname.startsWith("/ui/jobs/")) {
+    const jobId = pathname.startsWith("/ui/jobs/")
+      ? decodeURIComponent(pathname.slice("/ui/jobs/".length))
+      : null;
+    return { view: "jobs", jobId: jobId || null };
+  }
+  if (pathname === "/ui/gpt-helper") {
+    return { view: "gpt-helper", jobId: null };
+  }
+  return { view: "dashboard", jobId: null };
+}
+
+export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [locale, setLocale] = useState<LocaleCode>(() =>
     typeof window === "undefined"
       ? "zh-CN"
       : ((sessionStorage.getItem(LOCALE_STORAGE_KEY) as LocaleCode | null) ?? "zh-CN")
   );
-  const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [activeView, setActiveView] = useState<ViewKey>(() => parseRoute().view);
   const [token, setToken] = useState<string | null>(() =>
     typeof window === "undefined" ? null : sessionStorage.getItem(SESSION_TOKEN_KEY)
   );
@@ -97,7 +120,7 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState<string | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(() => parseRoute().jobId);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
   const [artifactContent, setArtifactContent] = useState<string | null>(null);
@@ -109,6 +132,17 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
 
   useEffect(() => {
     void loadHealth();
+  }, []);
+
+  useEffect(() => {
+    function onPopState() {
+      const route = parseRoute();
+      setActiveView(route.view);
+      setSelectedJobId(route.jobId);
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   useEffect(() => {
@@ -195,6 +229,12 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
 
       if (preferredId) {
         setSelectedJobId(preferredId);
+        if (activeView === "jobs" && typeof window !== "undefined") {
+          const nextPath = `${VIEW_PATHS.jobs}/${encodeURIComponent(preferredId)}`;
+          if (window.location.pathname === VIEW_PATHS.jobs) {
+            window.history.replaceState(null, "", nextPath);
+          }
+        }
         if (hydrateDetail) {
           void loadJobDetail(preferredId, currentToken, summarized);
         }
@@ -286,6 +326,25 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
   function updateLocale(nextLocale: LocaleCode) {
     sessionStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
     setLocale(nextLocale);
+  }
+
+  function navigateView(nextView: ViewKey, jobId?: string | null) {
+    setActiveView(nextView);
+    const nextJobId = nextView === "jobs" ? (jobId ?? selectedJobId) : null;
+    if (nextView === "jobs") {
+      setSelectedJobId(nextJobId ?? null);
+    }
+
+    if (typeof window !== "undefined") {
+      const basePath = VIEW_PATHS[nextView];
+      const nextPath =
+        nextView === "jobs" && nextJobId
+          ? `${basePath}/${encodeURIComponent(nextJobId)}`
+          : basePath;
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState(null, "", nextPath);
+      }
+    }
   }
 
   async function controlSelectedJob(action: "pause" | "resume" | "terminate") {
@@ -383,17 +442,6 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
                 />
               </div>
               <div className="app-toolbar__group">
-                <Segmented<ViewKey>
-                  value={activeView}
-                  onChange={(value) => setActiveView(value)}
-                  options={[
-                    { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
-                    { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
-                    { label: copy.header.gptHelper, value: "gpt-helper", icon: <ApiOutlined /> }
-                  ]}
-                />
-              </div>
-              <div className="app-toolbar__group">
                 <span className="sr-only" id="tokenpilot-theme-mode-label">
                   {copy.header.themeModeLabel}
                 </span>
@@ -409,7 +457,31 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
                   ]}
                 />
               </div>
+              <div className="app-toolbar__group">
+                <Segmented<ViewKey>
+                  value={activeView}
+                  onChange={(value) => navigateView(value)}
+                  options={[
+                    { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
+                    { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
+                    { label: copy.header.gptHelper, value: "gpt-helper", icon: <ApiOutlined /> }
+                  ]}
+                />
+              </div>
               <div className="app-toolbar__group app-toolbar__group--action">
+                <TokenBar
+                  locale={locale}
+                  authRequired={health.authRequired}
+                  token={token}
+                  onSave={(value) => {
+                    saveToken(value);
+                    void loadJobs(value, health.authRequired, activeView === "jobs");
+                  }}
+                  onClear={() => {
+                    clearToken();
+                    void loadJobs(null, health.authRequired, activeView === "jobs");
+                  }}
+                />
                 <Tooltip title={copy.header.refreshTooltip}>
                   <Button
                     icon={<ReloadOutlined />}
@@ -429,32 +501,18 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
       </Layout.Header>
 
       <Layout.Content className="app-content">
-        <TokenBar
-          locale={locale}
-          authRequired={health.authRequired}
-          token={token}
-          onSave={(value) => {
-            saveToken(value);
-            void loadJobs(value, health.authRequired, activeView === "jobs");
-          }}
-          onClear={() => {
-            clearToken();
-            void loadJobs(null, health.authRequired, activeView === "jobs");
-          }}
-        />
-
         {activeView === "dashboard" ? (
           <DashboardView
             locale={locale}
             health={health}
+            repoGovernance={gptConfig?.repoGovernance}
             counts={counts}
             recentJobs={jobs.slice(0, 5)}
             onSelectJob={(jobId) => {
-              setSelectedJobId(jobId);
-              setActiveView("jobs");
+              navigateView("jobs", jobId);
               void loadJobDetail(jobId, token);
             }}
-            onOpenGptHelper={() => setActiveView("gpt-helper")}
+            onOpenGptHelper={() => navigateView("gpt-helper")}
             onRefresh={() => {
               void loadHealth();
               void loadJobs(token, health.authRequired, false);
@@ -489,7 +547,7 @@ export default function App({ appearance, themeMode, onThemeModeChange }: AppPro
               controlMessage={controlMessage}
               onRefresh={() => void loadJobs(token, health.authRequired, true)}
               onSelectJob={(jobId) => {
-                setSelectedJobId(jobId);
+                navigateView("jobs", jobId);
                 setControlMessage(null);
                 void loadJobDetail(jobId, token);
               }}
