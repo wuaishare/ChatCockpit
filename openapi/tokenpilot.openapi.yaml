@@ -644,6 +644,28 @@ components:
         message:
           type: string
       required: [ok, jobId, action, state, message]
+    TerminatedJobProcess:
+      type: object
+      additionalProperties: false
+      properties:
+        jobId:
+          type: string
+        state:
+          type: string
+        message:
+          type: string
+      required: [jobId, state, message]
+    TerminateAllJobsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        terminated:
+          type: array
+          items:
+            $ref: '#/components/schemas/TerminatedJobProcess'
+      required: [ok, terminated]
     JobsListResponse:
       type: object
       additionalProperties: false
@@ -910,7 +932,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/TerminateAllJobsResponse'
   /api/files/read:
     post:
       operationId: readFile

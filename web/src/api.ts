@@ -6,7 +6,8 @@ import type {
   JobArtifactReadResponse,
   JobArtifactsListResponse,
   JobDetailResponse,
-  JobsListResponse
+  JobsListResponse,
+  TerminateAllJobsResponse
 } from "./types";
 
 function buildHeaders(token?: string | null): HeadersInit {
@@ -117,6 +118,6 @@ export async function controlJob(
   );
 }
 
-export async function terminateAllJobs(token?: string | null): Promise<{ ok: boolean }> {
-  return postJson<{ ok: boolean }>("/api/jobs/control/terminate-all", token);
+export async function terminateAllJobs(token?: string | null): Promise<TerminateAllJobsResponse> {
+  return postJson<TerminateAllJobsResponse>("/api/jobs/control/terminate-all", token);
 }

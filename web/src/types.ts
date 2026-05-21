@@ -85,6 +85,15 @@ export interface JobControlResponse {
   message: string;
 }
 
+export interface TerminateAllJobsResponse {
+  ok: boolean;
+  terminated: Array<{
+    jobId: string;
+    state: string;
+    message: string;
+  }>;
+}
+
 export interface ApiProblem {
   status: number;
   message: string;
