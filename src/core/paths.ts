@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { TokenPilotPaths } from "../types.js";
+import type { TokenPilotPaths, TokenPilotRepoTargetPaths } from "../types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +49,26 @@ export function ensureWorkspaceDirs(paths: TokenPilotPaths): void {
     paths.manifestsDir,
     paths.runtimeDir
   ]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+export function buildRepoTargetPaths(
+  basePaths: Pick<TokenPilotPaths, "runtimeDir">,
+  repoId: string,
+  repoRoot: string
+): TokenPilotRepoTargetPaths {
+  const repoWorkspaceRoot = path.join(basePaths.runtimeDir, "repos", repoId);
+  return {
+    repoRoot,
+    workspaceDir: repoWorkspaceRoot,
+    bundlesDir: path.join(repoWorkspaceRoot, "bundles"),
+    manifestsDir: path.join(repoWorkspaceRoot, "manifests")
+  };
+}
+
+export function ensureRepoTargetDirs(paths: TokenPilotRepoTargetPaths): void {
+  for (const dir of [paths.workspaceDir, paths.bundlesDir, paths.manifestsDir]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }

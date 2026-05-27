@@ -223,15 +223,16 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       const summarized = response.jobs.map((job) => summarizeJob(job, locale));
       setJobs(summarized);
 
-      const preferredId = selectedJobId && summarized.some((job) => job.id === selectedJobId)
-        ? selectedJobId
-        : summarized[0]?.id;
+      const hasSelectedJob = Boolean(
+        selectedJobId && summarized.some((job) => job.id === selectedJobId)
+      );
+      const preferredId = hasSelectedJob ? selectedJobId : summarized[0]?.id;
 
       if (preferredId) {
         setSelectedJobId(preferredId);
         if (activeView === "jobs" && typeof window !== "undefined") {
           const nextPath = `${VIEW_PATHS.jobs}/${encodeURIComponent(preferredId)}`;
-          if (window.location.pathname === VIEW_PATHS.jobs) {
+          if (window.location.pathname === VIEW_PATHS.jobs || !hasSelectedJob) {
             window.history.replaceState(null, "", nextPath);
           }
         }
@@ -243,6 +244,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setSelectedArtifactKey(null);
         setArtifactContent(null);
         setArtifactError(null);
+        if (activeView === "jobs" && typeof window !== "undefined") {
+          if (window.location.pathname !== VIEW_PATHS.jobs) {
+            window.history.replaceState(null, "", VIEW_PATHS.jobs);
+          }
+        }
       }
     } catch (error) {
       const message = getErrorMessage(error);

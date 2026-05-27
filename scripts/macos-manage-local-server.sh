@@ -70,6 +70,10 @@ write_server_plist() {
     <string>${PORT}</string>
     <key>TOKENPILOT_PUBLIC_BASE_URL</key>
     <string>${TOKENPILOT_PUBLIC_BASE_URL:-}</string>
+    <key>TOKENPILOT_CODEX_BIN</key>
+    <string>${TOKENPILOT_CODEX_BIN:-}</string>
+    <key>TOKENPILOT_CODEX_MODEL</key>
+    <string>${TOKENPILOT_CODEX_MODEL:-}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
@@ -112,6 +116,10 @@ write_runner_plist() {
     <string>${PORT}</string>
     <key>TOKENPILOT_PUBLIC_BASE_URL</key>
     <string>${TOKENPILOT_PUBLIC_BASE_URL:-}</string>
+    <key>TOKENPILOT_CODEX_BIN</key>
+    <string>${TOKENPILOT_CODEX_BIN:-}</string>
+    <key>TOKENPILOT_CODEX_MODEL</key>
+    <string>${TOKENPILOT_CODEX_MODEL:-}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>

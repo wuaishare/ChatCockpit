@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { loadUserConfig, resolveRepoMapping } from "./config.js";
 import type {
   JobArtifactKey,
   JobRecord,
@@ -16,6 +17,34 @@ const TEXT_ARTIFACT_EXTENSIONS = new Set([".md", ".txt", ".json", ".xml", ".json
 
 interface ResolvedJobArtifact extends TokenPilotJobArtifactSummary {
   diskPath: string;
+}
+
+function resolveArtifactRepoRoot(
+  job: JobRecord<TokenPilotJobPayload>,
+  paths: TokenPilotPaths
+): string {
+  if (job.type !== "pack") {
+    return paths.repoRoot;
+  }
+
+  const repoId =
+    (typeof (job.result as { repoId?: unknown } | undefined)?.repoId === "string"
+      ? (job.result as { repoId?: string }).repoId
+      : undefined) ||
+    (typeof (job.payload as { repoId?: unknown } | undefined)?.repoId === "string"
+      ? (job.payload as { repoId?: string }).repoId
+      : undefined);
+
+  if (!repoId) {
+    return paths.repoRoot;
+  }
+
+  try {
+    const config = loadUserConfig(paths.repoRoot);
+    return resolveRepoMapping(config, repoId).repoRoot;
+  } catch {
+    return paths.repoRoot;
+  }
 }
 
 function isUtf8Boundary(buffer: Buffer, offset: number): boolean {
@@ -75,14 +104,14 @@ function buildArtifactSummary(
   label: string,
   contentType: string,
   relativePath: unknown,
-  paths: TokenPilotPaths
+  repoRoot: string
 ): ResolvedJobArtifact | null {
   const safeRelativePath = ensureArtifactPath(relativePath);
   if (!safeRelativePath) {
     return null;
   }
 
-  const diskPath = path.join(paths.repoRoot, safeRelativePath);
+  const diskPath = path.join(repoRoot, safeRelativePath);
   if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
     return null;
   }
@@ -110,31 +139,32 @@ export function listJobArtifacts(
   }
 
   const result = job.result as Record<string, unknown>;
+  const artifactRepoRoot = resolveArtifactRepoRoot(job, paths);
 
   if (job.type === "pack") {
     return [
-      buildArtifactSummary("repomixXml", "Repomix XML", "application/xml", result.repomixXmlPath, paths),
-      buildArtifactSummary("prompt", "Bundle Prompt", "text/markdown", result.promptPath, paths),
-      buildArtifactSummary("summary", "Bundle Summary", "text/markdown", result.summaryPath, paths),
-      buildArtifactSummary("manifest", "Bundle Manifest", "application/json", result.manifestPath, paths)
+      buildArtifactSummary("repomixXml", "Repomix XML", "application/xml", result.repomixXmlPath, artifactRepoRoot),
+      buildArtifactSummary("prompt", "Bundle Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
+      buildArtifactSummary("summary", "Bundle Summary", "text/markdown", result.summaryPath, artifactRepoRoot),
+      buildArtifactSummary("manifest", "Bundle Manifest", "application/json", result.manifestPath, artifactRepoRoot)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 
   if (job.type === "taskpack") {
     return [
-      buildArtifactSummary("markdown", "Task Pack Markdown", "text/markdown", result.markdownPath, paths),
-      buildArtifactSummary("json", "Task Pack JSON", "application/json", result.jsonPath, paths)
+      buildArtifactSummary("markdown", "Task Pack Markdown", "text/markdown", result.markdownPath, artifactRepoRoot),
+      buildArtifactSummary("json", "Task Pack JSON", "application/json", result.jsonPath, artifactRepoRoot)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 
   if (job.type === "codex-run") {
     return [
-      buildArtifactSummary("codexPrompt", "Codex Prompt", "text/markdown", result.promptPath, paths),
-      buildArtifactSummary("codexStdout", "Codex JSONL Output", "application/jsonl", result.stdoutPath, paths),
-      buildArtifactSummary("codexStderr", "Codex Stderr", "text/plain", result.stderrPath, paths),
-      buildArtifactSummary("codexDiff", "Git Diff", "text/x-diff", result.diffPath, paths),
-      buildArtifactSummary("codexReview", "Codex Review", "text/markdown", result.reviewPath, paths),
-      buildArtifactSummary("codexSummary", "Codex Summary", "application/json", result.summaryPath, paths)
+      buildArtifactSummary("codexPrompt", "Codex Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
+      buildArtifactSummary("codexStdout", "Codex JSONL Output", "application/jsonl", result.stdoutPath, artifactRepoRoot),
+      buildArtifactSummary("codexStderr", "Codex Stderr", "text/plain", result.stderrPath, artifactRepoRoot),
+      buildArtifactSummary("codexDiff", "Git Diff", "text/x-diff", result.diffPath, artifactRepoRoot),
+      buildArtifactSummary("codexReview", "Codex Review", "text/markdown", result.reviewPath, artifactRepoRoot),
+      buildArtifactSummary("codexSummary", "Codex Summary", "application/json", result.summaryPath, artifactRepoRoot)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 

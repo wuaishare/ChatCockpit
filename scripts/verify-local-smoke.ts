@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 import { runPack } from "../src/core/pack.ts";
 import { runCodexRunJob } from "../src/core/codex-run.ts";
-import { controlJobProcess } from "../src/core/job-processes.ts";
+import {
+  controlJobProcess,
+  getTrackedJobProcess,
+  trackJobProcess
+} from "../src/core/job-processes.ts";
 import { createTaskPack } from "../src/core/taskpack.ts";
 import { loadUserConfig } from "../src/core/config.ts";
 import { buildServer } from "../src/server/app.ts";
@@ -101,6 +105,8 @@ function verifyTaskPackNaming(): void {
 
 function verifyPackArtifactNaming(): void {
   const paths = buildTempPaths();
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
   fs.writeFileSync(
     path.join(paths.repoRoot, ".repomix.config.json"),
     JSON.stringify(
@@ -117,18 +123,30 @@ function verifyPackArtifactNaming(): void {
     "utf8"
   );
   fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Smoke fixture\n", "utf8");
+  try {
+    const first = runPack(paths);
+    const second = runPack(paths);
+    const firstRepoRoot = paths.repoRoot;
+    const secondRepoRoot = paths.repoRoot;
 
-  const first = runPack(paths);
-  const second = runPack(paths);
-
-  assert.match(first.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
-  assert.match(second.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
-  assert.notEqual(first.repomixXmlPath, second.repomixXmlPath);
-  assert.match(first.promptPath, /^\.tokenpilot\/bundles\/bundle-/);
-  assert.match(first.summaryPath, /^\.tokenpilot\/bundles\/bundle-/);
-  assert.match(first.manifestPath, /^\.tokenpilot\/bundles\/bundle-/);
-  assert.ok(fs.existsSync(path.join(paths.repoRoot, first.repomixXmlPath)));
-  assert.ok(fs.existsSync(path.join(paths.repoRoot, second.repomixXmlPath)));
+    assert.match(first.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
+    assert.match(second.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
+    assert.notEqual(first.repomixXmlPath, second.repomixXmlPath);
+    assert.match(first.promptPath, /^\.tokenpilot\/bundles\/bundle-/);
+    assert.match(first.summaryPath, /^\.tokenpilot\/bundles\/bundle-/);
+    assert.match(first.manifestPath, /^\.tokenpilot\/bundles\/bundle-/);
+    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.repomixXmlPath)));
+    assert.ok(fs.existsSync(path.join(secondRepoRoot, second.repomixXmlPath)));
+    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.promptPath)));
+    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.summaryPath)));
+    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.manifestPath)));
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+  }
 }
 
 function verifyAuthConfig(): void {
@@ -209,6 +227,79 @@ async function verifyUiServing(): Promise<void> {
   assert.equal(typeof health.openapiUrl, "string");
 
   await app.close();
+}
+
+async function verifyJobProcessProjection(): Promise<void> {
+  const paths = buildTempPaths();
+  const app = buildServer(paths);
+  await app.ready();
+  const sleeper = spawn(
+    process.execPath,
+    ["-e", "setInterval(() => {}, 1000)"],
+    {
+      detached: true,
+      stdio: "ignore"
+    }
+  );
+  sleeper.unref();
+
+  try {
+    fs.writeFileSync(path.join(paths.queuedJobsDir, "job-process-view.json"), JSON.stringify({
+      id: "job-process-view",
+      type: "codex-run",
+      status: "running",
+      createdAt: "2026-05-21T00:00:00.000Z",
+      updatedAt: "2026-05-21T00:00:01.000Z",
+      payload: {
+        repoId: "tokenpilot",
+        title: "Process projection fixture",
+        instructions: "fixture"
+      }
+    }, null, 2) + "\n", "utf8");
+
+    trackJobProcess(paths, {
+      jobId: "job-process-view",
+      pid: sleeper.pid ?? 0,
+      label: "fixture process"
+    });
+    controlJobProcess(paths, "job-process-view", "pause");
+
+    const tracked = getTrackedJobProcess(paths, "job-process-view");
+    assert.equal(tracked?.state, "paused");
+
+    const jobsResponse = await app.inject({
+      method: "GET",
+      url: "/api/jobs"
+    });
+    assert.equal(jobsResponse.statusCode, 200);
+    const jobsBody = jobsResponse.json() as { jobs: Array<Record<string, unknown>> };
+    const job = jobsBody.jobs.find((entry) => entry.id === "job-process-view");
+    assert.equal((job?.process as Record<string, unknown> | undefined)?.state, "paused");
+
+    const detailResponse = await app.inject({
+      method: "GET",
+      url: "/api/jobs/job-process-view"
+    });
+    assert.equal(detailResponse.statusCode, 200);
+    const detailBody = detailResponse.json() as { job: Record<string, unknown> };
+    assert.equal(
+      (detailBody.job.process as Record<string, unknown> | undefined)?.state,
+      "paused"
+    );
+  } finally {
+    if (sleeper.pid) {
+      try {
+        process.kill(-sleeper.pid, "SIGKILL");
+      } catch {
+        try {
+          process.kill(sleeper.pid, "SIGKILL");
+        } catch {
+          // ignore cleanup failure in fixture
+        }
+      }
+    }
+    await app.close();
+  }
 }
 
 function verifyDefaultRepoDiscovery(): void {
@@ -321,12 +412,124 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
   }
 }
 
+async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
+  const paths = buildTempPaths();
+  initGitRepo(paths.repoRoot);
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const originalPath = process.env.PATH;
+  const originalMode = process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+  const originalCodexBin = process.env.TOKENPILOT_CODEX_BIN;
+  const codexShimPath = path.join(paths.repoRoot, "fake-codex.sh");
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  process.env.PATH = "/usr/bin:/bin";
+  delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+  process.env.TOKENPILOT_CODEX_BIN = codexShimPath;
+  fs.writeFileSync(
+    codexShimPath,
+    [
+      "#!/bin/sh",
+      "if [ \"$1\" != \"--ask-for-approval\" ]; then",
+      "  printf 'missing approval flag: %s\\n' \"$1\" >&2",
+      "  exit 2",
+      "fi",
+      "approval_policy=\"$2\"",
+      "if [ \"$3\" != \"exec\" ]; then",
+      "  printf 'missing approval prelude: %s %s %s\\n' \"$1\" \"$2\" \"$3\" >&2",
+      "  exit 2",
+      "fi",
+      "shift 3",
+      "if [ \"$1\" = \"--ignore-user-config\" ] && [ \"$2\" = \"--model\" ] && [ \"$4\" = \"review\" ]; then",
+      "  if [ \"$5\" != \"--uncommitted\" ] || [ \"$6\" != \"--json\" ] || [ \"$7\" != \"-\" ]; then",
+      "    printf 'bad review args: %s %s %s %s %s %s %s\\n' \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" \"$6\" \"$7\" >&2",
+      "    exit 2",
+      "  fi",
+      "  if [ \"$approval_policy\" != \"on-request\" ]; then",
+      "    printf 'unexpected review approval policy: %s\\n' \"$approval_policy\" >&2",
+      "    exit 2",
+      "  fi",
+      "  review_input=$(cat)",
+      "  case \"$review_input\" in",
+      "    *\"Review the current uncommitted changes.\"*) ;;",
+      "    *)",
+      "      printf 'missing review instructions\\n' >&2",
+      "      exit 2",
+      "      ;;",
+      "  esac",
+      "  printf 'shim review ok\\n'",
+      "  exit 0",
+      "fi",
+      "if [ \"$1\" != \"--ignore-user-config\" ] || [ \"$2\" != \"--model\" ] || [ \"$4\" != \"--cd\" ]; then",
+      "  printf 'bad exec args: %s %s %s %s\\n' \"$1\" \"$2\" \"$3\" \"$4\" >&2",
+      "  exit 2",
+      "fi",
+      "exec_input=$(cat)",
+      "  case \"$exec_input\" in",
+      "    *\"Custom Codex Bin\"*) ;;",
+      "    *)",
+      "      printf 'missing exec prompt\\n' >&2",
+      "      exit 2",
+      "      ;;",
+      "  esac",
+      "if [ \"$approval_policy\" != \"on-request\" ]; then",
+      "  printf 'unexpected exec approval policy: %s\\n' \"$approval_policy\" >&2",
+      "  exit 2",
+      "fi",
+      "if [ \"$6\" = \"--sandbox\" ] && [ \"$8\" = \"--json\" ] && [ \"$9\" = \"-\" ]; then",
+      "  printf '{\"type\":\"shim\",\"argv\":[\"%s\",\"%s\",\"%s\"]}\\n' \"$1\" \"$2\" \"$3\"",
+      "  exit 0",
+      "fi",
+      "printf 'unexpected exec tail: %s %s %s %s %s\\n' \"$5\" \"$6\" \"$7\" \"$8\" \"$9\" >&2",
+      "exit 2"
+    ].join("\n") + "\n",
+    "utf8"
+  );
+  fs.chmodSync(codexShimPath, 0o755);
+
+  try {
+    const result = await runCodexRunJob(paths, "job-custom-codex-bin-1234", {
+      repoId: "tokenpilot",
+      title: "Custom Codex Bin",
+      instructions: "Use the configured codex binary override.",
+      executionMode: "develop",
+      worktreePolicy: "never",
+      approvalPolicy: "on-request",
+      commitPolicy: "propose"
+    });
+    assert.equal(result.codexExitCode, 0);
+    assert.equal(result.reviewExitCode, 0);
+    assert.match(fs.readFileSync(path.join(paths.repoRoot, result.stdoutPath), "utf8"), /"type":"shim"/);
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+    if (originalMode === undefined) {
+      delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+    } else {
+      process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
+    }
+    if (originalCodexBin === undefined) {
+      delete process.env.TOKENPILOT_CODEX_BIN;
+    } else {
+      process.env.TOKENPILOT_CODEX_BIN = originalCodexBin;
+    }
+  }
+}
+
 verifyTaskPackNaming();
 verifyPackArtifactNaming();
 verifyAuthConfig();
 verifyDefaultRepoDiscovery();
 await verifyUiServing();
+await verifyJobProcessProjection();
 await verifyCodexRunMock();
 await verifyCodexRunMissingCliFailure();
+await verifyCodexRunCustomBinaryOverride();
 
 process.stdout.write("VERIFY_LOCAL_SMOKE_OK\n");

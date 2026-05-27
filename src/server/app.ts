@@ -15,10 +15,14 @@ import type {
   TokenPilotPaths,
   TokenPilotPublicJobRecord
 } from "../types.js";
-import { controlJobProcess, terminateAllJobProcesses } from "../core/job-processes.js";
+import {
+  controlJobProcess,
+  getTrackedJobProcess,
+  terminateAllJobProcesses
+} from "../core/job-processes.js";
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
-import { readRecentGitCommits } from "../core/git-history.js";
+import { readRecentGitCommitsForRepo } from "../core/git-history.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import {
@@ -78,6 +82,7 @@ const fileReadBatchSchema = z.object({
 });
 
 const recentCommitsQuerySchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
   limit: z.coerce.number().int().positive().max(50).optional()
 });
 
@@ -402,6 +407,7 @@ function projectJobForUi(
 ): TokenPilotPublicJobRecord {
   const projectedResult = projectJobResultForUi(job, paths.repoRoot);
   const projectedError = maskError(job.error, paths.repoRoot);
+  const trackedProcess = getTrackedJobProcess(paths, job.id);
   const artifacts = projectedResult
     ? listJobArtifacts(job, paths).map((artifact) => ({
         key: artifact.key,
@@ -420,6 +426,7 @@ function projectJobForUi(
     hasResult: Boolean(job.result),
     hasError: Boolean(job.error),
     payload: projectJobPayloadForUi(job, paths.repoRoot),
+    ...(trackedProcess ? { process: trackedProcess } : {}),
     ...(artifacts.length ? { artifacts } : {}),
     ...(projectedResult ? { result: projectedResult } : {}),
     ...(projectedError ? { error: projectedError } : {})
@@ -557,10 +564,14 @@ export function buildServer(paths: TokenPilotPaths) {
     }
 
     try {
-      const commits = readRecentGitCommits(paths.repoRoot, parsed.data.limit ?? 10);
+      const commits = readRecentGitCommitsForRepo(
+        paths.repoRoot,
+        parsed.data.repoId,
+        parsed.data.limit ?? 10
+      );
       return {
         ok: true,
-        repoId: "tokenpilot",
+        repoId: parsed.data.repoId,
         commits
       };
     } catch (error) {

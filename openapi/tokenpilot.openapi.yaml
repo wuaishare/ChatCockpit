@@ -567,6 +567,10 @@ components:
           type: boolean
         payload:
           $ref: '#/components/schemas/PackJobPayload'
+        process:
+          oneOf:
+            - $ref: '#/components/schemas/TrackedJobProcess'
+            - type: 'null'
         artifacts:
           type: array
           items:
@@ -602,6 +606,10 @@ components:
           type: boolean
         payload:
           $ref: '#/components/schemas/TaskPackJobPublicPayload'
+        process:
+          oneOf:
+            - $ref: '#/components/schemas/TrackedJobProcess'
+            - type: 'null'
         artifacts:
           type: array
           items:
@@ -637,6 +645,10 @@ components:
           type: boolean
         payload:
           $ref: '#/components/schemas/CodexRunJobPublicPayload'
+        process:
+          oneOf:
+            - $ref: '#/components/schemas/TrackedJobProcess'
+            - type: 'null'
         artifacts:
           type: array
           items:
@@ -648,6 +660,18 @@ components:
         error:
           type: string
       required: [id, type, status, createdAt, updatedAt, headline, hasResult, hasError, payload]
+    TrackedJobProcess:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum: [running, paused, terminated, completed, failed]
+        updatedAt:
+          type: string
+        label:
+          type: string
+      required: [state, updatedAt, label]
     CreatePackResponse:
       type: object
       additionalProperties: false
@@ -773,6 +797,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - name: repoId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Public repository alias. Defaults to tokenpilot.
         - name: limit
           in: query
           required: false

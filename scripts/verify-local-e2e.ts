@@ -225,6 +225,7 @@ async function stopChild(child: ReturnType<typeof spawn>): Promise<void> {
 async function runE2E(): Promise<void> {
   const projectRoot = process.cwd();
   const fixtureRepoRoot = makeTempRepoRoot();
+  const siblingRepoRoot = makeTempRepoRoot();
   const paths = buildPaths(fixtureRepoRoot);
   ensureWorkspaceDirs(paths);
   const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-config-"));
@@ -233,10 +234,13 @@ async function runE2E(): Promise<void> {
     configPath,
     JSON.stringify(
       {
-        workspaceAllowlist: [fixtureRepoRoot],
+        workspaceAllowlist: [fixtureRepoRoot, siblingRepoRoot],
         repoMappings: {
           tokenpilot: {
             path: fixtureRepoRoot
+          },
+          "sourceflow-refactor": {
+            path: siblingRepoRoot
           }
         }
       },
@@ -310,6 +314,13 @@ async function runE2E(): Promise<void> {
     assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
     assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
     assert.match(gptConfigBody.config.version, /^\d{2}\.\d{3}\.\d{8} \(\d+\)$/);
+    assert.ok(Array.isArray(gptConfigBody.config.repoGovernance?.repos));
+    assert.ok(
+      gptConfigBody.config.repoGovernance.repos.some(
+        (repo: { repoId: string; status: string }) =>
+          repo.repoId === "sourceflow-refactor" && repo.status === "enabled"
+      )
+    );
 
     const recentCommits = await fetch(`http://127.0.0.1:${port}/api/git/recent-commits?limit=5`, {
       headers: { Authorization: "Bearer test-token" }
@@ -319,6 +330,18 @@ async function runE2E(): Promise<void> {
     assert.equal(recentCommitsBody.ok, true);
     assert.equal(recentCommitsBody.repoId, "tokenpilot");
     assert.equal(Array.isArray(recentCommitsBody.commits), true);
+
+    const siblingRecentCommits = await fetch(
+      `http://127.0.0.1:${port}/api/git/recent-commits?repoId=sourceflow-refactor&limit=5`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(siblingRecentCommits.status, 200);
+    const siblingRecentCommitsBody = await siblingRecentCommits.json();
+    assert.equal(siblingRecentCommitsBody.ok, true);
+    assert.equal(siblingRecentCommitsBody.repoId, "sourceflow-refactor");
+    assert.equal(Array.isArray(siblingRecentCommitsBody.commits), true);
 
     const ui = await fetch(`http://127.0.0.1:${port}/ui`);
     assert.equal(ui.status, 200);
@@ -355,6 +378,22 @@ async function runE2E(): Promise<void> {
     const fileReadBody = await fileRead.json();
     assert.match(fileReadBody.file.content, /E2E Read File Fixture/);
     assert.doesNotMatch(JSON.stringify(fileReadBody), /\/Users\//);
+
+    const siblingFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        repoId: "sourceflow-refactor",
+        path: "docs/readme-note.md"
+      })
+    });
+    assert.equal(siblingFileRead.status, 200);
+    const siblingFileReadBody = await siblingFileRead.json();
+    assert.match(siblingFileReadBody.file.content, /E2E Read File Fixture/);
+    assert.doesNotMatch(JSON.stringify(siblingFileReadBody), /\/Users\//);
 
     const blockedRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
       method: "POST",
@@ -461,6 +500,18 @@ async function runE2E(): Promise<void> {
     const packJobBody = await packJobResponse.json();
     assert.equal(packJobBody.job.payload.repoId, "tokenpilot");
 
+    const siblingPackJobResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/pack`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ repoId: "sourceflow-refactor" })
+    });
+    assert.equal(siblingPackJobResponse.status, 200);
+    const siblingPackJobBody = await siblingPackJobResponse.json();
+    assert.equal(siblingPackJobBody.job.payload.repoId, "sourceflow-refactor");
+
     const defaultPackJobResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/pack`, {
       method: "POST",
       headers: {
@@ -485,6 +536,23 @@ async function runE2E(): Promise<void> {
     assert.equal(codexRunFinal.status, "completed");
     assert.doesNotMatch(JSON.stringify(codexRunFinal), /\/Users\//);
     assert.equal((codexRunFinal.result as Record<string, unknown>)?.hasDiff, true);
+
+    const siblingPackId = siblingPackJobBody.job.id as string;
+    const siblingPackFinal = await runRunnerUntilJobTerminal(
+      projectRoot,
+      port,
+      siblingPackId,
+      "test-token",
+      {
+        TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
+        TOKENPILOT_CONFIG_PATH: configPath
+      }
+    );
+    assert.equal(siblingPackFinal.status, "completed");
+    assert.equal(
+      (siblingPackFinal.result as Record<string, unknown>)?.repoId,
+      "sourceflow-refactor"
+    );
 
     const codexArtifactsResponse = await fetch(
       `http://127.0.0.1:${port}/api/jobs/${codexRunId}/artifacts`,
@@ -595,7 +663,15 @@ async function runE2E(): Promise<void> {
       (job) => job.type === "pack" && job.status === "completed"
     );
     assert.equal(packResults.length >= 1, true);
-    const packJobId = packResults[0]?.id as string;
+    const packJobId = (
+      packResults.find((job) => job.id === (packJobBody.job.id as string))?.id ??
+      packResults.find(
+        (job) => (job.result as Record<string, unknown> | undefined)?.repoId === "tokenpilot"
+      )?.id
+    ) as string;
+    assert.equal(typeof packJobId, "string");
+    const primaryPackResult = packResults.find((job) => job.id === packJobId) as Record<string, unknown>;
+    const primaryPackJobResult = primaryPackResult.result as Record<string, unknown>;
 
     const packArtifactsResponse = await fetch(
       `http://127.0.0.1:${port}/api/jobs/${packJobId}/artifacts`,
@@ -640,7 +716,7 @@ async function runE2E(): Promise<void> {
       },
       body: JSON.stringify({
         repoId: "tokenpilot",
-        path: (packResults[0]?.result as Record<string, unknown>).promptPath
+        path: primaryPackJobResult.promptPath
       })
     });
     assert.equal(packPromptFileRead.status, 200);
@@ -658,7 +734,7 @@ async function runE2E(): Promise<void> {
       },
       body: JSON.stringify({
         repoId: "tokenpilot",
-        path: (packResults[0]?.result as Record<string, unknown>).summaryPath
+        path: primaryPackJobResult.summaryPath
       })
     });
     assert.equal(packSummaryFileRead.status, 200);
@@ -672,8 +748,8 @@ async function runE2E(): Promise<void> {
       body: JSON.stringify({
         repoId: "tokenpilot",
         paths: [
-          (packResults[0]?.result as Record<string, unknown>).promptPath,
-          (packResults[0]?.result as Record<string, unknown>).summaryPath
+          primaryPackJobResult.promptPath,
+          primaryPackJobResult.summaryPath
         ],
         limit: 2048
       })
@@ -691,7 +767,7 @@ async function runE2E(): Promise<void> {
       },
       body: JSON.stringify({
         repoId: "tokenpilot",
-        path: (packResults[0]?.result as Record<string, unknown>).repomixXmlPath
+        path: primaryPackJobResult.repomixXmlPath
       })
     });
     assert.equal(packXmlFileRead.status, 200);
@@ -720,7 +796,7 @@ async function runE2E(): Promise<void> {
         },
         body: JSON.stringify({
           repoId: "tokenpilot",
-          path: (packResults[0]?.result as Record<string, unknown>).repomixXmlPath,
+          path: primaryPackJobResult.repomixXmlPath,
           offset: packXmlFileReadBody.file.nextOffset,
           limit: 4096
         })

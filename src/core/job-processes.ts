@@ -32,6 +32,22 @@ function readRecord(paths: TokenPilotPaths, jobId: string): JobProcessRecord | n
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as JobProcessRecord;
 }
 
+export function getTrackedJobProcess(
+  paths: TokenPilotPaths,
+  jobId: string
+): Pick<JobProcessRecord, "state" | "updatedAt" | "label"> | null {
+  const record = readRecord(paths, jobId);
+  if (!record) {
+    return null;
+  }
+
+  return {
+    state: record.state,
+    updatedAt: record.updatedAt,
+    label: record.label
+  };
+}
+
 function writeRecord(paths: TokenPilotPaths, record: JobProcessRecord): JobProcessRecord {
   const next = {
     ...record,

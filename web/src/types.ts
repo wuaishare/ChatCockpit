@@ -1,5 +1,12 @@
 export type JobType = "pack" | "taskpack" | "codex-run";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
+export type JobProcessState = "running" | "paused" | "terminated" | "completed" | "failed";
+
+export interface JobProcessInfo {
+  state: JobProcessState;
+  updatedAt: string;
+  label: string;
+}
 
 export interface HealthResponse {
   ok: boolean;
@@ -20,6 +27,7 @@ export interface JobBase {
   hasResult: boolean;
   hasError: boolean;
   payload: Record<string, unknown>;
+  process?: JobProcessInfo | null;
   artifacts?: JobArtifactSummary[];
   result?: Record<string, unknown> | null;
   error?: string;

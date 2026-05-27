@@ -1,6 +1,6 @@
 import { completeJob, claimNextQueuedJob, failJob } from "../core/jobs.js";
 import { runCodexRunJob } from "../core/codex-run.js";
-import { runPack } from "../core/pack.js";
+import { runPackForRepo } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
 import {
   markRunnerClaimed,
@@ -84,11 +84,7 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
   try {
     if (job.type === "pack" && isPackPayload(job.payload)) {
       const repoId = resolvePackRepoId(job.payload);
-      if (repoId !== "tokenpilot") {
-        failJob(paths, job.id, `Unsupported repoId: ${repoId}`);
-        return true;
-      }
-      const manifest = runPack(paths);
+      const manifest = runPackForRepo(paths, repoId);
       completeJob(paths, job.id, manifest);
       markRunnerCompleted(paths);
       return true;

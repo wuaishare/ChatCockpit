@@ -1,4 +1,4 @@
-import type { JobStatus, JobType } from "./types";
+import type { JobProcessState, JobStatus, JobType } from "./types";
 
 export type LocaleCode = "zh-CN" | "en-US";
 
@@ -44,6 +44,8 @@ export interface UiCopy {
     no: string;
     queued: string;
     running: string;
+    paused: string;
+    terminated: string;
     completed: string;
     failed: string;
   };
@@ -147,6 +149,8 @@ export interface UiCopy {
     rowStatus: string;
     rowCreated: string;
     rowUpdated: string;
+    rowProcessState: string;
+    rowProcessUpdated: string;
     rowHeadline: string;
     rowRepo: string;
     rowPromptPath: string;
@@ -233,6 +237,8 @@ const zhCN: UiCopy = {
     no: "否",
     queued: "排队中",
     running: "运行中",
+    paused: "已暂停",
+    terminated: "已终止",
     completed: "已完成",
     failed: "已失败"
   },
@@ -342,6 +348,8 @@ const zhCN: UiCopy = {
     rowStatus: "状态",
     rowCreated: "创建时间",
     rowUpdated: "更新时间",
+    rowProcessState: "进程状态",
+    rowProcessUpdated: "进程更新时间",
     rowHeadline: "标题 / 摘要",
     rowRepo: "仓库标识",
     rowPromptPath: "提示词路径",
@@ -437,6 +445,8 @@ const enUS: UiCopy = {
     no: "No",
     queued: "Queued",
     running: "Running",
+    paused: "Paused",
+    terminated: "Terminated",
     completed: "Completed",
     failed: "Failed"
   },
@@ -548,6 +558,8 @@ const enUS: UiCopy = {
     rowStatus: "Status",
     rowCreated: "Created",
     rowUpdated: "Updated",
+    rowProcessState: "Process state",
+    rowProcessUpdated: "Process updated",
     rowHeadline: "Headline",
     rowRepo: "Repo",
     rowPromptPath: "Prompt path",
@@ -613,6 +625,14 @@ export function getUiCopy(locale: LocaleCode): UiCopy {
 }
 
 export function getStatusLabel(locale: LocaleCode, status: JobStatus): string {
+  const copy = getUiCopy(locale);
+  return copy.status[status];
+}
+
+export function getProcessStatusLabel(
+  locale: LocaleCode,
+  status: JobProcessState
+): string {
   const copy = getUiCopy(locale);
   return copy.status[status];
 }

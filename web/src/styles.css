@@ -1086,6 +1086,13 @@ button,
   min-width: 0;
 }
 
+.job-detail__hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .job-detail__controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

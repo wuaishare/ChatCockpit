@@ -25,7 +25,8 @@ function readRepomixIncludeEntries(repoRoot: string): string[] {
 export function buildBundleManifest(
   repoRoot: string,
   bundlesDir: string,
-  repomixXmlPath: string
+  repomixXmlPath: string,
+  repoId?: string
 ): RepoBundleManifest {
   const createdAt = new Date().toISOString();
   const repoName = path.basename(repoRoot);
@@ -37,7 +38,7 @@ export function buildBundleManifest(
 
   const manifest: RepoBundleManifest = {
     createdAt,
-    repoId: repoName.toLowerCase(),
+    repoId: repoId?.trim() || repoName.toLowerCase(),
     repoName,
     repomixXmlPath: path.relative(repoRoot, repomixXmlPath).replace(/\\/g, "/"),
     promptPath: path.relative(repoRoot, promptPath).replace(/\\/g, "/"),

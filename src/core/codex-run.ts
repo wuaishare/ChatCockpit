@@ -38,6 +38,32 @@ interface ExecutionTarget {
   branchName?: string;
 }
 
+function resolveCodexCommand(): string {
+  const configured = process.env.TOKENPILOT_CODEX_BIN?.trim();
+  if (configured) {
+    return configured;
+  }
+
+  return "codex";
+}
+
+function codexBaseArgs(): string[] {
+  const args = ["--ignore-user-config"];
+  const configuredModel = process.env.TOKENPILOT_CODEX_MODEL?.trim() || "gpt-5.4";
+  if (configuredModel) {
+    args.push("--model", configuredModel);
+  }
+  return args;
+}
+
+function codexInvocationArgs(payload: CodexRunJobPayload): string[] {
+  const args = ["--ask-for-approval", payload.approvalPolicy ?? "never"];
+  if ((payload.sandbox ?? "workspace-write") === "danger-full-access" && payload.approvalPolicy === "never") {
+    args.push("--dangerously-bypass-approvals-and-sandbox");
+  }
+  return [...args, "exec", ...codexBaseArgs()];
+}
+
 function safeSlug(value: string): string {
   const slug = value
     .normalize("NFKD")
@@ -194,7 +220,7 @@ async function runTrackedProcess(
   command: string,
   args: string[],
   cwd: string,
-  input: string,
+  input: string | null,
   label: string
 ): Promise<CapturedProcessResult> {
   return await new Promise((resolve) => {
@@ -235,7 +261,9 @@ async function runTrackedProcess(
         stderr
       });
     });
-    child.stdin.write(input);
+    if (typeof input === "string") {
+      child.stdin.write(input);
+    }
     child.stdin.end();
   });
 }
@@ -260,22 +288,29 @@ async function runCodexExec(
   }
 
   const args = [
-    "exec",
+    ...codexInvocationArgs(payload),
     "--cd",
     target.executionRoot,
     "--sandbox",
     payload.sandbox ?? "workspace-write",
-    "--ask-for-approval",
-    payload.approvalPolicy ?? "never",
     "--json",
     "-"
   ];
-  return runTrackedProcess(paths, jobId, "codex", args, target.executionRoot, prompt, "codex exec");
+  return runTrackedProcess(
+    paths,
+    jobId,
+    resolveCodexCommand(),
+    args,
+    target.executionRoot,
+    prompt,
+    "codex exec"
+  );
 }
 
 async function runCodexReview(
   paths: TokenPilotPaths,
   jobId: string,
+  payload: CodexRunJobPayload,
   target: ExecutionTarget,
   title: string
 ): Promise<CapturedProcessResult> {
@@ -289,13 +324,21 @@ async function runCodexReview(
   }
 
   const args = [
-    "exec",
+    ...codexInvocationArgs(payload),
     "review",
     "--uncommitted",
     "--json",
     "-"
   ];
-  return runTrackedProcess(paths, jobId, "codex", args, target.executionRoot, instructions, "codex review");
+  return runTrackedProcess(
+    paths,
+    jobId,
+    resolveCodexCommand(),
+    args,
+    target.executionRoot,
+    instructions,
+    "codex review"
+  );
 }
 
 function readGitStatus(cwd: string): string {
@@ -399,7 +442,7 @@ export async function runCodexRunJob(
   writeText(stdoutPath, execResult.stdout);
   writeText(stderrPath, execResult.stderr);
 
-  const reviewResult = await runCodexReview(paths, jobId, target, payload.title);
+  const reviewResult = await runCodexReview(paths, jobId, payload, target, payload.title);
   writeText(reviewPath, reviewResult.stdout || reviewResult.stderr || "No review output captured.\n");
 
   const diff = readGitDiff(target.executionRoot);

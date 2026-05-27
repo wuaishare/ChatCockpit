@@ -1,4 +1,10 @@
 export type JobType = "pack" | "taskpack" | "codex-run";
+export type TokenPilotTrackedProcessState =
+  | "running"
+  | "paused"
+  | "terminated"
+  | "completed"
+  | "failed";
 
 export interface TokenPilotPaths {
   repoRoot: string;
@@ -15,6 +21,13 @@ export interface TokenPilotPaths {
   runnerLogPath: string;
   runnerPidPath: string;
   runnerPlistPath: string;
+}
+
+export interface TokenPilotRepoTargetPaths {
+  repoRoot: string;
+  workspaceDir: string;
+  bundlesDir: string;
+  manifestsDir: string;
 }
 
 export interface TokenPilotRepoMapping {
@@ -213,6 +226,11 @@ export interface TokenPilotPublicJobRecord {
   hasResult: boolean;
   hasError: boolean;
   payload: Record<string, unknown>;
+  process?: {
+    state: TokenPilotTrackedProcessState;
+    updatedAt: string;
+    label: string;
+  };
   artifacts?: TokenPilotJobArtifactSummary[];
   result?: Record<string, unknown>;
   error?: string;

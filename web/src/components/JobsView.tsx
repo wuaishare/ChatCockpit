@@ -7,12 +7,17 @@ import {
   ReloadOutlined,
   StopOutlined
 } from "@ant-design/icons";
-import type { JobArtifactSummary, JobSummary } from "../types";
+import type { JobArtifactSummary, JobProcessState, JobSummary } from "../types";
 import { formatDateTime, safePathList, safeText } from "../utils";
 import { SectionCard } from "./SectionCard";
 import { StateNotice } from "./StateNotice";
 import type { LocaleCode } from "../i18n";
-import { getStatusLabel, getTypeLabel, getUiCopy } from "../i18n";
+import {
+  getProcessStatusLabel,
+  getStatusLabel,
+  getTypeLabel,
+  getUiCopy
+} from "../i18n";
 
 interface JobsViewProps {
   locale: LocaleCode;
@@ -45,6 +50,21 @@ function renderStatus(status: JobSummary["status"], label: string) {
   } as const;
 
   return <Tag color={colorMap[status]}>{label}</Tag>;
+}
+
+function renderProcessStatus(
+  processState: JobProcessState,
+  label: string
+) {
+  const colorMap = {
+    running: "processing",
+    paused: "warning",
+    terminated: "error",
+    completed: "success",
+    failed: "error"
+  } as const;
+
+  return <Tag color={colorMap[processState]}>{label}</Tag>;
 }
 
 function detailEntries(
@@ -263,6 +283,10 @@ export function JobsView({
   }
 
   const details = detailEntries(selectedJob, locale);
+  const selectedProcessState = selectedJob?.process?.state ?? null;
+  const canPause = selectedProcessState === "running";
+  const canResume = selectedProcessState === "paused";
+  const canTerminate = selectedProcessState === "running" || selectedProcessState === "paused";
   const columns: ColumnsType<JobSummary> = [
     {
       title: copy.jobs.columnHeadline,
@@ -286,8 +310,11 @@ export function JobsView({
       title: copy.jobs.columnStatus,
       dataIndex: "status",
       key: "status",
-      width: 120,
-      render: (value: JobSummary["status"]) => renderStatus(value, getStatusLabel(locale, value))
+      width: 180,
+      render: (value: JobSummary["status"], job) =>
+        job.process
+          ? renderProcessStatus(job.process.state, getProcessStatusLabel(locale, job.process.state))
+          : renderStatus(value, getStatusLabel(locale, value))
     },
     {
       title: copy.jobs.columnUpdated,
@@ -362,7 +389,15 @@ export function JobsView({
                 <div className="jobs-table__headline">{selectedJob.headline}</div>
                 <div className="jobs-table__subline">{selectedJob.id}</div>
               </div>
-              {renderStatus(selectedJob.status, getStatusLabel(locale, selectedJob.status))}
+              <div className="job-detail__hero-tags">
+                {renderStatus(selectedJob.status, getStatusLabel(locale, selectedJob.status))}
+                {selectedJob.process
+                  ? renderProcessStatus(
+                      selectedJob.process.state,
+                      getProcessStatusLabel(locale, selectedJob.process.state)
+                    )
+                  : null}
+              </div>
             </div>
 
             <div className="job-detail__controls">
@@ -375,7 +410,7 @@ export function JobsView({
                   size="small"
                   icon={<PauseCircleOutlined />}
                   onClick={() => onControlJob("pause")}
-                  disabled={controlLoading || selectedJob.status !== "running"}
+                  disabled={controlLoading || !canPause}
                 >
                   {copy.jobs.controlPause}
                 </Button>
@@ -384,7 +419,7 @@ export function JobsView({
                   icon={<PlayCircleOutlined />}
                   onClick={() => onControlJob("resume")}
                   loading={controlLoading}
-                  disabled={selectedJob.status !== "running"}
+                  disabled={controlLoading || !canResume}
                 >
                   {copy.jobs.controlResume}
                 </Button>
@@ -393,7 +428,7 @@ export function JobsView({
                   danger
                   icon={<StopOutlined />}
                   onClick={() => onControlJob("terminate")}
-                  disabled={controlLoading || selectedJob.status !== "running"}
+                  disabled={controlLoading || !canTerminate}
                 >
                   {copy.jobs.controlTerminate}
                 </Button>
@@ -409,6 +444,19 @@ export function JobsView({
                     : row.value}
                 </Descriptions.Item>
               ))}
+              {selectedJob.process ? (
+                <Descriptions.Item label={copy.jobs.rowProcessState}>
+                  {renderProcessStatus(
+                    selectedJob.process.state,
+                    getProcessStatusLabel(locale, selectedJob.process.state)
+                  )}
+                </Descriptions.Item>
+              ) : null}
+              {selectedJob.process ? (
+                <Descriptions.Item label={copy.jobs.rowProcessUpdated}>
+                  {formatDateTime(selectedJob.process.updatedAt)}
+                </Descriptions.Item>
+              ) : null}
             </Descriptions>
 
             <div className="job-detail__block">

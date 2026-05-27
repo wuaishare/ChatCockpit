@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
+import { loadUserConfig, resolveRepoMapping } from "./config.js";
 import type { TokenPilotCommitSummary } from "../types.js";
 
 export function readRecentGitCommits(
@@ -56,4 +57,14 @@ export function readRecentGitCommits(
         committedAt
       };
     });
+}
+
+export function readRecentGitCommitsForRepo(
+  tokenPilotRepoRoot: string,
+  repoId: string,
+  limit = 10
+): TokenPilotCommitSummary[] {
+  const config = loadUserConfig(tokenPilotRepoRoot);
+  const mapping = resolveRepoMapping(config, repoId);
+  return readRecentGitCommits(mapping.repoRoot, limit);
 }
