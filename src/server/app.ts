@@ -13,6 +13,12 @@ import type {
   TokenPilotHealthStatus,
   TokenPilotJobPayload,
   TokenPilotPaths,
+  FileEditPayload,
+  FileListPayload,
+  FileWritePayload,
+  GitCommitPayload,
+  SearchPayload,
+  ShellRunPayload,
   TokenPilotPublicJobRecord
 } from "../types.js";
 import {
@@ -25,6 +31,10 @@ import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js
 import { readRecentGitCommitsForRepo } from "../core/git-history.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
+import { writeRepoFile, editRepoFile, listRepoDirectory } from "../core/files-write.js";
+import { searchRepo } from "../core/search.js";
+import { runShellCommand } from "../core/shell-api.js";
+import { getGitDiff, getGitStatus, gitCommit } from "../core/git-api.js";
 import {
   isExposedMode,
   isAuthRequired,
@@ -100,6 +110,46 @@ const artifactKeySchema = z.enum([
   "codexReview",
   "codexSummary"
 ]);
+
+const fileWriteSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  path: z.string().min(1),
+  content: z.string().min(1)
+});
+
+const fileEditSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  path: z.string().min(1),
+  search: z.string().min(1),
+  replace: z.string()
+});
+
+const fileListSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  path: z.string().min(1).default(".")
+});
+
+const searchSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  pattern: z.string().min(1),
+  path: z.string().optional(),
+  maxResults: z.number().int().positive().max(40).optional(),
+  contextLines: z.number().int().nonnegative().max(3).optional(),
+  caseSensitive: z.boolean().optional()
+});
+
+const shellRunSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  command: z.string().min(1),
+  args: z.array(z.string()),
+  workdir: z.string().optional()
+});
+
+const gitCommitSchema = z.object({
+  repoId: z.string().min(1).default("tokenpilot"),
+  message: z.string().min(1),
+  body: z.string().optional()
+});
 
 function normalizePackLikeObject(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -781,6 +831,169 @@ export function buildServer(paths: TokenPilotPaths) {
     }
   };
 
+  const writeFileHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = fileWriteSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return { ok: false, error: parsed.error.flatten() };
+    }
+    try {
+      return writeRepoFile(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        repoId: parsed.data.repoId,
+        path: parsed.data.path,
+        written: false,
+        size: 0,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const editFileHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = fileEditSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return { ok: false, error: parsed.error.flatten() };
+    }
+    try {
+      return editRepoFile(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        repoId: parsed.data.repoId,
+        path: parsed.data.path,
+        applied: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const listDirectoryHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = fileListSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return { ok: false, error: parsed.error.flatten() };
+    }
+    try {
+      return listRepoDirectory(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        repoId: parsed.data.repoId,
+        path: parsed.data.path,
+        entries: [],
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const searchHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = searchSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return { ok: false, error: parsed.error.flatten() };
+    }
+    try {
+      return searchRepo(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        repoId: parsed.data.repoId,
+        pattern: parsed.data.pattern,
+        matches: [],
+        truncated: false,
+        totalMatches: 0,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const shellRunHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = shellRunSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return { ok: false, error: parsed.error.flatten() };
+    }
+    try {
+      return runShellCommand(paths, parsed.data);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        exitCode: 127,
+        stdout: "",
+        stderr: error instanceof Error ? error.message : String(error),
+        truncated: false,
+        executedCommand: `${parsed.data.command} ${parsed.data.args.join(" ")}`,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const gitDiffHandler = async (request: unknown) => {
+    const query = (request as { query?: { repoId?: string; staged?: string } }).query ?? {};
+    const repoId = query.repoId ?? "tokenpilot";
+    const staged = query.staged === "true" || query.staged === "1";
+    try {
+      return getGitDiff(paths, repoId, staged);
+    } catch (error) {
+      return {
+        ok: false,
+        repoId,
+        diff: "",
+        truncated: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const gitStatusHandler = async (request: unknown) => {
+    const query = (request as { query?: { repoId?: string } }).query ?? {};
+    const repoId = query.repoId ?? "tokenpilot";
+    try {
+      return getGitStatus(paths, repoId);
+    } catch (error) {
+      return {
+        ok: false,
+        repoId,
+        branch: "unknown",
+        entries: [],
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
+  const gitCommitHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const parsed = gitCommitSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      fastifyReply.code(400);
+      return { ok: false, error: parsed.error.flatten() };
+    }
+    try {
+      return gitCommit(paths, parsed.data.repoId, parsed.data.message, parsed.data.body);
+    } catch (error) {
+      fastifyReply.code(400);
+      return {
+        ok: false,
+        repoId: parsed.data.repoId,
+        committed: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  };
+
   app.get("/api/health", healthHandler);
   app.get("/tokenpilot/api/health", healthHandler);
 
@@ -838,6 +1051,30 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.post("/api/files/read-batch", readFilesHandler);
   app.post("/tokenpilot/api/files/read-batch", readFilesHandler);
+
+  app.post("/api/files/write", writeFileHandler);
+  app.post("/tokenpilot/api/files/write", writeFileHandler);
+
+  app.post("/api/files/edit", editFileHandler);
+  app.post("/tokenpilot/api/files/edit", editFileHandler);
+
+  app.post("/api/files/list", listDirectoryHandler);
+  app.post("/tokenpilot/api/files/list", listDirectoryHandler);
+
+  app.post("/api/search", searchHandler);
+  app.post("/tokenpilot/api/search", searchHandler);
+
+  app.post("/api/shell/run", shellRunHandler);
+  app.post("/tokenpilot/api/shell/run", shellRunHandler);
+
+  app.get("/api/git/diff", gitDiffHandler);
+  app.get("/tokenpilot/api/git/diff", gitDiffHandler);
+
+  app.get("/api/git/status", gitStatusHandler);
+  app.get("/tokenpilot/api/git/status", gitStatusHandler);
+
+  app.post("/api/git/commit", gitCommitHandler);
+  app.post("/tokenpilot/api/git/commit", gitCommitHandler);
 
   app.get("/openapi.yaml", async (_request, reply) => {
     reply.type("text/yaml");

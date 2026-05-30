@@ -270,3 +270,138 @@ export interface TokenPilotTextPreview {
   nextOffset?: number | null;
   eof?: boolean;
 }
+
+// ── ChatGPT 直驱开发 API 类型 ──
+
+export interface FileWritePayload {
+  repoId: string;
+  path: string;
+  content: string;
+}
+
+export interface FileWriteResponse {
+  ok: boolean;
+  repoId: string;
+  path: string;
+  written: boolean;
+  size: number;
+  error?: string;
+}
+
+export interface FileEditPayload {
+  repoId: string;
+  path: string;
+  search: string;
+  replace: string;
+}
+
+export interface FileEditResponse {
+  ok: boolean;
+  repoId: string;
+  path: string;
+  applied: boolean;
+  error?: string;
+}
+
+export interface FileListPayload {
+  repoId: string;
+  path: string;
+}
+
+export interface FileListEntry {
+  name: string;
+  type: "file" | "directory";
+  size?: number;
+}
+
+export interface FileListResponse {
+  ok: boolean;
+  repoId: string;
+  path: string;
+  entries: FileListEntry[];
+  error?: string;
+}
+
+export interface SearchPayload {
+  repoId: string;
+  pattern: string;
+  path?: string;
+  maxResults?: number;
+  contextLines?: number;
+  caseSensitive?: boolean;
+}
+
+export interface SearchMatch {
+  path: string;
+  line: number;
+  content: string;
+}
+
+export interface SearchResponse {
+  ok: boolean;
+  repoId: string;
+  pattern: string;
+  matches: SearchMatch[];
+  truncated: boolean;
+  totalMatches: number;
+  error?: string;
+}
+
+export interface ShellRunPayload {
+  repoId: string;
+  command: string;
+  args: string[];
+  workdir?: string;
+}
+
+export interface ShellRunResponse {
+  ok: boolean;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  truncated: boolean;
+  executedCommand: string;
+  error?: string;
+}
+
+export interface GitDiffPayload {
+  repoId: string;
+  staged?: boolean;
+}
+
+export interface GitDiffResponse {
+  ok: boolean;
+  repoId: string;
+  diff: string;
+  truncated: boolean;
+  error?: string;
+}
+
+export interface GitStatusEntry {
+  path: string;
+  status: string;
+  staged: boolean;
+}
+
+export interface GitStatusResponse {
+  ok: boolean;
+  repoId: string;
+  branch: string;
+  entries: GitStatusEntry[];
+  error?: string;
+}
+
+export interface GitCommitPayload {
+  repoId: string;
+  message: string;
+  body?: string;
+}
+
+export interface GitCommitResponse {
+  ok: boolean;
+  repoId: string;
+  committed: boolean;
+  commitHash?: string;
+  commitMessage?: string;
+  error?: string;
+}

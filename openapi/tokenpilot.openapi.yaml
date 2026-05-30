@@ -543,6 +543,280 @@ components:
           items:
             $ref: '#/components/schemas/FileReadResult'
       required: [ok, repoId, files]
+    FileWritePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          default: tokenpilot
+        path:
+          type: string
+          description: Relative file path inside the mapped repository.
+        content:
+          type: string
+          description: Full text content to write.
+      required: [path, content]
+    FileWriteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        path:
+          type: string
+        written:
+          type: boolean
+        size:
+          type: integer
+        error:
+          type: string
+      required: [ok, repoId, path, written, size]
+    FileEditPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          default: tokenpilot
+        path:
+          type: string
+        search:
+          type: string
+          description: Exact text to find (must be unique in the file).
+        replace:
+          type: string
+          description: Text to substitute in place of search.
+      required: [path, search, replace]
+    FileEditResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        path:
+          type: string
+        applied:
+          type: boolean
+        error:
+          type: string
+      required: [ok, repoId, path, applied]
+    FileListPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          default: tokenpilot
+        path:
+          type: string
+          default: "."
+          description: Relative directory path inside the mapped repository.
+      required: [path]
+    FileListEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [file, directory]
+        size:
+          type: integer
+      required: [name, type]
+    FileListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        path:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileListEntry'
+        error:
+          type: string
+      required: [ok, repoId, path, entries]
+    SearchPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          default: tokenpilot
+        pattern:
+          type: string
+          description: Search pattern (regex-compatible).
+        path:
+          type: string
+          description: Optional subdirectory to limit search scope.
+        maxResults:
+          type: integer
+          minimum: 1
+          maximum: 40
+          default: 40
+        contextLines:
+          type: integer
+          minimum: 0
+          maximum: 3
+          default: 0
+        caseSensitive:
+          type: boolean
+          default: false
+      required: [pattern]
+    SearchMatch:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+        line:
+          type: integer
+        content:
+          type: string
+      required: [path, line, content]
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        pattern:
+          type: string
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchMatch'
+        truncated:
+          type: boolean
+        totalMatches:
+          type: integer
+        error:
+          type: string
+      required: [ok, repoId, pattern, matches, truncated, totalMatches]
+    ShellRunPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          default: tokenpilot
+        command:
+          type: string
+          description: Whitelisted command name.
+        args:
+          type: array
+          items:
+            type: string
+          description: Command arguments.
+        workdir:
+          type: string
+          description: Optional working directory relative to repo root.
+      required: [command, args]
+    ShellRunResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        exitCode:
+          type: integer
+        stdout:
+          type: string
+        stderr:
+          type: string
+        truncated:
+          type: boolean
+        executedCommand:
+          type: string
+        error:
+          type: string
+      required: [ok, exitCode, stdout, stderr, truncated, executedCommand]
+    GitDiffResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        diff:
+          type: string
+        truncated:
+          type: boolean
+        error:
+          type: string
+      required: [ok, repoId, diff, truncated]
+    GitStatusEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+        status:
+          type: string
+        staged:
+          type: boolean
+      required: [path, status, staged]
+    GitStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        branch:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/GitStatusEntry'
+        error:
+          type: string
+      required: [ok, repoId, branch, entries]
+    GitCommitPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        repoId:
+          type: string
+          default: tokenpilot
+        message:
+          type: string
+          description: Commit title / subject line.
+        body:
+          type: string
+          description: Optional commit body (extended description).
+      required: [message]
+    GitCommitResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        repoId:
+          type: string
+        committed:
+          type: boolean
+        commitHash:
+          type: string
+        commitMessage:
+          type: string
+        error:
+          type: string
+      required: [ok, repoId, committed]
     PackJobSummary:
       type: object
       additionalProperties: false
@@ -1049,3 +1323,171 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadFilesResponse'
+  /api/files/write:
+    post:
+      operationId: writeFile
+      summary: Write or overwrite a text file
+      description: Creates or overwrites a single text file in an allowlisted repository. Content size limited to 512 KB.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileWritePayload'
+      responses:
+        "200":
+          description: File written
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileWriteResponse'
+  /api/files/edit:
+    post:
+      operationId: editFile
+      summary: Search-and-replace edit in a text file
+      description: Finds a unique occurrence of search text and replaces it. Search text must appear exactly once in the file.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileEditPayload'
+      responses:
+        "200":
+          description: Edit applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileEditResponse'
+  /api/files/list:
+    post:
+      operationId: listDirectory
+      summary: List directory contents
+      description: Lists files and subdirectories in a directory within an allowlisted repository. Hidden files are excluded except common config files.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileListPayload'
+      responses:
+        "200":
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+  /api/search:
+    post:
+      operationId: searchCode
+      summary: Search code across the repository
+      description: Runs ripgrep (or grep fallback) across an allowlisted repository. Returns up to 40 matches with optional context lines.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchPayload'
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+  /api/shell/run:
+    post:
+      operationId: runShell
+      summary: Run a whitelisted shell command
+      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 30 seconds. This is not a raw shell endpoint.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShellRunPayload'
+      responses:
+        "200":
+          description: Command output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShellRunResponse'
+  /api/git/diff:
+    get:
+      operationId: getGitDiff
+      summary: Get the current git diff
+      description: Returns the working tree diff (unstaged changes by default). Public-safe paths only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: repoId
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tokenpilot
+        - name: staged
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false", "1", "0"]
+      responses:
+        "200":
+          description: Git diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitDiffResponse'
+  /api/git/status:
+    get:
+      operationId: getGitStatus
+      summary: Get the current git status
+      description: Returns the working tree status including branch name and per-file status entries. Public-safe paths only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: repoId
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tokenpilot
+      responses:
+        "200":
+          description: Git status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitStatusResponse'
+  /api/git/commit:
+    post:
+      operationId: gitCommit
+      summary: Stage all changes and commit
+      description: Stages all changes (git add -A) and creates a commit with the given message. Returns the commit hash on success.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitCommitPayload'
+      responses:
+        "200":
+          description: Commit result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitCommitResponse'

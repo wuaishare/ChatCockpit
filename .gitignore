@@ -54,3 +54,7 @@ docs/superpowers/**
 
 # generated repomix outputs if accidentally written outside .tokenpilot
 repomix-output*.xml
+
+# Repomix output files
+repomix-output.xml
+Repomix-*.xml

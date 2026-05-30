@@ -90,3 +90,61 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 
 - “安全自动化闭环已完成”
 - “完整 HTTPS / Custom GPT Actions / artifact consumption 生产闭环已完成”
+
+## ChatGPT 直驱开发模式（Phase 2）
+
+自 Phase 2 起，TokenPilot 已补齐写侧 API，ChatGPT 可以在不经过 Codex CLI 的情况下直接完成本地开发任务。
+
+### 新增能力
+
+- `writeFile` — 创建或覆盖文本文件（最大 512 KB）
+- `editFile` — Search/replace 精准编辑（要求 search 文本在文件中唯一）
+- `listDirectory` — 列出目录内容
+- `searchCode` — 代码搜索（ripgrep，最多 40 条结果，可选上下文行）
+- `runShell` — 运行白名单命令（npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make 等），输出截断 64 KB，执行上限 30s
+- `getGitDiff` — 查看未提交变更
+- `getGitStatus` — 查看 git 状态和分支
+- `gitCommit` — 暂存所有变更并提交
+
+### 推荐工作流
+
+1. **了解项目**：`listDirectory` 看结构，`readFiles` 看关键文件，`searchCode` 定位代码
+2. **编辑代码**：优先用 `editFile`（search/replace），创建新文件才用 `writeFile`
+3. **验证**：`runShell` 运行 `npm run build` / `npm test` / `tsc --noEmit`
+4. **提交**：`getGitDiff` 检查变更 → `gitCommit` 提交
+
+### 与 createCodexRun 的互补关系
+
+- **微小编辑**（改一行文案、修一个 typo）→ 用 ChatGPT 直驱
+- **复杂开发**（跨文件重构、多步骤任务）→ 仍推荐 `createCodexRun`，让 Codex 执行完整循环
+- **两者不互斥**：ChatGPT 可以先 `searchCode` 定位问题，再决定是自己改还是交给 Codex
+
+### 安全边界
+
+- 所有写操作复用现有 allowlist + repo mapping + 路径校验
+- `runShell` 为命令白名单模式，不是 raw shell
+- 默认需要 bearer auth（`TOKENPILOT_EXPOSED=1` + `TOKENPILOT_API_TOKEN`）
+
+### GPT 指令更新建议
+
+在 Custom GPT 的 Instructions 中增加：
+
+```
+你现在可以：
+
+- 使用 writeFile 创建或覆盖文本文件
+- 使用 editFile 对文件中唯一的一段文字进行精确搜索替换（search 必须在文件中只出现一次）
+- 使用 listDirectory 列出目录内容
+- 使用 searchCode 进行代码搜索
+- 使用 runShell 运行白名单命令来验证构建、测试或检查代码
+- 使用 getGitDiff 和 getGitStatus 查看仓库变更
+- 使用 gitCommit 提交变更
+
+文件操作规则：
+- 小改动优先用 editFile，新建文件才用 writeFile
+- 写入前先用 readFiles 确认当前内容
+- searchCode 先定位再精读，不必整文件读取
+- runShell 只用于白名单内的非破坏性命令
+
+你仍然可以使用 createCodexRun 来委托复杂开发任务给本地 Codex CLI 执行和审查。
+```
