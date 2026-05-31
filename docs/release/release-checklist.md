@@ -39,7 +39,7 @@ The prerelease package must not include:
 - `.tokenpilot/`
 - `.codex/`
 - `.servbay/`
-- `.env*`
+- real `.env*` files except curated public examples such as `.env.example`
 - `node_modules/`
 - `dist/` or `web/dist/`
 - local logs, tunnel configuration, reverse-proxy bindings, GPT Builder private notes, or bearer tokens

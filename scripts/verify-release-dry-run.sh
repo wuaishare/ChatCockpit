@@ -39,8 +39,8 @@ for blocked in "${blocked_paths[@]}"; do
   fi
 done
 
-if find "${extract_dir}" -name ".env" -o -name ".env.*" -o -name "server.env" | grep -q .; then
-  echo "Release archive contains env file(s)." >&2
+if find "${extract_dir}" \( -name ".env" -o -name ".env.*" -o -name "server.env" \) ! -name ".env.example" | grep -q .; then
+  echo "Release archive contains non-example env file(s)." >&2
   exit 1
 fi
 
