@@ -31,6 +31,7 @@
     "verify:e2e": "tsx scripts/verify-local-e2e.ts",
     "verify:smoke": "tsx scripts/verify-local-smoke.ts",
     "verify:web:safety": "tsx scripts/verify-web-safety.ts",
+    "verify:release": "./scripts/verify-release-dry-run.sh",
     "privacy:scan:history": "./scripts/scan-history-privacy.sh",
     "verify:web": "npm run typecheck:web && npm run build:web && npm run verify:web:safety",
     "mvp:start": "./scripts/macos-manage-local-server.sh start",
