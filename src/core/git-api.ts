@@ -63,14 +63,14 @@ export function getGitStatus(
   );
 
   const entries: GitStatusEntry[] = [];
-  const lines = (statusResult.stdout ?? "").trim().split(/\r?\n/).filter(Boolean);
+  const lines = (statusResult.stdout ?? "").split(/\r?\n/).filter(Boolean);
 
   for (const line of lines) {
     if (line.length < 3) continue;
 
     const indexStatus = line[0];
     const worktreeStatus = line[1];
-    const filePath = line.substring(3).trim();
+    const filePath = line.substring(3);
 
     if (!isPublicSafeGitPath(filePath)) {
       entries.push({

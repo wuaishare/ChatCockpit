@@ -1,6 +1,8 @@
 import fp from "fastify-plugin";
 import type { FastifyRequest } from "fastify";
 
+import { ApiError } from "./errors.js";
+
 type EnvLike = Record<string, string | undefined>;
 
 function isPublicPath(url: string): boolean {
@@ -9,6 +11,8 @@ function isPublicPath(url: string): boolean {
     url === "/favicon.ico" ||
     url === "/api/health" ||
     url === "/tokenpilot/api/health" ||
+    url === "/api/setup/status" ||
+    url === "/tokenpilot/api/setup/status" ||
     url === "/openapi.yaml" ||
     url === "/privacy-policy" ||
     url === "/ui" ||
@@ -49,8 +53,11 @@ export const tokenPilotAuthPlugin = fp(async (app) => {
     }
 
     if (isExposedMode() && !process.env.TOKENPILOT_API_TOKEN?.trim()) {
-      reply.code(503);
-      throw new Error("Exposed mode is missing TOKENPILOT_API_TOKEN");
+      throw new ApiError(
+        503,
+        "AUTH_CONFIG_MISSING",
+        "Exposed mode is missing TOKENPILOT_API_TOKEN"
+      );
     }
 
     const configured = process.env.TOKENPILOT_API_TOKEN?.trim();
@@ -63,7 +70,6 @@ export const tokenPilotAuthPlugin = fp(async (app) => {
       return;
     }
 
-    reply.code(401);
-    throw new Error("Unauthorized");
+    throw new ApiError(401, "UNAUTHORIZED", "Bearer token is missing or invalid");
   });
 });

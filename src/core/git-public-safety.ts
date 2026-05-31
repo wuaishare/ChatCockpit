@@ -92,6 +92,7 @@ export interface PublicSafeGitDiff {
   diff: string;
   hasPublicSafeChanges: boolean;
   omittedUnsafePathCount: number;
+  omittedPublicSafeUntrackedCount: number;
   truncated: boolean;
 }
 
@@ -212,6 +213,7 @@ function isCommitSafeAssetPath(filePath: string): boolean {
 function readTrackedPublicSafeDiff(cwd: string, staged = false): {
   diff: string;
   omittedUnsafePathCount: number;
+  omittedPublicSafeUntrackedCount: number;
 } {
   const records = listDiffNameRecords(cwd, staged);
   const safeRecords = safeDiffRecords(records);
@@ -220,7 +222,11 @@ function readTrackedPublicSafeDiff(cwd: string, staged = false): {
     omittedUnsafePathCount(records) +
     safeRecords.filter((record) => !isTextDiffPath(record.path)).length;
   if (!safePaths.length) {
-    return { diff: "", omittedUnsafePathCount: omittedCount };
+    return {
+      diff: "",
+      omittedUnsafePathCount: omittedCount,
+      omittedPublicSafeUntrackedCount: 0
+    };
   }
 
   const args = ["diff", "--binary"];
@@ -232,22 +238,26 @@ function readTrackedPublicSafeDiff(cwd: string, staged = false): {
   const result = runGit(cwd, args);
   return {
     diff: result.stdout ?? "",
-    omittedUnsafePathCount: omittedCount
+    omittedUnsafePathCount: omittedCount,
+    omittedPublicSafeUntrackedCount: 0
   };
 }
 
 function readUntrackedPublicSafeDiff(cwd: string): {
   diff: string;
   omittedUnsafePathCount: number;
+  omittedPublicSafeUntrackedCount: number;
 } {
   const result = runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"], 5_000);
   const paths = splitNul(result.stdout ?? "");
   const publicSafePaths = paths.filter(isPublicSafeGitPath);
   const safePaths = publicSafePaths.filter(isTextDiffPath);
   const omittedCount = (paths.length - publicSafePaths.length) + (publicSafePaths.length - safePaths.length);
+  const shownSafePaths = safePaths.slice(0, 20);
+  const omittedPublicSafeUntrackedCount = Math.max(0, safePaths.length - shownSafePaths.length);
   const sections: string[] = [];
 
-  for (const filePath of safePaths.slice(0, 20)) {
+  for (const filePath of shownSafePaths) {
     try {
       const absolutePath = path.join(cwd, filePath);
       const stat = fs.statSync(absolutePath);
@@ -271,20 +281,29 @@ function readUntrackedPublicSafeDiff(cwd: string): {
     }
   }
 
+  if (omittedPublicSafeUntrackedCount > 0) {
+    sections.push(
+      `... (${shownSafePaths.length} public-safe untracked files shown, ${omittedPublicSafeUntrackedCount} omitted)`
+    );
+  }
+
   return {
     diff: sections.join("\n\n"),
-    omittedUnsafePathCount: omittedCount
+    omittedUnsafePathCount: omittedCount,
+    omittedPublicSafeUntrackedCount
   };
 }
 
 export function readPublicSafeGitDiff(cwd: string, staged = false): PublicSafeGitDiff {
   const tracked = readTrackedPublicSafeDiff(cwd, staged);
   const untracked = staged
-    ? { diff: "", omittedUnsafePathCount: 0 }
+    ? { diff: "", omittedUnsafePathCount: 0, omittedPublicSafeUntrackedCount: 0 }
     : readUntrackedPublicSafeDiff(cwd);
   let diff = [tracked.diff.trimEnd(), untracked.diff.trimEnd()].filter(Boolean).join("\n\n");
   const hasPublicSafeChanges = Boolean(diff.trim());
   const omittedCount = tracked.omittedUnsafePathCount + untracked.omittedUnsafePathCount;
+  const omittedPublicSafeUntrackedCount =
+    tracked.omittedPublicSafeUntrackedCount + untracked.omittedPublicSafeUntrackedCount;
   const truncated = diff.length > MAX_DIFF_BYTES;
   if (truncated) {
     diff = diff.slice(0, MAX_DIFF_BYTES) + "\n\n... (diff truncated)";
@@ -294,6 +313,7 @@ export function readPublicSafeGitDiff(cwd: string, staged = false): PublicSafeGi
     diff: hasPublicSafeChanges ? diff : NO_PUBLIC_SAFE_CHANGES,
     hasPublicSafeChanges,
     omittedUnsafePathCount: omittedCount,
+    omittedPublicSafeUntrackedCount,
     truncated
   };
 }

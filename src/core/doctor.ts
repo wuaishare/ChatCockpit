@@ -1,7 +1,8 @@
 import fs from "node:fs";
+import path from "node:path";
 
 import { runCommand } from "./shell.js";
-import { buildPaths } from "./paths.js";
+import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { listJobs } from "./jobs.js";
 
 export interface DoctorCheck {
@@ -10,9 +11,22 @@ export interface DoctorCheck {
   detail: string;
 }
 
-export function runDoctor(repoRoot: string): DoctorCheck[] {
+export interface DoctorResult {
+  ok: boolean;
+  summary: string;
+  checks: DoctorCheck[];
+  fixes: string[];
+}
+
+export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): DoctorResult {
   const checks: DoctorCheck[] = [];
+  const fixes: string[] = [];
   const paths = buildPaths(repoRoot);
+
+  if (options.fix) {
+    ensureWorkspaceDirs(paths);
+    fixes.push(`ensured runtime directories under ${path.relative(repoRoot, paths.workspaceDir)}`);
+  }
 
   const git = runCommand("git", ["rev-parse", "--show-toplevel"], repoRoot);
   checks.push({
@@ -75,5 +89,15 @@ export function runDoctor(repoRoot: string): DoctorCheck[] {
     });
   }
 
-  return checks;
+  const ok = checks.every((check) => check.ok);
+  const summary = ok
+    ? "TokenPilot local prerequisites look ready."
+    : "TokenPilot needs attention before the local workflow is fully ready.";
+
+  return {
+    ok,
+    summary,
+    checks,
+    fixes
+  };
 }

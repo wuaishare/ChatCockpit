@@ -1,4 +1,5 @@
 export type JobType = "pack" | "taskpack" | "codex-run";
+export type JobStatus = "queued" | "running" | "completed" | "failed";
 export type TokenPilotTrackedProcessState =
   | "running"
   | "paused"
@@ -158,7 +159,7 @@ export interface CodexRunJobResult {
 export interface JobRecord<TPayload = unknown> {
   id: string;
   type: JobType;
-  status: "queued" | "running" | "completed" | "failed";
+  status: JobStatus;
   createdAt: string;
   updatedAt: string;
   payload: TPayload;
@@ -195,6 +196,26 @@ export interface TokenPilotHealthStatus {
   exposed: boolean;
   publicBaseUrl: string | null;
   openapiUrl: string;
+}
+
+export interface TokenPilotSetupStatusStep {
+  key: "runtime" | "auth" | "repo" | "runner" | "gpt" | "firstTask";
+  ok: boolean;
+  label: string;
+  detail: string;
+  nextAction: string;
+}
+
+export interface TokenPilotSetupStatus {
+  ok: true;
+  ready: boolean;
+  authRequired: boolean;
+  exposed: boolean;
+  publicBaseUrlConfigured: boolean;
+  openapiUrl: string;
+  runnerStatus: "missing" | "ready";
+  firstTaskSeen: boolean;
+  steps: TokenPilotSetupStatusStep[];
 }
 
 export interface TokenPilotGptConfigRecord {
@@ -237,6 +258,24 @@ export interface TokenPilotPublicJobRecord {
   artifacts?: TokenPilotJobArtifactSummary[];
   result?: Record<string, unknown>;
   error?: string;
+}
+
+export interface TokenPilotJobsListResponse {
+  ok: true;
+  jobs: TokenPilotPublicJobRecord[];
+  nextCursor: string | null;
+  totalVisible: number;
+  includeResult: boolean;
+}
+
+export interface ApiErrorResponse {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    hint?: string;
+    details?: unknown;
+  };
 }
 
 export type JobArtifactKey =

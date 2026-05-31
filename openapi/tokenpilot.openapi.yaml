@@ -14,6 +14,29 @@ components:
       type: http
       scheme: bearer
   schemas:
+    ApiError:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        message:
+          type: string
+        hint:
+          type: string
+        details: {}
+      required: [code, message]
+    ApiErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          enum: [false]
+        error:
+          $ref: '#/components/schemas/ApiError'
+      required: [ok, error]
     HealthResponse:
       type: object
       additionalProperties: false
@@ -33,6 +56,49 @@ components:
         openapiUrl:
           type: string
       required: [ok, mode, authRequired, exposed, publicBaseUrl, openapiUrl]
+    SetupStatusStep:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          enum: [runtime, auth, repo, runner, gpt, firstTask]
+        ok:
+          type: boolean
+        label:
+          type: string
+        detail:
+          type: string
+        nextAction:
+          type: string
+      required: [key, ok, label, detail, nextAction]
+    SetupStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        ready:
+          type: boolean
+        authRequired:
+          type: boolean
+        exposed:
+          type: boolean
+        publicBaseUrlConfigured:
+          type: boolean
+        openapiUrl:
+          type: string
+        runnerStatus:
+          type: string
+          enum: [missing, ready]
+        firstTaskSeen:
+          type: boolean
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SetupStatusStep'
+      required: [ok, ready, authRequired, exposed, publicBaseUrlConfigured, openapiUrl, runnerStatus, firstTaskSeen, steps]
     GptConfig:
       type: object
       additionalProperties: false
@@ -203,6 +269,7 @@ components:
           type: string
           enum: [plan, review, develop]
           default: develop
+          description: plan runs read-only planning and writes artifacts only; review skips the main exec step and reviews current changes; develop may modify the execution repo according to sandbox and worktree policy.
         worktreePolicy:
           type: string
           enum: [auto, always, never]
@@ -217,6 +284,7 @@ components:
           type: string
           enum: [read-only, workspace-write, danger-full-access]
           default: workspace-write
+          description: Effective sandbox is forced to read-only for plan and review. develop defaults to workspace-write unless overridden.
         verificationCommands:
           type: array
           items:
@@ -463,6 +531,14 @@ components:
             type: string
           minItems: 1
           maxItems: 10
+        offset:
+          type: integer
+          minimum: 0
+          description: Optional byte offset applied to each returned file for chunked reading.
+        limit:
+          type: integer
+          minimum: 1
+          description: Optional maximum byte count applied to each returned file.
       required: [repoId, paths]
     FileReadResult:
       type: object
@@ -725,7 +801,7 @@ components:
           default: tokenpilot
         command:
           type: string
-          description: Whitelisted command name.
+          description: Whitelisted command name. node, python, python3, npx, tsx, and make are high-trust commands and are blocked in exposed mode unless the operator explicitly sets TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true.
         args:
           type: array
           items:
@@ -1034,7 +1110,15 @@ components:
               - $ref: '#/components/schemas/PackJobSummary'
               - $ref: '#/components/schemas/TaskPackJobSummary'
               - $ref: '#/components/schemas/CodexRunJobSummary'
-      required: [ok, jobs]
+        nextCursor:
+          oneOf:
+            - type: string
+            - type: "null"
+        totalVisible:
+          type: integer
+        includeResult:
+          type: boolean
+      required: [ok, jobs, nextCursor, totalVisible, includeResult]
     GetJobResponse:
       type: object
       additionalProperties: false
@@ -1060,6 +1144,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/setup/status:
+    get:
+      operationId: getSetupStatus
+      summary: Get first-run setup status
+      description: Returns public-safe first-run setup readiness without exposing bearer tokens, local filesystem paths, or private deployment details.
+      responses:
+        "200":
+          description: Setup status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupStatusResponse'
   /api/gpt/config:
     get:
       operationId: getGptConfig
@@ -1166,9 +1262,43 @@ paths:
     get:
       operationId: listJobs
       summary: List queued and completed jobs
-      description: Returns the current job list from the local TokenPilot queue.
+      description: Returns a bounded job summary page from the local TokenPilot queue. Results are omitted by default; call getJob for detail or set includeResult=true for explicit operator inspection.
       security:
         - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Offset cursor returned by the previous listJobs response.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [queued, running, completed, failed]
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pack, taskpack, codex-run]
+        - name: includeResult
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false", "1", "0"]
+          description: Defaults to false for compact GPT Actions responses.
       responses:
         "200":
           description: Jobs list
@@ -1176,6 +1306,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobsListResponse'
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/jobs/{id}:
     get:
       operationId: getJob
@@ -1196,6 +1338,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetJobResponse'
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/jobs/{id}/artifacts:
     get:
       operationId: listJobArtifacts
@@ -1216,6 +1364,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobArtifactsListResponse'
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/jobs/{id}/artifacts/{artifactKey}:
     get:
       operationId: readJobArtifact
@@ -1254,6 +1408,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobArtifactReadResponse'
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Artifact or job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/jobs/{id}/control/{action}:
     post:
       operationId: controlJob
@@ -1314,6 +1480,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadFileResponse'
+        "400":
+          description: Validation or path safety error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/files/read-batch:
     post:
       operationId: readFiles
@@ -1334,6 +1506,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadFilesResponse'
+        "400":
+          description: Validation or path safety error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/files/write:
     post:
       operationId: writeFile
@@ -1418,7 +1596,7 @@ paths:
     post:
       operationId: runShell
       summary: Run a whitelisted shell command
-      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 25 seconds. This is not a raw shell endpoint, but it is still a high-trust local operator API and must stay behind bearer auth when exposed.
+      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 25 seconds. This is not a raw shell endpoint, but it is still a high-trust local operator API and must stay behind bearer auth when exposed. In exposed mode, arbitrary-code commands such as node, python, python3, npx, tsx, and make require TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true.
       security:
         - bearerAuth: []
       requestBody:

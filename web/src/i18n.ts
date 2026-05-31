@@ -117,6 +117,18 @@ export interface UiCopy {
     repoSourceDefaultSibling: string;
     repoSourceLocalConfig: string;
   };
+  setup: {
+    title: string;
+    description: string;
+    readyTag: string;
+    pendingTag: string;
+    openGptHelper: string;
+    refresh: string;
+    steps: Record<
+      "runtime" | "auth" | "repo" | "runner" | "gpt" | "firstTask",
+      { label: string; detailReady: string; detailPending: string; nextReady: string; nextPending: string }
+    >;
+  };
   jobs: {
     sectionTitle: string;
     authRequiredTitle: string;
@@ -164,6 +176,7 @@ export interface UiCopy {
     rowArtifacts: string;
     rowIncludeEntries: string;
     rowArtifactPreview: string;
+    artifactLoadMore: string;
     controlTitle: string;
     controlDescription: string;
     controlPause: string;
@@ -320,6 +333,58 @@ const zhCN: UiCopy = {
     repoSourceDefaultSibling: "默认相邻仓库",
     repoSourceLocalConfig: "本机配置"
   },
+  setup: {
+    title: "首次设置",
+    description: "按顺序确认本地运行态、鉴权、仓库、Runner、GPT 接入和首个安全任务。",
+    readyTag: "已就绪",
+    pendingTag: "待处理",
+    openGptHelper: "打开 GPT 助手",
+    refresh: "刷新设置状态",
+    steps: {
+      runtime: {
+        label: "本地运行态",
+        detailReady: "本地运行态配置已存在。",
+        detailPending: "本地运行态配置尚未初始化。",
+        nextReady: "继续下一步",
+        nextPending: "运行 npm run init"
+      },
+      auth: {
+        label: "鉴权令牌",
+        detailReady: "当前鉴权状态满足本地访问要求。",
+        detailPending: "受保护接口需要配置 TOKENPILOT_API_TOKEN。",
+        nextReady: "继续下一步",
+        nextPending: "在本地运行态中配置 TOKENPILOT_API_TOKEN"
+      },
+      repo: {
+        label: "仓库授权",
+        detailReady: "默认 repoId 可以在本地解析。",
+        detailPending: "默认仓库根目录不可用。",
+        nextReady: "继续下一步",
+        nextPending: "检查 TOKENPILOT_REPO_ROOT"
+      },
+      runner: {
+        label: "本地 Runner",
+        detailReady: "Runner 已写入状态。",
+        detailPending: "Runner 尚未上报状态。",
+        nextReady: "继续下一步",
+        nextPending: "运行 npm run start:local"
+      },
+      gpt: {
+        label: "GPT 接入",
+        detailReady: "OpenAPI schema 与 GPT 辅助信息可用。",
+        detailPending: "GPT 辅助信息尚未准备好。",
+        nextReady: "打开 GPT 助手复制指令",
+        nextPending: "打开 GPT 助手检查接入信息"
+      },
+      firstTask: {
+        label: "首个安全任务",
+        detailReady: "已经可以看到至少一个本地任务。",
+        detailPending: "本地队列还没有任务记录。",
+        nextReady: "查看任务详情",
+        nextPending: "从 ChatGPT 发起一次安全 read/status 任务"
+      }
+    }
+  },
   jobs: {
     sectionTitle: "任务",
     authRequiredTitle: "需要浏览器会话令牌",
@@ -367,6 +432,7 @@ const zhCN: UiCopy = {
     rowArtifacts: "可见 artifacts",
     rowIncludeEntries: "公开 include 条目",
     rowArtifactPreview: "artifact 预览",
+    artifactLoadMore: "继续加载",
     controlTitle: "任务控制",
     controlDescription: "对当前运行任务发出暂停、继续或终止信号。",
     controlPause: "暂停",
@@ -533,6 +599,58 @@ const enUS: UiCopy = {
     repoSourceDefaultSibling: "Default sibling repo",
     repoSourceLocalConfig: "Local config"
   },
+  setup: {
+    title: "First-run setup",
+    description: "Check local runtime, auth, repo, runner, GPT handoff, and the first safe task.",
+    readyTag: "Ready",
+    pendingTag: "Pending",
+    openGptHelper: "Open GPT Helper",
+    refresh: "Refresh setup",
+    steps: {
+      runtime: {
+        label: "Local runtime",
+        detailReady: "Local runtime config is present.",
+        detailPending: "Local runtime config has not been initialized.",
+        nextReady: "Continue",
+        nextPending: "Run npm run init"
+      },
+      auth: {
+        label: "Bearer auth",
+        detailReady: "Current auth state is ready for local access.",
+        detailPending: "Protected endpoints need TOKENPILOT_API_TOKEN.",
+        nextReady: "Continue",
+        nextPending: "Configure TOKENPILOT_API_TOKEN locally"
+      },
+      repo: {
+        label: "Repository allowlist",
+        detailReady: "The default repoId resolves locally.",
+        detailPending: "The default repository root is unavailable.",
+        nextReady: "Continue",
+        nextPending: "Check TOKENPILOT_REPO_ROOT"
+      },
+      runner: {
+        label: "Runner",
+        detailReady: "Runner status is present.",
+        detailPending: "Runner has not reported status yet.",
+        nextReady: "Continue",
+        nextPending: "Run npm run start:local"
+      },
+      gpt: {
+        label: "GPT handoff",
+        detailReady: "OpenAPI schema and GPT helper data are available.",
+        detailPending: "GPT helper data is not ready.",
+        nextReady: "Open GPT Helper and copy instructions",
+        nextPending: "Open GPT Helper and inspect handoff data"
+      },
+      firstTask: {
+        label: "First safe task",
+        detailReady: "At least one local job is visible.",
+        detailPending: "No local job has been created yet.",
+        nextReady: "Review job details",
+        nextPending: "Run a safe read/status task from ChatGPT"
+      }
+    }
+  },
   jobs: {
     sectionTitle: "Jobs",
     authRequiredTitle: "Browser session token required",
@@ -581,6 +699,7 @@ const enUS: UiCopy = {
     rowArtifacts: "Visible artifacts",
     rowIncludeEntries: "Public include entries",
     rowArtifactPreview: "Artifact preview",
+    artifactLoadMore: "Load more",
     controlTitle: "Job Controls",
     controlDescription: "Send pause, resume, or terminate signals to the selected running job.",
     controlPause: "Pause",

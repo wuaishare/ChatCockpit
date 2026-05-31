@@ -1,0 +1,46 @@
+name: Release Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without leading v
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  source-package:
+    name: Build source package
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build curated source package
+        run: ./scripts/create-release-source-package.sh "${{ inputs.version }}"
+
+      - name: Verify source release package
+        run: npm run verify:release
+
+      - name: Upload source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokenpilot-source-v${{ inputs.version }}
+          path: |
+            dist/release/tokenpilot-source-v${{ inputs.version }}.tar.gz
+            dist/release/tokenpilot-source-v${{ inputs.version }}.tar.gz.sha256

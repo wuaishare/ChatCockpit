@@ -16,13 +16,21 @@ import {
   fetchJobArtifactContent,
   fetchJobArtifacts,
   fetchJobs,
+  fetchSetupStatus,
   terminateAllJobs
 } from "./api";
 import tokenPilotLogo from "./assets/tokenpilot-logo.svg";
 import { DashboardView } from "./components/DashboardView";
+import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
 import { TokenBar } from "./components/TokenBar";
-import type { GptConfigModel, HealthModel, JobSummary } from "./types";
+import type {
+  ArtifactPreviewState,
+  GptConfigModel,
+  HealthModel,
+  JobSummary,
+  SetupStatusResponse
+} from "./types";
 import { countJobs, summarizeJob } from "./utils";
 import {
   getUiCopy,
@@ -117,13 +125,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [gptConfig, setGptConfig] = useState<GptConfigModel | null>(null);
   const [gptConfigError, setGptConfigError] = useState<string | null>(null);
+  const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(() => parseRoute().jobId);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
-  const [artifactContent, setArtifactContent] = useState<string | null>(null);
+  const [artifactPreview, setArtifactPreview] = useState<ArtifactPreviewState | null>(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [controlLoading, setControlLoading] = useState(false);
@@ -185,6 +194,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       const healthResponse = await fetchHealth();
       setHealth(healthResponse);
       try {
+        const setupResponse = await fetchSetupStatus(token);
+        setSetupStatus(setupResponse);
+      } catch {
+        setSetupStatus(null);
+      }
+      try {
         const gptConfigResponse = await fetchGptConfig(token);
         setGptConfig(gptConfigResponse.config);
         setGptConfigError(null);
@@ -210,7 +225,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setJobsLoading(false);
       setSelectedJobId(null);
       setSelectedArtifactKey(null);
-      setArtifactContent(null);
+      setArtifactPreview(null);
       setArtifactError(null);
       return;
     }
@@ -219,7 +234,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setJobsError(null);
 
     try {
-      const response = await fetchJobs(currentToken);
+      const response = await fetchJobs(currentToken, { limit: 20, includeResult: false });
       const summarized = response.jobs.map((job) => summarizeJob(job, locale));
       setJobs(summarized);
 
@@ -242,7 +257,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       } else {
         setSelectedJobId(null);
         setSelectedArtifactKey(null);
-        setArtifactContent(null);
+        setArtifactPreview(null);
         setArtifactError(null);
         if (activeView === "jobs" && typeof window !== "undefined") {
           if (window.location.pathname !== VIEW_PATHS.jobs) {
@@ -285,7 +300,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       if (firstArtifactKey) {
         void loadArtifactContent(jobId, firstArtifactKey, currentToken);
       } else {
-        setArtifactContent(null);
+        setArtifactPreview(null);
         setArtifactError(null);
       }
     } catch (error) {
@@ -306,9 +321,40 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
     try {
       const response = await fetchJobArtifactContent(jobId, artifactKey, undefined, currentToken);
-      setArtifactContent(response.file.content);
+      setArtifactPreview({
+        content: response.file.content,
+        nextOffset: response.file.nextOffset,
+        eof: response.file.eof
+      });
     } catch (error) {
-      setArtifactContent(null);
+      setArtifactPreview(null);
+      setArtifactError(getErrorMessage(error));
+    } finally {
+      setArtifactLoading(false);
+    }
+  }
+
+  async function loadMoreArtifactContent() {
+    if (!selectedJobId || !selectedArtifactKey || !artifactPreview?.nextOffset) {
+      return;
+    }
+
+    setArtifactLoading(true);
+    setArtifactError(null);
+
+    try {
+      const response = await fetchJobArtifactContent(
+        selectedJobId,
+        selectedArtifactKey,
+        { offset: artifactPreview.nextOffset },
+        token
+      );
+      setArtifactPreview({
+        content: `${artifactPreview.content}${response.file.content}`,
+        nextOffset: response.file.nextOffset,
+        eof: response.file.eof
+      });
+    } catch (error) {
       setArtifactError(getErrorMessage(error));
     } finally {
       setArtifactLoading(false);
@@ -529,23 +575,33 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
       <Layout.Content className="app-content">
         {activeView === "dashboard" ? (
-          <DashboardView
-            locale={locale}
-            health={health}
-            repoGovernance={gptConfig?.repoGovernance}
-            counts={counts}
-            recentJobs={jobs.slice(0, 5)}
-            jobsProtected={jobsProtected}
-            onSelectJob={(jobId) => {
-              navigateView("jobs", jobId);
-              void loadJobDetail(jobId, token);
-            }}
-            onOpenGptHelper={() => navigateView("gpt-helper")}
-            onRefresh={() => {
-              void loadHealth();
-              void loadJobs(token, health.authRequired, false);
-            }}
-          />
+          <div className="view-stack">
+            {setupStatus && !setupStatus.ready ? (
+              <SetupWizardView
+                locale={locale}
+                setupStatus={setupStatus}
+                onOpenGptHelper={() => navigateView("gpt-helper")}
+                onRefresh={() => void loadHealth()}
+              />
+            ) : null}
+            <DashboardView
+              locale={locale}
+              health={health}
+              repoGovernance={gptConfig?.repoGovernance}
+              counts={counts}
+              recentJobs={jobs.slice(0, 5)}
+              jobsProtected={jobsProtected}
+              onSelectJob={(jobId) => {
+                navigateView("jobs", jobId);
+                void loadJobDetail(jobId, token);
+              }}
+              onOpenGptHelper={() => navigateView("gpt-helper")}
+              onRefresh={() => {
+                void loadHealth();
+                void loadJobs(token, health.authRequired, false);
+              }}
+            />
+          </div>
         ) : null}
 
         {activeView === "jobs" ? (
@@ -568,7 +624,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               detailLoading={detailLoading}
               artifactLoading={artifactLoading}
               artifactError={artifactError}
-              artifactContent={artifactContent}
+              artifactPreview={artifactPreview}
               selectedArtifactKey={selectedArtifactKey}
               error={jobsError}
               controlLoading={controlLoading}
@@ -584,6 +640,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 setSelectedArtifactKey(artifactKey);
                 void loadArtifactContent(selectedJobId, artifactKey, token);
               }}
+              onLoadMoreArtifact={() => void loadMoreArtifactContent()}
               onControlJob={(action) => void controlSelectedJob(action)}
               onTerminateAll={() => void terminateRunningJobs()}
             />

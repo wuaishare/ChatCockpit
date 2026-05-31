@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   SearchPayload,
   SearchResponse,
@@ -86,15 +87,17 @@ export function searchRepo(
     throw new Error("Search pattern must not be empty");
   }
 
-  const searchDir = payload.path
-    ? path.join(repoRoot, payload.path)
-    : repoRoot;
+  const searchPath = payload.path
+    ? resolvePathInsideRoot(repoRoot, payload.path, "Search path")
+    : { absolutePath: repoRoot, relativePath: "." };
+  const searchDir = searchPath.absolutePath;
 
-  // Verify searchDir is within repoRoot
-  const normalizedSearchDir = path.resolve(searchDir);
-  const normalizedRepoRoot = path.resolve(repoRoot);
-  if (!normalizedSearchDir.startsWith(normalizedRepoRoot)) {
-    throw new Error("Search path must be within the repository");
+  if (
+    searchPath.relativePath
+      .split("/")
+      .some((seg) => BLOCKED_SEGMENTS.includes(seg))
+  ) {
+    throw new Error("Search path is blocked");
   }
 
   const args: string[] = [];

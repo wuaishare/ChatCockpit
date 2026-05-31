@@ -1,7 +1,9 @@
 import process from "node:process";
+import path from "node:path";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
 import { runDoctor } from "../core/doctor.js";
+import { initLocalRuntime } from "../core/setup.js";
 import { runPack } from "../core/pack.js";
 import { buildBundleManifest } from "../core/manifest.js";
 import { createTaskPack } from "../core/taskpack.js";
@@ -13,7 +15,8 @@ function printUsage(): void {
   process.stdout.write(`TokenPilot CLI
 
 Usage:
-  tokenpilot doctor
+  tokenpilot init [--force]
+  tokenpilot doctor [--fix] [--json]
   tokenpilot pack
   tokenpilot manifest
   tokenpilot taskpack --title "..." --problem "..."
@@ -34,15 +37,114 @@ function getFlag(name: string): string | undefined {
   return process.argv[index + 1];
 }
 
+function printJson(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function redactForHumanOutput(value: string, repoRoot: string): string {
+  let output = value;
+  const replacements: Array<[string | undefined, string]> = [
+    [repoRoot, "<repo-root>"],
+    [process.env.HOME, "~"],
+    [process.env.USER, "<local-user>"],
+    [process.env.TOKENPILOT_API_TOKEN, "<redacted-token>"]
+  ];
+  for (const [from, to] of replacements) {
+    if (from) {
+      output = output.split(from).join(to);
+    }
+  }
+  return output;
+}
+
+function redactObjectForHumanOutput<T>(value: T, repoRoot: string): T {
+  if (typeof value === "string") {
+    return redactForHumanOutput(value, repoRoot) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactObjectForHumanOutput(entry, repoRoot)) as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, redactObjectForHumanOutput(entry, repoRoot)])
+    ) as T;
+  }
+  return value;
+}
+
+function printHumanJson(value: unknown, repoRoot: string): void {
+  printJson(redactObjectForHumanOutput(value, repoRoot));
+}
+
+function displayPath(filePath: string, repoRoot: string): string {
+  const relative = path.relative(repoRoot, filePath);
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+    return relative;
+  }
+  return redactForHumanOutput(filePath, repoRoot);
+}
+
+function printInitResult(result: ReturnType<typeof initLocalRuntime>, repoRoot: string): void {
+  process.stdout.write("TokenPilot init\n");
+  process.stdout.write(`Status: ${result.created ? "created local runtime config" : "already initialized"}\n`);
+  process.stdout.write(`Runtime env: ${displayPath(result.envPath, repoRoot)}\n`);
+  process.stdout.write(`Token generated: ${result.tokenGenerated ? "yes" : "no"}\n`);
+  process.stdout.write("Next actions:\n");
+  for (const message of result.messages) {
+    process.stdout.write(`- ${redactForHumanOutput(message, repoRoot)}\n`);
+  }
+  process.stdout.write("Details JSON:\n");
+  printHumanJson(result, repoRoot);
+}
+
+function printDoctorResult(result: ReturnType<typeof runDoctor>, repoRoot: string): void {
+  process.stdout.write("TokenPilot doctor\n");
+  process.stdout.write(`Summary: ${result.summary}\n`);
+  process.stdout.write(`Status: ${result.ok ? "ready" : "needs attention"}\n`);
+  if (result.fixes.length > 0) {
+    process.stdout.write("Fixes applied:\n");
+    for (const fix of result.fixes) {
+      process.stdout.write(`- ${redactForHumanOutput(fix, repoRoot)}\n`);
+    }
+  }
+  process.stdout.write("Checks:\n");
+  for (const check of result.checks) {
+    process.stdout.write(
+      `- ${check.name}: ${check.ok ? "OK" : "Needs attention"} - ${redactForHumanOutput(check.detail, repoRoot)}\n`
+    );
+  }
+  process.stdout.write("Details JSON:\n");
+  printHumanJson(result, repoRoot);
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2];
   const paths = buildPaths();
-  ensureWorkspaceDirs(paths);
+  if (command !== "doctor") {
+    ensureWorkspaceDirs(paths);
+  }
 
   switch (command) {
+    case "init": {
+      const result = initLocalRuntime(paths, {
+        force: process.argv.includes("--force")
+      });
+      if (process.argv.includes("--json")) {
+        printJson(result);
+      } else {
+        printInitResult(result, paths.repoRoot);
+      }
+      return;
+    }
     case "doctor": {
-      const checks = runDoctor(paths.repoRoot);
-      process.stdout.write(`${JSON.stringify({ checks }, null, 2)}\n`);
+      const result = runDoctor(paths.repoRoot, {
+        fix: process.argv.includes("--fix")
+      });
+      if (process.argv.includes("--json")) {
+        printJson(result);
+      } else {
+        printDoctorResult(result, paths.repoRoot);
+      }
       return;
     }
     case "pack": {

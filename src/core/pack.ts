@@ -9,19 +9,17 @@ import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { writeRepoBundleXml } from "./repo-bundle.js";
 import type { RepoBundleManifest, TokenPilotPaths } from "../types.js";
 
-const DEFAULT_BUNDLE_HISTORY_LIMIT = 10;
-
-function readBundleHistoryLimit(): number {
+function readBundleHistoryLimit(): number | null {
   const raw =
     process.env.TOKENPILOT_BUNDLE_HISTORY_LIMIT?.trim() ||
     process.env.TOKENPILOT_REPOMIX_HISTORY_LIMIT?.trim();
   if (!raw) {
-    return DEFAULT_BUNDLE_HISTORY_LIMIT;
+    return null;
   }
 
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 1) {
-    return DEFAULT_BUNDLE_HISTORY_LIMIT;
+    return null;
   }
 
   return Math.floor(parsed);
@@ -35,6 +33,9 @@ function nextBundleOutputPath(workspaceDir: string): string {
 
 function pruneBundleOutputs(workspaceDir: string): void {
   const limit = readBundleHistoryLimit();
+  if (limit === null) {
+    return;
+  }
   const files = fs
     .readdirSync(workspaceDir)
     .filter((name) => /^repomix-output-.*\.xml$/i.test(name))

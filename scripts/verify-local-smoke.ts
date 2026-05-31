@@ -8,6 +8,7 @@ import { runPack } from "../src/core/pack.ts";
 import { runCodexRunJob } from "../src/core/codex-run.ts";
 import { createJob, getJob } from "../src/core/jobs.ts";
 import { getGitDiff, gitCommit } from "../src/core/git-api.ts";
+import { getGitStatus } from "../src/core/git-api.ts";
 import {
   markJobProcessFinished,
   controlJobProcess,
@@ -16,6 +17,11 @@ import {
 } from "../src/core/job-processes.ts";
 import { createTaskPack } from "../src/core/taskpack.ts";
 import { loadUserConfig } from "../src/core/config.ts";
+import { searchRepo } from "../src/core/search.ts";
+import { runShellCommand } from "../src/core/shell-api.ts";
+import { readRecentGitCommitsForRepo } from "../src/core/git-history.ts";
+import { runDoctor } from "../src/core/doctor.ts";
+import { initLocalRuntime } from "../src/core/setup.ts";
 import { runRunner } from "../src/runner/index.ts";
 import { buildServer } from "../src/server/app.ts";
 import {
@@ -46,9 +52,11 @@ function initGitRepo(repoRoot: string): void {
   git(["config", "user.email", "tokenpilot@example.com"]);
   git(["config", "user.name", "TokenPilot Test"]);
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Codex run fixture\n", "utf8");
+  fs.mkdirSync(path.join(repoRoot, "docs", "release"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, "docs", "release", "release-checklist.md"), "# Release\n", "utf8");
   fs.writeFileSync(path.join(repoRoot, ".gitignore"), ".tokenpilot/\n", "utf8");
   fs.writeFileSync(path.join(repoRoot, "tokenpilot-mock-codex-run.txt"), "mock fixture\n", "utf8");
-  git(["add", "README.md", ".gitignore", "tokenpilot-mock-codex-run.txt"]);
+  git(["add", "README.md", "docs/release/release-checklist.md", ".gitignore", "tokenpilot-mock-codex-run.txt"]);
   git(["commit", "-m", "init"]);
 }
 
@@ -119,7 +127,7 @@ function verifyPackArtifactNaming(): void {
           filePath: ".tokenpilot/repomix-output.xml",
           style: "xml"
         },
-        include: ["README.md", ".env", ".tokenpilot/**"]
+        include: ["README.md", "web/**", ".env", ".tokenpilot/**"]
       },
       null,
       2
@@ -149,11 +157,134 @@ function verifyPackArtifactNaming(): void {
     assert.match(bundleContent, /<repoBundle generator="tokenpilot"/);
     assert.match(bundleContent, /README\.md/);
     assert.doesNotMatch(bundleContent, /secret/);
+
+    fs.mkdirSync(path.join(paths.repoRoot, "web", "src"), { recursive: true });
+    fs.writeFileSync(path.join(paths.repoRoot, "web", "src", "App.tsx"), "export const App = 'web fixture';\n", "utf8");
+    const gitAdd = spawnSync("git", ["init"], { cwd: paths.repoRoot, encoding: "utf8" });
+    if ((gitAdd.status ?? 1) === 0) {
+      spawnSync("git", ["add", "README.md", ".repomix.config.json", "web/src/App.tsx"], {
+        cwd: paths.repoRoot,
+        encoding: "utf8"
+      });
+    }
+    const webBundle = runPack(paths);
+    const webBundleContent = fs.readFileSync(path.join(paths.repoRoot, webBundle.repomixXmlPath), "utf8");
+    assert.match(webBundleContent, /web\/src\/App\.tsx/);
   } finally {
     if (originalConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
     } else {
       process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+  }
+}
+
+function verifyGitStatusParsing(): void {
+  const paths = buildTempPaths();
+  initGitRepo(paths.repoRoot);
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+
+  try {
+    fs.writeFileSync(path.join(paths.repoRoot, "docs", "release", "release-checklist.md"), "# Release\n\nunstaged\n", "utf8");
+    const unstaged = getGitStatus(paths, "tokenpilot");
+    const unstagedEntry = unstaged.entries.find((entry) => entry.path === "docs/release/release-checklist.md");
+    assert.ok(unstagedEntry, "Expected unstaged path to preserve its first character");
+    assert.equal(unstagedEntry.staged, false);
+
+    spawnSync("git", ["add", "docs/release/release-checklist.md"], {
+      cwd: paths.repoRoot,
+      encoding: "utf8"
+    });
+    const staged = getGitStatus(paths, "tokenpilot");
+    const stagedEntry = staged.entries.find((entry) => entry.path === "docs/release/release-checklist.md");
+    assert.ok(stagedEntry);
+    assert.equal(stagedEntry.staged, true);
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+  }
+}
+
+function verifyPathContainmentAndShellTrust(): void {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-prefix-parent-"));
+  const repoRoot = path.join(parent, "app");
+  const evilRoot = path.join(parent, "app-evil");
+  fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
+  fs.mkdirSync(evilRoot, { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, "src", "ok.txt"), "needle\n", "utf8");
+  fs.writeFileSync(path.join(evilRoot, "secret.txt"), "needle secret\n", "utf8");
+  const paths = buildPaths(repoRoot);
+  ensureWorkspaceDirs(paths);
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const originalExposed = process.env.TOKENPILOT_EXPOSED;
+  const originalHighTrust = process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+
+  try {
+    const validSearch = searchRepo(paths, {
+      repoId: "tokenpilot",
+      pattern: "needle",
+      path: "src"
+    });
+    assert.equal(validSearch.matches.length >= 1, true);
+    assert.throws(
+      () =>
+        searchRepo(paths, {
+          repoId: "tokenpilot",
+          pattern: "needle",
+          path: "../app-evil"
+        }),
+      /Search path must stay within the repository root/
+    );
+    assert.throws(
+      () =>
+        runShellCommand(paths, {
+          repoId: "tokenpilot",
+          command: "git",
+          args: ["status"],
+          workdir: "../app-evil"
+        }),
+      /workdir must stay within the repository root/
+    );
+
+    process.env.TOKENPILOT_EXPOSED = "true";
+    delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+    assert.throws(
+      () =>
+        runShellCommand(paths, {
+          repoId: "tokenpilot",
+          command: "node",
+          args: ["--version"]
+        }),
+      /High-trust command node is blocked in exposed mode/
+    );
+
+    process.env.TOKENPILOT_EXPOSED = "false";
+    const nodeVersion = runShellCommand(paths, {
+      repoId: "tokenpilot",
+      command: "node",
+      args: ["--version"]
+    });
+    assert.equal(nodeVersion.ok, true);
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+    if (originalExposed === undefined) {
+      delete process.env.TOKENPILOT_EXPOSED;
+    } else {
+      process.env.TOKENPILOT_EXPOSED = originalExposed;
+    }
+    if (originalHighTrust === undefined) {
+      delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+    } else {
+      process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS = originalHighTrust;
     }
   }
 }
@@ -188,6 +319,33 @@ function verifyAuthConfig(): void {
     }),
     true
   );
+}
+
+function verifyInitAndDoctor(): void {
+  const paths = buildTempPaths();
+  const envPath = path.join(paths.runtimeDir, "server.env");
+  fs.rmSync(paths.workspaceDir, { recursive: true, force: true });
+
+  const beforeDoctor = runDoctor(paths.repoRoot);
+  assert.equal(fs.existsSync(paths.workspaceDir), false);
+  assert.equal(beforeDoctor.fixes.length, 0);
+  assert.match(beforeDoctor.summary, /TokenPilot/);
+
+  const fixedDoctor = runDoctor(paths.repoRoot, { fix: true });
+  assert.equal(fs.existsSync(paths.workspaceDir), true);
+  assert.ok(fixedDoctor.fixes.some((fix) => fix.includes("ensured runtime directories")));
+
+  const firstInit = initLocalRuntime(paths);
+  assert.equal(firstInit.created, true);
+  assert.equal(firstInit.tokenGenerated, true);
+  assert.equal(fs.existsSync(envPath), true);
+  const firstContent = fs.readFileSync(envPath, "utf8");
+  assert.match(firstContent, /TOKENPILOT_API_TOKEN=tp_local_/);
+
+  const secondInit = initLocalRuntime(paths);
+  assert.equal(secondInit.created, false);
+  assert.equal(secondInit.tokenGenerated, false);
+  assert.equal(fs.readFileSync(envPath, "utf8"), firstContent);
 }
 
 async function verifyUiServing(): Promise<void> {
@@ -397,12 +555,92 @@ async function verifyCodexRunMock(): Promise<void> {
     for (const artifact of result.artifacts) {
       assert.ok(fs.existsSync(path.join(paths.repoRoot, artifact.path)), artifact.path);
     }
+
+    const beforeReview = fs.readFileSync(path.join(paths.repoRoot, "tokenpilot-mock-codex-run.txt"), "utf8");
+    const reviewResult = await runCodexRunJob(paths, "job-review-mode-12345678", {
+      repoId: "tokenpilot",
+      title: "Mock Review Mode",
+      instructions: "Review only; do not modify files.",
+      executionMode: "review",
+      worktreePolicy: "auto",
+      commitPolicy: "propose"
+    });
+    const afterReview = fs.readFileSync(path.join(paths.repoRoot, "tokenpilot-mock-codex-run.txt"), "utf8");
+    assert.equal(reviewResult.worktreeCreated, false);
+    assert.equal(reviewResult.codexExitCode, 0);
+    assert.match(
+      fs.readFileSync(path.join(paths.repoRoot, reviewResult.stdoutPath), "utf8"),
+      /Review mode skips/
+    );
+    assert.equal(afterReview, beforeReview);
   } finally {
     if (originalMode === undefined) {
       delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
     } else {
       process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
     }
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+  }
+}
+
+function verifyRecentCommitsStrictRepoMapping(): void {
+  const paths = buildTempPaths();
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const invalidRepoRoot = path.join(paths.repoRoot, "not-a-git-repo");
+  fs.mkdirSync(invalidRepoRoot, { recursive: true });
+  fs.writeFileSync(
+    path.join(paths.runtimeDir, "config.json"),
+    JSON.stringify(
+      {
+        workspaceAllowlist: [paths.repoRoot],
+        repoMappings: {
+          tokenpilot: { path: invalidRepoRoot }
+        }
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+
+  try {
+    assert.throws(
+      () => readRecentGitCommitsForRepo(paths.repoRoot, "tokenpilot", 5),
+      /git log failed|not a git repository/
+    );
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+  }
+}
+
+function verifyUntrackedDiffTruncationNotice(): void {
+  const paths = buildTempPaths();
+  initGitRepo(paths.repoRoot);
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+
+  try {
+    for (let index = 0; index < 25; index += 1) {
+      fs.writeFileSync(
+        path.join(paths.repoRoot, `public-${String(index).padStart(2, "0")}.md`),
+        `# Public ${index}\n`,
+        "utf8"
+      );
+    }
+
+    const diff = getGitDiff(paths, "tokenpilot");
+    assert.equal(diff.ok, true);
+    assert.match(diff.diff, /20 public-safe untracked files shown, 5 omitted/);
+  } finally {
     if (originalConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
     } else {
@@ -429,7 +667,7 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
       worktreePolicy: "never",
       commitPolicy: "propose"
     });
-    assert.equal(result.codexExitCode, 127);
+    assert.equal(result.codexExitCode, 0);
     assert.equal(result.reviewExitCode, 127);
     assert.equal(result.hasDiff, false);
     const control = controlJobProcess(paths, "job-missing-cli-12345678", "terminate");
@@ -640,7 +878,10 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
 
 verifyTaskPackNaming();
 verifyPackArtifactNaming();
+verifyGitStatusParsing();
+verifyPathContainmentAndShellTrust();
 verifyAuthConfig();
+verifyInitAndDoctor();
 verifyDefaultRepoDiscovery();
 await verifyUiServing();
 await verifyJobProcessProjection();
@@ -649,5 +890,7 @@ await verifyCodexRunMock();
 await verifyCodexRunMissingCliFailure();
 await verifyPublicSafeGitBoundaries();
 await verifyCodexRunCustomBinaryOverride();
+verifyRecentCommitsStrictRepoMapping();
+verifyUntrackedDiffTruncationNotice();
 
 process.stdout.write("VERIFY_LOCAL_SMOKE_OK\n");

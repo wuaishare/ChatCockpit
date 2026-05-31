@@ -33,7 +33,7 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status}"
+  echo "Usage: $0 {start|stop|restart|status|reset|uninstall}"
 }
 
 ensure_launch_agents_dir() {
@@ -211,6 +211,29 @@ is_running() {
   return 1
 }
 
+port_listener_pid() {
+  lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+}
+
+assert_port_available_or_tokenpilot() {
+  local port_pid=""
+  port_pid="$(port_listener_pid)"
+  if [[ -z "${port_pid}" ]]; then
+    return 0
+  fi
+
+  if [[ -f "${PID_FILE}" ]] && [[ "$(cat "${PID_FILE}")" == "${port_pid}" ]]; then
+    return 0
+  fi
+
+  if launchctl_service_registered; then
+    return 0
+  fi
+
+  echo "Port ${PORT} is already in use by PID ${port_pid}; stop that process or set TOKENPILOT_PORT before starting TokenPilot."
+  exit 2
+}
+
 stop_port_process() {
   local port_pid=""
   port_pid="$(lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
@@ -260,6 +283,7 @@ wait_for_runner_registration() {
 case "${ACTION}" in
   start)
     cd "${ROOT_DIR}"
+    assert_port_available_or_tokenpilot
     write_server_plist
     write_runner_plist
     sync_plists_if_needed
@@ -267,11 +291,14 @@ case "${ACTION}" in
     if is_running; then
       if launchctl_service_registered && launchctl_runner_registered; then
         if (( plist_changed == 0 )); then
-          echo "TokenPilot server already running with PID $(cat "${PID_FILE}") and both LaunchAgents are already registered"
+          echo "control plane: running (pid $(cat "${PID_FILE}"))"
+          echo "runner: registered"
+          echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+          echo "next action: open the UI or run npm run doctor:runtime"
           exit 0
         fi
       fi
-      echo "TokenPilot server already running with PID $(cat "${PID_FILE}"); refreshing LaunchAgent registration"
+      echo "control plane: running (pid $(cat "${PID_FILE}")); refreshing LaunchAgent registration"
     fi
     if launchctl_service_registered && launchctl_runner_registered && (( plist_changed == 0 )); then
       kickstart_services
@@ -280,7 +307,10 @@ case "${ACTION}" in
       bootstrap_services
     fi
     if wait_for_listen 30 && wait_for_runner_registration 30; then
-      echo "TokenPilot server started with PID $(cat "${PID_FILE}")"
+      echo "control plane: running (pid $(cat "${PID_FILE}"))"
+      echo "runner: registered"
+      echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+      echo "next action: run npm run doctor:runtime"
     else
       cat "${LOG_FILE}" 2>/dev/null || true
       cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
@@ -300,10 +330,14 @@ case "${ACTION}" in
     stop_runner_process
     rm -f "${PID_FILE}"
     rm -f "${RUNNER_PID_FILE}"
-    echo "TokenPilot server stopped"
+    echo "control plane: stopped"
+    echo "runner: stopped"
+    echo "UI: unavailable until start"
+    echo "next action: run npm run start:local"
     ;;
   restart)
     cd "${ROOT_DIR}"
+    assert_port_available_or_tokenpilot
     write_server_plist
     write_runner_plist
     sync_plists_if_needed
@@ -312,7 +346,10 @@ case "${ACTION}" in
     if launchctl_service_registered && launchctl_runner_registered && (( plist_changed == 0 )); then
       kickstart_services
       if wait_for_listen 30 && wait_for_runner_registration 30; then
-        echo "TokenPilot server restarted with PID $(cat "${PID_FILE}")"
+        echo "control plane: running (pid $(cat "${PID_FILE}"))"
+        echo "runner: registered"
+        echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+        echo "next action: run npm run doctor:runtime"
       else
         cat "${LOG_FILE}" 2>/dev/null || true
         cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
@@ -332,18 +369,41 @@ case "${ACTION}" in
         runner_state="runner LaunchAgent is registered"
       fi
       if launchctl_service_registered; then
-        echo "TokenPilot server is running with PID $(cat "${PID_FILE}"), LaunchAgent ${SERVICE_LABEL} is registered, and ${runner_state}"
+        echo "control plane: running (pid $(cat "${PID_FILE}"))"
+        echo "runner: ${runner_state}"
+        echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+        echo "next action: open UI or run npm run doctor:runtime"
       else
-        echo "TokenPilot server is running with PID $(cat "${PID_FILE}") but LaunchAgent ${SERVICE_LABEL} is NOT registered; ${runner_state}"
+        echo "control plane: running (pid $(cat "${PID_FILE}")) but LaunchAgent is not registered"
+        echo "runner: ${runner_state}"
+        echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+        echo "next action: run npm run start:local to repair LaunchAgent registration"
       fi
       exit 0
     fi
     if [[ -f "${INSTALLED_PLIST_FILE}" ]]; then
-      echo "TokenPilot server is not running; LaunchAgent plist exists at ${INSTALLED_PLIST_FILE}"
+      echo "control plane: stopped"
+      echo "runner: stopped or unknown"
+      echo "UI: unavailable"
+      echo "next action: run npm run start:local"
     else
-      echo "TokenPilot server is not running; LaunchAgent plist is not installed"
+      echo "control plane: not installed"
+      echo "runner: not installed"
+      echo "UI: unavailable"
+      echo "next action: run npm run setup, then npm run start:local"
     fi
     exit 1
+    ;;
+  reset|uninstall)
+    bootout_services
+    stop_port_process
+    stop_runner_process
+    remove_installed_plists
+    rm -f "${PID_FILE}" "${RUNNER_PID_FILE}" "${PLIST_FILE}" "${RUNNER_PLIST_FILE}"
+    echo "control plane: uninstalled"
+    echo "runner: uninstalled"
+    echo "UI: unavailable"
+    echo "next action: run npm run start:local to reinstall LaunchAgents; source code and server.env were kept"
     ;;
   *)
     usage

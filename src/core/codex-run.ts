@@ -37,6 +37,16 @@ interface ExecutionTarget {
   branchName?: string;
 }
 
+function executionMode(payload: CodexRunJobPayload): "plan" | "review" | "develop" {
+  return payload.executionMode ?? "develop";
+}
+
+function effectiveSandbox(payload: CodexRunJobPayload): "read-only" | "workspace-write" | "danger-full-access" {
+  return executionMode(payload) === "develop"
+    ? (payload.sandbox ?? "workspace-write")
+    : "read-only";
+}
+
 function resolveCodexCommand(): string {
   const configured = process.env.TOKENPILOT_CODEX_BIN?.trim();
   if (configured) {
@@ -85,7 +95,7 @@ function codexRunBaseName(jobId: string, title: string): string {
 function shouldUseWorktree(payload: CodexRunJobPayload): boolean {
   if (payload.worktreePolicy === "always") return true;
   if (payload.worktreePolicy === "never") return false;
-  return (payload.executionMode ?? "develop") === "develop";
+  return executionMode(payload) === "develop";
 }
 
 function assertExecutionRootWithinWorkspace(paths: TokenPilotPaths, target: ExecutionTarget): void {
@@ -156,7 +166,8 @@ function buildPrompt(payload: CodexRunJobPayload, target: ExecutionTarget): stri
     "",
     `Title: ${payload.title}`,
     `Repo id: ${payload.repoId}`,
-    `Execution mode: ${payload.executionMode ?? "develop"}`,
+    `Execution mode: ${executionMode(payload)}`,
+    `Effective sandbox: ${effectiveSandbox(payload)}`,
     `Worktree: ${target.worktreeDecision}`,
     target.branchName ? `Branch: ${target.branchName}` : "",
     "",
@@ -255,7 +266,7 @@ async function runCodexExec(
 ): Promise<CapturedProcessResult> {
   if (process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock") {
     const markerPath = path.join(target.executionRoot, "tokenpilot-mock-codex-run.txt");
-    if ((payload.executionMode ?? "develop") === "develop") {
+    if (executionMode(payload) === "develop") {
       fs.appendFileSync(markerPath, `\nmock codex run for ${payload.title}\n`, "utf8");
     }
     return {
@@ -270,7 +281,7 @@ async function runCodexExec(
     "--cd",
     target.executionRoot,
     "--sandbox",
-    payload.sandbox ?? "workspace-write",
+    effectiveSandbox(payload),
     "--json",
     "-"
   ];
@@ -399,27 +410,47 @@ export async function runCodexRunJob(
   const summaryPath = path.join(paths.manifestsDir, `${baseName}-summary.json`);
   writeText(promptPath, prompt);
 
-  const execResult = await runCodexExec(paths, jobId, payload, target, prompt);
+  const mode = executionMode(payload);
+  const execResult = mode === "review"
+    ? {
+        exitCode: 0,
+        stdout: "Review mode skips the main Codex exec step and writes only artifacts.\n",
+        stderr: ""
+      }
+    : await runCodexExec(paths, jobId, payload, target, prompt);
   writeText(stdoutPath, execResult.stdout);
   writeText(stderrPath, execResult.stderr);
 
-  const reviewResult = await runCodexReview(paths, jobId, payload, target, payload.title);
+  const reviewResult = mode === "plan"
+    ? {
+        exitCode: 0,
+        stdout: "Plan mode completed without a write-capable review step.\n",
+        stderr: ""
+      }
+    : await runCodexReview(paths, jobId, payload, target, payload.title);
   writeText(reviewPath, reviewResult.stdout || reviewResult.stderr || "No review output captured.\n");
 
   const diff = readPublicSafeGitDiff(target.executionRoot);
   writeText(diffPath, diff.diff);
   const status = readGitStatus(target.executionRoot);
-  const commit = maybeCommit(payload, target.executionRoot);
+  const commit = mode === "develop"
+    ? maybeCommit(payload, target.executionRoot)
+    : { committed: false };
 
   const result: CodexRunJobResult = {
     createdAt,
     repoId: payload.repoId,
     title: payload.title,
-    executionMode: payload.executionMode ?? "develop",
+    executionMode: mode,
     worktreePolicy: payload.worktreePolicy ?? "auto",
     worktreeCreated: target.worktreeDecision === "created",
     branchName: target.branchName,
-    statusSummary: execResult.exitCode === 0 ? "codex exec completed" : "codex exec failed",
+    statusSummary:
+      mode === "review"
+        ? (reviewResult.exitCode === 0 ? "codex review completed" : "codex review failed")
+        : mode === "plan"
+          ? (execResult.exitCode === 0 ? "codex plan completed" : "codex plan failed")
+          : (execResult.exitCode === 0 ? "codex exec completed" : "codex exec failed"),
     codexExitCode: execResult.exitCode,
     reviewExitCode: reviewResult.exitCode,
     gitStatus: status,

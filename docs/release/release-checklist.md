@@ -62,7 +62,9 @@ It intentionally does not run the full local E2E suite inside the extracted copy
 - Product positioning: ChatGPT-first dual-mode development workflow
 - Current capabilities: GPT direct-drive, Codex async jobs, Web UI MVP, public-safe artifacts
 - Security model: bearer auth for exposed write APIs, allowlisted shell, public-safe diffs/artifacts
-- Known limitations: HTTPS / Custom GPT Actions loop still under validation, no installer, no setup wizard
+- Known limitations: HTTPS / Custom GPT Actions loop still under validation, no native installer
+- Beginner quickstart link: `docs/deployment/beginner-quickstart.md`
+- Packaging roadmap link: `docs/release/packaging-roadmap.md`
 - Upgrade note: this is an alpha source preview and may change storage/layout contracts
 - Source file: `docs/release/0.1.0-alpha.1.md`
 

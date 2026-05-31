@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   FileWritePayload,
   FileWriteResponse,
@@ -136,7 +137,7 @@ export function writeRepoFile(
     );
   }
 
-  const diskPath = path.join(repoRoot, relativePath);
+  const diskPath = resolvePathInsideRoot(repoRoot, relativePath, "File path").absolutePath;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
   fs.writeFileSync(diskPath, payload.content, "utf8");
 
@@ -157,7 +158,7 @@ export function editRepoFile(
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   const relativePath = validateRelativePathForWrite(payload.path);
 
-  const diskPath = path.join(repoRoot, relativePath);
+  const diskPath = resolvePathInsideRoot(repoRoot, relativePath, "File path").absolutePath;
   if (!fs.existsSync(diskPath)) {
     throw new Error(`File not found: ${relativePath}`);
   }
@@ -209,7 +210,7 @@ export function listRepoDirectory(
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   const relativePath = validateRelativePathForWrite(payload.path);
 
-  const diskPath = path.join(repoRoot, relativePath);
+  const diskPath = resolvePathInsideRoot(repoRoot, relativePath, "Directory path").absolutePath;
   if (!fs.existsSync(diskPath)) {
     throw new Error(`Directory not found: ${relativePath}`);
   }

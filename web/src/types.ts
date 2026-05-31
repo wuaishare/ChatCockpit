@@ -17,6 +17,26 @@ export interface HealthResponse {
   openapiUrl: string;
 }
 
+export interface SetupStatusStep {
+  key: "runtime" | "auth" | "repo" | "runner" | "gpt" | "firstTask";
+  ok: boolean;
+  label: string;
+  detail: string;
+  nextAction: string;
+}
+
+export interface SetupStatusResponse {
+  ok: true;
+  ready: boolean;
+  authRequired: boolean;
+  exposed: boolean;
+  publicBaseUrlConfigured: boolean;
+  openapiUrl: string;
+  runnerStatus: "missing" | "ready";
+  firstTaskSeen: boolean;
+  steps: SetupStatusStep[];
+}
+
 export interface JobBase {
   id: string;
   type: JobType;
@@ -55,6 +75,9 @@ export interface JobArtifactSummary {
 export interface JobsListResponse {
   ok: boolean;
   jobs: JobBase[];
+  nextCursor: string | null;
+  totalVisible: number;
+  includeResult: boolean;
 }
 
 export interface JobDetailResponse {
@@ -104,7 +127,9 @@ export interface TerminateAllJobsResponse {
 
 export interface ApiProblem {
   status: number;
+  code?: string;
   message: string;
+  details?: unknown;
 }
 
 export interface HealthModel {
@@ -167,3 +192,9 @@ export interface JobCounts {
 }
 
 export interface JobSummary extends JobBase {}
+
+export interface ArtifactPreviewState {
+  content: string;
+  nextOffset: number | null;
+  eof: boolean;
+}

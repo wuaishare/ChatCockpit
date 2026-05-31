@@ -60,3 +60,6 @@ jobs:
 
       - name: Verify source release package
         run: npm run verify:release
+
+      - name: Build curated source package
+        run: npm run release:source

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   ShellRunPayload,
   ShellRunResponse,
@@ -48,6 +49,8 @@ const COMMAND_WHITELIST: Record<string, string[]> = {
   "git":        ["status", "diff", "log", "branch", "add", "restore", "stash", "show", "rev-parse", "rev-list"],
 };
 
+const HIGH_TRUST_COMMANDS = new Set(["node", "python", "python3", "npx", "tsx", "make"]);
+
 // ── Argument validation ──
 // These checks prevent path traversal and obvious shell injection even though
 // we use spawnSync (not a shell). Extra defense in depth.
@@ -89,17 +92,28 @@ function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   return resolveRepoMapping(config, repoId).repoRoot;
 }
 
-function resolveWorkDir(repoRoot: string, workdir?: string): string {
-  if (!workdir) return repoRoot;
+function envFlagEnabled(value: string | undefined): boolean {
+  return /^(1|true|yes|on)$/i.test(value?.trim() || "");
+}
 
-  const resolved = path.resolve(repoRoot, workdir);
-  const normalizedRepoRoot = path.resolve(repoRoot);
-
-  if (!resolved.startsWith(normalizedRepoRoot)) {
-    throw new Error("workdir must be within the repository");
+function assertHighTrustCommandAllowed(command: string): void {
+  if (!HIGH_TRUST_COMMANDS.has(command)) {
+    return;
   }
 
-  return resolved;
+  const exposed = envFlagEnabled(process.env.TOKENPILOT_EXPOSED);
+  const explicitlyAllowed = envFlagEnabled(process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS);
+  if (exposed && !explicitlyAllowed) {
+    throw new Error(
+      `High-trust command ${command} is blocked in exposed mode. ` +
+      "Set TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true only in a private authenticated operator environment."
+    );
+  }
+}
+
+function resolveWorkDir(repoRoot: string, workdir?: string): string {
+  if (!workdir) return repoRoot;
+  return resolvePathInsideRoot(repoRoot, workdir, "workdir").absolutePath;
 }
 
 export function runShellCommand(
@@ -116,6 +130,8 @@ export function runShellCommand(
       `Allowed commands: ${Object.keys(COMMAND_WHITELIST).join(", ")}`
     );
   }
+
+  assertHighTrustCommandAllowed(payload.command);
 
   // 2. Validate subcommand
   if (!allowedSubcommands.includes("*")) {

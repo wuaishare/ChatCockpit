@@ -7,6 +7,7 @@ import type {
   JobArtifactsListResponse,
   JobDetailResponse,
   JobsListResponse,
+  SetupStatusResponse,
   TerminateAllJobsResponse
 } from "./types";
 
@@ -24,10 +25,21 @@ function buildHeaders(token?: string | null): HeadersInit {
 
 async function parseProblem(response: Response): Promise<ApiProblem> {
   let message = `${response.status} ${response.statusText}`;
+  let code: string | undefined;
+  let details: unknown;
 
   try {
-    const data = (await response.json()) as { error?: string; message?: string };
-    message = data.error || data.message || message;
+    const data = (await response.json()) as {
+      error?: string | { code?: string; message?: string; details?: unknown };
+      message?: string;
+    };
+    if (typeof data.error === "object" && data.error) {
+      code = data.error.code;
+      details = data.error.details;
+      message = data.error.message || message;
+    } else {
+      message = data.error || data.message || message;
+    }
   } catch {
     try {
       const text = await response.text();
@@ -37,7 +49,7 @@ async function parseProblem(response: Response): Promise<ApiProblem> {
     }
   }
 
-  return { status: response.status, message };
+  return { status: response.status, code, message, details };
 }
 
 async function requestJson<T>(path: string, token?: string | null): Promise<T> {
@@ -56,8 +68,28 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return requestJson<HealthResponse>("/api/health");
 }
 
-export async function fetchJobs(token?: string | null): Promise<JobsListResponse> {
-  return requestJson<JobsListResponse>("/api/jobs", token);
+export async function fetchSetupStatus(token?: string | null): Promise<SetupStatusResponse> {
+  return requestJson<SetupStatusResponse>("/api/setup/status", token);
+}
+
+export async function fetchJobs(
+  token?: string | null,
+  options?: {
+    limit?: number;
+    cursor?: string | null;
+    status?: string;
+    type?: string;
+    includeResult?: boolean;
+  }
+): Promise<JobsListResponse> {
+  const query = new URLSearchParams();
+  if (typeof options?.limit === "number") query.set("limit", String(options.limit));
+  if (options?.cursor) query.set("cursor", options.cursor);
+  if (options?.status) query.set("status", options.status);
+  if (options?.type) query.set("type", options.type);
+  if (options?.includeResult) query.set("includeResult", "true");
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return requestJson<JobsListResponse>(`/api/jobs${suffix}`, token);
 }
 
 export async function fetchJob(id: string, token?: string | null): Promise<JobDetailResponse> {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   FileReadBatchPayload,
   FileReadPayload,
@@ -202,6 +203,7 @@ export function readRepoFile(paths: TokenPilotPaths, payload: FileReadPayload) {
   }
 
   const relativePath = validateRelativePath(payload.path);
+  resolvePathInsideRoot(repoRoot, relativePath, "File path");
   return {
     ok: true,
     repoId: payload.repoId,
@@ -229,10 +231,14 @@ export function readRepoFiles(paths: TokenPilotPaths, payload: FileReadBatchPayl
   }
 
   const files = payload.paths.map((inputPath) =>
-    readFileContent(repoRoot, validateRelativePath(inputPath), {
-      offset: payload.offset,
-      limit: payload.limit
-    })
+    {
+      const relativePath = validateRelativePath(inputPath);
+      resolvePathInsideRoot(repoRoot, relativePath, "File path");
+      return readFileContent(repoRoot, relativePath, {
+        offset: payload.offset,
+        limit: payload.limit
+      });
+    }
   );
 
   return {

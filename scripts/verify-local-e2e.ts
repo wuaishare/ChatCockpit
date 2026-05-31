@@ -23,7 +23,7 @@ function makeTempRepoRoot(): string {
           filePath: ".tokenpilot/repomix-output.xml",
           style: "xml"
         },
-        include: ["README.md", ".repomix.config.json", "docs/**", "src/**"]
+        include: ["README.md", ".repomix.config.json", "docs/**", "src/**", "web/**"]
       },
       null,
       2
@@ -303,6 +303,23 @@ async function runE2E(): Promise<void> {
     const openapiText = await openapi.text();
     assert.match(openapiText, /TokenPilot Local Control Plane API/);
     assert.match(openapiText, /https:\/\/tokenpilot\.example\.com/);
+    assert.equal(/FileReadBatchPayload:[\s\S]*offset:[\s\S]*limit:/.test(openapiText), true);
+    assert.equal(/\/api\/setup\/status:[\s\S]*SetupStatusResponse/.test(openapiText), true);
+
+    const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`);
+    assert.equal(setupStatus.status, 200);
+    const setupStatusBody = await setupStatus.json();
+    assert.equal(setupStatusBody.ok, true);
+    assert.equal(typeof setupStatusBody.ready, "boolean");
+    assert.equal(setupStatusBody.authRequired, true);
+    assert.equal(setupStatusBody.exposed, true);
+    assert.equal(typeof setupStatusBody.openapiUrl, "string");
+    assert.equal(Array.isArray(setupStatusBody.steps), true);
+    assert.equal(
+      setupStatusBody.steps.some((step: { key?: string }) => step.key === "gpt"),
+      true
+    );
+    assert.equal(JSON.stringify(setupStatusBody).includes("test-token"), false);
 
     const gptConfig = await fetch(`http://127.0.0.1:${port}/api/gpt/config`, {
       headers: { Authorization: "Bearer test-token" }
@@ -373,6 +390,10 @@ async function runE2E(): Promise<void> {
       headers: { Authorization: "Bearer test-token" }
     });
     assert.equal(authedJobs.status, 200);
+    const authedJobsBody = await authedJobs.json();
+    assert.equal(typeof authedJobsBody.nextCursor === "string" || authedJobsBody.nextCursor === null, true);
+    assert.equal(typeof authedJobsBody.totalVisible, "number");
+    assert.equal(authedJobsBody.includeResult, false);
 
     const fileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
       method: "POST",
@@ -418,6 +439,10 @@ async function runE2E(): Promise<void> {
       })
     });
     assert.equal(blockedRead.status, 400);
+    const blockedReadBody = await blockedRead.json();
+    assert.equal(blockedReadBody.ok, false);
+    assert.equal(blockedReadBody.error.code, "FILES_READ_BLOCKED");
+    assert.equal(typeof blockedReadBody.error.message, "string");
 
     const taskpackResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/taskpack`, {
       method: "POST",
@@ -653,15 +678,53 @@ async function runE2E(): Promise<void> {
     });
     const completedBody = (await completedJobs.json()) as {
       jobs: Array<Record<string, unknown>>;
+      includeResult: boolean;
+      nextCursor: string | null;
+      totalVisible: number;
     };
     assert.doesNotMatch(JSON.stringify(completedBody), /\/Users\//);
+    assert.equal(completedBody.jobs.length <= 20, true);
+    assert.equal(completedBody.includeResult, false);
+    assert.equal(completedBody.jobs.every((job) => !("result" in job)), true);
     const updatedAtValues = completedBody.jobs
       .map((job) => (typeof job.updatedAt === "string" ? job.updatedAt : ""))
       .filter(Boolean);
     const sortedUpdatedAtValues = [...updatedAtValues].sort((a, b) => b.localeCompare(a));
     assert.deepEqual(updatedAtValues, sortedUpdatedAtValues);
 
-    const taskpackResults = completedBody.jobs.filter(
+    const completedWithResultResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs?includeResult=true&limit=100`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(completedWithResultResponse.status, 200);
+    const completedWithResultBody = (await completedWithResultResponse.json()) as {
+      jobs: Array<Record<string, unknown>>;
+      includeResult: boolean;
+    };
+    assert.equal(completedWithResultBody.includeResult, true);
+    assert.equal(completedWithResultBody.jobs.some((job) => Boolean(job.result)), true);
+
+    const filteredJobsResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs?status=completed&type=taskpack&limit=1`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(filteredJobsResponse.status, 200);
+    const filteredJobsBody = (await filteredJobsResponse.json()) as {
+      jobs: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+      totalVisible: number;
+    };
+    assert.equal(filteredJobsBody.jobs.length <= 1, true);
+    assert.equal(
+      filteredJobsBody.jobs.every((job) => job.status === "completed" && job.type === "taskpack"),
+      true
+    );
+
+    const taskpackResults = completedWithResultBody.jobs.filter(
       (job) => job.type === "taskpack" && job.status === "completed"
     );
     const markdownPaths = taskpackResults
@@ -670,7 +733,7 @@ async function runE2E(): Promise<void> {
     assert.equal(markdownPaths.length >= 2, true);
     assert.equal(new Set(markdownPaths).size, markdownPaths.length);
 
-    const packResults = completedBody.jobs.filter(
+    const packResults = completedWithResultBody.jobs.filter(
       (job) => job.type === "pack" && job.status === "completed"
     );
     assert.equal(packResults.length >= 1, true);
@@ -712,12 +775,37 @@ async function runE2E(): Promise<void> {
     );
     assert.equal(packPromptResponse.status, 200);
     const packPromptBody = (await packPromptResponse.json()) as {
-      file: { content: string; previewMode: string; maxBytes: number };
+      file: { content: string; previewMode: string; maxBytes: number; nextOffset: number | null; eof: boolean };
     };
     assert.match(packPromptBody.file.content, /TokenPilot Repo Bundle Prompt/);
     assert.doesNotMatch(packPromptBody.file.content, /\/Users\//);
     assert.equal(packPromptBody.file.previewMode, "head");
     assert.equal(typeof packPromptBody.file.maxBytes, "number");
+
+    const packPromptChunkedResponse = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${packJobId}/artifacts/prompt?limit=64`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(packPromptChunkedResponse.status, 200);
+    const packPromptChunkedBody = (await packPromptChunkedResponse.json()) as {
+      file: { nextOffset: number | null; eof: boolean; returnedBytes: number };
+    };
+    assert.equal(packPromptChunkedBody.file.eof, false);
+    assert.equal(typeof packPromptChunkedBody.file.nextOffset, "number");
+    const packPromptChunk2Response = await fetch(
+      `http://127.0.0.1:${port}/api/jobs/${packJobId}/artifacts/prompt?offset=${packPromptChunkedBody.file.nextOffset}&limit=64`,
+      {
+        headers: { Authorization: "Bearer test-token" }
+      }
+    );
+    assert.equal(packPromptChunk2Response.status, 200);
+    const packPromptChunk2Body = (await packPromptChunk2Response.json()) as {
+      file: { offset: number; returnedBytes: number };
+    };
+    assert.equal(packPromptChunk2Body.file.offset, packPromptChunkedBody.file.nextOffset);
+    assert.equal(packPromptChunk2Body.file.returnedBytes > 0, true);
 
     const packPromptFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
       method: "POST",

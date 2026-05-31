@@ -7,7 +7,7 @@ import {
   ReloadOutlined,
   StopOutlined
 } from "@ant-design/icons";
-import type { JobArtifactSummary, JobProcessState, JobSummary } from "../types";
+import type { ArtifactPreviewState, JobArtifactSummary, JobProcessState, JobSummary } from "../types";
 import { formatDateTime, safePathList, safeText } from "../utils";
 import { SectionCard } from "./SectionCard";
 import { StateNotice } from "./StateNotice";
@@ -29,13 +29,14 @@ interface JobsViewProps {
   detailLoading: boolean;
   artifactLoading: boolean;
   artifactError: string | null;
-  artifactContent: string | null;
+  artifactPreview: ArtifactPreviewState | null;
   selectedArtifactKey: string | null;
   error: string | null;
   controlLoading: boolean;
   controlMessage: string | null;
   onSelectJob: (jobId: string) => void;
   onSelectArtifact: (artifactKey: string) => void;
+  onLoadMoreArtifact: () => void;
   onControlJob: (action: "pause" | "resume" | "terminate") => void;
   onTerminateAll: () => void;
   onRefresh: () => void;
@@ -176,13 +177,14 @@ export function JobsView({
   detailLoading,
   artifactLoading,
   artifactError,
-  artifactContent,
+  artifactPreview,
   selectedArtifactKey,
   error,
   controlLoading,
   controlMessage,
   onSelectJob,
   onSelectArtifact,
+  onLoadMoreArtifact,
   onControlJob,
   onTerminateAll,
   onRefresh
@@ -495,8 +497,15 @@ export function JobsView({
                 <div className="detail-loading">{copy.jobs.detailRefreshing}</div>
               ) : artifactError ? (
                 <div className="notes-block">{artifactError}</div>
-              ) : artifactContent ? (
-                <pre className="job-detail__preview">{artifactContent}</pre>
+              ) : artifactPreview?.content ? (
+                <>
+                  <pre className="job-detail__preview">{artifactPreview.content}</pre>
+                  {!artifactPreview.eof && artifactPreview.nextOffset !== null ? (
+                    <Button size="small" onClick={onLoadMoreArtifact}>
+                      {copy.jobs.artifactLoadMore}
+                    </Button>
+                  ) : null}
+                </>
               ) : (
                 <span>{copy.common.none}</span>
               )}

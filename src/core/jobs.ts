@@ -5,12 +5,24 @@ import crypto from "node:crypto";
 import { readJson, writeJson } from "./files.js";
 import type {
   JobRecord,
+  JobStatus,
   JobType,
   TokenPilotJobPayload,
   TokenPilotPaths
 } from "../types.js";
 
-type JobStatus = JobRecord["status"];
+export interface ListJobsOptions {
+  limit?: number;
+  cursor?: string;
+  status?: JobStatus;
+  type?: JobType;
+}
+
+export interface ListJobsPage {
+  jobs: JobRecord<TokenPilotJobPayload>[];
+  nextCursor: string | null;
+  totalVisible: number;
+}
 
 const JOB_STATUS_DIR_KEYS: Record<JobStatus, keyof TokenPilotPaths> = {
   queued: "queuedJobsDir",
@@ -150,6 +162,31 @@ export function listJobs(paths: TokenPilotPaths): JobRecord<TokenPilotJobPayload
   ]
     .map(({ job }) => job)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.createdAt.localeCompare(a.createdAt));
+}
+
+export function listJobsPage(
+  paths: TokenPilotPaths,
+  options: ListJobsOptions = {}
+): ListJobsPage {
+  const limit = Math.max(1, Math.min(100, Math.floor(options.limit ?? 20)));
+  const offset = Math.max(0, Math.floor(Number(options.cursor ?? 0) || 0));
+  const jobs = listJobs(paths).filter((job) => {
+    if (options.status && job.status !== options.status) {
+      return false;
+    }
+    if (options.type && job.type !== options.type) {
+      return false;
+    }
+    return true;
+  });
+  const page = jobs.slice(offset, offset + limit);
+  const nextOffset = offset + page.length;
+
+  return {
+    jobs: page,
+    nextCursor: nextOffset < jobs.length ? String(nextOffset) : null,
+    totalVisible: jobs.length
+  };
 }
 
 export function claimNextQueuedJob(

@@ -13,9 +13,13 @@ Current boundary:
 ## Build Once
 
 ```bash
-npm install
-npm run build:web
 npm run build
+```
+
+For a beginner-friendly source install, use:
+
+```bash
+npm run setup
 ```
 
 ## Start The Local Control Plane
@@ -71,6 +75,19 @@ Current boundary:
 - it is intended for a local human operator
 - in auth-required mode, protected data still requires the operator to provide a bearer token in the browser session
 - it is not a public internet management console
+
+## Local Artifact Retention
+
+TokenPilot keeps local queue records and generated artifacts under `.tokenpilot/`.
+
+Important directories:
+
+- `.tokenpilot/jobs/` stores queued, running, completed, and failed job records.
+- `.tokenpilot/bundles/` stores pack prompts, summaries, manifests, and bundle XML outputs.
+- `.tokenpilot/runtime/repos/<repoId>/` stores per-repository Codex prompts, stdout/stderr, diffs, reviews, and summaries.
+- `.tokenpilot/manifests/` stores task-pack markdown and JSON artifacts.
+
+Alpha retention is intentionally conservative: TokenPilot does not delete job records or Codex artifacts by default. Bundle XML pruning only runs when an operator explicitly sets `TOKENPILOT_BUNDLE_HISTORY_LIMIT` or `TOKENPILOT_REPOMIX_HISTORY_LIMIT` to a positive number. Leave those unset when you want a full local audit trail; set them only when you are comfortable pruning older generated bundle files.
 
 ## Exposed Mode
 
@@ -138,7 +155,10 @@ Important operational boundary:
 ```bash
 ./scripts/macos-manage-local-server.sh stop
 ./scripts/macos-manage-local-server.sh restart
+./scripts/macos-manage-local-server.sh reset
 ```
+
+`reset` removes LaunchAgent registration and pid/plist runtime files while keeping source code and `server.env`.
 
 ## Logs
 

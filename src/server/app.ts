@@ -13,6 +13,8 @@ import type {
   TokenPilotHealthStatus,
   TokenPilotJobPayload,
   TokenPilotPaths,
+  JobStatus,
+  JobType,
   FileEditPayload,
   FileListPayload,
   FileWritePayload,
@@ -28,9 +30,10 @@ import {
 } from "../core/job-processes.js";
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
+import { buildSetupStatus } from "../core/setup-status.js";
 import { readRecentGitCommitsForRepo } from "../core/git-history.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
-import { createJob, getJob, listJobs } from "../core/jobs.js";
+import { createJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
 import { writeRepoFile, editRepoFile, listRepoDirectory } from "../core/files-write.js";
 import { searchRepo } from "../core/search.js";
 import { runShellCommand } from "../core/shell-api.js";
@@ -41,6 +44,7 @@ import {
   tokenPilotAuthPlugin,
   validateServerAuthConfig
 } from "./auth.js";
+import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -94,6 +98,17 @@ const fileReadBatchSchema = z.object({
 const recentCommitsQuerySchema = z.object({
   repoId: z.string().min(1).default("tokenpilot"),
   limit: z.coerce.number().int().positive().max(50).optional()
+});
+
+const listJobsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  cursor: z.string().regex(/^\d+$/).optional(),
+  status: z.enum(["queued", "running", "completed", "failed"]).optional(),
+  type: z.enum(["pack", "taskpack", "codex-run"]).optional(),
+  includeResult: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => value === true || value === "true" || value === "1")
 });
 
 const artifactKeySchema = z.enum([
@@ -327,6 +342,12 @@ function maskError(error: string | undefined, repoRoot: string): string | undefi
   return toRelativeRepoPath(firstLine, repoRoot);
 }
 
+type ReplyLike = Parameters<typeof sendApiError>[0];
+
+function replyFrom(value: unknown): ReplyLike {
+  return value as ReplyLike;
+}
+
 function deriveJobHeadline(job: JobRecord<TokenPilotJobPayload>): string {
   if (job.type === "taskpack") {
     const title = (job.payload as { title?: unknown }).title;
@@ -453,7 +474,8 @@ function projectJobResultForUi(
 
 function projectJobForUi(
   job: JobRecord<TokenPilotJobPayload>,
-  paths: TokenPilotPaths
+  paths: TokenPilotPaths,
+  options: { includeResult?: boolean } = {}
 ): TokenPilotPublicJobRecord {
   const projectedResult = projectJobResultForUi(job, paths.repoRoot);
   const projectedError = maskError(job.error, paths.repoRoot);
@@ -478,7 +500,7 @@ function projectJobForUi(
     payload: projectJobPayloadForUi(job, paths.repoRoot),
     ...(trackedProcess ? { process: trackedProcess } : {}),
     ...(artifacts.length ? { artifacts } : {}),
-    ...(projectedResult ? { result: projectedResult } : {}),
+    ...(options.includeResult && projectedResult ? { result: projectedResult } : {}),
     ...(projectedError ? { error: projectedError } : {})
   };
 }
@@ -587,6 +609,12 @@ export function buildServer(paths: TokenPilotPaths) {
   validateServerAuthConfig();
 
   const app = Fastify({ logger: true });
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof ApiError) {
+      return sendUnknownApiError(reply, error);
+    }
+    return sendUnknownApiError(reply, error);
+  });
   app.register(tokenPilotAuthPlugin);
   const uiDistDir = path.join(paths.repoRoot, "web", "dist");
   const hasUiDist = fs.existsSync(uiDistDir);
@@ -609,17 +637,15 @@ export function buildServer(paths: TokenPilotPaths) {
     };
   };
 
+  const setupStatusHandler = async () => buildSetupStatus(paths);
+
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
       (request as { query?: unknown }).query ?? {}
     );
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: parsed.error.flatten()
-      };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
 
     try {
@@ -634,42 +660,53 @@ export function buildServer(paths: TokenPilotPaths) {
         commits
       };
     } catch (error) {
-      fastifyReply.code(500);
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
-  const listJobsHandler = async () => {
+  const listJobsHandler = async (request: unknown, reply: unknown) => {
+    const parsed = listJobsQuerySchema.safeParse(
+      (request as { query?: unknown }).query ?? {}
+    );
+    const fastifyReply = replyFrom(reply);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    const includeResult = parsed.data.includeResult ?? false;
+    const page = listJobsPage(paths, {
+      limit: parsed.data.limit,
+      cursor: parsed.data.cursor,
+      status: parsed.data.status as JobStatus | undefined,
+      type: parsed.data.type as JobType | undefined
+    });
     return {
       ok: true,
-      jobs: listJobs(paths).map((job) => projectJobForUi(job, paths))
+      jobs: page.jobs.map((job) => projectJobForUi(job, paths, { includeResult })),
+      nextCursor: page.nextCursor,
+      totalVisible: page.totalVisible,
+      includeResult
     };
   };
 
   const getJobHandler = async (request: unknown, reply: unknown) => {
     const params = (request as { params: { id: string } }).params;
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const job = getJob(paths, params.id);
     if (!job) {
-      fastifyReply.code(404);
-      return { ok: false, error: "Job not found" };
+      return sendApiError(fastifyReply, 404, "JOB_NOT_FOUND", "Job not found");
     }
     return {
       ok: true,
-      job: projectJobForUi(job.job, paths)
+      job: projectJobForUi(job.job, paths, { includeResult: true })
     };
   };
 
   const listJobArtifactsHandler = async (request: unknown, reply: unknown) => {
     const params = (request as { params: { id: string } }).params;
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const job = getJob(paths, params.id);
     if (!job) {
-      fastifyReply.code(404);
-      return { ok: false, error: "Job not found" };
+      return sendApiError(fastifyReply, 404, "JOB_NOT_FOUND", "Job not found");
     }
 
     return {
@@ -691,20 +728,15 @@ export function buildServer(paths: TokenPilotPaths) {
     const query = (request as {
       query?: { offset?: string; limit?: string };
     }).query ?? {};
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const job = getJob(paths, params.id);
     if (!job) {
-      fastifyReply.code(404);
-      return { ok: false, error: "Job not found" };
+      return sendApiError(fastifyReply, 404, "JOB_NOT_FOUND", "Job not found");
     }
 
     const parsedArtifactKey = artifactKeySchema.safeParse(params.artifactKey);
     if (!parsedArtifactKey.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: "Unsupported artifact key"
-      };
+      return sendApiError(fastifyReply, 400, "VALIDATION_ERROR", "Unsupported artifact key");
     }
 
     try {
@@ -718,24 +750,21 @@ export function buildServer(paths: TokenPilotPaths) {
         file: artifact.preview
       };
     } catch (error) {
-      fastifyReply.code(404);
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        404,
+        "ARTIFACT_NOT_FOUND",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const createPackHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const body = (request as { body?: unknown }).body ?? {};
     const parsed = packJobSchema.safeParse(body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: parsed.error.flatten()
-      };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
 
     const job = createJob(paths, "pack", parsed.data);
@@ -746,14 +775,10 @@ export function buildServer(paths: TokenPilotPaths) {
   };
 
   const createTaskPackHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = taskPackSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: parsed.error.flatten()
-      };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
 
     const job = createJob(paths, "taskpack", parsed.data as TaskPackInput);
@@ -764,14 +789,10 @@ export function buildServer(paths: TokenPilotPaths) {
   };
 
   const createCodexRunHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = codexRunSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: parsed.error.flatten()
-      };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
 
     const job = createJob(paths, "codex-run", parsed.data as CodexRunJobPayload);
@@ -783,13 +804,9 @@ export function buildServer(paths: TokenPilotPaths) {
 
   const controlJobHandler = async (request: unknown, reply: unknown) => {
     const params = (request as { params: { id: string; action: string } }).params;
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     if (!["pause", "resume", "terminate"].includes(params.action)) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: "Unsupported control action"
-      };
+      return sendApiError(fastifyReply, 400, "VALIDATION_ERROR", "Unsupported control action");
     }
     return controlJobProcess(paths, params.id, params.action as "pause" | "resume" | "terminate");
   };
@@ -797,209 +814,179 @@ export function buildServer(paths: TokenPilotPaths) {
   const terminateAllJobsHandler = async () => terminateAllJobProcesses(paths);
 
   const readFileHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = fileReadSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: parsed.error.flatten()
-      };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
 
     try {
       return readRepoFile(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "FILES_READ_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const readFilesHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = fileReadBatchSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: parsed.error.flatten()
-      };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
 
     try {
       return readRepoFiles(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "FILES_READ_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const writeFileHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = fileWriteSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return { ok: false, error: parsed.error.flatten() };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
       return writeRepoFile(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        repoId: parsed.data.repoId,
-        path: parsed.data.path,
-        written: false,
-        size: 0,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "FILES_WRITE_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const editFileHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = fileEditSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return { ok: false, error: parsed.error.flatten() };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
       return editRepoFile(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        repoId: parsed.data.repoId,
-        path: parsed.data.path,
-        applied: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "FILES_EDIT_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const listDirectoryHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = fileListSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return { ok: false, error: parsed.error.flatten() };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
       return listRepoDirectory(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        repoId: parsed.data.repoId,
-        path: parsed.data.path,
-        entries: [],
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "FILES_LIST_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const searchHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = searchSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return { ok: false, error: parsed.error.flatten() };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
       return searchRepo(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        repoId: parsed.data.repoId,
-        pattern: parsed.data.pattern,
-        matches: [],
-        truncated: false,
-        totalMatches: 0,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "SEARCH_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const shellRunHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = shellRunSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return { ok: false, error: parsed.error.flatten() };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
       return runShellCommand(paths, parsed.data);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        exitCode: 127,
-        stdout: "",
-        stderr: error instanceof Error ? error.message : String(error),
-        truncated: false,
-        executedCommand: `${parsed.data.command} ${parsed.data.args.join(" ")}`,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "SHELL_COMMAND_BLOCKED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
-  const gitDiffHandler = async (request: unknown) => {
+  const gitDiffHandler = async (request: unknown, reply: unknown) => {
     const query = (request as { query?: { repoId?: string; staged?: string } }).query ?? {};
     const repoId = query.repoId ?? "tokenpilot";
     const staged = query.staged === "true" || query.staged === "1";
     try {
       return getGitDiff(paths, repoId, staged);
     } catch (error) {
-      return {
-        ok: false,
-        repoId,
-        diff: "",
-        truncated: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        replyFrom(reply),
+        400,
+        "GIT_DIFF_FAILED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
-  const gitStatusHandler = async (request: unknown) => {
+  const gitStatusHandler = async (request: unknown, reply: unknown) => {
     const query = (request as { query?: { repoId?: string } }).query ?? {};
     const repoId = query.repoId ?? "tokenpilot";
     try {
       return getGitStatus(paths, repoId);
     } catch (error) {
-      return {
-        ok: false,
-        repoId,
-        branch: "unknown",
-        entries: [],
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        replyFrom(reply),
+        400,
+        "GIT_STATUS_FAILED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const gitCommitHandler = async (request: unknown, reply: unknown) => {
-    const fastifyReply = reply as { code: (statusCode: number) => void };
+    const fastifyReply = replyFrom(reply);
     const parsed = gitCommitSchema.safeParse((request as { body: unknown }).body);
     if (!parsed.success) {
-      fastifyReply.code(400);
-      return { ok: false, error: parsed.error.flatten() };
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
       return gitCommit(paths, parsed.data.repoId, parsed.data.message, parsed.data.body);
     } catch (error) {
-      fastifyReply.code(400);
-      return {
-        ok: false,
-        repoId: parsed.data.repoId,
-        committed: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      return sendApiError(
+        fastifyReply,
+        400,
+        "GIT_COMMIT_FAILED",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
@@ -1008,6 +995,9 @@ export function buildServer(paths: TokenPilotPaths) {
 
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
+
+  app.get("/api/setup/status", setupStatusHandler);
+  app.get("/tokenpilot/api/setup/status", setupStatusHandler);
 
   app.get("/api/git/recent-commits", recentCommitsHandler);
   app.get("/tokenpilot/api/git/recent-commits", recentCommitsHandler);
