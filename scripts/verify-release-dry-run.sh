@@ -23,6 +23,11 @@ git archive --format=tar.gz --output="${archive}" HEAD
 mkdir -p "${extract_dir}"
 tar -xzf "${archive}" -C "${extract_dir}"
 
+pushd "${extract_dir}" >/dev/null
+git init --quiet
+git add -A
+popd >/dev/null
+
 blocked_paths=(
   ".tokenpilot"
   ".codex"
