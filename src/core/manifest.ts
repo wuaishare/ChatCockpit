@@ -3,24 +3,11 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { timestampSlug, writeJson, writeText } from "./files.js";
+import {
+  isPublicRepoBundleIncludeEntry,
+  readRepoBundleIncludeEntries
+} from "./repo-bundle.js";
 import type { RepoBundleManifest } from "../types.js";
-
-interface RepomixConfig {
-  include?: string[];
-}
-
-function readRepomixIncludeEntries(repoRoot: string): string[] {
-  const configPath = path.join(repoRoot, ".repomix.config.json");
-  if (!fs.existsSync(configPath)) {
-    return [];
-  }
-
-  const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as RepomixConfig;
-  return (config.include || [])
-    .filter((entry) => !entry.endsWith("/**"))
-    .map((entry) => entry.replace(/^\.\//, ""))
-    .sort();
-}
 
 export function buildBundleManifest(
   repoRoot: string,
@@ -34,7 +21,9 @@ export function buildBundleManifest(
   const promptPath = path.join(bundlesDir, `${baseName}-prompt.md`);
   const summaryPath = path.join(bundlesDir, `${baseName}-summary.md`);
   const manifestPath = path.join(bundlesDir, `${baseName}-manifest.json`);
-  const publicIncludeEntries = readRepomixIncludeEntries(repoRoot);
+  const publicIncludeEntries = readRepoBundleIncludeEntries(repoRoot)
+    .filter(isPublicRepoBundleIncludeEntry)
+    .sort();
 
   const manifest: RepoBundleManifest = {
     createdAt,

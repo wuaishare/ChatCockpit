@@ -27,9 +27,9 @@ npm run privacy:scan:history
 git diff --check
 ```
 
-## Current Release Blockers
+## Current Release Watch Items
 
-- Resolve or explicitly accept the current npm audit finding before publishing a public release. As of 2026-05-31, `repomix` pulls `@modelcontextprotocol/sdk -> express -> qs@6.15.1`, and npm reports GHSA-q8mj-m7cp-5q26. `npm audit fix` does not currently update beyond `qs@6.15.1`, and forcing older `qs` versions introduces other advisories.
+- `npm audit --audit-level=moderate` is a required gate. TokenPilot removed the hard `repomix` devDependency after `repomix -> @modelcontextprotocol/sdk -> express -> qs@6.15.1` began blocking release readiness with GHSA-q8mj-m7cp-5q26.
 
 ## Artifact Policy
 

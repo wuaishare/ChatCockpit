@@ -218,7 +218,6 @@ TokenPilot is not affiliated with OpenAI, ChatGPT, Codex, or GitHub. It does not
 - OpenAI Codex Models: <https://developers.openai.com/codex/models>
 - Connecting GitHub to ChatGPT: <https://help.openai.com/en/articles/11145903-connecting-github-to-chatgpt>
 - Using Codex with your ChatGPT plan: <https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan>
-- Repomix: <https://github.com/yamadashy/repomix>
 - Gitingest: <https://gitingest.com/>
 
 ## License

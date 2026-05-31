@@ -143,7 +143,7 @@ export function listJobArtifacts(
 
   if (job.type === "pack") {
     return [
-      buildArtifactSummary("repomixXml", "Repomix XML", "application/xml", result.repomixXmlPath, artifactRepoRoot),
+      buildArtifactSummary("repomixXml", "Bundle XML", "application/xml", result.repomixXmlPath, artifactRepoRoot),
       buildArtifactSummary("prompt", "Bundle Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
       buildArtifactSummary("summary", "Bundle Summary", "text/markdown", result.summaryPath, artifactRepoRoot),
       buildArtifactSummary("manifest", "Bundle Manifest", "application/json", result.manifestPath, artifactRepoRoot)

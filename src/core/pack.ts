@@ -6,33 +6,35 @@ import { buildBundleManifest } from "./manifest.js";
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
 import { timestampSlug } from "./files.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
-import { runCommand } from "./shell.js";
+import { writeRepoBundleXml } from "./repo-bundle.js";
 import type { RepoBundleManifest, TokenPilotPaths } from "../types.js";
 
-const DEFAULT_REPOMIX_HISTORY_LIMIT = 10;
+const DEFAULT_BUNDLE_HISTORY_LIMIT = 10;
 
-function readRepomixHistoryLimit(): number {
-  const raw = process.env.TOKENPILOT_REPOMIX_HISTORY_LIMIT?.trim();
+function readBundleHistoryLimit(): number {
+  const raw =
+    process.env.TOKENPILOT_BUNDLE_HISTORY_LIMIT?.trim() ||
+    process.env.TOKENPILOT_REPOMIX_HISTORY_LIMIT?.trim();
   if (!raw) {
-    return DEFAULT_REPOMIX_HISTORY_LIMIT;
+    return DEFAULT_BUNDLE_HISTORY_LIMIT;
   }
 
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 1) {
-    return DEFAULT_REPOMIX_HISTORY_LIMIT;
+    return DEFAULT_BUNDLE_HISTORY_LIMIT;
   }
 
   return Math.floor(parsed);
 }
 
-function nextRepomixOutputPath(workspaceDir: string): string {
+function nextBundleOutputPath(workspaceDir: string): string {
   const stamp = timestampSlug();
   const suffix = crypto.randomUUID().slice(0, 8);
   return path.join(workspaceDir, `repomix-output-${stamp}-${suffix}.xml`);
 }
 
-function pruneRepomixOutputs(workspaceDir: string): void {
-  const limit = readRepomixHistoryLimit();
+function pruneBundleOutputs(workspaceDir: string): void {
+  const limit = readBundleHistoryLimit();
   const files = fs
     .readdirSync(workspaceDir)
     .filter((name) => /^repomix-output-.*\.xml$/i.test(name))
@@ -62,33 +64,15 @@ export function runPackForRepo(
   const mapping = resolveRepoMapping(config, repoId);
   const repoPaths = buildPaths(mapping.repoRoot);
   ensureWorkspaceDirs(repoPaths);
-  const repomixOutputPath = nextRepomixOutputPath(repoPaths.workspaceDir);
-  const repomixBin = path.join(mapping.repoRoot, "node_modules", ".bin", "repomix");
-  const repomixCli = path.join(mapping.repoRoot, "node_modules", "repomix", "bin", "repomix.cjs");
-  const outputArgs = ["--config", ".repomix.config.json", "--output", repomixOutputPath];
-
-  if (fs.existsSync(repomixCli)) {
-    const result = runCommand(process.execPath, [repomixCli, ...outputArgs], mapping.repoRoot);
-
-    if (result.exitCode !== 0) {
-      throw new Error(result.stderr || "repomix failed");
-    }
-  } else if (fs.existsSync(repomixBin)) {
-    const result = runCommand(repomixBin, outputArgs, mapping.repoRoot);
-
-    if (result.exitCode !== 0) {
-      throw new Error(result.stderr || "repomix failed");
-    }
-  } else {
-    fs.writeFileSync(repomixOutputPath, "<repoBundle mode=\"fixture\" />\n", "utf8");
-  }
+  const bundleOutputPath = nextBundleOutputPath(repoPaths.workspaceDir);
+  writeRepoBundleXml(mapping.repoRoot, bundleOutputPath);
 
   const manifest = buildBundleManifest(
     mapping.repoRoot,
     repoPaths.bundlesDir,
-    repomixOutputPath,
+    bundleOutputPath,
     repoId
   );
-  pruneRepomixOutputs(repoPaths.workspaceDir);
+  pruneBundleOutputs(repoPaths.workspaceDir);
   return manifest;
 }

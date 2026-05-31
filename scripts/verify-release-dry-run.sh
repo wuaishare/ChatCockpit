@@ -51,6 +51,7 @@ fi
 
 pushd "${extract_dir}" >/dev/null
 npm ci
+npm audit --audit-level=moderate
 npm run build
 npm run verify:web:safety
 popd >/dev/null

@@ -328,7 +328,7 @@ TokenPilot 适合：
 
 ## 后续计划
 
-- [x] 落地本地 CLI / repomix / task pack 骨架
+- [x] 落地本地 CLI / bundle / task pack 骨架
 - [x] 落地 file-backed job queue
 - [x] 落地本地控制面和 runner
 - [x] 写出 GPT Actions / HTTPS 控制面 / 本地 runner 的 OpenAPI 草案
@@ -411,7 +411,7 @@ http://127.0.0.1:4318/ui
 ```text
 仓库源码
   ↓
-repomix 打包
+TokenPilot bundle 打包
   ↓
 bundle / manifest / prompt
   ↓
@@ -435,7 +435,7 @@ HTTPS 控制面
   ↓
 本地 runner
   ↓
-repomix / Task Pack / Codex 执行
+Bundle / Task Pack / Codex 执行
 ```
 
 为了安全和稳定，TokenPilot 不会提供 raw shell HTTP 端点，也不应把本地机器暴露成公网通用执行面。<br>
@@ -498,9 +498,6 @@ TokenPilot 是一个社区实验项目 / 开源方法论，不隶属于 OpenAI�
 
 - 相关讨论：有人实践过“规划模型 + 编码模型”的 AI 编程工作流吗？
   https://linux.do/t/topic/2185954
-
-- Repomix
-  https://github.com/yamadashy/repomix
 
 - Gitingest
   https://gitingest.com/

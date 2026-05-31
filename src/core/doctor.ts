@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 
 import { runCommand } from "./shell.js";
 import { buildPaths } from "./paths.js";
@@ -43,13 +42,10 @@ export function runDoctor(repoRoot: string): DoctorCheck[] {
     detail: python.exitCode === 0 ? python.stdout.trim() || python.stderr.trim() : python.stderr.trim()
   });
 
-  const repomixBin = path.join(repoRoot, "node_modules", ".bin", "repomix");
   checks.push({
-    name: "repomix",
-    ok: fs.existsSync(repomixBin),
-    detail: fs.existsSync(repomixBin)
-      ? repomixBin
-      : "Install dependencies with `npm install` before running pack."
+    name: "bundle-engine",
+    ok: true,
+    detail: "TokenPilot internal XML bundle generator"
   });
 
   const jobs = listJobs(paths);

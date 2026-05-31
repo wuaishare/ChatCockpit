@@ -6,7 +6,7 @@ Turn TokenPilot from a purely manual workflow note set into a self-usable local 
 
 ## What Phase 1 Adds
 
-- Project-local `repomix` dependency
+- TokenPilot internal XML bundle generator
 - A `tokenpilot` CLI
 - Local repo bundle generation
 - Task pack artifact generation
@@ -37,6 +37,7 @@ npm run runner -- --watch --interval 3
 Note:
 
 - Phase 1 uses a shared file-backed queue under `.tokenpilot/jobs/`.
+- Bundle generation is built into TokenPilot. It reads the existing `.repomix.config.json` include list for compatibility, but does not require the `repomix` npm package.
 - `runner --once` keeps the original manual behavior and processes at most one queued job.
 - `runner --watch --interval 3` keeps polling locally for the next queued job and is the recommended stepping stone toward a longer-lived Phase 2 runner.
 - Run a single local runner at a time for predictable behavior.
@@ -54,7 +55,7 @@ Generated artifacts live under `.tokenpilot/`:
 - `.tokenpilot/manifests/*.md`
 - `.tokenpilot/manifests/*.json`
 
-Pack artifacts are versioned per run rather than overwritten in place. The local runtime also keeps only a bounded number of recent repomix XML outputs to avoid unbounded disk growth.
+Pack artifacts are versioned per run rather than overwritten in place. The local runtime also keeps only a bounded number of recent bundle XML outputs to avoid unbounded disk growth.
 
 ## Controlled File Read
 

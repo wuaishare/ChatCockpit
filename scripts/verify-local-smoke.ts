@@ -119,7 +119,7 @@ function verifyPackArtifactNaming(): void {
           filePath: ".tokenpilot/repomix-output.xml",
           style: "xml"
         },
-        include: ["README.md"]
+        include: ["README.md", ".env", ".tokenpilot/**"]
       },
       null,
       2
@@ -127,6 +127,7 @@ function verifyPackArtifactNaming(): void {
     "utf8"
   );
   fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Smoke fixture\n", "utf8");
+  fs.writeFileSync(path.join(paths.repoRoot, ".env"), "TOKENPILOT_API_TOKEN=secret\n", "utf8");
   try {
     const first = runPack(paths);
     const second = runPack(paths);
@@ -144,6 +145,10 @@ function verifyPackArtifactNaming(): void {
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.promptPath)));
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.summaryPath)));
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.manifestPath)));
+    const bundleContent = fs.readFileSync(path.join(firstRepoRoot, first.repomixXmlPath), "utf8");
+    assert.match(bundleContent, /<repoBundle generator="tokenpilot"/);
+    assert.match(bundleContent, /README\.md/);
+    assert.doesNotMatch(bundleContent, /secret/);
   } finally {
     if (originalConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
