@@ -12,7 +12,7 @@ ChatGPT acts as the brain and command center for context management, planning, o
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-The current release is a verifiable local operator preview, not a hosted management platform. It includes a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
+The current release is a verifiable local-first operator workflow. It includes a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
 
 ## What It Does
 
@@ -90,11 +90,11 @@ TOKENPILOT_HOST=127.0.0.1
 TOKENPILOT_PORT=4318
 ```
 
-Use `TOKENPILOT_EXPOSED=true` only for a private authenticated HTTPS operator path. The public repository intentionally does not track real deployment domains, reverse-proxy bindings, tunnel tokens, or machine-specific paths.
+Use `TOKENPILOT_EXPOSED=true` only after you have configured HTTPS and an access token. Keep real domains, reverse-proxy or tunnel settings, bearer tokens, and machine-specific paths out of Git.
 
 ## Custom GPT Actions Status
 
-The public OpenAPI contract is available in [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml). The placeholder server URL `https://tokenpilot.example.com` is intentionally generic. Replace it in your private GPT Builder/operator setup; do not commit real public domains or bearer tokens to this repository.
+The public OpenAPI contract is available in [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml). The placeholder server URL `https://tokenpilot.example.com` is intentionally generic. Replace it with your own HTTPS URL when configuring GPT Builder, and do not commit real domains or bearer tokens to Git.
 
 The HTTPS / Custom GPT Actions automation loop is still under validation. Direct GPT actions can drive short file and git operations, but longer or riskier work should be queued as `createCodexRun` jobs and consumed by the local runner.
 
@@ -161,7 +161,7 @@ npm run test
 - Public/private artifact governance: [`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
 - RTK engineering note: [`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
 
-Local reverse-proxy/tunnel bindings, public loop probes, and GPT Builder operating notes belong in the private ops repository, not in this public repository.
+Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder operating notes are local configuration. Keep them out of Git.
 
 ## Roadmap
 

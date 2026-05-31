@@ -14,7 +14,7 @@ ChatGPT 作为大脑与指挥中心，负责上下文管理、任务规划、执
 
 当前版本已经可以本地验证：CLI、Fastify control plane、paired runner、file-backed job queue、OpenAPI、文件读写编辑、代码搜索、白名单 shell、Git 状态 / 差异 / 提交、`createCodexRun`、exposed-mode bearer auth、本地 E2E，以及第一版本地操作员 Web UI。
 
-它还不是公网管理平台。真实域名、隧道、反向代理、Bearer token、GPT Builder 私有操作记录应放在私有 ops 仓库，不应进入公开仓库。
+TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
 
 ## 它做什么
 
@@ -90,11 +90,11 @@ TOKENPILOT_HOST=127.0.0.1
 TOKENPILOT_PORT=4318
 ```
 
-只有在私有、受鉴权的 HTTPS operator 路径中才使用 `TOKENPILOT_EXPOSED=true`。
+只有在你已经配置好 HTTPS 和访问凭据时，才使用 `TOKENPILOT_EXPOSED=true`。
 
 ## Custom GPT Actions 状态
 
-公开 OpenAPI 合约位于 [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml)。其中的 `https://tokenpilot.example.com` 是占位域名，请在私有 GPT Builder / operator 配置中替换，不要把真实公网域名或 bearer token 提交到公开仓库。
+公开 OpenAPI 合约位于 [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml)。其中的 `https://tokenpilot.example.com` 是占位域名；实际使用时请替换为你自己的 HTTPS 地址，不要把真实域名或 bearer token 提交到 Git。
 
 当前 HTTPS / Custom GPT Actions 全自动闭环仍在验证中。GPT 直驱适合短文件和 Git 操作；更长、更复杂或风险更高的任务，应通过 `createCodexRun` 入队交给本地 runner。
 
@@ -163,7 +163,7 @@ npm run test
 - 公共 / 私有产物治理：[`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
 - RTK 工程说明：[`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
 
-本地反向代理、tunnel 绑定、真实公网回路探测和 GPT Builder 操作记录属于私有 ops 仓库。
+真实域名、反向代理、tunnel、Bearer token 和 GPT Builder 操作记录属于本地配置，不应提交到 Git。
 
 ## 路线图
 
