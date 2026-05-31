@@ -99,6 +99,48 @@ async function waitForHttpReady(url: string, timeoutMs = 10000): Promise<void> {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
+function assertOpenApiDescriptionLimit(openapiText: string, limit = 300): void {
+  const lines = openapiText.split(/\r?\n/);
+  const violations: Array<{ line: number; length: number }> = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(\s+)description:\s*(.*)$/.exec(lines[index]);
+    if (!match) {
+      continue;
+    }
+    const baseIndent = match[1].length;
+    const value = match[2].trim();
+    let description = value;
+
+    if (value === ">" || value === "|") {
+      const chunks: string[] = [];
+      let nextIndex = index + 1;
+      while (nextIndex < lines.length) {
+        const nextLine = lines[nextIndex];
+        const nextIndent = nextLine.match(/^\s*/)?.[0].length ?? 0;
+        if (nextLine.trim() && nextIndent <= baseIndent) {
+          break;
+        }
+        if (nextLine.trim()) {
+          chunks.push(nextLine.trim());
+        }
+        nextIndex += 1;
+      }
+      description = chunks.join(" ");
+    }
+
+    if (description.length > limit) {
+      violations.push({ line: index + 1, length: description.length });
+    }
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `OpenAPI descriptions must stay within ${limit} characters for GPT Builder import`
+  );
+}
+
 function runCommand(
   cwd: string,
   args: string[],
@@ -305,6 +347,7 @@ async function runE2E(): Promise<void> {
     assert.match(openapiText, /https:\/\/tokenpilot\.example\.com/);
     assert.equal(/FileReadBatchPayload:[\s\S]*offset:[\s\S]*limit:/.test(openapiText), true);
     assert.equal(/\/api\/setup\/status:[\s\S]*SetupStatusResponse/.test(openapiText), true);
+    assertOpenApiDescriptionLimit(openapiText);
 
     const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`);
     assert.equal(setupStatus.status, 200);

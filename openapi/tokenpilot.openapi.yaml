@@ -1596,7 +1596,7 @@ paths:
     post:
       operationId: runShell
       summary: Run a whitelisted shell command
-      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 25 seconds. This is not a raw shell endpoint, but it is still a high-trust local operator API and must stay behind bearer auth when exposed. In exposed mode, arbitrary-code commands such as node, python, python3, npx, tsx, and make require TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true.
+      description: Runs an allowlisted command in an approved repo. Output is capped at 64 KB and 25 seconds. High-trust commands such as node, python, npx, tsx, and make are blocked in exposed mode unless explicitly enabled.
       security:
         - bearerAuth: []
       requestBody:
