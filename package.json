@@ -2,7 +2,7 @@
   "name": "tokenpilot",
   "version": "0.1.0-alpha",
   "private": true,
-  "description": "TokenPilot local-first automation scaffold for ChatGPT + Codex collaborative workflows",
+  "description": "ChatGPT-first dual-mode development workflow with GPT direct-drive and Codex async runs",
   "type": "module",
   "bin": {
     "tokenpilot": "./dist/cli/index.js"

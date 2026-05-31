@@ -6,27 +6,32 @@
 
 **v0.1.0-alpha local-first public preview**
 
-TokenPilot is an open-source, local-first control plane for running a safer ChatGPT + Codex workflow. It turns a GPT conversation into structured local jobs, public-safe artifacts, reviewable diffs, and optional Codex runs inside allowlisted repositories.
+TokenPilot is a ChatGPT-first dual-mode development workflow: GPT direct-drive for frequent small changes, and Codex async runs for complex repository work.
+
+ChatGPT acts as the brain and command center for context management, planning, orchestration, and review. TokenPilot provides the local-first control plane for task boundaries, mode routing, persistent state, and public-safe artifacts. Codex is the current async execution engine for larger refactors and complex feature work.
+
+Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
 It is not a public management platform yet. The current release is a verifiable local operator preview with a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
-
-> Save tokens by reducing blind reads, repeated context, and unclear task loops. Do not save thinking.
 
 ## What It Does
 
 ```text
-ChatGPT: plans, reviews, compresses context
-TokenPilot: persists jobs, state, policy, and public-safe results
-Codex: edits the real repository, runs checks, and returns artifacts
+ChatGPT: brain and command center for planning, context, orchestration, and review
+TokenPilot: local-first control plane for boundaries, routing, state, and artifacts
+GPT direct-drive: frequent small edits, short checks, and public-safe Git operations
+Codex async: complex repository work, optional worktrees, diffs, artifacts, and review
 ```
 
-TokenPilot is designed around a simple workflow:
+TokenPilot is designed around a dual-mode workflow:
 
 ```text
-Conversation -> Task contract -> Local job -> Runner/Codex execution -> Diff/artifacts -> Review
+Conversation -> Task boundary -> Mode routing -> Direct GPT edit or Codex async run -> Diff/artifacts -> Review
 ```
 
-Use ChatGPT where it is strongest: clarifying intent, compressing context, and reviewing outcomes. Use Codex where it is strongest: entering the repository, editing files, running validation, and producing a concrete diff.
+Use ChatGPT where it is strongest: managing context, clarifying intent, planning work, and reviewing outcomes. Use GPT direct-drive for high-frequency small tasks. Use Codex when the task is large enough to deserve deeper repository execution.
+
+Codex is the first async execution engine. The same task-boundary and artifact-governance model can grow toward other async coding tools such as Claude Code, opencode, or reasonix without changing the ChatGPT-first product model.
 
 ## Current Capabilities
 

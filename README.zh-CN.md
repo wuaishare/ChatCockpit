@@ -7,35 +7,38 @@
 ## **项目状态：v0.1.0-alpha local-first public preview**
 > TokenPilot 目前仍处在探索早期，但已经不再只是概念说明。<br>
 > 当前已具备 **local-first CLI / server / runner、本地 file-backed job queue、OpenAPI、Files Read/Write/Edit API、Code Search、Shell Run（白名单）、Git Diff/Status/Commit API、Codex Run job、exposed-mode auth、本地 E2E 验证，以及第一版本地操作员 Web UI**。<br>
-> 当前 Web UI 用于查看运行状态、Jobs、GPT Helper，并提供受控任务暂停 / 继续 / 终止入口。<br>**已支持双模式开发：** 简单修改 ChatGPT 直驱（writeFile / editFile / runShell），复杂任务通过 createCodexRun job 交给本地 runner 与 Codex CLI 异步执行。直驱 runShell 不是 raw shell，但仍属于高信任本地命令执行 API，只应在私有、受鉴权的 operator 环境中使用。<br>
+> 当前 Web UI 用于查看运行状态、Jobs、GPT Helper，并提供受控任务暂停 / 继续 / 终止入口。<br>**已支持双模式开发：** 高频简单任务由 ChatGPT 通过 writeFile / editFile / runShell / Git API 直驱完成，复杂任务通过 createCodexRun job 交给本地 runner 与 Codex CLI 异步执行。直驱 runShell 不是 raw shell，但仍属于高信任本地命令执行 API，只应在私有、受鉴权的 operator 环境中使用。<br>
 > **Full HTTPS / Custom GPT Actions automation loop is still under validation.**<br>
 > 当前仓库可以描述为：**可验证、可继续演进的本地公开预览版本**，而不是完整 HTTPS 管理平台。<br>
-> **如果你对 ChatGPT + Codex 协同开发、Token 优化、任务边界设计这类话题感兴趣，欢迎参与讨论：[GitHub Discussions](https://github.com/wuaishare/TokenPilot/discussions)。**
+> **如果你对 ChatGPT-first 协同开发、双模式执行路由、Token 优化、任务边界设计这类话题感兴趣，欢迎参与讨论：[GitHub Discussions](https://github.com/wuaishare/TokenPilot/discussions)。**
 > 欢迎分享经验、反例和有价值的思路。
 
-> **省 Token，不省思考。**<br>
-> 用 ChatGPT 做需求澄清、上下文压缩、任务规划与结果复盘；用 Codex 进入仓库执行修改、运行验证、产出 Diff / PR。<br>
-> **让 AI 少读重复上下文，多做有效开发。**
+> **以 ChatGPT 为入口的「GPT 直驱 + Codex 异步」双模式协同开发工作流。**<br>
+> ChatGPT 作为大脑与指挥中心，负责上下文管理、任务规划、执行指挥和结果审查；TokenPilot 作为 local-first 控制面，负责任务边界、模式路由、状态持久化和 public-safe 产物治理；Codex 作为当前接入的异步执行器，承接大型重构与复杂功能开发。<br>
+> **省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 ---
 
 ## TokenPilot 是什么？
 
-**TokenPilot** 是一个探索 **ChatGPT + Codex 协同开发工作流** 的开源项目。
+**TokenPilot** 是一个探索 **ChatGPT-first 双模式协同开发工作流** 的开源项目。
 
 它的核心思路很简单：
 
 ```text
-ChatGPT：规划者 / 审查者 / 上下文压缩器
-TokenPilot：本地任务编排者 / 状态持久化层
-Codex：执行者 / 编码者 / 验证者
+ChatGPT：大脑 / 指挥中心 / 上下文管理 / 规划审查
+TokenPilot：本地控制面 / 模式路由 / 状态与产物治理
+GPT 直驱：高频小改动 / 短验证 / public-safe Git 操作
+Codex 异步：复杂开发 / 可选 worktree / Diff、Artifact 与 Review
 ```
 
-ChatGPT 负责把问题想清楚、边界压清楚、任务写清楚；TokenPilot 负责把结构化任务落成本地 job、维护状态与结果；Codex 负责进入真实仓库执行、验证、自动审查并交付产物。
+ChatGPT 负责把问题想清楚、上下文管住、任务边界压清楚，并在执行后做复盘审查；TokenPilot 负责把这些对话式决策落成本地可追踪的模式路由、job 状态和 public-safe 产物；直驱模式承接高频简单任务，Codex 异步模式承接大型重构与复杂功能开发。
 
 TokenPilot 不是为了少用 AI，而是为了更会用 AI：
 
-> 以人为舵，以 AI 为帆。<br>
-> 先定方向，再让模型加速。
+> 以 ChatGPT 为大脑，先谋定，再执行。<br>
+> 省 Token，不省思考；减少返工，有效开发。
+
+当前异步执行器以 Codex 为主；未来同一任务边界和产物治理模型也可以扩展到 Claude Code、opencode、reasonix 等更多编程执行器。
 
 ---
 
