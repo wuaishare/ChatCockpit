@@ -42,6 +42,8 @@ const privateHostPattern = /\b(?:https?:\/\/|Host:\s*)tokenpilot\.(?!example\.co
 const homePathMarker = "/" + "Users/";
 const servBayPathMarker = "/" + "Applications/" + "ServBay";
 const localUser = process.env.USER?.trim();
+const genericCiUsers = new Set(["actions", "node", "root", "runner", "ubuntu"]);
+const shouldScanLocalUser = Boolean(localUser && !genericCiUsers.has(localUser));
 const localUserPattern = localUser ? new RegExp(escapeRegExp(localUser), "i") : null;
 const localIpPattern = /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b/;
 
@@ -50,7 +52,7 @@ const safetyPatterns: Array<{ label: string; test: (content: string) => boolean 
   { label: "non-placeholder TokenPilot deployment host", test: (content) => privateHostPattern.test(content) },
   {
     label: "local machine username",
-    test: (content) => Boolean(localUserPattern?.test(content))
+    test: (content) => shouldScanLocalUser && Boolean(localUserPattern?.test(content))
   },
   {
     label: "local/private IP literal",
