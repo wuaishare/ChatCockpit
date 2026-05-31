@@ -20,12 +20,14 @@ This project uses prerelease tags while the local-first workflow is still in alp
 - Public docs now keep private deployment domains, reverse-proxy details, and GPT Builder operating notes out of the public repository.
 - GPT config versioning is based on the latest Git commit timestamp so it stays stable between requests.
 - Public HTTP and artifact surfaces filter local paths, runtime state, env files, and other public-unsafe data.
+- Pack now uses TokenPilot's internal XML bundle generator instead of a hard Repomix npm dependency while preserving `repomix-output-*.xml` compatibility paths.
 
 ### Security
 
 - Exposed-mode write APIs require bearer auth.
 - `runShell` remains allowlisted and bounded, but is documented as a high-trust local operator API.
 - Git diffs, commits, and Codex artifacts are constrained to public-safe paths.
+- Release dry-run now includes `npm audit --audit-level=moderate` and passes with zero moderate-or-higher vulnerabilities.
 
 ### Known Limitations
 

@@ -62,6 +62,7 @@ It intentionally does not run the full local E2E suite inside the extracted copy
 - Security model: bearer auth for exposed write APIs, allowlisted shell, public-safe diffs/artifacts
 - Known limitations: HTTPS / Custom GPT Actions loop still under validation, no installer, no setup wizard
 - Upgrade note: this is an alpha source preview and may change storage/layout contracts
+- Source file: `docs/release/0.1.0-alpha.1.md`
 
 ## Manual Smoke Check
 

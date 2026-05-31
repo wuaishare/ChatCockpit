@@ -18,7 +18,7 @@ labels=(
   "private IPv4 literal"
 )
 
-if [[ -n "${USER:-}" ]]; then
+if [[ -n "${USER:-}" && ! "${USER}" =~ ^(runner|root|node|ubuntu|actions)$ ]]; then
   patterns+=("$(printf '%s' "${USER}" | sed -e 's/[][(){}.^$*+?|\\]/\\&/g')")
   labels+=("local machine username")
 fi
