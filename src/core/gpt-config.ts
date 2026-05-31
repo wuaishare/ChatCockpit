@@ -231,7 +231,15 @@ export function buildGptConfig(
   locale: "zh-CN" | "en-US" = "zh-CN",
   repoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim() || process.cwd()
 ): TokenPilotGptConfig {
-  const updatedAt = new Date().toISOString();
+  // Use last git commit date — stable between commits, same as version.
+  const lastCommitDate = spawnSync(
+    "git",
+    ["log", "-1", "--format=%cI"],
+    { cwd: process.cwd(), encoding: "utf8" }
+  );
+  const updatedAt = (lastCommitDate.status === 0 && lastCommitDate.stdout.trim())
+    ? lastCommitDate.stdout.trim()
+    : new Date().toISOString();
   const health = buildHealthStatusSnapshot();
   const actionHost = resolveActionHost(health.publicBaseUrl);
   const version = buildGptConfigVersion();
