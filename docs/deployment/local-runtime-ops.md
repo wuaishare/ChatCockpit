@@ -93,7 +93,7 @@ Alpha retention is intentionally conservative: TokenPilot does not delete job re
 
 - `TOKENPILOT_EXPOSED=false` is the default local-development mode. If `TOKENPILOT_API_TOKEN` is omitted, private job APIs remain open for local-only testing.
 - `TOKENPILOT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, or Custom GPT Actions access. In this mode, `TOKENPILOT_API_TOKEN` is mandatory and the server will refuse to start without it.
-- even in exposed mode, the current Web UI MVP remains an operator console rather than a public management platform, and the full HTTPS / Custom GPT Actions automation loop is still under validation
+- even in exposed mode, the current Web UI MVP remains an operator console for an authenticated endpoint that you control
 
 Example:
 
@@ -105,7 +105,12 @@ TOKENPILOT_PORT=4318
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 ```
 
-`https://tokenpilot.example.com` is a documentation placeholder. Real public domains, reverse-proxy bindings, tunnel tokens, and GPT Builder operating notes belong in private ops records, not in this public repository.
+`https://tokenpilot.example.com` is a documentation placeholder. Use your own HTTPS URL at runtime, and keep real domains, reverse-proxy settings, tunnel tokens, and GPT Builder operating notes out of Git.
+
+For Custom GPT and public HTTPS setup, see:
+
+- [`gpt-builder-setup.md`](./gpt-builder-setup.md)
+- [`public-https-tunnel.md`](./public-https-tunnel.md)
 
 ## Check Status
 

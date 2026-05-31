@@ -98,6 +98,11 @@ The public OpenAPI contract is available in [`openapi/tokenpilot.openapi.yaml`](
 
 The HTTPS / Custom GPT Actions automation loop is still under validation. Direct GPT actions can drive short file and git operations, but longer or riskier work should be queued as `createCodexRun` jobs and consumed by the local runner.
 
+For Custom GPT creation, Actions schema import, authentication, and public HTTPS/tunnel setup, see:
+
+- [`docs/deployment/gpt-builder-setup.md`](./docs/deployment/gpt-builder-setup.md)
+- [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)
+
 ## Task Pack Template
 
 Give this shape to ChatGPT before handing work to Codex:
@@ -153,6 +158,9 @@ npm run test
 ## Public Documentation
 
 - Architecture: [`docs/architecture/local-first-control-plane.md`](./docs/architecture/local-first-control-plane.md)
+- Beginner quickstart: [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md)
+- GPT Builder setup: [`docs/deployment/gpt-builder-setup.md`](./docs/deployment/gpt-builder-setup.md)
+- Public HTTPS / tunnel setup: [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)
 - GPT Actions runner loop: [`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
 - Web UI and provider strategy: [`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
 - Web UI MVP plan: [`docs/architecture/web-ui-mvp-plan.md`](./docs/architecture/web-ui-mvp-plan.md)
@@ -177,6 +185,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [x] GPT Actions boundary probes for timeout, context size, and request behavior
 - [x] First-task template library under `templates/`
 - [x] Beginner examples under `examples/`
+- [x] GPT Builder and public HTTPS setup docs
 - [ ] Token Optimization Log examples
 - [ ] HTTPS / Custom GPT Actions full-loop validation
 - [ ] Provider adapter layer

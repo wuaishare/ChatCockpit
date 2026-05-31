@@ -32,6 +32,7 @@
     "gpt:instructions": "tsx scripts/generate-gpt-instructions.ts",
     "verify:e2e": "tsx scripts/verify-local-e2e.ts",
     "verify:smoke": "tsx scripts/verify-local-smoke.ts",
+    "verify:docs": "tsx scripts/verify-doc-links.ts",
     "verify:web:safety": "tsx scripts/verify-web-safety.ts",
     "verify:release": "./scripts/verify-release-dry-run.sh",
     "release:source": "./scripts/create-release-source-package.sh",
@@ -45,7 +46,7 @@
     "mvp:status": "./scripts/macos-manage-local-server.sh status",
     "mvp:reset": "./scripts/macos-manage-local-server.sh reset",
     "reset:local": "./scripts/macos-manage-local-server.sh reset",
-    "verify": "npm run typecheck && npm run verify:web && npm run doctor && npm run verify:smoke && npm run verify:e2e"
+    "verify": "npm run typecheck && npm run verify:docs && npm run verify:web && npm run doctor && npm run verify:smoke && npm run verify:e2e"
   },
   "dependencies": {
     "@fastify/static": "^9.1.3",

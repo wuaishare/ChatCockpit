@@ -23,7 +23,8 @@ const localArtifactPaths = [
   ".tokenpilot",
   ".servbay",
   ".codex",
-  "docs/superpowers"
+  "docs/superpowers",
+  "docs/.DS_Store"
 ];
 
 const fallbackExcludedDirectories = new Set([
@@ -47,6 +48,7 @@ const targets: ScanTarget[] = [
   { label: "README.md", path: "README.md", required: true },
   { label: "README.en.md", path: "README.en.md", required: true },
   { label: "docs", path: "docs", dir: true, required: true },
+  { label: "docs/zh-CN", path: "docs/zh-CN", dir: true, required: true },
   { label: "openapi", path: "openapi", dir: true, required: true },
   { label: "scripts", path: "scripts", dir: true, required: true },
   { label: "src", path: "src", dir: true, required: true },

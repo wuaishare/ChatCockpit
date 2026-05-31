@@ -65,7 +65,7 @@ npm run mvp:status
 npm run doctor
 ```
 
-完整新手路径见 [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md)。
+完整新手路径见 [`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)。
 
 macOS 上也可以直接启动本地 control plane 和 paired runner：
 
@@ -99,6 +99,11 @@ TOKENPILOT_PORT=4318
 当前 HTTPS / Custom GPT Actions 全自动闭环仍在验证中。GPT 直驱适合短文件和 Git 操作；更长、更复杂或风险更高的任务，应通过 `createCodexRun` 入队交给本地 runner。
 
 `runShell` 不是 raw shell，但仍是高信任本地命令执行 API。exposed mode 下必须启用 bearer auth，并按需显式开放高信任命令。
+
+创建 Custom GPT、导入 Actions schema、配置鉴权和绑定公网 HTTPS 地址的完整步骤见：
+
+- [`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
+- [`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
 
 ## Codex Task Pack 最小模板
 
@@ -154,14 +159,15 @@ npm run test
 
 ## 公开文档
 
-- 架构说明：[`docs/architecture/local-first-control-plane.md`](./docs/architecture/local-first-control-plane.md)
-- GPT Actions runner loop：[`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
-- Web UI 与 provider 策略：[`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
-- Web UI MVP 计划：[`docs/architecture/web-ui-mvp-plan.md`](./docs/architecture/web-ui-mvp-plan.md)
-- 本地运行参考：[`docs/deployment/local-runtime-ops.md`](./docs/deployment/local-runtime-ops.md)
-- Files Read API：[`docs/engineering/files-read-api.md`](./docs/engineering/files-read-api.md)
-- 公共 / 私有产物治理：[`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
-- RTK 工程说明：[`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
+- 新手快速开始：[`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)
+- GPT Builder 配置：[`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
+- 公网 HTTPS / 内网穿透：[`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
+- 本地运行参考：[`docs/zh-CN/deployment/local-runtime-ops.md`](./docs/zh-CN/deployment/local-runtime-ops.md)
+- 架构说明：[`docs/zh-CN/architecture/local-first-control-plane.md`](./docs/zh-CN/architecture/local-first-control-plane.md)
+- GPT Actions runner loop：[`docs/zh-CN/architecture/gpt-actions-runner-loop.md`](./docs/zh-CN/architecture/gpt-actions-runner-loop.md)
+- Files Read API：[`docs/zh-CN/engineering/files-read-api.md`](./docs/zh-CN/engineering/files-read-api.md)
+- 公共 / 私有产物治理：[`docs/zh-CN/governance/public-vs-private-artifacts.md`](./docs/zh-CN/governance/public-vs-private-artifacts.md)
+- RTK 工程说明：[`docs/zh-CN/engineering/rtk.md`](./docs/zh-CN/engineering/rtk.md)
 
 真实域名、反向代理、tunnel、Bearer token 和 GPT Builder 操作记录属于本地配置，不应提交到 Git。
 
@@ -177,6 +183,7 @@ npm run test
 - [x] GPT 直驱文件、搜索、shell、Git 操作
 - [x] 首任务模板库与新手案例
 - [x] First-run setup wizard
+- [x] 中文 GPT Builder / 公网 HTTPS 配置文档
 - [ ] Token Optimization Log 示例
 - [ ] HTTPS / Custom GPT Actions 全流程真实验证
 - [ ] Provider adapter layer

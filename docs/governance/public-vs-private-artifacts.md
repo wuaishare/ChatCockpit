@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keep the public `TokenPilot` repository focused on reusable product code and public documentation, while moving environment-specific operations material into a separate private governance layer.
+Keep the public `TokenPilot` repository focused on reusable product code and public documentation, while keeping environment-specific operations material in local configuration or private governance notes.
 
 ## Public Repository: Safe To Track
 
@@ -14,13 +14,13 @@ Keep the public `TokenPilot` repository focused on reusable product code and pub
 - engineering notes that are generic enough for contributors under `docs/engineering/`
 - public-facing proof pages or assets that have already been reviewed for privacy safety
 
-## Private Ops Repository: Recommended To Track Separately
+## Private Or Local Governance Notes
 
-- `tokenpilot-local-governance/codex/` for reusable local Codex hook rules and related notes
-- `tokenpilot-local-governance/servbay/` for real reverse-proxy or site-binding records
-- `tokenpilot-local-governance/gpt-actions/` for GPT Builder operating probes and public-loop verification notes
-- `tokenpilot-local-governance/superpowers/` for agent plans and specs worth retaining privately
-- `tokenpilot-local-governance/ops-notes/` for production-style doctor, repair, and recovery scripts
+- local Codex hook rules and related notes
+- real reverse-proxy or site-binding records
+- GPT Builder operating probes and public-loop verification notes
+- agent plans and specs worth retaining privately
+- production-style doctor, repair, and recovery scripts
 - real deployment domains
 - reverse-proxy and tunnel setup details
 - GPT Builder operational notes
@@ -42,7 +42,7 @@ Keep the public `TokenPilot` repository focused on reusable product code and pub
 - `.codex/`, `.servbay/`, `.tokenpilot/`, and `docs/superpowers/` are ignored in the public repo
 - public docs and OpenAPI templates may use placeholder deployment domains such as `tokenpilot.example.com`
 - real domains, tokens, and absolute paths should be injected from local/private configuration
-- reverse-proxy/tunnel scripts, public-loop probes, and GPT Builder operating checklists should live in the private ops repository
+- reverse-proxy/tunnel scripts, public-loop probes, and GPT Builder operating checklists should stay in local configuration or private notes
 - `.env`, `server.env`, and runtime logs are local-only by default
 - public HTTP responses such as `/`, `/api/health`, and `/openapi.yaml` should not echo real deployment domains or local paths; use relative URLs or placeholder domains on unauthenticated surfaces
 - `npm run verify:web:safety` scans the public repo for common privacy leaks including personal usernames, local home-directory paths, private deployment hosts, ServBay absolute paths, private IPs, and obvious token values
@@ -66,6 +66,6 @@ For local-only follow-up, add operator-specific regexes through `TOKENPILOT_HIST
 
 > Public repo: publish reusable knowledge.
 >
-> Private ops repo: track deployment truth.
+> Private notes: track deployment truth.
 >
 > Local only: keep live secrets out of Git entirely.

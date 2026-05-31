@@ -40,7 +40,12 @@ The first successful result is:
 
 Local-only mode keeps the API on `127.0.0.1` and is the default beginner path.
 
-Exposed HTTPS mode is only for a private authenticated operator endpoint. Set `TOKENPILOT_EXPOSED=true` only when `TOKENPILOT_API_TOKEN` is configured and your reverse proxy/tunnel details live in private ops records.
+Exposed HTTPS mode is only for an authenticated endpoint that you control. Set `TOKENPILOT_EXPOSED=true` only when `TOKENPILOT_API_TOKEN` is configured. Keep real domains, tunnel tokens, and machine-specific paths out of Git.
+
+For full setup, see:
+
+- [`gpt-builder-setup.md`](./gpt-builder-setup.md)
+- [`public-https-tunnel.md`](./public-https-tunnel.md)
 
 ## Useful Commands
 
@@ -64,5 +69,5 @@ npm run reset:local
 | Port already in use | Another process owns `4318` | Stop that process or set `TOKENPILOT_PORT` |
 | Codex jobs stay queued | Runner is not active | Run `npm run start:local` then `npm run doctor:runtime` |
 | UI asks for token | Auth-required mode is enabled | Enter `TOKENPILOT_API_TOKEN` in the browser session |
-| GPT schema import fails | Wrong public URL or no HTTPS path | Use GPT Helper and private ops notes |
+| GPT schema import fails | Wrong public URL or no HTTPS path | Use GPT Helper and [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |
