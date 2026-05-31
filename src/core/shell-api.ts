@@ -10,7 +10,7 @@ import type {
 
 // ── Security constants ──
 const MAX_OUTPUT_BYTES = 64 * 1024;
-const COMMAND_TIMEOUT_MS = 30_000;
+const COMMAND_TIMEOUT_MS = 25_000; // GPT Action 超时 ~30s，留 5s 余量
 
 // ── Command whitelist ──
 // Each command maps to allowed subcommands/patterns.

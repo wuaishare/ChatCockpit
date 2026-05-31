@@ -42,6 +42,7 @@
 > 用 runShell 执行 node 来模拟不同延迟。依次执行以下命令，每步完成后报告耗时：
 >
 > 1. `command: "node", args: ["-e", "const d=Date.now();while(Date.now()-d<3000);console.log('3s done')"]`
+>    (如参数被拦截，改用 `args: ["-e", "var d=Date.now();while(Date.now()-d<3000);console.log('3s done')"]`)
 > 2. `command: "node", args: ["-e", "const d=Date.now();while(Date.now()-d<10000);console.log('10s done')"]`
 > 3. `command: "node", args: ["-e", "const d=Date.now();while(Date.now()-d<20000);console.log('20s done')"]`
 > 4. `command: "node", args: ["-e", "const d=Date.now();while(Date.now()-d<30000);console.log('30s done')"]`

@@ -116,7 +116,7 @@ export function buildGptInstructions(
       "",
       "Command execution:",
       "- runShell runs whitelisted commands (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, and others).",
-      "- Output is capped at 64 KB, execution limited to 30 seconds.",
+      "- Output is capped at 64 KB, execution limited to 25 seconds.",
       "- This is not a raw shell — only non-interactive, pre-approved commands are allowed.",
       "- Use it for build verification, linting, type-checking, and running project tests.",
       "",

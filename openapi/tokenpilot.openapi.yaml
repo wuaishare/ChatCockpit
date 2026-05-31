@@ -1407,7 +1407,7 @@ paths:
     post:
       operationId: runShell
       summary: Run a whitelisted shell command
-      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 30 seconds. This is not a raw shell endpoint.
+      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 25 seconds. This is not a raw shell endpoint.
       security:
         - bearerAuth: []
       requestBody:
