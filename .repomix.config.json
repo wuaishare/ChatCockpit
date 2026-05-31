@@ -10,7 +10,6 @@
     "openapi/**",
     "README.md",
     "README.en.md",
-    "README.zh-CN.md",
     "package.json",
     "package-lock.json",
     "tsconfig.json",

@@ -18,7 +18,6 @@ export interface RepoBundleResult {
 const DEFAULT_INCLUDE_ENTRIES = [
   "README.md",
   "README.en.md",
-  "README.zh-CN.md",
   "web/**",
   "docs/**",
   "src/**",
