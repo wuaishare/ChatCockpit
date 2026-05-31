@@ -60,7 +60,7 @@ export function buildHealthStatusSnapshot(): TokenPilotHealthStatus {
   const publicBaseUrl = resolvePublicBaseUrl();
   return {
     ok: true,
-    mode: "phase1-local",
+    mode: "phase2-dual-mode",
     authRequired: /^(1|true|yes|on)$/i.test(process.env.TOKENPILOT_EXPOSED?.trim() || "") ||
       Boolean(process.env.TOKENPILOT_API_TOKEN?.trim()),
     exposed: /^(1|true|yes|on)$/i.test(process.env.TOKENPILOT_EXPOSED?.trim() || ""),
@@ -254,13 +254,13 @@ export function buildGptConfig(
     repoGovernance,
     instructions: buildGptInstructions(health, locale),
     notes: [
-      "当前版本已升级到支持大 artifact 分块完整读取的配置。若 GPT 仍把 repomixXml 当成单次预览读取，请立即去 GPT Builder 侧同步更新。",
-      "当前 OpenAPI 已包含完整 file writeFile/editFile/listDirectory/searchCode，白名单命令执行 runShell，Git 操作 getGitDiff/getGitStatus/gitCommit，以及 createCodexRun 异步任务。",
-      "简单修改可直接用 editFile/writeFile + runShell 完成；复杂任务使用 createCodexRun 异步执行和审查。",
+      "Phase 2 双模式：ChatGPT 直驱（writeFile/editFile/runShell 实时编辑） + Codex 异步（createCodexRun 复杂任务）。",
+      "直驱模式适合：改文案、修 typo、单文件小改、跑 lint/build 验证。超时边界约 25s，长任务请走 Codex。",
+      "Codex 异步适合：跨文件重构、深度探索、需要自动审查的场景。支持 worktree 隔离和 commit policy。",
+      "所有端点复用同一套 allowlist + repo mapping 安全模型，runShell 为白名单模式非 raw shell。",
       "默认支持 tokenpilot、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。",
-      "如果版本号、OpenAPI URL、Public Base URL 或动作主机变化，建议去 GPT Builder 侧同步更新。",
-      "当前控制面只能提供推荐配置真相，不能自动判断 GPT Builder 后台是否已经完成更新。",
-      "当前阶段仍是 local-first 验证版，不应夸大为完整生产闭环。"
+      "如版本号、OpenAPI URL 或域名变化，建议去 GPT Builder 侧重新导入 schema 并更新指令。",
+      "当前阶段为 local-first 双模式验证版，GPT Actions 超时 ~30s、上下文 ≥ 53KB 已验证。"
     ]
   };
 }

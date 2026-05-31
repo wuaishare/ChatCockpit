@@ -6,8 +6,8 @@
 
 ## **项目状态：v0.1.0-alpha local-first public preview**
 > TokenPilot 目前仍处在探索早期，但已经不再只是概念说明。<br>
-> 当前已具备 **local-first CLI / server / runner、本地 file-backed job queue、OpenAPI、Files Read API、Codex Run job、exposed-mode auth、本地 E2E 验证，以及第一版本地操作员 Web UI**。<br>
-> 当前 Web UI 用于查看运行状态、Jobs、GPT Helper，并提供受控任务暂停 / 继续 / 终止入口；写入类任务通过 job API 交给本地 runner 与 Codex CLI。<br>
+> 当前已具备 **local-first CLI / server / runner、本地 file-backed job queue、OpenAPI、Files Read/Write/Edit API、Code Search、Shell Run（白名单）、Git Diff/Status/Commit API、Codex Run job、exposed-mode auth、本地 E2E 验证，以及第一版本地操作员 Web UI**。<br>
+> 当前 Web UI 用于查看运行状态、Jobs、GPT Helper，并提供受控任务暂停 / 继续 / 终止入口。<br>**已支持双模式开发：** 简单修改 ChatGPT 直驱（writeFile / editFile / runShell），复杂任务通过 createCodexRun job 交给本地 runner 与 Codex CLI 异步执行。<br>
 > **Full HTTPS / Custom GPT Actions automation loop is still under validation.**<br>
 > 当前仓库可以描述为：**可验证、可继续演进的本地公开预览版本**，而不是完整 HTTPS 管理平台。<br>
 > **如果你对 ChatGPT + Codex 协同开发、Token 优化、任务边界设计这类话题感兴趣，欢迎参与讨论：[GitHub Discussions](https://github.com/wuaishare/TokenPilot/discussions)。**
@@ -169,7 +169,7 @@ ChatGPT：审查结果、识别风险、沉淀经验
 
 一句话：
 
-> ChatGPT 谋定，TokenPilot 编排，Codex 执行。
+> ChatGPT 谋定，TokenPilot 编排。轻舟直驱，重舰 Codex。
 
 ---
 
@@ -334,6 +334,8 @@ TokenPilot 适合：
 - [x] 落地 `createCodexRun` 写入类 job：通过本地 Codex CLI 执行、审查并输出 public-safe artifacts
 - [x] 加入默认多 repo 映射治理：`tokenpilot`、`sourceflow-refactor`、`ai-wuaishare-cn`
 - [x] 支持 codex-run 可选 worktree、任务进程控制、diff/review/summary artifacts、显式 commit policy
+- [x] 落地 ChatGPT 直驱开发模式：writeFile / editFile / listDirectory / searchCode / runShell / getGitDiff / getGitStatus / gitCommit
+- [x] GPT Actions 边界探测：超时 ~30s、上下文 ≥ 53KB、串行/并行无限流
 - [ ] 提供 `templates/` 模板库
 - [ ] 提供真实案例 `examples/`
 - [ ] 整理 Token Optimization Log
@@ -348,7 +350,16 @@ TokenPilot 适合：
 
 ## 当前已具备什么？
 
-当前仓库已经可以作为 **TokenPilot 的本地实验骨架** 使用：
+当前仓库已经可以作为 **TokenPilot 的本地实验骨架** 使用，支持双模式操作：
+
+**ChatGPT 直驱模式**（通过 Custom GPT Actions 直接调用）：
+- `writeFile` / `editFile` — 文件写入与精准编辑
+- `listDirectory` — 列目录
+- `searchCode` — 代码搜索
+- `runShell` — 白名单命令执行（npm / tsc / vitest / cargo...）
+- `getGitDiff` / `getGitStatus` / `gitCommit` — Git 操作
+
+**Codex 异步模式**（通过 Job API 调度）：
 
 ```bash
 npm install

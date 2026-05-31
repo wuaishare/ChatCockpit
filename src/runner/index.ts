@@ -74,7 +74,7 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
   process.stdout.write(
     [
       "[TokenPilot runner]",
-      `mode=phase1-local`,
+      `mode=phase2-dual-mode`,
       `job=${job.id}`,
       `type=${job.type}`,
       `startedAt=${startedAt}`
