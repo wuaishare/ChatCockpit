@@ -18,8 +18,34 @@ type Finding = {
 
 const repoRoot = process.cwd();
 
+const localArtifactPaths = [
+  ".playwright-mcp",
+  ".tokenpilot",
+  ".servbay",
+  ".codex",
+  "docs/superpowers"
+];
+
+const fallbackExcludedDirectories = new Set([
+  ".git",
+  ".playwright",
+  ".playwright-mcp",
+  ".tokenpilot",
+  ".servbay",
+  ".codex",
+  ".cache",
+  ".vite",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  "playwright-report",
+  "test-results"
+]);
+
 const targets: ScanTarget[] = [
   { label: "README.md", path: "README.md", required: true },
+  { label: "README.en.md", path: "README.en.md", required: true },
   { label: "README.zh-CN.md", path: "README.zh-CN.md", required: true },
   { label: "docs", path: "docs", dir: true, required: true },
   { label: "openapi", path: "openapi", dir: true, required: true },
@@ -88,6 +114,17 @@ const safetyPatterns: Array<{ label: string; test: (content: string) => boolean 
 
 const scanFiles = new Map<string, string>();
 
+function normalizeRelative(value: string): string {
+  return value.split(path.sep).join("/");
+}
+
+function isLocalArtifactPath(filePath: string): boolean {
+  const relativePath = normalizeRelative(path.relative(repoRoot, filePath));
+  return localArtifactPaths.some(
+    (artifactPath) => relativePath === artifactPath || relativePath.startsWith(`${artifactPath}/`)
+  );
+}
+
 function walkFiles(targetPath: string): string[] {
   const stat = fs.statSync(targetPath);
   if (stat.isFile()) {
@@ -97,6 +134,9 @@ function walkFiles(targetPath: string): string[] {
   const files: string[] = [];
   for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
     const entryPath = path.join(targetPath, entry.name);
+    if (entry.isDirectory() && isLocalArtifactPath(entryPath)) {
+      continue;
+    }
     if (entry.isDirectory()) {
       files.push(...walkFiles(entryPath));
     } else if (entry.isFile()) {
@@ -132,6 +172,34 @@ function listGitFiles(args: string[]): string[] {
   return result.stdout.split("\0").filter(Boolean);
 }
 
+function hasGitIndex(): boolean {
+  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  });
+  return result.status === 0 && result.stdout.trim() === "true";
+}
+
+function walkSourceArchiveFiles(targetPath: string): string[] {
+  const files: string[] = [];
+
+  for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
+    const entryPath = path.join(targetPath, entry.name);
+    if (entry.isDirectory()) {
+      if (fallbackExcludedDirectories.has(entry.name)) {
+        continue;
+      }
+      files.push(...walkSourceArchiveFiles(entryPath));
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
+}
+
 function scanContent(content: string): string {
   return content
     .split(/\r?\n/)
@@ -154,11 +222,19 @@ for (const target of targets) {
   }
 }
 
-for (const gitFile of [
-  ...listGitFiles(["ls-files", "-z"]),
-  ...listGitFiles(["ls-files", "--others", "--exclude-standard", "-z"])
-]) {
-  addScanFile(path.join(repoRoot, gitFile), "git-files");
+const gitIndexAvailable = hasGitIndex();
+
+if (gitIndexAvailable) {
+  for (const gitFile of [
+    ...listGitFiles(["ls-files", "-z"]),
+    ...listGitFiles(["ls-files", "--others", "--exclude-standard", "-z"])
+  ]) {
+    addScanFile(path.join(repoRoot, gitFile), "git-files");
+  }
+} else {
+  for (const filePath of walkSourceArchiveFiles(repoRoot)) {
+    addScanFile(filePath, "source-archive");
+  }
 }
 
 const findings: Finding[] = [];
@@ -170,7 +246,7 @@ for (const [filePath, label] of scanFiles) {
   ) {
     continue;
   }
-  if (/\.(png|webp|jpe?g|gif|ico|woff2?)$/i.test(filePath)) {
+  if (path.basename(filePath) === ".DS_Store" || /\.(png|webp|jpe?g|gif|ico|woff2?)$/i.test(filePath)) {
     continue;
   }
 
@@ -186,24 +262,25 @@ for (const [filePath, label] of scanFiles) {
   }
 }
 
-const trackedArtifactChecks = [
-  ".playwright-mcp",
-  ".tokenpilot",
-  ".servbay",
-  ".codex",
-  "docs/superpowers"
-];
+for (const artifactPath of localArtifactPaths) {
+  if (gitIndexAvailable) {
+    const result = spawnSync("git", ["ls-files", artifactPath], {
+      cwd: repoRoot,
+      encoding: "utf8"
+    });
+    assert.equal(result.status, 0, `git ls-files failed for ${artifactPath}`);
+    assert.equal(
+      result.stdout.trim(),
+      "",
+      `Tracked local artifact detected in git index: ${artifactPath}`
+    );
+    continue;
+  }
 
-for (const artifactPath of trackedArtifactChecks) {
-  const result = spawnSync("git", ["ls-files", artifactPath], {
-    cwd: repoRoot,
-    encoding: "utf8"
-  });
-  assert.equal(result.status, 0, `git ls-files failed for ${artifactPath}`);
   assert.equal(
-    result.stdout.trim(),
-    "",
-    `Tracked local artifact detected in git index: ${artifactPath}`
+    fs.existsSync(path.join(repoRoot, artifactPath)),
+    false,
+    `Local artifact path present in source archive: ${artifactPath}`
   );
 }
 

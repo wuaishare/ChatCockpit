@@ -1,6 +1,6 @@
 # TokenPilot
 
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+[简体中文](./README.md) | [English](./README.en.md)
 
 ![TokenPilot 项目海报](./docs/assets/tokenpilot-hero-zh-CN.webp)
 

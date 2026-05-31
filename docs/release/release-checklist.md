@@ -51,7 +51,9 @@ The prerelease package must not include:
 
 ## Fresh Install Dry Run
 
-`npm run verify:release` creates a temporary archive from Git-tracked files, extracts it to a fresh directory, runs `npm ci`, runs `npm run build`, and runs `npm run verify:web:safety`.
+`npm run verify:release` creates a temporary archive from Git-tracked files, extracts it to a fresh directory without adding Git metadata, runs `npm ci`, runs `npm run build`, and runs `npm run verify:web:safety`.
+
+This intentionally mirrors GitHub's automatic source archives: the extracted package may not contain a `.git` directory, and the safety scan must still pass.
 
 It intentionally does not run the full local E2E suite inside the extracted copy because that suite exercises local runtime/job state. The authoritative full-repo gate remains `npm run verify` in the checkout.
 
@@ -70,4 +72,4 @@ After publishing the prerelease, verify:
 
 - GitHub release page renders the bilingual README hero images.
 - Downloaded source archive does not contain ignored local runtime paths.
-- `npm ci && npm run build && npm run verify:web:safety` succeeds from a fresh extracted copy.
+- `npm ci && npm run build && npm run verify:web:safety` succeeds from a fresh extracted GitHub source archive with no `.git` directory.
