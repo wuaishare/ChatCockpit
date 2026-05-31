@@ -13,7 +13,6 @@ export interface UiCopy {
   pageTitle: string;
   header: {
     title: string;
-    subtitle: string;
     refresh: string;
     refreshTooltip: string;
     dashboard: string;
@@ -179,6 +178,9 @@ export interface UiCopy {
     snapshotTitle: string;
     snapshotDescription: string;
     versionLabel: string;
+    productVersionLabel: string;
+    schemaVersionLabel: string;
+    buildVersionLabel: string;
     updatedAtLabel: string;
     modeLabel: string;
     authRequiredLabel: string;
@@ -208,7 +210,6 @@ const zhCN: UiCopy = {
   pageTitle: "TokenPilot 控制台",
   header: {
     title: "TokenPilot 控制台",
-    subtitle: "本地优先的工作流操作员控制台。",
     refresh: "刷新",
     refreshTooltip: "刷新健康状态与任务数据",
     dashboard: "总览",
@@ -380,7 +381,10 @@ const zhCN: UiCopy = {
       "这里只用于 OpenAPI 接入辅助与操作说明，完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
     snapshotTitle: "GPT 接入概览",
     snapshotDescription: "当前机器侧接口面。",
-    versionLabel: "配置版本",
+    versionLabel: "显示版本",
+    productVersionLabel: "产品版本",
+    schemaVersionLabel: "指令与 Schema 修订",
+    buildVersionLabel: "构建时间版本",
     updatedAtLabel: "更新时间",
     modeLabel: "模式",
     authRequiredLabel: "需要鉴权",
@@ -389,7 +393,7 @@ const zhCN: UiCopy = {
     actionHostLabel: "动作主机",
     schemaImportUrlLabel: "Schema 导入 URL",
     copyTitle: "推荐指令",
-    copyDescription: "复制到 GPT 主说明框前，先确认版本、导入地址与更新提醒。",
+    copyDescription: "复制到 GPT 主说明框前，先确认产品版本、Schema 修订、导入地址与更新提醒。",
     copyInstructionsAction: "复制指令",
     copyOpenapiAction: "复制 OpenAPI URL",
     copySchemaAction: "复制导入 URL",
@@ -418,7 +422,6 @@ const enUS: UiCopy = {
   pageTitle: "TokenPilot Operator Console",
   header: {
     title: "TokenPilot Operator Console",
-    subtitle: "Local-first workflow operator console.",
     refresh: "Refresh",
     refreshTooltip: "Refresh health and job data",
     dashboard: "Dashboard",
@@ -592,7 +595,10 @@ const enUS: UiCopy = {
       "This helper is only for OpenAPI wiring and operator guidance. Full HTTPS / Custom GPT Actions automation is still under validation.",
     snapshotTitle: "GPT Integration Snapshot",
     snapshotDescription: "Current machine-facing surface.",
-    versionLabel: "Config Version",
+    versionLabel: "Display Version",
+    productVersionLabel: "Product Version",
+    schemaVersionLabel: "Instructions / Schema Revision",
+    buildVersionLabel: "Build Version",
     updatedAtLabel: "Updated At",
     modeLabel: "Mode",
     authRequiredLabel: "Auth Required",
@@ -601,7 +607,7 @@ const enUS: UiCopy = {
     actionHostLabel: "Action Host",
     schemaImportUrlLabel: "Schema Import URL",
     copyTitle: "Recommended Instructions",
-    copyDescription: "Confirm the version, import URL, and update notes before pasting this into the GPT instructions field.",
+    copyDescription: "Confirm the product version, schema revision, import URL, and update notes before pasting this into the GPT instructions field.",
     copyInstructionsAction: "Copy Instructions",
     copyOpenapiAction: "Copy OpenAPI URL",
     copySchemaAction: "Copy Import URL",

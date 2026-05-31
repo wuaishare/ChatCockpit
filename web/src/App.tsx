@@ -394,6 +394,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const counts = countJobs(jobs);
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? null;
   const jobsProtected = health.authRequired && !token?.trim();
+  const headerProductVersion = gptConfig?.productVersion ?? __TOKENPILOT_VERSION__.productVersion;
+  const headerSchemaVersion = gptConfig?.schemaVersion ?? __TOKENPILOT_VERSION__.schemaVersion;
+  const headerBuildVersion = gptConfig?.buildVersion ?? __TOKENPILOT_VERSION__.buildVersion;
+  const headerVersionText = headerSchemaVersion
+    ? `${headerProductVersion} (${headerSchemaVersion})`
+    : headerProductVersion;
 
   if (healthLoading) {
     return (
@@ -435,7 +441,21 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                     {copy.header.title}
                   </Text>
                   <Text as="div" type="secondary" className="app-header__subtitle">
-                    {copy.header.subtitle}
+                    {headerSchemaVersion ? (
+                      <>
+                        <span>{headerProductVersion}</span>{" "}
+                        <Tooltip title={headerBuildVersion ?? headerVersionText}>
+                          <span
+                            className="version-revision"
+                            title={headerBuildVersion ?? headerVersionText}
+                          >
+                            ({headerSchemaVersion})
+                          </span>
+                        </Tooltip>
+                      </>
+                    ) : (
+                      headerVersionText
+                    )}
                   </Text>
                 </div>
               </div>

@@ -223,6 +223,14 @@ button,
   line-height: 1.2;
 }
 
+.version-revision {
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--tp-text-soft) 55%, transparent);
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
 .app-toolbar {
   display: flex;
   align-items: center;

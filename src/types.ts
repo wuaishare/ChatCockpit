@@ -199,6 +199,9 @@ export interface TokenPilotHealthStatus {
 
 export interface TokenPilotGptConfigRecord {
   version: string;
+  productVersion: string;
+  schemaVersion: string;
+  buildVersion: string;
   updatedAt: string;
   actionHost: string;
   openapiUrl: string;

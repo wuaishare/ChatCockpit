@@ -1,4 +1,4 @@
-import { CopyButton, Text } from "@lobehub/ui";
+import { CopyButton, Text, Tooltip } from "@lobehub/ui";
 import { useMemo } from "react";
 import { ClipboardCopy } from "lucide-react";
 import type { GptConfigModel, HealthModel } from "../types";
@@ -21,8 +21,25 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   const importUrl = config?.schemaImportUrl ?? health.openapiUrl;
   const openapiUrl = config?.openapiUrl ?? health.openapiUrl;
   const showSeparateSchemaUrl = importUrl !== openapiUrl;
+  const productVersion = config?.productVersion ?? __TOKENPILOT_VERSION__.productVersion;
+  const schemaVersion = config?.schemaVersion ?? __TOKENPILOT_VERSION__.schemaVersion;
+  const buildVersion = config?.buildVersion ?? __TOKENPILOT_VERSION__.buildVersion;
+  const displayVersion = config?.version ?? __TOKENPILOT_VERSION__.version;
+  const displayVersionValue = (
+    <>
+      <span>{productVersion}</span>{" "}
+      <Tooltip title={buildVersion}>
+        <span className="version-revision" title={buildVersion}>
+          ({schemaVersion})
+        </span>
+      </Tooltip>
+    </>
+  );
   const facts = [
-    { label: copy.gpt.versionLabel, value: config?.version ?? copy.common.notAvailable },
+    { label: copy.gpt.versionLabel, value: displayVersionValue },
+    { label: copy.gpt.productVersionLabel, value: productVersion },
+    { label: copy.gpt.schemaVersionLabel, value: schemaVersion },
+    { label: copy.gpt.buildVersionLabel, value: buildVersion },
     {
       label: copy.gpt.updatedAtLabel,
       value: config?.updatedAt ? formatDateTime(config.updatedAt) : copy.common.notAvailable
@@ -38,7 +55,10 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   const checklistItems = copy.gpt.checklist.slice(1);
   const notes = config?.notes ?? [copy.gpt.fallbackNote];
   const summaryText = [
-    `${copy.gpt.versionLabel}: ${config?.version ?? copy.common.notAvailable}`,
+    `${copy.gpt.versionLabel}: ${displayVersion}`,
+    `${copy.gpt.productVersionLabel}: ${productVersion}`,
+    `${copy.gpt.schemaVersionLabel}: ${schemaVersion}`,
+    `${copy.gpt.buildVersionLabel}: ${buildVersion}`,
     `${copy.gpt.updatedAtLabel}: ${config?.updatedAt ?? copy.common.notAvailable}`,
     `${copy.gpt.publicBaseUrlLabel}: ${config?.publicBaseUrl ?? health.publicBaseUrl ?? copy.common.notAvailable}`,
     `${copy.gpt.actionHostLabel}: ${config?.actionHost ?? copy.common.notAvailable}`,

@@ -140,6 +140,9 @@ export interface RepoGovernanceModel {
 
 export interface GptConfigModel {
   version: string;
+  productVersion: string;
+  schemaVersion: string;
+  buildVersion: string;
   updatedAt: string;
   actionHost: string;
   openapiUrl: string;

@@ -39,6 +39,16 @@ components:
       properties:
         version:
           type: string
+          description: Product-facing display version, for example v0.1.0-alpha (53).
+        productVersion:
+          type: string
+          description: Product release version from package metadata, for example v0.1.0-alpha.
+        schemaVersion:
+          type: string
+          description: GPT instructions and OpenAPI schema revision shown in parentheses.
+        buildVersion:
+          type: string
+          description: Git commit time version used as tooltip/debug detail, for example 26.0531.213301.
         updatedAt:
           type: string
         actionHost:
@@ -59,7 +69,7 @@ components:
           type: array
           items:
             type: string
-      required: [version, updatedAt, actionHost, openapiUrl, publicBaseUrl, schemaImportUrl, repoGovernance, instructions, notes]
+      required: [version, productVersion, schemaVersion, buildVersion, updatedAt, actionHost, openapiUrl, publicBaseUrl, schemaImportUrl, repoGovernance, instructions, notes]
     RepoGovernance:
       type: object
       additionalProperties: false

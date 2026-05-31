@@ -311,11 +311,20 @@ async function runE2E(): Promise<void> {
     const gptConfigBody = await gptConfig.json();
     assert.equal(gptConfigBody.ok, true);
     assert.equal(typeof gptConfigBody.config.version, "string");
+    assert.equal(typeof gptConfigBody.config.productVersion, "string");
+    assert.equal(typeof gptConfigBody.config.schemaVersion, "string");
+    assert.equal(typeof gptConfigBody.config.buildVersion, "string");
     assert.equal(typeof gptConfigBody.config.updatedAt, "string");
     assert.equal(typeof gptConfigBody.config.instructions, "string");
     assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
     assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
-    assert.match(gptConfigBody.config.version, /^\d{2}\.\d{4}\.\d{6} \(\d+\)$/);
+    assert.equal(gptConfigBody.config.productVersion, "v0.1.0-alpha");
+    assert.match(gptConfigBody.config.schemaVersion, /^\d+$/);
+    assert.match(gptConfigBody.config.buildVersion, /^\d{2}\.\d{4}\.\d{6}$/);
+    assert.equal(
+      gptConfigBody.config.version,
+      `${gptConfigBody.config.productVersion} (${gptConfigBody.config.schemaVersion})`
+    );
     assert.ok(Array.isArray(gptConfigBody.config.repoGovernance?.repos));
     assert.ok(
       gptConfigBody.config.repoGovernance.repos.some(

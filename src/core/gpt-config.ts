@@ -1,10 +1,16 @@
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { TokenPilotHealthStatus, TokenPilotRepoGovernanceRecord } from "../types.js";
 import { buildRepoGovernance } from "./config.js";
 
 export interface TokenPilotGptConfig {
   version: string;
+  productVersion: string;
+  schemaVersion: string;
+  buildVersion: string;
   updatedAt: string;
   actionHost: string;
   openapiUrl: string;
@@ -15,25 +21,48 @@ export interface TokenPilotGptConfig {
   notes: string[];
 }
 
-function buildGptConfigVersion(): string {
-  // Use last git commit date, NOT current time — version stays stable between commits.
-  const lastCommit = spawnSync(
-    "git",
-    ["log", "-1", "--format=%cd", "--date=format:%y.%m%d.%H%M%S"],
-    { cwd: process.cwd(), encoding: "utf8" }
-  );
-  let dateVersion = "00.0000.000000";
-  if (lastCommit.status === 0 && lastCommit.stdout.trim()) {
-    dateVersion = lastCommit.stdout.trim();
-  }
+interface GptVersionParts {
+  version: string;
+  productVersion: string;
+  schemaVersion: string;
+  buildVersion: string;
+}
 
-  const gitCount = spawnSync("git", ["rev-list", "--count", "HEAD"], {
-    cwd: process.cwd(),
+const require = createRequire(import.meta.url);
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+function resolveProductVersion(): string {
+  try {
+    const packageJson = require("../../package.json") as { version?: string };
+    const rawVersion = packageJson.version?.trim() || "0.0.0";
+    return rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`;
+  } catch {
+    return "v0.0.0";
+  }
+}
+
+function readGitValue(args: string[], fallback: string): string {
+  const result = spawnSync("git", args, {
+    cwd: packageRoot,
     encoding: "utf8"
   });
-  const buildNumber = gitCount.status === 0 ? gitCount.stdout.trim() : "0";
+  return result.status === 0 && result.stdout.trim() ? result.stdout.trim() : fallback;
+}
 
-  return `${dateVersion} (${buildNumber})`;
+function buildGptVersionParts(): GptVersionParts {
+  const productVersion = resolveProductVersion();
+  const buildVersion = readGitValue(
+    ["log", "-1", "--format=%cd", "--date=format:%y.%m%d.%H%M%S"],
+    "00.0000.000000"
+  );
+  const schemaVersion = readGitValue(["rev-list", "--count", "HEAD"], "0");
+
+  return {
+    version: `${productVersion} (${schemaVersion})`,
+    productVersion,
+    schemaVersion,
+    buildVersion
+  };
 }
 
 function resolveLocalTimeZone(): string {
@@ -77,7 +106,7 @@ export function buildGptInstructions(
 ): string {
   const localTimeZone = resolveLocalTimeZone();
   const actionHost = resolveActionHost(health.publicBaseUrl);
-  const version = buildGptConfigVersion();
+  const versionParts = buildGptVersionParts();
 
   if (locale === "en-US") {
     return [
@@ -86,7 +115,9 @@ export function buildGptInstructions(
       "Do not claim a completed HTTPS / Custom GPT Actions production loop unless the operator explicitly confirms it.",
       "Never request or expose local absolute paths, secrets, env files, or runtime-private configuration.",
       "",
-      `Configuration context version: ${version}`,
+      `Product version: ${versionParts.productVersion}`,
+      `GPT instructions / schema revision: ${versionParts.schemaVersion}`,
+      `Build version: ${versionParts.buildVersion}`,
       `Local timezone: ${localTimeZone}`,
       `Mode: ${health.mode}`,
       `Auth required: ${health.authRequired ? "yes" : "no"}`,
@@ -146,7 +177,9 @@ export function buildGptInstructions(
     "5. 基于 job 结果或直接操作结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",
     "",
     "当前配置上下文：",
-    `- 配置版本：${version}`,
+    `- 产品版本：${versionParts.productVersion}`,
+    `- 指令与 Schema 修订：${versionParts.schemaVersion}`,
+    `- 构建时间版本：${versionParts.buildVersion}`,
     `- 本机时区：${localTimeZone}`,
     `- 当前模式：${health.mode}`,
     `- 需要鉴权：${health.authRequired ? "是" : "否"}`,
@@ -231,21 +264,24 @@ export function buildGptConfig(
   locale: "zh-CN" | "en-US" = "zh-CN",
   repoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim() || process.cwd()
 ): TokenPilotGptConfig {
-  // Use last git commit date — stable between commits, same as version.
+  // Use last git commit date so config metadata stays stable between commits.
   const lastCommitDate = spawnSync(
     "git",
     ["log", "-1", "--format=%cI"],
-    { cwd: process.cwd(), encoding: "utf8" }
+    { cwd: packageRoot, encoding: "utf8" }
   );
   const updatedAt = (lastCommitDate.status === 0 && lastCommitDate.stdout.trim())
     ? lastCommitDate.stdout.trim()
     : new Date().toISOString();
   const health = buildHealthStatusSnapshot();
   const actionHost = resolveActionHost(health.publicBaseUrl);
-  const version = buildGptConfigVersion();
+  const versionParts = buildGptVersionParts();
   const repoGovernance = buildRepoGovernance(repoRoot);
   return {
-    version,
+    version: versionParts.version,
+    productVersion: versionParts.productVersion,
+    schemaVersion: versionParts.schemaVersion,
+    buildVersion: versionParts.buildVersion,
     updatedAt,
     actionHost,
     openapiUrl: health.openapiUrl,
@@ -259,7 +295,7 @@ export function buildGptConfig(
       "Codex 异步适合：跨文件重构、深度探索、需要自动审查的场景。支持 worktree 隔离和 commit policy。",
       "所有端点复用同一套 allowlist + repo mapping 安全模型，runShell 为高信任本地命令 API，Git/Codex diff artifact 只输出 public-safe 路径。",
       "默认支持 tokenpilot、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。",
-      "如版本号、OpenAPI URL 或域名变化，建议去 GPT Builder 侧重新导入 schema 并更新指令。",
+      "如产品版本、指令与 Schema 修订、OpenAPI URL 或域名变化，建议去 GPT Builder 侧重新导入 schema 并更新指令。",
       "当前阶段为 local-first 双模式验证版，GPT Actions 超时 ~30s、上下文 ≥ 53KB 已验证。"
     ]
   };
