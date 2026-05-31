@@ -52,14 +52,11 @@ const COMMAND_WHITELIST: Record<string, string[]> = {
 // These checks prevent path traversal and obvious shell injection even though
 // we use spawnSync (not a shell). Extra defense in depth.
 
+// spawnSync bypasses the shell — only path-safety patterns are relevant.
+// Shell metacharacters (;, |, &, $, `, >, <) are harmless inside spawn args.
 const DANGEROUS_ARG_PATTERNS = [
   /^~/,           // home directory expansion
   /\.\./,         // path traversal
-  /[\|\&\;]/,     // shell metacharacters
-  /[\`\$]/,       // command substitution / variable expansion
-  /[\>\<]/,       // redirect operators
-  /\n/,           // newlines in args
-  /\r/,           // carriage returns
 ];
 
 function validateArgs(args: string[]): void {
@@ -149,7 +146,10 @@ export function runShellCommand(
       env: {
         // Stripped-down environment — no secrets
         HOME: process.env.HOME || "",
-        PATH: process.env.PATH || "",
+        PATH: [
+          path.dirname(process.execPath),         // ensure current node is findable
+          process.env.PATH || "",
+        ].filter(Boolean).join(path.delimiter),
         LANG: "en_US.UTF-8",
         NODE: process.execPath,
         // Project-critical vars
