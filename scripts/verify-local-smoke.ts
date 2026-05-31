@@ -6,13 +6,17 @@ import { spawn, spawnSync } from "node:child_process";
 
 import { runPack } from "../src/core/pack.ts";
 import { runCodexRunJob } from "../src/core/codex-run.ts";
+import { createJob, getJob } from "../src/core/jobs.ts";
+import { getGitDiff, gitCommit } from "../src/core/git-api.ts";
 import {
+  markJobProcessFinished,
   controlJobProcess,
   getTrackedJobProcess,
   trackJobProcess
 } from "../src/core/job-processes.ts";
 import { createTaskPack } from "../src/core/taskpack.ts";
 import { loadUserConfig } from "../src/core/config.ts";
+import { runRunner } from "../src/runner/index.ts";
 import { buildServer } from "../src/server/app.ts";
 import {
   isAuthRequired,
@@ -302,6 +306,39 @@ async function verifyJobProcessProjection(): Promise<void> {
   }
 }
 
+async function verifyRunnerReconcilesTerminalRunningJobs(): Promise<void> {
+  const paths = buildTempPaths();
+  const job = createJob(paths, "codex-run", {
+    repoId: "tokenpilot",
+    title: "Stale running fixture",
+    instructions: "fixture"
+  });
+  fs.renameSync(
+    path.join(paths.queuedJobsDir, `${job.id}.json`),
+    path.join(paths.runningJobsDir, `${job.id}.json`)
+  );
+  fs.writeFileSync(
+    path.join(paths.runningJobsDir, `${job.id}.json`),
+    JSON.stringify({ ...job, status: "running" }, null, 2) + "\n",
+    "utf8"
+  );
+
+  trackJobProcess(paths, {
+    jobId: job.id,
+    pid: 999999,
+    label: "stale process fixture"
+  });
+  markJobProcessFinished(paths, job.id, "failed");
+
+  await runRunner(paths, { watch: false });
+
+  const reconciled = getJob(paths, job.id)?.job;
+  assert.equal(reconciled?.status, "failed");
+  assert.match(reconciled?.error ?? "", /Tracked process is failed/);
+  assert.equal(fs.existsSync(path.join(paths.runningJobsDir, `${job.id}.json`)), false);
+  assert.equal(fs.existsSync(path.join(paths.failedJobsDir, `${job.id}.json`)), true);
+}
+
 function verifyDefaultRepoDiscovery(): void {
   const paths = buildPaths(process.cwd());
   const config = loadUserConfig(paths.repoRoot);
@@ -408,6 +445,80 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
       delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
     } else {
       process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
+    }
+  }
+}
+
+async function verifyPublicSafeGitBoundaries(): Promise<void> {
+  const paths = buildTempPaths();
+  initGitRepo(paths.repoRoot);
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+
+  try {
+    const secretPath = path.join(paths.repoRoot, ".env.example");
+    fs.writeFileSync(secretPath, "TOKENPILOT_PUBLIC_PLACEHOLDER=old\n", "utf8");
+    spawnSync("git", ["add", ".env.example"], { cwd: paths.repoRoot, encoding: "utf8" });
+    spawnSync("git", ["commit", "-m", "track env example"], {
+      cwd: paths.repoRoot,
+      encoding: "utf8"
+    });
+
+    fs.writeFileSync(secretPath, "TOKENPILOT_PUBLIC_PLACEHOLDER=SECRET_SHOULD_NOT_LEAK\n", "utf8");
+    fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Public-safe change\n", "utf8");
+    fs.mkdirSync(path.join(paths.repoRoot, ".github", "workflows"), { recursive: true });
+    fs.writeFileSync(path.join(paths.repoRoot, ".github", "workflows", "ci.yml"), "name: CI\n", "utf8");
+    fs.writeFileSync(path.join(paths.repoRoot, ".github", "private.pem"), "SECRET_PRIVATE_KEY\n", "utf8");
+    fs.writeFileSync(path.join(paths.repoRoot, "hero.webp"), "WEBP_BINARY_FIXTURE\n", "utf8");
+    fs.writeFileSync(path.join(paths.repoRoot, ".npmrc"), "//registry.example.com/:_authToken=SECRET_NPM_TOKEN\n", "utf8");
+
+    const diff = getGitDiff(paths, "tokenpilot");
+    assert.match(diff.diff, /Public-safe change/);
+    assert.match(diff.diff, /name: CI/);
+    assert.doesNotMatch(
+      diff.diff,
+      /SECRET_SHOULD_NOT_LEAK|\.env\.example|WEBP_BINARY_FIXTURE|hero\.webp|SECRET_NPM_TOKEN|\.npmrc|SECRET_PRIVATE_KEY|private\.pem/
+    );
+
+    const commit = gitCommit(paths, "tokenpilot", "commit public-safe change");
+    assert.equal(commit.ok, true);
+    assert.equal(commit.committed, true);
+
+    const show = spawnSync("git", ["show", "--name-only", "--format="], {
+      cwd: paths.repoRoot,
+      encoding: "utf8"
+    });
+    assert.match(show.stdout, /README\.md/);
+    assert.match(show.stdout, /\.github\/workflows\/ci\.yml/);
+    assert.match(show.stdout, /hero\.webp/);
+    assert.doesNotMatch(show.stdout, /\.env\.example/);
+    assert.doesNotMatch(show.stdout, /private\.pem/);
+
+    const status = spawnSync("git", ["status", "--porcelain"], {
+      cwd: paths.repoRoot,
+      encoding: "utf8"
+    });
+    assert.match(status.stdout, /\.env\.example/);
+    assert.match(status.stdout, /\.npmrc/);
+
+    fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Unsafe staged guard\n", "utf8");
+    spawnSync("git", ["add", ".env.example"], { cwd: paths.repoRoot, encoding: "utf8" });
+
+    const guardedCommit = gitCommit(paths, "tokenpilot", "should not commit unsafe staged path");
+    assert.equal(guardedCommit.ok, false);
+    assert.match(guardedCommit.error ?? "", /public-unsafe paths are staged/);
+
+    const cached = spawnSync("git", ["diff", "--cached", "--name-only"], {
+      cwd: paths.repoRoot,
+      encoding: "utf8"
+    });
+    assert.match(cached.stdout, /\.env\.example/);
+    assert.doesNotMatch(cached.stdout, /README\.md/);
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
@@ -528,8 +639,10 @@ verifyAuthConfig();
 verifyDefaultRepoDiscovery();
 await verifyUiServing();
 await verifyJobProcessProjection();
+await verifyRunnerReconcilesTerminalRunningJobs();
 await verifyCodexRunMock();
 await verifyCodexRunMissingCliFailure();
+await verifyPublicSafeGitBoundaries();
 await verifyCodexRunCustomBinaryOverride();
 
 process.stdout.write("VERIFY_LOCAL_SMOKE_OK\n");

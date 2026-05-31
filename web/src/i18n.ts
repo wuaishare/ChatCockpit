@@ -85,6 +85,8 @@ export interface UiCopy {
     distributionEmptyHint: string;
     emptyStateTitle: string;
     emptyStateDescription: string;
+    protectedStateTitle: string;
+    protectedStateDescription: string;
     queued: string;
     running: string;
     failed: string;
@@ -283,6 +285,8 @@ const zhCN: UiCopy = {
     distributionEmptyHint: "当前没有排队、运行或失败任务。",
     emptyStateTitle: "当前本地队列为空",
     emptyStateDescription: "可以先复制 GPT 接入指引，或在接入后刷新当前状态。",
+    protectedStateTitle: "任务数据受保护",
+    protectedStateDescription: "当前接口需要浏览器会话令牌；输入 TOKENPILOT_API_TOKEN 后再读取真实队列状态。",
     queued: "排队",
     running: "运行中",
     failed: "失败",
@@ -492,6 +496,8 @@ const enUS: UiCopy = {
     distributionEmptyHint: "There are no queued, running, or failed jobs right now.",
     emptyStateTitle: "The local queue is currently empty",
     emptyStateDescription: "Open GPT Helper for the integration instructions, or refresh again after connecting a workflow.",
+    protectedStateTitle: "Job data is protected",
+    protectedStateDescription: "Enter TOKENPILOT_API_TOKEN in the browser session before reading the real queue state.",
     queued: "Queued",
     running: "Running",
     failed: "Failed",

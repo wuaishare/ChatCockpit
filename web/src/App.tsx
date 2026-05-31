@@ -393,6 +393,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
   const counts = countJobs(jobs);
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? null;
+  const jobsProtected = health.authRequired && !token?.trim();
 
   if (healthLoading) {
     return (
@@ -514,6 +515,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
             repoGovernance={gptConfig?.repoGovernance}
             counts={counts}
             recentJobs={jobs.slice(0, 5)}
+            jobsProtected={jobsProtected}
             onSelectJob={(jobId) => {
               navigateView("jobs", jobId);
               void loadJobDetail(jobId, token);

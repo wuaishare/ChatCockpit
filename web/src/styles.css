@@ -750,6 +750,10 @@ button,
   gap: 6px;
 }
 
+.metric-inline--muted .metric-inline__item strong {
+  color: var(--tp-text-soft);
+}
+
 .metric-inline__item {
   display: grid;
   gap: 4px;
@@ -783,6 +787,10 @@ button,
   gap: 16px;
   padding-top: 8px;
   border-top: 1px solid var(--tp-line);
+}
+
+.empty-console--protected {
+  align-items: flex-start;
 }
 
 .empty-console__copy {

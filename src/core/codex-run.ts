@@ -5,6 +5,12 @@ import crypto from "node:crypto";
 
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
 import { timestampSlug, writeJson, writeText } from "./files.js";
+import {
+  hasStagedPublicUnsafeChanges,
+  publicSafeChangedPaths,
+  readPublicSafeGitDiff,
+  stagedPublicSafePathCount
+} from "./git-public-safety.js";
 import { runCommand } from "./shell.js";
 import { markJobProcessFinished, trackJobProcess } from "./job-processes.js";
 import type {
@@ -15,13 +21,6 @@ import type {
 } from "../types.js";
 
 const MAX_CAPTURE_BYTES = 1024 * 1024;
-const BLOCKED_DIFF_FILENAMES = new Set([".env", "server.env"]);
-const BLOCKED_DIFF_SEGMENTS = new Set([
-  ".codex",
-  ".servbay",
-  ".tokenpilot",
-  "node_modules"
-]);
 
 type WorktreeDecision = "created" | "not-created";
 
@@ -106,27 +105,6 @@ function ensureGitRepo(repoRoot: string): void {
   if (result.exitCode !== 0) {
     throw new Error("Target repo must be a git repository for codex-run jobs");
   }
-}
-
-function isPublicSafeDiffPath(filePath: string): boolean {
-  const normalized = path.posix.normalize(filePath).replace(/^\.\/+/, "");
-  if (
-    !normalized ||
-    normalized === ".." ||
-    normalized.startsWith("../") ||
-    normalized.includes("\\")
-  ) {
-    return false;
-  }
-
-  const parts = normalized.split("/");
-  const basename = parts[parts.length - 1] || "";
-  return !(
-    parts.some((part) => BLOCKED_DIFF_SEGMENTS.has(part)) ||
-    basename.startsWith(".env") ||
-    BLOCKED_DIFF_FILENAMES.has(basename) ||
-    basename.endsWith(".log")
-  );
 }
 
 function prepareExecutionTarget(
@@ -346,40 +324,6 @@ function readGitStatus(cwd: string): string {
   return result.stdout.trim();
 }
 
-function readGitDiff(cwd: string): string {
-  const result = runCommand("git", ["diff", "--binary"], cwd);
-  const untracked = runCommand("git", ["ls-files", "--others", "--exclude-standard"], cwd)
-    .stdout.trim()
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .filter(isPublicSafeDiffPath);
-  if (!untracked.length) {
-    return result.stdout;
-  }
-
-  const untrackedSections = untracked.map((filePath) => {
-    const absolutePath = path.join(cwd, filePath);
-    const content = fs.statSync(absolutePath).isFile()
-      ? fs.readFileSync(absolutePath, "utf8")
-      : "";
-    const lines = content.split(/\r?\n/);
-    if (lines.at(-1) === "") {
-      lines.pop();
-    }
-    return [
-      `diff --git a/${filePath} b/${filePath}`,
-      "new file mode 100644",
-      "index 0000000..0000000",
-      "--- /dev/null",
-      `+++ b/${filePath}`,
-      `@@ -0,0 +1,${Math.max(lines.length, 1)} @@`,
-      ...(lines.length ? lines.map((line) => `+${line}`) : ["+"])
-    ].join("\n");
-  });
-
-  return [result.stdout.trimEnd(), ...untrackedSections].filter(Boolean).join("\n\n") + "\n";
-}
-
 function maybeCommit(payload: CodexRunJobPayload, cwd: string): {
   committed: boolean;
   commitHash?: string;
@@ -392,9 +336,26 @@ function maybeCommit(payload: CodexRunJobPayload, cwd: string): {
 
   const title = payload.commitTitle?.trim() || `完成 Codex 任务：${payload.title}`;
   const body = payload.commitBody?.trim();
-  const add = runCommand("git", ["add", "-A"], cwd);
+  if (hasStagedPublicUnsafeChanges(cwd)) {
+    return { committed: false, error: "Refusing to commit because public-unsafe paths are staged" };
+  }
+
+  const safePaths = publicSafeChangedPaths(cwd);
+  if (!safePaths.length) {
+    return { committed: false, error: "Nothing public-safe to commit" };
+  }
+
+  const add = runCommand("git", ["add", "--", ...safePaths], cwd);
   if (add.exitCode !== 0) {
     return { committed: false, error: add.stderr || add.stdout || "git add failed" };
+  }
+
+  if (hasStagedPublicUnsafeChanges(cwd)) {
+    return { committed: false, error: "Refusing to commit because public-unsafe paths are staged" };
+  }
+
+  if (stagedPublicSafePathCount(cwd) === 0) {
+    return { committed: false, error: "Nothing public-safe to commit" };
   }
 
   const args = body ? ["commit", "-m", title, "-m", body] : ["commit", "-m", title];
@@ -445,8 +406,8 @@ export async function runCodexRunJob(
   const reviewResult = await runCodexReview(paths, jobId, payload, target, payload.title);
   writeText(reviewPath, reviewResult.stdout || reviewResult.stderr || "No review output captured.\n");
 
-  const diff = readGitDiff(target.executionRoot);
-  writeText(diffPath, diff);
+  const diff = readPublicSafeGitDiff(target.executionRoot);
+  writeText(diffPath, diff.diff);
   const status = readGitStatus(target.executionRoot);
   const commit = maybeCommit(payload, target.executionRoot);
 
@@ -462,7 +423,7 @@ export async function runCodexRunJob(
     codexExitCode: execResult.exitCode,
     reviewExitCode: reviewResult.exitCode,
     gitStatus: status,
-    hasDiff: Boolean(diff.trim()),
+    hasDiff: diff.hasPublicSafeChanges,
     commit,
     promptPath: relativeArtifactPath(paths, promptPath),
     stdoutPath: relativeArtifactPath(paths, stdoutPath),

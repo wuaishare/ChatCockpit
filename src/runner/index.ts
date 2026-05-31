@@ -1,5 +1,6 @@
-import { completeJob, claimNextQueuedJob, failJob } from "../core/jobs.js";
+import { completeJob, claimNextQueuedJob, failJob, listJobs } from "../core/jobs.js";
 import { runCodexRunJob } from "../core/codex-run.js";
+import { getTrackedJobProcess } from "../core/job-processes.js";
 import { runPackForRepo } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
 import {
@@ -61,12 +62,47 @@ async function sleep(seconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
+function reconcileTerminalRunningJobs(paths: TokenPilotPaths): number {
+  let reconciled = 0;
+
+  for (const job of listJobs(paths)) {
+    if (job.status !== "running") {
+      continue;
+    }
+
+    const processRecord = getTrackedJobProcess(paths, job.id);
+    if (!processRecord || processRecord.state === "running" || processRecord.state === "paused") {
+      continue;
+    }
+
+    const message = [
+      `Tracked process is ${processRecord.state}, but job was still marked running.`,
+      "Runner reconciled the stale running job; rerun the task if a persisted result is required."
+    ].join(" ");
+    failJob(paths, job.id, message);
+    markRunnerFailed(paths, message);
+    reconciled += 1;
+
+    process.stdout.write(
+      [
+        "[TokenPilot runner]",
+        "mode=reconcile",
+        `job=${job.id}`,
+        `processState=${processRecord.state}`
+      ].join(" ") + "\n"
+    );
+  }
+
+  return reconciled;
+}
+
 async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
   const startedAt = new Date().toISOString();
+  const reconciledCount = reconcileTerminalRunningJobs(paths);
   const job = claimNextQueuedJob(paths);
 
   if (!job) {
-    return false;
+    return reconciledCount > 0;
   }
 
   markRunnerClaimed(paths, job.id, job.type);

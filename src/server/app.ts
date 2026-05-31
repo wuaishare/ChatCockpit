@@ -487,6 +487,15 @@ function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
   return buildHealthStatusSnapshot();
 }
 
+function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
+  const health = buildHealthStatus(paths);
+  return {
+    ...health,
+    publicBaseUrl: null,
+    openapiUrl: "/openapi.yaml"
+  };
+}
+
 function renderUiNotBuiltPage(): string {
   return `<!doctype html>
 <html lang="en">
@@ -590,7 +599,7 @@ export function buildServer(paths: TokenPilotPaths) {
   }
 
   const healthHandler = async () => {
-    return buildHealthStatus(paths);
+    return buildPublicHealthStatus(paths);
   };
 
   const gptConfigHandler = async () => {
@@ -1008,7 +1017,7 @@ export function buildServer(paths: TokenPilotPaths) {
     return {
       ok: true,
       service: "tokenpilot-control-plane",
-      health: buildHealthStatus(paths),
+      health: buildPublicHealthStatus(paths),
       ui: "/ui",
       openapi: "/openapi.yaml"
     };
@@ -1079,11 +1088,7 @@ export function buildServer(paths: TokenPilotPaths) {
   app.get("/openapi.yaml", async (_request, reply) => {
     reply.type("text/yaml");
     const filePath = path.join(paths.repoRoot, "openapi", "tokenpilot.openapi.yaml");
-    const template = fs.readFileSync(filePath, "utf8");
-    const publicBaseUrl =
-      process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim() || "https://tokenpilot.example.com";
-
-    return template.replace("https://tokenpilot.example.com", publicBaseUrl);
+    return fs.readFileSync(filePath, "utf8");
   });
 
   app.get("/ui", async (_request, reply) => {

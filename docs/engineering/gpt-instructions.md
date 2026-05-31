@@ -101,10 +101,10 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 - `editFile` — Search/replace 精准编辑（要求 search 文本在文件中唯一）
 - `listDirectory` — 列出目录内容
 - `searchCode` — 代码搜索（ripgrep，最多 40 条结果，可选上下文行）
-- `runShell` — 运行白名单命令（npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make 等），输出截断 64 KB，执行上限 30s
+- `runShell` — 运行白名单命令（npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make 等），输出截断 64 KB，执行上限 25s
 - `getGitDiff` — 查看未提交变更
 - `getGitStatus` — 查看 git 状态和分支
-- `gitCommit` — 暂存所有变更并提交
+- `gitCommit` — 仅暂存 public-safe 路径并提交
 
 ### 推荐工作流
 
@@ -122,7 +122,8 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 ### 安全边界
 
 - 所有写操作复用现有 allowlist + repo mapping + 路径校验
-- `runShell` 为命令白名单模式，不是 raw shell
+- `runShell` 为命令白名单模式，不是 raw shell；但它仍是高信任本地命令执行 API，只应在私有、受鉴权的 operator 环境中使用
+- `getGitDiff`、`gitCommit` 和 Codex diff artifacts 只处理 public-safe 路径；`.env`、`.tokenpilot`、日志等本地私有路径不会进入公开 diff / commit 输出
 - 默认需要 bearer auth（`TOKENPILOT_EXPOSED=1` + `TOKENPILOT_API_TOKEN`）
 
 ### GPT 指令更新建议
@@ -144,7 +145,8 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 - 小改动优先用 editFile，新建文件才用 writeFile
 - 写入前先用 readFiles 确认当前内容
 - searchCode 先定位再精读，不必整文件读取
-- runShell 只用于白名单内的非破坏性命令
+- runShell 只用于白名单内的短耗时验证命令；不要用它执行长任务或高风险变更
+- Git diff / commit 输出可能跳过 public-unsafe 路径；看到 blocked 或缺失时应提示用户本地检查，而不是复述私有路径内容
 
 你仍然可以使用 createCodexRun 来委托复杂开发任务给本地 Codex CLI 执行和审查。
 ```

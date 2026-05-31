@@ -3,8 +3,9 @@ info:
   title: TokenPilot Local Control Plane API
   version: 0.1.0-alpha
   description: >
-    Local-first automation surface for TokenPilot. Phase 1 keeps execution local and
-    preserves the existing manual workflow while exposing the future HTTPS control-plane shape.
+    Local-first automation surface for TokenPilot. Phase 2 supports ChatGPT direct-drive
+    operations for small trusted edits plus asynchronous Codex jobs for complex work. The
+    full HTTPS / Custom GPT Actions automation loop remains under validation.
 servers:
   - url: https://tokenpilot.example.com
 components:
@@ -1407,7 +1408,7 @@ paths:
     post:
       operationId: runShell
       summary: Run a whitelisted shell command
-      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 25 seconds. This is not a raw shell endpoint.
+      description: Executes a command from the allowlist (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, etc.) inside an allowlisted repository. Output limited to 64 KB, execution capped at 25 seconds. This is not a raw shell endpoint, but it is still a high-trust local operator API and must stay behind bearer auth when exposed.
       security:
         - bearerAuth: []
       requestBody:
@@ -1427,7 +1428,7 @@ paths:
     get:
       operationId: getGitDiff
       summary: Get the current git diff
-      description: Returns the working tree diff (unstaged changes by default). Public-safe paths only.
+      description: Returns the working tree diff (unstaged changes by default). Public-safe paths only; env files, TokenPilot runtime state, logs, and local agent state are omitted.
       security:
         - bearerAuth: []
       parameters:
@@ -1474,8 +1475,8 @@ paths:
   /api/git/commit:
     post:
       operationId: gitCommit
-      summary: Stage all changes and commit
-      description: Stages all changes (git add -A) and creates a commit with the given message. Returns the commit hash on success.
+      summary: Stage public-safe changes and commit
+      description: Stages only public-safe changed paths and creates a commit with the given message. Env files, TokenPilot runtime state, logs, and local agent state are not staged by this endpoint.
       security:
         - bearerAuth: []
       requestBody:

@@ -75,4 +75,4 @@ Phase 2 is expected to add:
 1. An HTTPS control plane
 2. A polling local runner
 3. A Custom GPT Action integration path
-4. Optional ServBay + frp exposure under a dedicated subdomain
+4. Optional private HTTPS exposure under a dedicated operator-controlled subdomain

@@ -19,10 +19,10 @@ function buildGptConfigVersion(): string {
   // Use last git commit date, NOT current time — version stays stable between commits.
   const lastCommit = spawnSync(
     "git",
-    ["log", "-1", "--format=%cd", "--date=format:%y.%m%d.%H%M"],
+    ["log", "-1", "--format=%cd", "--date=format:%y.%m%d.%H%M%S"],
     { cwd: process.cwd(), encoding: "utf8" }
   );
-  let dateVersion = "00.0000.0000";
+  let dateVersion = "00.0000.000000";
   if (lastCommit.status === 0 && lastCommit.stdout.trim()) {
     dateVersion = lastCommit.stdout.trim();
   }
@@ -115,15 +115,15 @@ export function buildGptInstructions(
       "- For large artifacts, keep reading with offset until nextOffset=null or eof=true.",
       "",
       "Command execution:",
-      "- runShell runs whitelisted commands (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, and others).",
+      "- runShell is a high-trust local command API for an authenticated operator environment (npm, npx, node, python, tsc, eslint, vitest, git, cargo, go, make, and others).",
       "- Output is capped at 64 KB, execution limited to 25 seconds.",
-      "- This is not a raw shell — only non-interactive, pre-approved commands are allowed.",
+      "- This is not a raw public shell endpoint. Keep it behind bearer auth and the local operator boundary.",
       "- Use it for build verification, linting, type-checking, and running project tests.",
       "",
       "Git operations:",
-      "- getGitDiff: view uncommitted changes (public-safe paths only).",
+      "- getGitDiff: view uncommitted changes from public-safe paths only; env files, local runtime state, logs, and agent scratch files are omitted.",
       "- getGitStatus: see current branch and file status.",
-      "- gitCommit: stage all changes and commit with a message.",
+      "- gitCommit: stage only public-safe changed paths and commit with a message; it refuses to continue if unsafe paths are already staged.",
       "",
       "Choosing between direct operations and createCodexRun:",
       "- Trivial edits (fix a typo, change a string, update one function) → use editFile directly.",
@@ -140,9 +140,9 @@ export function buildGptInstructions(
   return [
     "你是 TokenPilot 的工作流驾驶舱。你的职责是：",
     "1. 帮用户澄清目标并生成清晰的 Task Pack。",
-    "2. 通过已配置的 Actions 调用 TokenPilot 控制面来读取文件、搜索代码、编辑文件、运行白名单命令、管理 git、创建 job、查询状态、读取公开安全结果。",
+    "2. 通过已配置的 Actions 调用 TokenPilot 控制面来读取文件、搜索代码、编辑文件、运行高信任本地命令、管理 public-safe git 改动、创建 job、查询状态、读取公开安全结果。",
     "3. 对简单修改（改文案、修 bug、单文件编辑）可以直接使用 writeFile/editFile/runShell 完成；对复杂任务使用 createCodexRun 交给本地 Codex CLI 执行和自动审查。",
-    "4. 不要请求或暴露 raw shell；runShell 仅在白名单范围内可用。",
+    "4. 不要请求或暴露 raw shell；runShell 是受鉴权和本地操作者边界保护的高信任命令 API，不应暴露为公网通用执行面。",
     "5. 基于 job 结果或直接操作结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",
     "",
     "当前配置上下文：",
@@ -198,8 +198,8 @@ export function buildGptInstructions(
     "- 当前阶段通常可以使用这些术语描述边界：",
     "  - local-first GPT Actions + ChatGPT 直驱 + Codex CLI 执行闭环 MVP",
     "  - 文件读写 API（writeFile / editFile / listDirectory / searchCode）",
-    "  - 白名单命令执行（runShell）",
-    "  - Git 操作 API（getGitDiff / getGitStatus / gitCommit）",
+    "  - 高信任本地命令执行 API（runShell）",
+    "  - 公开安全路径限定的 Git 操作 API（getGitDiff / getGitStatus / gitCommit）",
     "  - 读写分离 job API（pack / taskpack / codex-run）",
     "  - 可选 worktree 隔离",
     "  - Codex 自动审查 artifact",
@@ -257,7 +257,7 @@ export function buildGptConfig(
       "Phase 2 双模式：ChatGPT 直驱（writeFile/editFile/runShell 实时编辑） + Codex 异步（createCodexRun 复杂任务）。",
       "直驱模式适合：改文案、修 typo、单文件小改、跑 lint/build 验证。超时边界约 25s，长任务请走 Codex。",
       "Codex 异步适合：跨文件重构、深度探索、需要自动审查的场景。支持 worktree 隔离和 commit policy。",
-      "所有端点复用同一套 allowlist + repo mapping 安全模型，runShell 为白名单模式非 raw shell。",
+      "所有端点复用同一套 allowlist + repo mapping 安全模型，runShell 为高信任本地命令 API，Git/Codex diff artifact 只输出 public-safe 路径。",
       "默认支持 tokenpilot、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。",
       "如版本号、OpenAPI URL 或域名变化，建议去 GPT Builder 侧重新导入 schema 并更新指令。",
       "当前阶段为 local-first 双模式验证版，GPT Actions 超时 ~30s、上下文 ≥ 53KB 已验证。"

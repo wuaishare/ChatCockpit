@@ -25,7 +25,6 @@ TOKENPILOT_API_TOKEN=your-secret \
 TOKENPILOT_EXPOSED=false \
 TOKENPILOT_HOST=127.0.0.1 \
 TOKENPILOT_PORT=4318 \
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com \
 ./scripts/macos-manage-local-server.sh start
 ```
 
@@ -54,7 +53,6 @@ TOKENPILOT_API_TOKEN=replace-with-your-builder-token
 TOKENPILOT_EXPOSED=false
 TOKENPILOT_HOST=127.0.0.1
 TOKENPILOT_PORT=4318
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 ```
 
 `macos-manage-local-server.sh` will load this file automatically when it exists.
@@ -90,6 +88,8 @@ TOKENPILOT_PORT=4318
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 ```
 
+`https://tokenpilot.example.com` is a documentation placeholder. Real public domains, reverse-proxy bindings, tunnel tokens, and GPT Builder operating notes belong in private ops records, not in this public repository.
+
 ## Check Status
 
 ```bash
@@ -107,15 +107,13 @@ On macOS, `status` should be read as two separate truths:
 - whether the persistent LaunchAgent is actually installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.control-plane.plist`
 - whether the paired runner LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.runner.plist`
 
-If a public ServBay site or reverse proxy still appears "started" but the upstream control plane did not come back after reboot, check these in order:
+If a public reverse proxy still appears "started" but the upstream control plane did not come back after reboot, check these in order:
 
 ```bash
 npm run doctor:runtime
 ./scripts/macos-manage-local-server.sh status
 lsof -nP -iTCP:4318 -sTCP:LISTEN
 launchctl print gui/$(id -u)/com.wuaishare.tokenpilot.control-plane | sed -n '1,80p'
-curl -H 'Host: tokenpilot.example.com' http://127.0.0.1:4318/api/health
-curl -H 'Host: tokenpilot.example.com' http://127.0.0.1:4318/
 ```
 
 `npm run doctor:runtime` is the fastest truth source for this incident class. It prints:
@@ -127,58 +125,11 @@ curl -H 'Host: tokenpilot.example.com' http://127.0.0.1:4318/
 - runner status file truth, including heartbeat and last consumed job when available
 - direct local `/api/health`
 - local `/ui`
-- `Host:`-routed health check for the configured public hostname when available
-- root probe for the public hostname, which should now return a small public JSON payload instead of an auth error
 - recent server log tail
-
-For a broader production-style view that chains runtime, ingress, and public GPT-loop truth together:
-
-```bash
-npm run doctor:production
-```
-
-`doctor:production` is intentionally read-only. It validates:
-
-- current paired LaunchAgent state
-- current runtime truth
-- current ingress truth
-
-If you also want a write-path proof through the public HTTPS loop, run:
-
-```bash
-npm run verify:public-gpt-loop
-```
-
-If the goal is recovery rather than diagnosis, use:
-
-```bash
-npm run repair:production
-```
-
-Current repair order is intentionally simple and explicit:
-
-1. restart paired control-plane + runner LaunchAgents
-2. reinstall the repo-native ingress truth for `tokenpilot.example.com`
-3. rerun the read-only production doctor
-4. rerun the public GPT-loop regression
-
-For public HTTPS stability, also use:
-
-```bash
-npm run doctor:ingress
-```
-
-This check does not mutate ServBay. It compares the current live vhost shape against
-the routing invariants TokenPilot expects:
-
-- `/api/*` should proxy to `127.0.0.1:4318`
-- `/openapi.yaml` should proxy to `127.0.0.1:4318`
-- `/ui` should proxy to `127.0.0.1:4318`
-- the site should not silently drift back to a static-root-only `try_files` fallback for control-plane paths
 
 Important operational boundary:
 
-- a ServBay site being "started" only proves the reverse-proxy layer is up
+- a reverse-proxy site being "started" only proves the reverse-proxy layer is up
 - it does **not** prove the TokenPilot local control-plane process behind `127.0.0.1:4318` has been restored
 - if the site is up but the control plane is down, external callers will typically see `502`
 

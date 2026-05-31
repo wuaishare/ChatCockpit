@@ -1,8 +1,13 @@
 import { spawnSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import {
+  hasStagedPublicUnsafeChanges,
+  isPublicSafeGitPath,
+  publicSafeChangedPaths,
+  readPublicSafeGitDiff,
+  stagedPublicSafePathCount
+} from "./git-public-safety.js";
 import type {
   GitDiffResponse,
   GitStatusResponse,
@@ -10,37 +15,6 @@ import type {
   GitCommitResponse,
   TokenPilotPaths
 } from "../types.js";
-
-const MAX_DIFF_BYTES = 256 * 1024; // 256 KB
-
-const BLOCKED_DIFF_FILENAMES = new Set([".env", "server.env"]);
-const BLOCKED_DIFF_SEGMENTS = new Set([
-  ".codex",
-  ".servbay",
-  ".tokenpilot",
-  "node_modules"
-]);
-
-function isPublicSafeDiffPath(filePath: string): boolean {
-  const normalized = path.posix.normalize(filePath).replace(/^\.\/+/, "");
-  if (
-    !normalized ||
-    normalized === ".." ||
-    normalized.startsWith("../") ||
-    normalized.includes("\\")
-  ) {
-    return false;
-  }
-
-  const parts = normalized.split("/");
-  const basename = parts[parts.length - 1] || "";
-  return !(
-    parts.some((seg) => BLOCKED_DIFF_SEGMENTS.has(seg)) ||
-    basename.startsWith(".env") ||
-    BLOCKED_DIFF_FILENAMES.has(basename) ||
-    basename.endsWith(".log")
-  );
-}
 
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   const config = loadUserConfig(paths.repoRoot);
@@ -53,81 +27,13 @@ export function getGitDiff(
   staged = false
 ): GitDiffResponse {
   const repoRoot = assertRepoAllowed(paths, repoId);
-
-  const args = ["diff", "--binary"];
-  if (staged) {
-    args.push("--cached");
-  }
-
-  const diffResult = spawnSync("git", args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    timeout: 10_000,
-    maxBuffer: MAX_DIFF_BYTES * 2
-  });
-
-  let diff = (diffResult.stdout ?? "").trimEnd();
-
-  // Include untracked files (only public-safe ones)
-  const untrackedResult = spawnSync(
-    "git",
-    ["ls-files", "--others", "--exclude-standard"],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      timeout: 5_000
-    }
-  );
-
-  const untrackedFiles = (untrackedResult.stdout ?? "")
-    .trim()
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .filter(isPublicSafeDiffPath);
-
-  if (untrackedFiles.length > 0) {
-    const untrackedSections: string[] = [];
-
-    for (const filePath of untrackedFiles.slice(0, 20)) {
-      // limit 20 untracked files
-      try {
-        const absolutePath = path.join(repoRoot, filePath);
-        const stat = fs.statSync(absolutePath);
-        if (!stat.isFile()) continue;
-
-        const content = fs.readFileSync(absolutePath, "utf8");
-        const lines = content.split(/\r?\n/);
-        if (lines.at(-1) === "") lines.pop();
-
-        untrackedSections.push([
-          `diff --git a/${filePath} b/${filePath}`,
-          "new file mode 100644",
-          "index 0000000..0000000",
-          "--- /dev/null",
-          `+++ b/${filePath}`,
-          `@@ -0,0 +1,${Math.max(lines.length, 1)} @@`,
-          ...(lines.length ? lines.map((line) => `+${line}`) : ["+"])
-        ].join("\n"));
-      } catch {
-        // skip unreadable files
-      }
-    }
-
-    if (untrackedSections.length > 0) {
-      diff = [diff, ...untrackedSections].filter(Boolean).join("\n\n") + "\n";
-    }
-  }
-
-  const truncated = diff.length > MAX_DIFF_BYTES;
-  if (truncated) {
-    diff = diff.slice(0, MAX_DIFF_BYTES) + "\n\n... (diff truncated)";
-  }
+  const safeDiff = readPublicSafeGitDiff(repoRoot, staged);
 
   return {
     ok: true,
     repoId,
-    diff: diff || "(no changes)",
-    truncated
+    diff: safeDiff.diff,
+    truncated: safeDiff.truncated
   };
 }
 
@@ -166,7 +72,7 @@ export function getGitStatus(
     const worktreeStatus = line[1];
     const filePath = line.substring(3).trim();
 
-    if (!isPublicSafeDiffPath(filePath)) {
+    if (!isPublicSafeGitPath(filePath)) {
       entries.push({
         path: filePath,
         status: "blocked",
@@ -223,8 +129,26 @@ export function gitCommit(
     throw new Error("Commit message must not be empty");
   }
 
-  // Stage all changes
-  const addResult = spawnSync("git", ["add", "-A"], {
+  if (hasStagedPublicUnsafeChanges(repoRoot)) {
+    return {
+      ok: false,
+      repoId,
+      committed: false,
+      error: "Refusing to commit because public-unsafe paths are staged"
+    };
+  }
+
+  const safePaths = publicSafeChangedPaths(repoRoot);
+  if (!safePaths.length) {
+    return {
+      ok: false,
+      repoId,
+      committed: false,
+      error: "Nothing public-safe to commit"
+    };
+  }
+
+  const addResult = spawnSync("git", ["add", "--", ...safePaths], {
     cwd: repoRoot,
     encoding: "utf8",
     timeout: 10_000
@@ -236,6 +160,24 @@ export function gitCommit(
       repoId,
       committed: false,
       error: addResult.stderr || addResult.stdout || "git add failed"
+    };
+  }
+
+  if (hasStagedPublicUnsafeChanges(repoRoot)) {
+    return {
+      ok: false,
+      repoId,
+      committed: false,
+      error: "Refusing to commit because public-unsafe paths are staged"
+    };
+  }
+
+  if (stagedPublicSafePathCount(repoRoot) === 0) {
+    return {
+      ok: false,
+      repoId,
+      committed: false,
+      error: "Nothing public-safe to commit"
     };
   }
 
@@ -292,5 +234,3 @@ export function gitCommit(
     commitMessage: message.trim()
   };
 }
-
-

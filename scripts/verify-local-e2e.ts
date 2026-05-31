@@ -295,12 +295,14 @@ async function runE2E(): Promise<void> {
     const healthBody = await health.json();
     assert.equal(healthBody.authRequired, true);
     assert.equal(healthBody.exposed, true);
-    assert.equal(healthBody.publicBaseUrl, "https://tokenpilot.example.com");
-    assert.equal(healthBody.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
+    assert.equal(healthBody.publicBaseUrl, null);
+    assert.equal(healthBody.openapiUrl, "/openapi.yaml");
 
     const openapi = await fetch(`http://127.0.0.1:${port}/openapi.yaml`);
     assert.equal(openapi.status, 200);
-    assert.match(await openapi.text(), /TokenPilot Local Control Plane API/);
+    const openapiText = await openapi.text();
+    assert.match(openapiText, /TokenPilot Local Control Plane API/);
+    assert.match(openapiText, /https:\/\/tokenpilot\.example\.com/);
 
     const gptConfig = await fetch(`http://127.0.0.1:${port}/api/gpt/config`, {
       headers: { Authorization: "Bearer test-token" }
@@ -313,7 +315,7 @@ async function runE2E(): Promise<void> {
     assert.equal(typeof gptConfigBody.config.instructions, "string");
     assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
     assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
-    assert.match(gptConfigBody.config.version, /^\d{2}\.\d{3}\.\d{8} \(\d+\)$/);
+    assert.match(gptConfigBody.config.version, /^\d{2}\.\d{4}\.\d{6} \(\d+\)$/);
     assert.ok(Array.isArray(gptConfigBody.config.repoGovernance?.repos));
     assert.ok(
       gptConfigBody.config.repoGovernance.repos.some(

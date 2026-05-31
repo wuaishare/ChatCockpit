@@ -18,6 +18,7 @@ interface DashboardViewProps {
   repoGovernance?: RepoGovernanceModel;
   counts: JobCounts;
   recentJobs: JobSummary[];
+  jobsProtected: boolean;
   onSelectJob: (jobId: string) => void;
   onOpenGptHelper: () => void;
   onRefresh: () => void;
@@ -29,6 +30,7 @@ export function DashboardView({
   repoGovernance,
   counts,
   recentJobs,
+  jobsProtected,
   onSelectJob,
   onOpenGptHelper,
   onRefresh
@@ -160,7 +162,28 @@ export function DashboardView({
 
       <SectionCard title={copy.dashboard.distributionTitle} description={copy.dashboard.distributionDescription}>
         <div className="distribution-stack">
-          {hasAnyJobs ? (
+          {jobsProtected ? (
+            <div className="distribution-empty-card">
+              <div className="metric-inline metric-inline--compact metric-inline--muted">
+                <div className="metric-inline__item"><span>{copy.dashboard.queued}</span><strong>--</strong></div>
+                <div className="metric-inline__item"><span>{copy.dashboard.running}</span><strong>--</strong></div>
+                <div className="metric-inline__item"><span>{copy.dashboard.failed}</span><strong>--</strong></div>
+                <div className="metric-inline__item"><span>{copy.dashboard.total}</span><strong>--</strong></div>
+              </div>
+
+              <div className="empty-console empty-console--protected">
+                <div className="empty-console__copy">
+                  <strong>{copy.dashboard.protectedStateTitle}</strong>
+                  <span>{copy.dashboard.protectedStateDescription}</span>
+                </div>
+                <div className="empty-console__actions">
+                  <Button type="link" onClick={onRefresh}>
+                    {copy.dashboard.quickActionRefresh}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : hasAnyJobs ? (
             <div className="metric-grid">
               <div className="metric-chip"><span>{copy.dashboard.queued}</span><strong>{counts.queued}</strong></div>
               <div className="metric-chip"><span>{copy.dashboard.running}</span><strong>{counts.running}</strong></div>
