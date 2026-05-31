@@ -1,10 +1,10 @@
 # TokenPilot
 
-[简体中文](./README.zh-CN.md) | [English](./README.md)
+[简体中文](./README.zh-CN.md) | English
 
 ![TokenPilot hero poster](./docs/assets/tokenpilot-hero-en.webp)
 
-**v0.1.0-alpha local-first public preview**
+**v0.1.0-alpha: local-first public preview**
 
 TokenPilot is a ChatGPT-first dual-mode development workflow: GPT direct-drive for frequent small changes, and Codex async runs for complex repository work.
 
@@ -12,7 +12,7 @@ ChatGPT acts as the brain and command center for context management, planning, o
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-It is not a public management platform yet. The current release is a verifiable local operator preview with a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
+The current release is a verifiable local operator preview, not a hosted management platform. It includes a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
 
 ## What It Does
 
