@@ -22,9 +22,14 @@ npm run verify:release
 Before publishing, also run:
 
 ```bash
+npm audit --audit-level=moderate
 npm run privacy:scan:history
 git diff --check
 ```
+
+## Current Release Blockers
+
+- Resolve or explicitly accept the current npm audit finding before publishing a public release. As of 2026-05-31, `repomix` pulls `@modelcontextprotocol/sdk -> express -> qs@6.15.1`, and npm reports GHSA-q8mj-m7cp-5q26. `npm audit fix` does not currently update beyond `qs@6.15.1`, and forcing older `qs` versions introduces other advisories.
 
 ## Artifact Policy
 
