@@ -1,62 +1,62 @@
 # TokenPilot
 
-[简体中文](./README.zh-CN.md) | English
+简体中文 | [English](./README.en.md)
 
-![TokenPilot hero poster](./docs/assets/tokenpilot-hero-en.webp)
+![TokenPilot 项目海报](./docs/assets/tokenpilot-hero-zh-CN.webp)
 
-**v0.1.0-alpha: local-first public preview**
+**v0.1.0-alpha：本地优先公开预览。**
 
-TokenPilot is a ChatGPT-first dual-mode development workflow: GPT direct-drive for frequent small changes, and Codex async runs for complex repository work.
+TokenPilot 是以 ChatGPT 为入口的「GPT 直驱 + Codex 异步」双模式协同开发工作流。
 
-ChatGPT acts as the brain and command center for context management, planning, orchestration, and review. TokenPilot provides the local-first control plane for task boundaries, mode routing, persistent state, and public-safe artifacts. Codex is the current async execution engine for larger refactors and complex feature work.
+ChatGPT 作为大脑与指挥中心，负责上下文管理、任务规划、执行指挥和结果审查；TokenPilot 提供本地优先控制面，负责任务边界、模式路由、状态持久化和 public-safe 产物治理；Codex 是当前接入的异步执行器，用于大型重构与复杂功能开发。
 
-Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
+**省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 
-The current release is a verifiable local operator preview, not a hosted management platform. It includes a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
+当前版本已经可以本地验证：CLI、Fastify control plane、paired runner、file-backed job queue、OpenAPI、文件读写编辑、代码搜索、白名单 shell、Git 状态 / 差异 / 提交、`createCodexRun`、exposed-mode bearer auth、本地 E2E，以及第一版本地操作员 Web UI。
 
-## What It Does
+它还不是公网管理平台。真实域名、隧道、反向代理、Bearer token、GPT Builder 私有操作记录应放在私有 ops 仓库，不应进入公开仓库。
 
-```text
-ChatGPT: brain and command center for planning, context, orchestration, and review
-TokenPilot: local-first control plane for boundaries, routing, state, and artifacts
-GPT direct-drive: frequent small edits, short checks, and public-safe Git operations
-Codex async: complex repository work, optional worktrees, diffs, artifacts, and review
-```
-
-TokenPilot is designed around a dual-mode workflow:
+## 它做什么
 
 ```text
-Conversation -> Task boundary -> Mode routing -> Direct GPT edit or Codex async run -> Diff/artifacts -> Review
+ChatGPT：规划、上下文管理、指挥、审查
+TokenPilot：本地控制面、边界治理、模式路由、状态与产物
+GPT 直驱：高频小改动、短验证、public-safe Git 操作
+Codex 异步：复杂开发、可选 worktree、diff、artifact、review
 ```
 
-Use ChatGPT where it is strongest: managing context, clarifying intent, planning work, and reviewing outcomes. Use GPT direct-drive for high-frequency small tasks. Use Codex when the task is large enough to deserve deeper repository execution.
+TokenPilot 的核心链路：
 
-Codex is the first async execution engine. The same task-boundary and artifact-governance model can grow toward other async coding tools such as Claude Code, opencode, or reasonix without changing the ChatGPT-first product model.
+```text
+对话 -> 任务边界 -> 模式路由 -> GPT 直驱或 Codex 异步 -> Diff/Artifacts -> Review
+```
 
-## Current Capabilities
+高频小任务由 ChatGPT 通过文件、搜索、shell、Git API 直驱完成；复杂任务通过 `createCodexRun` 入队，由本地 runner 调用 Codex CLI 执行。未来同一任务边界和产物治理模型也可以扩展到 Claude Code、opencode、reasonix 等更多异步编程工具。
 
-- Local CLI for `pack`, `manifest`, `taskpack`, queues, jobs, server, and runner workflows.
-- Fastify control plane with OpenAPI for Custom GPT Actions experiments.
-- File-backed local job queue for pack, taskpack, and Codex-run jobs.
-- Files API for read/write/edit flows with public-safe path filtering.
-- Code search and allowlisted short shell checks.
-- Git status/diff/commit APIs with public-safe filtering for GPT-visible output and automatic commits.
-- `createCodexRun` jobs for longer tasks executed by the local runner and Codex CLI.
-- Local operator Web UI for status, jobs, GPT helper instructions, artifacts, and controlled job process actions.
-- Exposed mode that requires bearer auth before HTTP access to private job APIs.
-- Current-tree privacy scan and historical privacy scan helper.
+## 当前能力
 
-## Operator UI
+- 本地 CLI：支持 `pack`、`manifest`、`taskpack`、queue、jobs、server、runner。
+- Fastify 控制面：提供 OpenAPI，用于 Custom GPT Actions 实验。
+- 本地 file-backed job queue：支持 pack、taskpack、Codex-run jobs。
+- Files API：支持 read/write/edit，并对 public-safe 路径做过滤。
+- Code Search 与 allowlisted shell：用于短检查和有限本地验证。
+- Git API：支持 status/diff/commit，并过滤 GPT 可见输出和自动提交中的敏感路径。
+- `createCodexRun`：把较大的任务交给本地 runner 与 Codex CLI。
+- 本地操作员 Web UI：查看状态、Jobs、GPT Helper、Artifacts，并控制任务进程。
+- Exposed mode：公网或隧道访问时必须启用 bearer auth。
+- 隐私门禁：支持当前树安全扫描和历史隐私扫描。
 
-The Web UI is a local operator console. It is useful for checking runtime health, inspecting jobs, copying GPT helper instructions, previewing public-safe artifacts, and controlling queued/running tasks.
+## 操作员 Web UI
 
-![TokenPilot GPT Helper configuration](./docs/assets/tokenpilot-gpt-helper-config.webp)
+Web UI 是本地操作员控制台，用于检查运行状态、查看 jobs、复制 GPT Helper 指令、预览 public-safe artifacts，以及控制 queued/running 任务。
 
-![TokenPilot GPT Actions writeFile proof](./docs/assets/tokenpilot-gpt-actions-writefile.webp)
+![TokenPilot GPT Helper 配置界面](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
-In auth-required mode, protected data stays hidden until the operator provides a bearer token in the browser session.
+![TokenPilot GPT Actions 写入文件实测](./docs/assets/tokenpilot-gpt-actions-writefile.webp)
 
-## Quick Start
+在需要鉴权的模式下，浏览器会话提供 bearer token 前，受保护数据不会展示。
+
+## 快速开始
 
 ```bash
 npm run setup
@@ -65,9 +65,9 @@ npm run mvp:status
 npm run doctor
 ```
 
-See the beginner path in [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md).
+完整新手路径见 [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md)。
 
-Start the paired local control plane and runner on macOS:
+macOS 上也可以直接启动本地 control plane 和 paired runner：
 
 ```bash
 npm run mvp:start
@@ -75,13 +75,13 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-Open the local operator UI:
+打开本地控制台：
 
 ```text
 http://127.0.0.1:4318/ui
 ```
 
-For a repeatable local setup, place runtime variables in `.tokenpilot/runtime/server.env`:
+可重复的本地配置放在 `.tokenpilot/runtime/server.env`：
 
 ```bash
 TOKENPILOT_API_TOKEN=replace-with-your-builder-token
@@ -90,51 +90,53 @@ TOKENPILOT_HOST=127.0.0.1
 TOKENPILOT_PORT=4318
 ```
 
-Use `TOKENPILOT_EXPOSED=true` only for a private authenticated HTTPS operator path. The public repository intentionally does not track real deployment domains, reverse-proxy bindings, tunnel tokens, or machine-specific paths.
+只有在私有、受鉴权的 HTTPS operator 路径中才使用 `TOKENPILOT_EXPOSED=true`。
 
-## Custom GPT Actions Status
+## Custom GPT Actions 状态
 
-The public OpenAPI contract is available in [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml). The placeholder server URL `https://tokenpilot.example.com` is intentionally generic. Replace it in your private GPT Builder/operator setup; do not commit real public domains or bearer tokens to this repository.
+公开 OpenAPI 合约位于 [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml)。其中的 `https://tokenpilot.example.com` 是占位域名，请在私有 GPT Builder / operator 配置中替换，不要把真实公网域名或 bearer token 提交到公开仓库。
 
-The HTTPS / Custom GPT Actions automation loop is still under validation. Direct GPT actions can drive short file and git operations, but longer or riskier work should be queued as `createCodexRun` jobs and consumed by the local runner.
+当前 HTTPS / Custom GPT Actions 全自动闭环仍在验证中。GPT 直驱适合短文件和 Git 操作；更长、更复杂或风险更高的任务，应通过 `createCodexRun` 入队交给本地 runner。
 
-## Task Pack Template
+`runShell` 不是 raw shell，但仍是高信任本地命令执行 API。exposed mode 下必须启用 bearer auth，并按需显式开放高信任命令。
 
-Give this shape to ChatGPT before handing work to Codex:
+## Codex Task Pack 最小模板
+
+把下面结构交给 ChatGPT，再让它为 Codex 生成明确任务包：
 
 ````md
 # Codex Task Pack
 
-## 1. Goal
+## 1. 目标
 
-Describe the concrete problem in one sentence.
+用一句话说明要解决的问题。
 
-## 2. Context
+## 2. 上下文
 
-Keep only the context needed for this task.
+只保留当前任务必要背景。
 
-## 3. Scope
+## 3. 范围
 
-Must inspect:
+必须检查：
 - path/to/file-a
 - path/to/directory-b
 
-May inspect if needed:
+必要时可以检查：
 - path/to/related-module
 
-Do not modify:
+禁止修改：
 - path/to/unrelated-module
 - package manager config
 - global theme tokens
 
-## 4. Execution Requirements
+## 4. 执行要求
 
-1. Confirm the real root cause first.
-2. Make the smallest verifiable change.
-3. Do not introduce unrelated dependencies.
-4. Preserve existing style.
+1. 先确认真实根因。
+2. 做最小可验证改动。
+3. 不引入无关依赖。
+4. 保持现有风格。
 
-## 5. Verification
+## 5. 验证
 
 ```bash
 npm run lint
@@ -142,86 +144,81 @@ npm run build
 npm run test
 ```
 
-## 6. Acceptance Criteria
+## 6. 验收标准
 
-- The original symptom is gone.
-- Verification commands pass.
-- The diff stays inside scope.
-- Existing behavior is not broken.
+- 原问题消失。
+- 验证命令通过。
+- diff 没有超出范围。
+- 既有行为没有被破坏。
 ````
 
-## Public Documentation
+## 公开文档
 
-- Architecture: [`docs/architecture/local-first-control-plane.md`](./docs/architecture/local-first-control-plane.md)
-- GPT Actions runner loop: [`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
-- Web UI and provider strategy: [`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
-- Web UI MVP plan: [`docs/architecture/web-ui-mvp-plan.md`](./docs/architecture/web-ui-mvp-plan.md)
-- Local runtime ops: [`docs/deployment/local-runtime-ops.md`](./docs/deployment/local-runtime-ops.md)
-- Files Read API: [`docs/engineering/files-read-api.md`](./docs/engineering/files-read-api.md)
-- Public/private artifact governance: [`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
-- RTK engineering note: [`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
+- 架构说明：[`docs/architecture/local-first-control-plane.md`](./docs/architecture/local-first-control-plane.md)
+- GPT Actions runner loop：[`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
+- Web UI 与 provider 策略：[`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
+- Web UI MVP 计划：[`docs/architecture/web-ui-mvp-plan.md`](./docs/architecture/web-ui-mvp-plan.md)
+- 本地运行参考：[`docs/deployment/local-runtime-ops.md`](./docs/deployment/local-runtime-ops.md)
+- Files Read API：[`docs/engineering/files-read-api.md`](./docs/engineering/files-read-api.md)
+- 公共 / 私有产物治理：[`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
+- RTK 工程说明：[`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
 
-Local reverse-proxy/tunnel bindings, public loop probes, and GPT Builder operating notes belong in the private ops repository, not in this public repository.
+本地反向代理、tunnel 绑定、真实公网回路探测和 GPT Builder 操作记录属于私有 ops 仓库。
 
-## Roadmap
+## 路线图
 
-- [x] Local CLI, pack, manifest, and task pack scaffold
-- [x] File-backed job queue
-- [x] Local control plane and runner
-- [x] OpenAPI draft for GPT Actions and local runner workflows
-- [x] Exposed-mode bearer auth
-- [x] Local E2E verification
-- [x] Local operator Web UI MVP
-- [x] `createCodexRun` jobs with runner/Codex execution and public-safe artifacts
-- [x] Public-safe filtering for GPT-visible git diffs, commits, and Codex artifacts
-- [x] GPT Actions boundary probes for timeout, context size, and request behavior
-- [x] First-task template library under `templates/`
-- [x] Beginner examples under `examples/`
-- [ ] Token Optimization Log examples
-- [ ] HTTPS / Custom GPT Actions full-loop validation
-- [ ] Provider adapter layer
+- [x] 本地 CLI、pack、manifest、taskpack
+- [x] file-backed job queue
+- [x] 本地 control plane 和 runner
+- [x] OpenAPI 草案与 exposed-mode bearer auth
+- [x] 本地 E2E 验证
+- [x] 本地操作员 Web UI MVP
+- [x] `createCodexRun` jobs 与 public-safe artifacts
+- [x] GPT 直驱文件、搜索、shell、Git 操作
+- [x] 首任务模板库与新手案例
 - [x] First-run setup wizard
+- [ ] Token Optimization Log 示例
+- [ ] HTTPS / Custom GPT Actions 全流程真实验证
+- [ ] Provider adapter layer
+- [ ] 繁體中文 README
 
-## Security And Privacy
+## 安全与隐私
 
-TokenPilot intentionally separates public product code from private operator truth.
+TokenPilot 明确区分公开产品代码和私有 operator 事实。
 
-Do not commit:
+不要提交：
 
-- API keys, bearer tokens, cookies, or local session files.
-- Real deployment domains, tunnel tokens, private IPs, or internal hostnames.
-- Personal absolute paths or machine-specific runtime state.
-- `.codex/`, `.tokenpilot/runtime/`, `.servbay/`, generated debug notes, or private planning artifacts.
+- API keys、bearer tokens、cookies、local session files。
+- 真实部署域名、tunnel tokens、private IP、internal hostnames。
+- 个人绝对路径或机器相关运行态。
+- `.codex/`、`.tokenpilot/runtime/`、`.servbay/`、生成调试记录或私有规划材料。
 
-Before preparing a commit, run:
+提交前至少运行：
 
 ```bash
 npm run verify:web:safety
 npm run privacy:scan:history
 ```
 
-`npm run privacy:scan:history` is intentionally read-only. Existing historical leaks require a reviewed history rewrite and coordinated force-push; a cleanup commit only protects future snapshots.
+`npm run privacy:scan:history` 是只读扫描。历史泄露需要经过审查的 history rewrite 和协调后的 force-push；普通清理提交只能保护未来快照。
 
-## Discussion
+## 讨论
 
-TokenPilot is an experimental open-source project for people exploring ChatGPT + Codex collaboration, token-conscious development, and planner/coder/reviewer workflows.
+TokenPilot 是一个实验性开源项目，面向 ChatGPT + Codex 协同、Token-conscious development，以及 Planner / Coder / Reviewer 工作流。
 
 - GitHub Discussions: <https://github.com/wuaishare/TokenPilot/discussions>
 - GitHub Issues: <https://github.com/wuaishare/TokenPilot/issues>
-- Pull Requests: templates, docs, examples, and tool improvements are welcome.
+- Pull Requests: 欢迎提交模板、文档、示例和工具改进。
 
-## Disclaimer
+## 免责声明
 
-TokenPilot is not affiliated with OpenAI, ChatGPT, Codex, or GitHub. It does not bypass platform limits. It aims to make existing tools easier to use with clear task boundaries, less repeated context, safer local execution, and better review loops.
+TokenPilot 与 OpenAI、ChatGPT、Codex 或 GitHub 没有关联。它不会绕过任何平台限制，只是用更清晰的任务边界、更少的重复上下文、更安全的本地执行和更好的复盘审查，把现有工具串成可控工作流。
 
-## References
+## 参考
 
 - OpenAI Codex Web: <https://developers.openai.com/codex/cloud>
 - OpenAI Codex Models: <https://developers.openai.com/codex/models>
-- Connecting GitHub to ChatGPT: <https://help.openai.com/en/articles/11145903-connecting-github-to-chatgpt>
-- Using Codex with your ChatGPT plan: <https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan>
-- Gitingest: <https://gitingest.com/>
 
-## License
+## 许可证
 
 [MIT License](./LICENSE)

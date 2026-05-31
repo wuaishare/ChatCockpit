@@ -9,7 +9,7 @@
     "web/**",
     "openapi/**",
     "README.md",
-    "README.zh-CN.md",
+    "README.en.md",
     "package.json",
     "package-lock.json",
     "tsconfig.json",

@@ -45,7 +45,7 @@ const fallbackExcludedDirectories = new Set([
 
 const targets: ScanTarget[] = [
   { label: "README.md", path: "README.md", required: true },
-  { label: "README.zh-CN.md", path: "README.zh-CN.md", required: true },
+  { label: "README.en.md", path: "README.en.md", required: true },
   { label: "docs", path: "docs", dir: true, required: true },
   { label: "openapi", path: "openapi", dir: true, required: true },
   { label: "scripts", path: "scripts", dir: true, required: true },
