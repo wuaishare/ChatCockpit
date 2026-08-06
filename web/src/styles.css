@@ -2491,6 +2491,115 @@ button.continuity-workspace.is-selected {
   font-size: var(--tp-text-xs);
 }
 
+.continuity-entity-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.continuity-completion-state,
+.continuity-runtime-binding {
+  display: grid;
+  gap: 9px;
+  padding: 11px 12px;
+  background: var(--tp-surface-strong);
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+}
+
+.continuity-completion-state.is-ready {
+  border-color: color-mix(in srgb, var(--tp-success) 38%, var(--tp-line));
+}
+
+.continuity-completion-state.is-blocked {
+  border-color: color-mix(in srgb, var(--tp-warning) 34%, var(--tp-line));
+}
+
+.continuity-completion-state__heading,
+.continuity-runtime-binding__heading,
+.continuity-runtime-job__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: var(--tp-text-strong);
+  font-size: var(--tp-text-sm);
+}
+
+.continuity-completion-state.is-ready .continuity-completion-state__heading .anticon {
+  color: var(--tp-success);
+}
+
+.continuity-completion-state.is-blocked .continuity-completion-state__heading .anticon {
+  color: var(--tp-warning);
+}
+
+.continuity-completion-blockers {
+  display: grid;
+  gap: 6px;
+}
+
+.continuity-completion-blockers > strong,
+.continuity-runtime-job__artifacts > strong {
+  color: var(--tp-text-soft);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.continuity-completion-blockers ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.continuity-completion-blockers li {
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+}
+
+.continuity-completion-blockers li code {
+  margin-right: 7px;
+  color: var(--tp-warning);
+  font-family: var(--tp-font-mono);
+}
+
+.continuity-runtime-job,
+.continuity-runtime-job__artifacts {
+  display: grid;
+  gap: 7px;
+}
+
+.continuity-runtime-job > code {
+  color: var(--tp-text-muted);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+}
+
+.continuity-runtime-job__artifacts .continuity-chip-list a {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 5px;
+  padding: 4px 7px;
+  overflow: hidden;
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--tp-surface-soft);
+  border: 1px solid var(--tp-line);
+  border-radius: 6px;
+}
+
+.continuity-runtime-job__artifacts .continuity-chip-list a:hover {
+  color: var(--tp-cyan);
+  border-color: color-mix(in srgb, var(--tp-cyan) 45%, var(--tp-line));
+}
+
 .continuity-handoff-card__status {
   display: flex;
   align-items: center;
@@ -2626,6 +2735,14 @@ button.continuity-workspace.is-selected {
   .continuity-git-summary > header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .continuity-entity-card__actions {
+    justify-content: stretch;
+  }
+
+  .continuity-entity-card__actions .ant-btn {
+    flex: 1 1 160px;
   }
 
   .continuity-evidence-item {

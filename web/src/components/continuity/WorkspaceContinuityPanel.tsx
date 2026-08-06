@@ -17,8 +17,10 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   acceptContinuityHandoff,
   cancelContinuityHandoff,
+  completeContinuityTask,
   forkContinuityHandoff,
-  prepareContinuityHandoff
+  prepareContinuityHandoff,
+  submitContinuityTaskReview
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
 import type {
@@ -132,13 +134,6 @@ export function WorkspaceContinuityPanel({
     eligibleTasks.find(({ task }) => task.id === selectedPrepareTaskId) ??
     eligibleTasks[0] ??
     null;
-  const readyHandoffs = snapshot.tasks
-    .map(({ task, latestHandoff, evidence }) => ({ task, handoff: latestHandoff, evidence }))
-    .filter(
-      (entry): entry is typeof entry & { handoff: ContinuityHandoffRecord } =>
-        entry.handoff?.status === "ready"
-    );
-
   function openPrepare(): void {
     const candidate = eligibleTasks[0];
     const session = candidate ? activeSessions(candidate, snapshot)[0] : null;
@@ -217,6 +212,32 @@ export function WorkspaceContinuityPanel({
     }
   }
 
+  async function transitionTask(
+    action: "review" | "complete",
+    projection: ContinuityWorkspaceTaskProjection
+  ): Promise<void> {
+    const mutationKey = `${action}:${projection.task.id}`;
+    setMutating(mutationKey);
+    try {
+      const payload = {
+        taskId: projection.task.id,
+        expectedRevision: projection.task.revision,
+        idempotencyKey: idempotencyKey(`task.${action}`)
+      };
+      if (action === "review") {
+        await submitContinuityTaskReview(payload, token);
+      } else {
+        await completeContinuityTask(payload, token);
+      }
+      await onRefresh();
+      message.success(copy.operationComplete);
+    } catch (error) {
+      message.error(problemMessage(error, copy.operationFailed));
+    } finally {
+      setMutating(null);
+    }
+  }
+
   function openFork(handoff: ContinuityHandoffRecord): void {
     const source = snapshot.tasks.find(({ task }) => task.id === handoff.taskId);
     const mode = handoff.toMode === "unassigned" ? "chat-direct" : handoff.toMode;
@@ -272,7 +293,15 @@ export function WorkspaceContinuityPanel({
       </div>
 
       {activeSection === "projects" ? projectsContent : null}
-      {activeSection === "tasks" ? <TasksSection locale={locale} snapshot={snapshot} /> : null}
+      {activeSection === "tasks" ? (
+        <TasksSection
+          locale={locale}
+          snapshot={snapshot}
+          mutating={mutating}
+          onSubmitReview={(projection) => void transitionTask("review", projection)}
+          onComplete={(projection) => void transitionTask("complete", projection)}
+        />
+      ) : null}
       {activeSection === "sessions" ? (
         <SessionsSection locale={locale} snapshot={snapshot} />
       ) : null}
@@ -476,10 +505,16 @@ function GitSummary({
 
 function TasksSection({
   locale,
-  snapshot
+  snapshot,
+  mutating,
+  onSubmitReview,
+  onComplete
 }: {
   locale: LocaleCode;
   snapshot: ContinuityWorkspaceSnapshot;
+  mutating: string | null;
+  onSubmitReview: (projection: ContinuityWorkspaceTaskProjection) => void;
+  onComplete: (projection: ContinuityWorkspaceTaskProjection) => void;
 }) {
   const copy = getUiCopy(locale).continuity;
   if (snapshot.tasks.length === 0) {
@@ -494,28 +529,95 @@ function TasksSection({
   }
   return (
     <div className="continuity-entity-list">
-      {snapshot.tasks.map(({ task, sessions, latestHandoff, evidence }) => (
-        <article className="continuity-entity-card" key={task.id}>
-          <header>
-            <div>
-              <Text as="h3">{task.title}</Text>
-              <Text as="p" type="secondary">{task.goal}</Text>
+      {snapshot.tasks.map((projection) => {
+        const { task, sessions, latestHandoff, evidence, completion } = projection;
+        const canSubmitReview =
+          ["in-progress", "blocked"].includes(task.status) &&
+          evidence?.verificationState === "verified";
+        const canComplete = task.status === "review" && completion.eligible;
+        return (
+          <article className="continuity-entity-card" key={task.id}>
+            <header>
+              <div>
+                <Text as="h3">{task.title}</Text>
+                <Text as="p" type="secondary">{task.goal}</Text>
+              </div>
+              <VerificationTag
+                state={evidence?.verificationState ?? "missing"}
+                locale={locale}
+              />
+            </header>
+            <div className="continuity-entity-card__facts">
+              <span>{copy.taskStatus}: <strong>{task.status}</strong></span>
+              <span>{copy.priority}: <strong>{task.priority}</strong></span>
+              <span>{copy.activeSession}: <code>{task.activeSessionId || "—"}</code></span>
+              <span>{copy.parentTask}: <code>{task.parentTaskId || "—"}</code></span>
+              <span>{copy.revision}: <strong>{task.revision}</strong></span>
             </div>
-            <VerificationTag state={evidence?.verificationState ?? "missing"} locale={locale} />
-          </header>
-          <div className="continuity-entity-card__facts">
-            <span>{copy.taskStatus}: <strong>{task.status}</strong></span>
-            <span>{copy.priority}: <strong>{task.priority}</strong></span>
-            <span>{copy.activeSession}: <code>{task.activeSessionId || "—"}</code></span>
-            <span>{copy.parentTask}: <code>{task.parentTaskId || "—"}</code></span>
-            <span>{copy.revision}: <strong>{task.revision}</strong></span>
-          </div>
-          <div className="continuity-entity-card__footer">
-            <span>{sessions.length} {copy.sections.sessions.label}</span>
-            <span>{latestHandoff ? `${copy.sections.handoffs.label}: ${latestHandoff.status}` : copy.noHandoffsTitle}</span>
-          </div>
-        </article>
-      ))}
+            <div
+              className={`continuity-completion-state ${
+                completion.eligible ? "is-ready" : "is-blocked"
+              }`}
+            >
+              <div className="continuity-completion-state__heading">
+                {completion.eligible ? <CheckCircleOutlined /> : <LockOutlined />}
+                <strong>
+                  {completion.eligible ? copy.completionReady : copy.completionBlocked}
+                </strong>
+              </div>
+              {completion.blockers.length > 0 ? (
+                <div className="continuity-completion-blockers">
+                  <strong>{copy.completionBlockers}</strong>
+                  <ul>
+                    {completion.blockers.map((blocker, index) => (
+                      <li key={`${blocker.code}:${index}`}>
+                        <code>{blocker.code}</code>
+                        <span>{blocker.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+            <div className="continuity-entity-card__footer">
+              <span>{sessions.length} {copy.sections.sessions.label}</span>
+              <span>
+                {latestHandoff
+                  ? `${copy.sections.handoffs.label}: ${latestHandoff.status}`
+                  : copy.noHandoffsTitle}
+              </span>
+            </div>
+            <div className="continuity-entity-card__actions">
+              <Popconfirm
+                title={copy.submitReview}
+                disabled={!canSubmitReview}
+                onConfirm={() => onSubmitReview(projection)}
+              >
+                <Button
+                  disabled={!canSubmitReview}
+                  loading={mutating === `review:${task.id}`}
+                >
+                  {copy.submitReview}
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title={copy.completeTask}
+                disabled={!canComplete}
+                onConfirm={() => onComplete(projection)}
+              >
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  disabled={!canComplete}
+                  loading={mutating === `complete:${task.id}`}
+                >
+                  {copy.completeTask}
+                </Button>
+              </Popconfirm>
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -528,8 +630,12 @@ function SessionsSection({
   snapshot: ContinuityWorkspaceSnapshot;
 }) {
   const copy = getUiCopy(locale).continuity;
-  const sessions = snapshot.tasks.flatMap(({ task, sessions }) =>
-    sessions.map((session) => ({ task, session }))
+  const sessions = snapshot.tasks.flatMap(({ task, sessions, runtimes }) =>
+    sessions.map((session) => ({
+      task,
+      session,
+      runtime: runtimes.find((entry) => entry.sessionId === session.id) ?? null
+    }))
   );
   if (sessions.length === 0) {
     return (
@@ -543,7 +649,7 @@ function SessionsSection({
   }
   return (
     <div className="continuity-entity-list">
-      {sessions.map(({ task, session }) => (
+      {sessions.map(({ task, session, runtime }) => (
         <article className="continuity-entity-card" key={session.id}>
           <header>
             <div>
@@ -557,6 +663,53 @@ function SessionsSection({
             <span>{copy.createdAt}: <strong>{formatDate(session.startedAt, locale)}</strong></span>
             <span>{copy.revision}: <strong>{session.revision}</strong></span>
           </div>
+          {runtime?.binding ? (
+            <div className="continuity-runtime-binding">
+              <div className="continuity-runtime-binding__heading">
+                <SwapOutlined />
+                <strong>{copy.runtimeBinding}</strong>
+                <Tag>{runtime.binding.runtimeKind}</Tag>
+              </div>
+              <div className="continuity-entity-card__facts">
+                <span>
+                  {copy.bindingStatus}: <strong>{runtime.binding.status}</strong>
+                </span>
+                <span>
+                  {copy.externalRun}: <code>{runtime.binding.externalRunId || "—"}</code>
+                </span>
+              </div>
+              {runtime.job ? (
+                <div className="continuity-runtime-job">
+                  <div className="continuity-runtime-job__heading">
+                    <strong>{copy.asyncJob}</strong>
+                    <Tag color={runtime.job.status === "completed" ? "green" : undefined}>
+                      {copy.jobStatus}: {runtime.job.status}
+                    </Tag>
+                  </div>
+                  <code>{runtime.job.id}</code>
+                  <div className="continuity-runtime-job__artifacts">
+                    <strong>{copy.jobArtifacts}</strong>
+                    {runtime.job.artifacts.length > 0 ? (
+                      <div className="continuity-chip-list">
+                        {runtime.job.artifacts.map((artifact) => (
+                          <a
+                            key={artifact.key}
+                            href={`/ui/jobs/${encodeURIComponent(runtime.job!.id)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <FileTextOutlined /> {artifact.label}
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <span>{copy.noJobArtifacts}</span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </article>
       ))}
     </div>

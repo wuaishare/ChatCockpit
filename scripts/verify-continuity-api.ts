@@ -371,11 +371,29 @@ async function runContinuityApiVerification(): Promise<void> {
         tasks: Array<{
           task: { id: string; status: string };
           sessions: Array<{ id: string; status: string }>;
+          runtimes: Array<{
+            sessionId: string;
+            binding: {
+              id: string;
+              runtimeKind: string;
+              externalRunId: string | null;
+              status: string;
+            } | null;
+            job: {
+              id: string;
+              status: string;
+              artifacts: Array<{ key: string; label: string; path: string }>;
+            } | null;
+          }>;
           latestHandoff: { id: string; status: string } | null;
           evidence: {
             verificationState: string;
             items: Array<{ id: string; required: boolean; status: string }>;
           } | null;
+          completion: {
+            eligible: boolean;
+            blockers: Array<{ code: string; message: string }>;
+          };
         }>;
         pendingApprovals: unknown[];
       };
@@ -415,6 +433,20 @@ async function runContinuityApiVerification(): Promise<void> {
       restSnapshot.snapshot.tasks[0].evidence?.items[0].required,
       true
     );
+    assert.equal(restSnapshot.snapshot.tasks[0].completion.eligible, false);
+    assert.deepEqual(
+      restSnapshot.snapshot.tasks[0].completion.blockers
+        .map((blocker) => blocker.code)
+        .sort(),
+      [
+        "ACCEPTED_HANDOFF_REQUIRED",
+        "ACTIVE_WRITER_LEASE",
+        "READY_HANDOFF_PENDING"
+      ].sort()
+    );
+    assert.equal(restSnapshot.snapshot.tasks[0].runtimes.length, 1);
+    assert.equal(restSnapshot.snapshot.tasks[0].runtimes[0].binding, null);
+    assert.equal(restSnapshot.snapshot.tasks[0].runtimes[0].job, null);
     assert.doesNotMatch(JSON.stringify(restSnapshot), new RegExp(repoRoot));
 
     const acceptInput = {
@@ -456,6 +488,19 @@ async function runContinuityApiVerification(): Promise<void> {
     assert.equal(mcpReleased.replayed, true);
     assert.deepEqual(mcpReleased.lease, restReleased.lease);
     assert.equal(restReleased.lease.status, "released");
+
+    const completionReadySnapshot = await rest<typeof restSnapshot>(
+      "GET",
+      `/api/continuity/workspaces/${workspace.id}/snapshot`
+    );
+    assert.equal(
+      completionReadySnapshot.snapshot.tasks[0].completion.eligible,
+      true
+    );
+    assert.deepEqual(
+      completionReadySnapshot.snapshot.tasks[0].completion.blockers,
+      []
+    );
 
     const completionInput = {
       taskId: restTask.task.id,
@@ -590,6 +635,31 @@ async function runContinuityApiVerification(): Promise<void> {
       restAsyncQueue.binding.id
     );
     assert.doesNotMatch(JSON.stringify(restAsyncQueue), /Inspect the fixture/);
+
+    const asyncSnapshot = await rest<typeof restSnapshot>(
+      "GET",
+      `/api/continuity/workspaces/${workspace.id}/snapshot`
+    );
+    const asyncProjection = asyncSnapshot.snapshot.tasks.find(
+      ({ task }) => task.id === asyncTask.task.id
+    );
+    const asyncRuntime = asyncProjection?.runtimes.find(
+      ({ sessionId }) => sessionId === asyncSession.session.id
+    );
+    assert.equal(asyncRuntime?.binding?.id, restAsyncQueue.binding.id);
+    assert.equal(asyncRuntime?.binding?.runtimeKind, "tokenpilot-runner");
+    assert.equal(asyncRuntime?.binding?.externalRunId, restAsyncQueue.job.id);
+    assert.equal(asyncRuntime?.job?.id, restAsyncQueue.job.id);
+    assert.equal(asyncRuntime?.job?.status, "queued");
+    assert.deepEqual(asyncRuntime?.job?.artifacts, []);
+    assert.equal(asyncProjection?.completion.eligible, false);
+    assert.ok(
+      asyncProjection?.completion.blockers.some(
+        (blocker) => blocker.code === "TASK_STATUS_NOT_REVIEW"
+      )
+    );
+    assert.doesNotMatch(JSON.stringify(asyncSnapshot), /Inspect the fixture/);
+    assert.doesNotMatch(JSON.stringify(asyncSnapshot), new RegExp(repoRoot));
 
     const cancelTask = await rest<typeof restTask>(
       "POST",

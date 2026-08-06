@@ -169,6 +169,18 @@ export class RuntimeBindingRepository {
     return row ? bindingFromRow(row) : null;
   }
 
+  latestForSession(sessionId: string): RuntimeBindingRecord | null {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_bindings
+        WHERE session_id = ?
+        ORDER BY created_at DESC, revision DESC
+        LIMIT 1
+      `)
+      .get(sessionId) as RuntimeBindingRow | undefined;
+    return row ? bindingFromRow(row) : null;
+  }
+
   findActiveByExternalThread(
     externalThreadId: string
   ): CodexRuntimeBindingRecord | null {

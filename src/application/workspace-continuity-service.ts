@@ -7,13 +7,24 @@ import type {
   HandoffCheckpointRecord,
   ProjectRecord,
   RuntimeApprovalRecord,
+  RuntimeBindingRecord,
   TaskRecord,
   WorkspaceRecord,
   WriterLeaseRecord
 } from "../continuity/types.js";
-import type { TokenPilotPaths } from "../types.js";
+import { listJobArtifacts } from "../core/job-artifacts.js";
+import { getJob } from "../core/jobs.js";
+import type {
+  JobStatus,
+  TokenPilotJobArtifactSummary,
+  TokenPilotPaths
+} from "../types.js";
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
+import {
+  assessTaskCompletion,
+  type TaskCompletionBlocker
+} from "./task-completion-assessment.js";
 
 export type WorkspaceVerificationState = "verified" | "incomplete" | "missing";
 
@@ -23,11 +34,30 @@ export interface WorkspaceEvidenceProjection {
   verificationState: WorkspaceVerificationState;
 }
 
+export interface WorkspaceRuntimeJobProjection {
+  id: string;
+  status: JobStatus;
+  createdAt: string;
+  updatedAt: string;
+  artifacts: TokenPilotJobArtifactSummary[];
+}
+
+export interface WorkspaceSessionRuntimeProjection {
+  sessionId: string;
+  binding: RuntimeBindingRecord | null;
+  job: WorkspaceRuntimeJobProjection | null;
+}
+
 export interface WorkspaceTaskContinuityProjection {
   task: TaskRecord;
   sessions: DevelopmentSessionRecord[];
+  runtimes: WorkspaceSessionRuntimeProjection[];
   latestHandoff: HandoffCheckpointRecord | null;
   evidence: WorkspaceEvidenceProjection | null;
+  completion: {
+    eligible: boolean;
+    blockers: TaskCompletionBlocker[];
+  };
 }
 
 export interface WorkspaceGitProjection {
@@ -75,7 +105,7 @@ export class WorkspaceContinuityService {
   private readonly git: GitService;
 
   constructor(
-    paths: TokenPilotPaths,
+    private readonly paths: TokenPilotPaths,
     private readonly repositories: ContinuityRepositories
   ) {
     this.git = new GitService(paths);
@@ -90,7 +120,7 @@ export class WorkspaceContinuityService {
     this.repositories.leases.reconcileExpired(context.now);
     const activeLease = this.repositories.leases.getActive(workspace.id);
     const tasks = this.repositories.tasks.listByWorkspace(workspace.id).map((task) =>
-      this.projectTask(task)
+      this.projectTask(context, task)
     );
 
     return {
@@ -106,18 +136,65 @@ export class WorkspaceContinuityService {
     };
   }
 
-  private projectTask(task: TaskRecord): WorkspaceTaskContinuityProjection {
+  private projectTask(
+    context: OperationContext,
+    task: TaskRecord
+  ): WorkspaceTaskContinuityProjection {
     const latestHandoff = task.latestHandoffId
       ? this.repositories.handoffs.get(task.latestHandoffId)
       : this.repositories.handoffs.latestForTask(task.id);
     const evidence = task.latestEvidenceBundleId
       ? this.projectEvidence(task.latestEvidenceBundleId)
       : null;
+    const sessions = this.repositories.sessions.listByTask(task.id);
+    const assessment = assessTaskCompletion(
+      this.repositories,
+      context,
+      task
+    );
     return {
       task,
-      sessions: this.repositories.sessions.listByTask(task.id),
+      sessions,
+      runtimes: sessions.map((session) => this.projectRuntime(session)),
       latestHandoff,
-      evidence
+      evidence,
+      completion: {
+        eligible: assessment.eligible,
+        blockers: assessment.blockers
+      }
+    };
+  }
+
+  private projectRuntime(
+    session: DevelopmentSessionRecord
+  ): WorkspaceSessionRuntimeProjection {
+    const binding = this.repositories.runtimeBindings.latestForSession(
+      session.id
+    );
+    if (!binding || binding.runtimeKind !== "tokenpilot-runner") {
+      return { sessionId: session.id, binding, job: null };
+    }
+    const stored = getJob(this.paths, binding.externalRunId);
+    if (!stored) {
+      return { sessionId: session.id, binding, job: null };
+    }
+    return {
+      sessionId: session.id,
+      binding,
+      job: {
+        id: stored.job.id,
+        status: stored.job.status,
+        createdAt: stored.job.createdAt,
+        updatedAt: stored.job.updatedAt,
+        artifacts: listJobArtifacts(stored.job, this.paths).map(
+          ({ key, label, path, contentType }) => ({
+            key,
+            label,
+            path,
+            contentType
+          })
+        )
+      }
     };
   }
 

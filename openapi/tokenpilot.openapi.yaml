@@ -1865,6 +1865,65 @@ components:
           type: string
           enum: [verified, incomplete, missing]
       required: [bundle, items, verificationState]
+    TaskCompletionBlocker:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required: [code, message]
+    TaskCompletionAssessmentProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        eligible:
+          type: boolean
+        blockers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskCompletionBlocker'
+      required: [eligible, blockers]
+    WorkspaceRuntimeJobProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobArtifactSummary'
+      required: [id, status, createdAt, updatedAt, artifacts]
+    WorkspaceSessionRuntimeProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+        binding:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeBindingRecord'
+            - $ref: '#/components/schemas/RunnerRuntimeBindingRecord'
+            - type: "null"
+        job:
+          oneOf:
+            - $ref: '#/components/schemas/WorkspaceRuntimeJobProjection'
+            - type: "null"
+      required: [sessionId, binding, job]
     WorkspaceTaskContinuityProjection:
       type: object
       additionalProperties: false
@@ -1875,6 +1934,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        runtimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceSessionRuntimeProjection'
         latestHandoff:
           oneOf:
             - $ref: '#/components/schemas/ContinuityHandoffRecord'
@@ -1883,7 +1946,9 @@ components:
           oneOf:
             - $ref: '#/components/schemas/WorkspaceEvidenceProjection'
             - type: "null"
-      required: [task, sessions, latestHandoff, evidence]
+        completion:
+          $ref: '#/components/schemas/TaskCompletionAssessmentProjection'
+      required: [task, sessions, runtimes, latestHandoff, evidence, completion]
     WorkspaceGitProjection:
       type: object
       additionalProperties: false

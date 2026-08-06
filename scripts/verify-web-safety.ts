@@ -326,7 +326,9 @@ for (const operation of [
   "prepareContinuityHandoff",
   "acceptContinuityHandoff",
   "cancelContinuityHandoff",
-  "forkContinuityHandoff"
+  "forkContinuityHandoff",
+  "submitContinuityTaskReview",
+  "completeContinuityTask"
 ]) {
   assert.match(apiSource, new RegExp(operation));
   assert.match(workspaceContinuitySource, new RegExp(operation));
@@ -341,6 +343,12 @@ assert.match(workspaceContinuitySource, /prepareHandoff/);
 assert.match(workspaceContinuitySource, /acceptHandoff/);
 assert.match(workspaceContinuitySource, /forkHandoff/);
 assert.match(workspaceContinuitySource, /cancelHandoff/);
+assert.match(workspaceContinuitySource, /completion\.eligible/);
+assert.match(workspaceContinuitySource, /completion\.blockers/);
+assert.match(workspaceContinuitySource, /runtime\.binding/);
+assert.match(workspaceContinuitySource, /runtime\.job/);
+assert.match(workspaceContinuitySource, /externalRunId/);
+assert.match(workspaceContinuitySource, /job\.artifacts/);
 assert.doesNotMatch(
   `${continuitySource}\n${workspaceContinuitySource}`,
   /mock(?:Projects|Snapshot|Tasks|Sessions)|sample(?:Projects|Snapshot)|demo(?:Projects|Snapshot|Tasks)|fixture(?:Projects|Snapshot)|fake(?:Projects|Snapshot)/i

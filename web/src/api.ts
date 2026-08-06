@@ -4,6 +4,8 @@ import type {
   ContinuityHandoffMutationResponse,
   ContinuityProjectsResponse,
   ContinuitySessionMode,
+  ContinuityTaskCompletionResponse,
+  ContinuityTaskReviewResponse,
   ContinuityWorkspaceSnapshotResponse,
   GptConfigResponse,
   HealthResponse,
@@ -169,6 +171,28 @@ async function postBodyJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+export async function submitContinuityTaskReview(
+  payload: {
+    taskId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityTaskReviewResponse> {
+  return postBodyJson("/api/continuity/tasks/submit-review", payload, token);
+}
+
+export async function completeContinuityTask(
+  payload: {
+    taskId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityTaskCompletionResponse> {
+  return postBodyJson("/api/continuity/tasks/complete", payload, token);
 }
 
 export async function prepareContinuityHandoff(

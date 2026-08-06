@@ -304,6 +304,30 @@ export interface ContinuityTaskRecord {
   revision: number;
 }
 
+export type ContinuityRuntimeBindingStatus =
+  | "active"
+  | "superseded"
+  | "released"
+  | "stale";
+
+export interface ContinuityRuntimeBindingRecord {
+  id: string;
+  sessionId: string;
+  workspaceId: string;
+  runtimeKind: "codex-app-server" | "tokenpilot-runner";
+  externalSessionId: string | null;
+  externalRunId: string | null;
+  sourceExternalId: string | null;
+  externalThreadId: string | null;
+  sourceThreadId: string | null;
+  relation: "bound" | "resumed" | "forked" | "queued";
+  status: ContinuityRuntimeBindingStatus;
+  modelProvider: string | null;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
 export interface ContinuitySessionRecord {
   id: string;
   projectId: string;
@@ -406,15 +430,40 @@ export interface ContinuityRuntimeApprovalRecord {
   revision: number;
 }
 
+export interface ContinuityTaskCompletionBlocker {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ContinuityWorkspaceRuntimeJobProjection {
+  id: string;
+  status: JobStatus;
+  createdAt: string;
+  updatedAt: string;
+  artifacts: JobArtifactSummary[];
+}
+
+export interface ContinuityWorkspaceSessionRuntimeProjection {
+  sessionId: string;
+  binding: ContinuityRuntimeBindingRecord | null;
+  job: ContinuityWorkspaceRuntimeJobProjection | null;
+}
+
 export interface ContinuityWorkspaceTaskProjection {
   task: ContinuityTaskRecord;
   sessions: ContinuitySessionRecord[];
+  runtimes: ContinuityWorkspaceSessionRuntimeProjection[];
   latestHandoff: ContinuityHandoffRecord | null;
   evidence: {
     bundle: ContinuityEvidenceBundleRecord;
     items: ContinuityEvidenceItemRecord[];
     verificationState: ContinuityVerificationState;
   } | null;
+  completion: {
+    eligible: boolean;
+    blockers: ContinuityTaskCompletionBlocker[];
+  };
 }
 
 export interface ContinuityWorkspaceSnapshot {
@@ -438,6 +487,22 @@ export interface ContinuityWorkspaceSnapshot {
 export interface ContinuityWorkspaceSnapshotResponse {
   ok: true;
   snapshot: ContinuityWorkspaceSnapshot;
+}
+
+export interface ContinuityTaskReviewResponse {
+  ok: true;
+  task: ContinuityTaskRecord;
+  evidenceBundle: ContinuityEvidenceBundleRecord;
+  replayed: boolean;
+}
+
+export interface ContinuityTaskCompletionResponse {
+  ok: true;
+  task: ContinuityTaskRecord;
+  sessions: ContinuitySessionRecord[];
+  handoff: ContinuityHandoffRecord;
+  evidenceBundle: ContinuityEvidenceBundleRecord;
+  replayed: boolean;
 }
 
 export interface ContinuityHandoffMutationResponse {

@@ -204,6 +204,18 @@ export interface UiCopy {
     childSessionTitle: string;
     operationComplete: string;
     operationFailed: string;
+    submitReview: string;
+    completeTask: string;
+    completionReady: string;
+    completionBlocked: string;
+    completionBlockers: string;
+    runtimeBinding: string;
+    asyncJob: string;
+    jobStatus: string;
+    bindingStatus: string;
+    externalRun: string;
+    jobArtifacts: string;
+    noJobArtifacts: string;
     verificationVerified: string;
     verificationIncomplete: string;
     verificationMissing: string;
@@ -546,6 +558,18 @@ const zhCN: UiCopy = {
     childSessionTitle: "子会话标题",
     operationComplete: "操作已完成",
     operationFailed: "操作失败",
+    submitReview: "提交审查",
+    completeTask: "完成任务",
+    completionReady: "满足完成条件",
+    completionBlocked: "尚不能完成",
+    completionBlockers: "完成阻塞项",
+    runtimeBinding: "运行时绑定",
+    asyncJob: "异步 Job",
+    jobStatus: "Job 状态",
+    bindingStatus: "绑定状态",
+    externalRun: "外部运行 ID",
+    jobArtifacts: "Job 产物",
+    noJobArtifacts: "当前没有公开可见的 Job 产物。",
     verificationVerified: "已验证",
     verificationIncomplete: "证据不完整",
     verificationMissing: "缺少必需证据",
@@ -939,6 +963,18 @@ const enUS: UiCopy = {
     childSessionTitle: "Child session title",
     operationComplete: "Operation completed",
     operationFailed: "Operation failed",
+    submitReview: "Submit review",
+    completeTask: "Complete task",
+    completionReady: "Completion requirements satisfied",
+    completionBlocked: "Completion blocked",
+    completionBlockers: "Completion blockers",
+    runtimeBinding: "Runtime binding",
+    asyncJob: "Async Job",
+    jobStatus: "Job status",
+    bindingStatus: "Binding status",
+    externalRun: "External run ID",
+    jobArtifacts: "Job artifacts",
+    noJobArtifacts: "No public-safe Job artifacts are currently available.",
     verificationVerified: "Verified",
     verificationIncomplete: "Evidence incomplete",
     verificationMissing: "Required evidence missing",
