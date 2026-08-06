@@ -208,6 +208,12 @@ async function runMcpSmoke(): Promise<void> {
       tools.map((tool) => tool.name).sort(),
       [
         "tokenpilot.asyncJob.queue",
+        "tokenpilot.document.appendVersion",
+        "tokenpilot.document.create",
+        "tokenpilot.document.get",
+        "tokenpilot.document.list",
+        "tokenpilot.document.updateStatus",
+        "tokenpilot.document.version.get",
         "tokenpilot.evidence.record",
         "tokenpilot.files.edit",
         "tokenpilot.files.list",
@@ -239,6 +245,7 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.session.get",
         "tokenpilot.session.start",
         "tokenpilot.shell.run",
+        "tokenpilot.task.bindDocuments",
         "tokenpilot.task.complete",
         "tokenpilot.task.create",
         "tokenpilot.task.get",
@@ -248,6 +255,9 @@ async function runMcpSmoke(): Promise<void> {
     );
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
     for (const name of [
+      "tokenpilot.document.get",
+      "tokenpilot.document.list",
+      "tokenpilot.document.version.get",
       "tokenpilot.files.list",
       "tokenpilot.files.read",
       "tokenpilot.files.readBatch",
@@ -275,6 +285,9 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("tokenpilot.git.commit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("tokenpilot.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [
+      "tokenpilot.document.appendVersion",
+      "tokenpilot.document.create",
+      "tokenpilot.document.updateStatus",
       "tokenpilot.codex.session.bind",
       "tokenpilot.codex.session.fork",
       "tokenpilot.codex.session.resume",
@@ -287,6 +300,7 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.handoff.prepare",
       "tokenpilot.lease.release",
       "tokenpilot.session.start",
+      "tokenpilot.task.bindDocuments",
       "tokenpilot.task.complete",
       "tokenpilot.task.create",
       "tokenpilot.task.submitReview"

@@ -12,7 +12,9 @@ interface TaskRow {
   project_id: string;
   workspace_id: string;
   spec_id: string | null;
+  spec_version: number | null;
   plan_id: string | null;
+  plan_version: number | null;
   parent_task_id: string | null;
   title: string;
   goal: string;
@@ -32,7 +34,9 @@ function taskFromRow(row: TaskRow): TaskRecord {
     projectId: row.project_id,
     workspaceId: row.workspace_id,
     specId: row.spec_id,
+    specVersion: row.spec_version === null ? null : Number(row.spec_version),
     planId: row.plan_id,
+    planVersion: row.plan_version === null ? null : Number(row.plan_version),
     parentTaskId: row.parent_task_id,
     title: row.title,
     goal: row.goal,
@@ -52,7 +56,9 @@ export interface CreateTaskInput {
   projectId: string;
   workspaceId: string;
   specId?: string | null;
+  specVersion?: number | null;
   planId?: string | null;
+  planVersion?: number | null;
   parentTaskId?: string | null;
   title: string;
   goal: string;
@@ -70,18 +76,21 @@ export class TaskRepository {
     this.database.sqlite
       .prepare(`
         INSERT INTO tasks (
-          id, project_id, workspace_id, spec_id, plan_id, parent_task_id,
+          id, project_id, workspace_id, spec_id, spec_version,
+          plan_id, plan_version, parent_task_id,
           title, goal, status, priority, active_session_id,
           latest_handoff_id, latest_evidence_bundle_id,
           created_at, updated_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, 1)
       `)
       .run(
         id,
         input.projectId,
         input.workspaceId,
         input.specId ?? null,
+        input.specVersion ?? null,
         input.planId ?? null,
+        input.planVersion ?? null,
         input.parentTaskId ?? null,
         input.title,
         input.goal,
@@ -160,7 +169,9 @@ export class TaskRepository {
     id: string,
     input: {
       specId: string | null;
+      specVersion: number | null;
       planId: string | null;
+      planVersion: number | null;
       expectedRevision: number;
       now?: string;
     }
@@ -168,12 +179,15 @@ export class TaskRepository {
     const result = this.database.sqlite
       .prepare(`
         UPDATE tasks
-        SET spec_id = ?, plan_id = ?, updated_at = ?, revision = revision + 1
+        SET spec_id = ?, spec_version = ?, plan_id = ?, plan_version = ?,
+            updated_at = ?, revision = revision + 1
         WHERE id = ? AND revision = ?
       `)
       .run(
         input.specId,
+        input.specVersion,
         input.planId,
+        input.planVersion,
         nowIso(input.now),
         id,
         input.expectedRevision

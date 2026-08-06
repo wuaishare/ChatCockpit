@@ -126,7 +126,9 @@ export interface TaskRecord {
   projectId: string;
   workspaceId: string;
   specId: string | null;
+  specVersion: number | null;
   planId: string | null;
+  planVersion: number | null;
   parentTaskId: string | null;
   title: string;
   goal: string;

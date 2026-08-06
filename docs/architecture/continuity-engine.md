@@ -3,9 +3,9 @@
 ## Status
 
 - Status: implemented vNext foundation plus explicitly marked target extensions
-- Implemented: SQLite Schema v5; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, append-only Spec/Plan document versions, Task document foreign keys, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Approval, Event, Workspace Snapshot, REST/MCP parity, and Continuity Workbench projections
+- Implemented: SQLite Schema v6; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, shared Spec/Plan application services, REST/MCP parity, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Approval, Event, Workspace Snapshot, and Continuity Workbench projections
 - Experimental: Codex App Server protocol integration, Chat Direct standalone routing, and remote ChatGPT access through Custom GPT Actions or MCP
-- Target extensions: Spec/Plan application services, REST/MCP/Web workflows and execution policy; richer Task transitions; Recovery Center automation across every provider; Resource Center governance; and additional provider adapters
+- Target extensions: Spec/Plan Web workflows and planning-required execution policy; richer Task transitions; Recovery Center automation across every provider; Resource Center governance; and additional provider adapters
 - Scope: local-first continuity state shared by REST, MCP, Web UI, CLI, Codex adapters, and async agents
 
 ## Purpose
@@ -121,7 +121,9 @@ export interface DevelopmentDocumentVersionRecord {
 }
 ```
 
-Versions are immutable and append-only. Adding a version increments `currentVersion` and returns an approved or ready document to `draft`. Task `specId` and `planId` are real foreign keys; database triggers reject kind, Project, or Workspace mismatches. Existing databases with unresolved legacy string references fail migration explicitly rather than losing or inventing document content.
+Versions are immutable and append-only. Adding a version increments `currentVersion` and returns an approved or ready document to `draft`. Task `specId` and `planId` are real foreign keys; `specVersion` and `planVersion` pin the immutable versions that governed the Task at binding time. Database triggers reject kind, Project, Workspace, and version mismatches. Existing databases with unresolved legacy string references fail migration explicitly rather than losing or inventing document content.
+
+Shared application services expose create, list, read, immutable-version read, append-version, lifecycle transition, and Task binding operations. REST and MCP use the same service and idempotency records. Public Markdown projections redact common absolute-path and credential assignments while preserving the private SQLite truth.
 
 ### Task
 
@@ -196,7 +198,7 @@ export interface RuntimeBindingRecord {
 }
 ```
 
-The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v5. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
+The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v6. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
 
 ```ts
 export interface ChatDirectExecutionMetadata {
@@ -539,7 +541,7 @@ Secrets, local configuration, environment files, runtime logs, and private agent
 |---|---|---|
 | Stable Project and Workspace IDs | Implemented | Deterministic configured-project sync and SQLite records |
 | Task continuity across Chat Direct and Codex Session | Implemented | Session mode, Codex Runtime Binding, Handoff, and Workspace Snapshot |
-| Durable append-only Spec/Plan persistence | Implemented foundation | Schema v5 stores fixed-kind documents, immutable Markdown versions, lifecycle status, Task foreign keys, and migration safety; services/protocol/UI follow in the active phase |
+| Durable append-only Spec/Plan truth | Implemented through protocol layer | Schema v6 stores fixed-kind documents, immutable Markdown versions, lifecycle status, Task foreign keys and version pins; shared REST/MCP services provide create/read/version/status/bind operations; Web and execution policy follow in the active phase |
 | Async Job as a first-class Runtime Binding | Implemented | The generic binding store introduced in Schema v4 stores unique Runner Job IDs; Queue and Runner reconcile Task, Session, Binding, Evidence, failure, and restart state idempotently |
 | One active Writer per Workspace | Implemented | SQLite partial unique index plus Lease Service tests |
 | Cross-mode Handoff with Git and pending-work state | Implemented | Prepare, Accept, Fork, Cancel, REST/MCP parity, restart replay |

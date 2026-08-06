@@ -1,6 +1,15 @@
 import type { ContinuityServices } from "../../application/continuity-services.js";
 import { asyncJobQueueSchema } from "../../contracts/async-job.js";
 import {
+  developmentDocumentAppendVersionSchema,
+  developmentDocumentCreateSchema,
+  developmentDocumentGetSchema,
+  developmentDocumentListSchema,
+  developmentDocumentStatusSchema,
+  developmentDocumentVersionGetSchema,
+  taskDocumentBindSchema
+} from "../../contracts/development-documents.js";
+import {
   evidenceRecordSchema,
   handoffAcceptSchema,
   handoffCancelSchema,
@@ -53,6 +62,90 @@ export function buildContinuityMcpTools(
       handler: (context, input) => ({
         ok: true,
         ...services.asyncJobs.queue(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.document.list",
+      title: "List Spec and Plan documents",
+      description:
+        "List public-safe Spec or Plan summaries for one TokenPilot workspace, including lifecycle status, current version, and content hash.",
+      inputSchema: developmentDocumentListSchema,
+      annotations: readOnlyToolAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        documents: services.developmentDocuments.list(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.document.get",
+      title: "Read Spec or Plan document",
+      description:
+        "Read one durable Spec or Plan with its current public-safe Markdown projection and append-only version history.",
+      inputSchema: developmentDocumentGetSchema,
+      annotations: readOnlyToolAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.developmentDocuments.get(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.document.version.get",
+      title: "Read Spec or Plan version",
+      description:
+        "Read one immutable public-safe Markdown version by document id and version number.",
+      inputSchema: developmentDocumentVersionGetSchema,
+      annotations: readOnlyToolAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        version: services.developmentDocuments.getVersion(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.document.create",
+      title: "Create Spec or Plan document",
+      description:
+        "Create one idempotent draft Spec or Plan and its immutable version 1 in a TokenPilot project workspace.",
+      inputSchema: developmentDocumentCreateSchema,
+      annotations: idempotentMutationAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.developmentDocuments.create(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.document.appendVersion",
+      title: "Append Spec or Plan version",
+      description:
+        "Append an immutable Markdown version using optimistic revision and idempotency controls. Revised ready or approved documents return to draft.",
+      inputSchema: developmentDocumentAppendVersionSchema,
+      annotations: idempotentMutationAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.developmentDocuments.appendVersion(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.document.updateStatus",
+      title: "Update Spec or Plan status",
+      description:
+        "Move a Spec or Plan through its reviewed lifecycle using optimistic revision and idempotency controls.",
+      inputSchema: developmentDocumentStatusSchema,
+      annotations: idempotentMutationAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.developmentDocuments.updateStatus(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "tokenpilot.task.bindDocuments",
+      title: "Bind Task Spec and Plan",
+      description:
+        "Bind or replace a Task's Spec and Plan using current immutable version pins after validating kind, project, workspace, lifecycle status, and Task revision.",
+      inputSchema: taskDocumentBindSchema,
+      annotations: idempotentMutationAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.developmentDocuments.bindTaskDocuments(context, input)
       })
     }),
     defineMcpTool({

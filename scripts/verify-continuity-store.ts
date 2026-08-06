@@ -592,6 +592,7 @@ async function verifyContinuityStore(): Promise<void> {
           projectId: project.id,
           workspaceId: workspacePrivate.id,
           specId: approvedPlan.id,
+          specVersion: approvedPlan.currentVersion,
           title: "Reject plan as spec",
           goal: "Prove database kind integrity"
         }),
@@ -622,6 +623,7 @@ async function verifyContinuityStore(): Promise<void> {
           projectId: project.id,
           workspaceId: workspacePrivate.id,
           specId: otherSpec.document.id,
+          specVersion: otherSpec.document.currentVersion,
           title: "Reject cross-workspace spec",
           goal: "Prove database ownership integrity"
         }),
@@ -638,12 +640,30 @@ async function verifyContinuityStore(): Promise<void> {
     });
     const boundPlannedTask = tasks.bindDocuments(plannedTask.id, {
       specId: revisedSpec.document.id,
+      specVersion: revisedSpec.document.currentVersion,
       planId: approvedPlan.id,
+      planVersion: approvedPlan.currentVersion,
       expectedRevision: plannedTask.revision,
       now: "2026-08-06T00:00:02.000Z"
     });
     assert.equal(boundPlannedTask.specId, revisedSpec.document.id);
+    assert.equal(
+      boundPlannedTask.specVersion,
+      revisedSpec.document.currentVersion
+    );
     assert.equal(boundPlannedTask.planId, approvedPlan.id);
+    assert.equal(boundPlannedTask.planVersion, approvedPlan.currentVersion);
+    assert.throws(
+      () =>
+        tasks.bindDocuments(boundPlannedTask.id, {
+          specId: revisedSpec.document.id,
+          specVersion: 999,
+          planId: approvedPlan.id,
+          planVersion: approvedPlan.currentVersion,
+          expectedRevision: boundPlannedTask.revision
+        }),
+      /TASK_SPEC_VERSION_INVALID/
+    );
     assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
 
     const renamed = projects.rename(

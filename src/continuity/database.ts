@@ -8,6 +8,7 @@ import { runtimeBindingsMigration } from "./migrations/002-runtime-bindings.js";
 import { runtimeExecutionMigration } from "./migrations/003-runtime-execution.js";
 import { genericRuntimeBindingsMigration } from "./migrations/004-generic-runtime-bindings.js";
 import { developmentDocumentsMigration } from "./migrations/005-development-documents.js";
+import { taskDocumentVersionPinsMigration } from "./migrations/006-task-document-version-pins.js";
 
 interface ContinuityMigration {
   version: number;
@@ -21,7 +22,8 @@ const migrations: readonly ContinuityMigration[] = [
   runtimeBindingsMigration,
   runtimeExecutionMigration,
   genericRuntimeBindingsMigration,
-  developmentDocumentsMigration
+  developmentDocumentsMigration,
+  taskDocumentVersionPinsMigration
 ];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

@@ -39,13 +39,13 @@ export class TaskService {
             );
           }
         }
-        this.assertDocumentBinding(
+        const specVersion = this.assertDocumentBinding(
           payload.specId ?? null,
           "spec",
           project.id,
           workspace.id
         );
-        this.assertDocumentBinding(
+        const planVersion = this.assertDocumentBinding(
           payload.planId ?? null,
           "plan",
           project.id,
@@ -55,7 +55,9 @@ export class TaskService {
           projectId: project.id,
           workspaceId: workspace.id,
           specId: payload.specId,
+          specVersion,
           planId: payload.planId,
+          planVersion,
           parentTaskId: payload.parentTaskId,
           title: payload.title,
           goal: payload.goal,
@@ -79,8 +81,8 @@ export class TaskService {
     expectedKind: "spec" | "plan",
     projectId: string,
     workspaceId: string
-  ): void {
-    if (!documentId) return;
+  ): number | null {
+    if (!documentId) return null;
     const document = this.repositories.developmentDocuments.get(documentId);
     if (
       document.kind !== expectedKind ||
@@ -101,5 +103,18 @@ export class TaskService {
         }
       );
     }
+    if (["superseded", "archived"].includes(document.status)) {
+      throw new ServiceError(
+        "CONTINUITY_DOCUMENT_STATUS_INVALID",
+        `Task cannot bind a ${document.status} ${expectedKind}.`,
+        {
+          details: {
+            documentId,
+            documentStatus: document.status
+          }
+        }
+      );
+    }
+    return document.currentVersion;
   }
 }

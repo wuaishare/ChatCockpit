@@ -76,10 +76,11 @@ The release gate verifies authentication, tool listing, tool calls, structured e
 
 ## Tool Families
 
-The current public catalog contains 37 tools across:
+The current public catalog contains 44 tools across:
 
 - public-safe Files, Search, Shell, and Git operations;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
+- Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;
 - Codex Session Bind/Resume/Fork;
 - explicit Codex Turn/Interrupt, Approval response, and Event reads.
@@ -127,7 +128,23 @@ Bind/Resume/Fork do not start a Turn.
 
 ### Async Agent Job
 
-Use the existing Job tools for longer queued Runner work. The Queue/Runner lane is operational, but a first-class async Runtime Binding in the same SQLite relation as Codex Threads remains a target extension.
+Use the continuity-bound Async Job Queue for longer Runner work. Queue creation pins Task/Session/Binding identity, Runner claim validates it, terminal state records Evidence and releases the Binding, and restart reconciliation repairs an interrupted SQLite handoff idempotently.
+
+### Spec/Plan Continuity
+
+Use the document tools to create and govern durable requirements and execution plans:
+
+```text
+tokenpilot.document.create
+tokenpilot.document.list
+tokenpilot.document.get
+tokenpilot.document.version.get
+tokenpilot.document.appendVersion
+tokenpilot.document.updateStatus
+tokenpilot.task.bindDocuments
+```
+
+Task binding pins the current immutable `specVersion` and `planVersion`. Later document versions do not silently rewrite the Task's governing context. Public Markdown reads redact common absolute paths and credential assignments; local SQLite remains the private truth.
 
 ## Workspace Continuity
 
@@ -141,7 +158,7 @@ The snapshot includes public-safe:
 
 - active Writer Lease;
 - Git branch, HEAD, dirty state, and changed paths;
-- Tasks and Sessions;
+- Tasks and Sessions, including pinned Spec/Plan version ids;
 - latest Handoff per Task;
 - Evidence checklist and conservative verification state;
 - pending Approvals.

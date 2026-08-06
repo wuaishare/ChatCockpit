@@ -8,6 +8,15 @@ import { z } from "zod";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import { asyncJobQueueSchema } from "../contracts/async-job.js";
 import {
+  developmentDocumentAppendVersionSchema,
+  developmentDocumentCreateSchema,
+  developmentDocumentGetSchema,
+  developmentDocumentListSchema,
+  developmentDocumentStatusSchema,
+  developmentDocumentVersionGetSchema,
+  taskDocumentBindSchema
+} from "../contracts/development-documents.js";
+import {
   evidenceRecordSchema,
   handoffAcceptSchema,
   handoffCancelSchema,
@@ -104,6 +113,182 @@ export function registerContinuityRoutes(
         return {
           ok: true,
           snapshot: services.workspaces.snapshot(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "GET",
+    "/api/continuity/documents",
+    (request, reply) => {
+      const input = parseOrReply(
+        developmentDocumentListSchema,
+        request.query ?? {},
+        reply
+      );
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          documents: services.developmentDocuments.list(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/documents",
+    (request, reply) => {
+      const input = parseOrReply(
+        developmentDocumentCreateSchema,
+        request.body,
+        reply
+      );
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.developmentDocuments.create(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "GET",
+    "/api/continuity/documents/:documentId",
+    (request, reply) => {
+      const input = parseOrReply(
+        developmentDocumentGetSchema,
+        request.params,
+        reply
+      );
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.developmentDocuments.get(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "GET",
+    "/api/continuity/documents/:documentId/versions/:version",
+    (request, reply) => {
+      const input = parseOrReply(
+        developmentDocumentVersionGetSchema,
+        {
+          ...(request.params as Record<string, unknown>),
+          version: Number(
+            (request.params as { version?: string }).version
+          )
+        },
+        reply
+      );
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          version: services.developmentDocuments.getVersion(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/documents/append-version",
+    (request, reply) => {
+      const input = parseOrReply(
+        developmentDocumentAppendVersionSchema,
+        request.body,
+        reply
+      );
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.developmentDocuments.appendVersion(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/documents/update-status",
+    (request, reply) => {
+      const input = parseOrReply(
+        developmentDocumentStatusSchema,
+        request.body,
+        reply
+      );
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.developmentDocuments.updateStatus(
+            operationContextFromRequest(request),
+            input
+          )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/tasks/bind-documents",
+    (request, reply) => {
+      const input = parseOrReply(taskDocumentBindSchema, request.body, reply);
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.developmentDocuments.bindTaskDocuments(
             operationContextFromRequest(request),
             input
           )

@@ -14,7 +14,7 @@ ChatGPT 负责对话、意图、规划与审查；TokenPilot 提供本地优先�
 
 **省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 
-当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 持久层基础、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、37 个 MCP Tools，以及可显示真实完成阻塞项与 Runtime Job 状态的 Continuity Workbench Web UI。
+当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 真源与 REST/MCP 操作、Task 文档版本固定、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、44 个 MCP Tools，以及可显示真实完成阻塞项与 Runtime Job 状态的 Continuity Workbench Web UI。
 
 TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
 
@@ -42,10 +42,10 @@ ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 - 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
 - Chat Direct：文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；已证明不会隐式调用 `turn/start`。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
-- Continuity Engine：SQLite Schema v5、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
+- Continuity Engine：SQLite Schema v6、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与版本固定、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Tasks、Sessions、Handoffs、Evidence、Approvals、Completion Blockers、Runtime Binding 与 Runner Job；支持 Prepare、Accept、Fork、Cancel、Submit Review 和 Complete Task。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
-- 37 个 MCP Tools、exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
+- 44 个 MCP Tools，包含 Spec/Plan 创建、读取、历史版本、追加版本、状态流转和 Task 绑定；同时提供 exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
 
 ### 实验性
 
@@ -205,8 +205,8 @@ npm run test
 - [x] Codex App Server Thread Bind/Resume/Fork 与显式 Turn/Approval/Interrupt
 - [x] SQLite Continuity Engine、Writer Lease、Handoff、Evidence 与 Runtime Event
 - [x] Continuity Workbench 与 Workspace Snapshot
-- [x] REST/MCP Parity、37 个 MCP Tools、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner 生命周期/重启对账、Completion/Runtime Web UX 与无 Git 源包门禁
-- [x] Schema v5 版本化 Spec/Plan 持久层基础与 Task 文档完整性约束
+- [x] REST/MCP Parity、44 个 MCP Tools、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner 生命周期/重启对账、Completion/Runtime Web UX 与无 Git 源包门禁
+- [x] Schema v6 版本化 Spec/Plan 真源、REST/MCP 工作流、Task 文档完整性与版本固定
 - [x] 首任务模板库与新手案例
 - [x] First-run setup wizard
 - [x] 中文 GPT Builder / 公网 HTTPS 配置文档

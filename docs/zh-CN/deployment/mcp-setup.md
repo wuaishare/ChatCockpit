@@ -74,10 +74,11 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具分类
 
-当前公开目录包含 37 个工具，覆盖：
+当前公开目录包含 44 个工具，覆盖：
 
 - public-safe Files、Search、Shell、Git；
 - Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
+- Spec/Plan 创建、列表、读取、不可变历史版本读取、追加版本、生命周期与 Task 绑定；
 - Codex Runtime Capability 与 Thread Metadata；
 - Codex Session Bind、Resume、Fork；
 - 显式 Codex Turn、Interrupt、Approval Response 与 Event Read。
@@ -125,7 +126,23 @@ Bind、Resume、Fork 本身不会启动 Turn。
 
 ### Async Agent Job
 
-更长的排队任务继续使用 Job/Runner。Queue/Runner 已可用，但 Async Job 还没有像 Codex Thread 一样进入统一 Runtime Binding 关系，这是后续目标。
+更长的排队任务使用 Continuity-bound Async Job Queue。Queue 创建会固定 Task/Session/Binding 身份，Runner Claim 会校验关系，终态会记录 Evidence 并释放 Binding，重启对账可幂等修复中断的 SQLite 交接。
+
+### Spec/Plan Continuity
+
+通过以下工具管理持久化需求与执行计划：
+
+```text
+tokenpilot.document.create
+tokenpilot.document.list
+tokenpilot.document.get
+tokenpilot.document.version.get
+tokenpilot.document.appendVersion
+tokenpilot.document.updateStatus
+tokenpilot.task.bindDocuments
+```
+
+Task 绑定会固定当前不可变的 `specVersion` 和 `planVersion`，文档后续追加新版本不会悄悄改写 Task 的执行依据。公共 Markdown 读取会脱敏常见绝对路径和凭据赋值，私有 SQLite 仍是真源。
 
 ## 6. Workspace Continuity
 
@@ -139,7 +156,7 @@ tokenpilot.workspace.snapshot
 
 - Active Writer Lease；
 - Git 分支、HEAD、Dirty 与变更路径；
-- Tasks 与 Sessions；
+- Tasks 与 Sessions，包括固定的 Spec/Plan 版本 ID；
 - 每个 Task 的最新 Handoff；
 - Evidence Checklist 与保守验证状态；
 - Pending Approvals。

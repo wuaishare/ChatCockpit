@@ -1217,6 +1217,262 @@ components:
         replayed:
           type: boolean
       required: [ok, replayed]
+    DevelopmentDocumentRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        workspaceId:
+          type: string
+        kind:
+          type: string
+          enum: [spec, plan]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [draft, ready, approved, superseded, archived]
+        currentVersion:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, projectId, workspaceId, kind, title, status, currentVersion, createdAt, updatedAt, revision]
+    DevelopmentDocumentVersionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        documentId:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        contentHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        changeSummary:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, documentId, version, contentHash, changeSummary, createdAt]
+    DevelopmentDocumentVersionRecord:
+      allOf:
+        - $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+        - type: object
+          additionalProperties: false
+          properties:
+            contentMarkdown:
+              type: string
+          required: [contentMarkdown]
+    DevelopmentDocumentSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        document:
+          $ref: '#/components/schemas/DevelopmentDocumentRecord'
+        currentVersion:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+      required: [document, currentVersion]
+    DevelopmentDocumentDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        document:
+          $ref: '#/components/schemas/DevelopmentDocumentRecord'
+        currentVersion:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+        currentContent:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionRecord'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+      required: [document, currentVersion, currentContent, versions]
+    DevelopmentDocumentCreatePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        projectId:
+          type: string
+        workspaceId:
+          type: string
+        kind:
+          type: string
+          enum: [spec, plan]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 240
+        contentMarkdown:
+          type: string
+          minLength: 1
+          maxLength: 250000
+        changeSummary:
+          type: string
+          maxLength: 4000
+          default: Initial version
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [projectId, workspaceId, kind, title, contentMarkdown, idempotencyKey]
+    DevelopmentDocumentAppendVersionPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        documentId:
+          type: string
+        contentMarkdown:
+          type: string
+          minLength: 1
+          maxLength: 250000
+        changeSummary:
+          type: string
+          maxLength: 4000
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [documentId, contentMarkdown, expectedRevision, idempotencyKey]
+    DevelopmentDocumentStatusPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        documentId:
+          type: string
+        status:
+          type: string
+          enum: [draft, ready, approved, superseded, archived]
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [documentId, status, expectedRevision, idempotencyKey]
+    DevelopmentDocumentMutationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        document:
+          $ref: '#/components/schemas/DevelopmentDocumentRecord'
+        currentVersion:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+        currentContent:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionRecord'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+        replayed:
+          type: boolean
+      required: [ok, document, currentVersion, currentContent, versions, replayed]
+    DevelopmentDocumentListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DevelopmentDocumentSummary'
+      required: [ok, documents]
+    DevelopmentDocumentReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        document:
+          $ref: '#/components/schemas/DevelopmentDocumentRecord'
+        currentVersion:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+        currentContent:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionRecord'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DevelopmentDocumentVersionSummary'
+      required: [ok, document, currentVersion, currentContent, versions]
+    DevelopmentDocumentVersionReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        version:
+          $ref: '#/components/schemas/DevelopmentDocumentVersionRecord'
+      required: [ok, version]
+    TaskDocumentBindPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        specId:
+          oneOf:
+            - type: string
+            - type: "null"
+        planId:
+          oneOf:
+            - type: string
+            - type: "null"
+        expectedTaskRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [taskId, specId, planId, expectedTaskRevision, idempotencyKey]
+    TaskDocumentBindResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        task:
+          $ref: '#/components/schemas/ContinuityTaskRecord'
+        spec:
+          oneOf:
+            - $ref: '#/components/schemas/DevelopmentDocumentSummary'
+            - type: "null"
+        plan:
+          oneOf:
+            - $ref: '#/components/schemas/DevelopmentDocumentSummary'
+            - type: "null"
+        replayed:
+          type: boolean
+      required: [ok, task, spec, plan, replayed]
     ContinuityTaskCreatePayload:
       type: object
       additionalProperties: false
@@ -1621,9 +1877,19 @@ components:
           oneOf:
             - type: string
             - type: "null"
+        specVersion:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
         planId:
           oneOf:
             - type: string
+            - type: "null"
+        planVersion:
+          oneOf:
+            - type: integer
+              minimum: 1
             - type: "null"
         parentTaskId:
           oneOf:
@@ -1660,7 +1926,7 @@ components:
         revision:
           type: integer
           minimum: 1
-      required: [id, projectId, workspaceId, specId, planId, parentTaskId, title, goal, status, priority, activeSessionId, latestHandoffId, latestEvidenceBundleId, createdAt, updatedAt, revision]
+      required: [id, projectId, workspaceId, specId, specVersion, planId, planVersion, parentTaskId, title, goal, status, priority, activeSessionId, latestHandoffId, latestEvidenceBundleId, createdAt, updatedAt, revision]
     ContinuityWriterLeaseRecord:
       type: object
       additionalProperties: false
@@ -3529,6 +3795,163 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkspaceContinuitySnapshotResponse'
+  /api/continuity/documents:
+    get:
+      operationId: listDevelopmentDocuments
+      summary: List Spec and Plan documents
+      description: Returns public-safe document summaries for one workspace without returning Markdown bodies.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [spec, plan]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, ready, approved, superseded, archived]
+      responses:
+        "200":
+          description: Document summaries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevelopmentDocumentListResponse'
+    post:
+      operationId: createDevelopmentDocument
+      summary: Create Spec or Plan document
+      description: Creates one draft Spec or Plan and immutable version 1 using an idempotency key.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevelopmentDocumentCreatePayload'
+      responses:
+        "200":
+          description: Created or replayed document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevelopmentDocumentMutationResponse'
+  /api/continuity/documents/{documentId}:
+    get:
+      operationId: getDevelopmentDocument
+      summary: Read Spec or Plan document
+      description: Returns one document, its current public-safe Markdown, and append-only version summaries.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Document detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevelopmentDocumentReadResponse'
+  /api/continuity/documents/{documentId}/versions/{version}:
+    get:
+      operationId: getDevelopmentDocumentVersion
+      summary: Read immutable Spec or Plan version
+      description: Returns one public-safe Markdown version by document id and version number.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Immutable document version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevelopmentDocumentVersionReadResponse'
+  /api/continuity/documents/append-version:
+    post:
+      operationId: appendDevelopmentDocumentVersion
+      summary: Append Spec or Plan version
+      description: Appends immutable Markdown and returns the document to draft when a ready or approved version changes.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevelopmentDocumentAppendVersionPayload'
+      responses:
+        "200":
+          description: Appended or replayed version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevelopmentDocumentMutationResponse'
+  /api/continuity/documents/update-status:
+    post:
+      operationId: updateDevelopmentDocumentStatus
+      summary: Update Spec or Plan lifecycle status
+      description: Applies a reviewed lifecycle transition with optimistic revision and idempotency controls.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevelopmentDocumentStatusPayload'
+      responses:
+        "200":
+          description: Updated or replayed document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevelopmentDocumentMutationResponse'
+  /api/continuity/tasks/bind-documents:
+    post:
+      operationId: bindTaskDevelopmentDocuments
+      summary: Bind Task Spec and Plan versions
+      description: Pins the current immutable Spec and Plan versions after validating kind, ownership, lifecycle state, and Task revision.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskDocumentBindPayload'
+      responses:
+        "200":
+          description: Bound or replayed Task document state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDocumentBindResponse'
   /api/continuity/async-jobs/queue:
     post:
       operationId: queueContinuityAsyncJob
