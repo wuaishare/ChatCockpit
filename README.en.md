@@ -14,7 +14,7 @@ ChatGPT owns conversation, intent, planning, and review. TokenPilot provides the
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, 37 MCP tools, asynchronous Job/Runner execution, and a Continuity Workbench Web UI.
+The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner claim/terminal/restart reconciliation, 37 MCP tools, and a Continuity Workbench Web UI backed by real completion blockers and Runtime Job state.
 
 ## What It Does
 
@@ -41,9 +41,9 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 - Chat Direct file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
 - Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
 - SQLite Schema v4 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding persistence, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
-- Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, and Approval state, including Prepare/Accept/Fork/Cancel actions.
-- File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and Evidence for asynchronous jobs.
-- 37 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, restart recovery, and source-archive operation without `.git` metadata.
+- Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, Approval, Completion Blocker, Runtime Binding, and Runner Job state, including Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
+- File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and durable Task/Session/Binding identity with claim, terminal Evidence, and restart reconciliation.
+- 37 MCP tools, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, and source-archive operation without `.git` metadata.
 
 ### Experimental
 
@@ -64,7 +64,7 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 
 ## Operator UI
 
-The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides stable Projects, Tasks, Sessions, Handoffs, Evidence, and Approvals routes backed by a real Workspace Snapshot with Writer Lease, Git, changed-file, and handoff state.
+The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides stable Projects, Tasks, Sessions, Handoffs, Evidence, and Approvals routes backed by a real Workspace Snapshot with Writer Lease, Git, changed-file, server-side Completion Blocker, Runtime Binding, Runner Job, and handoff state.
 
 ![TokenPilot GPT Helper configuration](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
@@ -205,7 +205,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [x] Codex App Server Thread Bind/Resume/Fork and explicit Turn/Approval/Interrupt
 - [x] SQLite Continuity Engine, Writer Lease, Handoff, Evidence, and Runtime Events
 - [x] Continuity Workbench and Workspace Snapshot
-- [x] REST/MCP parity, 37 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, restart recovery, and no-Git source archive gate
+- [x] REST/MCP parity, 37 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, Completion/Runtime Web UX, and no-Git source archive gate
 - [x] GPT Actions boundary probes for timeout, context size, and request behavior
 - [x] First-task template library under `templates/`
 - [x] Beginner examples under `examples/`

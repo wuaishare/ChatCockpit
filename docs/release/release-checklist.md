@@ -61,6 +61,7 @@ The prerelease package must not include:
 - Continuity Store and Writer Lease invariants;
 - REST/MCP parity;
 - evidence-governed Task Submit Review and Completion blockers;
+- Continuity-bound Async Job Queue, Runner claim/terminal Evidence, and restart reconciliation;
 - Codex App Server Thread, Turn, Approval, Event, and standalone fixtures;
 - Chat Direct no-Turn/no-Thread behavior;
 - public-safe projections;
@@ -76,10 +77,10 @@ The prerelease package must not include:
 
 - Product positioning: Development Continuity & Agent Routing Platform
 - Runtime ladder: ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
-- Implemented capabilities: Continuity Engine, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Workspace Snapshot, Continuity-bound Async Job Queue, 37 MCP tools, Continuity Workbench, Queue/Runner, and public-safe artifacts
+- Implemented capabilities: Continuity Engine, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Workspace Snapshot, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, 37 MCP tools, Completion/Runtime Workbench UX, Queue/Runner, and public-safe artifacts
 - Experimental surfaces: Custom GPT Actions, Remote MCP, public HTTPS, and Codex App Server standalone execution
 - Security model: Bearer Auth, allowlisted Workspace/commands, optimistic revisions, idempotency, Writer Lease, public-safe projections, privacy/history gates, and no-Git source archive validation
-- Known limitations: no native installer, no public SaaS, no full Spec/Plan store, no unified async Runtime Binding, and no automated recovery center for every provider
+- Known limitations: no native installer, no public SaaS, no full Spec/Plan store, no generic transition service for every Task edge, and no automated recovery center for every provider
 - Beginner quickstart link: `docs/deployment/beginner-quickstart.md`
 - Packaging roadmap link: `docs/release/packaging-roadmap.md`
 - Upgrade note: this is an alpha source preview and may change storage/layout contracts
@@ -93,4 +94,4 @@ After publishing the prerelease, verify:
 - Downloaded source archive does not contain ignored local runtime paths.
 - `npm run verify:source-archive` succeeds and proves the compiled Control Plane starts from a fresh extracted source copy with no `.git` directory.
 - `npm run verify:protocol-core` succeeds on the release commit.
-- Continuity deep links render and the Workspace Snapshot does not expose absolute paths.
+- Continuity deep links render; Completion Blockers and Runner Job identity come from the Workspace Snapshot; no absolute path is exposed.

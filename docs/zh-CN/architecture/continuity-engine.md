@@ -4,7 +4,7 @@
 
 - 已实现基础：SQLite Schema v4、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding 持久层、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Approval、Event、Workspace Snapshot、REST/MCP Parity 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
-- 目标扩展：完整 Spec/Plan Store、Async Job Runtime Binding、更丰富的 Task Transition、自动 Recovery Center 与更多 Provider Adapter
+- 目标扩展：完整 Spec/Plan Store、更丰富的 Task Transition、覆盖所有 Provider 的自动 Recovery Center、Resource Center 治理与更多 Provider Adapter
 
 Continuity Engine 的目标是：当开发工作在 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job、Branch、Worktree 或重启进程之间切换时，保持 Task 身份、Writer Ownership、Git 状态、Pending Work 与 Evidence 不丢失。
 
@@ -28,7 +28,7 @@ Project
         ├── Git Snapshot
         └── Task
               ├── Development Session
-              │     ├── Codex Runtime Binding
+              │     ├── Runtime Binding（Codex Thread / Runner Job）
               │     ├── Runtime Run
               │     ├── Approval
               │     └── Runtime Event
@@ -156,6 +156,8 @@ tokenpilot.workspace.snapshot
 - Tasks / Sessions；
 - Latest Handoff；
 - Evidence Checklist；
+- 服务端计算的 Completion Blockers；
+- Latest Runtime Binding、Runner Job 状态与 Public-safe Artifact Summary；
 - Pending Approvals。
 
 绝对路径与 Raw Runtime Request Body 不会返回。
@@ -168,11 +170,13 @@ tokenpilot.workspace.snapshot
 - Persistent Writer Banner；
 - Git Summary；
 - Tasks / Sessions；
+- 服务端 Completion Blockers、Submit Review 与 Complete Task；
 - Handoff Prepare / Accept / Fork / Cancel；
 - Evidence Checklist；
+- Latest Runtime Binding、Runner Job 状态与 Artifact Link；
 - Pending Approval List。
 
-目标扩展：Runtime Binding Inspector、完整 Task Board/Timeline 与自动 Recovery Center。
+目标扩展：完整 Runtime Binding 历史与 Provider Capability Inspector、完整 Task Board/Timeline 与自动 Recovery Center。
 
 ## 里程碑状态
 
@@ -185,10 +189,10 @@ tokenpilot.workspace.snapshot
 | Handoff + Git + Pending Work | 已实现 |
 | Structured Evidence | 已实现 |
 | Evidence-governed Task Review / Completion | 已实现 |
-| Lease/Handoff/Idempotency Restart Recovery | 已实现基础 |
+| Lease/Handoff/Idempotency 与 Runner 终态 Job Restart Recovery | 已实现基础 |
 | REST/MCP Parity | 已实现 |
-| Writer/Handoff/Evidence Web UI | 已实现 |
-| Replaceable Codex Runtime ID | 已实现 |
+| Completion/Runtime/Handoff/Evidence Web UI | 已实现 |
+| Replaceable Codex Thread / Runner Job Runtime ID | 已实现 |
 | Public-safe Projection | 已实现 |
 | 所有 Running Session 自动恢复 | 目标扩展 |
 

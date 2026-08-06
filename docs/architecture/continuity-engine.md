@@ -5,7 +5,7 @@
 - Status: implemented vNext foundation plus explicitly marked target extensions
 - Implemented: SQLite Schema v4; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Approval, Event, Workspace Snapshot, REST/MCP parity, and Continuity Workbench projections
 - Experimental: Codex App Server protocol integration, Chat Direct standalone routing, and remote ChatGPT access through Custom GPT Actions or MCP
-- Target extensions: durable Spec/Plan stores, async-job Runtime Binding, richer Task transitions, recovery-center automation, and additional provider adapters
+- Target extensions: durable Spec/Plan stores, richer Task transitions, Recovery Center automation across every provider, Resource Center governance, and additional provider adapters
 - Scope: local-first continuity state shared by REST, MCP, Web UI, CLI, Codex adapters, and async agents
 
 ## Purpose
@@ -353,13 +353,7 @@ backlog -> ready -> in-progress -> review -> completed
 ready/in-progress/blocked/review -> cancelled
 ```
 
-The state machine above is the target transition policy. The current alpha persists Task status and structured Evidence but does not yet expose a generic completion-transition service that enforces every rule below. When that service is added, a transition to `completed` must require:
-
-- no active Writer Lease for the Task's Session;
-- no failed required Evidence;
-- all required Evidence items completed;
-- an accepted Handoff or final completion checkpoint;
-- no unresolved mandatory Approval.
+The current alpha enforces the completion portion of this state machine through `TaskCompletionService`. Submit Review and Complete are explicit, revision-checked, idempotent domain transitions shared by REST, MCP, and Web UI. The remaining target work is a broader generic Task transition service for every non-completion edge, richer blocked/retry reasons, and policy-driven cancellation.
 
 ### Development Session
 
@@ -494,13 +488,16 @@ LeaseService
 HandoffService
 EvidenceService
 TaskCompletionService
+AsyncJobService
+AsyncJobReconciliationService
 ChatDirectService
 RuntimeRouter
 
 Target extensions:
 SpecService
 PlanService
-AsyncRuntimeBindingService
+ResourceGovernanceService
+RecoveryCenterService
 ```
 
 ## Web UI Projections
@@ -513,13 +510,15 @@ Implemented views:
 - Workspace/Worktree state and current public-safe Git summary
 - persistent Active Writer banner
 - Task and Session lists
+- server-derived Completion Blockers plus Submit Review and Complete Task actions
 - Handoff cards with Prepare, Accept, Fork, and Cancel
 - Evidence checklist with `verified`, `incomplete`, and `missing` states
 - pending Approval list
+- latest Runtime Binding plus Runner Job status and public-safe artifact links
 
 Target views:
 
-- Runtime Binding and capability inspector
+- full Runtime Binding history and provider capability inspector
 - richer Task board and Session timeline
 - automated Recovery Center
 
@@ -547,9 +546,9 @@ Secrets, local configuration, environment files, runtime logs, and private agent
 | Cross-mode Handoff with Git and pending-work state | Implemented | Prepare, Accept, Fork, Cancel, REST/MCP parity, restart replay |
 | Structured Evidence and conservative verification | Implemented | Required items must exist and pass; missing evidence is never verified |
 | Evidence-governed Task Review and Completion | Implemented | Session start enters in-progress; Submit Review finalizes passed required evidence; Completion requires accepted Handoff, released Writer, no active Run, and no pending Approval |
-| Process-restart continuity | Implemented foundation | Lease/Handoff/Idempotency recovery is tested across fresh database connections |
+| Process-restart continuity | Implemented foundation | Lease/Handoff/Idempotency recovery plus Runner terminal-Job reconciliation is tested across fresh database connections and process restart fixtures |
 | REST/MCP equivalent domain results | Implemented | Shared Application Services and parity tests |
-| Web UI writer, handoff, and evidence state | Implemented | Workspace Continuity Snapshot and Workbench |
-| Replaceable external Runtime IDs | Implemented for Codex | Binding history is append-preserving and active bindings are superseded, not overwritten |
+| Web UI completion and runtime governance | Implemented | Workbench consumes server-derived blockers, Submit Review/Complete, Runtime Binding, Runner Job status, and artifact summaries |
+| Replaceable external Runtime IDs | Implemented for Codex and Runner | Binding history is append-preserving; Thread and Job identities are adapters and active bindings are superseded or released, not overwritten |
 | Public-safe projection | Implemented | Path, secret, request-handle, event, archive, and privacy gates |
 | Automated recovery of every running Session | Target extension | Recovery Center and provider-specific reconciliation remain future work |
