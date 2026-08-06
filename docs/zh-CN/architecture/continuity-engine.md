@@ -2,9 +2,9 @@
 
 ## 状态
 
-- 已实现基础：SQLite Schema v4、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding 持久层、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Approval、Event、Workspace Snapshot、REST/MCP Parity 与 Continuity Workbench
+- 已实现基础：SQLite Schema v5、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Approval、Event、Workspace Snapshot、REST/MCP Parity 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
-- 目标扩展：完整 Spec/Plan Store、更丰富的 Task Transition、覆盖所有 Provider 的自动 Recovery Center、Resource Center 治理与更多 Provider Adapter
+- 目标扩展：Spec/Plan Application Service、REST/MCP/Web 工作流与执行策略、更丰富的 Task Transition、覆盖所有 Provider 的自动 Recovery Center、Resource Center 治理与更多 Provider Adapter
 
 Continuity Engine 的目标是：当开发工作在 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job、Branch、Worktree 或重启进程之间切换时，保持 Task 身份、Writer Ownership、Git 状态、Pending Work 与 Evidence 不丢失。
 
@@ -36,11 +36,11 @@ Project
               └── Evidence Bundle
 ```
 
-Spec 与 Plan 是目标 Domain，目前尚未完成完整持久化、Service 和 UI。
+Spec 与 Plan 已完成 Schema v5 持久层基础：固定种类、append-only Markdown 版本、生命周期状态、Task 外键与迁移保护。Application Service、REST/MCP、Web UI 和执行门禁仍由当前阶段继续完成。
 
 ## Runtime Binding
 
-Schema v4 使用通用 Runtime Binding 持久层：
+Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v5 中：
 
 ```ts
 interface RuntimeBindingRecord {
@@ -184,6 +184,7 @@ tokenpilot.workspace.snapshot
 |---|---|
 | Stable Project / Workspace ID | 已实现 |
 | Chat Direct 与 Codex Session 连续性 | 已实现 |
+| Durable append-only Spec/Plan 持久层 | 已实现基础 |
 | Async Job First-class Runtime Binding | 已实现 |
 | One Writer Per Workspace | 已实现 |
 | Handoff + Git + Pending Work | 已实现 |

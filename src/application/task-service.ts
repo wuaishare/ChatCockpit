@@ -29,13 +29,28 @@ export class TaskService {
         }
         if (payload.parentTaskId) {
           const parent = this.repositories.tasks.get(payload.parentTaskId);
-          if (parent.projectId !== project.id) {
+          if (
+            parent.projectId !== project.id ||
+            parent.workspaceId !== workspace.id
+          ) {
             throw new ServiceError(
               "CONTINUITY_RELATION_INVALID",
-              "The parent task does not belong to the requested project"
+              "The parent task does not belong to the requested project workspace"
             );
           }
         }
+        this.assertDocumentBinding(
+          payload.specId ?? null,
+          "spec",
+          project.id,
+          workspace.id
+        );
+        this.assertDocumentBinding(
+          payload.planId ?? null,
+          "plan",
+          project.id,
+          workspace.id
+        );
         return this.repositories.tasks.create({
           projectId: project.id,
           workspaceId: workspace.id,
@@ -57,5 +72,34 @@ export class TaskService {
 
   get(_context: OperationContext, taskId: string): TaskRecord {
     return this.repositories.tasks.get(taskId);
+  }
+
+  private assertDocumentBinding(
+    documentId: string | null,
+    expectedKind: "spec" | "plan",
+    projectId: string,
+    workspaceId: string
+  ): void {
+    if (!documentId) return;
+    const document = this.repositories.developmentDocuments.get(documentId);
+    if (
+      document.kind !== expectedKind ||
+      document.projectId !== projectId ||
+      document.workspaceId !== workspaceId
+    ) {
+      throw new ServiceError(
+        "CONTINUITY_DOCUMENT_RELATION_INVALID",
+        `Task ${expectedKind} reference does not belong to the requested project workspace.`,
+        {
+          details: {
+            documentId,
+            expectedKind,
+            actualKind: document.kind,
+            documentProjectId: document.projectId,
+            documentWorkspaceId: document.workspaceId
+          }
+        }
+      );
+    }
   }
 }

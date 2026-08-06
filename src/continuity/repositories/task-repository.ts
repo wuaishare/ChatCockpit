@@ -156,6 +156,37 @@ export class TaskRepository {
     return this.get(id);
   }
 
+  bindDocuments(
+    id: string,
+    input: {
+      specId: string | null;
+      planId: string | null;
+      expectedRevision: number;
+      now?: string;
+    }
+  ): TaskRecord {
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE tasks
+        SET spec_id = ?, plan_id = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ?
+      `)
+      .run(
+        input.specId,
+        input.planId,
+        nowIso(input.now),
+        id,
+        input.expectedRevision
+      );
+    assertUpdated(
+      result.changes,
+      "Task",
+      id,
+      input.expectedRevision
+    );
+    return this.get(id);
+  }
+
   setLatestHandoff(
     id: string,
     handoffId: string,

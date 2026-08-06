@@ -14,7 +14,7 @@ ChatGPT owns conversation, intent, planning, and review. TokenPilot provides the
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner claim/terminal/restart reconciliation, 37 MCP tools, and a Continuity Workbench Web UI backed by real completion blockers and Runtime Job state.
+The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, a versioned Spec/Plan persistence foundation, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner claim/terminal/restart reconciliation, 37 MCP tools, and a Continuity Workbench Web UI backed by real completion blockers and Runtime Job state.
 
 ## What It Does
 
@@ -40,7 +40,7 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 - Local CLI, Fastify Control Plane, REST, MCP, and OpenAPI.
 - Chat Direct file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
 - Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
-- SQLite Schema v4 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding persistence, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
+- SQLite Schema v5 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding, append-only Spec/Plan document versions, Task document foreign keys, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
 - Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, Approval, Completion Blocker, Runtime Binding, and Runner Job state, including Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
 - File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and durable Task/Session/Binding identity with claim, terminal Evidence, and restart reconciliation.
 - 37 MCP tools, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, and source-archive operation without `.git` metadata.
@@ -206,6 +206,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [x] SQLite Continuity Engine, Writer Lease, Handoff, Evidence, and Runtime Events
 - [x] Continuity Workbench and Workspace Snapshot
 - [x] REST/MCP parity, 37 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, Completion/Runtime Web UX, and no-Git source archive gate
+- [x] Schema v5 versioned Spec/Plan persistence foundation and Task document integrity constraints
 - [x] GPT Actions boundary probes for timeout, context size, and request behavior
 - [x] First-task template library under `templates/`
 - [x] Beginner examples under `examples/`

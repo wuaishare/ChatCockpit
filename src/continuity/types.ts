@@ -10,6 +10,13 @@ export type TaskStatus =
   | "completed"
   | "cancelled";
 export type TaskPriority = "low" | "normal" | "high" | "critical";
+export type DevelopmentDocumentKind = "spec" | "plan";
+export type DevelopmentDocumentStatus =
+  | "draft"
+  | "ready"
+  | "approved"
+  | "superseded"
+  | "archived";
 export type SessionMode = "chat-direct" | "codex-session" | "async-agent";
 export type SessionStatus =
   | "idle"
@@ -89,6 +96,29 @@ export interface WorkspaceRecord {
 
 export interface PrivateWorkspaceRecord extends WorkspaceRecord {
   privatePath: string;
+}
+
+export interface DevelopmentDocumentRecord {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  kind: DevelopmentDocumentKind;
+  title: string;
+  status: DevelopmentDocumentStatus;
+  currentVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
+export interface DevelopmentDocumentVersionRecord {
+  id: string;
+  documentId: string;
+  version: number;
+  contentMarkdown: string;
+  contentHash: string;
+  changeSummary: string;
+  createdAt: string;
 }
 
 export interface TaskRecord {

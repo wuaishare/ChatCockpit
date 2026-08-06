@@ -12,6 +12,7 @@ import {
 import { initialContinuityMigration } from "../src/continuity/migrations/001-initial.ts";
 import { runtimeBindingsMigration } from "../src/continuity/migrations/002-runtime-bindings.ts";
 import { runtimeExecutionMigration } from "../src/continuity/migrations/003-runtime-execution.ts";
+import { DevelopmentDocumentRepository } from "../src/continuity/repositories/development-document-repository.ts";
 import { EvidenceRepository } from "../src/continuity/repositories/evidence-repository.ts";
 import { HandoffRepository } from "../src/continuity/repositories/handoff-repository.ts";
 import { IdempotencyRepository } from "../src/continuity/repositories/idempotency-repository.ts";
@@ -232,6 +233,78 @@ function verifyVersionThreeUpgrade(tempRoot: string): void {
   }
 }
 
+function verifyLegacyDocumentReferenceBlock(tempRoot: string): void {
+  const legacyPath = path.join(tempRoot, "continuity-legacy-document-ref.sqlite");
+  const legacy = new DatabaseSync(legacyPath);
+  legacy.exec("PRAGMA foreign_keys = ON");
+  legacy.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    ) STRICT
+  `);
+  initialContinuityMigration.up(legacy);
+  legacy
+    .prepare(
+      "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)"
+    )
+    .run(1, initialContinuityMigration.name, "2026-08-07T00:00:00.000Z");
+  legacy.exec(`
+    INSERT INTO projects (
+      id, slug, display_name, status, created_at, updated_at, revision
+    ) VALUES (
+      'project_legacy_doc', 'legacy-doc', 'Legacy Document Project', 'active',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO workspaces (
+      id, project_id, repo_id, private_path, kind, dirty, status,
+      created_at, updated_at, revision
+    ) VALUES (
+      'workspace_legacy_doc', 'project_legacy_doc', 'tokenpilot',
+      '/private/legacy-doc', 'checkout', 0, 'ready',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO tasks (
+      id, project_id, workspace_id, spec_id, title, goal, status, priority,
+      created_at, updated_at, revision
+    ) VALUES (
+      'task_legacy_doc', 'project_legacy_doc', 'workspace_legacy_doc',
+      'legacy-spec-string', 'Legacy document task', 'Do not lose this ref',
+      'backlog', 'normal', '2026-08-07T00:00:00.000Z',
+      '2026-08-07T00:00:00.000Z', 1
+    );
+  `);
+  legacy.close();
+
+  assert.throws(
+    () => new ContinuityDatabase({ path: legacyPath }),
+    /cannot safely migrate unresolved legacy spec_id\/plan_id strings/
+  );
+
+  const inspected = new DatabaseSync(legacyPath);
+  try {
+    const version = inspected
+      .prepare("SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations")
+      .get() as { version: number };
+    assert.equal(Number(version.version), 4);
+    const documentTable = inspected
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM sqlite_master
+        WHERE type = 'table' AND name = 'development_documents'
+      `)
+      .get() as { count: number };
+    assert.equal(Number(documentTable.count), 0);
+    const preserved = inspected
+      .prepare("SELECT spec_id FROM tasks WHERE id = ?")
+      .get("task_legacy_doc") as { spec_id: string };
+    assert.equal(preserved.spec_id, "legacy-spec-string");
+  } finally {
+    inspected.close();
+  }
+}
+
 function verifyVersionOneUpgrade(tempRoot: string): void {
   const legacyPath = path.join(tempRoot, "continuity-v1.sqlite");
   const legacy = new DatabaseSync(legacyPath);
@@ -301,6 +374,7 @@ async function verifyContinuityStore(): Promise<void> {
 
   verifyVersionOneUpgrade(tempRoot);
   verifyVersionThreeUpgrade(tempRoot);
+  verifyLegacyDocumentReferenceBlock(tempRoot);
 
   const firstDatabase = new ContinuityDatabase({ path: databasePath });
   assert.equal(firstDatabase.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
@@ -326,6 +400,7 @@ async function verifyContinuityStore(): Promise<void> {
 
     const projects = new ProjectRepository(database);
     const workspaces = new WorkspaceRepository(database);
+    const developmentDocuments = new DevelopmentDocumentRepository(database);
     const tasks = new TaskRepository(database);
     const sessions = new SessionRepository(database);
     const leases = new LeaseRepository(database);
@@ -353,6 +428,223 @@ async function verifyContinuityStore(): Promise<void> {
     const workspacePublic = workspaces.get(workspacePrivate.id);
     assert.equal("privatePath" in workspacePublic, false);
     assert.doesNotMatch(JSON.stringify(workspacePublic), new RegExp(tempRoot));
+
+    const createdSpec = developmentDocuments.create({
+      id: "spec_fixture",
+      versionId: "spec_version_1",
+      projectId: project.id,
+      workspaceId: workspacePrivate.id,
+      kind: "spec",
+      title: "Continuity requirements",
+      contentMarkdown: "# Requirements\n\nPreserve intent across runtimes.\n",
+      changeSummary: "Initial requirements",
+      now: "2026-08-06T00:00:01.100Z"
+    });
+    assert.equal(createdSpec.document.kind, "spec");
+    assert.equal(createdSpec.document.status, "draft");
+    assert.equal(createdSpec.document.currentVersion, 1);
+    assert.match(createdSpec.version.contentHash, /^[a-f0-9]{64}$/);
+    assert.equal(
+      developmentDocuments.getCurrentVersion(createdSpec.document.id).id,
+      createdSpec.version.id
+    );
+
+    const readySpec = developmentDocuments.updateStatus(
+      createdSpec.document.id,
+      "ready",
+      createdSpec.document.revision,
+      "2026-08-06T00:00:01.200Z"
+    );
+    const approvedSpec = developmentDocuments.updateStatus(
+      readySpec.id,
+      "approved",
+      readySpec.revision,
+      "2026-08-06T00:00:01.300Z"
+    );
+    assert.equal(approvedSpec.status, "approved");
+    assert.throws(
+      () =>
+        developmentDocuments.updateStatus(
+          approvedSpec.id,
+          "ready",
+          approvedSpec.revision,
+          "2026-08-06T00:00:01.400Z"
+        ),
+      (error) =>
+        assertServiceError(error, "DEVELOPMENT_DOCUMENT_STATUS_INVALID")
+    );
+
+    const revisedSpec = developmentDocuments.appendVersion(approvedSpec.id, {
+      versionId: "spec_version_2",
+      contentMarkdown:
+        "# Requirements\n\nPreserve intent, evidence, and document history.\n",
+      changeSummary: "Add evidence and history requirements",
+      expectedRevision: approvedSpec.revision,
+      now: "2026-08-06T00:00:01.500Z"
+    });
+    assert.equal(revisedSpec.document.currentVersion, 2);
+    assert.equal(revisedSpec.document.status, "draft");
+    assert.notEqual(
+      revisedSpec.version.contentHash,
+      createdSpec.version.contentHash
+    );
+    assert.deepEqual(
+      developmentDocuments
+        .listVersions(revisedSpec.document.id)
+        .map((version) => version.version),
+      [2, 1]
+    );
+    assert.equal(
+      developmentDocuments.getVersion(revisedSpec.document.id, 1).contentMarkdown,
+      createdSpec.version.contentMarkdown
+    );
+    assert.throws(
+      () =>
+        developmentDocuments.appendVersion(revisedSpec.document.id, {
+          contentMarkdown: "# Stale write",
+          expectedRevision: approvedSpec.revision
+        }),
+      (error) => assertServiceError(error, "REVISION_CONFLICT")
+    );
+    assert.throws(
+      () =>
+        database.sqlite
+          .prepare("UPDATE development_documents SET kind = 'plan' WHERE id = ?")
+          .run(revisedSpec.document.id),
+      /DEVELOPMENT_DOCUMENT_KIND_IMMUTABLE/
+    );
+    assert.throws(
+      () =>
+        database.sqlite
+          .prepare(`
+            UPDATE development_document_versions
+            SET content_markdown = '# Rewritten history'
+            WHERE id = ?
+          `)
+          .run(createdSpec.version.id),
+      /DEVELOPMENT_DOCUMENT_VERSION_IMMUTABLE/
+    );
+    assert.throws(
+      () =>
+        database.sqlite
+          .prepare(`
+            UPDATE development_documents
+            SET current_version = 1
+            WHERE id = ?
+          `)
+          .run(revisedSpec.document.id),
+      /DEVELOPMENT_DOCUMENT_VERSION_INVALID/
+    );
+
+    const unrelatedProject = projects.create({
+      id: "project_document_other",
+      slug: "document-other",
+      displayName: "Other Document Project",
+      now: "2026-08-06T00:00:01.550Z"
+    });
+    assert.throws(
+      () =>
+        developmentDocuments.create({
+          id: "spec_invalid_workspace_owner",
+          projectId: unrelatedProject.id,
+          workspaceId: workspacePrivate.id,
+          kind: "spec",
+          title: "Invalid ownership",
+          contentMarkdown: "# Invalid\n",
+          now: "2026-08-06T00:00:01.575Z"
+        }),
+      /DEVELOPMENT_DOCUMENT_WORKSPACE_INVALID/
+    );
+
+    const createdPlan = developmentDocuments.create({
+      id: "plan_fixture",
+      versionId: "plan_version_1",
+      projectId: project.id,
+      workspaceId: workspacePrivate.id,
+      kind: "plan",
+      title: "Continuity implementation plan",
+      contentMarkdown: "# Plan\n\n1. Add durable documents.\n",
+      now: "2026-08-06T00:00:01.600Z"
+    });
+    const readyPlan = developmentDocuments.updateStatus(
+      createdPlan.document.id,
+      "ready",
+      createdPlan.document.revision,
+      "2026-08-06T00:00:01.700Z"
+    );
+    const approvedPlan = developmentDocuments.updateStatus(
+      readyPlan.id,
+      "approved",
+      readyPlan.revision,
+      "2026-08-06T00:00:01.800Z"
+    );
+    assert.deepEqual(
+      developmentDocuments
+        .listByWorkspace(workspacePrivate.id, { status: "approved" })
+        .map((document) => document.id),
+      [approvedPlan.id]
+    );
+
+    assert.throws(
+      () =>
+        tasks.create({
+          id: "task_document_kind_mismatch",
+          projectId: project.id,
+          workspaceId: workspacePrivate.id,
+          specId: approvedPlan.id,
+          title: "Reject plan as spec",
+          goal: "Prove database kind integrity"
+        }),
+      /TASK_SPEC_REFERENCE_INVALID/
+    );
+
+    const otherWorkspace = workspaces.create({
+      id: "workspace_document_other",
+      projectId: project.id,
+      repoId: "tokenpilot-other",
+      privatePath: path.join(tempRoot, "other-workspace"),
+      branch: "main",
+      now: "2026-08-06T00:00:01.850Z"
+    });
+    const otherSpec = developmentDocuments.create({
+      id: "spec_other_workspace",
+      projectId: project.id,
+      workspaceId: otherWorkspace.id,
+      kind: "spec",
+      title: "Other workspace requirements",
+      contentMarkdown: "# Other requirements\n",
+      now: "2026-08-06T00:00:01.875Z"
+    });
+    assert.throws(
+      () =>
+        tasks.create({
+          id: "task_document_workspace_mismatch",
+          projectId: project.id,
+          workspaceId: workspacePrivate.id,
+          specId: otherSpec.document.id,
+          title: "Reject cross-workspace spec",
+          goal: "Prove database ownership integrity"
+        }),
+      /TASK_SPEC_REFERENCE_INVALID/
+    );
+
+    const plannedTask = tasks.create({
+      id: "task_planned_fixture",
+      projectId: project.id,
+      workspaceId: workspacePrivate.id,
+      title: "Bind durable intent",
+      goal: "Attach the current Spec and Plan",
+      now: "2026-08-06T00:00:01.900Z"
+    });
+    const boundPlannedTask = tasks.bindDocuments(plannedTask.id, {
+      specId: revisedSpec.document.id,
+      planId: approvedPlan.id,
+      expectedRevision: plannedTask.revision,
+      now: "2026-08-06T00:00:02.000Z"
+    });
+    assert.equal(boundPlannedTask.specId, revisedSpec.document.id);
+    assert.equal(boundPlannedTask.planId, approvedPlan.id);
+    assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
 
     const renamed = projects.rename(
       project.id,

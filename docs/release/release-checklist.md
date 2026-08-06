@@ -80,7 +80,7 @@ The prerelease package must not include:
 - Implemented capabilities: Continuity Engine, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Workspace Snapshot, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, 37 MCP tools, Completion/Runtime Workbench UX, Queue/Runner, and public-safe artifacts
 - Experimental surfaces: Custom GPT Actions, Remote MCP, public HTTPS, and Codex App Server standalone execution
 - Security model: Bearer Auth, allowlisted Workspace/commands, optimistic revisions, idempotency, Writer Lease, public-safe projections, privacy/history gates, and no-Git source archive validation
-- Known limitations: no native installer, no public SaaS, no full Spec/Plan store, no generic transition service for every Task edge, and no automated recovery center for every provider
+- Known limitations: no native installer, no public SaaS, Spec/Plan persistence exists but REST/MCP/Web workflows and execution policy are not complete, no generic transition service for every Task edge, and no automated recovery center for every provider
 - Beginner quickstart link: `docs/deployment/beginner-quickstart.md`
 - Packaging roadmap link: `docs/release/packaging-roadmap.md`
 - Upgrade note: this is an alpha source preview and may change storage/layout contracts
