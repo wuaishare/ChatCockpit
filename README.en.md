@@ -14,7 +14,7 @@ ChatGPT owns conversation, intent, planning, and review. TokenPilot provides the
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, versioned Spec/Plan truth with REST/MCP operations and Task document version pins, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner claim/terminal/restart reconciliation, 44 MCP tools, and a Continuity Workbench Web UI backed by real completion blockers and Runtime Job state.
+The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, versioned Spec/Plan truth with REST/MCP operations and immutable Task version pins, explicit `planning-required | planning-optional` execution policy, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner claim/terminal/restart reconciliation, 44 MCP tools, and a Continuity Workbench Web UI for Spec/Plan creation, versioning, approval, binding, and real planning blockers.
 
 ## What It Does
 
@@ -40,8 +40,8 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 - Local CLI, Fastify Control Plane, REST, MCP, and OpenAPI.
 - Chat Direct file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
 - Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
-- SQLite Schema v6 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding, append-only Spec/Plan document versions, Task document foreign keys and version pins, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
-- Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, Approval, Completion Blocker, Runtime Binding, and Runner Job state, including Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
+- SQLite Schema v7 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit Task Execution Policy, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
+- Workspace Continuity Snapshot and Web UI for real Writer, Git, Specs & Plans, Task, Session, Handoff, Evidence, Approval, Planning/Completion Blocker, Runtime Binding, and Runner Job state, including document create/version/Ready/Approve/bind plus Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
 - File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and durable Task/Session/Binding identity with claim, terminal Evidence, and restart reconciliation.
 - 44 MCP tools, including Spec/Plan create, read, immutable history, append-version, lifecycle, and Task-binding operations, plus exposed-mode Bearer Auth, public-safe projections, history privacy scanning, and source-archive operation without `.git` metadata.
 
@@ -60,11 +60,11 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 
 - A provider adapter layer for more external coding agents.
 - A Resource Center for Skills, MCP, Rules, Prompts, Agents, Hooks, and Plugins.
-- Deeper Spec/Plan/TDD/SDD/BDD workflows and multi-device control-plane operation.
+- TDD/SDD/BDD orchestration and templates on top of the implemented Spec/Plan First foundation, plus multi-device control-plane operation.
 
 ## Operator UI
 
-The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides stable Projects, Tasks, Sessions, Handoffs, Evidence, and Approvals routes backed by a real Workspace Snapshot with Writer Lease, Git, changed-file, server-side Completion Blocker, Runtime Binding, Runner Job, and handoff state.
+The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides seven stable routes: Projects, Specs & Plans, Tasks, Sessions, Handoffs, Evidence, and Approvals. Specs & Plans manages real document versions, hashes, lifecycle, approval, and Task binding; the Task view consumes server-produced Planning Assessment instead of inferring execution eligibility in the browser.
 
 ![TokenPilot GPT Helper configuration](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
@@ -206,7 +206,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [x] SQLite Continuity Engine, Writer Lease, Handoff, Evidence, and Runtime Events
 - [x] Continuity Workbench and Workspace Snapshot
 - [x] REST/MCP parity, 44 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, Completion/Runtime Web UX, and no-Git source archive gate
-- [x] Schema v6 versioned Spec/Plan truth, REST/MCP workflows, Task document integrity, and immutable version pins
+- [x] Schema v7 versioned Spec/Plan truth, REST/MCP/Web workflows, immutable Task version pins, and explicit planning-required/planning-optional execution gates
 - [x] GPT Actions boundary probes for timeout, context size, and request behavior
 - [x] First-task template library under `templates/`
 - [x] Beginner examples under `examples/`
@@ -214,7 +214,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [ ] Token Optimization Log examples
 - [ ] HTTPS / Custom GPT Actions full-loop validation
 - [ ] Provider adapter layer
-- [ ] Resource Center and deeper Spec/Plan workflows
+- [ ] Resource Center and TDD/SDD/BDD orchestration extensions
 - [x] First-run setup wizard
 
 ## Security And Privacy

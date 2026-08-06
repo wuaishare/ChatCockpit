@@ -14,7 +14,7 @@ ChatGPT 负责对话、意图、规划与审查；TokenPilot 提供本地优先�
 
 **省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 
-当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 真源与 REST/MCP 操作、Task 文档版本固定、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、44 个 MCP Tools，以及可显示真实完成阻塞项与 Runtime Job 状态的 Continuity Workbench Web UI。
+当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 真源与 REST/MCP 操作、Task 文档版本固定、显式 `planning-required | planning-optional` 执行策略、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、44 个 MCP Tools，以及支持 Spec/Plan 创建、版本、审批、绑定与真实规划阻塞项的 Continuity Workbench Web UI。
 
 TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
 
@@ -42,8 +42,8 @@ ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 - 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
 - Chat Direct：文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；已证明不会隐式调用 `turn/start`。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
-- Continuity Engine：SQLite Schema v6、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与版本固定、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
-- Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Tasks、Sessions、Handoffs、Evidence、Approvals、Completion Blockers、Runtime Binding 与 Runner Job；支持 Prepare、Accept、Fork、Cancel、Submit Review 和 Complete Task。
+- Continuity Engine：SQLite Schema v7、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
+- Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Handoffs、Evidence、Approvals、Planning/Completion Blockers、Runtime Binding 与 Runner Job；支持文档创建/版本/Ready/Approve/绑定，以及 Prepare、Accept、Fork、Cancel、Submit Review 和 Complete Task。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
 - 44 个 MCP Tools，包含 Spec/Plan 创建、读取、历史版本、追加版本、状态流转和 Task 绑定；同时提供 exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
 
@@ -62,11 +62,11 @@ ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 
 - Provider Adapter Layer 与更多外部 Coding Agent。
 - Skills、MCP、Rules、Prompt、Agent、Hook、Plugin 等 Resource Center 能力。
-- 更完整的 Spec/Plan/TDD/SDD/BDD 工作流与多设备控制面。
+- 在现有 Spec/Plan First 基础上扩展 TDD/SDD/BDD 编排、模板与多设备控制面。
 
 ## 操作员 Web UI
 
-Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Tasks、Sessions、Handoffs、Evidence、Approvals 六个稳定深链，并基于真实 Workspace Snapshot 展示 Writer Lease、Git、变更文件、服务端 Completion Blockers、Runtime Binding、Runner Job 与跨模式交接状态。
+Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Handoffs、Evidence、Approvals 七个稳定深链。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
 
 ![TokenPilot GPT Helper 配置界面](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
@@ -206,14 +206,14 @@ npm run test
 - [x] SQLite Continuity Engine、Writer Lease、Handoff、Evidence 与 Runtime Event
 - [x] Continuity Workbench 与 Workspace Snapshot
 - [x] REST/MCP Parity、44 个 MCP Tools、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner 生命周期/重启对账、Completion/Runtime Web UX 与无 Git 源包门禁
-- [x] Schema v6 版本化 Spec/Plan 真源、REST/MCP 工作流、Task 文档完整性与版本固定
+- [x] Schema v7 版本化 Spec/Plan 真源、REST/MCP/Web 工作流、Task 文档版本固定与显式 planning-required/planning-optional 执行门禁
 - [x] 首任务模板库与新手案例
 - [x] First-run setup wizard
 - [x] 中文 GPT Builder / 公网 HTTPS 配置文档
 - [ ] Token Optimization Log 示例
 - [ ] HTTPS / Custom GPT Actions 全流程真实验证
 - [ ] Provider adapter layer
-- [ ] Resource Center 与更完整的 Spec/Plan 工作流
+- [ ] Resource Center 与 TDD/SDD/BDD 编排扩展
 - [ ] 繁體中文 README
 
 ## 安全与隐私
