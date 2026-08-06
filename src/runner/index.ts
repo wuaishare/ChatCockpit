@@ -1,3 +1,10 @@
+import { AsyncJobReconciliationService } from "../application/async-job-reconciliation-service.js";
+import { buildOperationContext } from "../application/operation-context.js";
+import {
+  ContinuityDatabase,
+  continuityDatabasePath
+} from "../continuity/database.js";
+import { buildContinuityRepositories } from "../continuity/repositories/index.js";
 import { completeJob, claimNextQueuedJob, failJob, listJobs } from "../core/jobs.js";
 import { runCodexRunJob } from "../core/codex-run.js";
 import { getTrackedJobProcess } from "../core/job-processes.js";
@@ -62,7 +69,20 @@ async function sleep(seconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
-function reconcileTerminalRunningJobs(paths: TokenPilotPaths): number {
+function runnerContext(jobId: string, now = new Date().toISOString()) {
+  return buildOperationContext({
+    requestId: `runner:${jobId}`,
+    actorType: "runner",
+    actorId: "tokenpilot-runner",
+    publicProjection: false,
+    now
+  });
+}
+
+function reconcileTerminalRunningJobs(
+  paths: TokenPilotPaths,
+  reconciliation: AsyncJobReconciliationService
+): number {
   let reconciled = 0;
 
   for (const job of listJobs(paths)) {
@@ -79,7 +99,14 @@ function reconcileTerminalRunningJobs(paths: TokenPilotPaths): number {
       `Tracked process is ${processRecord.state}, but job was still marked running.`,
       "Runner reconciled the stale running job; rerun the task if a persisted result is required."
     ].join(" ");
-    failJob(paths, job.id, message);
+    const failed = failJob(paths, job.id, message);
+    try {
+      reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+    } catch (error) {
+      const reconciliationError =
+        error instanceof Error ? error.message : String(error);
+      markRunnerFailed(paths, reconciliationError);
+    }
     markRunnerFailed(paths, message);
     reconciled += 1;
 
@@ -96,9 +123,37 @@ function reconcileTerminalRunningJobs(paths: TokenPilotPaths): number {
   return reconciled;
 }
 
-async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
+function reconcilePersistedTerminalJobs(
+  paths: TokenPilotPaths,
+  reconciliation: AsyncJobReconciliationService
+): number {
+  let reconciled = 0;
+  for (const job of listJobs(paths)) {
+    if (job.status !== "completed" && job.status !== "failed") continue;
+    try {
+      const result = reconciliation.reconcileTerminal(
+        runnerContext(job.id, job.updatedAt),
+        job
+      );
+      if (result && !result.replayed) reconciled += 1;
+    } catch (error) {
+      markRunnerFailed(
+        paths,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+  return reconciled;
+}
+
+async function runNextJob(
+  paths: TokenPilotPaths,
+  reconciliation: AsyncJobReconciliationService
+): Promise<boolean> {
   const startedAt = new Date().toISOString();
-  const reconciledCount = reconcileTerminalRunningJobs(paths);
+  const reconciledCount =
+    reconcileTerminalRunningJobs(paths, reconciliation) +
+    reconcilePersistedTerminalJobs(paths, reconciliation);
   const job = claimNextQueuedJob(paths);
 
   if (!job) {
@@ -106,6 +161,19 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
   }
 
   markRunnerClaimed(paths, job.id, job.type);
+  try {
+    reconciliation.claim(runnerContext(job.id, job.updatedAt), job);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failed = failJob(paths, job.id, message);
+    try {
+      reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+    } catch {
+      // The original identity failure is the authoritative Runner error.
+    }
+    markRunnerFailed(paths, message);
+    return true;
+  }
 
   process.stdout.write(
     [
@@ -135,20 +203,39 @@ async function runNextJob(paths: TokenPilotPaths): Promise<boolean> {
 
     if (job.type === "codex-run" && isCodexRunPayload(job.payload)) {
       const result = await runCodexRunJob(paths, job.id, job.payload);
-      completeJob(paths, job.id, result);
-      markRunnerCompleted(paths);
+      const completed = completeJob(paths, job.id, result);
+      try {
+        reconciliation.reconcileTerminal(
+          runnerContext(job.id, completed.updatedAt),
+          completed
+        );
+        markRunnerCompleted(paths);
+      } catch (error) {
+        markRunnerFailed(
+          paths,
+          error instanceof Error ? error.message : String(error)
+        );
+      }
       return true;
     }
 
-    failJob(paths, job.id, `Unsupported job payload for type: ${job.type}`);
-    markRunnerFailed(paths, `Unsupported job payload for type: ${job.type}`);
+    const unsupported = `Unsupported job payload for type: ${job.type}`;
+    const failed = failJob(paths, job.id, unsupported);
+    reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+    markRunnerFailed(paths, unsupported);
   } catch (error) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
-    failJob(
-      paths,
-      job.id,
-      message
-    );
+    const failed = failJob(paths, job.id, message);
+    try {
+      reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+    } catch (reconciliationError) {
+      markRunnerFailed(
+        paths,
+        reconciliationError instanceof Error
+          ? reconciliationError.message
+          : String(reconciliationError)
+      );
+    }
     markRunnerFailed(paths, message);
   }
 
@@ -161,22 +248,32 @@ export async function runRunner(
 ): Promise<void> {
   const intervalSeconds = options.intervalSeconds ?? 3;
   markRunnerStarted(paths, options.watch ? "watch" : "once");
+  const continuityDatabase = new ContinuityDatabase({
+    path: continuityDatabasePath(paths.runtimeDir)
+  });
+  const reconciliation = new AsyncJobReconciliationService(
+    buildContinuityRepositories(continuityDatabase)
+  );
 
   if (!options.watch) {
-    const didProcessJob = await runNextJob(paths);
-    markRunnerHeartbeat(paths);
-    if (!didProcessJob) {
-      process.stdout.write(
-        [
-          "[TokenPilot runner]",
-          "mode=once",
-          "repoId=tokenpilot",
-          `startedAt=${new Date().toISOString()}`,
-          "No queued jobs found."
-        ].join(" ") + "\n"
-      );
+    try {
+      const didProcessJob = await runNextJob(paths, reconciliation);
+      markRunnerHeartbeat(paths);
+      if (!didProcessJob) {
+        process.stdout.write(
+          [
+            "[TokenPilot runner]",
+            "mode=once",
+            "repoId=tokenpilot",
+            `startedAt=${new Date().toISOString()}`,
+            "No queued jobs found."
+          ].join(" ") + "\n"
+        );
+      }
+    } finally {
+      continuityDatabase.close();
+      markRunnerStopped(paths);
     }
-    markRunnerStopped(paths);
     return;
   }
 
@@ -206,7 +303,7 @@ export async function runRunner(
   try {
     while (!stopRequested) {
       markRunnerHeartbeat(paths);
-      const didProcessJob = await runNextJob(paths);
+      const didProcessJob = await runNextJob(paths, reconciliation);
 
       if (didProcessJob) {
         isIdle = false;
@@ -223,6 +320,7 @@ export async function runRunner(
       await sleep(intervalSeconds);
     }
   } finally {
+    continuityDatabase.close();
     markRunnerStopped(paths);
     process.stdout.write("[TokenPilot runner] mode=watch Graceful shutdown complete.\n");
   }

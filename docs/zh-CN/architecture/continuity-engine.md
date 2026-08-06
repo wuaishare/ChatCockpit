@@ -74,7 +74,7 @@ Chat Direct 不伪装成 Codex Thread，而是在每个结果中记录：
 }
 ```
 
-Codex Binding 使用 `externalSessionId` 保存 Thread ID，并继续在现有 REST/MCP 投影中提供 `externalThreadId/sourceThreadId` 兼容字段；Runner Binding 使用 `externalRunId` 保存 file-backed Job ID。`tokenpilot.asyncJob.queue` 现在会事务化、幂等地创建一个 Job 文件和 Runner Binding，并从公共响应中移除私有 Instructions。Runner Claim、Completion、Failure 与 Restart Reconciliation 仍由 Task 22 继续完成。
+Codex Binding 使用 `externalSessionId` 保存 Thread ID，并继续在现有 REST/MCP 投影中提供 `externalThreadId/sourceThreadId` 兼容字段；Runner Binding 使用 `externalRunId` 保存 file-backed Job ID。`tokenpilot.asyncJob.queue` 会事务化、幂等地创建一个 Job 文件和 Runner Binding，并从公共响应中移除私有 Instructions。Runner Claim 时校验绑定身份；终态时记录结构化 Evidence、释放 Binding，并将 Task 推进到 `review` 或 `blocked`，绝不虚假完成 Task。启动时会扫描终态 Job 文件，幂等修复进程中断造成的 SQLite 对账缺口。
 
 ## Writer Lease
 
@@ -180,7 +180,7 @@ tokenpilot.workspace.snapshot
 |---|---|
 | Stable Project / Workspace ID | 已实现 |
 | Chat Direct 与 Codex Session 连续性 | 已实现 |
-| Async Job First-class Runtime Binding | Queue 身份绑定已实现，Runner 生命周期对账待完成 |
+| Async Job First-class Runtime Binding | 已实现 |
 | One Writer Per Workspace | 已实现 |
 | Handoff + Git + Pending Work | 已实现 |
 | Structured Evidence | 已实现 |
