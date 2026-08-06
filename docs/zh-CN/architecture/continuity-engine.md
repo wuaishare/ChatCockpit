@@ -2,7 +2,7 @@
 
 ## 状态
 
-- 已实现基础：SQLite Schema v3、Project、Workspace、Task、Development Session、Codex Runtime Binding、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Approval、Event、Workspace Snapshot、REST/MCP Parity 与 Continuity Workbench
+- 已实现基础：SQLite Schema v4、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding 持久层、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Approval、Event、Workspace Snapshot、REST/MCP Parity 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
 - 目标扩展：完整 Spec/Plan Store、Async Job Runtime Binding、更丰富的 Task Transition、自动 Recovery Center 与更多 Provider Adapter
 
@@ -40,17 +40,18 @@ Spec 与 Plan 是目标 Domain，目前尚未完成完整持久化、Service 和
 
 ## Runtime Binding
 
-当前实现专门绑定 Codex App Server Thread：
+Schema v4 使用通用 Runtime Binding 持久层：
 
 ```ts
 interface RuntimeBindingRecord {
   id: string;
   sessionId: string;
   workspaceId: string;
-  runtimeKind: "codex-app-server";
-  externalThreadId: string;
-  sourceThreadId: string | null;
-  relation: "bound" | "resumed" | "forked";
+  runtimeKind: "codex-app-server" | "tokenpilot-runner";
+  externalSessionId: string | null;
+  externalRunId: string | null;
+  sourceExternalId: string | null;
+  relation: "bound" | "resumed" | "forked" | "queued";
   status: "active" | "superseded" | "released" | "stale";
   modelProvider: string | null;
   revision: number;
@@ -73,7 +74,7 @@ Chat Direct 不伪装成 Codex Thread，而是在每个结果中记录：
 }
 ```
 
-Async Job 统一 Runtime Binding 仍是目标扩展。
+Codex Binding 使用 `externalSessionId` 保存 Thread ID，并继续在现有 REST/MCP 投影中提供 `externalThreadId/sourceThreadId` 兼容字段；Runner Binding 使用 `externalRunId` 保存 file-backed Job ID。当前已经完成持久层和唯一性约束，但 Queue 创建与 Runner 生命周期还没有自动写入/对账这些 Binding，仍由 Task 21/22 继续完成。
 
 ## Writer Lease
 
@@ -179,7 +180,7 @@ tokenpilot.workspace.snapshot
 |---|---|
 | Stable Project / Workspace ID | 已实现 |
 | Chat Direct 与 Codex Session 连续性 | 已实现 |
-| Async Job First-class Runtime Binding | 目标扩展 |
+| Async Job First-class Runtime Binding | 持久层已实现，Queue/Runner 业务接入待完成 |
 | One Writer Per Workspace | 已实现 |
 | Handoff + Git + Pending Work | 已实现 |
 | Structured Evidence | 已实现 |

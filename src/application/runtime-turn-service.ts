@@ -134,10 +134,14 @@ export class RuntimeTurnService {
         const binding = this.repositories.runtimeBindings.findActiveBySession(
           session.id
         );
-        if (!binding || session.activeRuntimeBindingId !== binding.id) {
+        if (
+          !binding ||
+          binding.runtimeKind !== "codex-app-server" ||
+          session.activeRuntimeBindingId !== binding.id
+        ) {
           throw new ServiceError(
             "RUNTIME_BINDING_REQUIRED",
-            "The Codex session has no active runtime binding"
+            "The Codex session has no active Codex runtime binding"
           );
         }
         if (this.repositories.runtimeRuns.getActiveBySession(session.id)) {

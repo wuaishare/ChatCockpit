@@ -6,12 +6,21 @@ import { ServiceError } from "../application/service-error.js";
 import { initialContinuityMigration } from "./migrations/001-initial.js";
 import { runtimeBindingsMigration } from "./migrations/002-runtime-bindings.js";
 import { runtimeExecutionMigration } from "./migrations/003-runtime-execution.js";
+import { genericRuntimeBindingsMigration } from "./migrations/004-generic-runtime-bindings.js";
 
-const migrations = [
+interface ContinuityMigration {
+  version: number;
+  name: string;
+  foreignKeysOff?: boolean;
+  up(database: DatabaseSync): void;
+}
+
+const migrations: readonly ContinuityMigration[] = [
   initialContinuityMigration,
   runtimeBindingsMigration,
-  runtimeExecutionMigration
-] as const;
+  runtimeExecutionMigration,
+  genericRuntimeBindingsMigration
+];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;
 
@@ -98,14 +107,38 @@ export class ContinuityDatabase {
       if (migration.version <= currentVersion) {
         continue;
       }
-      this.transaction(() => {
+
+      const applyMigration = () => {
         migration.up(this.sqlite);
+        if (migration.foreignKeysOff) {
+          const violations = this.sqlite
+            .prepare("PRAGMA foreign_key_check")
+            .all() as unknown[];
+          if (violations.length > 0) {
+            throw new ServiceError(
+              "CONTINUITY_MIGRATION_FAILED",
+              `Migration ${migration.version} produced foreign-key violations`,
+              { details: { violations } }
+            );
+          }
+        }
         this.sqlite
           .prepare(
             "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)"
           )
           .run(migration.version, migration.name, new Date().toISOString());
-      });
+      };
+
+      if (migration.foreignKeysOff) {
+        this.sqlite.exec("PRAGMA foreign_keys = OFF");
+        try {
+          this.transaction(applyMigration);
+        } finally {
+          this.sqlite.exec("PRAGMA foreign_keys = ON");
+        }
+      } else {
+        this.transaction(applyMigration);
+      }
     }
   }
 }

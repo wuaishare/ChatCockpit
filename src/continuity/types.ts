@@ -19,7 +19,8 @@ export type SessionStatus =
   | "completed"
   | "failed";
 export type LeaseStatus = "active" | "released" | "expired" | "revoked";
-export type RuntimeBindingRelation = "bound" | "resumed" | "forked";
+export type RuntimeBindingKind = "codex-app-server" | "tokenpilot-runner";
+export type RuntimeBindingRelation = "bound" | "resumed" | "forked" | "queued";
 export type RuntimeBindingStatus = "active" | "superseded" | "released" | "stale";
 export type RuntimeRunStatus =
   | "starting"
@@ -124,12 +125,15 @@ export interface DevelopmentSessionRecord {
   revision: number;
 }
 
-export interface RuntimeBindingRecord {
+interface RuntimeBindingBaseRecord {
   id: string;
   sessionId: string;
   workspaceId: string;
-  runtimeKind: "codex-app-server";
-  externalThreadId: string;
+  runtimeKind: RuntimeBindingKind;
+  externalSessionId: string | null;
+  externalRunId: string | null;
+  sourceExternalId: string | null;
+  externalThreadId: string | null;
   sourceThreadId: string | null;
   relation: RuntimeBindingRelation;
   status: RuntimeBindingStatus;
@@ -138,6 +142,27 @@ export interface RuntimeBindingRecord {
   updatedAt: string;
   revision: number;
 }
+
+export interface CodexRuntimeBindingRecord extends RuntimeBindingBaseRecord {
+  runtimeKind: "codex-app-server";
+  externalSessionId: string;
+  externalRunId: null;
+  externalThreadId: string;
+  relation: "bound" | "resumed" | "forked";
+}
+
+export interface RunnerRuntimeBindingRecord extends RuntimeBindingBaseRecord {
+  runtimeKind: "tokenpilot-runner";
+  externalSessionId: null;
+  externalRunId: string;
+  externalThreadId: null;
+  sourceThreadId: null;
+  relation: "queued";
+}
+
+export type RuntimeBindingRecord =
+  | CodexRuntimeBindingRecord
+  | RunnerRuntimeBindingRecord;
 
 export interface RuntimeRunRecord {
   id: string;

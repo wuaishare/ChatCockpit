@@ -3,7 +3,7 @@
 ## Status
 
 - Status: implemented vNext foundation plus explicitly marked target extensions
-- Implemented: SQLite Schema v3; Project, Workspace, Task, Development Session, Codex Runtime Binding, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Approval, Event, Workspace Snapshot, REST/MCP parity, and Continuity Workbench projections
+- Implemented: SQLite Schema v4; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Approval, Event, Workspace Snapshot, REST/MCP parity, and Continuity Workbench projections
 - Experimental: Codex App Server protocol integration, Chat Direct standalone routing, and remote ChatGPT access through Custom GPT Actions or MCP
 - Target extensions: durable Spec/Plan stores, async-job Runtime Binding, richer Task transitions, recovery-center automation, and additional provider adapters
 - Scope: local-first continuity state shared by REST, MCP, Web UI, CLI, Codex adapters, and async agents
@@ -185,10 +185,11 @@ export interface RuntimeBindingRecord {
   id: string;
   sessionId: string;
   workspaceId: string;
-  runtimeKind: "codex-app-server";
-  externalThreadId: string;
-  sourceThreadId: string | null;
-  relation: "bound" | "resumed" | "forked";
+  runtimeKind: "codex-app-server" | "tokenpilot-runner";
+  externalSessionId: string | null;
+  externalRunId: string | null;
+  sourceExternalId: string | null;
+  relation: "bound" | "resumed" | "forked" | "queued";
   status: "active" | "superseded" | "released" | "stale";
   modelProvider: string | null;
   createdAt: string;
@@ -197,7 +198,7 @@ export interface RuntimeBindingRecord {
 }
 ```
 
-The current binding store is deliberately Codex-specific. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread. Async-job bindings remain a target extension.
+Schema v4 uses one generic binding store. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. The Queue/Runner workflow does not yet create or reconcile these Runner bindings automatically; that application-service integration remains the next target. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
 
 ```ts
 export interface ChatDirectExecutionMetadata {
@@ -541,7 +542,7 @@ Secrets, local configuration, environment files, runtime logs, and private agent
 |---|---|---|
 | Stable Project and Workspace IDs | Implemented | Deterministic configured-project sync and SQLite records |
 | Task continuity across Chat Direct and Codex Session | Implemented | Session mode, Codex Runtime Binding, Handoff, and Workspace Snapshot |
-| Async Job as a first-class Runtime Binding | Target extension | Jobs exist, but durable async Runtime Binding is not yet stored in the same relation |
+| Async Job as a first-class Runtime Binding | Persistence implemented; workflow integration pending | Schema v4 stores unique Runner Job IDs, but Queue creation and Runner lifecycle reconciliation are Task 21/22 |
 | One active Writer per Workspace | Implemented | SQLite partial unique index plus Lease Service tests |
 | Cross-mode Handoff with Git and pending-work state | Implemented | Prepare, Accept, Fork, Cancel, REST/MCP parity, restart replay |
 | Structured Evidence and conservative verification | Implemented | Required items must exist and pass; missing evidence is never verified |

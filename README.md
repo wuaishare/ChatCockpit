@@ -42,7 +42,7 @@ ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 - 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
 - Chat Direct：文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；已证明不会隐式调用 `turn/start`。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
-- Continuity Engine：SQLite Schema v3、Project、Workspace、Task、Session、Runtime Binding、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
+- Continuity Engine：SQLite Schema v4、Project、Workspace、Task、Session、通用 Runtime Binding 持久层、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Tasks、Sessions、Handoffs、Evidence、Approvals；支持 Prepare、Accept、Fork、Cancel。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts 与可选 Worktree。
 - 36 个 MCP Tools、证据约束的 Task Review/Completion、exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。

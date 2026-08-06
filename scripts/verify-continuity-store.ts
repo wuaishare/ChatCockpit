@@ -10,6 +10,8 @@ import {
   LATEST_CONTINUITY_SCHEMA_VERSION
 } from "../src/continuity/database.ts";
 import { initialContinuityMigration } from "../src/continuity/migrations/001-initial.ts";
+import { runtimeBindingsMigration } from "../src/continuity/migrations/002-runtime-bindings.ts";
+import { runtimeExecutionMigration } from "../src/continuity/migrations/003-runtime-execution.ts";
 import { EvidenceRepository } from "../src/continuity/repositories/evidence-repository.ts";
 import { HandoffRepository } from "../src/continuity/repositories/handoff-repository.ts";
 import { IdempotencyRepository } from "../src/continuity/repositories/idempotency-repository.ts";
@@ -24,6 +26,210 @@ function assertServiceError(error: unknown, code: string): boolean {
   assert.ok(error instanceof ServiceError);
   assert.equal(error.code, code);
   return true;
+}
+
+function verifyVersionThreeUpgrade(tempRoot: string): void {
+  const legacyPath = path.join(tempRoot, "continuity-v3.sqlite");
+  const legacy = new DatabaseSync(legacyPath);
+  legacy.exec("PRAGMA foreign_keys = ON");
+  legacy.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    ) STRICT
+  `);
+  for (const migration of [
+    initialContinuityMigration,
+    runtimeBindingsMigration,
+    runtimeExecutionMigration
+  ]) {
+    migration.up(legacy);
+    legacy
+      .prepare(
+        "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)"
+      )
+      .run(migration.version, migration.name, "2026-08-07T00:00:00.000Z");
+  }
+
+  legacy.exec(`
+    INSERT INTO projects (
+      id, slug, display_name, status, created_at, updated_at, revision
+    ) VALUES (
+      'project_v3', 'project-v3', 'Version 3 Project', 'active',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO workspaces (
+      id, project_id, repo_id, private_path, kind, branch, head_commit,
+      dirty, status, created_at, updated_at, revision
+    ) VALUES (
+      'workspace_v3', 'project_v3', 'tokenpilot', '/private/v3', 'checkout',
+      'main', 'abc123', 0, 'ready',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO tasks (
+      id, project_id, workspace_id, title, goal, status, priority,
+      created_at, updated_at, revision
+    ) VALUES (
+      'task_v3', 'project_v3', 'workspace_v3', 'Version 3 Task',
+      'Preserve runtime identity', 'in-progress', 'normal',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO development_sessions (
+      id, project_id, workspace_id, task_id, title, mode, status,
+      started_at, updated_at, revision
+    ) VALUES (
+      'session_v3', 'project_v3', 'workspace_v3', 'task_v3',
+      'Version 3 Session', 'codex-session', 'running',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO runtime_bindings (
+      id, session_id, workspace_id, runtime_kind, external_thread_id,
+      source_thread_id, relation, status, model_provider,
+      created_at, updated_at, revision
+    ) VALUES (
+      'binding_v3', 'session_v3', 'workspace_v3', 'codex-app-server',
+      'thread_v3', 'thread_source_v3', 'forked', 'active', 'openai',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:00:00.000Z', 1
+    );
+    UPDATE development_sessions
+    SET active_runtime_binding_id = 'binding_v3'
+    WHERE id = 'session_v3';
+    INSERT INTO writer_leases (
+      id, workspace_id, session_id, holder_type, holder_id, status,
+      acquired_at, heartbeat_at, expires_at, revision
+    ) VALUES (
+      'lease_v3', 'workspace_v3', 'session_v3', 'codex-session',
+      'thread_v3', 'released', '2026-08-07T00:00:00.000Z',
+      '2026-08-07T00:00:00.000Z', '2026-08-07T00:01:00.000Z', 1
+    );
+    INSERT INTO evidence_bundles (
+      id, task_id, session_id, status, required_item_count,
+      passed_item_count, failed_item_count, skipped_item_count,
+      created_at, revision
+    ) VALUES (
+      'evidence_v3', 'task_v3', 'session_v3', 'collecting', 0, 0, 0, 0,
+      '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO handoff_checkpoints (
+      id, task_id, session_id, workspace_id, from_mode, to_mode, goal,
+      completed_items_json, pending_items_json, changed_files_json,
+      risks_json, next_action, git_dirty, evidence_bundle_id, status,
+      created_at, revision
+    ) VALUES (
+      'handoff_v3', 'task_v3', 'session_v3', 'workspace_v3',
+      'codex-session', 'codex-session', 'Preserve runtime run',
+      '[]', '[]', '[]', '[]', 'Continue', 0, 'evidence_v3', 'ready',
+      '2026-08-07T00:00:00.000Z', 1
+    );
+    INSERT INTO runtime_runs (
+      id, session_id, workspace_id, runtime_binding_id, thread_id,
+      status, input_hash, input_length, handoff_id, evidence_bundle_id,
+      writer_lease_id, model_loop_owner, approval_policy,
+      started_at, updated_at, revision
+    ) VALUES (
+      'run_v3', 'session_v3', 'workspace_v3', 'binding_v3', 'thread_v3',
+      'completed', 'hash-v3', 7, 'handoff_v3', 'evidence_v3', 'lease_v3',
+      'codex', 'on-request', '2026-08-07T00:00:00.000Z',
+      '2026-08-07T00:00:00.000Z', 1
+    );
+  `);
+  legacy.close();
+
+  const upgraded = new ContinuityDatabase({ path: legacyPath });
+  try {
+    assert.equal(upgraded.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
+    const runtimeBindings = new RuntimeBindingRepository(upgraded);
+    const preserved = runtimeBindings.get("binding_v3");
+    assert.equal(preserved.runtimeKind, "codex-app-server");
+    assert.equal(preserved.externalSessionId, "thread_v3");
+    assert.equal(preserved.externalThreadId, "thread_v3");
+    assert.equal(preserved.sourceExternalId, "thread_source_v3");
+    assert.equal(preserved.sourceThreadId, "thread_source_v3");
+    assert.equal(preserved.externalRunId, null);
+
+    const run = upgraded.sqlite
+      .prepare(
+        "SELECT runtime_binding_id, thread_id FROM runtime_runs WHERE id = ?"
+      )
+      .get("run_v3") as { runtime_binding_id: string; thread_id: string };
+    assert.equal(run.runtime_binding_id, preserved.id);
+    assert.equal(run.thread_id, "thread_v3");
+    assert.deepEqual(
+      upgraded.sqlite.prepare("PRAGMA foreign_key_check").all(),
+      []
+    );
+
+    const tasks = new TaskRepository(upgraded);
+    const sessions = new SessionRepository(upgraded);
+    const runnerTask = tasks.create({
+      id: "task_runner_v4",
+      projectId: "project_v3",
+      workspaceId: "workspace_v3",
+      title: "Runner binding",
+      goal: "Bind an existing Queue/Runner job",
+      status: "in-progress",
+      now: "2026-08-07T00:01:00.000Z"
+    });
+    const runnerSession = sessions.create({
+      id: "session_runner_v4",
+      projectId: "project_v3",
+      workspaceId: "workspace_v3",
+      taskId: runnerTask.id,
+      title: "Runner session",
+      mode: "async-agent",
+      status: "running",
+      startedAt: "2026-08-07T00:01:00.000Z"
+    });
+    const runnerBinding = runtimeBindings.replaceActiveRunner({
+      id: "binding_runner_v4",
+      sessionId: runnerSession.id,
+      workspaceId: "workspace_v3",
+      externalRunId: "job_v4",
+      now: "2026-08-07T00:01:00.000Z"
+    });
+    assert.equal(runnerBinding.runtimeKind, "tokenpilot-runner");
+    assert.equal(runnerBinding.externalRunId, "job_v4");
+    assert.equal(runnerBinding.externalSessionId, null);
+    assert.equal(runnerBinding.externalThreadId, null);
+    assert.equal(runnerBinding.relation, "queued");
+    assert.equal(
+      runtimeBindings.findActiveByExternalRun("job_v4")?.id,
+      runnerBinding.id
+    );
+
+    const competingTask = tasks.create({
+      id: "task_runner_competing_v4",
+      projectId: "project_v3",
+      workspaceId: "workspace_v3",
+      title: "Competing Runner binding",
+      goal: "Reject duplicate active job identity",
+      status: "in-progress",
+      now: "2026-08-07T00:02:00.000Z"
+    });
+    const competingSession = sessions.create({
+      id: "session_runner_competing_v4",
+      projectId: "project_v3",
+      workspaceId: "workspace_v3",
+      taskId: competingTask.id,
+      title: "Competing Runner session",
+      mode: "async-agent",
+      status: "running",
+      startedAt: "2026-08-07T00:02:00.000Z"
+    });
+    assert.throws(
+      () =>
+        runtimeBindings.replaceActiveRunner({
+          sessionId: competingSession.id,
+          workspaceId: "workspace_v3",
+          externalRunId: "job_v4",
+          now: "2026-08-07T00:02:00.000Z"
+        }),
+      (error) => assertServiceError(error, "RUNTIME_BINDING_CONFLICT")
+    );
+  } finally {
+    upgraded.close();
+  }
 }
 
 function verifyVersionOneUpgrade(tempRoot: string): void {
@@ -94,6 +300,7 @@ async function verifyContinuityStore(): Promise<void> {
   const privateWorkspacePath = path.join(tempRoot, "private-workspace");
 
   verifyVersionOneUpgrade(tempRoot);
+  verifyVersionThreeUpgrade(tempRoot);
 
   const firstDatabase = new ContinuityDatabase({ path: databasePath });
   assert.equal(firstDatabase.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);

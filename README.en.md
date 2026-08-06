@@ -40,7 +40,7 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 - Local CLI, Fastify Control Plane, REST, MCP, and OpenAPI.
 - Chat Direct file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
 - Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
-- SQLite Continuity Engine for Project, Workspace, Task, Session, Runtime Binding, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
+- SQLite Schema v4 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding persistence, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
 - Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, and Approval state, including Prepare/Accept/Fork/Cancel actions.
 - File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and Evidence for asynchronous jobs.
 - 36 MCP tools, evidence-governed Task Review/Completion, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, restart recovery, and source-archive operation without `.git` metadata.
