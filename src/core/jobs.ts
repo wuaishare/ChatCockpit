@@ -123,6 +123,13 @@ export function createJob<TPayload extends TokenPilotJobPayload>(
   return record;
 }
 
+export function deleteJob(paths: TokenPilotPaths, jobId: string): boolean {
+  const current = getJob(paths, jobId);
+  if (!current) return false;
+  fs.rmSync(current.filePath, { force: true });
+  return true;
+}
+
 export function getJob(
   paths: TokenPilotPaths,
   jobId: string

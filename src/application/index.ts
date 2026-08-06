@@ -1,3 +1,4 @@
+export { AsyncJobService } from "./async-job-service.js";
 export {
   buildContinuityServices,
   type ContinuityServices

@@ -76,7 +76,7 @@ The prerelease package must not include:
 
 - Product positioning: Development Continuity & Agent Routing Platform
 - Runtime ladder: ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
-- Implemented capabilities: Continuity Engine, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Workspace Snapshot, 36 MCP tools, Continuity Workbench, Queue/Runner, and public-safe artifacts
+- Implemented capabilities: Continuity Engine, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Workspace Snapshot, Continuity-bound Async Job Queue, 37 MCP tools, Continuity Workbench, Queue/Runner, and public-safe artifacts
 - Experimental surfaces: Custom GPT Actions, Remote MCP, public HTTPS, and Codex App Server standalone execution
 - Security model: Bearer Auth, allowlisted Workspace/commands, optimistic revisions, idempotency, Writer Lease, public-safe projections, privacy/history gates, and no-Git source archive validation
 - Known limitations: no native installer, no public SaaS, no full Spec/Plan store, no unified async Runtime Binding, and no automated recovery center for every provider

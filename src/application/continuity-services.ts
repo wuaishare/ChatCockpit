@@ -4,6 +4,7 @@ import {
   buildContinuityRepositories,
   type ContinuityRepositories
 } from "../continuity/repositories/index.js";
+import { AsyncJobService } from "./async-job-service.js";
 import { EvidenceService } from "./evidence-service.js";
 import { HandoffService } from "./handoff-service.js";
 import { LeaseService } from "./lease-service.js";
@@ -15,6 +16,7 @@ import { WorkspaceContinuityService } from "./workspace-continuity-service.js";
 
 export interface ContinuityServices {
   repositories: ContinuityRepositories;
+  asyncJobs: AsyncJobService;
   projects: ProjectService;
   workspaces: WorkspaceContinuityService;
   tasks: TaskService;
@@ -32,6 +34,7 @@ export function buildContinuityServices(
   const repositories = buildContinuityRepositories(database);
   return {
     repositories,
+    asyncJobs: new AsyncJobService(paths, repositories),
     projects: new ProjectService(paths, database, repositories),
     workspaces: new WorkspaceContinuityService(paths, repositories),
     tasks: new TaskService(repositories),

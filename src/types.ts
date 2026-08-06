@@ -116,6 +116,9 @@ export interface CodexRunJobPayload {
   commitPolicy?: CodexRunCommitPolicy;
   commitTitle?: string;
   commitBody?: string;
+  continuityTaskId?: string;
+  continuitySessionId?: string;
+  continuityRuntimeBindingId?: string;
 }
 
 export interface CodexRunArtifact {

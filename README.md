@@ -14,7 +14,7 @@ ChatGPT 负责对话、意图、规划与审查；TokenPilot 提供本地优先�
 
 **省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 
-当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、36 个 MCP Tools、异步 Job/Runner，以及 Continuity Workbench Web UI。
+当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、37 个 MCP Tools、异步 Job/Runner，以及 Continuity Workbench Web UI。
 
 TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
 
@@ -45,7 +45,7 @@ ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 - Continuity Engine：SQLite Schema v4、Project、Workspace、Task、Session、通用 Runtime Binding 持久层、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Tasks、Sessions、Handoffs、Evidence、Approvals；支持 Prepare、Accept、Fork、Cancel。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts 与可选 Worktree。
-- 36 个 MCP Tools、证据约束的 Task Review/Completion、exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
+- 37 个 MCP Tools、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
 
 ### 实验性
 
@@ -205,7 +205,7 @@ npm run test
 - [x] Codex App Server Thread Bind/Resume/Fork 与显式 Turn/Approval/Interrupt
 - [x] SQLite Continuity Engine、Writer Lease、Handoff、Evidence 与 Runtime Event
 - [x] Continuity Workbench 与 Workspace Snapshot
-- [x] REST/MCP Parity、36 个 MCP Tools、证据约束的 Task Review/Completion、重启恢复与无 Git 源包门禁
+- [x] REST/MCP Parity、37 个 MCP Tools、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、重启恢复与无 Git 源包门禁
 - [x] 首任务模板库与新手案例
 - [x] First-run setup wizard
 - [x] 中文 GPT Builder / 公网 HTTPS 配置文档

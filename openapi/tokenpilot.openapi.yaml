@@ -2229,6 +2229,140 @@ components:
                   minLength: 1
                   maxLength: 240
                 - type: "null"
+    AsyncJobQueuePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId: { type: string }
+        sessionId: { type: string }
+        expectedTaskRevision: { type: integer, minimum: 1 }
+        expectedSessionRevision: { type: integer, minimum: 1 }
+        repoId: { type: string }
+        title: { type: string }
+        instructions:
+          type: string
+          description: Private execution instructions persisted only in the local Job record and omitted from the queue response.
+        executionMode:
+          type: string
+          enum: [plan, review, develop]
+          default: develop
+        worktreePolicy:
+          type: string
+          enum: [auto, always, never]
+          default: auto
+        branchName: { type: string }
+        approvalPolicy:
+          type: string
+          enum: [untrusted, on-request, never]
+          default: never
+        sandbox:
+          type: string
+          enum: [read-only, workspace-write, danger-full-access]
+          default: workspace-write
+        verificationCommands:
+          type: array
+          items: { type: string }
+        acceptanceCriteria:
+          type: array
+          items: { type: string }
+        commitPolicy:
+          type: string
+          enum: [none, propose, commit]
+          default: propose
+        commitTitle: { type: string }
+        commitBody: { type: string }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required:
+        [taskId, sessionId, expectedTaskRevision, expectedSessionRevision, repoId, title, instructions, idempotencyKey]
+    AsyncJobPublicRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          const: codex-run
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        payload:
+          type: object
+          additionalProperties: false
+          properties:
+            repoId: { type: string }
+            title: { type: string }
+            executionMode:
+              type: string
+              enum: [plan, review, develop]
+            worktreePolicy:
+              type: string
+              enum: [auto, always, never]
+            commitPolicy:
+              type: string
+              enum: [none, propose, commit]
+            continuityTaskId: { type: string }
+            continuitySessionId: { type: string }
+            continuityRuntimeBindingId: { type: string }
+          required:
+            [repoId, title, executionMode, worktreePolicy, commitPolicy, continuityTaskId, continuitySessionId, continuityRuntimeBindingId]
+      required: [id, type, status, createdAt, updatedAt, payload]
+    RunnerRuntimeBindingRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        sessionId: { type: string }
+        workspaceId: { type: string }
+        runtimeKind:
+          type: string
+          const: tokenpilot-runner
+        externalSessionId:
+          type: "null"
+        externalRunId: { type: string }
+        sourceExternalId:
+          oneOf:
+            - type: string
+            - type: "null"
+        externalThreadId:
+          type: "null"
+        sourceThreadId:
+          type: "null"
+        relation:
+          type: string
+          const: queued
+        status:
+          type: string
+          enum: [active, superseded, released, stale]
+        modelProvider:
+          type: "null"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+      required:
+        [id, sessionId, workspaceId, runtimeKind, externalSessionId, externalRunId, sourceExternalId, externalThreadId, sourceThreadId, relation, status, modelProvider, createdAt, updatedAt, revision]
+    AsyncJobQueueResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        task:
+          $ref: '#/components/schemas/ContinuityTaskRecord'
+        session:
+          $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        binding:
+          $ref: '#/components/schemas/RunnerRuntimeBindingRecord'
+        job:
+          $ref: '#/components/schemas/AsyncJobPublicRecord'
+        replayed: { type: boolean }
+      required: [ok, task, session, binding, job, replayed]
     RuntimeBindingRecord:
       type: object
       additionalProperties: false
@@ -3330,6 +3464,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkspaceContinuitySnapshotResponse'
+  /api/continuity/async-jobs/queue:
+    post:
+      operationId: queueContinuityAsyncJob
+      summary: Queue a continuity-bound async Job
+      description: Creates one file-backed Codex Runner Job for an active async-agent Session, persists the Job ID as a TokenPilot Runner Runtime Binding, and replays the original result for the same idempotency key.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsyncJobQueuePayload'
+      responses:
+        "200":
+          description: Job queued or idempotently replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobQueueResponse'
+        "409":
+          description: Session, revision, workspace, Runtime Binding, or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/continuity/tasks:
     post:
       operationId: createContinuityTask

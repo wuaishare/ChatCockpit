@@ -198,7 +198,7 @@ export interface RuntimeBindingRecord {
 }
 ```
 
-Schema v4 uses one generic binding store. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. The Queue/Runner workflow does not yet create or reconcile these Runner bindings automatically; that application-service integration remains the next target. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
+Schema v4 uses one generic binding store. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` now creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. Runner claim/completion/failure reconciliation remains the next target. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
 
 ```ts
 export interface ChatDirectExecutionMetadata {
@@ -542,7 +542,7 @@ Secrets, local configuration, environment files, runtime logs, and private agent
 |---|---|---|
 | Stable Project and Workspace IDs | Implemented | Deterministic configured-project sync and SQLite records |
 | Task continuity across Chat Direct and Codex Session | Implemented | Session mode, Codex Runtime Binding, Handoff, and Workspace Snapshot |
-| Async Job as a first-class Runtime Binding | Persistence implemented; workflow integration pending | Schema v4 stores unique Runner Job IDs, but Queue creation and Runner lifecycle reconciliation are Task 21/22 |
+| Async Job as a first-class Runtime Binding | Queue identity implemented; lifecycle reconciliation pending | Schema v4 stores unique Runner Job IDs and the Queue service binds Job/Task/Session idempotently; Runner claim/completion/failure reconciliation is Task 22 |
 | One active Writer per Workspace | Implemented | SQLite partial unique index plus Lease Service tests |
 | Cross-mode Handoff with Git and pending-work state | Implemented | Prepare, Accept, Fork, Cancel, REST/MCP parity, restart replay |
 | Structured Evidence and conservative verification | Implemented | Required items must exist and pass; missing evidence is never verified |

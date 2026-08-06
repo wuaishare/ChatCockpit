@@ -74,10 +74,10 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具分类
 
-当前公开目录包含 36 个工具，覆盖：
+当前公开目录包含 37 个工具，覆盖：
 
 - public-safe Files、Search、Shell、Git；
-- Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review 与受治理的 Completion；
+- Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
 - Codex Runtime Capability 与 Thread Metadata；
 - Codex Session Bind、Resume、Fork；
 - 显式 Codex Turn、Interrupt、Approval Response 与 Event Read。

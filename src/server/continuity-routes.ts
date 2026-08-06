@@ -6,6 +6,7 @@ import type {
 import { z } from "zod";
 
 import type { ContinuityServices } from "../application/continuity-services.js";
+import { asyncJobQueueSchema } from "../contracts/async-job.js";
 import {
   evidenceRecordSchema,
   handoffAcceptSchema,
@@ -106,6 +107,24 @@ export function registerContinuityRoutes(
             operationContextFromRequest(request),
             input
           )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/async-jobs/queue",
+    (request, reply) => {
+      const input = parseOrReply(asyncJobQueueSchema, request.body, reply);
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.asyncJobs.queue(operationContextFromRequest(request), input)
         };
       } catch (error) {
         return sendUnknownApiError(reply, error);

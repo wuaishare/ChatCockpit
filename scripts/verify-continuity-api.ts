@@ -136,6 +136,7 @@ async function runContinuityApiVerification(): Promise<void> {
       "listContinuityProjects",
       "getContinuityProject",
       "getWorkspaceContinuitySnapshot",
+      "queueContinuityAsyncJob",
       "createContinuityTask",
       "submitContinuityTaskReview",
       "completeContinuityTask",
@@ -152,6 +153,10 @@ async function runContinuityApiVerification(): Promise<void> {
     ]) {
       assert.match(openapiText, new RegExp(`operationId: ${operationId}`));
     }
+    assert.match(
+      openapiText,
+      /AsyncJobQueuePayload:[\s\S]*expectedTaskRevision:[\s\S]*expectedSessionRevision:[\s\S]*idempotencyKey:/
+    );
     assert.match(
       openapiText,
       /ContinuityTaskSubmitReviewPayload:[\s\S]*expectedRevision:[\s\S]*idempotencyKey:/
@@ -501,6 +506,90 @@ async function runContinuityApiVerification(): Promise<void> {
       releasedSnapshot.snapshot.tasks[0].sessions[0].status,
       "completed"
     );
+
+    const asyncTask = await rest<typeof restTask>(
+      "POST",
+      "/api/continuity/tasks",
+      {
+        projectId: project.id,
+        workspaceId: workspace.id,
+        title: "Async Job parity task",
+        goal: "Verify one durable Queue/Runner Job binding",
+        priority: "normal",
+        idempotencyKey: "continuity-task-async-0001"
+      }
+    );
+    const asyncSession = await rest<typeof restSession>(
+      "POST",
+      "/api/continuity/sessions/start",
+      {
+        taskId: asyncTask.task.id,
+        title: "Async Agent session",
+        mode: "async-agent",
+        expectedTaskRevision: asyncTask.task.revision,
+        idempotencyKey: "continuity-session-async-0001"
+      }
+    );
+    const asyncQueueInput = {
+      taskId: asyncTask.task.id,
+      sessionId: asyncSession.session.id,
+      expectedTaskRevision: asyncSession.task.revision,
+      expectedSessionRevision: asyncSession.session.revision,
+      repoId: workspace.repoId,
+      title: "Continuity-bound async execution",
+      instructions: "Inspect the fixture and produce a public-safe summary.",
+      executionMode: "develop",
+      worktreePolicy: "auto",
+      approvalPolicy: "never",
+      sandbox: "workspace-write",
+      commitPolicy: "propose",
+      idempotencyKey: "continuity-async-queue-0001"
+    };
+    const restAsyncQueue = await rest<{
+      ok: true;
+      task: { id: string; revision: number };
+      session: { id: string; revision: number; activeRuntimeBindingId: string };
+      binding: {
+        id: string;
+        runtimeKind: string;
+        externalRunId: string;
+        relation: string;
+      };
+      job: {
+        id: string;
+        status: string;
+        payload: {
+          repoId: string;
+          title: string;
+          continuityTaskId: string;
+          continuitySessionId: string;
+          continuityRuntimeBindingId: string;
+        };
+      };
+      replayed: boolean;
+    }>("POST", "/api/continuity/async-jobs/queue", asyncQueueInput);
+    const mcpAsyncQueue = await mcp<typeof restAsyncQueue>(
+      "tokenpilot.asyncJob.queue",
+      asyncQueueInput
+    );
+    assert.equal(restAsyncQueue.replayed, false);
+    assert.equal(mcpAsyncQueue.replayed, true);
+    assert.deepEqual(mcpAsyncQueue.task, restAsyncQueue.task);
+    assert.deepEqual(mcpAsyncQueue.session, restAsyncQueue.session);
+    assert.deepEqual(mcpAsyncQueue.binding, restAsyncQueue.binding);
+    assert.deepEqual(mcpAsyncQueue.job, restAsyncQueue.job);
+    assert.equal(restAsyncQueue.binding.runtimeKind, "tokenpilot-runner");
+    assert.equal(restAsyncQueue.binding.externalRunId, restAsyncQueue.job.id);
+    assert.equal(restAsyncQueue.binding.relation, "queued");
+    assert.equal(
+      restAsyncQueue.session.activeRuntimeBindingId,
+      restAsyncQueue.binding.id
+    );
+    assert.equal(
+      restAsyncQueue.job.payload.continuityRuntimeBindingId,
+      restAsyncQueue.binding.id
+    );
+    assert.doesNotMatch(JSON.stringify(restAsyncQueue), /Inspect the fixture/);
 
     const cancelTask = await rest<typeof restTask>(
       "POST",

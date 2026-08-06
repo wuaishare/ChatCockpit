@@ -1,4 +1,5 @@
 import type { ContinuityServices } from "../../application/continuity-services.js";
+import { asyncJobQueueSchema } from "../../contracts/async-job.js";
 import {
   evidenceRecordSchema,
   handoffAcceptSchema,
@@ -42,6 +43,18 @@ export function buildContinuityMcpTools(
   services: ContinuityServices
 ): TokenPilotMcpTool[] {
   return [
+    defineMcpTool({
+      name: "tokenpilot.asyncJob.queue",
+      title: "Queue continuity-bound async job",
+      description:
+        "Queue one file-backed Codex Runner job for an active async-agent Session and bind the Job ID to durable TokenPilot Task/Session identity. Same-key replay never creates a second Job file.",
+      inputSchema: asyncJobQueueSchema,
+      annotations: idempotentMutationAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.asyncJobs.queue(context, input)
+      })
+    }),
     defineMcpTool({
       name: "tokenpilot.project.list",
       title: "List TokenPilot projects",

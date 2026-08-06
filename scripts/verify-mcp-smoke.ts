@@ -207,6 +207,7 @@ async function runMcpSmoke(): Promise<void> {
     assert.deepEqual(
       tools.map((tool) => tool.name).sort(),
       [
+        "tokenpilot.asyncJob.queue",
         "tokenpilot.evidence.record",
         "tokenpilot.files.edit",
         "tokenpilot.files.list",
@@ -278,6 +279,7 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.codex.session.fork",
       "tokenpilot.codex.session.resume",
       "tokenpilot.codex.turn.interrupt",
+      "tokenpilot.asyncJob.queue",
       "tokenpilot.evidence.record",
       "tokenpilot.handoff.accept",
       "tokenpilot.handoff.cancel",
@@ -306,6 +308,14 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       toolByName.get("tokenpilot.task.submitReview")?.annotations.openWorldHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.asyncJob.queue")?.annotations.idempotentHint,
+      true
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.asyncJob.queue")?.annotations.openWorldHint,
       false
     );
     for (const name of [

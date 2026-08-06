@@ -14,7 +14,7 @@ ChatGPT owns conversation, intent, planning, and review. TokenPilot provides the
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, 36 MCP tools, asynchronous Job/Runner execution, and a Continuity Workbench Web UI.
+The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, 37 MCP tools, asynchronous Job/Runner execution, and a Continuity Workbench Web UI.
 
 ## What It Does
 
@@ -43,7 +43,7 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 - SQLite Schema v4 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding persistence, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
 - Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, and Approval state, including Prepare/Accept/Fork/Cancel actions.
 - File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and Evidence for asynchronous jobs.
-- 36 MCP tools, evidence-governed Task Review/Completion, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, restart recovery, and source-archive operation without `.git` metadata.
+- 37 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, restart recovery, and source-archive operation without `.git` metadata.
 
 ### Experimental
 
@@ -205,7 +205,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [x] Codex App Server Thread Bind/Resume/Fork and explicit Turn/Approval/Interrupt
 - [x] SQLite Continuity Engine, Writer Lease, Handoff, Evidence, and Runtime Events
 - [x] Continuity Workbench and Workspace Snapshot
-- [x] REST/MCP parity, 36 MCP tools, evidence-governed Task Review/Completion, restart recovery, and no-Git source archive gate
+- [x] REST/MCP parity, 37 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, restart recovery, and no-Git source archive gate
 - [x] GPT Actions boundary probes for timeout, context size, and request behavior
 - [x] First-task template library under `templates/`
 - [x] Beginner examples under `examples/`

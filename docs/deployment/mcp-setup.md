@@ -76,10 +76,10 @@ The release gate verifies authentication, tool listing, tool calls, structured e
 
 ## Tool Families
 
-The current public catalog contains 36 tools across:
+The current public catalog contains 37 tools across:
 
 - public-safe Files, Search, Shell, and Git operations;
-- Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, and governed Completion operations;
+- Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Codex Runtime capabilities and Thread metadata;
 - Codex Session Bind/Resume/Fork;
 - explicit Codex Turn/Interrupt, Approval response, and Event reads.
