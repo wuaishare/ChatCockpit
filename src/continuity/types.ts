@@ -10,6 +10,7 @@ export type TaskStatus =
   | "completed"
   | "cancelled";
 export type TaskPriority = "low" | "normal" | "high" | "critical";
+export type TaskExecutionPolicy = "planning-required" | "planning-optional";
 export type DevelopmentDocumentKind = "spec" | "plan";
 export type DevelopmentDocumentStatus =
   | "draft"
@@ -134,6 +135,7 @@ export interface TaskRecord {
   goal: string;
   status: TaskStatus;
   priority: TaskPriority;
+  executionPolicy: TaskExecutionPolicy;
   activeSessionId: string | null;
   latestHandoffId: string | null;
   latestEvidenceBundleId: string | null;

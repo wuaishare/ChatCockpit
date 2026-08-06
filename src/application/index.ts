@@ -28,5 +28,11 @@ export { ServiceError, type ServiceErrorOptions } from "./service-error.js";
 export { SessionService } from "./session-service.js";
 export { ShellService } from "./shell-service.js";
 export { TaskCompletionService } from "./task-completion-service.js";
+export {
+  TaskExecutionPolicyService,
+  type TaskExecutionPolicyAssessment,
+  type TaskPlanningRequirementAssessment,
+  type TaskPlanningRequirementState
+} from "./task-execution-policy.js";
 export { TaskService } from "./task-service.js";
 export { WorkspaceContinuityService } from "./workspace-continuity-service.js";

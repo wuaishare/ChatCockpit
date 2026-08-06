@@ -19,6 +19,10 @@ import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
 import type { RuntimeRouter } from "./runtime-router.js";
 import { ServiceError } from "./service-error.js";
+import {
+  TaskExecutionPolicyService,
+  type TaskExecutionPolicyAssessment
+} from "./task-execution-policy.js";
 
 interface PreparedTurnStart {
   run: RuntimeRunRecord;
@@ -27,6 +31,7 @@ interface PreparedTurnStart {
   evidenceBundle: EvidenceBundleRecord;
   session: DevelopmentSessionRecord;
   task: TaskRecord;
+  executionPolicy: TaskExecutionPolicyAssessment;
 }
 
 export interface RuntimeTurnStartResult extends PreparedTurnStart {
@@ -52,12 +57,16 @@ function inputHash(text: string): string {
 export class RuntimeTurnService {
   private readonly git: GitService;
 
+  private readonly executionPolicy: TaskExecutionPolicyService;
+
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly repositories: ContinuityRepositories,
-    private readonly runtime: RuntimeRouter
+    private readonly runtime: RuntimeRouter,
+    executionPolicy?: TaskExecutionPolicyService
   ) {
     this.git = new GitService(paths);
+    this.executionPolicy = executionPolicy ?? new TaskExecutionPolicyService(repositories);
   }
 
   async start(
@@ -131,6 +140,7 @@ export class RuntimeTurnService {
             "Turn start requires a valid codex-session bound to the task workspace"
           );
         }
+        const policyAssessment = this.executionPolicy.requireAllowed(task);
         const binding = this.repositories.runtimeBindings.findActiveBySession(
           session.id
         );
@@ -251,7 +261,8 @@ export class RuntimeTurnService {
           handoff,
           evidenceBundle,
           session: updatedSession,
-          task: updatedTask
+          task: updatedTask,
+          executionPolicy: policyAssessment
         };
       },
       (prepared) =>
@@ -303,6 +314,7 @@ export class RuntimeTurnService {
           ),
           session: this.repositories.sessions.get(prepared.session.id),
           task: this.repositories.tasks.get(prepared.task.id),
+          executionPolicy: prepared.executionPolicy,
           turn
         };
       },

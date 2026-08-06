@@ -62,7 +62,8 @@ export class TaskService {
           title: payload.title,
           goal: payload.goal,
           status: "backlog",
-          priority: payload.priority
+          priority: payload.priority,
+          executionPolicy: payload.executionPolicy
         });
       }
     );

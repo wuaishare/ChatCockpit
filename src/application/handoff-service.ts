@@ -192,7 +192,8 @@ export class HandoffService {
           title: payload.title,
           goal: handoff.goal,
           status: "in-progress",
-          priority: sourceTask.priority
+          priority: sourceTask.priority,
+          executionPolicy: sourceTask.executionPolicy
         });
         const session = this.repositories.sessions.create({
           projectId: childTask.projectId,

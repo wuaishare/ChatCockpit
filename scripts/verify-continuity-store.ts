@@ -162,6 +162,7 @@ function verifyVersionThreeUpgrade(tempRoot: string): void {
     );
 
     const tasks = new TaskRepository(upgraded);
+    assert.equal(tasks.get("task_v3").executionPolicy, "planning-optional");
     const sessions = new SessionRepository(upgraded);
     const runnerTask = tasks.create({
       id: "task_runner_v4",

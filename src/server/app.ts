@@ -656,7 +656,8 @@ export function buildServer(
   const runtimeTurnService = new RuntimeTurnService(
     paths,
     continuityServices.repositories,
-    runtimeRouter
+    runtimeRouter,
+    continuityServices.taskExecutionPolicy
   );
   const runtimeApprovalService = new RuntimeApprovalService(
     continuityServices.repositories,

@@ -1505,6 +1505,10 @@ components:
           type: string
           enum: [low, normal, high, critical]
           default: normal
+        executionPolicy:
+          type: string
+          enum: [planning-required, planning-optional]
+          default: planning-optional
         idempotencyKey:
           type: string
           minLength: 8
@@ -1905,6 +1909,9 @@ components:
         priority:
           type: string
           enum: [low, normal, high, critical]
+        executionPolicy:
+          type: string
+          enum: [planning-required, planning-optional]
         activeSessionId:
           oneOf:
             - type: string
@@ -1926,7 +1933,57 @@ components:
         revision:
           type: integer
           minimum: 1
-      required: [id, projectId, workspaceId, specId, specVersion, planId, planVersion, parentTaskId, title, goal, status, priority, activeSessionId, latestHandoffId, latestEvidenceBundleId, createdAt, updatedAt, revision]
+      required: [id, projectId, workspaceId, specId, specVersion, planId, planVersion, parentTaskId, title, goal, status, priority, executionPolicy, activeSessionId, latestHandoffId, latestEvidenceBundleId, createdAt, updatedAt, revision]
+    TaskPlanningRequirementAssessment:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [spec, plan]
+        state:
+          type: string
+          enum: [not-bound, relation-invalid, unapproved, stale, approved-current]
+        documentId:
+          oneOf:
+            - type: string
+            - type: "null"
+        pinnedVersion:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
+        currentVersion:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
+        status:
+          oneOf:
+            - type: string
+              enum: [draft, ready, approved, superseded, archived]
+            - type: "null"
+      required: [kind, state, documentId, pinnedVersion, currentVersion, status]
+    TaskExecutionPolicyAssessment:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        policy:
+          type: string
+          enum: [planning-required, planning-optional]
+        allowed:
+          type: boolean
+        blockers:
+          type: array
+          items:
+            type: string
+        spec:
+          $ref: '#/components/schemas/TaskPlanningRequirementAssessment'
+        plan:
+          $ref: '#/components/schemas/TaskPlanningRequirementAssessment'
+      required: [taskId, policy, allowed, blockers, spec, plan]
     ContinuityWriterLeaseRecord:
       type: object
       additionalProperties: false
@@ -2692,8 +2749,10 @@ components:
           $ref: '#/components/schemas/RunnerRuntimeBindingRecord'
         job:
           $ref: '#/components/schemas/AsyncJobPublicRecord'
+        executionPolicy:
+          $ref: '#/components/schemas/TaskExecutionPolicyAssessment'
         replayed: { type: boolean }
-      required: [ok, task, session, binding, job, replayed]
+      required: [ok, task, session, binding, job, executionPolicy, replayed]
     RuntimeBindingRecord:
       type: object
       additionalProperties: false
@@ -3130,11 +3189,13 @@ components:
         task:
           type: object
           additionalProperties: true
+        executionPolicy:
+          $ref: '#/components/schemas/TaskExecutionPolicyAssessment'
         turn:
           $ref: '#/components/schemas/RuntimeTurnProjection'
         replayed:
           type: boolean
-      required: [ok, run, lease, handoff, evidenceBundle, session, task, turn, replayed]
+      required: [ok, run, lease, handoff, evidenceBundle, session, task, executionPolicy, turn, replayed]
     RuntimeTurnInterruptResponse:
       type: object
       additionalProperties: false

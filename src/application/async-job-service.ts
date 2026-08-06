@@ -19,6 +19,10 @@ import type {
 } from "../types.js";
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
+import {
+  TaskExecutionPolicyService,
+  type TaskExecutionPolicyAssessment
+} from "./task-execution-policy.js";
 
 export interface AsyncJobPublicRecord {
   id: string;
@@ -43,6 +47,7 @@ export interface AsyncJobQueueResult {
   session: DevelopmentSessionRecord;
   binding: RunnerRuntimeBindingRecord;
   job: AsyncJobPublicRecord;
+  executionPolicy: TaskExecutionPolicyAssessment;
   replayed: boolean;
 }
 
@@ -86,10 +91,15 @@ function publicJob(
 }
 
 export class AsyncJobService {
+  private readonly executionPolicy: TaskExecutionPolicyService;
+
   constructor(
     private readonly paths: TokenPilotPaths,
-    private readonly repositories: ContinuityRepositories
-  ) {}
+    private readonly repositories: ContinuityRepositories,
+    executionPolicy?: TaskExecutionPolicyService
+  ) {
+    this.executionPolicy = executionPolicy ?? new TaskExecutionPolicyService(repositories);
+  }
 
   queue(
     context: OperationContext,
@@ -118,6 +128,7 @@ export class AsyncJobService {
               }
             );
           }
+          const policyAssessment = this.executionPolicy.requireAllowed(task);
           if (session.revision !== input.expectedSessionRevision) {
             throw new ServiceError(
               "REVISION_CONFLICT",
@@ -224,7 +235,8 @@ export class AsyncJobService {
             task,
             session: updatedSession,
             binding,
-            job: publicJob(job)
+            job: publicJob(job),
+            executionPolicy: policyAssessment
           };
         },
         context.now

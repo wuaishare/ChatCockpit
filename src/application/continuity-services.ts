@@ -13,6 +13,7 @@ import { ProjectService } from "./project-service.js";
 import { SessionService } from "./session-service.js";
 import { TaskCompletionService } from "./task-completion-service.js";
 import { TaskService } from "./task-service.js";
+import { TaskExecutionPolicyService } from "./task-execution-policy.js";
 import { WorkspaceContinuityService } from "./workspace-continuity-service.js";
 
 export interface ContinuityServices {
@@ -23,6 +24,7 @@ export interface ContinuityServices {
   workspaces: WorkspaceContinuityService;
   tasks: TaskService;
   taskCompletion: TaskCompletionService;
+  taskExecutionPolicy: TaskExecutionPolicyService;
   sessions: SessionService;
   leases: LeaseService;
   handoffs: HandoffService;
@@ -34,15 +36,17 @@ export function buildContinuityServices(
   database: ContinuityDatabase
 ): ContinuityServices {
   const repositories = buildContinuityRepositories(database);
+  const taskExecutionPolicy = new TaskExecutionPolicyService(repositories);
   return {
     repositories,
-    asyncJobs: new AsyncJobService(paths, repositories),
+    asyncJobs: new AsyncJobService(paths, repositories, taskExecutionPolicy),
     developmentDocuments: new DevelopmentDocumentService(repositories),
     projects: new ProjectService(paths, database, repositories),
     workspaces: new WorkspaceContinuityService(paths, repositories),
     tasks: new TaskService(repositories),
     taskCompletion: new TaskCompletionService(repositories),
-    sessions: new SessionService(repositories),
+    taskExecutionPolicy,
+    sessions: new SessionService(repositories, taskExecutionPolicy),
     leases: new LeaseService(repositories),
     handoffs: new HandoffService(repositories),
     evidence: new EvidenceService(repositories)

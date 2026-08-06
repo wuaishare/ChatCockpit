@@ -259,6 +259,9 @@ export type ContinuityTaskStatus =
   | "completed"
   | "cancelled";
 export type ContinuityTaskPriority = "low" | "normal" | "high" | "critical";
+export type ContinuityTaskExecutionPolicy =
+  | "planning-required"
+  | "planning-optional";
 export type ContinuitySessionMode =
   | "chat-direct"
   | "codex-session"
@@ -298,6 +301,7 @@ export interface ContinuityTaskRecord {
   goal: string;
   status: ContinuityTaskStatus;
   priority: ContinuityTaskPriority;
+  executionPolicy: ContinuityTaskExecutionPolicy;
   activeSessionId: string | null;
   latestHandoffId: string | null;
   latestEvidenceBundleId: string | null;

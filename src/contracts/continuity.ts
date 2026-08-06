@@ -30,6 +30,9 @@ export const taskCreateSchema = z.object({
   title: z.string().min(1).max(240),
   goal: z.string().min(1).max(12_000),
   priority: z.enum(["low", "normal", "high", "critical"]).default("normal"),
+  executionPolicy: z
+    .enum(["planning-required", "planning-optional"])
+    .default("planning-optional"),
   idempotencyKey: idempotencyKeySchema
 });
 

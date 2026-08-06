@@ -1,5 +1,10 @@
 import type { ContinuityDatabase } from "../database.js";
-import type { TaskPriority, TaskRecord, TaskStatus } from "../types.js";
+import type {
+  TaskExecutionPolicy,
+  TaskPriority,
+  TaskRecord,
+  TaskStatus
+} from "../types.js";
 import {
   assertUpdated,
   newRecordId,
@@ -20,6 +25,7 @@ interface TaskRow {
   goal: string;
   status: TaskStatus;
   priority: TaskPriority;
+  execution_policy: TaskExecutionPolicy;
   active_session_id: string | null;
   latest_handoff_id: string | null;
   latest_evidence_bundle_id: string | null;
@@ -42,6 +48,7 @@ function taskFromRow(row: TaskRow): TaskRecord {
     goal: row.goal,
     status: row.status,
     priority: row.priority,
+    executionPolicy: row.execution_policy,
     activeSessionId: row.active_session_id,
     latestHandoffId: row.latest_handoff_id,
     latestEvidenceBundleId: row.latest_evidence_bundle_id,
@@ -64,6 +71,7 @@ export interface CreateTaskInput {
   goal: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  executionPolicy?: TaskExecutionPolicy;
   now?: string;
 }
 
@@ -78,10 +86,10 @@ export class TaskRepository {
         INSERT INTO tasks (
           id, project_id, workspace_id, spec_id, spec_version,
           plan_id, plan_version, parent_task_id,
-          title, goal, status, priority, active_session_id,
+          title, goal, status, priority, execution_policy, active_session_id,
           latest_handoff_id, latest_evidence_bundle_id,
           created_at, updated_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, 1)
       `)
       .run(
         id,
@@ -96,6 +104,7 @@ export class TaskRepository {
         input.goal,
         input.status ?? "backlog",
         input.priority ?? "normal",
+        input.executionPolicy ?? "planning-optional",
         now,
         now
       );
