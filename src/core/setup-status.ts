@@ -41,6 +41,7 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
   const tokenConfigured = hasTokenConfigured();
   const repoReady = fs.existsSync(paths.repoRoot);
   const publicBaseUrlConfigured = Boolean(health.publicBaseUrl);
+  const publicGptReady = publicBaseUrlConfigured && health.exposed;
 
   const steps: SetupStatusStep[] = [
     {
@@ -75,12 +76,18 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
     },
     {
       key: "gpt",
-      ok: Boolean(health.openapiUrl),
+      ok: Boolean(health.openapiUrl) && (!publicBaseUrlConfigured || publicGptReady),
       label: "GPT handoff",
-      detail: publicBaseUrlConfigured
-        ? "Public base URL is configured for GPT Actions"
-        : "Local OpenAPI schema is available",
-      nextAction: "Open GPT Helper and copy the instructions"
+      detail: publicGptReady
+        ? "Public base URL is configured and exposed for GPT Actions"
+        : publicBaseUrlConfigured
+          ? "Public base URL is configured, but the local server is not running in exposed mode"
+          : "Local OpenAPI schema is available",
+      nextAction: publicGptReady
+        ? "Open GPT Helper and copy the instructions"
+        : publicBaseUrlConfigured
+          ? "Enable exposed mode or fix the public ingress before re-importing GPT Actions"
+          : "Open GPT Helper and review the local integration details"
     },
     {
       key: "firstTask",

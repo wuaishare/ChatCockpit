@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import fastifyStatic from "@fastify/static";
+import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -15,12 +15,6 @@ import type {
   TokenPilotPaths,
   JobStatus,
   JobType,
-  FileEditPayload,
-  FileListPayload,
-  FileWritePayload,
-  GitCommitPayload,
-  SearchPayload,
-  ShellRunPayload,
   TokenPilotPublicJobRecord
 } from "../types.js";
 import {
@@ -28,23 +22,47 @@ import {
   getTrackedJobProcess,
   terminateAllJobProcesses
 } from "../core/job-processes.js";
-import { readRepoFile, readRepoFiles } from "../core/files-api.js";
+import {
+  fileEditSchema,
+  fileListSchema,
+  fileReadBatchSchema,
+  fileReadSchema,
+  fileWriteSchema,
+  gitCommitSchema,
+  searchSchema,
+  shellRunSchema
+} from "../contracts/direct-tools.js";
+import { ChatDirectService } from "../application/chat-direct-service.js";
+import { buildContinuityServices } from "../application/continuity-services.js";
+import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
+import { RuntimeBindingService } from "../application/runtime-binding-service.js";
+import { RuntimeEventService } from "../application/runtime-event-service.js";
+import { RuntimeRouter } from "../application/runtime-router.js";
+import { RuntimeService } from "../application/runtime-service.js";
+import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildSetupStatus } from "../core/setup-status.js";
-import { readRecentGitCommitsForRepo } from "../core/git-history.js";
+import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
-import { writeRepoFile, editRepoFile, listRepoDirectory } from "../core/files-write.js";
-import { searchRepo } from "../core/search.js";
-import { runShellCommand } from "../core/shell-api.js";
-import { getGitDiff, getGitStatus, gitCommit } from "../core/git-api.js";
 import {
-  isExposedMode,
+  ContinuityDatabase,
+  continuityDatabasePath
+} from "../continuity/database.js";
+import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
+import { buildTokenPilotMcpHandler } from "../mcp/server.js";
+import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
+import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
+import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
+import {
   isAuthRequired,
   tokenPilotAuthPlugin,
   validateServerAuthConfig
 } from "./auth.js";
+import { registerContinuityRoutes } from "./continuity-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
+import { operationContextFromRequest } from "./request-context.js";
+import { registerRuntimeRoutes } from "./runtime-routes.js";
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -81,20 +99,6 @@ const codexRunSchema = z.object({
   commitBody: z.string().min(1).optional()
 });
 
-const fileReadSchema = z.object({
-  repoId: z.string().min(1),
-  path: z.string().min(1),
-  offset: z.number().int().nonnegative().optional(),
-  limit: z.number().int().positive().optional()
-});
-
-const fileReadBatchSchema = z.object({
-  repoId: z.string().min(1),
-  paths: z.array(z.string().min(1)).min(1).max(10),
-  offset: z.number().int().nonnegative().optional(),
-  limit: z.number().int().positive().optional()
-});
-
 const recentCommitsQuerySchema = z.object({
   repoId: z.string().min(1).default("tokenpilot"),
   limit: z.coerce.number().int().positive().max(50).optional()
@@ -125,46 +129,6 @@ const artifactKeySchema = z.enum([
   "codexReview",
   "codexSummary"
 ]);
-
-const fileWriteSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  path: z.string().min(1),
-  content: z.string().min(1)
-});
-
-const fileEditSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  path: z.string().min(1),
-  search: z.string().min(1),
-  replace: z.string()
-});
-
-const fileListSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  path: z.string().min(1).default(".")
-});
-
-const searchSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  pattern: z.string().min(1),
-  path: z.string().optional(),
-  maxResults: z.number().int().positive().max(40).optional(),
-  contextLines: z.number().int().nonnegative().max(3).optional(),
-  caseSensitive: z.boolean().optional()
-});
-
-const shellRunSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  command: z.string().min(1),
-  args: z.array(z.string()),
-  workdir: z.string().optional()
-});
-
-const gitCommitSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  message: z.string().min(1),
-  body: z.string().optional()
-});
 
 function normalizePackLikeObject(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -348,6 +312,24 @@ function replyFrom(value: unknown): ReplyLike {
   return value as ReplyLike;
 }
 
+const uiAssetContentTypes: Readonly<Record<string, string>> = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".ico": "image/x-icon",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml; charset=utf-8",
+  ".webp": "image/webp",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2"
+};
+
+function uiAssetContentType(filePath: string): string {
+  return uiAssetContentTypes[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+}
+
 function deriveJobHeadline(job: JobRecord<TokenPilotJobPayload>): string {
   if (job.type === "taskpack") {
     const title = (job.payload as { title?: unknown }).title;
@@ -510,12 +492,38 @@ function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
 }
 
 function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
-  const health = buildHealthStatus(paths);
-  return {
-    ...health,
-    publicBaseUrl: null,
-    openapiUrl: "/openapi.yaml"
-  };
+  return buildHealthStatus(paths);
+}
+
+function resolveOpenApiServerUrl(request: FastifyRequest): string {
+  const configured = process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  const forwardedProtoHeader = request.headers["x-forwarded-proto"];
+  const forwardedProto = Array.isArray(forwardedProtoHeader)
+    ? forwardedProtoHeader[0]
+    : forwardedProtoHeader;
+  const protocol = forwardedProto?.split(",")[0]?.trim() || "http";
+  const host = request.headers.host?.trim();
+
+  if (!host) {
+    return "https://tokenpilot.example.com";
+  }
+
+  return `${protocol}://${host}`;
+}
+
+function renderOpenApiDocument(request: FastifyRequest, repoRoot: string): string {
+  const filePath = path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml");
+  const source = fs.readFileSync(filePath, "utf8");
+  const serverUrl = resolveOpenApiServerUrl(request);
+
+  return source.replace(
+    /^servers:\n  - url: .+$/m,
+    `servers:\n  - url: ${serverUrl}`
+  );
 }
 
 function renderUiNotBuiltPage(): string {
@@ -605,10 +613,56 @@ function renderUiNotBuiltPage(): string {
 </html>`;
 }
 
-export function buildServer(paths: TokenPilotPaths) {
+export interface BuildServerOptions {
+  codexAdapter?: CodingRuntimeAdapter;
+}
+
+export function buildServer(
+  paths: TokenPilotPaths,
+  options: BuildServerOptions = {}
+) {
   validateServerAuthConfig();
 
   const app = Fastify({ logger: true });
+  const continuityDatabase = new ContinuityDatabase({
+    path: continuityDatabasePath(paths.runtimeDir)
+  });
+  const continuityServices = buildContinuityServices(paths, continuityDatabase);
+  const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
+    paths.runtimeDir
+  );
+  const codexAdapter =
+    options.codexAdapter ??
+    new CodexAppServerAdapter({
+      workspaces: continuityServices.repositories.workspaces,
+      standaloneCapabilityStore
+    });
+  const runtimeRouter = new RuntimeRouter(codexAdapter);
+  const chatDirect = new ChatDirectService(
+    paths,
+    runtimeRouter,
+    standaloneCapabilityStore,
+    continuityServices.repositories
+  );
+  const runtimeService = new RuntimeService(runtimeRouter);
+  const runtimeBindingService = new RuntimeBindingService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
+  const runtimeEventService = new RuntimeEventService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
+  const runtimeTurnService = new RuntimeTurnService(
+    paths,
+    continuityServices.repositories,
+    runtimeRouter
+  );
+  const runtimeApprovalService = new RuntimeApprovalService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
+  runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) {
       return sendUnknownApiError(reply, error);
@@ -616,15 +670,37 @@ export function buildServer(paths: TokenPilotPaths) {
     return sendUnknownApiError(reply, error);
   });
   app.register(tokenPilotAuthPlugin);
+  app.addHook("onClose", async () => {
+    runtimeEventService.detach();
+    await runtimeService.close();
+    continuityDatabase.close();
+  });
+  const mcpHandler = buildTokenPilotMcpHandler(
+    paths,
+    continuityServices,
+    chatDirect,
+    runtimeService,
+    runtimeBindingService,
+    runtimeTurnService,
+    runtimeApprovalService,
+    runtimeEventService,
+    (error) => {
+    app.log.error({ err: error }, "MCP request failed");
+    }
+  );
+  registerMcpHttpRoutes(app, mcpHandler);
+  registerContinuityRoutes(app, continuityServices);
+  registerRuntimeRoutes(
+    app,
+    runtimeService,
+    runtimeBindingService,
+    runtimeTurnService,
+    runtimeApprovalService,
+    runtimeEventService
+  );
   const uiDistDir = path.join(paths.repoRoot, "web", "dist");
   const hasUiDist = fs.existsSync(uiDistDir);
-
-  if (hasUiDist) {
-    app.register(fastifyStatic, {
-      root: uiDistDir,
-      serve: false
-    });
-  }
+  const uiRootRealPath = hasUiDist ? fs.realpathSync(uiDistDir) : null;
 
   const healthHandler = async () => {
     return buildPublicHealthStatus(paths);
@@ -649,16 +725,11 @@ export function buildServer(paths: TokenPilotPaths) {
     }
 
     try {
-      const commits = readRecentGitCommitsForRepo(
-        paths.repoRoot,
+      return await chatDirect.recentCommits(
+        operationContextFromRequest(request),
         parsed.data.repoId,
         parsed.data.limit ?? 10
       );
-      return {
-        ok: true,
-        repoId: parsed.data.repoId,
-        commits
-      };
     } catch (error) {
       return sendUnknownApiError(fastifyReply, error);
     }
@@ -821,7 +892,10 @@ export function buildServer(paths: TokenPilotPaths) {
     }
 
     try {
-      return readRepoFile(paths, parsed.data);
+      return await chatDirect.read(
+        operationContextFromRequest(request),
+        parsed.data
+      );
     } catch (error) {
       return sendApiError(
         fastifyReply,
@@ -840,7 +914,10 @@ export function buildServer(paths: TokenPilotPaths) {
     }
 
     try {
-      return readRepoFiles(paths, parsed.data);
+      return await chatDirect.readBatch(
+        operationContextFromRequest(request),
+        parsed.data
+      );
     } catch (error) {
       return sendApiError(
         fastifyReply,
@@ -858,14 +935,12 @@ export function buildServer(paths: TokenPilotPaths) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return writeRepoFile(paths, parsed.data);
-    } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "FILES_WRITE_BLOCKED",
-        error instanceof Error ? error.message : String(error)
+      return await chatDirect.write(
+        operationContextFromRequest(request),
+        parsed.data
       );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -876,14 +951,12 @@ export function buildServer(paths: TokenPilotPaths) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return editRepoFile(paths, parsed.data);
-    } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "FILES_EDIT_BLOCKED",
-        error instanceof Error ? error.message : String(error)
+      return await chatDirect.edit(
+        operationContextFromRequest(request),
+        parsed.data
       );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -894,7 +967,10 @@ export function buildServer(paths: TokenPilotPaths) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return listRepoDirectory(paths, parsed.data);
+      return await chatDirect.list(
+        operationContextFromRequest(request),
+        parsed.data
+      );
     } catch (error) {
       return sendApiError(
         fastifyReply,
@@ -912,7 +988,10 @@ export function buildServer(paths: TokenPilotPaths) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return searchRepo(paths, parsed.data);
+      return await chatDirect.search(
+        operationContextFromRequest(request),
+        parsed.data
+      );
     } catch (error) {
       return sendApiError(
         fastifyReply,
@@ -930,14 +1009,12 @@ export function buildServer(paths: TokenPilotPaths) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return runShellCommand(paths, parsed.data);
-    } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "SHELL_COMMAND_BLOCKED",
-        error instanceof Error ? error.message : String(error)
+      return await chatDirect.shell(
+        operationContextFromRequest(request),
+        parsed.data
       );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -946,7 +1023,11 @@ export function buildServer(paths: TokenPilotPaths) {
     const repoId = query.repoId ?? "tokenpilot";
     const staged = query.staged === "true" || query.staged === "1";
     try {
-      return getGitDiff(paths, repoId, staged);
+      return await chatDirect.gitDiff(
+        operationContextFromRequest(request),
+        repoId,
+        staged
+      );
     } catch (error) {
       return sendApiError(
         replyFrom(reply),
@@ -961,7 +1042,10 @@ export function buildServer(paths: TokenPilotPaths) {
     const query = (request as { query?: { repoId?: string } }).query ?? {};
     const repoId = query.repoId ?? "tokenpilot";
     try {
-      return getGitStatus(paths, repoId);
+      return await chatDirect.gitStatus(
+        operationContextFromRequest(request),
+        repoId
+      );
     } catch (error) {
       return sendApiError(
         replyFrom(reply),
@@ -979,14 +1063,12 @@ export function buildServer(paths: TokenPilotPaths) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return gitCommit(paths, parsed.data.repoId, parsed.data.message, parsed.data.body);
-    } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "GIT_COMMIT_FAILED",
-        error instanceof Error ? error.message : String(error)
+      return await chatDirect.gitCommit(
+        operationContextFromRequest(request),
+        parsed.data
       );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -1075,10 +1157,9 @@ export function buildServer(paths: TokenPilotPaths) {
   app.post("/api/git/commit", gitCommitHandler);
   app.post("/tokenpilot/api/git/commit", gitCommitHandler);
 
-  app.get("/openapi.yaml", async (_request, reply) => {
+  app.get("/openapi.yaml", async (request, reply) => {
     reply.type("text/yaml");
-    const filePath = path.join(paths.repoRoot, "openapi", "tokenpilot.openapi.yaml");
-    return fs.readFileSync(filePath, "utf8");
+    return renderOpenApiDocument(request, paths.repoRoot);
   });
 
   app.get("/ui", async (_request, reply) => {
@@ -1091,28 +1172,62 @@ export function buildServer(paths: TokenPilotPaths) {
   });
 
   app.get("/ui/*", async (request, reply) => {
-    if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
+    const indexPath = path.join(uiDistDir, "index.html");
+    if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
       reply.type("text/html; charset=utf-8");
       return renderUiNotBuiltPage();
     }
 
-    const url = (request as { url: string }).url;
-    const suffix = url.slice("/ui/".length);
-    if (suffix.includes("..") || path.isAbsolute(suffix)) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: "Invalid UI asset path"
-      };
-    }
-    const diskPath = path.join(uiDistDir, suffix);
+    const requestUrl = (request as { url: string }).url;
+    const rawSuffix = requestUrl.split("?", 1)[0].slice("/ui/".length);
+    let suffix: string;
 
-    if (suffix && fs.existsSync(diskPath) && fs.statSync(diskPath).isFile()) {
-      return reply.sendFile(suffix);
+    try {
+      suffix = decodeURIComponent(rawSuffix);
+    } catch {
+      return sendApiError(
+        replyFrom(reply),
+        400,
+        "INVALID_UI_ASSET_PATH",
+        "Invalid UI asset path encoding"
+      );
+    }
+
+    if (suffix) {
+      try {
+        const { absolutePath } = resolvePathInsideRoot(
+          uiDistDir,
+          suffix,
+          "UI asset path"
+        );
+
+        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+          const realAssetPath = fs.realpathSync(absolutePath);
+          if (!isPathInsideRoot(uiRootRealPath, realAssetPath)) {
+            return sendApiError(
+              replyFrom(reply),
+              400,
+              "INVALID_UI_ASSET_PATH",
+              "UI asset path must stay within the built Web UI directory"
+            );
+          }
+
+          reply.header("X-Content-Type-Options", "nosniff");
+          reply.type(uiAssetContentType(realAssetPath));
+          return fs.readFileSync(realAssetPath);
+        }
+      } catch (error) {
+        return sendApiError(
+          replyFrom(reply),
+          400,
+          "INVALID_UI_ASSET_PATH",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
     }
 
     reply.type("text/html; charset=utf-8");
-    return fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
+    return fs.readFileSync(indexPath, "utf8");
   });
 
   app.get("/privacy-policy", async (_request, reply) => {

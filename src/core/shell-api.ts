@@ -116,13 +116,31 @@ function resolveWorkDir(repoRoot: string, workdir?: string): string {
   return resolvePathInsideRoot(repoRoot, workdir, "workdir").absolutePath;
 }
 
-export function runShellCommand(
+export interface PreparedShellCommand {
+  repoRoot: string;
+  command: string;
+  args: string[];
+  workdir: string;
+  timeoutMs: number;
+  outputBytesCap: number;
+  environment: Record<string, string>;
+  standaloneReadOnly: boolean;
+}
+
+const STANDALONE_READ_ONLY_GIT_SUBCOMMANDS = new Set([
+  "status",
+  "diff",
+  "log",
+  "show",
+  "rev-parse",
+  "rev-list"
+]);
+
+export function prepareShellCommand(
   paths: TokenPilotPaths,
   payload: ShellRunPayload
-): ShellRunResponse {
+): PreparedShellCommand {
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
-
-  // 1. Validate command is in whitelist
   const allowedSubcommands = COMMAND_WHITELIST[payload.command];
   if (!allowedSubcommands) {
     throw new Error(
@@ -130,10 +148,7 @@ export function runShellCommand(
       `Allowed commands: ${Object.keys(COMMAND_WHITELIST).join(", ")}`
     );
   }
-
   assertHighTrustCommandAllowed(payload.command);
-
-  // 2. Validate subcommand
   if (!allowedSubcommands.includes("*")) {
     const subcommand = payload.args[0];
     if (!subcommand || !allowedSubcommands.includes(subcommand)) {
@@ -143,34 +158,45 @@ export function runShellCommand(
       );
     }
   }
-
-  // 3. Validate all arguments
   validateArgs(payload.args);
-
-  // 4. Resolve working directory
   const workdir = resolveWorkDir(repoRoot, payload.workdir);
+  const standaloneReadOnly =
+    payload.command === "git" &&
+    STANDALONE_READ_ONLY_GIT_SUBCOMMANDS.has(payload.args[0] ?? "");
+  return {
+    repoRoot,
+    command: payload.command,
+    args: [...payload.args],
+    workdir,
+    timeoutMs: COMMAND_TIMEOUT_MS,
+    outputBytesCap: MAX_OUTPUT_BYTES,
+    environment: {
+      HOME: process.env.HOME || "",
+      PATH: [path.dirname(process.execPath), process.env.PATH || ""]
+        .filter(Boolean)
+        .join(path.delimiter),
+      LANG: "en_US.UTF-8",
+      NODE: process.execPath,
+      ...(process.env.NODE_ENV ? { NODE_ENV: process.env.NODE_ENV } : {})
+    },
+    standaloneReadOnly
+  };
+}
 
-  // 5. Execute
+export function runShellCommand(
+  paths: TokenPilotPaths,
+  payload: ShellRunPayload
+): ShellRunResponse {
+  const prepared = prepareShellCommand(paths, payload);
   const startTime = Date.now();
   let result;
   try {
-    result = spawnSync(payload.command, payload.args, {
-      cwd: workdir,
+    result = spawnSync(prepared.command, prepared.args, {
+      cwd: prepared.workdir,
       encoding: "utf8",
-      timeout: COMMAND_TIMEOUT_MS,
-      maxBuffer: MAX_OUTPUT_BYTES * 2,
-      env: {
-        // Stripped-down environment — no secrets
-        HOME: process.env.HOME || "",
-        PATH: [
-          path.dirname(process.execPath),         // ensure current node is findable
-          process.env.PATH || "",
-        ].filter(Boolean).join(path.delimiter),
-        LANG: "en_US.UTF-8",
-        NODE: process.execPath,
-        // Project-critical vars
-        ...(process.env.NODE_ENV ? { NODE_ENV: process.env.NODE_ENV } : {}),
-      },
+      timeout: prepared.timeoutMs,
+      maxBuffer: prepared.outputBytesCap * 2,
+      env: prepared.environment
     });
   } catch (err) {
     throw new Error(

@@ -1,0 +1,162 @@
+import type { WorkspaceSnapshotInput } from "../contracts/continuity.js";
+import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type {
+  DevelopmentSessionRecord,
+  EvidenceBundleRecord,
+  EvidenceItemRecord,
+  HandoffCheckpointRecord,
+  ProjectRecord,
+  RuntimeApprovalRecord,
+  TaskRecord,
+  WorkspaceRecord,
+  WriterLeaseRecord
+} from "../continuity/types.js";
+import type { TokenPilotPaths } from "../types.js";
+import { GitService } from "./git-service.js";
+import type { OperationContext } from "./operation-context.js";
+
+export type WorkspaceVerificationState = "verified" | "incomplete" | "missing";
+
+export interface WorkspaceEvidenceProjection {
+  bundle: EvidenceBundleRecord;
+  items: EvidenceItemRecord[];
+  verificationState: WorkspaceVerificationState;
+}
+
+export interface WorkspaceTaskContinuityProjection {
+  task: TaskRecord;
+  sessions: DevelopmentSessionRecord[];
+  latestHandoff: HandoffCheckpointRecord | null;
+  evidence: WorkspaceEvidenceProjection | null;
+}
+
+export interface WorkspaceGitProjection {
+  available: boolean;
+  branch: string | null;
+  headCommit: string | null;
+  dirty: boolean;
+  changedPaths: string[];
+  unavailableReason: string | null;
+}
+
+export interface WorkspaceContinuitySnapshot {
+  project: ProjectRecord;
+  workspace: WorkspaceRecord;
+  activeLease: WriterLeaseRecord | null;
+  readOnly: boolean;
+  readOnlyReason: "active-writer" | null;
+  git: WorkspaceGitProjection;
+  tasks: WorkspaceTaskContinuityProjection[];
+  pendingApprovals: RuntimeApprovalRecord[];
+}
+
+function verificationState(
+  bundle: EvidenceBundleRecord,
+  items: EvidenceItemRecord[]
+): WorkspaceVerificationState {
+  const requiredItems = items.filter((item) => item.required);
+  if (requiredItems.length === 0 || bundle.requiredItemCount === 0) {
+    return "missing";
+  }
+  const allRequiredPassed = requiredItems.every((item) => item.status === "passed");
+  return bundle.status === "complete" && allRequiredPassed
+    ? "verified"
+    : "incomplete";
+}
+
+function publicChangedPaths(entries: Array<{ path: string; status: string }>): string[] {
+  return entries
+    .filter((entry) => entry.status !== "blocked")
+    .map((entry) => entry.path)
+    .sort();
+}
+
+export class WorkspaceContinuityService {
+  private readonly git: GitService;
+
+  constructor(
+    paths: TokenPilotPaths,
+    private readonly repositories: ContinuityRepositories
+  ) {
+    this.git = new GitService(paths);
+  }
+
+  snapshot(
+    context: OperationContext,
+    input: WorkspaceSnapshotInput
+  ): WorkspaceContinuitySnapshot {
+    const workspace = this.repositories.workspaces.get(input.workspaceId);
+    const project = this.repositories.projects.get(workspace.projectId);
+    this.repositories.leases.reconcileExpired(context.now);
+    const activeLease = this.repositories.leases.getActive(workspace.id);
+    const tasks = this.repositories.tasks.listByWorkspace(workspace.id).map((task) =>
+      this.projectTask(task)
+    );
+
+    return {
+      project,
+      workspace,
+      activeLease,
+      readOnly: activeLease !== null,
+      readOnlyReason: activeLease ? "active-writer" : null,
+      git: this.readGit(context, workspace),
+      tasks,
+      pendingApprovals:
+        this.repositories.runtimeApprovals.listPendingByWorkspace(workspace.id)
+    };
+  }
+
+  private projectTask(task: TaskRecord): WorkspaceTaskContinuityProjection {
+    const latestHandoff = task.latestHandoffId
+      ? this.repositories.handoffs.get(task.latestHandoffId)
+      : this.repositories.handoffs.latestForTask(task.id);
+    const evidence = task.latestEvidenceBundleId
+      ? this.projectEvidence(task.latestEvidenceBundleId)
+      : null;
+    return {
+      task,
+      sessions: this.repositories.sessions.listByTask(task.id),
+      latestHandoff,
+      evidence
+    };
+  }
+
+  private projectEvidence(bundleId: string): WorkspaceEvidenceProjection {
+    const bundle = this.repositories.evidence.getBundle(bundleId);
+    const items = this.repositories.evidence.listItems(bundle.id);
+    return {
+      bundle,
+      items,
+      verificationState: verificationState(bundle, items)
+    };
+  }
+
+  private readGit(
+    context: OperationContext,
+    workspace: WorkspaceRecord
+  ): WorkspaceGitProjection {
+    try {
+      const status = this.git.status(context, workspace.repoId);
+      const headCommit =
+        this.git.recentCommits(context, workspace.repoId, 1)[0]?.hash ??
+        workspace.headCommit;
+      return {
+        available: true,
+        branch: status.branch || workspace.branch,
+        headCommit,
+        dirty: status.entries.length > 0,
+        changedPaths: publicChangedPaths(status.entries),
+        unavailableReason: null
+      };
+    } catch (error) {
+      return {
+        available: false,
+        branch: workspace.branch,
+        headCommit: workspace.headCommit,
+        dirty: workspace.dirty,
+        changedPaths: [],
+        unavailableReason: "GIT_STATUS_UNAVAILABLE"
+      };
+    }
+  }
+}

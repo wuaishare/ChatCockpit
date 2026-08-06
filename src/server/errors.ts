@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { FastifyReply } from "fastify";
 
+import { ServiceError } from "../application/service-error.js";
+
 export interface ApiErrorBody {
   ok: false;
   error: {
@@ -30,6 +32,55 @@ export class ApiError extends Error {
     this.hint = options?.hint;
     this.details = options?.details;
   }
+}
+
+const serviceErrorStatusCodes: Readonly<Record<string, number>> = {
+  VALIDATION_ERROR: 400,
+  AUTH_REQUIRED: 401,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONTINUITY_RECORD_NOT_FOUND: 404,
+  JOB_NOT_FOUND: 404,
+  ARTIFACT_NOT_FOUND: 404,
+  REVISION_CONFLICT: 409,
+  IDEMPOTENCY_CONFLICT: 409,
+  IDEMPOTENCY_KEY_REUSED: 409,
+  IDEMPOTENCY_IN_PROGRESS: 409,
+  LEASE_CONFLICT: 409,
+  WRITER_LEASE_REQUIRED: 409,
+  WRITER_LEASE_CONFLICT: 409,
+  HANDOFF_READY_CONFLICT: 409,
+  TASK_REVIEW_BLOCKED: 409,
+  TASK_COMPLETION_BLOCKED: 409,
+  CONTINUITY_RELATION_INVALID: 409,
+  RUNTIME_BINDING_CONFLICT: 409,
+  RUNTIME_BINDING_REQUIRED: 409,
+  RUNTIME_RUN_CONFLICT: 409,
+  RUNTIME_WORKSPACE_MISMATCH: 409,
+  CODEX_SERVER_REQUEST_UNAVAILABLE: 409,
+  CAPABILITY_UNAVAILABLE: 501,
+  CODEX_BINARY_UNAVAILABLE: 503,
+  CODEX_APP_SERVER_UNAVAILABLE: 503,
+  CODEX_APP_SERVER_START_FAILED: 503,
+  CODEX_APP_SERVER_DISCONNECTED: 503,
+  CODEX_APP_SERVER_TIMEOUT: 504,
+  CODEX_APP_SERVER_RPC_ERROR: 502,
+  CODEX_THREAD_RESPONSE_INVALID: 502,
+  CODEX_TURN_RESPONSE_INVALID: 502,
+  GIT_RECENT_COMMITS_FAILED: 500
+};
+
+export function toApiError(error: ServiceError): ApiError {
+  return new ApiError(
+    serviceErrorStatusCodes[error.code] ?? 400,
+    error.code,
+    error.message,
+    {
+      hint: error.hint,
+      details: error.details
+    }
+  );
 }
 
 export function validationError(error: z.ZodError): ApiError {
@@ -66,10 +117,17 @@ export function sendApiError(
 }
 
 export function sendUnknownApiError(reply: FastifyReply, error: unknown): ApiErrorBody {
-  if (error instanceof ApiError) {
-    return sendApiError(reply, error.statusCode, error.code, error.message, {
-      hint: error.hint,
-      details: error.details
+  const apiError =
+    error instanceof ApiError
+      ? error
+      : error instanceof ServiceError
+        ? toApiError(error)
+        : null;
+
+  if (apiError) {
+    return sendApiError(reply, apiError.statusCode, apiError.code, apiError.message, {
+      hint: apiError.hint,
+      details: apiError.details
     });
   }
 

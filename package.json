@@ -2,7 +2,7 @@
   "name": "tokenpilot",
   "version": "0.1.0-alpha",
   "private": true,
-  "description": "ChatGPT-first dual-mode development workflow with GPT direct-drive and Codex async runs",
+  "description": "Local-first development continuity and agent routing platform for ChatGPT, Codex, and async agent workflows",
   "type": "module",
   "bin": {
     "tokenpilot": "./dist/cli/index.js"
@@ -32,9 +32,22 @@
     "gpt:instructions": "tsx scripts/generate-gpt-instructions.ts",
     "verify:e2e": "tsx scripts/verify-local-e2e.ts",
     "verify:smoke": "tsx scripts/verify-local-smoke.ts",
+    "verify:mcp": "tsx scripts/verify-mcp-smoke.ts",
+    "verify:continuity": "tsx scripts/verify-continuity-store.ts",
+    "verify:continuity-api": "tsx scripts/verify-continuity-api.ts",
+    "verify:continuity-restart": "tsx scripts/verify-continuity-restart.ts",
+    "verify:task-completion": "tsx scripts/verify-task-completion.ts",
+    "verify:codex-adapter": "tsx scripts/verify-codex-app-server.ts && tsx scripts/verify-codex-runtime-api.ts",
+    "verify:codex-execution": "tsx scripts/verify-codex-execution.ts",
+    "verify:codex-standalone": "tsx scripts/verify-codex-standalone.ts",
+    "verify:chat-direct": "tsx scripts/verify-chat-direct-routing.ts",
+    "verify:source-archive": "tsx scripts/verify-source-archive.ts",
+    "verify:protocol-core": "npm run verify:mcp && npm run verify:continuity && npm run verify:continuity-api && npm run verify:continuity-restart && npm run verify:task-completion && npm run verify:codex-adapter && npm run verify:codex-execution && npm run verify:codex-standalone && npm run verify:chat-direct",
+    "verify:protocol-release": "npm run verify:protocol-core && npm run verify:source-archive",
+    "probe:codex-standalone": "tsx scripts/probe-codex-standalone.ts",
     "verify:docs": "tsx scripts/verify-doc-links.ts",
     "verify:web:safety": "tsx scripts/verify-web-safety.ts",
-    "verify:release": "./scripts/verify-release-dry-run.sh",
+    "verify:release": "npm run verify:protocol-release && ./scripts/verify-release-dry-run.sh",
     "release:source": "./scripts/create-release-source-package.sh",
     "privacy:scan:history": "./scripts/scan-history-privacy.sh",
     "verify:web": "npm run typecheck:web && npm run build:web && npm run verify:web:safety",
@@ -46,13 +59,16 @@
     "mvp:status": "./scripts/macos-manage-local-server.sh status",
     "mvp:reset": "./scripts/macos-manage-local-server.sh reset",
     "reset:local": "./scripts/macos-manage-local-server.sh reset",
-    "verify": "npm run typecheck && npm run verify:docs && npm run verify:web && npm run doctor && npm run verify:smoke && npm run verify:e2e"
+    "verify": "npm run typecheck && npm run verify:docs && npm run verify:web && npm run doctor && npm run verify:smoke && npm run verify:mcp && npm run verify:continuity && npm run verify:continuity-api && npm run verify:continuity-restart && npm run verify:task-completion && npm run verify:codex-adapter && npm run verify:codex-execution && npm run verify:codex-standalone && npm run verify:chat-direct && npm run verify:e2e"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   },
   "dependencies": {
-    "@fastify/static": "^9.1.3",
+    "@modelcontextprotocol/server": "2.0.0",
     "fastify": "^5.6.1",
     "fastify-plugin": "^5.1.0",
-    "zod": "^4.1.12"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@lobehub/fluent-emoji": "^4.1.0",
@@ -66,8 +82,11 @@
     "motion": "^12.38.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "tsx": "^4.20.6",
+    "tsx": "^4.23.8",
     "typescript": "^5.9.3",
-    "vite": "^8.0.12"
+    "vite": "^8.2.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.13"
   }
 }

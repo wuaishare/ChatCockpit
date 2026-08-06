@@ -155,19 +155,11 @@ function ensureTextFile(filePath: string): void {
   }
 }
 
-function readFileContent(
-  repoRoot: string,
+export function buildTextPreviewFromBuffer(
   relativePath: string,
+  sourceBuffer: Buffer,
   options?: { offset?: number; limit?: number }
 ): TokenPilotTextPreview {
-  const diskPath = path.join(repoRoot, relativePath);
-  if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
-    throw new Error(`File not found: ${relativePath}`);
-  }
-
-  ensureTextFile(diskPath);
-
-  const sourceBuffer = fs.readFileSync(diskPath);
   const size = sourceBuffer.length;
   const offset = Math.max(0, Math.floor(options?.offset ?? 0));
   const limit = Math.max(1, Math.min(MAX_FILE_CHUNK_BYTES, Math.floor(options?.limit ?? MAX_FILE_BYTES)));
@@ -192,6 +184,51 @@ function readFileContent(
     nextOffset: eof ? null : nextOffset,
     eof
   };
+}
+
+export interface ReadableRepoFileTarget {
+  repoRoot: string;
+  relativePath: string;
+  absolutePath: string;
+}
+
+export function resolveReadableRepoFileTarget(
+  paths: TokenPilotPaths,
+  repoId: string,
+  inputPath: string
+): ReadableRepoFileTarget {
+  const config = loadUserConfig(paths.repoRoot);
+  const { repoRoot, workspaceAllowlist } = resolveRepoPath(config, repoId);
+  if (!isWithinAllowlist(repoRoot, workspaceAllowlist)) {
+    throw new Error(`repoId ${repoId} is not in the workspace allowlist`);
+  }
+  const relativePath = validateRelativePath(inputPath);
+  const absolutePath = resolvePathInsideRoot(
+    repoRoot,
+    relativePath,
+    "File path"
+  ).absolutePath;
+  if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+    throw new Error(`File not found: ${relativePath}`);
+  }
+  ensureTextFile(absolutePath);
+  return { repoRoot, relativePath, absolutePath };
+}
+
+function readFileContent(
+  repoRoot: string,
+  relativePath: string,
+  options?: { offset?: number; limit?: number }
+): TokenPilotTextPreview {
+  const diskPath = path.join(repoRoot, relativePath);
+  if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
+    throw new Error(`File not found: ${relativePath}`);
+  }
+
+  ensureTextFile(diskPath);
+
+  const sourceBuffer = fs.readFileSync(diskPath);
+  return buildTextPreviewFromBuffer(relativePath, sourceBuffer, options);
 }
 
 export function readRepoFile(paths: TokenPilotPaths, payload: FileReadPayload) {

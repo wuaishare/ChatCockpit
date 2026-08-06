@@ -228,16 +228,20 @@ async function startServer(
   env: Record<string, string>
 ): Promise<{ child: ReturnType<typeof spawn>; output: () => string }> {
   let combined = "";
-  const child = spawn("npm", ["run", "server"], {
-    cwd,
-    env: {
-      ...process.env,
-      TOKENPILOT_PORT: String(port),
-      TOKENPILOT_HOST: "127.0.0.1",
-      ...env
-    },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+  const child = spawn(
+    process.execPath,
+    ["--import", "tsx", "src/cli/index.ts", "server"],
+    {
+      cwd,
+      env: {
+        ...process.env,
+        TOKENPILOT_PORT: String(port),
+        TOKENPILOT_HOST: "127.0.0.1",
+        ...env
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    }
+  );
 
   child.stdout.on("data", (chunk) => {
     combined += chunk.toString();
@@ -246,7 +250,19 @@ async function startServer(
     combined += chunk.toString();
   });
 
-  await waitForHttpReady(`http://127.0.0.1:${port}/api/health`);
+  try {
+    await waitForHttpReady(`http://127.0.0.1:${port}/api/health`);
+  } catch (error) {
+    await stopChild(child);
+    throw new Error(
+      [
+        error instanceof Error ? error.message : String(error),
+        "Server output:",
+        combined.trim() || "(no output)"
+      ].join("\n")
+    );
+  }
+
   return {
     child,
     output: () => combined
@@ -337,14 +353,14 @@ async function runE2E(): Promise<void> {
     const healthBody = await health.json();
     assert.equal(healthBody.authRequired, true);
     assert.equal(healthBody.exposed, true);
-    assert.equal(healthBody.publicBaseUrl, null);
-    assert.equal(healthBody.openapiUrl, "/openapi.yaml");
+    assert.equal(healthBody.publicBaseUrl, "https://tokenpilot.example.com");
+    assert.equal(healthBody.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
 
     const openapi = await fetch(`http://127.0.0.1:${port}/openapi.yaml`);
     assert.equal(openapi.status, 200);
     const openapiText = await openapi.text();
     assert.match(openapiText, /TokenPilot Local Control Plane API/);
-    assert.match(openapiText, /https:\/\/tokenpilot\.example\.com/);
+    assert.match(openapiText, /^servers:\n  - url: https:\/\/tokenpilot\.example\.com/m);
     assert.equal(/FileReadBatchPayload:[\s\S]*offset:[\s\S]*limit:/.test(openapiText), true);
     assert.equal(/\/api\/setup\/status:[\s\S]*SetupStatusResponse/.test(openapiText), true);
     assertOpenApiDescriptionLimit(openapiText);
@@ -421,6 +437,21 @@ async function runE2E(): Promise<void> {
     const uiDeepLink = await fetch(`http://127.0.0.1:${port}/ui/jobs/demo`);
     assert.equal(uiDeepLink.status, 200);
     assert.match(await uiDeepLink.text(), /TokenPilot Web UI Fixture/);
+
+    for (const section of [
+      "projects",
+      "tasks",
+      "sessions",
+      "handoffs",
+      "evidence",
+      "approvals"
+    ]) {
+      const continuityDeepLink = await fetch(
+        `http://127.0.0.1:${port}/ui/continuity/${section}`
+      );
+      assert.equal(continuityDeepLink.status, 200);
+      assert.match(await continuityDeepLink.text(), /TokenPilot Web UI Fixture/);
+    }
 
     const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
     assert.equal(uiAsset.status, 200);
@@ -671,8 +702,8 @@ async function runE2E(): Promise<void> {
     assert.equal(typeof controlMissingBody.message, "string");
 
     const watchRun = spawn(
-      "npm",
-      ["run", "runner", "--", "--watch", "--interval", "1"],
+      process.execPath,
+      ["--import", "tsx", "src/cli/index.ts", "runner", "--watch", "--interval", "1"],
       {
         cwd: projectRoot,
         env: {

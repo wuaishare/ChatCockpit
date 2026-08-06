@@ -14,7 +14,7 @@ import type {
   TokenPilotPaths
 } from "../types.js";
 
-const MAX_WRITE_BYTES = 512 * 1024; // 512 KB
+export const MAX_WRITE_BYTES = 512 * 1024; // 512 KB
 
 const BLOCKED_SEGMENTS = [
   ".git",
@@ -78,7 +78,7 @@ const WRITEABLE_EXTENSIONS = new Set([
   ".svelte"
 ]);
 
-function validateRelativePathForWrite(inputPath: string): string {
+export function validateRelativePathForWrite(inputPath: string): string {
   if (!inputPath || path.isAbsolute(inputPath)) {
     throw new Error("File path must be a non-empty relative path");
   }
@@ -124,20 +124,46 @@ function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   return resolveRepoMapping(config, repoId).repoRoot;
 }
 
+export interface WritableRepoPathTarget {
+  repoRoot: string;
+  relativePath: string;
+  absolutePath: string;
+}
+
+export function resolveWritableRepoPathTarget(
+  paths: TokenPilotPaths,
+  repoId: string,
+  inputPath: string,
+  label = "File path"
+): WritableRepoPathTarget {
+  const repoRoot = assertRepoAllowed(paths, repoId);
+  const relativePath = validateRelativePathForWrite(inputPath);
+  const absolutePath = resolvePathInsideRoot(
+    repoRoot,
+    relativePath,
+    label
+  ).absolutePath;
+  return { repoRoot, relativePath, absolutePath };
+}
+
+export function assertWriteContentAllowed(content: string): void {
+  if (Buffer.byteLength(content, "utf8") > MAX_WRITE_BYTES) {
+    throw new Error(
+      `Content exceeds maximum size of ${MAX_WRITE_BYTES} bytes`
+    );
+  }
+}
+
 export function writeRepoFile(
   paths: TokenPilotPaths,
   payload: FileWritePayload
 ): FileWriteResponse {
-  const repoRoot = assertRepoAllowed(paths, payload.repoId);
-  const relativePath = validateRelativePathForWrite(payload.path);
-
-  if (payload.content.length > MAX_WRITE_BYTES) {
-    throw new Error(
-      `Content exceeds maximum size of ${MAX_WRITE_BYTES} bytes (got ${payload.content.length})`
-    );
-  }
-
-  const diskPath = resolvePathInsideRoot(repoRoot, relativePath, "File path").absolutePath;
+  const { relativePath, absolutePath: diskPath } = resolveWritableRepoPathTarget(
+    paths,
+    payload.repoId,
+    payload.path
+  );
+  assertWriteContentAllowed(payload.content);
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
   fs.writeFileSync(diskPath, payload.content, "utf8");
 
@@ -155,10 +181,11 @@ export function editRepoFile(
   paths: TokenPilotPaths,
   payload: FileEditPayload
 ): FileEditResponse {
-  const repoRoot = assertRepoAllowed(paths, payload.repoId);
-  const relativePath = validateRelativePathForWrite(payload.path);
-
-  const diskPath = resolvePathInsideRoot(repoRoot, relativePath, "File path").absolutePath;
+  const { relativePath, absolutePath: diskPath } = resolveWritableRepoPathTarget(
+    paths,
+    payload.repoId,
+    payload.path
+  );
   if (!fs.existsSync(diskPath)) {
     throw new Error(`File not found: ${relativePath}`);
   }
@@ -207,10 +234,12 @@ export function listRepoDirectory(
   paths: TokenPilotPaths,
   payload: FileListPayload
 ): FileListResponse {
-  const repoRoot = assertRepoAllowed(paths, payload.repoId);
-  const relativePath = validateRelativePathForWrite(payload.path);
-
-  const diskPath = resolvePathInsideRoot(repoRoot, relativePath, "Directory path").absolutePath;
+  const { relativePath, absolutePath: diskPath } = resolveWritableRepoPathTarget(
+    paths,
+    payload.repoId,
+    payload.path,
+    "Directory path"
+  );
   if (!fs.existsSync(diskPath)) {
     throw new Error(`Directory not found: ${relativePath}`);
   }

@@ -202,6 +202,32 @@ components:
         committedAt:
           type: string
       required: [hash, shortHash, subject, committedAt]
+    ChatDirectExecutionMetadata:
+      type: object
+      additionalProperties: false
+      properties:
+        lane:
+          type: string
+          const: chat-direct
+        modelLoopOwner:
+          type: string
+          const: chatgpt
+        executor:
+          type: string
+          enum: [codex-app-server-standalone, tokenpilot-direct, legacy-core]
+        operationId:
+          type: string
+        changedPaths:
+          type: array
+          items:
+            type: string
+        evidenceBundleId:
+          oneOf:
+            - type: string
+            - type: "null"
+        fallbackReason:
+          type: string
+      required: [lane, modelLoopOwner, executor, operationId, changedPaths, evidenceBundleId]
     RecentCommitsResponse:
       type: object
       additionalProperties: false
@@ -214,7 +240,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GitCommitSummary'
-      required: [ok, repoId, commits]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, commits, execution]
     PackJobPayload:
       type: object
       additionalProperties: false
@@ -616,7 +644,9 @@ components:
           type: string
         file:
           $ref: '#/components/schemas/FileReadResult'
-      required: [ok, repoId, file]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, file, execution]
     ReadFilesResponse:
       type: object
       additionalProperties: false
@@ -629,7 +659,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FileReadResult'
-      required: [ok, repoId, files]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, files, execution]
     FileWritePayload:
       type: object
       additionalProperties: false
@@ -637,13 +669,18 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Active chat-direct development session that owns the workspace writer lease.
         path:
           type: string
           description: Relative file path inside the mapped repository.
         content:
           type: string
           description: Full text content to write.
-      required: [path, content]
+      required: [sessionId, path, content]
     FileWriteResponse:
       type: object
       additionalProperties: false
@@ -660,7 +697,9 @@ components:
           type: integer
         error:
           type: string
-      required: [ok, repoId, path, written, size]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, path, written, size, execution]
     FileEditPayload:
       type: object
       additionalProperties: false
@@ -668,6 +707,11 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Active chat-direct development session that owns the workspace writer lease.
         path:
           type: string
         search:
@@ -676,7 +720,7 @@ components:
         replace:
           type: string
           description: Text to substitute in place of search.
-      required: [path, search, replace]
+      required: [sessionId, path, search, replace]
     FileEditResponse:
       type: object
       additionalProperties: false
@@ -691,7 +735,9 @@ components:
           type: boolean
         error:
           type: string
-      required: [ok, repoId, path, applied]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, path, applied, execution]
     FileListPayload:
       type: object
       additionalProperties: false
@@ -732,7 +778,9 @@ components:
             $ref: '#/components/schemas/FileListEntry'
         error:
           type: string
-      required: [ok, repoId, path, entries]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, path, entries, execution]
     SearchPayload:
       type: object
       additionalProperties: false
@@ -791,7 +839,9 @@ components:
           type: integer
         error:
           type: string
-      required: [ok, repoId, pattern, matches, truncated, totalMatches]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, pattern, matches, truncated, totalMatches, execution]
     ShellRunPayload:
       type: object
       additionalProperties: false
@@ -799,6 +849,11 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Required when policy classifies the command as potentially mutating; the session must own the active writer lease. Read-only commands may omit it.
         command:
           type: string
           description: Whitelisted command name. node, python, python3, npx, tsx, and make are high-trust commands and are blocked in exposed mode unless the operator explicitly sets TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true.
@@ -829,7 +884,9 @@ components:
           type: string
         error:
           type: string
-      required: [ok, exitCode, stdout, stderr, truncated, executedCommand]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, exitCode, stdout, stderr, truncated, executedCommand, execution]
     GitDiffResponse:
       type: object
       additionalProperties: false
@@ -844,7 +901,9 @@ components:
           type: boolean
         error:
           type: string
-      required: [ok, repoId, diff, truncated]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, diff, truncated, execution]
     GitStatusEntry:
       type: object
       additionalProperties: false
@@ -872,7 +931,9 @@ components:
             $ref: '#/components/schemas/GitStatusEntry'
         error:
           type: string
-      required: [ok, repoId, branch, entries]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, branch, entries, execution]
     GitCommitPayload:
       type: object
       additionalProperties: false
@@ -880,13 +941,18 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Active chat-direct development session that owns the workspace writer lease.
         message:
           type: string
           description: Commit title / subject line.
         body:
           type: string
           description: Optional commit body (extended description).
-      required: [message]
+      required: [sessionId, message]
     GitCommitResponse:
       type: object
       additionalProperties: false
@@ -903,7 +969,9 @@ components:
           type: string
         error:
           type: string
-      required: [ok, repoId, committed]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, repoId, committed, execution]
     PackJobSummary:
       type: object
       additionalProperties: false
@@ -1131,6 +1199,1527 @@ components:
             - $ref: '#/components/schemas/TaskPackJobSummary'
             - $ref: '#/components/schemas/CodexRunJobSummary'
       required: [ok, job]
+    ContinuityReadResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+          const: true
+      required: [ok]
+    ContinuityMutationResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+          const: true
+        replayed:
+          type: boolean
+      required: [ok, replayed]
+    ContinuityTaskCreatePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        projectId:
+          type: string
+        workspaceId:
+          type: string
+        specId:
+          oneOf:
+            - type: string
+            - type: "null"
+        planId:
+          oneOf:
+            - type: string
+            - type: "null"
+        parentTaskId:
+          oneOf:
+            - type: string
+            - type: "null"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 240
+        goal:
+          type: string
+          minLength: 1
+          maxLength: 12000
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+          default: normal
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [projectId, workspaceId, title, goal, idempotencyKey]
+    ContinuityTaskSubmitReviewPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [taskId, expectedRevision, idempotencyKey]
+    ContinuityTaskSubmitReviewResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        task:
+          $ref: '#/components/schemas/ContinuityTaskRecord'
+        evidenceBundle:
+          $ref: '#/components/schemas/ContinuityEvidenceBundleRecord'
+        replayed:
+          type: boolean
+      required: [ok, task, evidenceBundle, replayed]
+    ContinuityTaskCompletePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [taskId, expectedRevision, idempotencyKey]
+    ContinuityTaskCompleteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        task:
+          $ref: '#/components/schemas/ContinuityTaskRecord'
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        handoff:
+          $ref: '#/components/schemas/ContinuityHandoffRecord'
+        evidenceBundle:
+          $ref: '#/components/schemas/ContinuityEvidenceBundleRecord'
+        replayed:
+          type: boolean
+      required: [ok, task, sessions, handoff, evidenceBundle, replayed]
+    ContinuitySessionStartPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 240
+        mode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent]
+        expectedTaskRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [taskId, title, mode, expectedTaskRevision, idempotencyKey]
+    ContinuityLeaseAcquirePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+        holderId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [sessionId, holderId, expiresAt, idempotencyKey]
+    ContinuityLeaseReleasePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        leaseId:
+          type: string
+        sessionId:
+          type: string
+        holderId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [leaseId, sessionId, holderId, expectedRevision, idempotencyKey]
+    ContinuityHandoffPreparePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        sessionId:
+          type: string
+        toMode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent, unassigned]
+          default: unassigned
+        goal:
+          type: string
+          minLength: 1
+          maxLength: 12000
+        completedItems:
+          type: array
+          maxItems: 200
+          items:
+            type: string
+        pendingItems:
+          type: array
+          maxItems: 200
+          items:
+            type: string
+        changedFiles:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+        risks:
+          type: array
+          maxItems: 200
+          items:
+            type: string
+        nextAction:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        gitHead:
+          oneOf:
+            - type: string
+            - type: "null"
+        gitBranch:
+          oneOf:
+            - type: string
+            - type: "null"
+        gitDirty:
+          type: boolean
+        diffArtifactId:
+          oneOf:
+            - type: string
+            - type: "null"
+        evidenceBundleId:
+          oneOf:
+            - type: string
+            - type: "null"
+        expectedTaskRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [taskId, sessionId, goal, nextAction, gitDirty, expectedTaskRevision, idempotencyKey]
+    ContinuityHandoffAcceptPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        handoffId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [handoffId, expectedRevision, idempotencyKey]
+    ContinuityHandoffCancelPayload:
+      $ref: '#/components/schemas/ContinuityHandoffAcceptPayload'
+    ContinuityHandoffForkPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        handoffId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 240
+        sessionTitle:
+          type: string
+          minLength: 1
+          maxLength: 240
+        mode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [handoffId, expectedRevision, title, sessionTitle, idempotencyKey]
+    ContinuityEvidenceRecordPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+        sessionId:
+          type: string
+        bundleId:
+          type: string
+        kind:
+          type: string
+          enum: [command, test, build, lint, typecheck, diff, review, screenshot, manual]
+        label:
+          type: string
+          minLength: 1
+          maxLength: 240
+        status:
+          type: string
+          enum: [passed, failed, skipped, not-run]
+        required:
+          type: boolean
+          default: false
+        command:
+          oneOf:
+            - type: string
+            - type: "null"
+        exitCode:
+          oneOf:
+            - type: integer
+            - type: "null"
+        artifactId:
+          oneOf:
+            - type: string
+            - type: "null"
+        summary:
+          type: string
+          maxLength: 8000
+        startedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        completedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        expectedTaskRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [taskId, sessionId, kind, label, status, idempotencyKey]
+    ContinuityProjectRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        displayName:
+          type: string
+        defaultWorkspaceId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, slug, displayName, defaultWorkspaceId, status, createdAt, updatedAt, revision]
+    ContinuityWorkspaceRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        repoId:
+          type: string
+        kind:
+          type: string
+          enum: [checkout, worktree]
+        branch:
+          oneOf:
+            - type: string
+            - type: "null"
+        headCommit:
+          oneOf:
+            - type: string
+            - type: "null"
+        dirty:
+          type: boolean
+        status:
+          type: string
+          enum: [ready, missing, blocked, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, projectId, repoId, kind, branch, headCommit, dirty, status, createdAt, updatedAt, revision]
+    ContinuityTaskRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        workspaceId:
+          type: string
+        specId:
+          oneOf:
+            - type: string
+            - type: "null"
+        planId:
+          oneOf:
+            - type: string
+            - type: "null"
+        parentTaskId:
+          oneOf:
+            - type: string
+            - type: "null"
+        title:
+          type: string
+        goal:
+          type: string
+        status:
+          type: string
+          enum: [backlog, ready, in-progress, blocked, review, completed, cancelled]
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+        activeSessionId:
+          oneOf:
+            - type: string
+            - type: "null"
+        latestHandoffId:
+          oneOf:
+            - type: string
+            - type: "null"
+        latestEvidenceBundleId:
+          oneOf:
+            - type: string
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, projectId, workspaceId, specId, planId, parentTaskId, title, goal, status, priority, activeSessionId, latestHandoffId, latestEvidenceBundleId, createdAt, updatedAt, revision]
+    ContinuityWriterLeaseRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        sessionId:
+          type: string
+        holderType:
+          type: string
+          enum: [chat-direct, codex-session, async-agent]
+        holderId:
+          type: string
+        status:
+          type: string
+          enum: [active, released, expired, revoked]
+        acquiredAt:
+          type: string
+          format: date-time
+        heartbeatAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        releasedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, workspaceId, sessionId, holderType, holderId, status, acquiredAt, heartbeatAt, expiresAt, releasedAt, revision]
+    ContinuityHandoffRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        sessionId:
+          type: string
+        workspaceId:
+          type: string
+        fromMode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent]
+        toMode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent, unassigned]
+        goal:
+          type: string
+        completedItems:
+          type: array
+          items:
+            type: string
+        pendingItems:
+          type: array
+          items:
+            type: string
+        changedFiles:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        nextAction:
+          type: string
+        gitHead:
+          oneOf:
+            - type: string
+            - type: "null"
+        gitBranch:
+          oneOf:
+            - type: string
+            - type: "null"
+        gitDirty:
+          type: boolean
+        diffArtifactId:
+          oneOf:
+            - type: string
+            - type: "null"
+        evidenceBundleId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          type: string
+          enum: [draft, ready, accepted, superseded]
+        createdAt:
+          type: string
+          format: date-time
+        acceptedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, taskId, sessionId, workspaceId, fromMode, toMode, goal, completedItems, pendingItems, changedFiles, risks, nextAction, gitHead, gitBranch, gitDirty, diffArtifactId, evidenceBundleId, status, createdAt, acceptedAt, revision]
+    ContinuityEvidenceBundleRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [collecting, complete, incomplete]
+        requiredItemCount:
+          type: integer
+          minimum: 0
+        passedItemCount:
+          type: integer
+          minimum: 0
+        failedItemCount:
+          type: integer
+          minimum: 0
+        skippedItemCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, taskId, sessionId, status, requiredItemCount, passedItemCount, failedItemCount, skippedItemCount, createdAt, completedAt, revision]
+    ContinuityEvidenceItemRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        bundleId:
+          type: string
+        kind:
+          type: string
+          enum: [command, test, build, lint, typecheck, diff, review, screenshot, manual]
+        label:
+          type: string
+        status:
+          type: string
+          enum: [passed, failed, skipped, not-run]
+        required:
+          type: boolean
+        command:
+          oneOf:
+            - type: string
+            - type: "null"
+        exitCode:
+          oneOf:
+            - type: integer
+            - type: "null"
+        artifactId:
+          oneOf:
+            - type: string
+            - type: "null"
+        summary:
+          type: string
+        startedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        completedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, bundleId, kind, label, status, required, command, exitCode, artifactId, summary, startedAt, completedAt, createdAt]
+    WorkspaceEvidenceProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        bundle:
+          $ref: '#/components/schemas/ContinuityEvidenceBundleRecord'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContinuityEvidenceItemRecord'
+        verificationState:
+          type: string
+          enum: [verified, incomplete, missing]
+      required: [bundle, items, verificationState]
+    WorkspaceTaskContinuityProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        task:
+          $ref: '#/components/schemas/ContinuityTaskRecord'
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        latestHandoff:
+          oneOf:
+            - $ref: '#/components/schemas/ContinuityHandoffRecord'
+            - type: "null"
+        evidence:
+          oneOf:
+            - $ref: '#/components/schemas/WorkspaceEvidenceProjection'
+            - type: "null"
+      required: [task, sessions, latestHandoff, evidence]
+    WorkspaceGitProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        available:
+          type: boolean
+        branch:
+          oneOf:
+            - type: string
+            - type: "null"
+        headCommit:
+          oneOf:
+            - type: string
+            - type: "null"
+        dirty:
+          type: boolean
+        changedPaths:
+          type: array
+          items:
+            type: string
+        unavailableReason:
+          oneOf:
+            - type: string
+            - type: "null"
+      required: [available, branch, headCommit, dirty, changedPaths, unavailableReason]
+    WorkspaceContinuitySnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          $ref: '#/components/schemas/ContinuityProjectRecord'
+        workspace:
+          $ref: '#/components/schemas/ContinuityWorkspaceRecord'
+        activeLease:
+          oneOf:
+            - $ref: '#/components/schemas/ContinuityWriterLeaseRecord'
+            - type: "null"
+        readOnly:
+          type: boolean
+        readOnlyReason:
+          oneOf:
+            - type: string
+              enum: [active-writer]
+            - type: "null"
+        git:
+          $ref: '#/components/schemas/WorkspaceGitProjection'
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceTaskContinuityProjection'
+        pendingApprovals:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeApprovalRecord'
+      required: [project, workspace, activeLease, readOnly, readOnlyReason, git, tasks, pendingApprovals]
+    WorkspaceContinuitySnapshotResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        snapshot:
+          $ref: '#/components/schemas/WorkspaceContinuitySnapshot'
+      required: [ok, snapshot]
+    CodexStandaloneOperationCapability:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+        method:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          type: string
+          enum: [verified, unavailable, failed]
+        safeForChatDirect:
+          type: boolean
+        errorCode:
+          oneOf:
+            - type: string
+            - type: "null"
+        evidence:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: boolean
+              - type: number
+              - type: string
+              - type: "null"
+      required: [operation, method, status, safeForChatDirect, errorCode, evidence]
+    CodexStandaloneCapabilitySnapshot:
+      type: object
+      additionalProperties: false
+      description: Verified standalone App Server capabilities. Probe paths and file contents are omitted.
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        runtime:
+          type: string
+          const: codex-app-server
+        protocolFamily:
+          type: string
+          const: app-server-v2
+        binarySource:
+          oneOf:
+            - type: string
+            - type: "null"
+        binaryVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        serverProtocolVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        probedAt:
+          type: string
+          format: date-time
+        operations:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CodexStandaloneOperationCapability'
+        outgoingMethods:
+          type: array
+          items:
+            type: string
+        turnStartObserved:
+          type: boolean
+        directExecutionReady:
+          type: boolean
+      required:
+        - schemaVersion
+        - runtime
+        - protocolFamily
+        - binarySource
+        - binaryVersion
+        - serverProtocolVersion
+        - probedAt
+        - operations
+        - outgoingMethods
+        - turnStartObserved
+        - directExecutionReady
+    RuntimeCapabilitySnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        available:
+          type: boolean
+        runtime:
+          type: string
+          const: codex-app-server
+        binarySource:
+          oneOf:
+            - type: string
+            - type: "null"
+        binaryVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        protocolFamily:
+          type: string
+          const: app-server-v2
+        serverProtocolVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        stableMethods:
+          type: array
+          items:
+            type: string
+        experimentalApiEnabled:
+          type: boolean
+        standaloneExecution:
+          oneOf:
+            - $ref: '#/components/schemas/CodexStandaloneCapabilitySnapshot'
+            - type: "null"
+        unavailableReason:
+          type: string
+      required:
+        - available
+        - runtime
+        - binarySource
+        - binaryVersion
+        - protocolFamily
+        - serverProtocolVersion
+        - stableMethods
+        - experimentalApiEnabled
+        - standaloneExecution
+    RuntimeThreadStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+        activeFlags:
+          type: array
+          items:
+            type: string
+      required: [type]
+    RuntimeThreadProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        preview:
+          type: string
+        modelProvider:
+          oneOf:
+            - type: string
+            - type: "null"
+        createdAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        updatedAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        recencyAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        sourceKind:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          $ref: '#/components/schemas/RuntimeThreadStatus'
+        projectId:
+          oneOf:
+            - type: string
+            - type: "null"
+        workspaceId:
+          oneOf:
+            - type: string
+            - type: "null"
+        repoId:
+          oneOf:
+            - type: string
+            - type: "null"
+        parentThreadId:
+          oneOf:
+            - type: string
+            - type: "null"
+        agentNickname:
+          oneOf:
+            - type: string
+            - type: "null"
+        agentRole:
+          oneOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - preview
+        - modelProvider
+        - createdAt
+        - updatedAt
+        - recencyAt
+        - sourceKind
+        - status
+        - projectId
+        - workspaceId
+        - repoId
+        - parentThreadId
+        - agentNickname
+        - agentRole
+    RuntimeCapabilitiesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        capabilities:
+          $ref: '#/components/schemas/RuntimeCapabilitySnapshot'
+      required: [ok, capabilities]
+    RuntimeThreadListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeThreadProjection'
+        nextCursor:
+          oneOf:
+            - type: string
+            - type: "null"
+        backwardsCursor:
+          oneOf:
+            - type: string
+            - type: "null"
+      required: [ok, data, nextCursor, backwardsCursor]
+    RuntimeThreadReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        thread:
+          $ref: '#/components/schemas/RuntimeThreadProjection'
+      required: [ok, thread]
+    RuntimeSessionMutationPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        threadId:
+          type: string
+          minLength: 1
+          maxLength: 240
+        expectedSessionRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [sessionId, threadId, expectedSessionRevision, idempotencyKey]
+    RuntimeSessionForkPayload:
+      allOf:
+        - $ref: '#/components/schemas/RuntimeSessionMutationPayload'
+        - type: object
+          additionalProperties: false
+          properties:
+            lastTurnId:
+              oneOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 240
+                - type: "null"
+    RuntimeBindingRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        sessionId:
+          type: string
+        workspaceId:
+          type: string
+        runtimeKind:
+          type: string
+          const: codex-app-server
+        externalThreadId:
+          type: string
+        sourceThreadId:
+          oneOf:
+            - type: string
+            - type: "null"
+        relation:
+          type: string
+          enum: [bound, resumed, forked]
+        status:
+          type: string
+          enum: [active, superseded, released, stale]
+        modelProvider:
+          oneOf:
+            - type: string
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - id
+        - sessionId
+        - workspaceId
+        - runtimeKind
+        - externalThreadId
+        - sourceThreadId
+        - relation
+        - status
+        - modelProvider
+        - createdAt
+        - updatedAt
+        - revision
+    RuntimeDevelopmentSessionRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        workspaceId:
+          type: string
+        taskId:
+          type: string
+        title:
+          type: string
+        mode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent]
+        status:
+          type: string
+          enum: [idle, running, waiting-approval, handoff-ready, completed, failed]
+        activeRuntimeBindingId:
+          oneOf:
+            - type: string
+            - type: "null"
+        startedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        endedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - id
+        - projectId
+        - workspaceId
+        - taskId
+        - title
+        - mode
+        - status
+        - activeRuntimeBindingId
+        - startedAt
+        - updatedAt
+        - endedAt
+        - revision
+    RuntimeBindingMutationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        binding:
+          $ref: '#/components/schemas/RuntimeBindingRecord'
+        session:
+          $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        thread:
+          $ref: '#/components/schemas/RuntimeThreadProjection'
+        replayed:
+          type: boolean
+      required: [ok, binding, session, thread, replayed]
+    RuntimeTurnStartPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        text:
+          type: string
+          minLength: 1
+          maxLength: 50000
+        expectedSessionRevision:
+          type: integer
+          minimum: 1
+        expectedTaskRevision:
+          type: integer
+          minimum: 1
+        leaseDurationSeconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+          default: 900
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required:
+        - sessionId
+        - text
+        - expectedSessionRevision
+        - expectedTaskRevision
+        - idempotencyKey
+    RuntimeTurnInterruptPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        runId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        expectedRunRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [runId, expectedRunRevision, idempotencyKey]
+    RuntimeApprovalRespondPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        expectedRevision:
+          type: integer
+          minimum: 1
+        decision:
+          type: string
+          enum: [accept, decline, cancel]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    RuntimeTurnProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        startedAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        completedAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        durationMs:
+          oneOf:
+            - type: number
+            - type: "null"
+        errorCode:
+          oneOf:
+            - type: string
+            - type: "null"
+      required: [id, status, startedAt, completedAt, durationMs, errorCode]
+    RuntimeRunRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        sessionId:
+          type: string
+        workspaceId:
+          type: string
+        runtimeBindingId:
+          type: string
+        threadId:
+          type: string
+        externalTurnId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          type: string
+          enum: [starting, running, waiting-approval, completed, failed, interrupted, stale]
+        inputHash:
+          type: string
+          description: SHA-256 hash of the submitted input. The raw input is not exposed here.
+        inputLength:
+          type: integer
+          minimum: 0
+        handoffId:
+          type: string
+        evidenceBundleId:
+          type: string
+        writerLeaseId:
+          type: string
+        modelLoopOwner:
+          type: string
+          const: codex
+        approvalPolicy:
+          type: string
+          const: on-request
+        startedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        errorCode:
+          oneOf:
+            - type: string
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - id
+        - sessionId
+        - workspaceId
+        - runtimeBindingId
+        - threadId
+        - externalTurnId
+        - status
+        - inputHash
+        - inputLength
+        - handoffId
+        - evidenceBundleId
+        - writerLeaseId
+        - modelLoopOwner
+        - approvalPolicy
+        - startedAt
+        - updatedAt
+        - completedAt
+        - errorCode
+        - revision
+    RuntimeApprovalRecord:
+      type: object
+      additionalProperties: false
+      description: Public approval projection. Internal App Server request handles and raw private request parameters are omitted.
+      properties:
+        id:
+          type: string
+        runId:
+          type: string
+        sessionId:
+          type: string
+        workspaceId:
+          type: string
+        threadId:
+          type: string
+        turnId:
+          type: string
+        itemId:
+          oneOf:
+            - type: string
+            - type: "null"
+        requestMethod:
+          type: string
+        kind:
+          type: string
+          enum: [command-execution, file-change, permissions, unsupported]
+        status:
+          type: string
+          enum: [pending, responded, resolved, cancelled, stale]
+        publicSummary:
+          type: object
+          additionalProperties: true
+        decision:
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
+        receivedAt:
+          type: string
+          format: date-time
+        respondedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        resolvedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - id
+        - runId
+        - sessionId
+        - workspaceId
+        - threadId
+        - turnId
+        - itemId
+        - requestMethod
+        - kind
+        - status
+        - publicSummary
+        - decision
+        - receivedAt
+        - respondedAt
+        - resolvedAt
+        - revision
+    RuntimeEventRecord:
+      type: object
+      additionalProperties: false
+      description: Append-only public-safe runtime event. Raw prompts, cwd, patches, command output, and private approval payloads are omitted.
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        id:
+          type: string
+        runId:
+          oneOf:
+            - type: string
+            - type: "null"
+        sessionId:
+          type: string
+        workspaceId:
+          type: string
+        threadId:
+          type: string
+        turnId:
+          oneOf:
+            - type: string
+            - type: "null"
+        itemId:
+          oneOf:
+            - type: string
+            - type: "null"
+        method:
+          type: string
+        category:
+          type: string
+          enum: [lifecycle, approval, item, warning, error, other]
+        publicPayload:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - sequence
+        - id
+        - runId
+        - sessionId
+        - workspaceId
+        - threadId
+        - turnId
+        - itemId
+        - method
+        - category
+        - publicPayload
+        - createdAt
+    RuntimeTurnStartResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        run:
+          $ref: '#/components/schemas/RuntimeRunRecord'
+        lease:
+          type: object
+          additionalProperties: true
+        handoff:
+          type: object
+          additionalProperties: true
+        evidenceBundle:
+          type: object
+          additionalProperties: true
+        session:
+          $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        task:
+          type: object
+          additionalProperties: true
+        turn:
+          $ref: '#/components/schemas/RuntimeTurnProjection'
+        replayed:
+          type: boolean
+      required: [ok, run, lease, handoff, evidenceBundle, session, task, turn, replayed]
+    RuntimeTurnInterruptResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        run:
+          $ref: '#/components/schemas/RuntimeRunRecord'
+        session:
+          $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        lease:
+          type: object
+          additionalProperties: true
+        replayed:
+          type: boolean
+      required: [ok, run, session, lease, replayed]
+    RuntimeApprovalRespondResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/RuntimeApprovalRecord'
+        run:
+          $ref: '#/components/schemas/RuntimeRunRecord'
+        session:
+          $ref: '#/components/schemas/RuntimeDevelopmentSessionRecord'
+        replayed:
+          type: boolean
+      required: [ok, approval, run, session, replayed]
+    RuntimeEventsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeEventRecord'
+        nextSequence:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
+      required: [ok, events, nextSequence]
 paths:
   /api/health:
     get:
@@ -1680,3 +3269,584 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GitCommitResponse'
+  /api/continuity/projects:
+    get:
+      operationId: listContinuityProjects
+      summary: List continuity projects
+      description: Synchronizes allowlisted repo mappings into durable TokenPilot project and workspace identities. Local absolute paths are omitted from the response.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived]
+      responses:
+        "200":
+          description: Public-safe project projections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityReadResponse'
+  /api/continuity/projects/{projectId}:
+    get:
+      operationId: getContinuityProject
+      summary: Read continuity project
+      description: Returns one durable project and its public-safe workspace projections.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityReadResponse'
+  /api/continuity/workspaces/{workspaceId}/snapshot:
+    get:
+      operationId: getWorkspaceContinuitySnapshot
+      summary: Read workspace continuity snapshot
+      description: Returns public-safe Git, active writer, task, session, handoff, evidence, and pending approval state for one workspace.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workspace continuity snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceContinuitySnapshotResponse'
+  /api/continuity/tasks:
+    post:
+      operationId: createContinuityTask
+      summary: Create continuity task
+      description: Creates a durable project task. The idempotency key prevents duplicate task creation across REST and MCP retries.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityTaskCreatePayload'
+      responses:
+        "200":
+          description: Created or replayed task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/tasks/submit-review:
+    post:
+      operationId: submitContinuityTaskReview
+      summary: Submit continuity task for review
+      description: Finalizes passed required evidence and moves an in-progress or blocked task into review through one idempotent transition.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityTaskSubmitReviewPayload'
+      responses:
+        "200":
+          description: Submitted or replayed task review transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityTaskSubmitReviewResponse'
+        "409":
+          description: Review evidence requirements are not satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/continuity/tasks/complete:
+    post:
+      operationId: completeContinuityTask
+      summary: Complete continuity task
+      description: Completes a review task only after accepted handoff, required evidence, writer, runtime run, and approval checks pass.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityTaskCompletePayload'
+      responses:
+        "200":
+          description: Completed or replayed task transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityTaskCompleteResponse'
+        "409":
+          description: Completion requirements are not satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/continuity/tasks/{taskId}:
+    get:
+      operationId: getContinuityTask
+      summary: Read continuity task
+      description: Returns one durable TokenPilot task by id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityReadResponse'
+  /api/continuity/sessions/start:
+    post:
+      operationId: startContinuitySession
+      summary: Start development session
+      description: Starts a Chat Direct, Codex Session, or Async Agent session and binds it to the expected task revision.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuitySessionStartPayload'
+      responses:
+        "200":
+          description: Started or replayed session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/sessions/{sessionId}:
+    get:
+      operationId: getContinuitySession
+      summary: Read development session
+      description: Returns one durable TokenPilot development session by id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityReadResponse'
+  /api/continuity/leases/acquire:
+    post:
+      operationId: acquireContinuityLease
+      summary: Acquire workspace writer lease
+      description: Acquires the only active writer lease allowed for a workspace. Another active session receives a conflict.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityLeaseAcquirePayload'
+      responses:
+        "200":
+          description: Acquired or replayed writer lease
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/leases/release:
+    post:
+      operationId: releaseContinuityLease
+      summary: Release workspace writer lease
+      description: Releases an active writer lease using lease identity, holder identity, revision, and idempotency control.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityLeaseReleasePayload'
+      responses:
+        "200":
+          description: Released or replayed writer lease
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/handoffs/prepare:
+    post:
+      operationId: prepareContinuityHandoff
+      summary: Prepare development handoff
+      description: Creates a ready handoff checkpoint with goal, progress, pending work, changed files, risks, Git state, evidence, and next action.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityHandoffPreparePayload'
+      responses:
+        "200":
+          description: Ready or replayed handoff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/handoffs/cancel:
+    post:
+      operationId: cancelContinuityHandoff
+      summary: Cancel development handoff
+      description: Supersedes one ready handoff with optimistic revision and idempotency controls.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityHandoffCancelPayload'
+      responses:
+        "200":
+          description: Cancelled or replayed handoff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/handoffs/fork:
+    post:
+      operationId: forkContinuityHandoff
+      summary: Fork development handoff
+      description: Consumes one ready handoff by creating a child task and target-mode development session in one transaction.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityHandoffForkPayload'
+      responses:
+        "200":
+          description: Forked or replayed handoff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/handoffs/accept:
+    post:
+      operationId: acceptContinuityHandoff
+      summary: Accept development handoff
+      description: Accepts one ready handoff with optimistic revision and idempotency controls.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityHandoffAcceptPayload'
+      responses:
+        "200":
+          description: Accepted or replayed handoff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/evidence/record:
+    post:
+      operationId: recordContinuityEvidence
+      summary: Record verification evidence
+      description: Records structured verification evidence for a task session and optionally creates a new evidence bundle.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuityEvidenceRecordPayload'
+      responses:
+        "200":
+          description: Recorded or replayed evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/runtime/codex/capabilities:
+    get:
+      operationId: getCodexRuntimeCapabilities
+      summary: Read Codex App Server capabilities
+      description: Returns a public-safe availability and protocol snapshot. Binary paths and local diagnostics are not exposed.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Codex runtime capability snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeCapabilitiesResponse'
+  /api/runtime/codex/threads:
+    get:
+      operationId: listCodexRuntimeThreads
+      summary: List Codex thread metadata
+      description: Lists public-safe Codex thread metadata. Raw cwd, instruction sources, rollout paths, and turn contents are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: workspaceId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: TokenPilot workspace id. The private workspace path is resolved only inside the local runtime.
+        - name: searchTerm
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 500
+        - name: archived
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Public-safe thread list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeThreadListResponse'
+  /api/runtime/codex/threads/{threadId}:
+    get:
+      operationId: getCodexRuntimeThread
+      summary: Read Codex thread metadata
+      description: Reads one public-safe thread metadata projection. Turn history remains unavailable until TokenPilot defines and verifies a safe projection.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: includeTurns
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Must remain false in the current read-only adapter. True returns CAPABILITY_UNAVAILABLE.
+      responses:
+        "200":
+          description: Public-safe thread metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeThreadReadResponse'
+  /api/runtime/codex/sessions/bind:
+    post:
+      operationId: bindCodexRuntimeSession
+      summary: Bind an existing Codex thread
+      description: Validates TokenPilot session revision and workspace identity, then binds an existing Codex thread without starting a Codex turn. Repeated requests with the same idempotency key replay the original result.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeSessionMutationPayload'
+      responses:
+        "200":
+          description: Created or replayed runtime binding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeBindingMutationResponse'
+  /api/runtime/codex/sessions/resume:
+    post:
+      operationId: resumeCodexRuntimeSession
+      summary: Resume and bind a Codex thread
+      description: Resumes an existing Codex App Server thread and persists the binding with two-phase idempotency. This operation does not start a Codex turn. An uncertain external result remains pending to prevent duplicate resume side effects.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeSessionMutationPayload'
+      responses:
+        "200":
+          description: Resumed or replayed runtime binding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeBindingMutationResponse'
+  /api/runtime/codex/sessions/fork:
+    post:
+      operationId: forkCodexRuntimeSession
+      summary: Fork and bind a Codex thread
+      description: Creates a durable non-ephemeral Codex thread fork and binds it to the TokenPilot session with two-phase idempotency. An optional lastTurnId limits the fork boundary. This operation does not start a Codex turn.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeSessionForkPayload'
+      responses:
+        "200":
+          description: Forked or replayed runtime binding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeBindingMutationResponse'
+  /api/runtime/codex/turns/start:
+    post:
+      operationId: startCodexRuntimeTurn
+      summary: Start an explicit Codex turn
+      description: Starts one Codex model loop after validating Runtime Binding, revisions, Writer Lease, Git checkpoint, Evidence, and Handoff. Approval is fixed to on-request user review. cwd, model, sandbox, approval, and instruction overrides are unavailable. Retries use two-phase idempotency.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeTurnStartPayload'
+      responses:
+        "200":
+          description: Started or replayed Codex turn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeTurnStartResponse'
+  /api/runtime/codex/turns/interrupt:
+    post:
+      operationId: interruptCodexRuntimeTurn
+      summary: Interrupt an active Codex turn
+      description: Explicitly interrupts one active bound Codex turn, releases its Writer Lease, moves the Development Session to handoff-ready, and records an append-only lifecycle event. The operation is idempotent across REST and MCP retries.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeTurnInterruptPayload'
+      responses:
+        "200":
+          description: Interrupted or replayed Codex turn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeTurnInterruptResponse'
+  /api/runtime/codex/approvals/respond:
+    post:
+      operationId: respondToCodexRuntimeApproval
+      summary: Respond to a pending Codex approval
+      description: Sends an explicit accept, decline, or cancel decision for one pending command-execution or file-change approval. Session-wide approval and permission escalation are intentionally unavailable. Internal App Server request handles and raw private request parameters are never returned by this API.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeApprovalRespondPayload'
+      responses:
+        "200":
+          description: Responded or replayed approval decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeApprovalRespondResponse'
+  /api/runtime/codex/events:
+    get:
+      operationId: readCodexRuntimeEvents
+      summary: Read public-safe Codex runtime events
+      description: Reads append-only lifecycle, approval, item, warning, and error events for one TokenPilot Session or Runtime Run. Raw prompts, command output, cwd, file patches, private approval payloads, and App Server request handles are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by TokenPilot Development Session. sessionId or runId is required.
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by TokenPilot Runtime Run. sessionId or runId is required.
+        - name: afterSequence
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: Return events after this append-only sequence cursor.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Public-safe runtime event page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeEventsResponse'

@@ -359,6 +359,19 @@ case "${ACTION}" in
       exit 0
     fi
 
+    if launchctl_service_registered || launchctl_runner_registered; then
+      bootout_services
+    fi
+
+    bootstrap_services
+    if wait_for_listen 30 && wait_for_runner_registration 30; then
+      echo "control plane: running (pid $(cat "${PID_FILE}"))"
+      echo "runner: registered"
+      echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+      echo "next action: run npm run doctor:runtime"
+      exit 0
+    fi
+
     "${0}" stop
     "${0}" start
     ;;

@@ -29,7 +29,225 @@ import {
   validateServerAuthConfig
 } from "../src/server/auth.ts";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ChatDirectService } from "../src/application/chat-direct-service.ts";
+import { buildOperationContext } from "../src/application/operation-context.ts";
+import type { RuntimeRouter } from "../src/application/runtime-router.ts";
+import { ServiceError } from "../src/application/service-error.ts";
+import { buildReadOnlyMcpToolCatalog } from "../src/mcp/read-only-catalog.ts";
+import { registerMcpTools } from "../src/mcp/register-tools.ts";
+import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
+import { ContinuityDatabase } from "../src/continuity/database.ts";
+import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import { toApiError } from "../src/server/errors.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
+
+function verifyApplicationServiceFoundation(): void {
+  const context = buildOperationContext({
+    actorType: "remote-mcp",
+    requestId: "req-1",
+    now: "2026-08-06T00:00:00.000Z"
+  });
+
+  assert.equal(context.requestId, "req-1");
+  assert.equal(context.actorId, null);
+  assert.equal(context.publicProjection, false);
+  assert.equal(context.now, "2026-08-06T00:00:00.000Z");
+
+  const apiError = toApiError(
+    new ServiceError("CAPABILITY_UNAVAILABLE", "Missing capability", {
+      hint: "Use a supported runtime adapter"
+    })
+  );
+
+  assert.equal(apiError.statusCode, 501);
+  assert.equal(apiError.code, "CAPABILITY_UNAVAILABLE");
+  assert.equal(apiError.hint, "Use a supported runtime adapter");
+}
+
+async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
+  const paths = buildTempPaths();
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const configPath = path.join(paths.runtimeDir, "mcp-catalog-config.json");
+  process.env.TOKENPILOT_CONFIG_PATH = configPath;
+
+  initGitRepo(paths.repoRoot);
+  fs.mkdirSync(path.join(paths.repoRoot, "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(paths.repoRoot, "src", "catalog-fixture.ts"),
+    "export const catalogNeedle = 'tokenpilot-mcp-catalog';\n",
+    "utf8"
+  );
+  fs.writeFileSync(path.join(paths.repoRoot, ".env"), "SECRET=blocked\n", "utf8");
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        workspaceAllowlist: [paths.repoRoot],
+        repoMappings: {
+          tokenpilot: {
+            path: paths.repoRoot
+          }
+        }
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+
+  const database = new ContinuityDatabase({
+    path: path.join(paths.runtimeDir, "continuity.sqlite")
+  });
+  const repositories = buildContinuityRepositories(database);
+
+  try {
+    const chatDirect = new ChatDirectService(
+      paths,
+      {} as RuntimeRouter,
+      new CodexStandaloneCapabilityStore(paths.runtimeDir),
+      repositories
+    );
+    const tools = buildReadOnlyMcpToolCatalog({ chatDirect });
+    const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
+    const registered = new Map<
+      string,
+      {
+        config: Record<string, unknown>;
+        handler: (input: unknown, sdkContext: unknown) => Promise<unknown>;
+      }
+    >();
+    registerMcpTools(
+      {
+        registerTool(name, config, handler) {
+          registered.set(name, {
+            config: config as unknown as Record<string, unknown>,
+            handler
+          });
+        }
+      },
+      tools,
+      (toolName) =>
+        buildOperationContext({
+          actorType: "remote-mcp",
+          requestId: `registered:${toolName}`,
+          publicProjection: true,
+          now: "2026-08-06T00:00:00.000Z"
+        })
+    );
+    const expectedNames = [
+      "tokenpilot.files.read",
+      "tokenpilot.files.readBatch",
+      "tokenpilot.files.list",
+      "tokenpilot.search.code",
+      "tokenpilot.git.status",
+      "tokenpilot.git.diff"
+    ];
+
+    assert.deepEqual(
+      [...toolByName.keys()].sort(),
+      [...expectedNames].sort()
+    );
+    assert.equal(tools.every((tool) => tool.annotations.readOnlyHint), true);
+    assert.equal(tools.every((tool) => !tool.annotations.destructiveHint), true);
+    assert.deepEqual([...registered.keys()].sort(), [...expectedNames].sort());
+    assert.equal(
+      (registered.get("tokenpilot.files.read")!.config.annotations as {
+        readOnlyHint: boolean;
+      }).readOnlyHint,
+      true
+    );
+
+    const context = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "mcp-catalog-smoke",
+      publicProjection: true,
+      now: "2026-08-06T00:00:00.000Z"
+    });
+
+    const readResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
+      repoId: "tokenpilot",
+      path: "README.md"
+    });
+    assert.equal(readResult.isError, undefined);
+    assert.equal(readResult.structuredContent.ok, true);
+    assert.match(JSON.stringify(readResult.structuredContent), /Codex run fixture/);
+    assert.deepEqual(
+      (readResult.structuredContent as {
+        execution: {
+          lane: string;
+          modelLoopOwner: string;
+          executor: string;
+        };
+      }).execution,
+      {
+        lane: "chat-direct",
+        modelLoopOwner: "chatgpt",
+        executor: "tokenpilot-direct",
+        operationId: (readResult.structuredContent as {
+          execution: { operationId: string };
+        }).execution.operationId,
+        changedPaths: [],
+        evidenceBundleId: null,
+        fallbackReason: "standalone-read-unavailable"
+      }
+    );
+
+    const registeredReadResult = (await registered
+      .get("tokenpilot.files.read")!
+      .handler(
+        {
+          repoId: "tokenpilot",
+          path: "README.md"
+        },
+        {}
+      )) as { structuredContent: Record<string, unknown>; isError?: boolean };
+    assert.equal(registeredReadResult.isError, undefined);
+    assert.equal(registeredReadResult.structuredContent.ok, true);
+
+    const invalidResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
+      repoId: "tokenpilot"
+    });
+    assert.equal(invalidResult.isError, true);
+    assert.equal(
+      (invalidResult.structuredContent.error as { code: string }).code,
+      "VALIDATION_ERROR"
+    );
+
+    const blockedResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
+      repoId: "tokenpilot",
+      path: ".env"
+    });
+    assert.equal(blockedResult.isError, true);
+    assert.equal(
+      (blockedResult.structuredContent.error as { code: string }).code,
+      "FILES_READ_BLOCKED"
+    );
+    assert.doesNotMatch(JSON.stringify(blockedResult.structuredContent), /SECRET=blocked/);
+
+    const searchResult = await toolByName.get("tokenpilot.search.code")!.execute(context, {
+      repoId: "tokenpilot",
+      pattern: "catalogNeedle",
+      path: "src"
+    });
+    assert.equal(searchResult.isError, undefined);
+    assert.equal(searchResult.structuredContent.ok, true);
+    assert.match(JSON.stringify(searchResult.structuredContent), /catalog-fixture\.ts/);
+
+    const statusResult = await toolByName.get("tokenpilot.git.status")!.execute(context, {
+      repoId: "tokenpilot"
+    });
+    assert.equal(statusResult.isError, undefined);
+    assert.equal(statusResult.structuredContent.ok, true);
+    assert.match(JSON.stringify(statusResult.structuredContent), /catalog-fixture\.ts/);
+  } finally {
+    database.close();
+    if (originalConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    }
+  }
+}
 
 function buildTempPaths(): TokenPilotPaths {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-verify-local-smoke-"));
@@ -358,6 +576,12 @@ async function verifyUiServing(): Promise<void> {
     "utf8"
   );
   fs.writeFileSync(path.join(uiDistDir, "app.js"), "console.log('ok')", "utf8");
+  const externalAssetDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-ui-asset-escape-")
+  );
+  const externalAssetPath = path.join(externalAssetDir, "private.js");
+  fs.writeFileSync(externalAssetPath, "SHOULD_NOT_BE_SERVED", "utf8");
+  fs.symlinkSync(externalAssetPath, path.join(uiDistDir, "escaped.js"));
 
   const app = buildServer(paths);
   await app.ready();
@@ -375,6 +599,27 @@ async function verifyUiServing(): Promise<void> {
   });
   assert.equal(assetResponse.statusCode, 200);
   assert.match(assetResponse.body, /console\.log/);
+  assert.match(assetResponse.headers["content-type"] ?? "", /text\/javascript/);
+  assert.equal(assetResponse.headers["x-content-type-options"], "nosniff");
+
+  const escapedAssetResponse = await app.inject({
+    method: "GET",
+    url: "/ui/assets/escaped.js"
+  });
+  assert.equal(escapedAssetResponse.statusCode, 400);
+  assert.doesNotMatch(escapedAssetResponse.body, /SHOULD_NOT_BE_SERVED/);
+  assert.equal(
+    escapedAssetResponse.json().error.code,
+    "INVALID_UI_ASSET_PATH",
+    escapedAssetResponse.body
+  );
+
+  const malformedAssetResponse = await app.inject({
+    method: "GET",
+    url: "/ui/%E0%A4%A"
+  });
+  assert.equal(malformedAssetResponse.statusCode, 400);
+  assert.equal(malformedAssetResponse.json().code, "FST_ERR_BAD_URL");
 
   const fallbackResponse = await app.inject({
     method: "GET",
@@ -655,21 +900,28 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
   const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
   const originalPath = process.env.PATH;
   const originalMode = process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+  const originalCodexBin = process.env.TOKENPILOT_CODEX_BIN;
   process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
   process.env.PATH = "/usr/bin:/bin";
+  process.env.TOKENPILOT_CODEX_BIN = path.join(paths.repoRoot, "missing-codex");
   delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
   try {
-    const result = await runCodexRunJob(paths, "job-missing-cli-12345678", {
-      repoId: "tokenpilot",
-      title: "Missing Codex CLI",
-      instructions: "This should fail cleanly when codex is unavailable.",
-      executionMode: "review",
-      worktreePolicy: "never",
-      commitPolicy: "propose"
-    });
-    assert.equal(result.codexExitCode, 0);
-    assert.equal(result.reviewExitCode, 127);
-    assert.equal(result.hasDiff, false);
+    await assert.rejects(
+      () =>
+        runCodexRunJob(paths, "job-missing-cli-12345678", {
+          repoId: "tokenpilot",
+          title: "Missing Codex CLI",
+          instructions: "This should fail cleanly when codex is unavailable.",
+          executionMode: "review",
+          worktreePolicy: "never",
+          commitPolicy: "propose"
+        }),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "CODEX_BINARY_UNAVAILABLE");
+        return true;
+      }
+    );
     const control = controlJobProcess(paths, "job-missing-cli-12345678", "terminate");
     assert.equal(control.ok, false);
     assert.notEqual(control.message, "Job process terminated");
@@ -688,6 +940,11 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
       delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
     } else {
       process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
+    }
+    if (originalCodexBin === undefined) {
+      delete process.env.TOKENPILOT_CODEX_BIN;
+    } else {
+      process.env.TOKENPILOT_CODEX_BIN = originalCodexBin;
     }
   }
 }
@@ -782,6 +1039,10 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
     codexShimPath,
     [
       "#!/bin/sh",
+      "if [ \"$1\" = \"--version\" ]; then",
+      "  printf 'codex-cli test-shim\\n'",
+      "  exit 0",
+      "fi",
       "if [ \"$1\" != \"--ask-for-approval\" ]; then",
       "  printf 'missing approval flag: %s\\n' \"$1\" >&2",
       "  exit 2",
@@ -876,6 +1137,8 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
   }
 }
 
+verifyApplicationServiceFoundation();
+await verifyReadOnlyMcpToolCatalog();
 verifyTaskPackNaming();
 verifyPackArtifactNaming();
 verifyGitStatusParsing();

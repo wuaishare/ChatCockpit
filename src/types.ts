@@ -317,6 +317,7 @@ export interface TokenPilotTextPreview {
 
 export interface FileWritePayload {
   repoId: string;
+  sessionId: string;
   path: string;
   content: string;
 }
@@ -332,6 +333,7 @@ export interface FileWriteResponse {
 
 export interface FileEditPayload {
   repoId: string;
+  sessionId: string;
   path: string;
   search: string;
   replace: string;
@@ -391,6 +393,7 @@ export interface SearchResponse {
 
 export interface ShellRunPayload {
   repoId: string;
+  sessionId?: string;
   command: string;
   args: string[];
   workdir?: string;
@@ -435,6 +438,7 @@ export interface GitStatusResponse {
 
 export interface GitCommitPayload {
   repoId: string;
+  sessionId: string;
   message: string;
   body?: string;
 }

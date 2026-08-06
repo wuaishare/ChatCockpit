@@ -292,4 +292,58 @@ if (findings.length > 0) {
   throw new Error(`Web safety scan failed:\n${report}`);
 }
 
+const appSource = fs.readFileSync(path.join(repoRoot, "web/src/App.tsx"), "utf8");
+const continuitySource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/continuity/ContinuityWorkbenchView.tsx"
+  ),
+  "utf8"
+);
+const workspaceContinuitySource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/continuity/WorkspaceContinuityPanel.tsx"
+  ),
+  "utf8"
+);
+const apiSource = fs.readFileSync(path.join(repoRoot, "web/src/api.ts"), "utf8");
+
+for (const section of [
+  "projects",
+  "tasks",
+  "sessions",
+  "handoffs",
+  "evidence",
+  "approvals"
+]) {
+  assert.match(appSource, new RegExp(`\\"${section}\\"`));
+}
+assert.match(appSource, /\/ui\/continuity/);
+assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
+assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
+for (const operation of [
+  "prepareContinuityHandoff",
+  "acceptContinuityHandoff",
+  "cancelContinuityHandoff",
+  "forkContinuityHandoff"
+]) {
+  assert.match(apiSource, new RegExp(operation));
+  assert.match(workspaceContinuitySource, new RegExp(operation));
+}
+assert.match(continuitySource, /fetchContinuityProjects/);
+assert.match(continuitySource, /fetchWorkspaceContinuitySnapshot/);
+assert.match(continuitySource, /WorkspaceContinuityPanel/);
+assert.match(workspaceContinuitySource, /activeLease/);
+assert.match(workspaceContinuitySource, /verificationState/);
+assert.match(workspaceContinuitySource, /VerificationTag/);
+assert.match(workspaceContinuitySource, /prepareHandoff/);
+assert.match(workspaceContinuitySource, /acceptHandoff/);
+assert.match(workspaceContinuitySource, /forkHandoff/);
+assert.match(workspaceContinuitySource, /cancelHandoff/);
+assert.doesNotMatch(
+  `${continuitySource}\n${workspaceContinuitySource}`,
+  /mock(?:Projects|Snapshot|Tasks|Sessions)|sample(?:Projects|Snapshot)|demo(?:Projects|Snapshot|Tasks)|fixture(?:Projects|Snapshot)|fake(?:Projects|Snapshot)/i
+);
+
 process.stdout.write("VERIFY_WEB_SAFETY_OK\n");

@@ -13,6 +13,7 @@ import {
 } from "./git-public-safety.js";
 import { runCommand } from "./shell.js";
 import { markJobProcessFinished, trackJobProcess } from "./job-processes.js";
+import { resolveCodexBinary } from "../runtime/codex/binary.js";
 import type {
   CodexRunArtifact,
   CodexRunJobPayload,
@@ -45,15 +46,6 @@ function effectiveSandbox(payload: CodexRunJobPayload): "read-only" | "workspace
   return executionMode(payload) === "develop"
     ? (payload.sandbox ?? "workspace-write")
     : "read-only";
-}
-
-function resolveCodexCommand(): string {
-  const configured = process.env.TOKENPILOT_CODEX_BIN?.trim();
-  if (configured) {
-    return configured;
-  }
-
-  return "codex";
 }
 
 function codexBaseArgs(): string[] {
@@ -262,7 +254,8 @@ async function runCodexExec(
   jobId: string,
   payload: CodexRunJobPayload,
   target: ExecutionTarget,
-  prompt: string
+  prompt: string,
+  codexCommand: string | null
 ): Promise<CapturedProcessResult> {
   if (process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock") {
     const markerPath = path.join(target.executionRoot, "tokenpilot-mock-codex-run.txt");
@@ -274,6 +267,9 @@ async function runCodexExec(
       stdout: JSON.stringify({ type: "mock", title: payload.title }) + "\n",
       stderr: ""
     };
+  }
+  if (!codexCommand) {
+    throw new Error("Codex command is required outside mock runner mode");
   }
 
   const args = [
@@ -288,7 +284,7 @@ async function runCodexExec(
   return runTrackedProcess(
     paths,
     jobId,
-    resolveCodexCommand(),
+    codexCommand,
     args,
     target.executionRoot,
     prompt,
@@ -301,7 +297,8 @@ async function runCodexReview(
   jobId: string,
   payload: CodexRunJobPayload,
   target: ExecutionTarget,
-  title: string
+  title: string,
+  codexCommand: string | null
 ): Promise<CapturedProcessResult> {
   const instructions = "Review the current uncommitted changes. Focus on correctness, regressions, missing tests, and unsafe behavior. Keep findings concise.";
   if (process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock") {
@@ -310,6 +307,9 @@ async function runCodexReview(
       stdout: `Mock review completed for ${title}.\n`,
       stderr: ""
     };
+  }
+  if (!codexCommand) {
+    throw new Error("Codex command is required outside mock runner mode");
   }
 
   const args = [
@@ -322,7 +322,7 @@ async function runCodexReview(
   return runTrackedProcess(
     paths,
     jobId,
-    resolveCodexCommand(),
+    codexCommand,
     args,
     target.executionRoot,
     instructions,
@@ -411,13 +411,24 @@ export async function runCodexRunJob(
   writeText(promptPath, prompt);
 
   const mode = executionMode(payload);
+  const codexCommand =
+    process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock"
+      ? null
+      : resolveCodexBinary().command;
   const execResult = mode === "review"
     ? {
         exitCode: 0,
         stdout: "Review mode skips the main Codex exec step and writes only artifacts.\n",
         stderr: ""
       }
-    : await runCodexExec(paths, jobId, payload, target, prompt);
+    : await runCodexExec(
+        paths,
+        jobId,
+        payload,
+        target,
+        prompt,
+        codexCommand
+      );
   writeText(stdoutPath, execResult.stdout);
   writeText(stderrPath, execResult.stderr);
 
@@ -427,7 +438,14 @@ export async function runCodexRunJob(
         stdout: "Plan mode completed without a write-capable review step.\n",
         stderr: ""
       }
-    : await runCodexReview(paths, jobId, payload, target, payload.title);
+    : await runCodexReview(
+        paths,
+        jobId,
+        payload,
+        target,
+        payload.title,
+        codexCommand
+      );
   writeText(reviewPath, reviewResult.stdout || reviewResult.stderr || "No review output captured.\n");
 
   const diff = readPublicSafeGitDiff(target.executionRoot);
