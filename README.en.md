@@ -6,49 +6,65 @@
 
 **v0.1.0-alpha: local-first public preview**
 
-TokenPilot is a ChatGPT-first dual-mode development workflow: GPT direct-drive for frequent small changes, and Codex async runs for complex repository work.
+TokenPilot is a ChatGPT-first **Development Continuity & Agent Routing Platform**.
 
-ChatGPT acts as the brain and command center for context management, planning, orchestration, and review. TokenPilot provides the local-first control plane for task boundaries, mode routing, persistent state, and public-safe artifacts. Codex is the current async execution engine for larger refactors and complex feature work.
+**One repo. Multiple AI runtimes. Seamless handoff.**
+
+ChatGPT owns conversation, intent, planning, and review. TokenPilot provides the local-first control plane for Project, Workspace, Task, Session, Writer Lease, Handoff, Evidence, Approval, and Runtime Binding state. Codex App Server and the local Runner provide explicit Codex Session and asynchronous Agent Job execution.
 
 Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
 
-The current release is a verifiable local-first operator workflow. It includes a CLI, Fastify control plane, paired runner, file-backed job queue, OpenAPI contract, file read/write/edit APIs, code search, allowlisted shell execution, Git status/diff/commit APIs, `createCodexRun` jobs, exposed-mode bearer auth, local E2E checks, and a first operator Web UI.
+The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, 36 MCP tools, asynchronous Job/Runner execution, and a Continuity Workbench Web UI.
 
 ## What It Does
 
 ```text
-ChatGPT: brain and command center for planning, context, orchestration, and review
-TokenPilot: local-first control plane for boundaries, routing, state, and artifacts
-GPT direct-drive: frequent small edits, short checks, and public-safe Git operations
-Codex async: complex repository work, optional worktrees, diffs, artifacts, and review
+ChatGPT Native: conversation, reasoning, planning, and review
+Chat Direct: ChatGPT owns the model loop; TokenPilot / App Server execute tools
+Codex Session: Codex owns an explicit model loop with Thread and Approval state
+Async Agent Job: Queue/Runner executes longer work and records artifacts/evidence
 ```
 
-TokenPilot is designed around a dual-mode workflow:
+The capability ladder is:
 
 ```text
-Conversation -> Task boundary -> Mode routing -> Direct GPT edit or Codex async run -> Diff/artifacts -> Review
+ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 ```
 
-Use ChatGPT where it is strongest: managing context, clarifying intent, planning work, and reviewing outcomes. Use GPT direct-drive for high-frequency small tasks. Use Codex when the task is large enough to deserve deeper repository execution.
+A TokenPilot Task can move between those modes through Writer Lease, Handoff Checkpoint, and Evidence Bundle state. A ChatGPT conversation, Codex Thread, or Runner Job is an adapter identity, not the sole system of record.
 
-Codex is the first async execution engine. The same task-boundary and artifact-governance model can grow toward other async coding tools such as Claude Code, opencode, or reasonix without changing the ChatGPT-first product model.
+## Capability Status
 
-## Current Capabilities
+### Implemented
 
-- Local CLI for `pack`, `manifest`, `taskpack`, queues, jobs, server, and runner workflows.
-- Fastify control plane with OpenAPI for Custom GPT Actions experiments.
-- File-backed local job queue for pack, taskpack, and Codex-run jobs.
-- Files API for read/write/edit flows with public-safe path filtering.
-- Code search and allowlisted short shell checks.
-- Git status/diff/commit APIs with public-safe filtering for GPT-visible output and automatic commits.
-- `createCodexRun` jobs for longer tasks executed by the local runner and Codex CLI.
-- Local operator Web UI for status, jobs, GPT helper instructions, artifacts, and controlled job process actions.
-- Exposed mode that requires bearer auth before HTTP access to private job APIs.
-- Current-tree privacy scan and historical privacy scan helper.
+- Local CLI, Fastify Control Plane, REST, MCP, and OpenAPI.
+- Chat Direct file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
+- Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
+- SQLite Continuity Engine for Project, Workspace, Task, Session, Runtime Binding, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
+- Workspace Continuity Snapshot and Web UI for real Writer, Git, Task, Session, Handoff, Evidence, and Approval state, including Prepare/Accept/Fork/Cancel actions.
+- File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and Evidence for asynchronous jobs.
+- 36 MCP tools, evidence-governed Task Review/Completion, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, restart recovery, and source-archive operation without `.git` metadata.
+
+### Experimental
+
+- Connecting ChatGPT through Custom GPT Actions or Remote MCP.
+- Codex App Server standalone file and command execution, enabled only after a local capability probe verifies the exact operation.
+- Interactive runtime governance through the Continuity Workbench.
+
+### Under validation
+
+- Long-term compatibility across ChatGPT clients, proxies, and public HTTPS entrypoints.
+- Cross-mode handoff recovery and long-running behavior across more real repositories.
+
+### Target direction
+
+- A provider adapter layer for more external coding agents.
+- A Resource Center for Skills, MCP, Rules, Prompts, Agents, Hooks, and Plugins.
+- Deeper Spec/Plan/TDD/SDD/BDD workflows and multi-device control-plane operation.
 
 ## Operator UI
 
-The Web UI is a local operator console. It is useful for checking runtime health, inspecting jobs, copying GPT helper instructions, previewing public-safe artifacts, and controlling queued/running tasks.
+The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides stable Projects, Tasks, Sessions, Handoffs, Evidence, and Approvals routes backed by a real Workspace Snapshot with Writer Lease, Git, changed-file, and handoff state.
 
 ![TokenPilot GPT Helper configuration](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
@@ -96,7 +112,7 @@ Use `TOKENPILOT_EXPOSED=true` only after you have configured HTTPS and an access
 
 The public OpenAPI contract is available in [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml). The placeholder server URL `https://tokenpilot.example.com` is intentionally generic. Replace it with your own HTTPS URL when configuring GPT Builder, and do not commit real domains or bearer tokens to Git.
 
-The HTTPS / Custom GPT Actions automation loop is still under validation. Direct GPT actions can drive short file and git operations, but longer or riskier work should be queued as `createCodexRun` jobs and consumed by the local runner.
+Custom GPT Actions and Remote MCP remain experimental deployment surfaces, while the local REST/MCP application services, authentication, structured errors, idempotency, and protocol release gates are implemented. Use Chat Direct when ChatGPT should retain the model loop; use explicit Codex Session operations for Thread, Turn, and Approval workflows; use `createCodexRun` for longer asynchronous work.
 
 For Custom GPT creation, Actions schema import, authentication, and public HTTPS/tunnel setup, see:
 
@@ -158,8 +174,11 @@ npm run test
 ## Public Documentation
 
 - Architecture: [`docs/architecture/local-first-control-plane.md`](./docs/architecture/local-first-control-plane.md)
+- Continuity Engine: [`docs/architecture/continuity-engine.md`](./docs/architecture/continuity-engine.md)
+- Chat Direct / Codex Session ADR: [`docs/architecture/adr-001-chat-direct-and-codex-session-lanes.md`](./docs/architecture/adr-001-chat-direct-and-codex-session-lanes.md)
 - Beginner quickstart: [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md)
 - GPT Builder setup: [`docs/deployment/gpt-builder-setup.md`](./docs/deployment/gpt-builder-setup.md)
+- MCP setup: [`docs/deployment/mcp-setup.md`](./docs/deployment/mcp-setup.md)
 - Public HTTPS / tunnel setup: [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)
 - GPT Actions runner loop: [`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
 - Web UI and provider strategy: [`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
@@ -182,6 +201,11 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [x] Local operator Web UI MVP
 - [x] `createCodexRun` jobs with runner/Codex execution and public-safe artifacts
 - [x] Public-safe filtering for GPT-visible git diffs, commits, and Codex artifacts
+- [x] Chat Direct routing and no-Turn boundary probes
+- [x] Codex App Server Thread Bind/Resume/Fork and explicit Turn/Approval/Interrupt
+- [x] SQLite Continuity Engine, Writer Lease, Handoff, Evidence, and Runtime Events
+- [x] Continuity Workbench and Workspace Snapshot
+- [x] REST/MCP parity, 36 MCP tools, evidence-governed Task Review/Completion, restart recovery, and no-Git source archive gate
 - [x] GPT Actions boundary probes for timeout, context size, and request behavior
 - [x] First-task template library under `templates/`
 - [x] Beginner examples under `examples/`
@@ -189,6 +213,7 @@ Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder o
 - [ ] Token Optimization Log examples
 - [ ] HTTPS / Custom GPT Actions full-loop validation
 - [ ] Provider adapter layer
+- [ ] Resource Center and deeper Spec/Plan workflows
 - [x] First-run setup wizard
 
 ## Security And Privacy
@@ -213,7 +238,7 @@ npm run privacy:scan:history
 
 ## Discussion
 
-TokenPilot is an experimental open-source project for people exploring ChatGPT + Codex collaboration, token-conscious development, and planner/coder/reviewer workflows.
+TokenPilot is an experimental open-source Development Continuity & Agent Routing Platform for auditable handoff across ChatGPT Native, Chat Direct, Codex Session, and Async Agent Job modes, with token-conscious planner/coder/reviewer workflows.
 
 - GitHub Discussions: <https://github.com/wuaishare/TokenPilot/discussions>
 - GitHub Issues: <https://github.com/wuaishare/TokenPilot/issues>

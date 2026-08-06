@@ -1,6 +1,6 @@
 # 本地运行与排障
 
-本文说明如何在本机稳定运行 TokenPilot control plane、runner 和本地操作员 Web UI。
+本文说明如何在本机稳定运行 TokenPilot Control Plane、Continuity Store、Codex App Server Adapter、Runner 和本地操作员 Web UI。REST/MCP、Chat Direct、显式 Codex Session 与 Continuity 已实现；Custom GPT Actions、Remote MCP 和公网 HTTPS 仍属于实验性部署面。
 
 ## 构建与启动
 
@@ -16,7 +16,7 @@ macOS 上 `start:local` 会通过 LaunchAgent 同时管理：
 - `com.wuaishare.tokenpilot.control-plane`
 - `com.wuaishare.tokenpilot.runner`
 
-只启动 control plane 不够。GPT Actions 可以把任务写入队列，但 runner 才负责消费队列并推进 job 状态。
+异步 Job 需要 Runner 消费队列；Chat Direct 与 Codex Session 可以直接使用 Control Plane，不需要等待某个排队 Job 被 Runner 领取。
 
 ## 本地配置文件
 
@@ -57,8 +57,14 @@ http://127.0.0.1:4318/ui
 常用页面：
 
 - `/ui`：Dashboard / Setup Wizard
+- `/ui/continuity/projects`：Project、Workspace、Writer Lease 与 Git
+- `/ui/continuity/tasks`：真实 Task 状态
+- `/ui/continuity/sessions`：Chat Direct、Codex Session、Async Agent Session
+- `/ui/continuity/handoffs`：Prepare、Accept、Fork、Cancel
+- `/ui/continuity/evidence`：Evidence Checklist 与保守验证状态
+- `/ui/continuity/approvals`：待处理 Runtime Approval
 - `/ui/gpt-helper`：GPT Instructions、OpenAPI URL、Schema 导入 URL
-- `/ui/jobs`：Jobs、artifacts、进程控制
+- `/ui/jobs`：Jobs、Artifacts、进程控制
 
 在需要鉴权的模式下，浏览器会话提供 bearer token 前不会展示受保护数据。
 
@@ -70,7 +76,11 @@ http://127.0.0.1:4318/ui
 - GPT Builder Authentication 必须使用同一个 token
 - `TOKENPILOT_PUBLIC_BASE_URL` 必须与 GPT Builder 导入的 OpenAPI server URL 一致
 
-完整说明见 [`public-https-tunnel.md`](./public-https-tunnel.md)。
+完整说明见：
+
+- [`gpt-builder-setup.md`](./gpt-builder-setup.md)
+- [`mcp-setup.md`](./mcp-setup.md)
+- [`public-https-tunnel.md`](./public-https-tunnel.md)
 
 ## 状态检查
 
@@ -78,6 +88,8 @@ http://127.0.0.1:4318/ui
 npm run mvp:status
 npm run doctor:runtime
 curl http://127.0.0.1:4318/api/health
+curl http://127.0.0.1:4318/api/continuity/projects
+curl http://127.0.0.1:4318/mcp
 curl http://127.0.0.1:4318/ui
 ```
 

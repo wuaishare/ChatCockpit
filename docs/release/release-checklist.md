@@ -5,7 +5,7 @@ This checklist defines the minimum bar for a GitHub prerelease source package.
 ## Release Shape
 
 - Current target: `0.1.0-alpha.1`
-- Intended audience: developers evaluating a local-first ChatGPT + Codex workflow
+- Intended audience: developers evaluating a local-first Development Continuity & Agent Routing Platform across Chat Direct, Codex Session, and Async Agent Job modes
 - Release type: GitHub prerelease source preview
 - Not included yet: npm publish, native installer, public SaaS mode, production-grade multi-runner service
 
@@ -16,8 +16,12 @@ Run from a clean working tree on `main`:
 ```bash
 npm ci
 npm run verify
+npm run verify:protocol-core
+npm run verify:source-archive
 npm run verify:release
 ```
+
+`verify:protocol-release` is the combined protocol-core plus source-archive command. The stages remain independently invokable so a long release run can identify whether a failure belongs to protocol behavior or packaging.
 
 Before publishing, also run:
 
@@ -49,20 +53,33 @@ The prerelease package must not include:
 - `dist/` or `web/dist/`
 - local logs, tunnel configuration, reverse-proxy bindings, GPT Builder private notes, or bearer tokens
 
+## Protocol And Restart Gates
+
+`npm run verify:protocol-core` verifies:
+
+- MCP HTTP transport, authentication, tool catalog, errors, and idempotency;
+- Continuity Store and Writer Lease invariants;
+- REST/MCP parity;
+- evidence-governed Task Submit Review and Completion blockers;
+- Codex App Server Thread, Turn, Approval, Event, and standalone fixtures;
+- Chat Direct no-Turn/no-Thread behavior;
+- public-safe projections;
+- Prepare/Fork Handoff recovery and idempotency replay across fresh database connections.
+
 ## Fresh Install Dry Run
 
-`npm run verify:release` creates a temporary archive from Git-tracked files, extracts it to a fresh directory without adding Git metadata, runs `npm ci`, runs `npm run build`, and runs `npm run verify:web:safety`.
+`npm run verify:source-archive` copies the current worktree into an isolated source archive that excludes `.git`, local runtime state, dependencies, build output, logs, and private environment files. It then runs a clean `npm ci`, full build, starts the compiled Control Plane, and verifies Health, Continuity Projects, Continuity deep links, and OpenAPI without Git metadata.
 
-This intentionally mirrors GitHub's automatic source archives: the extracted package may not contain a `.git` directory, and the safety scan must still pass.
-
-It intentionally does not run the full local E2E suite inside the extracted copy because that suite exercises local runtime/job state. The authoritative full-repo gate remains `npm run verify` in the checkout.
+`npm run verify:release` runs protocol release gates before the existing clean-HEAD Git archive dry-run. The Git archive stage still verifies the exact committed release snapshot and checksum.
 
 ## Release Notes Must Include
 
-- Product positioning: ChatGPT-first dual-mode development workflow
-- Current capabilities: GPT direct-drive, Codex async jobs, Web UI MVP, public-safe artifacts
-- Security model: bearer auth for exposed write APIs, allowlisted shell, public-safe diffs/artifacts
-- Known limitations: HTTPS / Custom GPT Actions loop still under validation, no native installer
+- Product positioning: Development Continuity & Agent Routing Platform
+- Runtime ladder: ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
+- Implemented capabilities: Continuity Engine, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Workspace Snapshot, 36 MCP tools, Continuity Workbench, Queue/Runner, and public-safe artifacts
+- Experimental surfaces: Custom GPT Actions, Remote MCP, public HTTPS, and Codex App Server standalone execution
+- Security model: Bearer Auth, allowlisted Workspace/commands, optimistic revisions, idempotency, Writer Lease, public-safe projections, privacy/history gates, and no-Git source archive validation
+- Known limitations: no native installer, no public SaaS, no full Spec/Plan store, no unified async Runtime Binding, and no automated recovery center for every provider
 - Beginner quickstart link: `docs/deployment/beginner-quickstart.md`
 - Packaging roadmap link: `docs/release/packaging-roadmap.md`
 - Upgrade note: this is an alpha source preview and may change storage/layout contracts
@@ -74,4 +91,6 @@ After publishing the prerelease, verify:
 
 - GitHub release page renders the bilingual README hero images.
 - Downloaded source archive does not contain ignored local runtime paths.
-- `npm ci && npm run build && npm run verify:web:safety` succeeds from a fresh extracted GitHub source archive with no `.git` directory.
+- `npm run verify:source-archive` succeeds and proves the compiled Control Plane starts from a fresh extracted source copy with no `.git` directory.
+- `npm run verify:protocol-core` succeeds on the release commit.
+- Continuity deep links render and the Workspace Snapshot does not expose absolute paths.

@@ -1,6 +1,6 @@
 # GPT Builder 配置指南
 
-本指南说明如何把 TokenPilot 接入一个 Custom GPT，让 ChatGPT 通过 GPT Actions 调用你的本地控制面。
+本指南说明如何把 TokenPilot 接入一个 Custom GPT，让 ChatGPT 通过 GPT Actions 调用你的本地控制面。GPT Actions 是建立在已实现 REST/OpenAPI 服务之上的实验性部署面；GPT Builder 缓存、代理、HTTPS 入口和客户端兼容性仍取决于实际环境。
 
 ## 前提
 
@@ -128,7 +128,13 @@ TokenPilot exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应�
 请读取 README.md 的前 2KB，并总结项目定位。不要写文件。
 ```
 
-这些测试通过后，再进行 `editFile`、`writeFile`、`runShell` 或 `createCodexRun`。
+这些测试通过后，明确选择运行模式：
+
+- Chat Direct：ChatGPT 保持模型循环，调用文件、搜索、受控命令与 Git；
+- Codex Session：先 Bind/Resume/Fork Thread，再显式启动 Codex Turn 并处理 Approval；
+- Async Agent Job：通过 `createCodexRun` 进入本地 Runner。
+
+`thread/resume` 和 `thread/fork` 只恢复或创建 Runtime Binding，不会启动模型循环。
 
 ## 7. 更新时机
 
@@ -144,7 +150,22 @@ TokenPilot exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应�
 ## 8. 安全边界
 
 - GPT Actions 只能访问你配置的 HTTPS 地址。
-- `runShell` 是高信任本地命令 API，不是公网 raw shell。
-- 复杂、多文件、长耗时任务优先使用 `createCodexRun`。
-- Git diff、commit 和 artifact 输出会过滤 public-unsafe 路径。
-- 真实域名、token、tunnel token、机器路径和本地运行态都不进入 Git。
+- Exposed Mode 必须通过 Bearer Auth，受保护的 REST、MCP、Continuity、Runtime、Job、File、Shell 与 Git 数据不会匿名返回。
+- Chat Direct Standalone 只有在本机 Probe 验证具体 App Server 方法后才会启用。
+- `runShell` 是高信任本地命令 API，不是公网 Raw Shell；命令白名单、Workspace Allowlist、超时、输出上限和 Exposed Mode 开关仍然生效。
+- Codex Turn 需要 Runtime Binding、Writer Lease、Pre-run Handoff、Evidence、Revision 与固定 User Approval Policy。
+- Git、Handoff、Evidence、Approval、Event 与 Artifact 输出使用 Public-safe Projection。
+- 真实域名、Token、Tunnel Token、机器路径、原始 Approval Request Body 和本地运行态都不进入 Git。
+
+## 9. 能力状态
+
+| 接入面 | 状态 |
+|---|---|
+| 本地 REST/OpenAPI 服务 | 已实现 |
+| Bearer Auth、结构化错误和幂等 | 已实现 |
+| Continuity / Runtime 操作 | 已实现 |
+| 通过自有 HTTPS 连接 Custom GPT Actions | 实验性 |
+| 不同 GPT Builder 版本、代理和网络的长期兼容 | 验证中 |
+| TokenPilot 公共托管服务 | 未实现 |
+
+MCP 客户端请使用 [`mcp-setup.md`](./mcp-setup.md)，不要导入 OpenAPI Schema。

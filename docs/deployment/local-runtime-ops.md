@@ -6,9 +6,10 @@ Provide a stable way to keep the local TokenPilot control plane alive for develo
 
 Current boundary:
 
-- this document covers the local runtime for the control plane, runner, and local-first operator Web UI
-- it does not imply that provider adapters or the full HTTPS / Custom GPT Actions production loop are complete
-- for GPT HTTPS loop validation, the operator must treat `control plane + runner` as one runtime pair; starting only the control plane is not enough
+- this document covers the local Control Plane, Continuity Store, Codex App Server adapter, paired Runner, and local operator Web UI
+- local REST/MCP services, Chat Direct, explicit Codex Session operations, Continuity state, and Queue/Runner execution are implemented
+- Custom GPT Actions, Remote MCP clients, public HTTPS ingress, and Codex standalone execution remain experimental deployment surfaces
+- the Runner is required for asynchronous Jobs, but Chat Direct and Codex Session operations can use the Control Plane without waiting for a queued Job consumer
 
 ## Build Once
 
@@ -71,10 +72,12 @@ http://127.0.0.1:4318/ui
 
 Current boundary:
 
-- the Web UI can inspect public-safe status/artifacts and send controlled pause/resume/terminate signals for tracked jobs
-- it is intended for a local human operator
-- in auth-required mode, protected data still requires the operator to provide a bearer token in the browser session
-- it is not a public internet management console
+- Dashboard and Jobs inspect public-safe health, process, Job, and Artifact state
+- Continuity Workbench reads real Project/Workspace/Writer/Git/Task/Session/Handoff/Evidence/Approval state
+- ready Handoffs can be accepted, forked, or cancelled; new Handoffs can be prepared from an eligible source Session
+- GPT Helper exposes public configuration and instructions without revealing the Bearer token
+- in auth-required mode, protected data still requires the operator to provide a Bearer token in the browser session
+- the Web UI is a local/private operator console, not a public multi-tenant management service
 
 ## Local Artifact Retention
 
@@ -107,9 +110,10 @@ TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 
 `https://tokenpilot.example.com` is a documentation placeholder. Use your own HTTPS URL at runtime, and keep real domains, reverse-proxy settings, tunnel tokens, and GPT Builder operating notes out of Git.
 
-For Custom GPT and public HTTPS setup, see:
+For remote client setup, see:
 
 - [`gpt-builder-setup.md`](./gpt-builder-setup.md)
+- [`mcp-setup.md`](./mcp-setup.md)
 - [`public-https-tunnel.md`](./public-https-tunnel.md)
 
 ## Check Status
@@ -118,6 +122,8 @@ For Custom GPT and public HTTPS setup, see:
 ./scripts/macos-manage-local-server.sh status
 curl http://127.0.0.1:4318/api/health
 curl http://127.0.0.1:4318/ui
+curl http://127.0.0.1:4318/api/continuity/projects
+curl http://127.0.0.1:4318/mcp
 npm run doctor:runtime
 npm run runner -- --once
 npm run runner -- --watch --interval 3

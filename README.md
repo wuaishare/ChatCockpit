@@ -6,49 +6,67 @@
 
 **v0.1.0-alpha：本地优先公开预览。**
 
-TokenPilot 是以 ChatGPT 为入口的「GPT 直驱 + Codex 异步」双模式协同开发工作流。
+TokenPilot 是一个以 ChatGPT 为入口的 **Development Continuity & Agent Routing Platform（AI 开发连续性与 Agent 能力路由平台）**。
 
-ChatGPT 作为大脑与指挥中心，负责上下文管理、任务规划、执行指挥和结果审查；TokenPilot 提供本地优先控制面，负责任务边界、模式路由、状态持久化和 public-safe 产物治理；Codex 是当前接入的异步执行器，用于大型重构与复杂功能开发。
+**One repo. Multiple AI runtimes. Seamless handoff.**  一个项目，多种 AI 执行模式，无缝接力开发。
+
+ChatGPT 负责对话、意图、规划与审查；TokenPilot 提供本地优先控制面，统一管理 Project、Workspace、Task、Session、Writer Lease、Handoff、Evidence、Approval 与 Runtime Binding；Codex App Server 和本地 Runner 则分别承担显式 Codex Session 与异步 Agent Job 执行。
 
 **省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 
-当前版本已经可以本地验证：CLI、Fastify control plane、paired runner、file-backed job queue、OpenAPI、文件读写编辑、代码搜索、白名单 shell、Git 状态 / 差异 / 提交、`createCodexRun`、exposed-mode bearer auth、本地 E2E，以及第一版本地操作员 Web UI。
+当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、36 个 MCP Tools、异步 Job/Runner，以及 Continuity Workbench Web UI。
 
 TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
 
 ## 它做什么
 
 ```text
-ChatGPT：规划、上下文管理、指挥、审查
-TokenPilot：本地控制面、边界治理、模式路由、状态与产物
-GPT 直驱：高频小改动、短验证、public-safe Git 操作
-Codex 异步：复杂开发、可选 worktree、diff、artifact、review
+ChatGPT Native：对话、推理、规划与审查
+Chat Direct：ChatGPT 拥有模型循环，TokenPilot / App Server 只执行工具
+Codex Session：Codex 拥有显式模型循环，支持 Thread Bind/Resume/Fork 与审批
+Async Agent Job：Queue/Runner 执行长任务、产出 Diff、Artifacts 与 Evidence
 ```
 
-TokenPilot 的核心链路：
+TokenPilot 的能力升级路径：
 
 ```text
-对话 -> 任务边界 -> 模式路由 -> GPT 直驱或 Codex 异步 -> Diff/Artifacts -> Review
+ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 ```
 
-高频小任务由 ChatGPT 通过文件、搜索、shell、Git API 直驱完成；复杂任务通过 `createCodexRun` 入队，由本地 runner 调用 Codex CLI 执行。未来同一任务边界和产物治理模型也可以扩展到 Claude Code、opencode、reasonix 等更多异步编程工具。
+同一个 Task 可以通过 Writer Lease、Handoff Checkpoint 与 Evidence Bundle 在不同运行模式之间接力，而不是把某个 ChatGPT 对话、Codex Thread 或 Runner Job 当成唯一系统记录。
 
-## 当前能力
+## 能力状态
 
-- 本地 CLI：支持 `pack`、`manifest`、`taskpack`、queue、jobs、server、runner。
-- Fastify 控制面：提供 OpenAPI，用于 Custom GPT Actions 实验。
-- 本地 file-backed job queue：支持 pack、taskpack、Codex-run jobs。
-- Files API：支持 read/write/edit，并对 public-safe 路径做过滤。
-- Code Search 与 allowlisted shell：用于短检查和有限本地验证。
-- Git API：支持 status/diff/commit，并过滤 GPT 可见输出和自动提交中的敏感路径。
-- `createCodexRun`：把较大的任务交给本地 runner 与 Codex CLI。
-- 本地操作员 Web UI：查看状态、Jobs、GPT Helper、Artifacts，并控制任务进程。
-- Exposed mode：公网或隧道访问时必须启用 bearer auth。
-- 隐私门禁：支持当前树安全扫描和历史隐私扫描。
+### 已实现
+
+- 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
+- Chat Direct：文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；已证明不会隐式调用 `turn/start`。
+- Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
+- Continuity Engine：SQLite Schema v3、Project、Workspace、Task、Session、Runtime Binding、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
+- Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Tasks、Sessions、Handoffs、Evidence、Approvals；支持 Prepare、Accept、Fork、Cancel。
+- Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts 与可选 Worktree。
+- 36 个 MCP Tools、证据约束的 Task Review/Completion、exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
+
+### 实验性
+
+- 通过 Custom GPT Actions 或 Remote MCP 从 ChatGPT 访问本地 TokenPilot。
+- Codex App Server standalone 文件与命令执行；能力由本机 Probe 验证后才启用。
+- Continuity Workbench 的交互式运行时治理。
+
+### 验证中
+
+- 不同 ChatGPT 客户端、网络代理和公网 HTTPS 入口的长期兼容性。
+- 更多真实项目中的跨模式 Handoff 恢复与长时间运行行为。
+
+### 目标方向
+
+- Provider Adapter Layer 与更多外部 Coding Agent。
+- Skills、MCP、Rules、Prompt、Agent、Hook、Plugin 等 Resource Center 能力。
+- 更完整的 Spec/Plan/TDD/SDD/BDD 工作流与多设备控制面。
 
 ## 操作员 Web UI
 
-Web UI 是本地操作员控制台，用于检查运行状态、查看 jobs、复制 GPT Helper 指令、预览 public-safe artifacts，以及控制 queued/running 任务。
+Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Tasks、Sessions、Handoffs、Evidence、Approvals 六个稳定深链，并基于真实 Workspace Snapshot 展示 Writer Lease、Git、变更文件与跨模式交接状态。
 
 ![TokenPilot GPT Helper 配置界面](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
@@ -96,9 +114,9 @@ TOKENPILOT_PORT=4318
 
 公开 OpenAPI 合约位于 [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml)。其中的 `https://tokenpilot.example.com` 是占位域名；实际使用时请替换为你自己的 HTTPS 地址，不要把真实域名或 bearer token 提交到 Git。
 
-当前 HTTPS / Custom GPT Actions 全自动闭环仍在验证中。GPT 直驱适合短文件和 Git 操作；更长、更复杂或风险更高的任务，应通过 `createCodexRun` 入队交给本地 runner。
+Custom GPT Actions / Remote MCP 接入属于实验性部署面，但本地 REST/MCP 应用服务、鉴权、结构化错误、幂等和协议门禁已经实现。Chat Direct 适合由 ChatGPT 保持模型循环的文件、搜索、受控命令与 Git 操作；显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的工作；更长任务仍可通过 `createCodexRun` 进入异步 Runner。
 
-`runShell` 不是 raw shell，但仍是高信任本地命令执行 API。exposed mode 下必须启用 bearer auth，并按需显式开放高信任命令。
+`runShell` 不是 raw shell，Standalone `command/exec` 也不会绕过 TokenPilot 的命令白名单、工作区 allowlist、exposed-mode 高信任开关、超时与输出上限。公网或隧道访问必须启用 Bearer Auth。
 
 创建 Custom GPT、导入 Actions schema、配置鉴权和绑定公网 HTTPS 地址的完整步骤见：
 
@@ -161,9 +179,12 @@ npm run test
 
 - 新手快速开始：[`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)
 - GPT Builder 配置：[`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
+- MCP 接入：[`docs/zh-CN/deployment/mcp-setup.md`](./docs/zh-CN/deployment/mcp-setup.md)
 - 公网 HTTPS / 内网穿透：[`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
 - 本地运行参考：[`docs/zh-CN/deployment/local-runtime-ops.md`](./docs/zh-CN/deployment/local-runtime-ops.md)
 - 架构说明：[`docs/zh-CN/architecture/local-first-control-plane.md`](./docs/zh-CN/architecture/local-first-control-plane.md)
+- Continuity Engine：[`docs/zh-CN/architecture/continuity-engine.md`](./docs/zh-CN/architecture/continuity-engine.md)
+- Chat Direct / Codex Session ADR：[`docs/zh-CN/architecture/adr-001-chat-direct-and-codex-session-lanes.md`](./docs/zh-CN/architecture/adr-001-chat-direct-and-codex-session-lanes.md)
 - GPT Actions runner loop：[`docs/zh-CN/architecture/gpt-actions-runner-loop.md`](./docs/zh-CN/architecture/gpt-actions-runner-loop.md)
 - Files Read API：[`docs/zh-CN/engineering/files-read-api.md`](./docs/zh-CN/engineering/files-read-api.md)
 - 公共 / 私有产物治理：[`docs/zh-CN/governance/public-vs-private-artifacts.md`](./docs/zh-CN/governance/public-vs-private-artifacts.md)
@@ -180,13 +201,18 @@ npm run test
 - [x] 本地 E2E 验证
 - [x] 本地操作员 Web UI MVP
 - [x] `createCodexRun` jobs 与 public-safe artifacts
-- [x] GPT 直驱文件、搜索、shell、Git 操作
+- [x] Chat Direct 文件、搜索、受控命令、Git 与 No-Turn 门禁
+- [x] Codex App Server Thread Bind/Resume/Fork 与显式 Turn/Approval/Interrupt
+- [x] SQLite Continuity Engine、Writer Lease、Handoff、Evidence 与 Runtime Event
+- [x] Continuity Workbench 与 Workspace Snapshot
+- [x] REST/MCP Parity、36 个 MCP Tools、证据约束的 Task Review/Completion、重启恢复与无 Git 源包门禁
 - [x] 首任务模板库与新手案例
 - [x] First-run setup wizard
 - [x] 中文 GPT Builder / 公网 HTTPS 配置文档
 - [ ] Token Optimization Log 示例
 - [ ] HTTPS / Custom GPT Actions 全流程真实验证
 - [ ] Provider adapter layer
+- [ ] Resource Center 与更完整的 Spec/Plan 工作流
 - [ ] 繁體中文 README
 
 ## 安全与隐私
@@ -211,7 +237,7 @@ npm run privacy:scan:history
 
 ## 讨论
 
-TokenPilot 是一个实验性开源项目，面向 ChatGPT + Codex 协同、Token-conscious development，以及 Planner / Coder / Reviewer 工作流。
+TokenPilot 是一个实验性开源的 AI 开发连续性与 Agent 能力路由平台，面向 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job 之间的可审计接力，以及 Token-conscious Planner / Coder / Reviewer 工作流。
 
 - GitHub Discussions: <https://github.com/wuaishare/TokenPilot/discussions>
 - GitHub Issues: <https://github.com/wuaishare/TokenPilot/issues>

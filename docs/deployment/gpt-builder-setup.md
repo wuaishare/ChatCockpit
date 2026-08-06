@@ -1,6 +1,6 @@
 # GPT Builder Setup
 
-This guide shows how to connect TokenPilot to a Custom GPT through GPT Actions.
+This guide shows how to connect TokenPilot to a Custom GPT through GPT Actions. This is an experimental deployment surface over implemented REST/OpenAPI application services; client caching, proxy behavior, HTTPS ingress, and GPT Builder compatibility remain environment-dependent.
 
 ## Prerequisites
 
@@ -121,7 +121,13 @@ List current jobs and return only a status summary. Do not modify the repository
 Read the first 2 KB of README.md and summarize the project positioning. Do not write files.
 ```
 
-After those pass, use `editFile`, `writeFile`, `runShell`, or `createCodexRun`.
+After those pass, choose an explicit execution lane:
+
+- Chat Direct operations for file, search, controlled command, and Git work while ChatGPT retains the model loop;
+- Codex Session operations for Thread Bind/Resume/Fork and an explicit Codex Turn with Approval handling;
+- `createCodexRun` for longer asynchronous Runner work.
+
+Do not treat `thread/resume` or `thread/fork` as model execution. They only restore or create Runtime Binding state. A Codex model loop starts only through the explicit Turn operation.
 
 ## 7. When To Update GPT Builder
 
@@ -137,7 +143,22 @@ Re-import schema and update instructions when:
 ## 8. Safety Boundary
 
 - GPT Actions can only call the HTTPS URL you configure.
-- `runShell` is a high-trust local command API, not a public raw shell.
-- Use `createCodexRun` for complex, multi-file, or long-running tasks.
-- Git diff, commit, and artifact outputs filter public-unsafe paths.
-- Keep real domains, tokens, tunnel tokens, machine paths, and runtime state out of Git.
+- Exposed mode requires Bearer Auth before protected REST, MCP, Continuity, Runtime, Job, File, Shell, or Git data is returned.
+- Chat Direct standalone execution is enabled only when a local capability probe verified the exact App Server method.
+- `runShell` is a high-trust local command API, not a public raw shell; command allowlists, Workspace mapping, timeout, output caps, and exposed-mode controls still apply.
+- Codex Turn starts require Runtime Binding, Writer Lease, pre-run Handoff, Evidence, optimistic revisions, and fixed user approval policy.
+- Git diff, commit, Handoff, Evidence, Approval, Event, and Artifact outputs use public-safe projections.
+- Keep real domains, tokens, tunnel tokens, machine paths, raw Approval request bodies, and runtime state out of Git.
+
+## 9. Capability Status
+
+| Surface | Status |
+|---|---|
+| Local REST/OpenAPI services | Implemented |
+| Bearer authentication and structured errors | Implemented |
+| Idempotent Continuity and Runtime mutations | Implemented |
+| Custom GPT Actions over a user-operated HTTPS endpoint | Experimental |
+| Long-term compatibility across GPT Builder revisions and proxies | Under validation |
+| Public hosted TokenPilot service | Not implemented |
+
+For MCP clients, use [`mcp-setup.md`](./mcp-setup.md) instead of importing the OpenAPI schema.

@@ -1,6 +1,6 @@
 # TokenPilot 新手快速开始
 
-这是一条从源码到本地控制台的最短路径。先跑通本地模式，再配置 Custom GPT Actions。
+这是一条从源码到本地控制台的最短路径。TokenPilot 是本地优先的 AI 开发连续性与 Agent 能力路由平台；先跑通本地 Control Plane、Continuity Workbench 与运行模式，再配置 Custom GPT Actions 或 MCP。
 
 ## 1. 准备环境
 
@@ -10,7 +10,7 @@
 - Node.js 22+
 - npm
 - Git
-- Codex CLI（只在使用 Codex 异步模式时需要）
+- 可用的 Codex Binary（使用 Codex Session 或 Codex 异步 Job 时需要）
 - ChatGPT 账号（只在配置 Custom GPT Actions 时需要）
 
 ## 2. 安装、初始化、启动
@@ -31,9 +31,12 @@ http://127.0.0.1:4318/ui
 成功状态：
 
 - `/ui` 可以打开，并显示 Setup Wizard 或 Dashboard。
-- `npm run doctor:runtime` 能访问本地 health。
+- `/ui/continuity/projects` 可以打开 Continuity Workbench。
+- `npm run doctor:runtime` 能访问本地 Health。
 - GPT Helper 能显示 GPT 指令、OpenAPI URL、Schema 导入 URL。
-- Jobs 页面可以查看任务状态。
+- Chat Direct 可以完成一次不启动 Codex Turn 的安全只读操作。
+- Codex Session 可以先 Bind/Resume/Fork Thread，再通过独立操作显式启动 Turn。
+- Jobs 页面可以查看异步任务状态。
 
 ## 3. 本地模式与 GPT Actions 模式
 
@@ -69,7 +72,7 @@ TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 
 ## 4. 创建并配置 Custom GPT
 
-完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.md)。
+Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.md)；MCP 客户端接入见 [`mcp-setup.md`](./mcp-setup.md)。
 
 最短流程：
 
@@ -91,13 +94,13 @@ TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 请调用 TokenPilot health，然后列出当前可见 jobs。不要修改文件。
 ```
 
-再测试一个小的 GPT 直驱任务：
+再测试一个小的 Chat Direct 任务：
 
 ```text
 请读取 README.md 的开头，并总结当前项目定位。不要写文件。
 ```
 
-确认读写链路后，再使用 `editFile`、`writeFile` 或 `createCodexRun`。
+确认读写链路后，再明确选择：Chat Direct 文件/搜索/命令/Git、Codex Session Thread/Turn/Approval，或 `createCodexRun` 异步 Job。
 
 ## 6. 常见问题
 
@@ -106,5 +109,8 @@ TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 | UI 能打开，但 GPT Actions 访问失败 | GPT 不能访问 `127.0.0.1` | 配置 HTTPS 入口或内网穿透 |
 | GPT Builder 导入 schema 失败 | URL 不是公网 HTTPS，或 `/openapi.yaml` 不可达 | 先在浏览器访问 `https://你的域名/openapi.yaml` |
 | 调用 Actions 返回 401 | Bearer token 不一致 | 检查 GPT Builder Authentication 和 `TOKENPILOT_API_TOKEN` |
-| Codex job 一直 queued | runner 未运行 | 执行 `npm run start:local` 和 `npm run doctor:runtime` |
+| Codex job 一直 queued | Runner 未运行 | 执行 `npm run start:local` 和 `npm run doctor:runtime` |
+| Continuity 页面没有项目 | 尚未配置有效 Repo Mapping | 重新运行 Setup/Init，并检查本地 TokenPilot 配置 |
+| Workspace 显示只读 | 另一个 Session 持有 Writer Lease | 查看 Writer Banner，通过 Handoff 接力，不要强行并发写入 |
+| Handoff 没有显示已验证 | 必需 Evidence 缺失、不完整、跳过或失败 | 记录并完成必需验证项 |
 | `runShell` 被拒绝 | exposed mode 阻止高信任命令 | 使用本地模式，或确认风险后设置 `TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true` |
