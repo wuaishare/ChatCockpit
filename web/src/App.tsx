@@ -72,6 +72,7 @@ const VIEW_PATHS: Record<ViewKey, string> = {
 
 const CONTINUITY_SECTIONS = new Set<ContinuitySectionKey>([
   "projects",
+  "documents",
   "tasks",
   "sessions",
   "handoffs",

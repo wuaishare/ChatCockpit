@@ -390,6 +390,13 @@ async function runContinuityApiVerification(): Promise<void> {
             verificationState: string;
             items: Array<{ id: string; required: boolean; status: string }>;
           } | null;
+          executionPolicy: {
+            policy: string;
+            allowed: boolean;
+            blockers: string[];
+            spec: { state: string; pinnedVersion: number | null; currentVersion: number | null };
+            plan: { state: string; pinnedVersion: number | null; currentVersion: number | null };
+          };
           completion: {
             eligible: boolean;
             blockers: Array<{ code: string; message: string }>;
@@ -433,6 +440,14 @@ async function runContinuityApiVerification(): Promise<void> {
       restSnapshot.snapshot.tasks[0].evidence?.items[0].required,
       true
     );
+    assert.equal(
+      restSnapshot.snapshot.tasks[0].executionPolicy.policy,
+      "planning-optional"
+    );
+    assert.equal(restSnapshot.snapshot.tasks[0].executionPolicy.allowed, true);
+    assert.deepEqual(restSnapshot.snapshot.tasks[0].executionPolicy.blockers, []);
+    assert.equal(restSnapshot.snapshot.tasks[0].executionPolicy.spec.state, "not-bound");
+    assert.equal(restSnapshot.snapshot.tasks[0].executionPolicy.plan.state, "not-bound");
     assert.equal(restSnapshot.snapshot.tasks[0].completion.eligible, false);
     assert.deepEqual(
       restSnapshot.snapshot.tasks[0].completion.blockers

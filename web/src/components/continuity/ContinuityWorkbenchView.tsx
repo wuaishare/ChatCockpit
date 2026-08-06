@@ -6,6 +6,7 @@ import {
   AuditOutlined,
   CheckSquareOutlined,
   CodeOutlined,
+  FileTextOutlined,
   ProjectOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
@@ -38,6 +39,7 @@ interface ContinuityWorkbenchViewProps {
 
 const SECTION_ICONS: Record<ContinuitySectionKey, React.ReactNode> = {
   projects: <ProjectOutlined />,
+  documents: <FileTextOutlined />,
   tasks: <CheckSquareOutlined />,
   sessions: <CodeOutlined />,
   handoffs: <SwapOutlined />,

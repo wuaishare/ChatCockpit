@@ -1,10 +1,16 @@
 import type {
   ApiProblem,
+  ContinuityDevelopmentDocumentDetailResponse,
+  ContinuityDevelopmentDocumentKind,
+  ContinuityDevelopmentDocumentMutationResponse,
+  ContinuityDevelopmentDocumentsResponse,
+  ContinuityDevelopmentDocumentStatus,
   ContinuityHandoffForkResponse,
   ContinuityHandoffMutationResponse,
   ContinuityProjectsResponse,
   ContinuitySessionMode,
   ContinuityTaskCompletionResponse,
+  ContinuityTaskDocumentBindResponse,
   ContinuityTaskReviewResponse,
   ContinuityWorkspaceSnapshotResponse,
   GptConfigResponse,
@@ -142,6 +148,27 @@ export async function fetchContinuityProjects(
   );
 }
 
+export async function fetchDevelopmentDocuments(
+  workspaceId: string,
+  token?: string | null
+): Promise<ContinuityDevelopmentDocumentsResponse> {
+  const query = new URLSearchParams({ workspaceId });
+  return requestJson<ContinuityDevelopmentDocumentsResponse>(
+    `/api/continuity/documents?${query.toString()}`,
+    token
+  );
+}
+
+export async function fetchDevelopmentDocument(
+  documentId: string,
+  token?: string | null
+): Promise<ContinuityDevelopmentDocumentDetailResponse> {
+  return requestJson<ContinuityDevelopmentDocumentDetailResponse>(
+    `/api/continuity/documents/${encodeURIComponent(documentId)}`,
+    token
+  );
+}
+
 export async function fetchWorkspaceContinuitySnapshot(
   workspaceId: string,
   token?: string | null
@@ -171,6 +198,71 @@ async function postBodyJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+export async function createDevelopmentDocument(
+  payload: {
+    projectId: string;
+    workspaceId: string;
+    kind: ContinuityDevelopmentDocumentKind;
+    title: string;
+    contentMarkdown: string;
+    changeSummary?: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityDevelopmentDocumentMutationResponse> {
+  return postBodyJson("/api/continuity/documents", payload, token);
+}
+
+export async function appendDevelopmentDocumentVersion(
+  payload: {
+    documentId: string;
+    contentMarkdown: string;
+    changeSummary?: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityDevelopmentDocumentMutationResponse> {
+  return postBodyJson(
+    "/api/continuity/documents/append-version",
+    payload,
+    token
+  );
+}
+
+export async function updateDevelopmentDocumentStatus(
+  payload: {
+    documentId: string;
+    status: ContinuityDevelopmentDocumentStatus;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityDevelopmentDocumentMutationResponse> {
+  return postBodyJson(
+    "/api/continuity/documents/update-status",
+    payload,
+    token
+  );
+}
+
+export async function bindContinuityTaskDocuments(
+  payload: {
+    taskId: string;
+    specId: string | null;
+    planId: string | null;
+    expectedTaskRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityTaskDocumentBindResponse> {
+  return postBodyJson(
+    "/api/continuity/tasks/bind-documents",
+    payload,
+    token
+  );
 }
 
 export async function submitContinuityTaskReview(

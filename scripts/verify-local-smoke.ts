@@ -628,6 +628,13 @@ async function verifyUiServing(): Promise<void> {
   assert.equal(fallbackResponse.statusCode, 200);
   assert.match(fallbackResponse.body, /TokenPilot UI/);
 
+  const continuityDocumentsResponse = await app.inject({
+    method: "GET",
+    url: "/ui/continuity/documents"
+  });
+  assert.equal(continuityDocumentsResponse.statusCode, 200);
+  assert.match(continuityDocumentsResponse.body, /TokenPilot UI/);
+
   const healthResponse = await app.inject({
     method: "GET",
     url: "/api/health"

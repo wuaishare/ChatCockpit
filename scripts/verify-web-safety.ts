@@ -307,10 +307,18 @@ const workspaceContinuitySource = fs.readFileSync(
   ),
   "utf8"
 );
+const developmentDocumentsSource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/continuity/DevelopmentDocumentsSection.tsx"
+  ),
+  "utf8"
+);
 const apiSource = fs.readFileSync(path.join(repoRoot, "web/src/api.ts"), "utf8");
 
 for (const section of [
   "projects",
+  "documents",
   "tasks",
   "sessions",
   "handoffs",
@@ -333,6 +341,17 @@ for (const operation of [
   assert.match(apiSource, new RegExp(operation));
   assert.match(workspaceContinuitySource, new RegExp(operation));
 }
+for (const operation of [
+  "fetchDevelopmentDocuments",
+  "fetchDevelopmentDocument",
+  "createDevelopmentDocument",
+  "appendDevelopmentDocumentVersion",
+  "updateDevelopmentDocumentStatus",
+  "bindContinuityTaskDocuments"
+]) {
+  assert.match(apiSource, new RegExp(operation));
+  assert.match(developmentDocumentsSource, new RegExp(operation));
+}
 assert.match(continuitySource, /fetchContinuityProjects/);
 assert.match(continuitySource, /fetchWorkspaceContinuitySnapshot/);
 assert.match(continuitySource, /WorkspaceContinuityPanel/);
@@ -349,8 +368,13 @@ assert.match(workspaceContinuitySource, /runtime\.binding/);
 assert.match(workspaceContinuitySource, /runtime\.job/);
 assert.match(workspaceContinuitySource, /externalRunId/);
 assert.match(workspaceContinuitySource, /job\.artifacts/);
+assert.match(workspaceContinuitySource, /PlanningStatus/);
+assert.match(developmentDocumentsSource, /executionPolicy/);
+assert.match(developmentDocumentsSource, /currentContent\.contentMarkdown/);
+assert.match(developmentDocumentsSource, /currentVersion\.contentHash/);
+assert.match(developmentDocumentsSource, /assessment\.blockers/);
 assert.doesNotMatch(
-  `${continuitySource}\n${workspaceContinuitySource}`,
+  `${continuitySource}\n${workspaceContinuitySource}\n${developmentDocumentsSource}`,
   /mock(?:Projects|Snapshot|Tasks|Sessions)|sample(?:Projects|Snapshot)|demo(?:Projects|Snapshot|Tasks)|fixture(?:Projects|Snapshot)|fake(?:Projects|Snapshot)/i
 );
 

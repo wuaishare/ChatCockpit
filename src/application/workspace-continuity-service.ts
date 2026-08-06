@@ -25,6 +25,10 @@ import {
   assessTaskCompletion,
   type TaskCompletionBlocker
 } from "./task-completion-assessment.js";
+import {
+  TaskExecutionPolicyService,
+  type TaskExecutionPolicyAssessment
+} from "./task-execution-policy.js";
 
 export type WorkspaceVerificationState = "verified" | "incomplete" | "missing";
 
@@ -54,6 +58,7 @@ export interface WorkspaceTaskContinuityProjection {
   runtimes: WorkspaceSessionRuntimeProjection[];
   latestHandoff: HandoffCheckpointRecord | null;
   evidence: WorkspaceEvidenceProjection | null;
+  executionPolicy: TaskExecutionPolicyAssessment;
   completion: {
     eligible: boolean;
     blockers: TaskCompletionBlocker[];
@@ -103,12 +108,16 @@ function publicChangedPaths(entries: Array<{ path: string; status: string }>): s
 
 export class WorkspaceContinuityService {
   private readonly git: GitService;
+  private readonly executionPolicy: TaskExecutionPolicyService;
 
   constructor(
     private readonly paths: TokenPilotPaths,
-    private readonly repositories: ContinuityRepositories
+    private readonly repositories: ContinuityRepositories,
+    executionPolicy?: TaskExecutionPolicyService
   ) {
     this.git = new GitService(paths);
+    this.executionPolicy =
+      executionPolicy ?? new TaskExecutionPolicyService(repositories);
   }
 
   snapshot(
@@ -158,6 +167,7 @@ export class WorkspaceContinuityService {
       runtimes: sessions.map((session) => this.projectRuntime(session)),
       latestHandoff,
       evidence,
+      executionPolicy: this.executionPolicy.assess(task),
       completion: {
         eligible: assessment.eligible,
         blockers: assessment.blockers

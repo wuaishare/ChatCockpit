@@ -172,6 +172,45 @@ export interface UiCopy {
     gitUnavailable: string;
     taskStatus: string;
     priority: string;
+    planningPolicy: string;
+    planningRequired: string;
+    planningOptional: string;
+    planningReady: string;
+    planningBlocked: string;
+    planningBlockers: string;
+    spec: string;
+    plan: string;
+    planningStateNotBound: string;
+    planningStateRelationInvalid: string;
+    planningStateUnapproved: string;
+    planningStateStale: string;
+    planningStateApprovedCurrent: string;
+    documentStatus: string;
+    documentVersion: string;
+    documentHash: string;
+    documentHistory: string;
+    currentContent: string;
+    createDocument: string;
+    createDocumentTitle: string;
+    documentKind: string;
+    documentTitle: string;
+    contentMarkdown: string;
+    changeSummary: string;
+    appendVersion: string;
+    appendVersionTitle: string;
+    markReady: string;
+    approveDocument: string;
+    returnDraft: string;
+    bindDocuments: string;
+    taskDocumentBinding: string;
+    selectTask: string;
+    selectSpec: string;
+    selectPlan: string;
+    clearBinding: string;
+    saveBinding: string;
+    noDocumentsTitle: string;
+    noDocumentsDescription: string;
+    noDocumentSelected: string;
     activeSession: string;
     parentTask: string;
     noTasksTitle: string;
@@ -464,6 +503,11 @@ const zhCN: UiCopy = {
         title: "项目与工作区",
         description: "读取真实的项目、仓库映射与工作区状态。"
       },
+      documents: {
+        label: "Specs & Plans",
+        title: "规格与执行计划",
+        description: "管理可版本化、可审批并绑定到任务的 Spec / Plan 真源。"
+      },
       tasks: {
         label: "任务",
         title: "任务",
@@ -526,6 +570,45 @@ const zhCN: UiCopy = {
     gitUnavailable: "Git 状态当前不可用。",
     taskStatus: "状态",
     priority: "优先级",
+    planningPolicy: "规划策略",
+    planningRequired: "必须规划",
+    planningOptional: "可选规划",
+    planningReady: "规划就绪",
+    planningBlocked: "执行受阻",
+    planningBlockers: "规划阻塞项",
+    spec: "Spec",
+    plan: "Plan",
+    planningStateNotBound: "未绑定",
+    planningStateRelationInvalid: "关系无效",
+    planningStateUnapproved: "未批准",
+    planningStateStale: "版本已过期",
+    planningStateApprovedCurrent: "已批准且为当前版本",
+    documentStatus: "文档状态",
+    documentVersion: "当前版本",
+    documentHash: "内容哈希",
+    documentHistory: "版本历史",
+    currentContent: "当前内容",
+    createDocument: "新建 Spec / Plan",
+    createDocumentTitle: "创建开发文档",
+    documentKind: "文档类型",
+    documentTitle: "标题",
+    contentMarkdown: "Markdown 内容",
+    changeSummary: "版本说明",
+    appendVersion: "新增版本",
+    appendVersionTitle: "创建不可变新版本",
+    markReady: "标记 Ready",
+    approveDocument: "批准",
+    returnDraft: "退回 Draft",
+    bindDocuments: "绑定到任务",
+    taskDocumentBinding: "任务文档绑定",
+    selectTask: "选择任务",
+    selectSpec: "选择 Spec",
+    selectPlan: "选择 Plan",
+    clearBinding: "不绑定",
+    saveBinding: "保存绑定",
+    noDocumentsTitle: "当前工作区没有 Spec / Plan",
+    noDocumentsDescription: "创建第一个开发文档后，可版本化、审批并绑定到任务。",
+    noDocumentSelected: "选择一个文档以查看当前内容与版本历史。",
     activeSession: "活跃会话",
     parentTask: "父任务",
     noTasksTitle: "当前工作区没有任务",
@@ -869,6 +952,11 @@ const enUS: UiCopy = {
         title: "Projects and workspaces",
         description: "Read real project, repository mapping, and workspace status data."
       },
+      documents: {
+        label: "Specs & Plans",
+        title: "Specs and execution plans",
+        description: "Manage versioned, approvable Spec and Plan truth that can be pinned to Tasks."
+      },
       tasks: {
         label: "Tasks",
         title: "Tasks",
@@ -931,6 +1019,45 @@ const enUS: UiCopy = {
     gitUnavailable: "Git status is currently unavailable.",
     taskStatus: "Status",
     priority: "Priority",
+    planningPolicy: "Planning policy",
+    planningRequired: "Planning required",
+    planningOptional: "Planning optional",
+    planningReady: "Planning ready",
+    planningBlocked: "Execution blocked",
+    planningBlockers: "Planning blockers",
+    spec: "Spec",
+    plan: "Plan",
+    planningStateNotBound: "Not bound",
+    planningStateRelationInvalid: "Invalid relation",
+    planningStateUnapproved: "Not approved",
+    planningStateStale: "Stale version",
+    planningStateApprovedCurrent: "Approved and current",
+    documentStatus: "Document status",
+    documentVersion: "Current version",
+    documentHash: "Content hash",
+    documentHistory: "Version history",
+    currentContent: "Current content",
+    createDocument: "New Spec / Plan",
+    createDocumentTitle: "Create development document",
+    documentKind: "Document kind",
+    documentTitle: "Title",
+    contentMarkdown: "Markdown content",
+    changeSummary: "Version summary",
+    appendVersion: "New version",
+    appendVersionTitle: "Create immutable new version",
+    markReady: "Mark ready",
+    approveDocument: "Approve",
+    returnDraft: "Return to draft",
+    bindDocuments: "Bind to task",
+    taskDocumentBinding: "Task document binding",
+    selectTask: "Select task",
+    selectSpec: "Select Spec",
+    selectPlan: "Select Plan",
+    clearBinding: "No binding",
+    saveBinding: "Save binding",
+    noDocumentsTitle: "No Specs or Plans in this workspace",
+    noDocumentsDescription: "Create the first development document to version, approve, and bind it to a Task.",
+    noDocumentSelected: "Select a document to inspect current content and version history.",
     activeSession: "Active session",
     parentTask: "Parent task",
     noTasksTitle: "No tasks in this workspace",

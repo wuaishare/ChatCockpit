@@ -34,6 +34,10 @@ import type {
   ContinuityVerificationState
 } from "../../types";
 import { StateNotice } from "../StateNotice";
+import {
+  DevelopmentDocumentsSection,
+  PlanningStatus
+} from "./DevelopmentDocumentsSection";
 
 interface WorkspaceContinuityPanelProps {
   locale: LocaleCode;
@@ -293,6 +297,14 @@ export function WorkspaceContinuityPanel({
       </div>
 
       {activeSection === "projects" ? projectsContent : null}
+      {activeSection === "documents" ? (
+        <DevelopmentDocumentsSection
+          locale={locale}
+          token={token}
+          snapshot={snapshot}
+          onRefreshSnapshot={onRefresh}
+        />
+      ) : null}
       {activeSection === "tasks" ? (
         <TasksSection
           locale={locale}
@@ -550,10 +562,12 @@ function TasksSection({
             <div className="continuity-entity-card__facts">
               <span>{copy.taskStatus}: <strong>{task.status}</strong></span>
               <span>{copy.priority}: <strong>{task.priority}</strong></span>
+              <span>{copy.planningPolicy}: <strong>{task.executionPolicy}</strong></span>
               <span>{copy.activeSession}: <code>{task.activeSessionId || "—"}</code></span>
               <span>{copy.parentTask}: <code>{task.parentTaskId || "—"}</code></span>
               <span>{copy.revision}: <strong>{task.revision}</strong></span>
             </div>
+            <PlanningStatus locale={locale} projection={projection} />
             <div
               className={`continuity-completion-state ${
                 completion.eligible ? "is-ready" : "is-blocked"

@@ -42,7 +42,11 @@ export function buildContinuityServices(
     asyncJobs: new AsyncJobService(paths, repositories, taskExecutionPolicy),
     developmentDocuments: new DevelopmentDocumentService(repositories),
     projects: new ProjectService(paths, database, repositories),
-    workspaces: new WorkspaceContinuityService(paths, repositories),
+    workspaces: new WorkspaceContinuityService(
+      paths,
+      repositories,
+      taskExecutionPolicy
+    ),
     tasks: new TaskService(repositories),
     taskCompletion: new TaskCompletionService(repositories),
     taskExecutionPolicy,

@@ -201,6 +201,7 @@ export interface ArtifactPreviewState {
 
 export type ContinuitySectionKey =
   | "projects"
+  | "documents"
   | "tasks"
   | "sessions"
   | "handoffs"
@@ -262,6 +263,19 @@ export type ContinuityTaskPriority = "low" | "normal" | "high" | "critical";
 export type ContinuityTaskExecutionPolicy =
   | "planning-required"
   | "planning-optional";
+export type ContinuityDevelopmentDocumentKind = "spec" | "plan";
+export type ContinuityDevelopmentDocumentStatus =
+  | "draft"
+  | "ready"
+  | "approved"
+  | "superseded"
+  | "archived";
+export type ContinuityPlanningRequirementState =
+  | "not-bound"
+  | "relation-invalid"
+  | "unapproved"
+  | "stale"
+  | "approved-current";
 export type ContinuitySessionMode =
   | "chat-direct"
   | "codex-session"
@@ -287,6 +301,67 @@ export type ContinuityVerificationState =
   | "verified"
   | "incomplete"
   | "missing";
+
+export interface ContinuityDevelopmentDocumentRecord {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  kind: ContinuityDevelopmentDocumentKind;
+  title: string;
+  status: ContinuityDevelopmentDocumentStatus;
+  currentVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
+export interface ContinuityDevelopmentDocumentVersionSummary {
+  id: string;
+  documentId: string;
+  version: number;
+  contentHash: string;
+  changeSummary: string;
+  createdAt: string;
+}
+
+export interface ContinuityDevelopmentDocumentVersionRecord
+  extends ContinuityDevelopmentDocumentVersionSummary {
+  contentMarkdown: string;
+}
+
+export interface ContinuityDevelopmentDocumentSummary {
+  document: ContinuityDevelopmentDocumentRecord;
+  currentVersion: ContinuityDevelopmentDocumentVersionSummary;
+}
+
+export interface ContinuityDevelopmentDocumentDetail
+  extends ContinuityDevelopmentDocumentSummary {
+  currentContent: ContinuityDevelopmentDocumentVersionRecord;
+  versions: ContinuityDevelopmentDocumentVersionSummary[];
+}
+
+export interface ContinuityDevelopmentDocumentsResponse {
+  ok: true;
+  documents: ContinuityDevelopmentDocumentSummary[];
+}
+
+export interface ContinuityDevelopmentDocumentDetailResponse
+  extends ContinuityDevelopmentDocumentDetail {
+  ok: true;
+}
+
+export interface ContinuityDevelopmentDocumentMutationResponse
+  extends ContinuityDevelopmentDocumentDetailResponse {
+  replayed: boolean;
+}
+
+export interface ContinuityTaskDocumentBindResponse {
+  ok: true;
+  task: ContinuityTaskRecord;
+  spec: ContinuityDevelopmentDocumentSummary | null;
+  plan: ContinuityDevelopmentDocumentSummary | null;
+  replayed: boolean;
+}
 
 export interface ContinuityTaskRecord {
   id: string;
@@ -436,6 +511,24 @@ export interface ContinuityRuntimeApprovalRecord {
   revision: number;
 }
 
+export interface ContinuityPlanningRequirementAssessment {
+  kind: ContinuityDevelopmentDocumentKind;
+  state: ContinuityPlanningRequirementState;
+  documentId: string | null;
+  pinnedVersion: number | null;
+  currentVersion: number | null;
+  status: ContinuityDevelopmentDocumentStatus | null;
+}
+
+export interface ContinuityTaskExecutionPolicyAssessment {
+  taskId: string;
+  policy: ContinuityTaskExecutionPolicy;
+  allowed: boolean;
+  blockers: string[];
+  spec: ContinuityPlanningRequirementAssessment;
+  plan: ContinuityPlanningRequirementAssessment;
+}
+
 export interface ContinuityTaskCompletionBlocker {
   code: string;
   message: string;
@@ -466,6 +559,7 @@ export interface ContinuityWorkspaceTaskProjection {
     items: ContinuityEvidenceItemRecord[];
     verificationState: ContinuityVerificationState;
   } | null;
+  executionPolicy: ContinuityTaskExecutionPolicyAssessment;
   completion: {
     eligible: boolean;
     blockers: ContinuityTaskCompletionBlocker[];

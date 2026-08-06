@@ -2269,9 +2269,11 @@ components:
           oneOf:
             - $ref: '#/components/schemas/WorkspaceEvidenceProjection'
             - type: "null"
+        executionPolicy:
+          $ref: '#/components/schemas/TaskExecutionPolicyAssessment'
         completion:
           $ref: '#/components/schemas/TaskCompletionAssessmentProjection'
-      required: [task, sessions, runtimes, latestHandoff, evidence, completion]
+      required: [task, sessions, runtimes, latestHandoff, evidence, executionPolicy, completion]
     WorkspaceGitProjection:
       type: object
       additionalProperties: false
