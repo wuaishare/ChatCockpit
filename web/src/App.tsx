@@ -4,6 +4,7 @@ import type { ThemeMode } from "antd-style";
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   ApiOutlined,
+  ApartmentOutlined,
   DashboardOutlined,
   ReloadOutlined,
   UnorderedListOutlined
@@ -26,6 +27,7 @@ import { StateNotice } from "./components/StateNotice";
 import { TokenBar } from "./components/TokenBar";
 import type {
   ArtifactPreviewState,
+  ContinuitySectionKey,
   GptConfigModel,
   HealthModel,
   JobSummary,
@@ -48,8 +50,13 @@ const JobsView = lazy(() =>
 const GptHelperView = lazy(() =>
   import("./components/GptHelperView").then((module) => ({ default: module.GptHelperView }))
 );
+const ContinuityWorkbenchView = lazy(() =>
+  import("./components/continuity/ContinuityWorkbenchView").then((module) => ({
+    default: module.ContinuityWorkbenchView
+  }))
+);
 
-type ViewKey = "dashboard" | "jobs" | "gpt-helper";
+type ViewKey = "dashboard" | "continuity" | "jobs" | "gpt-helper";
 
 interface AppProps {
   themeMode: ThemeMode;
@@ -58,9 +65,19 @@ interface AppProps {
 
 const VIEW_PATHS: Record<ViewKey, string> = {
   dashboard: "/ui",
+  continuity: "/ui/continuity",
   jobs: "/ui/jobs",
   "gpt-helper": "/ui/gpt-helper"
 };
+
+const CONTINUITY_SECTIONS = new Set<ContinuitySectionKey>([
+  "projects",
+  "tasks",
+  "sessions",
+  "handoffs",
+  "evidence",
+  "approvals"
+]);
 
 const INITIAL_HEALTH: HealthModel = {
   ok: false,
@@ -92,9 +109,13 @@ function ViewLoadingState({
   );
 }
 
-function parseRoute(): { view: ViewKey; jobId: string | null } {
+function parseRoute(): {
+  view: ViewKey;
+  jobId: string | null;
+  continuitySection: ContinuitySectionKey;
+} {
   if (typeof window === "undefined") {
-    return { view: "dashboard", jobId: null };
+    return { view: "dashboard", jobId: null, continuitySection: "projects" };
   }
 
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/ui";
@@ -102,12 +123,26 @@ function parseRoute(): { view: ViewKey; jobId: string | null } {
     const jobId = pathname.startsWith("/ui/jobs/")
       ? decodeURIComponent(pathname.slice("/ui/jobs/".length))
       : null;
-    return { view: "jobs", jobId: jobId || null };
+    return { view: "jobs", jobId: jobId || null, continuitySection: "projects" };
+  }
+  if (
+    pathname === "/ui/continuity" ||
+    pathname.startsWith("/ui/continuity/")
+  ) {
+    const candidate = pathname.startsWith("/ui/continuity/")
+      ? decodeURIComponent(pathname.slice("/ui/continuity/".length))
+      : "projects";
+    const continuitySection = CONTINUITY_SECTIONS.has(
+      candidate as ContinuitySectionKey
+    )
+      ? (candidate as ContinuitySectionKey)
+      : "projects";
+    return { view: "continuity", jobId: null, continuitySection };
   }
   if (pathname === "/ui/gpt-helper") {
-    return { view: "gpt-helper", jobId: null };
+    return { view: "gpt-helper", jobId: null, continuitySection: "projects" };
   }
-  return { view: "dashboard", jobId: null };
+  return { view: "dashboard", jobId: null, continuitySection: "projects" };
 }
 
 export default function App({ themeMode, onThemeModeChange }: AppProps) {
@@ -117,6 +152,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       : ((sessionStorage.getItem(LOCALE_STORAGE_KEY) as LocaleCode | null) ?? "zh-CN")
   );
   const [activeView, setActiveView] = useState<ViewKey>(() => parseRoute().view);
+  const [activeContinuitySection, setActiveContinuitySection] =
+    useState<ContinuitySectionKey>(() => parseRoute().continuitySection);
   const [token, setToken] = useState<string | null>(() =>
     typeof window === "undefined" ? null : sessionStorage.getItem(SESSION_TOKEN_KEY)
   );
@@ -148,6 +185,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       const route = parseRoute();
       setActiveView(route.view);
       setSelectedJobId(route.jobId);
+      setActiveContinuitySection(route.continuitySection);
     }
 
     window.addEventListener("popstate", onPopState);
@@ -380,11 +418,22 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setLocale(nextLocale);
   }
 
-  function navigateView(nextView: ViewKey, jobId?: string | null) {
+  function navigateView(
+    nextView: ViewKey,
+    jobId?: string | null,
+    continuitySection?: ContinuitySectionKey
+  ) {
     setActiveView(nextView);
     const nextJobId = nextView === "jobs" ? (jobId ?? selectedJobId) : null;
+    const nextContinuitySection =
+      nextView === "continuity"
+        ? (continuitySection ?? activeContinuitySection)
+        : activeContinuitySection;
     if (nextView === "jobs") {
       setSelectedJobId(nextJobId ?? null);
+    }
+    if (nextView === "continuity") {
+      setActiveContinuitySection(nextContinuitySection);
     }
 
     if (typeof window !== "undefined") {
@@ -392,11 +441,17 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       const nextPath =
         nextView === "jobs" && nextJobId
           ? `${basePath}/${encodeURIComponent(nextJobId)}`
-          : basePath;
+          : nextView === "continuity"
+            ? `${basePath}/${encodeURIComponent(nextContinuitySection)}`
+            : basePath;
       if (window.location.pathname !== nextPath) {
         window.history.pushState(null, "", nextPath);
       }
     }
+  }
+
+  function navigateContinuitySection(section: ContinuitySectionKey) {
+    navigateView("continuity", null, section);
   }
 
   async function controlSelectedJob(action: "pause" | "resume" | "terminate") {
@@ -536,6 +591,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                   onChange={(value) => navigateView(value)}
                   options={[
                     { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
+                    { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
                     { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
                     { label: copy.header.gptHelper, value: "gpt-helper", icon: <ApiOutlined /> }
                   ]}
@@ -602,6 +658,26 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               }}
             />
           </div>
+        ) : null}
+
+        {activeView === "continuity" ? (
+          <Suspense
+            fallback={
+              <ViewLoadingState
+                title={copy.continuity.loadingTitle}
+                description={copy.continuity.loadingDescription}
+                retryLabel={copy.common.retry}
+              />
+            }
+          >
+            <ContinuityWorkbenchView
+              locale={locale}
+              token={token}
+              authRequired={health.authRequired}
+              activeSection={activeContinuitySection}
+              onSectionChange={navigateContinuitySection}
+            />
+          </Suspense>
         ) : null}
 
         {activeView === "jobs" ? (

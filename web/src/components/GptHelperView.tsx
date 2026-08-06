@@ -18,6 +18,8 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   const copy = getUiCopy(locale);
   const fallbackText = useMemo(() => buildGptHelperText(health, locale), [health, locale]);
   const helperText = config?.instructions ?? fallbackText;
+  const protectedConfig =
+    !config && health.authRequired && /bearer token is missing or invalid/i.test(configError ?? "");
   const importUrl = config?.schemaImportUrl ?? health.openapiUrl;
   const openapiUrl = config?.openapiUrl ?? health.openapiUrl;
   const showSeparateSchemaUrl = importUrl !== openapiUrl;
@@ -53,7 +55,9 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   ];
 
   const checklistItems = copy.gpt.checklist.slice(1);
-  const notes = config?.notes ?? [copy.gpt.fallbackNote];
+  const notes = config?.notes ?? [
+    protectedConfig ? copy.gpt.protectedFallbackNote : copy.gpt.fallbackNote
+  ];
   const summaryText = [
     `${copy.gpt.versionLabel}: ${displayVersion}`,
     `${copy.gpt.productVersionLabel}: ${productVersion}`,
@@ -99,7 +103,14 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
             <Text>{copy.gpt.tokenNote}</Text>
           </div>
 
-          {configError ? <div className="notes-block">{configError}</div> : null}
+          {protectedConfig ? (
+            <div className="section-note section-note--warning">
+              <strong>{copy.gpt.protectedTitle}</strong>
+              <span>{copy.gpt.protectedDescription}</span>
+            </div>
+          ) : null}
+
+          {configError && !protectedConfig ? <div className="notes-block">{configError}</div> : null}
 
           <div className="checklist-block checklist-block--compact">
             <strong className="checklist-block__title">{copy.gpt.checklist[0]}</strong>

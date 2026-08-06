@@ -198,3 +198,256 @@ export interface ArtifactPreviewState {
   nextOffset: number | null;
   eof: boolean;
 }
+
+export type ContinuitySectionKey =
+  | "projects"
+  | "tasks"
+  | "sessions"
+  | "handoffs"
+  | "evidence"
+  | "approvals";
+
+export type ContinuityProjectStatus = "active" | "archived";
+export type ContinuityWorkspaceKind = "checkout" | "worktree";
+export type ContinuityWorkspaceStatus =
+  | "ready"
+  | "missing"
+  | "blocked"
+  | "archived";
+
+export interface ContinuityProjectRecord {
+  id: string;
+  slug: string;
+  displayName: string;
+  defaultWorkspaceId: string | null;
+  status: ContinuityProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
+export interface ContinuityWorkspaceRecord {
+  id: string;
+  projectId: string;
+  repoId: string;
+  kind: ContinuityWorkspaceKind;
+  branch: string | null;
+  headCommit: string | null;
+  dirty: boolean;
+  status: ContinuityWorkspaceStatus;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
+export interface ContinuityProjectProjection {
+  project: ContinuityProjectRecord;
+  workspaces: ContinuityWorkspaceRecord[];
+}
+
+export interface ContinuityProjectsResponse {
+  ok: true;
+  projects: ContinuityProjectProjection[];
+}
+
+export type ContinuityTaskStatus =
+  | "backlog"
+  | "ready"
+  | "in-progress"
+  | "blocked"
+  | "review"
+  | "completed"
+  | "cancelled";
+export type ContinuityTaskPriority = "low" | "normal" | "high" | "critical";
+export type ContinuitySessionMode =
+  | "chat-direct"
+  | "codex-session"
+  | "async-agent";
+export type ContinuitySessionStatus =
+  | "idle"
+  | "running"
+  | "waiting-approval"
+  | "handoff-ready"
+  | "completed"
+  | "failed";
+export type ContinuityHandoffStatus =
+  | "draft"
+  | "ready"
+  | "accepted"
+  | "superseded";
+export type ContinuityEvidenceStatus =
+  | "passed"
+  | "failed"
+  | "skipped"
+  | "not-run";
+export type ContinuityVerificationState =
+  | "verified"
+  | "incomplete"
+  | "missing";
+
+export interface ContinuityTaskRecord {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  specId: string | null;
+  planId: string | null;
+  parentTaskId: string | null;
+  title: string;
+  goal: string;
+  status: ContinuityTaskStatus;
+  priority: ContinuityTaskPriority;
+  activeSessionId: string | null;
+  latestHandoffId: string | null;
+  latestEvidenceBundleId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
+export interface ContinuitySessionRecord {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  taskId: string;
+  title: string;
+  mode: ContinuitySessionMode;
+  status: ContinuitySessionStatus;
+  activeRuntimeBindingId: string | null;
+  startedAt: string;
+  updatedAt: string;
+  endedAt: string | null;
+  revision: number;
+}
+
+export interface ContinuityWriterLeaseRecord {
+  id: string;
+  workspaceId: string;
+  sessionId: string;
+  holderType: ContinuitySessionMode;
+  holderId: string;
+  status: "active" | "released" | "expired" | "revoked";
+  acquiredAt: string;
+  heartbeatAt: string;
+  expiresAt: string;
+  releasedAt: string | null;
+  revision: number;
+}
+
+export interface ContinuityHandoffRecord {
+  id: string;
+  taskId: string;
+  sessionId: string;
+  workspaceId: string;
+  fromMode: ContinuitySessionMode;
+  toMode: ContinuitySessionMode | "unassigned";
+  goal: string;
+  completedItems: string[];
+  pendingItems: string[];
+  changedFiles: string[];
+  risks: string[];
+  nextAction: string;
+  gitHead: string | null;
+  gitBranch: string | null;
+  gitDirty: boolean;
+  diffArtifactId: string | null;
+  evidenceBundleId: string | null;
+  status: ContinuityHandoffStatus;
+  createdAt: string;
+  acceptedAt: string | null;
+  revision: number;
+}
+
+export interface ContinuityEvidenceBundleRecord {
+  id: string;
+  taskId: string;
+  sessionId: string;
+  status: "collecting" | "complete" | "incomplete";
+  requiredItemCount: number;
+  passedItemCount: number;
+  failedItemCount: number;
+  skippedItemCount: number;
+  createdAt: string;
+  completedAt: string | null;
+  revision: number;
+}
+
+export interface ContinuityEvidenceItemRecord {
+  id: string;
+  bundleId: string;
+  kind: string;
+  label: string;
+  status: ContinuityEvidenceStatus;
+  required: boolean;
+  command: string | null;
+  exitCode: number | null;
+  artifactId: string | null;
+  summary: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface ContinuityRuntimeApprovalRecord {
+  id: string;
+  runId: string;
+  sessionId: string;
+  workspaceId: string;
+  threadId: string;
+  turnId: string;
+  itemId: string | null;
+  requestMethod: string;
+  kind: "command-execution" | "file-change" | "permissions" | "unsupported";
+  status: "pending" | "responded" | "resolved" | "cancelled" | "stale";
+  publicSummary: Record<string, unknown>;
+  decision: Record<string, unknown> | null;
+  receivedAt: string;
+  respondedAt: string | null;
+  resolvedAt: string | null;
+  revision: number;
+}
+
+export interface ContinuityWorkspaceTaskProjection {
+  task: ContinuityTaskRecord;
+  sessions: ContinuitySessionRecord[];
+  latestHandoff: ContinuityHandoffRecord | null;
+  evidence: {
+    bundle: ContinuityEvidenceBundleRecord;
+    items: ContinuityEvidenceItemRecord[];
+    verificationState: ContinuityVerificationState;
+  } | null;
+}
+
+export interface ContinuityWorkspaceSnapshot {
+  project: ContinuityProjectRecord;
+  workspace: ContinuityWorkspaceRecord;
+  activeLease: ContinuityWriterLeaseRecord | null;
+  readOnly: boolean;
+  readOnlyReason: "active-writer" | null;
+  git: {
+    available: boolean;
+    branch: string | null;
+    headCommit: string | null;
+    dirty: boolean;
+    changedPaths: string[];
+    unavailableReason: string | null;
+  };
+  tasks: ContinuityWorkspaceTaskProjection[];
+  pendingApprovals: ContinuityRuntimeApprovalRecord[];
+}
+
+export interface ContinuityWorkspaceSnapshotResponse {
+  ok: true;
+  snapshot: ContinuityWorkspaceSnapshot;
+}
+
+export interface ContinuityHandoffMutationResponse {
+  ok: true;
+  handoff: ContinuityHandoffRecord;
+  replayed: boolean;
+}
+
+export interface ContinuityHandoffForkResponse
+  extends ContinuityHandoffMutationResponse {
+  task: ContinuityTaskRecord;
+  session: ContinuitySessionRecord;
+}

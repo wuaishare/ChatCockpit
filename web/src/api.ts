@@ -1,5 +1,10 @@
 import type {
   ApiProblem,
+  ContinuityHandoffForkResponse,
+  ContinuityHandoffMutationResponse,
+  ContinuityProjectsResponse,
+  ContinuitySessionMode,
+  ContinuityWorkspaceSnapshotResponse,
   GptConfigResponse,
   HealthResponse,
   JobControlResponse,
@@ -124,6 +129,109 @@ export async function fetchJobArtifactContent(
 
 export async function fetchGptConfig(token?: string | null): Promise<GptConfigResponse> {
   return requestJson<GptConfigResponse>("/api/gpt/config", token);
+}
+
+export async function fetchContinuityProjects(
+  token?: string | null
+): Promise<ContinuityProjectsResponse> {
+  return requestJson<ContinuityProjectsResponse>(
+    "/api/continuity/projects?status=active",
+    token
+  );
+}
+
+export async function fetchWorkspaceContinuitySnapshot(
+  workspaceId: string,
+  token?: string | null
+): Promise<ContinuityWorkspaceSnapshotResponse> {
+  return requestJson<ContinuityWorkspaceSnapshotResponse>(
+    `/api/continuity/workspaces/${encodeURIComponent(workspaceId)}/snapshot`,
+    token
+  );
+}
+
+async function postBodyJson<T>(
+  path: string,
+  body: unknown,
+  token?: string | null
+): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      ...buildHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw await parseProblem(response);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function prepareContinuityHandoff(
+  payload: {
+    taskId: string;
+    sessionId: string;
+    toMode: ContinuitySessionMode | "unassigned";
+    goal: string;
+    completedItems: string[];
+    pendingItems: string[];
+    changedFiles: string[];
+    risks: string[];
+    nextAction: string;
+    gitHead: string | null;
+    gitBranch: string | null;
+    gitDirty: boolean;
+    evidenceBundleId?: string | null;
+    expectedTaskRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<
+  ContinuityHandoffMutationResponse & {
+    task: { revision: number };
+  }
+> {
+  return postBodyJson("/api/continuity/handoffs/prepare", payload, token);
+}
+
+export async function acceptContinuityHandoff(
+  payload: {
+    handoffId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityHandoffMutationResponse> {
+  return postBodyJson("/api/continuity/handoffs/accept", payload, token);
+}
+
+export async function cancelContinuityHandoff(
+  payload: {
+    handoffId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityHandoffMutationResponse> {
+  return postBodyJson("/api/continuity/handoffs/cancel", payload, token);
+}
+
+export async function forkContinuityHandoff(
+  payload: {
+    handoffId: string;
+    expectedRevision: number;
+    title: string;
+    sessionTitle: string;
+    mode?: ContinuitySessionMode;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<ContinuityHandoffForkResponse> {
+  return postBodyJson("/api/continuity/handoffs/fork", payload, token);
 }
 
 async function postJson<T>(path: string, token?: string | null): Promise<T> {
