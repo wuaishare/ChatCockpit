@@ -62,7 +62,7 @@ function readRecord<T>(recordPath: string): IdempotencyRecord<T> {
       "The stored idempotency record is invalid",
       {
         hint: "Remove the corrupted local runtime record after reviewing it.",
-        details: error instanceof Error ? error.message : String(error)
+        cause: error
       }
     );
   }

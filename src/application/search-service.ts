@@ -1,7 +1,7 @@
 import { searchRepo } from "../core/search.js";
 import type { SearchPayload, TokenPilotPaths } from "../types.js";
 import type { OperationContext } from "./operation-context.js";
-import { ServiceError } from "./service-error.js";
+import { wrapServiceOperationError } from "./service-error.js";
 
 export class SearchService {
   constructor(private readonly paths: TokenPilotPaths) {}
@@ -10,9 +10,11 @@ export class SearchService {
     try {
       return searchRepo(this.paths, payload);
     } catch (error) {
-      throw new ServiceError(
+      throw wrapServiceOperationError(
         "SEARCH_BLOCKED",
-        error instanceof Error ? error.message : String(error)
+        error,
+        "Search was blocked or could not be completed.",
+        "Check repoId, relative search path, pattern, and workspace policy before retrying."
       );
     }
   }

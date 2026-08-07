@@ -29,7 +29,7 @@ import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
 import type { RuntimeRouter } from "./runtime-router.js";
 import { SearchService } from "./search-service.js";
-import { ServiceError } from "./service-error.js";
+import { ServiceError, wrapServiceOperationError } from "./service-error.js";
 import { ShellService } from "./shell-service.js";
 
 export type ChatDirectExecutor =
@@ -66,12 +66,12 @@ function metadata(
 }
 
 function serviceError(code: string, error: unknown): ServiceError {
-  return error instanceof ServiceError
-    ? error
-    : new ServiceError(
-        code,
-        error instanceof Error ? error.message : String(error)
-      );
+  return wrapServiceOperationError(
+    code,
+    error,
+    "Chat Direct execution could not be completed safely.",
+    "Retry after checking the selected workspace, runtime capability, and operation policy."
+  );
 }
 
 export class ChatDirectService {

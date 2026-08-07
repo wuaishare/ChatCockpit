@@ -857,7 +857,7 @@ export function buildServer(
         fastifyReply,
         404,
         "ARTIFACT_NOT_FOUND",
-        error instanceof Error ? error.message : String(error)
+        "Artifact could not be read or was not found."
       );
     }
   };
@@ -929,12 +929,7 @@ export function buildServer(
         parsed.data
       );
     } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "FILES_READ_BLOCKED",
-        error instanceof Error ? error.message : String(error)
-      );
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -951,12 +946,7 @@ export function buildServer(
         parsed.data
       );
     } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "FILES_READ_BLOCKED",
-        error instanceof Error ? error.message : String(error)
-      );
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -1004,12 +994,7 @@ export function buildServer(
         parsed.data
       );
     } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "FILES_LIST_BLOCKED",
-        error instanceof Error ? error.message : String(error)
-      );
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -1025,12 +1010,7 @@ export function buildServer(
         parsed.data
       );
     } catch (error) {
-      return sendApiError(
-        fastifyReply,
-        400,
-        "SEARCH_BLOCKED",
-        error instanceof Error ? error.message : String(error)
-      );
+      return sendUnknownApiError(fastifyReply, error);
     }
   };
 
@@ -1061,12 +1041,7 @@ export function buildServer(
         staged
       );
     } catch (error) {
-      return sendApiError(
-        replyFrom(reply),
-        400,
-        "GIT_DIFF_FAILED",
-        error instanceof Error ? error.message : String(error)
-      );
+      return sendUnknownApiError(replyFrom(reply), error);
     }
   };
 
@@ -1079,12 +1054,7 @@ export function buildServer(
         repoId
       );
     } catch (error) {
-      return sendApiError(
-        replyFrom(reply),
-        400,
-        "GIT_STATUS_FAILED",
-        error instanceof Error ? error.message : String(error)
-      );
+      return sendUnknownApiError(replyFrom(reply), error);
     }
   };
 

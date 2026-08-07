@@ -63,7 +63,31 @@ function toToolResult(value: unknown): TokenPilotMcpToolResult {
   };
 }
 
-function toToolError(error: unknown): TokenPilotMcpToolResult {
+const INTERNAL_TOOL_ERROR_MESSAGE =
+  "Unexpected TokenPilot error. Check local server logs with the request ID.";
+
+function logPrivateToolError(
+  context: OperationContext,
+  error: unknown,
+  code: string
+): void {
+  const diagnostic =
+    error instanceof Error ? error.stack ?? error.message : String(error);
+  process.stderr.write(
+    `[TokenPilot MCP] requestId=${context.requestId} code=${code} ${diagnostic}\n`
+  );
+}
+
+function toToolError(
+  context: OperationContext,
+  error: unknown
+): TokenPilotMcpToolResult {
+  if (error instanceof ServiceError && error.cause !== undefined) {
+    logPrivateToolError(context, error.cause, error.code);
+  } else if (!(error instanceof ServiceError) && !(error instanceof z.ZodError)) {
+    logPrivateToolError(context, error, "INTERNAL_ERROR");
+  }
+
   const normalized =
     error instanceof z.ZodError
       ? {
@@ -88,7 +112,8 @@ function toToolError(error: unknown): TokenPilotMcpToolResult {
             ok: false,
             error: {
               code: "INTERNAL_ERROR",
-              message: error instanceof Error ? error.message : String(error)
+              message: INTERNAL_TOOL_ERROR_MESSAGE,
+              details: { requestId: context.requestId }
             }
           };
 
@@ -118,7 +143,7 @@ export function defineMcpTool<TSchema extends z.ZodTypeAny>(
         const parsed = definition.inputSchema.parse(input);
         return toToolResult(await definition.handler(context, parsed));
       } catch (error) {
-        return toToolError(error);
+        return toToolError(context, error);
       }
     }
   };
