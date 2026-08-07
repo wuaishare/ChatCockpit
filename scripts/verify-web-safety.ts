@@ -307,6 +307,15 @@ const workspaceContinuitySource = fs.readFileSync(
   ),
   "utf8"
 );
+const workspaceContinuitySectionsSource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/continuity/WorkspaceContinuitySections.tsx"
+  ),
+  "utf8"
+);
+const workspaceContinuityRuntimeSource =
+  `${workspaceContinuitySource}\n${workspaceContinuitySectionsSource}`;
 const developmentDocumentsSource = fs.readFileSync(
   path.join(
     repoRoot,
@@ -355,26 +364,26 @@ for (const operation of [
 assert.match(continuitySource, /fetchContinuityProjects/);
 assert.match(continuitySource, /fetchWorkspaceContinuitySnapshot/);
 assert.match(continuitySource, /WorkspaceContinuityPanel/);
-assert.match(workspaceContinuitySource, /activeLease/);
-assert.match(workspaceContinuitySource, /verificationState/);
-assert.match(workspaceContinuitySource, /VerificationTag/);
-assert.match(workspaceContinuitySource, /prepareHandoff/);
-assert.match(workspaceContinuitySource, /acceptHandoff/);
-assert.match(workspaceContinuitySource, /forkHandoff/);
-assert.match(workspaceContinuitySource, /cancelHandoff/);
-assert.match(workspaceContinuitySource, /completion\.eligible/);
-assert.match(workspaceContinuitySource, /completion\.blockers/);
-assert.match(workspaceContinuitySource, /runtime\.binding/);
-assert.match(workspaceContinuitySource, /runtime\.job/);
-assert.match(workspaceContinuitySource, /externalRunId/);
-assert.match(workspaceContinuitySource, /job\.artifacts/);
-assert.match(workspaceContinuitySource, /PlanningStatus/);
+assert.match(workspaceContinuityRuntimeSource, /activeLease/);
+assert.match(workspaceContinuityRuntimeSource, /verificationState/);
+assert.match(workspaceContinuityRuntimeSource, /VerificationTag/);
+assert.match(workspaceContinuityRuntimeSource, /prepareHandoff/);
+assert.match(workspaceContinuityRuntimeSource, /acceptHandoff/);
+assert.match(workspaceContinuityRuntimeSource, /forkHandoff/);
+assert.match(workspaceContinuityRuntimeSource, /cancelHandoff/);
+assert.match(workspaceContinuityRuntimeSource, /completion\.eligible/);
+assert.match(workspaceContinuityRuntimeSource, /completion\.blockers/);
+assert.match(workspaceContinuityRuntimeSource, /runtime\.binding/);
+assert.match(workspaceContinuityRuntimeSource, /runtime\.job/);
+assert.match(workspaceContinuityRuntimeSource, /externalRunId/);
+assert.match(workspaceContinuityRuntimeSource, /job\.artifacts/);
+assert.match(workspaceContinuityRuntimeSource, /PlanningStatus/);
 assert.match(developmentDocumentsSource, /executionPolicy/);
 assert.match(developmentDocumentsSource, /currentContent\.contentMarkdown/);
 assert.match(developmentDocumentsSource, /currentVersion\.contentHash/);
 assert.match(developmentDocumentsSource, /assessment\.blockers/);
 assert.doesNotMatch(
-  `${continuitySource}\n${workspaceContinuitySource}\n${developmentDocumentsSource}`,
+  `${continuitySource}\n${workspaceContinuityRuntimeSource}\n${developmentDocumentsSource}`,
   /mock(?:Projects|Snapshot|Tasks|Sessions)|sample(?:Projects|Snapshot)|demo(?:Projects|Snapshot|Tasks)|fixture(?:Projects|Snapshot)|fake(?:Projects|Snapshot)/i
 );
 

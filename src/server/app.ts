@@ -1,25 +1,18 @@
 import Fastify from "fastify";
-import type { FastifyRequest } from "fastify";
 import { z } from "zod";
-import fs from "node:fs";
-import path from "node:path";
 
 import type {
   CodexRunJobPayload,
-  JobRecord,
   TaskPackInput,
   TokenPilotCommitSummary,
   TokenPilotGptConfigRecord,
   TokenPilotHealthStatus,
-  TokenPilotJobPayload,
   TokenPilotPaths,
   JobStatus,
-  JobType,
-  TokenPilotPublicJobRecord
+  JobType
 } from "../types.js";
 import {
   controlJobProcess,
-  getTrackedJobProcess,
   terminateAllJobProcesses
 } from "../core/job-processes.js";
 import {
@@ -47,7 +40,6 @@ import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildSetupStatus } from "../core/setup-status.js";
-import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
 import {
@@ -68,6 +60,8 @@ import { registerContinuityRoutes } from "./continuity-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
+import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
+import { registerStaticRoutes } from "./static-routes.js";
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -135,361 +129,10 @@ const artifactKeySchema = z.enum([
   "codexSummary"
 ]);
 
-function normalizePackLikeObject(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-
-  const record = { ...(value as Record<string, unknown>) };
-
-  if (typeof record.repoRoot === "string" && typeof record.repoId !== "string") {
-    record.repoId = "tokenpilot";
-  }
-
-  delete record.repoRoot;
-  return record;
-}
-
-function projectPackLikeObject(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-
-  const record = normalizePackLikeObject(value) as Record<string, unknown>;
-  return {
-    ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
-    ...(typeof record.repoId === "string" ? { repoId: record.repoId } : {}),
-    ...(typeof record.repoName === "string" ? { repoName: record.repoName } : {}),
-    ...(typeof record.repomixXmlPath === "string"
-      ? { repomixXmlPath: record.repomixXmlPath }
-      : {}),
-    ...(typeof record.promptPath === "string" ? { promptPath: record.promptPath } : {}),
-    ...(typeof record.summaryPath === "string" ? { summaryPath: record.summaryPath } : {}),
-    ...(typeof record.manifestPath === "string" ? { manifestPath: record.manifestPath } : {}),
-    ...(Array.isArray(record.publicIncludeEntries)
-      ? { publicIncludeEntries: record.publicIncludeEntries }
-      : {})
-  };
-}
-
-function projectTaskPackLikeObject(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  return {
-    ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
-    ...(typeof record.title === "string" ? { title: record.title } : {}),
-    ...(typeof record.markdownPath === "string"
-      ? { markdownPath: record.markdownPath }
-      : {}),
-    ...(typeof record.jsonPath === "string" ? { jsonPath: record.jsonPath } : {})
-  };
-}
-
-function projectCodexRunLikeObject(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-
-  const record = value as Record<string, unknown>;
-  return {
-    ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
-    ...(typeof record.repoId === "string" ? { repoId: record.repoId } : {}),
-    ...(typeof record.title === "string" ? { title: record.title } : {}),
-    ...(typeof record.executionMode === "string" ? { executionMode: record.executionMode } : {}),
-    ...(typeof record.worktreePolicy === "string" ? { worktreePolicy: record.worktreePolicy } : {}),
-    ...(typeof record.worktreeCreated === "boolean" ? { worktreeCreated: record.worktreeCreated } : {}),
-    ...(typeof record.branchName === "string" ? { branchName: record.branchName } : {}),
-    ...(typeof record.statusSummary === "string" ? { statusSummary: record.statusSummary } : {}),
-    ...(typeof record.codexExitCode === "number" ? { codexExitCode: record.codexExitCode } : {}),
-    ...(typeof record.reviewExitCode === "number" ? { reviewExitCode: record.reviewExitCode } : {}),
-    ...(typeof record.gitStatus === "string" ? { gitStatus: record.gitStatus } : {}),
-    ...(typeof record.hasDiff === "boolean" ? { hasDiff: record.hasDiff } : {}),
-    ...(record.commit && typeof record.commit === "object" ? { commit: record.commit } : {}),
-    ...(typeof record.promptPath === "string" ? { promptPath: record.promptPath } : {}),
-    ...(typeof record.stdoutPath === "string" ? { stdoutPath: record.stdoutPath } : {}),
-    ...(typeof record.stderrPath === "string" ? { stderrPath: record.stderrPath } : {}),
-    ...(typeof record.diffPath === "string" ? { diffPath: record.diffPath } : {}),
-    ...(typeof record.reviewPath === "string" ? { reviewPath: record.reviewPath } : {}),
-    ...(typeof record.summaryPath === "string" ? { summaryPath: record.summaryPath } : {}),
-    ...(Array.isArray(record.artifacts) ? { artifacts: record.artifacts } : {})
-  };
-}
-
-function toRelativeRepoPath(value: string, repoRoot: string): string {
-  const repoRootPrefix = `${repoRoot}/`;
-  if (value === repoRoot) {
-    return "<repo>";
-  }
-  if (value.startsWith(repoRootPrefix)) {
-    return value.slice(repoRootPrefix.length);
-  }
-  return value.split(repoRootPrefix).join("<repo>/").split(repoRoot).join("<repo>");
-}
-
-function sanitizeForApi(value: unknown, repoRoot: string): unknown {
-  if (typeof value === "string") {
-    return toRelativeRepoPath(value, repoRoot);
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeForApi(item, repoRoot));
-  }
-
-  if (value && typeof value === "object") {
-    const normalized = normalizePackLikeObject(value) as Record<string, unknown>;
-    const sanitized = Object.fromEntries(
-      Object.entries(normalized).map(([key, nestedValue]) => [
-        key,
-        sanitizeForApi(nestedValue, repoRoot)
-      ])
-    );
-
-    if (
-      sanitized.type === "pack" &&
-      sanitized.payload &&
-      typeof sanitized.payload === "object"
-    ) {
-      sanitized.payload = projectPackLikeObject(sanitized.payload);
-    }
-
-    if (
-      sanitized.type === "pack" &&
-      sanitized.result &&
-      typeof sanitized.result === "object"
-    ) {
-      sanitized.result = projectPackLikeObject(sanitized.result);
-    }
-
-    if (
-      sanitized.type === "taskpack" &&
-      sanitized.payload &&
-      typeof sanitized.payload === "object"
-    ) {
-      sanitized.payload = projectTaskPackLikeObject(sanitized.payload);
-    }
-
-    if (
-      sanitized.type === "taskpack" &&
-      sanitized.result &&
-      typeof sanitized.result === "object"
-    ) {
-      sanitized.result = projectTaskPackLikeObject(sanitized.result);
-    }
-
-    if (
-      sanitized.type === "codex-run" &&
-      sanitized.payload &&
-      typeof sanitized.payload === "object"
-    ) {
-      sanitized.payload = projectCodexRunLikeObject(sanitized.payload);
-    }
-
-    if (
-      sanitized.type === "codex-run" &&
-      sanitized.result &&
-      typeof sanitized.result === "object"
-    ) {
-      sanitized.result = projectCodexRunLikeObject(sanitized.result);
-    }
-
-    return sanitized;
-  }
-
-  return value;
-}
-
-function maskError(error: string | undefined, repoRoot: string): string | undefined {
-  if (!error) {
-    return undefined;
-  }
-
-  const firstLine = error.split("\n")[0] ?? error;
-  return toRelativeRepoPath(firstLine, repoRoot);
-}
-
 type ReplyLike = Parameters<typeof sendApiError>[0];
 
 function replyFrom(value: unknown): ReplyLike {
   return value as ReplyLike;
-}
-
-const uiAssetContentTypes: Readonly<Record<string, string>> = {
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
-  ".png": "image/png",
-  ".svg": "image/svg+xml; charset=utf-8",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2"
-};
-
-function uiAssetContentType(filePath: string): string {
-  return uiAssetContentTypes[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
-}
-
-function deriveJobHeadline(job: JobRecord<TokenPilotJobPayload>): string {
-  if (job.type === "taskpack") {
-    const title = (job.payload as { title?: unknown }).title;
-    if (typeof title === "string" && title.trim()) {
-      return title.trim();
-    }
-    return "Task pack job";
-  }
-
-  if (job.type === "pack") {
-    const repoId = (job.payload as { repoId?: unknown }).repoId;
-    if (typeof repoId === "string" && repoId.trim()) {
-      return `Pack repo ${repoId.trim()}`;
-    }
-    return "Pack job";
-  }
-
-  if (job.type === "codex-run") {
-    const title = (job.payload as { title?: unknown }).title;
-    if (typeof title === "string" && title.trim()) {
-      return title.trim();
-    }
-    return "Codex run job";
-  }
-
-  return "TokenPilot job";
-}
-
-function projectJobPayloadForUi(
-  job: JobRecord<TokenPilotJobPayload>,
-  repoRoot: string
-): Record<string, unknown> {
-  if (job.type === "taskpack") {
-    const payload = job.payload as unknown as Record<string, unknown>;
-    return {
-      title: typeof payload.title === "string" ? payload.title : undefined
-    };
-  }
-
-  if (job.type === "pack") {
-    const payload = sanitizeForApi(job.payload, repoRoot) as Record<string, unknown>;
-    return {
-      repoId: typeof payload.repoId === "string" ? payload.repoId : undefined
-    };
-  }
-
-  if (job.type === "codex-run") {
-    const payload = sanitizeForApi(job.payload, repoRoot) as Record<string, unknown>;
-    return {
-      repoId: typeof payload.repoId === "string" ? payload.repoId : undefined,
-      title: typeof payload.title === "string" ? payload.title : undefined,
-      executionMode: typeof payload.executionMode === "string" ? payload.executionMode : undefined,
-      worktreePolicy: typeof payload.worktreePolicy === "string" ? payload.worktreePolicy : undefined,
-      commitPolicy: typeof payload.commitPolicy === "string" ? payload.commitPolicy : undefined
-    };
-  }
-
-  return {};
-}
-
-function projectJobResultForUi(
-  job: JobRecord<TokenPilotJobPayload>,
-  repoRoot: string
-): Record<string, unknown> | undefined {
-  if (!job.result || typeof job.result !== "object" || Array.isArray(job.result)) {
-    return undefined;
-  }
-
-  const result = sanitizeForApi(job.result, repoRoot) as Record<string, unknown>;
-
-  if (job.type === "taskpack") {
-    return {
-      createdAt: typeof result.createdAt === "string" ? result.createdAt : undefined,
-      title: typeof result.title === "string" ? result.title : undefined,
-      markdownPath:
-        typeof result.markdownPath === "string" ? result.markdownPath : undefined,
-      jsonPath: typeof result.jsonPath === "string" ? result.jsonPath : undefined
-    };
-  }
-
-  if (job.type === "pack") {
-    return {
-      createdAt: typeof result.createdAt === "string" ? result.createdAt : undefined,
-      repoId: typeof result.repoId === "string" ? result.repoId : undefined,
-      repoName: typeof result.repoName === "string" ? result.repoName : undefined,
-      repomixXmlPath:
-        typeof result.repomixXmlPath === "string" ? result.repomixXmlPath : undefined,
-      promptPath: typeof result.promptPath === "string" ? result.promptPath : undefined,
-      summaryPath: typeof result.summaryPath === "string" ? result.summaryPath : undefined,
-      manifestPath: typeof result.manifestPath === "string" ? result.manifestPath : undefined,
-      publicIncludeEntries: Array.isArray(result.publicIncludeEntries)
-        ? result.publicIncludeEntries
-        : undefined
-    };
-  }
-
-  if (job.type === "codex-run") {
-    return {
-      createdAt: typeof result.createdAt === "string" ? result.createdAt : undefined,
-      repoId: typeof result.repoId === "string" ? result.repoId : undefined,
-      title: typeof result.title === "string" ? result.title : undefined,
-      executionMode: typeof result.executionMode === "string" ? result.executionMode : undefined,
-      worktreePolicy: typeof result.worktreePolicy === "string" ? result.worktreePolicy : undefined,
-      worktreeCreated:
-        typeof result.worktreeCreated === "boolean" ? result.worktreeCreated : undefined,
-      branchName: typeof result.branchName === "string" ? result.branchName : undefined,
-      statusSummary: typeof result.statusSummary === "string" ? result.statusSummary : undefined,
-      codexExitCode: typeof result.codexExitCode === "number" ? result.codexExitCode : undefined,
-      reviewExitCode: typeof result.reviewExitCode === "number" ? result.reviewExitCode : undefined,
-      gitStatus: typeof result.gitStatus === "string" ? result.gitStatus : undefined,
-      hasDiff: typeof result.hasDiff === "boolean" ? result.hasDiff : undefined,
-      commit: result.commit && typeof result.commit === "object" ? result.commit : undefined,
-      promptPath: typeof result.promptPath === "string" ? result.promptPath : undefined,
-      stdoutPath: typeof result.stdoutPath === "string" ? result.stdoutPath : undefined,
-      stderrPath: typeof result.stderrPath === "string" ? result.stderrPath : undefined,
-      diffPath: typeof result.diffPath === "string" ? result.diffPath : undefined,
-      reviewPath: typeof result.reviewPath === "string" ? result.reviewPath : undefined,
-      summaryPath: typeof result.summaryPath === "string" ? result.summaryPath : undefined
-    };
-  }
-
-  return undefined;
-}
-
-function projectJobForUi(
-  job: JobRecord<TokenPilotJobPayload>,
-  paths: TokenPilotPaths,
-  options: { includeResult?: boolean } = {}
-): TokenPilotPublicJobRecord {
-  const projectedResult = projectJobResultForUi(job, paths.repoRoot);
-  const projectedError = maskError(job.error, paths.repoRoot);
-  const trackedProcess = getTrackedJobProcess(paths, job.id);
-  const artifacts = projectedResult
-    ? listJobArtifacts(job, paths).map((artifact) => ({
-        key: artifact.key,
-        label: artifact.label,
-        path: artifact.path,
-        contentType: artifact.contentType
-      }))
-    : [];
-  return {
-    id: job.id,
-    type: job.type,
-    status: job.status,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    headline: deriveJobHeadline(job),
-    hasResult: Boolean(job.result),
-    hasError: Boolean(job.error),
-    payload: projectJobPayloadForUi(job, paths.repoRoot),
-    ...(trackedProcess ? { process: trackedProcess } : {}),
-    ...(artifacts.length ? { artifacts } : {}),
-    ...(options.includeResult && projectedResult ? { result: projectedResult } : {}),
-    ...(projectedError ? { error: projectedError } : {})
-  };
 }
 
 function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
@@ -498,124 +141,6 @@ function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
 
 function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
   return buildHealthStatus(paths);
-}
-
-function resolveOpenApiServerUrl(request: FastifyRequest): string {
-  const configured = process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/+$/, "");
-  }
-
-  const forwardedProtoHeader = request.headers["x-forwarded-proto"];
-  const forwardedProto = Array.isArray(forwardedProtoHeader)
-    ? forwardedProtoHeader[0]
-    : forwardedProtoHeader;
-  const protocol = forwardedProto?.split(",")[0]?.trim() || "http";
-  const host = request.headers.host?.trim();
-
-  if (!host) {
-    return "https://tokenpilot.example.com";
-  }
-
-  return `${protocol}://${host}`;
-}
-
-function renderOpenApiDocument(request: FastifyRequest, repoRoot: string): string {
-  const filePath = path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml");
-  const source = fs.readFileSync(filePath, "utf8");
-  const serverUrl = resolveOpenApiServerUrl(request);
-
-  return source.replace(
-    /^servers:\n  - url: .+$/m,
-    `servers:\n  - url: ${serverUrl}`
-  );
-}
-
-function renderUiNotBuiltPage(): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TokenPilot Web UI Not Built</title>
-    <style>
-      :root {
-        color-scheme: light;
-        --bg: #f5f2ea;
-        --panel: rgba(255, 255, 255, 0.88);
-        --text: #1d2a24;
-        --muted: #5d6d63;
-        --line: rgba(29, 42, 36, 0.12);
-        --accent: #235744;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background:
-          radial-gradient(circle at top left, rgba(35, 87, 68, 0.12), transparent 34%),
-          linear-gradient(135deg, #f5f2ea 0%, #ebe4d7 100%);
-        color: var(--text);
-        font: 15px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        padding: 24px;
-      }
-      main {
-        width: min(720px, 100%);
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        padding: 28px;
-        box-shadow: 0 22px 60px rgba(38, 54, 44, 0.12);
-        backdrop-filter: blur(18px);
-      }
-      h1 {
-        margin: 0 0 12px;
-        font-size: 28px;
-        line-height: 1.1;
-      }
-      p {
-        margin: 0 0 12px;
-        color: var(--muted);
-      }
-      code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        background: rgba(35, 87, 68, 0.08);
-        padding: 2px 6px;
-        border-radius: 8px;
-      }
-      ul {
-        margin: 16px 0 0;
-        padding-left: 18px;
-      }
-      li + li {
-        margin-top: 6px;
-      }
-      .note {
-        margin-top: 18px;
-        padding-top: 18px;
-        border-top: 1px solid var(--line);
-      }
-      a {
-        color: var(--accent);
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>TokenPilot Web UI is not built yet</h1>
-      <p>The local-first operator Web UI is served from built static assets under <code>web/dist</code>.</p>
-      <p>Build the frontend first, then restart the server and open <code>/ui</code> again.</p>
-      <ul>
-        <li><code>npm run build:web</code></li>
-        <li><code>npm run server</code></li>
-        <li>Open <code>http://127.0.0.1:4318/ui</code></li>
-      </ul>
-      <p class="note">Current public-safe entry points remain <code>/api/health</code> and <code>/openapi.yaml</code>. Full HTTPS / Custom GPT Actions automation loop is still under validation.</p>
-    </main>
-  </body>
-</html>`;
 }
 
 export interface BuildServerOptions {
@@ -730,10 +255,6 @@ export function buildServer(
     runtimeApprovalService,
     runtimeEventService
   );
-  const uiDistDir = path.join(paths.repoRoot, "web", "dist");
-  const hasUiDist = fs.existsSync(uiDistDir);
-  const uiRootRealPath = hasUiDist ? fs.realpathSync(uiDistDir) : null;
-
   const healthHandler = async () => {
     return buildPublicHealthStatus(paths);
   };
@@ -1159,99 +680,7 @@ export function buildServer(
   app.post("/api/git/commit", gitCommitHandler);
   app.post("/tokenpilot/api/git/commit", gitCommitHandler);
 
-  app.get("/openapi.yaml", async (request, reply) => {
-    reply.type("text/yaml");
-    return renderOpenApiDocument(request, paths.repoRoot);
-  });
-
-  app.get("/ui", async (_request, reply) => {
-    reply.type("text/html; charset=utf-8");
-    if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
-      return renderUiNotBuiltPage();
-    }
-
-    return fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
-  });
-
-  app.get("/ui/*", async (request, reply) => {
-    const indexPath = path.join(uiDistDir, "index.html");
-    if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
-      reply.type("text/html; charset=utf-8");
-      return renderUiNotBuiltPage();
-    }
-
-    const requestUrl = (request as { url: string }).url;
-    const rawSuffix = requestUrl.split("?", 1)[0].slice("/ui/".length);
-    let suffix: string;
-
-    try {
-      suffix = decodeURIComponent(rawSuffix);
-    } catch {
-      return sendApiError(
-        replyFrom(reply),
-        400,
-        "INVALID_UI_ASSET_PATH",
-        "Invalid UI asset path encoding"
-      );
-    }
-
-    if (suffix) {
-      try {
-        const { absolutePath } = resolvePathInsideRoot(
-          uiDistDir,
-          suffix,
-          "UI asset path"
-        );
-
-        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-          const realAssetPath = fs.realpathSync(absolutePath);
-          if (!isPathInsideRoot(uiRootRealPath, realAssetPath)) {
-            return sendApiError(
-              replyFrom(reply),
-              400,
-              "INVALID_UI_ASSET_PATH",
-              "UI asset path must stay within the built Web UI directory"
-            );
-          }
-
-          reply.header("X-Content-Type-Options", "nosniff");
-          reply.type(uiAssetContentType(realAssetPath));
-          return fs.readFileSync(realAssetPath);
-        }
-      } catch (error) {
-        return sendApiError(
-          replyFrom(reply),
-          400,
-          "INVALID_UI_ASSET_PATH",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    }
-
-    reply.type("text/html; charset=utf-8");
-    return fs.readFileSync(indexPath, "utf8");
-  });
-
-  app.get("/privacy-policy", async (_request, reply) => {
-    reply.type("text/html; charset=utf-8");
-    return `<!doctype html>
-<html lang="zh-Hans">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TokenPilot Privacy Policy</title>
-  </head>
-  <body>
-    <main style="max-width: 760px; margin: 40px auto; font: 16px/1.7 -apple-system, BlinkMacSystemFont, sans-serif;">
-      <h1>TokenPilot Privacy Policy</h1>
-      <p>TokenPilot is a local-first automation layer for repository packaging, task-pack generation, and local runner orchestration.</p>
-      <p>For this MVP, requests sent to the TokenPilot control plane may be logged locally for debugging and job traceability. Repository artifacts are generated on the local machine and remain under the local workspace unless the operator explicitly exposes the control plane or shares generated files.</p>
-      <p>This MVP does not intentionally transmit repository contents to third-party services except through actions explicitly initiated by the operator, such as Custom GPT Actions calling the configured HTTPS endpoint.</p>
-      <p>Operators are responsible for securing bearer tokens, public endpoints, and exposed infrastructure such as reverse proxies and tunnels.</p>
-    </main>
-  </body>
-</html>`;
-  });
+  registerStaticRoutes(app, paths);
 
   return app;
 }

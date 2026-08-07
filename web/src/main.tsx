@@ -15,6 +15,7 @@ import {
   THEME_STORAGE_KEY
 } from "./theme";
 import "./styles.css";
+import "./styles/continuity-responsive.css";
 
 function TokenPilotRoot() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode);

@@ -57,23 +57,6 @@ export default defineConfig(() => {
               return "ui-core";
             }
 
-            if (
-              id.includes("antd/es/table") ||
-              id.includes("antd/es/list") ||
-              id.includes("antd/es/descriptions") ||
-              id.includes("antd/es/result") ||
-              id.includes("antd/es/empty") ||
-              id.includes("rc-table") ||
-              id.includes("rc-pagination") ||
-              id.includes("rc-virtual-list")
-            ) {
-              return "antd-data";
-            }
-
-            if (id.includes("antd") || id.includes("@ant-design") || id.includes("rc-")) {
-              return "antd-vendor";
-            }
-
             if (id.includes("motion")) {
               return "motion-vendor";
             }
