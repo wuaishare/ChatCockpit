@@ -36,6 +36,7 @@
     "verify:continuity": "tsx scripts/verify-continuity-store.ts",
     "verify:continuity-api": "tsx scripts/verify-continuity-api.ts",
     "verify:continuity-restart": "tsx scripts/verify-continuity-restart.ts",
+    "verify:oauth-store": "tsx scripts/verify-oauth-store.ts",
     "verify:development-documents": "tsx scripts/verify-development-documents.ts",
     "verify:spec-plan-policy": "tsx scripts/verify-spec-plan-policy.ts",
     "verify:task-completion": "tsx scripts/verify-task-completion.ts",
