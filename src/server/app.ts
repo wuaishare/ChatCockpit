@@ -33,6 +33,11 @@ import {
   shellRunSchema
 } from "../contracts/direct-tools.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
+import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
+import { registerOAuthRoutes } from "../auth/oauth-routes.js";
+import { OAuthService } from "../auth/oauth-service.js";
+import { OAuthStore, oauthDatabasePath } from "../auth/oauth-store.js";
+import { TOKENPILOT_MCP_SCOPE } from "../auth/oauth-types.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -55,8 +60,8 @@ import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
 import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
 import {
-  isAuthRequired,
-  tokenPilotAuthPlugin,
+  createTokenPilotAuthPlugin,
+  isExposedMode,
   validateServerAuthConfig
 } from "./auth.js";
 import { registerContinuityRoutes } from "./continuity-routes.js";
@@ -624,6 +629,21 @@ export function buildServer(
   validateServerAuthConfig();
 
   const app = Fastify({ logger: true });
+  const oauthConfig = isExposedMode() ? resolveOAuthPublicConfig() : null;
+  const oauthStore = oauthConfig
+    ? new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) })
+    : null;
+  const oauthService = oauthConfig && oauthStore
+    ? new OAuthService({
+        store: oauthStore,
+        config: oauthConfig,
+        ownerSecret: () => process.env.TOKENPILOT_API_TOKEN?.trim() || null
+      })
+    : null;
+  if (oauthService && oauthConfig) {
+    registerOAuthRoutes(app, oauthService, oauthConfig);
+  }
+
   const continuityDatabase = new ContinuityDatabase({
     path: continuityDatabasePath(paths.runtimeDir)
   });
@@ -670,11 +690,22 @@ export function buildServer(
     }
     return sendUnknownApiError(reply, error);
   });
-  app.register(tokenPilotAuthPlugin);
+  app.register(
+    createTokenPilotAuthPlugin(
+      oauthService && oauthConfig
+        ? {
+            protectedResourceMetadataUrl: oauthConfig.protectedResourceMetadataUrl,
+            scope: TOKENPILOT_MCP_SCOPE,
+            verifyAccessToken: (token) => Boolean(oauthService.verifyMcpAccessToken(token))
+          }
+        : null
+    )
+  );
   app.addHook("onClose", async () => {
     runtimeEventService.detach();
     await runtimeService.close();
     continuityDatabase.close();
+    oauthStore?.close();
   });
   const mcpHandler = buildTokenPilotMcpHandler(
     paths,
