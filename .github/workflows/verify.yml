@@ -12,9 +12,15 @@ env:
 
 jobs:
   verify:
-    name: Full verification
+    name: Full verification (Node ${{ matrix.node-version }})
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - "22.13.0"
+          - "24"
 
     steps:
       - name: Checkout
@@ -25,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -39,6 +45,12 @@ jobs:
 
       - name: Verify current tree
         run: npm run verify
+
+      - name: Verify ChatGPT MCP OAuth lifecycle
+        run: npm run verify:oauth-flow
+
+      - name: Verify source archive
+        run: npm run verify:source-archive
 
       - name: Scan Git history for privacy leaks
         run: npm run privacy:scan:history
@@ -55,7 +67,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
 
       - name: Verify source release package
