@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,29 +15,8 @@ import { buildPaths } from "../src/core/paths.ts";
 import { CodexAppServerAdapter } from "../src/runtime/codex/app-server-adapter.ts";
 import { CodexAppServerClient } from "../src/runtime/codex/app-server-client.ts";
 import type { CodexBinaryResolution } from "../src/runtime/codex/binary.ts";
-
-function git(cwd: string, args: string[]): void {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
-  assert.equal(
-    result.status,
-    0,
-    `git ${args.join(" ")} failed: ${result.stderr || result.stdout}`
-  );
-}
-
-async function waitFor<T>(
-  read: () => T | null,
-  label: string,
-  timeoutMs = 3_000
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const value = read();
-    if (value !== null) return value;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`Timed out waiting for ${label}`);
-}
+import { runGit } from "./test-support/git.ts";
+import { waitForValue } from "./test-support/wait.ts";
 
 function mockResolution(command: string): CodexBinaryResolution {
   return {
@@ -69,11 +47,11 @@ async function verifyCodexExecution(): Promise<void> {
   );
   fs.mkdirSync(nestedWorkspaceRoot, { recursive: true });
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "# Execution fixture\n", "utf8");
-  git(workspaceRoot, ["init", "-b", "main"]);
-  git(workspaceRoot, ["config", "user.email", "tokenpilot@example.invalid"]);
-  git(workspaceRoot, ["config", "user.name", "TokenPilot Test"]);
-  git(workspaceRoot, ["add", "README.md"]);
-  git(workspaceRoot, ["commit", "-m", "Initial fixture"]);
+  runGit(workspaceRoot, ["init", "-b", "main"]);
+  runGit(workspaceRoot, ["config", "user.email", "tokenpilot@example.invalid"]);
+  runGit(workspaceRoot, ["config", "user.name", "TokenPilot Test"]);
+  runGit(workspaceRoot, ["add", "README.md"]);
+  runGit(workspaceRoot, ["commit", "-m", "Initial fixture"]);
   fs.writeFileSync(
     configPath,
     `${JSON.stringify(
@@ -180,9 +158,9 @@ async function verifyCodexExecution(): Promise<void> {
     assert.equal(started.handoff.status, "accepted");
     assert.equal(started.turn.status, "inProgress");
 
-    const approval = await waitFor(
+    const approval = await waitForValue(
       () => repositories.runtimeApprovals.listPending(session.id)[0] ?? null,
-      "command approval"
+      { label: "command approval", intervalMs: 10 }
     );
     assert.equal(approval.kind, "command-execution");
     assert.equal(approval.status, "pending");
@@ -198,12 +176,12 @@ async function verifyCodexExecution(): Promise<void> {
       idempotencyKey: "execution-approval-0001"
     });
     assert.equal(approvalResult.replayed, false);
-    const completedRun = await waitFor(
+    const completedRun = await waitForValue(
       () => {
         const current = repositories.runtimeRuns.get(started.run.id);
         return current.status === "completed" ? current : null;
       },
-      "completed Codex run"
+      { label: "completed Codex run", intervalMs: 10 }
     );
     assert.equal(completedRun.status, "completed");
     assert.equal(repositories.leases.get(completedRun.writerLeaseId).status, "released");

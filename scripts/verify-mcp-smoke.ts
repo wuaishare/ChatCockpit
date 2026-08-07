@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
-
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildServer } from "../src/server/app.ts";
+import { runGit } from "./test-support/git.ts";
+import { listenTestServer } from "./test-support/server.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -19,21 +19,11 @@ interface JsonRpcResponse {
 }
 
 function initGitRepo(repoRoot: string): void {
-  for (const args of [
-    ["init"],
-    ["config", "user.email", "tokenpilot-mcp@example.com"],
-    ["config", "user.name", "TokenPilot MCP Test"],
-    ["add", "README.md", "src/catalog-fixture.ts"],
-    ["commit", "-m", "init"]
-  ]) {
-    const result = spawnSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8"
-    });
-    if ((result.status ?? 1) !== 0) {
-      throw new Error(result.stderr || `git ${args.join(" ")} failed`);
-    }
-  }
+  runGit(repoRoot, ["init"]);
+  runGit(repoRoot, ["config", "user.email", "tokenpilot-mcp@example.invalid"]);
+  runGit(repoRoot, ["config", "user.name", "TokenPilot MCP Test"]);
+  runGit(repoRoot, ["add", "README.md", "src/catalog-fixture.ts"]);
+  runGit(repoRoot, ["commit", "-m", "init"]);
 }
 
 function parseMcpResponse(body: string): JsonRpcResponse {
@@ -115,11 +105,11 @@ async function runMcpSmoke(): Promise<void> {
   process.env.TOKENPILOT_EXPOSED = "true";
 
   const app = buildServer(paths);
-  let listening = false;
+  let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
 
   try {
-    const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
-    listening = true;
+    testServer = await listenTestServer(app);
+    const baseUrl = testServer.baseUrl;
 
     const restPost = async <T>(route: string, body: unknown): Promise<T> => {
       const response = await fetch(`${baseUrl}${route}`, {
@@ -707,9 +697,7 @@ async function runMcpSmoke(): Promise<void> {
       "SHELL_COMMAND_BLOCKED"
     );
   } finally {
-    if (listening) {
-      await app.close();
-    }
+    await testServer?.close();
     if (originalConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
     } else {

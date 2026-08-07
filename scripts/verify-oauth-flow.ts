@@ -7,6 +7,7 @@ import path from "node:path";
 import { resolveOAuthPublicConfig } from "../src/auth/oauth-config.js";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.js";
 import { buildServer } from "../src/server/app.js";
+import { listenTestServer, type TestServerHandle } from "./test-support/server.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -76,10 +77,8 @@ async function authorizedJson<T>(
   return body;
 }
 
-async function startServer(paths: ReturnType<typeof buildPaths>) {
-  const app = buildServer(paths);
-  const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
-  return { app, baseUrl };
+async function startServer(paths: ReturnType<typeof buildPaths>): Promise<TestServerHandle> {
+  return listenTestServer(buildServer(paths));
 }
 
 async function main(): Promise<void> {
@@ -383,7 +382,7 @@ async function main(): Promise<void> {
     };
     assert.equal(firstTaskResult.structuredContent?.task?.id, taskCreated.task.id);
 
-    await server.app.close();
+    await server.close();
     server = await startServer(paths);
 
     const refreshResponse = await postForm(`${server.baseUrl}/oauth/token`, {
@@ -462,7 +461,7 @@ async function main(): Promise<void> {
       `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="tokenpilot:mcp"`
     );
   } finally {
-    await server.app.close().catch(() => undefined);
+    await server.close().catch(() => undefined);
     if (original.configPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
     else process.env.TOKENPILOT_CONFIG_PATH = original.configPath;
     if (original.token === undefined) delete process.env.TOKENPILOT_API_TOKEN;

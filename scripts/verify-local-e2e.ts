@@ -7,6 +7,12 @@ import net from "node:net";
 
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
+import { runGit } from "./test-support/git.ts";
+import {
+  waitForHttpReady,
+  waitForTextMatch,
+  waitForValue
+} from "./test-support/wait.ts";
 
 function makeTempRepoRoot(): string {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-e2e-"));
@@ -49,21 +55,11 @@ function makeTempRepoRoot(): string {
     "console.log('tokenpilot-web-ui-fixture')",
     "utf8"
   );
-  for (const args of [
-    ["init"],
-    ["config", "user.email", "tokenpilot@example.com"],
-    ["config", "user.name", "TokenPilot Test"],
-    ["add", "-A"],
-    ["commit", "-m", "init"]
-  ]) {
-    const result = spawnSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8"
-    });
-    if ((result.status ?? 1) !== 0) {
-      throw new Error(result.stderr || `git ${args.join(" ")} failed`);
-    }
-  }
+  runGit(repoRoot, ["init"]);
+  runGit(repoRoot, ["config", "user.email", "tokenpilot@example.invalid"]);
+  runGit(repoRoot, ["config", "user.name", "TokenPilot Test"]);
+  runGit(repoRoot, ["add", "-A"]);
+  runGit(repoRoot, ["commit", "-m", "init"]);
   return repoRoot;
 }
 
@@ -81,22 +77,6 @@ function findFreePort(): Promise<number> {
     });
     server.on("error", reject);
   });
-}
-
-async function waitForHttpReady(url: string, timeoutMs = 10000): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      // retry
-    }
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-  throw new Error(`Timed out waiting for ${url}`);
 }
 
 function assertOpenApiDescriptionLimit(openapiText: string, limit = 300): void {
@@ -162,40 +142,27 @@ function runCommand(
   };
 }
 
-async function waitForOutputMatch(
-  getOutput: () => string,
-  pattern: RegExp,
-  timeoutMs = 8000
-): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (pattern.test(getOutput())) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-  throw new Error(`Timed out waiting for output to match ${pattern}`);
-}
-
 async function waitForJobTerminalState(
   port: number,
   jobId: string,
   token: string
 ): Promise<Record<string, unknown>> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const detailResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/${jobId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    assert.equal(detailResponse.status, 200);
-    const detail = (await detailResponse.json()) as { job: Record<string, unknown> };
-    const status = detail.job.status;
-    if (status === "completed" || status === "failed") {
-      return detail.job;
+  return waitForValue(
+    async () => {
+      const detailResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/${jobId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      assert.equal(detailResponse.status, 200);
+      const detail = (await detailResponse.json()) as { job: Record<string, unknown> };
+      const status = detail.job.status;
+      return status === "completed" || status === "failed" ? detail.job : null;
+    },
+    {
+      label: `job ${jobId} to reach a terminal state`,
+      timeoutMs: 4_500,
+      intervalMs: 75
     }
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-
-  throw new Error(`Timed out waiting for job ${jobId} to reach a terminal state`);
+  );
 }
 
 async function runRunnerUntilJobTerminal(
@@ -733,7 +700,7 @@ async function runE2E(): Promise<void> {
       watchOutput += chunk.toString();
     });
 
-    await waitForOutputMatch(() => watchOutput, /mode=watch/);
+    await waitForTextMatch(() => watchOutput, /mode=watch/);
     watchRun.kill("SIGINT");
     await new Promise<void>((resolve) => {
       watchRun.once("exit", () => resolve());

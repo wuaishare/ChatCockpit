@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { sleep, waitForValue } from "./test-support/wait.ts";
 
 const repoRoot = process.cwd();
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-source-archive-"));
@@ -84,22 +85,27 @@ async function waitForReady(
   child: ChildProcessWithoutNullStreams,
   output: () => string
 ): Promise<void> {
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(
-        `Source archive server exited before readiness (${child.exitCode})\n${output()}`
-      );
+  await waitForValue(
+    async () => {
+      if (child.exitCode !== null) {
+        throw new Error(
+          `Source archive server exited before readiness (${child.exitCode})\n${output()}`
+        );
+      }
+      try {
+        const response = await fetch(url);
+        return response.ok ? true : null;
+      } catch {
+        return null;
+      }
+    },
+    {
+      label: `${url}\n${output()}`,
+      timeoutMs: 20_000,
+      intervalMs: 75,
+      retryOnError: false
     }
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch {
-      // Server is still starting.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-  throw new Error(`Timed out waiting for ${url}\n${output()}`);
+  );
 }
 
 async function stop(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -107,12 +113,10 @@ async function stop(child: ChildProcessWithoutNullStreams): Promise<void> {
   child.kill("SIGINT");
   await Promise.race([
     new Promise<void>((resolve) => child.once("exit", () => resolve())),
-    new Promise<void>((resolve) =>
-      setTimeout(() => {
-        if (child.exitCode === null) child.kill("SIGKILL");
-        resolve();
-      }, 4_000)
-    )
+    (async () => {
+      await sleep(4_000);
+      if (child.exitCode === null) child.kill("SIGKILL");
+    })()
   ]);
 }
 

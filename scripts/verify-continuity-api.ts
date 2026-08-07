@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildServer } from "../src/server/app.ts";
+import { listenTestServer } from "./test-support/server.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -62,12 +63,12 @@ async function runContinuityApiVerification(): Promise<void> {
   process.env.TOKENPILOT_EXPOSED = "true";
 
   const app = buildServer(paths);
-  let listening = false;
+  let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
   let requestId = 1;
 
   try {
-    const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
-    listening = true;
+    testServer = await listenTestServer(app);
+    const baseUrl = testServer.baseUrl;
 
     const rest = async <T>(
       method: "GET" | "POST",
@@ -836,9 +837,7 @@ async function runContinuityApiVerification(): Promise<void> {
       )
     );
   } finally {
-    if (listening) {
-      await app.close();
-    }
+    await testServer?.close();
     if (originalConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
     } else {

@@ -20,6 +20,8 @@ import type {
   RuntimeTurnStartInput
 } from "../src/runtime/codex/runtime-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
+import { listenTestServer } from "./test-support/server.ts";
+import { waitForValue } from "./test-support/wait.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -37,20 +39,6 @@ function parseMcpResponse(body: string): JsonRpcResponse {
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice("data:".length).trim());
   return JSON.parse(dataLines.length ? dataLines.join("\n") : body) as JsonRpcResponse;
-}
-
-async function waitFor<T>(
-  read: () => Promise<T | null>,
-  label: string,
-  timeoutMs = 3_000
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const value = await read();
-    if (value !== null) return value;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`Timed out waiting for ${label}`);
 }
 
 class FakeCodexRuntimeAdapter implements CodingRuntimeAdapter {
@@ -383,13 +371,12 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
 
   const adapter = new FakeCodexRuntimeAdapter();
   const app = buildServer(paths, { codexAdapter: adapter });
-  let listening = false;
+  let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
   let requestId = 1;
 
   try {
-    const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
-    listening = true;
-
+    testServer = await listenTestServer(app);
+    const baseUrl = testServer.baseUrl;
     const rest = async <T>(
       method: "GET" | "POST",
       route: string,
@@ -714,7 +701,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
     assert.equal(restTurnStart.lease.status, "active");
     assert.equal(restTurnStart.handoff.status, "accepted");
 
-    const approvalEvent = await waitFor(async () => {
+    const approvalEvent = await waitForValue(async () => {
       const page = await rest<{
         ok: true;
         events: Array<{
@@ -735,7 +722,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
             typeof event.publicPayload.approvalId === "string"
         ) ?? null
       );
-    }, "runtime API approval event");
+    }, { label: "runtime API approval event", intervalMs: 10 });
     const approvalId = approvalEvent.publicPayload.approvalId as string;
 
     const approvalResponse = await rest<{
@@ -772,7 +759,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       { decision: "accept" }
     ]);
 
-    const restEvents = await waitFor(async () => {
+    const restEvents = await waitForValue(async () => {
       const page = await rest<{
         ok: true;
         events: Array<{ method: string; publicPayload: Record<string, unknown> }>;
@@ -784,7 +771,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       return page.events.some((event) => event.method === "turn/completed")
         ? page
         : null;
-    }, "runtime API completed event");
+    }, { label: "runtime API completed event", intervalMs: 10 });
     const mcpEvents = await mcp<typeof restEvents>(
       "tokenpilot.codex.events.read",
       {
@@ -942,9 +929,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       "CAPABILITY_UNAVAILABLE"
     );
   } finally {
-    if (listening) {
-      await app.close();
-    }
+    await testServer?.close();
     if (originalConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
     } else {
