@@ -62,7 +62,7 @@ components:
       properties:
         key:
           type: string
-          enum: [runtime, auth, repo, runner, gpt, firstTask]
+          enum: [runtime, auth, oauth, repo, runner, gpt, firstTask]
         ok:
           type: boolean
         label:
@@ -87,6 +87,13 @@ components:
           type: boolean
         publicBaseUrlConfigured:
           type: boolean
+        oauthStatus:
+          type: string
+          enum: [disabled, ready, needs-attention]
+        oauthProtectedResourceMetadataUrl:
+          oneOf:
+            - type: string
+            - type: "null"
         openapiUrl:
           type: string
         runnerStatus:
@@ -98,7 +105,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SetupStatusStep'
-      required: [ok, ready, authRequired, exposed, publicBaseUrlConfigured, openapiUrl, runnerStatus, firstTaskSeen, steps]
+      required: [ok, ready, authRequired, exposed, publicBaseUrlConfigured, oauthStatus, oauthProtectedResourceMetadataUrl, openapiUrl, runnerStatus, firstTaskSeen, steps]
     GptConfig:
       type: object
       additionalProperties: false

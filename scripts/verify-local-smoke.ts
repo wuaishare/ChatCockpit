@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 
+import { buildOAuthReadiness } from "../src/auth/oauth-readiness.ts";
 import { runPack } from "../src/core/pack.ts";
 import { runCodexRunJob } from "../src/core/codex-run.ts";
 import { createJob, getJob } from "../src/core/jobs.ts";
@@ -508,6 +509,35 @@ function verifyPathContainmentAndShellTrust(): void {
 }
 
 function verifyAuthConfig(): void {
+  const paths = buildTempPaths();
+  assert.equal(
+    buildOAuthReadiness(paths, { TOKENPILOT_EXPOSED: "false" }).status,
+    "disabled"
+  );
+  const missingPublicOrigin = buildOAuthReadiness(paths, {
+    TOKENPILOT_EXPOSED: "true",
+    TOKENPILOT_API_TOKEN: "test-owner-token"
+  });
+  assert.equal(missingPublicOrigin.status, "needs-attention");
+  assert.match(missingPublicOrigin.detail, /canonical public origin/);
+  const invalidPublicOrigin = buildOAuthReadiness(paths, {
+    TOKENPILOT_EXPOSED: "true",
+    TOKENPILOT_API_TOKEN: "test-owner-token",
+    TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com/mcp"
+  });
+  assert.equal(invalidPublicOrigin.status, "needs-attention");
+  assert.match(invalidPublicOrigin.detail, /origin without a path/);
+  const readyOAuth = buildOAuthReadiness(paths, {
+    TOKENPILOT_EXPOSED: "true",
+    TOKENPILOT_API_TOKEN: "test-owner-token",
+    TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com"
+  });
+  assert.equal(readyOAuth.status, "ready");
+  assert.equal(
+    readyOAuth.protectedResourceMetadataUrl,
+    "https://tokenpilot.example.com/.well-known/oauth-protected-resource"
+  );
+
   validateServerAuthConfig({
     TOKENPILOT_EXPOSED: "false"
   });

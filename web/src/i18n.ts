@@ -276,7 +276,7 @@ export interface UiCopy {
     openGptHelper: string;
     refresh: string;
     steps: Record<
-      "runtime" | "auth" | "repo" | "runner" | "gpt" | "firstTask",
+      "runtime" | "auth" | "oauth" | "repo" | "runner" | "gpt" | "firstTask",
       { label: string; detailReady: string; detailPending: string; nextReady: string; nextPending: string }
     >;
   };
@@ -687,6 +687,13 @@ const zhCN: UiCopy = {
         detailPending: "受保护接口需要配置 TOKENPILOT_API_TOKEN。",
         nextReady: "继续下一步",
         nextPending: "在本地运行态中配置 TOKENPILOT_API_TOKEN"
+      },
+      oauth: {
+        label: "ChatGPT MCP OAuth",
+        detailReady: "OAuth 已就绪，或当前本地模式无需远程 OAuth。",
+        detailPending: "ChatGPT Remote MCP OAuth 尚未满足公开地址、Owner Secret 或持久化条件。",
+        nextReady: "继续下一步",
+        nextPending: "运行 npm run doctor 查看 OAuth readiness 原因"
       },
       repo: {
         label: "仓库授权",
@@ -1136,6 +1143,13 @@ const enUS: UiCopy = {
         detailPending: "Protected endpoints need TOKENPILOT_API_TOKEN.",
         nextReady: "Continue",
         nextPending: "Configure TOKENPILOT_API_TOKEN locally"
+      },
+      oauth: {
+        label: "ChatGPT MCP OAuth",
+        detailReady: "OAuth is ready, or remote OAuth is not required in local-only mode.",
+        detailPending: "Remote MCP OAuth is missing a valid public origin, owner secret, or writable runtime state.",
+        nextReady: "Continue",
+        nextPending: "Run npm run doctor for the OAuth readiness reason"
       },
       repo: {
         label: "Repository allowlist",

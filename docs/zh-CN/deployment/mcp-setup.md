@@ -4,8 +4,9 @@
 
 - 本地 MCP HTTP 传输：已实现
 - REST/MCP 共用 Application Service 与 Parity 测试：已实现
-- Exposed Mode Bearer Auth：已实现
-- 通过远程 ChatGPT 或其他 MCP 客户端使用：实验性，取决于客户端与网络环境
+- Exposed Mode 静态 Bearer 兼容鉴权：已实现
+- ChatGPT 兼容 OAuth 2.1 Discovery、DCR、PKCE、Refresh、Revoke 与重启持久化：已实现并完成本地确定性验证
+- 通过远程 ChatGPT 或其他 MCP 客户端使用：外部客户端与网络边界仍属实验性
 - TokenPilot 公共托管 MCP 服务：未实现
 
 TokenPilot 的 REST 与 MCP 使用同一套应用服务。MCP Handler 不会直接写 SQLite、独立抢占 Writer Lease，也不会绕过文件、命令、Git 与 public-safe 投影规则。
@@ -31,21 +32,47 @@ http://127.0.0.1:4318/tokenpilot/mcp
 
 仅监听 `127.0.0.1` 且 `TOKENPILOT_EXPOSED=false` 时，可以在明确的本机私有环境中不设置 Bearer Token。
 
-只要通过公网 HTTPS、Tunnel、局域网或非 Loopback 地址暴露，就必须配置：
+对于 ChatGPT Remote MCP，OAuth 是推荐接入方式。公网暴露至少配置：
 
 ```bash
 TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-strong-token
+TOKENPILOT_API_TOKEN=replace-with-a-strong-owner-secret
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 ```
 
-客户端请求头：
+`TOKENPILOT_PUBLIC_BASE_URL` 是 OAuth 的唯一 Canonical Issuer Origin，只填 HTTPS Origin，不要追加 `/mcp`、Query、Credential 或 Fragment。OAuth 身份不会根据 `Host` / `X-Forwarded-Host` 动态变化。
+
+ChatGPT 连接：
+
+```text
+https://tokenpilot.example.com/mcp
+```
+
+TokenPilot 会公开协议所需端点：
+
+```text
+/.well-known/oauth-protected-resource
+/.well-known/oauth-protected-resource/mcp
+/.well-known/oauth-authorization-server
+/oauth/register
+/oauth/authorize
+/oauth/token
+/oauth/revoke
+```
+
+授权使用 Public OAuth Client、PKCE S256、`tokenpilot:mcp` Resource Scope、短时 Access Token 与可跨重启继续使用的 Refresh Token。浏览器授权页要求输入现有 `TOKENPILOT_API_TOKEN` 作为本机 Owner Secret；它不会返回给 MCP 客户端，也不会作为 OAuth Token 明文落库。
+
+默认 Redirect Host 只允许 HTTPS `chatgpt.com`，以及测试用 `localhost` / `127.0.0.1`。额外 Host 必须通过本机 `TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS` 显式配置，而且实际 `redirect_uri` 仍必须与已注册 URI 完全一致。
+
+静态 Bearer 继续用于本地 Operator 和兼容客户端：
 
 ```text
 Authorization: Bearer <TOKENPILOT_API_TOKEN>
 ```
 
-不要把真实 Token、域名、Tunnel 凭据或机器路径提交到 Git。
+OAuth Access Token 刻意只授权 `/mcp` 与 `/tokenpilot/mcp`，不会顺便获得 REST Control Plane 权限。
+
+不要把真实 Owner Secret、域名、Tunnel 凭据、OAuth 数据库或机器路径提交到 Git。
 
 ## 3. 验证 MCP Transport
 
@@ -70,7 +97,7 @@ curl -sS http://127.0.0.1:4318/mcp \
 -H 'Authorization: Bearer replace-with-your-token'
 ```
 
-发布门禁会验证：鉴权、Tool List、Tool Call、结构化错误、幂等、`/mcp` 与 `/tokenpilot/mcp` 别名。
+发布门禁会验证：静态 Bearer 兼容、OAuth Discovery / Registration / PKCE / Refresh / Restart / Revoke、Tool List、Tool Call、结构化错误、幂等，以及 `/mcp` 与 `/tokenpilot/mcp` 别名。
 
 ## 4. 工具分类
 
@@ -175,8 +202,10 @@ tokenpilot.workspace.snapshot
 ## 8. 发布验证
 
 ```bash
+npm run verify:oauth-store
+npm run verify:oauth-flow
 npm run verify:protocol-core
 npm run verify:source-archive
 ```
 
-第一条验证 MCP/REST、Continuity、Codex 与 Chat Direct 协议行为；第二条证明没有 `.git` 元数据的源码包也能安装、构建、启动并提供 Control Plane API。
+OAuth 两条专项门禁分别验证 Token 只以哈希进入私有持久层，以及 ChatGPT 风格 `Discovery -> DCR -> PKCE -> Owner Approval -> Access/Refresh -> MCP -> Server Restart -> Refresh -> 新 MCP Session -> Revoke` 全链路。`verify:protocol-core` 会把 OAuth 与既有 MCP/REST、Continuity、Codex、Chat Direct 一起验证；源码包门禁证明没有 `.git` 元数据时仍可安装、构建、启动并提供 Control Plane API。

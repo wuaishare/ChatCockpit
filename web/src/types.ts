@@ -18,7 +18,7 @@ export interface HealthResponse {
 }
 
 export interface SetupStatusStep {
-  key: "runtime" | "auth" | "repo" | "runner" | "gpt" | "firstTask";
+  key: "runtime" | "auth" | "oauth" | "repo" | "runner" | "gpt" | "firstTask";
   ok: boolean;
   label: string;
   detail: string;
@@ -31,6 +31,8 @@ export interface SetupStatusResponse {
   authRequired: boolean;
   exposed: boolean;
   publicBaseUrlConfigured: boolean;
+  oauthStatus: "disabled" | "ready" | "needs-attention";
+  oauthProtectedResourceMetadataUrl: string | null;
   openapiUrl: string;
   runnerStatus: "missing" | "ready";
   firstTaskSeen: boolean;

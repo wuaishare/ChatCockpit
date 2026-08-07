@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { buildOAuthReadiness } from "../auth/oauth-readiness.js";
 import { runCommand } from "./shell.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { listJobs } from "./jobs.js";
@@ -60,6 +61,16 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
     name: "bundle-engine",
     ok: true,
     detail: "TokenPilot internal XML bundle generator"
+  });
+
+  const oauth = buildOAuthReadiness(paths);
+  checks.push({
+    name: "chatgpt-mcp-oauth",
+    ok: !oauth.required || oauth.ready,
+    detail:
+      oauth.status === "ready"
+        ? `ready metadata=${oauth.protectedResourceMetadataUrl}`
+        : oauth.detail
   });
 
   const jobs = listJobs(paths);

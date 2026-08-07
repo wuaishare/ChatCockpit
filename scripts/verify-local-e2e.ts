@@ -372,13 +372,24 @@ async function runE2E(): Promise<void> {
     assert.equal(typeof setupStatusBody.ready, "boolean");
     assert.equal(setupStatusBody.authRequired, true);
     assert.equal(setupStatusBody.exposed, true);
+    assert.equal(setupStatusBody.oauthStatus, "ready");
+    assert.equal(
+      setupStatusBody.oauthProtectedResourceMetadataUrl,
+      "https://tokenpilot.example.com/.well-known/oauth-protected-resource"
+    );
     assert.equal(typeof setupStatusBody.openapiUrl, "string");
     assert.equal(Array.isArray(setupStatusBody.steps), true);
+    assert.equal(
+      setupStatusBody.steps.some((step: { key?: string }) => step.key === "oauth"),
+      true
+    );
     assert.equal(
       setupStatusBody.steps.some((step: { key?: string }) => step.key === "gpt"),
       true
     );
-    assert.equal(JSON.stringify(setupStatusBody).includes("test-token"), false);
+    const setupStatusJson = JSON.stringify(setupStatusBody);
+    assert.equal(setupStatusJson.includes("test-token"), false);
+    assert.equal(setupStatusJson.includes("oauth.sqlite"), false);
 
     const gptConfig = await fetch(`http://127.0.0.1:${port}/api/gpt/config`, {
       headers: { Authorization: "Bearer test-token" }

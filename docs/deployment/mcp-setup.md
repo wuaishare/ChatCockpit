@@ -4,8 +4,9 @@
 
 - Local MCP HTTP transport: implemented
 - REST/MCP shared Application Services and parity tests: implemented
-- Exposed-mode Bearer Auth: implemented
-- Use through a remote ChatGPT/MCP client: experimental and client-dependent
+- Exposed-mode static Bearer compatibility: implemented
+- ChatGPT-compatible OAuth 2.1 discovery, DCR, PKCE, refresh, revoke, and restart persistence: implemented and locally verified
+- Use through a remote ChatGPT/MCP client: experimental at the external client/network boundary
 - Public hosted TokenPilot MCP service: not implemented
 
 TokenPilot exposes the same governed domain operations through REST and MCP. MCP handlers do not write SQLite directly, acquire Writer Leases independently, or bypass file/command/Git safety checks.
@@ -33,21 +34,47 @@ The two paths are aliases. Use one consistently in a client configuration.
 
 Local non-exposed mode can be used without a Bearer token when the operator explicitly keeps the service on loopback.
 
-For any public HTTPS, tunnel, LAN, or non-loopback exposure:
+For ChatGPT Remote MCP, OAuth is the preferred authentication path. Public exposure requires:
 
 ```bash
 TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-strong-token
+TOKENPILOT_API_TOKEN=replace-with-a-strong-owner-secret
 TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
 ```
 
-Clients must send:
+`TOKENPILOT_PUBLIC_BASE_URL` is the canonical OAuth issuer origin. Configure the HTTPS origin only: do not append `/mcp`, query data, credentials, or a fragment. TokenPilot does not derive its OAuth issuer from `Host` or forwarded-host headers.
+
+When ChatGPT connects to:
+
+```text
+https://tokenpilot.example.com/mcp
+```
+
+TokenPilot exposes:
+
+```text
+/.well-known/oauth-protected-resource
+/.well-known/oauth-protected-resource/mcp
+/.well-known/oauth-authorization-server
+/oauth/register
+/oauth/authorize
+/oauth/token
+/oauth/revoke
+```
+
+The authorization flow uses a public OAuth client, PKCE S256, the `tokenpilot:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. The browser approval page asks for the existing local `TOKENPILOT_API_TOKEN` as the owner secret; that secret is never returned to the MCP client or stored in OAuth token records.
+
+Default redirect hosts are limited to HTTPS `chatgpt.com` and local test callbacks on `localhost` / `127.0.0.1`. Additional redirect hosts require explicit local `TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS` configuration. Registered redirect URIs still require exact matching.
+
+Static Bearer authentication remains supported for local operator workflows and compatibility clients:
 
 ```text
 Authorization: Bearer <TOKENPILOT_API_TOKEN>
 ```
 
-Never put the real token, domain, tunnel credential, or machine path in this repository.
+An OAuth access token is intentionally accepted only on `/mcp` and `/tokenpilot/mcp`; it does not widen access to the REST control plane.
+
+Never put the real owner secret, domain, tunnel credential, OAuth database, or machine path in this repository.
 
 ## Verify The MCP Transport
 
@@ -72,7 +99,7 @@ Add the Bearer header when authentication is required:
 -H 'Authorization: Bearer replace-with-your-token'
 ```
 
-The release gate verifies authentication, tool listing, tool calls, structured errors, mutation idempotency, and the `/mcp` plus `/tokenpilot/mcp` aliases.
+The release gate verifies static Bearer compatibility plus OAuth discovery, registration, PKCE, refresh/restart, revocation, tool listing, tool calls, structured errors, mutation idempotency, and the `/mcp` plus `/tokenpilot/mcp` aliases.
 
 ## Tool Families
 
@@ -177,8 +204,10 @@ Local absolute paths and raw runtime request bodies are not returned.
 ## Release Verification
 
 ```bash
+npm run verify:oauth-store
+npm run verify:oauth-flow
 npm run verify:protocol-core
 npm run verify:source-archive
 ```
 
-The first command validates MCP/REST protocol and continuity behavior. The second proves a source archive can install, build, start, and serve MCP-adjacent Control Plane APIs without `.git` metadata.
+The OAuth gates validate hashed private token persistence plus the full ChatGPT-style discovery -> DCR -> PKCE -> owner approval -> access/refresh -> MCP -> restart -> refresh -> new MCP session -> revoke flow. `verify:protocol-core` keeps that flow together with the existing MCP/REST/runtime gates. The source-archive gate proves a clean source package can install, build, start, and serve the Control Plane without `.git` metadata.

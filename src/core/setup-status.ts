@@ -1,11 +1,12 @@
 import fs from "node:fs";
 
+import { buildOAuthReadiness, type OAuthReadinessStatus } from "../auth/oauth-readiness.js";
 import { buildHealthStatusSnapshot } from "./gpt-config.js";
 import { listJobs } from "./jobs.js";
 import type { TokenPilotPaths } from "../types.js";
 
 export interface SetupStatusStep {
-  key: "runtime" | "auth" | "repo" | "runner" | "gpt" | "firstTask";
+  key: "runtime" | "auth" | "oauth" | "repo" | "runner" | "gpt" | "firstTask";
   ok: boolean;
   label: string;
   detail: string;
@@ -18,6 +19,8 @@ export interface SetupStatus {
   authRequired: boolean;
   exposed: boolean;
   publicBaseUrlConfigured: boolean;
+  oauthStatus: OAuthReadinessStatus;
+  oauthProtectedResourceMetadataUrl: string | null;
   openapiUrl: string;
   runnerStatus: "missing" | "ready";
   firstTaskSeen: boolean;
@@ -42,6 +45,7 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
   const repoReady = fs.existsSync(paths.repoRoot);
   const publicBaseUrlConfigured = Boolean(health.publicBaseUrl);
   const publicGptReady = publicBaseUrlConfigured && health.exposed;
+  const oauth = buildOAuthReadiness(paths);
 
   const steps: SetupStatusStep[] = [
     {
@@ -59,6 +63,13 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
         ? "Protected endpoints require TOKENPILOT_API_TOKEN"
         : "Local-only mode does not require a token",
       nextAction: health.authRequired && !tokenConfigured ? "Set TOKENPILOT_API_TOKEN" : "Continue"
+    },
+    {
+      key: "oauth",
+      ok: !oauth.required || oauth.ready,
+      label: "ChatGPT MCP OAuth",
+      detail: oauth.detail,
+      nextAction: oauth.nextAction
     },
     {
       key: "repo",
@@ -104,6 +115,8 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
     authRequired: health.authRequired,
     exposed: health.exposed,
     publicBaseUrlConfigured,
+    oauthStatus: oauth.status,
+    oauthProtectedResourceMetadataUrl: oauth.protectedResourceMetadataUrl,
     openapiUrl: health.openapiUrl,
     runnerStatus: runnerReady ? "ready" : "missing",
     firstTaskSeen,
