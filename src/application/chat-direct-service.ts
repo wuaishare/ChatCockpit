@@ -32,6 +32,8 @@ import { SearchService } from "./search-service.js";
 import { ServiceError, wrapServiceOperationError } from "./service-error.js";
 import { ShellService } from "./shell-service.js";
 
+export type DirectExecutionScope = "workspace" | "host";
+
 export type ChatDirectExecutor =
   | "codex-app-server-standalone"
   | "tokenpilot-direct"
@@ -40,6 +42,7 @@ export type ChatDirectExecutor =
 export interface ChatDirectExecutionMetadata {
   lane: "chat-direct";
   modelLoopOwner: "chatgpt";
+  executionScope: DirectExecutionScope;
   executor: ChatDirectExecutor;
   operationId: string;
   changedPaths: string[];
@@ -57,6 +60,7 @@ function metadata(
   return {
     lane: "chat-direct",
     modelLoopOwner: "chatgpt",
+    executionScope: "workspace",
     executor,
     operationId: `chat_direct_${randomUUID()}`,
     changedPaths: [...changedPaths].sort(),

@@ -20,27 +20,43 @@ TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Action
 
 ## 它做什么
 
-```text
-ChatGPT Native：对话、推理、规划与审查
-Chat Direct：ChatGPT 拥有模型循环，TokenPilot / App Server 只执行工具
-Codex Session：Codex 拥有显式模型循环，支持 Thread Bind/Resume/Fork 与审批
-Async Agent Job：Queue/Runner 执行长任务、产出 Diff、Artifacts 与 Evidence
+ChatGPT Native 是主要对话入口，不是一个需要逐级“升级”的 Runtime Lane。需要操作本机时，TokenPilot 提供三种显式执行方式：
+
+```mermaid
+flowchart TB
+    Chat["ChatGPT Native<br/>对话 · 推理 · 规划 · 审查"] --> MCP["TokenPilot Remote MCP / Control Plane"]
+
+    MCP --> Direct["Direct Drive<br/>ChatGPT 持有模型循环"]
+    MCP --> Codex["Codex Session<br/>Codex 持有模型循环"]
+    MCP --> Async["Async Agent Job<br/>后台 Agent 持有模型循环"]
+
+    Direct --> Workspace["Workspace Direct<br/>已实现 · Project / Workspace"]
+    Direct --> Host["Host Direct<br/>目标 · 当前 OS 用户权限范围"]
+
+    Workspace --> Broker["Capability Broker"]
+    Host --> Broker
+    Broker --> BuiltIn["TokenPilot Built-in Executor"]
+    Broker --> Standalone["Codex App Server Standalone"]
+    Broker --> Downstream["Pluggable Downstream MCP Executor"]
+
+    Codex --> AppServer["Codex App Server<br/>Thread · Turn · Approval"]
+    Async --> Runner["Queue / Runner<br/>Isolated Worktree · Artifacts · Evidence"]
+
+    Governance["Continuity & Governance<br/>Task · Session · Runtime Binding · Writer Lease · Handoff · Approval · Evidence"] -.-> Direct
+    Governance -.-> Codex
+    Governance -.-> Async
 ```
 
-TokenPilot 的能力升级路径：
+底层现有 `chat-direct` Runtime Lane 保持兼容；Direct Drive 是其产品级总称。Workspace / Host / isolated Worktree 描述“执行发生在哪里”，而 Direct Drive / Codex Session / Async Agent Job 描述“谁持有模型循环以及任务如何执行”。Direct Drive 已确认采用 **TokenPilot Capability Broker + Pluggable Downstream MCP Executor** 作为目标 Executor 架构；当前 Built-in / App Server Standalone 继续工作，下游 MCP Executor 将作为受 TokenPilot 统一 Scope、Approval、Writer Lease、Evidence 与审计约束的可插拔 Provider 接入。
 
-```text
-ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
-```
-
-同一个 Task 可以通过 Writer Lease、Handoff Checkpoint 与 Evidence Bundle 在不同运行模式之间接力，而不是把某个 ChatGPT 对话、Codex Thread 或 Runner Job 当成唯一系统记录。
+同一个 Task 可以通过 Writer Lease、Handoff Checkpoint 与 Evidence Bundle 在不同执行方式之间接力，而不是把某个 ChatGPT 对话、Codex Thread 或 Runner Job 当成唯一系统记录。
 
 ## 能力状态
 
 ### 已实现
 
 - 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
-- Chat Direct：文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；已证明不会隐式调用 `turn/start`。
+- Direct Drive / Workspace Direct：底层继续使用 `chat-direct` Lane，提供文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；已证明不会隐式调用 `turn/start`。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
 - Continuity Engine：SQLite Schema v7、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Approval 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Handoffs、Evidence、Approvals、Planning/Completion Blockers、Runtime Binding 与 Runner Job；支持文档创建/版本/Ready/Approve/绑定，以及 Prepare、Accept、Fork、Cancel、Submit Review 和 Complete Task。
@@ -108,7 +124,7 @@ TOKENPILOT_PORT=4318
 
 公开 OpenAPI 合约位于 [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml)。其中的 `https://tokenpilot.example.com` 是占位域名；实际使用时请替换为你自己的 HTTPS 地址，不要把真实域名或 bearer token 提交到 Git。
 
-Custom GPT Actions / Remote MCP 接入属于实验性部署面，但本地 REST/MCP 应用服务、鉴权、结构化错误、幂等和协议门禁已经实现。Chat Direct 适合由 ChatGPT 保持模型循环的文件、搜索、受控命令与 Git 操作；显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的工作；更长任务仍可通过 `createCodexRun` 进入异步 Runner。
+Custom GPT Actions / Remote MCP 接入属于实验性部署面，但本地 REST/MCP 应用服务、鉴权、结构化错误、幂等和协议门禁已经实现。Direct Drive 适合由 ChatGPT 保持模型循环的确定性本机操作；当前已实现 Workspace Direct，Host Direct 尚未开放。显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的交互式 Agent 工作；更长或适合隔离执行的任务可通过 `createCodexRun` 进入 Async Agent Job。
 
 `runShell` 不是 raw shell，Standalone `command/exec` 也不会绕过 TokenPilot 的命令白名单、工作区 allowlist、exposed-mode 高信任开关、超时与输出上限。公网或隧道访问必须启用 Bearer Auth。
 

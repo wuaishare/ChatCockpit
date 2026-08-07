@@ -384,6 +384,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(read.file.content, "# Chat Direct\n");
     assert.equal(read.execution.executor, "codex-app-server-standalone");
     assert.equal(read.execution.modelLoopOwner, "chatgpt");
+    assert.equal(read.execution.executionScope, "workspace");
 
     const batch = await service.readBatch(context, {
       repoId: "tokenpilot",

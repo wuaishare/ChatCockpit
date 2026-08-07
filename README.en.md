@@ -18,18 +18,34 @@ The current alpha implements and locally verifies a CLI, Fastify Control Plane, 
 
 ## What It Does
 
-```text
-ChatGPT Native: conversation, reasoning, planning, and review
-Chat Direct: ChatGPT owns the model loop; TokenPilot / App Server execute tools
-Codex Session: Codex owns an explicit model loop with Thread and Approval state
-Async Agent Job: Queue/Runner executes longer work and records artifacts/evidence
+ChatGPT Native is the primary conversational entry surface, not a runtime lane in a linear capability ladder. When local execution is required, TokenPilot exposes three explicit execution modes:
+
+```mermaid
+flowchart TB
+    Chat["ChatGPT Native<br/>Conversation · Reasoning · Planning · Review"] --> MCP["TokenPilot Remote MCP / Control Plane"]
+
+    MCP --> Direct["Direct Drive<br/>ChatGPT owns the model loop"]
+    MCP --> Codex["Codex Session<br/>Codex owns the model loop"]
+    MCP --> Async["Async Agent Job<br/>Background Agent owns the model loop"]
+
+    Direct --> Workspace["Workspace Direct<br/>Implemented · Project / Workspace"]
+    Direct --> Host["Host Direct<br/>Target · Current OS user scope"]
+
+    Workspace --> Broker["Capability Broker"]
+    Host --> Broker
+    Broker --> BuiltIn["TokenPilot Built-in Executor"]
+    Broker --> Standalone["Codex App Server Standalone"]
+    Broker --> Downstream["Pluggable Downstream MCP Executor"]
+
+    Codex --> AppServer["Codex App Server<br/>Thread · Turn · Approval"]
+    Async --> Runner["Queue / Runner<br/>Isolated Worktree · Artifacts · Evidence"]
+
+    Governance["Continuity & Governance<br/>Task · Session · Runtime Binding · Writer Lease · Handoff · Approval · Evidence"] -.-> Direct
+    Governance -.-> Codex
+    Governance -.-> Async
 ```
 
-The capability ladder is:
-
-```text
-ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
-```
+The persisted `chat-direct` Runtime Lane remains compatible; Direct Drive is the product-level name above it. Workspace / Host / isolated Worktree describe where execution occurs, while Direct Drive / Codex Session / Async Agent Job describe model-loop ownership and task lifecycle. Direct Drive has a confirmed target executor architecture of **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**: current Built-in / App Server Standalone providers remain valid, while downstream MCP executors will plug in behind TokenPilot's normalized scope, approval, Writer Lease, Evidence, audit, and safety contracts.
 
 A TokenPilot Task can move between those modes through Writer Lease, Handoff Checkpoint, and Evidence Bundle state. A ChatGPT conversation, Codex Thread, or Runner Job is an adapter identity, not the sole system of record.
 
@@ -38,7 +54,7 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 ### Implemented
 
 - Local CLI, Fastify Control Plane, REST, MCP, and OpenAPI.
-- Chat Direct file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
+- Direct Drive / Workspace Direct, persisted through the existing `chat-direct` lane, provides file, directory, content-search, controlled command, and Git operations with a proven no-`turn/start` invariant.
 - Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
 - SQLite Schema v7 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit Task Execution Policy, Writer Lease, Handoff, Evidence, Approval, and Runtime Event state.
 - Workspace Continuity Snapshot and Web UI for real Writer, Git, Specs & Plans, Task, Session, Handoff, Evidence, Approval, Planning/Completion Blocker, Runtime Binding, and Runner Job state, including document create/version/Ready/Approve/bind plus Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
@@ -106,7 +122,7 @@ Use `TOKENPILOT_EXPOSED=true` only after you have configured HTTPS and an access
 
 The public OpenAPI contract is available in [`openapi/tokenpilot.openapi.yaml`](./openapi/tokenpilot.openapi.yaml). The placeholder server URL `https://tokenpilot.example.com` is intentionally generic. Replace it with your own HTTPS URL when configuring GPT Builder, and do not commit real domains or bearer tokens to Git.
 
-Custom GPT Actions and Remote MCP remain experimental deployment surfaces, while the local REST/MCP application services, authentication, structured errors, idempotency, and protocol release gates are implemented. Use Chat Direct when ChatGPT should retain the model loop; use explicit Codex Session operations for Thread, Turn, and Approval workflows; use `createCodexRun` for longer asynchronous work.
+Custom GPT Actions and Remote MCP remain experimental deployment surfaces, while the local REST/MCP application services, authentication, structured errors, idempotency, and protocol release gates are implemented. Use Direct Drive when ChatGPT should retain the model loop; Workspace Direct is implemented today and Host Direct is not yet exposed. Use explicit Codex Session operations for interactive Thread, Turn, and Approval workflows; use `createCodexRun` for longer or isolated Async Agent Jobs.
 
 For Custom GPT creation, Actions schema import, authentication, and public HTTPS/tunnel setup, see:
 

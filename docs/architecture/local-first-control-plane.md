@@ -4,19 +4,27 @@
 
 - Implemented foundation: CLI, Fastify Control Plane, REST/MCP/OpenAPI, local Queue/Runner, Web UI, Chat Direct, Codex Session adapter, and Continuity Engine
 - Experimental deployment surfaces: Custom GPT Actions, Remote MCP, public HTTPS exposure, and Codex App Server standalone execution
-- Target direction: more provider adapters, Resource Center, durable Spec/Plan workflows, and multi-device continuity
+- Near-term direction: Remote MCP stability, Direct Drive hardening, explicit Codex Session lifecycle reliability, Async Agent Job reliability, and a governed Host Direct scope
 
 This document describes the current architecture. Earlier “Phase 1” language referred to the original queue-and-files scaffold and should not be read as the current product boundary.
 
 ## Product Role
 
-TokenPilot is a local-first Development Continuity & Agent Routing Platform.
+TokenPilot is a local-first Development Continuity & Agent Routing Platform with ChatGPT as the primary conversational entry surface.
+
+ChatGPT Native is the entry and model-loop host, not a fourth runtime lane. When local execution is required, TokenPilot selects one of three explicit execution modes:
 
 ```text
-ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
+ChatGPT Native
+  -> TokenPilot Remote MCP / Control Plane
+       -> Direct Drive
+            -> Workspace Direct (implemented)
+            -> Host Direct (target; not yet exposed)
+       -> Codex Session
+       -> Async Agent Job
 ```
 
-ChatGPT owns conversation, intent, planning, and review. TokenPilot owns durable local identity, execution policy, continuity state, public-safe projections, and cross-runtime handoff. Runtime providers execute only the lane explicitly selected for the Task.
+ChatGPT owns conversation, intent, planning, and review. In Direct Drive it also remains the only model-loop owner while TokenPilot executes deterministic tools. In Codex Session, ownership is explicitly delegated to Codex. In Async Agent Job, a delegated agent runtime owns the background model loop while TokenPilot owns the Job lifecycle. TokenPilot always owns durable local identity, execution policy, continuity state, public-safe projections, and cross-runtime handoff.
 
 ## Control-Plane Responsibilities
 
@@ -36,9 +44,18 @@ The Control Plane currently provides:
 
 ## Runtime Lanes
 
-### Chat Direct — implemented
+### Direct Drive — Workspace Direct implemented; Host Direct is a target scope
 
-ChatGPT retains the model loop. TokenPilot routes individual operations through this order:
+Direct Drive is the product-level name for execution where ChatGPT retains the only model loop and TokenPilot performs deterministic local operations. The persisted runtime lane remains `chat-direct` for compatibility.
+
+Direct Drive has two execution scopes:
+
+- **Workspace Direct — implemented:** operations are restricted to an allowlisted Project/Workspace and use the existing path, command, Git, Writer Lease, Evidence, and public-projection governance.
+- **Host Direct — target, not yet exposed:** operations may act outside one registered Workspace under the current OS user's permissions. A broader scope must never weaken governance. If a Host Direct operation targets a path that belongs to a registered Workspace, normal Workspace Writer Lease, Evidence, Git, and path-safety rules still apply.
+
+The confirmed target executor architecture for Direct Drive is **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**. TokenPilot remains the only remote MCP boundary exposed to ChatGPT. The broker will discover and normalize compatible local executors behind stable TokenPilot capability contracts instead of exposing downstream tool names directly. Built-in executors and verified App Server standalone capabilities remain valid providers; downstream MCP executors are an additional replaceable provider class, not a bypass around TokenPilot policy, scope, approval, Writer Lease, Evidence, audit, timeout, output, or secret-safety rules.
+
+For implemented Workspace Direct operations, TokenPilot currently routes individual operations through this order:
 
 1. verified Codex App Server standalone capability;
 2. TokenPilot Direct executor;
@@ -76,11 +93,11 @@ A TokenPilot `codex-session` can bind, resume, or fork a Codex App Server Thread
 
 Command and file-change Approval requests are stored and exposed through public-safe projections. Raw server request handles and private request bodies remain local.
 
-### Async Agent Job — implemented legacy execution lane
+### Async Agent Job — implemented delegated background lane
 
-The file-backed Queue and Runner support Pack, TaskPack, and Codex-run Jobs with Artifacts and optional Worktrees. They remain operational during Continuity migration.
+The file-backed Queue and Runner support Pack, TaskPack, and Codex-run Jobs with Artifacts and optional isolated Worktrees. Async Agent Job is the delegated background execution mode: the Agent runtime owns its model loop while TokenPilot owns queueing, claim, Runtime Binding, lifecycle, artifacts, Evidence, restart reconciliation, and the transition back to review or blocked state.
 
-A first-class async Runtime Binding into the same SQLite relation is a target extension; the current Queue/Runner must not be described as already unified with Codex Thread Binding.
+Async Jobs are already first-class Runtime Bindings in the shared Continuity model. Runner Job IDs are stored as external run identities rather than TokenPilot Task identity, and terminal/restart reconciliation is idempotent.
 
 ## Continuity System of Record
 
@@ -161,7 +178,6 @@ npm run verify:release
 ## Current Limitations
 
 - Public HTTPS and ChatGPT client compatibility remain environment-dependent and under validation.
-- Spec and Plan records are part of the target domain but do not yet have a full persistence/service/UI implementation.
-- Async Jobs are operational but are not yet represented by the same Runtime Binding model as Codex Threads.
+- Host Direct is not yet exposed; current Direct Drive behavior is Workspace-scoped.
 - Recovery of every provider-specific running Session is not automatic; the current restart gate covers durable Lease, Handoff, and Idempotency recovery.
 - Multi-runner distributed coordination and public SaaS operation are not implemented.

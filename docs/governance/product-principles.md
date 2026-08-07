@@ -8,7 +8,7 @@ This document is the public, contributor-facing product contract. It describes t
 
 ## Product Responsibility
 
-TokenPilot owns continuity across development runtimes. It keeps project and task identity stable while work moves between ChatGPT Native, Chat Direct, Codex Session, and asynchronous agent execution.
+TokenPilot owns continuity across development runtimes. ChatGPT Native is the primary conversational entry surface; when local execution is required, work can move between Direct Drive, Codex Session, and asynchronous agent execution while Project and Task identity remain stable.
 
 The durable continuity model includes:
 
@@ -27,9 +27,9 @@ Chat history is useful context, but it is not the durable source of truth for de
 
 Runtime ownership must always be explicit.
 
-- **Chat Direct:** ChatGPT owns the model loop. TokenPilot may use deterministic local executors or verified standalone runtime capabilities, but must not start a Codex turn implicitly.
+- **Direct Drive:** ChatGPT owns the model loop. The existing persisted lane remains `chat-direct`; TokenPilot may use deterministic local executors or verified standalone runtime capabilities, but must not start a Codex turn implicitly. Workspace Direct is implemented. Host Direct is a target scope and must not weaken governance when operating outside one Workspace.
 - **Codex Session:** Codex owns the delegated model loop only through explicit session and turn operations.
-- **Async Agent Job:** the external or local agent runtime owns its model loop, and TokenPilot records the binding and lifecycle explicitly.
+- **Async Agent Job:** the external or local agent runtime owns its delegated background model loop, while TokenPilot explicitly owns queueing, Runtime Binding, lifecycle, Evidence, and handoff back to review.
 
 A low-level operation must never silently change the model-loop owner, billing/usage lane, approval semantics, or runtime identity.
 
@@ -42,6 +42,7 @@ A low-level operation must never silently change the model-loop owner, billing/u
 5. Mutating operations must preserve revision, idempotency, writer-ownership, and evidence rules.
 6. Recovery must prefer high-confidence repository/workspace identity over guess-based automatic rebinding.
 7. Public projections expose stable IDs and bounded evidence, never private filesystem identity as an API contract.
+8. A broader execution scope never weakens governance: if a Host-scoped operation targets a registered Workspace, that Workspace's Writer Lease, path-safety, Git, Evidence, and approval rules still apply.
 
 ## Security And Privacy Boundary
 
