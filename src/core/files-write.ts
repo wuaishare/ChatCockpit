@@ -20,6 +20,7 @@ const BLOCKED_SEGMENTS = [
   ".git",
   ".codex",
   ".servbay",
+  ".ops-private",
   "node_modules",
   "dist"
 ];

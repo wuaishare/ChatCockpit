@@ -4,6 +4,9 @@ import os from "node:os";
 import path from "node:path";
 
 import { resolvePathInsideRoot } from "../src/core/path-guards.ts";
+import { validateRelativePathForWrite } from "../src/core/files-write.ts";
+import { isPublicSafeGitPath } from "../src/core/git-public-safety.ts";
+import { isPublicRepoBundleIncludeEntry } from "../src/core/repo-bundle.ts";
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-path-guard-"));
 const repoRoot = path.join(tempRoot, "repo");
@@ -19,6 +22,19 @@ try {
 
   const future = resolvePathInsideRoot(repoRoot, "future/nested.txt", "File path");
   assert.equal(future.absolutePath, path.join(repoRoot, "future", "nested.txt"));
+
+  assert.throws(
+    () => validateRelativePathForWrite(".ops-private/tokenpilot/README.md"),
+    /blocked/
+  );
+  assert.equal(isPublicSafeGitPath(".ops-private/tokenpilot/README.md"), false);
+  assert.equal(isPublicRepoBundleIncludeEntry(".ops-private/tokenpilot/README.md"), false);
+
+  fs.symlinkSync(externalRoot, path.join(repoRoot, ".ops-private"), "dir");
+  assert.throws(
+    () => resolvePathInsideRoot(repoRoot, ".ops-private/private.txt", "File path"),
+    /after resolving symlinks/
+  );
 
   fs.symlinkSync(externalRoot, path.join(repoRoot, "external-link"), "dir");
   assert.throws(

@@ -2,6 +2,7 @@
 
 - 状态：已接受，并已覆盖当前 Chat Direct 与 Codex Session 的写入面
 - 日期：2026-08-06
+- 相关治理：`docs/zh-CN/governance/product-principles.md`
 
 ## 背景
 

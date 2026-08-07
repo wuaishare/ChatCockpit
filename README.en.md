@@ -56,12 +56,6 @@ A TokenPilot Task can move between those modes through Writer Lease, Handoff Che
 - Long-term compatibility across ChatGPT clients, proxies, and public HTTPS entrypoints.
 - Cross-mode handoff recovery and long-running behavior across more real repositories.
 
-### Target direction
-
-- A provider adapter layer for more external coding agents.
-- A Resource Center for Skills, MCP, Rules, Prompts, Agents, Hooks, and Plugins.
-- TDD/SDD/BDD orchestration and templates on top of the implemented Spec/Plan First foundation, plus multi-device control-plane operation.
-
 ## Operator UI
 
 The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides seven stable routes: Projects, Specs & Plans, Tasks, Sessions, Handoffs, Evidence, and Approvals. Specs & Plans manages real document versions, hashes, lifecycle, approval, and Task binding; the Task view consumes server-produced Planning Assessment instead of inferring execution eligibility in the browser.
@@ -181,41 +175,29 @@ npm run test
 - MCP setup: [`docs/deployment/mcp-setup.md`](./docs/deployment/mcp-setup.md)
 - Public HTTPS / tunnel setup: [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)
 - GPT Actions runner loop: [`docs/architecture/gpt-actions-runner-loop.md`](./docs/architecture/gpt-actions-runner-loop.md)
-- Web UI and provider strategy: [`docs/architecture/web-ui-and-provider-strategy.md`](./docs/architecture/web-ui-and-provider-strategy.md)
-- Web UI MVP plan: [`docs/architecture/web-ui-mvp-plan.md`](./docs/architecture/web-ui-mvp-plan.md)
+- Web UI design system: [`docs/architecture/web-ui-design-system.md`](./docs/architecture/web-ui-design-system.md)
 - Local runtime ops: [`docs/deployment/local-runtime-ops.md`](./docs/deployment/local-runtime-ops.md)
 - Files Read API: [`docs/engineering/files-read-api.md`](./docs/engineering/files-read-api.md)
+- Product principles: [`docs/governance/product-principles.md`](./docs/governance/product-principles.md)
 - Public/private artifact governance: [`docs/governance/public-vs-private-artifacts.md`](./docs/governance/public-vs-private-artifacts.md)
 - RTK engineering note: [`docs/engineering/rtk.md`](./docs/engineering/rtk.md)
 
 Real domains, reverse-proxy or tunnel settings, bearer tokens, and GPT Builder operating notes are local configuration. Keep them out of Git.
 
-## Roadmap
+## Current Capability Status
 
-- [x] Local CLI, pack, manifest, and task pack scaffold
-- [x] File-backed job queue
-- [x] Local control plane and runner
-- [x] OpenAPI draft for GPT Actions and local runner workflows
-- [x] Exposed-mode bearer auth
-- [x] Local E2E verification
-- [x] Local operator Web UI MVP
-- [x] `createCodexRun` jobs with runner/Codex execution and public-safe artifacts
-- [x] Public-safe filtering for GPT-visible git diffs, commits, and Codex artifacts
-- [x] Chat Direct routing and no-Turn boundary probes
+- [x] Local CLI, pack, manifest, taskpack, control plane, runner, and async job queue
+- [x] OpenAPI, REST/MCP parity, and exposed-mode authentication
+- [x] Chat Direct files, search, controlled commands, Git, and No-Turn gates
 - [x] Codex App Server Thread Bind/Resume/Fork and explicit Turn/Approval/Interrupt
 - [x] SQLite Continuity Engine, Writer Lease, Handoff, Evidence, and Runtime Events
-- [x] Continuity Workbench and Workspace Snapshot
-- [x] REST/MCP parity, 44 MCP tools, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, Completion/Runtime Web UX, and no-Git source archive gate
-- [x] Schema v7 versioned Spec/Plan truth, REST/MCP/Web workflows, immutable Task version pins, and explicit planning-required/planning-optional execution gates
-- [x] GPT Actions boundary probes for timeout, context size, and request behavior
-- [x] First-task template library under `templates/`
-- [x] Beginner examples under `examples/`
-- [x] GPT Builder and public HTTPS setup docs
-- [ ] Token Optimization Log examples
-- [ ] HTTPS / Custom GPT Actions full-loop validation
-- [ ] Provider adapter layer
-- [ ] Resource Center and TDD/SDD/BDD orchestration extensions
-- [x] First-run setup wizard
+- [x] Continuity Workbench backed by real Workspace Snapshots
+- [x] Schema v7 versioned Spec/Plan truth, immutable Task pins, and planning policy gates
+- [x] OAuth persistence, recovery, revocation, and public error boundaries
+- [x] No-Git source archive, privacy, path-safety, and release verification gates
+- [x] First-run Setup Wizard, first-task templates, and beginner documentation
+
+Unreleased product branches are not published as an internal roadmap in README. Public planning is represented by Issues, Discussions, and release records.
 
 ## Security And Privacy
 
@@ -231,6 +213,7 @@ Do not commit:
 Before preparing a commit, run:
 
 ```bash
+npm run verify:knowledge-boundary
 npm run verify:web:safety
 npm run privacy:scan:history
 ```

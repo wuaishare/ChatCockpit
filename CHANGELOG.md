@@ -18,6 +18,7 @@ This project uses prerelease tags while the local-first workflow is still in alp
 ### Changed
 
 - Public docs now keep private deployment domains, reverse-proxy details, and GPT Builder operating notes out of the public repository.
+- Public/private governance now separates contributor-facing Product Principles from maintainer-only execution plans, decision evolution, competitive research, and commercial strategy.
 - GPT config versioning is based on the latest Git commit timestamp so it stays stable between requests.
 - Public HTTP and artifact surfaces filter local paths, runtime state, env files, and other public-unsafe data.
 - Pack now uses TokenPilot's internal XML bundle generator instead of a hard Repomix npm dependency while preserving `repomix-output-*.xml` compatibility paths.
@@ -33,5 +34,4 @@ This project uses prerelease tags while the local-first workflow is still in alp
 
 - Full HTTPS / Custom GPT Actions end-to-end production loop is still under validation.
 - The first Web UI is an operator console, not a public management platform.
-- Setup Wizard, provider adapters, template library, and real examples are not yet included.
-- Release packaging is source-preview oriented; installer-grade packages are future work.
+- Release packaging remains source-preview oriented rather than installer-grade.

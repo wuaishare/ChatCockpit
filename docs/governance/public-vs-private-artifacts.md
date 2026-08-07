@@ -28,6 +28,22 @@ Keep the public `TokenPilot` repository focused on reusable product code and pub
 - internal review logs and acceptance notes
 - environment-specific config examples that are useful to keep under Git but should not live in the public repo
 
+## Maintainer Knowledge Boundary
+
+The public repository documents current product contracts. The following belong in private maintainer governance even when they contain no credential or personal data:
+
+- internal execution plans, agent plans, and internal specs
+- decision evolution and rejected-route reasoning
+- competitive intelligence, Reference Source assessments, and ECDE Challenge Cards
+- commercial strategy and unannounced future product branches
+- environment-specific operator truth and internal acceptance notes
+
+Use [`product-principles.md`](./product-principles.md) as the public source for stable product direction. Private maintainer reasoning is not an OSS contract.
+
+A local `.ops-private` symlink may be used as a maintainer convenience when it is excluded through `.git/info/exclude`. It must never be tracked, included in a source bundle, exposed through MCP/files/search APIs, or treated as part of an allowlisted public workspace.
+
+Private Git is still not a secret store: live credentials and raw auth/session state remain local-only.
+
 ## Local Only: Do Not Push Anywhere By Default
 
 - live bearer tokens or API keys
@@ -45,6 +61,7 @@ Keep the public `TokenPilot` repository focused on reusable product code and pub
 - reverse-proxy/tunnel scripts, public-loop probes, and GPT Builder operating checklists should stay in local configuration or private notes
 - `.env`, `server.env`, and runtime logs are local-only by default
 - public HTTP responses such as `/`, `/api/health`, and `/openapi.yaml` should not echo real deployment domains or local paths; use relative URLs or placeholder domains on unauthenticated surfaces
+- `npm run verify:knowledge-boundary` enforces the public/private knowledge split
 - `npm run verify:web:safety` scans the public repo for common privacy leaks including personal usernames, local home-directory paths, private deployment hosts, ServBay absolute paths, private IPs, and obvious token values
 
 ## Historical Leak Response

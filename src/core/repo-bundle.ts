@@ -34,6 +34,7 @@ const BLOCKED_PATH_SEGMENTS = new Set([
   ".tokenpilot",
   ".codex",
   ".servbay",
+  ".ops-private",
   "node_modules",
   "dist",
   "build",

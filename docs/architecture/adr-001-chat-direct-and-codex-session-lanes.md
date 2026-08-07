@@ -3,8 +3,7 @@
 - Status: Accepted and implemented for the current Chat Direct and Codex Session mutation surfaces
 - Date: 2026-08-06
 - Decision owners: TokenPilot maintainers
-- Related governance: `docs/governance/confirmed-product-decisions.md`
-- Related history: `docs/governance/decision-evolution.md`
+- Related governance: `docs/governance/product-principles.md`
 
 ## Context
 

@@ -20,6 +20,7 @@ const BLOCKED_DIFF_SEGMENTS = new Set([
   ".codex",
   ".gnupg",
   ".servbay",
+  ".ops-private",
   ".ssh",
   ".tokenpilot",
   "node_modules"

@@ -22,6 +22,7 @@ const localArtifactPaths = [
   ".playwright-mcp",
   ".tokenpilot",
   ".servbay",
+  ".ops-private",
   ".codex",
   "docs/superpowers",
   "docs/.DS_Store"

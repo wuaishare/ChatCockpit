@@ -58,12 +58,6 @@ ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
 - 不同 ChatGPT 客户端、网络代理和公网 HTTPS 入口的长期兼容性。
 - 更多真实项目中的跨模式 Handoff 恢复与长时间运行行为。
 
-### 目标方向
-
-- Provider Adapter Layer 与更多外部 Coding Agent。
-- Skills、MCP、Rules、Prompt、Agent、Hook、Plugin 等 Resource Center 能力。
-- 在现有 Spec/Plan First 基础上扩展 TDD/SDD/BDD 编排、模板与多设备控制面。
-
 ## 操作员 Web UI
 
 Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Handoffs、Evidence、Approvals 七个稳定深链。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
@@ -187,34 +181,27 @@ npm run test
 - Chat Direct / Codex Session ADR：[`docs/zh-CN/architecture/adr-001-chat-direct-and-codex-session-lanes.md`](./docs/zh-CN/architecture/adr-001-chat-direct-and-codex-session-lanes.md)
 - GPT Actions runner loop：[`docs/zh-CN/architecture/gpt-actions-runner-loop.md`](./docs/zh-CN/architecture/gpt-actions-runner-loop.md)
 - Files Read API：[`docs/zh-CN/engineering/files-read-api.md`](./docs/zh-CN/engineering/files-read-api.md)
+- 产品原则：[`docs/zh-CN/governance/product-principles.md`](./docs/zh-CN/governance/product-principles.md)
 - 公共 / 私有产物治理：[`docs/zh-CN/governance/public-vs-private-artifacts.md`](./docs/zh-CN/governance/public-vs-private-artifacts.md)
 - RTK 工程说明：[`docs/zh-CN/engineering/rtk.md`](./docs/zh-CN/engineering/rtk.md)
 
 真实域名、反向代理、tunnel、Bearer token 和 GPT Builder 操作记录属于本地配置，不应提交到 Git。
 
-## 路线图
+## 当前能力状态
 
 - [x] 本地 CLI、pack、manifest、taskpack
-- [x] file-backed job queue
-- [x] 本地 control plane 和 runner
-- [x] OpenAPI 草案与 exposed-mode bearer auth
-- [x] 本地 E2E 验证
-- [x] 本地操作员 Web UI MVP
-- [x] `createCodexRun` jobs 与 public-safe artifacts
+- [x] 本地 control plane、runner 与异步 job queue
+- [x] OpenAPI、REST/MCP Parity 与 exposed-mode 鉴权
 - [x] Chat Direct 文件、搜索、受控命令、Git 与 No-Turn 门禁
 - [x] Codex App Server Thread Bind/Resume/Fork 与显式 Turn/Approval/Interrupt
 - [x] SQLite Continuity Engine、Writer Lease、Handoff、Evidence 与 Runtime Event
-- [x] Continuity Workbench 与 Workspace Snapshot
-- [x] REST/MCP Parity、44 个 MCP Tools、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner 生命周期/重启对账、Completion/Runtime Web UX 与无 Git 源包门禁
-- [x] Schema v7 版本化 Spec/Plan 真源、REST/MCP/Web 工作流、Task 文档版本固定与显式 planning-required/planning-optional 执行门禁
-- [x] 首任务模板库与新手案例
-- [x] First-run setup wizard
-- [x] 中文 GPT Builder / 公网 HTTPS 配置文档
-- [ ] Token Optimization Log 示例
-- [ ] HTTPS / Custom GPT Actions 全流程真实验证
-- [ ] Provider adapter layer
-- [ ] Resource Center 与 TDD/SDD/BDD 编排扩展
-- [ ] 繁體中文 README
+- [x] Continuity Workbench 与真实 Workspace Snapshot
+- [x] Schema v7 版本化 Spec/Plan、Task 版本固定与 planning-required/planning-optional 门禁
+- [x] OAuth 持久化、恢复、撤销与公共错误边界
+- [x] 无 Git 源码包、隐私、路径安全与发布验证门禁
+- [x] First-run Setup Wizard、首任务模板与新手文档
+
+未发布的产品分支不再作为内部路线图直接写入 README；对外计划以公开 Issues、Discussions 和 Release 记录为准。
 
 ## 安全与隐私
 
@@ -230,6 +217,7 @@ TokenPilot 明确区分公开产品代码和私有 operator 事实。
 提交前至少运行：
 
 ```bash
+npm run verify:knowledge-boundary
 npm run verify:web:safety
 npm run privacy:scan:history
 ```
