@@ -19,7 +19,31 @@ function defaultConfigPath(): string {
 }
 
 function normalizeAbsolutePath(input: string): string {
-  return path.resolve(input);
+  const resolved = path.resolve(input);
+  if (!fs.existsSync(resolved)) {
+    return resolved;
+  }
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
+function assertUniqueRepoMappings(config: TokenPilotUserConfig): void {
+  const seen = new Map<string, string>();
+  for (const [repoId, mapping] of Object.entries(config.repoMappings).sort(
+    ([left], [right]) => left.localeCompare(right)
+  )) {
+    const canonicalPath = normalizeAbsolutePath(mapping.path);
+    const existingRepoId = seen.get(canonicalPath);
+    if (existingRepoId && existingRepoId !== repoId) {
+      throw new Error(
+        `repoMappings ${existingRepoId} and ${repoId} resolve to the same canonical workspace path; keep one repoId per physical checkout`
+      );
+    }
+    seen.set(canonicalPath, repoId);
+  }
 }
 
 function dedupeSorted(values: string[]): string[] {
@@ -110,6 +134,7 @@ export function loadUserConfig(repoRoot: string): TokenPilotUserConfig {
     ...normalized.workspaceAllowlist,
     ...Object.values(siblingMappings).map((mapping) => mapping.path)
   ]);
+  assertUniqueRepoMappings(normalized);
 
   return normalized;
 }

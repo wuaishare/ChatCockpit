@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { HandoffService } from "../src/application/handoff-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
+import { ServiceError } from "../src/application/service-error.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 
@@ -103,6 +104,52 @@ repositories.leases.acquire({
 });
 
 const firstHandoffService = new HandoffService(repositories);
+assert.throws(
+  () =>
+    firstHandoffService.prepare(context, {
+      ...prepareInput,
+      evidenceBundleId: "evidence_missing",
+      idempotencyKey: "handoff.restart.missing-evidence-0001"
+    }),
+  (error) => {
+    assert.ok(error instanceof ServiceError);
+    assert.equal(error.code, "CONTINUITY_RECORD_NOT_FOUND");
+    return true;
+  }
+);
+assert.equal(repositories.handoffs.getReadyForTask(sourceTask.id), null);
+
+const otherSession = repositories.sessions.create({
+  id: "session_restart_other",
+  projectId: "project_restart",
+  workspaceId: "workspace_restart",
+  taskId: sourceTask.id,
+  title: "Non-owner evidence session",
+  mode: "chat-direct",
+  status: "idle",
+  startedAt: context.now
+});
+const mismatchedEvidence = repositories.evidence.createBundle({
+  id: "evidence_restart_other",
+  taskId: sourceTask.id,
+  sessionId: otherSession.id,
+  now: context.now
+});
+assert.throws(
+  () =>
+    firstHandoffService.prepare(context, {
+      ...prepareInput,
+      evidenceBundleId: mismatchedEvidence.id,
+      idempotencyKey: "handoff.restart.mismatched-evidence-0001"
+    }),
+  (error) => {
+    assert.ok(error instanceof ServiceError);
+    assert.equal(error.code, "CONTINUITY_RELATION_INVALID");
+    return true;
+  }
+);
+assert.equal(repositories.handoffs.getReadyForTask(sourceTask.id), null);
+
 const prepared = firstHandoffService.prepare(context, prepareInput);
 assert.equal(prepared.replayed, false);
 assert.equal(prepared.handoff.status, "ready");

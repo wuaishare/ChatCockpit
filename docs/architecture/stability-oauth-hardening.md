@@ -119,6 +119,27 @@ Important cases:
 
 Unexpected SQLite/filesystem errors propagate to logs with request IDs while public responses remain bounded and secret-safe.
 
+## DevSpace v1.0.6 reliability mapping
+
+Benchmark sources:
+
+- `https://github.com/Waishnav/devspace/releases/tag/v1.0.6`
+- `https://github.com/Waishnav/devspace/blob/main/docs/gotchas.md`
+
+The benchmark is mapped to TokenPilot invariants instead of copied feature-for-feature:
+
+| DevSpace failure mode / improvement | TokenPilot mapping | Hardening result |
+|---|---|---|
+| Persisted checkout/review state across restart | Durable Task/Session/Handoff/Idempotency/Runtime Binding | Existing `verify:continuity-restart` and Runner restart gates already cover persisted state; OAuth now adds restart-safe refresh and fresh MCP reconnect. |
+| Stale checkout binding | Replaceable Runtime Binding history | Existing Continuity Store test proves a new active binding supersedes the old binding and refuses one external runtime identity on two active Sessions. |
+| Concurrent workspace opens | One physical checkout must have one Writer identity | Existing Writer Lease conflict tests cover one Workspace; this hardening phase additionally canonicalizes real repository paths and rejects two repoIds that resolve to the same physical checkout, including symlink aliases. |
+| Workspace-root mismatch | Canonical repoId -> physical checkout relation | Existing Codex Runtime API rejects Workspace mismatch; config canonicalization now closes symlink/alias identity splits before Project/Workspace sync. |
+| Missing review checkpoint/ref | Handoff/Evidence relation integrity | Handoff preparation now has explicit regression coverage for missing Evidence IDs and Evidence belonging to a different Session; neither failed request may create a Ready Handoff. |
+| Internal lifecycle/diagnostics leaked to cards | Public-safe REST/MCP/Web projections | Existing privacy, snapshot, document, event and Web safety gates remain authoritative; OAuth readiness exposes status/metadata URL only, never owner secret, token/hash, local DB path, or raw auth state. |
+| Conversation-aware checkout reuse | Not adopted | TokenPilot deliberately treats ChatGPT conversation metadata as an adapter hint, not the durable system of record. Task/Session/Handoff state already provides explicit portable continuity, so hidden host conversation binding is not required for correctness. |
+| Compact model-facing workspace IDs | Already native | TokenPilot Continuity IDs are compact opaque IDs and public projections hide private paths; no new ID system is added. |
+| Tool-card visual refresh / skills and provider cards | Out of scope | These are product/UI expansion rather than reliability prerequisites and remain frozen during hardening. |
+
 ## Comparative hardening beyond OAuth
 
 After OAuth is green, the same phase addresses existing-product maturity only:

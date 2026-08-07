@@ -17,7 +17,7 @@ import {
   trackJobProcess
 } from "../src/core/job-processes.ts";
 import { createTaskPack } from "../src/core/taskpack.ts";
-import { loadUserConfig } from "../src/core/config.ts";
+import { loadUserConfig, resolveRepoMapping } from "../src/core/config.ts";
 import { searchRepo } from "../src/core/search.ts";
 import { runShellCommand } from "../src/core/shell-api.ts";
 import { readRecentGitCommitsForRepo } from "../src/core/git-history.ts";
@@ -796,6 +796,55 @@ function verifyDefaultRepoDiscovery(): void {
   }
 }
 
+function verifyCanonicalRepoIdentity(): void {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-canonical-repo-"));
+  const repoRoot = path.join(root, "repo");
+  const repoAlias = path.join(root, "repo-alias");
+  const configPath = path.join(root, "config.json");
+  fs.mkdirSync(repoRoot, { recursive: true });
+  fs.symlinkSync(repoRoot, repoAlias, "dir");
+  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  process.env.TOKENPILOT_CONFIG_PATH = configPath;
+
+  try {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        workspaceAllowlist: [repoAlias],
+        repoMappings: {
+          tokenpilot: { path: repoAlias }
+        }
+      }),
+      "utf8"
+    );
+    const canonical = fs.realpathSync.native(repoRoot);
+    const normalized = loadUserConfig(repoRoot);
+    assert.equal(normalized.repoMappings.tokenpilot.path, canonical);
+    assert.deepEqual(normalized.workspaceAllowlist, [canonical]);
+    assert.equal(resolveRepoMapping(normalized, "tokenpilot").repoRoot, canonical);
+
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        workspaceAllowlist: [repoRoot, repoAlias],
+        repoMappings: {
+          tokenpilot: { path: repoRoot },
+          alias: { path: repoAlias }
+        }
+      }),
+      "utf8"
+    );
+    assert.throws(
+      () => loadUserConfig(repoRoot),
+      /resolve to the same canonical workspace path/
+    );
+  } finally {
+    if (originalConfigPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
+    else process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function verifyCodexRunMock(): Promise<void> {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
@@ -1183,6 +1232,7 @@ verifyPathContainmentAndShellTrust();
 verifyAuthConfig();
 verifyInitAndDoctor();
 verifyDefaultRepoDiscovery();
+verifyCanonicalRepoIdentity();
 await verifyUiServing();
 await verifyJobProcessProjection();
 await verifyRunnerReconcilesTerminalRunningJobs();
