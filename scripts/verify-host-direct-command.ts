@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { HostCommandService } from "../src/application/host-command-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
@@ -15,6 +16,7 @@ import {
 } from "../src/direct/adapters/desktop-commander-process.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
+import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
 import type {
   DownstreamMcpClient,
@@ -33,6 +35,11 @@ import {
   HostPathPolicyError,
   resolveHostCommandWorkdirTarget
 } from "../src/direct/host-path-policy.ts";
+import { buildServer } from "../src/server/app.ts";
+
+const fixtureServer = fileURLToPath(
+  new URL("./fixtures/fake-downstream-mcp-server.mjs", import.meta.url)
+);
 
 const NOW = "2026-08-08T14:00:00.000Z";
 const LATER = "2026-08-08T14:10:00.000Z";
@@ -742,6 +749,139 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
   }
 }
 
+async function verifyHostCommandRestParity(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-command-rest-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(path.join(hostRoot, "notes"), { recursive: true });
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "REST Host Command Fixture",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: [
+        {
+          id: DESKTOP_COMMANDER_EXECUTOR_ID,
+          displayName: "Desktop Commander Fixture",
+          transport: {
+            kind: "stdio",
+            command: process.execPath,
+            args: [fixtureServer, "desktop-command"],
+            timeoutMs: 1000,
+            maxBufferBytes: 262144,
+            maxStderrBytes: 16384
+          },
+          mappings: [
+            {
+              capability: "shell.exec",
+              toolName: "start_process",
+              scopes: ["host"],
+              access: ["read", "write"]
+            }
+          ]
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  const paths = buildPaths(runtimeRoot);
+  await probeConfiguredDownstreamMcpExecutors({
+    paths,
+    configPath,
+    executorId: DESKTOP_COMMANDER_EXECUTOR_ID
+  });
+  const app = buildServer(paths, { directExecutorsConfigPath: configPath });
+
+  try {
+    const prepare = await app.inject({
+      method: "POST",
+      url: "/api/host/commands/prepare",
+      payload: {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        idempotencyKey: "host-command-rest-prepare"
+      }
+    });
+    assert.equal(prepare.statusCode, 200, prepare.body);
+    const prepareBody = prepare.json() as {
+      approval: {
+        id: string;
+        revision: number;
+        effect: string;
+        targetKind: string;
+      };
+    };
+    assert.equal(prepareBody.approval.effect, "read");
+    assert.equal(prepareBody.approval.targetKind, "pure-host");
+    assert.doesNotMatch(prepare.body, new RegExp(hostRoot));
+
+    const decision = await app.inject({
+      method: "POST",
+      url: "/api/host/commands/decision",
+      payload: {
+        approvalId: prepareBody.approval.id,
+        expectedRevision: prepareBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-command-rest-decision"
+      }
+    });
+    assert.equal(decision.statusCode, 200, decision.body);
+    const decisionBody = decision.json() as {
+      approval: { id: string; revision: number; status: string };
+    };
+    assert.equal(decisionBody.approval.status, "approved");
+
+    const execute = await app.inject({
+      method: "POST",
+      url: "/api/host/commands/execute",
+      payload: {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        approvalId: decisionBody.approval.id,
+        expectedApprovalRevision: decisionBody.approval.revision,
+        idempotencyKey: "host-command-rest-execute"
+      }
+    });
+    assert.equal(execute.statusCode, 200, execute.body);
+    const executeBody = execute.json() as {
+      ok: boolean;
+      exitCode: number | null;
+      output: string;
+      execution: { executionScope: string; executor: string };
+    };
+    assert.equal(executeBody.ok, true);
+    assert.equal(executeBody.exitCode, 0);
+    assert.equal(executeBody.output, "fixture command output");
+    assert.equal(executeBody.execution.executionScope, "host");
+    assert.equal(executeBody.execution.executor, DESKTOP_COMMANDER_EXECUTOR_ID);
+    assert.doesNotMatch(execute.body, new RegExp(hostRoot));
+    assert.doesNotMatch(execute.body, /"pid"/i);
+  } finally {
+    await app.close();
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 function expectCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error) => {
     assert.ok(error instanceof ServiceError);
@@ -1061,6 +1201,7 @@ try {
 
   await verifyDesktopCommanderProcessAdapter();
   await verifyHostCommandServiceLifecycle();
+  await verifyHostCommandRestParity();
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   process.stdout.write("VERIFY_HOST_DIRECT_COMMAND_OK\n");
 } finally {

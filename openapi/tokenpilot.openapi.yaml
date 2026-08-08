@@ -848,6 +848,231 @@ components:
         replayed:
           type: boolean
       required: [ok, operation, rootId, path, beforeHash, afterHash, approval, execution, evidence, replayed]
+    HostCommandRequestPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        rootId:
+          type: string
+          description: Public-safe Host Root alias.
+        workdir:
+          type: string
+          description: Relative working directory inside the Host Root. Defaults to the root.
+        command:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._+-]+$'
+          description: Structured executable name only; raw shell source is not accepted.
+        args:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+            minLength: 1
+            maxLength: 2048
+        timeoutMs:
+          type: integer
+          minimum: 250
+          maximum: 15000
+          default: 5000
+        sessionId:
+          type: string
+          description: Required for write-effect commands that re-enter a registered Workspace.
+        executorId:
+          type: string
+          description: Optional explicit Host executor; approved execution remains pinned to this executor.
+      required: [rootId, command]
+    HostCommandPreparePayload:
+      allOf:
+        - $ref: '#/components/schemas/HostCommandRequestPayload'
+        - type: object
+          required: [idempotencyKey]
+          properties:
+            idempotencyKey:
+              type: string
+              minLength: 8
+              maxLength: 128
+    HostCommandDecisionPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        decision:
+          type: string
+          enum: [approved, denied]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    HostCommandExecutePayload:
+      allOf:
+        - $ref: '#/components/schemas/HostCommandRequestPayload'
+        - type: object
+          required: [approvalId, expectedApprovalRevision, idempotencyKey]
+          properties:
+            approvalId:
+              type: string
+            expectedApprovalRevision:
+              type: integer
+              minimum: 1
+            idempotencyKey:
+              type: string
+              minLength: 8
+              maxLength: 128
+    HostCommandApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        rootId:
+          type: string
+        workdir:
+          type: string
+        command:
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        commandHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        effect:
+          type: string
+          enum: [read, write]
+        timeoutMs:
+          type: integer
+        executorId:
+          type: string
+        targetKind:
+          type: string
+          enum: [workspace, pure-host]
+        workspaceId:
+          oneOf:
+            - type: string
+            - type: "null"
+        repoId:
+          oneOf:
+            - type: string
+            - type: "null"
+        sessionId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          type: string
+          enum: [pending, approved, denied, consumed, expired]
+        publicSummary:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        decidedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        consumedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, rootId, workdir, command, args, commandHash, effect, timeoutMs, executorId, targetKind, workspaceId, repoId, sessionId, status, publicSummary, createdAt, expiresAt, decidedAt, consumedAt, revision]
+    HostCommandApprovalResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        approval:
+          $ref: '#/components/schemas/HostCommandApproval'
+        replayed:
+          type: boolean
+      required: [ok, approval, replayed]
+    HostCommandEvidence:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              const: direct-command-audit
+            auditId:
+              type: string
+          required: [kind, auditId]
+        - type: object
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              const: task-evidence
+            bundleId:
+              type: string
+            itemId:
+              type: string
+          required: [kind, bundleId, itemId]
+    HostCommandExecuteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        rootId:
+          type: string
+        workdir:
+          type: string
+          description: Public-safe Host Root alias path, never a local absolute path.
+        command:
+          type: string
+        effect:
+          type: string
+          enum: [read, write]
+        exitCode:
+          oneOf:
+            - type: integer
+            - type: "null"
+        output:
+          type: string
+          description: Bounded merged process output after TokenPilot public-safe projection.
+        truncated:
+          type: boolean
+        timedOut:
+          type: boolean
+        errorCode:
+          oneOf:
+            - type: string
+            - type: "null"
+        approval:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              const: consumed
+          required: [id, status]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+        evidence:
+          $ref: '#/components/schemas/HostCommandEvidence'
+        replayed:
+          type: boolean
+      required: [ok, rootId, workdir, command, effect, exitCode, output, truncated, timedOut, errorCode, approval, execution, evidence, replayed]
     FileReadPayload:
       type: object
       additionalProperties: false
@@ -4076,6 +4301,108 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "413":
           description: Mutation content exceeds the Host text-file size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/commands/prepare:
+    post:
+      operationId: prepareHostDirectCommand
+      summary: Prepare one governed bounded Host command
+      description: Resolves the Host workdir, applies command/effect policy, re-enters Workspace Writer Lease governance for write effects, verifies Desktop Commander process capabilities, and creates a short-lived exact-command approval without starting a process.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostCommandPreparePayload'
+      responses:
+        "200":
+          description: Pending Direct Command approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostCommandApprovalResponse'
+        "403":
+          description: Host Root, path, command policy, or effect policy blocks execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Workspace governance, revision, executor, or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/commands/decision:
+    post:
+      operationId: decideHostDirectCommand
+      summary: Approve or deny one pending Host command
+      description: Applies an optimistic-revision decision without starting a process.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostCommandDecisionPayload'
+      responses:
+        "200":
+          description: Updated Direct Command approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostCommandApprovalResponse'
+        "409":
+          description: Approval expired, already decided, consumed, or revision/idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/commands/execute:
+    post:
+      operationId: executeHostDirectCommand
+      summary: Execute one approved bounded non-interactive Host command
+      description: Revalidates the approved command and governance, consumes approval at-most-once, runs the private bounded Desktop Commander process lifecycle, terminates non-terminal commands, bounds public output, and records Audit or Task Evidence without exposing PID or private cwd.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostCommandExecutePayload'
+      responses:
+        "200":
+          description: Host command result, including honest non-zero or timeout outcomes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostCommandExecuteResponse'
+        "403":
+          description: Host Root, path, command policy, or effect policy blocks execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Approval, hash, Workspace governance, revision, executor, or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "502":
+          description: Downstream process lifecycle is invalid, unavailable, or has an unknown terminal result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "504":
+          description: Host command exceeded the bounded execution timeout
           content:
             application/json:
               schema:

@@ -214,6 +214,9 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.git.commit",
         "tokenpilot.git.diff",
         "tokenpilot.git.status",
+        "tokenpilot.host.command.decide",
+        "tokenpilot.host.command.execute",
+        "tokenpilot.host.command.prepare",
         "tokenpilot.host.files.read",
         "tokenpilot.host.mutation.decide",
         "tokenpilot.host.mutation.execute",
@@ -282,6 +285,14 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("tokenpilot.files.edit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("tokenpilot.shell.run")?.annotations.destructiveHint, true);
     assert.equal(
+      toolByName.get("tokenpilot.host.command.execute")?.annotations.readOnlyHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.host.command.execute")?.annotations.destructiveHint,
+      true
+    );
+    assert.equal(
       toolByName.get("tokenpilot.host.mutation.execute")?.annotations.readOnlyHint,
       false
     );
@@ -290,6 +301,9 @@ async function runMcpSmoke(): Promise<void> {
       true
     );
     for (const name of [
+      "tokenpilot.host.command.prepare",
+      "tokenpilot.host.command.decide",
+      "tokenpilot.host.command.execute",
       "tokenpilot.host.mutation.prepare",
       "tokenpilot.host.mutation.decide",
       "tokenpilot.host.mutation.execute"
@@ -313,6 +327,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.handoff.cancel",
       "tokenpilot.handoff.fork",
       "tokenpilot.handoff.prepare",
+      "tokenpilot.host.command.decide",
+      "tokenpilot.host.command.prepare",
       "tokenpilot.host.mutation.decide",
       "tokenpilot.host.mutation.prepare",
       "tokenpilot.lease.release",

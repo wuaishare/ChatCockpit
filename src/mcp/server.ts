@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/server";
 
 import type { ChatDirectService } from "../application/chat-direct-service.js";
+import type { HostCommandService } from "../application/host-command-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
 import type { HostMutationService } from "../application/host-mutation-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
@@ -21,6 +22,7 @@ import type { TokenPilotPaths } from "../types.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
+import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
 import { buildHostMutationTools } from "./tools/host-mutation.js";
 import { buildWorkspaceWriteTools } from "./tools/workspace-write.js";
@@ -59,6 +61,7 @@ export function buildTokenPilotMcpHandler(
   chatDirect: ChatDirectService,
   hostDirect: HostDirectService,
   hostMutation: HostMutationService,
+  hostCommand: HostCommandService,
   runtimeService: RuntimeService,
   runtimeBindingService: RuntimeBindingService,
   runtimeTurnService: RuntimeTurnService,
@@ -69,6 +72,7 @@ export function buildTokenPilotMcpHandler(
   const tools = [
     ...buildReadOnlyMcpToolCatalog({ chatDirect, hostDirect }),
     ...buildHostMutationTools(hostMutation),
+    ...buildHostCommandTools(hostCommand),
     ...buildWorkspaceWriteTools({
       chatDirect,
       idempotency: new McpIdempotencyStore(paths.runtimeDir)

@@ -126,6 +126,69 @@ rl.on("line", (line) => {
 
   if (message.method === "tools/call" && typeof message.id === "number") {
     const toolName = message.params?.name ?? "unknown";
+    if (mode === "desktop-command" && toolName === "start_process") {
+      const command = message.params?.arguments?.command;
+      const timeoutMs = message.params?.arguments?.timeout_ms;
+      const shell = message.params?.arguments?.shell;
+      const origin = message.params?.arguments?.origin;
+      if (
+        typeof command !== "string" ||
+        typeof timeoutMs !== "number" ||
+        shell !== "/bin/zsh" ||
+        origin !== "llm"
+      ) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "invalid process args" }],
+            isError: true
+          }
+        });
+        return;
+      }
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: "Process started with PID 4242 (shell: /bin/zsh)"
+            }
+          ],
+          isError: false
+        }
+      });
+      return;
+    }
+    if (mode === "desktop-command" && toolName === "read_process_output") {
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: "fixture command output\n✅ Process completed with exit code 0 (runtime: 0.01s)"
+            }
+          ],
+          isError: false
+        }
+      });
+      return;
+    }
+    if (mode === "desktop-command" && toolName === "force_terminate") {
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [{ type: "text", text: "terminated" }],
+          isError: false
+        }
+      });
+      return;
+    }
     if (mode === "desktop-read" && toolName === "read_file") {
       const target = message.params?.arguments?.path;
       if (typeof target !== "string") {

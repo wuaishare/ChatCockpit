@@ -26,6 +26,7 @@ import {
   shellRunSchema
 } from "../contracts/direct-tools.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
+import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
 import { HostDirectService } from "../application/host-direct-service.js";
 import { HostMutationService } from "../application/host-mutation-service.js";
 import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
@@ -52,6 +53,11 @@ import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { buildTokenPilotMcpHandler } from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
 import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
+import {
+  hostCommandDecisionSchema,
+  hostCommandExecuteSchema,
+  hostCommandPrepareSchema
+} from "../contracts/host-command.js";
 import {
   hostFileReadSchema,
   hostMutationDecisionSchema,
@@ -218,6 +224,12 @@ export function buildServer(
     downstreamMcpExecutionRegistry,
     options.directExecutorsConfigPath
   );
+  const hostCommand = buildDesktopCommanderHostCommandService({
+    paths,
+    repositories: continuityServices.repositories,
+    broker: directCapabilityBroker,
+    configPath: options.directExecutorsConfigPath
+  });
   const chatDirect = new ChatDirectService(
     paths,
     runtimeRouter,
@@ -273,6 +285,7 @@ export function buildServer(
     chatDirect,
     hostDirect,
     hostMutation,
+    hostCommand,
     runtimeService,
     runtimeBindingService,
     runtimeTurnService,
@@ -573,6 +586,69 @@ export function buildServer(
     }
   };
 
+  const hostCommandPrepareHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostCommandPrepareSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostCommand.prepare(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostCommandDecisionHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostCommandDecisionSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostCommand.decide(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostCommandExecuteHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostCommandExecuteSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostCommand.execute(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
   const readFilesHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
     const parsed = fileReadBatchSchema.safeParse((request as { body: unknown }).body);
@@ -800,6 +876,22 @@ export function buildServer(
   app.post(
     "/tokenpilot/api/host/mutations/execute",
     hostMutationExecuteHandler
+  );
+
+  app.post("/api/host/commands/prepare", hostCommandPrepareHandler);
+  app.post(
+    "/tokenpilot/api/host/commands/prepare",
+    hostCommandPrepareHandler
+  );
+  app.post("/api/host/commands/decision", hostCommandDecisionHandler);
+  app.post(
+    "/tokenpilot/api/host/commands/decision",
+    hostCommandDecisionHandler
+  );
+  app.post("/api/host/commands/execute", hostCommandExecuteHandler);
+  app.post(
+    "/tokenpilot/api/host/commands/execute",
+    hostCommandExecuteHandler
   );
 
   app.post("/api/files/read-batch", readFilesHandler);
