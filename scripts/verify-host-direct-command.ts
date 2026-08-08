@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
+import { classifyHostTarget } from "../src/application/workspace-mutation-governance.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import {
+  evaluatePureHostCommand,
+  evaluateWorkspaceCommand
+} from "../src/core/command-policy.ts";
+import {
+  assertHostCommandRelativePathsInsideRoot,
+  HostPathPolicyError,
+  resolveHostCommandWorkdirTarget
+} from "../src/direct/host-path-policy.ts";
 
 const NOW = "2026-08-08T14:00:00.000Z";
 const LATER = "2026-08-08T14:10:00.000Z";
@@ -176,6 +189,153 @@ try {
     repositories.directCommandAudit.listByApproval(consumed.id).map((entry) => entry.id),
     [audit.id]
   );
+
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-command-policy-")
+  );
+  const hostRoot = path.join(sandbox, "host-root");
+  const outsideRoot = path.join(sandbox, "outside");
+  const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(outsideRoot, { recursive: true });
+  fs.mkdirSync(path.join(hostRoot, "notes"), { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "Fixture Host Root",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: []
+    })
+  );
+
+  try {
+    const rootWorkdir = resolveHostCommandWorkdirTarget({
+      rootId: "fixture",
+      configPath
+    });
+    assert.equal(rootWorkdir.relativePath, ".");
+    assert.equal(rootWorkdir.displayPath, "fixture");
+    assert.equal(rootWorkdir.absolutePath, fs.realpathSync.native(hostRoot));
+
+    const nestedWorkdir = resolveHostCommandWorkdirTarget({
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      requiredAccess: "write",
+      configPath
+    });
+    assert.equal(nestedWorkdir.displayPath, "fixture/projects/workspace-a");
+    assert.equal(
+      nestedWorkdir.absolutePath,
+      fs.realpathSync.native(workspaceRoot)
+    );
+
+    assert.throws(
+      () =>
+        resolveHostCommandWorkdirTarget({
+          rootId: "fixture",
+          workdir: "../outside",
+          configPath
+        }),
+      (error) => {
+        assert.ok(error instanceof HostPathPolicyError);
+        assert.equal(error.code, "HOST_PATH_BLOCKED");
+        return true;
+      }
+    );
+
+    let symlinkCreated = false;
+    try {
+      fs.symlinkSync(outsideRoot, path.join(hostRoot, "escape"), "dir");
+      symlinkCreated = true;
+    } catch {
+      symlinkCreated = false;
+    }
+    if (symlinkCreated) {
+      assert.throws(
+        () =>
+          resolveHostCommandWorkdirTarget({
+            rootId: "fixture",
+            workdir: "escape",
+            configPath
+          }),
+        (error) => {
+          assert.ok(error instanceof HostPathPolicyError);
+          assert.equal(error.code, "HOST_PATH_BLOCKED");
+          return true;
+        }
+      );
+    }
+
+    assert.deepEqual(evaluatePureHostCommand("pwd", []), {
+      command: "pwd",
+      args: [],
+      effect: "read",
+      relativePathArgs: []
+    });
+    assert.equal(evaluatePureHostCommand("git", ["status", "--short"]).effect, "read");
+    const lsPolicy = evaluatePureHostCommand("ls", ["-la", "notes"]);
+    assert.deepEqual(lsPolicy.relativePathArgs, ["notes"]);
+    assertHostCommandRelativePathsInsideRoot(rootWorkdir, lsPolicy.relativePathArgs);
+    assert.throws(() => evaluatePureHostCommand("npm", ["test"]));
+    assert.throws(() => evaluatePureHostCommand("zsh", ["-c", "pwd"]));
+    assert.throws(() => evaluatePureHostCommand("ls", ["../outside"]));
+    assert.throws(() => evaluatePureHostCommand("ls", [outsideRoot]));
+
+    assert.equal(evaluateWorkspaceCommand("git", ["status", "--short"]).effect, "read");
+    assert.equal(evaluateWorkspaceCommand("npm", ["test"]).effect, "write");
+
+    const previousExposed = process.env.TOKENPILOT_EXPOSED;
+    const previousHighTrust = process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+    process.env.TOKENPILOT_EXPOSED = "true";
+    delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+    try {
+      assert.throws(() => evaluateWorkspaceCommand("node", ["script.js"]));
+    } finally {
+      if (previousExposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
+      else process.env.TOKENPILOT_EXPOSED = previousExposed;
+      if (previousHighTrust === undefined) {
+        delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+      } else {
+        process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS = previousHighTrust;
+      }
+    }
+
+    const project = repositories.projects.create({
+      id: "project_host_command_fixture",
+      slug: "host-command-fixture",
+      displayName: "Host Command Fixture",
+      now: NOW
+    });
+    const workspace = repositories.workspaces.create({
+      id: "workspace_host_command_fixture",
+      projectId: project.id,
+      repoId: "fixture-repo",
+      privatePath: workspaceRoot,
+      now: NOW
+    });
+    const classifiedWorkspace = classifyHostTarget(
+      repositories,
+      nestedWorkdir.absolutePath
+    );
+    assert.equal(classifiedWorkspace.kind, "workspace");
+    assert.equal(classifiedWorkspace.workspaceId, workspace.id);
+    assert.equal(classifiedWorkspace.repoId, workspace.repoId);
+    assert.equal(classifiedWorkspace.workspaceRelativePath, ".");
+    assert.equal(
+      classifyHostTarget(repositories, path.join(hostRoot, "notes")).kind,
+      "pure-host"
+    );
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
 
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   process.stdout.write("VERIFY_HOST_DIRECT_COMMAND_OK\n");

@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
+import { evaluateWorkspaceCommand } from "./command-policy.js";
 import { loadUserConfig, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
@@ -13,102 +14,9 @@ import type {
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const COMMAND_TIMEOUT_MS = 25_000; // GPT Action 超时 ~30s，留 5s 余量
 
-// ── Command whitelist ──
-// Each command maps to allowed subcommands/patterns.
-// "*" means any args are allowed (subject to arg validation).
-// This is intentionally narrow — add commands as needed.
-
-const COMMAND_WHITELIST: Record<string, string[]> = {
-  // Node.js ecosystem
-  "npm":        ["run", "test", "install", "ci", "build", "lint", "typecheck", "start", "dev"],
-  "npx":        ["*"],     // npx can run anything, but args validated below
-  "pnpm":       ["run", "test", "install", "build", "lint"],
-  "yarn":       ["run", "test", "install", "build", "lint"],
-  "node":       ["*"],     // Running scripts — path validated below
-  "tsx":        ["*"],     // TypeScript runner
-
-  // Linting / formatting
-  "tsc":        ["--noEmit", "--project", "-p", "--version"],
-  "eslint":     ["*"],
-  "prettier":   ["--check", "--write", "--list-different"],
-
-  // Testing
-  "vitest":     ["run", "--run"],
-  "jest":       ["--passWithNoTests"],
-
-  // Python
-  "python":     ["*"],
-  "python3":    ["*"],
-
-  // Build tools
-  "make":       ["*"],
-  "cargo":      ["build", "test", "check", "clippy", "fmt", "run"],
-  "go":         ["build", "test", "vet", "fmt", "run"],
-
-  // Version control (dedicated endpoints exist, but useful for edge cases)
-  "git":        ["status", "diff", "log", "branch", "add", "restore", "stash", "show", "rev-parse", "rev-list"],
-};
-
-const HIGH_TRUST_COMMANDS = new Set(["node", "python", "python3", "npx", "tsx", "make"]);
-
-// ── Argument validation ──
-// These checks prevent path traversal and obvious shell injection even though
-// we use spawnSync (not a shell). Extra defense in depth.
-
-// spawnSync bypasses the shell — only path-safety patterns are relevant.
-// Shell metacharacters (;, |, &, $, `, >, <) are harmless inside spawn args.
-const DANGEROUS_ARG_PATTERNS = [
-  /^~/,           // home directory expansion
-  /\.\./,         // path traversal
-];
-
-function validateArgs(args: string[]): void {
-  for (const arg of args) {
-    if (!arg || typeof arg !== "string") {
-      throw new Error("Each argument must be a non-empty string");
-    }
-
-    if (arg.length > 2048) {
-      throw new Error("Argument exceeds maximum length of 2048 characters");
-    }
-
-    for (const pattern of DANGEROUS_ARG_PATTERNS) {
-      if (pattern.test(arg)) {
-        throw new Error(
-          `Argument contains disallowed characters: ${JSON.stringify(arg.slice(0, 80))}`
-        );
-      }
-    }
-
-    // Block absolute paths (except well-known tool paths)
-    if (path.isAbsolute(arg) && !arg.startsWith("/usr/") && !arg.startsWith("/bin/")) {
-      throw new Error("Absolute paths are not allowed in command arguments");
-    }
-  }
-}
-
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   const config = loadUserConfig(paths.repoRoot);
   return resolveRepoMapping(config, repoId).repoRoot;
-}
-
-function envFlagEnabled(value: string | undefined): boolean {
-  return /^(1|true|yes|on)$/i.test(value?.trim() || "");
-}
-
-function assertHighTrustCommandAllowed(command: string): void {
-  if (!HIGH_TRUST_COMMANDS.has(command)) {
-    return;
-  }
-
-  const exposed = envFlagEnabled(process.env.TOKENPILOT_EXPOSED);
-  const explicitlyAllowed = envFlagEnabled(process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS);
-  if (exposed && !explicitlyAllowed) {
-    throw new Error(
-      `High-trust command ${command} is blocked in exposed mode. ` +
-      "Set TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true only in a private authenticated operator environment."
-    );
-  }
 }
 
 function resolveWorkDir(repoRoot: string, workdir?: string): string {
@@ -127,46 +35,18 @@ export interface PreparedShellCommand {
   standaloneReadOnly: boolean;
 }
 
-const STANDALONE_READ_ONLY_GIT_SUBCOMMANDS = new Set([
-  "status",
-  "diff",
-  "log",
-  "show",
-  "rev-parse",
-  "rev-list"
-]);
-
 export function prepareShellCommand(
   paths: TokenPilotPaths,
   payload: ShellRunPayload
 ): PreparedShellCommand {
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
-  const allowedSubcommands = COMMAND_WHITELIST[payload.command];
-  if (!allowedSubcommands) {
-    throw new Error(
-      `Command not allowed: ${payload.command}. ` +
-      `Allowed commands: ${Object.keys(COMMAND_WHITELIST).join(", ")}`
-    );
-  }
-  assertHighTrustCommandAllowed(payload.command);
-  if (!allowedSubcommands.includes("*")) {
-    const subcommand = payload.args[0];
-    if (!subcommand || !allowedSubcommands.includes(subcommand)) {
-      throw new Error(
-        `Subcommand not allowed for ${payload.command}: ${subcommand ?? "<none>"}. ` +
-        `Allowed: ${allowedSubcommands.join(", ")}`
-      );
-    }
-  }
-  validateArgs(payload.args);
+  const policy = evaluateWorkspaceCommand(payload.command, payload.args);
   const workdir = resolveWorkDir(repoRoot, payload.workdir);
-  const standaloneReadOnly =
-    payload.command === "git" &&
-    STANDALONE_READ_ONLY_GIT_SUBCOMMANDS.has(payload.args[0] ?? "");
+  const standaloneReadOnly = policy.effect === "read";
   return {
     repoRoot,
     command: payload.command,
-    args: [...payload.args],
+    args: [...policy.args],
     workdir,
     timeoutMs: COMMAND_TIMEOUT_MS,
     outputBytesCap: MAX_OUTPUT_BYTES,

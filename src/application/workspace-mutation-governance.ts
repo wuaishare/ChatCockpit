@@ -42,7 +42,7 @@ function nearestExistingPath(target: string): string {
     if (parent === current) {
       throw new ServiceError(
         "CONTINUITY_RELATION_INVALID",
-        "Host mutation target has no resolvable filesystem ancestor"
+        "Host target has no resolvable filesystem ancestor"
       );
     }
     current = parent;
@@ -57,7 +57,7 @@ function canonicalPotentialPath(target: string): string {
   return path.resolve(canonicalExisting, remainder);
 }
 
-export function classifyHostMutationTarget(
+export function classifyHostTarget(
   repositories: ContinuityRepositories,
   absoluteTarget: string
 ): ClassifiedHostTarget {
@@ -89,7 +89,7 @@ export function classifyHostMutationTarget(
   if (equallyDeep.length > 1) {
     throw new ServiceError(
       "CONTINUITY_RELATION_INVALID",
-      "Host mutation target maps ambiguously to multiple registered workspaces"
+      "Host target maps ambiguously to multiple registered workspaces"
     );
   }
 
@@ -103,7 +103,7 @@ export function classifyHostMutationTarget(
   ) {
     throw new ServiceError(
       "CONTINUITY_RELATION_INVALID",
-      "Host mutation target could not be projected safely into its workspace"
+      "Host target could not be projected safely into its workspace"
     );
   }
 
@@ -114,6 +114,8 @@ export function classifyHostMutationTarget(
     workspaceRelativePath: relativePath || "."
   };
 }
+
+export const classifyHostMutationTarget = classifyHostTarget;
 
 export function assertChatDirectWriterLease(
   repositories: ContinuityRepositories,

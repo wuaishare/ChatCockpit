@@ -119,6 +119,14 @@ export interface HostEditableFileTarget extends HostWritableFileTarget {
   afterHash: string;
 }
 
+export interface HostCommandWorkdirTarget {
+  rootId: string;
+  displayPath: string;
+  relativePath: string;
+  absolutePath: string;
+  rootAbsolutePath: string;
+}
+
 function publicRoot(root: DirectHostRootConfig): PublicHostRoot {
   return {
     id: root.id,
@@ -210,6 +218,91 @@ export function assertHostTextContentAllowed(content: string): void {
 
 export function listPublicHostRoots(configPath?: string): PublicHostRoot[] {
   return loadDownstreamMcpExecutorsConfig(configPath).hostRoots.map(publicRoot);
+}
+
+export function resolveHostCommandWorkdirTarget(options: {
+  rootId: string;
+  workdir?: string;
+  requiredAccess?: HostRootAccess;
+  configPath?: string;
+}): HostCommandWorkdirTarget {
+  const root = hostRoot(
+    options.rootId,
+    options.configPath,
+    options.requiredAccess ?? "read"
+  );
+  let resolved: { absolutePath: string; relativePath: string };
+  try {
+    resolved = resolvePathInsideRoot(
+      root.path,
+      options.workdir ?? ".",
+      "Host command workdir"
+    );
+  } catch {
+    throw new HostPathPolicyError(
+      "HOST_PATH_BLOCKED",
+      "Host command workdir failed root containment checks"
+    );
+  }
+
+  assertSensitivePathAllowed(resolved.absolutePath);
+  let stat: fs.Stats;
+  try {
+    stat = fs.lstatSync(resolved.absolutePath);
+  } catch {
+    throw new HostPathPolicyError(
+      "HOST_PATH_BLOCKED",
+      "Host command workdir must already exist"
+    );
+  }
+  if (stat.isSymbolicLink()) {
+    throw new HostPathPolicyError(
+      "HOST_PATH_BLOCKED",
+      "Host command workdir cannot be a symbolic link"
+    );
+  }
+  if (!stat.isDirectory()) {
+    throw new HostPathPolicyError(
+      "HOST_PATH_BLOCKED",
+      "Host command workdir must resolve to a directory"
+    );
+  }
+
+  return {
+    rootId: root.id,
+    relativePath: resolved.relativePath,
+    displayPath:
+      resolved.relativePath === "."
+        ? root.id
+        : `${root.id}/${resolved.relativePath}`,
+    absolutePath: fs.realpathSync.native(resolved.absolutePath),
+    rootAbsolutePath: fs.realpathSync.native(root.path)
+  };
+}
+
+export function assertHostCommandRelativePathsInsideRoot(
+  target: HostCommandWorkdirTarget,
+  relativePaths: string[]
+): void {
+  for (const relativePath of relativePaths) {
+    let projected: string;
+    try {
+      const absolutePath = path.resolve(target.absolutePath, relativePath);
+      projected = path
+        .relative(target.rootAbsolutePath, absolutePath)
+        .replaceAll("\\", "/");
+      resolvePathInsideRoot(
+        target.rootAbsolutePath,
+        projected || ".",
+        "Host command argument path"
+      );
+    } catch {
+      throw new HostPathPolicyError(
+        "HOST_PATH_BLOCKED",
+        "Host command argument path failed root containment checks"
+      );
+    }
+  }
 }
 
 export function resolveHostReadableFileTarget(options: {
