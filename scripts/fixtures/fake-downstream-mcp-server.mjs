@@ -12,6 +12,7 @@ let desktopCommandTerminated = false;
 let managedProcessCwd = null;
 let managedProcessTerminated = false;
 let managedProcessExited = false;
+let managedProcessLastInput = null;
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -164,6 +165,7 @@ rl.on("line", (line) => {
       managedProcessCwd = cwdMatch[1];
       managedProcessTerminated = false;
       managedProcessExited = false;
+      managedProcessLastInput = null;
       send({
         jsonrpc: "2.0",
         id: message.id,
@@ -183,7 +185,10 @@ rl.on("line", (line) => {
       mode === "desktop-managed-process" &&
       toolName === "read_process_output"
     ) {
-      let text = `${managedProcessCwd ?? "unknown"}\nmanaged-ready`;
+      let text = `${managedProcessCwd ?? "unknown"}`;
+      if (managedProcessLastInput !== null) {
+        text += `\nmanaged-input:${managedProcessLastInput}`;
+      }
       if (managedProcessExited) {
         text += "\n✅ Process completed with exit code 0 (runtime: 0.02s)";
       } else if (managedProcessTerminated) {
@@ -215,7 +220,8 @@ rl.on("line", (line) => {
         });
         return;
       }
-      if (input === "quit") {
+      managedProcessLastInput = input.trimEnd();
+      if (managedProcessLastInput === "quit") {
         managedProcessExited = true;
       }
       send({

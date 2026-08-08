@@ -229,7 +229,15 @@ TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@
 
 该 proof 会驱动真正的 `tokenpilot.host.command.prepare` → `tokenpilot.host.command.decide` → `tokenpilot.host.command.execute`：验证 Pure Host 只读命令、需要 Writer Lease/Git/Task Evidence 回流的 Workspace write-effect 命令，以及必须被强制终止且不能留下延迟子进程副作用的 bounded slow command。公共结果同时检查 PID、private cwd、环境变量和绝对路径泄露。真实外部 proof 不进入默认验证套件；protocol gate 使用确定性的 fake-MCP harness 跑同一 driver。
 
-Remote MCP 现在开放受治理的 Host Files + bounded Host Command，而不是 raw downstream tools。`tokenpilot.host.roots.list` 只返回 public-safe Root Alias 与每个 Root 的 `read/write` 权限。Write / Exact Edit 走 `tokenpilot.host.mutation.prepare` → `decide` → `execute`；bounded command 走 `tokenpilot.host.command.prepare` → `decide` → `execute`。Pure Host Command 仍只允许显式只读 policy；Workspace write-effect Command 必须拥有 chat-direct Session / Writer Lease，并记录 Git / Task Evidence。Raw shell source、交互式/后台 Process API、PID 以及 Desktop Commander 的 Process Tools 都继续不对 Remote MCP 开放。
+对于受治理的 Managed Workspace Process，TokenPilot 仍把 Desktop Commander 的 `start_process`、`read_process_output`、`interact_with_process`、`force_terminate` 保持为 Adapter 私有依赖；Remote MCP 只开放 TokenPilot 自己的 `tokenpilot.host.process.prepare`、`tokenpilot.host.process.decide`、`tokenpilot.host.process.execute`、`tokenpilot.host.process.read`、`tokenpilot.host.process.list`。Managed Process 只允许注册 Workspace，start/input 必须回到所属 chat-direct Session / Writer Lease；公共身份使用 `host_process_*`，不会暴露 PID，并记录 Process Audit / Task Evidence。运行 operator-only 实机证明：
+
+```bash
+TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-process-live
+```
+
+该 live proof 通过真正的 ChatGPT-facing Host Process 工具驱动 `start → read → input → list → stop`。它会验证 start/input 的新输出只在 Supervisor 内存中做 bounded 暂存并通过 `process.read` 读取，不会被 mutation idempotency 持久化；raw input 不进入 SQLite；PID/私有绝对路径不出现在公共结果；stop 必须取得 Desktop Commander 的明确 terminal state；停止后也不能产生预设的延迟副作用。默认 protocol gate 通过确定性的 `verify:desktop-commander-host-process-live-harness` 跑同一 driver。
+
+Remote MCP 现在开放受治理的 Host Files、bounded Host Command 与 TokenPilot-owned Managed Workspace Process，而不是 raw downstream tools。`tokenpilot.host.roots.list` 只返回 public-safe Root Alias 与每个 Root 的 `read/write` 权限。Write / Exact Edit 走 `tokenpilot.host.mutation.prepare` → `decide` → `execute`；bounded command 走 `tokenpilot.host.command.prepare` → `decide` → `execute`；Managed Process 走 `tokenpilot.host.process.prepare` → `decide` → `execute`，并配合 `read/list`。Pure Host Command 仍只允许显式只读 policy；Workspace write-effect Command 与 Managed Process start/input 都必须回到 chat-direct 治理并记录 Evidence。Raw shell source、任意 PID attach、系统级 `list_processes` / `kill_process`、PID 以及 raw Desktop Commander Process Tools 都继续不对 Remote MCP 开放。
 
 ## 6. 明确选择运行模式
 

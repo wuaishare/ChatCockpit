@@ -21,6 +21,8 @@ export const DESKTOP_COMMANDER_MAX_PUBLIC_OUTPUT_BYTES = 64 * 1024;
 const PROCESS_READ_TIMEOUT_MS = 1_000;
 const PROCESS_OUTPUT_LINES = 1_000;
 const TERMINAL_EXIT_PATTERN = /Process completed with exit code\s+(-?\d+)/i;
+const TERMINAL_COMPLETION_PATTERN =
+  /Process completed with exit code\s+(?:-?\d+|null)/i;
 const PID_PATTERN = /Process started with PID\s+(\d+)/i;
 
 export type DesktopCommanderProcessErrorCode =
@@ -173,11 +175,15 @@ export function parseDesktopCommanderExitCode(text: string): number | null {
   return Number.isSafeInteger(exitCode) ? exitCode : null;
 }
 
+export function isDesktopCommanderProcessComplete(text: string): boolean {
+  return TERMINAL_COMPLETION_PATTERN.test(text);
+}
+
 export function cleanDesktopCommanderProcessOutput(text: string): string {
   return text
     .split(/\r?\n/)
     .filter((line) => !/^\[Reading\s/i.test(line))
-    .filter((line) => !TERMINAL_EXIT_PATTERN.test(line))
+    .filter((line) => !TERMINAL_COMPLETION_PATTERN.test(line))
     .join("\n")
     .trim();
 }

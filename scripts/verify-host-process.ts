@@ -51,7 +51,8 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
 
   constructor(
     readonly pid: number,
-    private readonly largeOutput = false
+    private readonly largeOutput = false,
+    private readonly terminationExitCode: number | null = 143
   ) {}
 
   async initialize(): Promise<DownstreamMcpServerIdentity> {
@@ -100,7 +101,9 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
       const suffix =
         this.state === "running"
           ? ""
-          : `\n✅ Process completed with exit code ${this.state === "exited" ? 0 : 143} (runtime: 0.01s)`;
+          : `\n✅ Process completed with exit code ${
+              this.state === "exited" ? 0 : this.terminationExitCode
+            } (runtime: 0.01s)`;
       return {
         content: [
           {
@@ -299,6 +302,25 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
     assert.equal(cleanup[0]?.status, "terminated");
     assert.equal(supervisor.activeProcessIds().length, 0);
     assert.equal(clients[1]?.closed, true);
+
+    const signalSupervisor = new DesktopCommanderManagedProcessSupervisor(
+      runtimeDir,
+      configPath,
+      () => new ManagedProcessFixtureClient(5189, false, null)
+    );
+    await signalSupervisor.start({
+      processId: "host_process_adapter_signal",
+      cwd: process.cwd(),
+      command: "npm",
+      args: ["test"],
+      startupTimeoutMs: 1000
+    });
+    const signalStopped = await signalSupervisor.stop(
+      "host_process_adapter_signal"
+    );
+    assert.equal(signalStopped.status, "terminated");
+    assert.equal(signalStopped.exitCode, null);
+    assert.equal(signalSupervisor.activeProcessIds().length, 0);
 
     const largeSupervisor = new DesktopCommanderManagedProcessSupervisor(
       runtimeDir,

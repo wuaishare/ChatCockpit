@@ -9,6 +9,7 @@ import {
   boundDesktopCommanderOutput,
   buildDesktopCommanderCommandSource,
   cleanDesktopCommanderProcessOutput,
+  isDesktopCommanderProcessComplete,
   parseDesktopCommanderExitCode,
   parseDesktopCommanderPid,
   projectDesktopCommanderToolResult
@@ -23,6 +24,8 @@ import type { DownstreamMcpClient } from "../downstream-mcp-types.js";
 
 const DEFAULT_READ_TIMEOUT_MS = 250;
 const DEFAULT_OUTPUT_LINES = 1_000;
+const TERMINATION_CONFIRM_TIMEOUT_MS = 1_750;
+const TERMINATION_POLL_INTERVAL_MS = 75;
 
 export type ManagedProcessAdapterStatus =
   | "running"
@@ -84,6 +87,8 @@ interface ManagedProcessRuntime {
   processId: string;
   privatePid: number;
   client: DownstreamMcpClient;
+  pendingOutput: string;
+  pendingOutputTruncated: boolean;
 }
 
 function defaultClientFactory(
@@ -221,31 +226,24 @@ export class DesktopCommanderManagedProcessSupervisor {
         );
       }
       privatePid = parseDesktopCommanderPid(started.text);
-      this.runtimes.set(request.processId, {
-        processId: request.processId,
-        privatePid,
-        client
-      });
-
       const initial = boundDesktopCommanderOutput(
         initialProcessOutput(started.text)
       );
-      const observed = await this.read(request.processId, {
+      const runtime: ManagedProcessRuntime = {
+        processId: request.processId,
+        privatePid,
+        client,
+        pendingOutput: initial.output,
+        pendingOutputTruncated: initial.truncated
+      };
+      this.runtimes.set(request.processId, runtime);
+
+      const observed = await this.readDownstream(runtime, {
         offset: 0,
         length: DEFAULT_OUTPUT_LINES,
         waitMs: DEFAULT_READ_TIMEOUT_MS
       });
-      if (!initial.output || observed.output.includes(initial.output)) {
-        return observed;
-      }
-      const combined = boundDesktopCommanderOutput(
-        [initial.output, observed.output].filter(Boolean).join("\n")
-      );
-      return {
-        ...observed,
-        output: combined.output,
-        truncated: initial.truncated || observed.truncated || combined.truncated
-      };
+      return this.mergePendingOutput(runtime, observed, false);
     } catch (error) {
       if (privatePid !== null) {
         try {
@@ -267,21 +265,8 @@ export class DesktopCommanderManagedProcessSupervisor {
     options: ManagedProcessReadOptions = {}
   ): Promise<ManagedProcessAdapterSnapshot> {
     const runtime = this.requireRuntime(processId);
-    const result = projectDesktopCommanderToolResult(
-      await runtime.client.callTool(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, {
-        pid: runtime.privatePid,
-        timeout_ms: options.waitMs ?? DEFAULT_READ_TIMEOUT_MS,
-        offset: options.offset ?? 0,
-        length: options.length ?? DEFAULT_OUTPUT_LINES
-      })
-    );
-    if (result.isError) {
-      throw new DesktopCommanderManagedProcessError(
-        "DESKTOP_COMMANDER_MANAGED_PROCESS_RESULT_UNKNOWN",
-        "Desktop Commander could not read the managed process state"
-      );
-    }
-    return this.projectSnapshot(runtime, result.text, "exited");
+    const observed = await this.readDownstream(runtime, options);
+    return this.mergePendingOutput(runtime, observed, true);
   }
 
   async input(
@@ -304,7 +289,11 @@ export class DesktopCommanderManagedProcessSupervisor {
         "Desktop Commander could not interact with the managed process"
       );
     }
-    return this.projectSnapshot(runtime, result.text, "exited");
+    const snapshot = await this.projectSnapshot(runtime, result.text, "exited");
+    if (snapshot.status === "running") {
+      this.queuePendingOutput(runtime, snapshot.output, snapshot.truncated);
+    }
+    return snapshot;
   }
 
   async stop(processId: string): Promise<ManagedProcessAdapterSnapshot> {
@@ -314,44 +303,51 @@ export class DesktopCommanderManagedProcessSupervisor {
         pid: runtime.privatePid
       })
     );
-    if (terminated.isError) {
+    if (terminated.isError || /No active session found/i.test(terminated.text)) {
       throw new DesktopCommanderManagedProcessError(
         "DESKTOP_COMMANDER_MANAGED_PROCESS_TERMINATION_FAILED",
         "Desktop Commander could not terminate the managed process"
       );
     }
 
-    try {
-      const finalRead = projectDesktopCommanderToolResult(
-        await runtime.client.callTool(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, {
-          pid: runtime.privatePid,
-          timeout_ms: DEFAULT_READ_TIMEOUT_MS,
-          offset: 0,
-          length: DEFAULT_OUTPUT_LINES
-        })
-      );
-      if (finalRead.isError) {
-        return await this.finishUnknown(runtime, terminated.text);
+    const deadline = Date.now() + TERMINATION_CONFIRM_TIMEOUT_MS;
+    let lastObservedText = terminated.text;
+    while (Date.now() < deadline) {
+      try {
+        const finalRead = projectDesktopCommanderToolResult(
+          await runtime.client.callTool(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, {
+            pid: runtime.privatePid,
+            timeout_ms: DEFAULT_READ_TIMEOUT_MS,
+            offset: 0,
+            length: DEFAULT_OUTPUT_LINES
+          })
+        );
+        if (!finalRead.isError) {
+          lastObservedText = finalRead.text;
+          if (isDesktopCommanderProcessComplete(finalRead.text)) {
+            const exitCode = parseDesktopCommanderExitCode(finalRead.text);
+            const projected = boundDesktopCommanderOutput(
+              cleanDesktopCommanderProcessOutput(finalRead.text)
+            );
+            await this.releaseRuntime(runtime.processId);
+            return {
+              processId: runtime.processId,
+              privatePid: runtime.privatePid,
+              status: "terminated",
+              exitCode,
+              output: projected.output,
+              truncated: projected.truncated
+            };
+          }
+        }
+      } catch {
+        // Keep polling until the bounded confirmation deadline expires.
       }
-      const exitCode = parseDesktopCommanderExitCode(finalRead.text);
-      if (exitCode === null) {
-        return await this.finishUnknown(runtime, finalRead.text);
-      }
-      const projected = boundDesktopCommanderOutput(
-        cleanDesktopCommanderProcessOutput(finalRead.text)
+      await new Promise((resolve) =>
+        setTimeout(resolve, TERMINATION_POLL_INTERVAL_MS)
       );
-      await this.releaseRuntime(runtime.processId);
-      return {
-        processId: runtime.processId,
-        privatePid: runtime.privatePid,
-        status: "terminated",
-        exitCode,
-        output: projected.output,
-        truncated: projected.truncated
-      };
-    } catch {
-      return await this.finishUnknown(runtime, terminated.text);
     }
+    return await this.finishUnknown(runtime, lastObservedText);
   }
 
   async close(processId: string): Promise<void> {
@@ -383,6 +379,77 @@ export class DesktopCommanderManagedProcessSupervisor {
       }
     }
     return results;
+  }
+
+  private async readDownstream(
+    runtime: ManagedProcessRuntime,
+    options: ManagedProcessReadOptions
+  ): Promise<ManagedProcessAdapterSnapshot> {
+    const result = projectDesktopCommanderToolResult(
+      await runtime.client.callTool(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, {
+        pid: runtime.privatePid,
+        timeout_ms: options.waitMs ?? DEFAULT_READ_TIMEOUT_MS,
+        offset: options.offset ?? 0,
+        length: options.length ?? DEFAULT_OUTPUT_LINES
+      })
+    );
+    if (result.isError) {
+      throw new DesktopCommanderManagedProcessError(
+        "DESKTOP_COMMANDER_MANAGED_PROCESS_RESULT_UNKNOWN",
+        "Desktop Commander could not read the managed process state"
+      );
+    }
+    return this.projectSnapshot(runtime, result.text, "exited");
+  }
+
+  private queuePendingOutput(
+    runtime: ManagedProcessRuntime,
+    output: string,
+    truncated: boolean
+  ): void {
+    if (!output) {
+      runtime.pendingOutputTruncated ||= truncated;
+      return;
+    }
+    const combined = boundDesktopCommanderOutput(
+      [runtime.pendingOutput, output].filter(Boolean).join("\n")
+    );
+    runtime.pendingOutput = combined.output;
+    runtime.pendingOutputTruncated =
+      runtime.pendingOutputTruncated || truncated || combined.truncated;
+  }
+
+  private mergePendingOutput(
+    runtime: ManagedProcessRuntime,
+    observed: ManagedProcessAdapterSnapshot,
+    consume: boolean
+  ): ManagedProcessAdapterSnapshot {
+    const pendingOutput = runtime.pendingOutput;
+    const pendingTruncated = runtime.pendingOutputTruncated;
+    if (consume) {
+      runtime.pendingOutput = "";
+      runtime.pendingOutputTruncated = false;
+    }
+    if (!pendingOutput) {
+      return {
+        ...observed,
+        truncated: pendingTruncated || observed.truncated
+      };
+    }
+    if (observed.output.includes(pendingOutput)) {
+      return {
+        ...observed,
+        truncated: pendingTruncated || observed.truncated
+      };
+    }
+    const combined = boundDesktopCommanderOutput(
+      [pendingOutput, observed.output].filter(Boolean).join("\n")
+    );
+    return {
+      ...observed,
+      output: combined.output,
+      truncated: pendingTruncated || observed.truncated || combined.truncated
+    };
   }
 
   private requireRuntime(processId: string): ManagedProcessRuntime {
