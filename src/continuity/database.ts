@@ -10,6 +10,7 @@ import { genericRuntimeBindingsMigration } from "./migrations/004-generic-runtim
 import { developmentDocumentsMigration } from "./migrations/005-development-documents.js";
 import { taskDocumentVersionPinsMigration } from "./migrations/006-task-document-version-pins.js";
 import { taskExecutionPolicyMigration } from "./migrations/007-task-execution-policy.js";
+import { directMutationsMigration } from "./migrations/008-direct-mutations.js";
 
 interface ContinuityMigration {
   version: number;
@@ -25,7 +26,8 @@ const migrations: readonly ContinuityMigration[] = [
   genericRuntimeBindingsMigration,
   developmentDocumentsMigration,
   taskDocumentVersionPinsMigration,
-  taskExecutionPolicyMigration
+  taskExecutionPolicyMigration,
+  directMutationsMigration
 ];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

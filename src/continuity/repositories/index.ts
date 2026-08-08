@@ -1,5 +1,7 @@
 import type { ContinuityDatabase } from "../database.js";
 import { DevelopmentDocumentRepository } from "./development-document-repository.js";
+import { DirectMutationApprovalRepository } from "./direct-mutation-approval-repository.js";
+import { DirectMutationAuditRepository } from "./direct-mutation-audit-repository.js";
 import { EvidenceRepository } from "./evidence-repository.js";
 import { HandoffRepository } from "./handoff-repository.js";
 import { IdempotencyRepository } from "./idempotency-repository.js";
@@ -16,6 +18,8 @@ import { WorkspaceRepository } from "./workspace-repository.js";
 export interface ContinuityRepositories {
   projects: ProjectRepository;
   developmentDocuments: DevelopmentDocumentRepository;
+  directMutationApprovals: DirectMutationApprovalRepository;
+  directMutationAudit: DirectMutationAuditRepository;
   runtimeApprovals: RuntimeApprovalRepository;
   runtimeBindings: RuntimeBindingRepository;
   runtimeEvents: RuntimeEventRepository;
@@ -35,6 +39,8 @@ export function buildContinuityRepositories(
   return {
     projects: new ProjectRepository(database),
     developmentDocuments: new DevelopmentDocumentRepository(database),
+    directMutationApprovals: new DirectMutationApprovalRepository(database),
+    directMutationAudit: new DirectMutationAuditRepository(database),
     runtimeApprovals: new RuntimeApprovalRepository(database),
     runtimeBindings: new RuntimeBindingRepository(database),
     runtimeEvents: new RuntimeEventRepository(database),
@@ -50,6 +56,8 @@ export function buildContinuityRepositories(
 }
 
 export { DevelopmentDocumentRepository } from "./development-document-repository.js";
+export { DirectMutationApprovalRepository } from "./direct-mutation-approval-repository.js";
+export { DirectMutationAuditRepository } from "./direct-mutation-audit-repository.js";
 export { EvidenceRepository } from "./evidence-repository.js";
 export { HandoffRepository } from "./handoff-repository.js";
 export { IdempotencyRepository } from "./idempotency-repository.js";

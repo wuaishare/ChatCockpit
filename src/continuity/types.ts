@@ -49,6 +49,15 @@ export type RuntimeApprovalStatus =
   | "resolved"
   | "cancelled"
   | "stale";
+export type DirectMutationOperation = "files.write" | "files.edit";
+export type DirectMutationTargetKind = "workspace" | "pure-host";
+export type DirectMutationApprovalStatus =
+  | "pending"
+  | "approved"
+  | "denied"
+  | "consumed"
+  | "expired";
+export type DirectMutationAuditStatus = "succeeded" | "failed" | "unknown";
 export type RuntimeEventCategory =
   | "lifecycle"
   | "approval"
@@ -237,6 +246,43 @@ export interface RuntimeApprovalRecord {
   respondedAt: string | null;
   resolvedAt: string | null;
   revision: number;
+}
+
+export interface DirectMutationApprovalRecord {
+  id: string;
+  operation: DirectMutationOperation;
+  rootId: string;
+  relativePath: string;
+  mutationHash: string;
+  executorId: string;
+  scope: "host";
+  targetKind: DirectMutationTargetKind;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  status: DirectMutationApprovalStatus;
+  publicSummary: Record<string, unknown>;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  consumedAt: string | null;
+  revision: number;
+}
+
+export interface DirectMutationAuditRecord {
+  id: string;
+  operation: DirectMutationOperation;
+  rootId: string;
+  relativePath: string;
+  beforeHash: string | null;
+  afterHash: string | null;
+  executorId: string;
+  approvalId: string;
+  status: DirectMutationAuditStatus;
+  errorCode: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
 }
 
 export interface RuntimeEventRecord {
