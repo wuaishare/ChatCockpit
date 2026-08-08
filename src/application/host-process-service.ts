@@ -307,6 +307,7 @@ function projectKnownPrivatePaths(
 export class HostProcessService {
   private reconcileTimer: NodeJS.Timeout | null = null;
   private closed = false;
+  private readonly actionLocks = new Set<string>();
 
   constructor(
     private readonly repositories: ContinuityRepositories,
@@ -398,6 +399,15 @@ export class HostProcessService {
     context: OperationContext,
     input: HostProcessReadInput
   ): Promise<HostProcessReadValue> {
+    return this.withProcessAction(input.processId, () =>
+      this.readUnlocked(context, input)
+    );
+  }
+
+  private async readUnlocked(
+    context: OperationContext,
+    input: HostProcessReadInput
+  ): Promise<HostProcessReadValue> {
     await this.reconcile(context.now);
     let processRecord = this.requireProcess(input.processId);
     if (processRecord.status === "stale") {
@@ -463,6 +473,9 @@ export class HostProcessService {
       status: "running"
     });
     for (const processRecord of running) {
+      if (this.actionLocks.has(processRecord.id)) {
+        continue;
+      }
       if (!this.supervisor.has(processRecord.id)) {
         await this.cleanupManagedProcess(
           processRecord,
@@ -499,6 +512,7 @@ export class HostProcessService {
       this.reconcileTimer = null;
     }
     for (const processId of this.supervisor.activeProcessIds()) {
+      await this.waitForProcessActionUnlock(processId, 5_000);
       let processRecord: DirectProcessSessionRecord;
       try {
         processRecord = this.requireProcess(processId);
@@ -526,10 +540,14 @@ export class HostProcessService {
     | (HostProcessStopExecutionValue & { replayed: boolean })
   > {
     if (input.operation === "input") {
-      return this.executeInput(context, input);
+      return this.withProcessAction(input.processId, () =>
+        this.executeInput(context, input)
+      );
     }
     if (input.operation === "stop") {
-      return this.executeStop(context, input);
+      return this.withProcessAction(input.processId, () =>
+        this.executeStop(context, input)
+      );
     }
     const {
       idempotencyKey,
@@ -961,6 +979,37 @@ export class HostProcessService {
         context.now
       );
     return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private async withProcessAction<T>(
+    processId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    if (this.actionLocks.has(processId)) {
+      throw new ServiceError(
+        "HOST_PROCESS_ACTION_CONFLICT",
+        "Another Managed Host Process action is already in progress"
+      );
+    }
+    this.actionLocks.add(processId);
+    try {
+      return await operation();
+    } finally {
+      this.actionLocks.delete(processId);
+    }
+  }
+
+  private async waitForProcessActionUnlock(
+    processId: string,
+    timeoutMs: number
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (this.actionLocks.has(processId) && Date.now() < deadline) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 20);
+        timer.unref();
+      });
+    }
   }
 
   private reconcileRestartState(now = new Date().toISOString()): void {

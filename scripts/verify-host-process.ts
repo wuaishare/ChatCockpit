@@ -49,7 +49,10 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
   closed = false;
   private state: "running" | "exited" | "terminated" = "running";
 
-  constructor(readonly pid: number) {}
+  constructor(
+    readonly pid: number,
+    private readonly largeOutput = false
+  ) {}
 
   async initialize(): Promise<DownstreamMcpServerIdentity> {
     return {
@@ -88,6 +91,12 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
       };
     }
     if (name === DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL) {
+      if (this.largeOutput && this.state === "running") {
+        return {
+          content: [{ type: "text", text: "x".repeat(80 * 1024) }],
+          isError: false
+        };
+      }
       const suffix =
         this.state === "running"
           ? ""
@@ -291,6 +300,42 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
     assert.equal(supervisor.activeProcessIds().length, 0);
     assert.equal(clients[1]?.closed, true);
 
+    const largeSupervisor = new DesktopCommanderManagedProcessSupervisor(
+      runtimeDir,
+      configPath,
+      () => new ManagedProcessFixtureClient(5190, true)
+    );
+    const largeOutput = await largeSupervisor.start({
+      processId: "host_process_adapter_large",
+      cwd: process.cwd(),
+      command: "npm",
+      args: ["test"],
+      startupTimeoutMs: 1000
+    });
+    assert.equal(largeOutput.status, "running");
+    assert.equal(largeOutput.truncated, true);
+    assert.ok(Buffer.byteLength(largeOutput.output, "utf8") <= 64 * 1024);
+    await largeSupervisor.closeAll();
+
+    const noSnapshotRuntime = path.join(sandbox, "no-snapshot-runtime");
+    fs.mkdirSync(noSnapshotRuntime, { recursive: true });
+    const noSnapshot = new DesktopCommanderManagedProcessSupervisor(
+      noSnapshotRuntime,
+      configPath,
+      () => new ManagedProcessFixtureClient(5191)
+    );
+    assert.throws(
+      () => noSnapshot.assertReady(),
+      (error) => {
+        assert.ok(error instanceof DesktopCommanderManagedProcessError);
+        assert.equal(
+          error.code,
+          "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE"
+        );
+        return true;
+      }
+    );
+
     const missingInteractSandbox = path.join(sandbox, "missing-interact");
     fs.mkdirSync(missingInteractSandbox, { recursive: true });
     const missingInteract = writeManagedProcessFixture({
@@ -330,6 +375,15 @@ class ReadyProcessSupervisor {
   readCalls = 0;
   closeAllCalls = 0;
   nextStatus: "running" | "exited" = "running";
+  nextStopUnknown = false;
+  private inputBarrier:
+    | {
+        entered: Promise<void>;
+        enter: () => void;
+        released: Promise<void>;
+        release: () => void;
+      }
+    | null = null;
   private readonly runtimes = new Map<
     string,
     { privatePid: number; cwd: string }
@@ -349,6 +403,19 @@ class ReadyProcessSupervisor {
 
   activeProcessIds(): string[] {
     return [...this.runtimes.keys()];
+  }
+
+  holdNextInput(): { entered: Promise<void>; release: () => void } {
+    let enter!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.inputBarrier = { entered, enter, released, release };
+    return { entered, release };
   }
 
   async closeAll(): Promise<ManagedProcessAdapterSnapshot[]> {
@@ -407,14 +474,21 @@ class ReadyProcessSupervisor {
     this.inputCalls += 1;
     const runtime = this.runtimes.get(processId);
     assert.ok(runtime);
-    if (options.input === "quit") {
+    if (this.inputBarrier) {
+      const barrier = this.inputBarrier;
+      this.inputBarrier = null;
+      barrier.enter();
+      await barrier.released;
+    }
+    if (options.input === "quit" || options.input === "fail") {
       this.runtimes.delete(processId);
+      const exitCode = options.input === "quit" ? 0 : 7;
       return {
         processId,
         privatePid: runtime.privatePid,
         status: "exited",
-        exitCode: 0,
-        output: "fixture exited",
+        exitCode,
+        output: exitCode === 0 ? "fixture exited" : "fixture failed",
         truncated: false
       };
     }
@@ -433,6 +507,17 @@ class ReadyProcessSupervisor {
     const runtime = this.runtimes.get(processId);
     assert.ok(runtime);
     this.runtimes.delete(processId);
+    if (this.nextStopUnknown) {
+      this.nextStopUnknown = false;
+      return {
+        processId,
+        privatePid: runtime.privatePid,
+        status: "unknown",
+        exitCode: null,
+        output: "fixture termination unknown",
+        truncated: false
+      };
+    }
     return {
       processId,
       privatePid: runtime.privatePid,
@@ -602,6 +687,104 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       now: NOW
     });
 
+    await expectServiceCode(
+      service.read(context, { processId: "host_process_missing_fixture" }),
+      "HOST_PROCESS_NOT_FOUND"
+    );
+    repositories.directProcessSessions.createRunning({
+      id: "host_process_runtime_missing",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      commandHash: "5".repeat(64),
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+      workspaceId: workspace.id,
+      repoId: workspace.repoId,
+      sessionId: session.id,
+      writerLeaseId: lease.id,
+      privatePid: 6199,
+      now: NOW
+    });
+    await expectServiceCode(
+      service.read(context, { processId: "host_process_runtime_missing" }),
+      "HOST_PROCESS_STALE"
+    );
+    assert.equal(
+      repositories.directProcessSessions.get("host_process_runtime_missing").status,
+      "stale"
+    );
+    assert.equal(processSupervisor.stopCalls, 0);
+
+    const deniedPrepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-denied-prepare"
+    });
+    const deniedApproval = await service.decide(context, {
+      approvalId: deniedPrepared.approval.id,
+      expectedRevision: deniedPrepared.approval.revision,
+      decision: "denied",
+      idempotencyKey: "process-denied-decision"
+    });
+    await expectServiceCode(
+      service.execute(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        approvalId: deniedApproval.approval.id,
+        expectedApprovalRevision: deniedApproval.approval.revision,
+        idempotencyKey: "process-denied-execute"
+      }),
+      "HOST_PROCESS_APPROVAL_REQUIRED"
+    );
+
+    const expiringPrepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-expiring-prepare"
+    });
+    const expiringApproved = await service.decide(context, {
+      approvalId: expiringPrepared.approval.id,
+      expectedRevision: expiringPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-expiring-decision"
+    });
+    const expiredContext = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "host-process-expired",
+      publicProjection: true,
+      now: LATER
+    });
+    await expectServiceCode(
+      service.execute(expiredContext, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        approvalId: expiringApproved.approval.id,
+        expectedApprovalRevision: expiringApproved.approval.revision,
+        idempotencyKey: "process-expiring-execute"
+      }),
+      "HOST_PROCESS_APPROVAL_EXPIRED"
+    );
+
     const prepared = await service.prepare(context, {
       operation: "start",
       rootId: "fixture",
@@ -619,7 +802,8 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(prepared.approval.executorId, DESKTOP_COMMANDER_EXECUTOR_ID);
     assert.equal(prepared.approval.publicSummary.effect, "read");
     assert.equal(prepared.approval.publicSummary.argsCount, 2);
-    assert.equal(processSupervisor.assertReadyCalls, 1);
+    const readyCallsAfterPrepare = processSupervisor.assertReadyCalls;
+    assert.ok(readyCallsAfterPrepare > 0);
     assert.doesNotMatch(JSON.stringify(prepared), new RegExp(hostRoot));
 
     const replay = await service.prepare(context, {
@@ -634,7 +818,23 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     });
     assert.equal(replay.replayed, true);
     assert.equal(replay.approval.id, prepared.approval.id);
-    assert.equal(processSupervisor.assertReadyCalls, 1);
+    assert.equal(processSupervisor.assertReadyCalls, readyCallsAfterPrepare);
+
+    await expectServiceCode(
+      service.execute(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        approvalId: prepared.approval.id,
+        expectedApprovalRevision: prepared.approval.revision,
+        idempotencyKey: "process-pending-execute"
+      }),
+      "HOST_PROCESS_APPROVAL_REQUIRED"
+    );
 
     const approved = await service.decide(context, {
       approvalId: prepared.approval.id,
@@ -643,6 +843,22 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       idempotencyKey: "process-valid-decision"
     });
     assert.equal(approved.approval.status, "approved");
+    await expectServiceCode(
+      service.execute(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1100,
+        approvalId: approved.approval.id,
+        expectedApprovalRevision: approved.approval.revision,
+        idempotencyKey: "process-start-hash-drift"
+      }),
+      "HOST_PROCESS_HASH_MISMATCH"
+    );
+    assert.equal(processSupervisor.startCalls, 0);
 
     const started = await service.execute(context, {
       operation: "start",
@@ -760,6 +976,78 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
         .all()
     });
     assert.equal(persistedActionData.includes(transientInput), false);
+
+    const driftPrepared = await service.prepare(context, {
+      operation: "input",
+      processId: started.process.id,
+      sessionId: session.id,
+      input: "approved-input",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      idempotencyKey: "process-input-drift-prepare"
+    });
+    const driftApproved = await service.decide(context, {
+      approvalId: driftPrepared.approval.id,
+      expectedRevision: driftPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-input-drift-decision"
+    });
+    const inputCallsBeforeDrift = processSupervisor.inputCalls;
+    await expectServiceCode(
+      service.execute(context, {
+        operation: "input",
+        processId: started.process.id,
+        sessionId: session.id,
+        input: "drifted-input",
+        waitForPrompt: true,
+        timeoutMs: 1000,
+        approvalId: driftApproved.approval.id,
+        expectedApprovalRevision: driftApproved.approval.revision,
+        idempotencyKey: "process-input-drift-execute"
+      }),
+      "HOST_PROCESS_HASH_MISMATCH"
+    );
+    assert.equal(processSupervisor.inputCalls, inputCallsBeforeDrift);
+
+    const heldPrepared = await service.prepare(context, {
+      operation: "input",
+      processId: started.process.id,
+      sessionId: session.id,
+      input: "held-input",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      idempotencyKey: "process-input-held-prepare"
+    });
+    const heldApproved = await service.decide(context, {
+      approvalId: heldPrepared.approval.id,
+      expectedRevision: heldPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-input-held-decision"
+    });
+    const gate = processSupervisor.holdNextInput();
+    const heldPromise = service.execute(context, {
+      operation: "input",
+      processId: started.process.id,
+      sessionId: session.id,
+      input: "held-input",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      approvalId: heldApproved.approval.id,
+      expectedApprovalRevision: heldApproved.approval.revision,
+      idempotencyKey: "process-input-held-execute"
+    });
+    await gate.entered;
+    try {
+      await expectServiceCode(
+        service.read(context, { processId: started.process.id }),
+        "HOST_PROCESS_ACTION_CONFLICT"
+      );
+    } finally {
+      gate.release();
+    }
+    const heldExecuted = await heldPromise;
+    assert.equal(heldExecuted.ok, true);
+    assert.equal(heldExecuted.process.status, "running");
 
     const executeReplay = await service.execute(context, {
       operation: "start",
@@ -900,6 +1188,133 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       true
     );
 
+    const failedPrepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-failed-prepare"
+    });
+    const failedApproved = await service.decide(context, {
+      approvalId: failedPrepared.approval.id,
+      expectedRevision: failedPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-failed-decision"
+    });
+    const failedStarted = await service.execute(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: failedApproved.approval.id,
+      expectedApprovalRevision: failedApproved.approval.revision,
+      idempotencyKey: "process-failed-execute"
+    });
+    const failedInputPrepared = await service.prepare(context, {
+      operation: "input",
+      processId: failedStarted.process.id,
+      sessionId: session.id,
+      input: "fail",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      idempotencyKey: "process-failed-input-prepare"
+    });
+    const failedInputApproved = await service.decide(context, {
+      approvalId: failedInputPrepared.approval.id,
+      expectedRevision: failedInputPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-failed-input-decision"
+    });
+    const failedInput = await service.execute(context, {
+      operation: "input",
+      processId: failedStarted.process.id,
+      sessionId: session.id,
+      input: "fail",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      approvalId: failedInputApproved.approval.id,
+      expectedApprovalRevision: failedInputApproved.approval.revision,
+      idempotencyKey: "process-failed-input-execute"
+    });
+    assert.equal(failedInput.ok, false);
+    assert.equal(failedInput.process.status, "exited");
+    assert.equal(failedInput.process.exitCode, 7);
+    assert.equal(
+      repositories.evidence
+        .listItems(failedInput.evidence.bundleId)
+        .some(
+          (item) =>
+            item.label === "Host Managed Process terminal npm" &&
+            item.status === "failed" &&
+            item.summary.includes('"exitCode":7')
+        ),
+      true
+    );
+
+    const unknownPrepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-unknown-stop-prepare-start"
+    });
+    const unknownApproved = await service.decide(context, {
+      approvalId: unknownPrepared.approval.id,
+      expectedRevision: unknownPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-unknown-stop-decision-start"
+    });
+    const unknownStarted = await service.execute(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: unknownApproved.approval.id,
+      expectedApprovalRevision: unknownApproved.approval.revision,
+      idempotencyKey: "process-unknown-stop-execute-start"
+    });
+    processSupervisor.nextStopUnknown = true;
+    const unknownStopPrepared = await service.prepare(context, {
+      operation: "stop",
+      processId: unknownStarted.process.id,
+      sessionId: session.id,
+      idempotencyKey: "process-unknown-stop-prepare"
+    });
+    const unknownStopApproved = await service.decide(context, {
+      approvalId: unknownStopPrepared.approval.id,
+      expectedRevision: unknownStopPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-unknown-stop-decision"
+    });
+    const unknownStopped = await service.execute(context, {
+      operation: "stop",
+      processId: unknownStarted.process.id,
+      sessionId: session.id,
+      approvalId: unknownStopApproved.approval.id,
+      expectedApprovalRevision: unknownStopApproved.approval.revision,
+      idempotencyKey: "process-unknown-stop-execute"
+    });
+    assert.equal(unknownStopped.ok, false);
+    assert.equal(unknownStopped.process.status, "stale");
+    assert.equal(unknownStopped.process.exitCode, null);
+    const unknownAudit = repositories.directProcessAudit.get(
+      unknownStopped.auditId
+    );
+    assert.equal(unknownAudit.status, "unknown");
+    assert.equal(unknownAudit.terminalReason, "STOP_RESULT_UNKNOWN");
+
     const competingTask = repositories.tasks.create({
       id: "task_host_process_competing",
       projectId: project.id,
@@ -924,6 +1339,27 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       competingSession.id,
       competingTask.revision,
       NOW
+    );
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "input",
+        processId: started.process.id,
+        sessionId: competingSession.id,
+        input: "foreign-input",
+        waitForPrompt: true,
+        timeoutMs: 1000,
+        idempotencyKey: "process-foreign-input"
+      }),
+      "HOST_PROCESS_OWNERSHIP_MISMATCH"
+    );
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "stop",
+        processId: started.process.id,
+        sessionId: competingSession.id,
+        idempotencyKey: "process-foreign-stop"
+      }),
+      "HOST_PROCESS_OWNERSHIP_MISMATCH"
     );
     await expectServiceCode(
       service.prepare(context, {
@@ -1001,6 +1437,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       decision: "approved",
       idempotencyKey: "process-stop-decision"
     });
+    const stopCallsBeforeOwnerStop = processSupervisor.stopCalls;
     const stopped = await service.execute(context, {
       operation: "stop",
       processId: started.process.id,
@@ -1014,7 +1451,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(stopped.process.status, "terminated");
     assert.equal(stopped.process.exitCode, 143);
     assert.equal("output" in stopped, false);
-    assert.equal(processSupervisor.stopCalls, 1);
+    assert.equal(processSupervisor.stopCalls, stopCallsBeforeOwnerStop + 1);
     const stopEvidence = repositories.evidence
       .listItems(stopped.evidence.bundleId)
       .find((item) => item.id === stopped.evidence.itemId);
@@ -1028,14 +1465,15 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       idempotencyKey: "process-stop-execute"
     });
     assert.equal(stopReplay.replayed, true);
-    assert.equal(processSupervisor.stopCalls, 1);
+    assert.equal(processSupervisor.stopCalls, stopCallsBeforeOwnerStop + 1);
 
+    const stopCallsBeforeReconcile = processSupervisor.stopCalls;
     await service.reconcile(LATER);
     const reconciledQuota = repositories.directProcessSessions.get(
       "host_process_quota_a"
     );
     assert.equal(reconciledQuota.status, "terminated");
-    assert.equal(processSupervisor.stopCalls, 2);
+    assert.equal(processSupervisor.stopCalls, stopCallsBeforeReconcile + 1);
     const quotaCleanupAudit = repositories.directProcessAudit
       .listByProcess(reconciledQuota.id)
       .find((item) => item.operation === "cleanup");

@@ -78,7 +78,7 @@ export const hostProcessListSchema = z.object({
   workspaceId: identifierSchema.optional(),
   sessionId: identifierSchema.optional(),
   status: z
-    .enum(["running", "exited", "terminated", "failed", "stale"])
+    .enum(["starting", "running", "exited", "terminated", "failed", "stale"])
     .optional()
 });
 

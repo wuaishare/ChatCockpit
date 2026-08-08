@@ -4951,7 +4951,7 @@ paths:
           name: status
           schema:
             type: string
-            enum: [running, exited, terminated, failed, stale]
+            enum: [starting, running, exited, terminated, failed, stale]
       responses:
         "200":
           description: Public-safe Managed Process records
