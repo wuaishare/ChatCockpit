@@ -3,6 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { HostProcessService } from "../src/application/host-process-service.ts";
+import { buildOperationContext } from "../src/application/operation-context.ts";
+import { ServiceError } from "../src/application/service-error.ts";
+import { hostProcessPrepareSchema } from "../src/contracts/host-process.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
@@ -16,6 +20,7 @@ import {
   DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
   DESKTOP_COMMANDER_START_PROCESS_TOOL
 } from "../src/direct/adapters/desktop-commander.ts";
+import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
 import type {
   DownstreamMcpClient,
@@ -188,6 +193,17 @@ function writeManagedProcessFixture(options: {
   return { runtimeDir, configPath };
 }
 
+async function expectServiceCode(
+  operation: Promise<unknown>,
+  code: string
+): Promise<void> {
+  await assert.rejects(operation, (error) => {
+    assert.ok(error instanceof ServiceError);
+    assert.equal(error.code, code);
+    return true;
+  });
+}
+
 async function verifyManagedProcessSupervisor(): Promise<void> {
   const sandbox = fs.mkdtempSync(
     path.join(os.tmpdir(), "tokenpilot-host-process-adapter-")
@@ -290,6 +306,300 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
       }
     );
   } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
+class ReadyProcessSupervisor {
+  assertReadyCalls = 0;
+
+  assertReady(): void {
+    this.assertReadyCalls += 1;
+  }
+}
+
+async function verifyHostProcessStartGovernance(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-process-service-")
+  );
+  const hostRoot = path.join(sandbox, "host-root");
+  const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
+  const pureHostRoot = path.join(hostRoot, "notes");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(pureHostRoot, { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "Host Process Fixture",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: []
+    }),
+    "utf8"
+  );
+
+  const database = new ContinuityDatabase({ path: ":memory:" });
+  const repositories = buildContinuityRepositories(database);
+  const broker = new DirectCapabilityBroker([
+    {
+      describe: () => ({
+        id: DESKTOP_COMMANDER_EXECUTOR_ID,
+        kind: "downstream-mcp" as const,
+        displayName: "Desktop Commander Fixture",
+        health: "ready" as const,
+        scopes: ["host" as const],
+        capabilities: [
+          {
+            id: "shell.exec" as const,
+            scopes: ["host" as const],
+            access: ["read" as const, "write" as const]
+          }
+        ]
+      })
+    }
+  ]);
+  const processSupervisor = new ReadyProcessSupervisor();
+  const service = new HostProcessService(
+    repositories,
+    broker,
+    processSupervisor,
+    configPath
+  );
+  const context = buildOperationContext({
+    actorType: "remote-mcp",
+    requestId: "host-process-start-governance",
+    publicProjection: true,
+    now: NOW
+  });
+
+  try {
+    assert.equal(
+      hostProcessPrepareSchema.safeParse({
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git status && echo unsafe",
+        args: [],
+        sessionId: "session_missing",
+        idempotencyKey: "process-invalid-command"
+      }).success,
+      false
+    );
+    assert.equal(
+      hostProcessPrepareSchema.safeParse({
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status"],
+        idempotencyKey: "process-missing-session"
+      }).success,
+      false
+    );
+
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "notes",
+        command: "git",
+        args: ["status"],
+        sessionId: "session_missing",
+        startupTimeoutMs: 1000,
+        idempotencyKey: "process-pure-host"
+      }),
+      "HOST_PROCESS_SCOPE_UNSUPPORTED"
+    );
+
+    const project = repositories.projects.create({
+      id: "project_host_process_service",
+      slug: "host-process-service",
+      displayName: "Host Process Service",
+      now: NOW
+    });
+    const workspace = repositories.workspaces.create({
+      id: "workspace_host_process_service",
+      projectId: project.id,
+      repoId: "host-process-service-fixture",
+      privatePath: workspaceRoot,
+      now: NOW
+    });
+    const task = repositories.tasks.create({
+      id: "task_host_process_service",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      title: "Host Process Service Fixture",
+      goal: "Verify Managed Process start governance",
+      status: "in-progress",
+      now: NOW
+    });
+    const session = repositories.sessions.create({
+      id: "session_host_process_service",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      taskId: task.id,
+      title: "Host Process Service Session",
+      mode: "chat-direct",
+      status: "running",
+      startedAt: NOW
+    });
+    repositories.tasks.bindSession(task.id, session.id, task.revision, NOW);
+
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        idempotencyKey: "process-no-lease"
+      }),
+      "WRITER_LEASE_REQUIRED"
+    );
+
+    const lease = repositories.leases.acquire({
+      id: "lease_host_process_service",
+      workspaceId: workspace.id,
+      sessionId: session.id,
+      holderType: "chat-direct",
+      holderId: session.id,
+      expiresAt: "2026-08-09T01:30:00.000Z",
+      now: NOW
+    });
+
+    const prepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-valid-prepare"
+    });
+    assert.equal(prepared.approval.operation, "start");
+    assert.equal(prepared.approval.workspaceId, workspace.id);
+    assert.equal(prepared.approval.sessionId, session.id);
+    assert.equal(prepared.approval.writerLeaseId, lease.id);
+    assert.equal(prepared.approval.executorId, DESKTOP_COMMANDER_EXECUTOR_ID);
+    assert.equal(prepared.approval.publicSummary.effect, "read");
+    assert.equal(prepared.approval.publicSummary.argsCount, 2);
+    assert.equal(processSupervisor.assertReadyCalls, 1);
+    assert.doesNotMatch(JSON.stringify(prepared), new RegExp(hostRoot));
+
+    const replay = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-valid-prepare"
+    });
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.approval.id, prepared.approval.id);
+    assert.equal(processSupervisor.assertReadyCalls, 1);
+
+    const approved = await service.decide(context, {
+      approvalId: prepared.approval.id,
+      expectedRevision: prepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-valid-decision"
+    });
+    assert.equal(approved.approval.status, "approved");
+
+    const competingTask = repositories.tasks.create({
+      id: "task_host_process_competing",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      title: "Competing Process Task",
+      goal: "Verify writer ownership",
+      status: "in-progress",
+      now: NOW
+    });
+    const competingSession = repositories.sessions.create({
+      id: "session_host_process_competing",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      taskId: competingTask.id,
+      title: "Competing Process Session",
+      mode: "chat-direct",
+      status: "running",
+      startedAt: NOW
+    });
+    repositories.tasks.bindSession(
+      competingTask.id,
+      competingSession.id,
+      competingTask.revision,
+      NOW
+    );
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "npm",
+        args: ["test"],
+        sessionId: competingSession.id,
+        startupTimeoutMs: 1000,
+        idempotencyKey: "process-competing-session"
+      }),
+      "WRITER_LEASE_CONFLICT"
+    );
+
+    repositories.directProcessSessions.createRunning({
+      id: "host_process_quota_a",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      commandHash: "3".repeat(64),
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+      workspaceId: workspace.id,
+      repoId: workspace.repoId,
+      sessionId: session.id,
+      writerLeaseId: lease.id,
+      privatePid: 6101,
+      now: NOW
+    });
+    repositories.directProcessSessions.createRunning({
+      id: "host_process_quota_b",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      commandHash: "4".repeat(64),
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+      workspaceId: workspace.id,
+      repoId: workspace.repoId,
+      sessionId: session.id,
+      writerLeaseId: lease.id,
+      privatePid: 6102,
+      now: NOW
+    });
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "npm",
+        args: ["test"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        idempotencyKey: "process-quota-exceeded"
+      }),
+      "HOST_PROCESS_LIMIT_REACHED"
+    );
+  } finally {
+    database.close();
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
 }
@@ -548,6 +858,7 @@ try {
   assert.equal(repositories.directProcessAudit.listByProcess(stale.id).length, 1);
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   await verifyManagedProcessSupervisor();
+  await verifyHostProcessStartGovernance();
 
   process.stdout.write("VERIFY_HOST_PROCESS_OK\n");
 } finally {
