@@ -27,6 +27,7 @@ import {
 } from "../contracts/direct-tools.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { HostDirectService } from "../application/host-direct-service.js";
+import { HostMutationService } from "../application/host-mutation-service.js";
 import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
 import { registerOAuthRoutes } from "../auth/oauth-routes.js";
 import { OAuthService } from "../auth/oauth-service.js";
@@ -51,7 +52,12 @@ import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { buildTokenPilotMcpHandler } from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
 import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
-import { hostFileReadSchema } from "../contracts/host-direct.js";
+import {
+  hostFileReadSchema,
+  hostMutationDecisionSchema,
+  hostMutationExecuteSchema,
+  hostMutationPrepareSchema
+} from "../contracts/host-direct.js";
 import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
 import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
@@ -205,6 +211,13 @@ export function buildServer(
     downstreamMcpExecutionRegistry,
     options.directExecutorsConfigPath
   );
+  const hostMutation = new HostMutationService(
+    paths,
+    continuityServices.repositories,
+    directCapabilityBroker,
+    downstreamMcpExecutionRegistry,
+    options.directExecutorsConfigPath
+  );
   const chatDirect = new ChatDirectService(
     paths,
     runtimeRouter,
@@ -259,6 +272,7 @@ export function buildServer(
     continuityServices,
     chatDirect,
     hostDirect,
+    hostMutation,
     runtimeService,
     runtimeBindingService,
     runtimeTurnService,
@@ -496,6 +510,69 @@ export function buildServer(
     }
   };
 
+  const hostMutationPrepareHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostMutationPrepareSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostMutation.prepare(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostMutationDecisionHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostMutationDecisionSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostMutation.decide(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostMutationExecuteHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostMutationExecuteSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostMutation.execute(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
   const readFilesHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
     const parsed = fileReadBatchSchema.safeParse((request as { body: unknown }).body);
@@ -708,6 +785,22 @@ export function buildServer(
 
   app.post("/api/host/files/read", hostReadFileHandler);
   app.post("/tokenpilot/api/host/files/read", hostReadFileHandler);
+
+  app.post("/api/host/mutations/prepare", hostMutationPrepareHandler);
+  app.post(
+    "/tokenpilot/api/host/mutations/prepare",
+    hostMutationPrepareHandler
+  );
+  app.post("/api/host/mutations/decision", hostMutationDecisionHandler);
+  app.post(
+    "/tokenpilot/api/host/mutations/decision",
+    hostMutationDecisionHandler
+  );
+  app.post("/api/host/mutations/execute", hostMutationExecuteHandler);
+  app.post(
+    "/tokenpilot/api/host/mutations/execute",
+    hostMutationExecuteHandler
+  );
 
   app.post("/api/files/read-batch", readFilesHandler);
   app.post("/tokenpilot/api/files/read-batch", readFilesHandler);

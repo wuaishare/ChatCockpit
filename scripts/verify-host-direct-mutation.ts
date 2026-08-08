@@ -23,6 +23,7 @@ import {
   resolveHostWritableFileTarget
 } from "../src/direct/host-path-policy.ts";
 import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
+import { buildServer } from "../src/server/app.ts";
 
 const fixtureServer = fileURLToPath(
   new URL("./fixtures/fake-downstream-mcp-server.mjs", import.meta.url)
@@ -1152,8 +1153,140 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
   }
 }
 
+async function verifyHostMutationRestParity(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-mutation-rest-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(path.join(hostRoot, "notes"), { recursive: true });
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "REST Mutation Fixture",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: [
+        {
+          id: DESKTOP_COMMANDER_EXECUTOR_ID,
+          displayName: "Desktop Commander Fixture",
+          transport: {
+            kind: "stdio",
+            command: process.execPath,
+            args: [fixtureServer, "desktop-mutation"],
+            timeoutMs: 1000,
+            maxBufferBytes: 262144,
+            maxStderrBytes: 16384
+          },
+          mappings: [
+            {
+              capability: "files.write",
+              toolName: "write_file",
+              scopes: ["host"],
+              access: ["write"]
+            },
+            {
+              capability: "files.edit",
+              toolName: "edit_block",
+              scopes: ["host"],
+              access: ["write"]
+            }
+          ]
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  const paths = buildPaths(runtimeRoot);
+  await probeConfiguredDownstreamMcpExecutors({
+    paths,
+    configPath,
+    executorId: DESKTOP_COMMANDER_EXECUTOR_ID
+  });
+  const app = buildServer(paths, { directExecutorsConfigPath: configPath });
+
+  try {
+    const roots = await app.inject({ method: "GET", url: "/api/host/roots" });
+    assert.equal(roots.statusCode, 200);
+    const rootsBody = roots.json() as {
+      mode: string;
+      roots: Array<{ id: string; access: string[] }>;
+    };
+    assert.equal(rootsBody.mode, "mutation-enabled");
+    assert.deepEqual(rootsBody.roots[0]?.access, ["read", "write"]);
+    assert.doesNotMatch(roots.body, new RegExp(hostRoot));
+
+    const prepare = await app.inject({
+      method: "POST",
+      url: "/api/host/mutations/prepare",
+      payload: {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/rest.txt",
+        content: "rest\n",
+        idempotencyKey: "rest-prepare-001"
+      }
+    });
+    assert.equal(prepare.statusCode, 200);
+    const prepareBody = prepare.json() as {
+      approval: { id: string; revision: number };
+    };
+    assert.ok(prepareBody.approval.id);
+    assert.doesNotMatch(prepare.body, new RegExp(hostRoot));
+
+    const decision = await app.inject({
+      method: "POST",
+      url: "/api/host/mutations/decision",
+      payload: {
+        approvalId: prepareBody.approval.id,
+        expectedRevision: prepareBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "rest-decision-001"
+      }
+    });
+    assert.equal(decision.statusCode, 200);
+    const decisionBody = decision.json() as {
+      approval: { id: string; revision: number; status: string };
+    };
+    assert.equal(decisionBody.approval.status, "approved");
+
+    const execute = await app.inject({
+      method: "POST",
+      url: "/api/host/mutations/execute",
+      payload: {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/rest.txt",
+        content: "rest\n",
+        approvalId: decisionBody.approval.id,
+        expectedApprovalRevision: decisionBody.approval.revision,
+        idempotencyKey: "rest-execute-001"
+      }
+    });
+    assert.equal(execute.statusCode, 200);
+    assert.equal(
+      fs.readFileSync(path.join(hostRoot, "notes", "rest.txt"), "utf8"),
+      "rest\n"
+    );
+    assert.doesNotMatch(execute.body, new RegExp(hostRoot));
+  } finally {
+    await app.close();
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 verifyDirectMutationPersistence();
 verifyHostMutationPathPolicy();
 await verifyHostMutationPrepareAndDecision();
 await verifyWorkspaceMutationReentry();
+await verifyHostMutationRestParity();
 process.stdout.write("VERIFY_HOST_DIRECT_MUTATION_OK\n");

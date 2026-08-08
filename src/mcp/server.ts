@@ -9,6 +9,7 @@ import {
 
 import type { ChatDirectService } from "../application/chat-direct-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
+import type { HostMutationService } from "../application/host-mutation-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -21,6 +22,7 @@ import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
+import { buildHostMutationTools } from "./tools/host-mutation.js";
 import { buildWorkspaceWriteTools } from "./tools/workspace-write.js";
 import {
   registerMcpTools,
@@ -56,6 +58,7 @@ export function buildTokenPilotMcpHandler(
   continuityServices: ContinuityServices,
   chatDirect: ChatDirectService,
   hostDirect: HostDirectService,
+  hostMutation: HostMutationService,
   runtimeService: RuntimeService,
   runtimeBindingService: RuntimeBindingService,
   runtimeTurnService: RuntimeTurnService,
@@ -65,6 +68,7 @@ export function buildTokenPilotMcpHandler(
 ): McpHttpHandler {
   const tools = [
     ...buildReadOnlyMcpToolCatalog({ chatDirect, hostDirect }),
+    ...buildHostMutationTools(hostMutation),
     ...buildWorkspaceWriteTools({
       chatDirect,
       idempotency: new McpIdempotencyStore(paths.runtimeDir)

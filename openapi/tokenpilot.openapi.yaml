@@ -554,7 +554,7 @@ components:
           type: array
           items:
             type: string
-            enum: [read]
+            enum: [read, write]
       required: [id, displayName, access]
     HostDirectRootsResponse:
       type: object
@@ -567,7 +567,7 @@ components:
           const: host
         mode:
           type: string
-          const: read-only
+          enum: [read-only, mutation-enabled]
         roots:
           type: array
           items:
@@ -600,6 +600,254 @@ components:
         execution:
           $ref: '#/components/schemas/ChatDirectExecutionMetadata'
       required: [ok, rootId, file, execution]
+    HostMutationWritePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          const: files.write
+        rootId:
+          type: string
+        path:
+          type: string
+          description: Relative text-like path inside the selected Host Root alias. Absolute paths are rejected.
+        content:
+          type: string
+          maxLength: 65536
+        sessionId:
+          type: string
+          description: Required when the canonical target re-enters a registered Workspace.
+        executorId:
+          type: string
+          description: Optional explicit executor. Execution is pinned to the executor stored on the approval.
+      required: [operation, rootId, path, content]
+    HostMutationEditPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          const: files.edit
+        rootId:
+          type: string
+        path:
+          type: string
+          description: Relative text-like path inside the selected Host Root alias. Absolute paths are rejected.
+        oldText:
+          type: string
+          minLength: 1
+          maxLength: 65536
+          description: Exact text that must occur exactly once before execution.
+        newText:
+          type: string
+          maxLength: 65536
+        sessionId:
+          type: string
+          description: Required when the canonical target re-enters a registered Workspace.
+        executorId:
+          type: string
+          description: Optional explicit executor. Execution is pinned to the executor stored on the approval.
+      required: [operation, rootId, path, oldText, newText]
+    HostMutationPreparePayload:
+      oneOf:
+        - allOf:
+            - $ref: '#/components/schemas/HostMutationWritePayload'
+            - type: object
+              required: [idempotencyKey]
+              properties:
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+        - allOf:
+            - $ref: '#/components/schemas/HostMutationEditPayload'
+            - type: object
+              required: [idempotencyKey]
+              properties:
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+    HostMutationDecisionPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        decision:
+          type: string
+          enum: [approved, denied]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    HostMutationExecutePayload:
+      oneOf:
+        - allOf:
+            - $ref: '#/components/schemas/HostMutationWritePayload'
+            - type: object
+              required: [approvalId, expectedApprovalRevision, idempotencyKey]
+              properties:
+                approvalId:
+                  type: string
+                expectedApprovalRevision:
+                  type: integer
+                  minimum: 1
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+        - allOf:
+            - $ref: '#/components/schemas/HostMutationEditPayload'
+            - type: object
+              required: [approvalId, expectedApprovalRevision, idempotencyKey]
+              properties:
+                approvalId:
+                  type: string
+                expectedApprovalRevision:
+                  type: integer
+                  minimum: 1
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+    HostMutationApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        operation:
+          type: string
+          enum: [files.write, files.edit]
+        rootId:
+          type: string
+        relativePath:
+          type: string
+        mutationHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        executorId:
+          type: string
+        scope:
+          type: string
+          const: host
+        targetKind:
+          type: string
+          enum: [workspace, pure-host]
+        workspaceId:
+          oneOf:
+            - type: string
+            - type: "null"
+        repoId:
+          oneOf:
+            - type: string
+            - type: "null"
+        sessionId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status:
+          type: string
+          enum: [pending, approved, denied, consumed, expired]
+        publicSummary:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        decidedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        consumedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, operation, rootId, relativePath, mutationHash, executorId, scope, targetKind, workspaceId, repoId, sessionId, status, publicSummary, createdAt, expiresAt, decidedAt, consumedAt, revision]
+    HostMutationApprovalResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        approval:
+          $ref: '#/components/schemas/HostMutationApproval'
+        replayed:
+          type: boolean
+      required: [ok, approval, replayed]
+    HostMutationEvidence:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              const: pure-host-audit
+            auditId:
+              type: string
+          required: [kind, auditId]
+        - type: object
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              const: task-evidence
+            bundleId:
+              type: string
+            itemId:
+              type: string
+          required: [kind, bundleId, itemId]
+    HostMutationExecuteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        operation:
+          type: string
+          enum: [files.write, files.edit]
+        rootId:
+          type: string
+        path:
+          type: string
+          description: Public-safe Host Root alias path, never a local absolute path.
+        beforeHash:
+          oneOf:
+            - type: string
+            - type: "null"
+        afterHash:
+          type: string
+        approval:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              const: consumed
+          required: [id, status]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+        evidence:
+          $ref: '#/components/schemas/HostMutationEvidence'
+        replayed:
+          type: boolean
+      required: [ok, operation, rootId, path, beforeHash, afterHash, approval, execution, evidence, replayed]
     FileReadPayload:
       type: object
       additionalProperties: false
@@ -3726,6 +3974,108 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "413":
           description: Host file exceeds the current read-only size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/mutations/prepare:
+    post:
+      operationId: prepareHostDirectMutation
+      summary: Prepare one governed Host text-file write or exact edit
+      description: Validates Host Root write access, path safety, Workspace re-entry, Writer Lease and a verified Host executor, then creates a short-lived exact-mutation approval. No file is modified by this step.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostMutationPreparePayload'
+      responses:
+        "200":
+          description: Pending Direct Mutation approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostMutationApprovalResponse'
+        "403":
+          description: Host Root or path policy blocks mutation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Workspace governance, revision or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "413":
+          description: Mutation content exceeds the Host text-file size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/mutations/decision:
+    post:
+      operationId: decideHostDirectMutation
+      summary: Approve or deny one pending Host mutation
+      description: Applies an optimistic-revision approval decision without contacting the downstream executor.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostMutationDecisionPayload'
+      responses:
+        "200":
+          description: Updated Direct Mutation approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostMutationApprovalResponse'
+        "409":
+          description: Approval expired, already decided, or revision/idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/mutations/execute:
+    post:
+      operationId: executeHostDirectMutation
+      summary: Execute one approved Host text-file write or exact edit
+      description: Revalidates the full approved mutation, current file hash, Workspace governance and verified executor mapping, consumes the approval at-most-once, executes through the normalized downstream capability, then verifies the resulting file hash and records Task Evidence or Pure Host Audit.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostMutationExecutePayload'
+      responses:
+        "200":
+          description: Verified Host mutation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostMutationExecuteResponse'
+        "403":
+          description: Host Root or path policy blocks mutation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Approval, hash, Workspace governance, revision or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "413":
+          description: Mutation content exceeds the Host text-file size limit
           content:
             application/json:
               schema:

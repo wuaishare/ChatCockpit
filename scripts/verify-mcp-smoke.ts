@@ -215,6 +215,9 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.git.diff",
         "tokenpilot.git.status",
         "tokenpilot.host.files.read",
+        "tokenpilot.host.mutation.decide",
+        "tokenpilot.host.mutation.execute",
+        "tokenpilot.host.mutation.prepare",
         "tokenpilot.host.roots.list",
         "tokenpilot.handoff.accept",
         "tokenpilot.handoff.cancel",
@@ -278,6 +281,22 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("tokenpilot.files.edit")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("tokenpilot.files.edit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("tokenpilot.shell.run")?.annotations.destructiveHint, true);
+    assert.equal(
+      toolByName.get("tokenpilot.host.mutation.execute")?.annotations.readOnlyHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.host.mutation.execute")?.annotations.destructiveHint,
+      true
+    );
+    for (const name of [
+      "tokenpilot.host.mutation.prepare",
+      "tokenpilot.host.mutation.decide",
+      "tokenpilot.host.mutation.execute"
+    ]) {
+      assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
+      assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
+    }
     assert.equal(toolByName.get("tokenpilot.git.commit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("tokenpilot.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [
@@ -294,6 +313,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.handoff.cancel",
       "tokenpilot.handoff.fork",
       "tokenpilot.handoff.prepare",
+      "tokenpilot.host.mutation.decide",
+      "tokenpilot.host.mutation.prepare",
       "tokenpilot.lease.release",
       "tokenpilot.session.start",
       "tokenpilot.task.bindDocuments",

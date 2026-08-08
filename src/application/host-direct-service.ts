@@ -85,11 +85,14 @@ export class HostDirectService {
   ) {}
 
   listRoots() {
+    const roots = listPublicHostRoots(this.configPath);
     return {
       ok: true as const,
       executionScope: "host" as const,
-      mode: "read-only" as const,
-      roots: listPublicHostRoots(this.configPath)
+      mode: roots.some((root) => root.access.includes("write"))
+        ? ("mutation-enabled" as const)
+        : ("read-only" as const),
+      roots
     };
   }
 
