@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -851,7 +852,308 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
   }
 }
 
+async function verifyWorkspaceMutationReentry(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-mutation-workspace-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
+  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+
+  fs.mkdirSync(path.join(workspaceRoot, "src"), { recursive: true });
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.writeFileSync(path.join(workspaceRoot, "README.md"), "fixture\n", "utf8");
+  execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
+  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
+    cwd: workspaceRoot
+  });
+  execFileSync("git", ["config", "user.name", "TokenPilot Fixture"], {
+    cwd: workspaceRoot
+  });
+  execFileSync("git", ["add", "README.md"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "-m", "fixture"], {
+    cwd: workspaceRoot,
+    stdio: "ignore"
+  });
+  const initialHead = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: workspaceRoot,
+    encoding: "utf8"
+  }).trim();
+  const initialBranch = execFileSync(
+    "git",
+    ["rev-parse", "--abbrev-ref", "HEAD"],
+    { cwd: workspaceRoot, encoding: "utf8" }
+  ).trim();
+
+  fs.writeFileSync(
+    userConfigPath,
+    JSON.stringify({
+      workspaceAllowlist: [runtimeRoot, workspaceRoot],
+      repoMappings: {
+        tokenpilot: { path: runtimeRoot },
+        "fixture-repo": { path: workspaceRoot }
+      }
+    }),
+    "utf8"
+  );
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "projects",
+          displayName: "Projects",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: [
+        {
+          id: DESKTOP_COMMANDER_EXECUTOR_ID,
+          displayName: "Desktop Commander Fixture",
+          transport: {
+            kind: "stdio",
+            command: process.execPath,
+            args: [fixtureServer, "desktop-mutation"],
+            timeoutMs: 1000,
+            maxBufferBytes: 262144,
+            maxStderrBytes: 16384
+          },
+          mappings: [
+            {
+              capability: "files.write",
+              toolName: "write_file",
+              scopes: ["host"],
+              access: ["write"]
+            },
+            {
+              capability: "files.edit",
+              toolName: "edit_block",
+              scopes: ["host"],
+              access: ["write"]
+            }
+          ]
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  const paths = buildPaths(runtimeRoot);
+  const database = new ContinuityDatabase({ path: ":memory:" });
+  const repositories = buildContinuityRepositories(database);
+  const project = repositories.projects.create({
+    id: "project_workspace_mutation",
+    slug: "workspace-mutation",
+    displayName: "Workspace Mutation Fixture",
+    now: "2026-08-08T13:00:00.000Z"
+  });
+  const workspace = repositories.workspaces.create({
+    id: "workspace_mutation",
+    projectId: project.id,
+    repoId: "fixture-repo",
+    privatePath: workspaceRoot,
+    branch: initialBranch,
+    headCommit: initialHead,
+    dirty: false,
+    now: "2026-08-08T13:00:00.000Z"
+  });
+  let task = repositories.tasks.create({
+    id: "task_workspace_mutation",
+    projectId: project.id,
+    workspaceId: workspace.id,
+    title: "Host mutation re-entry",
+    goal: "Verify Workspace governance",
+    status: "in-progress",
+    now: "2026-08-08T13:00:00.000Z"
+  });
+  const session = repositories.sessions.create({
+    id: "session_workspace_mutation",
+    projectId: project.id,
+    workspaceId: workspace.id,
+    taskId: task.id,
+    title: "Chat Direct",
+    mode: "chat-direct",
+    status: "running",
+    startedAt: "2026-08-08T13:00:00.000Z"
+  });
+  const competingSession = repositories.sessions.create({
+    id: "session_workspace_competing",
+    projectId: project.id,
+    workspaceId: workspace.id,
+    taskId: task.id,
+    title: "Competing Chat Direct",
+    mode: "chat-direct",
+    status: "running",
+    startedAt: "2026-08-08T13:00:00.000Z"
+  });
+  task = repositories.tasks.bindSession(
+    task.id,
+    session.id,
+    task.revision,
+    "2026-08-08T13:00:00.000Z"
+  );
+
+  const broker = buildConfiguredDirectCapabilityBroker({
+    paths,
+    codexStandaloneStore: new CodexStandaloneCapabilityStore(paths.runtimeDir),
+    downstreamConfigPath: configPath
+  });
+  const downstream = new DownstreamMcpExecutionRegistry(
+    paths.runtimeDir,
+    configPath
+  );
+  const service = new HostMutationService(
+    paths,
+    repositories,
+    broker,
+    downstream,
+    configPath
+  );
+  const context = buildOperationContext({
+    actorType: "remote-mcp",
+    requestId: "workspace-host-mutation",
+    publicProjection: true,
+    now: "2026-08-08T13:00:00.000Z"
+  });
+  const relativeHostPath = "projects/workspace-a/src/host-write.txt";
+
+  try {
+    await probeConfiguredDownstreamMcpExecutors({
+      paths,
+      configPath,
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID
+    });
+
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "projects",
+        path: relativeHostPath,
+        content: "workspace write\n",
+        idempotencyKey: "workspace-missing-session"
+      }),
+      "WRITER_LEASE_REQUIRED"
+    );
+
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "projects",
+        path: relativeHostPath,
+        content: "workspace write\n",
+        sessionId: session.id,
+        idempotencyKey: "workspace-missing-lease"
+      }),
+      "WRITER_LEASE_REQUIRED"
+    );
+
+    const competingLease = repositories.leases.acquire({
+      id: "lease_competing",
+      workspaceId: workspace.id,
+      sessionId: competingSession.id,
+      holderType: "chat-direct",
+      holderId: competingSession.id,
+      expiresAt: "2026-08-08T14:00:00.000Z",
+      now: "2026-08-08T13:00:00.000Z"
+    });
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "projects",
+        path: relativeHostPath,
+        content: "workspace write\n",
+        sessionId: session.id,
+        idempotencyKey: "workspace-conflicting-lease"
+      }),
+      "WRITER_LEASE_CONFLICT"
+    );
+    repositories.leases.release(competingLease.id, {
+      sessionId: competingSession.id,
+      holderId: competingSession.id,
+      expectedRevision: competingLease.revision,
+      now: "2026-08-08T13:00:00.000Z"
+    });
+    repositories.leases.acquire({
+      id: "lease_workspace_mutation",
+      workspaceId: workspace.id,
+      sessionId: session.id,
+      holderType: "chat-direct",
+      holderId: session.id,
+      expiresAt: "2026-08-08T14:00:00.000Z",
+      now: "2026-08-08T13:00:00.000Z"
+    });
+
+    const prepared = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "projects",
+      path: relativeHostPath,
+      content: "workspace write\n",
+      sessionId: session.id,
+      idempotencyKey: "workspace-prepare-write"
+    });
+    assert.equal(prepared.approval.targetKind, "workspace");
+    assert.equal(prepared.approval.workspaceId, workspace.id);
+    assert.equal(prepared.approval.repoId, "fixture-repo");
+    assert.equal(prepared.approval.sessionId, session.id);
+
+    const approved = await service.decide(context, {
+      approvalId: prepared.approval.id,
+      expectedRevision: prepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "workspace-approve-write"
+    });
+    const result = await service.execute(context, {
+      operation: "files.write",
+      rootId: "projects",
+      path: relativeHostPath,
+      content: "workspace write\n",
+      sessionId: session.id,
+      approvalId: approved.approval.id,
+      expectedApprovalRevision: approved.approval.revision,
+      idempotencyKey: "workspace-execute-write"
+    });
+
+    assert.equal(
+      fs.readFileSync(path.join(workspaceRoot, "src", "host-write.txt"), "utf8"),
+      "workspace write\n"
+    );
+    assert.deepEqual(result.execution.changedPaths, ["src/host-write.txt"]);
+    assert.equal(result.execution.executionScope, "host");
+    assert.equal(result.evidence.kind, "task-evidence");
+    assert.equal(result.execution.evidenceBundleId, result.evidence.bundleId);
+    const updatedTask = repositories.tasks.get(task.id);
+    assert.equal(updatedTask.latestEvidenceBundleId, result.evidence.bundleId);
+    const evidenceItems = repositories.evidence.listItems(result.evidence.bundleId);
+    assert.equal(evidenceItems.length, 1);
+    assert.equal(evidenceItems[0].kind, "manual");
+    assert.equal(evidenceItems[0].status, "passed");
+    assert.match(evidenceItems[0].summary, /src\/host-write\.txt/);
+    assert.doesNotMatch(evidenceItems[0].summary, new RegExp(workspaceRoot));
+
+    const updatedWorkspace = repositories.workspaces.getPrivate(workspace.id);
+    assert.equal(updatedWorkspace.branch, initialBranch);
+    assert.equal(updatedWorkspace.headCommit, initialHead);
+    assert.equal(updatedWorkspace.dirty, true);
+    assert.doesNotMatch(JSON.stringify(result), new RegExp(workspaceRoot));
+  } finally {
+    database.close();
+    if (previousConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+    }
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 verifyDirectMutationPersistence();
 verifyHostMutationPathPolicy();
 await verifyHostMutationPrepareAndDecision();
+await verifyWorkspaceMutationReentry();
 process.stdout.write("VERIFY_HOST_DIRECT_MUTATION_OK\n");

@@ -7,7 +7,10 @@ import type {
   HostMutationRequest
 } from "../contracts/host-direct.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
-import type { DirectMutationApprovalRecord } from "../continuity/types.js";
+import type {
+  DirectMutationApprovalRecord,
+  PrivateWorkspaceRecord
+} from "../continuity/types.js";
 import type { TokenPilotPaths } from "../types.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
 import {
@@ -26,12 +29,14 @@ import {
   sha256Text,
   type HostWritableFileTarget
 } from "../direct/host-path-policy.js";
+import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
 import {
   assertChatDirectWriterLease,
   classifyHostMutationTarget,
-  type ClassifiedHostTarget
+  type ClassifiedHostTarget,
+  type WorkspaceMutationAuthority
 } from "./workspace-mutation-governance.js";
 
 const HOST_MUTATION_APPROVAL_TTL_MS = 5 * 60 * 1000;
@@ -45,16 +50,59 @@ interface PreparedMutationIntent {
   expectedAfterHash: string;
   mutationHash: string;
   sessionId: string | null;
+  workspaceAuthority: WorkspaceMutationAuthority | null;
+}
+
+interface WorkspaceGitState {
+  branch: string | null;
+  headCommit: string | null;
+  dirty: boolean;
 }
 
 interface PreparedMutationExecution {
   approval: DirectMutationApprovalRecord;
   intent: PreparedMutationIntent;
   startedAt: string;
+  beforeGit: WorkspaceGitState | null;
 }
 
 interface ExternalMutationResult {
   actualAfterHash: string;
+}
+
+interface HostMutationExecutionMetadata {
+  lane: "chat-direct";
+  modelLoopOwner: "chatgpt";
+  executionScope: "host";
+  executor: string;
+  selectionMode: "automatic" | "explicit";
+  operationId: string;
+  changedPaths: string[];
+  evidenceBundleId: string | null;
+}
+
+interface HostMutationExecutionValue {
+  ok: true;
+  operation: "files.write" | "files.edit";
+  rootId: string;
+  path: string;
+  beforeHash: string | null;
+  afterHash: string;
+  approval: {
+    id: string;
+    status: "consumed";
+  };
+  execution: HostMutationExecutionMetadata;
+  evidence:
+    | {
+        kind: "pure-host-audit";
+        auditId: string;
+      }
+    | {
+        kind: "task-evidence";
+        bundleId: string;
+        itemId: string;
+      };
 }
 
 function exactMutationHash(input: {
@@ -113,13 +161,17 @@ function errorCode(error: unknown): string {
 }
 
 export class HostMutationService {
+  private readonly git: GitService;
+
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly repositories: ContinuityRepositories,
     private readonly broker: DirectCapabilityBroker,
     private readonly downstream: DownstreamMcpExecutionRegistry,
     private readonly configPath?: string
-  ) {}
+  ) {
+    this.git = new GitService(paths);
+  }
 
   async prepare(
     context: OperationContext,
@@ -204,32 +256,7 @@ export class HostMutationService {
       await this.repositories.idempotency.executePreparedExternalMutation<
         PreparedMutationExecution,
         ExternalMutationResult,
-        {
-          ok: true;
-          operation: "files.write" | "files.edit";
-          rootId: string;
-          path: string;
-          beforeHash: string | null;
-          afterHash: string;
-          approval: {
-            id: string;
-            status: "consumed";
-          };
-          execution: {
-            lane: "chat-direct";
-            modelLoopOwner: "chatgpt";
-            executionScope: "host";
-            executor: string;
-            selectionMode: "automatic" | "explicit";
-            operationId: string;
-            changedPaths: string[];
-            evidenceBundleId: null;
-          };
-          evidence: {
-            kind: "pure-host-audit";
-            auditId: string;
-          };
-        }
+        HostMutationExecutionValue
       >(
         "host.mutation.execute",
         idempotencyKey,
@@ -255,12 +282,9 @@ export class HostMutationService {
             approval.executorId
           );
           this.assertApprovalMatches(approval, intent);
-          if (intent.classification.kind === "workspace") {
-            throw new ServiceError(
-              "CAPABILITY_UNAVAILABLE",
-              "Workspace Host mutation execution is not enabled until Git and Task Evidence re-entry is active"
-            );
-          }
+          const beforeGit = intent.workspaceAuthority
+            ? this.readWorkspaceGit(context, intent.workspaceAuthority.workspace)
+            : null;
           const consumed = this.repositories.directMutationApprovals.consume({
             id: approval.id,
             expectedRevision: approval.revision,
@@ -269,7 +293,8 @@ export class HostMutationService {
           return {
             approval: consumed,
             intent,
-            startedAt: context.now
+            startedAt: context.now,
+            beforeGit
           };
         },
         async (prepared) => {
@@ -304,54 +329,33 @@ export class HostMutationService {
             }
             return { actualAfterHash };
           } catch (error) {
-            this.recordPureHostAudit(
-              prepared,
-              "unknown",
-              errorCode(error),
-              this.tryReadActualAfterHash(prepared.intent),
-              context.now
-            );
+            if (prepared.intent.classification.kind === "pure-host") {
+              this.recordPureHostAudit(
+                prepared,
+                "unknown",
+                errorCode(error),
+                this.tryReadActualAfterHash(prepared.intent),
+                context.now
+              );
+            }
             if (error instanceof DownstreamMcpExecutionError) {
               throw new ServiceError(error.code, error.message);
             }
             throw error;
           }
         },
-        (prepared, externalValue) => {
-          const audit = this.recordPureHostAudit(
-            prepared,
-            "succeeded",
-            null,
-            externalValue.actualAfterHash,
-            context.now
-          );
-          return {
-            ok: true as const,
-            operation: prepared.intent.request.operation,
-            rootId: prepared.intent.target.rootId,
-            path: prepared.intent.target.displayPath,
-            beforeHash: prepared.intent.beforeHash,
-            afterHash: externalValue.actualAfterHash,
-            approval: {
-              id: prepared.approval.id,
-              status: "consumed" as const
-            },
-            execution: {
-              lane: "chat-direct" as const,
-              modelLoopOwner: "chatgpt" as const,
-              executionScope: "host" as const,
-              executor: prepared.intent.selection.executorId,
-              selectionMode: prepared.intent.selection.selectionMode,
-              operationId: `chat_direct_${randomUUID()}`,
-              changedPaths: [prepared.intent.target.displayPath],
-              evidenceBundleId: null
-            },
-            evidence: {
-              kind: "pure-host-audit" as const,
-              auditId: audit.id
-            }
-          };
-        },
+        (prepared, externalValue) =>
+          prepared.intent.classification.kind === "workspace"
+            ? this.commitWorkspaceMutation(
+                context,
+                prepared,
+                externalValue.actualAfterHash
+              )
+            : this.commitPureHostMutation(
+                context,
+                prepared,
+                externalValue.actualAfterHash
+              ),
         undefined,
         context.now
       );
@@ -462,6 +466,7 @@ export class HostMutationService {
       target.absolutePath
     );
     let sessionId: string | null = null;
+    let workspaceAuthority: WorkspaceMutationAuthority | null = null;
     if (classification.kind === "workspace") {
       if (!classification.repoId) {
         throw new ServiceError(
@@ -482,6 +487,7 @@ export class HostMutationService {
         );
       }
       sessionId = authority.session.id;
+      workspaceAuthority = authority;
     }
 
     let selection: DirectExecutorSelection;
@@ -534,7 +540,8 @@ export class HostMutationService {
       beforeHash,
       expectedAfterHash,
       mutationHash,
-      sessionId
+      sessionId,
+      workspaceAuthority
     };
   }
 
@@ -563,6 +570,163 @@ export class HostMutationService {
     } catch {
       return null;
     }
+  }
+
+  private readWorkspaceGit(
+    context: OperationContext,
+    workspace: PrivateWorkspaceRecord
+  ): WorkspaceGitState {
+    const status = this.git.status(context, workspace.repoId);
+    const headCommit =
+      this.git.recentCommits(context, workspace.repoId, 1)[0]?.hash ??
+      workspace.headCommit;
+    return {
+      branch: status.branch || workspace.branch,
+      headCommit,
+      dirty: status.entries.length > 0
+    };
+  }
+
+  private commitPureHostMutation(
+    context: OperationContext,
+    prepared: PreparedMutationExecution,
+    actualAfterHash: string
+  ): HostMutationExecutionValue {
+    const audit = this.recordPureHostAudit(
+      prepared,
+      "succeeded",
+      null,
+      actualAfterHash,
+      context.now
+    );
+    return {
+      ok: true,
+      operation: prepared.intent.request.operation,
+      rootId: prepared.intent.target.rootId,
+      path: prepared.intent.target.displayPath,
+      beforeHash: prepared.intent.beforeHash,
+      afterHash: actualAfterHash,
+      approval: {
+        id: prepared.approval.id,
+        status: "consumed"
+      },
+      execution: {
+        lane: "chat-direct",
+        modelLoopOwner: "chatgpt",
+        executionScope: "host",
+        executor: prepared.intent.selection.executorId,
+        selectionMode: prepared.intent.selection.selectionMode,
+        operationId: `chat_direct_${randomUUID()}`,
+        changedPaths: [prepared.intent.target.displayPath],
+        evidenceBundleId: null
+      },
+      evidence: {
+        kind: "pure-host-audit",
+        auditId: audit.id
+      }
+    };
+  }
+
+  private commitWorkspaceMutation(
+    context: OperationContext,
+    prepared: PreparedMutationExecution,
+    actualAfterHash: string
+  ): HostMutationExecutionValue {
+    const authority = prepared.intent.workspaceAuthority;
+    const workspaceRelativePath =
+      prepared.intent.classification.workspaceRelativePath;
+    if (!authority || !workspaceRelativePath || !prepared.beforeGit) {
+      throw new ServiceError(
+        "CONTINUITY_RELATION_INVALID",
+        "Workspace Host mutation lost its governance context before evidence commit"
+      );
+    }
+
+    const afterGit = this.readWorkspaceGit(context, authority.workspace);
+    const latestWorkspace = this.repositories.workspaces.getPrivate(
+      authority.workspace.id
+    );
+    this.repositories.workspaces.updateGitState(authority.workspace.id, {
+      branch: afterGit.branch,
+      headCommit: afterGit.headCommit,
+      dirty: afterGit.dirty,
+      expectedRevision: latestWorkspace.revision,
+      now: context.now
+    });
+
+    let task = this.repositories.tasks.get(authority.task.id);
+    let bundle = task.latestEvidenceBundleId
+      ? this.repositories.evidence.getBundle(task.latestEvidenceBundleId)
+      : null;
+    if (
+      !bundle ||
+      bundle.taskId !== task.id ||
+      bundle.sessionId !== authority.session.id
+    ) {
+      bundle = this.repositories.evidence.createBundle({
+        taskId: task.id,
+        sessionId: authority.session.id,
+        now: context.now
+      });
+      task = this.repositories.tasks.setLatestEvidenceBundle(
+        task.id,
+        bundle.id,
+        task.revision,
+        context.now
+      );
+    }
+
+    const summary = JSON.stringify({
+      operation: prepared.intent.request.operation,
+      path: workspaceRelativePath,
+      beforeHash: prepared.intent.beforeHash,
+      afterHash: actualAfterHash,
+      executorId: prepared.intent.selection.executorId,
+      approvalId: prepared.approval.id,
+      git: {
+        before: prepared.beforeGit,
+        after: afterGit
+      }
+    });
+    const item = this.repositories.evidence.addItem({
+      bundleId: bundle.id,
+      kind: "manual",
+      label: `Host Direct ${prepared.intent.request.operation} ${workspaceRelativePath}`,
+      status: "passed",
+      required: false,
+      summary,
+      startedAt: prepared.startedAt,
+      completedAt: context.now,
+      now: context.now
+    });
+
+    return {
+      ok: true,
+      operation: prepared.intent.request.operation,
+      rootId: prepared.intent.target.rootId,
+      path: prepared.intent.target.displayPath,
+      beforeHash: prepared.intent.beforeHash,
+      afterHash: actualAfterHash,
+      approval: {
+        id: prepared.approval.id,
+        status: "consumed"
+      },
+      execution: {
+        lane: "chat-direct",
+        modelLoopOwner: "chatgpt",
+        executionScope: "host",
+        executor: prepared.intent.selection.executorId,
+        selectionMode: prepared.intent.selection.selectionMode,
+        operationId: `chat_direct_${randomUUID()}`,
+        changedPaths: [workspaceRelativePath],
+        evidenceBundleId: bundle.id
+      },
+      evidence: {
+        kind: "task-evidence",
+        bundleId: bundle.id,
+        itemId: item.id
+      }
+    };
   }
 
   private recordPureHostAudit(
