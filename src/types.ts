@@ -22,6 +22,13 @@ export interface TokenPilotPaths {
   runnerLogPath: string;
   runnerPidPath: string;
   runnerPlistPath: string;
+  processSupervisorSocketPath: string;
+  processSupervisorTokenPath: string;
+  processSupervisorStatusPath: string;
+  processSupervisorPidPath: string;
+  processSupervisorLogPath: string;
+  processSupervisorEventsPath: string;
+  processSupervisorPlistPath: string;
 }
 
 export interface TokenPilotRepoTargetPaths {

@@ -33,7 +33,17 @@ export function buildPaths(repoRoot = resolveRepoRoot()): TokenPilotPaths {
     runnerStatusPath: path.join(runtimeDir, "runner-status.json"),
     runnerLogPath: path.join(runtimeDir, "runner.log"),
     runnerPidPath: path.join(runtimeDir, "runner.pid"),
-    runnerPlistPath: path.join(runtimeDir, "com.wuaishare.tokenpilot.runner.plist")
+    runnerPlistPath: path.join(runtimeDir, "com.wuaishare.tokenpilot.runner.plist"),
+    processSupervisorSocketPath: path.join(runtimeDir, "process-supervisor.sock"),
+    processSupervisorTokenPath: path.join(runtimeDir, "process-supervisor.token"),
+    processSupervisorStatusPath: path.join(runtimeDir, "process-supervisor-status.json"),
+    processSupervisorPidPath: path.join(runtimeDir, "process-supervisor.pid"),
+    processSupervisorLogPath: path.join(runtimeDir, "process-supervisor.log"),
+    processSupervisorEventsPath: path.join(runtimeDir, "process-supervisor-events.jsonl"),
+    processSupervisorPlistPath: path.join(
+      runtimeDir,
+      "com.wuaishare.tokenpilot.process-supervisor.plist"
+    )
   };
 }
 
