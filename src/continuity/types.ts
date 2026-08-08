@@ -361,6 +361,14 @@ export interface DirectProcessSessionRecord {
   revision: number;
 }
 
+export interface DirectProcessRuntimeOwnershipRecord {
+  processId: string;
+  supervisorGeneration: string;
+  attachedAt: string;
+  lastSeenAt: string;
+  revision: number;
+}
+
 export interface DirectProcessApprovalRecord {
   id: string;
   operation: DirectProcessOperation;

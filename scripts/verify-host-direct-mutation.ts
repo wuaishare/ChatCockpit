@@ -47,7 +47,7 @@ function verifyDirectMutationPersistence(): void {
   const repositories = buildContinuityRepositories(database);
 
   try {
-    assert.equal(database.schemaVersion(), 11);
+    assert.equal(database.schemaVersion(), 12);
 
     const pending = repositories.directMutationApprovals.create({
       operation: "files.write",

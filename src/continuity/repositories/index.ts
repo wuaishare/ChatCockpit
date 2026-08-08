@@ -7,6 +7,7 @@ import { DirectMutationAuditRepository } from "./direct-mutation-audit-repositor
 import { DirectProcessApprovalRepository } from "./direct-process-approval-repository.js";
 import { DirectProcessAuditRepository } from "./direct-process-audit-repository.js";
 import { DirectProcessSessionRepository } from "./direct-process-session-repository.js";
+import { DirectProcessRuntimeOwnershipRepository } from "./direct-process-runtime-ownership-repository.js";
 import { EvidenceRepository } from "./evidence-repository.js";
 import { HandoffRepository } from "./handoff-repository.js";
 import { IdempotencyRepository } from "./idempotency-repository.js";
@@ -30,6 +31,7 @@ export interface ContinuityRepositories {
   directProcessApprovals: DirectProcessApprovalRepository;
   directProcessAudit: DirectProcessAuditRepository;
   directProcessSessions: DirectProcessSessionRepository;
+  directProcessRuntimeOwnership: DirectProcessRuntimeOwnershipRepository;
   runtimeApprovals: RuntimeApprovalRepository;
   runtimeBindings: RuntimeBindingRepository;
   runtimeEvents: RuntimeEventRepository;
@@ -56,6 +58,7 @@ export function buildContinuityRepositories(
     directProcessApprovals: new DirectProcessApprovalRepository(database),
     directProcessAudit: new DirectProcessAuditRepository(database),
     directProcessSessions: new DirectProcessSessionRepository(database),
+    directProcessRuntimeOwnership: new DirectProcessRuntimeOwnershipRepository(database),
     runtimeApprovals: new RuntimeApprovalRepository(database),
     runtimeBindings: new RuntimeBindingRepository(database),
     runtimeEvents: new RuntimeEventRepository(database),
@@ -78,6 +81,7 @@ export { DirectMutationAuditRepository } from "./direct-mutation-audit-repositor
 export { DirectProcessApprovalRepository } from "./direct-process-approval-repository.js";
 export { DirectProcessAuditRepository } from "./direct-process-audit-repository.js";
 export { DirectProcessSessionRepository } from "./direct-process-session-repository.js";
+export { DirectProcessRuntimeOwnershipRepository } from "./direct-process-runtime-ownership-repository.js";
 export { EvidenceRepository } from "./evidence-repository.js";
 export { HandoffRepository } from "./handoff-repository.js";
 export { IdempotencyRepository } from "./idempotency-repository.js";

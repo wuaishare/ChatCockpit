@@ -401,7 +401,7 @@ async function verifySpecPlanPolicy(): Promise<void> {
     assert.equal(repositories.runtimeRuns.getActiveBySession(boundSession.id), null);
     assert.equal(repositories.leases.getActive(workspace.id), null);
 
-    assert.equal(database.schemaVersion(), 11);
+    assert.equal(database.schemaVersion(), 12);
     assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   } finally {
     database.close();
