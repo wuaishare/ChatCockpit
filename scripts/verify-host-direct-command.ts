@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { HostCommandService } from "../src/application/host-command-service.ts";
+import { buildOperationContext } from "../src/application/operation-context.ts";
 import { classifyHostTarget } from "../src/application/workspace-mutation-governance.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import {
@@ -11,6 +14,7 @@ import {
   DesktopCommanderProcessError
 } from "../src/direct/adapters/desktop-commander-process.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
+import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
 import type {
   DownstreamMcpClient,
@@ -18,6 +22,7 @@ import type {
   DownstreamMcpServerIdentity
 } from "../src/direct/downstream-mcp-types.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
+import { buildPaths } from "../src/core/paths.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   evaluatePureHostCommand,
@@ -350,6 +355,393 @@ async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
   }
 }
 
+class FakeHostCommandProcessExecutor {
+  calls = 0;
+  readonly accesses: string[] = [];
+
+  assertReady(access: "read" | "write"): void {
+    this.accesses.push(access);
+  }
+
+  async execute(input: {
+    cwd: string;
+    command: string;
+    args: string[];
+    timeoutMs: number;
+    access: "read" | "write";
+  }) {
+    this.calls += 1;
+    if (input.command === "pwd") {
+      return {
+        ok: true,
+        exitCode: 0,
+        output: `${input.cwd}\n`,
+        truncated: false,
+        timedOut: false,
+        terminated: false
+      };
+    }
+    if (input.command === "git") {
+      return {
+        ok: true,
+        exitCode: 0,
+        output: "git inspection ok\n",
+        truncated: false,
+        timedOut: false,
+        terminated: false
+      };
+    }
+    if (input.command === "npm") {
+      fs.mkdirSync(path.join(input.cwd, "src"), { recursive: true });
+      fs.writeFileSync(
+        path.join(input.cwd, "src", "host-command.txt"),
+        "workspace command mutation\n",
+        "utf8"
+      );
+      return {
+        ok: true,
+        exitCode: 0,
+        output: "workspace command ok\n",
+        truncated: false,
+        timedOut: false,
+        terminated: false
+      };
+    }
+    return {
+      ok: false,
+      exitCode: 7,
+      output: "command failed\n",
+      truncated: false,
+      timedOut: false,
+      terminated: false
+    };
+  }
+}
+
+async function expectAsyncCode(
+  operation: Promise<unknown>,
+  code: string
+): Promise<void> {
+  await assert.rejects(operation, (error) => {
+    assert.ok(error instanceof ServiceError);
+    assert.equal(error.code, code);
+    return true;
+  });
+}
+
+async function verifyHostCommandServiceLifecycle(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-command-service-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const pureHostDir = path.join(hostRoot, "notes");
+  const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
+  const directConfigPath = path.join(sandbox, "direct-executors.json");
+  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
+  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.mkdirSync(pureHostDir, { recursive: true });
+  fs.mkdirSync(path.join(workspaceRoot, "src"), { recursive: true });
+  fs.writeFileSync(path.join(workspaceRoot, "README.md"), "fixture\n", "utf8");
+  execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
+  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
+    cwd: workspaceRoot
+  });
+  execFileSync("git", ["config", "user.name", "TokenPilot Fixture"], {
+    cwd: workspaceRoot
+  });
+  execFileSync("git", ["add", "README.md"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "-m", "fixture"], {
+    cwd: workspaceRoot,
+    stdio: "ignore"
+  });
+  const head = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: workspaceRoot,
+    encoding: "utf8"
+  }).trim();
+  const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: workspaceRoot,
+    encoding: "utf8"
+  }).trim();
+
+  fs.writeFileSync(
+    directConfigPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "Fixture Host Root",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: []
+    })
+  );
+  fs.writeFileSync(
+    userConfigPath,
+    JSON.stringify({
+      workspaceAllowlist: [runtimeRoot, workspaceRoot],
+      repoMappings: {
+        tokenpilot: { path: runtimeRoot },
+        "fixture-repo": { path: workspaceRoot }
+      }
+    })
+  );
+  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+
+  const paths = buildPaths(runtimeRoot);
+  const database = new ContinuityDatabase({
+    path: path.join(paths.runtimeDir, "continuity.sqlite")
+  });
+  const repositories = buildContinuityRepositories(database);
+  const broker = new DirectCapabilityBroker([
+    {
+      describe: () => ({
+        id: DESKTOP_COMMANDER_EXECUTOR_ID,
+        kind: "downstream-mcp" as const,
+        displayName: "Desktop Commander Fixture",
+        health: "ready" as const,
+        scopes: ["host" as const],
+        capabilities: [
+          {
+            id: "shell.exec" as const,
+            scopes: ["host" as const],
+            access: ["read" as const, "write" as const]
+          }
+        ]
+      })
+    }
+  ]);
+  const processExecutor = new FakeHostCommandProcessExecutor();
+  const service = new HostCommandService(
+    paths,
+    repositories,
+    broker,
+    processExecutor,
+    directConfigPath
+  );
+  const context = buildOperationContext({
+    actorType: "remote-mcp",
+    requestId: "host-command-service-fixture",
+    publicProjection: true,
+    now: NOW
+  });
+
+  try {
+    const purePrepared = await service.prepare(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      idempotencyKey: "host-command-pure-prepare"
+    });
+    assert.equal(purePrepared.approval.targetKind, "pure-host");
+    assert.equal(purePrepared.approval.effect, "read");
+    assert.equal(purePrepared.approval.sessionId, null);
+    assert.doesNotMatch(JSON.stringify(purePrepared), new RegExp(hostRoot));
+
+    await expectAsyncCode(
+      service.execute(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        approvalId: purePrepared.approval.id,
+        expectedApprovalRevision: purePrepared.approval.revision,
+        idempotencyKey: "host-command-pure-execute-pending"
+      }),
+      "HOST_COMMAND_APPROVAL_REQUIRED"
+    );
+
+    const pureApproved = await service.decide(context, {
+      approvalId: purePrepared.approval.id,
+      expectedRevision: purePrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "host-command-pure-approve"
+    });
+    const pureExecuted = await service.execute(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      approvalId: pureApproved.approval.id,
+      expectedApprovalRevision: pureApproved.approval.revision,
+      idempotencyKey: "host-command-pure-execute"
+    });
+    assert.equal(pureExecuted.ok, true);
+    assert.equal(pureExecuted.exitCode, 0);
+    assert.equal(pureExecuted.workdir, "fixture/notes");
+    assert.equal(pureExecuted.output.trim(), "fixture/notes");
+    assert.equal(pureExecuted.execution.executionScope, "host");
+    assert.deepEqual(pureExecuted.execution.changedPaths, []);
+    assert.equal(pureExecuted.evidence.kind, "direct-command-audit");
+    assert.doesNotMatch(JSON.stringify(pureExecuted), new RegExp(hostRoot));
+    assert.doesNotMatch(JSON.stringify(pureExecuted), /"pid"/i);
+    const pureCalls = processExecutor.calls;
+    const pureReplay = await service.execute(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      approvalId: pureApproved.approval.id,
+      expectedApprovalRevision: pureApproved.approval.revision,
+      idempotencyKey: "host-command-pure-execute"
+    });
+    assert.equal(pureReplay.replayed, true);
+    assert.equal(processExecutor.calls, pureCalls);
+    await expectAsyncCode(
+      service.execute(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        approvalId: pureApproved.approval.id,
+        expectedApprovalRevision: pureApproved.approval.revision + 1,
+        idempotencyKey: "host-command-pure-execute-new-key"
+      }),
+      "HOST_COMMAND_APPROVAL_CONSUMED"
+    );
+
+    const project = repositories.projects.create({
+      id: "project_host_command_service",
+      slug: "host-command-service",
+      displayName: "Host Command Service",
+      now: NOW
+    });
+    const workspace = repositories.workspaces.create({
+      id: "workspace_host_command_service",
+      projectId: project.id,
+      repoId: "fixture-repo",
+      privatePath: workspaceRoot,
+      branch,
+      headCommit: head,
+      dirty: false,
+      now: NOW
+    });
+    const task = repositories.tasks.create({
+      id: "task_host_command_service",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      title: "Host Command Service Fixture",
+      goal: "Verify Workspace Host Command governance",
+      status: "in-progress",
+      now: NOW
+    });
+    const session = repositories.sessions.create({
+      id: "session_host_command_service",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      taskId: task.id,
+      title: "Host Command Session",
+      mode: "chat-direct",
+      status: "running",
+      startedAt: NOW
+    });
+    repositories.tasks.bindSession(task.id, session.id, task.revision, NOW);
+
+    const workspaceRead = await service.prepare(context, {
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      timeoutMs: 5000,
+      idempotencyKey: "host-command-workspace-read"
+    });
+    assert.equal(workspaceRead.approval.targetKind, "workspace");
+    assert.equal(workspaceRead.approval.effect, "read");
+    assert.equal(workspaceRead.approval.sessionId, null);
+
+    await expectAsyncCode(
+      service.prepare(context, {
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "npm",
+        args: ["test"],
+        timeoutMs: 5000,
+        idempotencyKey: "host-command-workspace-write-no-lease"
+      }),
+      "WRITER_LEASE_REQUIRED"
+    );
+
+    repositories.leases.acquire({
+      id: "lease_host_command_service",
+      workspaceId: workspace.id,
+      sessionId: session.id,
+      holderType: "chat-direct",
+      holderId: session.id,
+      expiresAt: "2026-08-08T15:00:00.000Z",
+      now: NOW
+    });
+    const writePrepared = await service.prepare(context, {
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      timeoutMs: 5000,
+      sessionId: session.id,
+      idempotencyKey: "host-command-workspace-write-prepare"
+    });
+    assert.equal(writePrepared.approval.effect, "write");
+    assert.equal(writePrepared.approval.workspaceId, workspace.id);
+    assert.equal(writePrepared.approval.sessionId, session.id);
+    const writeApproved = await service.decide(context, {
+      approvalId: writePrepared.approval.id,
+      expectedRevision: writePrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "host-command-workspace-write-approve"
+    });
+    const writeExecuted = await service.execute(context, {
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      timeoutMs: 5000,
+      sessionId: session.id,
+      approvalId: writeApproved.approval.id,
+      expectedApprovalRevision: writeApproved.approval.revision,
+      idempotencyKey: "host-command-workspace-write-execute"
+    });
+    assert.equal(writeExecuted.ok, true);
+    assert.equal(writeExecuted.effect, "write");
+    assert.equal(writeExecuted.evidence.kind, "task-evidence");
+    assert.ok(writeExecuted.execution.evidenceBundleId);
+    assert.ok(
+      writeExecuted.execution.changedPaths.includes("src/host-command.txt")
+    );
+    const refreshedWorkspace = repositories.workspaces.getPrivate(workspace.id);
+    assert.equal(refreshedWorkspace.dirty, true);
+    assert.equal(refreshedWorkspace.headCommit, head);
+    const latestTask = repositories.tasks.get(task.id);
+    assert.ok(latestTask.latestEvidenceBundleId);
+    const evidenceItems = repositories.evidence.listItems(
+      latestTask.latestEvidenceBundleId!
+    );
+    const commandEvidence = evidenceItems.find(
+      (item) => item.id === writeExecuted.evidence.itemId
+    );
+    assert.equal(commandEvidence?.kind, "command");
+    assert.equal(commandEvidence?.status, "passed");
+    assert.doesNotMatch(commandEvidence?.summary ?? "", new RegExp(hostRoot));
+    assert.doesNotMatch(JSON.stringify(writeExecuted), new RegExp(hostRoot));
+  } finally {
+    database.close();
+    if (previousConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+    }
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 function expectCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error) => {
     assert.ok(error instanceof ServiceError);
@@ -668,6 +1060,7 @@ try {
   }
 
   await verifyDesktopCommanderProcessAdapter();
+  await verifyHostCommandServiceLifecycle();
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   process.stdout.write("VERIFY_HOST_DIRECT_COMMAND_OK\n");
 } finally {
