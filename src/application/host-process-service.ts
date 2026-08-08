@@ -4,8 +4,12 @@ import os from "node:os";
 import type {
   HostProcessDecisionInput,
   HostProcessExecuteInput,
+  HostProcessInputRequest,
+  HostProcessListInput,
   HostProcessPrepareInput,
-  HostProcessStartRequest
+  HostProcessReadInput,
+  HostProcessStartRequest,
+  HostProcessStopRequest
 } from "../contracts/host-process.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type {
@@ -18,6 +22,8 @@ import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-comman
 import {
   DesktopCommanderManagedProcessError,
   type ManagedProcessAdapterSnapshot,
+  type ManagedProcessInputOptions,
+  type ManagedProcessReadOptions,
   type ManagedProcessStartRequest
 } from "../direct/adapters/desktop-commander-managed-process.js";
 import {
@@ -45,7 +51,17 @@ const MAX_RUNNING_PER_SESSION = 2;
 
 export interface HostProcessRuntimeSupervisor {
   assertReady(): unknown;
+  has(processId: string): boolean;
   start(request: ManagedProcessStartRequest): Promise<ManagedProcessAdapterSnapshot>;
+  read(
+    processId: string,
+    options?: ManagedProcessReadOptions
+  ): Promise<ManagedProcessAdapterSnapshot>;
+  input(
+    processId: string,
+    options: ManagedProcessInputOptions
+  ): Promise<ManagedProcessAdapterSnapshot>;
+  stop(processId: string): Promise<ManagedProcessAdapterSnapshot>;
 }
 
 interface PreparedProcessStartIntent {
@@ -71,6 +87,27 @@ interface ExternalProcessStartOutcome {
   errorCode: string | null;
 }
 
+interface PreparedProcessInputExecution {
+  approval: DirectProcessApprovalRecord;
+  process: DirectProcessSessionRecord;
+  request: HostProcessInputRequest;
+  inputHash: string;
+  inputBytes: number;
+  startedAt: string;
+}
+
+interface PreparedProcessStopExecution {
+  approval: DirectProcessApprovalRecord;
+  process: DirectProcessSessionRecord;
+  request: HostProcessStopRequest;
+  startedAt: string;
+}
+
+interface ExternalProcessActionOutcome {
+  snapshot: ManagedProcessAdapterSnapshot | null;
+  errorCode: string | null;
+}
+
 export interface HostProcessPublicRecord {
   id: string;
   rootId: string;
@@ -91,8 +128,6 @@ export interface HostProcessStartExecutionValue {
   ok: boolean;
   operation: "start";
   process: HostProcessPublicRecord;
-  output: string;
-  truncated: boolean;
   errorCode: string | null;
   approval: {
     id: string;
@@ -114,6 +149,38 @@ export interface HostProcessStartExecutionValue {
     itemId: string;
   };
   auditId: string;
+}
+
+export interface HostProcessInputExecutionValue {
+  ok: boolean;
+  operation: "input";
+  process: HostProcessPublicRecord;
+  errorCode: string | null;
+  approval: { id: string; status: "consumed" };
+  evidence: { kind: "task-evidence"; bundleId: string; itemId: string };
+  auditId: string;
+}
+
+export interface HostProcessStopExecutionValue {
+  ok: boolean;
+  operation: "stop";
+  process: HostProcessPublicRecord;
+  errorCode: string | null;
+  approval: { id: string; status: "consumed" };
+  evidence: { kind: "task-evidence"; bundleId: string; itemId: string };
+  auditId: string;
+}
+
+export interface HostProcessReadValue {
+  ok: true;
+  process: HostProcessPublicRecord;
+  output: string;
+  truncated: boolean;
+}
+
+export interface HostProcessListValue {
+  ok: true;
+  processes: HostProcessPublicRecord[];
 }
 
 function approvalExpiry(now: string): string {
@@ -143,6 +210,54 @@ function exactStartHash(input: {
       "utf8"
     )
     .digest("hex");
+}
+
+function exactInputHash(input: {
+  processId: string;
+  sessionId: string;
+  inputHash: string;
+  inputBytes: number;
+  waitForPrompt: boolean;
+  timeoutMs: number;
+  processRevision: number;
+  writerLeaseId: string;
+}): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        schemaVersion: 1,
+        policyVersion: HOST_PROCESS_POLICY_VERSION,
+        ...input
+      }),
+      "utf8"
+    )
+    .digest("hex");
+}
+
+function exactStopHash(input: {
+  processId: string;
+  sessionId: string;
+  processRevision: number;
+  executorId: string;
+}): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        schemaVersion: 1,
+        policyVersion: HOST_PROCESS_POLICY_VERSION,
+        ...input
+      }),
+      "utf8"
+    )
+    .digest("hex");
+}
+
+function hashProcessInput(value: string): { hash: string; bytes: number } {
+  const bytes = Buffer.byteLength(value, "utf8");
+  return {
+    hash: createHash("sha256").update(value, "utf8").digest("hex"),
+    bytes
+  };
 }
 
 function managedProcessErrorCode(error: unknown): string {
@@ -200,13 +315,13 @@ export class HostProcessService {
     approval: DirectProcessApprovalRecord;
     replayed: boolean;
   }> {
-    const { idempotencyKey, ...request } = input;
-    if (request.operation !== "start") {
-      throw new ServiceError(
-        "HOST_PROCESS_OPERATION_UNSUPPORTED",
-        "Managed Host Process input/stop approvals are not enabled yet"
-      );
+    if (input.operation === "input") {
+      return this.prepareInput(context, input);
     }
+    if (input.operation === "stop") {
+      return this.prepareStop(context, input);
+    }
+    const { idempotencyKey, ...request } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.prepare",
       idempotencyKey,
@@ -262,15 +377,77 @@ export class HostProcessService {
     return { ...execution.value, replayed: execution.replayed };
   }
 
+  async read(
+    context: OperationContext,
+    input: HostProcessReadInput
+  ): Promise<HostProcessReadValue> {
+    let processRecord = this.requireProcess(input.processId);
+    if (processRecord.status === "stale") {
+      throw new ServiceError(
+        "HOST_PROCESS_STALE",
+        "Managed Host Process runtime is stale and cannot be read"
+      );
+    }
+    if (["exited", "terminated", "failed"].includes(processRecord.status)) {
+      return {
+        ok: true,
+        process: this.publicProcessRecord(processRecord),
+        output: "",
+        truncated: false
+      };
+    }
+    if (processRecord.status !== "running") {
+      throw new ServiceError(
+        "HOST_PROCESS_NOT_RUNNING",
+        "Managed Host Process has not reached a readable running state"
+      );
+    }
+    processRecord = this.requireActiveRuntime(processRecord, context.now);
+    const snapshot = await this.supervisor.read(processRecord.id, {
+      ...(input.offset !== undefined ? { offset: input.offset } : {}),
+      ...(input.length !== undefined ? { length: input.length } : {}),
+      ...(input.waitMs !== undefined ? { waitMs: input.waitMs } : {})
+    });
+    const output = this.projectProcessOutput(snapshot.output, processRecord);
+    processRecord = this.applyObservedSnapshot(
+      context,
+      processRecord,
+      snapshot,
+      "READ_RESULT_UNKNOWN"
+    );
+    if (processRecord.status !== "running") {
+      this.recordTerminalEvidence(context, processRecord, "read");
+    }
+    return {
+      ok: true,
+      process: this.publicProcessRecord(processRecord),
+      output,
+      truncated: snapshot.truncated
+    };
+  }
+
+  list(input: HostProcessListInput = {}): HostProcessListValue {
+    return {
+      ok: true,
+      processes: this.repositories.directProcessSessions
+        .list(input)
+        .map((record) => this.publicProcessRecord(record))
+    };
+  }
+
   async execute(
     context: OperationContext,
     input: HostProcessExecuteInput
-  ): Promise<HostProcessStartExecutionValue & { replayed: boolean }> {
-    if (input.operation !== "start") {
-      throw new ServiceError(
-        "HOST_PROCESS_OPERATION_UNSUPPORTED",
-        "Managed Host Process input/stop execution is not enabled yet"
-      );
+  ): Promise<
+    | (HostProcessStartExecutionValue & { replayed: boolean })
+    | (HostProcessInputExecutionValue & { replayed: boolean })
+    | (HostProcessStopExecutionValue & { replayed: boolean })
+  > {
+    if (input.operation === "input") {
+      return this.executeInput(context, input);
+    }
+    if (input.operation === "stop") {
+      return this.executeStop(context, input);
     }
     const {
       idempotencyKey,
@@ -369,6 +546,522 @@ export class HostProcessService {
       );
 
     return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private async prepareInput(
+    context: OperationContext,
+    input: HostProcessPrepareInput & { operation: "input" }
+  ): Promise<{
+    ok: true;
+    approval: DirectProcessApprovalRecord;
+    replayed: boolean;
+  }> {
+    const { idempotencyKey, ...request } = input;
+    const execution = this.repositories.idempotency.execute(
+      "host.process.prepare.input",
+      idempotencyKey,
+      request,
+      () => {
+        let processRecord = this.requireOwnedRunningProcess(
+          request.processId,
+          request.sessionId
+        );
+        processRecord = this.requireActiveRuntime(processRecord, context.now);
+        const authority = this.requireCurrentWriterLease(
+          context,
+          processRecord,
+          request.sessionId
+        );
+        const inputIdentity = this.validateProcessInput(request.input);
+        const actionHash = exactInputHash({
+          processId: processRecord.id,
+          sessionId: request.sessionId,
+          inputHash: inputIdentity.hash,
+          inputBytes: inputIdentity.bytes,
+          waitForPrompt: request.waitForPrompt,
+          timeoutMs: request.timeoutMs,
+          processRevision: processRecord.revision,
+          writerLeaseId: authority.lease.id
+        });
+        const approval = this.repositories.directProcessApprovals.create({
+          operation: "input",
+          processId: processRecord.id,
+          actionHash,
+          workspaceId: processRecord.workspaceId,
+          repoId: processRecord.repoId,
+          sessionId: processRecord.sessionId,
+          writerLeaseId: authority.lease.id,
+          executorId: processRecord.executorId,
+          inputHash: inputIdentity.hash,
+          inputBytes: inputIdentity.bytes,
+          publicSummary: {
+            operation: "input",
+            processId: processRecord.id,
+            inputHash: inputIdentity.hash,
+            inputBytes: inputIdentity.bytes,
+            waitForPrompt: request.waitForPrompt,
+            timeoutMs: request.timeoutMs,
+            workspaceId: processRecord.workspaceId,
+            repoId: processRecord.repoId,
+            sessionId: processRecord.sessionId,
+            executorId: processRecord.executorId
+          },
+          expiresAt: approvalExpiry(context.now),
+          now: context.now
+        });
+        return { ok: true as const, approval };
+      },
+      context.now
+    );
+    return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private async prepareStop(
+    context: OperationContext,
+    input: HostProcessPrepareInput & { operation: "stop" }
+  ): Promise<{
+    ok: true;
+    approval: DirectProcessApprovalRecord;
+    replayed: boolean;
+  }> {
+    const { idempotencyKey, ...request } = input;
+    const execution = this.repositories.idempotency.execute(
+      "host.process.prepare.stop",
+      idempotencyKey,
+      request,
+      () => {
+        let processRecord = this.requireOwnedRunningProcess(
+          request.processId,
+          request.sessionId
+        );
+        processRecord = this.requireActiveRuntime(processRecord, context.now);
+        const actionHash = exactStopHash({
+          processId: processRecord.id,
+          sessionId: request.sessionId,
+          processRevision: processRecord.revision,
+          executorId: processRecord.executorId
+        });
+        const approval = this.repositories.directProcessApprovals.create({
+          operation: "stop",
+          processId: processRecord.id,
+          actionHash,
+          workspaceId: processRecord.workspaceId,
+          repoId: processRecord.repoId,
+          sessionId: processRecord.sessionId,
+          writerLeaseId: processRecord.writerLeaseId,
+          executorId: processRecord.executorId,
+          publicSummary: {
+            operation: "stop",
+            processId: processRecord.id,
+            workspaceId: processRecord.workspaceId,
+            repoId: processRecord.repoId,
+            sessionId: processRecord.sessionId,
+            executorId: processRecord.executorId
+          },
+          expiresAt: approvalExpiry(context.now),
+          now: context.now
+        });
+        return { ok: true as const, approval };
+      },
+      context.now
+    );
+    return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private async executeInput(
+    context: OperationContext,
+    input: HostProcessExecuteInput & { operation: "input" }
+  ): Promise<HostProcessInputExecutionValue & { replayed: boolean }> {
+    const {
+      idempotencyKey,
+      approvalId,
+      expectedApprovalRevision,
+      ...request
+    } = input;
+    const idempotencyInput = {
+      approvalId,
+      expectedApprovalRevision,
+      ...request
+    };
+    const execution =
+      await this.repositories.idempotency.executePreparedExternalMutation<
+        PreparedProcessInputExecution,
+        ExternalProcessActionOutcome,
+        HostProcessInputExecutionValue
+      >(
+        "host.process.execute.input",
+        idempotencyKey,
+        idempotencyInput,
+        () => {
+          const approval = this.requireExecutableApproval(
+            approvalId,
+            expectedApprovalRevision,
+            context.now
+          );
+          if (approval.operation !== "input") {
+            throw new ServiceError(
+              "HOST_PROCESS_HASH_MISMATCH",
+              "Host Process approval is not an input approval"
+            );
+          }
+          let processRecord = this.requireOwnedRunningProcess(
+            request.processId,
+            request.sessionId
+          );
+          processRecord = this.requireActiveRuntime(processRecord, context.now);
+          const authority = this.requireCurrentWriterLease(
+            context,
+            processRecord,
+            request.sessionId
+          );
+          const inputIdentity = this.validateProcessInput(request.input);
+          const actionHash = exactInputHash({
+            processId: processRecord.id,
+            sessionId: request.sessionId,
+            inputHash: inputIdentity.hash,
+            inputBytes: inputIdentity.bytes,
+            waitForPrompt: request.waitForPrompt,
+            timeoutMs: request.timeoutMs,
+            processRevision: processRecord.revision,
+            writerLeaseId: authority.lease.id
+          });
+          const mismatch =
+            approval.processId !== processRecord.id ||
+            approval.actionHash !== actionHash ||
+            approval.workspaceId !== processRecord.workspaceId ||
+            approval.repoId !== processRecord.repoId ||
+            approval.sessionId !== processRecord.sessionId ||
+            approval.writerLeaseId !== authority.lease.id ||
+            approval.executorId !== processRecord.executorId ||
+            approval.inputHash !== inputIdentity.hash ||
+            approval.inputBytes !== inputIdentity.bytes;
+          if (mismatch) {
+            throw new ServiceError(
+              "HOST_PROCESS_HASH_MISMATCH",
+              "Host Process input no longer matches the approved exact action"
+            );
+          }
+          const consumed = this.repositories.directProcessApprovals.consume({
+            id: approval.id,
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+          return {
+            approval: consumed,
+            process: processRecord,
+            request,
+            inputHash: inputIdentity.hash,
+            inputBytes: inputIdentity.bytes,
+            startedAt: context.now
+          };
+        },
+        async (prepared) => {
+          try {
+            return {
+              snapshot: await this.supervisor.input(prepared.process.id, {
+                input: prepared.request.input,
+                timeoutMs: prepared.request.timeoutMs,
+                waitForPrompt: prepared.request.waitForPrompt
+              }),
+              errorCode: null
+            };
+          } catch (error) {
+            const errorCode = managedProcessErrorCode(error);
+            try {
+              if (this.supervisor.has(prepared.process.id)) {
+                return {
+                  snapshot: await this.supervisor.stop(prepared.process.id),
+                  errorCode
+                };
+              }
+            } catch {
+              // The action remains unknown and will be persisted as stale.
+            }
+            return { snapshot: null, errorCode };
+          }
+        },
+        (prepared, outcome) =>
+          this.commitInputExecution(context, prepared, outcome),
+        undefined,
+        context.now
+      );
+    return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private async executeStop(
+    context: OperationContext,
+    input: HostProcessExecuteInput & { operation: "stop" }
+  ): Promise<HostProcessStopExecutionValue & { replayed: boolean }> {
+    const {
+      idempotencyKey,
+      approvalId,
+      expectedApprovalRevision,
+      ...request
+    } = input;
+    const idempotencyInput = {
+      approvalId,
+      expectedApprovalRevision,
+      ...request
+    };
+    const execution =
+      await this.repositories.idempotency.executePreparedExternalMutation<
+        PreparedProcessStopExecution,
+        ExternalProcessActionOutcome,
+        HostProcessStopExecutionValue
+      >(
+        "host.process.execute.stop",
+        idempotencyKey,
+        idempotencyInput,
+        () => {
+          const approval = this.requireExecutableApproval(
+            approvalId,
+            expectedApprovalRevision,
+            context.now
+          );
+          if (approval.operation !== "stop") {
+            throw new ServiceError(
+              "HOST_PROCESS_HASH_MISMATCH",
+              "Host Process approval is not a stop approval"
+            );
+          }
+          let processRecord = this.requireOwnedRunningProcess(
+            request.processId,
+            request.sessionId
+          );
+          processRecord = this.requireActiveRuntime(processRecord, context.now);
+          const actionHash = exactStopHash({
+            processId: processRecord.id,
+            sessionId: request.sessionId,
+            processRevision: processRecord.revision,
+            executorId: processRecord.executorId
+          });
+          const mismatch =
+            approval.processId !== processRecord.id ||
+            approval.actionHash !== actionHash ||
+            approval.workspaceId !== processRecord.workspaceId ||
+            approval.repoId !== processRecord.repoId ||
+            approval.sessionId !== processRecord.sessionId ||
+            approval.executorId !== processRecord.executorId;
+          if (mismatch) {
+            throw new ServiceError(
+              "HOST_PROCESS_HASH_MISMATCH",
+              "Host Process stop no longer matches the approved exact action"
+            );
+          }
+          const consumed = this.repositories.directProcessApprovals.consume({
+            id: approval.id,
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+          return {
+            approval: consumed,
+            process: processRecord,
+            request,
+            startedAt: context.now
+          };
+        },
+        async (prepared) => {
+          try {
+            return {
+              snapshot: await this.supervisor.stop(prepared.process.id),
+              errorCode: null
+            };
+          } catch (error) {
+            return {
+              snapshot: null,
+              errorCode: managedProcessErrorCode(error)
+            };
+          }
+        },
+        (prepared, outcome) =>
+          this.commitStopExecution(context, prepared, outcome),
+        undefined,
+        context.now
+      );
+    return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private validateProcessInput(value: string): { hash: string; bytes: number } {
+    if (value.includes("\0")) {
+      throw new ServiceError(
+        "HOST_PROCESS_INPUT_INVALID",
+        "Managed Host Process input cannot contain NUL bytes"
+      );
+    }
+    const identity = hashProcessInput(value);
+    if (identity.bytes > 8 * 1024) {
+      throw new ServiceError(
+        "HOST_PROCESS_INPUT_INVALID",
+        "Managed Host Process input exceeds the 8 KiB byte limit"
+      );
+    }
+    return identity;
+  }
+
+  private requireProcess(processId: string): DirectProcessSessionRecord {
+    try {
+      return this.repositories.directProcessSessions.get(processId);
+    } catch (error) {
+      if (error instanceof ServiceError && error.code === "CONTINUITY_RECORD_NOT_FOUND") {
+        throw new ServiceError(
+          "HOST_PROCESS_NOT_FOUND",
+          "Managed Host Process was not found"
+        );
+      }
+      throw error;
+    }
+  }
+
+  private requireOwnedRunningProcess(
+    processId: string,
+    sessionId: string
+  ): DirectProcessSessionRecord {
+    const processRecord = this.requireProcess(processId);
+    if (processRecord.sessionId !== sessionId) {
+      throw new ServiceError(
+        "HOST_PROCESS_OWNERSHIP_MISMATCH",
+        "Managed Host Process belongs to another development session"
+      );
+    }
+    if (processRecord.status === "stale") {
+      throw new ServiceError(
+        "HOST_PROCESS_STALE",
+        "Managed Host Process runtime is stale"
+      );
+    }
+    if (processRecord.status !== "running") {
+      throw new ServiceError(
+        "HOST_PROCESS_NOT_RUNNING",
+        "Managed Host Process is not running"
+      );
+    }
+    return processRecord;
+  }
+
+  private requireCurrentWriterLease(
+    context: OperationContext,
+    processRecord: DirectProcessSessionRecord,
+    sessionId: string
+  ): WorkspaceMutationAuthority {
+    let authority: WorkspaceMutationAuthority;
+    try {
+      authority = assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        processRecord.repoId,
+        sessionId
+      );
+    } catch (error) {
+      if (error instanceof ServiceError) {
+        throw new ServiceError(
+          "HOST_PROCESS_WRITER_LEASE_LOST",
+          "Managed Host Process no longer owns its required Writer Lease"
+        );
+      }
+      throw error;
+    }
+    if (
+      authority.workspace.id !== processRecord.workspaceId ||
+      authority.session.id !== processRecord.sessionId ||
+      authority.lease.id !== processRecord.writerLeaseId
+    ) {
+      throw new ServiceError(
+        "HOST_PROCESS_WRITER_LEASE_LOST",
+        "Managed Host Process Writer Lease identity changed"
+      );
+    }
+    return authority;
+  }
+
+  private requireActiveRuntime(
+    processRecord: DirectProcessSessionRecord,
+    now: string
+  ): DirectProcessSessionRecord {
+    if (this.supervisor.has(processRecord.id)) {
+      return processRecord;
+    }
+    const stale = this.repositories.directProcessSessions.markStale({
+      id: processRecord.id,
+      reason: "RUNTIME_UNAVAILABLE",
+      expectedRevision: processRecord.revision,
+      now
+    });
+    this.repositories.directProcessAudit.create({
+      operation: "cleanup",
+      processId: stale.id,
+      actionHash: stale.commandHash,
+      approvalId: null,
+      status: "unknown",
+      errorCode: "HOST_PROCESS_STALE",
+      terminalReason: "RUNTIME_UNAVAILABLE",
+      outputBytes: 0,
+      outputTruncated: false,
+      startedAt: now,
+      completedAt: now,
+      now
+    });
+    throw new ServiceError(
+      "HOST_PROCESS_STALE",
+      "Managed Host Process runtime is no longer owned by this Control Plane"
+    );
+  }
+
+  private projectProcessOutput(
+    output: string,
+    processRecord: DirectProcessSessionRecord
+  ): string {
+    const workspace = this.repositories.workspaces.getPrivate(
+      processRecord.workspaceId
+    );
+    const replacements: Array<[string, string]> = [
+      [workspace.privatePath, workspace.repoId]
+    ];
+    const home = os.homedir();
+    if (home) {
+      replacements.push([home, "~"]);
+    }
+    return replacements
+      .sort((left, right) => right[0].length - left[0].length)
+      .reduce(
+        (value, [privatePath, publicPath]) =>
+          privatePath ? value.split(privatePath).join(publicPath) : value,
+        output
+      );
+  }
+
+  private applyObservedSnapshot(
+    context: OperationContext,
+    processRecord: DirectProcessSessionRecord,
+    snapshot: ManagedProcessAdapterSnapshot,
+    unknownReason: string
+  ): DirectProcessSessionRecord {
+    if (snapshot.status === "running") {
+      return processRecord;
+    }
+    if (snapshot.status === "exited") {
+      return this.repositories.directProcessSessions.complete({
+        id: processRecord.id,
+        status: "exited",
+        exitCode: snapshot.exitCode,
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
+    }
+    if (snapshot.status === "terminated") {
+      return this.repositories.directProcessSessions.complete({
+        id: processRecord.id,
+        status: "terminated",
+        exitCode: snapshot.exitCode,
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
+    }
+    return this.repositories.directProcessSessions.markStale({
+      id: processRecord.id,
+      reason: unknownReason,
+      expectedRevision: processRecord.revision,
+      now: context.now
+    });
   }
 
   private prepareStartIntent(
@@ -717,8 +1410,6 @@ export class HostProcessService {
       ok: evidenceStatus === "passed" && outcome.errorCode === null,
       operation: "start",
       process: this.publicProcessRecord(processRecord, prepared.intent.target),
-      output,
-      truncated: snapshot?.truncated ?? false,
       errorCode: outcome.errorCode,
       approval: {
         id: prepared.approval.id,
@@ -743,14 +1434,269 @@ export class HostProcessService {
     };
   }
 
+  private commitInputExecution(
+    context: OperationContext,
+    prepared: PreparedProcessInputExecution,
+    outcome: ExternalProcessActionOutcome
+  ): HostProcessInputExecutionValue {
+    let processRecord = prepared.process;
+    if (!outcome.snapshot) {
+      processRecord = this.repositories.directProcessSessions.markStale({
+        id: processRecord.id,
+        reason: "INPUT_RESULT_UNKNOWN",
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
+    } else {
+      processRecord = this.applyObservedSnapshot(
+        context,
+        processRecord,
+        outcome.snapshot,
+        "INPUT_RESULT_UNKNOWN"
+      );
+    }
+    const output = this.projectProcessOutput(
+      outcome.snapshot?.output ?? "",
+      processRecord
+    );
+    const auditStatus = outcome.errorCode
+      ? processRecord.status === "stale"
+        ? "unknown"
+        : "failed"
+      : processRecord.status === "stale"
+        ? "unknown"
+        : processRecord.status === "running" ||
+            (processRecord.status === "exited" && processRecord.exitCode === 0)
+          ? "succeeded"
+          : "failed";
+    const audit = this.repositories.directProcessAudit.create({
+      operation: "input",
+      processId: processRecord.id,
+      actionHash: prepared.approval.actionHash,
+      approvalId: prepared.approval.id,
+      status: auditStatus,
+      errorCode: outcome.errorCode,
+      terminalReason: processRecord.staleReason,
+      exitCode: processRecord.exitCode,
+      outputBytes: Buffer.byteLength(output, "utf8"),
+      outputTruncated: outcome.snapshot?.truncated ?? false,
+      startedAt: prepared.startedAt,
+      completedAt: context.now,
+      now: context.now
+    });
+    const evidence = this.addProcessEvidence(context, processRecord, {
+      label: `Host Managed Process input ${processRecord.command}`,
+      status:
+        auditStatus === "succeeded" ? "passed" : "failed",
+      summary: {
+        operation: "input",
+        processId: processRecord.id,
+        inputHash: prepared.inputHash,
+        inputBytes: prepared.inputBytes,
+        waitForPrompt: prepared.request.waitForPrompt,
+        timeoutMs: prepared.request.timeoutMs,
+        approvalId: prepared.approval.id,
+        auditId: audit.id,
+        processStatus: processRecord.status,
+        exitCode: processRecord.exitCode,
+        errorCode: outcome.errorCode
+      },
+      startedAt: prepared.startedAt
+    });
+    processRecord = evidence.process;
+    if (processRecord.status !== "running") {
+      this.recordTerminalEvidence(context, processRecord, "input");
+    }
+    return {
+      ok: auditStatus === "succeeded" && outcome.errorCode === null,
+      operation: "input",
+      process: this.publicProcessRecord(processRecord),
+      errorCode: outcome.errorCode,
+      approval: { id: prepared.approval.id, status: "consumed" },
+      evidence: {
+        kind: "task-evidence",
+        bundleId: evidence.bundleId,
+        itemId: evidence.itemId
+      },
+      auditId: audit.id
+    };
+  }
+
+  private commitStopExecution(
+    context: OperationContext,
+    prepared: PreparedProcessStopExecution,
+    outcome: ExternalProcessActionOutcome
+  ): HostProcessStopExecutionValue {
+    let processRecord = prepared.process;
+    if (!outcome.snapshot || outcome.snapshot.status === "running") {
+      processRecord = this.repositories.directProcessSessions.markStale({
+        id: processRecord.id,
+        reason: "STOP_RESULT_UNKNOWN",
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
+    } else {
+      processRecord = this.applyObservedSnapshot(
+        context,
+        processRecord,
+        outcome.snapshot,
+        "STOP_RESULT_UNKNOWN"
+      );
+    }
+    const output = this.projectProcessOutput(
+      outcome.snapshot?.output ?? "",
+      processRecord
+    );
+    const succeeded =
+      outcome.errorCode === null &&
+      ["terminated", "exited"].includes(processRecord.status);
+    const audit = this.repositories.directProcessAudit.create({
+      operation: "stop",
+      processId: processRecord.id,
+      actionHash: prepared.approval.actionHash,
+      approvalId: prepared.approval.id,
+      status: succeeded ? "succeeded" : "unknown",
+      errorCode: outcome.errorCode,
+      terminalReason: processRecord.staleReason,
+      exitCode: processRecord.exitCode,
+      outputBytes: Buffer.byteLength(output, "utf8"),
+      outputTruncated: outcome.snapshot?.truncated ?? false,
+      startedAt: prepared.startedAt,
+      completedAt: context.now,
+      now: context.now
+    });
+    const evidence = this.addProcessEvidence(context, processRecord, {
+      label: `Host Managed Process stop ${processRecord.command}`,
+      status: succeeded ? "skipped" : "failed",
+      summary: {
+        operation: "stop",
+        processId: processRecord.id,
+        approvalId: prepared.approval.id,
+        auditId: audit.id,
+        processStatus: processRecord.status,
+        exitCode: processRecord.exitCode,
+        errorCode: outcome.errorCode
+      },
+      startedAt: prepared.startedAt
+    });
+    processRecord = evidence.process;
+    return {
+      ok: succeeded,
+      operation: "stop",
+      process: this.publicProcessRecord(processRecord),
+      errorCode: outcome.errorCode,
+      approval: { id: prepared.approval.id, status: "consumed" },
+      evidence: {
+        kind: "task-evidence",
+        bundleId: evidence.bundleId,
+        itemId: evidence.itemId
+      },
+      auditId: audit.id
+    };
+  }
+
+  private addProcessEvidence(
+    context: OperationContext,
+    processRecord: DirectProcessSessionRecord,
+    input: {
+      label: string;
+      status: "passed" | "failed" | "skipped" | "not-run";
+      summary: Record<string, unknown>;
+      startedAt: string;
+    }
+  ): {
+    process: DirectProcessSessionRecord;
+    bundleId: string;
+    itemId: string;
+  } {
+    const session = this.repositories.sessions.get(processRecord.sessionId);
+    let task = this.repositories.tasks.get(session.taskId);
+    let bundle = processRecord.evidenceBundleId
+      ? this.repositories.evidence.getBundle(processRecord.evidenceBundleId)
+      : task.latestEvidenceBundleId
+        ? this.repositories.evidence.getBundle(task.latestEvidenceBundleId)
+        : null;
+    if (
+      !bundle ||
+      bundle.taskId !== task.id ||
+      bundle.sessionId !== processRecord.sessionId
+    ) {
+      bundle = this.repositories.evidence.createBundle({
+        taskId: task.id,
+        sessionId: processRecord.sessionId,
+        now: context.now
+      });
+      task = this.repositories.tasks.setLatestEvidenceBundle(
+        task.id,
+        bundle.id,
+        task.revision,
+        context.now
+      );
+    }
+    if (processRecord.evidenceBundleId !== bundle.id) {
+      processRecord = this.repositories.directProcessSessions.setEvidenceBundle({
+        id: processRecord.id,
+        evidenceBundleId: bundle.id,
+        expectedRevision: processRecord.revision
+      });
+    }
+    const item = this.repositories.evidence.addItem({
+      bundleId: bundle.id,
+      kind: "command",
+      label: input.label,
+      status: input.status,
+      required: false,
+      summary: JSON.stringify(input.summary),
+      startedAt: input.startedAt,
+      completedAt: context.now,
+      now: context.now
+    });
+    return { process: processRecord, bundleId: bundle.id, itemId: item.id };
+  }
+
+  private recordTerminalEvidence(
+    context: OperationContext,
+    processRecord: DirectProcessSessionRecord,
+    trigger: "read" | "input"
+  ): void {
+    if (processRecord.status === "running" || processRecord.status === "starting") {
+      return;
+    }
+    const status =
+      processRecord.status === "exited"
+        ? processRecord.exitCode === 0
+          ? "passed"
+          : "failed"
+        : processRecord.status === "terminated"
+          ? "skipped"
+          : "failed";
+    this.addProcessEvidence(context, processRecord, {
+      label: `Host Managed Process terminal ${processRecord.command}`,
+      status,
+      summary: {
+        operation: "terminal",
+        trigger,
+        processId: processRecord.id,
+        processStatus: processRecord.status,
+        exitCode: processRecord.exitCode,
+        staleReason: processRecord.staleReason
+      },
+      startedAt: processRecord.startedAt
+    });
+  }
+
   private publicProcessRecord(
     processRecord: DirectProcessSessionRecord,
-    target: HostCommandWorkdirTarget
+    target?: HostCommandWorkdirTarget
   ): HostProcessPublicRecord {
     return {
       id: processRecord.id,
       rootId: processRecord.rootId,
-      workdir: target.displayPath,
+      workdir:
+        target?.displayPath ??
+        (processRecord.workdir === "."
+          ? processRecord.rootId
+          : `${processRecord.rootId}/${processRecord.workdir}`),
       command: processRecord.command,
       status: processRecord.status,
       workspaceId: processRecord.workspaceId,

@@ -13,6 +13,8 @@ import {
   DesktopCommanderManagedProcessError,
   DesktopCommanderManagedProcessSupervisor,
   type ManagedProcessAdapterSnapshot,
+  type ManagedProcessInputOptions,
+  type ManagedProcessReadOptions,
   type ManagedProcessStartRequest
 } from "../src/direct/adapters/desktop-commander-managed-process.ts";
 import {
@@ -315,10 +317,21 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
 class ReadyProcessSupervisor {
   assertReadyCalls = 0;
   startCalls = 0;
+  inputCalls = 0;
+  stopCalls = 0;
+  readCalls = 0;
   nextStatus: "running" | "exited" = "running";
+  private readonly runtimes = new Map<
+    string,
+    { privatePid: number; cwd: string }
+  >();
 
   assertReady(): void {
     this.assertReadyCalls += 1;
+  }
+
+  has(processId: string): boolean {
+    return this.runtimes.has(processId);
   }
 
   async start(
@@ -327,12 +340,79 @@ class ReadyProcessSupervisor {
     this.startCalls += 1;
     const status = this.nextStatus;
     this.nextStatus = "running";
+    const privatePid = 7000 + this.startCalls;
+    if (status === "running") {
+      this.runtimes.set(request.processId, {
+        privatePid,
+        cwd: request.cwd
+      });
+    }
     return {
       processId: request.processId,
-      privatePid: 7000 + this.startCalls,
+      privatePid,
       status,
       exitCode: status === "exited" ? 0 : null,
       output: `${request.cwd}\nfixture process ${status}`,
+      truncated: false
+    };
+  }
+
+  async read(
+    processId: string,
+    _options?: ManagedProcessReadOptions
+  ): Promise<ManagedProcessAdapterSnapshot> {
+    this.readCalls += 1;
+    const runtime = this.runtimes.get(processId);
+    assert.ok(runtime);
+    return {
+      processId,
+      privatePid: runtime.privatePid,
+      status: "running",
+      exitCode: null,
+      output: `${runtime.cwd}\nfixture read ${processId}`,
+      truncated: false
+    };
+  }
+
+  async input(
+    processId: string,
+    options: ManagedProcessInputOptions
+  ): Promise<ManagedProcessAdapterSnapshot> {
+    this.inputCalls += 1;
+    const runtime = this.runtimes.get(processId);
+    assert.ok(runtime);
+    if (options.input === "quit") {
+      this.runtimes.delete(processId);
+      return {
+        processId,
+        privatePid: runtime.privatePid,
+        status: "exited",
+        exitCode: 0,
+        output: "fixture exited",
+        truncated: false
+      };
+    }
+    return {
+      processId,
+      privatePid: runtime.privatePid,
+      status: "running",
+      exitCode: null,
+      output: `fixture input:${options.input}`,
+      truncated: false
+    };
+  }
+
+  async stop(processId: string): Promise<ManagedProcessAdapterSnapshot> {
+    this.stopCalls += 1;
+    const runtime = this.runtimes.get(processId);
+    assert.ok(runtime);
+    this.runtimes.delete(processId);
+    return {
+      processId,
+      privatePid: runtime.privatePid,
+      status: "terminated",
+      exitCode: 143,
+      output: "fixture terminated",
       truncated: false
     };
   }
@@ -558,7 +638,8 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(started.approval.status, "consumed");
     assert.equal(started.evidence.kind, "task-evidence");
     assert.equal(started.execution.evidenceBundleId, started.evidence.bundleId);
-    assert.match(started.output, /fixture\/projects\/workspace-a/);
+    assert.equal("output" in started, false);
+    assert.equal("truncated" in started, false);
     assert.doesNotMatch(JSON.stringify(started), new RegExp(hostRoot));
     assert.doesNotMatch(JSON.stringify(started), /privatePid/i);
     assert.doesNotMatch(JSON.stringify(started), /7001/);
@@ -576,6 +657,83 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(startEvidence?.status, "passed");
     assert.doesNotMatch(startEvidence?.summary ?? "", new RegExp(hostRoot));
     assert.doesNotMatch(startEvidence?.summary ?? "", /7001/);
+
+    const readResult = await service.read(context, {
+      processId: started.process.id,
+      offset: 0,
+      length: 100,
+      waitMs: 100
+    });
+    assert.equal(readResult.ok, true);
+    assert.equal(readResult.process.status, "running");
+    assert.match(readResult.output, /host-process-service-fixture/);
+    assert.doesNotMatch(readResult.output, new RegExp(hostRoot));
+    assert.doesNotMatch(JSON.stringify(readResult), /7001/);
+    assert.equal(processSupervisor.readCalls, 1);
+
+    const transientInput = "sensitive-transient-input";
+    const inputPrepared = await service.prepare(context, {
+      operation: "input",
+      processId: started.process.id,
+      sessionId: session.id,
+      input: transientInput,
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      idempotencyKey: "process-input-prepare"
+    });
+    assert.equal(inputPrepared.approval.operation, "input");
+    assert.equal(inputPrepared.approval.inputBytes, Buffer.byteLength(transientInput));
+    assert.match(inputPrepared.approval.inputHash ?? "", /^[a-f0-9]{64}$/);
+    assert.equal(
+      JSON.stringify(inputPrepared.approval).includes(transientInput),
+      false
+    );
+    const inputApproved = await service.decide(context, {
+      approvalId: inputPrepared.approval.id,
+      expectedRevision: inputPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-input-decision"
+    });
+    const inputExecuted = await service.execute(context, {
+      operation: "input",
+      processId: started.process.id,
+      sessionId: session.id,
+      input: transientInput,
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      approvalId: inputApproved.approval.id,
+      expectedApprovalRevision: inputApproved.approval.revision,
+      idempotencyKey: "process-input-execute"
+    });
+    assert.equal(inputExecuted.operation, "input");
+    assert.equal(inputExecuted.ok, true);
+    assert.equal(inputExecuted.process.status, "running");
+    assert.equal("output" in inputExecuted, false);
+    assert.equal(processSupervisor.inputCalls, 1);
+    const inputReplay = await service.execute(context, {
+      operation: "input",
+      processId: started.process.id,
+      sessionId: session.id,
+      input: transientInput,
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      approvalId: inputApproved.approval.id,
+      expectedApprovalRevision: inputApproved.approval.revision,
+      idempotencyKey: "process-input-execute"
+    });
+    assert.equal(inputReplay.replayed, true);
+    assert.equal(processSupervisor.inputCalls, 1);
+    const persistedActionData = JSON.stringify({
+      approvals: database.sqlite
+        .prepare("SELECT * FROM direct_process_approvals")
+        .all(),
+      audit: database.sqlite.prepare("SELECT * FROM direct_process_audit").all(),
+      evidence: database.sqlite.prepare("SELECT * FROM evidence_items").all(),
+      idempotency: database.sqlite
+        .prepare("SELECT * FROM idempotency_results")
+        .all()
+    });
+    assert.equal(persistedActionData.includes(transientInput), false);
 
     const executeReplay = await service.execute(context, {
       operation: "start",
@@ -646,6 +804,76 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     );
     assert.equal(processSupervisor.startCalls, 2);
 
+    const terminalPrepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-terminal-prepare"
+    });
+    const terminalApproved = await service.decide(context, {
+      approvalId: terminalPrepared.approval.id,
+      expectedRevision: terminalPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-terminal-decision"
+    });
+    const terminalStarted = await service.execute(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: terminalApproved.approval.id,
+      expectedApprovalRevision: terminalApproved.approval.revision,
+      idempotencyKey: "process-terminal-execute"
+    });
+    assert.equal(terminalStarted.process.status, "running");
+    const terminalInputPrepared = await service.prepare(context, {
+      operation: "input",
+      processId: terminalStarted.process.id,
+      sessionId: session.id,
+      input: "quit",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      idempotencyKey: "process-terminal-input-prepare"
+    });
+    const terminalInputApproved = await service.decide(context, {
+      approvalId: terminalInputPrepared.approval.id,
+      expectedRevision: terminalInputPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-terminal-input-decision"
+    });
+    const terminalInput = await service.execute(context, {
+      operation: "input",
+      processId: terminalStarted.process.id,
+      sessionId: session.id,
+      input: "quit",
+      waitForPrompt: true,
+      timeoutMs: 1000,
+      approvalId: terminalInputApproved.approval.id,
+      expectedApprovalRevision: terminalInputApproved.approval.revision,
+      idempotencyKey: "process-terminal-input-execute"
+    });
+    assert.equal(terminalInput.process.status, "exited");
+    assert.equal(terminalInput.process.exitCode, 0);
+    assert.equal(processSupervisor.has(terminalStarted.process.id), false);
+    const terminalItems = repositories.evidence.listItems(
+      terminalInput.evidence.bundleId
+    );
+    assert.equal(
+      terminalItems.some(
+        (item) =>
+          item.label === "Host Managed Process terminal npm" &&
+          item.status === "passed"
+      ),
+      true
+    );
+
     const competingTask = repositories.tasks.create({
       id: "task_host_process_competing",
       projectId: project.id,
@@ -712,6 +940,68 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       }),
       "HOST_PROCESS_LIMIT_REACHED"
     );
+
+    const releasedLease = repositories.leases.release(lease.id, {
+      sessionId: session.id,
+      holderId: session.id,
+      expectedRevision: lease.revision,
+      now: LATER
+    });
+    assert.equal(releasedLease.status, "released");
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "input",
+        processId: started.process.id,
+        sessionId: session.id,
+        input: "after-lease-loss",
+        waitForPrompt: true,
+        timeoutMs: 1000,
+        idempotencyKey: "process-input-after-lease-loss"
+      }),
+      "HOST_PROCESS_WRITER_LEASE_LOST"
+    );
+
+    const stopPrepared = await service.prepare(context, {
+      operation: "stop",
+      processId: started.process.id,
+      sessionId: session.id,
+      idempotencyKey: "process-stop-prepare"
+    });
+    assert.equal(stopPrepared.approval.operation, "stop");
+    const stopApproved = await service.decide(context, {
+      approvalId: stopPrepared.approval.id,
+      expectedRevision: stopPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-stop-decision"
+    });
+    const stopped = await service.execute(context, {
+      operation: "stop",
+      processId: started.process.id,
+      sessionId: session.id,
+      approvalId: stopApproved.approval.id,
+      expectedApprovalRevision: stopApproved.approval.revision,
+      idempotencyKey: "process-stop-execute"
+    });
+    assert.equal(stopped.operation, "stop");
+    assert.equal(stopped.ok, true);
+    assert.equal(stopped.process.status, "terminated");
+    assert.equal(stopped.process.exitCode, 143);
+    assert.equal("output" in stopped, false);
+    assert.equal(processSupervisor.stopCalls, 1);
+    const stopEvidence = repositories.evidence
+      .listItems(stopped.evidence.bundleId)
+      .find((item) => item.id === stopped.evidence.itemId);
+    assert.equal(stopEvidence?.status, "skipped");
+    const stopReplay = await service.execute(context, {
+      operation: "stop",
+      processId: started.process.id,
+      sessionId: session.id,
+      approvalId: stopApproved.approval.id,
+      expectedApprovalRevision: stopApproved.approval.revision,
+      idempotencyKey: "process-stop-execute"
+    });
+    assert.equal(stopReplay.replayed, true);
+    assert.equal(processSupervisor.stopCalls, 1);
   } finally {
     database.close();
     fs.rmSync(sandbox, { recursive: true, force: true });
