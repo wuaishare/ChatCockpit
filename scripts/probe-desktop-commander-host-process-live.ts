@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -23,6 +22,8 @@ import {
 import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
 import { buildHostProcessTools } from "../src/mcp/tools/host-process.ts";
 import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
+import { ProcessSupervisorDaemon } from "../src/process-supervisor/index.ts";
+import { DesktopCommanderManagedProcessSupervisor } from "../src/direct/adapters/desktop-commander-managed-process.ts";
 
 const LIVE_ROOT_ID = "desktop-commander-process-live-proof";
 const WORKSPACE_RELATIVE = "projects/workspace-a";
@@ -208,9 +209,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const packageSpec =
     options.packageSpec ?? process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-commander-process-live-")
-  );
+  const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-dc-hp-live-"));
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
@@ -239,6 +238,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
   process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
 
   let database: ContinuityDatabase | null = null;
+  let processSupervisorDaemon: ProcessSupervisorDaemon | null = null;
   let service: ReturnType<typeof buildDesktopCommanderHostProcessService> | null = null;
   try {
     const liveConfigPath = buildLiveConfig({
@@ -306,6 +306,16 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       expiresAt: "2026-08-09T02:00:00.000Z",
       now: NOW
     });
+
+    processSupervisorDaemon = new ProcessSupervisorDaemon(paths, {
+      adapter: new DesktopCommanderManagedProcessSupervisor(
+        paths.runtimeDir,
+        liveConfigPath
+      ),
+      heartbeatIntervalMs: 100,
+      watchdogIntervalMs: 100
+    });
+    await processSupervisorDaemon.start();
 
     const broker = buildConfiguredDirectCapabilityBroker({
       paths,
@@ -535,6 +545,8 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
 
     await service.close();
     service = null;
+    await processSupervisorDaemon.close();
+    processSupervisorDaemon = null;
 
     return {
       ok: true,
@@ -553,6 +565,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     };
   } finally {
     await service?.close().catch(() => undefined);
+    await processSupervisorDaemon?.close().catch(() => undefined);
     database?.close();
     if (previousUserConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;

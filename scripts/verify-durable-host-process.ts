@@ -13,6 +13,8 @@ import type {
   ManagedProcessStartRequest
 } from "../src/direct/adapters/desktop-commander-managed-process.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
+import { DesktopCommanderManagedProcessError } from "../src/direct/adapters/desktop-commander-managed-process.ts";
+import { ServiceError } from "../src/application/service-error.ts";
 import type { SupervisorTerminalEvent } from "../src/process-supervisor/event-journal.ts";
 
 const NOW = "2026-08-09T06:50:00.000Z";
@@ -23,6 +25,7 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
   stopCalls = 0;
   private owned = true;
   private events: SupervisorTerminalEvent[] = [];
+  private currentGeneration = "generation-crash-window";
 
   constructor(
     private readonly ownedProcess: {
@@ -48,17 +51,23 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
     return this.owned ? [this.ownedProcess.processId] : [];
   }
   generation(): string {
-    return "generation-crash-window";
+    return this.currentGeneration;
+  }
+  setGeneration(generation: string): void {
+    this.currentGeneration = generation;
+  }
+  setOwned(owned: boolean): void {
+    this.owned = owned;
   }
   async refresh() {
     return {
-      supervisorGeneration: "generation-crash-window",
+      supervisorGeneration: this.currentGeneration,
       owned: this.owned ? [{ ...this.ownedProcess }] : []
     };
   }
   async listEvents() {
     return {
-      supervisorGeneration: "generation-crash-window",
+      supervisorGeneration: this.currentGeneration,
       events: this.events.map((event) => ({ ...event }))
     };
   }
@@ -72,7 +81,7 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
     this.owned = false;
     this.events.push({
       eventId: "supervisor_event_lease_revoked",
-      supervisorGeneration: "generation-crash-window",
+      supervisorGeneration: this.currentGeneration,
       processId,
       kind: "lease-revoked",
       status: "terminated",
@@ -104,7 +113,7 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
       exitCode: 143,
       output: "",
       truncated: false,
-      supervisorGeneration: "generation-crash-window"
+      supervisorGeneration: this.currentGeneration
     };
   }
   async closeAll(): Promise<HostProcessRuntimeSnapshot[]> {
@@ -330,6 +339,123 @@ try {
 
   await durableService.close(NOW);
   assert.equal(crashRuntime.closeAllCalls, 0);
+
+  const generationReservation = repositories.directProcessSessions.createStarting({
+    id: "host_process_generation_drift",
+    rootId: "workspace-root",
+    workdir: ".",
+    command: "node",
+    commandHash: "3".repeat(64),
+    executorId: "downstream-mcp:desktop-commander",
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    now: NOW
+  });
+  const generationRunning = repositories.directProcessSessions.attachManaged({
+    id: generationReservation.id,
+    expectedRevision: generationReservation.revision
+  });
+  repositories.directProcessRuntimeOwnership.attach({
+    processId: generationRunning.id,
+    supervisorGeneration: "generation-old",
+    now: NOW
+  });
+  const generationRuntime = new CrashWindowDurableRuntime({
+    processId: generationRunning.id,
+    workspaceId: workspace.id,
+    taskId: task.id,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    executorId: "downstream-mcp:desktop-commander",
+    startActionId: "approval-generation-drift",
+    startActionHash: generationRunning.commandHash,
+    startedAt: NOW
+  });
+  generationRuntime.setGeneration("generation-new");
+  const generationService = new HostProcessService(
+    repositories,
+    new DirectCapabilityBroker([]),
+    generationRuntime
+  );
+  await generationService.reconcile("2026-08-09T06:58:00.000Z");
+  const generationStale = repositories.directProcessSessions.get(
+    generationRunning.id
+  );
+  assert.equal(generationStale.status, "stale");
+  assert.equal(generationStale.staleReason, "SUPERVISOR_GENERATION_CHANGED");
+  assert.equal(generationRuntime.stopCalls, 1);
+  assert.equal(
+    repositories.directProcessRuntimeOwnership.get(generationRunning.id),
+    null
+  );
+  await generationService.close(NOW);
+  assert.equal(generationRuntime.closeAllCalls, 0);
+
+  const orphanRuntime = new CrashWindowDurableRuntime({
+    processId: "host_process_sidecar_orphan",
+    workspaceId: workspace.id,
+    taskId: task.id,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    executorId: "downstream-mcp:desktop-commander",
+    startActionId: "approval-orphan",
+    startActionHash: "4".repeat(64),
+    startedAt: NOW
+  });
+  const orphanService = new HostProcessService(
+    repositories,
+    new DirectCapabilityBroker([]),
+    orphanRuntime
+  );
+  await orphanService.reconcile("2026-08-09T06:59:00.000Z");
+  assert.equal(orphanRuntime.stopCalls, 1);
+  assert.throws(
+    () => repositories.directProcessSessions.get("host_process_sidecar_orphan"),
+    /not found/i
+  );
+  await orphanService.close(NOW);
+  assert.equal(orphanRuntime.closeAllCalls, 0);
+
+  const unavailableRuntime: HostProcessRuntimeSupervisor = {
+    durable: true,
+    assertReady: () => ({ durable: true }),
+    has: () => false,
+    activeProcessIds: () => [],
+    refresh: async () => {
+      throw new DesktopCommanderManagedProcessError(
+        "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE",
+        "fixture unavailable"
+      );
+    },
+    start: async () => {
+      throw new Error("not used");
+    },
+    read: async () => {
+      throw new Error("not used");
+    },
+    input: async () => {
+      throw new Error("not used");
+    },
+    stop: async () => {
+      throw new Error("not used");
+    },
+    closeAll: async () => [],
+    closeClient: async () => {}
+  };
+  const unavailableService = new HostProcessService(
+    repositories,
+    new DirectCapabilityBroker([]),
+    unavailableRuntime
+  );
+  await assert.rejects(
+    () => unavailableService.reconcile("2026-08-09T07:00:00.000Z"),
+    (error: unknown) =>
+      error instanceof ServiceError &&
+      error.code === "HOST_PROCESS_EXECUTOR_UNAVAILABLE"
+  );
+  await unavailableService.close(NOW);
 
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   process.stdout.write("VERIFY_DURABLE_HOST_PROCESS_OK\n");
