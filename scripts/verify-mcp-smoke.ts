@@ -221,6 +221,11 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.host.mutation.decide",
         "tokenpilot.host.mutation.execute",
         "tokenpilot.host.mutation.prepare",
+        "tokenpilot.host.process.decide",
+        "tokenpilot.host.process.execute",
+        "tokenpilot.host.process.list",
+        "tokenpilot.host.process.prepare",
+        "tokenpilot.host.process.read",
         "tokenpilot.host.roots.list",
         "tokenpilot.handoff.accept",
         "tokenpilot.handoff.cancel",
@@ -253,6 +258,17 @@ async function runMcpSmoke(): Promise<void> {
       ].sort()
     );
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
+    for (const rawDownstreamName of [
+      "start_process",
+      "read_process_output",
+      "interact_with_process",
+      "force_terminate",
+      "list_sessions",
+      "list_processes",
+      "kill_process"
+    ]) {
+      assert.equal(toolByName.has(rawDownstreamName), false);
+    }
     for (const name of [
       "tokenpilot.direct.executors.list",
       "tokenpilot.document.get",
@@ -264,6 +280,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.git.diff",
       "tokenpilot.git.status",
       "tokenpilot.host.files.read",
+      "tokenpilot.host.process.list",
+      "tokenpilot.host.process.read",
       "tokenpilot.host.roots.list",
       "tokenpilot.project.get",
       "tokenpilot.project.list",
@@ -300,13 +318,26 @@ async function runMcpSmoke(): Promise<void> {
       toolByName.get("tokenpilot.host.mutation.execute")?.annotations.destructiveHint,
       true
     );
+    assert.equal(
+      toolByName.get("tokenpilot.host.process.execute")?.annotations.readOnlyHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.host.process.execute")?.annotations.destructiveHint,
+      true
+    );
     for (const name of [
       "tokenpilot.host.command.prepare",
       "tokenpilot.host.command.decide",
       "tokenpilot.host.command.execute",
       "tokenpilot.host.mutation.prepare",
       "tokenpilot.host.mutation.decide",
-      "tokenpilot.host.mutation.execute"
+      "tokenpilot.host.mutation.execute",
+      "tokenpilot.host.process.prepare",
+      "tokenpilot.host.process.decide",
+      "tokenpilot.host.process.execute",
+      "tokenpilot.host.process.read",
+      "tokenpilot.host.process.list"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
       assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
@@ -331,6 +362,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.host.command.prepare",
       "tokenpilot.host.mutation.decide",
       "tokenpilot.host.mutation.prepare",
+      "tokenpilot.host.process.decide",
+      "tokenpilot.host.process.prepare",
       "tokenpilot.lease.release",
       "tokenpilot.session.start",
       "tokenpilot.task.bindDocuments",

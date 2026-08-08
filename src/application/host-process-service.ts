@@ -17,10 +17,12 @@ import type {
   DirectProcessSessionRecord,
   PrivateWorkspaceRecord
 } from "../continuity/types.js";
+import type { TokenPilotPaths } from "../types.js";
 import { evaluateWorkspaceCommand } from "../core/command-policy.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
 import {
   DesktopCommanderManagedProcessError,
+  DesktopCommanderManagedProcessSupervisor,
   type ManagedProcessAdapterSnapshot,
   type ManagedProcessInputOptions,
   type ManagedProcessReadOptions,
@@ -1964,4 +1966,21 @@ export class HostProcessService {
       selectionMode: intent.selection.selectionMode
     };
   }
+}
+
+export function buildDesktopCommanderHostProcessService(options: {
+  paths: TokenPilotPaths;
+  repositories: ContinuityRepositories;
+  broker: DirectCapabilityBroker;
+  configPath?: string;
+}): HostProcessService {
+  return new HostProcessService(
+    options.repositories,
+    options.broker,
+    new DesktopCommanderManagedProcessSupervisor(
+      options.paths.runtimeDir,
+      options.configPath
+    ),
+    options.configPath
+  );
 }

@@ -9,6 +9,9 @@ const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity 
 let desktopCommandCwd = null;
 let desktopCommandScenario = "success";
 let desktopCommandTerminated = false;
+let managedProcessCwd = null;
+let managedProcessTerminated = false;
+let managedProcessExited = false;
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -56,6 +59,21 @@ const tools = [
         length: { type: "number" }
       },
       required: ["pid"]
+    }
+  },
+  {
+    name: "interact_with_process",
+    description: "Interact with a process fixture",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pid: { type: "number" },
+        input: { type: "string" },
+        timeout_ms: { type: "number" },
+        wait_for_prompt: { type: "boolean" },
+        verbose_timing: { type: "boolean" }
+      },
+      required: ["pid", "input"]
     }
   },
   {
@@ -129,6 +147,106 @@ rl.on("line", (line) => {
 
   if (message.method === "tools/call" && typeof message.id === "number") {
     const toolName = message.params?.name ?? "unknown";
+    if (mode === "desktop-managed-process" && toolName === "start_process") {
+      const command = message.params?.arguments?.command;
+      const cwdMatch = typeof command === "string" ? /^cd '([^']+)' &&/.exec(command) : null;
+      if (!cwdMatch) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "missing managed cwd" }],
+            isError: true
+          }
+        });
+        return;
+      }
+      managedProcessCwd = cwdMatch[1];
+      managedProcessTerminated = false;
+      managedProcessExited = false;
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: "Process started with PID 5252 (shell: /bin/zsh)\nInitial output:\nmanaged-ready"
+            }
+          ],
+          isError: false
+        }
+      });
+      return;
+    }
+    if (
+      mode === "desktop-managed-process" &&
+      toolName === "read_process_output"
+    ) {
+      let text = `${managedProcessCwd ?? "unknown"}\nmanaged-ready`;
+      if (managedProcessExited) {
+        text += "\n✅ Process completed with exit code 0 (runtime: 0.02s)";
+      } else if (managedProcessTerminated) {
+        text += "\n✅ Process completed with exit code 143 (runtime: 0.02s)";
+      }
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [{ type: "text", text }],
+          isError: false
+        }
+      });
+      return;
+    }
+    if (
+      mode === "desktop-managed-process" &&
+      toolName === "interact_with_process"
+    ) {
+      const input = message.params?.arguments?.input;
+      if (typeof input !== "string") {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "missing managed input" }],
+            isError: true
+          }
+        });
+        return;
+      }
+      if (input === "quit") {
+        managedProcessExited = true;
+      }
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: managedProcessExited
+                ? `managed-input:${input}\n✅ Process completed with exit code 0 (runtime: 0.02s)`
+                : `managed-input:${input}`
+            }
+          ],
+          isError: false
+        }
+      });
+      return;
+    }
+    if (mode === "desktop-managed-process" && toolName === "force_terminate") {
+      managedProcessTerminated = true;
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [{ type: "text", text: "terminated" }],
+          isError: false
+        }
+      });
+      return;
+    }
     if (mode === "desktop-command" && toolName === "start_process") {
       const command = message.params?.arguments?.command;
       const timeoutMs = message.params?.arguments?.timeout_ms;

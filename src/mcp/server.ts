@@ -11,6 +11,7 @@ import type { ChatDirectService } from "../application/chat-direct-service.js";
 import type { HostCommandService } from "../application/host-command-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
 import type { HostMutationService } from "../application/host-mutation-service.js";
+import type { HostProcessService } from "../application/host-process-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -25,6 +26,7 @@ import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
 import { buildHostMutationTools } from "./tools/host-mutation.js";
+import { buildHostProcessTools } from "./tools/host-process.js";
 import { buildWorkspaceWriteTools } from "./tools/workspace-write.js";
 import {
   registerMcpTools,
@@ -62,6 +64,7 @@ export function buildTokenPilotMcpHandler(
   hostDirect: HostDirectService,
   hostMutation: HostMutationService,
   hostCommand: HostCommandService,
+  hostProcess: HostProcessService,
   runtimeService: RuntimeService,
   runtimeBindingService: RuntimeBindingService,
   runtimeTurnService: RuntimeTurnService,
@@ -73,6 +76,7 @@ export function buildTokenPilotMcpHandler(
     ...buildReadOnlyMcpToolCatalog({ chatDirect, hostDirect }),
     ...buildHostMutationTools(hostMutation),
     ...buildHostCommandTools(hostCommand),
+    ...buildHostProcessTools(hostProcess),
     ...buildWorkspaceWriteTools({
       chatDirect,
       idempotency: new McpIdempotencyStore(paths.runtimeDir)

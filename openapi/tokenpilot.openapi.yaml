@@ -1073,6 +1073,390 @@ components:
         replayed:
           type: boolean
       required: [ok, rootId, workdir, command, effect, exitCode, output, truncated, timedOut, errorCode, approval, execution, evidence, replayed]
+    HostProcessStartRequestPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          const: start
+        rootId:
+          type: string
+          description: Public-safe Host Root alias containing the registered Workspace.
+        workdir:
+          type: string
+          description: Relative working directory inside the Host Root.
+        command:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._+-]+$'
+          description: Structured executable name only; raw shell source is rejected.
+        args:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+            minLength: 1
+            maxLength: 2048
+        sessionId:
+          type: string
+          description: Owning chat-direct development Session. Managed Process start always requires its Writer Lease.
+        executorId:
+          type: string
+        startupTimeoutMs:
+          type: integer
+          minimum: 100
+          maximum: 5000
+          default: 1000
+      required: [operation, rootId, command, sessionId]
+    HostProcessInputRequestPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          const: input
+        processId:
+          type: string
+          pattern: '^host_process_[A-Za-z0-9_-]{8,160}$'
+        sessionId:
+          type: string
+        input:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          description: Transient input. TokenPilot persists only its SHA-256 and byte count, not the raw value.
+        waitForPrompt:
+          type: boolean
+          default: true
+        timeoutMs:
+          type: integer
+          minimum: 100
+          maximum: 8000
+          default: 2000
+      required: [operation, processId, sessionId, input]
+    HostProcessStopRequestPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          const: stop
+        processId:
+          type: string
+          pattern: '^host_process_[A-Za-z0-9_-]{8,160}$'
+        sessionId:
+          type: string
+      required: [operation, processId, sessionId]
+    HostProcessPreparePayload:
+      oneOf:
+        - allOf:
+            - $ref: '#/components/schemas/HostProcessStartRequestPayload'
+            - type: object
+              required: [idempotencyKey]
+              properties:
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+        - allOf:
+            - $ref: '#/components/schemas/HostProcessInputRequestPayload'
+            - type: object
+              required: [idempotencyKey]
+              properties:
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+        - allOf:
+            - $ref: '#/components/schemas/HostProcessStopRequestPayload'
+            - type: object
+              required: [idempotencyKey]
+              properties:
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+    HostProcessDecisionPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+        decision:
+          type: string
+          enum: [approved, denied]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    HostProcessExecutePayload:
+      oneOf:
+        - allOf:
+            - $ref: '#/components/schemas/HostProcessStartRequestPayload'
+            - type: object
+              required: [approvalId, expectedApprovalRevision, idempotencyKey]
+              properties:
+                approvalId:
+                  type: string
+                expectedApprovalRevision:
+                  type: integer
+                  minimum: 1
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+        - allOf:
+            - $ref: '#/components/schemas/HostProcessInputRequestPayload'
+            - type: object
+              required: [approvalId, expectedApprovalRevision, idempotencyKey]
+              properties:
+                approvalId:
+                  type: string
+                expectedApprovalRevision:
+                  type: integer
+                  minimum: 1
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+        - allOf:
+            - $ref: '#/components/schemas/HostProcessStopRequestPayload'
+            - type: object
+              required: [approvalId, expectedApprovalRevision, idempotencyKey]
+              properties:
+                approvalId:
+                  type: string
+                expectedApprovalRevision:
+                  type: integer
+                  minimum: 1
+                idempotencyKey:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+    HostProcessReadPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        processId:
+          type: string
+          pattern: '^host_process_[A-Za-z0-9_-]{8,160}$'
+        offset:
+          type: integer
+          minimum: 0
+        length:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        waitMs:
+          type: integer
+          minimum: 0
+          maximum: 5000
+      required: [processId]
+    HostProcessApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        operation:
+          type: string
+          enum: [start, input, stop]
+        processId:
+          oneOf:
+            - type: string
+            - type: "null"
+        actionHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        rootId:
+          oneOf:
+            - type: string
+            - type: "null"
+        workdir:
+          oneOf:
+            - type: string
+            - type: "null"
+        command:
+          oneOf:
+            - type: string
+            - type: "null"
+        workspaceId:
+          type: string
+        repoId:
+          type: string
+        sessionId:
+          type: string
+        writerLeaseId:
+          oneOf:
+            - type: string
+            - type: "null"
+        executorId:
+          type: string
+        inputHash:
+          oneOf:
+            - type: string
+              pattern: '^[a-f0-9]{64}$'
+            - type: "null"
+        inputBytes:
+          oneOf:
+            - type: integer
+              minimum: 0
+            - type: "null"
+        status:
+          type: string
+          enum: [pending, approved, denied, consumed, expired]
+        publicSummary:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        decidedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        consumedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, operation, processId, actionHash, rootId, workdir, command, workspaceId, repoId, sessionId, writerLeaseId, executorId, inputHash, inputBytes, status, publicSummary, createdAt, expiresAt, decidedAt, consumedAt, revision]
+    HostProcessApprovalResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        approval:
+          $ref: '#/components/schemas/HostProcessApproval'
+        replayed:
+          type: boolean
+      required: [ok, approval, replayed]
+    HostProcessRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          pattern: '^host_process_[A-Za-z0-9_-]{8,160}$'
+        rootId:
+          type: string
+        workdir:
+          type: string
+          description: Public-safe Host Root alias path, never a local absolute path.
+        command:
+          type: string
+        status:
+          type: string
+          enum: [starting, running, exited, terminated, failed, stale]
+        workspaceId:
+          type: string
+        repoId:
+          type: string
+        sessionId:
+          type: string
+        executorId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        exitCode:
+          oneOf:
+            - type: integer
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, rootId, workdir, command, status, workspaceId, repoId, sessionId, executorId, startedAt, completedAt, exitCode, revision]
+    HostProcessEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: task-evidence
+        bundleId:
+          type: string
+        itemId:
+          type: string
+      required: [kind, bundleId, itemId]
+    HostProcessActionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        operation:
+          type: string
+          enum: [start, input, stop]
+        process:
+          $ref: '#/components/schemas/HostProcessRecord'
+        errorCode:
+          oneOf:
+            - type: string
+            - type: "null"
+        approval:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              const: consumed
+          required: [id, status]
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+        evidence:
+          $ref: '#/components/schemas/HostProcessEvidence'
+        auditId:
+          type: string
+        replayed:
+          type: boolean
+      required: [ok, operation, process, errorCode, approval, evidence, auditId, replayed]
+    HostProcessReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        process:
+          $ref: '#/components/schemas/HostProcessRecord'
+        output:
+          type: string
+          description: Bounded public-safe process output. Mutation responses intentionally do not carry or persist stdout.
+        truncated:
+          type: boolean
+      required: [ok, process, output, truncated]
+    HostProcessListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        processes:
+          type: array
+          items:
+            $ref: '#/components/schemas/HostProcessRecord'
+      required: [ok, processes]
     FileReadPayload:
       type: object
       additionalProperties: false
@@ -4407,6 +4791,174 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/processes/prepare:
+    post:
+      operationId: prepareHostManagedProcess
+      summary: Prepare one Managed Workspace Process action
+      description: Validates one exact start, input, or stop action and creates a short-lived Direct Process approval. Start/input remain Workspace-governed; stop stays available to the owning Session for cleanup. No external process action occurs here.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostProcessPreparePayload'
+      responses:
+        "200":
+          description: Pending Direct Process approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProcessApprovalResponse'
+        "400":
+          description: Invalid structured command or transient process input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: Process scope, policy, or ownership is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Workspace, Writer Lease, quota, approval, or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/processes/decision:
+    post:
+      operationId: decideHostManagedProcess
+      summary: Approve or deny one Managed Process action
+      description: Applies an optimistic-revision decision to a short-lived Direct Process approval without invoking Desktop Commander.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostProcessDecisionPayload'
+      responses:
+        "200":
+          description: Updated Direct Process approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProcessApprovalResponse'
+        "409":
+          description: Approval expired, already decided, consumed, or revision/idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/processes/execute:
+    post:
+      operationId: executeHostManagedProcess
+      summary: Execute one approved Managed Process action
+      description: Executes an approved start, input, or stop through a TokenPilot-owned process identity. Downstream PID/session handles remain private, mutation results exclude stdout, and Audit/Evidence record only public-safe metadata.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostProcessExecutePayload'
+      responses:
+        "200":
+          description: Managed Process action result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProcessActionResponse'
+        "403":
+          description: Process scope, policy, or ownership is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Process state, Writer Lease, approval, hash, revision, or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "502":
+          description: Managed downstream process action failed or has an unknown terminal result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "503":
+          description: Verified Desktop Commander managed-process dependencies are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/processes/read:
+    post:
+      operationId: readHostManagedProcess
+      summary: Read bounded Managed Process output
+      description: Reads public-safe output for one TokenPilot processId, reconciles Writer Lease/runtime ownership, and updates terminal state when observed. OS PID is never accepted or returned.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostProcessReadPayload'
+      responses:
+        "200":
+          description: Managed Process output and current public state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProcessReadResponse'
+        "404":
+          description: Managed Process not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Managed Process is stale or not readable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/host/processes:
+    get:
+      operationId: listHostManagedProcesses
+      summary: List TokenPilot Managed Process records
+      description: Lists public-safe TokenPilot process identities and state after runtime/Writer Lease reconciliation. Raw downstream sessions and OS PIDs are never projected.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: workspaceId
+          schema:
+            type: string
+        - in: query
+          name: sessionId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [running, exited, terminated, failed, stale]
+      responses:
+        "200":
+          description: Public-safe Managed Process records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostProcessListResponse'
   /api/files/read:
     post:
       operationId: readFile

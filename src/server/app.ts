@@ -27,6 +27,7 @@ import {
 } from "../contracts/direct-tools.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
+import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
 import { HostDirectService } from "../application/host-direct-service.js";
 import { HostMutationService } from "../application/host-mutation-service.js";
 import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
@@ -58,6 +59,13 @@ import {
   hostCommandExecuteSchema,
   hostCommandPrepareSchema
 } from "../contracts/host-command.js";
+import {
+  hostProcessDecisionSchema,
+  hostProcessExecuteSchema,
+  hostProcessListSchema,
+  hostProcessPrepareSchema,
+  hostProcessReadSchema
+} from "../contracts/host-process.js";
 import {
   hostFileReadSchema,
   hostMutationDecisionSchema,
@@ -230,6 +238,12 @@ export function buildServer(
     broker: directCapabilityBroker,
     configPath: options.directExecutorsConfigPath
   });
+  const hostProcess = buildDesktopCommanderHostProcessService({
+    paths,
+    repositories: continuityServices.repositories,
+    broker: directCapabilityBroker,
+    configPath: options.directExecutorsConfigPath
+  });
   const chatDirect = new ChatDirectService(
     paths,
     runtimeRouter,
@@ -275,6 +289,7 @@ export function buildServer(
   );
   app.addHook("onClose", async () => {
     runtimeEventService.detach();
+    await hostProcess.close();
     await runtimeService.close();
     continuityDatabase.close();
     oauthStore?.close();
@@ -286,6 +301,7 @@ export function buildServer(
     hostDirect,
     hostMutation,
     hostCommand,
+    hostProcess,
     runtimeService,
     runtimeBindingService,
     runtimeTurnService,
@@ -649,6 +665,108 @@ export function buildServer(
     }
   };
 
+  const hostProcessPrepareHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostProcessPrepareSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostProcess.prepare(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostProcessDecisionHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostProcessDecisionSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostProcess.decide(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostProcessExecuteHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostProcessExecuteSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostProcess.execute(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostProcessReadHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostProcessReadSchema.safeParse(
+      (request as { body: unknown }).body
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostProcess.read(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const hostProcessListHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostProcessListSchema.safeParse(
+      (request as { query?: unknown }).query ?? {}
+    );
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostProcess.list(parsed.data);
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
   const readFilesHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
     const parsed = fileReadBatchSchema.safeParse((request as { body: unknown }).body);
@@ -893,6 +1011,29 @@ export function buildServer(
     "/tokenpilot/api/host/commands/execute",
     hostCommandExecuteHandler
   );
+
+  app.post("/api/host/processes/prepare", hostProcessPrepareHandler);
+  app.post(
+    "/tokenpilot/api/host/processes/prepare",
+    hostProcessPrepareHandler
+  );
+  app.post("/api/host/processes/decision", hostProcessDecisionHandler);
+  app.post(
+    "/tokenpilot/api/host/processes/decision",
+    hostProcessDecisionHandler
+  );
+  app.post("/api/host/processes/execute", hostProcessExecuteHandler);
+  app.post(
+    "/tokenpilot/api/host/processes/execute",
+    hostProcessExecuteHandler
+  );
+  app.post("/api/host/processes/read", hostProcessReadHandler);
+  app.post(
+    "/tokenpilot/api/host/processes/read",
+    hostProcessReadHandler
+  );
+  app.get("/api/host/processes", hostProcessListHandler);
+  app.get("/tokenpilot/api/host/processes", hostProcessListHandler);
 
   app.post("/api/files/read-batch", readFilesHandler);
   app.post("/tokenpilot/api/files/read-batch", readFilesHandler);

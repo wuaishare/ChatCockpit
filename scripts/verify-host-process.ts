@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { HostProcessService } from "../src/application/host-process-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { hostProcessPrepareSchema } from "../src/contracts/host-process.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
+import { buildPaths } from "../src/core/paths.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   DesktopCommanderManagedProcessError,
@@ -25,7 +27,9 @@ import {
   DESKTOP_COMMANDER_START_PROCESS_TOOL
 } from "../src/direct/adapters/desktop-commander.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
+import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
+import { buildServer } from "../src/server/app.ts";
 import type {
   DownstreamMcpClient,
   DownstreamMcpListToolsResult,
@@ -35,6 +39,10 @@ import type {
 const NOW = "2026-08-09T00:30:00.000Z";
 const EXPIRES = "2026-08-09T00:35:00.000Z";
 const LATER = "2026-08-09T00:40:00.000Z";
+const fixtureServer = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "fixtures/fake-downstream-mcp-server.mjs"
+);
 
 class ManagedProcessFixtureClient implements DownstreamMcpClient {
   readonly calls: Array<{ name: string; args: Record<string, unknown> }> = [];
@@ -1116,6 +1124,355 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
   }
 }
 
+async function verifyHostProcessRestParity(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-process-rest-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
+  const directConfigPath = path.join(sandbox, "direct-executors.json");
+  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
+  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.writeFileSync(path.join(workspaceRoot, "README.md"), "fixture\n", "utf8");
+  fs.writeFileSync(
+    directConfigPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "REST Managed Process Fixture",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: [
+        {
+          id: DESKTOP_COMMANDER_EXECUTOR_ID,
+          displayName: "Desktop Commander Fixture",
+          transport: {
+            kind: "stdio",
+            command: process.execPath,
+            args: [fixtureServer, "desktop-managed-process"],
+            timeoutMs: 1000,
+            maxBufferBytes: 262144,
+            maxStderrBytes: 16384
+          },
+          mappings: [
+            {
+              capability: "shell.exec",
+              toolName: DESKTOP_COMMANDER_START_PROCESS_TOOL,
+              scopes: ["host"],
+              access: ["read", "write"]
+            }
+          ]
+        }
+      ]
+    }),
+    "utf8"
+  );
+  fs.writeFileSync(
+    userConfigPath,
+    JSON.stringify({
+      workspaceAllowlist: [runtimeRoot, workspaceRoot],
+      repoMappings: {
+        tokenpilot: { path: runtimeRoot },
+        "fixture-repo": { path: workspaceRoot }
+      }
+    }),
+    "utf8"
+  );
+  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  const paths = buildPaths(runtimeRoot);
+  await probeConfiguredDownstreamMcpExecutors({
+    paths,
+    configPath: directConfigPath,
+    executorId: DESKTOP_COMMANDER_EXECUTOR_ID
+  });
+  const app = buildServer(paths, {
+    directExecutorsConfigPath: directConfigPath
+  });
+
+  try {
+    const projects = await app.inject({
+      method: "GET",
+      url: "/api/continuity/projects"
+    });
+    assert.equal(projects.statusCode, 200, projects.body);
+    const projectsBody = projects.json() as {
+      projects: Array<{
+        project: { id: string; slug: string };
+        workspaces: Array<{ id: string; repoId: string }>;
+      }>;
+    };
+    const projection = projectsBody.projects.find(
+      (item) => item.project.slug === "fixture-repo"
+    );
+    assert.ok(projection);
+    const workspace = projection.workspaces.find(
+      (item) => item.repoId === "fixture-repo"
+    );
+    assert.ok(workspace);
+
+    const task = await app.inject({
+      method: "POST",
+      url: "/api/continuity/tasks",
+      payload: {
+        projectId: projection.project.id,
+        workspaceId: workspace.id,
+        title: "REST Managed Process Task",
+        goal: "Verify Host Managed Process REST parity",
+        priority: "high",
+        idempotencyKey: "host-process-rest-task"
+      }
+    });
+    assert.equal(task.statusCode, 200, task.body);
+    const taskBody = task.json() as {
+      task: { id: string; revision: number };
+    };
+
+    const session = await app.inject({
+      method: "POST",
+      url: "/api/continuity/sessions/start",
+      payload: {
+        taskId: taskBody.task.id,
+        title: "REST Managed Process Session",
+        mode: "chat-direct",
+        expectedTaskRevision: taskBody.task.revision,
+        idempotencyKey: "host-process-rest-session"
+      }
+    });
+    assert.equal(session.statusCode, 200, session.body);
+    const sessionBody = session.json() as {
+      session: { id: string };
+    };
+
+    const lease = await app.inject({
+      method: "POST",
+      url: "/api/continuity/leases/acquire",
+      payload: {
+        sessionId: sessionBody.session.id,
+        holderId: sessionBody.session.id,
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        idempotencyKey: "host-process-rest-lease"
+      }
+    });
+    assert.equal(lease.statusCode, 200, lease.body);
+
+    const prepared = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/prepare",
+      payload: {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: sessionBody.session.id,
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        startupTimeoutMs: 1000,
+        idempotencyKey: "host-process-rest-start-prepare"
+      }
+    });
+    assert.equal(prepared.statusCode, 200, prepared.body);
+    assert.doesNotMatch(prepared.body, new RegExp(hostRoot));
+    const preparedBody = prepared.json() as {
+      approval: { id: string; revision: number };
+    };
+
+    const approved = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/decision",
+      payload: {
+        approvalId: preparedBody.approval.id,
+        expectedRevision: preparedBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-process-rest-start-decision"
+      }
+    });
+    assert.equal(approved.statusCode, 200, approved.body);
+    const approvedBody = approved.json() as {
+      approval: { id: string; revision: number; status: string };
+    };
+    assert.equal(approvedBody.approval.status, "approved");
+
+    const started = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/execute",
+      payload: {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: sessionBody.session.id,
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        startupTimeoutMs: 1000,
+        approvalId: approvedBody.approval.id,
+        expectedApprovalRevision: approvedBody.approval.revision,
+        idempotencyKey: "host-process-rest-start-execute"
+      }
+    });
+    assert.equal(started.statusCode, 200, started.body);
+    const startedBody = started.json() as {
+      process: { id: string; status: string; workspaceId: string };
+    };
+    assert.match(startedBody.process.id, /^host_process_/);
+    assert.equal(startedBody.process.status, "running");
+    assert.equal(startedBody.process.workspaceId, workspace.id);
+    assert.equal("output" in (started.json() as Record<string, unknown>), false);
+    assert.doesNotMatch(started.body, new RegExp(hostRoot));
+    assert.doesNotMatch(started.body, /"(?:privatePid|pid)"/i);
+
+    const read = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/read",
+      payload: {
+        processId: startedBody.process.id,
+        offset: 0,
+        length: 100,
+        waitMs: 100
+      }
+    });
+    assert.equal(read.statusCode, 200, read.body);
+    const readBody = read.json() as { output: string; process: { status: string } };
+    assert.equal(readBody.process.status, "running");
+    assert.match(readBody.output, /fixture-repo/);
+    assert.doesNotMatch(readBody.output, new RegExp(hostRoot));
+    assert.doesNotMatch(read.body, /"(?:privatePid|pid)"/i);
+
+    const inputPrepared = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/prepare",
+      payload: {
+        operation: "input",
+        processId: startedBody.process.id,
+        sessionId: sessionBody.session.id,
+        input: "rest-transient-input",
+        waitForPrompt: true,
+        timeoutMs: 1000,
+        idempotencyKey: "host-process-rest-input-prepare"
+      }
+    });
+    assert.equal(inputPrepared.statusCode, 200, inputPrepared.body);
+    assert.doesNotMatch(inputPrepared.body, /rest-transient-input/);
+    const inputPreparedBody = inputPrepared.json() as {
+      approval: { id: string; revision: number };
+    };
+    const inputApproved = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/decision",
+      payload: {
+        approvalId: inputPreparedBody.approval.id,
+        expectedRevision: inputPreparedBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-process-rest-input-decision"
+      }
+    });
+    assert.equal(inputApproved.statusCode, 200, inputApproved.body);
+    const inputApprovedBody = inputApproved.json() as {
+      approval: { id: string; revision: number };
+    };
+    const inputExecuted = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/execute",
+      payload: {
+        operation: "input",
+        processId: startedBody.process.id,
+        sessionId: sessionBody.session.id,
+        input: "rest-transient-input",
+        waitForPrompt: true,
+        timeoutMs: 1000,
+        approvalId: inputApprovedBody.approval.id,
+        expectedApprovalRevision: inputApprovedBody.approval.revision,
+        idempotencyKey: "host-process-rest-input-execute"
+      }
+    });
+    assert.equal(inputExecuted.statusCode, 200, inputExecuted.body);
+    assert.doesNotMatch(inputExecuted.body, /rest-transient-input/);
+    assert.equal(
+      "output" in (inputExecuted.json() as Record<string, unknown>),
+      false
+    );
+
+    const listed = await app.inject({
+      method: "GET",
+      url: `/api/host/processes?sessionId=${encodeURIComponent(sessionBody.session.id)}`
+    });
+    assert.equal(listed.statusCode, 200, listed.body);
+    const listedBody = listed.json() as {
+      processes: Array<{ id: string; status: string }>;
+    };
+    assert.equal(
+      listedBody.processes.some((item) => item.id === startedBody.process.id),
+      true
+    );
+    assert.doesNotMatch(listed.body, /"(?:privatePid|pid)"/i);
+    assert.doesNotMatch(listed.body, new RegExp(hostRoot));
+
+    const stopPrepared = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/prepare",
+      payload: {
+        operation: "stop",
+        processId: startedBody.process.id,
+        sessionId: sessionBody.session.id,
+        idempotencyKey: "host-process-rest-stop-prepare"
+      }
+    });
+    assert.equal(stopPrepared.statusCode, 200, stopPrepared.body);
+    const stopPreparedBody = stopPrepared.json() as {
+      approval: { id: string; revision: number };
+    };
+    const stopApproved = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/decision",
+      payload: {
+        approvalId: stopPreparedBody.approval.id,
+        expectedRevision: stopPreparedBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-process-rest-stop-decision"
+      }
+    });
+    assert.equal(stopApproved.statusCode, 200, stopApproved.body);
+    const stopApprovedBody = stopApproved.json() as {
+      approval: { id: string; revision: number };
+    };
+    const stopped = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/execute",
+      payload: {
+        operation: "stop",
+        processId: startedBody.process.id,
+        sessionId: sessionBody.session.id,
+        approvalId: stopApprovedBody.approval.id,
+        expectedApprovalRevision: stopApprovedBody.approval.revision,
+        idempotencyKey: "host-process-rest-stop-execute"
+      }
+    });
+    assert.equal(stopped.statusCode, 200, stopped.body);
+    const stoppedBody = stopped.json() as {
+      process: { status: string; exitCode: number | null };
+    };
+    assert.equal(stoppedBody.process.status, "terminated");
+    assert.equal(stoppedBody.process.exitCode, 143);
+    assert.equal("output" in (stopped.json() as Record<string, unknown>), false);
+    assert.doesNotMatch(stopped.body, /"(?:privatePid|pid)"/i);
+    assert.doesNotMatch(stopped.body, new RegExp(hostRoot));
+  } finally {
+    await app.close();
+    if (previousConfigPath === undefined) {
+      delete process.env.TOKENPILOT_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+    }
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 async function verifyHostProcessRestartReconciliation(): Promise<void> {
   const sandbox = fs.mkdtempSync(
     path.join(os.tmpdir(), "tokenpilot-host-process-restart-")
@@ -1542,6 +1899,7 @@ try {
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   await verifyManagedProcessSupervisor();
   await verifyHostProcessStartGovernance();
+  await verifyHostProcessRestParity();
   await verifyHostProcessRestartReconciliation();
 
   process.stdout.write("VERIFY_HOST_PROCESS_OK\n");
