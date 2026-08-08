@@ -48,6 +48,7 @@ const HOST_PROCESS_APPROVAL_TTL_MS = 5 * 60 * 1000;
 const HOST_PROCESS_POLICY_VERSION = "host-process-v1";
 const MAX_RUNNING_PER_WORKSPACE = 2;
 const MAX_RUNNING_PER_SESSION = 2;
+const HOST_PROCESS_RECONCILE_INTERVAL_MS = 15_000;
 
 export interface HostProcessRuntimeSupervisor {
   assertReady(): unknown;
@@ -62,6 +63,8 @@ export interface HostProcessRuntimeSupervisor {
     options: ManagedProcessInputOptions
   ): Promise<ManagedProcessAdapterSnapshot>;
   stop(processId: string): Promise<ManagedProcessAdapterSnapshot>;
+  activeProcessIds(): string[];
+  closeAll(): Promise<ManagedProcessAdapterSnapshot[]>;
 }
 
 interface PreparedProcessStartIntent {
@@ -300,12 +303,23 @@ function projectKnownPrivatePaths(
 }
 
 export class HostProcessService {
+  private reconcileTimer: NodeJS.Timeout | null = null;
+  private closed = false;
+
   constructor(
     private readonly repositories: ContinuityRepositories,
     private readonly broker: DirectCapabilityBroker,
     private readonly supervisor: HostProcessRuntimeSupervisor,
     private readonly configPath?: string
-  ) {}
+  ) {
+    this.reconcileRestartState();
+    this.reconcileTimer = setInterval(() => {
+      void this.reconcile().catch(() => {
+        // Periodic reconciliation must fail closed per process without crashing the Control Plane.
+      });
+    }, HOST_PROCESS_RECONCILE_INTERVAL_MS);
+    this.reconcileTimer.unref();
+  }
 
   async prepare(
     context: OperationContext,
@@ -321,6 +335,7 @@ export class HostProcessService {
     if (input.operation === "stop") {
       return this.prepareStop(context, input);
     }
+    await this.reconcile(context.now);
     const { idempotencyKey, ...request } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.prepare",
@@ -381,6 +396,7 @@ export class HostProcessService {
     context: OperationContext,
     input: HostProcessReadInput
   ): Promise<HostProcessReadValue> {
+    await this.reconcile(context.now);
     let processRecord = this.requireProcess(input.processId);
     if (processRecord.status === "stale") {
       throw new ServiceError(
@@ -426,13 +442,77 @@ export class HostProcessService {
     };
   }
 
-  list(input: HostProcessListInput = {}): HostProcessListValue {
+  async list(input: HostProcessListInput = {}): Promise<HostProcessListValue> {
+    await this.reconcile();
     return {
       ok: true,
       processes: this.repositories.directProcessSessions
         .list(input)
         .map((record) => this.publicProcessRecord(record))
     };
+  }
+
+  async reconcile(now = new Date().toISOString()): Promise<void> {
+    if (this.closed) {
+      return;
+    }
+    this.repositories.leases.reconcileExpired(now);
+    const running = this.repositories.directProcessSessions.list({
+      status: "running"
+    });
+    for (const processRecord of running) {
+      if (!this.supervisor.has(processRecord.id)) {
+        await this.cleanupManagedProcess(
+          processRecord,
+          "RUNTIME_UNAVAILABLE",
+          now,
+          "failed"
+        );
+        continue;
+      }
+      const lease = this.repositories.leases.getActive(processRecord.workspaceId);
+      const ownsLease =
+        lease !== null &&
+        lease.id === processRecord.writerLeaseId &&
+        lease.sessionId === processRecord.sessionId &&
+        lease.holderType === "chat-direct";
+      if (!ownsLease) {
+        await this.cleanupManagedProcess(
+          processRecord,
+          "WRITER_LEASE_LOST",
+          now,
+          "failed"
+        );
+      }
+    }
+  }
+
+  async close(now = new Date().toISOString()): Promise<void> {
+    if (this.closed) {
+      return;
+    }
+    this.closed = true;
+    if (this.reconcileTimer) {
+      clearInterval(this.reconcileTimer);
+      this.reconcileTimer = null;
+    }
+    for (const processId of this.supervisor.activeProcessIds()) {
+      let processRecord: DirectProcessSessionRecord;
+      try {
+        processRecord = this.requireProcess(processId);
+      } catch {
+        continue;
+      }
+      if (processRecord.status === "running") {
+        await this.cleanupManagedProcess(
+          processRecord,
+          "CONTROL_PLANE_SHUTDOWN",
+          now,
+          "skipped"
+        );
+      }
+    }
+    await this.supervisor.closeAll();
   }
 
   async execute(
@@ -879,6 +959,163 @@ export class HostProcessService {
         context.now
       );
     return { ...execution.value, replayed: execution.replayed };
+  }
+
+  private reconcileRestartState(now = new Date().toISOString()): void {
+    const active = this.repositories.directProcessSessions
+      .list()
+      .filter(
+        (record) => record.status === "starting" || record.status === "running"
+      );
+    for (const processRecord of active) {
+      const stale = this.repositories.directProcessSessions.markStale({
+        id: processRecord.id,
+        reason: "CONTROL_PLANE_RESTART",
+        expectedRevision: processRecord.revision,
+        now
+      });
+      const actionHash = this.internalCleanupHash(stale, "CONTROL_PLANE_RESTART");
+      const audit = this.repositories.directProcessAudit.create({
+        operation: "cleanup",
+        processId: stale.id,
+        actionHash,
+        approvalId: null,
+        status: "unknown",
+        errorCode: "HOST_PROCESS_STALE",
+        terminalReason: "CONTROL_PLANE_RESTART",
+        exitCode: stale.exitCode,
+        outputBytes: 0,
+        outputTruncated: false,
+        startedAt: now,
+        completedAt: now,
+        now
+      });
+      this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
+        label: `Host Managed Process restart reconciliation ${stale.command}`,
+        status: "failed",
+        summary: {
+          operation: "cleanup",
+          processId: stale.id,
+          reason: "CONTROL_PLANE_RESTART",
+          auditId: audit.id,
+          processStatus: stale.status
+        },
+        startedAt: stale.startedAt
+      });
+    }
+  }
+
+  private async cleanupManagedProcess(
+    processRecord: DirectProcessSessionRecord,
+    reason: "WRITER_LEASE_LOST" | "RUNTIME_UNAVAILABLE" | "CONTROL_PLANE_SHUTDOWN",
+    now: string,
+    evidenceStatus: "failed" | "skipped"
+  ): Promise<DirectProcessSessionRecord> {
+    if (processRecord.status !== "running") {
+      return processRecord;
+    }
+    let snapshot: ManagedProcessAdapterSnapshot | null = null;
+    let errorCode: string | null = null;
+    if (this.supervisor.has(processRecord.id)) {
+      try {
+        snapshot = await this.supervisor.stop(processRecord.id);
+      } catch (error) {
+        errorCode = managedProcessErrorCode(error);
+      }
+    } else {
+      errorCode = "HOST_PROCESS_STALE";
+    }
+
+    let finalized = processRecord;
+    if (
+      snapshot &&
+      (snapshot.status === "terminated" || snapshot.status === "exited")
+    ) {
+      finalized = this.repositories.directProcessSessions.complete({
+        id: processRecord.id,
+        status: snapshot.status,
+        exitCode: snapshot.exitCode,
+        expectedRevision: processRecord.revision,
+        now
+      });
+    } else {
+      finalized = this.repositories.directProcessSessions.markStale({
+        id: processRecord.id,
+        reason,
+        expectedRevision: processRecord.revision,
+        now
+      });
+    }
+
+    const actionHash = this.internalCleanupHash(finalized, reason);
+    const audit = this.repositories.directProcessAudit.create({
+      operation: "cleanup",
+      processId: finalized.id,
+      actionHash,
+      approvalId: null,
+      status:
+        finalized.status === "terminated" || finalized.status === "exited"
+          ? "succeeded"
+          : "unknown",
+      errorCode:
+        reason === "WRITER_LEASE_LOST"
+          ? "HOST_PROCESS_WRITER_LEASE_LOST"
+          : errorCode,
+      terminalReason: reason,
+      exitCode: finalized.exitCode,
+      outputBytes: snapshot
+        ? Buffer.byteLength(this.projectProcessOutput(snapshot.output, finalized), "utf8")
+        : 0,
+      outputTruncated: snapshot?.truncated ?? false,
+      startedAt: now,
+      completedAt: now,
+      now
+    });
+    this.addProcessEvidence(this.internalContext(now, finalized.id), finalized, {
+      label: `Host Managed Process cleanup ${finalized.command}`,
+      status: evidenceStatus,
+      summary: {
+        operation: "cleanup",
+        processId: finalized.id,
+        reason,
+        auditId: audit.id,
+        processStatus: finalized.status,
+        exitCode: finalized.exitCode,
+        errorCode:
+          reason === "WRITER_LEASE_LOST"
+            ? "HOST_PROCESS_WRITER_LEASE_LOST"
+            : errorCode
+      },
+      startedAt: processRecord.startedAt
+    });
+    return finalized;
+  }
+
+  private internalCleanupHash(
+    processRecord: DirectProcessSessionRecord,
+    reason: string
+  ): string {
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          schemaVersion: 1,
+          processId: processRecord.id,
+          processRevision: processRecord.revision,
+          reason
+        }),
+        "utf8"
+      )
+      .digest("hex");
+  }
+
+  private internalContext(now: string, processId: string): OperationContext {
+    return {
+      requestId: `host-process-internal:${processId}`,
+      actorType: "local-cli",
+      actorId: null,
+      publicProjection: false,
+      now
+    };
   }
 
   private validateProcessInput(value: string): { hash: string; bytes: number } {

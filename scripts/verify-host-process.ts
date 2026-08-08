@@ -320,6 +320,7 @@ class ReadyProcessSupervisor {
   inputCalls = 0;
   stopCalls = 0;
   readCalls = 0;
+  closeAllCalls = 0;
   nextStatus: "running" | "exited" = "running";
   private readonly runtimes = new Map<
     string,
@@ -332,6 +333,23 @@ class ReadyProcessSupervisor {
 
   has(processId: string): boolean {
     return this.runtimes.has(processId);
+  }
+
+  seed(processId: string, privatePid: number, cwd: string): void {
+    this.runtimes.set(processId, { privatePid, cwd });
+  }
+
+  activeProcessIds(): string[] {
+    return [...this.runtimes.keys()];
+  }
+
+  async closeAll(): Promise<ManagedProcessAdapterSnapshot[]> {
+    this.closeAllCalls += 1;
+    const results: ManagedProcessAdapterSnapshot[] = [];
+    for (const processId of [...this.runtimes.keys()]) {
+      results.push(await this.stop(processId));
+    }
+    return results;
   }
 
   async start(
@@ -927,6 +945,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       privatePid: 6101,
       now: NOW
     });
+    processSupervisor.seed("host_process_quota_a", 6101, workspaceRoot);
     await expectServiceCode(
       service.prepare(context, {
         operation: "start",
@@ -1002,7 +1021,209 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     });
     assert.equal(stopReplay.replayed, true);
     assert.equal(processSupervisor.stopCalls, 1);
+
+    await service.reconcile(LATER);
+    const reconciledQuota = repositories.directProcessSessions.get(
+      "host_process_quota_a"
+    );
+    assert.equal(reconciledQuota.status, "terminated");
+    assert.equal(processSupervisor.stopCalls, 2);
+    const quotaCleanupAudit = repositories.directProcessAudit
+      .listByProcess(reconciledQuota.id)
+      .find((item) => item.operation === "cleanup");
+    assert.equal(quotaCleanupAudit?.terminalReason, "WRITER_LEASE_LOST");
+    assert.equal(
+      quotaCleanupAudit?.errorCode,
+      "HOST_PROCESS_WRITER_LEASE_LOST"
+    );
+    const cleanupItems = repositories.evidence.listItems(
+      repositories.tasks.get(task.id).latestEvidenceBundleId!
+    );
+    assert.equal(
+      cleanupItems.some(
+        (item) =>
+          item.label === "Host Managed Process cleanup npm" &&
+          item.status === "failed" &&
+          item.summary.includes("WRITER_LEASE_LOST")
+      ),
+      true
+    );
+
+    const laterContext = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "host-process-shutdown-fixture",
+      publicProjection: true,
+      now: "2026-08-09T00:41:00.000Z"
+    });
+    const shutdownLease = repositories.leases.acquire({
+      id: "lease_host_process_shutdown",
+      workspaceId: workspace.id,
+      sessionId: session.id,
+      holderType: "chat-direct",
+      holderId: session.id,
+      expiresAt: "2026-08-09T01:41:00.000Z",
+      now: laterContext.now
+    });
+    const shutdownPrepared = await service.prepare(laterContext, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-shutdown-prepare"
+    });
+    assert.equal(shutdownPrepared.approval.writerLeaseId, shutdownLease.id);
+    const shutdownApproved = await service.decide(laterContext, {
+      approvalId: shutdownPrepared.approval.id,
+      expectedRevision: shutdownPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-shutdown-decision"
+    });
+    const shutdownStarted = await service.execute(laterContext, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: shutdownApproved.approval.id,
+      expectedApprovalRevision: shutdownApproved.approval.revision,
+      idempotencyKey: "process-shutdown-execute"
+    });
+    assert.equal(shutdownStarted.process.status, "running");
+    await service.close("2026-08-09T00:42:00.000Z");
+    assert.equal(
+      repositories.directProcessSessions.get(shutdownStarted.process.id).status,
+      "terminated"
+    );
+    assert.equal(processSupervisor.closeAllCalls, 1);
+    assert.equal(processSupervisor.activeProcessIds().length, 0);
+    const shutdownAudit = repositories.directProcessAudit
+      .listByProcess(shutdownStarted.process.id)
+      .find(
+        (item) =>
+          item.operation === "cleanup" &&
+          item.terminalReason === "CONTROL_PLANE_SHUTDOWN"
+      );
+    assert.equal(shutdownAudit?.status, "succeeded");
   } finally {
+    await service.close();
+    database.close();
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
+async function verifyHostProcessRestartReconciliation(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-process-restart-")
+  );
+  const databasePath = path.join(sandbox, "continuity.sqlite");
+  const workspaceRoot = path.join(sandbox, "workspace");
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+
+  let database = new ContinuityDatabase({ path: databasePath });
+  let repositories = buildContinuityRepositories(database);
+  const project = repositories.projects.create({
+    id: "project_host_process_restart",
+    slug: "host-process-restart",
+    displayName: "Host Process Restart",
+    now: NOW
+  });
+  const workspace = repositories.workspaces.create({
+    id: "workspace_host_process_restart",
+    projectId: project.id,
+    repoId: "host-process-restart-fixture",
+    privatePath: workspaceRoot,
+    now: NOW
+  });
+  const task = repositories.tasks.create({
+    id: "task_host_process_restart",
+    projectId: project.id,
+    workspaceId: workspace.id,
+    title: "Restart fixture",
+    goal: "Verify stale reconciliation",
+    status: "in-progress",
+    now: NOW
+  });
+  const session = repositories.sessions.create({
+    id: "session_host_process_restart",
+    projectId: project.id,
+    workspaceId: workspace.id,
+    taskId: task.id,
+    title: "Restart session",
+    mode: "chat-direct",
+    status: "running",
+    startedAt: NOW
+  });
+  repositories.tasks.bindSession(task.id, session.id, task.revision, NOW);
+  const lease = repositories.leases.acquire({
+    id: "lease_host_process_restart",
+    workspaceId: workspace.id,
+    sessionId: session.id,
+    holderType: "chat-direct",
+    holderId: session.id,
+    expiresAt: "2026-08-09T02:00:00.000Z",
+    now: NOW
+  });
+  repositories.directProcessSessions.createRunning({
+    id: "host_process_restart_running",
+    rootId: "fixture",
+    workdir: ".",
+    command: "npm",
+    commandHash: "7".repeat(64),
+    executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    privatePid: 9991,
+    now: NOW
+  });
+  repositories.directProcessSessions.createStarting({
+    id: "host_process_restart_starting",
+    rootId: "fixture",
+    workdir: ".",
+    command: "npm",
+    commandHash: "8".repeat(64),
+    executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    now: NOW
+  });
+  database.close();
+
+  database = new ContinuityDatabase({ path: databasePath });
+  repositories = buildContinuityRepositories(database);
+  const restartSupervisor = new ReadyProcessSupervisor();
+  const service = new HostProcessService(
+    repositories,
+    new DirectCapabilityBroker([]),
+    restartSupervisor
+  );
+  try {
+    for (const processId of [
+      "host_process_restart_running",
+      "host_process_restart_starting"
+    ]) {
+      const stale = repositories.directProcessSessions.get(processId);
+      assert.equal(stale.status, "stale");
+      assert.equal(stale.staleReason, "CONTROL_PLANE_RESTART");
+      const audit = repositories.directProcessAudit
+        .listByProcess(processId)
+        .find((item) => item.operation === "cleanup");
+      assert.equal(audit?.status, "unknown");
+      assert.equal(audit?.terminalReason, "CONTROL_PLANE_RESTART");
+      assert.equal(audit?.approvalId, null);
+    }
+    assert.equal(restartSupervisor.stopCalls, 0);
+    assert.equal(restartSupervisor.activeProcessIds().length, 0);
+  } finally {
+    await service.close();
     database.close();
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
@@ -1321,6 +1542,7 @@ try {
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   await verifyManagedProcessSupervisor();
   await verifyHostProcessStartGovernance();
+  await verifyHostProcessRestartReconciliation();
 
   process.stdout.write("VERIFY_HOST_PROCESS_OK\n");
 } finally {
