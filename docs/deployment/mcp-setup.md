@@ -167,7 +167,7 @@ tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
 
 The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `.tokenpilot/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
 
-For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; TokenPilot does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A minimal read-only executor entry for the live proof is:
+For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; TokenPilot does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A Host Files executor entry can explicitly map the three normalized capabilities used by the current governed adapter:
 
 ```json
 {
@@ -184,20 +184,40 @@ For Desktop Commander, keep the executor in the same local-only config with the 
       "toolName": "read_file",
       "scopes": ["host"],
       "access": ["read"]
+    },
+    {
+      "capability": "files.write",
+      "toolName": "write_file",
+      "scopes": ["host"],
+      "access": ["write"]
+    },
+    {
+      "capability": "files.edit",
+      "toolName": "edit_block",
+      "scopes": ["host"],
+      "access": ["write"]
     }
   ]
 }
 ```
 
-After the executor is available locally, run the operator-only live proof:
+The original operator-only read proof remains available:
 
 ```bash
 npm run probe:desktop-commander-live
 ```
 
-This command reads the local executor transport, creates a permission-restricted temporary config plus a temporary read-only Host Root fixture, probes the real MCP server, requires a verified `files.read` mapping, then executes the ChatGPT-facing `tokenpilot.host.files.read` MCP tool with an explicit Desktop Commander selection. The temporary runtime/config/root are deleted after the probe. This command is intentionally excluded from the default verification suite because it depends on an operator-installed external MCP server and may invoke whatever local command is configured for that executor.
+It creates a permission-restricted temporary config plus a temporary read-only Host Root fixture, probes the real MCP server, requires verified `files.read`, then executes the ChatGPT-facing `tokenpilot.host.files.read` MCP tool. Temporary runtime/config/root state is deleted afterward.
 
-Remote MCP now exposes two governed Host Direct Read-Only tools: `tokenpilot.host.roots.list` returns only public-safe root aliases, and `tokenpilot.host.files.read` accepts `rootId + relative path` for small text-like files. Local absolute root paths remain private. Downstream execution is permitted only when the current local mapping still matches the verified snapshot. In this phase the Host Read execution allowlist recognizes only the `downstream-mcp:desktop-commander` adapter contract; other downstream executors may be discovered but are not automatically authorized for Host execution. Host Write / Edit / Shell remain unexposed.
+After Host mutation mappings are available, run the operator-only Write/Exact-Edit proof:
+
+```bash
+npm run probe:desktop-commander-host-mutation-live
+```
+
+The mutation proof copies only the selected local Desktop Commander transport into a permission-restricted temporary config, creates a temporary `read + write` Host Root, probes `files.read/files.write/files.edit`, then drives the actual ChatGPT-facing `tokenpilot.host.mutation.prepare`, `tokenpilot.host.mutation.decide`, and `tokenpilot.host.mutation.execute` lifecycle. It performs a real rewrite and exact replacement, verifies the resulting file hashes/content locally, checks public results for absolute-path leakage, and deletes the temporary config/runtime/root/database. For an explicit one-off operator proof without persisting a local executor entry, the script also accepts `TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`; this still runs the external package only because the operator explicitly invoked the live-proof command. Both real live proofs stay out of the default verification suite; deterministic fake-MCP harnesses cover their drivers in CI/default protocol gates.
+
+Remote MCP now exposes governed Host Files capabilities without exposing raw downstream tools. `tokenpilot.host.roots.list` returns public-safe aliases and per-root `read/write` access, while `tokenpilot.host.files.read` remains read-only. Write/Exact Edit use the three-stage `tokenpilot.host.mutation.prepare` → `tokenpilot.host.mutation.decide` → `tokenpilot.host.mutation.execute` lifecycle. A root must explicitly include `write`; Registered Workspace targets automatically re-enter chat-direct Session/Writer Lease/Git/Task Evidence governance, while Pure Host targets use Direct Mutation Approval plus public-safe Audit. Current mapping must still match the verified snapshot at execution time. Host Shell / `execute_command` remains unexposed.
 
 ## Choose The Runtime Lane Explicitly
 
