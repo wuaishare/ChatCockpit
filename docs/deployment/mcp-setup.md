@@ -167,6 +167,36 @@ tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
 
 The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `.tokenpilot/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
 
+For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; TokenPilot does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A minimal read-only executor entry for the live proof is:
+
+```json
+{
+  "id": "downstream-mcp:desktop-commander",
+  "displayName": "Desktop Commander",
+  "transport": {
+    "kind": "stdio",
+    "command": "npx",
+    "args": ["-y", "@wonderwhy-er/desktop-commander@latest", "--no-onboarding"]
+  },
+  "mappings": [
+    {
+      "capability": "files.read",
+      "toolName": "read_file",
+      "scopes": ["host"],
+      "access": ["read"]
+    }
+  ]
+}
+```
+
+After the executor is available locally, run the operator-only live proof:
+
+```bash
+npm run probe:desktop-commander-live
+```
+
+This command reads the local executor transport, creates a permission-restricted temporary config plus a temporary read-only Host Root fixture, probes the real MCP server, requires a verified `files.read` mapping, then executes the ChatGPT-facing `tokenpilot.host.files.read` MCP tool with an explicit Desktop Commander selection. The temporary runtime/config/root are deleted after the probe. This command is intentionally excluded from the default verification suite because it depends on an operator-installed external MCP server and may invoke whatever local command is configured for that executor.
+
 Remote MCP now exposes two governed Host Direct Read-Only tools: `tokenpilot.host.roots.list` returns only public-safe root aliases, and `tokenpilot.host.files.read` accepts `rootId + relative path` for small text-like files. Local absolute root paths remain private. Downstream execution is permitted only when the current local mapping still matches the verified snapshot. In this phase the Host Read execution allowlist recognizes only the `downstream-mcp:desktop-commander` adapter contract; other downstream executors may be discovered but are not automatically authorized for Host execution. Host Write / Edit / Shell remain unexposed.
 
 ## Choose The Runtime Lane Explicitly

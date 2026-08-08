@@ -165,6 +165,36 @@ tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
 
 Probe 会完成 MCP Initialize 与 `tools/list`，使用官方 MCP Schema 校验响应，再把本地 Capability Snapshot 写入 `.tokenpilot/runtime/capabilities/downstream-mcp/`。只有显式 Mapping 的 Capability 才能进入 Broker，不会根据 Tool Name 前缀自动猜测，也不会在公共 Executor Descriptor 中暴露下游 Tool Name。
 
+Desktop Commander 继续使用同一份 local-only 配置，并固定 Executor ID 为 `downstream-mcp:desktop-commander`。上游标准 stdio 启动方式是 `npx -y @wonderwhy-er/desktop-commander@latest`；TokenPilot 不会主动安装该包。但如果操作员显式运行使用这条 `npx` transport 的 Probe，而本机尚未缓存该包，`npx` 可能会在执行本地命令时下载并缓存它。用于实机证明的最小只读 Executor 配置可以写成：
+
+```json
+{
+  "id": "downstream-mcp:desktop-commander",
+  "displayName": "Desktop Commander",
+  "transport": {
+    "kind": "stdio",
+    "command": "npx",
+    "args": ["-y", "@wonderwhy-er/desktop-commander@latest", "--no-onboarding"]
+  },
+  "mappings": [
+    {
+      "capability": "files.read",
+      "toolName": "read_file",
+      "scopes": ["host"],
+      "access": ["read"]
+    }
+  ]
+}
+```
+
+确认本机 Executor 可用后，可运行 operator-only 实机证明：
+
+```bash
+npm run probe:desktop-commander-live
+```
+
+该命令只读取本机 Executor transport，创建权限收紧的临时配置与临时只读 Host Root fixture，真实 Probe MCP Server，要求 `files.read` Mapping 已 verified，然后显式选择 Desktop Commander 执行 ChatGPT-facing `tokenpilot.host.files.read` MCP Tool。验证结束后会删除临时 runtime/config/root。它刻意不加入默认验证套件，因为它依赖操作员已经准备好的外部 MCP Server，而且会执行该 Executor 在本机配置中声明的启动命令。
+
 Remote MCP 现在已经开放两个受治理的 Host Direct Read-Only 工具：`tokenpilot.host.roots.list` 只返回 public-safe Root Alias，`tokenpilot.host.files.read` 只接受 `rootId + relative path` 读取小型 text-like 文件，本机 Root 绝对路径始终留在 local-only 配置中。Downstream Execution 只有在当前 local mapping 与 verified snapshot 仍一致时才允许执行。本阶段 Host Read 执行白名单只认可 `downstream-mcp:desktop-commander` Adapter Contract；其他 Downstream Executor 即使能被 Discovery，也不会自动获得 Host 执行权限。Host Write / Edit / Shell 仍未开放。
 
 ## 6. 明确选择运行模式
