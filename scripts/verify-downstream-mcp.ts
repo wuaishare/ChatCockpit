@@ -8,7 +8,10 @@ import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import {
   buildDesktopCommanderExecutorConfig,
   DESKTOP_COMMANDER_CAPABILITY_MAPPINGS,
-  DESKTOP_COMMANDER_EXECUTOR_ID
+  DESKTOP_COMMANDER_EXECUTOR_ID,
+  DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL,
+  DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
+  DESKTOP_COMMANDER_START_PROCESS_TOOL
 } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
 import { buildPaths } from "../src/core/paths.ts";
@@ -97,7 +100,7 @@ async function verifyDownstreamMcp(): Promise<void> {
       ["files.list", "list_directory"],
       ["files.write", "write_file"],
       ["files.edit", "edit_block"],
-      ["shell.exec", "execute_command"]
+      ["shell.exec", DESKTOP_COMMANDER_START_PROCESS_TOOL]
     ]
   );
   assert.equal(
@@ -106,6 +109,8 @@ async function verifyDownstreamMcp(): Promise<void> {
     ),
     false
   );
+  assert.equal(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, "read_process_output");
+  assert.equal(DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL, "force_terminate");
 
   const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-downstream-"));
   const store = new DownstreamMcpCapabilityStore(runtimeDir);

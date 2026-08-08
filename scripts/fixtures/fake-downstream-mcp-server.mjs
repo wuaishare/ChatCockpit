@@ -28,8 +28,45 @@ const tools = [
     inputSchema: { type: "object", properties: { path: { type: "string" } } }
   },
   {
+    name: "start_process",
+    description: "Start a process fixture",
+    inputSchema: {
+      type: "object",
+      properties: {
+        command: { type: "string" },
+        timeout_ms: { type: "number" },
+        shell: { type: "string" },
+        origin: { type: "string" }
+      },
+      required: ["command", "timeout_ms"]
+    }
+  },
+  {
+    name: "read_process_output",
+    description: "Read process output fixture",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pid: { type: "number" },
+        timeout_ms: { type: "number" },
+        offset: { type: "number" },
+        length: { type: "number" }
+      },
+      required: ["pid"]
+    }
+  },
+  {
+    name: "force_terminate",
+    description: "Terminate process fixture",
+    inputSchema: {
+      type: "object",
+      properties: { pid: { type: "number" } },
+      required: ["pid"]
+    }
+  },
+  {
     name: "execute_command",
-    description: "Execute a command fixture",
+    description: "Legacy command fixture retained to prove it is not current mapping",
     inputSchema: { type: "object", properties: { command: { type: "string" } } }
   },
   {

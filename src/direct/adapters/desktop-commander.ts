@@ -6,6 +6,11 @@ export const DESKTOP_COMMANDER_EXECUTOR_ID =
 
 export const DESKTOP_COMMANDER_DISPLAY_NAME = "Desktop Commander" as const;
 
+export const DESKTOP_COMMANDER_START_PROCESS_TOOL = "start_process" as const;
+export const DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL =
+  "read_process_output" as const;
+export const DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL = "force_terminate" as const;
+
 export const DESKTOP_COMMANDER_CAPABILITY_MAPPINGS: DownstreamMcpCapabilityMapping[] = [
   {
     capability: "files.read",
@@ -33,7 +38,7 @@ export const DESKTOP_COMMANDER_CAPABILITY_MAPPINGS: DownstreamMcpCapabilityMappi
   },
   {
     capability: "shell.exec",
-    toolName: "execute_command",
+    toolName: DESKTOP_COMMANDER_START_PROCESS_TOOL,
     scopes: ["host"],
     access: ["read", "write"]
   }
