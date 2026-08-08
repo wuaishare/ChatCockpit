@@ -6,6 +6,9 @@ if (mode === "ignore-sigterm") {
   process.on("SIGTERM", () => {});
 }
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+let desktopCommandCwd = null;
+let desktopCommandScenario = "success";
+let desktopCommandTerminated = false;
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -147,6 +150,33 @@ rl.on("line", (line) => {
         });
         return;
       }
+      const cwdMatch = /^cd '([^']+)' &&/.exec(command);
+      if (!cwdMatch) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "missing governed cwd" }],
+            isError: true
+          }
+        });
+        return;
+      }
+      desktopCommandCwd = cwdMatch[1];
+      desktopCommandScenario = command.includes("'host-command-slow'")
+        ? "timeout"
+        : command.includes("'host-command-write'")
+          ? "write"
+          : "success";
+      desktopCommandTerminated = false;
+      if (desktopCommandScenario === "write") {
+        fs.mkdirSync(`${desktopCommandCwd}/src`, { recursive: true });
+        fs.writeFileSync(
+          `${desktopCommandCwd}/src/live.txt`,
+          "TokenPilot Desktop Commander Host Command live proof\n",
+          "utf8"
+        );
+      }
       send({
         jsonrpc: "2.0",
         id: message.id,
@@ -163,22 +193,28 @@ rl.on("line", (line) => {
       return;
     }
     if (mode === "desktop-command" && toolName === "read_process_output") {
+      let text;
+      if (desktopCommandScenario === "timeout" && !desktopCommandTerminated) {
+        text = "Process is still running";
+      } else if (desktopCommandScenario === "timeout") {
+        text = "terminated fixture\n✅ Process completed with exit code 143 (runtime: 1.00s)";
+      } else if (desktopCommandScenario === "write") {
+        text = "workspace write fixture\n✅ Process completed with exit code 0 (runtime: 0.01s)";
+      } else {
+        text = `${desktopCommandCwd ?? "unknown"}\n✅ Process completed with exit code 0 (runtime: 0.01s)`;
+      }
       send({
         jsonrpc: "2.0",
         id: message.id,
         result: {
-          content: [
-            {
-              type: "text",
-              text: "fixture command output\n✅ Process completed with exit code 0 (runtime: 0.01s)"
-            }
-          ],
+          content: [{ type: "text", text }],
           isError: false
         }
       });
       return;
     }
     if (mode === "desktop-command" && toolName === "force_terminate") {
+      desktopCommandTerminated = true;
       send({
         jsonrpc: "2.0",
         id: message.id,

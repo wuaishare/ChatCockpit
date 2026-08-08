@@ -165,7 +165,7 @@ tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
 
 Probe 会完成 MCP Initialize 与 `tools/list`，使用官方 MCP Schema 校验响应，再把本地 Capability Snapshot 写入 `.tokenpilot/runtime/capabilities/downstream-mcp/`。只有显式 Mapping 的 Capability 才能进入 Broker，不会根据 Tool Name 前缀自动猜测，也不会在公共 Executor Descriptor 中暴露下游 Tool Name。
 
-Desktop Commander 继续使用同一份 local-only 配置，并固定 Executor ID 为 `downstream-mcp:desktop-commander`。上游标准 stdio 启动方式是 `npx -y @wonderwhy-er/desktop-commander@latest`；TokenPilot 不会主动安装该包。但如果操作员显式运行使用这条 `npx` transport 的 Probe，而本机尚未缓存该包，`npx` 可能会在执行本地命令时下载并缓存它。当前受治理的 Host Files Adapter 可以显式映射三项 normalized capability：
+Desktop Commander 继续使用同一份 local-only 配置，并固定 Executor ID 为 `downstream-mcp:desktop-commander`。上游标准 stdio 启动方式是 `npx -y @wonderwhy-er/desktop-commander@latest`；TokenPilot 不会主动安装该包。但如果操作员显式运行使用这条 `npx` transport 的 Probe，而本机尚未缓存该包，`npx` 可能会在执行本地命令时下载并缓存它。当前 Desktop Commander Adapter 可以显式映射受治理的 Host Files 与 bounded Host Command normalized capability：
 
 ```json
 {
@@ -194,6 +194,12 @@ Desktop Commander 继续使用同一份 local-only 配置，并固定 Executor I
       "toolName": "edit_block",
       "scopes": ["host"],
       "access": ["write"]
+    },
+    {
+      "capability": "shell.exec",
+      "toolName": "start_process",
+      "scopes": ["host"],
+      "access": ["read", "write"]
     }
   ]
 }
@@ -213,9 +219,17 @@ Host Mutation Mapping 可用后，再运行 Write / Exact Edit 的 operator-only
 npm run probe:desktop-commander-host-mutation-live
 ```
 
-Mutation proof 只把选中的本机 Desktop Commander transport 复制到权限收紧的临时配置中，创建临时 `read + write` Host Root，真实 Probe `files.read/files.write/files.edit`，然后驱动真正的 ChatGPT-facing `tokenpilot.host.mutation.prepare` → `tokenpilot.host.mutation.decide` → `tokenpilot.host.mutation.execute` 生命周期。它会实际执行一次 rewrite 和一次 exact replacement，本机回读并核对最终内容/hash，同时检查公共结果没有泄露临时绝对路径，最后删除临时 config/runtime/root/database。若只是一次显式的 operator proof、不想先持久化本机 Executor，也可以在命令前设置 `TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`；这仍然只有在操作员主动执行 live-proof 命令时才会运行外部包。两个真实 live proof 都不会进入默认验证套件；默认/CI 门禁使用确定性的 fake-MCP harness 验证同一 driver。
+Mutation proof 只把选中的本机 Desktop Commander transport 复制到权限收紧的临时配置中，创建临时 `read + write` Host Root，真实 Probe `files.read/files.write/files.edit`，然后驱动真正的 ChatGPT-facing `tokenpilot.host.mutation.prepare` → `tokenpilot.host.mutation.decide` → `tokenpilot.host.mutation.execute` 生命周期。它会实际执行一次 rewrite 和一次 exact replacement，本机回读并核对最终内容/hash，同时检查公共结果没有泄露临时绝对路径，最后删除临时 config/runtime/root/database。若只是一次显式的 operator proof、不想先持久化本机 Executor，也可以在命令前设置 `TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`；这仍然只有在操作员主动执行 live-proof 命令时才会运行外部包。
 
-Remote MCP 现在开放的是受治理的 Host Files 能力，而不是 raw downstream tools。`tokenpilot.host.roots.list` 只返回 public-safe Root Alias 以及每个 Root 的 `read/write` 权限；`tokenpilot.host.files.read` 继续保持只读。Write / Exact Edit 必须走三阶段 `tokenpilot.host.mutation.prepare` → `tokenpilot.host.mutation.decide` → `tokenpilot.host.mutation.execute`。Root 必须显式包含 `write`；如果 canonical target 命中 Registered Workspace，会自动回流到 chat-direct Session / Writer Lease / Git / Task Evidence 治理；真正的 Pure Host target 则使用 Direct Mutation Approval + public-safe Audit。执行时当前 local mapping 仍必须与 verified snapshot 一致。Host Shell / `execute_command` 继续不对 Remote MCP 开放。
+当前受治理的 Host Command 使用 Desktop Commander 的 `start_process`，不再依赖旧 `execute_command`。`read_process_output` 与 `force_terminate` 只作为 TokenPilot Adapter 内部生命周期依赖，不会直接暴露为 Remote MCP Tool。运行 operator-only 实机证明：
+
+```bash
+TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-command-live
+```
+
+该 proof 会驱动真正的 `tokenpilot.host.command.prepare` → `tokenpilot.host.command.decide` → `tokenpilot.host.command.execute`：验证 Pure Host 只读命令、需要 Writer Lease/Git/Task Evidence 回流的 Workspace write-effect 命令，以及必须被强制终止且不能留下延迟子进程副作用的 bounded slow command。公共结果同时检查 PID、private cwd、环境变量和绝对路径泄露。真实外部 proof 不进入默认验证套件；protocol gate 使用确定性的 fake-MCP harness 跑同一 driver。
+
+Remote MCP 现在开放受治理的 Host Files + bounded Host Command，而不是 raw downstream tools。`tokenpilot.host.roots.list` 只返回 public-safe Root Alias 与每个 Root 的 `read/write` 权限。Write / Exact Edit 走 `tokenpilot.host.mutation.prepare` → `decide` → `execute`；bounded command 走 `tokenpilot.host.command.prepare` → `decide` → `execute`。Pure Host Command 仍只允许显式只读 policy；Workspace write-effect Command 必须拥有 chat-direct Session / Writer Lease，并记录 Git / Task Evidence。Raw shell source、交互式/后台 Process API、PID 以及 Desktop Commander 的 Process Tools 都继续不对 Remote MCP 开放。
 
 ## 6. 明确选择运行模式
 

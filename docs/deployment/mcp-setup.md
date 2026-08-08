@@ -167,7 +167,7 @@ tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
 
 The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `.tokenpilot/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
 
-For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; TokenPilot does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A Host Files executor entry can explicitly map the three normalized capabilities used by the current governed adapter:
+For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; TokenPilot does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A Desktop Commander executor entry can explicitly map the normalized Host Files and bounded Host Command capabilities used by the current governed adapter:
 
 ```json
 {
@@ -196,6 +196,12 @@ For Desktop Commander, keep the executor in the same local-only config with the 
       "toolName": "edit_block",
       "scopes": ["host"],
       "access": ["write"]
+    },
+    {
+      "capability": "shell.exec",
+      "toolName": "start_process",
+      "scopes": ["host"],
+      "access": ["read", "write"]
     }
   ]
 }
@@ -215,9 +221,17 @@ After Host mutation mappings are available, run the operator-only Write/Exact-Ed
 npm run probe:desktop-commander-host-mutation-live
 ```
 
-The mutation proof copies only the selected local Desktop Commander transport into a permission-restricted temporary config, creates a temporary `read + write` Host Root, probes `files.read/files.write/files.edit`, then drives the actual ChatGPT-facing `tokenpilot.host.mutation.prepare`, `tokenpilot.host.mutation.decide`, and `tokenpilot.host.mutation.execute` lifecycle. It performs a real rewrite and exact replacement, verifies the resulting file hashes/content locally, checks public results for absolute-path leakage, and deletes the temporary config/runtime/root/database. For an explicit one-off operator proof without persisting a local executor entry, the script also accepts `TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`; this still runs the external package only because the operator explicitly invoked the live-proof command. Both real live proofs stay out of the default verification suite; deterministic fake-MCP harnesses cover their drivers in CI/default protocol gates.
+The mutation proof copies only the selected local Desktop Commander transport into a permission-restricted temporary config, creates a temporary `read + write` Host Root, probes `files.read/files.write/files.edit`, then drives the actual ChatGPT-facing `tokenpilot.host.mutation.prepare`, `tokenpilot.host.mutation.decide`, and `tokenpilot.host.mutation.execute` lifecycle. It performs a real rewrite and exact replacement, verifies the resulting file hashes/content locally, checks public results for absolute-path leakage, and deletes the temporary config/runtime/root/database. For an explicit one-off operator proof without persisting a local executor entry, the script also accepts `TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`; this still runs the external package only because the operator explicitly invoked the live-proof command.
 
-Remote MCP now exposes governed Host Files capabilities without exposing raw downstream tools. `tokenpilot.host.roots.list` returns public-safe aliases and per-root `read/write` access, while `tokenpilot.host.files.read` remains read-only. Write/Exact Edit use the three-stage `tokenpilot.host.mutation.prepare` → `tokenpilot.host.mutation.decide` → `tokenpilot.host.mutation.execute` lifecycle. A root must explicitly include `write`; Registered Workspace targets automatically re-enter chat-direct Session/Writer Lease/Git/Task Evidence governance, while Pure Host targets use Direct Mutation Approval plus public-safe Audit. Current mapping must still match the verified snapshot at execution time. Host Shell / `execute_command` remains unexposed.
+For the governed bounded Host Command path, current Desktop Commander uses `start_process` rather than the legacy `execute_command`. TokenPilot keeps `read_process_output` and `force_terminate` as private lifecycle dependencies; they are not Remote MCP tools. Run the operator-only process proof with:
+
+```bash
+TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-command-live
+```
+
+The proof drives the ChatGPT-facing `tokenpilot.host.command.prepare` → `tokenpilot.host.command.decide` → `tokenpilot.host.command.execute` lifecycle. It verifies a Pure Host read command, a Workspace write-effect command with Writer Lease/Git/Task Evidence re-entry, and a bounded slow command that must be force-terminated without leaving its delayed child side effect. Public results are checked for PID, private cwd, environment, and absolute-path leakage. Real external proofs stay out of the default verification suite; deterministic fake-MCP harnesses cover the same drivers in protocol gates.
+
+Remote MCP exposes governed Host Files plus bounded Host Command capabilities without exposing raw downstream tools. `tokenpilot.host.roots.list` returns public-safe aliases and per-root `read/write` access. Write/Exact Edit use `tokenpilot.host.mutation.prepare` → `decide` → `execute`; bounded commands use `tokenpilot.host.command.prepare` → `decide` → `execute`. Pure Host commands remain restricted to the explicit read-only command policy. Workspace write-effect commands require chat-direct Session/Writer Lease and record Git/Task Evidence. Raw shell source, interactive/background process APIs, PID, and Desktop Commander process tools remain unexposed.
 
 ## Choose The Runtime Lane Explicitly
 
