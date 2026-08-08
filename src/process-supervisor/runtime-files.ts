@@ -64,6 +64,10 @@ export function removeProcessSupervisorPid(paths: TokenPilotPaths): void {
   fs.rmSync(paths.processSupervisorPidPath, { force: true });
 }
 
+export function removeProcessSupervisorToken(paths: TokenPilotPaths): void {
+  fs.rmSync(paths.processSupervisorTokenPath, { force: true });
+}
+
 export function removeStaleProcessSupervisorSocket(paths: TokenPilotPaths): void {
   let stat: fs.Stats;
   try {

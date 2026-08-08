@@ -100,6 +100,47 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
     });
   }
 
+  const supervisorConfigured =
+    fs.existsSync(paths.processSupervisorStatusPath) ||
+    fs.existsSync(paths.processSupervisorPlistPath);
+  if (!supervisorConfigured) {
+    checks.push({
+      name: "process-supervisor-status",
+      ok: true,
+      detail: "Process Supervisor is not configured in this local runtime yet."
+    });
+  } else if (fs.existsSync(paths.processSupervisorStatusPath)) {
+    try {
+      const status = JSON.parse(
+        fs.readFileSync(paths.processSupervisorStatusPath, "utf8")
+      ) as {
+        state?: unknown;
+        ownedProcessCount?: unknown;
+        protocolVersion?: unknown;
+      };
+      const ready = status.state === "ready";
+      checks.push({
+        name: "process-supervisor-status",
+        ok: ready,
+        detail: `state=${String(status.state)} owned=${String(
+          status.ownedProcessCount ?? "unknown"
+        )} protocol=${String(status.protocolVersion ?? "unknown")}`
+      });
+    } catch {
+      checks.push({
+        name: "process-supervisor-status",
+        ok: false,
+        detail: "Process Supervisor status file is invalid."
+      });
+    }
+  } else {
+    checks.push({
+      name: "process-supervisor-status",
+      ok: false,
+      detail: "Process Supervisor is configured but has not reported status."
+    });
+  }
+
   const ok = checks.every((check) => check.ok);
   const summary = ok
     ? "TokenPilot local prerequisites look ready."

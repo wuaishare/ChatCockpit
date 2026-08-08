@@ -11,6 +11,7 @@ import { createJob, getJob, listJobs } from "../core/jobs.js";
 import { buildServer } from "../server/app.js";
 import { runRunner } from "../runner/index.js";
 import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
+import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js";
 
 function printUsage(): void {
   process.stdout.write(`TokenPilot CLI
@@ -29,6 +30,7 @@ Usage:
   tokenpilot server
   tokenpilot runner [--once]
   tokenpilot runner --watch --interval 3
+  tokenpilot process-supervisor
   tokenpilot probe-direct-executors [--executor-id "downstream-mcp:..."]
 `);
 }
@@ -247,6 +249,10 @@ async function main(): Promise<void> {
       const port = Number(process.env.TOKENPILOT_PORT || "4318");
       const host = process.env.TOKENPILOT_HOST || "127.0.0.1";
       await app.listen({ host, port });
+      return;
+    }
+    case "process-supervisor": {
+      await runProcessSupervisorUntilSignal(paths);
       return;
     }
     case "probe-direct-executors": {
