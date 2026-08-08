@@ -21,7 +21,7 @@ interface DirectProcessSessionRow {
   repo_id: string;
   session_id: string;
   writer_lease_id: string;
-  private_pid: number;
+  private_pid: number | null;
   status: DirectProcessStatus;
   exit_code: number | null;
   stale_reason: string | null;
@@ -43,7 +43,7 @@ function sessionFromRow(row: DirectProcessSessionRow): DirectProcessSessionRecor
     repoId: row.repo_id,
     sessionId: row.session_id,
     writerLeaseId: row.writer_lease_id,
-    privatePid: Number(row.private_pid),
+    privatePid: row.private_pid === null ? null : Number(row.private_pid),
     status: row.status,
     exitCode: row.exit_code === null ? null : Number(row.exit_code),
     staleReason: row.stale_reason,
@@ -65,16 +65,51 @@ export interface CreateDirectProcessSessionInput {
   repoId: string;
   sessionId: string;
   writerLeaseId: string;
-  privatePid: number;
   evidenceBundleId?: string | null;
   now?: string;
+}
+
+export interface CreateRunningDirectProcessSessionInput
+  extends CreateDirectProcessSessionInput {
+  privatePid: number;
 }
 
 export class DirectProcessSessionRepository {
   constructor(private readonly database: ContinuityDatabase) {}
 
-  createRunning(
+  createStarting(
     input: CreateDirectProcessSessionInput
+  ): DirectProcessSessionRecord {
+    const id = input.id ?? newRecordId("host_process");
+    const now = nowIso(input.now);
+    this.database.sqlite
+      .prepare(`
+        INSERT INTO direct_process_sessions (
+          id, root_id, workdir, command, command_hash, executor_id,
+          workspace_id, repo_id, session_id, writer_lease_id, private_pid,
+          status, exit_code, stale_reason, evidence_bundle_id, started_at,
+          completed_at, revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'starting', NULL, NULL, ?, ?, NULL, 1)
+      `)
+      .run(
+        id,
+        input.rootId,
+        input.workdir,
+        input.command,
+        input.commandHash,
+        input.executorId,
+        input.workspaceId,
+        input.repoId,
+        input.sessionId,
+        input.writerLeaseId,
+        input.evidenceBundleId ?? null,
+        now
+      );
+    return this.get(id);
+  }
+
+  createRunning(
+    input: CreateRunningDirectProcessSessionInput
   ): DirectProcessSessionRecord {
     const id = input.id ?? newRecordId("host_process");
     const now = nowIso(input.now);
@@ -140,23 +175,33 @@ export class DirectProcessSessionRepository {
     return rows.map(sessionFromRow);
   }
 
+  countActive(input: { workspaceId?: string; sessionId?: string } = {}): number {
+    return this.countByStatusClause("status IN ('starting', 'running')", input);
+  }
+
   countRunning(input: { workspaceId?: string; sessionId?: string } = {}): number {
-    const clauses = ["status = 'running'"];
-    const params: string[] = [];
-    if (input.workspaceId) {
-      clauses.push("workspace_id = ?");
-      params.push(input.workspaceId);
-    }
-    if (input.sessionId) {
-      clauses.push("session_id = ?");
-      params.push(input.sessionId);
-    }
-    const row = this.database.sqlite
-      .prepare(
-        `SELECT COUNT(*) AS count FROM direct_process_sessions WHERE ${clauses.join(" AND ")}`
-      )
-      .get(...params) as { count: number };
-    return Number(row.count);
+    return this.countByStatusClause("status = 'running'", input);
+  }
+
+  attachStarted(input: {
+    id: string;
+    privatePid: number;
+    expectedRevision: number;
+  }): DirectProcessSessionRecord {
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE direct_process_sessions
+        SET private_pid = ?, status = 'running', revision = revision + 1
+        WHERE id = ? AND status = 'starting' AND revision = ?
+      `)
+      .run(input.privatePid, input.id, input.expectedRevision);
+    assertUpdated(
+      result.changes,
+      "Direct process session",
+      input.id,
+      input.expectedRevision
+    );
+    return this.get(input.id);
   }
 
   setEvidenceBundle(input: {
@@ -182,7 +227,7 @@ export class DirectProcessSessionRepository {
 
   complete(input: {
     id: string;
-    status: Exclude<DirectProcessStatus, "running" | "stale">;
+    status: Exclude<DirectProcessStatus, "starting" | "running" | "stale">;
     exitCode?: number | null;
     expectedRevision: number;
     now?: string;
@@ -193,7 +238,7 @@ export class DirectProcessSessionRepository {
         UPDATE direct_process_sessions
         SET status = ?, exit_code = ?, stale_reason = NULL, completed_at = ?,
             revision = revision + 1
-        WHERE id = ? AND status = 'running' AND revision = ?
+        WHERE id = ? AND status IN ('starting', 'running') AND revision = ?
       `)
       .run(
         input.status,
@@ -223,7 +268,7 @@ export class DirectProcessSessionRepository {
         UPDATE direct_process_sessions
         SET status = 'stale', stale_reason = ?, completed_at = ?,
             revision = revision + 1
-        WHERE id = ? AND status = 'running' AND revision = ?
+        WHERE id = ? AND status IN ('starting', 'running') AND revision = ?
       `)
       .run(input.reason, now, input.id, input.expectedRevision);
     assertUpdated(
@@ -245,9 +290,31 @@ export class DirectProcessSessionRepository {
         UPDATE direct_process_sessions
         SET status = 'stale', stale_reason = ?, completed_at = ?,
             revision = revision + 1
-        WHERE status = 'running'
+        WHERE status IN ('starting', 'running')
       `)
       .run(input.reason, now);
     return Number(result.changes);
+  }
+
+  private countByStatusClause(
+    statusClause: string,
+    input: { workspaceId?: string; sessionId?: string }
+  ): number {
+    const clauses = [statusClause];
+    const params: string[] = [];
+    if (input.workspaceId) {
+      clauses.push("workspace_id = ?");
+      params.push(input.workspaceId);
+    }
+    if (input.sessionId) {
+      clauses.push("session_id = ?");
+      params.push(input.sessionId);
+    }
+    const row = this.database.sqlite
+      .prepare(
+        `SELECT COUNT(*) AS count FROM direct_process_sessions WHERE ${clauses.join(" AND ")}`
+      )
+      .get(...params) as { count: number };
+    return Number(row.count);
   }
 }

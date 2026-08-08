@@ -608,7 +608,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 
 try {
   const repositories = buildContinuityRepositories(database);
-  assert.equal(database.schemaVersion(), 10);
+  assert.equal(database.schemaVersion(), 11);
   assert.ok(repositories.directProcessSessions);
   assert.ok(repositories.directProcessApprovals);
   assert.ok(repositories.directProcessAudit);
@@ -656,6 +656,61 @@ try {
     expiresAt: "2026-08-09T01:00:00.000Z",
     now: NOW
   });
+
+  const startingReservation = repositories.directProcessSessions.createStarting({
+    id: "host_process_starting_fixture",
+    rootId: "workspace-root",
+    workdir: ".",
+    command: "npm",
+    commandHash: "0".repeat(64),
+    executorId: "downstream-mcp:desktop-commander",
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    now: NOW
+  });
+  assert.equal(startingReservation.status, "starting");
+  assert.equal(startingReservation.privatePid, null);
+  const attachedReservation = repositories.directProcessSessions.attachStarted({
+    id: startingReservation.id,
+    privatePid: 4141,
+    expectedRevision: startingReservation.revision
+  });
+  assert.equal(attachedReservation.status, "running");
+  assert.equal(attachedReservation.privatePid, 4141);
+  assert.equal(
+    repositories.directProcessSessions.complete({
+      id: attachedReservation.id,
+      status: "exited",
+      exitCode: 0,
+      expectedRevision: attachedReservation.revision,
+      now: LATER
+    }).status,
+    "exited"
+  );
+  const reservedStale = repositories.directProcessSessions.createStarting({
+    id: "host_process_starting_stale_fixture",
+    rootId: "workspace-root",
+    workdir: ".",
+    command: "npm",
+    commandHash: "9".repeat(64),
+    executorId: "downstream-mcp:desktop-commander",
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    now: NOW
+  });
+  assert.equal(
+    repositories.directProcessSessions.markStale({
+      id: reservedStale.id,
+      reason: "CONTROL_PLANE_RESTART",
+      expectedRevision: reservedStale.revision,
+      now: LATER
+    }).status,
+    "stale"
+  );
 
   const startApproval = repositories.directProcessApprovals.create({
     id: "process_approval_start",
@@ -766,7 +821,10 @@ try {
     1
   );
   assert.equal(
-    repositories.directProcessSessions.list({ sessionId: session.id }).length,
+    repositories.directProcessSessions.list({
+      sessionId: session.id,
+      status: "running"
+    }).length,
     1
   );
 

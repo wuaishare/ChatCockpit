@@ -63,6 +63,7 @@ export type DirectCommandTargetKind = DirectMutationTargetKind;
 export type DirectCommandApprovalStatus = DirectMutationApprovalStatus;
 export type DirectCommandAuditStatus = DirectMutationAuditStatus;
 export type DirectProcessStatus =
+  | "starting"
   | "running"
   | "exited"
   | "terminated"
@@ -350,7 +351,7 @@ export interface DirectProcessSessionRecord {
   repoId: string;
   sessionId: string;
   writerLeaseId: string;
-  privatePid: number;
+  privatePid: number | null;
   status: DirectProcessStatus;
   exitCode: number | null;
   staleReason: string | null;

@@ -213,7 +213,7 @@ export class HostProcessService {
     }
 
     if (
-      this.repositories.directProcessSessions.countRunning({
+      this.repositories.directProcessSessions.countActive({
         workspaceId: authority.workspace.id
       }) >= MAX_RUNNING_PER_WORKSPACE
     ) {
@@ -223,7 +223,7 @@ export class HostProcessService {
       );
     }
     if (
-      this.repositories.directProcessSessions.countRunning({
+      this.repositories.directProcessSessions.countActive({
         sessionId: authority.session.id
       }) >= MAX_RUNNING_PER_SESSION
     ) {
