@@ -17,6 +17,7 @@ import type {
   SupervisorProcessMutationResult,
   SupervisorProcessReadResult
 } from "../process-supervisor/service.js";
+import type { SupervisorTerminalEvent } from "../process-supervisor/event-journal.js";
 
 export interface DurableHostProcessRuntimeSnapshot {
   processId: string;
@@ -252,6 +253,36 @@ export class HostProcessSupervisorClient {
       this.currentGeneration = response.supervisorGeneration;
       this.owned.delete(processId);
       return this.projectMutation(response.result, response.supervisorGeneration);
+    } catch (error) {
+      mapClientError(error);
+    }
+  }
+
+  async listEvents(): Promise<{
+    supervisorGeneration: string;
+    events: SupervisorTerminalEvent[];
+  }> {
+    try {
+      const response = await this.client.request<{ events: SupervisorTerminalEvent[] }>(
+        "events.list",
+        {}
+      );
+      return {
+        supervisorGeneration: response.supervisorGeneration,
+        events: response.result.events
+      };
+    } catch (error) {
+      mapClientError(error);
+    }
+  }
+
+  async ackEvents(eventIds: string[]): Promise<number> {
+    try {
+      const response = await this.client.request<{ acknowledged: number }>(
+        "events.ack",
+        { eventIds }
+      );
+      return response.result.acknowledged;
     } catch (error) {
       mapClientError(error);
     }

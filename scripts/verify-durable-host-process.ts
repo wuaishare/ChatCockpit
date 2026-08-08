@@ -13,6 +13,7 @@ import type {
   ManagedProcessStartRequest
 } from "../src/direct/adapters/desktop-commander-managed-process.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
+import type { SupervisorTerminalEvent } from "../src/process-supervisor/event-journal.ts";
 
 const NOW = "2026-08-09T06:50:00.000Z";
 
@@ -20,6 +21,8 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
   readonly durable = true as const;
   closeAllCalls = 0;
   stopCalls = 0;
+  private owned = true;
+  private events: SupervisorTerminalEvent[] = [];
 
   constructor(
     private readonly ownedProcess: {
@@ -39,10 +42,10 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
     return { durable: true };
   }
   has(processId: string): boolean {
-    return processId === this.ownedProcess.processId;
+    return this.owned && processId === this.ownedProcess.processId;
   }
   activeProcessIds(): string[] {
-    return [this.ownedProcess.processId];
+    return this.owned ? [this.ownedProcess.processId] : [];
   }
   generation(): string {
     return "generation-crash-window";
@@ -50,8 +53,33 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
   async refresh() {
     return {
       supervisorGeneration: "generation-crash-window",
-      owned: [{ ...this.ownedProcess }]
+      owned: this.owned ? [{ ...this.ownedProcess }] : []
     };
+  }
+  async listEvents() {
+    return {
+      supervisorGeneration: "generation-crash-window",
+      events: this.events.map((event) => ({ ...event }))
+    };
+  }
+  async ackEvents(eventIds: string[]): Promise<number> {
+    const ids = new Set(eventIds);
+    const before = this.events.length;
+    this.events = this.events.filter((event) => !ids.has(event.eventId));
+    return before - this.events.length;
+  }
+  emitLeaseRevokedEvent(processId: string): void {
+    this.owned = false;
+    this.events.push({
+      eventId: "supervisor_event_lease_revoked",
+      supervisorGeneration: "generation-crash-window",
+      processId,
+      kind: "lease-revoked",
+      status: "terminated",
+      exitCode: 143,
+      reasonCode: "WRITER_LEASE_EXPIRED",
+      occurredAt: "2026-08-09T06:55:00.000Z"
+    });
   }
   async start(_request: ManagedProcessStartRequest): Promise<HostProcessRuntimeSnapshot> {
     throw new Error("not used");
@@ -260,6 +288,46 @@ try {
     "generation-crash-window"
   );
   assert.equal(crashRuntime.stopCalls, 0);
+
+  crashRuntime.emitLeaseRevokedEvent(crashReservation.id);
+  await durableService.reconcile("2026-08-09T06:56:00.000Z");
+  const terminal = repositories.directProcessSessions.get(crashReservation.id);
+  assert.equal(terminal.status, "terminated");
+  assert.equal(terminal.exitCode, 143);
+  assert.equal(
+    repositories.directProcessRuntimeOwnership.get(crashReservation.id),
+    null
+  );
+  const eventAudits = repositories.directProcessAudit
+    .listByProcess(crashReservation.id)
+    .filter((audit) => audit.terminalReason?.startsWith("SUPERVISOR_EVENT:"));
+  assert.equal(eventAudits.length, 1);
+  const eventItems = terminal.evidenceBundleId
+    ? repositories.evidence
+        .listItems(terminal.evidenceBundleId)
+        .filter((item) => item.summary.includes("supervisor_event_lease_revoked"))
+    : [];
+  assert.equal(eventItems.length, 1);
+  assert.equal((await crashRuntime.listEvents()).events.length, 0);
+
+  await durableService.reconcile("2026-08-09T06:57:00.000Z");
+  assert.equal(
+    repositories.directProcessAudit
+      .listByProcess(crashReservation.id)
+      .filter((audit) => audit.terminalReason?.startsWith("SUPERVISOR_EVENT:"))
+      .length,
+    1
+  );
+  assert.equal(
+    terminal.evidenceBundleId
+      ? repositories.evidence
+          .listItems(terminal.evidenceBundleId)
+          .filter((item) => item.summary.includes("supervisor_event_lease_revoked"))
+          .length
+      : 0,
+    1
+  );
+
   await durableService.close(NOW);
   assert.equal(crashRuntime.closeAllCalls, 0);
 

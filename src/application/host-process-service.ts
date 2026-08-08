@@ -18,6 +18,7 @@ import type {
   PrivateWorkspaceRecord
 } from "../continuity/types.js";
 import type { TokenPilotPaths } from "../types.js";
+import type { SupervisorTerminalEvent } from "../process-supervisor/event-journal.js";
 import { evaluateWorkspaceCommand } from "../core/command-policy.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
 import {
@@ -89,6 +90,11 @@ export interface HostProcessRuntimeSupervisor {
   refresh?(): Promise<DurableHostProcessRefresh>;
   generation?(): string | null;
   closeClient?(): Promise<void>;
+  listEvents?(): Promise<{
+    supervisorGeneration: string;
+    events: SupervisorTerminalEvent[];
+  }>;
+  ackEvents?(eventIds: string[]): Promise<number>;
 }
 
 interface PreparedProcessStartIntent {
@@ -1093,6 +1099,10 @@ export class HostProcessService {
       );
     }
     this.repositories.leases.reconcileExpired(now);
+    await this.ingestDurableSupervisorEvents(
+      now,
+      refresh.supervisorGeneration
+    );
     const owned = new Map(
       refresh.owned.map((process) => [process.processId, process] as const)
     );
@@ -1215,6 +1225,219 @@ export class HostProcessService {
         "ORPHANED_SUPERVISOR_RUNTIME"
       );
     }
+  }
+
+  private async ingestDurableSupervisorEvents(
+    now: string,
+    currentGeneration: string
+  ): Promise<void> {
+    if (!this.supervisor.listEvents || !this.supervisor.ackEvents) {
+      return;
+    }
+    let listed;
+    try {
+      listed = await this.supervisor.listEvents();
+    } catch (error) {
+      if (error instanceof DesktopCommanderManagedProcessError) {
+        throw new ServiceError(
+          "HOST_PROCESS_EXECUTOR_UNAVAILABLE",
+          "Durable Process Supervisor event journal is unavailable"
+        );
+      }
+      throw error;
+    }
+    if (listed.supervisorGeneration !== currentGeneration) {
+      throw new ServiceError(
+        "HOST_PROCESS_STALE",
+        "Durable Process Supervisor generation changed while reading terminal events"
+      );
+    }
+
+    const processedEventIds: string[] = [];
+    for (const event of listed.events) {
+      const ownership = this.repositories.directProcessRuntimeOwnership.get(
+        event.processId
+      );
+      if (
+        event.supervisorGeneration !== currentGeneration ||
+        (ownership &&
+          ownership.supervisorGeneration !== event.supervisorGeneration)
+      ) {
+        processedEventIds.push(event.eventId);
+        continue;
+      }
+
+      let processRecord: DirectProcessSessionRecord;
+      try {
+        processRecord = this.repositories.directProcessSessions.get(event.processId);
+      } catch (error) {
+        if (
+          error instanceof ServiceError &&
+          error.code === "CONTINUITY_RECORD_NOT_FOUND"
+        ) {
+          processedEventIds.push(event.eventId);
+          continue;
+        }
+        throw error;
+      }
+
+      const eventHash = this.supervisorEventHash(event);
+      if (processRecord.status === "starting" || processRecord.status === "running") {
+        if (event.status === "exited") {
+          processRecord = this.repositories.directProcessSessions.complete({
+            id: processRecord.id,
+            status: "exited",
+            exitCode: event.exitCode,
+            expectedRevision: processRecord.revision,
+            now: event.occurredAt
+          });
+        } else if (event.status === "terminated") {
+          processRecord = this.repositories.directProcessSessions.complete({
+            id: processRecord.id,
+            status: "terminated",
+            exitCode: event.exitCode,
+            expectedRevision: processRecord.revision,
+            now: event.occurredAt
+          });
+        } else if (event.status === "failed") {
+          processRecord = this.repositories.directProcessSessions.complete({
+            id: processRecord.id,
+            status: "failed",
+            exitCode: event.exitCode,
+            expectedRevision: processRecord.revision,
+            now: event.occurredAt
+          });
+        } else {
+          processRecord = this.repositories.directProcessSessions.markStale({
+            id: processRecord.id,
+            reason: `SUPERVISOR_EVENT_${event.reasonCode}`,
+            expectedRevision: processRecord.revision,
+            now: event.occurredAt
+          });
+        }
+      }
+      this.releaseRuntimeOwnershipForProcess(processRecord.id);
+
+      const existingAudit = this.repositories.directProcessAudit
+        .listByProcess(processRecord.id)
+        .find((audit) => audit.actionHash === eventHash);
+      const audit =
+        existingAudit ??
+        this.repositories.directProcessAudit.create({
+          operation: "cleanup",
+          processId: processRecord.id,
+          actionHash: eventHash,
+          approvalId: null,
+          status: this.supervisorEventAuditStatus(event),
+          errorCode:
+            event.status === "failed" || event.status === "unknown"
+              ? event.reasonCode
+              : null,
+          terminalReason: `SUPERVISOR_EVENT:${event.kind}:${event.reasonCode}`,
+          exitCode: event.exitCode,
+          outputBytes: 0,
+          outputTruncated: false,
+          startedAt: event.occurredAt,
+          completedAt: event.occurredAt,
+          now
+        });
+
+      if (!this.hasSupervisorEventEvidence(processRecord, event.eventId)) {
+        this.addProcessEvidence(
+          this.internalContext(now, processRecord.id),
+          processRecord,
+          {
+            label: `Host Managed Process supervisor event ${processRecord.command}`,
+            status: this.supervisorEventEvidenceStatus(event),
+            summary: {
+              operation: "supervisor-event",
+              supervisorEventId: event.eventId,
+              supervisorGeneration: event.supervisorGeneration,
+              processId: processRecord.id,
+              eventKind: event.kind,
+              reasonCode: event.reasonCode,
+              processStatus: processRecord.status,
+              exitCode: processRecord.exitCode,
+              auditId: audit.id
+            },
+            startedAt: processRecord.startedAt
+          }
+        );
+      }
+      processedEventIds.push(event.eventId);
+    }
+
+    if (processedEventIds.length > 0) {
+      await this.supervisor.ackEvents(processedEventIds);
+    }
+  }
+
+  private supervisorEventHash(event: SupervisorTerminalEvent): string {
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          schemaVersion: 1,
+          eventId: event.eventId,
+          supervisorGeneration: event.supervisorGeneration,
+          processId: event.processId,
+          kind: event.kind,
+          status: event.status,
+          exitCode: event.exitCode,
+          reasonCode: event.reasonCode,
+          occurredAt: event.occurredAt
+        }),
+        "utf8"
+      )
+      .digest("hex");
+  }
+
+  private supervisorEventAuditStatus(
+    event: SupervisorTerminalEvent
+  ): "succeeded" | "failed" | "unknown" {
+    if (event.status === "unknown") {
+      return "unknown";
+    }
+    if (event.status === "failed") {
+      return "failed";
+    }
+    if (event.status === "exited") {
+      return event.exitCode === 0 ? "succeeded" : "failed";
+    }
+    return event.kind === "runtime-failure" ? "failed" : "succeeded";
+  }
+
+  private supervisorEventEvidenceStatus(
+    event: SupervisorTerminalEvent
+  ): "passed" | "failed" | "skipped" {
+    if (event.status === "exited") {
+      return event.exitCode === 0 ? "passed" : "failed";
+    }
+    if (event.status === "terminated" && event.kind === "explicit-stop") {
+      return "skipped";
+    }
+    return "failed";
+  }
+
+  private hasSupervisorEventEvidence(
+    processRecord: DirectProcessSessionRecord,
+    eventId: string
+  ): boolean {
+    const session = this.repositories.sessions.get(processRecord.sessionId);
+    const task = this.repositories.tasks.get(session.taskId);
+    const bundleId = processRecord.evidenceBundleId ?? task.latestEvidenceBundleId;
+    if (!bundleId) {
+      return false;
+    }
+    return this.repositories.evidence.listItems(bundleId).some((item) => {
+      try {
+        const summary = JSON.parse(item.summary) as {
+          supervisorEventId?: unknown;
+        };
+        return summary.supervisorEventId === eventId;
+      } catch {
+        return false;
+      }
+    });
   }
 
   private async stopDurableRuntimeBestEffort(
