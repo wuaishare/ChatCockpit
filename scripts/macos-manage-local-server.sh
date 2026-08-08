@@ -11,14 +11,20 @@ PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"
 RUNNER_PID_FILE="${RUNTIME_DIR}/runner.pid"
 RUNNER_LOG_FILE="${RUNTIME_DIR}/runner.log"
+PROCESS_SUPERVISOR_PID_FILE="${RUNTIME_DIR}/process-supervisor.pid"
+PROCESS_SUPERVISOR_LOG_FILE="${RUNTIME_DIR}/process-supervisor.log"
+PROCESS_SUPERVISOR_STATUS_FILE="${RUNTIME_DIR}/process-supervisor-status.json"
 ENV_FILE="${RUNTIME_DIR}/server.env"
 PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.control-plane.plist"
 RUNNER_PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.runner.plist"
+PROCESS_SUPERVISOR_PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.process-supervisor.plist"
 LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
 SERVICE_LABEL="com.wuaishare.tokenpilot.control-plane"
 INSTALLED_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${SERVICE_LABEL}.plist"
 RUNNER_SERVICE_LABEL="com.wuaishare.tokenpilot.runner"
 INSTALLED_RUNNER_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${RUNNER_SERVICE_LABEL}.plist"
+PROCESS_SUPERVISOR_SERVICE_LABEL="com.wuaishare.tokenpilot.process-supervisor"
+INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${PROCESS_SUPERVISOR_SERVICE_LABEL}.plist"
 PORT="${TOKENPILOT_PORT:-4318}"
 RUNNER_INTERVAL="${TOKENPILOT_RUNNER_INTERVAL:-3}"
 USER_DOMAIN="gui/$(id -u)"
@@ -135,22 +141,55 @@ write_runner_plist() {
 EOF
 }
 
+write_process_supervisor_plist() {
+  cat > "${PROCESS_SUPERVISOR_PLIST_FILE}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${PROCESS_SUPERVISOR_SERVICE_LABEL}</string>
+  <key>WorkingDirectory</key>
+  <string>${ROOT_DIR}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${PROCESS_SUPERVISOR_LOG_FILE}</string>
+  <key>StandardErrorPath</key>
+  <string>${PROCESS_SUPERVISOR_LOG_FILE}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH</key>
+    <string>${TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH:-}</string>
+  </dict>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(command -v node)</string>
+    <string>${ROOT_DIR}/dist/cli/index.js</string>
+    <string>process-supervisor</string>
+  </array>
+</dict>
+</plist>
+EOF
+}
+
 install_plists() {
   ensure_launch_agents_dir
   cp "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}"
   cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
+  cp "${PROCESS_SUPERVISOR_PLIST_FILE}" "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"
 }
 
-sync_plists_if_needed() {
+sync_control_plane_plists_if_needed() {
   ensure_launch_agents_dir
   local changed=1
-
   if [[ -f "${INSTALLED_PLIST_FILE}" ]] && [[ -f "${INSTALLED_RUNNER_PLIST_FILE}" ]]; then
     if cmp -s "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}" && cmp -s "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"; then
       changed=0
     fi
   fi
-
   if (( changed != 0 )); then
     cp "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}"
     cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
@@ -159,19 +198,39 @@ sync_plists_if_needed() {
   return 0
 }
 
+sync_process_supervisor_plist_if_needed() {
+  ensure_launch_agents_dir
+  if [[ -f "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}" ]] && cmp -s "${PROCESS_SUPERVISOR_PLIST_FILE}" "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"; then
+    return 0
+  fi
+  cp "${PROCESS_SUPERVISOR_PLIST_FILE}" "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"
+  return 1
+}
+
 remove_installed_plists() {
   rm -f "${INSTALLED_PLIST_FILE}"
   rm -f "${INSTALLED_RUNNER_PLIST_FILE}"
+  rm -f "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"
 }
 
-bootout_services() {
+bootout_control_plane_and_runner() {
   launchctl bootout "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
   launchctl bootout "${USER_DOMAIN}" "${INSTALLED_PLIST_FILE}" >/dev/null 2>&1 || true
   launchctl bootout "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1 || true
   launchctl bootout "${USER_DOMAIN}" "${INSTALLED_RUNNER_PLIST_FILE}" >/dev/null 2>&1 || true
 }
 
-bootstrap_services() {
+bootout_process_supervisor() {
+  launchctl bootout "${USER_DOMAIN}/${PROCESS_SUPERVISOR_SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl bootout "${USER_DOMAIN}" "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}" >/dev/null 2>&1 || true
+}
+
+bootout_all_services() {
+  bootout_control_plane_and_runner
+  bootout_process_supervisor
+}
+
+bootstrap_control_plane_and_runner() {
   launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_PLIST_FILE}"
   launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_RUNNER_PLIST_FILE}"
   launchctl enable "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1 || true
@@ -180,7 +239,13 @@ bootstrap_services() {
   launchctl kickstart -k "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}"
 }
 
-kickstart_services() {
+bootstrap_process_supervisor() {
+  launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"
+  launchctl enable "${USER_DOMAIN}/${PROCESS_SUPERVISOR_SERVICE_LABEL}" >/dev/null 2>&1 || true
+  launchctl kickstart "${USER_DOMAIN}/${PROCESS_SUPERVISOR_SERVICE_LABEL}"
+}
+
+kickstart_control_plane_and_runner() {
   launchctl kickstart -k "${USER_DOMAIN}/${SERVICE_LABEL}"
   launchctl kickstart -k "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}"
 }
@@ -191,6 +256,10 @@ launchctl_service_registered() {
 
 launchctl_runner_registered() {
   launchctl print "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1
+}
+
+launchctl_process_supervisor_registered() {
+  launchctl print "${USER_DOMAIN}/${PROCESS_SUPERVISOR_SERVICE_LABEL}" >/dev/null 2>&1
 }
 
 is_running() {
@@ -254,6 +323,17 @@ stop_runner_process() {
   fi
 }
 
+stop_process_supervisor_process() {
+  local supervisor_pid=""
+  if [[ -f "${PROCESS_SUPERVISOR_PID_FILE}" ]]; then
+    supervisor_pid="$(cat "${PROCESS_SUPERVISOR_PID_FILE}")"
+    if [[ -n "${supervisor_pid}" ]]; then
+      kill "${supervisor_pid}" >/dev/null 2>&1 || true
+      sleep 1
+    fi
+  fi
+}
+
 wait_for_listen() {
   local attempts="${1:-20}"
   local idx=0
@@ -280,58 +360,92 @@ wait_for_runner_registration() {
   return 1
 }
 
+process_supervisor_ready() {
+  launchctl_process_supervisor_registered || return 1
+  [[ -f "${PROCESS_SUPERVISOR_STATUS_FILE}" ]] || return 1
+  grep -q '"state": "ready"' "${PROCESS_SUPERVISOR_STATUS_FILE}"
+}
+
+wait_for_process_supervisor_ready() {
+  local attempts="${1:-20}"
+  local idx=0
+  while (( idx < attempts )); do
+    if process_supervisor_ready; then
+      return 0
+    fi
+    sleep 1
+    ((idx+=1))
+  done
+  return 1
+}
+
 case "${ACTION}" in
   start)
     cd "${ROOT_DIR}"
     assert_port_available_or_tokenpilot
     write_server_plist
     write_runner_plist
-    sync_plists_if_needed
-    plist_changed=$?
-    if is_running; then
-      if launchctl_service_registered && launchctl_runner_registered; then
-        if (( plist_changed == 0 )); then
-          echo "control plane: running (pid $(cat "${PID_FILE}"))"
-          echo "runner: registered"
-          echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
-          echo "next action: open the UI or run npm run doctor:runtime"
-          exit 0
-        fi
+    write_process_supervisor_plist
+
+    control_plane_plist_changed=0
+    if ! sync_control_plane_plists_if_needed; then
+      control_plane_plist_changed=1
+    fi
+    process_supervisor_plist_changed=0
+    if ! sync_process_supervisor_plist_if_needed; then
+      process_supervisor_plist_changed=1
+    fi
+
+    if launchctl_service_registered && launchctl_runner_registered; then
+      if (( control_plane_plist_changed != 0 )); then
+        bootout_control_plane_and_runner
+        bootstrap_control_plane_and_runner
+      elif ! is_running; then
+        kickstart_control_plane_and_runner
       fi
-      echo "control plane: running (pid $(cat "${PID_FILE}")); refreshing LaunchAgent registration"
-    fi
-    if launchctl_service_registered && launchctl_runner_registered && (( plist_changed == 0 )); then
-      kickstart_services
     else
-      bootout_services
-      bootstrap_services
+      bootout_control_plane_and_runner
+      bootstrap_control_plane_and_runner
     fi
-    if wait_for_listen 30 && wait_for_runner_registration 30; then
-      echo "control plane: running (pid $(cat "${PID_FILE}"))"
-      echo "runner: registered"
-      echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
-      echo "next action: run npm run doctor:runtime"
-    else
+
+    if ! wait_for_listen 30 || ! wait_for_runner_registration 30; then
       cat "${LOG_FILE}" 2>/dev/null || true
       cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
-      echo "Failed to start TokenPilot server"
+      echo "Failed to start TokenPilot control plane or runner"
       exit 1
     fi
+
+    if launchctl_process_supervisor_registered; then
+      if (( process_supervisor_plist_changed != 0 )); then
+        echo "process supervisor: plist updated; current generation preserved (full stop/start required to apply it)"
+      fi
+    else
+      bootout_process_supervisor
+      bootstrap_process_supervisor
+    fi
+
+    if ! wait_for_process_supervisor_ready 30; then
+      cat "${PROCESS_SUPERVISOR_LOG_FILE}" 2>/dev/null || true
+      echo "Failed to start TokenPilot Process Supervisor"
+      exit 1
+    fi
+
+    echo "control plane: running (pid $(cat "${PID_FILE}"))"
+    echo "runner: registered"
+    echo "process supervisor: ready (generation preserved across control-plane restart)"
+    echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+    echo "next action: open the UI or run npm run doctor:runtime"
     ;;
   stop)
-    if ! is_running; then
-      bootout_services
-      echo "TokenPilot server is not running"
-      exit 0
-    fi
-    bootout_services
+    bootout_all_services
     sleep 2
     stop_port_process
     stop_runner_process
-    rm -f "${PID_FILE}"
-    rm -f "${RUNNER_PID_FILE}"
+    stop_process_supervisor_process
+    rm -f "${PID_FILE}" "${RUNNER_PID_FILE}" "${PROCESS_SUPERVISOR_PID_FILE}"
     echo "control plane: stopped"
     echo "runner: stopped"
+    echo "process supervisor: stopped after full-stack cleanup"
     echo "UI: unavailable until start"
     echo "next action: run npm run start:local"
     ;;
@@ -340,81 +454,104 @@ case "${ACTION}" in
     assert_port_available_or_tokenpilot
     write_server_plist
     write_runner_plist
-    sync_plists_if_needed
-    plist_changed=$?
+    write_process_supervisor_plist
 
-    if launchctl_service_registered && launchctl_runner_registered && (( plist_changed == 0 )); then
-      kickstart_services
-      if wait_for_listen 30 && wait_for_runner_registration 30; then
-        echo "control plane: running (pid $(cat "${PID_FILE}"))"
-        echo "runner: registered"
-        echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
-        echo "next action: run npm run doctor:runtime"
+    control_plane_plist_changed=0
+    if ! sync_control_plane_plists_if_needed; then
+      control_plane_plist_changed=1
+    fi
+    process_supervisor_plist_changed=0
+    if ! sync_process_supervisor_plist_if_needed; then
+      process_supervisor_plist_changed=1
+    fi
+
+    if launchctl_service_registered && launchctl_runner_registered; then
+      if (( control_plane_plist_changed != 0 )); then
+        bootout_control_plane_and_runner
+        bootstrap_control_plane_and_runner
       else
-        cat "${LOG_FILE}" 2>/dev/null || true
-        cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
-        echo "Failed to restart TokenPilot server"
-        exit 1
+        kickstart_control_plane_and_runner
       fi
-      exit 0
+    else
+      bootout_control_plane_and_runner
+      bootstrap_control_plane_and_runner
     fi
 
-    if launchctl_service_registered || launchctl_runner_registered; then
-      bootout_services
+    if ! launchctl_process_supervisor_registered; then
+      bootstrap_process_supervisor
+    elif (( process_supervisor_plist_changed != 0 )); then
+      echo "process supervisor: plist updated but running generation intentionally preserved"
     fi
 
-    bootstrap_services
-    if wait_for_listen 30 && wait_for_runner_registration 30; then
+    if wait_for_listen 30 && wait_for_runner_registration 30 && wait_for_process_supervisor_ready 30; then
       echo "control plane: running (pid $(cat "${PID_FILE}"))"
       echo "runner: registered"
+      echo "process supervisor: ready (not restarted)"
       echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
       echo "next action: run npm run doctor:runtime"
       exit 0
     fi
 
-    "${0}" stop
-    "${0}" start
+    cat "${LOG_FILE}" 2>/dev/null || true
+    cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
+    cat "${PROCESS_SUPERVISOR_LOG_FILE}" 2>/dev/null || true
+    echo "Failed to restart TokenPilot control plane without disturbing Process Supervisor"
+    exit 1
     ;;
   status)
+    runner_state="NOT registered"
+    process_supervisor_state="NOT registered"
+    if launchctl_runner_registered; then
+      runner_state="registered"
+    fi
+    if process_supervisor_ready; then
+      process_supervisor_state="ready"
+    elif launchctl_process_supervisor_registered; then
+      process_supervisor_state="registered but not ready"
+    fi
     if is_running; then
-      runner_state="runner LaunchAgent NOT registered"
-      if launchctl_runner_registered; then
-        runner_state="runner LaunchAgent is registered"
-      fi
       if launchctl_service_registered; then
         echo "control plane: running (pid $(cat "${PID_FILE}"))"
-        echo "runner: ${runner_state}"
-        echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
-        echo "next action: open UI or run npm run doctor:runtime"
       else
         echo "control plane: running (pid $(cat "${PID_FILE}")) but LaunchAgent is not registered"
-        echo "runner: ${runner_state}"
-        echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
-        echo "next action: run npm run start:local to repair LaunchAgent registration"
       fi
+      echo "runner: ${runner_state}"
+      echo "process supervisor: ${process_supervisor_state}"
+      echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+      echo "next action: open UI or run npm run doctor:runtime"
       exit 0
     fi
     if [[ -f "${INSTALLED_PLIST_FILE}" ]]; then
       echo "control plane: stopped"
-      echo "runner: stopped or unknown"
+      echo "runner: ${runner_state}"
+      echo "process supervisor: ${process_supervisor_state}"
       echo "UI: unavailable"
       echo "next action: run npm run start:local"
     else
       echo "control plane: not installed"
       echo "runner: not installed"
+      echo "process supervisor: not installed"
       echo "UI: unavailable"
       echo "next action: run npm run setup, then npm run start:local"
     fi
     exit 1
     ;;
   reset|uninstall)
-    bootout_services
+    bootout_all_services
     stop_port_process
     stop_runner_process
+    stop_process_supervisor_process
     remove_installed_plists
-    rm -f "${PID_FILE}" "${RUNNER_PID_FILE}" "${PLIST_FILE}" "${RUNNER_PLIST_FILE}"
+    rm -f \
+      "${PID_FILE}" \
+      "${RUNNER_PID_FILE}" \
+      "${PROCESS_SUPERVISOR_PID_FILE}" \
+      "${PLIST_FILE}" \
+      "${RUNNER_PLIST_FILE}" \
+      "${PROCESS_SUPERVISOR_PLIST_FILE}"
     echo "control plane: uninstalled"
     echo "runner: uninstalled"
+    echo "process supervisor: uninstalled"
     echo "UI: unavailable"
     echo "next action: run npm run start:local to reinstall LaunchAgents; source code and server.env were kept"
     ;;
