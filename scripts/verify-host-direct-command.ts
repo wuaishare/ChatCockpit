@@ -1192,7 +1192,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 const repositories = buildContinuityRepositories(database);
 
 try {
-  assert.equal(database.schemaVersion(), 12);
+  assert.equal(database.schemaVersion(), 13);
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
 
   const pending = repositories.directCommandApprovals.create({

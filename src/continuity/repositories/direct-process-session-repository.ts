@@ -183,6 +183,26 @@ export class DirectProcessSessionRepository {
     return this.countByStatusClause("status = 'running'", input);
   }
 
+  attachManaged(input: {
+    id: string;
+    expectedRevision: number;
+  }): DirectProcessSessionRecord {
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE direct_process_sessions
+        SET status = 'running', revision = revision + 1
+        WHERE id = ? AND status = 'starting' AND private_pid IS NULL AND revision = ?
+      `)
+      .run(input.id, input.expectedRevision);
+    assertUpdated(
+      result.changes,
+      "Direct process session",
+      input.id,
+      input.expectedRevision
+    );
+    return this.get(input.id);
+  }
+
   attachStarted(input: {
     id: string;
     privatePid: number;

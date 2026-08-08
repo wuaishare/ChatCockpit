@@ -9,7 +9,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 12);
+  assert.equal(database.schemaVersion(), 13);
   assert.ok(repositories.directProcessRuntimeOwnership);
 
   const project = repositories.projects.create({
@@ -54,6 +54,26 @@ try {
     expiresAt: "2026-08-09T07:20:00.000Z",
     now: NOW
   });
+  const managedReservation = repositories.directProcessSessions.createStarting({
+    id: "host_process_durable_managed",
+    rootId: "workspace-root",
+    workdir: ".",
+    command: "node",
+    commandHash: "0".repeat(64),
+    executorId: "downstream-mcp:desktop-commander",
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    now: NOW
+  });
+  const managed = repositories.directProcessSessions.attachManaged({
+    id: managedReservation.id,
+    expectedRevision: managedReservation.revision
+  });
+  assert.equal(managed.status, "running");
+  assert.equal(managed.privatePid, null);
+
   repositories.directProcessSessions.createRunning({
     id: "host_process_durable_fixture",
     rootId: "workspace-root",
