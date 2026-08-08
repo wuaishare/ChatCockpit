@@ -2,7 +2,7 @@
 
 ## 状态
 
-- 已实现基础：SQLite Schema v7、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan Application Service、REST/MCP Parity、Spec/Plan Workbench 治理、服务端 Planning Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Approval、Event、Workspace Snapshot 与 Continuity Workbench
+- 已实现基础：SQLite Schema v8、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan Application Service、REST/MCP Parity、Spec/Plan Workbench 治理、服务端 Planning Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Event、Workspace Snapshot 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
 - 目标扩展：更丰富的 Task Transition、覆盖所有 Provider 的自动 Recovery Center、Resource Center 治理、TDD/SDD/BDD 编排与模板，以及更多 Provider Adapter
 
@@ -40,7 +40,7 @@ Spec 与 Plan 已完成 Schema v7 的完整 Spec/Plan First 基础：固定种�
 
 ## Runtime Binding
 
-Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v7 中：
+Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v8 中：
 
 ```ts
 interface RuntimeBindingRecord {

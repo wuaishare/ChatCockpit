@@ -392,7 +392,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(read.execution.selectionMode, "automatic");
 
     const executorCatalog = service.listExecutors();
-    assert.equal(executorCatalog.hostDirectExposed, false);
+    assert.equal(executorCatalog.hostDirectExposed, true);
     assert.deepEqual(
       executorCatalog.executors.map((executor) => executor.id),
       ["codex-app-server-standalone", "tokenpilot-direct"]

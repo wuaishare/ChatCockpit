@@ -120,7 +120,7 @@ export class ChatDirectService {
     return {
       ok: true as const,
       modelLoopOwner: "chatgpt" as const,
-      hostDirectExposed: false as const,
+      hostDirectExposed: true as const,
       executors: this.broker.catalog()
     };
   }

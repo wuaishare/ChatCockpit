@@ -103,9 +103,9 @@ The release gate verifies static Bearer compatibility plus OAuth discovery, regi
 
 ## Tool Families
 
-The current public catalog contains 47 tools across:
+The current public catalog contains 50 tools across:
 
-- Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct Read-Only file access, plus Workspace Files, Search, Shell, and Git operations;
+- Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read plus approval-gated Host Write / Exact Edit lifecycle, and Workspace Files, Search, Shell, and Git operations;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;

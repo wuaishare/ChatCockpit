@@ -175,5 +175,5 @@ The phase is successful only when:
 4. proxy/public-origin and redirect-host validation have explicit negative tests.
 5. static bearer compatibility remains green.
 6. DevSpace-derived failure modes relevant to TokenPilot have corresponding tests or documented non-applicability.
-7. existing 47 MCP tools, Direct Drive including governed Host Direct Read-Only, Codex Session, Async Agent Job, Spec/Plan First, Completion and Web flows do not regress.
+7. existing 50 MCP tools, Direct Drive including governed Host Direct file read plus approval-gated Write/Exact Edit, Codex Session, Async Agent Job, Spec/Plan First, Completion and Web flows do not regress.
 8. release gates pass from a clean committed HEAD and the worktree is clean.
