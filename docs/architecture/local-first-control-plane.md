@@ -19,7 +19,7 @@ ChatGPT Native
   -> TokenPilot Remote MCP / Control Plane
        -> Direct Drive
             -> Workspace Direct (implemented)
-            -> Host Direct Files (Read + approval-gated Write/Exact Edit implemented; Shell unexposed)
+            -> Host Direct (Files + approval-gated bounded Command implemented)
        -> Codex Session
        -> Async Agent Job
 ```
@@ -44,23 +44,23 @@ The Control Plane currently provides:
 
 ## Runtime Lanes
 
-### Direct Drive — Workspace Direct and governed Host Files implemented
+### Direct Drive — Workspace Direct and governed Host Files / bounded Command implemented
 
 Direct Drive is the product-level name for execution where ChatGPT retains the only model loop and TokenPilot performs deterministic local operations. The persisted runtime lane remains `chat-direct` for compatibility.
 
 Direct Drive has two execution scopes:
 
 - **Workspace Direct — implemented:** operations are restricted to an allowlisted Project/Workspace and use the existing path, command, Git, Writer Lease, Evidence, and public-projection governance.
-- **Host Direct Files — implemented:** Remote MCP can read small text-like files through configured Host Root Aliases and can perform approval-gated text-file Write / Exact Edit when the Root explicitly includes `write`. ChatGPT never receives the local absolute root path. TokenPilot applies relative-path validation, canonical containment, symlink-escape rejection, sensitive-path blocking, text-like checks, a 64 KiB limit, exact mutation-hash binding, short-lived single-use Direct Mutation Approval, and post-write content verification. If the canonical target belongs to a registered Workspace, the operation automatically re-enters the existing chat-direct Session, Writer Lease, Git, and Task Evidence governance. Pure Host targets use Direct Mutation Approval plus public-safe Audit. Host Shell remains unexposed.
+- **Host Direct — implemented for governed Files and bounded Command:** Remote MCP can read small text-like files, perform approval-gated text Write / Exact Edit when the Root includes `write`, and run bounded non-interactive Host Commands through a separate Direct Command Approval lifecycle. File mutations keep canonical containment, symlink/sensitive-path checks, 64 KiB text limits, exact mutation-hash binding, and post-write verification. Host Command accepts structured `command + args + relative workdir`, not raw shell source; Pure Host is restricted to an explicit read-only policy, while Workspace write effects re-enter chat-direct Session, Writer Lease, Git, and Task Evidence governance. Public output is bounded and projected without PID/private cwd. Interactive/background Process Management remains unexposed.
 
-The confirmed executor architecture for Direct Drive is **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**. TokenPilot Built-in and verified App Server Standalone providers are projected through normalized capability descriptors, health/scope metadata, public-safe discovery, and `automatic | explicit` selection. TokenPilot remains the only remote MCP boundary exposed to ChatGPT. The Downstream MCP layer is also implemented: local-only executor config drives a stdio probe, official MCP schema validation, explicit tool-to-capability mapping, a local capability snapshot, Broker descriptor projection, and normalized execution. Through the Desktop Commander adapter contract, governed Host execution now covers `files.read`, `files.write`, and `files.edit`; raw downstream tool names and arbitrary downstream execution remain unexposed. Host Write/Exact Edit stay behind TokenPilot-owned scope, path safety, Approval, Workspace re-entry, Writer Lease, Git, Evidence/Audit, idempotency, timeout, output, and secret-safety rules. Host Shell is intentionally not part of this phase.
+The confirmed executor architecture for Direct Drive is **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**. TokenPilot Built-in and verified App Server Standalone providers are projected through normalized capability descriptors, health/scope metadata, public-safe discovery, and `automatic | explicit` selection. TokenPilot remains the only remote MCP boundary exposed to ChatGPT. The Downstream MCP layer is also implemented: local-only executor config drives a stdio probe, official MCP schema validation, explicit tool-to-capability mapping, a local capability snapshot, Broker descriptor projection, and normalized execution. Through the Desktop Commander adapter contract, governed Host execution covers `files.read`, `files.write`, `files.edit`, and bounded `shell.exec` mapped to current `start_process`. `read_process_output` and `force_terminate` remain private lifecycle dependencies. Raw downstream tool names, raw shell source, interactive process control, and arbitrary downstream execution remain unexposed; all public Host execution stays behind TokenPilot-owned scope, Approval, Workspace re-entry, Writer Lease, Git, Evidence/Audit, idempotency, timeout, output, and secret-safety rules.
 
 For implemented Workspace Direct operations, the Capability Broker currently resolves normalized capabilities in provider order:
 
 1. verified Codex App Server Standalone when its probe marks the requested operation safe for Chat Direct;
 2. TokenPilot Built-in for remaining supported capabilities or controlled automatic fallback after an eligible Standalone runtime failure.
 
-An explicitly selected executor never silently falls back to another provider. A configured and successfully probed Downstream MCP descriptor may advertise mapped Host capabilities to the Broker, but public Host execution is separately allowlisted: current Remote MCP contracts authorize governed `files.read` plus approval-gated `files.write` / `files.edit` through the Host Mutation lifecycle. Other mapped Host capabilities, including `shell.exec`, remain discovery evidence and cannot be invoked through the Remote MCP Host execution surface.
+An explicitly selected executor never silently falls back to another provider. A configured and successfully probed Downstream MCP descriptor may advertise mapped Host capabilities to the Broker, while public Host execution remains separately allowlisted: current Remote MCP contracts authorize governed `files.read`, approval-gated `files.write` / `files.edit` through the Host Mutation lifecycle, and bounded `shell.exec` only through the Host Command `prepare → decide → execute` lifecycle. Desktop Commander process tools themselves are not public capabilities.
 
 Every result records:
 
@@ -178,6 +178,6 @@ npm run verify:release
 
 - Public HTTPS and ChatGPT client compatibility remain environment-dependent and under validation.
 - Downstream MCP local config, stdio probe, snapshot, explicit mapping, Broker descriptor projection, and normalized internal execution registry are implemented.
-- Host Direct Files are exposed through public-safe Host Root Aliases: `files.read` is read-only, while text-file Write / Exact Edit require explicit Root `write` permission and Direct Mutation Approval; Host Shell remains unexposed.
+- Host Direct is exposed through public-safe Host Root Aliases for governed Files and bounded Host Command. Pure Host commands remain read-only; Workspace write effects require Direct Command Approval plus Writer Lease/Git/Evidence re-entry. Raw shell source, interactive terminals, and background Process Management remain unexposed.
 - Recovery of every provider-specific running Session is not automatic; the current restart gate covers durable Lease, Handoff, and Idempotency recovery.
 - Multi-runner distributed coordination and public SaaS operation are not implemented.

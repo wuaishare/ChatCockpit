@@ -1169,7 +1169,7 @@ async function verifyHostCommandRestParity(): Promise<void> {
     };
     assert.equal(executeBody.ok, true);
     assert.equal(executeBody.exitCode, 0);
-    assert.equal(executeBody.output, "fixture command output");
+    assert.equal(executeBody.output, "fixture/notes");
     assert.equal(executeBody.execution.executionScope, "host");
     assert.equal(executeBody.execution.executor, DESKTOP_COMMANDER_EXECUTOR_ID);
     assert.doesNotMatch(execute.body, new RegExp(hostRoot));
