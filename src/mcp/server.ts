@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/server";
 
 import type { ChatDirectService } from "../application/chat-direct-service.js";
+import type { HostDirectService } from "../application/host-direct-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -54,6 +55,7 @@ export function buildTokenPilotMcpHandler(
   paths: TokenPilotPaths,
   continuityServices: ContinuityServices,
   chatDirect: ChatDirectService,
+  hostDirect: HostDirectService,
   runtimeService: RuntimeService,
   runtimeBindingService: RuntimeBindingService,
   runtimeTurnService: RuntimeTurnService,
@@ -62,7 +64,7 @@ export function buildTokenPilotMcpHandler(
   onerror?: (error: Error) => void
 ): McpHttpHandler {
   const tools = [
-    ...buildReadOnlyMcpToolCatalog({ chatDirect }),
+    ...buildReadOnlyMcpToolCatalog({ chatDirect, hostDirect }),
     ...buildWorkspaceWriteTools({
       chatDirect,
       idempotency: new McpIdempotencyStore(paths.runtimeDir)

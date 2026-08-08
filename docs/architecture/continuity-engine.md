@@ -198,16 +198,15 @@ export interface RuntimeBindingRecord {
 }
 ```
 
-The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v7. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, executor, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
+The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v7. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, execution scope, selected executor, selection mode, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
 
 ```ts
 export interface ChatDirectExecutionMetadata {
   lane: "chat-direct";
   modelLoopOwner: "chatgpt";
-  executor:
-    | "codex-app-server-standalone"
-    | "tokenpilot-direct"
-    | "legacy-core";
+  executionScope: "workspace" | "host";
+  executor: string;
+  selectionMode: "automatic" | "explicit";
   operationId: string;
   changedPaths: string[];
   evidenceBundleId: string | null;

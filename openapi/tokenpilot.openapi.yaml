@@ -219,9 +219,15 @@ components:
         modelLoopOwner:
           type: string
           const: chatgpt
+        executionScope:
+          type: string
+          enum: [workspace, host]
         executor:
           type: string
-          enum: [codex-app-server-standalone, tokenpilot-direct, legacy-core]
+          description: Selected Direct Drive executor id. Current built-in ids include tokenpilot-direct and codex-app-server-standalone; future downstream MCP executor ids remain dynamic.
+        selectionMode:
+          type: string
+          enum: [automatic, explicit]
         operationId:
           type: string
         changedPaths:
@@ -234,7 +240,7 @@ components:
             - type: "null"
         fallbackReason:
           type: string
-      required: [lane, modelLoopOwner, executor, operationId, changedPaths, evidenceBundleId]
+      required: [lane, modelLoopOwner, executionScope, executor, selectionMode, operationId, changedPaths, evidenceBundleId]
     RecentCommitsResponse:
       type: object
       additionalProperties: false
@@ -536,12 +542,73 @@ components:
           type: string
       required:
         [createdAt, repoId, title, executionMode, worktreePolicy, worktreeCreated, statusSummary, codexExitCode, reviewExitCode, gitStatus, hasDiff, commit, promptPath, stdoutPath, stderrPath, diffPath, reviewPath, summaryPath]
+    HostDirectRoot:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        access:
+          type: array
+          items:
+            type: string
+            enum: [read]
+      required: [id, displayName, access]
+    HostDirectRootsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        executionScope:
+          type: string
+          const: host
+        mode:
+          type: string
+          const: read-only
+        roots:
+          type: array
+          items:
+            $ref: '#/components/schemas/HostDirectRoot'
+      required: [ok, executionScope, mode, roots]
+    HostFileReadPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        rootId:
+          type: string
+          description: Public-safe Host Direct root alias. This is not a local absolute path.
+        path:
+          type: string
+          description: Relative text-like file path inside the selected Host Direct root. Absolute paths are rejected.
+        executorId:
+          type: string
+          description: Optional explicit Host Direct executor id. Explicit selection never silently falls back to another executor.
+      required: [rootId, path]
+    HostFileReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+        rootId:
+          type: string
+        file:
+          $ref: '#/components/schemas/FileReadResult'
+        execution:
+          $ref: '#/components/schemas/ChatDirectExecutionMetadata'
+      required: [ok, rootId, file, execution]
     FileReadPayload:
       type: object
       additionalProperties: false
       properties:
         repoId:
           type: string
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         path:
           type: string
           description: Relative text file path inside the mapped repository.
@@ -560,6 +627,9 @@ components:
       properties:
         repoId:
           type: string
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         paths:
           type: array
           items:
@@ -676,6 +746,9 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -714,6 +787,9 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -752,6 +828,9 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         path:
           type: string
           default: "."
@@ -795,6 +874,9 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         pattern:
           type: string
           description: Search pattern (regex-compatible).
@@ -856,6 +938,9 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -948,6 +1033,9 @@ components:
         repoId:
           type: string
           default: tokenpilot
+        executorId:
+          type: string
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -3315,6 +3403,12 @@ paths:
             type: integer
             minimum: 1
             maximum: 50
+        - name: executorId
+          in: query
+          required: false
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          schema:
+            type: string
       responses:
         "200":
           description: Recent commits
@@ -3584,6 +3678,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TerminateAllJobsResponse'
+  /api/host/roots:
+    get:
+      operationId: listHostDirectRoots
+      summary: List public-safe Host Direct root aliases
+      description: Lists local Host Direct root aliases and read access without exposing local absolute paths.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Host Direct root aliases
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostDirectRootsResponse'
+  /api/host/files/read:
+    post:
+      operationId: readHostDirectFile
+      summary: Read a small text-like file from an allowlisted Host Direct root
+      description: Reads one text-like file up to 64 KiB through a configured Host Root Alias and a verified Host Direct executor. Absolute paths, traversal, sensitive hidden paths, and symlink escapes are rejected before downstream execution.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostFileReadPayload'
+      responses:
+        "200":
+          description: Host file content using a public-safe alias path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostFileReadResponse'
+        "403":
+          description: Host path or root access is blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Host root or file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "413":
+          description: Host file exceeds the current read-only size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/files/read:
     post:
       operationId: readFile
@@ -3756,6 +3902,12 @@ paths:
           schema:
             type: string
             enum: ["true", "false", "1", "0"]
+        - name: executorId
+          in: query
+          required: false
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          schema:
+            type: string
       responses:
         "200":
           description: Git diff
@@ -3777,6 +3929,12 @@ paths:
           schema:
             type: string
             default: tokenpilot
+        - name: executorId
+          in: query
+          required: false
+          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          schema:
+            type: string
       responses:
         "200":
           description: Git status

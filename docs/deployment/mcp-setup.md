@@ -103,9 +103,9 @@ The release gate verifies static Bearer compatibility plus OAuth discovery, regi
 
 ## Tool Families
 
-The current public catalog contains 44 tools across:
+The current public catalog contains 47 tools across:
 
-- public-safe Files, Search, Shell, and Git operations;
+- Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct Read-Only file access, plus Workspace Files, Search, Shell, and Git operations;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;
@@ -113,6 +113,61 @@ The current public catalog contains 44 tools across:
 - explicit Codex Turn/Interrupt, Approval response, and Event reads.
 
 Read the live tool list instead of hard-coding an old catalog into a client.
+
+## Local Downstream MCP Discovery
+
+Downstream MCP executors use a separate local-only config at `~/.tokenpilot/direct-executors.json` (override with `TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH`). This file is not part of repository governance and is never writable through Remote MCP.
+
+Minimal shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "hostRoots": [
+    {
+      "id": "docs",
+      "displayName": "Local Docs",
+      "path": "/local/private/absolute/path",
+      "access": ["read"]
+    }
+  ],
+  "executors": [
+    {
+      "id": "downstream-mcp:example",
+      "displayName": "Example local MCP",
+      "transport": {
+        "kind": "stdio",
+        "command": "local-command",
+        "args": []
+      },
+      "mappings": [
+        {
+          "capability": "files.read",
+          "toolName": "exact_downstream_tool_name",
+          "scopes": ["host"],
+          "access": ["read"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Probe configured executors locally with:
+
+```bash
+tokenpilot probe-direct-executors
+```
+
+or one executor with:
+
+```bash
+tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
+```
+
+The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `.tokenpilot/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
+
+Remote MCP now exposes two governed Host Direct Read-Only tools: `tokenpilot.host.roots.list` returns only public-safe root aliases, and `tokenpilot.host.files.read` accepts `rootId + relative path` for small text-like files. Local absolute root paths remain private. Downstream execution is permitted only when the current local mapping still matches the verified snapshot. In this phase the Host Read execution allowlist recognizes only the `downstream-mcp:desktop-commander` adapter contract; other downstream executors may be discovered but are not automatically authorized for Host execution. Host Write / Edit / Shell remain unexposed.
 
 ## Choose The Runtime Lane Explicitly
 
@@ -126,10 +181,9 @@ Every result identifies:
 {
   lane: "chat-direct";
   modelLoopOwner: "chatgpt";
-  executor:
-    | "codex-app-server-standalone"
-    | "tokenpilot-direct"
-    | "legacy-core";
+  executionScope: "workspace" | "host";
+  executor: string;
+  selectionMode: "automatic" | "explicit";
   operationId: string;
   changedPaths: string[];
   evidenceBundleId: string | null;

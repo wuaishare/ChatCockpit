@@ -198,6 +198,7 @@ async function runMcpSmoke(): Promise<void> {
       tools.map((tool) => tool.name).sort(),
       [
         "tokenpilot.asyncJob.queue",
+        "tokenpilot.direct.executors.list",
         "tokenpilot.document.appendVersion",
         "tokenpilot.document.create",
         "tokenpilot.document.get",
@@ -213,6 +214,8 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.git.commit",
         "tokenpilot.git.diff",
         "tokenpilot.git.status",
+        "tokenpilot.host.files.read",
+        "tokenpilot.host.roots.list",
         "tokenpilot.handoff.accept",
         "tokenpilot.handoff.cancel",
         "tokenpilot.handoff.fork",
@@ -245,6 +248,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
     for (const name of [
+      "tokenpilot.direct.executors.list",
       "tokenpilot.document.get",
       "tokenpilot.document.list",
       "tokenpilot.document.version.get",
@@ -253,6 +257,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.files.readBatch",
       "tokenpilot.git.diff",
       "tokenpilot.git.status",
+      "tokenpilot.host.files.read",
+      "tokenpilot.host.roots.list",
       "tokenpilot.project.get",
       "tokenpilot.project.list",
       "tokenpilot.runtime.capabilities",

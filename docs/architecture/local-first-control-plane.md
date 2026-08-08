@@ -19,7 +19,7 @@ ChatGPT Native
   -> TokenPilot Remote MCP / Control Plane
        -> Direct Drive
             -> Workspace Direct (implemented)
-            -> Host Direct (target; not yet exposed)
+            -> Host Direct Read-Only (implemented) / Host Mutation (target)
        -> Codex Session
        -> Async Agent Job
 ```
@@ -51,15 +51,16 @@ Direct Drive is the product-level name for execution where ChatGPT retains the o
 Direct Drive has two execution scopes:
 
 - **Workspace Direct — implemented:** operations are restricted to an allowlisted Project/Workspace and use the existing path, command, Git, Writer Lease, Evidence, and public-projection governance.
-- **Host Direct — target, not yet exposed:** operations may act outside one registered Workspace under the current OS user's permissions. A broader scope must never weaken governance. If a Host Direct operation targets a path that belongs to a registered Workspace, normal Workspace Writer Lease, Evidence, Git, and path-safety rules still apply.
+- **Host Direct Read-Only — implemented:** Remote MCP can read one small text-like file through a configured Host Root Alias. ChatGPT never receives the local absolute root path; TokenPilot applies relative-path validation, canonical containment, symlink-escape rejection, sensitive-path blocking, text-like file checks, and a 64 KiB limit before downstream execution. **Host mutation remains a target:** broader write/edit/shell scope must never weaken governance, and any future mutation targeting a registered Workspace must re-enter normal Writer Lease, Evidence, Git, and path-safety rules.
 
-The confirmed target executor architecture for Direct Drive is **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**. TokenPilot remains the only remote MCP boundary exposed to ChatGPT. The broker will discover and normalize compatible local executors behind stable TokenPilot capability contracts instead of exposing downstream tool names directly. Built-in executors and verified App Server standalone capabilities remain valid providers; downstream MCP executors are an additional replaceable provider class, not a bypass around TokenPilot policy, scope, approval, Writer Lease, Evidence, audit, timeout, output, or secret-safety rules.
+The confirmed executor architecture for Direct Drive is **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**. The Broker foundation is implemented for Workspace Direct: TokenPilot Built-in and verified App Server Standalone providers are projected through normalized capability descriptors, health/scope metadata, public-safe discovery, and `automatic | explicit` selection. TokenPilot remains the only remote MCP boundary exposed to ChatGPT. The Downstream MCP discovery foundation is also implemented: local-only executor config drives a stdio probe, official MCP schema validation, explicit tool-to-capability mapping, and a local capability snapshot that can project a `downstream-mcp` descriptor into the Broker. Downstream `tools/call` delegation is now implemented only for the governed Host Direct Read-Only `files.read` path through the Desktop Commander adapter contract; generic Host mutation and arbitrary downstream execution remain unexposed. When execution is added, downstream MCP must stay behind the same TokenPilot policy, scope, approval, Writer Lease, Evidence, audit, timeout, output, and secret-safety rules instead of exposing downstream tool names directly.
 
-For implemented Workspace Direct operations, TokenPilot currently routes individual operations through this order:
+For implemented Workspace Direct operations, the Capability Broker currently resolves normalized capabilities in provider order:
 
-1. verified Codex App Server standalone capability;
-2. TokenPilot Direct executor;
-3. controlled legacy fallback where explicitly retained.
+1. verified Codex App Server Standalone when its probe marks the requested operation safe for Chat Direct;
+2. TokenPilot Built-in for remaining supported capabilities or controlled automatic fallback after an eligible Standalone runtime failure.
+
+An explicitly selected executor never silently falls back to another provider. A configured and successfully probed Downstream MCP descriptor may advertise mapped Host capabilities to the Broker, but the public execution surface currently authorizes only Host Direct Read-Only `files.read`; other Host capabilities remain discovery evidence and cannot be invoked through Remote MCP.
 
 Every result records:
 
@@ -67,10 +68,8 @@ Every result records:
 {
   lane: "chat-direct",
   modelLoopOwner: "chatgpt",
-  executor:
-    | "codex-app-server-standalone"
-    | "tokenpilot-direct"
-    | "legacy-core",
+  executor: string,
+  selectionMode: "automatic" | "explicit",
   operationId: string,
   changedPaths: string[],
   evidenceBundleId: string | null,
@@ -178,6 +177,7 @@ npm run verify:release
 ## Current Limitations
 
 - Public HTTPS and ChatGPT client compatibility remain environment-dependent and under validation.
-- Host Direct is not yet exposed; current Direct Drive behavior is Workspace-scoped.
+- Downstream MCP local config, stdio probe, snapshot, explicit mapping, Broker descriptor projection, and normalized internal execution registry are implemented.
+- Host Direct Read-Only is exposed through public-safe Host Root Aliases and governed `files.read`; Host Write / Edit / Shell remain unexposed.
 - Recovery of every provider-specific running Session is not automatic; the current restart gate covers durable Lease, Handoff, and Idempotency recovery.
 - Multi-runner distributed coordination and public SaaS operation are not implemented.

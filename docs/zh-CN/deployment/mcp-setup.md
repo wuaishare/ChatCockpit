@@ -101,9 +101,9 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具分类
 
-当前公开目录包含 44 个工具，覆盖：
+当前公开目录包含 47 个工具，覆盖：
 
-- public-safe Files、Search、Shell、Git；
+- Direct Drive Executor / Capability Discovery、public-safe Host Root Alias Discovery、受治理的 Host Direct Read-Only 文件读取，以及 Workspace Files、Search、Shell、Git；
 - Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
 - Spec/Plan 创建、列表、读取、不可变历史版本读取、追加版本、生命周期与 Task 绑定；
 - Codex Runtime Capability 与 Thread Metadata；
@@ -112,7 +112,62 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 客户端应读取实时 `tools/list`，不要把旧工具清单写死。
 
-## 5. 明确选择运行模式
+## 5. 本地下游 MCP Discovery
+
+Downstream MCP Executor 使用独立的 local-only 配置 `~/.tokenpilot/direct-executors.json`（可通过 `TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH` 覆盖）。这个文件不属于 Repo Governance，Remote MCP 也没有修改它的入口。
+
+最小结构：
+
+```json
+{
+  "schemaVersion": 1,
+  "hostRoots": [
+    {
+      "id": "docs",
+      "displayName": "Local Docs",
+      "path": "/local/private/absolute/path",
+      "access": ["read"]
+    }
+  ],
+  "executors": [
+    {
+      "id": "downstream-mcp:example",
+      "displayName": "Example local MCP",
+      "transport": {
+        "kind": "stdio",
+        "command": "local-command",
+        "args": []
+      },
+      "mappings": [
+        {
+          "capability": "files.read",
+          "toolName": "exact_downstream_tool_name",
+          "scopes": ["host"],
+          "access": ["read"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+本机 Probe 全部已配置 Executor：
+
+```bash
+tokenpilot probe-direct-executors
+```
+
+或只 Probe 一个：
+
+```bash
+tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
+```
+
+Probe 会完成 MCP Initialize 与 `tools/list`，使用官方 MCP Schema 校验响应，再把本地 Capability Snapshot 写入 `.tokenpilot/runtime/capabilities/downstream-mcp/`。只有显式 Mapping 的 Capability 才能进入 Broker，不会根据 Tool Name 前缀自动猜测，也不会在公共 Executor Descriptor 中暴露下游 Tool Name。
+
+Remote MCP 现在已经开放两个受治理的 Host Direct Read-Only 工具：`tokenpilot.host.roots.list` 只返回 public-safe Root Alias，`tokenpilot.host.files.read` 只接受 `rootId + relative path` 读取小型 text-like 文件，本机 Root 绝对路径始终留在 local-only 配置中。Downstream Execution 只有在当前 local mapping 与 verified snapshot 仍一致时才允许执行。本阶段 Host Read 执行白名单只认可 `downstream-mcp:desktop-commander` Adapter Contract；其他 Downstream Executor 即使能被 Discovery，也不会自动获得 Host 执行权限。Host Write / Edit / Shell 仍未开放。
+
+## 6. 明确选择运行模式
 
 ### Chat Direct
 
@@ -124,10 +179,9 @@ curl -sS http://127.0.0.1:4318/mcp \
 {
   lane: "chat-direct";
   modelLoopOwner: "chatgpt";
-  executor:
-    | "codex-app-server-standalone"
-    | "tokenpilot-direct"
-    | "legacy-core";
+  executionScope: "workspace" | "host";
+  executor: string;
+  selectionMode: "automatic" | "explicit";
   operationId: string;
   changedPaths: string[];
   evidenceBundleId: string | null;

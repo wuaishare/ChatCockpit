@@ -11,6 +11,11 @@ import { ServiceError } from "../src/application/service-error.ts";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
+import {
+  createCodexStandaloneExecutorSource,
+  createTokenPilotDirectExecutorSource
+} from "../src/direct/executor-sources.ts";
 import {
   CodexStandaloneCapabilityStore,
   type CodexStandaloneCapabilitySnapshot,
@@ -363,12 +368,11 @@ async function verifyChatDirectRouting(): Promise<void> {
   capabilityStore.write(buildSnapshot());
   const adapter = new FakeStandaloneAdapter();
   const runtime = new RuntimeRouter(adapter);
-  const service = new ChatDirectService(
-    paths,
-    runtime,
-    capabilityStore,
-    repositories
-  );
+  const broker = new DirectCapabilityBroker([
+    createCodexStandaloneExecutorSource(capabilityStore),
+    createTokenPilotDirectExecutorSource()
+  ]);
+  const service = new ChatDirectService(paths, runtime, broker, repositories);
   const context = buildOperationContext({
     requestId: "verify-chat-direct",
     actorType: "remote-mcp",
@@ -385,6 +389,29 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(read.execution.executor, "codex-app-server-standalone");
     assert.equal(read.execution.modelLoopOwner, "chatgpt");
     assert.equal(read.execution.executionScope, "workspace");
+    assert.equal(read.execution.selectionMode, "automatic");
+
+    const executorCatalog = service.listExecutors();
+    assert.equal(executorCatalog.hostDirectExposed, false);
+    assert.deepEqual(
+      executorCatalog.executors.map((executor) => executor.id),
+      ["codex-app-server-standalone", "tokenpilot-direct"]
+    );
+
+    const standaloneReadCalls = adapter.calls.filter(
+      (call) => call.method === "fs/readFile"
+    ).length;
+    const explicitBuiltInRead = await service.read(context, {
+      repoId: "tokenpilot",
+      path: "README.md",
+      executorId: "tokenpilot-direct"
+    });
+    assert.equal(explicitBuiltInRead.execution.executor, "tokenpilot-direct");
+    assert.equal(explicitBuiltInRead.execution.selectionMode, "explicit");
+    assert.equal(
+      adapter.calls.filter((call) => call.method === "fs/readFile").length,
+      standaloneReadCalls
+    );
 
     const batch = await service.readBatch(context, {
       repoId: "tokenpilot",
@@ -463,6 +490,24 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(gitStatus.execution.executor, "tokenpilot-direct");
     const gitDiff = await service.gitDiff(context, "tokenpilot", false);
     assert.equal(gitDiff.execution.executor, "tokenpilot-direct");
+
+    adapter.nextReadError = new ServiceError(
+      "CAPABILITY_UNAVAILABLE",
+      "explicit standalone read unavailable"
+    );
+    await assert.rejects(
+      () =>
+        service.read(context, {
+          repoId: "tokenpilot",
+          path: "README.md",
+          executorId: "codex-app-server-standalone"
+        }),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "CAPABILITY_UNAVAILABLE");
+        return true;
+      }
+    );
 
     adapter.nextReadError = new ServiceError(
       "CAPABILITY_UNAVAILABLE",

@@ -64,10 +64,9 @@ Chat Direct 不伪装成 Codex Thread，而是在每个结果中记录：
 {
   lane: "chat-direct";
   modelLoopOwner: "chatgpt";
-  executor:
-    | "codex-app-server-standalone"
-    | "tokenpilot-direct"
-    | "legacy-core";
+  executionScope: "workspace" | "host";
+  executor: string;
+  selectionMode: "automatic" | "explicit";
   operationId: string;
   changedPaths: string[];
   evidenceBundleId: string | null;

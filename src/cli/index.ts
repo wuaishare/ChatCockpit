@@ -10,6 +10,7 @@ import { createTaskPack } from "../core/taskpack.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import { buildServer } from "../server/app.js";
 import { runRunner } from "../runner/index.js";
+import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
 
 function printUsage(): void {
   process.stdout.write(`TokenPilot CLI
@@ -28,6 +29,7 @@ Usage:
   tokenpilot server
   tokenpilot runner [--once]
   tokenpilot runner --watch --interval 3
+  tokenpilot probe-direct-executors [--executor-id "downstream-mcp:..."]
 `);
 }
 
@@ -245,6 +247,24 @@ async function main(): Promise<void> {
       const port = Number(process.env.TOKENPILOT_PORT || "4318");
       const host = process.env.TOKENPILOT_HOST || "127.0.0.1";
       await app.listen({ host, port });
+      return;
+    }
+    case "probe-direct-executors": {
+      const executorId = getFlag("--executor-id");
+      const results = await probeConfiguredDownstreamMcpExecutors({
+        paths,
+        ...(executorId ? { executorId } : {})
+      });
+      if (process.argv.includes("--json")) {
+        printJson(results);
+      } else if (results.length === 0) {
+        process.stdout.write(
+          "No downstream MCP executors are configured in the local Direct Executor config.\n"
+        );
+      } else {
+        process.stdout.write("TokenPilot Direct Executor probe\n");
+        printHumanJson(results, paths.repoRoot);
+      }
       return;
     }
     case "runner": {

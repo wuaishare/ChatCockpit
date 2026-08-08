@@ -26,6 +26,7 @@ import {
   shellRunSchema
 } from "../contracts/direct-tools.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
+import { HostDirectService } from "../application/host-direct-service.js";
 import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
 import { registerOAuthRoutes } from "../auth/oauth-routes.js";
 import { OAuthService } from "../auth/oauth-service.js";
@@ -48,6 +49,9 @@ import {
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { buildTokenPilotMcpHandler } from "../mcp/server.js";
+import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
+import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
+import { hostFileReadSchema } from "../contracts/host-direct.js";
 import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
 import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
@@ -100,7 +104,8 @@ const codexRunSchema = z.object({
 
 const recentCommitsQuerySchema = z.object({
   repoId: z.string().min(1).default("tokenpilot"),
-  limit: z.coerce.number().int().positive().max(50).optional()
+  limit: z.coerce.number().int().positive().max(50).optional(),
+  executorId: z.string().min(1).max(160).optional()
 });
 
 const listJobsQuerySchema = z.object({
@@ -145,6 +150,7 @@ function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus
 
 export interface BuildServerOptions {
   codexAdapter?: CodingRuntimeAdapter;
+  directExecutorsConfigPath?: string;
 }
 
 export function buildServer(
@@ -183,10 +189,26 @@ export function buildServer(
       standaloneCapabilityStore
     });
   const runtimeRouter = new RuntimeRouter(codexAdapter);
+  const directCapabilityBroker = buildConfiguredDirectCapabilityBroker({
+    paths,
+    codexStandaloneStore: standaloneCapabilityStore,
+    ...(options.directExecutorsConfigPath
+      ? { downstreamConfigPath: options.directExecutorsConfigPath }
+      : {})
+  });
+  const downstreamMcpExecutionRegistry = new DownstreamMcpExecutionRegistry(
+    paths.runtimeDir,
+    options.directExecutorsConfigPath
+  );
+  const hostDirect = new HostDirectService(
+    directCapabilityBroker,
+    downstreamMcpExecutionRegistry,
+    options.directExecutorsConfigPath
+  );
   const chatDirect = new ChatDirectService(
     paths,
     runtimeRouter,
-    standaloneCapabilityStore,
+    directCapabilityBroker,
     continuityServices.repositories
   );
   const runtimeService = new RuntimeService(runtimeRouter);
@@ -236,6 +258,7 @@ export function buildServer(
     paths,
     continuityServices,
     chatDirect,
+    hostDirect,
     runtimeService,
     runtimeBindingService,
     runtimeTurnService,
@@ -281,7 +304,8 @@ export function buildServer(
       return await chatDirect.recentCommits(
         operationContextFromRequest(request),
         parsed.data.repoId,
-        parsed.data.limit ?? 10
+        parsed.data.limit ?? 10,
+        parsed.data.executorId
       );
     } catch (error) {
       return sendUnknownApiError(fastifyReply, error);
@@ -454,6 +478,24 @@ export function buildServer(
     }
   };
 
+  const hostRootsHandler = async () => hostDirect.listRoots();
+
+  const hostReadFileHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = hostFileReadSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await hostDirect.readFile(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
   const readFilesHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
     const parsed = fileReadBatchSchema.safeParse((request as { body: unknown }).body);
@@ -552,14 +594,19 @@ export function buildServer(
   };
 
   const gitDiffHandler = async (request: unknown, reply: unknown) => {
-    const query = (request as { query?: { repoId?: string; staged?: string } }).query ?? {};
+    const query = (
+      request as {
+        query?: { repoId?: string; staged?: string; executorId?: string };
+      }
+    ).query ?? {};
     const repoId = query.repoId ?? "tokenpilot";
     const staged = query.staged === "true" || query.staged === "1";
     try {
       return await chatDirect.gitDiff(
         operationContextFromRequest(request),
         repoId,
-        staged
+        staged,
+        query.executorId
       );
     } catch (error) {
       return sendUnknownApiError(replyFrom(reply), error);
@@ -567,12 +614,15 @@ export function buildServer(
   };
 
   const gitStatusHandler = async (request: unknown, reply: unknown) => {
-    const query = (request as { query?: { repoId?: string } }).query ?? {};
+    const query = (
+      request as { query?: { repoId?: string; executorId?: string } }
+    ).query ?? {};
     const repoId = query.repoId ?? "tokenpilot";
     try {
       return await chatDirect.gitStatus(
         operationContextFromRequest(request),
-        repoId
+        repoId,
+        query.executorId
       );
     } catch (error) {
       return sendUnknownApiError(replyFrom(reply), error);
@@ -652,6 +702,12 @@ export function buildServer(
 
   app.post("/api/files/read", readFileHandler);
   app.post("/tokenpilot/api/files/read", readFileHandler);
+
+  app.get("/api/host/roots", hostRootsHandler);
+  app.get("/tokenpilot/api/host/roots", hostRootsHandler);
+
+  app.post("/api/host/files/read", hostReadFileHandler);
+  app.post("/tokenpilot/api/host/files/read", hostReadFileHandler);
 
   app.post("/api/files/read-batch", readFilesHandler);
   app.post("/tokenpilot/api/files/read-batch", readFilesHandler);

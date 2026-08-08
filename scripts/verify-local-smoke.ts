@@ -35,10 +35,16 @@ import { buildOperationContext } from "../src/application/operation-context.ts";
 import type { RuntimeRouter } from "../src/application/runtime-router.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { buildReadOnlyMcpToolCatalog } from "../src/mcp/read-only-catalog.ts";
+import type { HostDirectService } from "../src/application/host-direct-service.ts";
 import { registerMcpTools } from "../src/mcp/register-tools.ts";
 import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
+import {
+  createCodexStandaloneExecutorSource,
+  createTokenPilotDirectExecutorSource
+} from "../src/direct/executor-sources.ts";
 import { toApiError } from "../src/server/errors.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
 
@@ -102,13 +108,29 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
   const repositories = buildContinuityRepositories(database);
 
   try {
+    const standaloneStore = new CodexStandaloneCapabilityStore(paths.runtimeDir);
+    const broker = new DirectCapabilityBroker([
+      createCodexStandaloneExecutorSource(standaloneStore),
+      createTokenPilotDirectExecutorSource()
+    ]);
     const chatDirect = new ChatDirectService(
       paths,
       {} as RuntimeRouter,
-      new CodexStandaloneCapabilityStore(paths.runtimeDir),
+      broker,
       repositories
     );
-    const tools = buildReadOnlyMcpToolCatalog({ chatDirect });
+    const hostDirect = {
+      listRoots: () => ({
+        ok: true as const,
+        executionScope: "host" as const,
+        mode: "read-only" as const,
+        roots: []
+      }),
+      readFile: async () => {
+        throw new Error("Host Direct read is covered by verify:host-direct-read");
+      }
+    } as unknown as HostDirectService;
+    const tools = buildReadOnlyMcpToolCatalog({ chatDirect, hostDirect });
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
     const registered = new Map<
       string,
@@ -136,12 +158,15 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
         })
     );
     const expectedNames = [
+      "tokenpilot.direct.executors.list",
       "tokenpilot.files.read",
       "tokenpilot.files.readBatch",
       "tokenpilot.files.list",
       "tokenpilot.search.code",
       "tokenpilot.git.status",
-      "tokenpilot.git.diff"
+      "tokenpilot.git.diff",
+      "tokenpilot.host.roots.list",
+      "tokenpilot.host.files.read"
     ];
 
     assert.deepEqual(
@@ -165,6 +190,18 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
       now: "2026-08-06T00:00:00.000Z"
     });
 
+    const executorsResult = await toolByName
+      .get("tokenpilot.direct.executors.list")!
+      .execute(context, {});
+    assert.equal(executorsResult.isError, undefined);
+    assert.deepEqual(
+      (executorsResult.structuredContent as {
+        executors: Array<{ id: string }>;
+      }).executors.map((executor) => executor.id),
+      ["codex-app-server-standalone", "tokenpilot-direct"]
+    );
+    assert.doesNotMatch(JSON.stringify(executorsResult.structuredContent), /binarySource/);
+
     const readResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
       repoId: "tokenpilot",
       path: "README.md"
@@ -183,13 +220,14 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
       {
         lane: "chat-direct",
         modelLoopOwner: "chatgpt",
+        executionScope: "workspace",
         executor: "tokenpilot-direct",
+        selectionMode: "automatic",
         operationId: (readResult.structuredContent as {
           execution: { operationId: string };
         }).execution.operationId,
         changedPaths: [],
-        evidenceBundleId: null,
-        fallbackReason: "standalone-read-unavailable"
+        evidenceBundleId: null
       }
     );
 

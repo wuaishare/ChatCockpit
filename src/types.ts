@@ -178,14 +178,23 @@ export interface TaskPackJobPayload extends TaskPackInput {}
 
 export type TokenPilotJobPayload = PackJobPayload | TaskPackJobPayload | CodexRunJobPayload;
 
-export interface FileReadPayload {
+export interface DirectExecutorPreference {
+  executorId?: string;
+}
+
+export interface HostFileReadPayload extends DirectExecutorPreference {
+  rootId: string;
+  path: string;
+}
+
+export interface FileReadPayload extends DirectExecutorPreference {
   repoId: string;
   path: string;
   offset?: number;
   limit?: number;
 }
 
-export interface FileReadBatchPayload {
+export interface FileReadBatchPayload extends DirectExecutorPreference {
   repoId: string;
   paths: string[];
   offset?: number;
@@ -320,7 +329,7 @@ export interface TokenPilotTextPreview {
 
 // ── ChatGPT 直驱开发 API 类型 ──
 
-export interface FileWritePayload {
+export interface FileWritePayload extends DirectExecutorPreference {
   repoId: string;
   sessionId: string;
   path: string;
@@ -336,7 +345,7 @@ export interface FileWriteResponse {
   error?: string;
 }
 
-export interface FileEditPayload {
+export interface FileEditPayload extends DirectExecutorPreference {
   repoId: string;
   sessionId: string;
   path: string;
@@ -352,7 +361,7 @@ export interface FileEditResponse {
   error?: string;
 }
 
-export interface FileListPayload {
+export interface FileListPayload extends DirectExecutorPreference {
   repoId: string;
   path: string;
 }
@@ -371,7 +380,7 @@ export interface FileListResponse {
   error?: string;
 }
 
-export interface SearchPayload {
+export interface SearchPayload extends DirectExecutorPreference {
   repoId: string;
   pattern: string;
   path?: string;
@@ -396,7 +405,7 @@ export interface SearchResponse {
   error?: string;
 }
 
-export interface ShellRunPayload {
+export interface ShellRunPayload extends DirectExecutorPreference {
   repoId: string;
   sessionId?: string;
   command: string;
@@ -414,7 +423,7 @@ export interface ShellRunResponse {
   error?: string;
 }
 
-export interface GitDiffPayload {
+export interface GitDiffPayload extends DirectExecutorPreference {
   repoId: string;
   staged?: boolean;
 }
@@ -441,7 +450,7 @@ export interface GitStatusResponse {
   error?: string;
 }
 
-export interface GitCommitPayload {
+export interface GitCommitPayload extends DirectExecutorPreference {
   repoId: string;
   sessionId: string;
   message: string;

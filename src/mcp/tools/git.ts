@@ -20,7 +20,8 @@ export function buildGitReadOnlyTools(
         "Read the public-safe Git branch and working-tree status for an allowlisted repository.",
       inputSchema: gitStatusSchema,
       annotations: readOnlyToolAnnotations,
-      handler: (context, input) => chatDirect.gitStatus(context, input.repoId)
+      handler: (context, input) =>
+        chatDirect.gitStatus(context, input.repoId, input.executorId)
     }),
     defineMcpTool({
       name: "tokenpilot.git.diff",
@@ -30,7 +31,12 @@ export function buildGitReadOnlyTools(
       inputSchema: gitDiffSchema,
       annotations: readOnlyToolAnnotations,
       handler: (context, input) =>
-        chatDirect.gitDiff(context, input.repoId, input.staged)
+        chatDirect.gitDiff(
+          context,
+          input.repoId,
+          input.staged,
+          input.executorId
+        )
     })
   ];
 }

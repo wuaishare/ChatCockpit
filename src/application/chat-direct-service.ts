@@ -23,7 +23,14 @@ import type {
   TokenPilotPaths
 } from "../types.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
-import type { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
+import {
+  DirectCapabilityBroker,
+  DirectCapabilityBrokerError,
+  type DirectCapabilityAccess,
+  type DirectCapabilityId,
+  type DirectExecutorSelection,
+  type DirectExecutionScope
+} from "../direct/capability-broker.js";
 import { FilesService } from "./files-service.js";
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
@@ -32,18 +39,15 @@ import { SearchService } from "./search-service.js";
 import { ServiceError, wrapServiceOperationError } from "./service-error.js";
 import { ShellService } from "./shell-service.js";
 
-export type DirectExecutionScope = "workspace" | "host";
-
-export type ChatDirectExecutor =
-  | "codex-app-server-standalone"
-  | "tokenpilot-direct"
-  | "legacy-core";
+export type { DirectExecutionScope } from "../direct/capability-broker.js";
+export type ChatDirectExecutor = string;
 
 export interface ChatDirectExecutionMetadata {
   lane: "chat-direct";
   modelLoopOwner: "chatgpt";
   executionScope: DirectExecutionScope;
   executor: ChatDirectExecutor;
+  selectionMode: "automatic" | "explicit";
   operationId: string;
   changedPaths: string[];
   evidenceBundleId: string | null;
@@ -54,6 +58,7 @@ type WithExecution<T> = T & { execution: ChatDirectExecutionMetadata };
 
 function metadata(
   executor: ChatDirectExecutor,
+  selectionMode: "automatic" | "explicit",
   changedPaths: string[] = [],
   fallbackReason?: string
 ): ChatDirectExecutionMetadata {
@@ -62,11 +67,25 @@ function metadata(
     modelLoopOwner: "chatgpt",
     executionScope: "workspace",
     executor,
+    selectionMode,
     operationId: `chat_direct_${randomUUID()}`,
     changedPaths: [...changedPaths].sort(),
     evidenceBundleId: null,
     ...(fallbackReason ? { fallbackReason } : {})
   };
+}
+
+function selectionMetadata(
+  selection: DirectExecutorSelection,
+  changedPaths: string[] = [],
+  fallbackReason?: string
+): ChatDirectExecutionMetadata {
+  return metadata(
+    selection.executorId,
+    selection.selectionMode,
+    changedPaths,
+    fallbackReason
+  );
 }
 
 function serviceError(code: string, error: unknown): ServiceError {
@@ -87,7 +106,7 @@ export class ChatDirectService {
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly runtime: RuntimeRouter,
-    private readonly capabilities: CodexStandaloneCapabilityStore,
+    private readonly broker: DirectCapabilityBroker,
     private readonly repositories: ContinuityRepositories
   ) {
     this.files = new FilesService(paths);
@@ -96,8 +115,18 @@ export class ChatDirectService {
     this.shellService = new ShellService(paths);
   }
 
+  listExecutors() {
+    return {
+      ok: true as const,
+      modelLoopOwner: "chatgpt" as const,
+      hostDirectExposed: false as const,
+      executors: this.broker.catalog()
+    };
+  }
+
   async read(context: OperationContext, payload: FileReadPayload) {
-    if (this.canUseStandalone("files.read")) {
+    const selection = this.select("files.read", "read", payload.executorId);
+    if (selection.executorId === "codex-app-server-standalone") {
       try {
         const target = resolveReadableRepoFileTarget(
           this.paths,
@@ -116,23 +145,34 @@ export class ChatDirectService {
           ok: true as const,
           repoId: payload.repoId,
           file,
-          execution: metadata("codex-app-server-standalone")
+          execution: selectionMetadata(selection)
         };
       } catch (error) {
-        if (!this.canFallbackRead(error)) {
+        if (!this.canFallbackRead(selection, error)) {
           throw serviceError("FILES_READ_BLOCKED", error);
         }
+        const fallback = this.fallbackSelection("files.read", "read");
+        const value = this.files.read(context, payload);
+        return {
+          ...value,
+          execution: selectionMetadata(
+            fallback,
+            [],
+            "standalone-read-unavailable"
+          )
+        };
       }
     }
     const value = this.files.read(context, payload);
     return {
       ...value,
-      execution: metadata("tokenpilot-direct", [], "standalone-read-unavailable")
+      execution: selectionMetadata(selection)
     };
   }
 
   async readBatch(context: OperationContext, payload: FileReadBatchPayload) {
-    if (this.canUseStandalone("files.read")) {
+    const selection = this.select("files.readBatch", "read", payload.executorId);
+    if (selection.executorId === "codex-app-server-standalone") {
       try {
         const files = [];
         for (const inputPath of payload.paths) {
@@ -156,23 +196,34 @@ export class ChatDirectService {
           ok: true as const,
           repoId: payload.repoId,
           files,
-          execution: metadata("codex-app-server-standalone")
+          execution: selectionMetadata(selection)
         };
       } catch (error) {
-        if (!this.canFallbackRead(error)) {
+        if (!this.canFallbackRead(selection, error)) {
           throw serviceError("FILES_READ_BLOCKED", error);
         }
+        const fallback = this.fallbackSelection("files.readBatch", "read");
+        const value = this.files.readBatch(context, payload);
+        return {
+          ...value,
+          execution: selectionMetadata(
+            fallback,
+            [],
+            "standalone-read-unavailable"
+          )
+        };
       }
     }
     const value = this.files.readBatch(context, payload);
     return {
       ...value,
-      execution: metadata("tokenpilot-direct", [], "standalone-read-unavailable")
+      execution: selectionMetadata(selection)
     };
   }
 
   async list(context: OperationContext, payload: FileListPayload) {
-    if (this.canUseStandalone("files.list")) {
+    const selection = this.select("files.list", "read", payload.executorId);
+    if (selection.executorId === "codex-app-server-standalone") {
       try {
         const target = resolveWritableRepoPathTarget(
           this.paths,
@@ -184,24 +235,35 @@ export class ChatDirectService {
         const value = listRepoDirectory(this.paths, payload);
         return {
           ...value,
-          execution: metadata("codex-app-server-standalone")
+          execution: selectionMetadata(selection)
         };
       } catch (error) {
-        if (!this.canFallbackRead(error)) {
+        if (!this.canFallbackRead(selection, error)) {
           throw serviceError("FILES_LIST_BLOCKED", error);
         }
+        const fallback = this.fallbackSelection("files.list", "read");
+        const value = this.files.list(context, payload);
+        return {
+          ...value,
+          execution: selectionMetadata(
+            fallback,
+            [],
+            "standalone-list-unavailable"
+          )
+        };
       }
     }
     const value = this.files.list(context, payload);
     return {
       ...value,
-      execution: metadata("tokenpilot-direct", [], "standalone-list-unavailable")
+      execution: selectionMetadata(selection)
     };
   }
 
   async write(context: OperationContext, payload: FileWritePayload) {
     this.assertWriterLease(context, payload.repoId, payload.sessionId);
-    if (this.canUseStandalone("files.write")) {
+    const selection = this.select("files.write", "write", payload.executorId);
+    if (selection.executorId === "codex-app-server-standalone") {
       try {
         const target = resolveWritableRepoPathTarget(
           this.paths,
@@ -220,46 +282,47 @@ export class ChatDirectService {
           path: target.relativePath,
           written: true as const,
           size: stat.size,
-          execution: metadata("codex-app-server-standalone", [
-            target.relativePath
-          ])
+          execution: selectionMetadata(selection, [target.relativePath])
         };
       } catch (error) {
-        if (this.canFallbackMutation(error)) {
-          const value = this.files.write(context, payload);
-          return {
-            ...value,
-            execution: metadata(
-              "tokenpilot-direct",
-              [payload.path],
-              "standalone-write-unavailable"
-            )
-          };
+        if (!this.canFallbackMutation(selection, error)) {
+          throw serviceError("FILES_WRITE_BLOCKED", error);
         }
-        throw serviceError("FILES_WRITE_BLOCKED", error);
+        const fallback = this.fallbackSelection("files.write", "write");
+        const value = this.files.write(context, payload);
+        return {
+          ...value,
+          execution: selectionMetadata(
+            fallback,
+            [payload.path],
+            "standalone-write-unavailable"
+          )
+        };
       }
     }
     const value = this.files.write(context, payload);
     return {
       ...value,
-      execution: metadata("tokenpilot-direct", [payload.path])
+      execution: selectionMetadata(selection, [payload.path])
     };
   }
 
   async edit(context: OperationContext, payload: FileEditPayload) {
     this.assertWriterLease(context, payload.repoId, payload.sessionId);
+    const selection = this.select("files.edit", "write", payload.executorId);
     const value = this.files.edit(context, payload);
     return {
       ...value,
-      execution: metadata("tokenpilot-direct", [payload.path])
+      execution: selectionMetadata(selection, [payload.path])
     };
   }
 
   async search(context: OperationContext, payload: SearchPayload) {
+    const selection = this.select("search.content", "read", payload.executorId);
     const value = this.searchService.search(context, payload);
     return {
       ...value,
-      execution: metadata("tokenpilot-direct")
+      execution: selectionMetadata(selection)
     };
   }
 
@@ -270,13 +333,14 @@ export class ChatDirectService {
     } catch (error) {
       throw serviceError("SHELL_COMMAND_BLOCKED", error);
     }
-    if (!prepared.standaloneReadOnly) {
+    const access: DirectCapabilityAccess = prepared.standaloneReadOnly
+      ? "read"
+      : "write";
+    if (access === "write") {
       this.assertWriterLease(context, payload.repoId, payload.sessionId);
     }
-    if (
-      prepared.standaloneReadOnly &&
-      this.canUseStandalone("command.exec")
-    ) {
+    const selection = this.select("shell.exec", access, payload.executorId);
+    if (selection.executorId === "codex-app-server-standalone") {
       const startedAt = Date.now();
       try {
         const result = await this.runtime.executeStandaloneCommand({
@@ -295,45 +359,67 @@ export class ChatDirectService {
           stderr: result.stderr,
           truncated: false,
           executedCommand: `${prepared.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
-          execution: metadata("codex-app-server-standalone")
+          execution: selectionMetadata(selection)
         };
       } catch (error) {
-        if (!this.canFallbackRead(error)) {
+        if (!this.canFallbackRead(selection, error)) {
           throw serviceError("SHELL_COMMAND_BLOCKED", error);
         }
+        const fallback = this.fallbackSelection("shell.exec", "read");
+        const value = this.shellService.run(context, payload);
+        return {
+          ...value,
+          execution: selectionMetadata(
+            fallback,
+            [],
+            "standalone-command-unavailable"
+          )
+        };
       }
     }
     const value = this.shellService.run(context, payload);
     return {
       ...value,
-      execution: metadata(
-        "tokenpilot-direct",
+      execution: selectionMetadata(
+        selection,
         [],
-        prepared.standaloneReadOnly
-          ? "standalone-command-unavailable"
-          : "command-policy-kept-tokenpilot-direct"
+        access === "write" && selection.selectionMode === "automatic"
+          ? "command-policy-kept-tokenpilot-direct"
+          : undefined
       )
     };
   }
 
-  async gitStatus(context: OperationContext, repoId: string) {
+  async gitStatus(
+    context: OperationContext,
+    repoId: string,
+    executorId?: string
+  ) {
+    const selection = this.select("git.status", "read", executorId);
     const value = this.git.status(context, repoId);
-    return { ...value, execution: metadata("tokenpilot-direct") };
+    return { ...value, execution: selectionMetadata(selection) };
   }
 
-  async gitDiff(context: OperationContext, repoId: string, staged = false) {
+  async gitDiff(
+    context: OperationContext,
+    repoId: string,
+    staged = false,
+    executorId?: string
+  ) {
+    const selection = this.select("git.diff", "read", executorId);
     const value = this.git.diff(context, repoId, staged);
-    return { ...value, execution: metadata("tokenpilot-direct") };
+    return { ...value, execution: selectionMetadata(selection) };
   }
 
   async gitCommit(context: OperationContext, payload: GitCommitPayload) {
     this.assertWriterLease(context, payload.repoId, payload.sessionId);
+    const selection = this.select("git.commit", "write", payload.executorId);
     const before = this.git.status(context, payload.repoId);
     const value = this.git.commit(context, payload);
     return {
       ...value,
-      execution: metadata(
-        "tokenpilot-direct",
+      execution: selectionMetadata(
+        selection,
         before.entries
           .filter((entry) => entry.status !== "blocked")
           .map((entry) => entry.path)
@@ -344,14 +430,16 @@ export class ChatDirectService {
   async recentCommits(
     context: OperationContext,
     repoId: string,
-    limit = 10
+    limit = 10,
+    executorId?: string
   ) {
+    const selection = this.select("git.log", "read", executorId);
     const commits = this.git.recentCommits(context, repoId, limit);
     return {
       ok: true as const,
       repoId,
       commits,
-      execution: metadata("tokenpilot-direct")
+      execution: selectionMetadata(selection)
     };
   }
 
@@ -479,21 +567,44 @@ export class ChatDirectService {
     }
   }
 
-  private canUseStandalone(
-    operation: "files.read" | "files.write" | "files.list" | "command.exec"
-  ): boolean {
-    const snapshot = this.capabilities.read();
-    const capability = snapshot?.operations[operation];
-    return Boolean(
-      snapshot?.directExecutionReady &&
-        !snapshot.turnStartObserved &&
-        capability?.status === "verified" &&
-        capability.safeForChatDirect
-    );
+  private select(
+    capability: DirectCapabilityId,
+    access: DirectCapabilityAccess,
+    executorId?: string
+  ): DirectExecutorSelection {
+    try {
+      return this.broker.resolve({
+        capability,
+        scope: "workspace",
+        access,
+        ...(executorId ? { executorId } : {})
+      });
+    } catch (error) {
+      if (error instanceof DirectCapabilityBrokerError) {
+        throw new ServiceError(error.code, error.message, {
+          hint:
+            "Inspect tokenpilot.direct.executors.list and choose an executor that supports the requested Workspace Direct capability.",
+          details: error.details
+        });
+      }
+      throw error;
+    }
   }
 
-  private canFallbackRead(error: unknown): boolean {
+  private fallbackSelection(
+    capability: DirectCapabilityId,
+    access: DirectCapabilityAccess
+  ): DirectExecutorSelection {
+    const selection = this.select(capability, access, "tokenpilot-direct");
+    return { ...selection, selectionMode: "automatic" };
+  }
+
+  private canFallbackRead(
+    selection: DirectExecutorSelection,
+    error: unknown
+  ): boolean {
     return (
+      selection.selectionMode === "automatic" &&
       error instanceof ServiceError &&
       [
         "CAPABILITY_UNAVAILABLE",
@@ -506,8 +617,12 @@ export class ChatDirectService {
     );
   }
 
-  private canFallbackMutation(error: unknown): boolean {
+  private canFallbackMutation(
+    selection: DirectExecutorSelection,
+    error: unknown
+  ): boolean {
     return (
+      selection.selectionMode === "automatic" &&
       error instanceof ServiceError &&
       [
         "CAPABILITY_UNAVAILABLE",

@@ -15,7 +15,7 @@ ChatGPT Native
   -> TokenPilot Remote MCP / Control Plane
        -> Direct Drive
             -> Workspace Direct（已实现）
-            -> Host Direct（目标能力，尚未开放）
+            -> Host Direct Read-Only（已实现）/ Host Mutation（目标能力）
        -> Codex Session
        -> Async Agent Job
 ```
@@ -47,17 +47,18 @@ Direct Drive 是“ChatGPT 保持唯一模型循环、TokenPilot 执行确定性
 Direct Drive 分为两个执行 Scope：
 
 - **Workspace Direct — 已实现：** 只在显式允许的 Project/Workspace 内操作，并继续使用现有 Path、Command、Git、Writer Lease、Evidence 与 Public-safe Projection 治理。
-- **Host Direct — 目标能力，尚未开放：** 允许在当前 OS 用户权限范围内跨出单一 Workspace 执行本机操作，但权限范围更宽不能意味着治理更弱。若 Host Direct 的目标路径属于已注册 Workspace，仍必须自动应用该 Workspace 的 Writer Lease、Evidence、Git 与 Path Safety 规则。
+- **Host Direct Read-Only — 已实现：** Remote MCP 可以通过本机配置的 Host Root Alias 读取一个小型 text-like 文件；ChatGPT 永远拿不到 Root 的本机绝对路径。TokenPilot 会在下游执行前完成相对路径校验、canonical containment、symlink escape 阻断、敏感路径阻断、文本类型检查与 64 KiB 上限。**Host Mutation 仍是目标能力：** 未来更宽的 Write / Edit / Shell 权限不能削弱治理；若目标属于已注册 Workspace，仍必须重新进入 Writer Lease、Evidence、Git 与 Path Safety 规则。
 
-Direct Drive 已确认采用 **TokenPilot Capability Broker + Pluggable Downstream MCP Executor** 作为目标 Executor 架构。ChatGPT 对外只连接 TokenPilot Remote MCP；Capability Broker 在本机发现、协商并标准化兼容 Executor，以稳定的 TokenPilot Capability Contract 对外提供能力，而不是把下游 MCP Tool 名称原样透传。Built-in Executor 与经过验证的 App Server Standalone 继续作为有效 Provider；Downstream MCP Executor 只是可替换的新 Provider 类型，不能绕过 TokenPilot 的 Policy、Scope、Approval、Writer Lease、Evidence、Audit、Timeout、Output Bound 与 Secret Safety 规则。
+Direct Drive 已确认采用 **TokenPilot Capability Broker + Pluggable Downstream MCP Executor** 架构。Capability Broker 的 Workspace Direct 基础层现已实现：TokenPilot Built-in 与经过验证的 App Server Standalone 会被标准化为统一 Capability Descriptor，并提供 Health / Scope、public-safe discovery 与 `automatic | explicit` Provider Selection。ChatGPT 对外仍只连接 TokenPilot Remote MCP。Downstream MCP 的发现基础层也已经实现：local-only Executor 配置驱动 stdio Probe，通过官方 MCP Schema 校验后，以显式 Tool → Capability Mapping 生成本地 Capability Snapshot，并可向 Broker 投影 `downstream-mcp` Descriptor。当前只有受治理的 Host Direct Read-Only `files.read` 已通过 Desktop Commander Adapter Contract 委派到下游 `tools/call`；通用 Host Mutation 与任意下游执行仍未开放；未来真正接入执行后也不能绕过 TokenPilot 的 Policy、Scope、Approval、Writer Lease、Evidence、Audit、Timeout、Output Bound 与 Secret Safety 规则，更不会把下游 MCP Tool 名称原样透传。
 
-当前已实现的 Workspace Direct 按以下顺序执行单个工具操作：
+当前已实现的 Workspace Direct 由 Capability Broker 按以下 Provider 顺序解析 normalized capability：
 
-1. 本机 Probe 已验证的 Codex App Server Standalone；
-2. TokenPilot Direct Executor；
-3. 明确保留的 Legacy Fallback。
+1. 本机 Probe 已验证且标记为 Chat Direct 安全的 Codex App Server Standalone；
+2. 其余能力或允许的自动回退由 TokenPilot Built-in 承担。
 
-结果会记录 Lane、Model Loop Owner、Executor、Operation ID、Changed Paths 与 Evidence 关联。发布门禁证明 Chat Direct 不会隐式调用 `turn/start` 或创建 Codex Thread。
+显式指定 Executor 后不得静默切换到其他 Provider。已配置并成功 Probe 的 Downstream MCP Descriptor 可以向 Broker 声明经过映射的 Host Capability，但当前公共执行面只授权 Host Direct Read-Only `files.read`；其他 Host Capability 仍然只是 Discovery Evidence，Remote MCP 不能调用。
+
+结果会记录 Lane、Model Loop Owner、Execution Scope、Executor、Selection Mode、Operation ID、Changed Paths 与 Evidence 关联。发布门禁证明 Chat Direct 不会隐式调用 `turn/start` 或创建 Codex Thread。
 
 文件写入、文件编辑、Git Commit，以及所有被策略判定为可能写入的 Shell Command，都必须携带 Active `chat-direct` Session，并由该 Session 持有 Workspace Writer Lease；只读 Observer 保持免租约。
 
@@ -139,7 +140,8 @@ npm run verify:source-archive
 ## 当前限制
 
 - 公网 HTTPS 与不同 ChatGPT/MCP 客户端兼容性仍依赖环境并处于验证中；
-- Host Direct 尚未开放；当前 Direct Drive 仍然只提供 Workspace Scope；
+- Downstream MCP 的 local config、stdio probe、snapshot、显式 mapping、Broker descriptor projection 与 normalized internal execution registry 已实现；
+- Host Direct Read-Only 已通过 public-safe Host Root Alias 与受治理 `files.read` 开放；Host Write / Edit / Shell 仍未开放；
 - 目前的 Restart Gate 覆盖 Lease、Handoff 与 Idempotency，尚未自动恢复所有 Provider-specific Running Session；
 - 未实现公共 SaaS 与分布式 Multi-runner Coordination。
 

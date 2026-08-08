@@ -1,6 +1,11 @@
 import { z } from "zod";
 
+const directExecutorPreference = {
+  executorId: z.string().min(1).max(160).optional()
+};
+
 export const fileReadSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1),
   path: z.string().min(1),
   offset: z.number().int().nonnegative().optional(),
@@ -8,6 +13,7 @@ export const fileReadSchema = z.object({
 });
 
 export const fileReadBatchSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1),
   paths: z.array(z.string().min(1)).min(1).max(10),
   offset: z.number().int().nonnegative().optional(),
@@ -15,6 +21,7 @@ export const fileReadBatchSchema = z.object({
 });
 
 export const fileWriteSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   sessionId: z.string().min(1).max(160),
   path: z.string().min(1),
@@ -22,6 +29,7 @@ export const fileWriteSchema = z.object({
 });
 
 export const fileEditSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   sessionId: z.string().min(1).max(160),
   path: z.string().min(1),
@@ -30,11 +38,13 @@ export const fileEditSchema = z.object({
 });
 
 export const fileListSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   path: z.string().min(1).default(".")
 });
 
 export const searchSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   pattern: z.string().min(1),
   path: z.string().optional(),
@@ -44,6 +54,7 @@ export const searchSchema = z.object({
 });
 
 export const shellRunSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   sessionId: z.string().min(1).max(160).optional(),
   command: z.string().min(1),
@@ -52,15 +63,18 @@ export const shellRunSchema = z.object({
 });
 
 export const gitStatusSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot")
 });
 
 export const gitDiffSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   staged: z.boolean().default(false)
 });
 
 export const gitCommitSchema = z.object({
+  ...directExecutorPreference,
   repoId: z.string().min(1).default("tokenpilot"),
   sessionId: z.string().min(1).max(160),
   message: z.string().min(1),
