@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { buildPaths } from "../src/core/paths.ts";
@@ -19,8 +18,13 @@ import {
   rotateProcessSupervisorToken,
   writeProcessSupervisorStatus
 } from "../src/process-supervisor/runtime-files.ts";
+import {
+  ProcessSupervisorClient,
+  ProcessSupervisorClientError
+} from "../src/process-supervisor/client.ts";
+import { ProcessSupervisorIpcServer } from "../src/process-supervisor/server.ts";
 
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-process-supervisor-ipc-"));
+const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-ps-ipc-"));
 
 try {
   const paths = buildPaths(sandbox);
@@ -145,6 +149,61 @@ try {
   assert.throws(() => removeStaleProcessSupervisorSocket(paths), /socket|non-socket|refus/i);
   fs.rmSync(paths.processSupervisorSocketPath, { force: true });
   removeStaleProcessSupervisorSocket(paths);
+
+  const server = new ProcessSupervisorIpcServer({
+    paths,
+    generation: "generation-a",
+    authToken: tokenB,
+    handler: async (method, params) => {
+      if (method === "health") {
+        return { state: "ready", echo: params };
+      }
+      if (method === "owned.list") {
+        return { processes: [] };
+      }
+      throw new Error(`fixture does not implement ${method}`);
+    }
+  });
+  await server.start();
+  try {
+    assert.equal(fs.lstatSync(paths.processSupervisorSocketPath).isSocket(), true);
+    assert.equal(fs.statSync(paths.processSupervisorSocketPath).mode & 0o777, 0o600);
+
+    const client = new ProcessSupervisorClient({ paths, timeoutMs: 1500 });
+    const health = await client.request<{ state: string; echo: unknown }>("health", {
+      ping: true
+    });
+    assert.equal(health.supervisorGeneration, "generation-a");
+    assert.equal(health.result.state, "ready");
+    assert.deepEqual(health.result.echo, { ping: true });
+
+    fs.writeFileSync(paths.processSupervisorTokenPath, `${"z".repeat(43)}\n`, {
+      encoding: "utf8",
+      mode: 0o600
+    });
+    await assert.rejects(
+      () => client.request("health", {}),
+      (error: unknown) =>
+        error instanceof ProcessSupervisorClientError &&
+        error.code === "SUPERVISOR_AUTH_FAILED" &&
+        !error.message.includes(paths.processSupervisorSocketPath)
+    );
+    fs.writeFileSync(paths.processSupervisorTokenPath, `${tokenB}\n`, {
+      encoding: "utf8",
+      mode: 0o600
+    });
+
+    await server.close();
+    await assert.rejects(
+      () => client.request("health", {}),
+      (error: unknown) =>
+        error instanceof ProcessSupervisorClientError &&
+        error.code === "SUPERVISOR_UNAVAILABLE"
+    );
+  } finally {
+    await server.close();
+  }
+  assert.equal(fs.existsSync(paths.processSupervisorSocketPath), false);
 
   process.stdout.write("VERIFY_PROCESS_SUPERVISOR_IPC_OK\n");
 } finally {
