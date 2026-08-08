@@ -1,9 +1,90 @@
 import assert from "node:assert/strict";
 
+import {
+  HostProcessService,
+  type HostProcessRuntimeSnapshot,
+  type HostProcessRuntimeSupervisor
+} from "../src/application/host-process-service.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import type {
+  ManagedProcessInputOptions,
+  ManagedProcessReadOptions,
+  ManagedProcessStartRequest
+} from "../src/direct/adapters/desktop-commander-managed-process.ts";
+import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 
 const NOW = "2026-08-09T06:50:00.000Z";
+
+class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
+  readonly durable = true as const;
+  closeAllCalls = 0;
+  stopCalls = 0;
+
+  constructor(
+    private readonly ownedProcess: {
+      processId: string;
+      workspaceId: string;
+      taskId: string;
+      sessionId: string;
+      writerLeaseId: string;
+      executorId: string;
+      startActionId: string;
+      startActionHash: string;
+      startedAt: string;
+    }
+  ) {}
+
+  assertReady(): unknown {
+    return { durable: true };
+  }
+  has(processId: string): boolean {
+    return processId === this.ownedProcess.processId;
+  }
+  activeProcessIds(): string[] {
+    return [this.ownedProcess.processId];
+  }
+  generation(): string {
+    return "generation-crash-window";
+  }
+  async refresh() {
+    return {
+      supervisorGeneration: "generation-crash-window",
+      owned: [{ ...this.ownedProcess }]
+    };
+  }
+  async start(_request: ManagedProcessStartRequest): Promise<HostProcessRuntimeSnapshot> {
+    throw new Error("not used");
+  }
+  async read(
+    _processId: string,
+    _options?: ManagedProcessReadOptions
+  ): Promise<HostProcessRuntimeSnapshot> {
+    throw new Error("not used");
+  }
+  async input(
+    _processId: string,
+    _options: ManagedProcessInputOptions
+  ): Promise<HostProcessRuntimeSnapshot> {
+    throw new Error("not used");
+  }
+  async stop(): Promise<HostProcessRuntimeSnapshot> {
+    this.stopCalls += 1;
+    return {
+      processId: this.ownedProcess.processId,
+      status: "terminated",
+      exitCode: 143,
+      output: "",
+      truncated: false,
+      supervisorGeneration: "generation-crash-window"
+    };
+  }
+  async closeAll(): Promise<HostProcessRuntimeSnapshot[]> {
+    this.closeAllCalls += 1;
+    return [];
+  }
+  async closeClient(): Promise<void> {}
+}
 
 const database = new ContinuityDatabase({ path: ":memory:" });
 try {
@@ -136,6 +217,51 @@ try {
     repositories.directProcessRuntimeOwnership.get(attached.processId),
     null
   );
+
+  const crashReservation = repositories.directProcessSessions.createStarting({
+    id: "host_process_crash_window",
+    rootId: "workspace-root",
+    workdir: ".",
+    command: "node",
+    commandHash: "2".repeat(64),
+    executorId: "downstream-mcp:desktop-commander",
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    now: NOW
+  });
+  const crashRuntime = new CrashWindowDurableRuntime({
+    processId: crashReservation.id,
+    workspaceId: workspace.id,
+    taskId: task.id,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    executorId: "downstream-mcp:desktop-commander",
+    startActionId: "approval-crash-window",
+    startActionHash: crashReservation.commandHash,
+    startedAt: NOW
+  });
+  const durableService = new HostProcessService(
+    repositories,
+    new DirectCapabilityBroker([]),
+    crashRuntime
+  );
+  await durableService.reconcile(NOW);
+  const recovered = repositories.directProcessSessions.get(crashReservation.id);
+  assert.equal(recovered.status, "running");
+  assert.equal(recovered.privatePid, null);
+  const recoveredOwnership = repositories.directProcessRuntimeOwnership.get(
+    crashReservation.id
+  );
+  assert.ok(recoveredOwnership);
+  assert.equal(
+    recoveredOwnership.supervisorGeneration,
+    "generation-crash-window"
+  );
+  assert.equal(crashRuntime.stopCalls, 0);
+  await durableService.close(NOW);
+  assert.equal(crashRuntime.closeAllCalls, 0);
 
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   process.stdout.write("VERIFY_DURABLE_HOST_PROCESS_OK\n");

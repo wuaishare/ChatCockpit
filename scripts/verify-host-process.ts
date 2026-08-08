@@ -30,6 +30,7 @@ import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
 import { buildServer } from "../src/server/app.ts";
+import { ProcessSupervisorDaemon } from "../src/process-supervisor/index.ts";
 import type {
   DownstreamMcpClient,
   DownstreamMcpListToolsResult,
@@ -1136,7 +1137,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(immediate.process.exitCode, 0);
     assert.equal(
       repositories.directProcessSessions.get(immediate.process.id).privatePid,
-      7002
+      null
     );
     assert.equal(processSupervisor.startCalls, 2);
 
@@ -1585,9 +1586,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
 }
 
 async function verifyHostProcessRestParity(): Promise<void> {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-process-rest-")
-  );
+  const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-hp-rest-"));
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
@@ -1652,7 +1651,20 @@ async function verifyHostProcessRestParity(): Promise<void> {
     configPath: directConfigPath,
     executorId: DESKTOP_COMMANDER_EXECUTOR_ID
   });
-  const app = buildServer(paths, {
+  const bootstrapDatabase = new ContinuityDatabase({
+    path: path.join(paths.runtimeDir, "continuity.sqlite")
+  });
+  bootstrapDatabase.close();
+  const processSupervisorDaemon = new ProcessSupervisorDaemon(paths, {
+    adapter: new DesktopCommanderManagedProcessSupervisor(
+      paths.runtimeDir,
+      directConfigPath
+    ),
+    heartbeatIntervalMs: 50,
+    watchdogIntervalMs: 50
+  });
+  await processSupervisorDaemon.start();
+  let app = buildServer(paths, {
     directExecutorsConfigPath: directConfigPath
   });
 
@@ -1858,6 +1870,66 @@ async function verifyHostProcessRestParity(): Promise<void> {
       false
     );
 
+    const ownershipBeforeRestart = new ContinuityDatabase({
+      path: path.join(paths.runtimeDir, "continuity.sqlite")
+    });
+    const ownershipRepositoriesBeforeRestart = buildContinuityRepositories(
+      ownershipBeforeRestart
+    );
+    const ownershipBefore =
+      ownershipRepositoriesBeforeRestart.directProcessRuntimeOwnership.get(
+        startedBody.process.id
+      );
+    assert.ok(ownershipBefore);
+    const generationBefore = ownershipBefore.supervisorGeneration;
+    ownershipBeforeRestart.close();
+
+    await app.close();
+    app = buildServer(paths, {
+      directExecutorsConfigPath: directConfigPath
+    });
+
+    const readAfterRestart = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/read",
+      payload: {
+        processId: startedBody.process.id,
+        offset: 0,
+        length: 100,
+        waitMs: 100
+      }
+    });
+    assert.equal(readAfterRestart.statusCode, 200, readAfterRestart.body);
+    const readAfterRestartBody = readAfterRestart.json() as {
+      output: string;
+      process: { id: string; status: string };
+    };
+    assert.equal(readAfterRestartBody.process.id, startedBody.process.id);
+    assert.equal(readAfterRestartBody.process.status, "running");
+    assert.match(readAfterRestartBody.output, /rest-transient-input/);
+    assert.doesNotMatch(readAfterRestart.body, /"(?:privatePid|pid)"/i);
+    assert.doesNotMatch(readAfterRestart.body, new RegExp(hostRoot));
+
+    const ownershipAfterRestart = new ContinuityDatabase({
+      path: path.join(paths.runtimeDir, "continuity.sqlite")
+    });
+    const ownershipRepositoriesAfterRestart = buildContinuityRepositories(
+      ownershipAfterRestart
+    );
+    const ownershipAfter =
+      ownershipRepositoriesAfterRestart.directProcessRuntimeOwnership.get(
+        startedBody.process.id
+      );
+    assert.ok(ownershipAfter);
+    assert.equal(ownershipAfter.supervisorGeneration, generationBefore);
+    assert.equal(
+      ownershipRepositoriesAfterRestart.directProcessSessions.get(
+        startedBody.process.id
+      ).privatePid,
+      null
+    );
+    ownershipAfterRestart.close();
+
     const listed = await app.inject({
       method: "GET",
       url: `/api/host/processes?sessionId=${encodeURIComponent(sessionBody.session.id)}`
@@ -1922,8 +1994,23 @@ async function verifyHostProcessRestParity(): Promise<void> {
     assert.equal("output" in (stopped.json() as Record<string, unknown>), false);
     assert.doesNotMatch(stopped.body, /"(?:privatePid|pid)"/i);
     assert.doesNotMatch(stopped.body, new RegExp(hostRoot));
+
+    const ownershipAfterStopDatabase = new ContinuityDatabase({
+      path: path.join(paths.runtimeDir, "continuity.sqlite")
+    });
+    const ownershipAfterStopRepositories = buildContinuityRepositories(
+      ownershipAfterStopDatabase
+    );
+    assert.equal(
+      ownershipAfterStopRepositories.directProcessRuntimeOwnership.get(
+        startedBody.process.id
+      ),
+      null
+    );
+    ownershipAfterStopDatabase.close();
   } finally {
     await app.close();
+    await processSupervisorDaemon.close();
     if (previousConfigPath === undefined) {
       delete process.env.TOKENPILOT_CONFIG_PATH;
     } else {

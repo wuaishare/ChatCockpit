@@ -22,12 +22,17 @@ import { evaluateWorkspaceCommand } from "../core/command-policy.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
 import {
   DesktopCommanderManagedProcessError,
-  DesktopCommanderManagedProcessSupervisor,
   type ManagedProcessAdapterSnapshot,
   type ManagedProcessInputOptions,
   type ManagedProcessReadOptions,
   type ManagedProcessStartRequest
 } from "../direct/adapters/desktop-commander-managed-process.js";
+import {
+  HostProcessSupervisorClient,
+  type DurableHostProcessActionOptions,
+  type DurableHostProcessRefresh,
+  type DurableHostProcessStartRequest
+} from "./host-process-supervisor-client.js";
 import {
   DirectCapabilityBroker,
   DirectCapabilityBrokerError,
@@ -52,21 +57,38 @@ const MAX_RUNNING_PER_WORKSPACE = 2;
 const MAX_RUNNING_PER_SESSION = 2;
 const HOST_PROCESS_RECONCILE_INTERVAL_MS = 15_000;
 
+export type HostProcessRuntimeSnapshot = Omit<
+  ManagedProcessAdapterSnapshot,
+  "privatePid"
+> & {
+  privatePid?: number;
+  supervisorGeneration?: string;
+};
+
 export interface HostProcessRuntimeSupervisor {
+  readonly durable?: boolean;
   assertReady(): unknown;
   has(processId: string): boolean;
-  start(request: ManagedProcessStartRequest): Promise<ManagedProcessAdapterSnapshot>;
+  start(
+    request: ManagedProcessStartRequest | DurableHostProcessStartRequest
+  ): Promise<HostProcessRuntimeSnapshot>;
   read(
     processId: string,
     options?: ManagedProcessReadOptions
-  ): Promise<ManagedProcessAdapterSnapshot>;
+  ): Promise<HostProcessRuntimeSnapshot>;
   input(
     processId: string,
-    options: ManagedProcessInputOptions
-  ): Promise<ManagedProcessAdapterSnapshot>;
-  stop(processId: string): Promise<ManagedProcessAdapterSnapshot>;
+    options: ManagedProcessInputOptions & Partial<DurableHostProcessActionOptions>
+  ): Promise<HostProcessRuntimeSnapshot>;
+  stop(
+    processId: string,
+    options?: DurableHostProcessActionOptions
+  ): Promise<HostProcessRuntimeSnapshot>;
   activeProcessIds(): string[];
-  closeAll(): Promise<ManagedProcessAdapterSnapshot[]>;
+  closeAll(): Promise<HostProcessRuntimeSnapshot[]>;
+  refresh?(): Promise<DurableHostProcessRefresh>;
+  generation?(): string | null;
+  closeClient?(): Promise<void>;
 }
 
 interface PreparedProcessStartIntent {
@@ -88,7 +110,7 @@ interface PreparedProcessStartExecution {
 }
 
 interface ExternalProcessStartOutcome {
-  snapshot: ManagedProcessAdapterSnapshot | null;
+  snapshot: HostProcessRuntimeSnapshot | null;
   errorCode: string | null;
 }
 
@@ -109,7 +131,7 @@ interface PreparedProcessStopExecution {
 }
 
 interface ExternalProcessActionOutcome {
-  snapshot: ManagedProcessAdapterSnapshot | null;
+  snapshot: HostProcessRuntimeSnapshot | null;
   errorCode: string | null;
 }
 
@@ -315,7 +337,9 @@ export class HostProcessService {
     private readonly supervisor: HostProcessRuntimeSupervisor,
     private readonly configPath?: string
   ) {
-    this.reconcileRestartState();
+    if (!this.supervisor.durable) {
+      this.reconcileRestartState();
+    }
     this.reconcileTimer = setInterval(() => {
       void this.reconcile().catch(() => {
         // Periodic reconciliation must fail closed per process without crashing the Control Plane.
@@ -468,6 +492,10 @@ export class HostProcessService {
     if (this.closed) {
       return;
     }
+    if (this.supervisor.durable && this.supervisor.refresh) {
+      await this.reconcileDurableRuntime(now);
+      return;
+    }
     this.repositories.leases.reconcileExpired(now);
     const running = this.repositories.directProcessSessions.list({
       status: "running"
@@ -510,6 +538,10 @@ export class HostProcessService {
     if (this.reconcileTimer) {
       clearInterval(this.reconcileTimer);
       this.reconcileTimer = null;
+    }
+    if (this.supervisor.durable) {
+      await this.supervisor.closeClient?.();
+      return;
     }
     for (const processId of this.supervisor.activeProcessIds()) {
       await this.waitForProcessActionUnlock(processId, 5_000);
@@ -628,7 +660,14 @@ export class HostProcessService {
                 cwd: prepared.intent.target.absolutePath,
                 command: prepared.intent.command,
                 args: prepared.intent.args,
-                startupTimeoutMs: prepared.intent.request.startupTimeoutMs
+                startupTimeoutMs: prepared.intent.request.startupTimeoutMs,
+                workspaceId: prepared.intent.authority.workspace.id,
+                taskId: prepared.intent.authority.task.id,
+                sessionId: prepared.intent.authority.session.id,
+                writerLeaseId: prepared.intent.authority.lease.id,
+                executorId: prepared.intent.selection.executorId,
+                actionId: prepared.approval.id,
+                actionHash: prepared.approval.actionHash
               }),
               errorCode: null
             };
@@ -656,6 +695,9 @@ export class HostProcessService {
     approval: DirectProcessApprovalRecord;
     replayed: boolean;
   }> {
+    if (this.supervisor.durable) {
+      await this.reconcile(context.now);
+    }
     const { idempotencyKey, ...request } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.prepare.input",
@@ -724,6 +766,9 @@ export class HostProcessService {
     approval: DirectProcessApprovalRecord;
     replayed: boolean;
   }> {
+    if (this.supervisor.durable) {
+      await this.reconcile(context.now);
+    }
     const { idempotencyKey, ...request } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.prepare.stop",
@@ -772,6 +817,9 @@ export class HostProcessService {
     context: OperationContext,
     input: HostProcessExecuteInput & { operation: "input" }
   ): Promise<HostProcessInputExecutionValue & { replayed: boolean }> {
+    if (this.supervisor.durable) {
+      await this.reconcile(context.now);
+    }
     const {
       idempotencyKey,
       approvalId,
@@ -861,7 +909,9 @@ export class HostProcessService {
               snapshot: await this.supervisor.input(prepared.process.id, {
                 input: prepared.request.input,
                 timeoutMs: prepared.request.timeoutMs,
-                waitForPrompt: prepared.request.waitForPrompt
+                waitForPrompt: prepared.request.waitForPrompt,
+                actionId: prepared.approval.id,
+                actionHash: prepared.approval.actionHash
               }),
               errorCode: null
             };
@@ -870,7 +920,12 @@ export class HostProcessService {
             try {
               if (this.supervisor.has(prepared.process.id)) {
                 return {
-                  snapshot: await this.supervisor.stop(prepared.process.id),
+                  snapshot: await this.supervisor.stop(prepared.process.id, {
+                    actionId: `internal-input-failure:${prepared.approval.id}`,
+                    actionHash: createHash("sha256")
+                      .update(`input-failure:${prepared.approval.actionHash}`, "utf8")
+                      .digest("hex")
+                  }),
                   errorCode
                 };
               }
@@ -892,6 +947,9 @@ export class HostProcessService {
     context: OperationContext,
     input: HostProcessExecuteInput & { operation: "stop" }
   ): Promise<HostProcessStopExecutionValue & { replayed: boolean }> {
+    if (this.supervisor.durable) {
+      await this.reconcile(context.now);
+    }
     const {
       idempotencyKey,
       approvalId,
@@ -963,7 +1021,10 @@ export class HostProcessService {
         async (prepared) => {
           try {
             return {
-              snapshot: await this.supervisor.stop(prepared.process.id),
+              snapshot: await this.supervisor.stop(prepared.process.id, {
+                actionId: prepared.approval.id,
+                actionHash: prepared.approval.actionHash
+              }),
               errorCode: null
             };
           } catch (error) {
@@ -1010,6 +1071,244 @@ export class HostProcessService {
         timer.unref();
       });
     }
+  }
+
+  private async reconcileDurableRuntime(now: string): Promise<void> {
+    let refresh: DurableHostProcessRefresh | undefined;
+    try {
+      refresh = await this.supervisor.refresh?.();
+    } catch (error) {
+      if (error instanceof DesktopCommanderManagedProcessError) {
+        throw new ServiceError(
+          "HOST_PROCESS_EXECUTOR_UNAVAILABLE",
+          "Durable Process Supervisor is unavailable"
+        );
+      }
+      throw error;
+    }
+    if (!refresh) {
+      throw new ServiceError(
+        "HOST_PROCESS_EXECUTOR_UNAVAILABLE",
+        "Durable Process Supervisor could not be refreshed"
+      );
+    }
+    this.repositories.leases.reconcileExpired(now);
+    const owned = new Map(
+      refresh.owned.map((process) => [process.processId, process] as const)
+    );
+    const active = this.repositories.directProcessSessions
+      .list()
+      .filter(
+        (record) => record.status === "starting" || record.status === "running"
+      );
+
+    for (let processRecord of active) {
+      if (this.actionLocks.has(processRecord.id)) {
+        owned.delete(processRecord.id);
+        continue;
+      }
+      const runtime = owned.get(processRecord.id);
+      const ownership = this.repositories.directProcessRuntimeOwnership.get(
+        processRecord.id
+      );
+      if (!runtime) {
+        this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.markDurableProcessStale(processRecord, "RUNTIME_UNAVAILABLE", now);
+        continue;
+      }
+      owned.delete(processRecord.id);
+
+      let session;
+      try {
+        session = this.repositories.sessions.get(processRecord.sessionId);
+      } catch {
+        await this.stopDurableRuntimeBestEffort(
+          processRecord.id,
+          refresh.supervisorGeneration,
+          "SESSION_MISSING"
+        );
+        this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.markDurableProcessStale(processRecord, "RUNTIME_IDENTITY_MISMATCH", now);
+        continue;
+      }
+      const identityMatches =
+        runtime.workspaceId === processRecord.workspaceId &&
+        runtime.taskId === session.taskId &&
+        runtime.sessionId === processRecord.sessionId &&
+        runtime.writerLeaseId === processRecord.writerLeaseId &&
+        runtime.executorId === processRecord.executorId;
+      if (!identityMatches) {
+        await this.stopDurableRuntimeBestEffort(
+          processRecord.id,
+          refresh.supervisorGeneration,
+          "RUNTIME_IDENTITY_MISMATCH"
+        );
+        this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.markDurableProcessStale(processRecord, "RUNTIME_IDENTITY_MISMATCH", now);
+        continue;
+      }
+
+      if (ownership && ownership.supervisorGeneration !== refresh.supervisorGeneration) {
+        await this.stopDurableRuntimeBestEffort(
+          processRecord.id,
+          refresh.supervisorGeneration,
+          "SUPERVISOR_GENERATION_CHANGED"
+        );
+        this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.markDurableProcessStale(processRecord, "SUPERVISOR_GENERATION_CHANGED", now);
+        continue;
+      }
+
+      if (!ownership) {
+        if (processRecord.status !== "starting") {
+          await this.stopDurableRuntimeBestEffort(
+            processRecord.id,
+            refresh.supervisorGeneration,
+            "RUNTIME_OWNERSHIP_MISSING"
+          );
+          this.markDurableProcessStale(processRecord, "RUNTIME_OWNERSHIP_MISSING", now);
+          continue;
+        }
+        this.repositories.directProcessRuntimeOwnership.attach({
+          processId: processRecord.id,
+          supervisorGeneration: refresh.supervisorGeneration,
+          now
+        });
+        processRecord = this.repositories.directProcessSessions.attachManaged({
+          id: processRecord.id,
+          expectedRevision: processRecord.revision
+        });
+      } else {
+        this.repositories.directProcessRuntimeOwnership.touch({
+          processId: processRecord.id,
+          supervisorGeneration: refresh.supervisorGeneration,
+          expectedRevision: ownership.revision,
+          now
+        });
+      }
+
+      const lease = this.repositories.leases.getActive(processRecord.workspaceId);
+      const ownsLease =
+        lease !== null &&
+        lease.id === processRecord.writerLeaseId &&
+        lease.sessionId === processRecord.sessionId &&
+        lease.holderType === "chat-direct" &&
+        lease.expiresAt > now;
+      if (!ownsLease) {
+        await this.stopDurableRuntimeBestEffort(
+          processRecord.id,
+          refresh.supervisorGeneration,
+          "WRITER_LEASE_LOST"
+        );
+        const current = this.repositories.directProcessSessions.get(processRecord.id);
+        this.releaseRuntimeOwnershipBestEffort(
+          this.repositories.directProcessRuntimeOwnership.get(processRecord.id)
+        );
+        this.markDurableProcessStale(current, "WRITER_LEASE_LOST", now);
+      }
+    }
+
+    for (const orphan of owned.values()) {
+      await this.stopDurableRuntimeBestEffort(
+        orphan.processId,
+        refresh.supervisorGeneration,
+        "ORPHANED_SUPERVISOR_RUNTIME"
+      );
+    }
+  }
+
+  private async stopDurableRuntimeBestEffort(
+    processId: string,
+    supervisorGeneration: string,
+    reason: string
+  ): Promise<void> {
+    const actionHash = createHash("sha256")
+      .update(
+        JSON.stringify({
+          schemaVersion: 1,
+          processId,
+          supervisorGeneration,
+          reason
+        }),
+        "utf8"
+      )
+      .digest("hex");
+    try {
+      await this.supervisor.stop(processId, {
+        actionId: `internal:${reason}:${processId}:${supervisorGeneration}`,
+        actionHash
+      });
+    } catch {
+      // Reconciliation remains fail closed; caller persists stale state where a DB row exists.
+    }
+  }
+
+  private releaseRuntimeOwnershipForProcess(processId: string): void {
+    this.releaseRuntimeOwnershipBestEffort(
+      this.repositories.directProcessRuntimeOwnership.get(processId)
+    );
+  }
+
+  private releaseRuntimeOwnershipBestEffort(
+    ownership: ReturnType<ContinuityRepositories["directProcessRuntimeOwnership"]["get"]>
+  ): void {
+    if (!ownership) {
+      return;
+    }
+    try {
+      this.repositories.directProcessRuntimeOwnership.release({
+        processId: ownership.processId,
+        supervisorGeneration: ownership.supervisorGeneration,
+        expectedRevision: ownership.revision
+      });
+    } catch {
+      // Stale reconciliation should not hide the primary runtime result.
+    }
+  }
+
+  private markDurableProcessStale(
+    processRecord: DirectProcessSessionRecord,
+    reason: string,
+    now: string
+  ): DirectProcessSessionRecord {
+    if (processRecord.status !== "starting" && processRecord.status !== "running") {
+      return processRecord;
+    }
+    const stale = this.repositories.directProcessSessions.markStale({
+      id: processRecord.id,
+      reason,
+      expectedRevision: processRecord.revision,
+      now
+    });
+    const actionHash = this.internalCleanupHash(stale, reason);
+    const audit = this.repositories.directProcessAudit.create({
+      operation: "cleanup",
+      processId: stale.id,
+      actionHash,
+      approvalId: null,
+      status: "unknown",
+      errorCode: "HOST_PROCESS_STALE",
+      terminalReason: reason,
+      exitCode: stale.exitCode,
+      outputBytes: 0,
+      outputTruncated: false,
+      startedAt: now,
+      completedAt: now,
+      now
+    });
+    this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
+      label: `Host Managed Process durable reconciliation ${stale.command}`,
+      status: "failed",
+      summary: {
+        operation: "cleanup",
+        processId: stale.id,
+        reason,
+        auditId: audit.id,
+        processStatus: stale.status
+      },
+      startedAt: stale.startedAt
+    });
+    return stale;
   }
 
   private reconcileRestartState(now = new Date().toISOString()): void {
@@ -1065,7 +1364,7 @@ export class HostProcessService {
     if (processRecord.status !== "running") {
       return processRecord;
     }
-    let snapshot: ManagedProcessAdapterSnapshot | null = null;
+    let snapshot: HostProcessRuntimeSnapshot | null = null;
     let errorCode: string | null = null;
     if (this.supervisor.has(processRecord.id)) {
       try {
@@ -1320,36 +1619,42 @@ export class HostProcessService {
   private applyObservedSnapshot(
     context: OperationContext,
     processRecord: DirectProcessSessionRecord,
-    snapshot: ManagedProcessAdapterSnapshot,
+    snapshot: HostProcessRuntimeSnapshot,
     unknownReason: string
   ): DirectProcessSessionRecord {
     if (snapshot.status === "running") {
       return processRecord;
     }
     if (snapshot.status === "exited") {
-      return this.repositories.directProcessSessions.complete({
+      const completed = this.repositories.directProcessSessions.complete({
         id: processRecord.id,
         status: "exited",
         exitCode: snapshot.exitCode,
         expectedRevision: processRecord.revision,
         now: context.now
       });
+      this.releaseRuntimeOwnershipForProcess(completed.id);
+      return completed;
     }
     if (snapshot.status === "terminated") {
-      return this.repositories.directProcessSessions.complete({
+      const completed = this.repositories.directProcessSessions.complete({
         id: processRecord.id,
         status: "terminated",
         exitCode: snapshot.exitCode,
         expectedRevision: processRecord.revision,
         now: context.now
       });
+      this.releaseRuntimeOwnershipForProcess(completed.id);
+      return completed;
     }
-    return this.repositories.directProcessSessions.markStale({
+    const stale = this.repositories.directProcessSessions.markStale({
       id: processRecord.id,
       reason: unknownReason,
       expectedRevision: processRecord.revision,
       now: context.now
     });
+    this.releaseRuntimeOwnershipForProcess(stale.id);
+    return stale;
   }
 
   private prepareStartIntent(
@@ -1573,36 +1878,54 @@ export class HostProcessService {
         expectedRevision: processRecord.revision,
         now: context.now
       });
-    } else {
-      processRecord = this.repositories.directProcessSessions.attachStarted({
-        id: processRecord.id,
-        privatePid: snapshot.privatePid,
-        expectedRevision: processRecord.revision
-      });
-      if (snapshot.status === "exited") {
-        processRecord = this.repositories.directProcessSessions.complete({
-          id: processRecord.id,
-          status: "exited",
-          exitCode: snapshot.exitCode,
-          expectedRevision: processRecord.revision,
+    } else if (snapshot.status === "running") {
+      if (snapshot.supervisorGeneration) {
+        this.repositories.directProcessRuntimeOwnership.attach({
+          processId: processRecord.id,
+          supervisorGeneration: snapshot.supervisorGeneration,
           now: context.now
         });
-      } else if (snapshot.status === "terminated") {
-        processRecord = this.repositories.directProcessSessions.complete({
+        processRecord = this.repositories.directProcessSessions.attachManaged({
           id: processRecord.id,
-          status: "terminated",
-          exitCode: snapshot.exitCode,
-          expectedRevision: processRecord.revision,
-          now: context.now
+          expectedRevision: processRecord.revision
         });
-      } else if (snapshot.status === "unknown") {
+      } else if (snapshot.privatePid !== undefined) {
+        processRecord = this.repositories.directProcessSessions.attachStarted({
+          id: processRecord.id,
+          privatePid: snapshot.privatePid,
+          expectedRevision: processRecord.revision
+        });
+      } else {
         processRecord = this.repositories.directProcessSessions.markStale({
           id: processRecord.id,
-          reason: "START_RESULT_UNKNOWN",
+          reason: "START_RUNTIME_IDENTITY_MISSING",
           expectedRevision: processRecord.revision,
           now: context.now
         });
       }
+    } else if (snapshot.status === "exited") {
+      processRecord = this.repositories.directProcessSessions.complete({
+        id: processRecord.id,
+        status: "exited",
+        exitCode: snapshot.exitCode,
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
+    } else if (snapshot.status === "terminated") {
+      processRecord = this.repositories.directProcessSessions.complete({
+        id: processRecord.id,
+        status: "terminated",
+        exitCode: snapshot.exitCode,
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
+    } else {
+      processRecord = this.repositories.directProcessSessions.markStale({
+        id: processRecord.id,
+        reason: "START_RESULT_UNKNOWN",
+        expectedRevision: processRecord.revision,
+        now: context.now
+      });
     }
 
     const output = projectKnownPrivatePaths(
@@ -2026,10 +2349,7 @@ export function buildDesktopCommanderHostProcessService(options: {
   return new HostProcessService(
     options.repositories,
     options.broker,
-    new DesktopCommanderManagedProcessSupervisor(
-      options.paths.runtimeDir,
-      options.configPath
-    ),
+    new HostProcessSupervisorClient(options.paths),
     options.configPath
   );
 }
