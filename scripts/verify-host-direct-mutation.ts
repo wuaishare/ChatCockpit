@@ -192,6 +192,17 @@ function verifyDirectMutationPersistence(): void {
   }
 }
 
+async function expectAsyncServiceCode(
+  operation: Promise<unknown>,
+  code: string
+): Promise<void> {
+  await assert.rejects(operation, (error) => {
+    assert.ok(error instanceof ServiceError);
+    assert.equal(error.code, code);
+    return true;
+  });
+}
+
 function expectHostPathCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error) => {
     assert.ok(error instanceof HostPathPolicyError);
@@ -517,7 +528,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
           transport: {
             kind: "stdio",
             command: process.execPath,
-            args: [fixtureServer, "normal"],
+            args: [fixtureServer, "desktop-mutation"],
             timeoutMs: 1000,
             maxBufferBytes: 262144,
             maxStderrBytes: 16384
@@ -658,6 +669,182 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
       idempotencyKey: "deny-edit-001"
     });
     assert.equal(denied.approval.status, "denied");
+
+    const pendingExecution = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/pending.txt",
+      content: "pending\n",
+      idempotencyKey: "prepare-pending-execute"
+    });
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/pending.txt",
+        content: "pending\n",
+        approvalId: pendingExecution.approval.id,
+        expectedApprovalRevision: pendingExecution.approval.revision,
+        idempotencyKey: "execute-pending-001"
+      }),
+      "HOST_MUTATION_APPROVAL_REQUIRED"
+    );
+
+    const writePrepared = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/execute-write.txt",
+      content: "alpha\n",
+      idempotencyKey: "prepare-execute-write"
+    });
+    const writeApproved = await service.decide(context, {
+      approvalId: writePrepared.approval.id,
+      expectedRevision: writePrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-execute-write"
+    });
+    const writeResult = await service.execute(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/execute-write.txt",
+      content: "alpha\n",
+      approvalId: writeApproved.approval.id,
+      expectedApprovalRevision: writeApproved.approval.revision,
+      idempotencyKey: "execute-write-001"
+    });
+    assert.equal(writeResult.replayed, false);
+    assert.equal(
+      fs.readFileSync(path.join(hostRoot, "notes", "execute-write.txt"), "utf8"),
+      "alpha\n"
+    );
+    assert.equal(writeResult.execution.executionScope, "host");
+    assert.equal(writeResult.execution.modelLoopOwner, "chatgpt");
+    assert.equal(writeResult.execution.executor, DESKTOP_COMMANDER_EXECUTOR_ID);
+    assert.deepEqual(writeResult.execution.changedPaths, [
+      "fixture/notes/execute-write.txt"
+    ]);
+    assert.equal(writeResult.evidence.kind, "pure-host-audit");
+    assert.equal(
+      repositories.directMutationAudit.get(writeResult.evidence.auditId).status,
+      "succeeded"
+    );
+    assert.doesNotMatch(JSON.stringify(writeResult), new RegExp(hostRoot));
+
+    fs.writeFileSync(
+      path.join(hostRoot, "notes", "execute-write.txt"),
+      "changed after successful execute\n",
+      "utf8"
+    );
+    const replayedExecute = await service.execute(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/execute-write.txt",
+      content: "alpha\n",
+      approvalId: writeApproved.approval.id,
+      expectedApprovalRevision: writeApproved.approval.revision,
+      idempotencyKey: "execute-write-001"
+    });
+    assert.equal(replayedExecute.replayed, true);
+    assert.equal(
+      fs.readFileSync(path.join(hostRoot, "notes", "execute-write.txt"), "utf8"),
+      "changed after successful execute\n"
+    );
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/execute-write.txt",
+        content: "alpha\n",
+        approvalId: writeApproved.approval.id,
+        expectedApprovalRevision: writeApproved.approval.revision + 1,
+        idempotencyKey: "execute-write-consumed-new-key"
+      }),
+      "HOST_MUTATION_APPROVAL_CONSUMED"
+    );
+
+    fs.writeFileSync(path.join(hostRoot, "notes", "edit-live.txt"), "alpha\n", "utf8");
+    const editLivePrepared = await service.prepare(context, {
+      operation: "files.edit",
+      rootId: "fixture",
+      path: "notes/edit-live.txt",
+      oldText: "alpha",
+      newText: "beta",
+      idempotencyKey: "prepare-execute-edit"
+    });
+    const editLiveApproved = await service.decide(context, {
+      approvalId: editLivePrepared.approval.id,
+      expectedRevision: editLivePrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-execute-edit"
+    });
+    const editResult = await service.execute(context, {
+      operation: "files.edit",
+      rootId: "fixture",
+      path: "notes/edit-live.txt",
+      oldText: "alpha",
+      newText: "beta",
+      approvalId: editLiveApproved.approval.id,
+      expectedApprovalRevision: editLiveApproved.approval.revision,
+      idempotencyKey: "execute-edit-001"
+    });
+    assert.equal(
+      fs.readFileSync(path.join(hostRoot, "notes", "edit-live.txt"), "utf8"),
+      "beta\n"
+    );
+    assert.equal(editResult.evidence.kind, "pure-host-audit");
+
+    const changedInputPrepared = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/hash-mismatch.txt",
+      content: "approved\n",
+      idempotencyKey: "prepare-hash-mismatch"
+    });
+    const changedInputApproved = await service.decide(context, {
+      approvalId: changedInputPrepared.approval.id,
+      expectedRevision: changedInputPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-hash-mismatch"
+    });
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/hash-mismatch.txt",
+        content: "different\n",
+        approvalId: changedInputApproved.approval.id,
+        expectedApprovalRevision: changedInputApproved.approval.revision,
+        idempotencyKey: "execute-hash-mismatch"
+      }),
+      "HOST_MUTATION_HASH_MISMATCH"
+    );
+
+    const appearsPrepared = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/appears.txt",
+      content: "approved\n",
+      idempotencyKey: "prepare-target-appears"
+    });
+    const appearsApproved = await service.decide(context, {
+      approvalId: appearsPrepared.approval.id,
+      expectedRevision: appearsPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-target-appears"
+    });
+    fs.writeFileSync(path.join(hostRoot, "notes", "appears.txt"), "surprise\n", "utf8");
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/appears.txt",
+        content: "approved\n",
+        approvalId: appearsApproved.approval.id,
+        expectedApprovalRevision: appearsApproved.approval.revision,
+        idempotencyKey: "execute-target-appears"
+      }),
+      "HOST_MUTATION_HASH_MISMATCH"
+    );
   } finally {
     database.close();
     fs.rmSync(sandbox, { recursive: true, force: true });

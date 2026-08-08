@@ -123,6 +123,95 @@ rl.on("line", (line) => {
       }
       return;
     }
+    if (mode === "desktop-mutation" && toolName === "write_file") {
+      const target = message.params?.arguments?.path;
+      const content = message.params?.arguments?.content;
+      const writeMode = message.params?.arguments?.mode ?? "rewrite";
+      if (
+        typeof target !== "string" ||
+        typeof content !== "string" ||
+        writeMode !== "rewrite"
+      ) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "invalid write args" }],
+            isError: true
+          }
+        });
+        return;
+      }
+      try {
+        fs.writeFileSync(target, content, "utf8");
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "write ok" }],
+            isError: false
+          }
+        });
+      } catch {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "write failed" }],
+            isError: true
+          }
+        });
+      }
+      return;
+    }
+    if (mode === "desktop-mutation" && toolName === "edit_block") {
+      const target = message.params?.arguments?.file_path;
+      const oldText = message.params?.arguments?.old_string;
+      const newText = message.params?.arguments?.new_string;
+      const expected = message.params?.arguments?.expected_replacements ?? 1;
+      if (
+        typeof target !== "string" ||
+        typeof oldText !== "string" ||
+        typeof newText !== "string" ||
+        expected !== 1
+      ) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "invalid edit args" }],
+            isError: true
+          }
+        });
+        return;
+      }
+      try {
+        const current = fs.readFileSync(target, "utf8");
+        const count = current.split(oldText).length - 1;
+        if (count !== 1) {
+          throw new Error("exact edit mismatch");
+        }
+        fs.writeFileSync(target, current.replace(oldText, newText), "utf8");
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "edit ok" }],
+            isError: false
+          }
+        });
+      } catch {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{ type: "text", text: "edit failed" }],
+            isError: true
+          }
+        });
+      }
+      return;
+    }
     send({
       jsonrpc: "2.0",
       id: message.id,
