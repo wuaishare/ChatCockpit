@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HostCommandService } from "../src/application/host-command-service.ts";
+import { hostCommandPrepareSchema } from "../src/contracts/host-command.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { classifyHostTarget } from "../src/application/workspace-mutation-governance.ts";
 import { ServiceError } from "../src/application/service-error.ts";
@@ -339,6 +340,22 @@ async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
     assert.equal(large.truncated, true);
     assert.ok(Buffer.byteLength(large.output, "utf8") <= 64 * 1024);
 
+    const noSnapshotRuntime = path.join(sandbox, "runtime-no-snapshot");
+    fs.mkdirSync(noSnapshotRuntime, { recursive: true });
+    const noSnapshot = new DesktopCommanderProcessAdapter(
+      noSnapshotRuntime,
+      configPath,
+      () => new ScriptedProcessClient("success")
+    );
+    assert.throws(
+      () => noSnapshot.assertReady("read"),
+      (error) => {
+        assert.ok(error instanceof DesktopCommanderProcessError);
+        assert.equal(error.code, "DESKTOP_COMMANDER_PROCESS_UNAVAILABLE");
+        return true;
+      }
+    );
+
     const missingLifecycleConfig = writeDesktopCommanderProcessFixture({
       sandbox,
       runtimeDir,
@@ -357,8 +374,48 @@ async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
         return true;
       }
     );
+
+    const driftConfigPath = writeDesktopCommanderProcessFixture({
+      sandbox,
+      runtimeDir
+    });
+    const driftConfig = JSON.parse(fs.readFileSync(driftConfigPath, "utf8")) as {
+      executors: Array<{
+        mappings: Array<{ capability: string; toolName: string }>;
+      }>;
+    };
+    const shellMapping = driftConfig.executors[0]?.mappings.find(
+      (mapping) => mapping.capability === "shell.exec"
+    );
+    assert.ok(shellMapping);
+    shellMapping.toolName = "execute_command";
+    fs.writeFileSync(driftConfigPath, JSON.stringify(driftConfig), "utf8");
+    const drifted = new DesktopCommanderProcessAdapter(
+      runtimeDir,
+      driftConfigPath,
+      () => new ScriptedProcessClient("success")
+    );
+    assert.throws(
+      () => drifted.assertReady("read"),
+      (error) => {
+        assert.ok(error instanceof DesktopCommanderProcessError);
+        assert.equal(error.code, "DESKTOP_COMMANDER_PROCESS_UNAVAILABLE");
+        return true;
+      }
+    );
   } finally {
     fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
+class UnknownHostCommandProcessExecutor {
+  assertReady(_access: "read" | "write"): void {}
+
+  async execute(): Promise<never> {
+    throw new DesktopCommanderProcessError(
+      "DESKTOP_COMMANDER_PROCESS_RESULT_UNKNOWN",
+      "fixture terminal state is unknown"
+    );
   }
 }
 
@@ -538,6 +595,101 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
   });
 
   try {
+    assert.equal(
+      hostCommandPrepareSchema.safeParse({
+        rootId: "fixture",
+        workdir: "notes",
+        command: "git status && echo unsafe",
+        args: [],
+        idempotencyKey: "host-command-raw-shell"
+      }).success,
+      false
+    );
+    await expectAsyncCode(
+      service.prepare(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "npm",
+        args: ["test"],
+        timeoutMs: 5000,
+        idempotencyKey: "host-command-pure-write-effect"
+      }),
+      "HOST_COMMAND_EFFECT_UNSUPPORTED"
+    );
+    await expectAsyncCode(
+      service.prepare(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "zsh",
+        args: ["-c", "pwd"],
+        timeoutMs: 5000,
+        idempotencyKey: "host-command-pure-shell-interpreter"
+      }),
+      "HOST_COMMAND_POLICY_BLOCKED"
+    );
+
+    const expiringPrepared = await service.prepare(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      idempotencyKey: "host-command-expiring-prepare"
+    });
+    const expiringApproved = await service.decide(context, {
+      approvalId: expiringPrepared.approval.id,
+      expectedRevision: expiringPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "host-command-expiring-approve"
+    });
+    const laterContext = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "host-command-expired-fixture",
+      publicProjection: true,
+      now: LATER
+    });
+    await expectAsyncCode(
+      service.execute(laterContext, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        approvalId: expiringApproved.approval.id,
+        expectedApprovalRevision: expiringApproved.approval.revision,
+        idempotencyKey: "host-command-expiring-execute"
+      }),
+      "HOST_COMMAND_APPROVAL_EXPIRED"
+    );
+
+    const deniedPrepared = await service.prepare(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      idempotencyKey: "host-command-denied-prepare"
+    });
+    const deniedApproval = await service.decide(context, {
+      approvalId: deniedPrepared.approval.id,
+      expectedRevision: deniedPrepared.approval.revision,
+      decision: "denied",
+      idempotencyKey: "host-command-denied-decision"
+    });
+    await expectAsyncCode(
+      service.execute(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        approvalId: deniedApproval.approval.id,
+        expectedApprovalRevision: deniedApproval.approval.revision,
+        idempotencyKey: "host-command-denied-execute"
+      }),
+      "HOST_COMMAND_APPROVAL_REQUIRED"
+    );
+
     const purePrepared = await service.prepare(context, {
       rootId: "fixture",
       workdir: "notes",
@@ -565,12 +717,64 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       "HOST_COMMAND_APPROVAL_REQUIRED"
     );
 
+    await expectAsyncCode(
+      service.prepare(context, {
+        rootId: "fixture",
+        workdir: ".",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        idempotencyKey: "host-command-pure-prepare"
+      }),
+      "IDEMPOTENCY_CONFLICT"
+    );
+
     const pureApproved = await service.decide(context, {
       approvalId: purePrepared.approval.id,
       expectedRevision: purePrepared.approval.revision,
       decision: "approved",
       idempotencyKey: "host-command-pure-approve"
     });
+    await expectAsyncCode(
+      service.execute(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 6000,
+        approvalId: pureApproved.approval.id,
+        expectedApprovalRevision: pureApproved.approval.revision,
+        idempotencyKey: "host-command-pure-timeout-drift"
+      }),
+      "HOST_COMMAND_HASH_MISMATCH"
+    );
+    await expectAsyncCode(
+      service.execute(context, {
+        rootId: "fixture",
+        workdir: ".",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        approvalId: pureApproved.approval.id,
+        expectedApprovalRevision: pureApproved.approval.revision,
+        idempotencyKey: "host-command-pure-workdir-drift"
+      }),
+      "HOST_COMMAND_HASH_MISMATCH"
+    );
+    await expectAsyncCode(
+      service.execute(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        executorId: "downstream-mcp:other",
+        approvalId: pureApproved.approval.id,
+        expectedApprovalRevision: pureApproved.approval.revision,
+        idempotencyKey: "host-command-pure-executor-drift"
+      }),
+      "HOST_COMMAND_HASH_MISMATCH"
+    );
     const pureExecuted = await service.execute(context, {
       rootId: "fixture",
       workdir: "notes",
@@ -613,6 +817,62 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
         approvalId: pureApproved.approval.id,
         expectedApprovalRevision: pureApproved.approval.revision + 1,
         idempotencyKey: "host-command-pure-execute-new-key"
+      }),
+      "HOST_COMMAND_APPROVAL_CONSUMED"
+    );
+
+    const unknownService = new HostCommandService(
+      paths,
+      repositories,
+      broker,
+      new UnknownHostCommandProcessExecutor(),
+      directConfigPath
+    );
+    const unknownPrepared = await unknownService.prepare(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      idempotencyKey: "host-command-unknown-prepare"
+    });
+    const unknownApproved = await unknownService.decide(context, {
+      approvalId: unknownPrepared.approval.id,
+      expectedRevision: unknownPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "host-command-unknown-approve"
+    });
+    const unknownExecuted = await unknownService.execute(context, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "pwd",
+      args: [],
+      timeoutMs: 5000,
+      approvalId: unknownApproved.approval.id,
+      expectedApprovalRevision: unknownApproved.approval.revision,
+      idempotencyKey: "host-command-unknown-execute"
+    });
+    assert.equal(unknownExecuted.ok, false);
+    assert.equal(unknownExecuted.errorCode, "HOST_COMMAND_RESULT_UNKNOWN");
+    assert.equal(unknownExecuted.exitCode, null);
+    assert.equal(unknownExecuted.approval.status, "consumed");
+    assert.equal(unknownExecuted.evidence.kind, "direct-command-audit");
+    if (unknownExecuted.evidence.kind === "direct-command-audit") {
+      assert.equal(
+        repositories.directCommandAudit.get(unknownExecuted.evidence.auditId).status,
+        "unknown"
+      );
+    }
+    await expectAsyncCode(
+      unknownService.execute(context, {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        approvalId: unknownApproved.approval.id,
+        expectedApprovalRevision: unknownApproved.approval.revision + 1,
+        idempotencyKey: "host-command-unknown-execute-new-key"
       }),
       "HOST_COMMAND_APPROVAL_CONSUMED"
     );
@@ -687,6 +947,44 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       expiresAt: "2026-08-08T15:00:00.000Z",
       now: NOW
     });
+    const competingTask = repositories.tasks.create({
+      id: "task_host_command_competing",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      title: "Competing Host Command Task",
+      goal: "Verify writer lease conflict",
+      status: "in-progress",
+      now: NOW
+    });
+    const competingSession = repositories.sessions.create({
+      id: "session_host_command_competing",
+      projectId: project.id,
+      workspaceId: workspace.id,
+      taskId: competingTask.id,
+      title: "Competing Host Command Session",
+      mode: "chat-direct",
+      status: "running",
+      startedAt: NOW
+    });
+    repositories.tasks.bindSession(
+      competingTask.id,
+      competingSession.id,
+      competingTask.revision,
+      NOW
+    );
+    await expectAsyncCode(
+      service.prepare(context, {
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "npm",
+        args: ["test"],
+        timeoutMs: 5000,
+        sessionId: competingSession.id,
+        idempotencyKey: "host-command-workspace-lease-conflict"
+      }),
+      "WRITER_LEASE_CONFLICT"
+    );
+
     const writePrepared = await service.prepare(context, {
       rootId: "fixture",
       workdir: "projects/workspace-a",

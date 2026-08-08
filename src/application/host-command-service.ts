@@ -386,32 +386,51 @@ export class HostCommandService {
     let policy: CommandPolicyDecision;
     try {
       if (classification.kind === "pure-host") {
-        const pureHostPolicy = evaluatePureHostCommand(
-          request.command,
-          request.args
-        );
-        assertHostCommandRelativePathsInsideRoot(
-          target,
-          pureHostPolicy.relativePathArgs
-        );
-        policy = pureHostPolicy;
+        try {
+          const pureHostPolicy = evaluatePureHostCommand(
+            request.command,
+            request.args
+          );
+          assertHostCommandRelativePathsInsideRoot(
+            target,
+            pureHostPolicy.relativePathArgs
+          );
+          policy = pureHostPolicy;
+        } catch (error) {
+          if (error instanceof HostPathPolicyError) {
+            throw error;
+          }
+          try {
+            const broaderPolicy = evaluateWorkspaceCommand(
+              request.command,
+              request.args
+            );
+            if (broaderPolicy.effect === "write") {
+              throw new ServiceError(
+                "HOST_COMMAND_EFFECT_UNSUPPORTED",
+                "Pure Host write-effect commands are not enabled in this phase"
+              );
+            }
+          } catch (broaderError) {
+            if (broaderError instanceof ServiceError) {
+              throw broaderError;
+            }
+          }
+          throw error;
+        }
       } else {
         policy = evaluateWorkspaceCommand(request.command, request.args);
       }
     } catch (error) {
+      if (error instanceof ServiceError) {
+        throw error;
+      }
       if (error instanceof HostPathPolicyError) {
         throw new ServiceError(error.code, error.message);
       }
       throw new ServiceError(
         "HOST_COMMAND_POLICY_BLOCKED",
         error instanceof Error ? error.message : "Host command policy rejected the request"
-      );
-    }
-
-    if (classification.kind === "pure-host" && policy.effect === "write") {
-      throw new ServiceError(
-        "HOST_COMMAND_EFFECT_UNSUPPORTED",
-        "Pure Host write-effect commands are not enabled in this phase"
       );
     }
 
