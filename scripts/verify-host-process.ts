@@ -11,7 +11,9 @@ import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   DesktopCommanderManagedProcessError,
-  DesktopCommanderManagedProcessSupervisor
+  DesktopCommanderManagedProcessSupervisor,
+  type ManagedProcessAdapterSnapshot,
+  type ManagedProcessStartRequest
 } from "../src/direct/adapters/desktop-commander-managed-process.ts";
 import {
   DESKTOP_COMMANDER_EXECUTOR_ID,
@@ -312,9 +314,27 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
 
 class ReadyProcessSupervisor {
   assertReadyCalls = 0;
+  startCalls = 0;
+  nextStatus: "running" | "exited" = "running";
 
   assertReady(): void {
     this.assertReadyCalls += 1;
+  }
+
+  async start(
+    request: ManagedProcessStartRequest
+  ): Promise<ManagedProcessAdapterSnapshot> {
+    this.startCalls += 1;
+    const status = this.nextStatus;
+    this.nextStatus = "running";
+    return {
+      processId: request.processId,
+      privatePid: 7000 + this.startCalls,
+      status,
+      exitCode: status === "exited" ? 0 : null,
+      output: `${request.cwd}\nfixture process ${status}`,
+      truncated: false
+    };
   }
 }
 
@@ -518,6 +538,114 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     });
     assert.equal(approved.approval.status, "approved");
 
+    const started = await service.execute(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: approved.approval.id,
+      expectedApprovalRevision: approved.approval.revision,
+      idempotencyKey: "process-valid-execute"
+    });
+    assert.equal(started.ok, true);
+    assert.equal(started.process.status, "running");
+    assert.match(started.process.id, /^host_process_/);
+    assert.equal(started.process.workspaceId, workspace.id);
+    assert.equal(started.process.sessionId, session.id);
+    assert.equal(started.approval.status, "consumed");
+    assert.equal(started.evidence.kind, "task-evidence");
+    assert.equal(started.execution.evidenceBundleId, started.evidence.bundleId);
+    assert.match(started.output, /fixture\/projects\/workspace-a/);
+    assert.doesNotMatch(JSON.stringify(started), new RegExp(hostRoot));
+    assert.doesNotMatch(JSON.stringify(started), /privatePid/i);
+    assert.doesNotMatch(JSON.stringify(started), /7001/);
+    assert.equal(processSupervisor.startCalls, 1);
+    const privateStarted = repositories.directProcessSessions.get(
+      started.process.id
+    );
+    assert.equal(privateStarted.privatePid, 7001);
+    assert.equal(privateStarted.status, "running");
+    assert.equal(privateStarted.evidenceBundleId, started.evidence.bundleId);
+    const startEvidence = repositories.evidence
+      .listItems(started.evidence.bundleId)
+      .find((item) => item.id === started.evidence.itemId);
+    assert.equal(startEvidence?.kind, "command");
+    assert.equal(startEvidence?.status, "passed");
+    assert.doesNotMatch(startEvidence?.summary ?? "", new RegExp(hostRoot));
+    assert.doesNotMatch(startEvidence?.summary ?? "", /7001/);
+
+    const executeReplay = await service.execute(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: approved.approval.id,
+      expectedApprovalRevision: approved.approval.revision,
+      idempotencyKey: "process-valid-execute"
+    });
+    assert.equal(executeReplay.replayed, true);
+    assert.equal(executeReplay.process.id, started.process.id);
+    assert.equal(processSupervisor.startCalls, 1);
+    await expectServiceCode(
+      service.execute(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        approvalId: approved.approval.id,
+        expectedApprovalRevision: approved.approval.revision + 1,
+        idempotencyKey: "process-valid-execute-second-key"
+      }),
+      "HOST_PROCESS_APPROVAL_CONSUMED"
+    );
+
+    const immediatePrepared = await service.prepare(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-immediate-prepare"
+    });
+    const immediateApproved = await service.decide(context, {
+      approvalId: immediatePrepared.approval.id,
+      expectedRevision: immediatePrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-immediate-decision"
+    });
+    processSupervisor.nextStatus = "exited";
+    const immediate = await service.execute(context, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: immediateApproved.approval.id,
+      expectedApprovalRevision: immediateApproved.approval.revision,
+      idempotencyKey: "process-immediate-execute"
+    });
+    assert.equal(immediate.ok, true);
+    assert.equal(immediate.process.status, "exited");
+    assert.equal(immediate.process.exitCode, 0);
+    assert.equal(
+      repositories.directProcessSessions.get(immediate.process.id).privatePid,
+      7002
+    );
+    assert.equal(processSupervisor.startCalls, 2);
+
     const competingTask = repositories.tasks.create({
       id: "task_host_process_competing",
       projectId: project.id,
@@ -569,20 +697,6 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       sessionId: session.id,
       writerLeaseId: lease.id,
       privatePid: 6101,
-      now: NOW
-    });
-    repositories.directProcessSessions.createRunning({
-      id: "host_process_quota_b",
-      rootId: "fixture",
-      workdir: "projects/workspace-a",
-      command: "npm",
-      commandHash: "4".repeat(64),
-      executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
-      workspaceId: workspace.id,
-      repoId: workspace.repoId,
-      sessionId: session.id,
-      writerLeaseId: lease.id,
-      privatePid: 6102,
       now: NOW
     });
     await expectServiceCode(
