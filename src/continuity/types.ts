@@ -58,6 +58,10 @@ export type DirectMutationApprovalStatus =
   | "consumed"
   | "expired";
 export type DirectMutationAuditStatus = "succeeded" | "failed" | "unknown";
+export type DirectCommandEffect = "read" | "write";
+export type DirectCommandTargetKind = DirectMutationTargetKind;
+export type DirectCommandApprovalStatus = DirectMutationApprovalStatus;
+export type DirectCommandAuditStatus = DirectMutationAuditStatus;
 export type RuntimeEventCategory =
   | "lifecycle"
   | "approval"
@@ -279,6 +283,46 @@ export interface DirectMutationAuditRecord {
   executorId: string;
   approvalId: string;
   status: DirectMutationAuditStatus;
+  errorCode: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface DirectCommandApprovalRecord {
+  id: string;
+  rootId: string;
+  workdir: string;
+  command: string;
+  args: string[];
+  commandHash: string;
+  effect: DirectCommandEffect;
+  timeoutMs: number;
+  executorId: string;
+  targetKind: DirectCommandTargetKind;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  status: DirectCommandApprovalStatus;
+  publicSummary: Record<string, unknown>;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  consumedAt: string | null;
+  revision: number;
+}
+
+export interface DirectCommandAuditRecord {
+  id: string;
+  rootId: string;
+  workdir: string;
+  commandHash: string;
+  effect: DirectCommandEffect;
+  executorId: string;
+  approvalId: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  status: DirectCommandAuditStatus;
   errorCode: string | null;
   startedAt: string;
   completedAt: string | null;

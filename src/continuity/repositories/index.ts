@@ -1,5 +1,7 @@
 import type { ContinuityDatabase } from "../database.js";
 import { DevelopmentDocumentRepository } from "./development-document-repository.js";
+import { DirectCommandApprovalRepository } from "./direct-command-approval-repository.js";
+import { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";
 import { DirectMutationApprovalRepository } from "./direct-mutation-approval-repository.js";
 import { DirectMutationAuditRepository } from "./direct-mutation-audit-repository.js";
 import { EvidenceRepository } from "./evidence-repository.js";
@@ -18,6 +20,8 @@ import { WorkspaceRepository } from "./workspace-repository.js";
 export interface ContinuityRepositories {
   projects: ProjectRepository;
   developmentDocuments: DevelopmentDocumentRepository;
+  directCommandApprovals: DirectCommandApprovalRepository;
+  directCommandAudit: DirectCommandAuditRepository;
   directMutationApprovals: DirectMutationApprovalRepository;
   directMutationAudit: DirectMutationAuditRepository;
   runtimeApprovals: RuntimeApprovalRepository;
@@ -39,6 +43,8 @@ export function buildContinuityRepositories(
   return {
     projects: new ProjectRepository(database),
     developmentDocuments: new DevelopmentDocumentRepository(database),
+    directCommandApprovals: new DirectCommandApprovalRepository(database),
+    directCommandAudit: new DirectCommandAuditRepository(database),
     directMutationApprovals: new DirectMutationApprovalRepository(database),
     directMutationAudit: new DirectMutationAuditRepository(database),
     runtimeApprovals: new RuntimeApprovalRepository(database),
@@ -56,6 +62,8 @@ export function buildContinuityRepositories(
 }
 
 export { DevelopmentDocumentRepository } from "./development-document-repository.js";
+export { DirectCommandApprovalRepository } from "./direct-command-approval-repository.js";
+export { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";
 export { DirectMutationApprovalRepository } from "./direct-mutation-approval-repository.js";
 export { DirectMutationAuditRepository } from "./direct-mutation-audit-repository.js";
 export { EvidenceRepository } from "./evidence-repository.js";
