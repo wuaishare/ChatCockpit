@@ -9,6 +9,10 @@ import {
 } from "../direct/adapters/desktop-commander-managed-process.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
 import type { ProcessSupervisorMethod } from "./protocol.js";
+import type {
+  SupervisorTerminalEvent,
+  SupervisorTerminalEventKind
+} from "./event-journal.js";
 
 const MAX_ACTION_RECEIPTS = 512;
 const MAX_TRANSIENT_INPUT_BYTES = 8 * 1024;
@@ -64,6 +68,10 @@ const stopSchema = z.object({
   actionHash: actionHashSchema
 });
 
+const eventAckSchema = z.object({
+  eventIds: z.array(z.string().min(1).max(200)).max(1000)
+});
+
 export class ProcessSupervisorRuntimeError extends Error {
   constructor(
     readonly code: string,
@@ -79,6 +87,10 @@ export interface ProcessSupervisorManagedAdapter {
   has(processId: string): boolean;
   activeProcessIds(): string[];
   start(request: ManagedProcessStartRequest): Promise<ManagedProcessAdapterSnapshot>;
+  observe(
+    processId: string,
+    options?: ManagedProcessReadOptions
+  ): Promise<ManagedProcessAdapterSnapshot>;
   read(
     processId: string,
     options?: ManagedProcessReadOptions
@@ -89,6 +101,21 @@ export interface ProcessSupervisorManagedAdapter {
   ): Promise<ManagedProcessAdapterSnapshot>;
   stop(processId: string): Promise<ManagedProcessAdapterSnapshot>;
   closeAll(): Promise<ManagedProcessAdapterSnapshot[]>;
+}
+
+export interface ProcessSupervisorAuthorityReader {
+  check(
+    process: SupervisorOwnedProcess,
+    now?: string
+  ): { valid: true; reasonCode: null } | { valid: false; reasonCode: string };
+}
+
+export interface ProcessSupervisorEventStore {
+  append(
+    input: Omit<SupervisorTerminalEvent, "eventId"> & { eventId?: string }
+  ): SupervisorTerminalEvent;
+  list(): SupervisorTerminalEvent[];
+  ack(eventIds: string[]): number;
 }
 
 export interface SupervisorOwnedProcess {
@@ -162,11 +189,14 @@ export class ProcessSupervisorRuntimeService {
   private readonly owned = new Map<string, SupervisorOwnedProcess>();
   private readonly receipts = new Map<string, SupervisorActionReceipt>();
   private readonly now: () => string;
+  private watchdogTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly options: {
       generation: string;
       adapter: ProcessSupervisorManagedAdapter;
+      authorityReader?: ProcessSupervisorAuthorityReader;
+      eventJournal?: ProcessSupervisorEventStore;
       now?: () => string;
     }
   ) {
@@ -186,6 +216,94 @@ export class ProcessSupervisorRuntimeService {
       ...receipt,
       result: receipt.result ? { ...receipt.result } : null
     }));
+  }
+
+  startWatchdog(intervalMs = 15_000): void {
+    if (this.watchdogTimer) {
+      return;
+    }
+    this.watchdogTimer = setInterval(() => {
+      void this.reconcileAuthorityOnce();
+    }, intervalMs);
+    this.watchdogTimer.unref();
+  }
+
+  stopWatchdog(): void {
+    if (!this.watchdogTimer) {
+      return;
+    }
+    clearInterval(this.watchdogTimer);
+    this.watchdogTimer = null;
+  }
+
+  async reconcileAuthorityOnce(now = this.now()): Promise<void> {
+    const authorityReader = this.options.authorityReader;
+    if (!authorityReader) {
+      return;
+    }
+    for (const process of this.listOwned()) {
+      const authority = authorityReader.check(process, now);
+      if (!authority.valid) {
+        if (!this.options.adapter.has(process.processId)) {
+          this.owned.delete(process.processId);
+          this.appendEvent({
+            processId: process.processId,
+            kind: "runtime-failure",
+            status: "unknown",
+            exitCode: null,
+            reasonCode: "RUNTIME_UNAVAILABLE",
+            occurredAt: now
+          });
+          continue;
+        }
+        try {
+          const stopped = await this.options.adapter.stop(process.processId);
+          this.owned.delete(process.processId);
+          this.appendTerminalSnapshot(
+            stopped,
+            "lease-revoked",
+            authority.reasonCode,
+            now
+          );
+        } catch {
+          this.appendEvent({
+            processId: process.processId,
+            kind: "runtime-failure",
+            status: "unknown",
+            exitCode: null,
+            reasonCode: `${authority.reasonCode}_TERMINATION_FAILED`,
+            occurredAt: now
+          });
+        }
+        continue;
+      }
+
+      if (!this.options.adapter.has(process.processId)) {
+        this.owned.delete(process.processId);
+        this.appendEvent({
+          processId: process.processId,
+          kind: "runtime-failure",
+          status: "unknown",
+          exitCode: null,
+          reasonCode: "RUNTIME_UNAVAILABLE",
+          occurredAt: now
+        });
+        continue;
+      }
+
+      try {
+        const observed = await this.options.adapter.observe(process.processId, {
+          waitMs: 50
+        });
+        if (observed.status !== "running") {
+          this.owned.delete(process.processId);
+          this.appendTerminalSnapshot(observed, "natural-exit", "PROCESS_EXITED", now);
+        }
+      } catch {
+        // A transient read failure must not consume pending output or silently revoke ownership.
+        // The next watchdog cycle will retry; explicit authority loss still terminates immediately.
+      }
+    }
   }
 
   async start(params: unknown): Promise<SupervisorProcessMutationResult> {
@@ -234,6 +352,13 @@ export class ProcessSupervisorRuntimeService {
           startActionHash: request.actionHash,
           startedAt: this.now()
         });
+      } else {
+        this.appendTerminalSnapshot(
+          snapshot,
+          "natural-exit",
+          "PROCESS_EXITED_DURING_START",
+          this.now()
+        );
       }
       this.storeReceipt({
         actionId: request.actionId,
@@ -280,6 +405,12 @@ export class ProcessSupervisorRuntimeService {
       });
       if (snapshot.status !== "running") {
         this.owned.delete(request.processId);
+        this.appendTerminalSnapshot(
+          snapshot,
+          "natural-exit",
+          "PROCESS_EXITED",
+          this.now()
+        );
       }
       return safeReadResult(snapshot);
     } catch (error) {
@@ -315,6 +446,12 @@ export class ProcessSupervisorRuntimeService {
       const result = safeMutationResult(snapshot);
       if (snapshot.status !== "running") {
         this.owned.delete(request.processId);
+        this.appendTerminalSnapshot(
+          snapshot,
+          "natural-exit",
+          "PROCESS_EXITED_AFTER_INPUT",
+          this.now()
+        );
       }
       this.storeReceipt({
         actionId: request.actionId,
@@ -366,6 +503,12 @@ export class ProcessSupervisorRuntimeService {
       const snapshot = await this.options.adapter.stop(request.processId);
       this.owned.delete(request.processId);
       const result = safeMutationResult(snapshot);
+      this.appendTerminalSnapshot(
+        snapshot,
+        "explicit-stop",
+        "EXPLICIT_STOP",
+        this.now()
+      );
       this.storeReceipt({
         actionId: request.actionId,
         processId: request.processId,
@@ -394,6 +537,7 @@ export class ProcessSupervisorRuntimeService {
   }
 
   async closeAll(): Promise<SupervisorProcessMutationResult[]> {
+    this.stopWatchdog();
     const snapshots = await this.options.adapter.closeAll();
     this.owned.clear();
     return snapshots.map(safeMutationResult);
@@ -418,12 +562,52 @@ export class ProcessSupervisorRuntimeService {
       case "process.stop":
         return await this.stop(params);
       case "events.list":
-      case "events.ack":
-        throw new ProcessSupervisorRuntimeError(
-          "SUPERVISOR_EVENTS_UNAVAILABLE",
-          "Process Supervisor event journal is not enabled yet"
-        );
+        return { events: this.options.eventJournal?.list() ?? [] };
+      case "events.ack": {
+        const request = this.parse(eventAckSchema, params, "events.ack");
+        return {
+          acknowledged: this.options.eventJournal?.ack(request.eventIds) ?? 0
+        };
+      }
     }
+  }
+
+  private appendTerminalSnapshot(
+    snapshot: ManagedProcessAdapterSnapshot,
+    kind: SupervisorTerminalEventKind,
+    reasonCode: string,
+    occurredAt: string
+  ): void {
+    if (snapshot.status === "running") {
+      return;
+    }
+    this.appendEvent({
+      processId: snapshot.processId,
+      kind,
+      status:
+        snapshot.status === "exited"
+          ? "exited"
+          : snapshot.status === "terminated"
+            ? "terminated"
+            : "unknown",
+      exitCode: snapshot.exitCode,
+      reasonCode,
+      occurredAt
+    });
+  }
+
+  private appendEvent(input: {
+    processId: string;
+    kind: SupervisorTerminalEventKind;
+    status: "exited" | "terminated" | "failed" | "unknown";
+    exitCode: number | null;
+    reasonCode: string;
+    occurredAt: string;
+  }): void {
+    this.options.eventJournal?.append({
+      supervisorGeneration: this.options.generation,
+      ...input
+    });
   }
 
   private requireOwned(processId: string): SupervisorOwnedProcess {

@@ -260,6 +260,15 @@ export class DesktopCommanderManagedProcessSupervisor {
     }
   }
 
+  async observe(
+    processId: string,
+    options: ManagedProcessReadOptions = {}
+  ): Promise<ManagedProcessAdapterSnapshot> {
+    const runtime = this.requireRuntime(processId);
+    const observed = await this.readDownstream(runtime, options);
+    return this.mergePendingOutput(runtime, observed, false);
+  }
+
   async read(
     processId: string,
     options: ManagedProcessReadOptions = {}
