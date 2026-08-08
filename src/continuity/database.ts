@@ -12,6 +12,7 @@ import { taskDocumentVersionPinsMigration } from "./migrations/006-task-document
 import { taskExecutionPolicyMigration } from "./migrations/007-task-execution-policy.js";
 import { directMutationsMigration } from "./migrations/008-direct-mutations.js";
 import { directCommandsMigration } from "./migrations/009-direct-commands.js";
+import { directProcessesMigration } from "./migrations/010-direct-processes.js";
 
 interface ContinuityMigration {
   version: number;
@@ -29,7 +30,8 @@ const migrations: readonly ContinuityMigration[] = [
   taskDocumentVersionPinsMigration,
   taskExecutionPolicyMigration,
   directMutationsMigration,
-  directCommandsMigration
+  directCommandsMigration,
+  directProcessesMigration
 ];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

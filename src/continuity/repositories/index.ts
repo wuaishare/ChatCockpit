@@ -4,6 +4,9 @@ import { DirectCommandApprovalRepository } from "./direct-command-approval-repos
 import { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";
 import { DirectMutationApprovalRepository } from "./direct-mutation-approval-repository.js";
 import { DirectMutationAuditRepository } from "./direct-mutation-audit-repository.js";
+import { DirectProcessApprovalRepository } from "./direct-process-approval-repository.js";
+import { DirectProcessAuditRepository } from "./direct-process-audit-repository.js";
+import { DirectProcessSessionRepository } from "./direct-process-session-repository.js";
 import { EvidenceRepository } from "./evidence-repository.js";
 import { HandoffRepository } from "./handoff-repository.js";
 import { IdempotencyRepository } from "./idempotency-repository.js";
@@ -24,6 +27,9 @@ export interface ContinuityRepositories {
   directCommandAudit: DirectCommandAuditRepository;
   directMutationApprovals: DirectMutationApprovalRepository;
   directMutationAudit: DirectMutationAuditRepository;
+  directProcessApprovals: DirectProcessApprovalRepository;
+  directProcessAudit: DirectProcessAuditRepository;
+  directProcessSessions: DirectProcessSessionRepository;
   runtimeApprovals: RuntimeApprovalRepository;
   runtimeBindings: RuntimeBindingRepository;
   runtimeEvents: RuntimeEventRepository;
@@ -47,6 +53,9 @@ export function buildContinuityRepositories(
     directCommandAudit: new DirectCommandAuditRepository(database),
     directMutationApprovals: new DirectMutationApprovalRepository(database),
     directMutationAudit: new DirectMutationAuditRepository(database),
+    directProcessApprovals: new DirectProcessApprovalRepository(database),
+    directProcessAudit: new DirectProcessAuditRepository(database),
+    directProcessSessions: new DirectProcessSessionRepository(database),
     runtimeApprovals: new RuntimeApprovalRepository(database),
     runtimeBindings: new RuntimeBindingRepository(database),
     runtimeEvents: new RuntimeEventRepository(database),
@@ -66,6 +75,9 @@ export { DirectCommandApprovalRepository } from "./direct-command-approval-repos
 export { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";
 export { DirectMutationApprovalRepository } from "./direct-mutation-approval-repository.js";
 export { DirectMutationAuditRepository } from "./direct-mutation-audit-repository.js";
+export { DirectProcessApprovalRepository } from "./direct-process-approval-repository.js";
+export { DirectProcessAuditRepository } from "./direct-process-audit-repository.js";
+export { DirectProcessSessionRepository } from "./direct-process-session-repository.js";
 export { EvidenceRepository } from "./evidence-repository.js";
 export { HandoffRepository } from "./handoff-repository.js";
 export { IdempotencyRepository } from "./idempotency-repository.js";

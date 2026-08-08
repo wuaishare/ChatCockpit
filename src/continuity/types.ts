@@ -62,6 +62,16 @@ export type DirectCommandEffect = "read" | "write";
 export type DirectCommandTargetKind = DirectMutationTargetKind;
 export type DirectCommandApprovalStatus = DirectMutationApprovalStatus;
 export type DirectCommandAuditStatus = DirectMutationAuditStatus;
+export type DirectProcessStatus =
+  | "running"
+  | "exited"
+  | "terminated"
+  | "failed"
+  | "stale";
+export type DirectProcessOperation = "start" | "input" | "stop";
+export type DirectProcessAuditOperation = DirectProcessOperation | "cleanup";
+export type DirectProcessApprovalStatus = DirectMutationApprovalStatus;
+export type DirectProcessAuditStatus = DirectMutationAuditStatus;
 export type RuntimeEventCategory =
   | "lifecycle"
   | "approval"
@@ -324,6 +334,68 @@ export interface DirectCommandAuditRecord {
   timedOut: boolean;
   status: DirectCommandAuditStatus;
   errorCode: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface DirectProcessSessionRecord {
+  id: string;
+  rootId: string;
+  workdir: string;
+  command: string;
+  commandHash: string;
+  executorId: string;
+  workspaceId: string;
+  repoId: string;
+  sessionId: string;
+  writerLeaseId: string;
+  privatePid: number;
+  status: DirectProcessStatus;
+  exitCode: number | null;
+  staleReason: string | null;
+  evidenceBundleId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  revision: number;
+}
+
+export interface DirectProcessApprovalRecord {
+  id: string;
+  operation: DirectProcessOperation;
+  processId: string | null;
+  actionHash: string;
+  rootId: string | null;
+  workdir: string | null;
+  command: string | null;
+  workspaceId: string;
+  repoId: string;
+  sessionId: string;
+  writerLeaseId: string | null;
+  executorId: string;
+  inputHash: string | null;
+  inputBytes: number | null;
+  status: DirectProcessApprovalStatus;
+  publicSummary: Record<string, unknown>;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  consumedAt: string | null;
+  revision: number;
+}
+
+export interface DirectProcessAuditRecord {
+  id: string;
+  operation: DirectProcessAuditOperation;
+  processId: string;
+  actionHash: string;
+  approvalId: string | null;
+  status: DirectProcessAuditStatus;
+  errorCode: string | null;
+  terminalReason: string | null;
+  exitCode: number | null;
+  outputBytes: number;
+  outputTruncated: boolean;
   startedAt: string;
   completedAt: string | null;
   createdAt: string;
