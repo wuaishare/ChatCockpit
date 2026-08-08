@@ -17,7 +17,7 @@ import { DownstreamMcpCapabilityStore } from "../downstream-mcp-snapshot.js";
 import type { DownstreamMcpClient } from "../downstream-mcp-types.js";
 import type { DirectCapabilityAccess } from "../capability-broker.js";
 
-const MAX_PUBLIC_OUTPUT_BYTES = 64 * 1024;
+export const DESKTOP_COMMANDER_MAX_PUBLIC_OUTPUT_BYTES = 64 * 1024;
 const PROCESS_READ_TIMEOUT_MS = 1_000;
 const PROCESS_OUTPUT_LINES = 1_000;
 const TERMINAL_EXIT_PATTERN = /Process completed with exit code\s+(-?\d+)/i;
@@ -111,12 +111,14 @@ export function buildDesktopCommanderCommandSource(input: {
   ].join(" ");
 }
 
-interface ToolResultProjection {
+export interface ToolResultProjection {
   text: string;
   isError: boolean;
 }
 
-function projectToolResult(value: unknown): ToolResultProjection {
+export function projectDesktopCommanderToolResult(
+  value: unknown
+): ToolResultProjection {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new DesktopCommanderProcessError(
       "DESKTOP_COMMANDER_PROCESS_INVALID",
@@ -150,7 +152,7 @@ function projectToolResult(value: unknown): ToolResultProjection {
   };
 }
 
-function parsePid(text: string): number {
+export function parseDesktopCommanderPid(text: string): number {
   const match = PID_PATTERN.exec(text);
   const pid = match ? Number(match[1]) : NaN;
   if (!Number.isSafeInteger(pid) || pid <= 0) {
@@ -162,7 +164,7 @@ function parsePid(text: string): number {
   return pid;
 }
 
-function parseExitCode(text: string): number | null {
+export function parseDesktopCommanderExitCode(text: string): number | null {
   const match = TERMINAL_EXIT_PATTERN.exec(text);
   if (!match) {
     return null;
@@ -171,7 +173,7 @@ function parseExitCode(text: string): number | null {
   return Number.isSafeInteger(exitCode) ? exitCode : null;
 }
 
-function cleanProcessOutput(text: string): string {
+export function cleanDesktopCommanderProcessOutput(text: string): string {
   return text
     .split(/\r?\n/)
     .filter((line) => !/^\[Reading\s/i.test(line))
@@ -180,13 +182,17 @@ function cleanProcessOutput(text: string): string {
     .trim();
 }
 
-function boundedOutput(text: string): { output: string; truncated: boolean } {
+export function boundDesktopCommanderOutput(
+  text: string
+): { output: string; truncated: boolean } {
   const buffer = Buffer.from(text, "utf8");
-  if (buffer.length <= MAX_PUBLIC_OUTPUT_BYTES) {
+  if (buffer.length <= DESKTOP_COMMANDER_MAX_PUBLIC_OUTPUT_BYTES) {
     return { output: text, truncated: false };
   }
   return {
-    output: buffer.subarray(0, MAX_PUBLIC_OUTPUT_BYTES).toString("utf8"),
+    output: buffer
+      .subarray(0, DESKTOP_COMMANDER_MAX_PUBLIC_OUTPUT_BYTES)
+      .toString("utf8"),
     truncated: true
   };
 }
@@ -264,7 +270,7 @@ export class DesktopCommanderProcessAdapter {
     const client = this.clientFactory(executor);
     let pid: number | null = null;
     try {
-      const start = projectToolResult(
+      const start = projectDesktopCommanderToolResult(
         await client.callTool(DESKTOP_COMMANDER_START_PROCESS_TOOL, {
           command: buildDesktopCommanderCommandSource(request),
           timeout_ms: request.timeoutMs,
@@ -278,9 +284,9 @@ export class DesktopCommanderProcessAdapter {
           "Desktop Commander start_process reported an error"
         );
       }
-      pid = parsePid(start.text);
+      pid = parseDesktopCommanderPid(start.text);
 
-      const read = projectToolResult(
+      const read = projectDesktopCommanderToolResult(
         await client.callTool(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, {
           pid,
           timeout_ms: PROCESS_READ_TIMEOUT_MS,
@@ -294,9 +300,11 @@ export class DesktopCommanderProcessAdapter {
           "Desktop Commander could not read the process terminal state"
         );
       }
-      const exitCode = parseExitCode(read.text);
+      const exitCode = parseDesktopCommanderExitCode(read.text);
       if (exitCode !== null) {
-        const projected = boundedOutput(cleanProcessOutput(read.text));
+        const projected = boundDesktopCommanderOutput(
+          cleanDesktopCommanderProcessOutput(read.text)
+        );
         return {
           ok: exitCode === 0,
           exitCode,
@@ -307,7 +315,7 @@ export class DesktopCommanderProcessAdapter {
         };
       }
 
-      const terminated = projectToolResult(
+      const terminated = projectDesktopCommanderToolResult(
         await client.callTool(DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL, { pid })
       );
       if (terminated.isError) {
@@ -317,7 +325,7 @@ export class DesktopCommanderProcessAdapter {
         );
       }
 
-      const finalRead = projectToolResult(
+      const finalRead = projectDesktopCommanderToolResult(
         await client.callTool(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, {
           pid,
           timeout_ms: PROCESS_READ_TIMEOUT_MS,
@@ -325,12 +333,16 @@ export class DesktopCommanderProcessAdapter {
           length: PROCESS_OUTPUT_LINES
         })
       );
-      const projected = boundedOutput(
-        cleanProcessOutput(finalRead.isError ? read.text : finalRead.text)
+      const projected = boundDesktopCommanderOutput(
+        cleanDesktopCommanderProcessOutput(
+          finalRead.isError ? read.text : finalRead.text
+        )
       );
       return {
         ok: false,
-        exitCode: finalRead.isError ? null : parseExitCode(finalRead.text),
+        exitCode: finalRead.isError
+          ? null
+          : parseDesktopCommanderExitCode(finalRead.text),
         output: projected.output,
         truncated: projected.truncated,
         timedOut: true,

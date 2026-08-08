@@ -10,6 +10,7 @@ import {
   DESKTOP_COMMANDER_CAPABILITY_MAPPINGS,
   DESKTOP_COMMANDER_EXECUTOR_ID,
   DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL,
+  DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL,
   DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
   DESKTOP_COMMANDER_START_PROCESS_TOOL
 } from "../src/direct/adapters/desktop-commander.ts";
@@ -111,6 +112,10 @@ async function verifyDownstreamMcp(): Promise<void> {
   );
   assert.equal(DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL, "read_process_output");
   assert.equal(DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL, "force_terminate");
+  assert.equal(
+    DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL,
+    "interact_with_process"
+  );
 
   const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-downstream-"));
   const store = new DownstreamMcpCapabilityStore(runtimeDir);

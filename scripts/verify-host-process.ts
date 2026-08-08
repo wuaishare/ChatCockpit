@@ -1,11 +1,298 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import {
+  DesktopCommanderManagedProcessError,
+  DesktopCommanderManagedProcessSupervisor
+} from "../src/direct/adapters/desktop-commander-managed-process.ts";
+import {
+  DESKTOP_COMMANDER_EXECUTOR_ID,
+  DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL,
+  DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL,
+  DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
+  DESKTOP_COMMANDER_START_PROCESS_TOOL
+} from "../src/direct/adapters/desktop-commander.ts";
+import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
+import type {
+  DownstreamMcpClient,
+  DownstreamMcpListToolsResult,
+  DownstreamMcpServerIdentity
+} from "../src/direct/downstream-mcp-types.ts";
 
 const NOW = "2026-08-09T00:30:00.000Z";
 const EXPIRES = "2026-08-09T00:35:00.000Z";
 const LATER = "2026-08-09T00:40:00.000Z";
+
+class ManagedProcessFixtureClient implements DownstreamMcpClient {
+  readonly calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  closed = false;
+  private state: "running" | "exited" | "terminated" = "running";
+
+  constructor(readonly pid: number) {}
+
+  async initialize(): Promise<DownstreamMcpServerIdentity> {
+    return {
+      name: "fake-desktop-commander",
+      version: "1.0.0",
+      protocolVersion: "2025-11-25"
+    };
+  }
+
+  async listTools(): Promise<DownstreamMcpListToolsResult> {
+    return {
+      server: await this.initialize(),
+      tools: [
+        DESKTOP_COMMANDER_START_PROCESS_TOOL,
+        DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
+        DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL,
+        DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL
+      ].map((name) => ({ name }))
+    };
+  }
+
+  async callTool(
+    name: string,
+    args: Record<string, unknown>
+  ): Promise<unknown> {
+    this.calls.push({ name, args });
+    if (name === DESKTOP_COMMANDER_START_PROCESS_TOOL) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Process started with PID ${this.pid} (shell: /bin/zsh)\nInitial output:\nready-${this.pid}`
+          }
+        ],
+        isError: false
+      };
+    }
+    if (name === DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL) {
+      const suffix =
+        this.state === "running"
+          ? ""
+          : `\n✅ Process completed with exit code ${this.state === "exited" ? 0 : 143} (runtime: 0.01s)`;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `[Reading ${this.pid}]\nready-${this.pid}${suffix}`
+          }
+        ],
+        isError: false
+      };
+    }
+    if (name === DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL) {
+      const input = String(args.input ?? "");
+      if (input === "quit") {
+        this.state = "exited";
+      }
+      const terminal =
+        this.state === "exited"
+          ? "\n✅ Process completed with exit code 0 (runtime: 0.02s)"
+          : "";
+      return {
+        content: [
+          {
+            type: "text",
+            text: `echo-${this.pid}:${input}${terminal}`
+          }
+        ],
+        isError: false
+      };
+    }
+    if (name === DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL) {
+      this.state = "terminated";
+      return {
+        content: [{ type: "text", text: "terminated" }],
+        isError: false
+      };
+    }
+    throw new Error(`Unexpected fixture tool ${name}`);
+  }
+
+  async close(): Promise<void> {
+    this.closed = true;
+  }
+}
+
+function writeManagedProcessFixture(options: {
+  sandbox: string;
+  toolsObserved?: string[];
+}) {
+  const runtimeDir = path.join(options.sandbox, "runtime");
+  const configPath = path.join(options.sandbox, "direct-executors.json");
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [],
+      executors: [
+        {
+          id: DESKTOP_COMMANDER_EXECUTOR_ID,
+          displayName: "Desktop Commander Fixture",
+          transport: {
+            kind: "stdio",
+            command: "fixture",
+            args: [],
+            timeoutMs: 1000,
+            maxBufferBytes: 262144,
+            maxStderrBytes: 16384
+          },
+          mappings: [
+            {
+              capability: "shell.exec",
+              toolName: DESKTOP_COMMANDER_START_PROCESS_TOOL,
+              scopes: ["host"],
+              access: ["read", "write"]
+            }
+          ]
+        }
+      ]
+    }),
+    "utf8"
+  );
+  new DownstreamMcpCapabilityStore(runtimeDir).write({
+    schemaVersion: 1,
+    executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+    displayName: "Desktop Commander Fixture",
+    protocolFamily: "mcp-legacy-stdio",
+    protocolVersion: "2025-11-25",
+    serverName: "fake-desktop-commander",
+    serverVersion: "1.0.0",
+    probedAt: NOW,
+    health: "ready",
+    toolsObserved:
+      options.toolsObserved ??
+      [
+        DESKTOP_COMMANDER_START_PROCESS_TOOL,
+        DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
+        DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL,
+        DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL
+      ],
+    mappings: [
+      {
+        capability: "shell.exec",
+        toolName: DESKTOP_COMMANDER_START_PROCESS_TOOL,
+        scopes: ["host"],
+        access: ["read", "write"],
+        status: "verified",
+        errorCode: null
+      }
+    ]
+  });
+  return { runtimeDir, configPath };
+}
+
+async function verifyManagedProcessSupervisor(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-process-adapter-")
+  );
+  try {
+    const { runtimeDir, configPath } = writeManagedProcessFixture({ sandbox });
+    const clients: ManagedProcessFixtureClient[] = [];
+    let nextPid = 5100;
+    const supervisor = new DesktopCommanderManagedProcessSupervisor(
+      runtimeDir,
+      configPath,
+      () => {
+        const client = new ManagedProcessFixtureClient(nextPid++);
+        clients.push(client);
+        return client;
+      }
+    );
+    supervisor.assertReady();
+
+    const first = await supervisor.start({
+      processId: "host_process_adapter_a",
+      cwd: process.cwd(),
+      command: "npm",
+      args: ["test"],
+      startupTimeoutMs: 1000
+    });
+    const second = await supervisor.start({
+      processId: "host_process_adapter_b",
+      cwd: process.cwd(),
+      command: "npm",
+      args: ["test"],
+      startupTimeoutMs: 1000
+    });
+    assert.equal(first.status, "running");
+    assert.equal(second.status, "running");
+    assert.notEqual(first.privatePid, second.privatePid);
+    assert.equal(clients.length, 2);
+    assert.deepEqual(supervisor.activeProcessIds().sort(), [
+      "host_process_adapter_a",
+      "host_process_adapter_b"
+    ]);
+
+    const interacted = await supervisor.input("host_process_adapter_a", {
+      input: "hello",
+      timeoutMs: 1000,
+      waitForPrompt: true
+    });
+    assert.equal(interacted.status, "running");
+    assert.match(interacted.output, /echo-5100:hello/);
+    assert.equal(
+      clients[0]?.calls.some(
+        (call) => call.name === DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL
+      ),
+      true
+    );
+    assert.equal(
+      clients[1]?.calls.some(
+        (call) => call.name === DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL
+      ),
+      false
+    );
+
+    const stopped = await supervisor.stop("host_process_adapter_a");
+    assert.equal(stopped.status, "terminated");
+    assert.equal(stopped.exitCode, 143);
+    assert.equal(supervisor.has("host_process_adapter_a"), false);
+    assert.equal(clients[0]?.closed, true);
+    assert.equal(supervisor.has("host_process_adapter_b"), true);
+
+    const cleanup = await supervisor.closeAll();
+    assert.equal(cleanup.length, 1);
+    assert.equal(cleanup[0]?.status, "terminated");
+    assert.equal(supervisor.activeProcessIds().length, 0);
+    assert.equal(clients[1]?.closed, true);
+
+    const missingInteractSandbox = path.join(sandbox, "missing-interact");
+    fs.mkdirSync(missingInteractSandbox, { recursive: true });
+    const missingInteract = writeManagedProcessFixture({
+      sandbox: missingInteractSandbox,
+      toolsObserved: [
+        DESKTOP_COMMANDER_START_PROCESS_TOOL,
+        DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL,
+        DESKTOP_COMMANDER_FORCE_TERMINATE_TOOL
+      ]
+    });
+    const unavailable = new DesktopCommanderManagedProcessSupervisor(
+      missingInteract.runtimeDir,
+      missingInteract.configPath,
+      () => new ManagedProcessFixtureClient(5200)
+    );
+    assert.throws(
+      () => unavailable.assertReady(),
+      (error) => {
+        assert.ok(error instanceof DesktopCommanderManagedProcessError);
+        assert.equal(
+          error.code,
+          "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE"
+        );
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
 
 const database = new ContinuityDatabase({ path: ":memory:" });
 
@@ -15,6 +302,7 @@ try {
   assert.ok(repositories.directProcessSessions);
   assert.ok(repositories.directProcessApprovals);
   assert.ok(repositories.directProcessAudit);
+  assert.equal(typeof DesktopCommanderManagedProcessSupervisor, "function");
 
   const project = repositories.projects.create({
     id: "project_host_process",
@@ -259,6 +547,7 @@ try {
   assert.equal(cleanupAudit.terminalReason, "CONTROL_PLANE_RESTART");
   assert.equal(repositories.directProcessAudit.listByProcess(stale.id).length, 1);
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
+  await verifyManagedProcessSupervisor();
 
   process.stdout.write("VERIFY_HOST_PROCESS_OK\n");
 } finally {
