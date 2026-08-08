@@ -2,17 +2,30 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { HostMutationService } from "../src/application/host-mutation-service.ts";
+import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { classifyHostMutationTarget } from "../src/application/workspace-mutation-governance.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
+import { buildPaths } from "../src/core/paths.ts";
+import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
+import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
+import { DownstreamMcpExecutionRegistry } from "../src/direct/downstream-mcp-executor.ts";
+import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
 import {
   HostPathPolicyError,
   listPublicHostRoots,
   resolveHostEditableFileTarget,
   resolveHostWritableFileTarget
 } from "../src/direct/host-path-policy.ts";
+import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
+
+const fixtureServer = fileURLToPath(
+  new URL("./fixtures/fake-downstream-mcp-server.mjs", import.meta.url)
+);
 
 function expectServiceCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error) => {
@@ -471,6 +484,187 @@ function verifyHostMutationPathPolicy(): void {
   }
 }
 
+async function verifyHostMutationPrepareAndDecision(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-mutation-prepare-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(path.join(hostRoot, "notes"), { recursive: true });
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.writeFileSync(
+    path.join(hostRoot, "notes", "edit.txt"),
+    "alpha\n",
+    "utf8"
+  );
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "Mutation Fixture",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: [
+        {
+          id: DESKTOP_COMMANDER_EXECUTOR_ID,
+          displayName: "Desktop Commander Fixture",
+          transport: {
+            kind: "stdio",
+            command: process.execPath,
+            args: [fixtureServer, "normal"],
+            timeoutMs: 1000,
+            maxBufferBytes: 262144,
+            maxStderrBytes: 16384
+          },
+          mappings: [
+            {
+              capability: "files.write",
+              toolName: "write_file",
+              scopes: ["host"],
+              access: ["write"]
+            },
+            {
+              capability: "files.edit",
+              toolName: "edit_block",
+              scopes: ["host"],
+              access: ["write"]
+            }
+          ]
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  const paths = buildPaths(runtimeRoot);
+  const database = new ContinuityDatabase({ path: ":memory:" });
+  const repositories = buildContinuityRepositories(database);
+  const broker = buildConfiguredDirectCapabilityBroker({
+    paths,
+    codexStandaloneStore: new CodexStandaloneCapabilityStore(paths.runtimeDir),
+    downstreamConfigPath: configPath
+  });
+  const downstream = new DownstreamMcpExecutionRegistry(
+    paths.runtimeDir,
+    configPath
+  );
+  const service = new HostMutationService(
+    paths,
+    repositories,
+    broker,
+    downstream,
+    configPath
+  );
+  const context = buildOperationContext({
+    actorType: "remote-mcp",
+    requestId: "host-mutation-prepare",
+    publicProjection: true,
+    now: "2026-08-08T12:00:00.000Z"
+  });
+
+  try {
+    await probeConfiguredDownstreamMcpExecutors({
+      paths,
+      configPath,
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID
+    });
+
+    const preparedWrite = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/new.txt",
+      content: "hello\n",
+      idempotencyKey: "prepare-write-001"
+    });
+    assert.equal(preparedWrite.replayed, false);
+    assert.equal(preparedWrite.approval.status, "pending");
+    assert.equal(preparedWrite.approval.targetKind, "pure-host");
+    assert.equal(preparedWrite.approval.executorId, DESKTOP_COMMANDER_EXECUTOR_ID);
+    assert.match(preparedWrite.approval.mutationHash, /^[a-f0-9]{64}$/);
+    assert.equal(
+      preparedWrite.approval.expiresAt,
+      "2026-08-08T12:05:00.000Z"
+    );
+    assert.equal(fs.existsSync(path.join(hostRoot, "notes", "new.txt")), false);
+    assert.doesNotMatch(JSON.stringify(preparedWrite), new RegExp(hostRoot));
+
+    fs.writeFileSync(
+      path.join(hostRoot, "notes", "new.txt"),
+      "environment changed after prepare\n",
+      "utf8"
+    );
+    const replayedWrite = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/new.txt",
+      content: "hello\n",
+      idempotencyKey: "prepare-write-001"
+    });
+    assert.equal(replayedWrite.replayed, true);
+    assert.equal(replayedWrite.approval.id, preparedWrite.approval.id);
+
+    const preparedEdit = await service.prepare(context, {
+      operation: "files.edit",
+      rootId: "fixture",
+      path: "notes/edit.txt",
+      oldText: "alpha",
+      newText: "beta",
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+      idempotencyKey: "prepare-edit-001"
+    });
+    assert.equal(preparedEdit.approval.targetKind, "pure-host");
+    assert.equal(
+      preparedEdit.approval.publicSummary.selectionMode,
+      "explicit"
+    );
+    assert.notEqual(
+      preparedEdit.approval.mutationHash,
+      preparedWrite.approval.mutationHash
+    );
+    assert.equal(
+      fs.readFileSync(path.join(hostRoot, "notes", "edit.txt"), "utf8"),
+      "alpha\n"
+    );
+
+    const approved = await service.decide(context, {
+      approvalId: preparedWrite.approval.id,
+      expectedRevision: preparedWrite.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-write-001"
+    });
+    assert.equal(approved.replayed, false);
+    assert.equal(approved.approval.status, "approved");
+    assert.equal(approved.approval.revision, 2);
+
+    const replayedApproval = await service.decide(context, {
+      approvalId: preparedWrite.approval.id,
+      expectedRevision: preparedWrite.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-write-001"
+    });
+    assert.equal(replayedApproval.replayed, true);
+    assert.equal(replayedApproval.approval.id, approved.approval.id);
+
+    const denied = await service.decide(context, {
+      approvalId: preparedEdit.approval.id,
+      expectedRevision: preparedEdit.approval.revision,
+      decision: "denied",
+      idempotencyKey: "deny-edit-001"
+    });
+    assert.equal(denied.approval.status, "denied");
+  } finally {
+    database.close();
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 verifyDirectMutationPersistence();
 verifyHostMutationPathPolicy();
+await verifyHostMutationPrepareAndDecision();
 process.stdout.write("VERIFY_HOST_DIRECT_MUTATION_OK\n");
