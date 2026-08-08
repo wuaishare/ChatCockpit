@@ -14,7 +14,7 @@ ChatGPT 负责对话、意图、规划与审查；TokenPilot 提供本地优先�
 
 **省 Token，不省思考。谋定而后动，减少返工，有效开发。**
 
-当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 真源与 REST/MCP 操作、Task 文档版本固定、显式 `planning-required | planning-optional` 执行策略、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、53 个 MCP Tools，以及支持 Spec/Plan 创建、版本、审批、绑定与真实规划阻塞项的 Continuity Workbench Web UI。
+当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 真源与 REST/MCP 操作、Task 文档版本固定、显式 `planning-required | planning-optional` 执行策略、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、58 个 MCP Tools，以及支持 Spec/Plan 创建、版本、审批、绑定与真实规划阻塞项的 Continuity Workbench Web UI。
 
 TokenPilot 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
 
@@ -57,11 +57,12 @@ flowchart TB
 
 - 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
 - Direct Drive / Workspace Direct：底层继续使用 `chat-direct` Lane，提供文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；Capability Broker 已统一 Built-in / App Server Standalone 的 capability discovery、健康状态与显式/自动 Provider Selection，并已证明不会隐式调用 `turn/start`。Downstream MCP 已具备 local config → probe → snapshot → descriptor → normalized execution 的完整链路，并已用于 Host Direct Files 与 bounded Host Command。
+- Host Managed Workspace Process：通过 TokenPilot `host_process_*` 公共身份提供受审批的 Start / Input / Stop 与只读 Read / List；生命周期持续绑定 owning chat-direct Session / Writer Lease，Process Output 与 raw interactive input 不进入持久 Mutation 结果，Desktop Commander PID 始终保持私有；系统级任意 PID attach/list/kill 不开放。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
-- Continuity Engine：SQLite Schema v9、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit 与 Runtime Event。
+- Continuity Engine：SQLite Schema v11、Project、Workspace、Task、Session、通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Handoffs、Evidence、Approvals、Planning/Completion Blockers、Runtime Binding 与 Runner Job；支持文档创建/版本/Ready/Approve/绑定，以及 Prepare、Accept、Fork、Cancel、Submit Review 和 Complete Task。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
-- 53 个 MCP Tools，包含 Direct Drive Executor discovery、Host Root Alias discovery、Host Direct file read、`prepare → decide → execute` 的受审批 Host Write / Exact Edit，以及同样受审批、短生命周期、不可后台脱管的 bounded Host Command；同时包含 Spec/Plan 创建、读取、历史版本、追加版本、状态流转和 Task 绑定，并提供 exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
+- 58 个 MCP Tools，包含 Direct Drive Executor discovery、Host Root Alias discovery、Host Direct file read、`prepare → decide → execute` 的受审批 Host Write / Exact Edit、bounded Host Command，以及 TokenPilot-owned Managed Workspace Process 的 `prepare/decide/execute/read/list`；同时包含 Spec/Plan 创建、读取、历史版本、追加版本、状态流转和 Task 绑定，并提供 exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
 
 ### 实验性
 
