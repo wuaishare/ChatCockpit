@@ -357,6 +357,16 @@ function verifyHostMutationPathPolicy(): void {
       () =>
         resolveHostWritableFileTarget({
           rootId: "fixture",
+          relativePath: ".git/config",
+          content: "blocked\n",
+          configPath
+        }),
+      "HOST_PATH_BLOCKED"
+    );
+    expectHostPathCode(
+      () =>
+        resolveHostWritableFileTarget({
+          rootId: "fixture",
           relativePath: "image.png",
           content: "blocked\n",
           configPath
@@ -671,6 +681,64 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
       idempotencyKey: "deny-edit-001"
     });
     assert.equal(denied.approval.status, "denied");
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.edit",
+        rootId: "fixture",
+        path: "notes/edit.txt",
+        oldText: "alpha",
+        newText: "beta",
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        approvalId: denied.approval.id,
+        expectedApprovalRevision: denied.approval.revision,
+        idempotencyKey: "execute-denied-edit"
+      }),
+      "HOST_MUTATION_APPROVAL_REQUIRED"
+    );
+
+    const expiringPrepared = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/expired.txt",
+      content: "expired\n",
+      idempotencyKey: "prepare-expired-write"
+    });
+    const expiringApproved = await service.decide(context, {
+      approvalId: expiringPrepared.approval.id,
+      expectedRevision: expiringPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-expired-write"
+    });
+    const expiredContext = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "host-mutation-expired",
+      publicProjection: true,
+      now: "2026-08-08T12:06:00.000Z"
+    });
+    await expectAsyncServiceCode(
+      service.execute(expiredContext, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/expired.txt",
+        content: "expired\n",
+        approvalId: expiringApproved.approval.id,
+        expectedApprovalRevision: expiringApproved.approval.revision,
+        idempotencyKey: "execute-expired-write"
+      }),
+      "HOST_MUTATION_APPROVAL_EXPIRED"
+    );
+
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/wrong-executor.txt",
+        content: "blocked\n",
+        executorId: "tokenpilot-direct",
+        idempotencyKey: "prepare-wrong-executor"
+      }),
+      "DIRECT_EXECUTOR_UNSUPPORTED"
+    );
 
     const pendingExecution = await service.prepare(context, {
       operation: "files.write",
@@ -795,6 +863,77 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
     );
     assert.equal(editResult.evidence.kind, "pure-host-audit");
 
+    fs.writeFileSync(
+      path.join(hostRoot, "notes", "edit-hash-mismatch.txt"),
+      "alpha\n",
+      "utf8"
+    );
+    const editMismatchPrepared = await service.prepare(context, {
+      operation: "files.edit",
+      rootId: "fixture",
+      path: "notes/edit-hash-mismatch.txt",
+      oldText: "alpha",
+      newText: "beta",
+      idempotencyKey: "prepare-edit-hash-mismatch"
+    });
+    const editMismatchApproved = await service.decide(context, {
+      approvalId: editMismatchPrepared.approval.id,
+      expectedRevision: editMismatchPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-edit-hash-mismatch"
+    });
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.edit",
+        rootId: "fixture",
+        path: "notes/edit-hash-mismatch.txt",
+        oldText: "alpha",
+        newText: "gamma",
+        approvalId: editMismatchApproved.approval.id,
+        expectedApprovalRevision: editMismatchApproved.approval.revision,
+        idempotencyKey: "execute-edit-hash-mismatch"
+      }),
+      "HOST_MUTATION_HASH_MISMATCH"
+    );
+
+    fs.writeFileSync(
+      path.join(hostRoot, "notes", "edit-file-drift.txt"),
+      "alpha\n",
+      "utf8"
+    );
+    const editDriftPrepared = await service.prepare(context, {
+      operation: "files.edit",
+      rootId: "fixture",
+      path: "notes/edit-file-drift.txt",
+      oldText: "alpha",
+      newText: "beta",
+      idempotencyKey: "prepare-edit-file-drift"
+    });
+    const editDriftApproved = await service.decide(context, {
+      approvalId: editDriftPrepared.approval.id,
+      expectedRevision: editDriftPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-edit-file-drift"
+    });
+    fs.writeFileSync(
+      path.join(hostRoot, "notes", "edit-file-drift.txt"),
+      "prefix alpha\n",
+      "utf8"
+    );
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.edit",
+        rootId: "fixture",
+        path: "notes/edit-file-drift.txt",
+        oldText: "alpha",
+        newText: "beta",
+        approvalId: editDriftApproved.approval.id,
+        expectedApprovalRevision: editDriftApproved.approval.revision,
+        idempotencyKey: "execute-edit-file-drift"
+      }),
+      "HOST_MUTATION_HASH_MISMATCH"
+    );
+
     const changedInputPrepared = await service.prepare(context, {
       operation: "files.write",
       rootId: "fixture",
@@ -846,6 +985,137 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
         idempotencyKey: "execute-target-appears"
       }),
       "HOST_MUTATION_HASH_MISMATCH"
+    );
+  } finally {
+    database.close();
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
+async function verifyHostMutationExecutorDrift(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "tokenpilot-host-mutation-executor-drift-")
+  );
+  const runtimeRoot = path.join(sandbox, "runtime-root");
+  const hostRoot = path.join(sandbox, "host-root");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(path.join(hostRoot, "notes"), { recursive: true });
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+
+  const writeConfig = (toolName: string) => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        hostRoots: [
+          {
+            id: "fixture",
+            displayName: "Executor Drift Fixture",
+            path: hostRoot,
+            access: ["read", "write"]
+          }
+        ],
+        executors: [
+          {
+            id: DESKTOP_COMMANDER_EXECUTOR_ID,
+            displayName: "Desktop Commander Fixture",
+            transport: {
+              kind: "stdio",
+              command: process.execPath,
+              args: [fixtureServer, "desktop-mutation"],
+              timeoutMs: 1000,
+              maxBufferBytes: 262144,
+              maxStderrBytes: 16384
+            },
+            mappings: [
+              {
+                capability: "files.write",
+                toolName,
+                scopes: ["host"],
+                access: ["write"]
+              }
+            ]
+          }
+        ]
+      }),
+      "utf8"
+    );
+  };
+  writeConfig("write_file");
+
+  const paths = buildPaths(runtimeRoot);
+  const database = new ContinuityDatabase({ path: ":memory:" });
+  const repositories = buildContinuityRepositories(database);
+  const broker = buildConfiguredDirectCapabilityBroker({
+    paths,
+    codexStandaloneStore: new CodexStandaloneCapabilityStore(paths.runtimeDir),
+    downstreamConfigPath: configPath
+  });
+  const downstream = new DownstreamMcpExecutionRegistry(
+    paths.runtimeDir,
+    configPath
+  );
+  const service = new HostMutationService(
+    paths,
+    repositories,
+    broker,
+    downstream,
+    configPath
+  );
+  const context = buildOperationContext({
+    actorType: "remote-mcp",
+    requestId: "host-mutation-executor-drift",
+    publicProjection: true,
+    now: "2026-08-08T12:30:00.000Z"
+  });
+
+  try {
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/no-snapshot.txt",
+        content: "blocked\n",
+        idempotencyKey: "prepare-no-snapshot"
+      }),
+      "DIRECT_CAPABILITY_UNAVAILABLE"
+    );
+
+    await probeConfiguredDownstreamMcpExecutors({
+      paths,
+      configPath,
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID
+    });
+    const prepared = await service.prepare(context, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/stale-mapping.txt",
+      content: "blocked\n",
+      idempotencyKey: "prepare-stale-mapping"
+    });
+    const approved = await service.decide(context, {
+      approvalId: prepared.approval.id,
+      expectedRevision: prepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "approve-stale-mapping"
+    });
+
+    writeConfig("write_file_changed_after_probe");
+    await expectAsyncServiceCode(
+      service.execute(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/stale-mapping.txt",
+        content: "blocked\n",
+        approvalId: approved.approval.id,
+        expectedApprovalRevision: approved.approval.revision,
+        idempotencyKey: "execute-stale-mapping"
+      }),
+      "DOWNSTREAM_MAPPING_UNAVAILABLE"
+    );
+    assert.equal(
+      fs.existsSync(path.join(hostRoot, "notes", "stale-mapping.txt")),
+      false
     );
   } finally {
     database.close();
@@ -1052,6 +1322,18 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
         idempotencyKey: "workspace-missing-lease"
       }),
       "WRITER_LEASE_REQUIRED"
+    );
+
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "projects",
+        path: relativeHostPath,
+        content: "workspace write\n",
+        sessionId: competingSession.id,
+        idempotencyKey: "workspace-inactive-session"
+      }),
+      "CONTINUITY_RELATION_INVALID"
     );
 
     const competingLease = repositories.leases.acquire({
@@ -1287,6 +1569,7 @@ async function verifyHostMutationRestParity(): Promise<void> {
 verifyDirectMutationPersistence();
 verifyHostMutationPathPolicy();
 await verifyHostMutationPrepareAndDecision();
+await verifyHostMutationExecutorDrift();
 await verifyWorkspaceMutationReentry();
 await verifyHostMutationRestParity();
 process.stdout.write("VERIFY_HOST_DIRECT_MUTATION_OK\n");
