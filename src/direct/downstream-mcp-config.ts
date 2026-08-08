@@ -55,7 +55,7 @@ const hostRootSchema = z.object({
   path: z.string().min(1).refine((value) => path.isAbsolute(value), {
     message: "Host root path must be absolute"
   }),
-  access: z.array(z.literal("read")).min(1).default(["read"])
+  access: z.array(z.enum(["read", "write"])).min(1).default(["read"])
 });
 
 const configSchema = z.object({
@@ -84,7 +84,7 @@ export interface DirectHostRootConfig {
   id: string;
   displayName: string;
   path: string;
-  access: "read"[];
+  access: ("read" | "write")[];
 }
 
 export interface DownstreamMcpExecutorsConfig {

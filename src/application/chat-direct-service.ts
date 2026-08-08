@@ -38,6 +38,7 @@ import type { RuntimeRouter } from "./runtime-router.js";
 import { SearchService } from "./search-service.js";
 import { ServiceError, wrapServiceOperationError } from "./service-error.js";
 import { ShellService } from "./shell-service.js";
+import { assertChatDirectWriterLease } from "./workspace-mutation-governance.js";
 
 export type { DirectExecutionScope } from "../direct/capability-broker.js";
 export type ChatDirectExecutor = string;
@@ -261,7 +262,12 @@ export class ChatDirectService {
   }
 
   async write(context: OperationContext, payload: FileWritePayload) {
-    this.assertWriterLease(context, payload.repoId, payload.sessionId);
+    assertChatDirectWriterLease(
+      this.repositories,
+      context,
+      payload.repoId,
+      payload.sessionId
+    );
     const selection = this.select("files.write", "write", payload.executorId);
     if (selection.executorId === "codex-app-server-standalone") {
       try {
@@ -308,7 +314,12 @@ export class ChatDirectService {
   }
 
   async edit(context: OperationContext, payload: FileEditPayload) {
-    this.assertWriterLease(context, payload.repoId, payload.sessionId);
+    assertChatDirectWriterLease(
+      this.repositories,
+      context,
+      payload.repoId,
+      payload.sessionId
+    );
     const selection = this.select("files.edit", "write", payload.executorId);
     const value = this.files.edit(context, payload);
     return {
@@ -337,7 +348,12 @@ export class ChatDirectService {
       ? "read"
       : "write";
     if (access === "write") {
-      this.assertWriterLease(context, payload.repoId, payload.sessionId);
+      assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        payload.repoId,
+        payload.sessionId
+      );
     }
     const selection = this.select("shell.exec", access, payload.executorId);
     if (selection.executorId === "codex-app-server-standalone") {
@@ -412,7 +428,12 @@ export class ChatDirectService {
   }
 
   async gitCommit(context: OperationContext, payload: GitCommitPayload) {
-    this.assertWriterLease(context, payload.repoId, payload.sessionId);
+    assertChatDirectWriterLease(
+      this.repositories,
+      context,
+      payload.repoId,
+      payload.sessionId
+    );
     const selection = this.select("git.commit", "write", payload.executorId);
     const before = this.git.status(context, payload.repoId);
     const value = this.git.commit(context, payload);
@@ -441,130 +462,6 @@ export class ChatDirectService {
       commits,
       execution: selectionMetadata(selection)
     };
-  }
-
-  private assertWriterLease(
-    context: OperationContext,
-    repoId: string,
-    sessionId: string | undefined
-  ): void {
-    const workspace = this.repositories.workspaces.findPrivateByRepoId(repoId);
-    if (!workspace) {
-      throw new ServiceError(
-        "CONTINUITY_RELATION_INVALID",
-        `No TokenPilot workspace is mapped to repository ${repoId}`,
-        { details: { repoId } }
-      );
-    }
-    if (!sessionId) {
-      throw new ServiceError(
-        "WRITER_LEASE_REQUIRED",
-        "A mutating Chat Direct operation requires a development session",
-        {
-          hint:
-            "Start a chat-direct session, acquire the workspace writer lease, and retry with that sessionId.",
-          details: { repoId, workspaceId: workspace.id }
-        }
-      );
-    }
-
-    const session = this.repositories.sessions.get(sessionId);
-    if (
-      session.projectId !== workspace.projectId ||
-      session.workspaceId !== workspace.id
-    ) {
-      throw new ServiceError(
-        "CONTINUITY_RELATION_INVALID",
-        "The Chat Direct session does not belong to the requested repository workspace",
-        {
-          details: {
-            sessionId: session.id,
-            workspaceId: workspace.id,
-            repoId
-          }
-        }
-      );
-    }
-    if (session.mode !== "chat-direct") {
-      throw new ServiceError(
-        "CONTINUITY_RELATION_INVALID",
-        "Only a chat-direct development session can authorize Chat Direct mutation",
-        {
-          details: {
-            sessionId: session.id,
-            sessionMode: session.mode,
-            workspaceId: workspace.id
-          }
-        }
-      );
-    }
-    if (["completed", "failed"].includes(session.status)) {
-      throw new ServiceError(
-        "CONTINUITY_RELATION_INVALID",
-        "A completed or failed development session cannot mutate the workspace",
-        {
-          details: {
-            sessionId: session.id,
-            sessionStatus: session.status,
-            workspaceId: workspace.id
-          }
-        }
-      );
-    }
-
-    const task = this.repositories.tasks.get(session.taskId);
-    if (
-      task.projectId !== workspace.projectId ||
-      task.workspaceId !== workspace.id ||
-      task.activeSessionId !== session.id
-    ) {
-      throw new ServiceError(
-        "CONTINUITY_RELATION_INVALID",
-        "The Chat Direct session is not the active session for its workspace task",
-        {
-          details: {
-            taskId: task.id,
-            sessionId: session.id,
-            activeSessionId: task.activeSessionId,
-            workspaceId: workspace.id
-          }
-        }
-      );
-    }
-
-    this.repositories.leases.reconcileExpired(context.now);
-    const lease = this.repositories.leases.getActive(workspace.id);
-    if (!lease) {
-      throw new ServiceError(
-        "WRITER_LEASE_REQUIRED",
-        "The workspace has no active writer lease for this Chat Direct mutation",
-        {
-          hint:
-            "Acquire a chat-direct writer lease for the session before retrying the mutation.",
-          details: {
-            sessionId: session.id,
-            workspaceId: workspace.id,
-            repoId
-          }
-        }
-      );
-    }
-    if (lease.sessionId !== session.id || lease.holderType !== "chat-direct") {
-      throw new ServiceError(
-        "WRITER_LEASE_CONFLICT",
-        "Another development session owns the workspace writer lease",
-        {
-          details: {
-            leaseId: lease.id,
-            leaseSessionId: lease.sessionId,
-            requestedSessionId: session.id,
-            holderType: lease.holderType,
-            workspaceId: workspace.id,
-            expiresAt: lease.expiresAt
-          }
-        }
-      );
-    }
   }
 
   private select(
