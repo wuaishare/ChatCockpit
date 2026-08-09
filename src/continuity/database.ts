@@ -17,6 +17,7 @@ import { directProcessStartingMigration } from "./migrations/011-direct-process-
 import { directProcessRuntimeOwnershipMigration } from "./migrations/012-direct-process-runtime-ownership.js";
 import { directProcessSidecarRuntimeMigration } from "./migrations/013-direct-process-sidecar-runtime.js";
 import { runtimeRecoveryAttemptsMigration } from "./migrations/014-runtime-recovery-attempts.js";
+import { runtimeResourceInventoryMigration } from "./migrations/015-runtime-resource-inventory.js";
 
 interface ContinuityMigration {
   version: number;
@@ -39,7 +40,8 @@ const migrations: readonly ContinuityMigration[] = [
   directProcessStartingMigration,
   directProcessRuntimeOwnershipMigration,
   directProcessSidecarRuntimeMigration,
-  runtimeRecoveryAttemptsMigration
+  runtimeRecoveryAttemptsMigration,
+  runtimeResourceInventoryMigration
 ];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

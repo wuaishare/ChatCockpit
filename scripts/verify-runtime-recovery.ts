@@ -21,7 +21,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 14);
+  assert.equal(database.schemaVersion(), 15);
   assert.ok(repositories.runtimeRecoveryAttempts);
 
   const canonicalA = canonicalRecoveryJson({

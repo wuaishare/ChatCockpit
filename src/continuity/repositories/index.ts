@@ -18,6 +18,7 @@ import { RuntimeBindingRepository } from "./runtime-binding-repository.js";
 import { RuntimeEventRepository } from "./runtime-event-repository.js";
 import { RuntimeRunRepository } from "./runtime-run-repository.js";
 import { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
+import { RuntimeResourceSnapshotRepository } from "./runtime-resource-snapshot-repository.js";
 import { SessionRepository } from "./session-repository.js";
 import { TaskRepository } from "./task-repository.js";
 import { WorkspaceRepository } from "./workspace-repository.js";
@@ -38,6 +39,7 @@ export interface ContinuityRepositories {
   runtimeEvents: RuntimeEventRepository;
   runtimeRuns: RuntimeRunRepository;
   runtimeRecoveryAttempts: RuntimeRecoveryAttemptRepository;
+  runtimeResourceSnapshots: RuntimeResourceSnapshotRepository;
   workspaces: WorkspaceRepository;
   tasks: TaskRepository;
   sessions: SessionRepository;
@@ -66,6 +68,7 @@ export function buildContinuityRepositories(
     runtimeEvents: new RuntimeEventRepository(database),
     runtimeRuns: new RuntimeRunRepository(database),
     runtimeRecoveryAttempts: new RuntimeRecoveryAttemptRepository(database),
+    runtimeResourceSnapshots: new RuntimeResourceSnapshotRepository(database),
     workspaces: new WorkspaceRepository(database),
     tasks: new TaskRepository(database),
     sessions: new SessionRepository(database),
@@ -95,6 +98,7 @@ export { RuntimeBindingRepository } from "./runtime-binding-repository.js";
 export { RuntimeEventRepository } from "./runtime-event-repository.js";
 export { RuntimeRunRepository } from "./runtime-run-repository.js";
 export { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
+export { RuntimeResourceSnapshotRepository } from "./runtime-resource-snapshot-repository.js";
 export { SessionRepository } from "./session-repository.js";
 export { TaskRepository } from "./task-repository.js";
 export { WorkspaceRepository } from "./workspace-repository.js";

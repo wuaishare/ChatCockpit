@@ -108,6 +108,39 @@ export type RuntimeRecoveryAction =
   | "continue-via-handoff"
   | "continue-chat-direct"
   | "reconcile-runner-binding";
+export type RuntimeResourceSnapshotStatus = "ready" | "partial" | "failed";
+export type RuntimeResourceKind =
+  | "skill"
+  | "mcp-server"
+  | "plugin"
+  | "runtime-adapter"
+  | "acp-agent";
+export type RuntimeResourceScope =
+  | "user"
+  | "workspace"
+  | "runtime"
+  | "registry"
+  | "unknown";
+export type RuntimeResourceUpdateStatus =
+  | "current"
+  | "update-available"
+  | "unknown"
+  | "not-applicable";
+export type RuntimeResourceAuthStatus =
+  | "ready"
+  | "required"
+  | "unsupported"
+  | "unknown"
+  | "not-applicable";
+export type RuntimeResourceCompatibilityStatus =
+  | "ready"
+  | "degraded"
+  | "blocked"
+  | "unknown";
+export type RuntimeResourceSourceKind =
+  | "runtime-native"
+  | "tokenpilot-local"
+  | "acp-registry";
 export type RuntimeEventCategory =
   | "lifecycle"
   | "approval"
@@ -465,6 +498,41 @@ export interface RuntimeRecoveryAttemptRecord {
   expiresAt: string;
   resolvedAt: string | null;
   revision: number;
+}
+
+export interface RuntimeResourceItemRecord {
+  snapshotId: string;
+  resourceId: string;
+  kind: RuntimeResourceKind;
+  externalId: string;
+  displayName: string;
+  description: string | null;
+  scope: RuntimeResourceScope;
+  installed: boolean | null;
+  enabled: boolean | null;
+  version: string | null;
+  availableVersion: string | null;
+  updateStatus: RuntimeResourceUpdateStatus;
+  authStatus: RuntimeResourceAuthStatus;
+  compatibilityStatus: RuntimeResourceCompatibilityStatus;
+  sourceKind: RuntimeResourceSourceKind;
+  sourceLabel: string;
+  capabilities: string[];
+  publicReason: string | null;
+  fingerprint: string;
+}
+
+export interface RuntimeResourceSnapshotRecord {
+  id: string;
+  runtimeProfileId: string;
+  providerKind: string;
+  protocolKind: string;
+  status: RuntimeResourceSnapshotStatus;
+  profile: Record<string, unknown>;
+  fingerprint: string;
+  capturedAt: string;
+  revision: number;
+  items: RuntimeResourceItemRecord[];
 }
 
 export interface RuntimeEventRecord {
