@@ -103,12 +103,13 @@ The release gate verifies static Bearer compatibility plus OAuth discovery, regi
 
 ## Tool Families
 
-The current public catalog contains 60 tools across:
+The current public catalog contains 62 tools across:
 
 - Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read, approval-gated Host Write / Exact Edit, approval-gated bounded Host Command, TokenPilot-owned Managed Workspace Process `prepare/decide/execute/read/list`, and Workspace Files, Search, Shell, and Git operations;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;
+- read-only Runtime Resource Center inventory/inspect operations covering Native Codex Skills/MCP/Plugins/config summaries, Downstream MCP resources, and ACP Registry Agents; Phase 6A exposes no install/update/enable/disable/authentication mutation;
 - Codex Session Bind/Resume/Fork;
 - explicit Codex Turn/Interrupt, Approval response, and Event reads.
 

@@ -59,10 +59,11 @@ flowchart TB
 - Direct Drive / Workspace Direct：底层继续使用 `chat-direct` Lane，提供文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；Capability Broker 已统一 Built-in / App Server Standalone 的 capability discovery、健康状态与显式/自动 Provider Selection，并已证明不会隐式调用 `turn/start`。Downstream MCP 已具备 local config → probe → snapshot → descriptor → normalized execution 的完整链路，并已用于 Host Direct Files 与 bounded Host Command。
 - Durable Host Managed Workspace Process：通过 TokenPilot `host_process_*` 公共身份提供受审批的 Start / Input / Stop 与只读 Read / List；独立 Process Supervisor sidecar 持有 Desktop Commander runtime/PID namespace，使合法进程可跨普通 Control Plane restart 延续，同时继续由 Writer Lease watchdog、runtime generation/ownership、Audit/Evidence 和 process-group guardian 治理。Process Output 与 raw interactive input 不进入持久 Mutation 结果，PID 始终保持私有；系统级任意 PID attach/list/kill 不开放。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
-- Continuity Engine：SQLite Schema v14、Project、Workspace、Task、Session、通用 Runtime Binding、Runtime Recovery Attempt、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、Process Supervisor Runtime Ownership 与 Runtime Event。
+- Continuity Engine：SQLite Schema v15、Project、Workspace、Task、Session、通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、Process Supervisor Runtime Ownership 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Runtime Recovery、Handoffs、Evidence、Approvals、Planning/Completion/Recovery Blockers、Runtime Binding 与 Runner Job；Recovery Center 由服务端 Assessment 驱动，支持显式 Codex Resume/Fork/Bind、Runner Reconcile、Chat Direct/Handoff 接续，不会自动启动 `turn/start` 或自动切换 Provider。
+- Runtime & Resource Center：`/ui/resources` 统一展示 public-safe Runtime Profiles 与 append-only Inventory Snapshot，已接入 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP Executor/Adapter 与 ACP Registry Agent Catalog；当前 Phase 6A 严格只读，安装、更新、启停与认证 mutation 仍由 Phase 6B 治理门控制。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
-- 60 个 MCP Tools，包含 Direct Drive Executor discovery、Host Root Alias discovery、Host Direct file read、`prepare → decide → execute` 的受审批 Host Write / Exact Edit、bounded Host Command、TokenPilot-owned Managed Workspace Process，以及 `tokenpilot.recovery.assess` / `tokenpilot.recovery.execute`；同时包含 Spec/Plan 创建、读取、历史版本、追加版本、状态流转和 Task 绑定，并提供 exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
+- 62 个 MCP Tools，包含 Direct Drive Executor discovery、Host Root Alias discovery、Host Direct file read、`prepare → decide → execute` 的受审批 Host Write / Exact Edit、bounded Host Command、TokenPilot-owned Managed Workspace Process、`tokenpilot.recovery.assess` / `tokenpilot.recovery.execute`，以及只读 `tokenpilot.resources.inventory` / `tokenpilot.resources.inspect`；同时包含 Spec/Plan 创建、读取、历史版本、追加版本、状态流转和 Task 绑定，并提供 exposed-mode Bearer Auth、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
 
 ### 实验性
 
@@ -77,7 +78,7 @@ flowchart TB
 
 ## 操作员 Web UI
 
-Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Recovery、Handoffs、Evidence、Approvals 八个稳定深链。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
+Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Recovery、Handoffs、Evidence、Approvals 八个稳定深链；独立 `/ui/resources` Resource Center 提供 Runtime Profile 选择、显式资源刷新、snapshot diff、Skills/MCP/Plugins/Adapters/ACP Agents 分类清单与详情检查。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
 
 ![TokenPilot GPT Helper 配置界面](./docs/assets/tokenpilot-gpt-helper-config.webp)
 
