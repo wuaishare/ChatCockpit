@@ -38,6 +38,7 @@ import { TOKENPILOT_MCP_SCOPE } from "../auth/oauth-types.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
+import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
 import { RuntimeEventService } from "../application/runtime-event-service.js";
 import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
@@ -84,6 +85,7 @@ import { registerContinuityRoutes } from "./continuity-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
+import { registerRecoveryRoutes } from "./recovery-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 
@@ -269,6 +271,14 @@ export function buildServer(
     continuityServices.repositories,
     runtimeRouter
   );
+  const runtimeRecoveryServices = buildRuntimeRecoveryServices({
+    paths,
+    repositories: continuityServices.repositories,
+    runtimeRouter,
+    workspaceContinuity: continuityServices.workspaces,
+    runtimeBindingService,
+    handoffService: continuityServices.handoffs
+  });
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) {
@@ -307,6 +317,7 @@ export function buildServer(
     runtimeTurnService,
     runtimeApprovalService,
     runtimeEventService,
+    runtimeRecoveryServices,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
     }
@@ -321,6 +332,7 @@ export function buildServer(
     runtimeApprovalService,
     runtimeEventService
   );
+  registerRecoveryRoutes(app, runtimeRecoveryServices);
   const healthHandler = async () => {
     return buildPublicHealthStatus(paths);
   };

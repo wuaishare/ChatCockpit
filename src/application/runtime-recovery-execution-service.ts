@@ -28,15 +28,15 @@ export interface RuntimeRecoveryBindingServicePort {
   bind(
     context: OperationContext,
     input: CodexSessionBindInput
-  ): Promise<{ binding: CodexRuntimeBindingRecord; session: DevelopmentSessionRecord }>;
+  ): Promise<{ binding: RuntimeBindingRecord; session: DevelopmentSessionRecord }>;
   resume(
     context: OperationContext,
     input: CodexSessionResumeInput
-  ): Promise<{ binding: CodexRuntimeBindingRecord; session: DevelopmentSessionRecord }>;
+  ): Promise<{ binding: RuntimeBindingRecord; session: DevelopmentSessionRecord }>;
   fork(
     context: OperationContext,
     input: CodexSessionForkInput
-  ): Promise<{ binding: CodexRuntimeBindingRecord; session: DevelopmentSessionRecord }>;
+  ): Promise<{ binding: RuntimeBindingRecord; session: DevelopmentSessionRecord }>;
 }
 
 export interface RuntimeRecoveryHandoffServicePort {
@@ -97,6 +97,16 @@ function internalIdempotencyKey(
     idempotencyKey: input.idempotencyKey,
     suffix
   }).slice(0, 40)}`;
+}
+
+function requireCodexBinding(
+  binding: RuntimeBindingRecord,
+  message: string
+): CodexRuntimeBindingRecord {
+  if (binding.runtimeKind !== "codex-app-server") {
+    throw new ServiceError("CONTINUITY_RECORD_INVALID", message);
+  }
+  return binding;
 }
 
 function currentCodexBinding(
@@ -316,11 +326,15 @@ export class RuntimeRecoveryExecutionService {
         expectedSessionRevision: session.revision,
         idempotencyKey: internalIdempotencyKey(input, "codex-resume")
       });
+      const resultBinding = requireCodexBinding(
+        result.binding,
+        "Codex resume returned a non-Codex Runtime Binding"
+      );
       return {
         kind: "binding",
-        bindingId: result.binding.id,
+        bindingId: resultBinding.id,
         sessionId: result.session.id,
-        externalSessionId: result.binding.externalThreadId
+        externalSessionId: resultBinding.externalThreadId
       };
     }
 
@@ -332,11 +346,15 @@ export class RuntimeRecoveryExecutionService {
         expectedSessionRevision: session.revision,
         idempotencyKey: internalIdempotencyKey(input, "codex-fork")
       });
+      const resultBinding = requireCodexBinding(
+        result.binding,
+        "Codex fork returned a non-Codex Runtime Binding"
+      );
       return {
         kind: "binding",
-        bindingId: result.binding.id,
+        bindingId: resultBinding.id,
         sessionId: result.session.id,
-        externalSessionId: result.binding.externalThreadId
+        externalSessionId: resultBinding.externalThreadId
       };
     }
 
@@ -353,11 +371,15 @@ export class RuntimeRecoveryExecutionService {
         expectedSessionRevision: session.revision,
         idempotencyKey: internalIdempotencyKey(input, "codex-bind")
       });
+      const resultBinding = requireCodexBinding(
+        result.binding,
+        "Codex bind returned a non-Codex Runtime Binding"
+      );
       return {
         kind: "binding",
-        bindingId: result.binding.id,
+        bindingId: resultBinding.id,
         sessionId: result.session.id,
-        externalSessionId: result.binding.externalThreadId
+        externalSessionId: resultBinding.externalThreadId
       };
     }
 

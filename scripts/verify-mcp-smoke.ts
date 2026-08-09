@@ -235,6 +235,8 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.lease.release",
         "tokenpilot.project.get",
         "tokenpilot.project.list",
+        "tokenpilot.recovery.assess",
+        "tokenpilot.recovery.execute",
         "tokenpilot.runtime.capabilities",
         "tokenpilot.search.code",
         "tokenpilot.codex.approval.respond",
@@ -337,7 +339,9 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.host.process.decide",
       "tokenpilot.host.process.execute",
       "tokenpilot.host.process.read",
-      "tokenpilot.host.process.list"
+      "tokenpilot.host.process.list",
+      "tokenpilot.recovery.assess",
+      "tokenpilot.recovery.execute"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
       assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
@@ -365,6 +369,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.host.process.decide",
       "tokenpilot.host.process.prepare",
       "tokenpilot.lease.release",
+      "tokenpilot.recovery.assess",
+      "tokenpilot.recovery.execute",
       "tokenpilot.session.start",
       "tokenpilot.task.bindDocuments",
       "tokenpilot.task.complete",

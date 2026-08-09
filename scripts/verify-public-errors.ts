@@ -170,6 +170,22 @@ async function main(): Promise<void> {
   assert.equal(serviceBody.error.code, "FILES_READ_BLOCKED");
   assertPublicBodySafe(serviceBody, [sensitiveMessage, sensitivePath]);
   assert.equal(serviceLogs.some((entry) => entry.level === "warn"), true);
+
+  const recoveryLogs: CapturedLog[] = [];
+  const recoveryReply = fakeReply("req-recovery-error-rest", recoveryLogs);
+  const recoveryBody = sendUnknownApiError(
+    recoveryReply.reply,
+    new ServiceError(
+      "RECOVERY_ASSESSMENT_STALE",
+      "Runtime Recovery state changed after assessment; assess again",
+      { cause: rawError }
+    )
+  );
+  assert.equal(recoveryReply.statusCode(), 409);
+  assert.equal(recoveryBody.error.code, "RECOVERY_ASSESSMENT_STALE");
+  assertPublicBodySafe(recoveryBody, [sensitiveMessage, sensitivePath]);
+  assert.equal(recoveryLogs.some((entry) => entry.level === "warn"), true);
+
   const serviceLoggedError = (serviceLogs.find((entry) => entry.level === "warn")?.payload as {
     err?: unknown;
   } | undefined)?.err;

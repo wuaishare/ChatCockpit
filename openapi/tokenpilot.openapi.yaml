@@ -3498,6 +3498,378 @@ components:
         - parentThreadId
         - agentNickname
         - agentRole
+    RuntimeRecoveryAction:
+      type: string
+      enum:
+        - resume-bound-codex
+        - fork-bound-codex
+        - bind-existing-codex-thread
+        - continue-via-handoff
+        - continue-chat-direct
+        - reconcile-runner-binding
+    RuntimeRecoveryClassification:
+      type: string
+      enum:
+        - healthy
+        - recoverable
+        - binding-missing
+        - provider-unavailable
+        - provider-auth-required
+        - provider-version-unsupported
+        - provider-protocol-incompatible
+        - external-runtime-missing
+        - external-runtime-busy
+        - external-runtime-identity-mismatch
+        - writer-conflict
+        - pending-approval
+        - active-run
+        - handoff-required
+        - blocked
+    RuntimeRecoveryCompatibility:
+      type: object
+      additionalProperties: false
+      properties:
+        providerKind: { type: string }
+        protocolKind:
+          type: string
+          enum: [native-app-server, runner, chat-direct, acp]
+        available: { type: boolean }
+        executableSource:
+          oneOf:
+            - type: string
+              enum: [path, custom, bundled, internal]
+            - type: "null"
+        executableVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        minimumSupportedVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        testedVersionRange:
+          oneOf:
+            - type: string
+            - type: "null"
+        protocolFamily:
+          oneOf:
+            - type: string
+            - type: "null"
+        protocolVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        schemaFingerprint:
+          oneOf:
+            - type: string
+              pattern: '^[a-f0-9]{64}$'
+            - type: "null"
+        compatibilityStatus:
+          type: string
+          enum: [ready, unavailable, auth-required, version-unsupported, protocol-incompatible, degraded]
+        publicReason:
+          oneOf:
+            - type: string
+            - type: "null"
+        probedAt: { type: string }
+      required:
+        - providerKind
+        - protocolKind
+        - available
+        - executableSource
+        - executableVersion
+        - minimumSupportedVersion
+        - testedVersionRange
+        - protocolFamily
+        - protocolVersion
+        - schemaFingerprint
+        - compatibilityStatus
+        - publicReason
+        - probedAt
+    RuntimeRecoverableExternalSession:
+      type: object
+      additionalProperties: false
+      properties:
+        externalSessionId: { type: string }
+        providerKind: { type: string }
+        protocolKind:
+          type: string
+          enum: [native-app-server, runner, chat-direct, acp]
+        projectId:
+          oneOf:
+            - type: string
+            - type: "null"
+        workspaceId:
+          oneOf:
+            - type: string
+            - type: "null"
+        repoId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status: { type: string }
+        preview: { type: string }
+        createdAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        updatedAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        recencyAt:
+          oneOf:
+            - type: number
+            - type: "null"
+      required:
+        - externalSessionId
+        - providerKind
+        - protocolKind
+        - projectId
+        - workspaceId
+        - repoId
+        - status
+        - preview
+        - createdAt
+        - updatedAt
+        - recencyAt
+    RuntimeExternalSessionInspection:
+      allOf:
+        - $ref: '#/components/schemas/RuntimeRecoverableExternalSession'
+        - type: object
+          properties:
+            exists: { type: boolean }
+            authoritative: { type: boolean }
+            busy: { type: boolean }
+            identityMatched: { type: boolean }
+          required: [exists, authoritative, busy, identityMatched]
+    RuntimeRecoveryBlocker:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          $ref: '#/components/schemas/RuntimeRecoveryClassification'
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+      required: [code, message]
+    RuntimeRecoveryAttempt:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        workspaceId: { type: string }
+        taskId: { type: string }
+        sessionId:
+          oneOf:
+            - type: string
+            - type: "null"
+        sourceBindingId:
+          oneOf:
+            - type: string
+            - type: "null"
+        providerKind: { type: string }
+        protocolKind:
+          type: string
+          enum: [native-app-server, runner, chat-direct, acp]
+        classification:
+          $ref: '#/components/schemas/RuntimeRecoveryClassification'
+        assessmentHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        selectedAction:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeRecoveryAction'
+            - type: "null"
+        status:
+          type: string
+          enum: [prepared, applied, blocked, failed, superseded, expired]
+        resultingBindingId:
+          oneOf:
+            - type: string
+            - type: "null"
+        publicSummary:
+          type: object
+          additionalProperties: true
+        compatibility:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string }
+        expiresAt: { type: string }
+        resolvedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - id
+        - projectId
+        - workspaceId
+        - taskId
+        - sessionId
+        - sourceBindingId
+        - providerKind
+        - protocolKind
+        - classification
+        - assessmentHash
+        - selectedAction
+        - status
+        - resultingBindingId
+        - publicSummary
+        - compatibility
+        - createdAt
+        - expiresAt
+        - resolvedAt
+        - revision
+    RuntimeRecoveryAssessment:
+      type: object
+      additionalProperties: false
+      properties:
+        recoveryId: { type: string }
+        classification:
+          $ref: '#/components/schemas/RuntimeRecoveryClassification'
+        blockers:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeRecoveryBlocker'
+        availableActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeRecoveryAction'
+        compatibility:
+          $ref: '#/components/schemas/RuntimeRecoveryCompatibility'
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeRecoverableExternalSession'
+        externalSession:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeExternalSessionInspection'
+            - type: "null"
+        assessmentHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        expiresAt: { type: string }
+      required:
+        - recoveryId
+        - classification
+        - blockers
+        - availableActions
+        - compatibility
+        - candidates
+        - externalSession
+        - assessmentHash
+        - expiresAt
+    RuntimeRecoveryAssessPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string }
+        taskId: { type: string }
+        sessionId: { type: string }
+        providerKind: { type: string }
+        idempotencyKey: { type: string }
+      required: [workspaceId, taskId, idempotencyKey]
+    RuntimeRecoveryExecutePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        recoveryId: { type: string }
+        assessmentHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        expectedRecoveryRevision:
+          type: integer
+          minimum: 1
+        action:
+          $ref: '#/components/schemas/RuntimeRecoveryAction'
+        targetThreadId: { type: string }
+        targetMode:
+          type: string
+          enum: [chat-direct, codex-session, async-agent]
+        idempotencyKey: { type: string }
+      required:
+        - recoveryId
+        - assessmentHash
+        - expectedRecoveryRevision
+        - action
+        - idempotencyKey
+    RuntimeRecoveryAssessResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        attempt:
+          $ref: '#/components/schemas/RuntimeRecoveryAttempt'
+        assessment:
+          $ref: '#/components/schemas/RuntimeRecoveryAssessment'
+        replayed: { type: boolean }
+      required: [ok, attempt, assessment, replayed]
+    RuntimeRecoveryExecuteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        attempt:
+          $ref: '#/components/schemas/RuntimeRecoveryAttempt'
+        action:
+          $ref: '#/components/schemas/RuntimeRecoveryAction'
+        resultingBinding:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeBindingRecord'
+            - type: "null"
+        resultingTaskId:
+          oneOf:
+            - type: string
+            - type: "null"
+        resultingSessionId:
+          oneOf:
+            - type: string
+            - type: "null"
+        externalSessionId:
+          oneOf:
+            - type: string
+            - type: "null"
+        replayed: { type: boolean }
+      required:
+        - ok
+        - attempt
+        - action
+        - resultingBinding
+        - resultingTaskId
+        - resultingSessionId
+        - externalSessionId
+        - replayed
+    RuntimeRecoveryAttemptListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeRecoveryAttempt'
+      required: [ok, attempts]
+    RuntimeRecoveryAttemptReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        attempt:
+          $ref: '#/components/schemas/RuntimeRecoveryAttempt'
+      required: [ok, attempt]
     RuntimeCapabilitiesResponse:
       type: object
       additionalProperties: false
@@ -5707,6 +6079,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/recovery/assess:
+    post:
+      operationId: assessRuntimeRecovery
+      summary: Assess runtime recovery
+      description: Inspect TokenPilot continuity and local provider state, then persist a short-lived Recovery Attempt. This operation never resumes, forks, binds, starts a model turn, creates a job, or mutates workspace files.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeRecoveryAssessPayload'
+      responses:
+        "200":
+          description: Recovery assessment and prepared attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeRecoveryAssessResponse'
+        "409":
+          description: Recovery assessment is blocked by continuity state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/recovery/execute:
+    post:
+      operationId: executeRuntimeRecovery
+      summary: Execute explicit runtime recovery
+      description: Execute one server-approved Recovery action after revalidating the persisted assessment hash and current runtime/governance state. Recovery never implicitly starts a model turn or auto-switches provider.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeRecoveryExecutePayload'
+      responses:
+        "200":
+          description: Applied or replayed explicit Recovery action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeRecoveryExecuteResponse'
+        "409":
+          description: Recovery Attempt expired, drifted, or action is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/recovery/attempts:
+    get:
+      operationId: listRuntimeRecoveryAttempts
+      summary: List runtime recovery attempts
+      description: Read persisted public-safe Recovery Attempt history without provider credentials, private paths, raw transcripts, prompts, reasoning, stderr, or process identifiers.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Recovery Attempt history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeRecoveryAttemptListResponse'
+  /api/recovery/attempts/{recoveryId}:
+    get:
+      operationId: getRuntimeRecoveryAttempt
+      summary: Read runtime recovery attempt
+      description: Read one persisted public-safe Recovery Attempt by TokenPilot recovery id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: recoveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recovery Attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeRecoveryAttemptReadResponse'
+        "404":
+          description: Recovery Attempt not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/runtime/codex/capabilities:
     get:
       operationId: getCodexRuntimeCapabilities
