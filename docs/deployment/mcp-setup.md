@@ -249,6 +249,26 @@ The final durability marker is **only** `DESKTOP_COMMANDER_DURABLE_PROCESS_LIVE_
 
 Remote MCP exposes governed Host Files, bounded Host Command, and TokenPilot-owned Managed Workspace Process capabilities without exposing raw downstream tools. `tokenpilot.host.roots.list` returns public-safe aliases and per-root `read/write` access. Write/Exact Edit use `tokenpilot.host.mutation.prepare` → `decide` → `execute`; bounded commands use `tokenpilot.host.command.prepare` → `decide` → `execute`; Managed Process uses `tokenpilot.host.process.prepare` → `decide` → `execute` plus `read/list`. Pure Host commands remain restricted to the explicit read-only command policy. Workspace write-effect commands and Managed Process start/input require chat-direct governance and record Evidence. Raw shell source, arbitrary PID attach, system-wide `list_processes`/`kill_process`, PID, and raw Desktop Commander process tools remain unexposed.
 
+### Runtime Recovery operator proof
+
+Runtime Recovery adds only two Remote MCP tools: `tokenpilot.recovery.assess` and `tokenpilot.recovery.execute`. Assessment persists a five-minute public-safe Recovery Attempt but performs no provider mutation. Execute revalidates the exact assessment hash before applying one explicit action. Recovery never implicitly starts `turn/start`, never automatically switches provider, and never fuzzy-selects an external thread.
+
+The default Recovery protocol gate uses a deterministic scripted Codex runtime and the same A/B/C/D driver as the operator proof:
+
+```bash
+npm run verify:runtime-recovery
+```
+
+To prove the Native Codex Recovery path against the actual Codex App Server discovered on this machine, run:
+
+```bash
+npm run probe:codex-runtime-recovery-live
+```
+
+The operator proof first discovers one existing persistent Codex thread with an accessible workspace `cwd`, then creates a proof-owned fork without starting a model Turn. The temporary TokenPilot Continuity database lives outside that workspace. The proof requires: explicit bound-thread resume; explicit Recovery fork with a distinct thread id and persisted source relation; compatibility-fingerprint drift rejection before provider effect; and honest handling of an intentionally missing external thread, where Codex recovery is not faked and continuation is allowed only through an explicit ready Handoff to Chat Direct. The final marker is **`CODEX_RUNTIME_RECOVERY_LIVE_PROOF_OK`**. The summary must report `turnStartObserved: false`.
+
+The proof may create proof-owned Codex thread forks in the user's Codex history, but it does not start a model Turn or write workspace files. Existing provider thread previews may appear in the immediate assessment response; Recovery Attempt history intentionally persists only public-safe identity/status metadata and never stores raw provider transcripts, prompts, reasoning, stderr, auth data, executable paths, or private workspace paths.
+
 ## Choose The Runtime Lane Explicitly
 
 ### Chat Direct

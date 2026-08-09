@@ -247,6 +247,26 @@ TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@
 
 Remote MCP 现在开放受治理的 Host Files、bounded Host Command 与 TokenPilot-owned Managed Workspace Process，而不是 raw downstream tools。`tokenpilot.host.roots.list` 只返回 public-safe Root Alias 与每个 Root 的 `read/write` 权限。Write / Exact Edit 走 `tokenpilot.host.mutation.prepare` → `decide` → `execute`；bounded command 走 `tokenpilot.host.command.prepare` → `decide` → `execute`；Managed Process 走 `tokenpilot.host.process.prepare` → `decide` → `execute`，并配合 `read/list`。Pure Host Command 仍只允许显式只读 policy；Workspace write-effect Command 与 Managed Process start/input 都必须回到 chat-direct 治理并记录 Evidence。Raw shell source、任意 PID attach、系统级 `list_processes` / `kill_process`、PID 以及 raw Desktop Commander Process Tools 都继续不对 Remote MCP 开放。
 
+### Runtime Recovery 操作员证明
+
+Runtime Recovery 只新增两个 Remote MCP Tool：`tokenpilot.recovery.assess` 与 `tokenpilot.recovery.execute`。Assessment 会持久化一个 5 分钟有效的 public-safe Recovery Attempt，但不会执行 Provider mutation；Execute 会在执行一个显式恢复动作前重新校验同一个 assessment hash。Recovery 不会隐式调用 `turn/start`、不会自动切换 Provider，也不会模糊选择外部 Thread。
+
+默认 Recovery protocol gate 使用确定性的 scripted Codex runtime，并与实机 proof 共用同一个 A/B/C/D driver：
+
+```bash
+npm run verify:runtime-recovery
+```
+
+要对本机 TokenPilot 实际发现的 Codex App Server 做 Native Codex Recovery 实机证明，执行：
+
+```bash
+npm run probe:codex-runtime-recovery-live
+```
+
+操作员 proof 会先只读查找一条具有可访问 workspace `cwd` 的已有持久 Codex Thread，再通过 `thread/fork` 创建 proof-owned fork，全程不启动模型 Turn。临时 TokenPilot Continuity Database 位于该 Workspace 之外。Proof 必须同时证明：显式恢复已绑定 Thread；显式 Recovery Fork 产生不同 Thread ID 并保留 source relation；Compatibility Fingerprint 漂移会在任何 Provider Effect 前拒绝旧 Assessment；故意缺失的外部 Thread 不会被伪装成 Codex 恢复成功，只有存在显式 Ready Handoff 时才能接续到 Chat Direct。最终只认可 **`CODEX_RUNTIME_RECOVERY_LIVE_PROOF_OK`**，且 summary 必须报告 `turnStartObserved: false`。
+
+该 proof 可能会在用户 Codex 历史中创建 proof-owned Thread Fork，但不会启动模型 Turn，也不会修改 Workspace 文件。Provider Thread Preview 可以出现在当前 Assessment 响应中，但 Recovery Attempt 历史只持久化 public-safe identity/status 元数据，不保存 raw provider transcript、prompt、reasoning、stderr、认证数据、可执行文件私有路径或 Workspace 私有绝对路径。
+
 ## 6. 明确选择运行模式
 
 ### Chat Direct
