@@ -75,3 +75,16 @@ export interface RuntimeResourceInventoryProjection {
   resources: RuntimeResourceDescriptor[];
   diagnostics: RuntimeResourceInventoryDiagnostic[];
 }
+
+export interface RuntimeResourceInventoryRequest {
+  profile: RuntimeProfileDescriptor;
+  workspaceId?: string;
+}
+
+export interface RuntimeResourceInventoryAdapter {
+  readonly providerKind: string;
+  readonly protocolKind: string;
+  inventory(
+    input: RuntimeResourceInventoryRequest
+  ): Promise<RuntimeResourceInventoryProjection>;
+}

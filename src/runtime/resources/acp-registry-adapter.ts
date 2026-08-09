@@ -9,7 +9,9 @@ import {
 import type {
   RuntimeProfileDescriptor,
   RuntimeResourceDescriptor,
-  RuntimeResourceInventoryProjection
+  RuntimeResourceInventoryAdapter,
+  RuntimeResourceInventoryProjection,
+  RuntimeResourceInventoryRequest
 } from "../../application/runtime-resource-types.js";
 import type { RuntimeProfileSourceAdapter } from "./runtime-profile-registry.js";
 
@@ -119,10 +121,6 @@ export interface AcpRegistryAdapterOptions {
   cacheTtlMs?: number;
 }
 
-export interface AcpRegistryInventoryInput {
-  profile: RuntimeProfileDescriptor;
-}
-
 type ResourceWithoutFingerprint = Omit<RuntimeResourceDescriptor, "fingerprint">;
 
 function finalizeResource(
@@ -151,8 +149,12 @@ function distributionCapabilities(agent: AcpRegistryAgent): string[] {
   return [...capabilities].sort();
 }
 
-export class AcpRegistryAdapter implements RuntimeProfileSourceAdapter {
+export class AcpRegistryAdapter
+  implements RuntimeProfileSourceAdapter, RuntimeResourceInventoryAdapter
+{
   readonly sourceKind = "acp-registry";
+  readonly providerKind = "acp-registry";
+  readonly protocolKind = "registry-v1";
   private readonly fetchImpl: FetchLike;
   private readonly now: () => number;
   private readonly timeoutMs: number;
@@ -172,7 +174,7 @@ export class AcpRegistryAdapter implements RuntimeProfileSourceAdapter {
   }
 
   async inventory(
-    input: AcpRegistryInventoryInput
+    input: RuntimeResourceInventoryRequest
   ): Promise<RuntimeResourceInventoryProjection> {
     if (
       input.profile.providerKind !== "acp-registry" ||

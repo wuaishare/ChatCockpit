@@ -296,6 +296,71 @@ export class IdempotencyRepository {
     });
   }
 
+  async executeExternalRead<TExternal, TResult>(
+    operationName: string,
+    idempotencyKey: string,
+    input: unknown,
+    externalOperation: () => Promise<TExternal>,
+    commitOperation: (externalValue: TExternal) => TResult,
+    now = new Date().toISOString()
+  ): Promise<ContinuityIdempotentResult<TResult>> {
+    const reservation = this.reserve<TResult>(
+      operationName,
+      idempotencyKey,
+      input,
+      now
+    );
+    if (reservation.type === "replay") {
+      return {
+        value: reservation.value,
+        replayed: true
+      };
+    }
+
+    let externalValue: TExternal;
+    try {
+      externalValue = await externalOperation();
+    } catch (error) {
+      // External reads have no provider-side mutation to recover. A failed
+      // read reservation is always safe to clear so the same key can retry.
+      this.clearPending(
+        operationName,
+        idempotencyKey,
+        reservation.fingerprint
+      );
+      throw error;
+    }
+
+    return this.database.transaction(() => {
+      const value = commitOperation(externalValue);
+      const completedAt = new Date().toISOString();
+      const result = this.database.sqlite
+        .prepare(`
+          UPDATE idempotency_results
+          SET status = 'completed', result_json = ?, updated_at = ?
+          WHERE operation_name = ? AND idempotency_key = ?
+            AND fingerprint = ? AND status = 'pending'
+        `)
+        .run(
+          JSON.stringify(value),
+          completedAt,
+          operationName,
+          idempotencyKey,
+          reservation.fingerprint
+        );
+      if (Number(result.changes) !== 1) {
+        throw new ServiceError(
+          "IDEMPOTENCY_RECORD_INVALID",
+          "Pending external-read idempotency reservation could not be completed"
+        );
+      }
+      return {
+        value,
+        replayed: false
+      };
+    });
+  }
+
   private reserve<T>(
     operationName: string,
     idempotencyKey: string,

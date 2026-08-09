@@ -6,8 +6,10 @@ import {
 import type {
   RuntimeProfileDescriptor,
   RuntimeResourceDescriptor,
+  RuntimeResourceInventoryAdapter,
   RuntimeResourceInventoryDiagnostic,
-  RuntimeResourceInventoryProjection
+  RuntimeResourceInventoryProjection,
+  RuntimeResourceInventoryRequest
 } from "../../application/runtime-resource-types.js";
 import type {
   RuntimeMcpServerProjection,
@@ -23,11 +25,6 @@ interface CodexResourceInventoryRuntime {
   listCodexMcpServers(): Promise<RuntimeMcpServerProjection[]>;
   listCodexPlugins(input?: RuntimePluginListInput): Promise<RuntimePluginProjection[]>;
   readCodexResourceConfigSummary(): Promise<RuntimeResourceConfigSummary>;
-}
-
-export interface CodexResourceInventoryInput {
-  profile: RuntimeProfileDescriptor;
-  workspaceId: string;
 }
 
 type ResourceWithoutFingerprint = Omit<RuntimeResourceDescriptor, "fingerprint">;
@@ -98,11 +95,16 @@ function failureDiagnostic(
   };
 }
 
-export class CodexResourceInventoryAdapter {
+export class CodexResourceInventoryAdapter
+  implements RuntimeResourceInventoryAdapter
+{
+  readonly providerKind = "codex";
+  readonly protocolKind = "native-app-server";
+
   constructor(private readonly runtime: CodexResourceInventoryRuntime) {}
 
   async inventory(
-    input: CodexResourceInventoryInput
+    input: RuntimeResourceInventoryRequest
   ): Promise<RuntimeResourceInventoryProjection> {
     if (
       input.profile.providerKind !== "codex" ||
@@ -111,6 +113,13 @@ export class CodexResourceInventoryAdapter {
       throw new ServiceError(
         "RUNTIME_PROFILE_MISMATCH",
         "Native Codex Resource Inventory requires a Codex App Server profile"
+      );
+    }
+
+    if (!input.workspaceId) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_WORKSPACE_REQUIRED",
+        "Codex Resource Inventory requires a TokenPilot Workspace"
       );
     }
 

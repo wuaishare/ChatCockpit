@@ -5,9 +5,10 @@ import {
   hashRuntimeResource
 } from "../../application/runtime-resource-hash.js";
 import type {
-  RuntimeProfileDescriptor,
   RuntimeResourceDescriptor,
-  RuntimeResourceInventoryProjection
+  RuntimeResourceInventoryAdapter,
+  RuntimeResourceInventoryProjection,
+  RuntimeResourceInventoryRequest
 } from "../../application/runtime-resource-types.js";
 import type { DownstreamMcpExecutorsConfig } from "../../direct/downstream-mcp-config.js";
 import type { DownstreamMcpProbeSummary } from "../../direct/downstream-mcp-operator.js";
@@ -15,10 +16,6 @@ import type { DownstreamMcpProbeSummary } from "../../direct/downstream-mcp-oper
 interface DownstreamResourceInventorySource {
   loadConfig(): DownstreamMcpExecutorsConfig;
   probe(): Promise<DownstreamMcpProbeSummary[]>;
-}
-
-export interface DownstreamResourceInventoryInput {
-  profile: RuntimeProfileDescriptor;
 }
 
 type ResourceWithoutFingerprint = Omit<RuntimeResourceDescriptor, "fingerprint">;
@@ -44,11 +41,16 @@ function compatibilityFromHealth(
   return "blocked";
 }
 
-export class DownstreamResourceInventoryAdapter {
+export class DownstreamResourceInventoryAdapter
+  implements RuntimeResourceInventoryAdapter
+{
+  readonly providerKind = "downstream-mcp";
+  readonly protocolKind = "mcp-legacy-stdio";
+
   constructor(private readonly source: DownstreamResourceInventorySource) {}
 
   async inventory(
-    input: DownstreamResourceInventoryInput
+    input: RuntimeResourceInventoryRequest
   ): Promise<RuntimeResourceInventoryProjection> {
     if (
       input.profile.providerKind !== "downstream-mcp" ||

@@ -247,6 +247,21 @@ export class RuntimeResourceSnapshotRepository {
     return row ? snapshotFromRow(row, this.itemsForSnapshot(row.id)) : null;
   }
 
+  latestItem(resourceId: string): RuntimeResourceItemRecord | null {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT item.*
+        FROM runtime_resource_items AS item
+        JOIN runtime_resource_snapshots AS snapshot
+          ON snapshot.id = item.snapshot_id
+        WHERE item.resource_id = ?
+        ORDER BY snapshot.captured_at DESC, snapshot.rowid DESC
+        LIMIT 1
+      `)
+      .get(resourceId) as RuntimeResourceItemRow | undefined;
+    return row ? itemFromRow(row) : null;
+  }
+
   list(input: { runtimeProfileId?: string; limit?: number } = {}): RuntimeResourceSnapshotRecord[] {
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
     const rows = input.runtimeProfileId
