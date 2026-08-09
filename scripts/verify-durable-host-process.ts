@@ -127,7 +127,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 13);
+  assert.equal(database.schemaVersion(), 14);
   assert.ok(repositories.directProcessRuntimeOwnership);
 
   const project = repositories.projects.create({

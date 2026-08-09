@@ -73,6 +73,41 @@ export type DirectProcessOperation = "start" | "input" | "stop";
 export type DirectProcessAuditOperation = DirectProcessOperation | "cleanup";
 export type DirectProcessApprovalStatus = DirectMutationApprovalStatus;
 export type DirectProcessAuditStatus = DirectMutationAuditStatus;
+export type RuntimeRecoveryAttemptStatus =
+  | "prepared"
+  | "applied"
+  | "blocked"
+  | "failed"
+  | "superseded"
+  | "expired";
+export type RuntimeRecoveryClassification =
+  | "healthy"
+  | "recoverable"
+  | "binding-missing"
+  | "provider-unavailable"
+  | "provider-auth-required"
+  | "provider-version-unsupported"
+  | "provider-protocol-incompatible"
+  | "external-runtime-missing"
+  | "external-runtime-busy"
+  | "external-runtime-identity-mismatch"
+  | "writer-conflict"
+  | "pending-approval"
+  | "active-run"
+  | "handoff-required"
+  | "blocked";
+export type RuntimeRecoveryProtocolKind =
+  | "native-app-server"
+  | "runner"
+  | "chat-direct"
+  | "acp";
+export type RuntimeRecoveryAction =
+  | "resume-bound-codex"
+  | "fork-bound-codex"
+  | "bind-existing-codex-thread"
+  | "continue-via-handoff"
+  | "continue-chat-direct"
+  | "reconcile-runner-binding";
 export type RuntimeEventCategory =
   | "lifecycle"
   | "approval"
@@ -408,6 +443,28 @@ export interface DirectProcessAuditRecord {
   startedAt: string;
   completedAt: string | null;
   createdAt: string;
+}
+
+export interface RuntimeRecoveryAttemptRecord {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  taskId: string;
+  sessionId: string | null;
+  sourceBindingId: string | null;
+  providerKind: string;
+  protocolKind: RuntimeRecoveryProtocolKind;
+  classification: RuntimeRecoveryClassification;
+  assessmentHash: string;
+  selectedAction: RuntimeRecoveryAction | null;
+  status: RuntimeRecoveryAttemptStatus;
+  resultingBindingId: string | null;
+  publicSummary: Record<string, unknown>;
+  compatibility: Record<string, unknown>;
+  createdAt: string;
+  expiresAt: string;
+  resolvedAt: string | null;
+  revision: number;
 }
 
 export interface RuntimeEventRecord {

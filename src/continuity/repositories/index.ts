@@ -17,6 +17,7 @@ import { RuntimeApprovalRepository } from "./runtime-approval-repository.js";
 import { RuntimeBindingRepository } from "./runtime-binding-repository.js";
 import { RuntimeEventRepository } from "./runtime-event-repository.js";
 import { RuntimeRunRepository } from "./runtime-run-repository.js";
+import { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
 import { SessionRepository } from "./session-repository.js";
 import { TaskRepository } from "./task-repository.js";
 import { WorkspaceRepository } from "./workspace-repository.js";
@@ -36,6 +37,7 @@ export interface ContinuityRepositories {
   runtimeBindings: RuntimeBindingRepository;
   runtimeEvents: RuntimeEventRepository;
   runtimeRuns: RuntimeRunRepository;
+  runtimeRecoveryAttempts: RuntimeRecoveryAttemptRepository;
   workspaces: WorkspaceRepository;
   tasks: TaskRepository;
   sessions: SessionRepository;
@@ -63,6 +65,7 @@ export function buildContinuityRepositories(
     runtimeBindings: new RuntimeBindingRepository(database),
     runtimeEvents: new RuntimeEventRepository(database),
     runtimeRuns: new RuntimeRunRepository(database),
+    runtimeRecoveryAttempts: new RuntimeRecoveryAttemptRepository(database),
     workspaces: new WorkspaceRepository(database),
     tasks: new TaskRepository(database),
     sessions: new SessionRepository(database),
@@ -91,6 +94,7 @@ export { RuntimeApprovalRepository } from "./runtime-approval-repository.js";
 export { RuntimeBindingRepository } from "./runtime-binding-repository.js";
 export { RuntimeEventRepository } from "./runtime-event-repository.js";
 export { RuntimeRunRepository } from "./runtime-run-repository.js";
+export { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
 export { SessionRepository } from "./session-repository.js";
 export { TaskRepository } from "./task-repository.js";
 export { WorkspaceRepository } from "./workspace-repository.js";
