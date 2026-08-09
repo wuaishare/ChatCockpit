@@ -101,14 +101,15 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具分类
 
-当前公开目录包含 58 个工具，覆盖：
+当前公开目录包含 60 个工具，覆盖：
 
 - Direct Drive Executor / Capability Discovery、public-safe Host Root Alias Discovery、受治理的 Host Direct 文件读取、审批式 Host Write / Exact Edit、审批式 bounded Host Command、TokenPilot-owned Managed Workspace Process `prepare/decide/execute/read/list`，以及 Workspace Files、Search、Shell、Git；
 - Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
 - Spec/Plan 创建、列表、读取、不可变历史版本读取、追加版本、生命周期与 Task 绑定；
 - Codex Runtime Capability 与 Thread Metadata；
 - Codex Session Bind、Resume、Fork；
-- 显式 Codex Turn、Interrupt、Approval Response 与 Event Read。
+- 显式 Codex Turn、Interrupt、Approval Response 与 Event Read；
+- Runtime Recovery 的 `tokenpilot.recovery.assess` 与 `tokenpilot.recovery.execute`。Assessment 会持久化五分钟 public-safe Recovery Attempt，但不会触发 Provider mutation；Execute 会重新验证同一 `assessmentHash` 后只执行一个显式动作。Recovery 不会隐式 `turn/start`、不会自动切换 Provider，也不会模糊选择外部 Thread。
 
 客户端应读取实时 `tools/list`，不要把旧工具清单写死。
 

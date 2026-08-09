@@ -3,9 +3,9 @@
 ## Status
 
 - Status: implemented vNext foundation plus explicitly marked target extensions
-- Implemented: SQLite Schema v13; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit `planning-required | planning-optional` Task execution policy, shared Spec/Plan application services, REST/MCP parity, Spec/Plan Workbench governance, server-derived Planning Assessment, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Runtime Approval, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Direct Process Session/Approval/Audit, Process Supervisor Runtime Ownership, Event, Workspace Snapshot, and Continuity Workbench projections
+- Implemented: SQLite Schema v14; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, Runtime Recovery Attempt, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit `planning-required | planning-optional` Task execution policy, shared Spec/Plan and Runtime Recovery application services, REST/MCP parity, Spec/Plan/Recovery Workbench governance, server-derived Planning and Recovery Assessment, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Runtime Approval, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Direct Process Session/Approval/Audit, Process Supervisor Runtime Ownership, Event, Workspace Snapshot, and Continuity Workbench projections
 - Experimental: Codex App Server protocol integration, Chat Direct standalone routing, and remote ChatGPT access through Custom GPT Actions or MCP
-- Target extensions: richer Task transitions; Recovery Center automation across every provider; Resource Center governance; TDD/SDD/BDD orchestration and templates; and additional provider adapters
+- Target extensions: richer Task transitions; additional provider Recovery adapters including a future ACP seam; Resource Center governance; TDD/SDD/BDD orchestration and templates; and additional provider adapters
 - Scope: local-first continuity state shared by REST, MCP, Web UI, CLI, Codex adapters, and async agents
 
 ## Purpose
@@ -198,7 +198,7 @@ export interface RuntimeBindingRecord {
 }
 ```
 
-The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v13. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, execution scope, selected executor, selection mode, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
+The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v14. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, execution scope, selected executor, selection mode, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
 
 ```ts
 export interface ChatDirectExecutionMetadata {
@@ -491,12 +491,14 @@ DevelopmentDocumentService
 TaskExecutionPolicyService
 AsyncJobService
 AsyncJobReconciliationService
+RuntimeRecoveryAssessmentService
+RuntimeRecoveryExecutionService
 ChatDirectService
 RuntimeRouter
 
 Target extensions:
 ResourceGovernanceService
-RecoveryCenterService
+GenericProviderRecoveryAdapterRegistry
 ```
 
 ## Web UI Projections
@@ -516,12 +518,13 @@ Implemented views:
 - Evidence checklist with `verified`, `incomplete`, and `missing` states
 - pending Approval list
 - latest Runtime Binding plus Runner Job status and public-safe artifact links
+- Runtime Recovery Center with server-derived classification, compatibility, candidates, blockers, short-lived Recovery Attempt identity, and explicit server-approved actions
 
 Target views:
 
 - full Runtime Binding history and provider capability inspector
 - richer Task board and Session timeline
-- automated Recovery Center
+- broader provider Recovery adapters and Recovery timeline/history views
 
 ## Privacy and Public-Safe Projection
 
@@ -542,7 +545,7 @@ Secrets, local configuration, environment files, runtime logs, and private agent
 |---|---|---|
 | Stable Project and Workspace IDs | Implemented | Deterministic configured-project sync and SQLite records |
 | Task continuity across Chat Direct and Codex Session | Implemented | Session mode, Codex Runtime Binding, Handoff, and Workspace Snapshot |
-| Durable append-only Spec/Plan truth | Implemented | Schema v13 retains the fixed-kind documents, immutable Markdown versions, lifecycle status, Task foreign keys and immutable version pins introduced through Schema v7; shared REST/MCP services and the Workbench provide create/read/version/status/bind operations |
+| Durable append-only Spec/Plan truth | Implemented | Schema v14 retains the fixed-kind documents, immutable Markdown versions, lifecycle status, Task foreign keys and immutable version pins introduced through Schema v7; shared REST/MCP services and the Workbench provide create/read/version/status/bind operations |
 | Explicit Spec/Plan First execution policy | Implemented | `planning-required` requires approved current pinned Spec and Plan before Session Start, Async Job Queue, or Codex Turn; `planning-optional` preserves the reviewed bypass path; Workspace Snapshot exposes the server assessment |
 | Async Job as a first-class Runtime Binding | Implemented | The generic binding store introduced in Schema v4 stores unique Runner Job IDs; Queue and Runner reconcile Task, Session, Binding, Evidence, failure, and restart state idempotently |
 | One active Writer per Workspace | Implemented | SQLite partial unique index plus Lease Service tests |
@@ -551,7 +554,8 @@ Secrets, local configuration, environment files, runtime logs, and private agent
 | Evidence-governed Task Review and Completion | Implemented | Session start enters in-progress; Submit Review finalizes passed required evidence; Completion requires accepted Handoff, released Writer, no active Run, and no pending Approval |
 | Process-restart continuity | Implemented foundation | Lease/Handoff/Idempotency recovery plus Runner terminal-Job reconciliation is tested across fresh database connections and process restart fixtures |
 | REST/MCP equivalent domain results | Implemented | Shared Application Services and parity tests |
-| Web UI Spec/Plan, completion, and runtime governance | Implemented | Workbench manages Spec/Plan versions, lifecycle, approval and Task binding, consumes server-derived Planning/Completion blockers, and shows Runtime Binding, Runner Job status, and artifact summaries |
+| Web UI Spec/Plan, Recovery, completion, and runtime governance | Implemented | Workbench manages Spec/Plan versions, lifecycle, approval and Task binding, consumes server-derived Planning/Completion/Recovery blockers, and shows Runtime Binding, Recovery compatibility/candidates/actions, Runner Job status, and artifact summaries |
 | Replaceable external Runtime IDs | Implemented for Codex and Runner | Binding history is append-preserving; Thread and Job identities are adapters and active bindings are superseded or released, not overwritten |
 | Public-safe projection | Implemented | Path, secret, request-handle, event, archive, and privacy gates |
-| Automated recovery of every running Session | Target extension | Recovery Center and provider-specific reconciliation remain future work |
+| Runtime Recovery Center | Implemented foundation | Schema v14 persists short-lived Recovery Attempts; Native Codex, Runner, and Chat Direct adapters provide explicit assess/execute flows with compatibility/hash drift protection and no implicit model turn |
+| Recovery across every provider | Target extension | Native Codex is implemented deeply; Runner/Chat Direct projections are implemented; future providers should prefer mature ACP or standard adapters before provider-native reimplementation |

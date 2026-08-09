@@ -2,9 +2,9 @@
 
 ## 状态
 
-- 已实现基础：SQLite Schema v13、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan Application Service、REST/MCP Parity、Spec/Plan Workbench 治理、服务端 Planning Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、Process Supervisor Runtime Ownership、Event、Workspace Snapshot 与 Continuity Workbench
+- 已实现基础：SQLite Schema v14、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、Runtime Recovery Attempt、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan 与 Runtime Recovery Application Service、REST/MCP Parity、Spec/Plan/Recovery Workbench 治理、服务端 Planning / Recovery Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、Process Supervisor Runtime Ownership、Event、Workspace Snapshot 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
-- 目标扩展：更丰富的 Task Transition、覆盖所有 Provider 的自动 Recovery Center、Resource Center 治理、TDD/SDD/BDD 编排与模板，以及更多 Provider Adapter
+- 目标扩展：更丰富的 Task Transition、更多 Provider Recovery Adapter（包括未来 ACP seam）、Resource Center 治理、TDD/SDD/BDD 编排与模板，以及更多 Provider Adapter
 
 Continuity Engine 的目标是：当开发工作在 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job、Branch、Worktree 或重启进程之间切换时，保持 Task 身份、Writer Ownership、Git 状态、Pending Work 与 Evidence 不丢失。
 
@@ -40,7 +40,7 @@ Spec 与 Plan 已完成 Schema v7 的完整 Spec/Plan First 基础：固定种�
 
 ## Runtime Binding
 
-Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v13 中：
+Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v14 中：
 
 ```ts
 interface RuntimeBindingRecord {
@@ -176,9 +176,10 @@ tokenpilot.workspace.snapshot
 - Handoff Prepare / Accept / Fork / Cancel；
 - Evidence Checklist；
 - Latest Runtime Binding、Runner Job 状态与 Artifact Link；
+- Runtime Recovery Center：展示服务端 Classification、Compatibility、候选 External Session、Blockers、短期 Recovery Attempt 与仅由服务端允许的显式 Action；
 - Pending Approval List。
 
-目标扩展：完整 Runtime Binding 历史与 Provider Capability Inspector、完整 Task Board/Timeline 与自动 Recovery Center。
+目标扩展：完整 Runtime Binding 历史与 Provider Capability Inspector、完整 Task Board/Timeline，以及覆盖更多 Provider 的 Recovery Timeline / Adapter。
 
 ## 里程碑状态
 
@@ -195,9 +196,10 @@ tokenpilot.workspace.snapshot
 | Evidence-governed Task Review / Completion | 已实现 |
 | Lease/Handoff/Idempotency 与 Runner 终态 Job Restart Recovery | 已实现基础 |
 | REST/MCP Parity | 已实现 |
-| Spec/Plan/Planning/Completion/Runtime/Handoff/Evidence Web UI | 已实现 |
+| Spec/Plan/Planning/Completion/Runtime Recovery/Handoff/Evidence Web UI | 已实现 |
 | Replaceable Codex Thread / Runner Job Runtime ID | 已实现 |
 | Public-safe Projection | 已实现 |
-| 所有 Running Session 自动恢复 | 目标扩展 |
+| Runtime Recovery Center：Native Codex + Runner/Chat Direct projection | 已实现基础 |
+| 覆盖所有 Provider 的通用 Recovery Adapter / Timeline | 目标扩展 |
 
 英文完整实体契约见 [`../../architecture/continuity-engine.md`](../../architecture/continuity-engine.md)。
