@@ -29,6 +29,7 @@ import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-
 
 const LIVE_ROOT_ID = "desktop-commander-durable-process-live-proof";
 const WORKSPACE_RELATIVE = "projects/workspace-a";
+const LEASE_TRIGGER = "durable-lease-trigger.txt";
 const LEASE_MARKER = "durable-lease-marker.txt";
 const CRASH_MARKER = "durable-crash-marker.txt";
 const CHILD_PID_FILE = "managed-child.pid";
@@ -143,7 +144,7 @@ function writeWorkspaceFixture(workspaceRoot: string): void {
     path.join(workspaceRoot, "scripts", "durable-managed-child.mjs"),
     `import fs from "node:fs";\nimport readline from "node:readline";\nfs.writeFileSync(${JSON.stringify(
       CHILD_PID_FILE
-    )}, String(process.pid) + "\\n", "utf8");\nconst rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });\nprocess.stdout.write("DURABLE_PROCESS_READY\\n");\nlet timer = null;\nrl.on("line", (line) => {\n  const arm = /^ARM_MARKER:([A-Za-z0-9._-]{1,80}):(\\d{1,6})$/.exec(line);\n  if (arm) {\n    if (timer) clearTimeout(timer);\n    timer = setTimeout(() => fs.writeFileSync(arm[1], "orphan-side-effect\\n", "utf8"), Number(arm[2]));\n  }\n  process.stdout.write(\`DURABLE_PROCESS_REPLY:\${line}\\n\`);\n});\n`,
+    )}, String(process.pid) + "\\n", "utf8");\nconst rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });\nprocess.stdout.write("DURABLE_PROCESS_READY\\n");\nlet timer = null;\nlet triggerPoll = null;\nrl.on("line", (line) => {\n  const arm = /^ARM_MARKER:([A-Za-z0-9._-]{1,80}):(\\d{1,6})$/.exec(line);\n  const triggered = /^ARM_MARKER_AFTER_TRIGGER:([A-Za-z0-9._-]{1,80}):([A-Za-z0-9._-]{1,80}):(\\d{1,6})$/.exec(line);\n  if (arm) {\n    if (timer) clearTimeout(timer);\n    if (triggerPoll) clearInterval(triggerPoll);\n    triggerPoll = null;\n    timer = setTimeout(() => fs.writeFileSync(arm[1], "orphan-side-effect\\n", "utf8"), Number(arm[2]));\n  }\n  if (triggered) {\n    if (timer) clearTimeout(timer);\n    if (triggerPoll) clearInterval(triggerPoll);\n    timer = null;\n    triggerPoll = setInterval(() => {\n      if (!fs.existsSync(triggered[1])) return;\n      clearInterval(triggerPoll);\n      triggerPoll = null;\n      timer = setTimeout(() => fs.writeFileSync(triggered[2], "orphan-side-effect\\n", "utf8"), Number(triggered[3]));\n    }, 25);\n  }\n  process.stdout.write(\`DURABLE_PROCESS_REPLY:\${line}\\n\`);\n});\n`,
     "utf8"
   );
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "durable fixture\n", "utf8");
@@ -625,7 +626,7 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
         operation: "input",
         processId: processB,
         sessionId: session.id,
-        input: `ARM_MARKER:${LEASE_MARKER}:2500\n`,
+        input: `ARM_MARKER_AFTER_TRIGGER:${LEASE_TRIGGER}:${LEASE_MARKER}:2500\n`,
         waitForPrompt: true,
         timeoutMs: 2000
       },
@@ -634,6 +635,7 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
     await closeControlPlane(controlPlane);
     controlPlane = null;
     expireLease(databasePath, initialLease.id);
+    fs.writeFileSync(path.join(workspaceRoot, LEASE_TRIGGER), "expired\n", "utf8");
     await new Promise((resolve) => setTimeout(resolve, 3200));
     assert.equal(
       fs.existsSync(path.join(workspaceRoot, LEASE_MARKER)),
@@ -693,8 +695,24 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
     );
     assert.equal(startC.process.status, "running");
     const processC = startC.process.id;
+    const ownershipAfterStartC =
+      controlPlane.repositories.directProcessRuntimeOwnership.get(processC);
+    assert.ok(
+      ownershipAfterStartC,
+      `Phase C ownership missing immediately after start; process=${JSON.stringify(
+        controlPlane.repositories.directProcessSessions.get(processC)
+      )}`
+    );
     await pollProcessOutput(controlPlane, processC, /(?:DURABLE_PROCESS_READY|managed-ready)/);
-    await prepareApproveExecute(
+    const ownershipAfterReadC =
+      controlPlane.repositories.directProcessRuntimeOwnership.get(processC);
+    assert.ok(
+      ownershipAfterReadC,
+      `Phase C ownership missing after first read; process=${JSON.stringify(
+        controlPlane.repositories.directProcessSessions.get(processC)
+      )}`
+    );
+    const armC = await prepareApproveExecute(
       controlPlane,
       {
         operation: "input",
@@ -706,9 +724,19 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
       },
       "durable-c-arm"
     );
+    assert.equal(
+      armC.process.status,
+      "running",
+      `Phase C arm changed process state: ${JSON.stringify(armC.process)}`
+    );
     const ownershipC =
       controlPlane.repositories.directProcessRuntimeOwnership.get(processC);
-    assert.ok(ownershipC);
+    assert.ok(
+      ownershipC,
+      `Phase C ownership missing after arm input; process=${JSON.stringify(
+        controlPlane.repositories.directProcessSessions.get(processC)
+      )}`
+    );
     assert.equal(ownershipC.supervisorGeneration, generationA);
     await closeControlPlane(controlPlane);
     controlPlane = null;

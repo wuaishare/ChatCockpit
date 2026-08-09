@@ -100,6 +100,10 @@ class FixtureManagedAdapter implements ProcessSupervisorManagedAdapter {
     };
   }
 
+  async close(processId: string): Promise<void> {
+    this.runtimes.delete(processId);
+  }
+
   async closeAll(): Promise<ManagedProcessAdapterSnapshot[]> {
     const snapshots: ManagedProcessAdapterSnapshot[] = [];
     for (const processId of [...this.runtimes.keys()]) {

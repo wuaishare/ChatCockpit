@@ -27,6 +27,7 @@ const databasePath = path.join(paths.runtimeDir, "continuity.sqlite");
 
 class WatchdogFixtureAdapter implements ProcessSupervisorManagedAdapter {
   readonly stopCalls: string[] = [];
+  readonly closeCalls: string[] = [];
   readonly inputCalls: string[] = [];
   private readonly runtimes = new Map<string, number>();
   private nextPid = 6100;
@@ -97,6 +98,10 @@ class WatchdogFixtureAdapter implements ProcessSupervisorManagedAdapter {
       output: "terminated",
       truncated: false
     };
+  }
+  async close(processId: string): Promise<void> {
+    this.closeCalls.push(processId);
+    this.runtimes.delete(processId);
   }
   async closeAll(): Promise<ManagedProcessAdapterSnapshot[]> {
     const results: ManagedProcessAdapterSnapshot[] = [];
@@ -208,19 +213,33 @@ try {
 
   const before = authorityReader.check(service.listOwned()[0]!, NOW);
   assert.equal(before.valid, true);
+
+  const writerDatabase = new ContinuityDatabase({ path: databasePath });
+  try {
+    writerDatabase.sqlite
+      .prepare("UPDATE writer_leases SET expires_at = ? WHERE id = ?")
+      .run("2026-08-09T07:09:59.000Z", "lease_watchdog");
+  } finally {
+    writerDatabase.close();
+  }
+  const afterExternalExpiry = authorityReader.check(service.listOwned()[0]!, NOW);
+  assert.equal(afterExternalExpiry.valid, false);
+  assert.equal(afterExternalExpiry.reasonCode, "WRITER_LEASE_EXPIRED");
+
   const after = authorityReader.check(service.listOwned()[0]!, AFTER_EXPIRY);
   assert.equal(after.valid, false);
   assert.equal(after.reasonCode, "WRITER_LEASE_EXPIRED");
 
   await service.reconcileAuthorityOnce(AFTER_EXPIRY);
-  assert.deepEqual(adapter.stopCalls, ["host_process_watchdog"]);
+  assert.deepEqual(adapter.stopCalls, []);
+  assert.deepEqual(adapter.closeCalls, ["host_process_watchdog"]);
   assert.equal(service.listOwned().length, 0);
 
   const events = journal.list();
   assert.equal(events.length, 1);
   assert.equal(events[0]?.processId, "host_process_watchdog");
   assert.equal(events[0]?.kind, "lease-revoked");
-  assert.equal(events[0]?.status, "terminated");
+  assert.equal(events[0]?.status, "unknown");
   assert.equal(events[0]?.reasonCode, "WRITER_LEASE_EXPIRED");
   assert.equal(JSON.stringify(events).includes("transient-watchdog-secret"), false);
   assert.equal(

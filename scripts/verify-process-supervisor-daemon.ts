@@ -49,6 +49,7 @@ class DaemonFixtureAdapter implements ProcessSupervisorManagedAdapter {
   async stop(_processId: string): Promise<ManagedProcessAdapterSnapshot> {
     throw new Error("not used");
   }
+  async close(_processId: string): Promise<void> {}
   async closeAll(): Promise<ManagedProcessAdapterSnapshot[]> {
     this.closeAllCalls += 1;
     return [];

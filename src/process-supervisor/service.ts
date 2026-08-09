@@ -100,6 +100,7 @@ export interface ProcessSupervisorManagedAdapter {
     options: ManagedProcessInputOptions
   ): Promise<ManagedProcessAdapterSnapshot>;
   stop(processId: string): Promise<ManagedProcessAdapterSnapshot>;
+  close(processId: string): Promise<void>;
   closeAll(): Promise<ManagedProcessAdapterSnapshot[]>;
 }
 
@@ -257,21 +258,23 @@ export class ProcessSupervisorRuntimeService {
           continue;
         }
         try {
-          const stopped = await this.options.adapter.stop(process.processId);
+          await this.options.adapter.close(process.processId);
           this.owned.delete(process.processId);
-          this.appendTerminalSnapshot(
-            stopped,
-            "lease-revoked",
-            authority.reasonCode,
-            now
-          );
+          this.appendEvent({
+            processId: process.processId,
+            kind: "lease-revoked",
+            status: "unknown",
+            exitCode: null,
+            reasonCode: authority.reasonCode,
+            occurredAt: now
+          });
         } catch {
           this.appendEvent({
             processId: process.processId,
             kind: "runtime-failure",
             status: "unknown",
             exitCode: null,
-            reasonCode: `${authority.reasonCode}_TERMINATION_FAILED`,
+            reasonCode: `${authority.reasonCode}_CONTAINMENT_FAILED`,
             occurredAt: now
           });
         }
