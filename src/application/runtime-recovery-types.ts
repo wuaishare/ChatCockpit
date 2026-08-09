@@ -51,6 +51,9 @@ export interface ExternalSessionInspection extends RecoverableExternalSession {
 
 export interface RecoveryAdapterExecutionInput {
   action: RuntimeRecoveryAction;
+  projectId: string;
+  workspaceId: string;
+  repoId: string;
   externalSessionId?: string | null;
   sourceExternalSessionId?: string | null;
   lastTurnId?: string | null;
