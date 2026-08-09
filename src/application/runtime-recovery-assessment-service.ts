@@ -198,8 +198,36 @@ export class RuntimeRecoveryAssessmentService {
             classification: assessment.classification,
             blockers: assessment.blockers,
             availableActions: assessment.availableActions,
-            candidates: assessment.candidates,
-            externalSession: assessment.externalSession,
+            candidates: assessment.candidates.map((candidate) => ({
+              externalSessionId: candidate.externalSessionId,
+              providerKind: candidate.providerKind,
+              protocolKind: candidate.protocolKind,
+              projectId: candidate.projectId,
+              workspaceId: candidate.workspaceId,
+              repoId: candidate.repoId,
+              status: candidate.status,
+              createdAt: candidate.createdAt,
+              updatedAt: candidate.updatedAt,
+              recencyAt: candidate.recencyAt
+            })),
+            externalSession: assessment.externalSession
+              ? {
+                  externalSessionId: assessment.externalSession.externalSessionId,
+                  providerKind: assessment.externalSession.providerKind,
+                  protocolKind: assessment.externalSession.protocolKind,
+                  projectId: assessment.externalSession.projectId,
+                  workspaceId: assessment.externalSession.workspaceId,
+                  repoId: assessment.externalSession.repoId,
+                  status: assessment.externalSession.status,
+                  createdAt: assessment.externalSession.createdAt,
+                  updatedAt: assessment.externalSession.updatedAt,
+                  recencyAt: assessment.externalSession.recencyAt,
+                  exists: assessment.externalSession.exists,
+                  authoritative: assessment.externalSession.authoritative,
+                  busy: assessment.externalSession.busy,
+                  identityMatched: assessment.externalSession.identityMatched
+                }
+              : null,
             providerKind: evaluation.providerKind
           },
           compatibility: { ...assessment.compatibility },

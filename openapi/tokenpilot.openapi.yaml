@@ -3634,15 +3634,60 @@ components:
         - updatedAt
         - recencyAt
     RuntimeExternalSessionInspection:
-      allOf:
-        - $ref: '#/components/schemas/RuntimeRecoverableExternalSession'
-        - type: object
-          properties:
-            exists: { type: boolean }
-            authoritative: { type: boolean }
-            busy: { type: boolean }
-            identityMatched: { type: boolean }
-          required: [exists, authoritative, busy, identityMatched]
+      type: object
+      additionalProperties: false
+      properties:
+        externalSessionId: { type: string }
+        providerKind: { type: string }
+        protocolKind:
+          type: string
+          enum: [native-app-server, runner, chat-direct, acp]
+        projectId:
+          oneOf:
+            - type: string
+            - type: "null"
+        workspaceId:
+          oneOf:
+            - type: string
+            - type: "null"
+        repoId:
+          oneOf:
+            - type: string
+            - type: "null"
+        status: { type: string }
+        preview: { type: string }
+        createdAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        updatedAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        recencyAt:
+          oneOf:
+            - type: number
+            - type: "null"
+        exists: { type: boolean }
+        authoritative: { type: boolean }
+        busy: { type: boolean }
+        identityMatched: { type: boolean }
+      required:
+        - externalSessionId
+        - providerKind
+        - protocolKind
+        - projectId
+        - workspaceId
+        - repoId
+        - status
+        - preview
+        - createdAt
+        - updatedAt
+        - recencyAt
+        - exists
+        - authoritative
+        - busy
+        - identityMatched
     RuntimeRecoveryBlocker:
       type: object
       additionalProperties: false
