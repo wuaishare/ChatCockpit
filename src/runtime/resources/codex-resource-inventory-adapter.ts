@@ -29,6 +29,15 @@ interface CodexResourceInventoryRuntime {
 
 type ResourceWithoutFingerprint = Omit<RuntimeResourceDescriptor, "fingerprint">;
 
+const MAX_CODEX_RESOURCE_ITEMS = 1000;
+const CODEX_RESOURCE_KIND_PRIORITY: RuntimeResourceDescriptor["kind"][] = [
+  "skill",
+  "mcp-server",
+  "plugin",
+  "runtime-adapter",
+  "acp-agent"
+];
+
 function bounded(value: string | null | undefined, max: number): string | null {
   if (!value) return null;
   return value.length <= max ? value : value.slice(0, max);
@@ -75,6 +84,98 @@ function finalizeResource(
       capabilities: [...resource.capabilities].sort()
     })
   };
+}
+
+function dedupeResourceProjection(
+  resources: RuntimeResourceDescriptor[],
+  diagnostics: RuntimeResourceInventoryDiagnostic[]
+): RuntimeResourceDescriptor[] {
+  const byId = new Map<string, RuntimeResourceDescriptor>();
+  let coalesced = 0;
+  for (const resource of resources) {
+    const existing = byId.get(resource.id);
+    if (!existing) {
+      byId.set(resource.id, resource);
+      continue;
+    }
+    if (existing.fingerprint !== resource.fingerprint) {
+      const differingFields = Object.keys(resource)
+        .filter((field) => field !== "fingerprint")
+        .filter(
+          (field) =>
+            JSON.stringify(existing[field as keyof RuntimeResourceDescriptor]) !==
+            JSON.stringify(resource[field as keyof RuntimeResourceDescriptor])
+        )
+        .sort();
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_DUPLICATE",
+        `Codex Resource Inventory returned conflicting public observations for ${resource.kind}:${resource.externalId} (${differingFields.join(", ") || "fingerprint"})`,
+        {
+          details: {
+            kind: resource.kind,
+            externalId: resource.externalId,
+            differingFields
+          }
+        }
+      );
+    }
+    coalesced += 1;
+  }
+  if (coalesced > 0) {
+    diagnostics.push({
+      source: "codex-resource-deduplication",
+      status: "degraded",
+      code: "RUNTIME_RESOURCE_DUPLICATE_COALESCED",
+      message: `Codex Resource Inventory coalesced ${coalesced} identical duplicate observations`
+    });
+  }
+  return [...byId.values()];
+}
+
+function boundResourceProjection(
+  resources: RuntimeResourceDescriptor[],
+  diagnostics: RuntimeResourceInventoryDiagnostic[]
+): RuntimeResourceDescriptor[] {
+  const deduped = dedupeResourceProjection(resources, diagnostics);
+  const sorted = [...deduped].sort((left, right) =>
+    left.kind.localeCompare(right.kind) ||
+    left.displayName.localeCompare(right.displayName) ||
+    left.id.localeCompare(right.id)
+  );
+  if (sorted.length <= MAX_CODEX_RESOURCE_ITEMS) return sorted;
+
+  const groups = CODEX_RESOURCE_KIND_PRIORITY
+    .map((kind) => ({
+      kind,
+      resources: sorted.filter((resource) => resource.kind === kind)
+    }))
+    .filter((group) => group.resources.length > 0);
+  const selected: RuntimeResourceDescriptor[] = [];
+  const dropped: string[] = [];
+  let remaining = MAX_CODEX_RESOURCE_ITEMS;
+
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index]!;
+    const groupsRemaining = groups.length - index;
+    const quota = Math.ceil(remaining / groupsRemaining);
+    const take = Math.min(group.resources.length, quota);
+    selected.push(...group.resources.slice(0, take));
+    remaining -= take;
+    const omitted = group.resources.length - take;
+    if (omitted > 0) dropped.push(`${group.kind}:${omitted}`);
+  }
+
+  diagnostics.push({
+    source: "codex-resource-budget",
+    status: "degraded",
+    code: "RUNTIME_RESOURCE_TRUNCATED",
+    message: `Codex Resource Inventory exceeded the ${MAX_CODEX_RESOURCE_ITEMS}-item public snapshot budget; omitted ${sorted.length - selected.length} items (${dropped.join(", ")})`
+  });
+  return selected.sort((left, right) =>
+    left.kind.localeCompare(right.kind) ||
+    left.displayName.localeCompare(right.displayName) ||
+    left.id.localeCompare(right.id)
+  );
 }
 
 function failureDiagnostic(
@@ -137,12 +238,16 @@ export class CodexResourceInventoryAdapter
 
     if (skillsResult.status === "fulfilled") {
       for (const skill of skillsResult.value) {
-        const externalId = `skill:${skill.name}`;
+        const scope = skillScope(skill.scope);
+        const externalId = `skill:${scope}:${skill.name}`;
+        const identityExternalId = skill.sourceIdentityHash
+          ? `${externalId}:source:${skill.sourceIdentityHash}`
+          : externalId;
         const base: ResourceWithoutFingerprint = {
           id: buildRuntimeResourceId({
             runtimeProfileId: input.profile.id,
             kind: "skill",
-            externalId
+            externalId: identityExternalId
           }),
           runtimeProfileId: input.profile.id,
           kind: "skill",
@@ -153,7 +258,7 @@ export class CodexResourceInventoryAdapter
             skill.shortDescription ?? skill.description,
             1000
           ),
-          scope: skillScope(skill.scope),
+          scope,
           installed: true,
           enabled: skill.enabled,
           version: null,
@@ -285,11 +390,7 @@ export class CodexResourceInventoryAdapter
 
     return {
       profile: input.profile,
-      resources: resources.sort((left, right) =>
-        left.kind.localeCompare(right.kind) ||
-        left.displayName.localeCompare(right.displayName) ||
-        left.id.localeCompare(right.id)
-      ),
+      resources: boundResourceProjection(resources, diagnostics),
       diagnostics
     };
   }

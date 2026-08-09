@@ -137,6 +137,199 @@ assert.equal(
   true
 );
 
+const scopedSkillAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [
+    {
+      name: "shared-name",
+      description: "User scoped fixture",
+      scope: "user",
+      enabled: true,
+      displayName: "Shared Skill",
+      shortDescription: null,
+      brandColor: null
+    },
+    {
+      name: "shared-name",
+      description: "Workspace scoped fixture",
+      scope: "workspace",
+      enabled: true,
+      displayName: "Shared Skill",
+      shortDescription: null,
+      brandColor: null
+    }
+  ],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => []
+});
+const scopedSkills = await scopedSkillAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+assert.equal(scopedSkills.resources.length, 2);
+assert.equal(new Set(scopedSkills.resources.map((resource) => resource.id)).size, 2);
+assert.deepEqual(
+  scopedSkills.resources.map((resource) => resource.externalId).sort(),
+  ["skill:user:shared-name", "skill:workspace:shared-name"]
+);
+
+const sourceIdentityAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [
+    {
+      name: "same-scope-name",
+      description: "First source",
+      scope: "user",
+      sourceIdentityHash: "1".repeat(64),
+      enabled: false,
+      displayName: "Same Scope Skill",
+      shortDescription: null,
+      brandColor: null
+    },
+    {
+      name: "same-scope-name",
+      description: "Second source",
+      scope: "user",
+      sourceIdentityHash: "2".repeat(64),
+      enabled: true,
+      displayName: "Same Scope Skill",
+      shortDescription: null,
+      brandColor: null
+    }
+  ],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => []
+});
+const sourceIdentitySkills = await sourceIdentityAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+assert.equal(sourceIdentitySkills.resources.length, 2);
+assert.equal(new Set(sourceIdentitySkills.resources.map((resource) => resource.id)).size, 2);
+assert.deepEqual(
+  sourceIdentitySkills.resources.map((resource) => resource.externalId),
+  ["skill:user:same-scope-name", "skill:user:same-scope-name"]
+);
+assert.equal(JSON.stringify(sourceIdentitySkills).includes("1".repeat(64)), false);
+assert.equal(JSON.stringify(sourceIdentitySkills).includes("2".repeat(64)), false);
+
+const duplicateSkill = {
+  name: "duplicate-skill",
+  description: "Identical duplicate fixture",
+  scope: "user",
+  enabled: true,
+  displayName: "Duplicate Skill",
+  shortDescription: null,
+  brandColor: null
+};
+const duplicateSkillAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [duplicateSkill, { ...duplicateSkill }],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => []
+});
+const duplicateSkills = await duplicateSkillAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+assert.equal(duplicateSkills.resources.length, 1);
+assert.equal(
+  duplicateSkills.diagnostics.some(
+    (entry) =>
+      entry.source === "codex-resource-deduplication" &&
+      entry.status === "degraded" &&
+      entry.code === "RUNTIME_RESOURCE_DUPLICATE_COALESCED"
+  ),
+  true
+);
+
+const conflictingSkillAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [
+    duplicateSkill,
+    { ...duplicateSkill, description: "Conflicting duplicate fixture" }
+  ],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => []
+});
+await assert.rejects(
+  () =>
+    conflictingSkillAdapter.inventory({
+      profile,
+      workspaceId: "workspace_fixture"
+    }),
+  (error: unknown) =>
+    error instanceof Error &&
+    "code" in error &&
+    (error as { code?: string }).code === "RUNTIME_RESOURCE_DUPLICATE"
+);
+
+const oversizedAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () =>
+    Array.from({ length: 600 }, (_, index) => ({
+      name: `skill-${String(index).padStart(4, "0")}`,
+      description: "Fixture oversized skill",
+      scope: "user",
+      enabled: true,
+      displayName: `Skill ${String(index).padStart(4, "0")}`,
+      shortDescription: null,
+      brandColor: null
+    })),
+  listCodexMcpServers: async () =>
+    Array.from({ length: 20 }, (_, index) => ({
+      name: `mcp-${String(index).padStart(3, "0")}`,
+      title: `MCP ${String(index).padStart(3, "0")}`,
+      version: "1.0.0",
+      authStatus: "unsupported",
+      toolCount: 1,
+      readOnlyToolCount: 1,
+      mutatingToolCount: 0
+    })),
+  listCodexPlugins: async () =>
+    Array.from({ length: 1000 }, (_, index) => ({
+      id: `plugin-${String(index).padStart(4, "0")}@fixture`,
+      marketplaceName: "fixture",
+      name: `plugin-${index}`,
+      displayName: `Plugin ${String(index).padStart(4, "0")}`,
+      description: "Fixture oversized plugin",
+      version: null,
+      availableVersion: "1.0.0",
+      installed: false,
+      enabled: false,
+      availability: "AVAILABLE",
+      authPolicy: null,
+      category: "Engineering",
+      capabilities: ["Read"]
+    }))
+});
+const oversizedInventory = await oversizedAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+assert.equal(oversizedInventory.resources.length, 1000);
+assert.equal(
+  oversizedInventory.resources.some((resource) => resource.kind === "skill"),
+  true
+);
+assert.equal(
+  oversizedInventory.resources.some((resource) => resource.kind === "mcp-server"),
+  true
+);
+assert.equal(
+  oversizedInventory.resources.some((resource) => resource.kind === "plugin"),
+  true
+);
+assert.equal(
+  oversizedInventory.diagnostics.some(
+    (entry) =>
+      entry.source === "codex-resource-budget" &&
+      entry.status === "degraded" &&
+      entry.code === "RUNTIME_RESOURCE_TRUNCATED"
+  ),
+  true
+);
+
 await assert.rejects(
   () =>
     adapter.inventory({

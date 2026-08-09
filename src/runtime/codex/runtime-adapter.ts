@@ -116,6 +116,7 @@ export interface RuntimeSkillProjection {
   name: string;
   description: string | null;
   scope: string | null;
+  sourceIdentityHash?: string | null;
   enabled: boolean;
   displayName: string | null;
   shortDescription: string | null;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -264,6 +265,9 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
         name: "fixture-skill",
         description: "Fixture Codex skill",
         scope: "user",
+        sourceIdentityHash: createHash("sha256")
+          .update(path.join(workspaceRoot, ".agents/skills/fixture-skill/SKILL.md"))
+          .digest("hex"),
         enabled: true,
         displayName: "Fixture Skill",
         shortDescription: "Fixture Codex skill",

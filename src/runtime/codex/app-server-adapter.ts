@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { ServiceError } from "../../application/service-error.js";
 import type { WorkspaceRepository } from "../../continuity/repositories/workspace-repository.js";
 import {
@@ -180,6 +182,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           description:
             typeof skill.description === "string" ? skill.description : null,
           scope: typeof skill.scope === "string" ? skill.scope : null,
+          sourceIdentityHash:
+            typeof skill.path === "string" && skill.path.length > 0
+              ? createHash("sha256").update(skill.path).digest("hex")
+              : null,
           enabled: skill.enabled !== false,
           displayName:
             typeof interfaceInfo.displayName === "string"
