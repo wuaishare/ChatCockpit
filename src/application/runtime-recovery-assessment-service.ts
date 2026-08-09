@@ -8,6 +8,7 @@ import type {
   RuntimeRecoveryAction,
   RuntimeRecoveryAttemptRecord,
   RuntimeRecoveryClassification,
+  RuntimeRecoveryProtocolKind,
   SessionMode,
   TaskRecord
 } from "../continuity/types.js";
@@ -37,6 +38,21 @@ export interface RuntimeRecoveryAssessmentResult {
   attempt: RuntimeRecoveryAttemptRecord;
   assessment: RuntimeRecoveryAssessmentProjection;
   replayed: boolean;
+}
+
+export interface RuntimeRecoveryEvaluationInput {
+  workspaceId: string;
+  taskId: string;
+  sessionId?: string;
+  providerKind?: string;
+}
+
+export interface RuntimeRecoveryEvaluation {
+  assessment: RuntimeRecoveryAssessmentProjection;
+  providerKind: string;
+  protocolKind: RuntimeRecoveryProtocolKind;
+  sessionId: string;
+  sourceBindingId: string | null;
 }
 
 function providerFor(
@@ -149,6 +165,59 @@ export class RuntimeRecoveryAssessmentService {
       return { ...replay.value, replayed: true };
     }
 
+    const recoveryId = `recovery_${randomUUID()}`;
+    const evaluation = await this.evaluate(
+      context,
+      {
+        workspaceId: input.workspaceId,
+        taskId: input.taskId,
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+        ...(input.providerKind ? { providerKind: input.providerKind } : {})
+      },
+      recoveryId
+    );
+
+    const execution = this.repositories.idempotency.execute(
+      "runtime-recovery.assess",
+      input.idempotencyKey,
+      input,
+      () => {
+        const assessment = evaluation.assessment;
+        const attempt = this.repositories.runtimeRecoveryAttempts.create({
+          id: recoveryId,
+          projectId: this.repositories.workspaces.get(input.workspaceId).projectId,
+          workspaceId: input.workspaceId,
+          taskId: input.taskId,
+          sessionId: evaluation.sessionId,
+          sourceBindingId: evaluation.sourceBindingId,
+          providerKind: evaluation.providerKind,
+          protocolKind: evaluation.protocolKind,
+          classification: assessment.classification,
+          assessmentHash: assessment.assessmentHash,
+          publicSummary: {
+            classification: assessment.classification,
+            blockers: assessment.blockers,
+            availableActions: assessment.availableActions,
+            candidates: assessment.candidates,
+            externalSession: assessment.externalSession,
+            providerKind: evaluation.providerKind
+          },
+          compatibility: { ...assessment.compatibility },
+          expiresAt: assessment.expiresAt,
+          now: context.now
+        });
+        return { attempt, assessment };
+      },
+      context.now
+    );
+    return { ...execution.value, replayed: execution.replayed };
+  }
+
+  async evaluate(
+    context: OperationContext,
+    input: RuntimeRecoveryEvaluationInput,
+    recoveryId: string
+  ): Promise<RuntimeRecoveryEvaluation> {
     const snapshot = this.snapshots.snapshot(context, {
       workspaceId: input.workspaceId
     });
@@ -226,7 +295,12 @@ export class RuntimeRecoveryAssessmentService {
     let externalSession: ExternalSessionInspection | null = null;
     let candidates: RecoverableExternalSession[] = [];
     const externalId = boundExternalId(binding);
-    if (!compatibilityBlocker && binding && externalId && bindingMatchesProvider(binding, providerKind)) {
+    if (
+      !compatibilityBlocker &&
+      binding &&
+      externalId &&
+      bindingMatchesProvider(binding, providerKind)
+    ) {
       try {
         externalSession = await adapter.inspectExternalSession({
           externalSessionId: externalId,
@@ -237,11 +311,18 @@ export class RuntimeRecoveryAssessmentService {
       } catch (error) {
         externalSession = null;
         blockers.push(
-          blocker("external-runtime-missing", "Bound external runtime could not be inspected", {
-            bindingId: binding.id,
-            externalSessionId: externalId,
-            errorCode: error instanceof ServiceError ? error.code : "RUNTIME_INSPECTION_FAILED"
-          })
+          blocker(
+            "external-runtime-missing",
+            "Bound external runtime could not be inspected",
+            {
+              bindingId: binding.id,
+              externalSessionId: externalId,
+              errorCode:
+                error instanceof ServiceError
+                  ? error.code
+                  : "RUNTIME_INSPECTION_FAILED"
+            }
+          )
         );
       }
       if (externalSession && !externalSession.exists) {
@@ -256,6 +337,14 @@ export class RuntimeRecoveryAssessmentService {
           blocker(
             "external-runtime-identity-mismatch",
             "Bound external runtime does not match the TokenPilot Workspace identity",
+            { bindingId: binding.id, externalSessionId: externalId }
+          )
+        );
+      } else if (externalSession?.busy) {
+        blockers.push(
+          blocker(
+            "external-runtime-busy",
+            "Bound external runtime is currently busy",
             { bindingId: binding.id, externalSessionId: externalId }
           )
         );
@@ -299,6 +388,7 @@ export class RuntimeRecoveryAssessmentService {
         "active-run",
         "pending-approval",
         "external-runtime-identity-mismatch",
+        "external-runtime-busy",
         "handoff-required"
       ].includes(entry.code)
     );
@@ -346,7 +436,6 @@ export class RuntimeRecoveryAssessmentService {
     const expiresAt = new Date(
       Date.parse(context.now) + RECOVERY_ASSESSMENT_TTL_MS
     ).toISOString();
-    const recoveryId = `recovery_${randomUUID()}`;
     const compatibilityHashProjection = {
       providerKind: compatibility.providerKind,
       protocolKind: compatibility.protocolKind,
@@ -374,7 +463,7 @@ export class RuntimeRecoveryAssessmentService {
           identityMatched: externalSession.identityMatched
         }
       : null;
-
+    const actions = uniqueActions(availableActions);
     const hashInput = {
       recoveryId,
       project: {
@@ -464,56 +553,28 @@ export class RuntimeRecoveryAssessmentService {
         updatedAt: candidate.updatedAt,
         recencyAt: candidate.recencyAt
       })),
-      availableActions: uniqueActions(availableActions),
+      availableActions: actions,
       classification,
       blockers
     };
     const assessmentHash = hashRecoveryAssessment(hashInput);
-
-    const execution = this.repositories.idempotency.execute(
-      "runtime-recovery.assess",
-      input.idempotencyKey,
-      input,
-      () => {
-        const attempt = this.repositories.runtimeRecoveryAttempts.create({
-          id: recoveryId,
-          projectId: snapshot.project.id,
-          workspaceId: snapshot.workspace.id,
-          taskId: task.id,
-          sessionId: session.id,
-          sourceBindingId: binding?.id ?? null,
-          providerKind,
-          protocolKind: adapter.protocolKind,
-          classification,
-          assessmentHash,
-          publicSummary: {
-            classification,
-            blockers,
-            availableActions: uniqueActions(availableActions),
-            candidates,
-            externalSession,
-            providerKind
-          },
-          compatibility: { ...compatibility },
-          expiresAt,
-          now: context.now
-        });
-        const assessment: RuntimeRecoveryAssessmentProjection = {
-          recoveryId: attempt.id,
-          classification,
-          blockers,
-          availableActions: uniqueActions(availableActions),
-          compatibility,
-          candidates,
-          externalSession,
-          assessmentHash,
-          expiresAt
-        };
-        return { attempt, assessment };
+    return {
+      assessment: {
+        recoveryId,
+        classification,
+        blockers,
+        availableActions: actions,
+        compatibility,
+        candidates,
+        externalSession,
+        assessmentHash,
+        expiresAt
       },
-      context.now
-    );
-    return { ...execution.value, replayed: execution.replayed };
+      providerKind,
+      protocolKind: adapter.protocolKind,
+      sessionId: session.id,
+      sourceBindingId: binding?.id ?? null
+    };
   }
 
   private resolveSession(

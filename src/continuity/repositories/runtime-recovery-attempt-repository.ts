@@ -181,6 +181,52 @@ export class RuntimeRecoveryAttemptRepository {
     return this.get(id);
   }
 
+  reserveAction(input: {
+    id: string;
+    action: RuntimeRecoveryAction;
+    expectedRevision: number;
+    now?: string;
+  }): RuntimeRecoveryAttemptRecord {
+    const now = nowIso(input.now);
+    const current = this.expireIfNeeded(input.id, now);
+    if (current.status === "expired") {
+      throw new ServiceError(
+        "RECOVERY_ATTEMPT_EXPIRED",
+        "Runtime Recovery assessment expired"
+      );
+    }
+    if (current.status !== "prepared") {
+      throw new ServiceError(
+        "RECOVERY_ATTEMPT_INVALID",
+        "Only a prepared Runtime Recovery attempt can reserve an action"
+      );
+    }
+    if (current.selectedAction !== null) {
+      throw new ServiceError(
+        "RECOVERY_ATTEMPT_IN_PROGRESS",
+        "Runtime Recovery attempt already has an execution action reserved"
+      );
+    }
+    if (current.revision !== input.expectedRevision) {
+      assertUpdated(0, "Runtime recovery attempt", input.id, input.expectedRevision);
+    }
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE runtime_recovery_attempts
+        SET selected_action = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND status = 'prepared'
+          AND selected_action IS NULL
+      `)
+      .run(input.action, input.id, input.expectedRevision);
+    assertUpdated(
+      result.changes,
+      "Runtime recovery attempt",
+      input.id,
+      input.expectedRevision
+    );
+    return this.get(input.id);
+  }
+
   resolve(input: {
     id: string;
     status: Exclude<RuntimeRecoveryAttemptStatus, "prepared" | "expired">;
