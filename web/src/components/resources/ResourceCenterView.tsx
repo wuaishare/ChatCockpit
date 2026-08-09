@@ -4,6 +4,7 @@ import {
   Descriptions,
   Drawer,
   Empty,
+  Select,
   Space,
   Tabs,
   Tag,
@@ -23,6 +24,7 @@ import { Text } from "@lobehub/ui";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
+  fetchContinuityProjects,
   fetchRuntimeResourceItem,
   fetchRuntimeResourceProfiles,
   inventoryRuntimeResources
@@ -31,6 +33,7 @@ import { getResourceCenterCopy } from "../../i18n/resources";
 import type { LocaleCode } from "../../i18n";
 import type {
   ApiProblem,
+  ContinuityProjectProjection,
   RuntimeProfileDescriptor,
   RuntimeResourceAuthStatus,
   RuntimeResourceCompatibilityStatus,
@@ -118,6 +121,8 @@ export function ResourceCenterView({
   const copy = getResourceCenterCopy(locale);
   const [profiles, setProfiles] = useState<RuntimeProfileDescriptor[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ContinuityProjectProjection[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [inventory, setInventory] = useState<RuntimeResourceInventoryResponse | null>(null);
   const [activeTab, setActiveTab] = useState<ResourceTab>("all");
   const [profileLoading, setProfileLoading] = useState(false);
@@ -138,6 +143,7 @@ export function ResourceCenterView({
       return;
     }
     void loadProfiles();
+    void loadWorkspaces();
   }, [token, authRequired]);
 
   async function loadProfiles(): Promise<void> {
@@ -161,8 +167,34 @@ export function ResourceCenterView({
     }
   }
 
+  async function loadWorkspaces(): Promise<void> {
+    try {
+      const result = await fetchContinuityProjects(token);
+      setProjects(result.projects);
+      const available = result.projects.flatMap((project) => project.workspaces);
+      setSelectedWorkspaceId((current) =>
+        available.some((workspace) => workspace.id === current)
+          ? current
+          : (result.projects
+              .map((project) =>
+                project.workspaces.find(
+                  (workspace) => workspace.id === project.project.defaultWorkspaceId
+                )
+              )
+              .find(Boolean)?.id ?? available.find((workspace) => workspace.status === "ready")?.id ?? available[0]?.id ?? null)
+      );
+    } catch {
+      setProjects([]);
+      setSelectedWorkspaceId(null);
+    }
+  }
+
   async function refreshInventory(): Promise<void> {
     if (!selectedProfileId) return;
+    const profile = profiles.find((entry) => entry.id === selectedProfileId) ?? null;
+    const needsWorkspace =
+      profile?.providerKind === "codex" && profile.protocolKind === "native-app-server";
+    if (needsWorkspace && !selectedWorkspaceId) return;
     setInventoryLoading(true);
     setError(null);
     setDrawerOpen(false);
@@ -171,6 +203,9 @@ export function ResourceCenterView({
       const result = await inventoryRuntimeResources(
         {
           runtimeProfileId: selectedProfileId,
+          ...(needsWorkspace && selectedWorkspaceId
+            ? { workspaceId: selectedWorkspaceId }
+            : {}),
           idempotencyKey: operationKey()
         },
         token
@@ -210,6 +245,20 @@ export function ResourceCenterView({
 
   const selectedProfile =
     profiles.find((profile) => profile.id === selectedProfileId) ?? null;
+  const requiresWorkspace =
+    selectedProfile?.providerKind === "codex" &&
+    selectedProfile.protocolKind === "native-app-server";
+  const workspaceOptions = useMemo(
+    () =>
+      projects.flatMap((project) =>
+        project.workspaces.map((workspace) => ({
+          value: workspace.id,
+          label: `${project.project.displayName} · ${workspace.branch ?? workspace.repoId} · ${workspace.status}`,
+          disabled: workspace.status !== "ready"
+        }))
+      ),
+    [projects]
+  );
 
   const kindCounts = useMemo(() => {
     const counts = new Map<ResourceTab, number>([["all", inventory?.resources.length ?? 0]]);
@@ -355,16 +404,42 @@ export function ResourceCenterView({
               {copy.profilesDescription}
             </Text>
           </div>
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            loading={inventoryLoading}
-            disabled={!selectedProfile}
-            onClick={() => void refreshInventory()}
-          >
-            {inventoryLoading ? copy.refreshingInventory : copy.refreshInventory}
-          </Button>
+          <div className="resource-center__inventory-controls">
+            {requiresWorkspace ? (
+              <div className="resource-center__workspace-picker">
+                <span>{copy.workspace}</span>
+                <Select
+                  value={selectedWorkspaceId ?? undefined}
+                  options={workspaceOptions}
+                  placeholder={copy.workspaceUnavailable}
+                  onChange={(value) => {
+                    setSelectedWorkspaceId(value);
+                    setInventory(null);
+                  }}
+                />
+              </div>
+            ) : null}
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
+              loading={inventoryLoading}
+              disabled={!selectedProfile || (requiresWorkspace && !selectedWorkspaceId)}
+              onClick={() => void refreshInventory()}
+            >
+              {inventoryLoading ? copy.refreshingInventory : copy.refreshInventory}
+            </Button>
+          </div>
         </div>
+
+        {requiresWorkspace && workspaceOptions.length === 0 ? (
+          <Alert
+            className="resource-center__workspace-alert"
+            type="warning"
+            showIcon
+            message={copy.workspaceRequired}
+            description={copy.workspaceUnavailable}
+          />
+        ) : null}
 
         {profiles.length === 0 ? (
           <Empty

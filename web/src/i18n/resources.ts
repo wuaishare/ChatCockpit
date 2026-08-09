@@ -20,6 +20,9 @@ export interface ResourceCenterCopy {
   compatibility: string;
   source: string;
   capabilities: string;
+  workspace: string;
+  workspaceRequired: string;
+  workspaceUnavailable: string;
   refreshInventory: string;
   refreshingInventory: string;
   inventoryEmptyTitle: string;
@@ -99,6 +102,9 @@ const zhCN: ResourceCenterCopy = {
   compatibility: "兼容性",
   source: "来源",
   capabilities: "能力",
+  workspace: "工作区",
+  workspaceRequired: "Codex 资源发现需要明确的 TokenPilot Workspace。",
+  workspaceUnavailable: "当前没有可用工作区，请先在连续性工作台注册或恢复 Workspace。",
   refreshInventory: "刷新资源清单",
   refreshingInventory: "正在刷新资源清单",
   inventoryEmptyTitle: "尚未读取资源清单",
@@ -178,6 +184,9 @@ const enUS: ResourceCenterCopy = {
   compatibility: "Compatibility",
   source: "Source",
   capabilities: "Capabilities",
+  workspace: "Workspace",
+  workspaceRequired: "Codex resource discovery requires an explicit TokenPilot Workspace.",
+  workspaceUnavailable: "No workspace is currently available. Register or recover one in the Continuity workbench first.",
   refreshInventory: "Refresh inventory",
   refreshingInventory: "Refreshing inventory",
   inventoryEmptyTitle: "Inventory not loaded yet",

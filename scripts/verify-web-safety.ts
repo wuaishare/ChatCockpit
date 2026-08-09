@@ -364,6 +364,7 @@ assert.match(runtimeRecoverySource, /assessment\?\.assessment\.compatibility|ass
 assert.match(runtimeRecoverySource, /assessment\?\.attempt\.status === "prepared"|assessment\.attempt\.status === "prepared"/);
 assert.doesNotMatch(runtimeRecoverySource, /turn\/start|startCodexRuntimeTurn/);
 for (const operation of [
+  "fetchContinuityProjects",
   "fetchRuntimeResourceProfiles",
   "inventoryRuntimeResources",
   "fetchRuntimeResourceItem"
@@ -376,6 +377,8 @@ assert.match(apiSource, /\/api\/resources\/inventory/);
 assert.match(apiSource, /\/api\/resources\/items\//);
 assert.match(resourceCenterSource, /copy\.profilesTitle/);
 assert.match(resourceCenterSource, /resource-center__profile-card/);
+assert.match(resourceCenterSource, /selectedWorkspaceId/);
+assert.match(resourceCenterSource, /workspaceId: selectedWorkspaceId/);
 assert.match(resourceCenterSource, /resource-center__metrics/);
 assert.match(resourceCenterSource, /resource-center__drawer/);
 assert.doesNotMatch(
