@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 
 import { ServiceError } from "../src/application/service-error.ts";
+import {
+  canonicalRecoveryJson,
+  hashRecoveryAssessment
+} from "../src/application/runtime-recovery-hash.ts";
+import {
+  recoveryAssessSchema,
+  recoveryExecuteSchema
+} from "../src/contracts/runtime-recovery.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 
@@ -15,6 +23,41 @@ try {
 
   assert.equal(database.schemaVersion(), 14);
   assert.ok(repositories.runtimeRecoveryAttempts);
+
+  const canonicalA = canonicalRecoveryJson({
+    z: 1,
+    nested: { beta: true, alpha: "same" },
+    list: ["a", "b"]
+  });
+  const canonicalB = canonicalRecoveryJson({
+    list: ["a", "b"],
+    nested: { alpha: "same", beta: true },
+    z: 1
+  });
+  assert.equal(canonicalA, canonicalB);
+  assert.equal(hashRecoveryAssessment(JSON.parse(canonicalA)), hashRecoveryAssessment(JSON.parse(canonicalB)));
+  assert.notEqual(
+    hashRecoveryAssessment({ compatibility: { executableVersion: "1.0.0" } }),
+    hashRecoveryAssessment({ compatibility: { executableVersion: "1.0.1" } })
+  );
+  assert.equal(
+    recoveryAssessSchema.safeParse({
+      workspaceId: "workspace_recovery",
+      taskId: "task_recovery",
+      idempotencyKey: "recovery:assess:1"
+    }).success,
+    true
+  );
+  assert.equal(
+    recoveryExecuteSchema.safeParse({
+      recoveryId: "recovery_1",
+      assessmentHash: "a".repeat(64),
+      expectedRecoveryRevision: 1,
+      action: "turn/start",
+      idempotencyKey: "recovery:execute:1"
+    }).success,
+    false
+  );
 
   const project = repositories.projects.create({
     id: "project_recovery",
