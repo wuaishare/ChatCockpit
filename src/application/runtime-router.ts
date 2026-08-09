@@ -1,7 +1,14 @@
+import { ServiceError } from "./service-error.js";
 import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
   RuntimeEventSink,
+  RuntimeMcpServerProjection,
+  RuntimePluginListInput,
+  RuntimePluginProjection,
+  RuntimeResourceConfigSummary,
+  RuntimeSkillListInput,
+  RuntimeSkillProjection,
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
@@ -53,6 +60,48 @@ export class RuntimeRouter {
 
   interruptCodexTurn(input: RuntimeTurnInterruptInput): Promise<void> {
     return this.codex.interruptTurn(input);
+  }
+
+  listCodexSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]> {
+    if (!this.codex.listSkills) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex resource skill inventory is unavailable"
+      );
+    }
+    return this.codex.listSkills(input);
+  }
+
+  listCodexMcpServers(): Promise<RuntimeMcpServerProjection[]> {
+    if (!this.codex.listMcpServers) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex MCP server inventory is unavailable"
+      );
+    }
+    return this.codex.listMcpServers();
+  }
+
+  listCodexPlugins(
+    input?: RuntimePluginListInput
+  ): Promise<RuntimePluginProjection[]> {
+    if (!this.codex.listPlugins) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex plugin inventory is unavailable"
+      );
+    }
+    return this.codex.listPlugins(input);
+  }
+
+  readCodexResourceConfigSummary(): Promise<RuntimeResourceConfigSummary> {
+    if (!this.codex.readResourceConfigSummary) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex resource config summary is unavailable"
+      );
+    }
+    return this.codex.readResourceConfigSummary();
   }
 
   readStandaloneFile(path: string): Promise<RuntimeStandaloneFileReadResult> {

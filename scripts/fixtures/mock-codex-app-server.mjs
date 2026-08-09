@@ -172,6 +172,112 @@ input.on("line", (line) => {
         }
       });
       break;
+    case "skills/list":
+      respond(message.id, {
+        data: [
+          {
+            cwd: workspaceRoot,
+            skills: [
+              {
+                name: "fixture-skill",
+                description: "Fixture Codex skill",
+                path: `${workspaceRoot}/.agents/skills/fixture-skill/SKILL.md`,
+                scope: "user",
+                enabled: true,
+                interface: {
+                  displayName: "Fixture Skill",
+                  shortDescription: "Fixture Codex skill",
+                  brandColor: "#123456"
+                }
+              }
+            ],
+            errors: []
+          }
+        ]
+      });
+      break;
+    case "mcpServerStatus/list":
+      respond(message.id, {
+        data: [
+          {
+            name: "fixture-mcp",
+            authStatus: "unsupported",
+            serverInfo: {
+              name: "fixture-mcp",
+              title: "Fixture MCP",
+              version: "1.2.3"
+            },
+            tools: {
+              read_fixture: {
+                name: "read_fixture",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    privatePath: { type: "string", default: `${workspaceRoot}/secret` }
+                  }
+                },
+                annotations: { readOnlyHint: true }
+              },
+              write_fixture: {
+                name: "write_fixture",
+                inputSchema: { type: "object", properties: {} },
+                annotations: { readOnlyHint: false }
+              }
+            },
+            resources: [],
+            resourceTemplates: []
+          }
+        ],
+        nextCursor: null
+      });
+      break;
+    case "plugin/list":
+      respond(message.id, {
+        marketplaces: [
+          {
+            name: "fixture-marketplace",
+            path: `${workspaceRoot}/.codex/plugins/fixture-marketplace/marketplace.json`,
+            interface: null,
+            plugins: [
+              {
+                id: "fixture-plugin@fixture-marketplace",
+                name: "fixture-plugin",
+                localVersion: "9.8.7",
+                version: null,
+                installed: true,
+                enabled: true,
+                availability: "AVAILABLE",
+                authPolicy: "ON_USE",
+                source: {
+                  type: "local",
+                  path: `${workspaceRoot}/.codex/plugins/fixture-plugin`
+                },
+                interface: {
+                  displayName: "Fixture Plugin",
+                  shortDescription: "Fixture plugin description",
+                  category: "Engineering",
+                  capabilities: ["Read", "Write"]
+                }
+              }
+            ]
+          }
+        ]
+      });
+      break;
+    case "config/read":
+      respond(message.id, {
+        config: {
+          model_provider: "fixture-provider",
+          sandbox_mode: "workspace-write",
+          secret_token: "fixture-secret-token",
+          desktop: {
+            perPath: {
+              [workspaceRoot]: "fixture-editor"
+            }
+          }
+        }
+      });
+      break;
     case "thread/list":
       respond(message.id, {
         data: filteredThreads(message.params ?? {}),

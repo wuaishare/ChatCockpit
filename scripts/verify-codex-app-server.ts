@@ -255,6 +255,71 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     assert.equal(capabilities.experimentalApiEnabled, false);
     assert.deepEqual(capabilities.standaloneExecution, standaloneSnapshot);
 
+    const resourceSkills = await adapter.listSkills({
+      workspaceId: rootWorkspace.id,
+      forceReload: true
+    });
+    assert.deepEqual(resourceSkills, [
+      {
+        name: "fixture-skill",
+        description: "Fixture Codex skill",
+        scope: "user",
+        enabled: true,
+        displayName: "Fixture Skill",
+        shortDescription: "Fixture Codex skill",
+        brandColor: "#123456"
+      }
+    ]);
+    const resourceMcp = await adapter.listMcpServers();
+    assert.deepEqual(resourceMcp, [
+      {
+        name: "fixture-mcp",
+        title: "Fixture MCP",
+        version: "1.2.3",
+        authStatus: "unsupported",
+        toolCount: 2,
+        readOnlyToolCount: 1,
+        mutatingToolCount: 1
+      }
+    ]);
+    const resourcePlugins = await adapter.listPlugins({
+      workspaceId: rootWorkspace.id
+    });
+    assert.deepEqual(resourcePlugins, [
+      {
+        id: "fixture-plugin@fixture-marketplace",
+        marketplaceName: "fixture-marketplace",
+        name: "fixture-plugin",
+        displayName: "Fixture Plugin",
+        description: "Fixture plugin description",
+        version: "9.8.7",
+        availableVersion: null,
+        installed: true,
+        enabled: true,
+        availability: "AVAILABLE",
+        authPolicy: "ON_USE",
+        category: "Engineering",
+        capabilities: ["Read", "Write"]
+      }
+    ]);
+    const resourceConfig = await adapter.readResourceConfigSummary();
+    assert.deepEqual(resourceConfig, {
+      loaded: true,
+      modelProviderConfigured: true,
+      sandboxModeConfigured: true,
+      desktopConfigPresent: true
+    });
+    const resourceProjectionJson = JSON.stringify({
+      resourceSkills,
+      resourceMcp,
+      resourcePlugins,
+      resourceConfig
+    });
+    assert.equal(resourceProjectionJson.includes(workspaceRoot), false);
+    assert.equal(resourceProjectionJson.includes("fixture-secret-token"), false);
+    assert.equal(resourceProjectionJson.includes("inputSchema"), false);
+    assert.equal(resourceProjectionJson.includes("marketplace.json"), false);
+
     const allThreads = await adapter.listThreads({ limit: 10 });
     assert.equal(allThreads.data.length, 3);
     assert.equal(allThreads.nextCursor, null);

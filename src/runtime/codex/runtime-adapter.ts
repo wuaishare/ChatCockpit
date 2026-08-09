@@ -107,6 +107,58 @@ export interface RuntimeInboundRequest {
   params: Record<string, unknown>;
 }
 
+export interface RuntimeSkillListInput {
+  workspaceId: string;
+  forceReload?: boolean;
+}
+
+export interface RuntimeSkillProjection {
+  name: string;
+  description: string | null;
+  scope: string | null;
+  enabled: boolean;
+  displayName: string | null;
+  shortDescription: string | null;
+  brandColor: string | null;
+}
+
+export interface RuntimeMcpServerProjection {
+  name: string;
+  title: string | null;
+  version: string | null;
+  authStatus: string | null;
+  toolCount: number;
+  readOnlyToolCount: number;
+  mutatingToolCount: number;
+}
+
+export interface RuntimePluginListInput {
+  workspaceId?: string;
+}
+
+export interface RuntimePluginProjection {
+  id: string;
+  marketplaceName: string;
+  name: string;
+  displayName: string;
+  description: string | null;
+  version: string | null;
+  availableVersion: string | null;
+  installed: boolean;
+  enabled: boolean;
+  availability: string | null;
+  authPolicy: string | null;
+  category: string | null;
+  capabilities: string[];
+}
+
+export interface RuntimeResourceConfigSummary {
+  loaded: true;
+  modelProviderConfigured: boolean;
+  sandboxModeConfigured: boolean;
+  desktopConfigPresent: boolean;
+}
+
 export interface RuntimeInboundNotification {
   connectionId: string;
   method: string;
@@ -128,6 +180,10 @@ export interface CodingRuntimeAdapter {
   forkThread(input: RuntimeThreadForkInput): Promise<RuntimeThreadProjection>;
   startTurn(input: RuntimeTurnStartInput): Promise<RuntimeTurnProjection>;
   interruptTurn(input: RuntimeTurnInterruptInput): Promise<void>;
+  listSkills?(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]>;
+  listMcpServers?(): Promise<RuntimeMcpServerProjection[]>;
+  listPlugins?(input?: RuntimePluginListInput): Promise<RuntimePluginProjection[]>;
+  readResourceConfigSummary?(): Promise<RuntimeResourceConfigSummary>;
   readStandaloneFile(path: string): Promise<RuntimeStandaloneFileReadResult>;
   writeStandaloneFile(path: string, dataBase64: string): Promise<void>;
   listStandaloneDirectory(path: string): Promise<RuntimeStandaloneDirectoryEntry[]>;

@@ -16,6 +16,12 @@ import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
   RuntimeEventSink,
+  RuntimeMcpServerProjection,
+  RuntimePluginListInput,
+  RuntimePluginProjection,
+  RuntimeResourceConfigSummary,
+  RuntimeSkillListInput,
+  RuntimeSkillProjection,
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
@@ -149,6 +155,191 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         unavailableReason: normalized.code
       };
     }
+  }
+
+  async listSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]> {
+    const client = await this.ensureClient();
+    const workspace = this.workspaces.getPrivate(input.workspaceId);
+    const response = asRecord(
+      await client.request<unknown>("skills/list", {
+        cwds: [workspace.privatePath],
+        forceReload: input.forceReload ?? false
+      })
+    );
+    const groups = Array.isArray(response.data) ? response.data : [];
+    const skills: RuntimeSkillProjection[] = [];
+    for (const groupValue of groups) {
+      const group = asRecord(groupValue);
+      const rawSkills = Array.isArray(group.skills) ? group.skills : [];
+      for (const rawSkill of rawSkills) {
+        const skill = asRecord(rawSkill);
+        if (typeof skill.name !== "string" || !skill.name) continue;
+        const interfaceInfo = asRecord(skill.interface);
+        skills.push({
+          name: skill.name,
+          description:
+            typeof skill.description === "string" ? skill.description : null,
+          scope: typeof skill.scope === "string" ? skill.scope : null,
+          enabled: skill.enabled !== false,
+          displayName:
+            typeof interfaceInfo.displayName === "string"
+              ? interfaceInfo.displayName
+              : null,
+          shortDescription:
+            typeof interfaceInfo.shortDescription === "string"
+              ? interfaceInfo.shortDescription
+              : null,
+          brandColor:
+            typeof interfaceInfo.brandColor === "string"
+              ? interfaceInfo.brandColor
+              : null
+        });
+      }
+    }
+    return skills.sort((left, right) =>
+      left.name.localeCompare(right.name) ||
+      String(left.scope ?? "").localeCompare(String(right.scope ?? ""))
+    );
+  }
+
+  async listMcpServers(): Promise<RuntimeMcpServerProjection[]> {
+    const client = await this.ensureClient();
+    const servers: RuntimeMcpServerProjection[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 10; page += 1) {
+      const response = asRecord(
+        await client.request<unknown>("mcpServerStatus/list", {
+          cursor,
+          limit: 100,
+          detail: "toolsAndAuthOnly"
+        })
+      );
+      const data = Array.isArray(response.data) ? response.data : [];
+      for (const rawServer of data) {
+        const server = asRecord(rawServer);
+        if (typeof server.name !== "string" || !server.name) continue;
+        const info = asRecord(server.serverInfo);
+        const tools = asRecord(server.tools);
+        let readOnlyToolCount = 0;
+        let mutatingToolCount = 0;
+        for (const rawTool of Object.values(tools)) {
+          const tool = asRecord(rawTool);
+          const annotations = asRecord(tool.annotations);
+          if (annotations.readOnlyHint === true) {
+            readOnlyToolCount += 1;
+          } else {
+            mutatingToolCount += 1;
+          }
+        }
+        servers.push({
+          name: server.name,
+          title: typeof info.title === "string" ? info.title : null,
+          version: typeof info.version === "string" ? info.version : null,
+          authStatus:
+            typeof server.authStatus === "string" ? server.authStatus : null,
+          toolCount: Object.keys(tools).length,
+          readOnlyToolCount,
+          mutatingToolCount
+        });
+      }
+      const nextCursor =
+        typeof response.nextCursor === "string" && response.nextCursor
+          ? response.nextCursor
+          : null;
+      if (!nextCursor) break;
+      cursor = nextCursor;
+    }
+    return servers
+      .slice(0, 500)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async listPlugins(
+    input: RuntimePluginListInput = {}
+  ): Promise<RuntimePluginProjection[]> {
+    const client = await this.ensureClient();
+    const params: Record<string, unknown> = {};
+    if (input.workspaceId) {
+      const workspace = this.workspaces.getPrivate(input.workspaceId);
+      params.cwds = [workspace.privatePath];
+    }
+    const response = asRecord(await client.request<unknown>("plugin/list", params));
+    const marketplaces = Array.isArray(response.marketplaces)
+      ? response.marketplaces
+      : [];
+    const plugins: RuntimePluginProjection[] = [];
+    for (const rawMarketplace of marketplaces) {
+      const marketplace = asRecord(rawMarketplace);
+      if (typeof marketplace.name !== "string" || !marketplace.name) continue;
+      const rawPlugins = Array.isArray(marketplace.plugins)
+        ? marketplace.plugins
+        : [];
+      for (const rawPlugin of rawPlugins) {
+        const plugin = asRecord(rawPlugin);
+        if (typeof plugin.id !== "string" || !plugin.id) continue;
+        const name =
+          typeof plugin.name === "string" && plugin.name
+            ? plugin.name
+            : plugin.id;
+        const interfaceInfo = asRecord(plugin.interface);
+        const capabilities = Array.isArray(interfaceInfo.capabilities)
+          ? interfaceInfo.capabilities.filter(
+              (entry): entry is string => typeof entry === "string"
+            )
+          : [];
+        plugins.push({
+          id: plugin.id,
+          marketplaceName: marketplace.name,
+          name,
+          displayName:
+            typeof interfaceInfo.displayName === "string" &&
+            interfaceInfo.displayName
+              ? interfaceInfo.displayName
+              : name,
+          description:
+            typeof interfaceInfo.shortDescription === "string"
+              ? interfaceInfo.shortDescription
+              : typeof interfaceInfo.longDescription === "string"
+                ? interfaceInfo.longDescription
+                : null,
+          version:
+            typeof plugin.localVersion === "string" ? plugin.localVersion : null,
+          availableVersion:
+            typeof plugin.version === "string" ? plugin.version : null,
+          installed: plugin.installed === true,
+          enabled: plugin.enabled === true,
+          availability:
+            typeof plugin.availability === "string"
+              ? plugin.availability
+              : null,
+          authPolicy:
+            typeof plugin.authPolicy === "string" ? plugin.authPolicy : null,
+          category:
+            typeof interfaceInfo.category === "string"
+              ? interfaceInfo.category
+              : null,
+          capabilities: [...capabilities].sort()
+        });
+      }
+    }
+    return plugins
+      .slice(0, 1000)
+      .sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  async readResourceConfigSummary(): Promise<RuntimeResourceConfigSummary> {
+    const client = await this.ensureClient();
+    const response = asRecord(await client.request<unknown>("config/read", {}));
+    const config = asRecord(response.config);
+    const desktop = asRecord(config.desktop);
+    return {
+      loaded: true,
+      modelProviderConfigured:
+        typeof config.model_provider === "string" && config.model_provider.length > 0,
+      sandboxModeConfigured:
+        typeof config.sandbox_mode === "string" && config.sandbox_mode.length > 0,
+      desktopConfigPresent: Object.keys(desktop).length > 0
+    };
   }
 
   async listThreads(
