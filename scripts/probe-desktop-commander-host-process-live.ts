@@ -28,7 +28,8 @@ import { DesktopCommanderManagedProcessSupervisor } from "../src/direct/adapters
 const LIVE_ROOT_ID = "desktop-commander-process-live-proof";
 const WORKSPACE_RELATIVE = "projects/workspace-a";
 const LATE_MARKER = "late-marker.txt";
-const NOW = "2026-08-09T01:00:00.000Z";
+const NOW = new Date().toISOString();
+const LEASE_EXPIRES_AT = new Date(Date.parse(NOW) + 10 * 60 * 1000).toISOString();
 
 const REQUIRED_MAPPINGS: DownstreamMcpStdioExecutorConfig["mappings"] = [
   {
@@ -303,7 +304,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       sessionId: session.id,
       holderType: "chat-direct",
       holderId: session.id,
-      expiresAt: "2026-08-09T02:00:00.000Z",
+      expiresAt: LEASE_EXPIRES_AT,
       now: NOW
     });
 
