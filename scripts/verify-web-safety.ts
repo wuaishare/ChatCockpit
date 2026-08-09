@@ -331,6 +331,10 @@ const runtimeRecoverySource = fs.readFileSync(
   ),
   "utf8"
 );
+const resourceCenterSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/resources/ResourceCenterView.tsx"),
+  "utf8"
+);
 const apiSource = fs.readFileSync(path.join(repoRoot, "web/src/api.ts"), "utf8");
 
 for (const section of [
@@ -346,6 +350,8 @@ for (const section of [
   assert.match(appSource, new RegExp(`\\"${section}\\"`));
 }
 assert.match(appSource, /\/ui\/continuity/);
+assert.match(appSource, /\/ui\/resources/);
+assert.match(appSource, /ResourceCenterView/);
 assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
 assert.match(apiSource, /\/api\/recovery\/assess/);
@@ -357,6 +363,29 @@ assert.match(runtimeRecoverySource, /assessment\.assessment\.blockers/);
 assert.match(runtimeRecoverySource, /assessment\?\.assessment\.compatibility|assessment\.assessment\.compatibility/);
 assert.match(runtimeRecoverySource, /assessment\?\.attempt\.status === "prepared"|assessment\.attempt\.status === "prepared"/);
 assert.doesNotMatch(runtimeRecoverySource, /turn\/start|startCodexRuntimeTurn/);
+for (const operation of [
+  "fetchRuntimeResourceProfiles",
+  "inventoryRuntimeResources",
+  "fetchRuntimeResourceItem"
+]) {
+  assert.match(apiSource, new RegExp(operation));
+  assert.match(resourceCenterSource, new RegExp(operation));
+}
+assert.match(apiSource, /\/api\/resources\/runtime-profiles/);
+assert.match(apiSource, /\/api\/resources\/inventory/);
+assert.match(apiSource, /\/api\/resources\/items\//);
+assert.match(resourceCenterSource, /copy\.profilesTitle/);
+assert.match(resourceCenterSource, /resource-center__profile-card/);
+assert.match(resourceCenterSource, /resource-center__metrics/);
+assert.match(resourceCenterSource, /resource-center__drawer/);
+assert.doesNotMatch(
+  resourceCenterSource,
+  /installRuntimeResource|updateRuntimeResource|removeRuntimeResource|enableRuntimeResource|disableRuntimeResource|turn\/start|startCodexRuntimeTurn/
+);
+assert.doesNotMatch(
+  resourceCenterSource,
+  /mock(?:Profiles|Resources|Inventory)|sample(?:Profiles|Resources|Inventory)|demo(?:Profiles|Resources|Inventory)|fake(?:Profiles|Resources|Inventory)/i
+);
 for (const operation of [
   "prepareContinuityHandoff",
   "acceptContinuityHandoff",

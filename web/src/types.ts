@@ -746,3 +746,150 @@ export interface ContinuityHandoffForkResponse
   task: ContinuityTaskRecord;
   session: ContinuitySessionRecord;
 }
+
+export type RuntimeResourceKind =
+  | "skill"
+  | "mcp-server"
+  | "plugin"
+  | "runtime-adapter"
+  | "acp-agent";
+export type RuntimeResourceScope =
+  | "user"
+  | "workspace"
+  | "runtime"
+  | "registry"
+  | "unknown";
+export type RuntimeResourceSnapshotStatus = "ready" | "partial" | "failed";
+export type RuntimeResourceUpdateStatus =
+  | "current"
+  | "update-available"
+  | "unknown"
+  | "not-applicable";
+export type RuntimeResourceAuthStatus =
+  | "ready"
+  | "required"
+  | "unsupported"
+  | "unknown"
+  | "not-applicable";
+export type RuntimeResourceCompatibilityStatus =
+  | "ready"
+  | "degraded"
+  | "blocked"
+  | "unknown";
+export type RuntimeResourceSourceKind =
+  | "runtime-native"
+  | "tokenpilot-local"
+  | "acp-registry";
+
+export interface RuntimeProfileDescriptor {
+  id: string;
+  providerKind: string;
+  protocolKind: string;
+  displayName: string;
+  executableSource: "bundled" | "path" | "custom" | "registry" | null;
+  executableVersion: string | null;
+  protocolVersion: string | null;
+  compatibilityStatus: "ready" | "degraded" | "unsupported" | "unavailable";
+  homeIdentityHash: string | null;
+  authStatus: "ready" | "required" | "unknown" | "not-applicable";
+  capabilities: string[];
+  publicReason: string | null;
+}
+
+export interface RuntimeResourceDescriptor {
+  id: string;
+  runtimeProfileId: string;
+  kind: RuntimeResourceKind;
+  externalId: string;
+  displayName: string;
+  description: string | null;
+  scope: RuntimeResourceScope;
+  installed: boolean | null;
+  enabled: boolean | null;
+  version: string | null;
+  availableVersion: string | null;
+  updateStatus: RuntimeResourceUpdateStatus;
+  authStatus: RuntimeResourceAuthStatus;
+  compatibilityStatus: RuntimeResourceCompatibilityStatus;
+  sourceKind: RuntimeResourceSourceKind;
+  sourceLabel: string;
+  capabilities: string[];
+  publicReason: string | null;
+  fingerprint: string;
+}
+
+export interface RuntimeResourceInventoryDiagnostic {
+  source: string;
+  status: "ready" | "degraded" | "failed";
+  code: string | null;
+  message: string | null;
+}
+
+export interface RuntimeResourceSnapshotItem {
+  snapshotId: string;
+  resourceId: string;
+  kind: RuntimeResourceKind;
+  externalId: string;
+  displayName: string;
+  description: string | null;
+  scope: RuntimeResourceScope;
+  installed: boolean | null;
+  enabled: boolean | null;
+  version: string | null;
+  availableVersion: string | null;
+  updateStatus: RuntimeResourceUpdateStatus;
+  authStatus: RuntimeResourceAuthStatus;
+  compatibilityStatus: RuntimeResourceCompatibilityStatus;
+  sourceKind: RuntimeResourceSourceKind;
+  sourceLabel: string;
+  capabilities: string[];
+  publicReason: string | null;
+  fingerprint: string;
+}
+
+export interface RuntimeResourceSnapshot {
+  id: string;
+  runtimeProfileId: string;
+  providerKind: string;
+  protocolKind: string;
+  status: RuntimeResourceSnapshotStatus;
+  profile: Record<string, unknown>;
+  fingerprint: string;
+  capturedAt: string;
+  revision: number;
+  items: RuntimeResourceSnapshotItem[];
+}
+
+export interface RuntimeResourceDiff {
+  previousSnapshotId: string | null;
+  added: string[];
+  removed: string[];
+  changed: string[];
+  unchanged: string[];
+}
+
+export interface RuntimeResourceProfilesResponse {
+  ok: true;
+  profiles: RuntimeProfileDescriptor[];
+}
+
+export interface RuntimeResourceInventoryResponse {
+  ok: true;
+  snapshot: RuntimeResourceSnapshot;
+  profile: RuntimeProfileDescriptor;
+  resources: RuntimeResourceDescriptor[];
+  diagnostics: RuntimeResourceInventoryDiagnostic[];
+  diff: RuntimeResourceDiff;
+  replayed: boolean;
+}
+
+export interface RuntimeResourceSnapshotResponse {
+  ok: true;
+  snapshot: RuntimeResourceSnapshot;
+}
+
+export interface RuntimeResourceInspectResponse {
+  ok: true;
+  snapshot: RuntimeResourceSnapshot;
+  resource: RuntimeResourceDescriptor;
+}

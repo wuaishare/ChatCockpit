@@ -5,6 +5,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import {
   ApiOutlined,
   ApartmentOutlined,
+  AppstoreOutlined,
   DashboardOutlined,
   ReloadOutlined,
   UnorderedListOutlined
@@ -41,6 +42,7 @@ import {
   type LocaleCode
 } from "./i18n";
 import { themeLabels } from "./theme";
+import { getResourceCenterCopy } from "./i18n/resources";
 import type { ApiProblem } from "./types";
 
 const SESSION_TOKEN_KEY = "tokenpilot:web:bearer-token";
@@ -55,8 +57,13 @@ const ContinuityWorkbenchView = lazy(() =>
     default: module.ContinuityWorkbenchView
   }))
 );
+const ResourceCenterView = lazy(() =>
+  import("./components/resources/ResourceCenterView").then((module) => ({
+    default: module.ResourceCenterView
+  }))
+);
 
-type ViewKey = "dashboard" | "continuity" | "jobs" | "gpt-helper";
+type ViewKey = "dashboard" | "continuity" | "resources" | "jobs" | "gpt-helper";
 
 interface AppProps {
   themeMode: ThemeMode;
@@ -66,6 +73,7 @@ interface AppProps {
 const VIEW_PATHS: Record<ViewKey, string> = {
   dashboard: "/ui",
   continuity: "/ui/continuity",
+  resources: "/ui/resources",
   jobs: "/ui/jobs",
   "gpt-helper": "/ui/gpt-helper"
 };
@@ -141,6 +149,9 @@ function parseRoute(): {
       : "projects";
     return { view: "continuity", jobId: null, continuitySection };
   }
+  if (pathname === "/ui/resources") {
+    return { view: "resources", jobId: null, continuitySection: "projects" };
+  }
   if (pathname === "/ui/gpt-helper") {
     return { view: "gpt-helper", jobId: null, continuitySection: "projects" };
   }
@@ -177,6 +188,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [controlLoading, setControlLoading] = useState(false);
   const [controlMessage, setControlMessage] = useState<string | null>(null);
   const copy = getUiCopy(locale);
+  const resourceCopy = getResourceCenterCopy(locale);
 
   useEffect(() => {
     void loadHealth();
@@ -594,6 +606,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                   options={[
                     { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
                     { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
+                    { label: copy.header.resources, value: "resources", icon: <AppstoreOutlined /> },
                     { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
                     { label: copy.header.gptHelper, value: "gpt-helper", icon: <ApiOutlined /> }
                   ]}
@@ -678,6 +691,24 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               authRequired={health.authRequired}
               activeSection={activeContinuitySection}
               onSectionChange={navigateContinuitySection}
+            />
+          </Suspense>
+        ) : null}
+
+        {activeView === "resources" ? (
+          <Suspense
+            fallback={
+              <ViewLoadingState
+                title={resourceCopy.loadingTitle}
+                description={resourceCopy.loadingDescription}
+                retryLabel={copy.common.retry}
+              />
+            }
+          >
+            <ResourceCenterView
+              locale={locale}
+              token={token}
+              authRequired={health.authRequired}
             />
           </Suspense>
         ) : null}

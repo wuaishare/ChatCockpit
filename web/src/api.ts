@@ -23,6 +23,10 @@ import type {
   RuntimeRecoveryAction,
   RuntimeRecoveryAssessResponse,
   RuntimeRecoveryExecuteResponse,
+  RuntimeResourceInspectResponse,
+  RuntimeResourceInventoryResponse,
+  RuntimeResourceProfilesResponse,
+  RuntimeResourceSnapshotResponse,
   SetupStatusResponse,
   TerminateAllJobsResponse
 } from "./types";
@@ -208,6 +212,50 @@ export async function executeRuntimeRecovery(
   token?: string | null
 ): Promise<RuntimeRecoveryExecuteResponse> {
   return postBodyJson("/api/recovery/execute", payload, token);
+}
+
+export async function fetchRuntimeResourceProfiles(
+  token?: string | null
+): Promise<RuntimeResourceProfilesResponse> {
+  return requestJson<RuntimeResourceProfilesResponse>(
+    "/api/resources/runtime-profiles",
+    token
+  );
+}
+
+export async function inventoryRuntimeResources(
+  payload: {
+    runtimeProfileId: string;
+    workspaceId?: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<RuntimeResourceInventoryResponse> {
+  return postBodyJson<RuntimeResourceInventoryResponse>(
+    "/api/resources/inventory",
+    payload,
+    token
+  );
+}
+
+export async function fetchRuntimeResourceSnapshot(
+  snapshotId: string,
+  token?: string | null
+): Promise<RuntimeResourceSnapshotResponse> {
+  return requestJson<RuntimeResourceSnapshotResponse>(
+    `/api/resources/snapshots/${encodeURIComponent(snapshotId)}`,
+    token
+  );
+}
+
+export async function fetchRuntimeResourceItem(
+  resourceId: string,
+  token?: string | null
+): Promise<RuntimeResourceInspectResponse> {
+  return requestJson<RuntimeResourceInspectResponse>(
+    `/api/resources/items/${encodeURIComponent(resourceId)}`,
+    token
+  );
 }
 
 async function postBodyJson<T>(

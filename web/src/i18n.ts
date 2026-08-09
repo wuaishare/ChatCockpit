@@ -22,6 +22,7 @@ export interface UiCopy {
     refreshTooltip: string;
     dashboard: string;
     continuity: string;
+    resources: string;
     jobs: string;
     gptHelper: string;
     appearanceStatus: string;
@@ -237,6 +238,7 @@ const zhCN: UiCopy = {
     refreshTooltip: "刷新健康状态与任务数据",
     dashboard: "总览",
     continuity: "连续性",
+    resources: "资源中心",
     jobs: "任务",
     gptHelper: "GPT 助手",
     appearanceStatus: "当前界面外观",
@@ -515,6 +517,7 @@ const enUS: UiCopy = {
     refreshTooltip: "Refresh health and job data",
     dashboard: "Dashboard",
     continuity: "Continuity",
+    resources: "Resources",
     jobs: "Jobs",
     gptHelper: "GPT Helper",
     appearanceStatus: "Current interface appearance",
