@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 const identifierSchema = z.string().min(1).max(240);
+const idempotencyKeySchema = z
+  .string()
+  .min(8)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const capabilitySchema = z.string().min(1).max(120);
 
@@ -93,6 +98,52 @@ export const runtimeResourceInventoryProjectionSchema = z
     diagnostics: z.array(runtimeResourceInventoryDiagnosticSchema).max(50)
   })
   .strict();
+
+export const runtimeResourceInventoryRequestSchema = z
+  .object({
+    runtimeProfileId: identifierSchema,
+    workspaceId: identifierSchema.optional(),
+    idempotencyKey: idempotencyKeySchema
+  })
+  .strict();
+
+export const runtimeResourceInspectSchema = z
+  .object({
+    target: z.enum(["profiles", "snapshot", "resource"]),
+    id: identifierSchema.optional()
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.target !== "profiles" && !value.id) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["id"],
+        message: `${value.target} inspection requires id`
+      });
+    }
+    if (value.target === "profiles" && value.id) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["id"],
+        message: "profiles inspection does not accept id"
+      });
+    }
+  });
+
+export const runtimeResourceSnapshotParamsSchema = z
+  .object({ snapshotId: identifierSchema })
+  .strict();
+
+export const runtimeResourceItemParamsSchema = z
+  .object({ resourceId: identifierSchema })
+  .strict();
+
+export type RuntimeResourceInventoryRequest = z.infer<
+  typeof runtimeResourceInventoryRequestSchema
+>;
+export type RuntimeResourceInspectInput = z.infer<
+  typeof runtimeResourceInspectSchema
+>;
 
 export type RuntimeProfileDescriptorContract = z.infer<
   typeof runtimeProfileDescriptorSchema

@@ -20,6 +20,7 @@ import type { RuntimeEventService } from "../application/runtime-event-service.j
 import { RuntimeService } from "../application/runtime-service.js";
 import type { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import type { RuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
+import type { RuntimeResourceServices } from "../application/runtime-resource-services.js";
 import type { TokenPilotPaths } from "../types.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
@@ -27,6 +28,7 @@ import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
 import { buildRuntimeRecoveryMcpTools } from "./tools/recovery.js";
+import { buildRuntimeResourceMcpTools } from "./tools/runtime-resources.js";
 import { buildHostMutationTools } from "./tools/host-mutation.js";
 import { buildHostProcessTools } from "./tools/host-process.js";
 import { buildWorkspaceWriteTools } from "./tools/workspace-write.js";
@@ -73,6 +75,7 @@ export function buildTokenPilotMcpHandler(
   runtimeApprovalService: RuntimeApprovalService,
   runtimeEventService: RuntimeEventService,
   runtimeRecoveryServices: RuntimeRecoveryServices,
+  runtimeResourceServices: RuntimeResourceServices,
   onerror?: (error: Error) => void
 ): McpHttpHandler {
   const tools = [
@@ -92,7 +95,8 @@ export function buildTokenPilotMcpHandler(
       runtimeApprovalService,
       runtimeEventService
     ),
-    ...buildRuntimeRecoveryMcpTools(runtimeRecoveryServices)
+    ...buildRuntimeRecoveryMcpTools(runtimeRecoveryServices),
+    ...buildRuntimeResourceMcpTools(runtimeResourceServices)
   ];
 
   return createMcpHandler(

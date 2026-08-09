@@ -3915,6 +3915,354 @@ components:
         attempt:
           $ref: '#/components/schemas/RuntimeRecoveryAttempt'
       required: [ok, attempt]
+    RuntimeProfileDescriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        providerKind: { type: string }
+        protocolKind: { type: string }
+        displayName: { type: string }
+        executableSource:
+          oneOf:
+            - type: string
+              enum: [bundled, path, custom, registry]
+            - type: "null"
+        executableVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        protocolVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        compatibilityStatus:
+          type: string
+          enum: [ready, degraded, unsupported, unavailable]
+        homeIdentityHash:
+          oneOf:
+            - type: string
+              pattern: '^[a-f0-9]{64}$'
+            - type: "null"
+        authStatus:
+          type: string
+          enum: [ready, required, unknown, not-applicable]
+        capabilities:
+          type: array
+          items: { type: string }
+        publicReason:
+          oneOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - providerKind
+        - protocolKind
+        - displayName
+        - executableSource
+        - executableVersion
+        - protocolVersion
+        - compatibilityStatus
+        - homeIdentityHash
+        - authStatus
+        - capabilities
+        - publicReason
+    RuntimeResourceDescriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        runtimeProfileId: { type: string }
+        kind:
+          type: string
+          enum: [skill, mcp-server, plugin, runtime-adapter, acp-agent]
+        externalId: { type: string }
+        displayName: { type: string }
+        description:
+          oneOf:
+            - type: string
+            - type: "null"
+        scope:
+          type: string
+          enum: [user, workspace, runtime, registry, unknown]
+        installed:
+          oneOf:
+            - type: boolean
+            - type: "null"
+        enabled:
+          oneOf:
+            - type: boolean
+            - type: "null"
+        version:
+          oneOf:
+            - type: string
+            - type: "null"
+        availableVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        updateStatus:
+          type: string
+          enum: [current, update-available, unknown, not-applicable]
+        authStatus:
+          type: string
+          enum: [ready, required, unsupported, unknown, not-applicable]
+        compatibilityStatus:
+          type: string
+          enum: [ready, degraded, blocked, unknown]
+        sourceKind:
+          type: string
+          enum: [runtime-native, tokenpilot-local, acp-registry]
+        sourceLabel: { type: string }
+        capabilities:
+          type: array
+          items: { type: string }
+        publicReason:
+          oneOf:
+            - type: string
+            - type: "null"
+        fingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+      required:
+        - id
+        - runtimeProfileId
+        - kind
+        - externalId
+        - displayName
+        - description
+        - scope
+        - installed
+        - enabled
+        - version
+        - availableVersion
+        - updateStatus
+        - authStatus
+        - compatibilityStatus
+        - sourceKind
+        - sourceLabel
+        - capabilities
+        - publicReason
+        - fingerprint
+    RuntimeResourceSnapshotItem:
+      type: object
+      additionalProperties: false
+      properties:
+        snapshotId: { type: string }
+        resourceId: { type: string }
+        kind:
+          type: string
+          enum: [skill, mcp-server, plugin, runtime-adapter, acp-agent]
+        externalId: { type: string }
+        displayName: { type: string }
+        description:
+          oneOf:
+            - type: string
+            - type: "null"
+        scope:
+          type: string
+          enum: [user, workspace, runtime, registry, unknown]
+        installed:
+          oneOf:
+            - type: boolean
+            - type: "null"
+        enabled:
+          oneOf:
+            - type: boolean
+            - type: "null"
+        version:
+          oneOf:
+            - type: string
+            - type: "null"
+        availableVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        updateStatus:
+          type: string
+          enum: [current, update-available, unknown, not-applicable]
+        authStatus:
+          type: string
+          enum: [ready, required, unsupported, unknown, not-applicable]
+        compatibilityStatus:
+          type: string
+          enum: [ready, degraded, blocked, unknown]
+        sourceKind:
+          type: string
+          enum: [runtime-native, tokenpilot-local, acp-registry]
+        sourceLabel: { type: string }
+        capabilities:
+          type: array
+          items: { type: string }
+        publicReason:
+          oneOf:
+            - type: string
+            - type: "null"
+        fingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+      required:
+        - snapshotId
+        - resourceId
+        - kind
+        - externalId
+        - displayName
+        - description
+        - scope
+        - installed
+        - enabled
+        - version
+        - availableVersion
+        - updateStatus
+        - authStatus
+        - compatibilityStatus
+        - sourceKind
+        - sourceLabel
+        - capabilities
+        - publicReason
+        - fingerprint
+    RuntimeResourceSnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        runtimeProfileId: { type: string }
+        providerKind: { type: string }
+        protocolKind: { type: string }
+        status:
+          type: string
+          enum: [ready, partial, failed]
+        profile:
+          $ref: '#/components/schemas/RuntimeProfileDescriptor'
+        fingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        capturedAt: { type: string }
+        revision:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceSnapshotItem'
+      required:
+        - id
+        - runtimeProfileId
+        - providerKind
+        - protocolKind
+        - status
+        - profile
+        - fingerprint
+        - capturedAt
+        - revision
+        - items
+    RuntimeResourceDiagnostic:
+      type: object
+      additionalProperties: false
+      properties:
+        source: { type: string }
+        status:
+          type: string
+          enum: [ready, degraded, failed]
+        code:
+          oneOf:
+            - type: string
+            - type: "null"
+        message:
+          oneOf:
+            - type: string
+            - type: "null"
+      required: [source, status, code, message]
+    RuntimeResourceDiff:
+      type: object
+      additionalProperties: false
+      properties:
+        previousSnapshotId:
+          oneOf:
+            - type: string
+            - type: "null"
+        added:
+          type: array
+          items: { type: string }
+        removed:
+          type: array
+          items: { type: string }
+        changed:
+          type: array
+          items: { type: string }
+        unchanged:
+          type: array
+          items: { type: string }
+      required: [previousSnapshotId, added, removed, changed, unchanged]
+    RuntimeResourceInventoryPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        runtimeProfileId: { type: string }
+        workspaceId: { type: string }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [runtimeProfileId, idempotencyKey]
+    RuntimeResourceProfileListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeProfileDescriptor'
+      required: [ok, profiles]
+    RuntimeResourceInventoryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        snapshot:
+          $ref: '#/components/schemas/RuntimeResourceSnapshot'
+        profile:
+          $ref: '#/components/schemas/RuntimeProfileDescriptor'
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceDescriptor'
+        diagnostics:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceDiagnostic'
+        diff:
+          $ref: '#/components/schemas/RuntimeResourceDiff'
+        replayed: { type: boolean }
+      required: [ok, snapshot, profile, resources, diagnostics, diff, replayed]
+    RuntimeResourceSnapshotReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        snapshot:
+          $ref: '#/components/schemas/RuntimeResourceSnapshot'
+      required: [ok, snapshot]
+    RuntimeResourceInspectResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        snapshot:
+          $ref: '#/components/schemas/RuntimeResourceSnapshot'
+        resource:
+          $ref: '#/components/schemas/RuntimeResourceDescriptor'
+      required: [ok, snapshot, resource]
     RuntimeCapabilitiesResponse:
       type: object
       additionalProperties: false
@@ -6231,6 +6579,110 @@ paths:
                 $ref: '#/components/schemas/RuntimeRecoveryAttemptReadResponse'
         "404":
           description: Recovery Attempt not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/runtime-profiles:
+    get:
+      operationId: listRuntimeResourceProfiles
+      summary: List runtime resource profiles
+      description: Lists public-safe Runtime Profiles. Private home paths, executable paths, commands, environment values, and raw provider configuration are omitted.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Runtime Profile catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceProfileListResponse'
+  /api/resources/inventory:
+    post:
+      operationId: inventoryRuntimeResources
+      summary: Inventory one runtime profile
+      description: Reads one explicit Runtime Profile through reviewed adapters, persists a public-safe Schema v15 snapshot, and returns a deterministic diff. No resource mutation is performed.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeResourceInventoryPayload'
+      responses:
+        "200":
+          description: Runtime Resource snapshot and diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceInventoryResponse'
+        "400":
+          description: Invalid inventory input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Runtime Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "503":
+          description: Selected external catalog or runtime source unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/snapshots/{snapshotId}:
+    get:
+      operationId: getRuntimeResourceSnapshot
+      summary: Read runtime resource snapshot
+      description: Reads one persisted public-safe Runtime Resource Snapshot. Provider raw payloads and private locators are never returned.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: snapshotId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Runtime Resource Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceSnapshotReadResponse'
+        "404":
+          description: Snapshot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/items/{resourceId}:
+    get:
+      operationId: inspectRuntimeResource
+      summary: Inspect latest runtime resource state
+      description: Reads the newest persisted observation of one stable Runtime Resource ID together with its source snapshot.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest Runtime Resource observation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceInspectResponse'
+        "404":
+          description: Resource not found
           content:
             application/json:
               schema:

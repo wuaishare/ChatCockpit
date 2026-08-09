@@ -47,7 +47,7 @@
     "verify:codex-execution": "tsx scripts/verify-codex-execution.ts",
     "verify:codex-standalone": "tsx scripts/verify-codex-standalone.ts",
     "verify:runtime-recovery": "tsx scripts/verify-runtime-recovery.ts && tsx scripts/verify-codex-recovery-adapter.ts && tsx scripts/verify-runtime-recovery-adapters.ts && tsx scripts/verify-runtime-recovery-assessment.ts && tsx scripts/verify-runtime-recovery-execution.ts && tsx scripts/verify-runtime-recovery-security.ts && tsx scripts/verify-runtime-recovery-api.ts && tsx scripts/verify-codex-runtime-recovery-live-harness.ts",
-    "verify:runtime-resources": "tsx scripts/verify-runtime-resource-inventory.ts && tsx scripts/verify-runtime-resource-contracts.ts && tsx scripts/verify-runtime-profile-registry.ts && tsx scripts/verify-codex-resource-inventory-adapter.ts && tsx scripts/verify-downstream-resource-inventory-adapter.ts && tsx scripts/verify-acp-registry-adapter.ts && tsx scripts/verify-runtime-resource-inventory-service.ts",
+    "verify:runtime-resources": "tsx scripts/verify-runtime-resource-inventory.ts && tsx scripts/verify-runtime-resource-contracts.ts && tsx scripts/verify-runtime-profile-registry.ts && tsx scripts/verify-codex-resource-inventory-adapter.ts && tsx scripts/verify-downstream-resource-inventory-adapter.ts && tsx scripts/verify-acp-registry-adapter.ts && tsx scripts/verify-runtime-resource-inventory-service.ts && tsx scripts/verify-runtime-resource-api.ts",
     "verify:direct-broker": "tsx scripts/verify-direct-capability-broker.ts",
     "verify:downstream-mcp": "tsx scripts/verify-downstream-mcp.ts",
     "verify:host-direct-read": "tsx scripts/verify-host-direct-read.ts",

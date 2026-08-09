@@ -7,12 +7,25 @@ export interface RuntimeProfileSourceAdapter {
 }
 
 export class RuntimeProfileRegistry {
-  constructor(private readonly adapters: RuntimeProfileSourceAdapter[]) {}
+  constructor(
+    private readonly adapters: RuntimeProfileSourceAdapter[],
+    private readonly onSourceError?: (sourceKind: string, error: unknown) => void
+  ) {}
 
   async listProfiles(): Promise<RuntimeProfileDescriptor[]> {
-    const profiles = (
-      await Promise.all(this.adapters.map((adapter) => adapter.listProfiles()))
-    ).flat();
+    const settled = await Promise.allSettled(
+      this.adapters.map((adapter) => adapter.listProfiles())
+    );
+    const profiles: RuntimeProfileDescriptor[] = [];
+    for (let index = 0; index < settled.length; index += 1) {
+      const result = settled[index]!;
+      const adapter = this.adapters[index]!;
+      if (result.status === "fulfilled") {
+        profiles.push(...result.value);
+      } else {
+        this.onSourceError?.(adapter.sourceKind, result.reason);
+      }
+    }
     const seen = new Set<string>();
     for (const profile of profiles) {
       if (seen.has(profile.id)) {

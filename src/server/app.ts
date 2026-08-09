@@ -39,6 +39,7 @@ import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
+import { buildRuntimeResourceServices } from "../application/runtime-resource-services.js";
 import { RuntimeEventService } from "../application/runtime-event-service.js";
 import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
@@ -55,6 +56,8 @@ import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { buildTokenPilotMcpHandler } from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
 import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
+import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
+import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
 import {
   hostCommandDecisionSchema,
   hostCommandExecuteSchema,
@@ -76,6 +79,13 @@ import {
 import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
 import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
+import { AcpRegistryAdapter } from "../runtime/resources/acp-registry-adapter.js";
+import { CodexResourceInventoryAdapter } from "../runtime/resources/codex-resource-inventory-adapter.js";
+import { CodexRuntimeProfileAdapter } from "../runtime/resources/codex-runtime-profile-adapter.js";
+import { DownstreamResourceInventoryAdapter } from "../runtime/resources/downstream-resource-inventory-adapter.js";
+import { DownstreamRuntimeProfileAdapter } from "../runtime/resources/downstream-runtime-profile-adapter.js";
+import { RuntimeProfileRegistry } from "../runtime/resources/runtime-profile-registry.js";
+import { RuntimeResourceInventoryAdapterRegistry } from "../runtime/resources/runtime-resource-inventory-adapter-registry.js";
 import {
   createTokenPilotAuthPlugin,
   isExposedMode,
@@ -86,6 +96,7 @@ import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./
 import { operationContextFromRequest } from "./request-context.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
 import { registerRecoveryRoutes } from "./recovery-routes.js";
+import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 
@@ -173,6 +184,7 @@ function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus
 export interface BuildServerOptions {
   codexAdapter?: CodingRuntimeAdapter;
   directExecutorsConfigPath?: string;
+  acpRegistryAdapter?: AcpRegistryAdapter | null;
 }
 
 export function buildServer(
@@ -279,6 +291,45 @@ export function buildServer(
     runtimeBindingService,
     handoffService: continuityServices.handoffs
   });
+  const downstreamResourceSource = {
+    loadConfig: () =>
+      loadDownstreamMcpExecutorsConfig(options.directExecutorsConfigPath),
+    probe: () =>
+      probeConfiguredDownstreamMcpExecutors({
+        paths,
+        ...(options.directExecutorsConfigPath
+          ? { configPath: options.directExecutorsConfigPath }
+          : {})
+      })
+  };
+  const acpRegistryAdapter =
+    options.acpRegistryAdapter === null
+      ? null
+      : options.acpRegistryAdapter ?? new AcpRegistryAdapter();
+  const runtimeProfileRegistry = new RuntimeProfileRegistry(
+    [
+      new CodexRuntimeProfileAdapter(runtimeRouter),
+      new DownstreamRuntimeProfileAdapter(downstreamResourceSource),
+      ...(acpRegistryAdapter ? [acpRegistryAdapter] : [])
+    ],
+    (sourceKind, error) => {
+      app.log.warn(
+        { sourceKind, err: error },
+        "Runtime Profile source is temporarily unavailable"
+      );
+    }
+  );
+  const runtimeResourceAdapterRegistry =
+    new RuntimeResourceInventoryAdapterRegistry([
+      new CodexResourceInventoryAdapter(runtimeRouter),
+      new DownstreamResourceInventoryAdapter(downstreamResourceSource),
+      ...(acpRegistryAdapter ? [acpRegistryAdapter] : [])
+    ]);
+  const runtimeResourceServices = buildRuntimeResourceServices({
+    repositories: continuityServices.repositories,
+    profiles: runtimeProfileRegistry,
+    adapters: runtimeResourceAdapterRegistry
+  });
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) {
@@ -318,6 +369,7 @@ export function buildServer(
     runtimeApprovalService,
     runtimeEventService,
     runtimeRecoveryServices,
+    runtimeResourceServices,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
     }
@@ -333,6 +385,7 @@ export function buildServer(
     runtimeEventService
   );
   registerRecoveryRoutes(app, runtimeRecoveryServices);
+  registerRuntimeResourceRoutes(app, runtimeResourceServices);
   const healthHandler = async () => {
     return buildPublicHealthStatus(paths);
   };

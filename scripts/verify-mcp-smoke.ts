@@ -237,6 +237,8 @@ async function runMcpSmoke(): Promise<void> {
         "tokenpilot.project.list",
         "tokenpilot.recovery.assess",
         "tokenpilot.recovery.execute",
+        "tokenpilot.resources.inspect",
+        "tokenpilot.resources.inventory",
         "tokenpilot.runtime.capabilities",
         "tokenpilot.search.code",
         "tokenpilot.codex.approval.respond",
@@ -287,6 +289,7 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.host.roots.list",
       "tokenpilot.project.get",
       "tokenpilot.project.list",
+      "tokenpilot.resources.inspect",
       "tokenpilot.runtime.capabilities",
       "tokenpilot.search.code",
       "tokenpilot.codex.events.read",
@@ -341,7 +344,8 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.host.process.read",
       "tokenpilot.host.process.list",
       "tokenpilot.recovery.assess",
-      "tokenpilot.recovery.execute"
+      "tokenpilot.recovery.execute",
+      "tokenpilot.resources.inspect"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
       assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
@@ -371,6 +375,7 @@ async function runMcpSmoke(): Promise<void> {
       "tokenpilot.lease.release",
       "tokenpilot.recovery.assess",
       "tokenpilot.recovery.execute",
+      "tokenpilot.resources.inventory",
       "tokenpilot.session.start",
       "tokenpilot.task.bindDocuments",
       "tokenpilot.task.complete",
@@ -403,6 +408,14 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(
       toolByName.get("tokenpilot.asyncJob.queue")?.annotations.openWorldHint,
       false
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.resources.inventory")?.annotations.idempotentHint,
+      true
+    );
+    assert.equal(
+      toolByName.get("tokenpilot.resources.inventory")?.annotations.openWorldHint,
+      true
     );
     for (const name of [
       "tokenpilot.codex.approval.respond",
