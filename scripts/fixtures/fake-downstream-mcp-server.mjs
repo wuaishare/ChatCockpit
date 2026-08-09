@@ -13,6 +13,7 @@ let managedProcessCwd = null;
 let managedProcessTerminated = false;
 let managedProcessExited = false;
 let managedProcessLastInput = null;
+let managedProcessDelayedTimer = null;
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -221,8 +222,29 @@ rl.on("line", (line) => {
         return;
       }
       managedProcessLastInput = input.trimEnd();
+      const armMarker = /^ARM_MARKER:([A-Za-z0-9._-]{1,80}):(\d{1,6})$/.exec(
+        managedProcessLastInput
+      );
+      if (armMarker && managedProcessCwd) {
+        if (managedProcessDelayedTimer) {
+          clearTimeout(managedProcessDelayedTimer);
+        }
+        const markerName = armMarker[1];
+        const delayMs = Number(armMarker[2]);
+        managedProcessDelayedTimer = setTimeout(() => {
+          fs.writeFileSync(
+            `${managedProcessCwd}/${markerName}`,
+            "orphan-side-effect\n",
+            "utf8"
+          );
+        }, delayMs);
+      }
       if (managedProcessLastInput === "quit") {
         managedProcessExited = true;
+        if (managedProcessDelayedTimer) {
+          clearTimeout(managedProcessDelayedTimer);
+          managedProcessDelayedTimer = null;
+        }
       }
       send({
         jsonrpc: "2.0",
@@ -243,6 +265,10 @@ rl.on("line", (line) => {
     }
     if (mode === "desktop-managed-process" && toolName === "force_terminate") {
       managedProcessTerminated = true;
+      if (managedProcessDelayedTimer) {
+        clearTimeout(managedProcessDelayedTimer);
+        managedProcessDelayedTimer = null;
+      }
       send({
         jsonrpc: "2.0",
         id: message.id,

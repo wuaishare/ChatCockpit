@@ -237,6 +237,14 @@ TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@
 
 该 live proof 通过真正的 ChatGPT-facing Host Process 工具驱动 `start → read → input → list → stop`。它会验证 start/input 的新输出只在 Supervisor 内存中做 bounded 暂存并通过 `process.read` 读取，不会被 mutation idempotency 持久化；raw input 不进入 SQLite；PID/私有绝对路径不出现在公共结果；stop 必须取得 Desktop Commander 的明确 terminal state；停止后也不能产生预设的延迟副作用。默认 protocol gate 通过确定性的 `verify:desktop-commander-host-process-live-harness` 跑同一 driver。
 
+对于 Durable Managed Process Supervisor 路径，TokenPilot 会把私有 Desktop Commander stdio/PID namespace 移到独立本机 sidecar。普通 Control Plane restart 必须保持 sidecar generation 与同一个公共 `host_process_*` 身份；Control Plane 离线期间，sidecar 仍通过只读 Continuity Database 独立检查所属 Writer Lease。Downstream MCP 进程由私有 process-group guardian 包裹，因此 sidecar 异常断开时可以收敛 Desktop Commander 进程树，而不需要持久化 PID 或根据旧 PID 重新 attach。运行最终 operator-only durability proof：
+
+```bash
+TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-durable-process-live
+```
+
+最终 durability 只认可 **`DESKTOP_COMMANDER_DURABLE_PROCESS_LIVE_PROOF_OK`**。同一个 driver 必须同时通过三个故障域：Control Plane restart continuity、Control Plane 离线期间 Writer Lease 失效自动收权，以及 Process Supervisor 被 hard-kill 后 managed child 仍不能留下延迟副作用。默认 protocol gate 中的 `verify:desktop-commander-durable-process-live-harness` 使用测试专用 abrupt sidecar exit，明确绕过 graceful `daemon.close()`，验证同一 guardian containment 路径。操作员也可以设置 `TOKENPILOT_DURABLE_PROCESS_PROOF_CRASH_MODE=abrupt-exit` 对真实外部包做诊断；该模式只会输出不同的 `DESKTOP_COMMANDER_DURABLE_PROCESS_ABRUPT_PROOF_OK`，**不能替代最终 hard-kill 发布门槛**。Raw downstream process tools、系统级进程 list/kill、persisted-PID adoption、socket 路径、sidecar token 与 private PID 都继续不进入 Remote MCP 合同。
+
 Remote MCP 现在开放受治理的 Host Files、bounded Host Command 与 TokenPilot-owned Managed Workspace Process，而不是 raw downstream tools。`tokenpilot.host.roots.list` 只返回 public-safe Root Alias 与每个 Root 的 `read/write` 权限。Write / Exact Edit 走 `tokenpilot.host.mutation.prepare` → `decide` → `execute`；bounded command 走 `tokenpilot.host.command.prepare` → `decide` → `execute`；Managed Process 走 `tokenpilot.host.process.prepare` → `decide` → `execute`，并配合 `read/list`。Pure Host Command 仍只允许显式只读 policy；Workspace write-effect Command 与 Managed Process start/input 都必须回到 chat-direct 治理并记录 Evidence。Raw shell source、任意 PID attach、系统级 `list_processes` / `kill_process`、PID 以及 raw Desktop Commander Process Tools 都继续不对 Remote MCP 开放。
 
 ## 6. 明确选择运行模式

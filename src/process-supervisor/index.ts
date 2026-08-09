@@ -5,6 +5,7 @@ import { DesktopCommanderManagedProcessSupervisor } from "../direct/adapters/des
 import { getDownstreamMcpExecutorsConfigPath } from "../direct/downstream-mcp-config.js";
 import type { TokenPilotPaths } from "../types.js";
 import { ProcessSupervisorEventJournal } from "./event-journal.js";
+import { createProcessSupervisorManagedProcessClientFactory } from "./downstream-containment.js";
 import { ProcessSupervisorLeaseAuthorityReader } from "./lease-authority-reader.js";
 import { ProcessSupervisorIpcServer } from "./server.js";
 import {
@@ -74,7 +75,8 @@ export class ProcessSupervisorDaemon {
         this.options.adapter ??
         new DesktopCommanderManagedProcessSupervisor(
           this.paths.runtimeDir,
-          getDownstreamMcpExecutorsConfigPath()
+          getDownstreamMcpExecutorsConfigPath(),
+          createProcessSupervisorManagedProcessClientFactory()
         );
       const authorityReader =
         this.options.authorityReader ??
