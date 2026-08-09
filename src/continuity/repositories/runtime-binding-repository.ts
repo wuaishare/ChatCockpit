@@ -174,7 +174,10 @@ export class RuntimeBindingRepository {
       .prepare(`
         SELECT * FROM runtime_bindings
         WHERE session_id = ?
-        ORDER BY created_at DESC, revision DESC
+        ORDER BY
+          CASE WHEN status = 'active' THEN 0 ELSE 1 END ASC,
+          created_at DESC,
+          rowid DESC
         LIMIT 1
       `)
       .get(sessionId) as RuntimeBindingRow | undefined;

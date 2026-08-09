@@ -93,6 +93,43 @@ try {
   });
   repositories.tasks.bindSession(task.id, session.id, task.revision, NOW);
 
+  const firstBinding = repositories.runtimeBindings.replaceActive({
+    id: "runtime_binding_same_timestamp_1",
+    sessionId: session.id,
+    workspaceId: workspace.id,
+    externalThreadId: "thread_same_timestamp_1",
+    relation: "bound",
+    modelProvider: "openai",
+    now: NOW
+  });
+  const secondBinding = repositories.runtimeBindings.replaceActive({
+    id: "runtime_binding_same_timestamp_2",
+    sessionId: session.id,
+    workspaceId: workspace.id,
+    externalThreadId: "thread_same_timestamp_2",
+    relation: "resumed",
+    modelProvider: "openai",
+    now: NOW
+  });
+  assert.equal(repositories.runtimeBindings.get(firstBinding.id).status, "superseded");
+  assert.equal(secondBinding.status, "active");
+  assert.equal(
+    repositories.runtimeBindings.latestForSession(session.id)?.id,
+    secondBinding.id,
+    "latestForSession must prefer the active replacement even when created_at timestamps collide"
+  );
+  const releasedSecondBinding = repositories.runtimeBindings.release(
+    secondBinding.id,
+    secondBinding.revision,
+    NOW
+  );
+  assert.equal(releasedSecondBinding.status, "released");
+  assert.equal(
+    repositories.runtimeBindings.latestForSession(session.id)?.id,
+    secondBinding.id,
+    "latestForSession must use a stable insertion-order tie-break when no active binding remains"
+  );
+
   const prepared = repositories.runtimeRecoveryAttempts.create({
     id: "recovery_prepared",
     projectId: project.id,
