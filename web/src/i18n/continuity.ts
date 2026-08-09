@@ -144,6 +144,33 @@ export interface ContinuityCopy {
   approvalStatus: string;
   refreshSnapshot: string;
   selectWorkspaceHint: string;
+  recoverySelectTask: string;
+  recoverySelectSession: string;
+  recoveryProvider: string;
+  recoveryProviderAuto: string;
+  recoveryAssess: string;
+  recoveryReassess: string;
+  recoveryClassification: string;
+  recoveryCompatibility: string;
+  recoveryProtocol: string;
+  recoveryVersion: string;
+  recoveryExternalRuntime: string;
+  recoveryCandidates: string;
+  recoveryBlockers: string;
+  recoveryActions: string;
+  recoveryExpires: string;
+  recoveryNoAssessment: string;
+  recoveryNoAssessmentDescription: string;
+  recoveryNoBlockers: string;
+  recoveryNoCandidates: string;
+  recoveryNoActions: string;
+  recoveryTargetThread: string;
+  recoveryTargetMode: string;
+  recoveryExecute: string;
+  recoveryApplied: string;
+  recoveryAttempt: string;
+  recoveryResultBinding: string;
+  recoveryAuthoritativeNotice: string;
 }
 
 export const zhCNContinuityCopy: ContinuityCopy = {
@@ -175,6 +202,11 @@ export const zhCNContinuityCopy: ContinuityCopy = {
       label: "会话",
       title: "开发会话",
       description: "Chat Direct、Codex Session 与异步 Agent 会话。"
+    },
+    recovery: {
+      label: "恢复中心",
+      title: "Runtime Recovery Center",
+      description: "基于真实连续性状态与运行时兼容性评估，显式恢复或接续现有开发会话。"
     },
     handoffs: {
       label: "交接",
@@ -322,7 +354,34 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   approvalKind: "审批类型",
   approvalStatus: "审批状态",
   refreshSnapshot: "刷新工作区状态",
-  selectWorkspaceHint: "选择一个工作区以读取真实连续性状态。"
+  selectWorkspaceHint: "选择一个工作区以读取真实连续性状态。",
+  recoverySelectTask: "恢复任务",
+  recoverySelectSession: "开发会话",
+  recoveryProvider: "运行时 Provider",
+  recoveryProviderAuto: "跟随当前会话 / Binding",
+  recoveryAssess: "评估恢复状态",
+  recoveryReassess: "重新评估",
+  recoveryClassification: "恢复分类",
+  recoveryCompatibility: "兼容性",
+  recoveryProtocol: "协议",
+  recoveryVersion: "运行时版本",
+  recoveryExternalRuntime: "当前外部运行时",
+  recoveryCandidates: "可选恢复候选",
+  recoveryBlockers: "阻塞项",
+  recoveryActions: "可执行恢复动作",
+  recoveryExpires: "评估有效期",
+  recoveryNoAssessment: "尚未进行恢复评估",
+  recoveryNoAssessmentDescription: "选择任务、会话与可选 Provider 后，让服务端基于 Writer、Git、Handoff、Evidence、Binding 与真实 Provider 状态生成短期 Recovery Attempt。",
+  recoveryNoBlockers: "当前评估没有阻塞项。",
+  recoveryNoCandidates: "当前没有服务端确认的外部运行时候选。",
+  recoveryNoActions: "当前评估没有可执行恢复动作。",
+  recoveryTargetThread: "目标 Codex Thread",
+  recoveryTargetMode: "交接目标模式",
+  recoveryExecute: "执行恢复",
+  recoveryApplied: "恢复动作已由服务端确认完成。",
+  recoveryAttempt: "Recovery Attempt",
+  recoveryResultBinding: "结果 Binding",
+  recoveryAuthoritativeNotice: "恢复资格与动作完全来自服务端评估；界面不会根据本地状态自行推断或提前标记恢复成功。"
 };
 
 export const enUSContinuityCopy: ContinuityCopy = {
@@ -354,6 +413,11 @@ export const enUSContinuityCopy: ContinuityCopy = {
       label: "Sessions",
       title: "Development sessions",
       description: "Chat Direct, Codex Session, and asynchronous Agent sessions."
+    },
+    recovery: {
+      label: "Recovery",
+      title: "Runtime Recovery Center",
+      description: "Assess real continuity and runtime compatibility before explicitly recovering or continuing development work."
     },
     handoffs: {
       label: "Handoffs",
@@ -501,5 +565,32 @@ export const enUSContinuityCopy: ContinuityCopy = {
   approvalKind: "Approval kind",
   approvalStatus: "Approval status",
   refreshSnapshot: "Refresh workspace state",
-  selectWorkspaceHint: "Select a workspace to read real continuity state."
+  selectWorkspaceHint: "Select a workspace to read real continuity state.",
+  recoverySelectTask: "Recovery task",
+  recoverySelectSession: "Development session",
+  recoveryProvider: "Runtime provider",
+  recoveryProviderAuto: "Follow current session / binding",
+  recoveryAssess: "Assess recovery state",
+  recoveryReassess: "Reassess",
+  recoveryClassification: "Recovery classification",
+  recoveryCompatibility: "Compatibility",
+  recoveryProtocol: "Protocol",
+  recoveryVersion: "Runtime version",
+  recoveryExternalRuntime: "Current external runtime",
+  recoveryCandidates: "Recovery candidates",
+  recoveryBlockers: "Blockers",
+  recoveryActions: "Available recovery actions",
+  recoveryExpires: "Assessment expires",
+  recoveryNoAssessment: "No recovery assessment yet",
+  recoveryNoAssessmentDescription: "Select a task, session, and optional provider. The server will create a short-lived Recovery Attempt from Writer, Git, Handoff, Evidence, Binding, and authoritative provider state.",
+  recoveryNoBlockers: "This assessment has no blockers.",
+  recoveryNoCandidates: "No server-confirmed external runtime candidates are available.",
+  recoveryNoActions: "This assessment has no executable recovery actions.",
+  recoveryTargetThread: "Target Codex thread",
+  recoveryTargetMode: "Handoff target mode",
+  recoveryExecute: "Execute recovery",
+  recoveryApplied: "The server confirmed the recovery action completed.",
+  recoveryAttempt: "Recovery Attempt",
+  recoveryResultBinding: "Result binding",
+  recoveryAuthoritativeNotice: "Recovery eligibility and actions come entirely from the server assessment. The UI does not infer eligibility or mark recovery successful before the server result."
 };

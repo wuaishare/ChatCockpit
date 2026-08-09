@@ -324,6 +324,13 @@ const developmentDocumentsSource = fs.readFileSync(
   ),
   "utf8"
 );
+const runtimeRecoverySource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/continuity/RuntimeRecoverySection.tsx"
+  ),
+  "utf8"
+);
 const apiSource = fs.readFileSync(path.join(repoRoot, "web/src/api.ts"), "utf8");
 
 for (const section of [
@@ -331,6 +338,7 @@ for (const section of [
   "documents",
   "tasks",
   "sessions",
+  "recovery",
   "handoffs",
   "evidence",
   "approvals"
@@ -340,6 +348,15 @@ for (const section of [
 assert.match(appSource, /\/ui\/continuity/);
 assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
+assert.match(apiSource, /\/api\/recovery\/assess/);
+assert.match(apiSource, /\/api\/recovery\/execute/);
+assert.match(runtimeRecoverySource, /assessRuntimeRecovery/);
+assert.match(runtimeRecoverySource, /executeRuntimeRecovery/);
+assert.match(runtimeRecoverySource, /assessment\.assessment\.availableActions/);
+assert.match(runtimeRecoverySource, /assessment\.assessment\.blockers/);
+assert.match(runtimeRecoverySource, /assessment\?\.assessment\.compatibility|assessment\.assessment\.compatibility/);
+assert.match(runtimeRecoverySource, /assessment\?\.attempt\.status === "prepared"|assessment\.attempt\.status === "prepared"/);
+assert.doesNotMatch(runtimeRecoverySource, /turn\/start|startCodexRuntimeTurn/);
 for (const operation of [
   "prepareContinuityHandoff",
   "acceptContinuityHandoff",
@@ -384,8 +401,8 @@ assert.match(developmentDocumentsSource, /currentContent\.contentMarkdown/);
 assert.match(developmentDocumentsSource, /currentVersion\.contentHash/);
 assert.match(developmentDocumentsSource, /assessment\.blockers/);
 assert.doesNotMatch(
-  `${continuitySource}\n${workspaceContinuityRuntimeSource}\n${developmentDocumentsSource}`,
-  /mock(?:Projects|Snapshot|Tasks|Sessions)|sample(?:Projects|Snapshot)|demo(?:Projects|Snapshot|Tasks)|fixture(?:Projects|Snapshot)|fake(?:Projects|Snapshot)/i
+  `${continuitySource}\n${workspaceContinuityRuntimeSource}\n${developmentDocumentsSource}\n${runtimeRecoverySource}`,
+  /mock(?:Projects|Snapshot|Tasks|Sessions|Recovery)|sample(?:Projects|Snapshot|Recovery)|demo(?:Projects|Snapshot|Tasks|Recovery)|fixture(?:Projects|Snapshot|Recovery)|fake(?:Projects|Snapshot|Recovery)/i
 );
 
 process.stdout.write("VERIFY_WEB_SAFETY_OK\n");

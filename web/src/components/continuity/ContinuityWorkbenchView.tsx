@@ -10,6 +10,7 @@ import {
   ProjectOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  SyncOutlined,
   SwapOutlined
 } from "@ant-design/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -42,6 +43,7 @@ const SECTION_ICONS: Record<ContinuitySectionKey, React.ReactNode> = {
   documents: <FileTextOutlined />,
   tasks: <CheckSquareOutlined />,
   sessions: <CodeOutlined />,
+  recovery: <SyncOutlined />,
   handoffs: <SwapOutlined />,
   evidence: <SafetyCertificateOutlined />,
   approvals: <AuditOutlined />

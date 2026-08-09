@@ -75,6 +75,7 @@ const CONTINUITY_SECTIONS = new Set<ContinuitySectionKey>([
   "documents",
   "tasks",
   "sessions",
+  "recovery",
   "handoffs",
   "evidence",
   "approvals"

@@ -206,6 +206,7 @@ export type ContinuitySectionKey =
   | "documents"
   | "tasks"
   | "sessions"
+  | "recovery"
   | "handoffs"
   | "evidence"
   | "approvals";
@@ -584,6 +585,133 @@ export interface ContinuityWorkspaceSnapshot {
   };
   tasks: ContinuityWorkspaceTaskProjection[];
   pendingApprovals: ContinuityRuntimeApprovalRecord[];
+}
+
+export type RuntimeRecoveryAction =
+  | "resume-bound-codex"
+  | "fork-bound-codex"
+  | "bind-existing-codex-thread"
+  | "continue-via-handoff"
+  | "continue-chat-direct"
+  | "reconcile-runner-binding";
+
+export type RuntimeRecoveryClassification =
+  | "healthy"
+  | "recoverable"
+  | "binding-missing"
+  | "provider-unavailable"
+  | "provider-auth-required"
+  | "provider-version-unsupported"
+  | "provider-protocol-incompatible"
+  | "external-runtime-missing"
+  | "external-runtime-busy"
+  | "external-runtime-identity-mismatch"
+  | "writer-conflict"
+  | "pending-approval"
+  | "active-run"
+  | "handoff-required"
+  | "blocked";
+
+export interface RuntimeRecoveryCompatibility {
+  providerKind: string;
+  protocolKind: "native-app-server" | "runner" | "chat-direct" | "acp";
+  available: boolean;
+  executableSource: "path" | "custom" | "bundled" | "internal" | null;
+  executableVersion: string | null;
+  minimumSupportedVersion: string | null;
+  testedVersionRange: string | null;
+  protocolFamily: string | null;
+  protocolVersion: string | null;
+  schemaFingerprint: string | null;
+  compatibilityStatus:
+    | "ready"
+    | "unavailable"
+    | "auth-required"
+    | "version-unsupported"
+    | "protocol-incompatible"
+    | "degraded";
+  publicReason: string | null;
+  probedAt: string;
+}
+
+export interface RuntimeRecoverableExternalSession {
+  externalSessionId: string;
+  providerKind: string;
+  protocolKind: "native-app-server" | "runner" | "chat-direct" | "acp";
+  projectId: string | null;
+  workspaceId: string | null;
+  repoId: string | null;
+  status: string;
+  preview: string;
+  createdAt: number | null;
+  updatedAt: number | null;
+  recencyAt: number | null;
+}
+
+export interface RuntimeExternalSessionInspection
+  extends RuntimeRecoverableExternalSession {
+  exists: boolean;
+  authoritative: boolean;
+  busy: boolean;
+  identityMatched: boolean;
+}
+
+export interface RuntimeRecoveryBlocker {
+  code: RuntimeRecoveryClassification;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface RuntimeRecoveryAttempt {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  taskId: string;
+  sessionId: string | null;
+  sourceBindingId: string | null;
+  providerKind: string;
+  protocolKind: "native-app-server" | "runner" | "chat-direct" | "acp";
+  classification: RuntimeRecoveryClassification;
+  assessmentHash: string;
+  selectedAction: RuntimeRecoveryAction | null;
+  status: "prepared" | "applied" | "blocked" | "failed" | "superseded" | "expired";
+  resultingBindingId: string | null;
+  publicSummary: Record<string, unknown>;
+  compatibility: Record<string, unknown>;
+  createdAt: string;
+  expiresAt: string;
+  resolvedAt: string | null;
+  revision: number;
+}
+
+export interface RuntimeRecoveryAssessment {
+  recoveryId: string;
+  classification: RuntimeRecoveryClassification;
+  blockers: RuntimeRecoveryBlocker[];
+  availableActions: RuntimeRecoveryAction[];
+  compatibility: RuntimeRecoveryCompatibility;
+  candidates: RuntimeRecoverableExternalSession[];
+  externalSession: RuntimeExternalSessionInspection | null;
+  assessmentHash: string;
+  expiresAt: string;
+}
+
+export interface RuntimeRecoveryAssessResponse {
+  ok: true;
+  attempt: RuntimeRecoveryAttempt;
+  assessment: RuntimeRecoveryAssessment;
+  replayed: boolean;
+}
+
+export interface RuntimeRecoveryExecuteResponse {
+  ok: true;
+  attempt: RuntimeRecoveryAttempt;
+  action: RuntimeRecoveryAction;
+  resultingBinding: ContinuityRuntimeBindingRecord | null;
+  resultingTaskId: string | null;
+  resultingSessionId: string | null;
+  externalSessionId: string | null;
+  replayed: boolean;
 }
 
 export interface ContinuityWorkspaceSnapshotResponse {

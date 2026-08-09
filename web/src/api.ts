@@ -20,6 +20,9 @@ import type {
   JobArtifactsListResponse,
   JobDetailResponse,
   JobsListResponse,
+  RuntimeRecoveryAction,
+  RuntimeRecoveryAssessResponse,
+  RuntimeRecoveryExecuteResponse,
   SetupStatusResponse,
   TerminateAllJobsResponse
 } from "./types";
@@ -177,6 +180,34 @@ export async function fetchWorkspaceContinuitySnapshot(
     `/api/continuity/workspaces/${encodeURIComponent(workspaceId)}/snapshot`,
     token
   );
+}
+
+export async function assessRuntimeRecovery(
+  payload: {
+    workspaceId: string;
+    taskId: string;
+    sessionId?: string;
+    providerKind?: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<RuntimeRecoveryAssessResponse> {
+  return postBodyJson("/api/recovery/assess", payload, token);
+}
+
+export async function executeRuntimeRecovery(
+  payload: {
+    recoveryId: string;
+    assessmentHash: string;
+    expectedRecoveryRevision: number;
+    action: RuntimeRecoveryAction;
+    targetThreadId?: string;
+    targetMode?: ContinuitySessionMode;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<RuntimeRecoveryExecuteResponse> {
+  return postBodyJson("/api/recovery/execute", payload, token);
 }
 
 async function postBodyJson<T>(

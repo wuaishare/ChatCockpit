@@ -21,6 +21,7 @@ import type {
   ContinuityWorkspaceTaskProjection
 } from "../../types";
 import { DevelopmentDocumentsSection } from "./DevelopmentDocumentsSection";
+import { RuntimeRecoverySection } from "./RuntimeRecoverySection";
 import {
   ApprovalsSection,
   EvidenceSection,
@@ -295,6 +296,14 @@ export function WorkspaceContinuityPanel({
       ) : null}
       {activeSection === "sessions" ? (
         <SessionsSection locale={locale} snapshot={snapshot} />
+      ) : null}
+      {activeSection === "recovery" ? (
+        <RuntimeRecoverySection
+          locale={locale}
+          token={token}
+          snapshot={snapshot}
+          onRefreshSnapshot={onRefresh}
+        />
       ) : null}
       {activeSection === "handoffs" ? (
         <HandoffsSection
