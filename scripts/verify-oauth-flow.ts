@@ -325,6 +325,23 @@ async function main(): Promise<void> {
       headers: { authorization: `Bearer ${tokens.access_token}` }
     });
     assert.equal(oauthCannotUseRest.status, 401);
+    const oauthCannotDecideMutation = await fetch(
+      `${server.baseUrl}/api/resources/mutations/decision`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${tokens.access_token}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          approvalId: "resource_mutation_approval_oauth_fixture",
+          expectedRevision: 1,
+          decision: "approved",
+          idempotencyKey: "oauth-mutation-decision-forbidden-0001"
+        })
+      }
+    );
+    assert.equal(oauthCannotDecideMutation.status, 401);
 
     const projects = await authorizedJson<{
       ok: true;

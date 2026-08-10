@@ -262,6 +262,19 @@ async function runMcpSmoke(): Promise<void> {
       ].sort()
     );
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
+    for (const mutationToolName of [
+      "tokenpilot.resources.mutation.prepare",
+      "tokenpilot.resources.mutation.inspect",
+      "tokenpilot.resources.mutation.execute",
+      "tokenpilot.resources.mutation.decide",
+      "tokenpilot.resources.mutation.reconcile"
+    ]) {
+      assert.equal(
+        toolByName.has(mutationToolName),
+        false,
+        `Exposed MCP smoke without Resource mutation opt-in registered ${mutationToolName}`
+      );
+    }
     for (const rawDownstreamName of [
       "start_process",
       "read_process_output",

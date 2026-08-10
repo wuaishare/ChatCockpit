@@ -99,6 +99,7 @@ import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./
 import { operationContextFromRequest } from "./request-context.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
 import { registerRecoveryRoutes } from "./recovery-routes.js";
+import { isResourceMutationExposureEnabled } from "./runtime-resource-mutation-policy.js";
 import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
@@ -398,6 +399,7 @@ export function buildServer(
     runtimeEventService,
     runtimeRecoveryServices,
     runtimeResourceServices,
+    isResourceMutationExposureEnabled() ? runtimeResourceMutationService : null,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
     }

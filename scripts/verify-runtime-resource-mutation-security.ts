@@ -172,16 +172,25 @@ assert.equal(
 );
 
 const mcpSurfaces = readTree("src/mcp");
-for (const forbiddenMcpSurface of [
+for (const requiredMcpSurface of [
   "tokenpilot.resources.mutation.prepare",
+  "tokenpilot.resources.mutation.inspect",
+  "tokenpilot.resources.mutation.execute"
+]) {
+  assert.equal(
+    mcpSurfaces.includes(requiredMcpSurface),
+    true,
+    `Phase 6B2C3 must expose constrained MCP Resource mutation surface: ${requiredMcpSurface}`
+  );
+}
+for (const forbiddenMcpSurface of [
   "tokenpilot.resources.mutation.decide",
-  "tokenpilot.resources.mutation.execute",
   "tokenpilot.resources.mutation.reconcile"
 ]) {
   assert.equal(
     mcpSurfaces.includes(forbiddenMcpSurface),
     false,
-    `Phase 6B2C2 must keep MCP Resource mutation closed: ${forbiddenMcpSurface}`
+    `Phase 6B2C3 must keep MCP Resource mutation surface closed: ${forbiddenMcpSurface}`
   );
 }
 
