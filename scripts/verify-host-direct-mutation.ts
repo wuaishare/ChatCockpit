@@ -9,7 +9,10 @@ import { HostMutationService } from "../src/application/host-mutation-service.ts
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { classifyHostMutationTarget } from "../src/application/workspace-mutation-governance.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { buildPaths } from "../src/core/paths.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
@@ -47,7 +50,7 @@ function verifyDirectMutationPersistence(): void {
   const repositories = buildContinuityRepositories(database);
 
   try {
-    assert.equal(database.schemaVersion(), 15);
+    assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
 
     const pending = repositories.directMutationApprovals.create({
       operation: "files.write",
