@@ -144,6 +144,13 @@ const resourceUiSource = fs.readFileSync(
   new URL("../web/src/components/resources/ResourceCenterView.tsx", import.meta.url),
   "utf8"
 );
+const resourceMutationWorkflowSource = fs.readFileSync(
+  new URL(
+    "../web/src/components/resources/use-resource-mutation-workflow.ts",
+    import.meta.url
+  ),
+  "utf8"
+);
 
 for (const requiredReadMethod of [
   "skills/list",
@@ -207,9 +214,9 @@ for (const requiredRestMutationRoute of [
 }
 assert.doesNotMatch(resourceRouteSource, /\.(?:put|patch|delete)\(/);
 assert.doesNotMatch(
-  resourceUiSource,
+  `${resourceUiSource}\n${resourceMutationWorkflowSource}`,
   /installRuntimeResource|updateRuntimeResource|removeRuntimeResource|enableRuntimeResource|disableRuntimeResource/
 );
-assert.match(resourceUiSource, /workspaceId: selectedWorkspaceId/);
+assert.match(resourceMutationWorkflowSource, /workspaceId: selectedWorkspaceId/);
 
 process.stdout.write("VERIFY_RUNTIME_RESOURCE_SECURITY_OK\n");

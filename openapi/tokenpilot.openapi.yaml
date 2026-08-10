@@ -4541,6 +4541,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RuntimeResourceDescriptor'
+        mutationWritesEnabled:
+          type: boolean
+          description: Whether governed Runtime Resource mutation writes are enabled for this deployment. Read-only inventory remains available when false.
         mutationEligibility:
           type: array
           items:
@@ -4552,7 +4555,7 @@ components:
         diff:
           $ref: '#/components/schemas/RuntimeResourceDiff'
         replayed: { type: boolean }
-      required: [ok, snapshot, profile, resources, mutationEligibility, diagnostics, diff, replayed]
+      required: [ok, snapshot, profile, resources, mutationWritesEnabled, mutationEligibility, diagnostics, diff, replayed]
     RuntimeResourceSnapshotReadResponse:
       type: object
       additionalProperties: false

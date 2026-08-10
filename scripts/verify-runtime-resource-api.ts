@@ -285,6 +285,7 @@ async function run(): Promise<void> {
         fingerprint: string;
         enabled: boolean | null;
       }>;
+      mutationWritesEnabled: boolean;
       mutationEligibility: Array<{
         resourceId: string;
         snapshotId: string;
@@ -305,6 +306,7 @@ async function run(): Promise<void> {
       ["mcp-server", "plugin", "skill"]
     );
     assert.equal(restInventory.diff.previousSnapshotId, null);
+    assert.equal(restInventory.mutationWritesEnabled, false);
 
     const skill = restInventory.resources.find((resource) => resource.kind === "skill")!;
     const skillEligibility = restInventory.mutationEligibility.find(
@@ -339,6 +341,13 @@ async function run(): Promise<void> {
     assert.equal(stillReadable.snapshot.id, restInventory.snapshot.id);
 
     process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = "true";
+    const enabledInventory = await rest<typeof restInventory>(
+      "POST",
+      "/api/resources/inventory",
+      inventoryInput
+    );
+    assert.equal(enabledInventory.replayed, true);
+    assert.equal(enabledInventory.mutationWritesEnabled, true);
 
     const forgedActor = await rawRest("POST", "/api/resources/mutations/prepare", {
       operation: "skill.disable",

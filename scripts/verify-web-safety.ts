@@ -335,6 +335,13 @@ const resourceCenterSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/resources/ResourceCenterView.tsx"),
   "utf8"
 );
+const resourceMutationWorkflowSource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/resources/use-resource-mutation-workflow.ts"
+  ),
+  "utf8"
+);
 const apiSource = fs.readFileSync(path.join(repoRoot, "web/src/api.ts"), "utf8");
 const resourceTypesSource = fs.readFileSync(
   path.join(repoRoot, "web/src/types.ts"),
@@ -423,11 +430,11 @@ assert.doesNotMatch(resourceCopySource, /Phase 6A 不执行安装|Phase 6A perfo
 assert.match(resourceCenterSource, /copy\.profilesTitle/);
 assert.match(resourceCenterSource, /resource-center__profile-card/);
 assert.match(resourceCenterSource, /selectedWorkspaceId/);
-assert.match(resourceCenterSource, /workspaceId: selectedWorkspaceId/);
+assert.match(resourceMutationWorkflowSource, /workspaceId: selectedWorkspaceId/);
 assert.match(resourceCenterSource, /resource-center__metrics/);
 assert.match(resourceCenterSource, /resource-center__drawer/);
 assert.doesNotMatch(
-  resourceCenterSource,
+  `${resourceCenterSource}\n${resourceMutationWorkflowSource}`,
   /installRuntimeResource|updateRuntimeResource|removeRuntimeResource|enableRuntimeResource|disableRuntimeResource|turn\/start|startCodexRuntimeTurn/
 );
 assert.doesNotMatch(

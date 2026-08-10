@@ -107,9 +107,14 @@
   box-shadow: none;
 }
 
-.resource-center__profile-card:hover {
+.resource-center__profile-card:hover:not(:disabled) {
   border-color: var(--tp-line-strong);
   background: var(--tp-surface-strong);
+}
+
+.resource-center__profile-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 .resource-center__profile-card--selected {
@@ -254,7 +259,7 @@
 
 .resource-center__table {
   width: 100%;
-  min-width: 860px;
+  min-width: 1040px;
   border-collapse: collapse;
   background: transparent;
 }
@@ -311,6 +316,97 @@
   font-size: var(--tp-text-xs);
 }
 
+.resource-center__mutation-gate {
+  border-radius: var(--tp-radius-lg);
+}
+
+.resource-center__mutation-review {
+  display: grid;
+  gap: 14px;
+}
+
+.resource-center__mutation-review-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.resource-center__mutation-review-name {
+  max-width: 44ch;
+  color: var(--tp-text-strong) !important;
+  font-size: var(--tp-text-lg);
+  overflow-wrap: anywhere;
+}
+
+.resource-center__mutation-review .ant-alert,
+.resource-center__mutation-review .ant-descriptions {
+  border-radius: var(--tp-radius-md);
+}
+
+.resource-center__mutation-activity {
+  padding: 16px;
+}
+
+.resource-center__mutation-activity-header {
+  margin-bottom: 0;
+}
+
+.resource-center__mutation-activity-list {
+  display: grid;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--tp-line);
+}
+
+.resource-center__mutation-activity-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--tp-line);
+}
+
+.resource-center__mutation-activity-item:last-child {
+  border-bottom: 0;
+}
+
+.resource-center__mutation-activity-main {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.resource-center__mutation-activity-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.resource-center__mutation-activity-title-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.resource-center__mutation-activity-meta {
+  justify-content: flex-end;
+  color: var(--tp-text-soft);
+  font-size: var(--tp-text-xs);
+  text-align: right;
+}
+
+.resource-center__mutation-activity-meta time {
+  white-space: nowrap;
+}
+
+.resource-center__mutation-modal .ant-modal-content {
+  border-radius: var(--tp-radius-lg);
+}
+
 @media (max-width: 900px) {
   .resource-center {
     --resource-card-min: 220px;
@@ -355,6 +451,31 @@
 
   .resource-center__inventory .ant-tabs-nav-list {
     min-width: max-content;
+  }
+
+  .resource-center__mutation-review-heading,
+  .resource-center__mutation-activity-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .resource-center__mutation-review-heading {
+    display: grid;
+  }
+
+  .resource-center__mutation-activity-meta {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .resource-center__mutation-modal .ant-modal-footer {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .resource-center__mutation-modal .ant-modal-footer .ant-btn {
+    width: 100%;
+    margin-inline-start: 0;
   }
 }
 

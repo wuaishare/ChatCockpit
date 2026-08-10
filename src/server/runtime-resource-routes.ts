@@ -93,6 +93,7 @@ export function registerRuntimeResourceRoutes(
       return {
         ok: true,
         ...inventory,
+        mutationWritesEnabled: isResourceMutationExposureEnabled(),
         mutationEligibility: inventory.resources
           .map((resource) => ({
             resourceId: resource.id,

@@ -966,6 +966,7 @@ export interface RuntimeResourceInventoryResponse {
   snapshot: RuntimeResourceSnapshot;
   profile: RuntimeProfileDescriptor;
   resources: RuntimeResourceDescriptor[];
+  mutationWritesEnabled: boolean;
   mutationEligibility: RuntimeResourceMutationEligibilityEntry[];
   diagnostics: RuntimeResourceInventoryDiagnostic[];
   diff: RuntimeResourceDiff;
