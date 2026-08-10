@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+import { ServiceError } from "../src/application/service-error.ts";
 import type {
   RuntimeProfileDescriptor,
   RuntimeResourceDescriptor
@@ -16,6 +17,7 @@ import type {
 import type { CodexPluginMutationAdapter } from "../src/runtime/resources/codex-plugin-mutation-adapter.ts";
 import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 import {
+  formatCodexPluginMutationProofFailure,
   runCodexPluginMutationLiveProof,
   type CodexPluginMutationLiveRuntimeBundle
 } from "./probe-codex-plugin-mutation-live.ts";
@@ -36,12 +38,14 @@ const profile: RuntimeProfileDescriptor = {
 };
 
 let installed = false;
+let visibilityLagReadsRemaining = 0;
+let visibilityLagInstalled = false;
 let installCalls = 0;
 let uninstallCalls = 0;
 let skillMutationCalls = 0;
 const observedProviderMethods = new Set<string>();
 
-function pluginProjection(): RuntimePluginProjection {
+function pluginProjection(observedInstalled = installed): RuntimePluginProjection {
   return {
     id: "fixture-plugin@fixture-marketplace",
     marketplaceName: "fixture-marketplace",
@@ -50,10 +54,10 @@ function pluginProjection(): RuntimePluginProjection {
     name: "fixture-plugin",
     displayName: "Fixture Plugin",
     description: "Fixture Plugin live-proof harness",
-    version: installed ? "1.0.0" : null,
+    version: observedInstalled ? "1.0.0" : null,
     availableVersion: "1.0.0",
-    installed,
-    enabled: installed,
+    installed: observedInstalled,
+    enabled: observedInstalled,
     availability: "AVAILABLE",
     installPolicy: "AVAILABLE",
     installPolicySource: "WORKSPACE_SETTING",
@@ -61,7 +65,7 @@ function pluginProjection(): RuntimePluginProjection {
     authPolicy: "ON_USE",
     category: "Engineering",
     capabilities: ["Read"],
-    observedBy: installed ? ["catalog", "installed"] : ["catalog"]
+    observedBy: observedInstalled ? ["catalog", "installed"] : ["catalog"]
   };
 }
 
@@ -81,7 +85,10 @@ const runtime = {
   ): Promise<RuntimePluginProjection[]> => {
     observedProviderMethods.add("plugin/installed");
     observedProviderMethods.add("plugin/list");
-    return [pluginProjection()];
+    const observedInstalled =
+      visibilityLagReadsRemaining > 0 ? visibilityLagInstalled : installed;
+    if (visibilityLagReadsRemaining > 0) visibilityLagReadsRemaining -= 1;
+    return [pluginProjection(observedInstalled)];
   },
   readCodexResourceConfigSummary:
     async (): Promise<RuntimeResourceConfigSummary> => {
@@ -119,6 +126,8 @@ const pluginMutationAdapter = {
     assert.match(input.expectedFingerprint, /^[a-f0-9]{64}$/);
     assert.equal(installed, false);
     installed = true;
+    visibilityLagInstalled = false;
+    visibilityLagReadsRemaining = 2;
     return {
       authPolicy: "ON_USE",
       appsNeedingAuthCount: 0
@@ -140,6 +149,8 @@ const pluginMutationAdapter = {
     assert.match(input.expectedFingerprint, /^[a-f0-9]{64}$/);
     assert.equal(installed, true);
     installed = false;
+    visibilityLagInstalled = true;
+    visibilityLagReadsRemaining = 2;
   }
 } as unknown as CodexPluginMutationAdapter;
 
@@ -155,6 +166,8 @@ const bundle: CodexPluginMutationLiveRuntimeBundle = {
 const summary = await runCodexPluginMutationLiveProof({
   requireOptIn: false,
   workspaceRoot: process.cwd(),
+  pluginPostflightMaxAttempts: 3,
+  pluginPostflightDelayMs: 0,
   createRuntime: async () => bundle
 });
 
@@ -176,6 +189,19 @@ assert.equal(skillMutationCalls, 0);
 assert.equal(summary.observedProviderMethods.includes("plugin/install"), true);
 assert.equal(summary.observedProviderMethods.includes("plugin/uninstall"), true);
 assert.equal(summary.observedProviderMethods.includes("turn/start"), false);
+assert.equal(visibilityLagReadsRemaining, 0);
+
+const formattedFailure = formatCodexPluginMutationProofFailure(
+  new AggregateError(
+    [
+      new ServiceError("PRIMARY_SAFE_CODE", "sensitive primary provider message"),
+      new ServiceError("CLEANUP_SAFE_CODE", "sensitive cleanup provider message")
+    ],
+    "sensitive aggregate message"
+  )
+);
+assert.equal(formattedFailure, "primary=PRIMARY_SAFE_CODE,cleanup=CLEANUP_SAFE_CODE");
+assert.equal(formattedFailure.includes("sensitive"), false);
 
 const publicJson = JSON.stringify(summary);
 for (const forbidden of [

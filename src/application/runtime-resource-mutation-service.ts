@@ -23,6 +23,8 @@ import type { CodexSkillMutationAdapter } from "../runtime/resources/codex-skill
 import type { CodexPluginMutationAdapter } from "../runtime/resources/codex-plugin-mutation-adapter.js";
 
 const RESOURCE_MUTATION_APPROVAL_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_PLUGIN_POSTFLIGHT_MAX_ATTEMPTS = 5;
+const DEFAULT_PLUGIN_POSTFLIGHT_DELAY_MS = 250;
 const PRE_WRITE_STALE_CODES = new Set([
   "RUNTIME_RESOURCE_MUTATION_STALE",
   "RUNTIME_RESOURCE_MUTATION_NOT_FOUND",
@@ -103,6 +105,8 @@ function freshInventoryKey(stage: string, outerIdempotencyKey: string): string {
 export class RuntimeResourceMutationService {
   private readonly now: () => string;
   private readonly codexPlugins: CodexPluginMutationAdapter | null;
+  private readonly pluginPostflightMaxAttempts: number;
+  private readonly pluginPostflightDelayMs: number;
 
   constructor(
     private readonly repositories: ContinuityRepositories,
@@ -111,10 +115,28 @@ export class RuntimeResourceMutationService {
     options: {
       now?: () => string;
       codexPlugins?: CodexPluginMutationAdapter;
+      pluginPostflightMaxAttempts?: number;
+      pluginPostflightDelayMs?: number;
     } = {}
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.codexPlugins = options.codexPlugins ?? null;
+    this.pluginPostflightMaxAttempts = Math.max(
+      1,
+      Math.min(
+        10,
+        Math.trunc(
+          options.pluginPostflightMaxAttempts ?? DEFAULT_PLUGIN_POSTFLIGHT_MAX_ATTEMPTS
+        )
+      )
+    );
+    this.pluginPostflightDelayMs = Math.max(
+      0,
+      Math.min(
+        5_000,
+        Math.trunc(options.pluginPostflightDelayMs ?? DEFAULT_PLUGIN_POSTFLIGHT_DELAY_MS)
+      )
+    );
   }
 
   async prepare(
@@ -508,79 +530,94 @@ export class RuntimeResourceMutationService {
       providerError = errorCode(error);
     }
 
-    try {
-      const after = await this.inventory.inventory({
-        runtimeProfileId: prepared.profile.id,
-        workspaceId: prepared.approval.workspaceId!,
-        idempotencyKey: freshInventoryKey(
-          "resource-mutation-postflight",
-          idempotencyKey
-        )
-      });
-      const resource = after.resources.find(
-        (entry) => entry.id === prepared.before.id
-      );
-      const observedState = {
-        ...semantics.observedState(resource),
-        ...providerEvidence
-      };
+    const maxPostflightAttempts =
+      semantics.resourceKind === "plugin" ? this.pluginPostflightMaxAttempts : 1;
+    let lastObservedOutcome: ExternalExecutionOutcome | null = null;
+    let lastReadErrorCode: string | null = null;
 
-      if (isPreWriteStaleCode(providerError)) {
-        return {
-          status: "stale",
+    for (let attempt = 1; attempt <= maxPostflightAttempts; attempt += 1) {
+      try {
+        const after = await this.inventory.inventory({
+          runtimeProfileId: prepared.profile.id,
+          workspaceId: prepared.approval.workspaceId!,
+          idempotencyKey: freshInventoryKey(
+            "resource-mutation-postflight",
+            idempotencyKey
+          )
+        });
+        const resource = after.resources.find(
+          (entry) => entry.id === prepared.before.id
+        );
+        const observedState = {
+          ...semantics.observedState(resource),
+          ...providerEvidence
+        };
+
+        if (isPreWriteStaleCode(providerError)) {
+          return {
+            status: "stale",
+            afterSnapshotId: after.snapshot.id,
+            afterFingerprint: resource?.fingerprint ?? null,
+            observedState,
+            errorCode: providerError
+          };
+        }
+        if (semantics.isVerified(resource)) {
+          return {
+            status: "verified",
+            afterSnapshotId: after.snapshot.id,
+            afterFingerprint: resource!.fingerprint,
+            observedState,
+            errorCode: null
+          };
+        }
+
+        lastObservedOutcome = {
+          status: providerError ? "failed-external" : "failed-verification",
           afterSnapshotId: after.snapshot.id,
           afterFingerprint: resource?.fingerprint ?? null,
           observedState,
-          errorCode: providerError
+          errorCode:
+            providerError ?? "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
         };
-      }
-      if (semantics.isVerified(resource)) {
-        return {
-          status: "verified",
-          afterSnapshotId: after.snapshot.id,
-          afterFingerprint: resource!.fingerprint,
-          observedState,
-          errorCode: null
-        };
-      }
-      if (providerError) {
-        return {
-          status: "failed-external",
-          afterSnapshotId: after.snapshot.id,
-          afterFingerprint: resource?.fingerprint ?? null,
-          observedState,
-          errorCode: providerError
-        };
-      }
-      return {
-        status: "failed-verification",
-        afterSnapshotId: after.snapshot.id,
-        afterFingerprint: resource?.fingerprint ?? null,
-        observedState,
-        errorCode: "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
-      };
-    } catch (error) {
-      if (isPreWriteStaleCode(providerError)) {
-        return {
-          status: "stale",
-          afterSnapshotId: null,
-          afterFingerprint: null,
-          observedState: null,
-          errorCode: providerError
-        };
-      }
-      return {
-        status: providerError ? "failed-external" : "failed-verification",
-        afterSnapshotId: null,
-        afterFingerprint: null,
-        observedState: null,
-        errorCode:
-          providerError ??
-          (error instanceof ServiceError
+      } catch (error) {
+        if (isPreWriteStaleCode(providerError)) {
+          return {
+            status: "stale",
+            afterSnapshotId: null,
+            afterFingerprint: null,
+            observedState: null,
+            errorCode: providerError
+          };
+        }
+        lastReadErrorCode =
+          error instanceof ServiceError
             ? error.code
-            : "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED")
-      };
+            : "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED";
+      }
+
+      if (attempt < maxPostflightAttempts && semantics.resourceKind === "plugin") {
+        if (this.pluginPostflightDelayMs > 0) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, this.pluginPostflightDelayMs);
+          });
+        }
+        continue;
+      }
+      break;
     }
+
+    if (lastObservedOutcome) return lastObservedOutcome;
+    return {
+      status: providerError ? "failed-external" : "failed-verification",
+      afterSnapshotId: null,
+      afterFingerprint: null,
+      observedState: null,
+      errorCode:
+        providerError ??
+        lastReadErrorCode ??
+        "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
+    };
   }
 
   private requirePluginAdapter(): CodexPluginMutationAdapter {

@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { RuntimeResourceInventoryService } from "../src/application/runtime-resource-inventory-service.ts";
 import { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
+import { ServiceError } from "../src/application/service-error.ts";
 import type {
   RuntimeProfileDescriptor,
   RuntimeResourceDescriptor,
@@ -60,6 +61,8 @@ export interface CodexPluginMutationLiveRuntimeBundle {
 export interface CodexPluginMutationLiveProofOptions {
   workspaceRoot?: string;
   requireOptIn?: boolean;
+  pluginPostflightMaxAttempts?: number;
+  pluginPostflightDelayMs?: number;
   createRuntime?: (
     repositories: ContinuityRepositories,
     workspaceId: string
@@ -320,12 +323,38 @@ async function governedTransition(input: {
     expectedFingerprint: input.resource.fingerprint,
     idempotencyKey: `${input.keyPrefix}:execute`
   });
-  assert.equal(
-    executed.execution.verificationStatus,
-    "verified",
-    `${input.operation} did not reach authoritative verified state (status=${executed.execution.verificationStatus}, errorCode=${executed.execution.errorCode ?? "none"})`
-  );
+  if (executed.execution.verificationStatus !== "verified") {
+    throw new ServiceError(
+      executed.execution.errorCode ?? "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED",
+      `${input.operation} did not reach authoritative verified state`
+    );
+  }
   return executed;
+}
+
+function proofErrorCode(error: unknown): string {
+  if (error instanceof ServiceError) return error.code;
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as { code: string }).code;
+  }
+  if (error instanceof Error && error.name) return error.name;
+  return "UNKNOWN_ERROR";
+}
+
+export function formatCodexPluginMutationProofFailure(error: unknown): string {
+  if (error instanceof AggregateError) {
+    const entries = error.errors.map((entry, index) => {
+      const stage = index === 0 ? "primary" : index === 1 ? "cleanup" : `secondary-${index}`;
+      return `${stage}=${proofErrorCode(entry)}`;
+    });
+    return entries.join(",");
+  }
+  return `primary=${proofErrorCode(error)}`;
 }
 
 export async function runCodexPluginMutationLiveProof(
@@ -335,7 +364,8 @@ export async function runCodexPluginMutationLiveProof(
     options.requireOptIn !== false &&
     process.env[OPT_IN_ENV] !== OPT_IN_VALUE
   ) {
-    throw new Error(
+    throw new ServiceError(
+      "CODEX_PLUGIN_MUTATION_PROOF_OPT_IN_REQUIRED",
       `Refusing real Codex Plugin mutation without ${OPT_IN_ENV}=${OPT_IN_VALUE}`
     );
   }
@@ -369,7 +399,11 @@ export async function runCodexPluginMutationLiveProof(
       repositories,
       inventory,
       bundle.skillMutationAdapter,
-      { codexPlugins: bundle.pluginMutationAdapter }
+      {
+        codexPlugins: bundle.pluginMutationAdapter,
+        pluginPostflightMaxAttempts: options.pluginPostflightMaxAttempts,
+        pluginPostflightDelayMs: options.pluginPostflightDelayMs
+      }
     );
     const initial = await inventoryFresh(
       inventory,
@@ -475,7 +509,8 @@ export async function runCodexPluginMutationLiveProof(
               resource.installed === true
           );
           if (driftedInstalled) {
-            throw new Error(
+            throw new ServiceError(
+              "CODEX_PLUGIN_MUTATION_PROOF_CLEANUP_IDENTITY_DRIFT",
               "Governed cleanup refused a residual Plugin whose source identity drifted after approval"
             );
           }
@@ -501,7 +536,8 @@ export async function runCodexPluginMutationLiveProof(
             cleanupResource.installed !== false ||
             cleanupResource.fingerprint !== original.fingerprint
           ) {
-            throw new Error(
+            throw new ServiceError(
+              "CODEX_PLUGIN_MUTATION_PROOF_CLEANUP_NOT_RESTORED",
               "Governed cleanup could not restore the original Codex Plugin Resource state"
             );
           }
@@ -534,8 +570,9 @@ if (isMainModule()) {
       process.stdout.write("CODEX_PLUGIN_MUTATION_LIVE_PROOF_OK\n");
     })
     .catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`CODEX_PLUGIN_MUTATION_LIVE_PROOF_FAILED: ${message}\n`);
+      process.stderr.write(
+        `CODEX_PLUGIN_MUTATION_LIVE_PROOF_FAILED: ${formatCodexPluginMutationProofFailure(error)}\n`
+      );
       process.exitCode = 1;
     });
 }

@@ -540,6 +540,7 @@ const authoritativeApproved = service.decide({
   decision: "approved",
   idempotencyKey: "decide-disable-authoritative-001"
 });
+const authoritativeInventoryStart = inventoryCalls;
 const authoritativeExecuted = await service.execute({
   approvalId: authoritativeApproved.approval.id,
   expectedApprovalRevision: authoritativeApproved.approval.revision,
@@ -554,14 +555,22 @@ assert.equal(authoritativeExecuted.execution.errorCode, null);
 assert.deepEqual(authoritativeExecuted.execution.observedState, { enabled: false });
 assert.equal(enabled, false);
 assert.equal(mutationCalls, 4);
+assert.equal(
+  inventoryCalls - authoritativeInventoryStart,
+  2,
+  "Skill execute must remain one fresh preflight plus one postflight read"
+);
 mutationScenario = "success";
 
 let pluginInstalled = false;
 let pluginInventoryCalls = 0;
+const pluginInventoryKeys: string[] = [];
 let pluginMutationCalls = 0;
 let pluginResourceOverride: RuntimeResourceDescriptor | null = null;
-let pluginMutationScenario: "success" | "stale-race" = "success";
+let pluginMutationScenario: "success" | "stale-race" | "error-after-change" = "success";
 let pluginStaleExternalDesired = false;
+let pluginPostflightStaleReadsRemaining = 0;
+let pluginPostflightStaleInstalled: boolean | null = null;
 const fakePluginInventory = {
   inventory: async (input: {
     runtimeProfileId: string;
@@ -572,7 +581,16 @@ const fakePluginInventory = {
     assert.equal(input.workspaceId, workspaceId);
     assert.ok(input.idempotencyKey.length > 0);
     pluginInventoryCalls += 1;
-    const current = pluginResourceOverride ?? pluginResource(pluginInstalled);
+    pluginInventoryKeys.push(input.idempotencyKey);
+    const isPostflight = input.idempotencyKey.startsWith("resource-mutation-postflight:");
+    const useStalePostflight =
+      isPostflight &&
+      pluginPostflightStaleReadsRemaining > 0 &&
+      pluginPostflightStaleInstalled !== null;
+    if (useStalePostflight) pluginPostflightStaleReadsRemaining -= 1;
+    const current =
+      pluginResourceOverride ??
+      pluginResource(useStalePostflight ? pluginPostflightStaleInstalled! : pluginInstalled);
     const snapshot = repositories.runtimeResourceSnapshots.create({
       runtimeProfileId,
       providerKind: profile.providerKind,
@@ -641,6 +659,12 @@ const fakePluginMutationAdapter = {
       );
     }
     pluginInstalled = true;
+    if (pluginMutationScenario === "error-after-change") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_EXTERNAL_FAILED",
+        "Fixture transport failed after Plugin install reached the provider"
+      );
+    }
     return { authPolicy: "ON_USE", appsNeedingAuthCount: 0 };
   },
   uninstall: async (input: {
@@ -664,7 +688,9 @@ const pluginService = new RuntimeResourceMutationService(
   fakeMutationAdapter,
   {
     now: () => NOW,
-    codexPlugins: fakePluginMutationAdapter
+    codexPlugins: fakePluginMutationAdapter,
+    pluginPostflightMaxAttempts: 3,
+    pluginPostflightDelayMs: 0
   }
 );
 
@@ -757,6 +783,150 @@ assert.deepEqual(pluginUninstalledExecution.execution.observedState, {
 assert.equal(pluginInstalled, false);
 assert.equal(pluginMutationCalls, 2);
 
+pluginInstalled = false;
+pluginPostflightStaleReadsRemaining = 2;
+pluginPostflightStaleInstalled = false;
+const pluginConvergenceBefore = pluginResource(false);
+const pluginConvergencePrepared = await pluginService.prepare({
+  operation: "plugin.install",
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginConvergenceBefore.id,
+  expectedFingerprint: pluginConvergenceBefore.fingerprint,
+  idempotencyKey: "prepare-plugin-convergence-001"
+});
+const pluginConvergenceApproved = pluginService.decide({
+  approvalId: pluginConvergencePrepared.approval.id,
+  expectedRevision: pluginConvergencePrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-plugin-convergence-001"
+});
+const convergenceInventoryStart = pluginInventoryCalls;
+const pluginConvergenceExecuted = await pluginService.execute({
+  approvalId: pluginConvergenceApproved.approval.id,
+  expectedApprovalRevision: pluginConvergenceApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginConvergenceBefore.id,
+  expectedFingerprint: pluginConvergenceBefore.fingerprint,
+  idempotencyKey: "execute-plugin-convergence-001"
+});
+assert.equal(pluginConvergenceExecuted.execution.verificationStatus, "verified");
+assert.deepEqual(pluginConvergenceExecuted.execution.observedState, {
+  installed: true,
+  authPolicy: "ON_USE",
+  appsNeedingAuthCount: 0
+});
+assert.equal(pluginMutationCalls, 3, "Convergence polling must not replay plugin/install");
+assert.equal(
+  pluginInventoryCalls - convergenceInventoryStart,
+  4,
+  "Plugin execute should perform one preflight plus three fresh postflight reads before convergence"
+);
+const convergenceKeys = pluginInventoryKeys.slice(convergenceInventoryStart);
+assert.equal(new Set(convergenceKeys).size, convergenceKeys.length);
+assert.equal(
+  convergenceKeys.filter((key) => key.startsWith("resource-mutation-postflight:")).length,
+  3,
+  "Every convergence observation must use a fresh postflight inventory key"
+);
+pluginInstalled = false;
+pluginPostflightStaleReadsRemaining = 99;
+pluginPostflightStaleInstalled = false;
+const pluginExhaustedBefore = pluginResource(false);
+const pluginExhaustedPrepared = await pluginService.prepare({
+  operation: "plugin.install",
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginExhaustedBefore.id,
+  expectedFingerprint: pluginExhaustedBefore.fingerprint,
+  idempotencyKey: "prepare-plugin-convergence-exhausted-001"
+});
+const pluginExhaustedApproved = pluginService.decide({
+  approvalId: pluginExhaustedPrepared.approval.id,
+  expectedRevision: pluginExhaustedPrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-plugin-convergence-exhausted-001"
+});
+const exhaustedInventoryStart = pluginInventoryCalls;
+const pluginExhaustedExecution = await pluginService.execute({
+  approvalId: pluginExhaustedApproved.approval.id,
+  expectedApprovalRevision: pluginExhaustedApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginExhaustedBefore.id,
+  expectedFingerprint: pluginExhaustedBefore.fingerprint,
+  idempotencyKey: "execute-plugin-convergence-exhausted-001"
+});
+assert.equal(
+  pluginExhaustedExecution.execution.verificationStatus,
+  "failed-verification"
+);
+assert.equal(
+  pluginExhaustedExecution.execution.errorCode,
+  "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
+);
+assert.deepEqual(pluginExhaustedExecution.execution.observedState, {
+  installed: false,
+  authPolicy: "ON_USE",
+  appsNeedingAuthCount: 0
+});
+assert.equal(
+  pluginMutationCalls,
+  4,
+  "Exhausted convergence polling must still issue plugin/install only once"
+);
+assert.equal(
+  pluginInventoryCalls - exhaustedInventoryStart,
+  4,
+  "Exhausted Plugin execute should stop after one preflight plus three postflight reads"
+);
+pluginInstalled = false;
+pluginPostflightStaleReadsRemaining = 0;
+pluginPostflightStaleInstalled = null;
+
+pluginMutationScenario = "error-after-change";
+pluginPostflightStaleReadsRemaining = 1;
+pluginPostflightStaleInstalled = false;
+const pluginAuthoritativeBefore = pluginResource(false);
+const pluginAuthoritativePrepared = await pluginService.prepare({
+  operation: "plugin.install",
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginAuthoritativeBefore.id,
+  expectedFingerprint: pluginAuthoritativeBefore.fingerprint,
+  idempotencyKey: "prepare-plugin-authoritative-after-error-001"
+});
+const pluginAuthoritativeApproved = pluginService.decide({
+  approvalId: pluginAuthoritativePrepared.approval.id,
+  expectedRevision: pluginAuthoritativePrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-plugin-authoritative-after-error-001"
+});
+const pluginAuthoritativeExecuted = await pluginService.execute({
+  approvalId: pluginAuthoritativeApproved.approval.id,
+  expectedApprovalRevision: pluginAuthoritativeApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginAuthoritativeBefore.id,
+  expectedFingerprint: pluginAuthoritativeBefore.fingerprint,
+  idempotencyKey: "execute-plugin-authoritative-after-error-001"
+});
+assert.equal(pluginAuthoritativeExecuted.execution.verificationStatus, "verified");
+assert.equal(pluginAuthoritativeExecuted.execution.errorCode, null);
+assert.deepEqual(pluginAuthoritativeExecuted.execution.observedState, {
+  installed: true
+});
+assert.equal(
+  pluginMutationCalls,
+  5,
+  "Authoritative convergence after provider error must not replay plugin/install"
+);
+pluginInstalled = false;
+pluginMutationScenario = "success";
+pluginPostflightStaleReadsRemaining = 0;
+pluginPostflightStaleInstalled = null;
+
 await assert.rejects(
   () =>
     pluginService.prepare({
@@ -770,7 +940,7 @@ await assert.rejects(
   (error: unknown) =>
     error instanceof ServiceError && error.code === "RUNTIME_RESOURCE_MUTATION_NOOP"
 );
-assert.equal(pluginMutationCalls, 2);
+assert.equal(pluginMutationCalls, 5);
 
 const safePluginCapabilities = [...pluginBefore.capabilities];
 const unsafePluginResources = [
@@ -814,7 +984,7 @@ for (let index = 0; index < unsafePluginResources.length; index += 1) {
       error instanceof ServiceError &&
       error.code === "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED"
   );
-  assert.equal(pluginMutationCalls, 2);
+  assert.equal(pluginMutationCalls, 5);
 }
 pluginResourceOverride = null;
 
@@ -854,7 +1024,7 @@ assert.deepEqual(pluginRaceExecuted.execution.observedState, {
   installed: true
 });
 assert.equal(pluginInstalled, true);
-assert.equal(pluginMutationCalls, 3);
+assert.equal(pluginMutationCalls, 6);
 pluginInstalled = false;
 pluginMutationScenario = "success";
 pluginStaleExternalDesired = false;
@@ -931,6 +1101,9 @@ const publicJson = JSON.stringify({
   pluginInstalledExecution,
   pluginUninstallPrepared,
   pluginUninstalledExecution,
+  pluginConvergenceExecuted,
+  pluginExhaustedExecution,
+  pluginAuthoritativeExecuted,
   pluginRaceExecuted,
   legacyExecuted
 });
