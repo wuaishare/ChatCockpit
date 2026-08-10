@@ -144,6 +144,7 @@ const fakeInventory = {
 
 let mutationCalls = 0;
 let mutationScenario: "success" | "stale-race" | "error-after-change" = "success";
+let staleRaceExternalDesired = false;
 const fakeMutationAdapter = {
   setEnabled: async (input: {
     profile: RuntimeProfileDescriptor;
@@ -158,6 +159,9 @@ const fakeMutationAdapter = {
     assert.equal(input.resourceId, resourceId);
     assert.equal(input.expectedFingerprint, resource(enabled).fingerprint);
     if (mutationScenario === "stale-race") {
+      if (staleRaceExternalDesired) {
+        enabled = input.desiredEnabled;
+      }
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_STALE",
         "Fixture target changed between preflight and provider write"
@@ -373,6 +377,43 @@ assert.deepEqual(raceExecuted.execution.observedState, { enabled: true });
 assert.equal(enabled, true);
 assert.equal(mutationCalls, 2);
 
+const staleDesiredBefore = resource(true);
+const staleDesiredPrepared = await service.prepare({
+  operation: "skill.disable",
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: staleDesiredBefore.fingerprint,
+  idempotencyKey: "prepare-disable-stale-desired-001"
+});
+const staleDesiredApproved = service.decide({
+  approvalId: staleDesiredPrepared.approval.id,
+  expectedRevision: staleDesiredPrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-disable-stale-desired-001"
+});
+staleRaceExternalDesired = true;
+const staleDesiredExecuted = await service.execute({
+  approvalId: staleDesiredApproved.approval.id,
+  expectedApprovalRevision: staleDesiredApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: staleDesiredBefore.fingerprint,
+  idempotencyKey: "execute-disable-stale-desired-001"
+});
+assert.equal(staleDesiredExecuted.execution.verificationStatus, "stale");
+assert.equal(
+  staleDesiredExecuted.execution.errorCode,
+  "RUNTIME_RESOURCE_MUTATION_STALE"
+);
+assert.deepEqual(staleDesiredExecuted.execution.observedState, { enabled: false });
+assert.ok(staleDesiredExecuted.execution.afterSnapshotId);
+assert.equal(enabled, false);
+assert.equal(mutationCalls, 3);
+staleRaceExternalDesired = false;
+
+enabled = true;
 mutationScenario = "error-after-change";
 const authoritativeBefore = resource(true);
 const authoritativePrepared = await service.prepare({
@@ -402,7 +443,7 @@ assert.equal(authoritativeExecuted.execution.verificationStatus, "verified");
 assert.equal(authoritativeExecuted.execution.errorCode, null);
 assert.deepEqual(authoritativeExecuted.execution.observedState, { enabled: false });
 assert.equal(enabled, false);
-assert.equal(mutationCalls, 3);
+assert.equal(mutationCalls, 4);
 mutationScenario = "success";
 
 const publicJson = JSON.stringify({
@@ -412,6 +453,7 @@ const publicJson = JSON.stringify({
   executed,
   permanentlyStale,
   raceExecuted,
+  staleDesiredExecuted,
   authoritativeExecuted
 });
 for (const forbidden of [

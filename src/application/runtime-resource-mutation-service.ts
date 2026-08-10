@@ -506,15 +506,6 @@ export class RuntimeResourceMutationService {
         ? { enabled: resource.enabled }
         : { missing: true };
 
-      if (resource?.enabled === prepared.desiredEnabled) {
-        return {
-          status: "verified",
-          afterSnapshotId: after.snapshot.id,
-          afterFingerprint: resource.fingerprint,
-          observedState,
-          errorCode: null
-        };
-      }
       if (isPreWriteStaleCode(providerError)) {
         return {
           status: "stale",
@@ -522,6 +513,15 @@ export class RuntimeResourceMutationService {
           afterFingerprint: resource?.fingerprint ?? null,
           observedState,
           errorCode: providerError
+        };
+      }
+      if (resource?.enabled === prepared.desiredEnabled) {
+        return {
+          status: "verified",
+          afterSnapshotId: after.snapshot.id,
+          afterFingerprint: resource.fingerprint,
+          observedState,
+          errorCode: null
         };
       }
       if (providerError) {
