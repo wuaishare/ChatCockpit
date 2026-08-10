@@ -104,45 +104,53 @@ try {
     }],
     now: NOW
   });
-  const pending = repositories.runtimeResourceMutations.createApproval({
-    operation: "skill.disable",
-    runtimeProfileId,
-    workspaceId,
-    resourceId,
-    resourceScope: "user",
-    beforeSnapshotId: beforeSnapshot.id,
-    beforeFingerprint: before.fingerprint,
-    requestedState: { enabled: false },
-    mutationHash: "a".repeat(64),
-    publicSummary: {
+
+  const createStuckExecution = (suffix: string, mutationHash: string) => {
+    const pending = repositories.runtimeResourceMutations.createApproval({
+      id: `approval_${suffix}`,
+      operation: "skill.disable",
+      runtimeProfileId,
+      workspaceId,
       resourceId,
-      displayName: before.displayName,
-      beforeEnabled: true,
-      requestedEnabled: false
-    },
-    expiresAt: "2026-08-10T01:05:00.000Z",
-    now: NOW
-  });
-  const approved = repositories.runtimeResourceMutations.decide({
-    id: pending.id,
-    decision: "approved",
-    expectedRevision: pending.revision,
-    now: NOW
-  });
-  const consumed = repositories.runtimeResourceMutations.consume({
-    id: approved.id,
-    expectedRevision: approved.revision,
-    now: NOW
-  });
-  const execution = repositories.runtimeResourceMutations.createExecution({
-    approval: consumed,
-    providerMethod: "skills/config/write",
-    now: NOW
-  });
+      resourceScope: "user",
+      beforeSnapshotId: beforeSnapshot.id,
+      beforeFingerprint: before.fingerprint,
+      requestedState: { enabled: false },
+      mutationHash,
+      publicSummary: {
+        resourceId,
+        displayName: before.displayName,
+        beforeEnabled: true,
+        requestedEnabled: false
+      },
+      expiresAt: "2026-08-10T01:05:00.000Z",
+      now: NOW
+    });
+    const approved = repositories.runtimeResourceMutations.decide({
+      id: pending.id,
+      decision: "approved",
+      expectedRevision: pending.revision,
+      now: NOW
+    });
+    const consumed = repositories.runtimeResourceMutations.consume({
+      id: approved.id,
+      expectedRevision: approved.revision,
+      now: NOW
+    });
+    return repositories.runtimeResourceMutations.createExecution({
+      id: `execution_${suffix}`,
+      approval: consumed,
+      providerMethod: "skills/config/write",
+      now: NOW
+    });
+  };
+
+  const execution = createStuckExecution("verified", "a".repeat(64));
   assert.equal(execution.verificationStatus, "executing");
 
   let inventoryCalls = 0;
-  const after = skill(false);
+  let observedEnabled = false;
+  const inventoryKeys: string[] = [];
   const fakeInventory = {
     inventory: async (input: {
       runtimeProfileId: string;
@@ -150,9 +158,11 @@ try {
       idempotencyKey: string;
     }) => {
       inventoryCalls += 1;
+      inventoryKeys.push(input.idempotencyKey);
       assert.equal(input.runtimeProfileId, runtimeProfileId);
       assert.equal(input.workspaceId, workspaceId);
       assert.ok(input.idempotencyKey.startsWith("resource-mutation-reconcile:"));
+      const after = skill(observedEnabled);
       const snapshot = repositories.runtimeResourceSnapshots.create({
         runtimeProfileId,
         providerKind: profile.providerKind,
@@ -180,7 +190,7 @@ try {
           publicReason: after.publicReason,
           fingerprint: after.fingerprint
         }],
-        now: "2026-08-10T01:00:01.000Z"
+        now: new Date(Date.parse(NOW) + inventoryCalls * 1000).toISOString()
       });
       return {
         snapshot,
@@ -211,7 +221,7 @@ try {
   assert.equal(reconciled.replayed, false);
   assert.equal(reconciled.execution.verificationStatus, "verified");
   assert.deepEqual(reconciled.execution.observedState, { enabled: false });
-  assert.equal(reconciled.execution.afterFingerprint, after.fingerprint);
+  assert.equal(reconciled.execution.afterFingerprint, skill(false).fingerprint);
   assert.equal(inventoryCalls, 1);
 
   const replay = await reconciliation.reconcile({
@@ -222,11 +232,32 @@ try {
   assert.equal(replay.execution.id, execution.id);
   assert.equal(inventoryCalls, 1, "Reconciliation replay must not refresh Runtime again");
 
-  const persisted = JSON.stringify({ reconciled, replay });
+  const mismatchExecution = createStuckExecution("mismatch", "b".repeat(64));
+  observedEnabled = true;
+  const mismatch = await reconciliation.reconcile({
+    executionId: mismatchExecution.id,
+    idempotencyKey: "reconcile-mismatch-001"
+  });
+  assert.equal(mismatch.replayed, false);
+  assert.equal(mismatch.execution.verificationStatus, "failed-verification");
+  assert.equal(
+    mismatch.execution.errorCode,
+    "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
+  );
+  assert.deepEqual(mismatch.execution.observedState, { enabled: true });
+  assert.equal(mismatch.execution.afterFingerprint, skill(true).fingerprint);
+  assert.equal(inventoryCalls, 2);
+  assert.notEqual(
+    inventoryKeys[0],
+    inventoryKeys[1],
+    "Independent reconciliation attempts must read independently fresh Runtime truth"
+  );
+
+  const persisted = JSON.stringify({ reconciled, replay, mismatch });
   for (const forbidden of [
     "/private/tokenpilot-runtime-sentinel/reconcile-workspace",
     "SKILL.md",
-    "skills/config/write" + ":{" ,
+    "skills/config/write" + ":{",
     "authorizationUrl"
   ]) {
     assert.equal(persisted.includes(forbidden), false);
