@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { hashRuntimeResource } from "./runtime-resource-hash.js";
 import type {
   RuntimeProfileDescriptor,
@@ -15,6 +17,11 @@ import type {
 import type { CodexSkillMutationAdapter } from "../runtime/resources/codex-skill-mutation-adapter.js";
 
 const RESOURCE_MUTATION_APPROVAL_TTL_MS = 5 * 60 * 1000;
+const PRE_WRITE_STALE_CODES = new Set([
+  "RUNTIME_RESOURCE_MUTATION_STALE",
+  "RUNTIME_RESOURCE_MUTATION_NOT_FOUND",
+  "RUNTIME_RESOURCE_MUTATION_TARGET_AMBIGUOUS"
+]);
 
 export interface RuntimeResourceMutationPrepareInput {
   operation: RuntimeResourceMutationOperation;
@@ -64,7 +71,7 @@ interface PreparedExecution {
 }
 
 interface ExternalExecutionOutcome {
-  status: Exclude<RuntimeResourceMutationVerificationStatus, "executing" | "stale">;
+  status: Exclude<RuntimeResourceMutationVerificationStatus, "executing">;
   afterSnapshotId: string | null;
   afterFingerprint: string | null;
   observedState: Record<string, unknown> | null;
@@ -82,6 +89,14 @@ function approvalExpiry(now: string): string {
 function errorCode(error: unknown): string {
   if (error instanceof ServiceError) return error.code;
   return "RUNTIME_RESOURCE_MUTATION_EXTERNAL_FAILED";
+}
+
+function isPreWriteStaleCode(code: string | null): boolean {
+  return code !== null && PRE_WRITE_STALE_CODES.has(code);
+}
+
+function freshInventoryKey(stage: string, outerIdempotencyKey: string): string {
+  return `${stage}:${outerIdempotencyKey}:${randomUUID()}`;
 }
 
 function exactMutationHash(input: {
@@ -142,7 +157,10 @@ export class RuntimeResourceMutationService {
     const observed = await this.inventory.inventory({
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
-      idempotencyKey: `resource-mutation-prepare:${input.idempotencyKey}`
+      idempotencyKey: freshInventoryKey(
+        "resource-mutation-prepare",
+        input.idempotencyKey
+      )
     });
     const resource = observed.resources.find((entry) => entry.id === input.resourceId);
     if (!resource) {
@@ -263,7 +281,10 @@ export class RuntimeResourceMutationService {
     const preflight = await this.inventory.inventory({
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
-      idempotencyKey: `resource-mutation-preflight:${input.idempotencyKey}`
+      idempotencyKey: freshInventoryKey(
+        "resource-mutation-preflight",
+        input.idempotencyKey
+      )
     });
     const before = preflight.resources.find((entry) => entry.id === input.resourceId);
     if (!before) {
@@ -423,16 +444,14 @@ export class RuntimeResourceMutationService {
     idempotencyKey: string
   ): Promise<ExternalExecutionOutcome> {
     let providerError: string | null = null;
-    let providerEffective: boolean | null = null;
     try {
-      const result = await this.codexSkills.setEnabled({
+      await this.codexSkills.setEnabled({
         profile: prepared.profile,
         workspaceId: prepared.approval.workspaceId!,
         resourceId: prepared.before.id,
         expectedFingerprint: prepared.before.fingerprint,
         desiredEnabled: prepared.desiredEnabled
       });
-      providerEffective = result.effectiveEnabled;
     } catch (error) {
       providerError = errorCode(error);
     }
@@ -441,7 +460,10 @@ export class RuntimeResourceMutationService {
       const after = await this.inventory.inventory({
         runtimeProfileId: prepared.profile.id,
         workspaceId: prepared.approval.workspaceId!,
-        idempotencyKey: `resource-mutation-postflight:${idempotencyKey}`
+        idempotencyKey: freshInventoryKey(
+          "resource-mutation-postflight",
+          idempotencyKey
+        )
       });
       const resource = after.resources.find(
         (entry) => entry.id === prepared.before.id
@@ -449,6 +471,25 @@ export class RuntimeResourceMutationService {
       const observedState = resource
         ? { enabled: resource.enabled }
         : { missing: true };
+
+      if (resource?.enabled === prepared.desiredEnabled) {
+        return {
+          status: "verified",
+          afterSnapshotId: after.snapshot.id,
+          afterFingerprint: resource.fingerprint,
+          observedState,
+          errorCode: null
+        };
+      }
+      if (isPreWriteStaleCode(providerError)) {
+        return {
+          status: "stale",
+          afterSnapshotId: after.snapshot.id,
+          afterFingerprint: resource?.fingerprint ?? null,
+          observedState,
+          errorCode: providerError
+        };
+      }
       if (providerError) {
         return {
           status: "failed-external",
@@ -458,27 +499,23 @@ export class RuntimeResourceMutationService {
           errorCode: providerError
         };
       }
-      if (
-        providerEffective !== prepared.desiredEnabled ||
-        !resource ||
-        resource.enabled !== prepared.desiredEnabled
-      ) {
-        return {
-          status: "failed-verification",
-          afterSnapshotId: after.snapshot.id,
-          afterFingerprint: resource?.fingerprint ?? null,
-          observedState,
-          errorCode: "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
-        };
-      }
       return {
-        status: "verified",
+        status: "failed-verification",
         afterSnapshotId: after.snapshot.id,
-        afterFingerprint: resource.fingerprint,
+        afterFingerprint: resource?.fingerprint ?? null,
         observedState,
-        errorCode: null
+        errorCode: "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
       };
     } catch (error) {
+      if (isPreWriteStaleCode(providerError)) {
+        return {
+          status: "stale",
+          afterSnapshotId: null,
+          afterFingerprint: null,
+          observedState: null,
+          errorCode: providerError
+        };
+      }
       return {
         status: providerError ? "failed-external" : "failed-verification",
         afterSnapshotId: null,
