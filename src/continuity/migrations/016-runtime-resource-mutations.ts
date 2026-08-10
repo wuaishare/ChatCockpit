@@ -30,7 +30,7 @@ export const runtimeResourceMutationsMigration = {
         ),
         public_summary_json TEXT NOT NULL,
         status TEXT NOT NULL CHECK (
-          status IN ('pending', 'approved', 'denied', 'expired', 'consumed')
+          status IN ('pending', 'approved', 'denied', 'expired', 'stale', 'consumed')
         ),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
