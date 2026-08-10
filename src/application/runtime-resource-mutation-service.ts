@@ -288,13 +288,29 @@ export class RuntimeResourceMutationService {
     });
     const before = preflight.resources.find((entry) => entry.id === input.resourceId);
     if (!before) {
-      throw new ServiceError(
-        "RUNTIME_RESOURCE_MUTATION_STALE",
+      this.invalidateApprovalForDrift(
+        approval,
         "Approved Runtime Resource disappeared before execution"
       );
     }
-    this.assertSkillMutationSupported(preflight.profile, before);
-    this.assertApprovalStillMatches(approval, preflight.profile, before, input);
+    try {
+      this.assertSkillMutationSupported(preflight.profile, before);
+      this.assertApprovalStillMatches(approval, preflight.profile, before, input);
+    } catch (error) {
+      if (
+        error instanceof ServiceError &&
+        [
+          "RUNTIME_RESOURCE_MUTATION_STALE",
+          "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED"
+        ].includes(error.code)
+      ) {
+        this.invalidateApprovalForDrift(
+          approval,
+          "Approved Runtime Resource changed before execution"
+        );
+      }
+      throw error;
+    }
     const requested = approval.requestedState.enabled;
     if (typeof requested !== "boolean") {
       throw new ServiceError(
@@ -368,6 +384,12 @@ export class RuntimeResourceMutationService {
         "Runtime Resource mutation approval expired"
       );
     }
+    if (approval.status === "stale") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_STALE",
+        "Runtime Resource mutation approval is stale and must be prepared again"
+      );
+    }
     if (approval.status === "consumed") {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_APPROVAL_CONSUMED",
@@ -404,6 +426,18 @@ export class RuntimeResourceMutationService {
       );
     }
     return approval;
+  }
+
+  private invalidateApprovalForDrift(
+    approval: RuntimeResourceMutationApprovalRecord,
+    message: string
+  ): never {
+    this.repositories.runtimeResourceMutations.markStale({
+      id: approval.id,
+      expectedRevision: approval.revision,
+      now: this.now()
+    });
+    throw new ServiceError("RUNTIME_RESOURCE_MUTATION_STALE", message);
   }
 
   private assertApprovalStillMatches(
