@@ -212,6 +212,7 @@ export class RuntimeResourceMutationService {
           runtimeProfileId: input.runtimeProfileId,
           workspaceId: input.workspaceId,
           resourceId: resource.id,
+          resourceKind: "skill",
           resourceScope: resource.scope,
           beforeSnapshotId: observed.snapshot.id,
           beforeFingerprint: resource.fingerprint,

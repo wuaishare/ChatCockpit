@@ -112,6 +112,7 @@ try {
       runtimeProfileId,
       workspaceId,
       resourceId,
+      resourceKind: "skill",
       resourceScope: "user",
       beforeSnapshotId: beforeSnapshot.id,
       beforeFingerprint: before.fingerprint,

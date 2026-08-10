@@ -8,7 +8,15 @@ import {
   requireRecord
 } from "./repository-utils.js";
 
-export type RuntimeResourceMutationOperation = "skill.enable" | "skill.disable";
+export type RuntimeResourceMutationOperation =
+  | "skill.enable"
+  | "skill.disable"
+  | "plugin.install"
+  | "plugin.uninstall";
+export type RuntimeResourceMutationProviderMethod =
+  | "skills/config/write"
+  | "plugin/install"
+  | "plugin/uninstall";
 export type RuntimeResourceMutationApprovalStatus =
   | "pending"
   | "approved"
@@ -29,7 +37,7 @@ export interface RuntimeResourceMutationApprovalRecord {
   runtimeProfileId: string;
   workspaceId: string | null;
   resourceId: string;
-  resourceKind: "skill";
+  resourceKind: "skill" | "plugin";
   resourceScope: RuntimeResourceScope;
   beforeSnapshotId: string;
   beforeFingerprint: string;
@@ -58,7 +66,7 @@ export interface RuntimeResourceMutationExecutionRecord {
   afterFingerprint: string | null;
   requestedState: Record<string, unknown>;
   observedState: Record<string, unknown> | null;
-  providerMethod: "skills/config/write";
+  providerMethod: RuntimeResourceMutationProviderMethod;
   verificationStatus: RuntimeResourceMutationVerificationStatus;
   errorCode: string | null;
   startedAt: string;
@@ -71,7 +79,7 @@ interface ApprovalRow {
   runtime_profile_id: string;
   workspace_id: string | null;
   resource_id: string;
-  resource_kind: "skill";
+  resource_kind: "skill" | "plugin";
   resource_scope: RuntimeResourceScope;
   before_snapshot_id: string;
   before_fingerprint: string;
@@ -100,7 +108,7 @@ interface ExecutionRow {
   after_fingerprint: string | null;
   requested_state_json: string;
   observed_state_json: string | null;
-  provider_method: "skills/config/write";
+  provider_method: RuntimeResourceMutationProviderMethod;
   verification_status: RuntimeResourceMutationVerificationStatus;
   error_code: string | null;
   started_at: string;
@@ -179,6 +187,7 @@ export class RuntimeResourceMutationRepository {
     runtimeProfileId: string;
     workspaceId: string | null;
     resourceId: string;
+    resourceKind: "skill" | "plugin";
     resourceScope: RuntimeResourceScope;
     beforeSnapshotId: string;
     beforeFingerprint: string;
@@ -197,7 +206,7 @@ export class RuntimeResourceMutationRepository {
           resource_kind, resource_scope, before_snapshot_id, before_fingerprint,
           requested_state_json, mutation_hash, public_summary_json, status,
           created_at, updated_at, expires_at, decided_at, consumed_at, revision
-        ) VALUES (?, ?, ?, ?, ?, 'skill', ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
       `)
       .run(
         id,
@@ -205,6 +214,7 @@ export class RuntimeResourceMutationRepository {
         input.runtimeProfileId,
         input.workspaceId,
         input.resourceId,
+        input.resourceKind,
         input.resourceScope,
         input.beforeSnapshotId,
         input.beforeFingerprint,
@@ -399,7 +409,7 @@ export class RuntimeResourceMutationRepository {
   createExecution(input: {
     id?: string;
     approval: RuntimeResourceMutationApprovalRecord;
-    providerMethod: "skills/config/write";
+    providerMethod: RuntimeResourceMutationProviderMethod;
     now?: string;
   }): RuntimeResourceMutationExecutionRecord {
     const id = input.id ?? newRecordId("resource_mutation_execution");
