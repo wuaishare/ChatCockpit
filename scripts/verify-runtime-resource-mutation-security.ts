@@ -31,6 +31,7 @@ const service = readFile("src/application/runtime-resource-mutation-service.ts")
 const reconciliation = readFile(
   "src/application/runtime-resource-mutation-reconciliation-service.ts"
 );
+const liveProof = readFile("scripts/probe-codex-skill-mutation-live.ts");
 const mutationKernel = `${adapter}\n${service}`;
 
 const providerMethods = [...adapter.matchAll(/client\.request<unknown>\(\s*"([^"]+)"/g)]
@@ -69,6 +70,47 @@ assert.equal(
   reconciliation.includes(".setEnabled("),
   false,
   "Reconciliation must never replay a Skill mutation"
+);
+
+assert.equal(
+  liveProof.includes("TOKENPILOT_CODEX_SKILL_MUTATION_PROOF"),
+  true,
+  "Real Codex Skill mutation proof must require an explicit opt-in environment variable"
+);
+assert.equal(
+  liveProof.includes("I_UNDERSTAND_REVERSIBLE_MUTATION"),
+  true,
+  "Real Codex Skill mutation proof must require the explicit reversible-mutation acknowledgement"
+);
+assert.equal(
+  liveProof.includes("Refusing real Codex Skill mutation without"),
+  true,
+  "Real Codex Skill mutation proof must fail closed when opt-in is absent"
+);
+assert.equal(
+  liveProof.includes("new RuntimeResourceMutationService("),
+  true,
+  "Real Codex Skill mutation proof must execute through the governed mutation service"
+);
+assert.equal(
+  liveProof.includes("governedTransition({"),
+  true,
+  "Real Codex Skill mutation proof must use the governed transition lifecycle"
+);
+assert.equal(
+  liveProof.includes(".setEnabled("),
+  false,
+  "Real Codex Skill mutation proof must not call the provider mutation adapter directly"
+);
+assert.equal(
+  /\.request(?:<[^>]+>)?\(\s*["']skills\/config\/write["']/.test(liveProof),
+  false,
+  "Real Codex Skill mutation proof must not issue provider-specific write requests directly"
+);
+assert.equal(
+  liveProof.includes("operationFor(original.enabled)"),
+  true,
+  "Real Codex Skill mutation proof must restore the original Skill state through a new governed intent"
 );
 
 const externalSurfaces = [
