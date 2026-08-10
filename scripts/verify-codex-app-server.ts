@@ -290,17 +290,29 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       workspaceId: rootWorkspace.id,
       forceRefetch: true
     });
-    const fixtureMarketplaceIdentityHash = createHash("sha256")
-      .update(
-        `marketplace-path:${workspaceRoot}/.codex/plugins/fixture-marketplace/marketplace.json`,
-        "utf8"
-      )
-      .digest("hex");
+    const fixturePluginSourceIdentityHash = (pluginPath: string) =>
+      createHash("sha256")
+        .update(
+          JSON.stringify({
+            marketplace: {
+              kind: "path",
+              value: `${workspaceRoot}/.codex/plugins/fixture-marketplace/marketplace.json`
+            },
+            source: {
+              type: "local",
+              path: pluginPath
+            }
+          }),
+          "utf8"
+        )
+        .digest("hex");
     assert.deepEqual(resourcePlugins, [
       {
         id: "catalog-only@fixture-marketplace",
         marketplaceName: "fixture-marketplace",
-        sourceIdentityHash: fixtureMarketplaceIdentityHash,
+        sourceIdentityHash: fixturePluginSourceIdentityHash(
+          `${workspaceRoot}/.codex/plugins/catalog-only`
+        ),
         sourceType: "local",
         name: "catalog-only",
         displayName: "Catalog Only",
@@ -319,7 +331,9 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       {
         id: "fixture-plugin@fixture-marketplace",
         marketplaceName: "fixture-marketplace",
-        sourceIdentityHash: fixtureMarketplaceIdentityHash,
+        sourceIdentityHash: fixturePluginSourceIdentityHash(
+          `${workspaceRoot}/.codex/plugins/fixture-plugin`
+        ),
         sourceType: "local",
         name: "fixture-plugin",
         displayName: "Fixture Plugin",
@@ -338,7 +352,9 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       {
         id: "installed-only@fixture-marketplace",
         marketplaceName: "fixture-marketplace",
-        sourceIdentityHash: fixtureMarketplaceIdentityHash,
+        sourceIdentityHash: fixturePluginSourceIdentityHash(
+          `${workspaceRoot}/.codex/plugins/installed-only`
+        ),
         sourceType: "local",
         name: "installed-only",
         displayName: "Installed Only",

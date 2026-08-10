@@ -67,17 +67,46 @@ function pluginSourceType(value: unknown): RuntimePluginProjection["sourceType"]
 }
 
 function pluginSourceIdentityHash(
-  marketplace: Record<string, unknown>
+  marketplace: Record<string, unknown>,
+  sourceValue: unknown
 ): string | null {
-  const material =
+  const marketplaceIdentity =
     typeof marketplace.path === "string" && marketplace.path
-      ? `marketplace-path:${marketplace.path}`
+      ? { kind: "path", value: marketplace.path }
       : typeof marketplace.name === "string" && marketplace.name
-        ? `marketplace-name:${marketplace.name}`
+        ? { kind: "name", value: marketplace.name }
         : null;
-  return material
-    ? createHash("sha256").update(material, "utf8").digest("hex")
-    : null;
+  if (!marketplaceIdentity) return null;
+
+  const source = asRecord(sourceValue);
+  const sourceType = pluginSourceType(source);
+  const sourceIdentity: Record<string, unknown> = { type: sourceType };
+  if (sourceType === "local") {
+    sourceIdentity.path = typeof source.path === "string" ? source.path : null;
+  } else if (sourceType === "git") {
+    sourceIdentity.url = typeof source.url === "string" ? source.url : null;
+    sourceIdentity.refName =
+      typeof source.refName === "string" ? source.refName : null;
+    sourceIdentity.sha = typeof source.sha === "string" ? source.sha : null;
+    sourceIdentity.path = typeof source.path === "string" ? source.path : null;
+  } else if (sourceType === "npm") {
+    sourceIdentity.package =
+      typeof source.package === "string" ? source.package : null;
+    sourceIdentity.version =
+      typeof source.version === "string" ? source.version : null;
+    sourceIdentity.registry =
+      typeof source.registry === "string" ? source.registry : null;
+  }
+
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        marketplace: marketplaceIdentity,
+        source: sourceIdentity
+      }),
+      "utf8"
+    )
+    .digest("hex");
 }
 
 function normalizePluginResponse(
@@ -92,12 +121,15 @@ function normalizePluginResponse(
   for (const rawMarketplace of marketplaces) {
     const marketplace = asRecord(rawMarketplace);
     if (typeof marketplace.name !== "string" || !marketplace.name) continue;
-    const sourceIdentityHash = pluginSourceIdentityHash(marketplace);
     const rawPlugins = Array.isArray(marketplace.plugins)
       ? marketplace.plugins
       : [];
     for (const rawPlugin of rawPlugins) {
       const plugin = asRecord(rawPlugin);
+      const sourceIdentityHash = pluginSourceIdentityHash(
+        marketplace,
+        plugin.source
+      );
       if (typeof plugin.id !== "string" || !plugin.id) continue;
       const name =
         typeof plugin.name === "string" && plugin.name
