@@ -74,18 +74,31 @@ function catalogSelectors(value: unknown): Map<string, PrivatePluginSelector> {
     for (const rawPlugin of rawPlugins) {
       const plugin = asRecord(rawPlugin);
       if (typeof plugin.id !== "string" || !plugin.id) continue;
-      const pluginName =
+      const manifestPluginName =
         typeof plugin.name === "string" && plugin.name
           ? plugin.name
           : plugin.id;
+      const source = asRecord(plugin.source);
+      const sourceType =
+        typeof source.type === "string" ? source.type : "unknown";
+      const remotePluginId =
+        typeof plugin.remotePluginId === "string" && plugin.remotePluginId
+          ? plugin.remotePluginId
+          : null;
       const sourceIdentityHash = codexPluginSourceIdentityHash(
         marketplace,
-        plugin.source
+        plugin.source,
+        remotePluginId
       );
       const key = `${plugin.id}:${sourceIdentityHash ?? "unknown-source"}`;
+      if (sourceType === "remote" && !remotePluginId) {
+        continue;
+      }
       const selector = {
-        providerPluginId: plugin.id,
-        pluginName,
+        providerPluginId:
+          sourceType === "remote" ? remotePluginId! : plugin.id,
+        pluginName:
+          sourceType === "remote" ? remotePluginId! : manifestPluginName,
         remoteMarketplaceName: marketplace.name
       };
       const existing = selectors.get(key);

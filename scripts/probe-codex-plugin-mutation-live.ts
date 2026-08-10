@@ -323,7 +323,7 @@ async function governedTransition(input: {
   assert.equal(
     executed.execution.verificationStatus,
     "verified",
-    `${input.operation} did not reach authoritative verified state`
+    `${input.operation} did not reach authoritative verified state (status=${executed.execution.verificationStatus}, errorCode=${executed.execution.errorCode ?? "none"})`
   );
   return executed;
 }

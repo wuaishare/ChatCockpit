@@ -20,6 +20,7 @@ const privateWorkspacePath = "/private/tokenpilot-runtime-sentinel/plugin-worksp
 const marketplaceName = "fixture-remote-marketplace";
 const providerPluginId = "fixture-remote-plugin@fixture-remote-marketplace";
 const pluginName = "fixture-remote-plugin";
+const remotePluginId = "plugins~Plugin_fixture_remote_backend_id";
 
 const profile: RuntimeProfileDescriptor = {
   id: buildRuntimeProfileId({
@@ -60,6 +61,7 @@ function rawPlugin(installed: boolean, overrides: PluginStateOverrides = {}) {
   return {
     id: providerPluginId,
     name: pluginName,
+    remotePluginId: overrides.sourceType === "local" ? null : remotePluginId,
     localVersion: installed ? "1.0.0" : null,
     version: "1.0.0",
     installed,
@@ -159,7 +161,7 @@ function makeClient(options: {
       if (method === "plugin/install") {
         writeParams.push({ method, params });
         assert.deepEqual(params, {
-          pluginName,
+          pluginName: remotePluginId,
           remoteMarketplaceName: marketplaceName
         });
         installed = true;
@@ -167,7 +169,7 @@ function makeClient(options: {
       }
       if (method === "plugin/uninstall") {
         writeParams.push({ method, params });
-        assert.deepEqual(params, { pluginId: providerPluginId });
+        assert.deepEqual(params, { pluginId: remotePluginId });
         installed = false;
         return {};
       }
@@ -326,8 +328,20 @@ for (const forbidden of [
 
 const identityHash = codexPluginSourceIdentityHash(
   { name: marketplaceName, path: null },
-  { type: "remote" }
+  { type: "remote" },
+  remotePluginId
+);
+const driftedIdentityHash = codexPluginSourceIdentityHash(
+  { name: marketplaceName, path: null },
+  { type: "remote" },
+  "plugins~Plugin_different_backend_id"
 );
 assert.match(identityHash ?? "", /^[a-f0-9]{64}$/);
+assert.match(driftedIdentityHash ?? "", /^[a-f0-9]{64}$/);
+assert.notEqual(
+  identityHash,
+  driftedIdentityHash,
+  "Remote backend Plugin id drift must change the opaque source identity"
+);
 
 process.stdout.write("VERIFY_CODEX_PLUGIN_MUTATION_ADAPTER_OK\n");

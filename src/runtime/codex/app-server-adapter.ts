@@ -68,7 +68,8 @@ function pluginSourceType(value: unknown): RuntimePluginProjection["sourceType"]
 
 export function codexPluginSourceIdentityHash(
   marketplace: Record<string, unknown>,
-  sourceValue: unknown
+  sourceValue: unknown,
+  remotePluginIdValue: unknown = null
 ): string | null {
   const marketplaceIdentity =
     typeof marketplace.path === "string" && marketplace.path
@@ -96,6 +97,11 @@ export function codexPluginSourceIdentityHash(
       typeof source.version === "string" ? source.version : null;
     sourceIdentity.registry =
       typeof source.registry === "string" ? source.registry : null;
+  } else if (sourceType === "remote") {
+    sourceIdentity.remotePluginId =
+      typeof remotePluginIdValue === "string" && remotePluginIdValue
+        ? remotePluginIdValue
+        : null;
   }
 
   return createHash("sha256")
@@ -128,7 +134,8 @@ export function normalizeCodexPluginResponse(
       const plugin = asRecord(rawPlugin);
       const sourceIdentityHash = codexPluginSourceIdentityHash(
         marketplace,
-        plugin.source
+        plugin.source,
+        plugin.remotePluginId
       );
       if (typeof plugin.id !== "string" || !plugin.id) continue;
       const name =
