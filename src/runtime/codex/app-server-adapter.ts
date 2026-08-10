@@ -167,6 +167,14 @@ function normalizePluginResponse(
           typeof plugin.availability === "string" ? plugin.availability : null,
         installPolicy:
           typeof plugin.installPolicy === "string" ? plugin.installPolicy : null,
+        installPolicySource:
+          typeof plugin.installPolicySource === "string"
+            ? plugin.installPolicySource
+            : null,
+        mustShowInstallationInterstitial:
+          typeof plugin.mustShowInstallationInterstitial === "boolean"
+            ? plugin.mustShowInstallationInterstitial
+            : null,
         authPolicy:
           typeof plugin.authPolicy === "string" ? plugin.authPolicy : null,
         category:
@@ -218,6 +226,11 @@ function mergePluginProjections(
       enabled: existing.installed ? existing.enabled : plugin.enabled,
       availability: plugin.availability ?? existing.availability,
       installPolicy: plugin.installPolicy ?? existing.installPolicy,
+      installPolicySource:
+        plugin.installPolicySource ?? existing.installPolicySource,
+      mustShowInstallationInterstitial:
+        plugin.mustShowInstallationInterstitial ??
+        existing.mustShowInstallationInterstitial,
       authPolicy: plugin.authPolicy ?? existing.authPolicy,
       category: plugin.category ?? existing.category,
       capabilities: [...new Set([...existing.capabilities, ...plugin.capabilities])].sort(),

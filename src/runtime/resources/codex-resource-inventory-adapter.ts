@@ -379,6 +379,18 @@ export class CodexResourceInventoryAdapter
           ...(plugin.installPolicy
             ? [`plugin:install-policy:${plugin.installPolicy.toLowerCase().replaceAll("_", "-")}`]
             : []),
+          ...(plugin.installPolicySource
+            ? [
+                `plugin:install-policy-source:${plugin.installPolicySource
+                  .toLowerCase()
+                  .replaceAll("_", "-")}`
+              ]
+            : []),
+          `plugin:installation-interstitial:${
+            plugin.mustShowInstallationInterstitial === null
+              ? "unknown"
+              : String(plugin.mustShowInstallationInterstitial)
+          }`,
           ...(plugin.authPolicy
             ? [`plugin:auth-policy:${plugin.authPolicy.toLowerCase().replaceAll("_", "-")}`]
             : []),
