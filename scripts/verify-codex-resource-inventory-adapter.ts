@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildRuntimeProfileId } from "../src/application/runtime-resource-hash.ts";
 import type { RuntimeProfileDescriptor } from "../src/application/runtime-resource-types.ts";
 import { runtimeResourceDescriptorSchema } from "../src/contracts/runtime-resources.ts";
+import type { RuntimePluginProjection } from "../src/runtime/codex/runtime-adapter.ts";
 import { CodexResourceInventoryAdapter } from "../src/runtime/resources/codex-resource-inventory-adapter.ts";
 
 const profile: RuntimeProfileDescriptor = {
@@ -23,6 +24,31 @@ const profile: RuntimeProfileDescriptor = {
   capabilities: [],
   publicReason: null
 };
+
+function fixturePlugin(
+  overrides: Partial<RuntimePluginProjection> = {}
+): RuntimePluginProjection {
+  return {
+    id: "fixture-plugin@fixture-marketplace",
+    marketplaceName: "fixture-marketplace",
+    sourceIdentityHash: "a".repeat(64),
+    sourceType: "local",
+    name: "fixture-plugin",
+    displayName: "Fixture Plugin",
+    description: "Fixture plugin",
+    version: "1.0.0",
+    availableVersion: "1.1.0",
+    installed: true,
+    enabled: true,
+    availability: "AVAILABLE",
+    installPolicy: "AVAILABLE",
+    authPolicy: "ON_USE",
+    category: "Engineering",
+    capabilities: ["Write", "Read"],
+    observedBy: ["catalog", "installed"],
+    ...overrides
+  };
+}
 
 const runtime = {
   listCodexSkills: async () => [
@@ -47,23 +73,7 @@ const runtime = {
       mutatingToolCount: 1
     }
   ],
-  listCodexPlugins: async () => [
-    {
-      id: "fixture-plugin@fixture-marketplace",
-      marketplaceName: "fixture-marketplace",
-      name: "fixture-plugin",
-      displayName: "Fixture Plugin",
-      description: "Fixture plugin",
-      version: "1.0.0",
-      availableVersion: "1.1.0",
-      installed: true,
-      enabled: true,
-      availability: "AVAILABLE",
-      authPolicy: "ON_USE",
-      category: "Engineering",
-      capabilities: ["Write", "Read"]
-    }
-  ],
+  listCodexPlugins: async () => [fixturePlugin()],
   readCodexResourceConfigSummary: async () => ({
     loaded: true as const,
     modelProviderConfigured: true,
@@ -94,7 +104,15 @@ assert.equal(skill.scope, "user");
 assert.equal(mcp.authStatus, "unsupported");
 assert.equal(mcp.description?.includes("4 tools"), true);
 assert.equal(plugin.updateStatus, "update-available");
-assert.deepEqual(plugin.capabilities, ["plugin:read", "plugin:write"]);
+assert.deepEqual(plugin.capabilities, [
+  "plugin:auth-policy:on-use",
+  "plugin:install-policy:available",
+  "plugin:observed:catalog",
+  "plugin:observed:installed",
+  "plugin:read",
+  "plugin:source:local",
+  "plugin:write"
+]);
 for (const resource of inventory.resources) {
   assert.equal(runtimeResourceDescriptorSchema.safeParse(resource).success, true);
   assert.equal(resource.runtimeProfileId, profile.id);
@@ -262,6 +280,165 @@ await assert.rejects(
     error instanceof Error &&
     "code" in error &&
     (error as { code?: string }).code === "RUNTIME_RESOURCE_DUPLICATE"
+);
+
+const pluginFingerprintBaseAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => [fixturePlugin()]
+});
+const pluginFingerprintBase = await pluginFingerprintBaseAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+const pluginFingerprintBaseResource = pluginFingerprintBase.resources[0];
+assert.ok(pluginFingerprintBaseResource?.kind === "plugin");
+const sourceIdentityDriftAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => [
+    fixturePlugin({ sourceIdentityHash: "b".repeat(64) })
+  ]
+});
+const sourceIdentityDriftInventory = await sourceIdentityDriftAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+const sourceIdentityDriftResource = sourceIdentityDriftInventory.resources[0];
+assert.ok(sourceIdentityDriftResource?.kind === "plugin");
+assert.notEqual(
+  sourceIdentityDriftResource.id,
+  pluginFingerprintBaseResource.id,
+  "Plugin source identity drift must change the opaque Resource ID"
+);
+assert.equal(
+  sourceIdentityDriftResource.externalId,
+  pluginFingerprintBaseResource.externalId,
+  "Plugin source identity hash must not leak through public externalId"
+);
+
+for (const drift of [
+  { sourceType: "remote" as const },
+  { installPolicy: "INSTALLED_BY_DEFAULT" },
+  { authPolicy: "ON_INSTALL" }
+]) {
+  const driftAdapter = new CodexResourceInventoryAdapter({
+    ...runtime,
+    listCodexSkills: async () => [],
+    listCodexMcpServers: async () => [],
+    listCodexPlugins: async () => [fixturePlugin(drift)]
+  });
+  const driftInventory = await driftAdapter.inventory({
+    profile,
+    workspaceId: "workspace_fixture"
+  });
+  const driftResource = driftInventory.resources[0];
+  assert.ok(driftResource?.kind === "plugin");
+  assert.equal(driftResource.id, pluginFingerprintBaseResource.id);
+  assert.notEqual(
+    driftResource.fingerprint,
+    pluginFingerprintBaseResource.fingerprint,
+    `Plugin fingerprint ignored drift ${JSON.stringify(Object.keys(drift))}`
+  );
+}
+
+const conflictingPluginSourceAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => [
+    fixturePlugin({ sourceIdentityHash: "1".repeat(64) }),
+    fixturePlugin({ sourceIdentityHash: "2".repeat(64) })
+  ]
+});
+await assert.rejects(
+  () =>
+    conflictingPluginSourceAdapter.inventory({
+      profile,
+      workspaceId: "workspace_fixture"
+    }),
+  (error: unknown) =>
+    error instanceof Error &&
+    "code" in error &&
+    (error as { code?: string }).code === "RUNTIME_RESOURCE_DUPLICATE"
+);
+
+const installedFirstAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () => [
+    ...Array.from({ length: 1200 }, (_, index) =>
+      fixturePlugin({
+        id: `catalog-${String(index).padStart(4, "0")}@fixture`,
+        name: `catalog-${index}`,
+        displayName: `A Catalog ${String(index).padStart(4, "0")}`,
+        sourceIdentityHash: `${index}`.padStart(64, "0").slice(-64),
+        version: null,
+        availableVersion: "1.0.0",
+        installed: false,
+        enabled: false,
+        authPolicy: "ON_INSTALL",
+        observedBy: ["catalog"]
+      })
+    ),
+    ...Array.from({ length: 26 }, (_, index) =>
+      fixturePlugin({
+        id: `installed-${String(index).padStart(3, "0")}@fixture`,
+        name: `installed-${index}`,
+        displayName: `Z Installed ${String(index).padStart(3, "0")}`,
+        sourceIdentityHash: `f${String(index).padStart(63, "0")}`.slice(0, 64),
+        version: "2.0.0",
+        availableVersion: "2.0.0",
+        installed: true,
+        enabled: true,
+        observedBy: ["installed"]
+      })
+    )
+  ]
+});
+const installedFirstInventory = await installedFirstAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+assert.equal(installedFirstInventory.resources.length, 1000);
+assert.equal(
+  installedFirstInventory.resources.filter(
+    (resource) => resource.kind === "plugin" && resource.installed
+  ).length,
+  26,
+  "Installed Plugin resources must survive catalog truncation"
+);
+
+const impossibleInstalledBudgetAdapter = new CodexResourceInventoryAdapter({
+  ...runtime,
+  listCodexSkills: async () => [],
+  listCodexMcpServers: async () => [],
+  listCodexPlugins: async () =>
+    Array.from({ length: 1001 }, (_, index) =>
+      fixturePlugin({
+        id: `installed-overflow-${String(index).padStart(4, "0")}@fixture`,
+        name: `installed-overflow-${index}`,
+        displayName: `Installed Overflow ${String(index).padStart(4, "0")}`,
+        sourceIdentityHash: `${index}`.padStart(64, "0").slice(-64),
+        installed: true,
+        enabled: true,
+        observedBy: ["installed"]
+      })
+    )
+});
+await assert.rejects(
+  () =>
+    impossibleInstalledBudgetAdapter.inventory({
+      profile,
+      workspaceId: "workspace_fixture"
+    }),
+  (error: unknown) =>
+    error instanceof Error &&
+    "code" in error &&
+    (error as { code?: string }).code === "RUNTIME_RESOURCE_BUDGET_EXCEEDED"
 );
 
 const oversizedAdapter = new CodexResourceInventoryAdapter({

@@ -231,7 +231,7 @@ input.on("line", (line) => {
         nextCursor: null
       });
       break;
-    case "plugin/list":
+    case "plugin/installed":
       respond(message.id, {
         marketplaces: [
           {
@@ -247,6 +247,7 @@ input.on("line", (line) => {
                 installed: true,
                 enabled: true,
                 availability: "AVAILABLE",
+                installPolicy: "AVAILABLE",
                 authPolicy: "ON_USE",
                 source: {
                   type: "local",
@@ -254,14 +255,92 @@ input.on("line", (line) => {
                 },
                 interface: {
                   displayName: "Fixture Plugin",
-                  shortDescription: "Fixture plugin description",
+                  shortDescription: "Installed truth description",
                   category: "Engineering",
-                  capabilities: ["Read", "Write"]
+                  capabilities: ["Read"]
+                }
+              },
+              {
+                id: "installed-only@fixture-marketplace",
+                name: "installed-only",
+                localVersion: "2.0.0",
+                version: null,
+                installed: true,
+                enabled: true,
+                availability: "AVAILABLE",
+                installPolicy: "AVAILABLE",
+                authPolicy: "ON_USE",
+                source: {
+                  type: "local",
+                  path: `${workspaceRoot}/.codex/plugins/installed-only`
+                },
+                interface: {
+                  displayName: "Installed Only",
+                  shortDescription: "Installed endpoint only",
+                  category: "Engineering",
+                  capabilities: ["Read"]
                 }
               }
             ]
           }
-        ]
+        ],
+        marketplaceLoadErrors: []
+      });
+      break;
+    case "plugin/list":
+      respond(message.id, {
+        marketplaces: [
+          {
+            name: "fixture-marketplace",
+            path: `${workspaceRoot}/.codex/plugins/fixture-marketplace/marketplace.json`,
+            interface: null,
+            plugins: [
+              {
+                id: "fixture-plugin@fixture-marketplace",
+                name: "fixture-plugin",
+                localVersion: "9.8.7",
+                version: "9.9.0",
+                installed: true,
+                enabled: true,
+                availability: "AVAILABLE",
+                installPolicy: "AVAILABLE",
+                authPolicy: "ON_USE",
+                source: {
+                  type: "local",
+                  path: `${workspaceRoot}/.codex/plugins/fixture-plugin`
+                },
+                interface: {
+                  displayName: "Fixture Plugin",
+                  shortDescription: "Catalog description wins",
+                  category: "Engineering",
+                  capabilities: ["Read", "Write"]
+                }
+              },
+              {
+                id: "catalog-only@fixture-marketplace",
+                name: "catalog-only",
+                localVersion: null,
+                version: "1.2.3",
+                installed: false,
+                enabled: false,
+                availability: "AVAILABLE",
+                installPolicy: "AVAILABLE",
+                authPolicy: "ON_INSTALL",
+                source: {
+                  type: "local",
+                  path: `${workspaceRoot}/.codex/plugins/catalog-only`
+                },
+                interface: {
+                  displayName: "Catalog Only",
+                  shortDescription: "Catalog endpoint only",
+                  category: "Engineering",
+                  capabilities: ["Read"]
+                }
+              }
+            ]
+          }
+        ],
+        marketplaceLoadErrors: []
       });
       break;
     case "config/read":

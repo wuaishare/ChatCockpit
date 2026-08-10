@@ -148,10 +148,31 @@ const resourceUiSource = fs.readFileSync(
 for (const requiredReadMethod of [
   "skills/list",
   "mcpServerStatus/list",
+  "plugin/installed",
   "plugin/list",
   "config/read"
 ]) {
   assert.match(codexProtocolSource, new RegExp(requiredReadMethod.replace("/", "\\/")));
+}
+
+const pluginInventoryMethod = codexProtocolSource.match(
+  /async listPlugins\([\s\S]*?(?=\n  async readResourceConfigSummary)/
+)?.[0];
+assert.ok(pluginInventoryMethod, "Codex Plugin inventory method must remain inspectable");
+for (const forbiddenPluginMethod of [
+  "plugin/install",
+  "plugin/uninstall",
+  "plugin/search",
+  "marketplace/add",
+  "marketplace/remove",
+  "marketplace/upgrade",
+  "turn/start"
+]) {
+  assert.equal(
+    pluginInventoryMethod.includes(`"${forbiddenPluginMethod}"`),
+    false,
+    `Phase 6B2A Plugin inventory must not call ${forbiddenPluginMethod}`
+  );
 }
 
 for (const forbiddenMutation of [

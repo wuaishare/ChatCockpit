@@ -76,13 +76,13 @@ function pluginUpdateStatus(
 function finalizeResource(
   resource: ResourceWithoutFingerprint
 ): RuntimeResourceDescriptor {
-  return {
+  const normalized = {
     ...resource,
-    capabilities: [...resource.capabilities].sort(),
-    fingerprint: hashRuntimeResource({
-      ...resource,
-      capabilities: [...resource.capabilities].sort()
-    })
+    capabilities: [...resource.capabilities].sort()
+  };
+  return {
+    ...normalized,
+    fingerprint: hashRuntimeResource(normalized)
   };
 }
 
@@ -144,17 +144,40 @@ function boundResourceProjection(
   );
   if (sorted.length <= MAX_CODEX_RESOURCE_ITEMS) return sorted;
 
+  const installedPlugins = sorted.filter(
+    (resource) => resource.kind === "plugin" && resource.installed === true
+  );
+  if (installedPlugins.length > MAX_CODEX_RESOURCE_ITEMS) {
+    throw new ServiceError(
+      "RUNTIME_RESOURCE_BUDGET_EXCEEDED",
+      `Codex installed Plugin inventory alone exceeds the ${MAX_CODEX_RESOURCE_ITEMS}-item public snapshot budget`
+    );
+  }
+
+  const installedPluginIds = new Set(installedPlugins.map((resource) => resource.id));
+  const budgetCandidates = sorted.filter(
+    (resource) =>
+      !(resource.kind === "plugin" && installedPluginIds.has(resource.id))
+  );
   const groups = CODEX_RESOURCE_KIND_PRIORITY
     .map((kind) => ({
       kind,
-      resources: sorted.filter((resource) => resource.kind === kind)
+      resources: budgetCandidates.filter((resource) => resource.kind === kind)
     }))
     .filter((group) => group.resources.length > 0);
-  const selected: RuntimeResourceDescriptor[] = [];
+  const selected: RuntimeResourceDescriptor[] = [...installedPlugins];
   const dropped: string[] = [];
-  let remaining = MAX_CODEX_RESOURCE_ITEMS;
+  let remaining = MAX_CODEX_RESOURCE_ITEMS - selected.length;
 
   for (let index = 0; index < groups.length; index += 1) {
+    if (remaining <= 0) {
+      for (const group of groups.slice(index)) {
+        if (group.resources.length > 0) {
+          dropped.push(`${group.kind}:${group.resources.length}`);
+        }
+      }
+      break;
+    }
     const group = groups[index]!;
     const groupsRemaining = groups.length - index;
     const quota = Math.ceil(remaining / groupsRemaining);
@@ -329,14 +352,45 @@ export class CodexResourceInventoryAdapter
     }
 
     if (pluginsResult.status === "fulfilled") {
+      const sourceIdentitiesByPluginId = new Map<string, Set<string>>();
+      for (const plugin of pluginsResult.value) {
+        const identities = sourceIdentitiesByPluginId.get(plugin.id) ?? new Set<string>();
+        identities.add(plugin.sourceIdentityHash ?? "unknown-source");
+        sourceIdentitiesByPluginId.set(plugin.id, identities);
+      }
+      const ambiguousPluginId = [...sourceIdentitiesByPluginId.entries()].find(
+        ([, identities]) => identities.size > 1
+      );
+      if (ambiguousPluginId) {
+        throw new ServiceError(
+          "RUNTIME_RESOURCE_DUPLICATE",
+          `Codex Plugin provider identity ${ambiguousPluginId[0]} resolves to multiple source identities`
+        );
+      }
+
       for (const plugin of pluginsResult.value) {
         const externalId = `plugin:${plugin.id}`;
+        const identityExternalId = plugin.sourceIdentityHash
+          ? `${externalId}:source:${plugin.sourceIdentityHash}`
+          : externalId;
         const available = plugin.availability === null || plugin.availability === "AVAILABLE";
+        const policyCapabilities = [
+          `plugin:source:${plugin.sourceType ?? "unknown"}`,
+          ...(plugin.installPolicy
+            ? [`plugin:install-policy:${plugin.installPolicy.toLowerCase().replaceAll("_", "-")}`]
+            : []),
+          ...(plugin.authPolicy
+            ? [`plugin:auth-policy:${plugin.authPolicy.toLowerCase().replaceAll("_", "-")}`]
+            : []),
+          ...(plugin.observedBy ?? []).map(
+            (source) => `plugin:observed:${source}`
+          )
+        ];
         const base: ResourceWithoutFingerprint = {
           id: buildRuntimeResourceId({
             runtimeProfileId: input.profile.id,
             kind: "plugin",
-            externalId
+            externalId: identityExternalId
           }),
           runtimeProfileId: input.profile.id,
           kind: "plugin",
@@ -353,9 +407,12 @@ export class CodexResourceInventoryAdapter
           compatibilityStatus: available ? "ready" : "blocked",
           sourceKind: "runtime-native",
           sourceLabel: `Codex:${bounded(plugin.marketplaceName, 120) ?? "marketplace"}`,
-          capabilities: plugin.capabilities.map((capability) =>
-            `plugin:${capability.toLowerCase()}`
-          ),
+          capabilities: [
+            ...plugin.capabilities.map(
+              (capability) => `plugin:${capability.toLowerCase()}`
+            ),
+            ...policyCapabilities
+          ],
           publicReason: available
             ? null
             : bounded(

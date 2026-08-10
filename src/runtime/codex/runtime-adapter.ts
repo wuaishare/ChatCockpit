@@ -135,11 +135,23 @@ export interface RuntimeMcpServerProjection {
 
 export interface RuntimePluginListInput {
   workspaceId?: string;
+  forceRefetch?: boolean;
 }
+
+export type RuntimePluginSourceType =
+  | "local"
+  | "git"
+  | "npm"
+  | "remote"
+  | "unknown";
+
+export type RuntimePluginObservationSource = "installed" | "catalog";
 
 export interface RuntimePluginProjection {
   id: string;
   marketplaceName: string;
+  sourceIdentityHash: string | null;
+  sourceType: RuntimePluginSourceType;
   name: string;
   displayName: string;
   description: string | null;
@@ -148,9 +160,11 @@ export interface RuntimePluginProjection {
   installed: boolean;
   enabled: boolean;
   availability: string | null;
+  installPolicy: string | null;
   authPolicy: string | null;
   category: string | null;
   capabilities: string[];
+  observedBy: RuntimePluginObservationSource[];
 }
 
 export interface RuntimeResourceConfigSummary {
