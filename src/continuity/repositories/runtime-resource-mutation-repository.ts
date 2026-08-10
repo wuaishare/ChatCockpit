@@ -14,6 +14,7 @@ export type RuntimeResourceMutationApprovalStatus =
   | "approved"
   | "denied"
   | "expired"
+  | "stale"
   | "consumed";
 export type RuntimeResourceMutationVerificationStatus =
   | "executing"
@@ -244,6 +245,52 @@ export class RuntimeResourceMutationRepository {
     return this.getApproval(id);
   }
 
+  markStale(input: {
+    id: string;
+    expectedRevision: number;
+    now?: string;
+  }): RuntimeResourceMutationApprovalRecord {
+    const now = nowIso(input.now);
+    const current = this.expireIfNeeded(input.id, now);
+    if (current.status === "stale") {
+      return current;
+    }
+    if (current.status === "expired") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_APPROVAL_EXPIRED",
+        "Runtime Resource mutation approval expired"
+      );
+    }
+    if (current.status !== "approved") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_APPROVAL_REQUIRED",
+        "Only an approved Runtime Resource mutation can become stale"
+      );
+    }
+    if (current.revision !== input.expectedRevision) {
+      assertUpdated(
+        0,
+        "Runtime Resource mutation approval",
+        input.id,
+        input.expectedRevision
+      );
+    }
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE runtime_resource_mutation_approvals
+        SET status = 'stale', updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND status = 'approved'
+      `)
+      .run(now, input.id, input.expectedRevision);
+    assertUpdated(
+      result.changes,
+      "Runtime Resource mutation approval",
+      input.id,
+      input.expectedRevision
+    );
+    return this.getApproval(input.id);
+  }
+
   decide(input: {
     id: string;
     decision: "approved" | "denied";
@@ -256,6 +303,12 @@ export class RuntimeResourceMutationRepository {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_APPROVAL_EXPIRED",
         "Runtime Resource mutation approval expired"
+      );
+    }
+    if (current.status === "stale") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_STALE",
+        "Runtime Resource mutation approval is stale and cannot be decided"
       );
     }
     if (current.status !== "pending") {
@@ -299,6 +352,12 @@ export class RuntimeResourceMutationRepository {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_APPROVAL_EXPIRED",
         "Runtime Resource mutation approval expired"
+      );
+    }
+    if (current.status === "stale") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_STALE",
+        "Runtime Resource mutation approval is stale and cannot be consumed"
       );
     }
     if (current.status === "consumed") {
