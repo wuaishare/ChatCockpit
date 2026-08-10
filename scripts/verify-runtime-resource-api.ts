@@ -13,6 +13,8 @@ import type {
   RuntimeSkillProjection
 } from "../src/runtime/codex/runtime-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
+import type { CodexPluginMutationAdapter } from "../src/runtime/resources/codex-plugin-mutation-adapter.ts";
+import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 import { listenTestServer } from "./test-support/server.ts";
 
 interface JsonRpcResponse {
@@ -33,6 +35,10 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 const notUsed = async (): Promise<never> => {
   throw new Error("Runtime Resource API fixture method not used");
 };
+
+let skillEnabled = true;
+let skillMutationCalls = 0;
+let mutationNow = "2026-08-11T00:00:00.000Z";
 
 const fakeCodex: CodingRuntimeAdapter = {
   capabilities: async (): Promise<RuntimeCapabilitySnapshot> => ({
@@ -59,7 +65,7 @@ const fakeCodex: CodingRuntimeAdapter = {
       name: "api-skill",
       description: "API fixture skill",
       scope: "user",
-      enabled: true,
+      enabled: skillEnabled,
       displayName: "API Skill",
       shortDescription: "API fixture skill",
       brandColor: null
@@ -115,6 +121,23 @@ const fakeCodex: CodingRuntimeAdapter = {
   close: async () => undefined
 };
 
+const fakeSkillMutationAdapter = {
+  setEnabled: async (input: { desiredEnabled: boolean }) => {
+    skillMutationCalls += 1;
+    skillEnabled = input.desiredEnabled;
+    return { effectiveEnabled: input.desiredEnabled };
+  }
+} as unknown as CodexSkillMutationAdapter;
+
+const fakePluginMutationAdapter = {
+  install: async () => {
+    throw new Error("Runtime Resource API fixture must not install a Plugin");
+  },
+  uninstall: async () => {
+    throw new Error("Runtime Resource API fixture must not uninstall a Plugin");
+  }
+} as unknown as CodexPluginMutationAdapter;
+
 async function run(): Promise<void> {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-resource-api-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Runtime Resource API fixture\n", "utf8");
@@ -143,14 +166,19 @@ async function run(): Promise<void> {
   const previous = {
     config: process.env.TOKENPILOT_CONFIG_PATH,
     token: process.env.TOKENPILOT_API_TOKEN,
-    exposed: process.env.TOKENPILOT_EXPOSED
+    exposed: process.env.TOKENPILOT_EXPOSED,
+    resourceMutationsExposed: process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED
   };
   process.env.TOKENPILOT_CONFIG_PATH = configPath;
   process.env.TOKENPILOT_API_TOKEN = "test-token";
   process.env.TOKENPILOT_EXPOSED = "true";
+  delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
 
   const app = buildServer(paths, {
     codexAdapter: fakeCodex,
+    codexSkillMutationAdapter: fakeSkillMutationAdapter,
+    codexPluginMutationAdapter: fakePluginMutationAdapter,
+    runtimeResourceMutationNow: () => mutationNow,
     acpRegistryAdapter: null
   });
   let server: Awaited<ReturnType<typeof listenTestServer>> | null = null;
@@ -159,19 +187,26 @@ async function run(): Promise<void> {
   try {
     server = await listenTestServer(app);
     const baseUrl = server.baseUrl;
+    const rawRest = async (
+      method: "GET" | "POST",
+      route: string,
+      body?: unknown,
+      token = "test-token"
+    ) =>
+      fetch(`${baseUrl}${route}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "content-type": "application/json" })
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) })
+      });
     const rest = async <T>(
       method: "GET" | "POST",
       route: string,
       body?: unknown
     ): Promise<T> => {
-      const response = await fetch(`${baseUrl}${route}`, {
-        method,
-        headers: {
-          authorization: "Bearer test-token",
-          ...(body === undefined ? {} : { "content-type": "application/json" })
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) })
-      });
+      const response = await rawRest(method, route, body);
       const payload = (await response.json()) as T & {
         error?: { code: string; message: string };
       };
@@ -237,8 +272,29 @@ async function run(): Promise<void> {
     };
     const restInventory = await rest<{
       ok: true;
-      snapshot: { id: string; status: string; fingerprint: string; items: Array<{ resourceId: string }> };
-      resources: Array<{ id: string; kind: string; displayName: string }>;
+      snapshot: {
+        id: string;
+        status: string;
+        fingerprint: string;
+        items: Array<{ resourceId: string }>;
+      };
+      resources: Array<{
+        id: string;
+        kind: string;
+        displayName: string;
+        fingerprint: string;
+        enabled: boolean | null;
+      }>;
+      mutationWritesEnabled: boolean;
+      mutationEligibility: Array<{
+        resourceId: string;
+        snapshotId: string;
+        operations: Array<{
+          operation: string;
+          eligible: boolean;
+          code: string;
+        }>;
+      }>;
       replayed: boolean;
       diff: { previousSnapshotId: string | null; added: string[] };
     }>("POST", "/api/resources/inventory", inventoryInput);
@@ -250,6 +306,265 @@ async function run(): Promise<void> {
       ["mcp-server", "plugin", "skill"]
     );
     assert.equal(restInventory.diff.previousSnapshotId, null);
+    assert.equal(restInventory.mutationWritesEnabled, false);
+
+    const skill = restInventory.resources.find((resource) => resource.kind === "skill")!;
+    const skillEligibility = restInventory.mutationEligibility.find(
+      (entry) => entry.resourceId === skill.id
+    )!;
+    assert.equal(skillEligibility.snapshotId, restInventory.snapshot.id);
+    assert.equal(
+      skillEligibility.operations.find((entry) => entry.operation === "skill.disable")
+        ?.eligible,
+      true
+    );
+
+    const blockedPrepare = await rawRest("POST", "/api/resources/mutations/prepare", {
+      operation: "skill.disable",
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "resource-api-mutation-prepare-blocked-0001"
+    });
+    assert.equal(blockedPrepare.status, 403);
+    assert.equal(
+      ((await blockedPrepare.json()) as { error: { code: string } }).error.code,
+      "RUNTIME_RESOURCE_MUTATION_EXPOSURE_DISABLED"
+    );
+    assert.equal(skillMutationCalls, 0);
+
+    const stillReadable = await rest<{ ok: true; snapshot: { id: string } }>(
+      "GET",
+      `/api/resources/snapshots/${restInventory.snapshot.id}`
+    );
+    assert.equal(stillReadable.snapshot.id, restInventory.snapshot.id);
+
+    process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = "true";
+    const enabledInventory = await rest<typeof restInventory>(
+      "POST",
+      "/api/resources/inventory",
+      inventoryInput
+    );
+    assert.equal(enabledInventory.replayed, true);
+    assert.equal(enabledInventory.mutationWritesEnabled, true);
+
+    const forgedActor = await rawRest("POST", "/api/resources/mutations/prepare", {
+      operation: "skill.disable",
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "resource-api-mutation-prepare-forged-actor-0001",
+      requestedActorType: "remote-mcp"
+    });
+    assert.equal(forgedActor.status, 400);
+    assert.equal(skillMutationCalls, 0);
+
+    const stalePrepare = await rawRest("POST", "/api/resources/mutations/prepare", {
+      operation: "skill.disable",
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
+      expectedFingerprint: "f".repeat(64),
+      idempotencyKey: "resource-api-mutation-prepare-stale-0001"
+    });
+    assert.equal(stalePrepare.status, 409);
+    assert.equal(
+      ((await stalePrepare.json()) as { error: { code: string } }).error.code,
+      "RUNTIME_RESOURCE_MUTATION_STALE"
+    );
+    assert.equal(skillMutationCalls, 0);
+
+    const strictSelector = await rawRest("POST", "/api/resources/mutations/prepare", {
+      operation: "skill.disable",
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "resource-api-mutation-prepare-strict-0001",
+      remotePluginId: "must-be-rejected"
+    });
+    assert.equal(strictSelector.status, 400);
+    assert.equal(skillMutationCalls, 0);
+
+    const prepareBody = {
+      operation: "skill.disable" as const,
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "resource-api-mutation-prepare-0001"
+    };
+    const prepared = await rest<{
+      ok: true;
+      approval: {
+        id: string;
+        status: string;
+        revision: number;
+        requestedActor: { type: string; identityHash: string | null } | null;
+      };
+      replayed: boolean;
+    }>("POST", "/api/resources/mutations/prepare", prepareBody);
+    assert.equal(prepared.replayed, false);
+    assert.equal(prepared.approval.status, "pending");
+    assert.equal(prepared.approval.requestedActor?.type, "rest-api");
+    const preparedReplay = await rest<typeof prepared>(
+      "POST",
+      "/api/resources/mutations/prepare",
+      prepareBody
+    );
+    assert.equal(preparedReplay.replayed, true);
+    assert.equal(preparedReplay.approval.id, prepared.approval.id);
+
+    const approvalRead = await rest<{
+      ok: true;
+      approval: { id: string; status: string };
+    }>(
+      "GET",
+      `/api/resources/mutations/approvals/${prepared.approval.id}?workspaceId=${encodeURIComponent(workspace.id)}`
+    );
+    assert.equal(approvalRead.approval.status, "pending");
+
+    const decisionBody = {
+      approvalId: prepared.approval.id,
+      expectedRevision: prepared.approval.revision,
+      decision: "approved" as const,
+      idempotencyKey: "resource-api-mutation-decision-0001"
+    };
+    const decision = await rest<{
+      ok: true;
+      approval: {
+        id: string;
+        status: string;
+        revision: number;
+        decidedActor: { type: string } | null;
+      };
+      replayed: boolean;
+    }>("POST", "/api/resources/mutations/decision", decisionBody);
+    assert.equal(decision.approval.status, "approved");
+    assert.equal(decision.approval.decidedActor?.type, "rest-api");
+    assert.equal(
+      (await rest<typeof decision>("POST", "/api/resources/mutations/decision", decisionBody))
+        .replayed,
+      true
+    );
+
+    const executeBody = {
+      approvalId: decision.approval.id,
+      expectedApprovalRevision: decision.approval.revision,
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "resource-api-mutation-execute-0001"
+    };
+    const executed = await rest<{
+      ok: true;
+      execution: {
+        id: string;
+        verificationStatus: string;
+        executedActor: { type: string } | null;
+      };
+      replayed: boolean;
+    }>("POST", "/api/resources/mutations/execute", executeBody);
+    assert.equal(executed.execution.verificationStatus, "verified");
+    assert.equal(executed.execution.executedActor?.type, "rest-api");
+    assert.equal(skillMutationCalls, 1);
+    const executeReplay = await rest<typeof executed>(
+      "POST",
+      "/api/resources/mutations/execute",
+      executeBody
+    );
+    assert.equal(executeReplay.replayed, true);
+    assert.equal(skillMutationCalls, 1);
+
+    const consumedExecute = await rawRest("POST", "/api/resources/mutations/execute", {
+      ...executeBody,
+      idempotencyKey: "resource-api-mutation-execute-consumed-0002"
+    });
+    assert.equal(consumedExecute.status, 409);
+    assert.equal(
+      ((await consumedExecute.json()) as { error: { code: string } }).error.code,
+      "RUNTIME_RESOURCE_MUTATION_APPROVAL_CONSUMED"
+    );
+    assert.equal(skillMutationCalls, 1);
+
+    const executionRead = await rest<{
+      ok: true;
+      execution: { id: string; verificationStatus: string };
+    }>(
+      "GET",
+      `/api/resources/mutations/executions/${executed.execution.id}?workspaceId=${encodeURIComponent(workspace.id)}`
+    );
+    assert.equal(executionRead.execution.verificationStatus, "verified");
+    const activity = await rest<{
+      ok: true;
+      approvals: Array<{ id: string }>;
+      executions: Array<{ id: string }>;
+    }>(
+      "GET",
+      `/api/resources/mutations/activity?workspaceId=${encodeURIComponent(workspace.id)}&resourceId=${encodeURIComponent(skill.id)}&limit=10`
+    );
+    assert.equal(activity.approvals.some((entry) => entry.id === prepared.approval.id), true);
+    assert.equal(activity.executions.some((entry) => entry.id === executed.execution.id), true);
+    const aliasedActivity = await rest<typeof activity>(
+      "GET",
+      `/tokenpilot/api/resources/mutations/activity?workspaceId=${encodeURIComponent(workspace.id)}&resourceId=${encodeURIComponent(skill.id)}&limit=10`
+    );
+    assert.deepEqual(aliasedActivity, activity);
+
+    const refreshed = await rest<{
+      ok: true;
+      snapshot: { id: string };
+      resources: Array<{
+        id: string;
+        enabled: boolean | null;
+        fingerprint: string;
+      }>;
+    }>("POST", "/api/resources/inventory", {
+      ...inventoryInput,
+      idempotencyKey: "resource-api-inventory-after-mutation-0001"
+    });
+    assert.equal(
+      refreshed.resources.find((resource) => resource.id === skill.id)?.enabled,
+      false
+    );
+    process.stdout.write("VERIFY_RUNTIME_RESOURCE_MUTATION_REST_LIFECYCLE_OK\n");
+
+    mutationNow = "2026-08-11T00:01:00.000Z";
+    const refreshedSkill = refreshed.resources.find((resource) => resource.id === skill.id)!;
+    const expiring = await rest<{
+      ok: true;
+      approval: { id: string; revision: number; status: string };
+    }>("POST", "/api/resources/mutations/prepare", {
+      operation: "skill.enable",
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: refreshed.snapshot.id,
+      expectedFingerprint: refreshedSkill.fingerprint,
+      idempotencyKey: "resource-api-mutation-prepare-expiring-0001"
+    });
+    assert.equal(expiring.approval.status, "pending");
+    mutationNow = "2026-08-11T00:07:00.000Z";
+    const expiredDecision = await rawRest("POST", "/api/resources/mutations/decision", {
+      approvalId: expiring.approval.id,
+      expectedRevision: expiring.approval.revision,
+      decision: "approved",
+      idempotencyKey: "resource-api-mutation-decision-expired-0001"
+    });
+    assert.equal(expiredDecision.status, 409);
+    assert.equal(
+      ((await expiredDecision.json()) as { error: { code: string } }).error.code,
+      "RUNTIME_RESOURCE_MUTATION_APPROVAL_EXPIRED"
+    );
+    assert.equal(skillMutationCalls, 1);
 
     const mcpReplay = await mcp<typeof restInventory>(
       "tokenpilot.resources.inventory",
@@ -293,9 +608,39 @@ async function run(): Promise<void> {
     });
     assert.equal(mcpResource.resource.id, resourceId);
 
+    const openapiResponse = await fetch(`${baseUrl}/openapi.yaml`);
+    assert.equal(openapiResponse.status, 200);
+    const openapiText = await openapiResponse.text();
+    for (const operationId of [
+      "prepareRuntimeResourceMutation",
+      "decideRuntimeResourceMutation",
+      "executeRuntimeResourceMutation",
+      "getRuntimeResourceMutationApproval",
+      "getRuntimeResourceMutationExecution",
+      "listRuntimeResourceMutationActivity"
+    ]) {
+      assert.match(openapiText, new RegExp(`operationId: ${operationId}`));
+    }
+    assert.match(openapiText, /TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true/);
+    for (const forbidden of [
+      "remotePluginId",
+      "remoteMarketplaceName",
+      "marketplacePath",
+      "installUrl"
+    ]) {
+      assert.equal(openapiText.includes(forbidden), false, `OpenAPI leaked ${forbidden}`);
+    }
+
     const serialized = JSON.stringify({
       profiles,
       restInventory,
+      prepared,
+      approvalRead,
+      decision,
+      executed,
+      executionRead,
+      activity,
+      refreshed,
       mcpReplay,
       snapshot,
       inspected,
@@ -307,6 +652,17 @@ async function run(): Promise<void> {
     assert.equal(serialized.includes("test-token"), false);
     assert.equal(serialized.includes("rawConfig"), false);
     assert.equal(serialized.includes("inputSchema"), false);
+    for (const forbidden of [
+      "mutationHash",
+      "requestedRequestIdentityHash",
+      "decidedRequestIdentityHash",
+      "executedRequestIdentityHash",
+      "remotePluginId",
+      "marketplacePath",
+      "installUrl"
+    ]) {
+      assert.equal(serialized.includes(forbidden), false, `REST projection leaked ${forbidden}`);
+    }
 
     process.stdout.write("VERIFY_RUNTIME_RESOURCE_API_OK\n");
   } finally {
@@ -318,6 +674,12 @@ async function run(): Promise<void> {
     else process.env.TOKENPILOT_API_TOKEN = previous.token;
     if (previous.exposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
     else process.env.TOKENPILOT_EXPOSED = previous.exposed;
+    if (previous.resourceMutationsExposed === undefined) {
+      delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
+    } else {
+      process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED =
+        previous.resourceMutationsExposed;
+    }
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 }

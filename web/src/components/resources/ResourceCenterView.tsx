@@ -41,11 +41,18 @@ import type {
   RuntimeResourceInspectResponse,
   RuntimeResourceInventoryResponse,
   RuntimeResourceKind,
+  RuntimeResourceMutationOperation,
   RuntimeResourceScope,
   RuntimeResourceSourceKind,
   RuntimeResourceUpdateStatus
 } from "../../types";
 import { StateNotice } from "../StateNotice";
+import {
+  ResourceMutationActivity,
+  ResourceMutationReviewModal
+} from "./ResourceMutationReview";
+import { eligibleMutationsForResource } from "./resource-mutation-model";
+import { useResourceMutationWorkflow } from "./use-resource-mutation-workflow";
 import "./resource-center.css";
 
 interface ResourceCenterViewProps {
@@ -131,6 +138,30 @@ export function ResourceCenterView({
   const [inspection, setInspection] = useState<RuntimeResourceInspectResponse | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const {
+    mutationApproval,
+    mutationExecution,
+    mutationReviewOpen,
+    mutationBusy,
+    mutationPendingResourceId,
+    mutationError,
+    mutationActivity,
+    mutationActivityLoading,
+    loadMutationActivity,
+    prepareMutation,
+    approveAndExecuteMutation,
+    denyMutation,
+    reopenPendingMutation,
+    closeMutationReview,
+    resetMutationWorkflow
+  } = useResourceMutationWorkflow({
+    token,
+    copy,
+    inventory,
+    selectedProfileId,
+    selectedWorkspaceId,
+    setInventory
+  });
 
   const protectedWithoutToken = authRequired && !token?.trim();
 
@@ -139,6 +170,7 @@ export function ResourceCenterView({
       setProfiles([]);
       setSelectedProfileId(null);
       setInventory(null);
+      resetMutationWorkflow();
       setError(null);
       return;
     }
@@ -189,6 +221,21 @@ export function ResourceCenterView({
     }
   }
 
+  async function readInventory(
+    runtimeProfileId: string,
+    workspaceId: string | null,
+    needsWorkspace: boolean
+  ): Promise<RuntimeResourceInventoryResponse> {
+    return inventoryRuntimeResources(
+      {
+        runtimeProfileId,
+        ...(needsWorkspace && workspaceId ? { workspaceId } : {}),
+        idempotencyKey: operationKey()
+      },
+      token
+    );
+  }
+
   async function refreshInventory(): Promise<void> {
     if (!selectedProfileId) return;
     const profile = profiles.find((entry) => entry.id === selectedProfileId) ?? null;
@@ -200,18 +247,18 @@ export function ResourceCenterView({
     setDrawerOpen(false);
     setInspection(null);
     try {
-      const result = await inventoryRuntimeResources(
-        {
-          runtimeProfileId: selectedProfileId,
-          ...(needsWorkspace && selectedWorkspaceId
-            ? { workspaceId: selectedWorkspaceId }
-            : {}),
-          idempotencyKey: operationKey()
-        },
-        token
+      const result = await readInventory(
+        selectedProfileId,
+        selectedWorkspaceId,
+        needsWorkspace
       );
       setInventory(result);
       setActiveTab("all");
+      if (needsWorkspace && selectedWorkspaceId) {
+        await loadMutationActivity(selectedWorkspaceId);
+      } else {
+        resetMutationWorkflow();
+      }
     } catch (inventoryError) {
       setError(problemMessage(inventoryError, copy.requestFailedTitle));
     } finally {
@@ -225,6 +272,9 @@ export function ResourceCenterView({
     setInspectLoading(true);
     try {
       setInspection(await fetchRuntimeResourceItem(resource.id, token));
+      if (requiresWorkspace && selectedWorkspaceId) {
+        await loadMutationActivity(selectedWorkspaceId);
+      }
     } catch (inspectError) {
       setDrawerOpen(false);
       setError(problemMessage(inspectError, copy.requestFailedTitle));
@@ -234,9 +284,10 @@ export function ResourceCenterView({
   }
 
   function selectProfile(profileId: string): void {
-    if (profileId === selectedProfileId) return;
+    if (mutationBusy || profileId === selectedProfileId) return;
     setSelectedProfileId(profileId);
     setInventory(null);
+    resetMutationWorkflow();
     setInspection(null);
     setDrawerOpen(false);
     setActiveTab("all");
@@ -330,6 +381,13 @@ export function ResourceCenterView({
     return copy.acpRegistry;
   };
 
+  const mutationLabel = (operation: RuntimeResourceMutationOperation): string => {
+    if (operation === "skill.enable") return copy.skillEnable;
+    if (operation === "skill.disable") return copy.skillDisable;
+    if (operation === "plugin.install") return copy.pluginInstall;
+    return copy.pluginUninstall;
+  };
+
   if (protectedWithoutToken) {
     return (
       <div className="view-stack">
@@ -371,6 +429,7 @@ export function ResourceCenterView({
           icon={<ReloadOutlined />}
           onClick={() => void loadProfiles()}
           loading={profileLoading}
+          disabled={mutationBusy}
         >
           {copy.profilesTitle}
         </Button>
@@ -411,10 +470,12 @@ export function ResourceCenterView({
                 <Select
                   value={selectedWorkspaceId ?? undefined}
                   options={workspaceOptions}
+                  disabled={mutationBusy}
                   placeholder={copy.workspaceUnavailable}
                   onChange={(value) => {
                     setSelectedWorkspaceId(value);
                     setInventory(null);
+                    resetMutationWorkflow();
                   }}
                 />
               </div>
@@ -423,7 +484,11 @@ export function ResourceCenterView({
               type="primary"
               icon={<ReloadOutlined />}
               loading={inventoryLoading}
-              disabled={!selectedProfile || (requiresWorkspace && !selectedWorkspaceId)}
+              disabled={
+                mutationBusy ||
+                !selectedProfile ||
+                (requiresWorkspace && !selectedWorkspaceId)
+              }
               onClick={() => void refreshInventory()}
             >
               {inventoryLoading ? copy.refreshingInventory : copy.refreshInventory}
@@ -461,6 +526,7 @@ export function ResourceCenterView({
                   type="button"
                   className={`resource-center__profile-card${selected ? " resource-center__profile-card--selected" : ""}`}
                   aria-pressed={selected}
+                  disabled={mutationBusy}
                   onClick={() => selectProfile(profile.id)}
                 >
                   <div className="resource-center__profile-heading">
@@ -556,6 +622,15 @@ export function ResourceCenterView({
             ) : null}
           </section>
 
+          {!inventory.mutationWritesEnabled && inventory.mutationEligibility.length > 0 ? (
+            <Alert
+              className="resource-center__mutation-gate"
+              type="warning"
+              showIcon
+              message={copy.mutationExposureDisabled}
+            />
+          ) : null}
+
           <section className="resource-center__inventory panel" aria-label={copy.resources}>
             <Tabs
               activeKey={activeTab}
@@ -593,43 +668,99 @@ export function ResourceCenterView({
                       <th scope="col">{copy.auth}</th>
                       <th scope="col">{copy.compatibility}</th>
                       <th scope="col">{copy.update}</th>
+                      <th scope="col" className="resource-center__table-action">{copy.mutationActions}</th>
                       <th scope="col" className="resource-center__table-action">{copy.details}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleResources.map((resource) => (
-                      <tr key={resource.id}>
-                        <td>
-                          <div className="resource-center__resource-name">
-                            <Text as="div" strong>{resource.displayName}</Text>
-                            <Text as="div" type="secondary" className="resource-center__resource-meta">
-                              {resource.version ?? copy.unknown} · {resource.sourceLabel}
-                            </Text>
-                          </div>
-                        </td>
-                        <td><Tag>{scopeLabel(resource.scope)}</Tag></td>
-                        <td>
-                          <Tag color={resource.enabled === true ? "success" : resource.enabled === false ? "default" : undefined}>
-                            {booleanText(resource.enabled, copy.yes, copy.no, copy.unknown)}
-                          </Tag>
-                        </td>
-                        <td><Tag color={authTone(resource.authStatus)}>{authLabel(resource.authStatus)}</Tag></td>
-                        <td><Tag color={resourceTone(resource.compatibilityStatus)}>{compatibilityLabel(resource.compatibilityStatus)}</Tag></td>
-                        <td><Tag color={updateTone(resource.updateStatus)}>{updateLabel(resource.updateStatus)}</Tag></td>
-                        <td className="resource-center__table-action">
-                          <Button type="link" onClick={() => void inspectResource(resource)}>
-                            {copy.inspect}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {visibleResources.map((resource) => {
+                      const mutation = eligibleMutationsForResource(inventory, resource.id)[0];
+                      const mutationDisabled = !inventory.mutationWritesEnabled || mutationBusy;
+                      return (
+                        <tr key={resource.id}>
+                          <td>
+                            <div className="resource-center__resource-name">
+                              <Text as="div" strong>{resource.displayName}</Text>
+                              <Text as="div" type="secondary" className="resource-center__resource-meta">
+                                {resource.version ?? copy.unknown} · {resource.sourceLabel}
+                              </Text>
+                            </div>
+                          </td>
+                          <td><Tag>{scopeLabel(resource.scope)}</Tag></td>
+                          <td>
+                            <Tag color={resource.enabled === true ? "success" : resource.enabled === false ? "default" : undefined}>
+                              {booleanText(resource.enabled, copy.yes, copy.no, copy.unknown)}
+                            </Tag>
+                          </td>
+                          <td><Tag color={authTone(resource.authStatus)}>{authLabel(resource.authStatus)}</Tag></td>
+                          <td><Tag color={resourceTone(resource.compatibilityStatus)}>{compatibilityLabel(resource.compatibilityStatus)}</Tag></td>
+                          <td><Tag color={updateTone(resource.updateStatus)}>{updateLabel(resource.updateStatus)}</Tag></td>
+                          <td className="resource-center__table-action">
+                            {mutation ? (
+                              <Tooltip
+                                title={
+                                  inventory.mutationWritesEnabled
+                                    ? mutation.publicReason
+                                    : copy.mutationExposureDisabled
+                                }
+                              >
+                                <span>
+                                  <Button
+                                    danger={mutation.operation === "plugin.uninstall"}
+                                    disabled={mutationDisabled}
+                                    loading={
+                                      mutationBusy && mutationPendingResourceId === resource.id
+                                    }
+                                    onClick={() =>
+                                      void prepareMutation(resource, mutation.operation)
+                                    }
+                                  >
+                                    {mutationLabel(mutation.operation)}
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <Tag>{copy.mutationUnavailable}</Tag>
+                            )}
+                          </td>
+                          <td className="resource-center__table-action">
+                            <Button type="link" onClick={() => void inspectResource(resource)}>
+                              {copy.inspect}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </section>
+
+          {requiresWorkspace && selectedWorkspaceId ? (
+            <ResourceMutationActivity
+              locale={locale}
+              copy={copy}
+              activity={mutationActivity}
+              loading={mutationActivityLoading}
+              onReviewApproval={reopenPendingMutation}
+            />
+          ) : null}
         </>
       )}
+
+      <ResourceMutationReviewModal
+        locale={locale}
+        copy={copy}
+        open={mutationReviewOpen}
+        approval={mutationApproval}
+        execution={mutationExecution}
+        busy={mutationBusy}
+        error={mutationError}
+        onApproveAndExecute={() => void approveAndExecuteMutation()}
+        onDeny={() => void denyMutation()}
+        onCancel={closeMutationReview}
+      />
 
       <Drawer
         title={copy.resourceDetailsTitle}

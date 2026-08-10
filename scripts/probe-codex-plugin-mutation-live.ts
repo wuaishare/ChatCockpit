@@ -277,7 +277,8 @@ function buildInventoryService(
   const inventoryAdapter: RuntimeResourceInventoryAdapter = {
     providerKind: adapter.providerKind,
     protocolKind: adapter.protocolKind,
-    inventory: (input) => adapter.inventory(input)
+    inventory: (input) => adapter.inventory(input),
+    readTarget: (input) => adapter.readTarget(input)
   };
   const profiles = new RuntimeProfileRegistry([
     {
@@ -316,6 +317,7 @@ async function governedTransition(input: {
   service: RuntimeResourceMutationService;
   operation: PluginOperation;
   profileId: string;
+  snapshotId: string;
   resource: RuntimeResourceDescriptor;
   keyPrefix: string;
 }) {
@@ -324,6 +326,7 @@ async function governedTransition(input: {
     runtimeProfileId: input.profileId,
     workspaceId: WORKSPACE_ID,
     resourceId: input.resource.id,
+    expectedSnapshotId: input.snapshotId,
     expectedFingerprint: input.resource.fingerprint,
     idempotencyKey: `${input.keyPrefix}:prepare`
   });
@@ -446,6 +449,7 @@ export async function runCodexPluginMutationLiveProof(
         service: mutation,
         operation: "plugin.install",
         profileId: bundle.profile.id,
+        snapshotId: initial.snapshot.id,
         resource: original,
         keyPrefix: `codex-plugin-mutation-live:install:${crypto.randomUUID()}`
       });
@@ -473,6 +477,7 @@ export async function runCodexPluginMutationLiveProof(
         service: mutation,
         operation: "plugin.uninstall",
         profileId: bundle.profile.id,
+        snapshotId: transitioned.snapshot.id,
         resource: transitionedResource,
         keyPrefix: `codex-plugin-mutation-live:uninstall:${crypto.randomUUID()}`
       });
@@ -547,6 +552,7 @@ export async function runCodexPluginMutationLiveProof(
               service: mutation,
               operation: "plugin.uninstall",
               profileId: bundle.profile.id,
+              snapshotId: current.snapshot.id,
               resource: exact,
               keyPrefix: `codex-plugin-mutation-live:cleanup:${crypto.randomUUID()}`
             });

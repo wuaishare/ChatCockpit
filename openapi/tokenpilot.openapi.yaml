@@ -4218,6 +4218,315 @@ components:
           items:
             $ref: '#/components/schemas/RuntimeProfileDescriptor'
       required: [ok, profiles]
+    RuntimeResourceMutationOperation:
+      type: string
+      enum: [skill.enable, skill.disable, plugin.install, plugin.uninstall]
+    RuntimeResourceMutationEligibility:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          $ref: '#/components/schemas/RuntimeResourceMutationOperation'
+        eligible: { type: boolean }
+        code: { type: string }
+        stage:
+          type: string
+          enum: [eligible, platform, state, policy]
+        publicReason:
+          type: string
+          maxLength: 240
+      required: [operation, eligible, code, stage, publicReason]
+    RuntimeResourceMutationEligibilityEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        resourceId: { type: string }
+        snapshotId: { type: string }
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceMutationEligibility'
+      required: [resourceId, snapshotId, operations]
+    RuntimeResourceMutationActor:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [local-cli, local-ui, rest-api, gpt-actions, remote-mcp, runner]
+        identityHash:
+          oneOf:
+            - type: string
+              pattern: '^[a-f0-9]{64}$'
+            - type: "null"
+      required: [type, identityHash]
+    RuntimeResourceMutationApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        operation:
+          $ref: '#/components/schemas/RuntimeResourceMutationOperation'
+        runtimeProfileId: { type: string }
+        workspaceId: { type: string }
+        resourceId: { type: string }
+        resourceKind:
+          type: string
+          enum: [skill, plugin]
+        resourceScope:
+          type: string
+          enum: [user, workspace, runtime, registry, unknown]
+        beforeSnapshotId: { type: string }
+        beforeFingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        requestedState:
+          type: object
+          additionalProperties:
+            type: boolean
+        publicSummary:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: boolean
+        requestedActor:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeResourceMutationActor'
+            - type: "null"
+        decidedActor:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeResourceMutationActor'
+            - type: "null"
+        status:
+          type: string
+          enum: [pending, approved, denied, expired, stale, consumed]
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        expiresAt: { type: string }
+        decidedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        consumedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - id
+        - operation
+        - runtimeProfileId
+        - workspaceId
+        - resourceId
+        - resourceKind
+        - resourceScope
+        - beforeSnapshotId
+        - beforeFingerprint
+        - requestedState
+        - publicSummary
+        - requestedActor
+        - decidedActor
+        - status
+        - createdAt
+        - updatedAt
+        - expiresAt
+        - decidedAt
+        - consumedAt
+        - revision
+    RuntimeResourceMutationExecution:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        approvalId: { type: string }
+        operation:
+          $ref: '#/components/schemas/RuntimeResourceMutationOperation'
+        runtimeProfileId: { type: string }
+        workspaceId: { type: string }
+        resourceId: { type: string }
+        beforeSnapshotId: { type: string }
+        beforeFingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        afterSnapshotId:
+          oneOf:
+            - type: string
+            - type: "null"
+        afterFingerprint:
+          oneOf:
+            - type: string
+              pattern: '^[a-f0-9]{64}$'
+            - type: "null"
+        requestedState:
+          type: object
+          additionalProperties:
+            type: boolean
+        observedState:
+          oneOf:
+            - type: object
+              additionalProperties:
+                oneOf:
+                  - type: string
+                  - type: number
+                  - type: boolean
+            - type: "null"
+        providerMethod:
+          type: string
+          enum: [skills/config/write, plugin/install, plugin/uninstall]
+        verificationStatus:
+          type: string
+          enum: [executing, verified, failed-external, failed-verification, stale]
+        errorCode:
+          oneOf:
+            - type: string
+            - type: "null"
+        executedActor:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeResourceMutationActor'
+            - type: "null"
+        startedAt: { type: string }
+        finishedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - approvalId
+        - operation
+        - runtimeProfileId
+        - workspaceId
+        - resourceId
+        - beforeSnapshotId
+        - beforeFingerprint
+        - afterSnapshotId
+        - afterFingerprint
+        - requestedState
+        - observedState
+        - providerMethod
+        - verificationStatus
+        - errorCode
+        - executedActor
+        - startedAt
+        - finishedAt
+    RuntimeResourceMutationPreparePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          $ref: '#/components/schemas/RuntimeResourceMutationOperation'
+        runtimeProfileId: { type: string }
+        workspaceId: { type: string }
+        resourceId: { type: string }
+        expectedSnapshotId: { type: string }
+        expectedFingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [operation, runtimeProfileId, workspaceId, resourceId, expectedSnapshotId, expectedFingerprint, idempotencyKey]
+    RuntimeResourceMutationDecisionPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId: { type: string }
+        expectedRevision:
+          type: integer
+          minimum: 1
+        decision:
+          type: string
+          enum: [approved, denied]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    RuntimeResourceMutationExecutePayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId: { type: string }
+        expectedApprovalRevision:
+          type: integer
+          minimum: 1
+        runtimeProfileId: { type: string }
+        workspaceId: { type: string }
+        resourceId: { type: string }
+        expectedFingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [approvalId, expectedApprovalRevision, runtimeProfileId, workspaceId, resourceId, expectedFingerprint, idempotencyKey]
+    RuntimeResourceMutationApprovalResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/RuntimeResourceMutationApproval'
+        replayed: { type: boolean }
+      required: [ok, approval, replayed]
+    RuntimeResourceMutationApprovalReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/RuntimeResourceMutationApproval'
+      required: [ok, approval]
+    RuntimeResourceMutationExecuteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/RuntimeResourceMutationApproval'
+        execution:
+          $ref: '#/components/schemas/RuntimeResourceMutationExecution'
+        replayed: { type: boolean }
+      required: [ok, approval, execution, replayed]
+    RuntimeResourceMutationExecutionReadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        execution:
+          $ref: '#/components/schemas/RuntimeResourceMutationExecution'
+      required: [ok, execution]
+    RuntimeResourceMutationActivityResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approvals:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceMutationApproval'
+        executions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceMutationExecution'
+      required: [ok, approvals, executions]
     RuntimeResourceInventoryResponse:
       type: object
       additionalProperties: false
@@ -4233,6 +4542,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RuntimeResourceDescriptor'
+        mutationWritesEnabled:
+          type: boolean
+          description: Whether governed Runtime Resource mutation writes are enabled for this deployment. Read-only inventory remains available when false.
+        mutationEligibility:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeResourceMutationEligibilityEntry'
         diagnostics:
           type: array
           items:
@@ -4240,7 +4556,7 @@ components:
         diff:
           $ref: '#/components/schemas/RuntimeResourceDiff'
         replayed: { type: boolean }
-      required: [ok, snapshot, profile, resources, diagnostics, diff, replayed]
+      required: [ok, snapshot, profile, resources, mutationWritesEnabled, mutationEligibility, diagnostics, diff, replayed]
     RuntimeResourceSnapshotReadResponse:
       type: object
       additionalProperties: false
@@ -6683,6 +6999,220 @@ paths:
                 $ref: '#/components/schemas/RuntimeResourceInspectResponse'
         "404":
           description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/mutations/prepare:
+    post:
+      operationId: prepareRuntimeResourceMutation
+      summary: Prepare a governed runtime resource mutation
+      description: Creates a short-lived approval bound to the reviewed snapshot, then revalidates the target Resource from fresh authoritative state without provider mutation. Exposed mode also requires TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true. Strict input rejects provider selectors and provenance fields.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeResourceMutationPreparePayload'
+      responses:
+        "200":
+          description: Pending approval or idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceMutationApprovalResponse'
+        "400":
+          description: Invalid strict mutation input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: Resource mutation writes are disabled for this exposed deployment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Resource is stale, unsupported, already in the requested state, or idempotency conflicts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/mutations/decision:
+    post:
+      operationId: decideRuntimeResourceMutation
+      summary: Decide a governed runtime resource mutation approval
+      description: Approves or denies one pending short-lived Resource mutation approval using optimistic revision control. The authenticated REST API token is an operator credential. Raw actor ids and request ids are hashed internally and never returned.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeResourceMutationDecisionPayload'
+      responses:
+        "200":
+          description: Decided approval or idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceMutationApprovalResponse'
+        "400":
+          description: Invalid strict decision input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: Resource mutation writes are disabled for this exposed deployment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Approval expired, stale, already decided, or revision conflicts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/mutations/execute:
+    post:
+      operationId: executeRuntimeResourceMutation
+      summary: Execute an approved runtime resource mutation
+      description: Revalidates the approved Resource intent against fresh provider truth, consumes the approval, issues at most one reviewed provider write, and verifies the authoritative postflight state. Provider selectors remain private and cannot be supplied by callers.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeResourceMutationExecutePayload'
+      responses:
+        "200":
+          description: Verified, failed, stale, or idempotently replayed execution evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceMutationExecuteResponse'
+        "400":
+          description: Invalid strict execution input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: Resource mutation writes are disabled for this exposed deployment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Approval expired, consumed, stale, mismatched, or revision conflicts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/mutations/approvals/{approvalId}:
+    get:
+      operationId: getRuntimeResourceMutationApproval
+      summary: Read runtime resource mutation approval
+      description: Reads a workspace-scoped public-safe approval projection. Mutation hashes, raw request identities, provider selectors, private paths, and provider payloads are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: workspaceId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Public-safe mutation approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceMutationApprovalReadResponse'
+        "404":
+          description: Approval not found in the requested Workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/mutations/executions/{executionId}:
+    get:
+      operationId: getRuntimeResourceMutationExecution
+      summary: Read runtime resource mutation execution
+      description: Reads a workspace-scoped public-safe execution projection without raw provider payloads or private selector material.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: workspaceId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Public-safe mutation execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceMutationExecutionReadResponse'
+        "404":
+          description: Execution not found in the requested Workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/mutations/activity:
+    get:
+      operationId: listRuntimeResourceMutationActivity
+      summary: List runtime resource mutation activity
+      description: Lists bounded workspace-scoped public-safe approvals and executions for Resource Center reload and audit display. Default server limit is 25 and the hard maximum is 100.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: resourceId
+          in: query
+          required: false
+          schema: { type: string }
+        - name: approvalStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, denied, expired, stale, consumed]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Public-safe mutation activity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResourceMutationActivityResponse'
+        "400":
+          description: Missing Workspace scope or invalid bounded query
           content:
             application/json:
               schema:

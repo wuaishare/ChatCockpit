@@ -25,6 +25,22 @@ export const runtimeResourceScopeSchema = z.enum([
   "unknown"
 ]);
 
+export const runtimeResourceMutationOperationSchema = z.enum([
+  "skill.enable",
+  "skill.disable",
+  "plugin.install",
+  "plugin.uninstall"
+]);
+
+export const runtimeResourceMutationApprovalStatusSchema = z.enum([
+  "pending",
+  "approved",
+  "denied",
+  "expired",
+  "stale",
+  "consumed"
+]);
+
 export const runtimeProfileDescriptorSchema = z
   .object({
     id: identifierSchema,
@@ -136,6 +152,60 @@ export const runtimeResourceSnapshotParamsSchema = z
 
 export const runtimeResourceItemParamsSchema = z
   .object({ resourceId: identifierSchema })
+  .strict();
+
+export const runtimeResourceMutationPrepareSchema = z
+  .object({
+    operation: runtimeResourceMutationOperationSchema,
+    runtimeProfileId: identifierSchema,
+    workspaceId: identifierSchema,
+    resourceId: identifierSchema,
+    expectedSnapshotId: identifierSchema,
+    expectedFingerprint: hashSchema,
+    idempotencyKey: idempotencyKeySchema
+  })
+  .strict();
+
+export const runtimeResourceMutationDecisionSchema = z
+  .object({
+    approvalId: identifierSchema,
+    expectedRevision: z.number().int().positive(),
+    decision: z.enum(["approved", "denied"]),
+    idempotencyKey: idempotencyKeySchema
+  })
+  .strict();
+
+export const runtimeResourceMutationExecuteSchema = z
+  .object({
+    approvalId: identifierSchema,
+    expectedApprovalRevision: z.number().int().positive(),
+    runtimeProfileId: identifierSchema,
+    workspaceId: identifierSchema,
+    resourceId: identifierSchema,
+    expectedFingerprint: hashSchema,
+    idempotencyKey: idempotencyKeySchema
+  })
+  .strict();
+
+export const runtimeResourceMutationApprovalParamsSchema = z
+  .object({ approvalId: identifierSchema })
+  .strict();
+
+export const runtimeResourceMutationExecutionParamsSchema = z
+  .object({ executionId: identifierSchema })
+  .strict();
+
+export const runtimeResourceMutationWorkspaceQuerySchema = z
+  .object({ workspaceId: identifierSchema })
+  .strict();
+
+export const runtimeResourceMutationActivityQuerySchema = z
+  .object({
+    workspaceId: identifierSchema,
+    resourceId: identifierSchema.optional(),
+    approvalStatus: runtimeResourceMutationApprovalStatusSchema.optional(),
+    limit: z.coerce.number().int().positive().max(100).optional()
+  })
   .strict();
 
 export type RuntimeResourceInventoryRequest = z.infer<

@@ -123,6 +123,46 @@ for (const resource of inventory.resources) {
   assert.match(resource.fingerprint, /^[a-f0-9]{64}$/);
 }
 
+const targetReadCalls: string[] = [];
+const targetReadAdapter = new CodexResourceInventoryAdapter({
+  listCodexSkills: async () => {
+    targetReadCalls.push("skills/list");
+    return runtime.listCodexSkills();
+  },
+  listCodexMcpServers: async () => {
+    targetReadCalls.push("mcpServerStatus/list");
+    return runtime.listCodexMcpServers();
+  },
+  listCodexPlugins: async () => {
+    targetReadCalls.push("plugin/list");
+    return runtime.listCodexPlugins();
+  },
+  readCodexResourceConfigSummary: async () => {
+    targetReadCalls.push("config/read");
+    return runtime.readCodexResourceConfigSummary();
+  }
+});
+const skillTargetRead = await targetReadAdapter.readTarget({
+  profile,
+  workspaceId: "workspace_fixture",
+  resourceId: skill.id,
+  resourceKind: "skill"
+});
+assert.deepEqual(targetReadCalls, ["skills/list"]);
+assert.deepEqual(skillTargetRead.resources.map((resource) => resource.id), [skill.id]);
+assert.equal(skillTargetRead.diagnostics[0]?.source, "codex-skills-target");
+
+targetReadCalls.length = 0;
+const pluginTargetRead = await targetReadAdapter.readTarget({
+  profile,
+  workspaceId: "workspace_fixture",
+  resourceId: plugin.id,
+  resourceKind: "plugin"
+});
+assert.deepEqual(targetReadCalls, ["plugin/list"]);
+assert.deepEqual(pluginTargetRead.resources.map((resource) => resource.id), [plugin.id]);
+assert.equal(pluginTargetRead.diagnostics[0]?.source, "codex-plugins-target");
+
 const publicJson = JSON.stringify(inventory);
 for (const forbidden of [
   "/private/codex/home",

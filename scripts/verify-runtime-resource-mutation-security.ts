@@ -32,6 +32,7 @@ const service = readFile("src/application/runtime-resource-mutation-service.ts")
 const publicService = readFile(
   "src/application/runtime-resource-mutation-public-service.ts"
 );
+const publicContract = readFile("src/contracts/runtime-resources.ts");
 const reconciliation = readFile(
   "src/application/runtime-resource-mutation-reconciliation-service.ts"
 );
@@ -145,27 +146,53 @@ assert.equal(
   "Real Codex Skill mutation proof must restore the original Skill state through a new governed intent"
 );
 
-const externalSurfaces = [
-  "src/server",
-  "src/mcp",
-  "openapi",
-  "web/src"
-]
-  .map(readTree)
-  .join("\n");
-for (const forbiddenSurface of [
-  "/api/resources/mutations",
+const serverSurfaces = readTree("src/server");
+for (const requiredRestSurface of [
+  "/api/resources/mutations/prepare",
+  "/api/resources/mutations/decision",
+  "/api/resources/mutations/execute",
+  "/api/resources/mutations/approvals/:approvalId",
+  "/api/resources/mutations/executions/:executionId",
+  "/api/resources/mutations/activity"
+]) {
+  assert.equal(
+    serverSurfaces.includes(requiredRestSurface),
+    true,
+    `Phase 6B2C2 operator REST surface is missing ${requiredRestSurface}`
+  );
+}
+
+const mutationExposurePolicy = readFile(
+  "src/server/runtime-resource-mutation-policy.ts"
+);
+assert.equal(
+  mutationExposurePolicy.includes("TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED"),
+  true,
+  "Exposed Resource mutation writes must require an explicit deployment opt-in"
+);
+
+const mcpSurfaces = readTree("src/mcp");
+for (const forbiddenMcpSurface of [
   "tokenpilot.resources.mutation.prepare",
   "tokenpilot.resources.mutation.decide",
   "tokenpilot.resources.mutation.execute",
   "tokenpilot.resources.mutation.reconcile"
 ]) {
   assert.equal(
-    externalSurfaces.includes(forbiddenSurface),
+    mcpSurfaces.includes(forbiddenMcpSurface),
     false,
-    `Phase 6B2C1 governance foundation must not expose ${forbiddenSurface}`
+    `Phase 6B2C2 must keep MCP Resource mutation closed: ${forbiddenMcpSurface}`
   );
 }
+
+const allExternalSurfaces = ["src/server", "src/mcp", "openapi", "web/src"]
+  .map(readTree)
+  .join("\n");
+assert.equal(
+  allExternalSurfaces.includes("tokenpilot.resources.mutation.reconcile"),
+  false,
+  "Crash reconciliation must remain internal-only"
+);
 
 const repositorySource = readFile(
   "src/continuity/repositories/runtime-resource-mutation-repository.ts"
@@ -182,6 +209,20 @@ for (const publicLeak of [
     persistenceAndPublicMutationLayer.includes(publicLeak),
     false,
     `Mutation persistence/public layer must not persist or project ${publicLeak}`
+  );
+}
+
+for (const privateSelectorField of [
+  "remotePluginId",
+  "remoteMarketplaceName",
+  "marketplacePath",
+  "installUrl",
+  "authorizationUrl"
+]) {
+  assert.equal(
+    publicContract.includes(privateSelectorField),
+    false,
+    `Public mutation contract must not accept ${privateSelectorField}`
   );
 }
 

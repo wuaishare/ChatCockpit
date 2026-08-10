@@ -80,12 +80,42 @@ export interface ResourceCenterCopy {
   runtimeNative: string;
   tokenpilotLocal: string;
   acpRegistry: string;
+  mutationActions: string;
+  mutationActivity: string;
+  prepareChange: string;
+  reviewChangeTitle: string;
+  approveAndExecute: string;
+  denyChange: string;
+  cancelChange: string;
+  pendingApproval: string;
+  approvedMutation: string;
+  deniedMutation: string;
+  expiredMutation: string;
+  consumedMutation: string;
+  executingMutation: string;
+  verifiedMutation: string;
+  externalMutationFailed: string;
+  mutationVerificationFailed: string;
+  mutationTargetChanged: string;
+  beforeState: string;
+  requestedState: string;
+  approvalExpires: string;
+  authoritativeRefreshRequired: string;
+  mutationExposureDisabled: string;
+  mutationEligible: string;
+  mutationUnavailable: string;
+  skillEnable: string;
+  skillDisable: string;
+  pluginInstall: string;
+  pluginUninstall: string;
+  mutationSuccessTitle: string;
+  mutationFailedTitle: string;
 }
 
 const zhCN: ResourceCenterCopy = {
   title: "Runtime & Resource Center",
-  description: "统一查看 Runtime Profile 及其 Skills、MCP、Plugins、Adapters 与 ACP Agents 的权威只读状态。",
-  truthNotice: "资源配置仍由各 Runtime / Registry 自己持有。TokenPilot 这里只保存脱敏 observation、fingerprint 与 snapshot history；Phase 6A 不执行安装、更新、启停或认证。",
+  description: "统一查看 Runtime Profile 及其 Skills、MCP、Plugins、Adapters 与 ACP Agents，并对服务端判定可变更的资源执行受治理操作。",
+  truthNotice: "资源配置真源仍由各 Runtime / Registry 持有。TokenPilot 只允许服务端明确判定可用的 Skill 启停与安全 Plugin 安装/卸载进入变更流程；每次变更都必须先审批，并以 authoritative refresh 验证后的真实状态为准。",
   loadingTitle: "正在加载 Runtime Profiles",
   loadingDescription: "正在读取可用 Runtime 与兼容状态。",
   protectedTitle: "Resource Center 需要浏览器会话令牌",
@@ -161,13 +191,43 @@ const zhCN: ResourceCenterCopy = {
   unknownScope: "未知",
   runtimeNative: "Runtime Native",
   tokenpilotLocal: "TokenPilot Local",
-  acpRegistry: "ACP Registry"
+  acpRegistry: "ACP Registry",
+  mutationActions: "受治理变更",
+  mutationActivity: "最近变更记录",
+  prepareChange: "准备变更",
+  reviewChangeTitle: "审查 Resource 变更",
+  approveAndExecute: "批准并执行",
+  denyChange: "拒绝",
+  cancelChange: "取消",
+  pendingApproval: "待批准",
+  approvedMutation: "已批准",
+  deniedMutation: "已拒绝",
+  expiredMutation: "已过期",
+  consumedMutation: "已消费",
+  executingMutation: "执行中",
+  verifiedMutation: "已验证",
+  externalMutationFailed: "外部执行失败",
+  mutationVerificationFailed: "验证失败",
+  mutationTargetChanged: "目标已变化",
+  beforeState: "变更前状态",
+  requestedState: "请求状态",
+  approvalExpires: "审批过期时间",
+  authoritativeRefreshRequired: "只有执行证据为已验证，且 authoritative refresh 重新读取到请求状态后，TokenPilot 才会显示变更成功。",
+  mutationExposureDisabled: "此部署未开启 Resource 写入能力。读取与审计仍可使用；如需变更，请由运维人员显式开启 TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED。",
+  mutationEligible: "可受治理变更",
+  mutationUnavailable: "当前不可变更",
+  skillEnable: "启用 Skill",
+  skillDisable: "停用 Skill",
+  pluginInstall: "安装 Plugin",
+  pluginUninstall: "卸载 Plugin",
+  mutationSuccessTitle: "Resource 变更已验证",
+  mutationFailedTitle: "Resource 变更未能验证"
 };
 
 const enUS: ResourceCenterCopy = {
   title: "Runtime & Resource Center",
-  description: "Inspect authoritative read-only Runtime Profiles and their Skills, MCP servers, Plugins, Adapters, and ACP Agents.",
-  truthNotice: "Each Runtime or Registry remains the configuration authority. TokenPilot stores only public-safe observations, fingerprints, and snapshot history here; Phase 6A performs no install, update, enable/disable, or authentication actions.",
+  description: "Inspect Runtime Profiles and their Skills, MCP servers, Plugins, Adapters, and ACP Agents, with governed actions only where the server explicitly marks a Resource eligible.",
+  truthNotice: "Each Runtime or Registry remains the configuration authority. TokenPilot permits only server-approved Skill enable/disable and safe Plugin install/uninstall flows; every mutation requires explicit approval and is considered successful only after authoritative refresh verifies the requested state.",
   loadingTitle: "Loading Runtime Profiles",
   loadingDescription: "Reading available runtimes and compatibility state.",
   protectedTitle: "Resource Center requires a browser session token",
@@ -243,7 +303,37 @@ const enUS: ResourceCenterCopy = {
   unknownScope: "Unknown",
   runtimeNative: "Runtime Native",
   tokenpilotLocal: "TokenPilot Local",
-  acpRegistry: "ACP Registry"
+  acpRegistry: "ACP Registry",
+  mutationActions: "Governed changes",
+  mutationActivity: "Recent mutation activity",
+  prepareChange: "Prepare change",
+  reviewChangeTitle: "Review Resource mutation",
+  approveAndExecute: "Approve & execute",
+  denyChange: "Deny",
+  cancelChange: "Cancel",
+  pendingApproval: "Pending approval",
+  approvedMutation: "Approved",
+  deniedMutation: "Denied",
+  expiredMutation: "Expired",
+  consumedMutation: "Consumed",
+  executingMutation: "Executing",
+  verifiedMutation: "Verified",
+  externalMutationFailed: "External execution failed",
+  mutationVerificationFailed: "Verification failed",
+  mutationTargetChanged: "Target changed",
+  beforeState: "Before state",
+  requestedState: "Requested state",
+  approvalExpires: "Approval expires",
+  authoritativeRefreshRequired: "TokenPilot reports success only when the execution is verified and a fresh authoritative inventory confirms the requested state.",
+  mutationExposureDisabled: "Resource writes are disabled for this deployment. Read and audit remain available; an operator must explicitly enable TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED before mutations can run.",
+  mutationEligible: "Eligible for governed change",
+  mutationUnavailable: "Mutation unavailable",
+  skillEnable: "Enable Skill",
+  skillDisable: "Disable Skill",
+  pluginInstall: "Install Plugin",
+  pluginUninstall: "Uninstall Plugin",
+  mutationSuccessTitle: "Resource mutation verified",
+  mutationFailedTitle: "Resource mutation was not verified"
 };
 
 export function getResourceCenterCopy(locale: LocaleCode): ResourceCenterCopy {
