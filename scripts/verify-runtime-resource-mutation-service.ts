@@ -183,8 +183,6 @@ const service = new RuntimeResourceMutationService(
 
 const before = resource(true);
 
-// A failed outer prepare must not pin a reusable inner inventory key. Retrying
-// the exact same operation after Runtime state changes must read fresh truth.
 enabled = false;
 const retryInventoryStart = inventoryKeys.length;
 await assert.rejects(
@@ -316,9 +314,34 @@ await assert.rejects(
     error instanceof ServiceError && error.code === "RUNTIME_RESOURCE_MUTATION_STALE"
 );
 assert.equal(mutationCalls, 1, "Stale preflight must not call the provider mutation adapter");
+const permanentlyStale = repositories.runtimeResourceMutations.getApproval(
+  enableApproved.approval.id
+);
+assert.equal(permanentlyStale.status, "stale");
+assert.equal(permanentlyStale.revision, enableApproved.approval.revision + 1);
 
-// A race discovered by the private adapter after preflight is a stale
-// execution, not a generic provider failure. The adapter does not mutate.
+enabled = false;
+await assert.rejects(
+  () =>
+    service.execute({
+      approvalId: permanentlyStale.id,
+      expectedApprovalRevision: permanentlyStale.revision,
+      runtimeProfileId,
+      workspaceId,
+      resourceId,
+      expectedFingerprint: disabled.fingerprint,
+      idempotencyKey: "execute-enable-stale-resurrection-001"
+    }),
+  (error: unknown) =>
+    error instanceof ServiceError && error.code === "RUNTIME_RESOURCE_MUTATION_STALE"
+);
+assert.equal(
+  mutationCalls,
+  1,
+  "A stale approval must remain unusable even if the Runtime later returns to its old fingerprint"
+);
+
+enabled = true;
 const raceBefore = resource(true);
 const racePrepared = await service.prepare({
   operation: "skill.disable",
@@ -350,8 +373,6 @@ assert.deepEqual(raceExecuted.execution.observedState, { enabled: true });
 assert.equal(enabled, true);
 assert.equal(mutationCalls, 2);
 
-// If the provider transport reports an error after the Runtime already applied
-// the state, authoritative postflight truth wins and the execution is verified.
 mutationScenario = "error-after-change";
 const authoritativeBefore = resource(true);
 const authoritativePrepared = await service.prepare({
@@ -389,6 +410,7 @@ const publicJson = JSON.stringify({
   prepared,
   approved,
   executed,
+  permanentlyStale,
   raceExecuted,
   authoritativeExecuted
 });
