@@ -10,7 +10,11 @@ import type {
 } from "../src/application/runtime-resource-types.ts";
 import type { RuntimeResourceInventoryService } from "../src/application/runtime-resource-inventory-service.ts";
 import { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import { ServiceError } from "../src/application/service-error.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 
@@ -60,7 +64,7 @@ function resource(enabled: boolean): RuntimeResourceDescriptor {
 
 const database = new ContinuityDatabase({ path: ":memory:" });
 const repositories = buildContinuityRepositories(database);
-assert.equal(database.schemaVersion(), 16);
+assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
 repositories.projects.create({
   id: "project_mutation_fixture",
   slug: "mutation-fixture",
@@ -77,6 +81,7 @@ repositories.workspaces.create({
 
 let enabled = true;
 let inventoryCalls = 0;
+const inventoryKeys: string[] = [];
 const fakeInventory = {
   inventory: async (input: {
     runtimeProfileId: string;
@@ -87,6 +92,7 @@ const fakeInventory = {
     assert.equal(input.workspaceId, workspaceId);
     assert.ok(input.idempotencyKey.length > 0);
     inventoryCalls += 1;
+    inventoryKeys.push(input.idempotencyKey);
     const current = resource(enabled);
     const snapshot = repositories.runtimeResourceSnapshots.create({
       runtimeProfileId,
@@ -137,6 +143,7 @@ const fakeInventory = {
 } as unknown as RuntimeResourceInventoryService;
 
 let mutationCalls = 0;
+let mutationScenario: "success" | "stale-race" | "error-after-change" = "success";
 const fakeMutationAdapter = {
   setEnabled: async (input: {
     profile: RuntimeProfileDescriptor;
@@ -150,7 +157,19 @@ const fakeMutationAdapter = {
     assert.equal(input.workspaceId, workspaceId);
     assert.equal(input.resourceId, resourceId);
     assert.equal(input.expectedFingerprint, resource(enabled).fingerprint);
+    if (mutationScenario === "stale-race") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_STALE",
+        "Fixture target changed between preflight and provider write"
+      );
+    }
     enabled = input.desiredEnabled;
+    if (mutationScenario === "error-after-change") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_EXTERNAL_FAILED",
+        "Fixture transport failed after the Runtime applied the desired state"
+      );
+    }
     return { effectiveEnabled: enabled };
   }
 } as unknown as CodexSkillMutationAdapter;
@@ -163,6 +182,41 @@ const service = new RuntimeResourceMutationService(
 );
 
 const before = resource(true);
+
+// A failed outer prepare must not pin a reusable inner inventory key. Retrying
+// the exact same operation after Runtime state changes must read fresh truth.
+enabled = false;
+const retryInventoryStart = inventoryKeys.length;
+await assert.rejects(
+  () =>
+    service.prepare({
+      operation: "skill.disable",
+      runtimeProfileId,
+      workspaceId,
+      resourceId,
+      expectedFingerprint: before.fingerprint,
+      idempotencyKey: "prepare-fresh-retry-001"
+    }),
+  (error: unknown) =>
+    error instanceof ServiceError && error.code === "RUNTIME_RESOURCE_MUTATION_STALE"
+);
+enabled = true;
+const freshRetryPrepared = await service.prepare({
+  operation: "skill.disable",
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: before.fingerprint,
+  idempotencyKey: "prepare-fresh-retry-001"
+});
+assert.equal(freshRetryPrepared.replayed, false);
+assert.equal(inventoryKeys.length, retryInventoryStart + 2);
+assert.notEqual(
+  inventoryKeys[retryInventoryStart],
+  inventoryKeys[retryInventoryStart + 1],
+  "Failed outer retries must use a fresh authoritative inventory key"
+);
+
 const prepared = await service.prepare({
   operation: "skill.disable",
   runtimeProfileId,
@@ -259,13 +313,85 @@ await assert.rejects(
       idempotencyKey: "execute-enable-stale-001"
     }),
   (error: unknown) =>
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code?: string }).code === "RUNTIME_RESOURCE_MUTATION_STALE"
+    error instanceof ServiceError && error.code === "RUNTIME_RESOURCE_MUTATION_STALE"
 );
 assert.equal(mutationCalls, 1, "Stale preflight must not call the provider mutation adapter");
 
-const publicJson = JSON.stringify({ prepared, approved, executed });
+// A race discovered by the private adapter after preflight is a stale
+// execution, not a generic provider failure. The adapter does not mutate.
+const raceBefore = resource(true);
+const racePrepared = await service.prepare({
+  operation: "skill.disable",
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: raceBefore.fingerprint,
+  idempotencyKey: "prepare-disable-race-001"
+});
+const raceApproved = service.decide({
+  approvalId: racePrepared.approval.id,
+  expectedRevision: racePrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-disable-race-001"
+});
+mutationScenario = "stale-race";
+const raceExecuted = await service.execute({
+  approvalId: raceApproved.approval.id,
+  expectedApprovalRevision: raceApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: raceBefore.fingerprint,
+  idempotencyKey: "execute-disable-race-001"
+});
+assert.equal(raceExecuted.execution.verificationStatus, "stale");
+assert.equal(raceExecuted.execution.errorCode, "RUNTIME_RESOURCE_MUTATION_STALE");
+assert.deepEqual(raceExecuted.execution.observedState, { enabled: true });
+assert.equal(enabled, true);
+assert.equal(mutationCalls, 2);
+
+// If the provider transport reports an error after the Runtime already applied
+// the state, authoritative postflight truth wins and the execution is verified.
+mutationScenario = "error-after-change";
+const authoritativeBefore = resource(true);
+const authoritativePrepared = await service.prepare({
+  operation: "skill.disable",
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: authoritativeBefore.fingerprint,
+  idempotencyKey: "prepare-disable-authoritative-001"
+});
+const authoritativeApproved = service.decide({
+  approvalId: authoritativePrepared.approval.id,
+  expectedRevision: authoritativePrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-disable-authoritative-001"
+});
+const authoritativeExecuted = await service.execute({
+  approvalId: authoritativeApproved.approval.id,
+  expectedApprovalRevision: authoritativeApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: authoritativeBefore.fingerprint,
+  idempotencyKey: "execute-disable-authoritative-001"
+});
+assert.equal(authoritativeExecuted.execution.verificationStatus, "verified");
+assert.equal(authoritativeExecuted.execution.errorCode, null);
+assert.deepEqual(authoritativeExecuted.execution.observedState, { enabled: false });
+assert.equal(enabled, false);
+assert.equal(mutationCalls, 3);
+mutationScenario = "success";
+
+const publicJson = JSON.stringify({
+  freshRetryPrepared,
+  prepared,
+  approved,
+  executed,
+  raceExecuted,
+  authoritativeExecuted
+});
 for (const forbidden of [
   "/private/tokenpilot-runtime-sentinel/mutation-workspace",
   "SKILL.md",
