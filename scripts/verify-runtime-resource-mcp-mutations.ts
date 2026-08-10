@@ -21,6 +21,8 @@ import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-s
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
 
+const API_TOKEN = "test-token";
+
 interface ListedTool {
   name: string;
   annotations: {
@@ -47,7 +49,7 @@ async function listTools(baseUrl: string): Promise<ListedTool[]> {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",
-      authorization: "Bearer runtime-resource-mcp-mutation-fixture-token",
+      authorization: `Bearer ${API_TOKEN}`,
       "content-type": "application/json",
       "mcp-protocol-version": "2025-06-18"
     },
@@ -174,7 +176,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
       const response = await fetch(`${server.baseUrl}${route}`, {
         method,
         headers: {
-          authorization: "Bearer runtime-resource-mcp-mutation-fixture-token",
+          authorization: `Bearer ${API_TOKEN}`,
           ...(body === undefined ? {} : { "content-type": "application/json" })
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -194,7 +196,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
         method: "POST",
         headers: {
           accept: "application/json, text/event-stream",
-          authorization: "Bearer runtime-resource-mcp-mutation-fixture-token",
+          authorization: `Bearer ${API_TOKEN}`,
           "content-type": "application/json",
           "mcp-protocol-version": "2025-06-18"
         },
@@ -448,7 +450,7 @@ const previous = {
 
 try {
   process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "runtime-resource-mcp-mutation-fixture-token";
+  process.env.TOKENPILOT_API_TOKEN = API_TOKEN;
   process.env.TOKENPILOT_EXPOSED = "true";
 
   const closedCatalog = await catalogFor(false, repoRoot);
