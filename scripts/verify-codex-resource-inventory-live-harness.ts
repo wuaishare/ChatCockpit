@@ -30,7 +30,7 @@ const summary = await runCodexResourceInventoryLiveProof({
     runtime: {
       listCodexSkills: async (input) => {
         assert.equal(input.workspaceId, workspaceId);
-        assert.equal(input.forceReload, false);
+        assert.equal(input.forceReload, true);
         return [
           {
             name: "live-harness-skill",
