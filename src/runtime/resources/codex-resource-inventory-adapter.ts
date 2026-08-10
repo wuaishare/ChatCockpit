@@ -229,7 +229,7 @@ export class CodexResourceInventoryAdapter
     const [skillsResult, mcpResult, pluginsResult, configResult] = await Promise.allSettled([
       this.runtime.listCodexSkills({
         workspaceId: input.workspaceId,
-        forceReload: false
+        forceReload: true
       }),
       this.runtime.listCodexMcpServers(),
       this.runtime.listCodexPlugins({ workspaceId: input.workspaceId }),

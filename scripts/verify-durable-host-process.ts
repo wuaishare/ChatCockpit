@@ -5,7 +5,10 @@ import {
   type HostProcessRuntimeSnapshot,
   type HostProcessRuntimeSupervisor
 } from "../src/application/host-process-service.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import type {
   ManagedProcessInputOptions,
@@ -127,7 +130,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 15);
+  assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
   assert.ok(repositories.directProcessRuntimeOwnership);
 
   const project = repositories.projects.create({

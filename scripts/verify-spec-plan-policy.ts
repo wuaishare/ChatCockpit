@@ -11,7 +11,10 @@ import { RuntimeTurnService } from "../src/application/runtime-turn-service.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { SessionService } from "../src/application/session-service.ts";
 import { TaskExecutionPolicyService } from "../src/application/task-execution-policy.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { listJobs } from "../src/core/jobs.ts";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
@@ -401,7 +404,7 @@ async function verifySpecPlanPolicy(): Promise<void> {
     assert.equal(repositories.runtimeRuns.getActiveBySession(boundSession.id), null);
     assert.equal(repositories.leases.getActive(workspace.id), null);
 
-    assert.equal(database.schemaVersion(), 15);
+    assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
     assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   } finally {
     database.close();

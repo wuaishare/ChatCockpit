@@ -24,7 +24,10 @@ import type {
   DownstreamMcpListToolsResult,
   DownstreamMcpServerIdentity
 } from "../src/direct/downstream-mcp-types.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildPaths } from "../src/core/paths.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
@@ -1192,7 +1195,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 const repositories = buildContinuityRepositories(database);
 
 try {
-  assert.equal(database.schemaVersion(), 15);
+  assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
 
   const pending = repositories.directCommandApprovals.create({

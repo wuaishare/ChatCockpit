@@ -18,6 +18,7 @@ import { RuntimeBindingRepository } from "./runtime-binding-repository.js";
 import { RuntimeEventRepository } from "./runtime-event-repository.js";
 import { RuntimeRunRepository } from "./runtime-run-repository.js";
 import { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
+import { RuntimeResourceMutationRepository } from "./runtime-resource-mutation-repository.js";
 import { RuntimeResourceSnapshotRepository } from "./runtime-resource-snapshot-repository.js";
 import { SessionRepository } from "./session-repository.js";
 import { TaskRepository } from "./task-repository.js";
@@ -39,6 +40,7 @@ export interface ContinuityRepositories {
   runtimeEvents: RuntimeEventRepository;
   runtimeRuns: RuntimeRunRepository;
   runtimeRecoveryAttempts: RuntimeRecoveryAttemptRepository;
+  runtimeResourceMutations: RuntimeResourceMutationRepository;
   runtimeResourceSnapshots: RuntimeResourceSnapshotRepository;
   workspaces: WorkspaceRepository;
   tasks: TaskRepository;
@@ -68,6 +70,7 @@ export function buildContinuityRepositories(
     runtimeEvents: new RuntimeEventRepository(database),
     runtimeRuns: new RuntimeRunRepository(database),
     runtimeRecoveryAttempts: new RuntimeRecoveryAttemptRepository(database),
+    runtimeResourceMutations: new RuntimeResourceMutationRepository(database),
     runtimeResourceSnapshots: new RuntimeResourceSnapshotRepository(database),
     workspaces: new WorkspaceRepository(database),
     tasks: new TaskRepository(database),
@@ -98,6 +101,7 @@ export { RuntimeBindingRepository } from "./runtime-binding-repository.js";
 export { RuntimeEventRepository } from "./runtime-event-repository.js";
 export { RuntimeRunRepository } from "./runtime-run-repository.js";
 export { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
+export { RuntimeResourceMutationRepository } from "./runtime-resource-mutation-repository.js";
 export { RuntimeResourceSnapshotRepository } from "./runtime-resource-snapshot-repository.js";
 export { SessionRepository } from "./session-repository.js";
 export { TaskRepository } from "./task-repository.js";
