@@ -66,7 +66,7 @@ function pluginSourceType(value: unknown): RuntimePluginProjection["sourceType"]
   return "unknown";
 }
 
-function pluginSourceIdentityHash(
+export function codexPluginSourceIdentityHash(
   marketplace: Record<string, unknown>,
   sourceValue: unknown
 ): string | null {
@@ -109,7 +109,7 @@ function pluginSourceIdentityHash(
     .digest("hex");
 }
 
-function normalizePluginResponse(
+export function normalizeCodexPluginResponse(
   value: unknown,
   observedBy: "installed" | "catalog"
 ): RuntimePluginProjection[] {
@@ -126,7 +126,7 @@ function normalizePluginResponse(
       : [];
     for (const rawPlugin of rawPlugins) {
       const plugin = asRecord(rawPlugin);
-      const sourceIdentityHash = pluginSourceIdentityHash(
+      const sourceIdentityHash = codexPluginSourceIdentityHash(
         marketplace,
         plugin.source
       );
@@ -187,7 +187,7 @@ function normalizePluginResponse(
   return plugins;
 }
 
-function mergePluginProjections(
+export function mergeCodexPluginProjections(
   installed: RuntimePluginProjection[],
   catalog: RuntimePluginProjection[]
 ): RuntimePluginProjection[] {
@@ -464,9 +464,9 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       client.request<unknown>("plugin/installed", installedParams),
       client.request<unknown>("plugin/list", catalogParams)
     ]);
-    return mergePluginProjections(
-      normalizePluginResponse(installedResponse, "installed"),
-      normalizePluginResponse(catalogResponse, "catalog")
+    return mergeCodexPluginProjections(
+      normalizeCodexPluginResponse(installedResponse, "installed"),
+      normalizeCodexPluginResponse(catalogResponse, "catalog")
     );
   }
 
