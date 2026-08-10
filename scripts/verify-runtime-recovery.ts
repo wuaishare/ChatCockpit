@@ -9,7 +9,10 @@ import {
   recoveryAssessSchema,
   recoveryExecuteSchema
 } from "../src/contracts/runtime-recovery.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 
 const NOW = "2026-08-09T11:00:00.000Z";
@@ -21,7 +24,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 15);
+  assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
   assert.ok(repositories.runtimeRecoveryAttempts);
 
   const canonicalA = canonicalRecoveryJson({
