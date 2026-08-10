@@ -135,6 +135,23 @@ interface ExecutionRow {
   finished_at: string | null;
 }
 
+function boundedActivityLimit(limit?: number): number {
+  if (limit === undefined) return 25;
+  if (!Number.isFinite(limit)) return 25;
+  return Math.max(1, Math.min(100, Math.trunc(limit)));
+}
+
+function requireWorkspaceScope(workspaceId: string | undefined): string {
+  const normalized = workspaceId?.trim();
+  if (!normalized) {
+    throw new ServiceError(
+      "RUNTIME_RESOURCE_MUTATION_WORKSPACE_REQUIRED",
+      "Runtime Resource mutation activity requires an explicit Workspace scope"
+    );
+  }
+  return normalized;
+}
+
 function parseObject(value: string, label: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -268,6 +285,35 @@ export class RuntimeResourceMutationRepository {
       .prepare("SELECT * FROM runtime_resource_mutation_approvals WHERE id = ?")
       .get(id) as ApprovalRow | undefined;
     return approvalFromRow(requireRecord(row, "Runtime Resource mutation approval", id));
+  }
+
+  listApprovals(input: {
+    workspaceId: string;
+    resourceId?: string;
+    status?: RuntimeResourceMutationApprovalStatus;
+    limit?: number;
+  }): RuntimeResourceMutationApprovalRecord[] {
+    const workspaceId = requireWorkspaceScope(input.workspaceId);
+    const conditions = ["workspace_id = ?"];
+    const values: Array<string | number> = [workspaceId];
+    if (input.resourceId) {
+      conditions.push("resource_id = ?");
+      values.push(input.resourceId);
+    }
+    if (input.status) {
+      conditions.push("status = ?");
+      values.push(input.status);
+    }
+    values.push(boundedActivityLimit(input.limit));
+    const rows = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_resource_mutation_approvals
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY updated_at DESC, created_at DESC, id DESC
+        LIMIT ?
+      `)
+      .all(...values) as unknown as ApprovalRow[];
+    return rows.map(approvalFromRow);
   }
 
   expireIfNeeded(id: string, now: string): RuntimeResourceMutationApprovalRecord {
@@ -497,6 +543,35 @@ export class RuntimeResourceMutationRepository {
       .prepare("SELECT * FROM runtime_resource_mutation_executions WHERE id = ?")
       .get(id) as ExecutionRow | undefined;
     return executionFromRow(requireRecord(row, "Runtime Resource mutation execution", id));
+  }
+
+  listExecutions(input: {
+    workspaceId: string;
+    resourceId?: string;
+    approvalId?: string;
+    limit?: number;
+  }): RuntimeResourceMutationExecutionRecord[] {
+    const workspaceId = requireWorkspaceScope(input.workspaceId);
+    const conditions = ["workspace_id = ?"];
+    const values: Array<string | number> = [workspaceId];
+    if (input.resourceId) {
+      conditions.push("resource_id = ?");
+      values.push(input.resourceId);
+    }
+    if (input.approvalId) {
+      conditions.push("approval_id = ?");
+      values.push(input.approvalId);
+    }
+    values.push(boundedActivityLimit(input.limit));
+    const rows = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_resource_mutation_executions
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY started_at DESC, id DESC
+        LIMIT ?
+      `)
+      .all(...values) as unknown as ExecutionRow[];
+    return rows.map(executionFromRow);
   }
 
   finishExecution(input: {

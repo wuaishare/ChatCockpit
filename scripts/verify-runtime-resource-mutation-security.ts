@@ -29,6 +29,9 @@ function readTree(relativeRoot: string): string {
 const skillAdapter = readFile("src/runtime/resources/codex-skill-mutation-adapter.ts");
 const pluginAdapter = readFile("src/runtime/resources/codex-plugin-mutation-adapter.ts");
 const service = readFile("src/application/runtime-resource-mutation-service.ts");
+const publicService = readFile(
+  "src/application/runtime-resource-mutation-public-service.ts"
+);
 const reconciliation = readFile(
   "src/application/runtime-resource-mutation-reconciliation-service.ts"
 );
@@ -160,14 +163,14 @@ for (const forbiddenSurface of [
   assert.equal(
     externalSurfaces.includes(forbiddenSurface),
     false,
-    `Phase 6B2B internal kernel must not expose ${forbiddenSurface}`
+    `Phase 6B2C1 governance foundation must not expose ${forbiddenSurface}`
   );
 }
 
 const repositorySource = readFile(
   "src/continuity/repositories/runtime-resource-mutation-repository.ts"
 );
-const persistenceAndPublicMutationLayer = `${service}\n${repositorySource}`;
+const persistenceAndPublicMutationLayer = `${service}\n${repositorySource}\n${publicService}`;
 for (const publicLeak of [
   "authorizationUrl",
   "rawConfig",
@@ -179,6 +182,21 @@ for (const publicLeak of [
     persistenceAndPublicMutationLayer.includes(publicLeak),
     false,
     `Mutation persistence/public layer must not persist or project ${publicLeak}`
+  );
+}
+
+for (const privateEvidenceField of [
+  "mutationHash",
+  "requestedRequestIdentityHash",
+  "decidedRequestIdentityHash",
+  "executedRequestIdentityHash",
+  "sourceIdentityHash",
+  "remotePluginId"
+]) {
+  assert.equal(
+    publicService.includes(privateEvidenceField),
+    false,
+    `Public mutation read model must not project ${privateEvidenceField}`
   );
 }
 
