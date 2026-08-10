@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { RuntimeResourceInventoryService } from "./runtime-resource-inventory-service.js";
 import { ServiceError } from "./service-error.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
@@ -77,7 +79,7 @@ export class RuntimeResourceMutationReconciliationService {
     const observed = await this.inventory.inventory({
       runtimeProfileId: execution.runtimeProfileId,
       workspaceId: execution.workspaceId,
-      idempotencyKey: `resource-mutation-reconcile:${input.idempotencyKey}`
+      idempotencyKey: `resource-mutation-reconcile:${input.idempotencyKey}:${randomUUID()}`
     });
     const resource = observed.resources.find(
       (candidate) => candidate.id === execution.resourceId
