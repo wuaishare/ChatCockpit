@@ -10,8 +10,9 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 15);
+  assert.equal(database.schemaVersion(), 16);
   assert.ok(repositories.runtimeResourceSnapshots);
+  assert.ok(repositories.runtimeResourceMutations);
 
   const snapshot = repositories.runtimeResourceSnapshots.create({
     id: "resource_snapshot_fixture",
@@ -73,7 +74,13 @@ try {
 
   const persisted = JSON.stringify({
     snapshots: database.sqlite.prepare("SELECT * FROM runtime_resource_snapshots").all(),
-    items: database.sqlite.prepare("SELECT * FROM runtime_resource_items").all()
+    items: database.sqlite.prepare("SELECT * FROM runtime_resource_items").all(),
+    mutationApprovals: database.sqlite
+      .prepare("SELECT * FROM runtime_resource_mutation_approvals")
+      .all(),
+    mutationExecutions: database.sqlite
+      .prepare("SELECT * FROM runtime_resource_mutation_executions")
+      .all()
   });
   for (const forbidden of [
     "/home/private/runtime",
