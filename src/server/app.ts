@@ -39,6 +39,7 @@ import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
+import { RuntimeResourceMutationService } from "../application/runtime-resource-mutation-service.js";
 import { buildRuntimeResourceServices } from "../application/runtime-resource-services.js";
 import { RuntimeEventService } from "../application/runtime-event-service.js";
 import { RuntimeRouter } from "../application/runtime-router.js";
@@ -80,8 +81,10 @@ import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
 import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
 import { AcpRegistryAdapter } from "../runtime/resources/acp-registry-adapter.js";
+import { CodexPluginMutationAdapter } from "../runtime/resources/codex-plugin-mutation-adapter.js";
 import { CodexResourceInventoryAdapter } from "../runtime/resources/codex-resource-inventory-adapter.js";
 import { CodexRuntimeProfileAdapter } from "../runtime/resources/codex-runtime-profile-adapter.js";
+import { CodexSkillMutationAdapter } from "../runtime/resources/codex-skill-mutation-adapter.js";
 import { DownstreamResourceInventoryAdapter } from "../runtime/resources/downstream-resource-inventory-adapter.js";
 import { DownstreamRuntimeProfileAdapter } from "../runtime/resources/downstream-runtime-profile-adapter.js";
 import { RuntimeProfileRegistry } from "../runtime/resources/runtime-profile-registry.js";
@@ -183,6 +186,9 @@ function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus
 
 export interface BuildServerOptions {
   codexAdapter?: CodingRuntimeAdapter;
+  codexSkillMutationAdapter?: CodexSkillMutationAdapter;
+  codexPluginMutationAdapter?: CodexPluginMutationAdapter;
+  runtimeResourceMutationNow?: () => string;
   directExecutorsConfigPath?: string;
   acpRegistryAdapter?: AcpRegistryAdapter | null;
 }
@@ -325,11 +331,33 @@ export function buildServer(
       new DownstreamResourceInventoryAdapter(downstreamResourceSource),
       ...(acpRegistryAdapter ? [acpRegistryAdapter] : [])
     ]);
+  const codexSkillMutationAdapter =
+    options.codexSkillMutationAdapter ??
+    new CodexSkillMutationAdapter({
+      workspaces: continuityServices.repositories.workspaces
+    });
+  const codexPluginMutationAdapter =
+    options.codexPluginMutationAdapter ??
+    new CodexPluginMutationAdapter({
+      workspaces: continuityServices.repositories.workspaces
+    });
   const runtimeResourceServices = buildRuntimeResourceServices({
     repositories: continuityServices.repositories,
     profiles: runtimeProfileRegistry,
-    adapters: runtimeResourceAdapterRegistry
+    adapters: runtimeResourceAdapterRegistry,
+    pluginMutationAvailable: true
   });
+  const runtimeResourceMutationService = new RuntimeResourceMutationService(
+    continuityServices.repositories,
+    runtimeResourceServices.inventory,
+    codexSkillMutationAdapter,
+    {
+      codexPlugins: codexPluginMutationAdapter,
+      ...(options.runtimeResourceMutationNow
+        ? { now: options.runtimeResourceMutationNow }
+        : {})
+    }
+  );
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) {
@@ -385,7 +413,11 @@ export function buildServer(
     runtimeEventService
   );
   registerRecoveryRoutes(app, runtimeRecoveryServices);
-  registerRuntimeResourceRoutes(app, runtimeResourceServices);
+  registerRuntimeResourceRoutes(
+    app,
+    runtimeResourceServices,
+    runtimeResourceMutationService
+  );
   const healthHandler = async () => {
     return buildPublicHealthStatus(paths);
   };

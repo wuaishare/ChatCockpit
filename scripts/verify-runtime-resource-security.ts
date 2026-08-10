@@ -193,8 +193,18 @@ assert.match(resourceMcpSource, /tokenpilot\.resources\.inventory/);
 assert.match(resourceMcpSource, /tokenpilot\.resources\.inspect/);
 assert.doesNotMatch(
   resourceMcpSource,
-  /resources\.(?:install|update|remove|enable|disable|authenticate)/
+  /tokenpilot\.resources\.mutation\.(?:prepare|decide|execute|reconcile)/
 );
+for (const requiredRestMutationRoute of [
+  "/api/resources/mutations/prepare",
+  "/api/resources/mutations/decision",
+  "/api/resources/mutations/execute",
+  "/api/resources/mutations/approvals/:approvalId",
+  "/api/resources/mutations/executions/:executionId",
+  "/api/resources/mutations/activity"
+]) {
+  assert.equal(resourceRouteSource.includes(requiredRestMutationRoute), true);
+}
 assert.doesNotMatch(resourceRouteSource, /\.(?:put|patch|delete)\(/);
 assert.doesNotMatch(
   resourceUiSource,
