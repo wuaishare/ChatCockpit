@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import { hashRuntimeResource } from "./runtime-resource-hash.js";
+import {
+  buildRuntimeResourceMutationHashV2,
+  mutationSemantics,
+  runtimeResourceMutationHashMatches
+} from "./runtime-resource-mutation-semantics.js";
 import type {
   RuntimeProfileDescriptor,
   RuntimeResourceDescriptor
@@ -15,6 +20,7 @@ import type {
   RuntimeResourceMutationVerificationStatus
 } from "../continuity/repositories/runtime-resource-mutation-repository.js";
 import type { CodexSkillMutationAdapter } from "../runtime/resources/codex-skill-mutation-adapter.js";
+import type { CodexPluginMutationAdapter } from "../runtime/resources/codex-plugin-mutation-adapter.js";
 
 const RESOURCE_MUTATION_APPROVAL_TTL_MS = 5 * 60 * 1000;
 const PRE_WRITE_STALE_CODES = new Set([
@@ -67,7 +73,6 @@ interface PreparedExecution {
   execution: RuntimeResourceMutationExecutionRecord;
   profile: RuntimeProfileDescriptor;
   before: RuntimeResourceDescriptor;
-  desiredEnabled: boolean;
 }
 
 interface ExternalExecutionOutcome {
@@ -76,10 +81,6 @@ interface ExternalExecutionOutcome {
   afterFingerprint: string | null;
   observedState: Record<string, unknown> | null;
   errorCode: string | null;
-}
-
-function desiredEnabled(operation: RuntimeResourceMutationOperation): boolean {
-  return operation === "skill.enable";
 }
 
 function approvalExpiry(now: string): string {
@@ -99,43 +100,21 @@ function freshInventoryKey(stage: string, outerIdempotencyKey: string): string {
   return `${stage}:${outerIdempotencyKey}:${randomUUID()}`;
 }
 
-function exactMutationHash(input: {
-  operation: RuntimeResourceMutationOperation;
-  runtimeProfileId: string;
-  workspaceId: string;
-  resource: RuntimeResourceDescriptor;
-  beforeSnapshotId: string;
-  providerKind: string;
-  protocolKind: string;
-  requestedEnabled: boolean;
-}): string {
-  return hashRuntimeResource({
-    schemaVersion: 1,
-    operation: input.operation,
-    runtimeProfileId: input.runtimeProfileId,
-    providerKind: input.providerKind,
-    protocolKind: input.protocolKind,
-    workspaceId: input.workspaceId,
-    resourceId: input.resource.id,
-    resourceKind: input.resource.kind,
-    resourceScope: input.resource.scope,
-    beforeSnapshotId: input.beforeSnapshotId,
-    beforeFingerprint: input.resource.fingerprint,
-    beforeEnabled: input.resource.enabled,
-    requestedEnabled: input.requestedEnabled
-  });
-}
-
 export class RuntimeResourceMutationService {
   private readonly now: () => string;
+  private readonly codexPlugins: CodexPluginMutationAdapter | null;
 
   constructor(
     private readonly repositories: ContinuityRepositories,
     private readonly inventory: RuntimeResourceInventoryService,
     private readonly codexSkills: CodexSkillMutationAdapter,
-    options: { now?: () => string } = {}
+    options: {
+      now?: () => string;
+      codexPlugins?: CodexPluginMutationAdapter;
+    } = {}
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
+    this.codexPlugins = options.codexPlugins ?? null;
   }
 
   async prepare(
@@ -169,37 +148,36 @@ export class RuntimeResourceMutationService {
         "Runtime Resource mutation target is not present in the fresh inventory"
       );
     }
-    this.assertSkillMutationSupported(observed.profile, resource);
+    const semantics = mutationSemantics(input.operation);
+    this.assertMutationPlatformSupported(
+      observed.profile,
+      resource,
+      input.operation
+    );
     if (resource.fingerprint !== input.expectedFingerprint) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_STALE",
         "Runtime Resource changed before mutation approval was prepared"
       );
     }
-    if (typeof resource.enabled !== "boolean") {
-      throw new ServiceError(
-        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
-        "Runtime Resource does not expose an authoritative enabled state"
-      );
-    }
-    const requestedEnabled = desiredEnabled(input.operation);
-    if (resource.enabled === requestedEnabled) {
+    semantics.beforeState(resource);
+    if (semantics.isNoop(resource)) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_NOOP",
         "Runtime Resource already has the requested state"
       );
     }
+    this.assertOperationPolicySupported(resource, input.operation);
 
     const now = this.now();
-    const mutationHash = exactMutationHash({
+    const mutationHash = buildRuntimeResourceMutationHashV2({
       operation: input.operation,
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resource,
       beforeSnapshotId: observed.snapshot.id,
       providerKind: observed.profile.providerKind,
-      protocolKind: observed.profile.protocolKind,
-      requestedEnabled
+      protocolKind: observed.profile.protocolKind
     });
     const executed = this.repositories.idempotency.execute(
       "runtime.resource.mutation.prepare",
@@ -212,19 +190,18 @@ export class RuntimeResourceMutationService {
           runtimeProfileId: input.runtimeProfileId,
           workspaceId: input.workspaceId,
           resourceId: resource.id,
-          resourceKind: "skill",
+          resourceKind: semantics.resourceKind,
           resourceScope: resource.scope,
           beforeSnapshotId: observed.snapshot.id,
           beforeFingerprint: resource.fingerprint,
-          requestedState: { enabled: requestedEnabled },
+          requestedState: { ...semantics.requestedState },
           mutationHash,
           publicSummary: {
             resourceId: resource.id,
             displayName: resource.displayName,
             kind: resource.kind,
             scope: resource.scope,
-            beforeEnabled: resource.enabled,
-            requestedEnabled,
+            ...semantics.publicState(resource),
             runtimeProfileId: observed.profile.id
           },
           expiresAt: approvalExpiry(now),
@@ -294,8 +271,14 @@ export class RuntimeResourceMutationService {
         "Approved Runtime Resource disappeared before execution"
       );
     }
+    const semantics = mutationSemantics(approval.operation);
     try {
-      this.assertSkillMutationSupported(preflight.profile, before);
+      this.assertMutationPlatformSupported(
+        preflight.profile,
+        before,
+        approval.operation
+      );
+      this.assertOperationPolicySupported(before, approval.operation);
       this.assertApprovalStillMatches(approval, preflight.profile, before, input);
     } catch (error) {
       if (
@@ -312,8 +295,10 @@ export class RuntimeResourceMutationService {
       }
       throw error;
     }
-    const requested = approval.requestedState.enabled;
-    if (typeof requested !== "boolean") {
+    if (
+      hashRuntimeResource(approval.requestedState) !==
+      hashRuntimeResource(semantics.requestedState)
+    ) {
       throw new ServiceError(
         "CONTINUITY_DATA_INVALID",
         "Stored Runtime Resource mutation requested state is invalid"
@@ -341,15 +326,14 @@ export class RuntimeResourceMutationService {
         });
         const execution = this.repositories.runtimeResourceMutations.createExecution({
           approval: consumed,
-          providerMethod: "skills/config/write",
+          providerMethod: semantics.providerMethod,
           now
         });
         return {
           approval: consumed,
           execution,
           profile: preflight.profile,
-          before,
-          desiredEnabled: requested
+          before
         };
       },
       async (prepared) => this.executeAndVerify(prepared, input.idempotencyKey),
@@ -447,25 +431,29 @@ export class RuntimeResourceMutationService {
     resource: RuntimeResourceDescriptor,
     input: RuntimeResourceMutationExecuteInput
   ): void {
-    const requested = approval.requestedState.enabled;
-    const recomputedHash =
-      typeof requested === "boolean"
-        ? exactMutationHash({
-            operation: approval.operation,
-            runtimeProfileId: profile.id,
-            workspaceId: input.workspaceId,
-            resource,
-            beforeSnapshotId: approval.beforeSnapshotId,
-            providerKind: profile.providerKind,
-            protocolKind: profile.protocolKind,
-            requestedEnabled: requested
-          })
-        : "";
+    const semantics = mutationSemantics(approval.operation);
+    const requestedStateMatches =
+      hashRuntimeResource(approval.requestedState) ===
+      hashRuntimeResource(semantics.requestedState);
+    const hashMatches = runtimeResourceMutationHashMatches(
+      approval.mutationHash,
+      {
+        operation: approval.operation,
+        runtimeProfileId: profile.id,
+        workspaceId: input.workspaceId,
+        resource,
+        beforeSnapshotId: approval.beforeSnapshotId,
+        providerKind: profile.providerKind,
+        protocolKind: profile.protocolKind
+      }
+    );
     if (
       resource.fingerprint !== approval.beforeFingerprint ||
       resource.scope !== approval.resourceScope ||
       resource.kind !== approval.resourceKind ||
-      recomputedHash !== approval.mutationHash
+      resource.kind !== semantics.resourceKind ||
+      !requestedStateMatches ||
+      !hashMatches
     ) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_STALE",
@@ -478,15 +466,44 @@ export class RuntimeResourceMutationService {
     prepared: PreparedExecution,
     idempotencyKey: string
   ): Promise<ExternalExecutionOutcome> {
+    const semantics = mutationSemantics(prepared.approval.operation);
     let providerError: string | null = null;
+    let providerEvidence: Record<string, unknown> = {};
     try {
-      await this.codexSkills.setEnabled({
-        profile: prepared.profile,
-        workspaceId: prepared.approval.workspaceId!,
-        resourceId: prepared.before.id,
-        expectedFingerprint: prepared.before.fingerprint,
-        desiredEnabled: prepared.desiredEnabled
-      });
+      switch (prepared.approval.operation) {
+        case "skill.enable":
+        case "skill.disable":
+          await this.codexSkills.setEnabled({
+            profile: prepared.profile,
+            workspaceId: prepared.approval.workspaceId!,
+            resourceId: prepared.before.id,
+            expectedFingerprint: prepared.before.fingerprint,
+            desiredEnabled: semantics.requestedState.enabled!
+          });
+          break;
+        case "plugin.install": {
+          const plugins = this.requirePluginAdapter();
+          const result = await plugins.install({
+            profile: prepared.profile,
+            workspaceId: prepared.approval.workspaceId!,
+            resourceId: prepared.before.id,
+            expectedFingerprint: prepared.before.fingerprint
+          });
+          providerEvidence = {
+            authPolicy: result.authPolicy,
+            appsNeedingAuthCount: result.appsNeedingAuthCount
+          };
+          break;
+        }
+        case "plugin.uninstall":
+          await this.requirePluginAdapter().uninstall({
+            profile: prepared.profile,
+            workspaceId: prepared.approval.workspaceId!,
+            resourceId: prepared.before.id,
+            expectedFingerprint: prepared.before.fingerprint
+          });
+          break;
+      }
     } catch (error) {
       providerError = errorCode(error);
     }
@@ -503,9 +520,10 @@ export class RuntimeResourceMutationService {
       const resource = after.resources.find(
         (entry) => entry.id === prepared.before.id
       );
-      const observedState = resource
-        ? { enabled: resource.enabled }
-        : { missing: true };
+      const observedState = {
+        ...semantics.observedState(resource),
+        ...providerEvidence
+      };
 
       if (isPreWriteStaleCode(providerError)) {
         return {
@@ -516,11 +534,11 @@ export class RuntimeResourceMutationService {
           errorCode: providerError
         };
       }
-      if (resource?.enabled === prepared.desiredEnabled) {
+      if (semantics.isVerified(resource)) {
         return {
           status: "verified",
           afterSnapshotId: after.snapshot.id,
-          afterFingerprint: resource.fingerprint,
+          afterFingerprint: resource!.fingerprint,
           observedState,
           errorCode: null
         };
@@ -565,20 +583,76 @@ export class RuntimeResourceMutationService {
     }
   }
 
-  private assertSkillMutationSupported(
+  private requirePluginAdapter(): CodexPluginMutationAdapter {
+    if (!this.codexPlugins) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+        "Codex Plugin mutation adapter is unavailable"
+      );
+    }
+    return this.codexPlugins;
+  }
+
+  private assertMutationPlatformSupported(
     profile: RuntimeProfileDescriptor,
-    resource: RuntimeResourceDescriptor
+    resource: RuntimeResourceDescriptor,
+    operation: RuntimeResourceMutationOperation
   ): void {
+    const semantics = mutationSemantics(operation);
     if (
       profile.providerKind !== "codex" ||
       profile.protocolKind !== "native-app-server" ||
-      resource.kind !== "skill" ||
-      resource.installed !== true ||
+      resource.kind !== semantics.resourceKind ||
       resource.compatibilityStatus !== "ready"
     ) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
-        "Phase 6B1 only supports installed, compatible Codex Skills"
+        "Runtime Resource mutation target is not supported by the governed Codex mutation kernel"
+      );
+    }
+
+    if (semantics.resourceKind === "skill") {
+      if (resource.installed !== true) {
+        throw new ServiceError(
+          "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+          "Governed Codex Skill mutation requires an installed compatible Skill"
+        );
+      }
+      return;
+    }
+    this.requirePluginAdapter();
+  }
+
+  private assertOperationPolicySupported(
+    resource: RuntimeResourceDescriptor,
+    operation: RuntimeResourceMutationOperation
+  ): void {
+    if (resource.kind !== "plugin") return;
+
+    const capabilities = new Set(resource.capabilities);
+    if (operation === "plugin.install") {
+      if (
+        !capabilities.has("plugin:source:remote") ||
+        !capabilities.has("plugin:install-policy:available") ||
+        !capabilities.has("plugin:auth-policy:on-use") ||
+        !capabilities.has("plugin:installation-interstitial:false") ||
+        !capabilities.has("plugin:observed:catalog")
+      ) {
+        throw new ServiceError(
+          "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+          "Phase 6B2B Plugin install only supports authoritative remote AVAILABLE ON_USE catalog Plugins with no installation interstitial"
+        );
+      }
+      return;
+    }
+
+    if (
+      capabilities.has("plugin:install-policy:installed-by-default") ||
+      !capabilities.has("plugin:observed:catalog")
+    ) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+        "Phase 6B2B Plugin uninstall only supports compatible catalog-backed Plugins that are not installed by default"
       );
     }
   }

@@ -23,6 +23,7 @@ import {
 } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
+import type { CodexPluginMutationAdapter } from "../src/runtime/resources/codex-plugin-mutation-adapter.ts";
 
 const NOW = "2026-08-10T00:45:00.000Z";
 const runtimeProfileId = "runtime_profile_mutation_fixture";
@@ -81,7 +82,7 @@ function pluginResource(installed: boolean): RuntimeResourceDescriptor {
     enabled: installed,
     version: installed ? "1.0.0" : null,
     availableVersion: "1.0.0",
-    updateStatus: "up-to-date" as const,
+    updateStatus: installed ? ("current" as const) : ("not-applicable" as const),
     authStatus: "unknown" as const,
     compatibilityStatus: "ready" as const,
     sourceKind: "runtime-native" as const,
@@ -90,10 +91,20 @@ function pluginResource(installed: boolean): RuntimeResourceDescriptor {
       "plugin:source:remote",
       "plugin:install-policy:available",
       "plugin:auth-policy:on-use",
-      "plugin:installation-interstitial:false"
+      "plugin:installation-interstitial:false",
+      "plugin:observed:catalog"
     ],
     publicReason: null
   };
+  return { ...base, fingerprint: hashRuntimeResource(base) };
+}
+
+function pluginResourceWith(
+  installed: boolean,
+  overrides: Partial<Omit<RuntimeResourceDescriptor, "fingerprint">>
+): RuntimeResourceDescriptor {
+  const { fingerprint: _ignored, ...current } = pluginResource(installed);
+  const base = { ...current, ...overrides };
   return { ...base, fingerprint: hashRuntimeResource(base) };
 }
 
@@ -545,6 +556,368 @@ assert.equal(enabled, false);
 assert.equal(mutationCalls, 4);
 mutationScenario = "success";
 
+let pluginInstalled = false;
+let pluginInventoryCalls = 0;
+let pluginMutationCalls = 0;
+let pluginResourceOverride: RuntimeResourceDescriptor | null = null;
+let pluginMutationScenario: "success" | "stale-race" = "success";
+let pluginStaleExternalDesired = false;
+const fakePluginInventory = {
+  inventory: async (input: {
+    runtimeProfileId: string;
+    workspaceId?: string;
+    idempotencyKey: string;
+  }) => {
+    assert.equal(input.runtimeProfileId, runtimeProfileId);
+    assert.equal(input.workspaceId, workspaceId);
+    assert.ok(input.idempotencyKey.length > 0);
+    pluginInventoryCalls += 1;
+    const current = pluginResourceOverride ?? pluginResource(pluginInstalled);
+    const snapshot = repositories.runtimeResourceSnapshots.create({
+      runtimeProfileId,
+      providerKind: profile.providerKind,
+      protocolKind: profile.protocolKind,
+      status: "ready",
+      profile: profile as unknown as Record<string, unknown>,
+      fingerprint: hashRuntimeResourceSnapshot(profile, [current]),
+      items: [
+        {
+          resourceId: current.id,
+          kind: current.kind,
+          externalId: current.externalId,
+          displayName: current.displayName,
+          description: current.description,
+          scope: current.scope,
+          installed: current.installed,
+          enabled: current.enabled,
+          version: current.version,
+          availableVersion: current.availableVersion,
+          updateStatus: current.updateStatus,
+          authStatus: current.authStatus,
+          compatibilityStatus: current.compatibilityStatus,
+          sourceKind: current.sourceKind,
+          sourceLabel: current.sourceLabel,
+          capabilities: current.capabilities,
+          publicReason: current.publicReason,
+          fingerprint: current.fingerprint
+        }
+      ],
+      now: new Date(Date.parse(NOW) + 60_000 + pluginInventoryCalls * 1000).toISOString()
+    });
+    return {
+      snapshot,
+      profile,
+      resources: [current],
+      diagnostics: [],
+      diff: {
+        previousSnapshotId: null,
+        added: [],
+        removed: [],
+        changed: [],
+        unchanged: []
+      },
+      replayed: false
+    };
+  }
+} as unknown as RuntimeResourceInventoryService;
+
+const fakePluginMutationAdapter = {
+  install: async (input: {
+    profile: RuntimeProfileDescriptor;
+    workspaceId: string;
+    resourceId: string;
+    expectedFingerprint: string;
+  }) => {
+    pluginMutationCalls += 1;
+    assert.equal(input.profile.id, runtimeProfileId);
+    assert.equal(input.workspaceId, workspaceId);
+    assert.equal(input.resourceId, pluginResource(false).id);
+    assert.equal(input.expectedFingerprint, pluginResource(false).fingerprint);
+    if (pluginMutationScenario === "stale-race") {
+      if (pluginStaleExternalDesired) pluginInstalled = true;
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_STALE",
+        "Fixture Plugin target changed between preflight and provider write"
+      );
+    }
+    pluginInstalled = true;
+    return { authPolicy: "ON_USE", appsNeedingAuthCount: 0 };
+  },
+  uninstall: async (input: {
+    profile: RuntimeProfileDescriptor;
+    workspaceId: string;
+    resourceId: string;
+    expectedFingerprint: string;
+  }) => {
+    pluginMutationCalls += 1;
+    assert.equal(input.profile.id, runtimeProfileId);
+    assert.equal(input.workspaceId, workspaceId);
+    assert.equal(input.resourceId, pluginResource(true).id);
+    assert.equal(input.expectedFingerprint, pluginResource(true).fingerprint);
+    pluginInstalled = false;
+  }
+} as unknown as CodexPluginMutationAdapter;
+
+const pluginService = new RuntimeResourceMutationService(
+  repositories,
+  fakePluginInventory,
+  fakeMutationAdapter,
+  {
+    now: () => NOW,
+    codexPlugins: fakePluginMutationAdapter
+  }
+);
+
+const pluginBefore = pluginResource(false);
+const pluginInstallPrepared = await pluginService.prepare({
+  operation: "plugin.install",
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginBefore.id,
+  expectedFingerprint: pluginBefore.fingerprint,
+  idempotencyKey: "prepare-plugin-install-001"
+});
+assert.equal(pluginInstallPrepared.approval.resourceKind, "plugin");
+assert.deepEqual(pluginInstallPrepared.approval.requestedState, {
+  installed: true
+});
+assert.equal(pluginInstallPrepared.approval.publicSummary.beforeInstalled, false);
+assert.equal(pluginInstallPrepared.approval.publicSummary.requestedInstalled, true);
+const pluginInstallApproved = pluginService.decide({
+  approvalId: pluginInstallPrepared.approval.id,
+  expectedRevision: pluginInstallPrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-plugin-install-001"
+});
+const pluginInstalledExecution = await pluginService.execute({
+  approvalId: pluginInstallApproved.approval.id,
+  expectedApprovalRevision: pluginInstallApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginBefore.id,
+  expectedFingerprint: pluginBefore.fingerprint,
+  idempotencyKey: "execute-plugin-install-001"
+});
+assert.equal(pluginInstalledExecution.execution.providerMethod, "plugin/install");
+assert.equal(pluginInstalledExecution.execution.verificationStatus, "verified");
+assert.deepEqual(pluginInstalledExecution.execution.observedState, {
+  installed: true,
+  authPolicy: "ON_USE",
+  appsNeedingAuthCount: 0
+});
+assert.equal(pluginInstalled, true);
+assert.equal(pluginMutationCalls, 1);
+const pluginInstallReplay = await pluginService.execute({
+  approvalId: pluginInstallApproved.approval.id,
+  expectedApprovalRevision: pluginInstallApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginBefore.id,
+  expectedFingerprint: pluginBefore.fingerprint,
+  idempotencyKey: "execute-plugin-install-001"
+});
+assert.equal(pluginInstallReplay.replayed, true);
+assert.equal(pluginMutationCalls, 1);
+
+const pluginAfterInstall = pluginResource(true);
+const pluginUninstallPrepared = await pluginService.prepare({
+  operation: "plugin.uninstall",
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginAfterInstall.id,
+  expectedFingerprint: pluginAfterInstall.fingerprint,
+  idempotencyKey: "prepare-plugin-uninstall-001"
+});
+assert.deepEqual(pluginUninstallPrepared.approval.requestedState, {
+  installed: false
+});
+const pluginUninstallApproved = pluginService.decide({
+  approvalId: pluginUninstallPrepared.approval.id,
+  expectedRevision: pluginUninstallPrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-plugin-uninstall-001"
+});
+const pluginUninstalledExecution = await pluginService.execute({
+  approvalId: pluginUninstallApproved.approval.id,
+  expectedApprovalRevision: pluginUninstallApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginAfterInstall.id,
+  expectedFingerprint: pluginAfterInstall.fingerprint,
+  idempotencyKey: "execute-plugin-uninstall-001"
+});
+assert.equal(
+  pluginUninstalledExecution.execution.providerMethod,
+  "plugin/uninstall"
+);
+assert.equal(pluginUninstalledExecution.execution.verificationStatus, "verified");
+assert.deepEqual(pluginUninstalledExecution.execution.observedState, {
+  installed: false
+});
+assert.equal(pluginInstalled, false);
+assert.equal(pluginMutationCalls, 2);
+
+await assert.rejects(
+  () =>
+    pluginService.prepare({
+      operation: "plugin.uninstall",
+      runtimeProfileId,
+      workspaceId,
+      resourceId: pluginBefore.id,
+      expectedFingerprint: pluginBefore.fingerprint,
+      idempotencyKey: "prepare-plugin-uninstall-noop-001"
+    }),
+  (error: unknown) =>
+    error instanceof ServiceError && error.code === "RUNTIME_RESOURCE_MUTATION_NOOP"
+);
+assert.equal(pluginMutationCalls, 2);
+
+const safePluginCapabilities = [...pluginBefore.capabilities];
+const unsafePluginResources = [
+  pluginResourceWith(false, {
+    capabilities: safePluginCapabilities.map((capability) =>
+      capability === "plugin:auth-policy:on-use"
+        ? "plugin:auth-policy:on-install"
+        : capability
+    )
+  }),
+  pluginResourceWith(false, {
+    capabilities: safePluginCapabilities.map((capability) =>
+      capability === "plugin:installation-interstitial:false"
+        ? "plugin:installation-interstitial:unknown"
+        : capability
+    )
+  }),
+  pluginResourceWith(false, {
+    capabilities: safePluginCapabilities.map((capability) =>
+      capability === "plugin:source:remote"
+        ? "plugin:source:local"
+        : capability
+    )
+  }),
+  pluginResourceWith(false, { compatibilityStatus: "blocked" })
+];
+for (let index = 0; index < unsafePluginResources.length; index += 1) {
+  const unsafe = unsafePluginResources[index]!;
+  pluginResourceOverride = unsafe;
+  await assert.rejects(
+    () =>
+      pluginService.prepare({
+        operation: "plugin.install",
+        runtimeProfileId,
+        workspaceId,
+        resourceId: unsafe.id,
+        expectedFingerprint: unsafe.fingerprint,
+        idempotencyKey: `prepare-plugin-unsafe-${index}`
+      }),
+    (error: unknown) =>
+      error instanceof ServiceError &&
+      error.code === "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED"
+  );
+  assert.equal(pluginMutationCalls, 2);
+}
+pluginResourceOverride = null;
+
+pluginInstalled = false;
+pluginMutationScenario = "stale-race";
+pluginStaleExternalDesired = true;
+const pluginRaceBefore = pluginResource(false);
+const pluginRacePrepared = await pluginService.prepare({
+  operation: "plugin.install",
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginRaceBefore.id,
+  expectedFingerprint: pluginRaceBefore.fingerprint,
+  idempotencyKey: "prepare-plugin-stale-race-001"
+});
+const pluginRaceApproved = pluginService.decide({
+  approvalId: pluginRacePrepared.approval.id,
+  expectedRevision: pluginRacePrepared.approval.revision,
+  decision: "approved",
+  idempotencyKey: "decide-plugin-stale-race-001"
+});
+const pluginRaceExecuted = await pluginService.execute({
+  approvalId: pluginRaceApproved.approval.id,
+  expectedApprovalRevision: pluginRaceApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId: pluginRaceBefore.id,
+  expectedFingerprint: pluginRaceBefore.fingerprint,
+  idempotencyKey: "execute-plugin-stale-race-001"
+});
+assert.equal(pluginRaceExecuted.execution.verificationStatus, "stale");
+assert.equal(
+  pluginRaceExecuted.execution.errorCode,
+  "RUNTIME_RESOURCE_MUTATION_STALE"
+);
+assert.deepEqual(pluginRaceExecuted.execution.observedState, {
+  installed: true
+});
+assert.equal(pluginInstalled, true);
+assert.equal(pluginMutationCalls, 3);
+pluginInstalled = false;
+pluginMutationScenario = "success";
+pluginStaleExternalDesired = false;
+
+enabled = true;
+mutationScenario = "success";
+const legacyObserved = await fakeInventory.inventory({
+  runtimeProfileId,
+  workspaceId,
+  idempotencyKey: "legacy-v1-inventory-001"
+});
+const legacyBefore = resource(true);
+const legacyApprovalRecord = repositories.runtimeResourceMutations.createApproval({
+  operation: "skill.disable",
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  resourceKind: "skill",
+  resourceScope: legacyBefore.scope,
+  beforeSnapshotId: legacyObserved.snapshot.id,
+  beforeFingerprint: legacyBefore.fingerprint,
+  requestedState: { enabled: false },
+  mutationHash: buildLegacySkillMutationHashV1({
+    operation: "skill.disable",
+    runtimeProfileId,
+    workspaceId,
+    resource: legacyBefore,
+    beforeSnapshotId: legacyObserved.snapshot.id,
+    providerKind: profile.providerKind,
+    protocolKind: profile.protocolKind
+  }),
+  publicSummary: {
+    resourceId,
+    displayName: legacyBefore.displayName,
+    kind: "skill",
+    scope: legacyBefore.scope,
+    beforeEnabled: true,
+    requestedEnabled: false,
+    runtimeProfileId
+  },
+  expiresAt: "2026-08-10T00:50:00.000Z",
+  now: NOW
+});
+const legacyApproved = service.decide({
+  approvalId: legacyApprovalRecord.id,
+  expectedRevision: legacyApprovalRecord.revision,
+  decision: "approved",
+  idempotencyKey: "decide-legacy-v1-skill-001"
+});
+const legacyExecuted = await service.execute({
+  approvalId: legacyApproved.approval.id,
+  expectedApprovalRevision: legacyApproved.approval.revision,
+  runtimeProfileId,
+  workspaceId,
+  resourceId,
+  expectedFingerprint: legacyBefore.fingerprint,
+  idempotencyKey: "execute-legacy-v1-skill-001"
+});
+assert.equal(legacyExecuted.execution.verificationStatus, "verified");
+assert.equal(legacyExecuted.execution.providerMethod, "skills/config/write");
+assert.deepEqual(legacyExecuted.execution.observedState, { enabled: false });
+assert.equal(enabled, false);
+
 const publicJson = JSON.stringify({
   freshRetryPrepared,
   prepared,
@@ -553,13 +926,22 @@ const publicJson = JSON.stringify({
   permanentlyStale,
   raceExecuted,
   staleDesiredExecuted,
-  authoritativeExecuted
+  authoritativeExecuted,
+  pluginInstallPrepared,
+  pluginInstalledExecution,
+  pluginUninstallPrepared,
+  pluginUninstalledExecution,
+  pluginRaceExecuted,
+  legacyExecuted
 });
 for (const forbidden of [
   "/private/tokenpilot-runtime-sentinel/mutation-workspace",
   "SKILL.md",
   "rawConfig",
-  "authorizationUrl"
+  "authorizationUrl",
+  "installUrl",
+  "marketplacePath",
+  "remoteMarketplaceName"
 ]) {
   assert.equal(publicJson.includes(forbidden), false);
 }
