@@ -228,7 +228,7 @@ export class CodexSkillMutationAdapter {
       id: target.resourceId,
       runtimeProfileId: profile.id,
       kind: "skill" as const,
-      externalId,
+      externalId: bounded(externalId, 300) ?? externalId,
       displayName: target.displayName,
       description: target.description,
       scope: target.scope,
