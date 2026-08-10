@@ -1,3 +1,5 @@
+import type { ActorType } from "../../application/operation-context.js";
+import type { RuntimeResourceMutationProvenance } from "../../application/runtime-resource-mutation-provenance.js";
 import { ServiceError } from "../../application/service-error.js";
 import type { ContinuityDatabase } from "../database.js";
 import type { RuntimeResourceScope } from "../types.js";
@@ -44,6 +46,12 @@ export interface RuntimeResourceMutationApprovalRecord {
   requestedState: Record<string, unknown>;
   mutationHash: string;
   publicSummary: Record<string, unknown>;
+  requestedActorType: ActorType | null;
+  requestedActorIdentityHash: string | null;
+  requestedRequestIdentityHash: string | null;
+  decidedActorType: ActorType | null;
+  decidedActorIdentityHash: string | null;
+  decidedRequestIdentityHash: string | null;
   status: RuntimeResourceMutationApprovalStatus;
   createdAt: string;
   updatedAt: string;
@@ -69,6 +77,9 @@ export interface RuntimeResourceMutationExecutionRecord {
   providerMethod: RuntimeResourceMutationProviderMethod;
   verificationStatus: RuntimeResourceMutationVerificationStatus;
   errorCode: string | null;
+  executedActorType: ActorType | null;
+  executedActorIdentityHash: string | null;
+  executedRequestIdentityHash: string | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -86,6 +97,12 @@ interface ApprovalRow {
   requested_state_json: string;
   mutation_hash: string;
   public_summary_json: string;
+  requested_actor_type: ActorType | null;
+  requested_actor_identity_hash: string | null;
+  requested_request_identity_hash: string | null;
+  decided_actor_type: ActorType | null;
+  decided_actor_identity_hash: string | null;
+  decided_request_identity_hash: string | null;
   status: RuntimeResourceMutationApprovalStatus;
   created_at: string;
   updated_at: string;
@@ -111,8 +128,28 @@ interface ExecutionRow {
   provider_method: RuntimeResourceMutationProviderMethod;
   verification_status: RuntimeResourceMutationVerificationStatus;
   error_code: string | null;
+  executed_actor_type: ActorType | null;
+  executed_actor_identity_hash: string | null;
+  executed_request_identity_hash: string | null;
   started_at: string;
   finished_at: string | null;
+}
+
+function boundedActivityLimit(limit?: number): number {
+  if (limit === undefined) return 25;
+  if (!Number.isFinite(limit)) return 25;
+  return Math.max(1, Math.min(100, Math.trunc(limit)));
+}
+
+function requireWorkspaceScope(workspaceId: string | undefined): string {
+  const normalized = workspaceId?.trim();
+  if (!normalized) {
+    throw new ServiceError(
+      "RUNTIME_RESOURCE_MUTATION_WORKSPACE_REQUIRED",
+      "Runtime Resource mutation activity requires an explicit Workspace scope"
+    );
+  }
+  return normalized;
 }
 
 function parseObject(value: string, label: string): Record<string, unknown> {
@@ -144,6 +181,12 @@ function approvalFromRow(row: ApprovalRow): RuntimeResourceMutationApprovalRecor
     requestedState: parseObject(row.requested_state_json, "requested state"),
     mutationHash: row.mutation_hash,
     publicSummary: parseObject(row.public_summary_json, "public summary"),
+    requestedActorType: row.requested_actor_type,
+    requestedActorIdentityHash: row.requested_actor_identity_hash,
+    requestedRequestIdentityHash: row.requested_request_identity_hash,
+    decidedActorType: row.decided_actor_type,
+    decidedActorIdentityHash: row.decided_actor_identity_hash,
+    decidedRequestIdentityHash: row.decided_request_identity_hash,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -173,6 +216,9 @@ function executionFromRow(row: ExecutionRow): RuntimeResourceMutationExecutionRe
     providerMethod: row.provider_method,
     verificationStatus: row.verification_status,
     errorCode: row.error_code,
+    executedActorType: row.executed_actor_type,
+    executedActorIdentityHash: row.executed_actor_identity_hash,
+    executedRequestIdentityHash: row.executed_request_identity_hash,
     startedAt: row.started_at,
     finishedAt: row.finished_at
   };
@@ -194,6 +240,7 @@ export class RuntimeResourceMutationRepository {
     requestedState: Record<string, unknown>;
     mutationHash: string;
     publicSummary: Record<string, unknown>;
+    requestedActor: RuntimeResourceMutationProvenance;
     expiresAt: string;
     now?: string;
   }): RuntimeResourceMutationApprovalRecord {
@@ -204,9 +251,11 @@ export class RuntimeResourceMutationRepository {
         INSERT INTO runtime_resource_mutation_approvals (
           id, operation, runtime_profile_id, workspace_id, resource_id,
           resource_kind, resource_scope, before_snapshot_id, before_fingerprint,
-          requested_state_json, mutation_hash, public_summary_json, status,
+          requested_state_json, mutation_hash, public_summary_json,
+          requested_actor_type, requested_actor_identity_hash,
+          requested_request_identity_hash, status,
           created_at, updated_at, expires_at, decided_at, consumed_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
       `)
       .run(
         id,
@@ -221,6 +270,9 @@ export class RuntimeResourceMutationRepository {
         JSON.stringify(input.requestedState),
         input.mutationHash,
         JSON.stringify(input.publicSummary),
+        input.requestedActor.actorType,
+        input.requestedActor.actorIdentityHash,
+        input.requestedActor.requestIdentityHash,
         now,
         now,
         input.expiresAt
@@ -233,6 +285,35 @@ export class RuntimeResourceMutationRepository {
       .prepare("SELECT * FROM runtime_resource_mutation_approvals WHERE id = ?")
       .get(id) as ApprovalRow | undefined;
     return approvalFromRow(requireRecord(row, "Runtime Resource mutation approval", id));
+  }
+
+  listApprovals(input: {
+    workspaceId: string;
+    resourceId?: string;
+    status?: RuntimeResourceMutationApprovalStatus;
+    limit?: number;
+  }): RuntimeResourceMutationApprovalRecord[] {
+    const workspaceId = requireWorkspaceScope(input.workspaceId);
+    const conditions = ["workspace_id = ?"];
+    const values: Array<string | number> = [workspaceId];
+    if (input.resourceId) {
+      conditions.push("resource_id = ?");
+      values.push(input.resourceId);
+    }
+    if (input.status) {
+      conditions.push("status = ?");
+      values.push(input.status);
+    }
+    values.push(boundedActivityLimit(input.limit));
+    const rows = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_resource_mutation_approvals
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY updated_at DESC, created_at DESC, id DESC
+        LIMIT ?
+      `)
+      .all(...values) as unknown as ApprovalRow[];
+    return rows.map(approvalFromRow);
   }
 
   expireIfNeeded(id: string, now: string): RuntimeResourceMutationApprovalRecord {
@@ -305,6 +386,7 @@ export class RuntimeResourceMutationRepository {
     id: string;
     decision: "approved" | "denied";
     expectedRevision: number;
+    decidedActor: RuntimeResourceMutationProvenance;
     now?: string;
   }): RuntimeResourceMutationApprovalRecord {
     const now = nowIso(input.now);
@@ -338,10 +420,21 @@ export class RuntimeResourceMutationRepository {
     const result = this.database.sqlite
       .prepare(`
         UPDATE runtime_resource_mutation_approvals
-        SET status = ?, decided_at = ?, updated_at = ?, revision = revision + 1
+        SET status = ?, decided_actor_type = ?, decided_actor_identity_hash = ?,
+            decided_request_identity_hash = ?, decided_at = ?, updated_at = ?,
+            revision = revision + 1
         WHERE id = ? AND revision = ? AND status = 'pending'
       `)
-      .run(input.decision, now, now, input.id, input.expectedRevision);
+      .run(
+        input.decision,
+        input.decidedActor.actorType,
+        input.decidedActor.actorIdentityHash,
+        input.decidedActor.requestIdentityHash,
+        now,
+        now,
+        input.id,
+        input.expectedRevision
+      );
     assertUpdated(
       result.changes,
       "Runtime Resource mutation approval",
@@ -410,6 +503,7 @@ export class RuntimeResourceMutationRepository {
     id?: string;
     approval: RuntimeResourceMutationApprovalRecord;
     providerMethod: RuntimeResourceMutationProviderMethod;
+    executedActor: RuntimeResourceMutationProvenance;
     now?: string;
   }): RuntimeResourceMutationExecutionRecord {
     const id = input.id ?? newRecordId("resource_mutation_execution");
@@ -421,8 +515,9 @@ export class RuntimeResourceMutationRepository {
           resource_id, before_snapshot_id, before_fingerprint,
           after_snapshot_id, after_fingerprint, requested_state_json,
           observed_state_json, provider_method, verification_status,
-          error_code, started_at, finished_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, 'executing', NULL, ?, NULL)
+          error_code, executed_actor_type, executed_actor_identity_hash,
+          executed_request_identity_hash, started_at, finished_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, 'executing', NULL, ?, ?, ?, ?, NULL)
       `)
       .run(
         id,
@@ -435,6 +530,9 @@ export class RuntimeResourceMutationRepository {
         input.approval.beforeFingerprint,
         JSON.stringify(input.approval.requestedState),
         input.providerMethod,
+        input.executedActor.actorType,
+        input.executedActor.actorIdentityHash,
+        input.executedActor.requestIdentityHash,
         now
       );
     return this.getExecution(id);
@@ -445,6 +543,35 @@ export class RuntimeResourceMutationRepository {
       .prepare("SELECT * FROM runtime_resource_mutation_executions WHERE id = ?")
       .get(id) as ExecutionRow | undefined;
     return executionFromRow(requireRecord(row, "Runtime Resource mutation execution", id));
+  }
+
+  listExecutions(input: {
+    workspaceId: string;
+    resourceId?: string;
+    approvalId?: string;
+    limit?: number;
+  }): RuntimeResourceMutationExecutionRecord[] {
+    const workspaceId = requireWorkspaceScope(input.workspaceId);
+    const conditions = ["workspace_id = ?"];
+    const values: Array<string | number> = [workspaceId];
+    if (input.resourceId) {
+      conditions.push("resource_id = ?");
+      values.push(input.resourceId);
+    }
+    if (input.approvalId) {
+      conditions.push("approval_id = ?");
+      values.push(input.approvalId);
+    }
+    values.push(boundedActivityLimit(input.limit));
+    const rows = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_resource_mutation_executions
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY started_at DESC, id DESC
+        LIMIT ?
+      `)
+      .all(...values) as unknown as ExecutionRow[];
+    return rows.map(executionFromRow);
   }
 
   finishExecution(input: {

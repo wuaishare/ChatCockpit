@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+import { buildOperationContext } from "../src/application/operation-context.ts";
 import { RuntimeResourceInventoryService } from "../src/application/runtime-resource-inventory-service.ts";
 import { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
 import { ServiceError } from "../src/application/service-error.ts";
@@ -303,6 +304,14 @@ async function inventoryFresh(
   });
 }
 
+function proofContext(stage: "prepare" | "decide" | "execute", keyPrefix: string) {
+  return buildOperationContext({
+    requestId: `${keyPrefix}:${stage}:request`,
+    actorType: "local-cli",
+    actorId: null
+  });
+}
+
 async function governedTransition(input: {
   service: RuntimeResourceMutationService;
   operation: PluginOperation;
@@ -310,7 +319,7 @@ async function governedTransition(input: {
   resource: RuntimeResourceDescriptor;
   keyPrefix: string;
 }) {
-  const prepared = await input.service.prepare({
+  const prepared = await input.service.prepare(proofContext("prepare", input.keyPrefix), {
     operation: input.operation,
     runtimeProfileId: input.profileId,
     workspaceId: WORKSPACE_ID,
@@ -318,13 +327,13 @@ async function governedTransition(input: {
     expectedFingerprint: input.resource.fingerprint,
     idempotencyKey: `${input.keyPrefix}:prepare`
   });
-  const approved = input.service.decide({
+  const approved = input.service.decide(proofContext("decide", input.keyPrefix), {
     approvalId: prepared.approval.id,
     expectedRevision: prepared.approval.revision,
     decision: "approved",
     idempotencyKey: `${input.keyPrefix}:decide`
   });
-  const executed = await input.service.execute({
+  const executed = await input.service.execute(proofContext("execute", input.keyPrefix), {
     approvalId: approved.approval.id,
     expectedApprovalRevision: approved.approval.revision,
     runtimeProfileId: input.profileId,

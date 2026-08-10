@@ -292,6 +292,24 @@ export class RuntimeResourceInventoryService {
     return this.repositories.runtimeResourceSnapshots.list(input);
   }
 
+  inspectSnapshotResource(
+    snapshotId: string,
+    resourceId: string
+  ): RuntimeResourceInspectionResult {
+    const snapshot = this.repositories.runtimeResourceSnapshots.get(snapshotId);
+    const item = snapshot.items.find((entry) => entry.resourceId === resourceId);
+    if (!item) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_NOT_FOUND",
+        `Runtime Resource not found in snapshot: ${resourceId}`
+      );
+    }
+    return {
+      snapshot,
+      resource: itemToResource(snapshot, item)
+    };
+  }
+
   inspectResource(resourceId: string): RuntimeResourceInspectionResult {
     const item = this.repositories.runtimeResourceSnapshots.latestItem(resourceId);
     if (!item) {
@@ -300,10 +318,6 @@ export class RuntimeResourceInventoryService {
         `Runtime Resource not found: ${resourceId}`
       );
     }
-    const snapshot = this.repositories.runtimeResourceSnapshots.get(item.snapshotId);
-    return {
-      snapshot,
-      resource: itemToResource(snapshot, item)
-    };
+    return this.inspectSnapshotResource(item.snapshotId, resourceId);
   }
 }

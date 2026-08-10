@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 
+import type { OperationContext } from "./operation-context.js";
 import { hashRuntimeResource } from "./runtime-resource-hash.js";
+import { assessRuntimeResourceMutationEligibility } from "./runtime-resource-mutation-eligibility.js";
+import { buildRuntimeResourceMutationProvenance } from "./runtime-resource-mutation-provenance.js";
 import {
   buildRuntimeResourceMutationHashV2,
   mutationSemantics,
@@ -140,14 +143,20 @@ export class RuntimeResourceMutationService {
   }
 
   async prepare(
+    context: OperationContext,
     input: RuntimeResourceMutationPrepareInput
   ): Promise<RuntimeResourceMutationPrepareResult> {
+    const requestedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       operation: input.operation,
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resourceId: input.resourceId,
-      expectedFingerprint: input.expectedFingerprint
+      expectedFingerprint: input.expectedFingerprint,
+      actor: {
+        type: requestedActor.actorType,
+        identityHash: requestedActor.actorIdentityHash
+      }
     };
     const replay = this.repositories.idempotency.replay<{
       ok: true;
@@ -171,11 +180,18 @@ export class RuntimeResourceMutationService {
       );
     }
     const semantics = mutationSemantics(input.operation);
-    this.assertMutationPlatformSupported(
-      observed.profile,
+    const eligibility = assessRuntimeResourceMutationEligibility({
+      profile: observed.profile,
       resource,
-      input.operation
-    );
+      operation: input.operation,
+      pluginMutationAvailable: this.codexPlugins !== null
+    });
+    if (!eligibility.eligible && eligibility.stage === "platform") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+        eligibility.publicReason
+      );
+    }
     if (resource.fingerprint !== input.expectedFingerprint) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_STALE",
@@ -189,7 +205,12 @@ export class RuntimeResourceMutationService {
         "Runtime Resource already has the requested state"
       );
     }
-    this.assertOperationPolicySupported(resource, input.operation);
+    if (!eligibility.eligible) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+        eligibility.publicReason
+      );
+    }
 
     const now = this.now();
     const mutationHash = buildRuntimeResourceMutationHashV2({
@@ -226,6 +247,7 @@ export class RuntimeResourceMutationService {
             ...semantics.publicState(resource),
             runtimeProfileId: observed.profile.id
           },
+          requestedActor,
           expiresAt: approvalExpiry(now),
           now
         })
@@ -235,11 +257,16 @@ export class RuntimeResourceMutationService {
     return { ...executed.value, replayed: executed.replayed };
   }
 
-  decide(input: RuntimeResourceMutationDecisionInput) {
+  decide(context: OperationContext, input: RuntimeResourceMutationDecisionInput) {
+    const decidedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       approvalId: input.approvalId,
       expectedRevision: input.expectedRevision,
-      decision: input.decision
+      decision: input.decision,
+      actor: {
+        type: decidedActor.actorType,
+        identityHash: decidedActor.actorIdentityHash
+      }
     };
     const executed = this.repositories.idempotency.execute(
       "runtime.resource.mutation.decide",
@@ -251,6 +278,7 @@ export class RuntimeResourceMutationService {
           id: input.approvalId,
           expectedRevision: input.expectedRevision,
           decision: input.decision,
+          decidedActor,
           now: this.now()
         })
       }),
@@ -260,15 +288,21 @@ export class RuntimeResourceMutationService {
   }
 
   async execute(
+    context: OperationContext,
     input: RuntimeResourceMutationExecuteInput
   ): Promise<RuntimeResourceMutationExecuteResult> {
+    const executedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       approvalId: input.approvalId,
       expectedApprovalRevision: input.expectedApprovalRevision,
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resourceId: input.resourceId,
-      expectedFingerprint: input.expectedFingerprint
+      expectedFingerprint: input.expectedFingerprint,
+      actor: {
+        type: executedActor.actorType,
+        identityHash: executedActor.actorIdentityHash
+      }
     };
     const replay = this.repositories.idempotency.replay<{
       ok: true;
@@ -295,12 +329,18 @@ export class RuntimeResourceMutationService {
     }
     const semantics = mutationSemantics(approval.operation);
     try {
-      this.assertMutationPlatformSupported(
-        preflight.profile,
-        before,
-        approval.operation
-      );
-      this.assertOperationPolicySupported(before, approval.operation);
+      const eligibility = assessRuntimeResourceMutationEligibility({
+        profile: preflight.profile,
+        resource: before,
+        operation: approval.operation,
+        pluginMutationAvailable: this.codexPlugins !== null
+      });
+      if (!eligibility.eligible) {
+        throw new ServiceError(
+          "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+          eligibility.publicReason
+        );
+      }
       this.assertApprovalStillMatches(approval, preflight.profile, before, input);
     } catch (error) {
       if (
@@ -349,6 +389,7 @@ export class RuntimeResourceMutationService {
         const execution = this.repositories.runtimeResourceMutations.createExecution({
           approval: consumed,
           providerMethod: semantics.providerMethod,
+          executedActor,
           now
         });
         return {
@@ -630,67 +671,4 @@ export class RuntimeResourceMutationService {
     return this.codexPlugins;
   }
 
-  private assertMutationPlatformSupported(
-    profile: RuntimeProfileDescriptor,
-    resource: RuntimeResourceDescriptor,
-    operation: RuntimeResourceMutationOperation
-  ): void {
-    const semantics = mutationSemantics(operation);
-    if (
-      profile.providerKind !== "codex" ||
-      profile.protocolKind !== "native-app-server" ||
-      resource.kind !== semantics.resourceKind ||
-      resource.compatibilityStatus !== "ready"
-    ) {
-      throw new ServiceError(
-        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
-        "Runtime Resource mutation target is not supported by the governed Codex mutation kernel"
-      );
-    }
-
-    if (semantics.resourceKind === "skill") {
-      if (resource.installed !== true) {
-        throw new ServiceError(
-          "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
-          "Governed Codex Skill mutation requires an installed compatible Skill"
-        );
-      }
-      return;
-    }
-    this.requirePluginAdapter();
-  }
-
-  private assertOperationPolicySupported(
-    resource: RuntimeResourceDescriptor,
-    operation: RuntimeResourceMutationOperation
-  ): void {
-    if (resource.kind !== "plugin") return;
-
-    const capabilities = new Set(resource.capabilities);
-    if (operation === "plugin.install") {
-      if (
-        !capabilities.has("plugin:source:remote") ||
-        !capabilities.has("plugin:install-policy:available") ||
-        !capabilities.has("plugin:auth-policy:on-use") ||
-        !capabilities.has("plugin:installation-interstitial:false") ||
-        !capabilities.has("plugin:observed:catalog")
-      ) {
-        throw new ServiceError(
-          "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
-          "Phase 6B2B Plugin install only supports authoritative remote AVAILABLE ON_USE catalog Plugins with no installation interstitial"
-        );
-      }
-      return;
-    }
-
-    if (
-      capabilities.has("plugin:install-policy:installed-by-default") ||
-      !capabilities.has("plugin:observed:catalog")
-    ) {
-      throw new ServiceError(
-        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
-        "Phase 6B2B Plugin uninstall only supports compatible catalog-backed Plugins that are not installed by default"
-      );
-    }
-  }
 }
