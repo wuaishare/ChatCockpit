@@ -1,0 +1,52 @@
+name: Phase6B schema patch staging
+
+on:
+  push:
+    branches:
+      - phase6b-schema-patch-staging-20260810
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact schema assertion patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="scripts/verify-host-direct-command.ts"
+          workflow=".github/workflows/phase6b-schema-patch-staging.yml"
+          old_sha="$(git hash-object "$file")"
+          test "$old_sha" = "4b05bbb04adbd5b02529a336a4b8aacb1f9dda4d"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/verify-host-direct-command.ts")
+          text = path.read_text(encoding="utf-8")
+          old_import = 'import { ContinuityDatabase } from "../src/continuity/database.ts";'
+          new_import = '''import {
+            ContinuityDatabase,
+            LATEST_CONTINUITY_SCHEMA_VERSION
+          } from "../src/continuity/database.ts";'''
+          old_assert = "assert.equal(database.schemaVersion(), 15);"
+          new_assert = "assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);"
+          assert text.count(old_import) == 1
+          assert text.count(old_assert) == 1
+          text = text.replace(old_import, new_import, 1).replace(old_assert, new_assert, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+          new_sha="$(git hash-object "$file")"
+          test "$new_sha" = "908d51e0380dc6284b317f1d4af93b5a85430a5b"
+          rm "$workflow"
+          git diff --check
+          git diff -- "$file"
+          git config user.name "TokenPilot CI"
+          git config user.email "tokenpilot-ci@users.noreply.github.com"
+          git add "$file" "$workflow"
+          git commit -m "对齐 Host Direct Command 当前 Schema 真源"
+          git push origin HEAD:phase6b-schema-patch-staging-20260810
