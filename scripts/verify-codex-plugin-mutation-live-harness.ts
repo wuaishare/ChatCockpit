@@ -39,13 +39,17 @@ const profile: RuntimeProfileDescriptor = {
 
 let installed = false;
 let visibilityLagReadsRemaining = 0;
-let visibilityLagInstalled = false;
+let visibilityLagProjectedInstalled = false;
+let visibilityLagObservedInstalled = false;
 let installCalls = 0;
 let uninstallCalls = 0;
 let skillMutationCalls = 0;
 const observedProviderMethods = new Set<string>();
 
-function pluginProjection(observedInstalled = installed): RuntimePluginProjection {
+function pluginProjection(
+  projectedInstalled = installed,
+  observedInstalled = installed
+): RuntimePluginProjection {
   return {
     id: "fixture-plugin@fixture-marketplace",
     marketplaceName: "fixture-marketplace",
@@ -54,10 +58,10 @@ function pluginProjection(observedInstalled = installed): RuntimePluginProjectio
     name: "fixture-plugin",
     displayName: "Fixture Plugin",
     description: "Fixture Plugin live-proof harness",
-    version: observedInstalled ? "1.0.0" : null,
+    version: projectedInstalled ? "1.0.0" : null,
     availableVersion: "1.0.0",
-    installed: observedInstalled,
-    enabled: observedInstalled,
+    installed: projectedInstalled,
+    enabled: projectedInstalled,
     availability: "AVAILABLE",
     installPolicy: "AVAILABLE",
     installPolicySource: "WORKSPACE_SETTING",
@@ -85,10 +89,15 @@ const runtime = {
   ): Promise<RuntimePluginProjection[]> => {
     observedProviderMethods.add("plugin/installed");
     observedProviderMethods.add("plugin/list");
-    const observedInstalled =
-      visibilityLagReadsRemaining > 0 ? visibilityLagInstalled : installed;
-    if (visibilityLagReadsRemaining > 0) visibilityLagReadsRemaining -= 1;
-    return [pluginProjection(observedInstalled)];
+    const useVisibilityLag = visibilityLagReadsRemaining > 0;
+    const projectedInstalled = useVisibilityLag
+      ? visibilityLagProjectedInstalled
+      : installed;
+    const observedInstalled = useVisibilityLag
+      ? visibilityLagObservedInstalled
+      : installed;
+    if (useVisibilityLag) visibilityLagReadsRemaining -= 1;
+    return [pluginProjection(projectedInstalled, observedInstalled)];
   },
   readCodexResourceConfigSummary:
     async (): Promise<RuntimeResourceConfigSummary> => {
@@ -126,7 +135,8 @@ const pluginMutationAdapter = {
     assert.match(input.expectedFingerprint, /^[a-f0-9]{64}$/);
     assert.equal(installed, false);
     installed = true;
-    visibilityLagInstalled = false;
+    visibilityLagProjectedInstalled = true;
+    visibilityLagObservedInstalled = false;
     visibilityLagReadsRemaining = 2;
     return {
       authPolicy: "ON_USE",
@@ -149,7 +159,8 @@ const pluginMutationAdapter = {
     assert.match(input.expectedFingerprint, /^[a-f0-9]{64}$/);
     assert.equal(installed, true);
     installed = false;
-    visibilityLagInstalled = true;
+    visibilityLagProjectedInstalled = true;
+    visibilityLagObservedInstalled = true;
     visibilityLagReadsRemaining = 2;
   }
 } as unknown as CodexPluginMutationAdapter;
@@ -202,6 +213,21 @@ const formattedFailure = formatCodexPluginMutationProofFailure(
 );
 assert.equal(formattedFailure, "primary=PRIMARY_SAFE_CODE,cleanup=CLEANUP_SAFE_CODE");
 assert.equal(formattedFailure.includes("sensitive"), false);
+
+const stageAwareSource = fs.readFileSync(
+  new URL("./probe-codex-plugin-mutation-live.ts", import.meta.url),
+  "utf8"
+);
+assert.equal(
+  stageAwareSource.includes("new CodexPluginMutationProofStageError(\n      input.operation"),
+  true,
+  "Governed transition failures must retain the Plugin operation stage"
+);
+assert.equal(
+  stageAwareSource.includes("`${role}.${stage}`"),
+  true,
+  "Public-safe Plugin proof errors must include the operation stage without raw provider messages"
+);
 
 const publicJson = JSON.stringify(summary);
 for (const forbidden of [

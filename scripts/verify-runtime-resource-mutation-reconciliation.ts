@@ -58,7 +58,10 @@ function skill(enabled: boolean): RuntimeResourceDescriptor {
   return { ...base, fingerprint: hashRuntimeResource(base) };
 }
 
-function plugin(installed: boolean): RuntimeResourceDescriptor {
+function plugin(
+  installed: boolean,
+  observedInstalled = installed
+): RuntimeResourceDescriptor {
   const base = {
     id: "resource_plugin_reconcile_fixture",
     runtimeProfileId,
@@ -81,7 +84,8 @@ function plugin(installed: boolean): RuntimeResourceDescriptor {
       "plugin:install-policy:available",
       "plugin:auth-policy:on-use",
       "plugin:installation-interstitial:false",
-      "plugin:observed:catalog"
+      "plugin:observed:catalog",
+      ...(observedInstalled ? ["plugin:observed:installed"] : [])
     ],
     publicReason: null
   };
@@ -364,7 +368,7 @@ try {
     });
   };
 
-  let pluginObserved: boolean | "missing" = true;
+  let pluginObserved: boolean | "catalog-installed" | "missing" = true;
   let pluginInventoryCalls = 0;
   const fakePluginInventory = {
     inventory: async (input: {
@@ -377,7 +381,11 @@ try {
       assert.equal(input.workspaceId, workspaceId);
       assert.ok(input.idempotencyKey.startsWith("resource-mutation-reconcile:"));
       const resources =
-        pluginObserved === "missing" ? [] : [plugin(pluginObserved)];
+        pluginObserved === "missing"
+          ? []
+          : pluginObserved === "catalog-installed"
+            ? [plugin(true, false)]
+            : [plugin(pluginObserved)];
       const snapshot = repositories.runtimeResourceSnapshots.create({
         runtimeProfileId,
         providerKind: profile.providerKind,
@@ -446,6 +454,24 @@ try {
     "verified"
   );
   assert.deepEqual(pluginInstallReconciled.execution.observedState, {
+    installed: true
+  });
+
+  const pluginInstallCatalogOnlyExecution = createPluginStuckExecution(
+    "install_catalog_only",
+    "plugin.install",
+    false
+  );
+  pluginObserved = "catalog-installed";
+  const pluginInstallCatalogOnly = await pluginReconciliation.reconcile({
+    executionId: pluginInstallCatalogOnlyExecution.id,
+    idempotencyKey: "reconcile-plugin-install-catalog-only-001"
+  });
+  assert.equal(
+    pluginInstallCatalogOnly.execution.verificationStatus,
+    "failed-verification"
+  );
+  assert.deepEqual(pluginInstallCatalogOnly.execution.observedState, {
     installed: true
   });
 
@@ -530,6 +556,7 @@ try {
     replay,
     mismatch,
     pluginInstallReconciled,
+    pluginInstallCatalogOnly,
     pluginInstallMismatch,
     pluginUninstallReconciled,
     pluginUninstallMissing

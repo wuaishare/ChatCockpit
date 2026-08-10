@@ -42,6 +42,16 @@ const LIVE_CLIENT_TIMEOUT_MS = 60_000;
 
 type PluginOperation = "plugin.install" | "plugin.uninstall";
 
+class CodexPluginMutationProofStageError extends Error {
+  constructor(
+    readonly stage: string,
+    readonly publicCode: string
+  ) {
+    super(`${stage} failed`);
+    this.name = "CodexPluginMutationProofStageError";
+  }
+}
+
 interface CodexResourceRuntime {
   listCodexSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]>;
   listCodexMcpServers(): Promise<RuntimeMcpServerProjection[]>;
@@ -324,15 +334,16 @@ async function governedTransition(input: {
     idempotencyKey: `${input.keyPrefix}:execute`
   });
   if (executed.execution.verificationStatus !== "verified") {
-    throw new ServiceError(
-      executed.execution.errorCode ?? "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED",
-      `${input.operation} did not reach authoritative verified state`
+    throw new CodexPluginMutationProofStageError(
+      input.operation,
+      executed.execution.errorCode ?? "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
     );
   }
   return executed;
 }
 
 function proofErrorCode(error: unknown): string {
+  if (error instanceof CodexPluginMutationProofStageError) return error.publicCode;
   if (error instanceof ServiceError) return error.code;
   if (
     error &&
@@ -346,15 +357,23 @@ function proofErrorCode(error: unknown): string {
   return "UNKNOWN_ERROR";
 }
 
+function proofErrorStage(error: unknown): string | null {
+  return error instanceof CodexPluginMutationProofStageError ? error.stage : null;
+}
+
 export function formatCodexPluginMutationProofFailure(error: unknown): string {
+  const formatEntry = (role: string, entry: unknown): string => {
+    const stage = proofErrorStage(entry);
+    return `${stage ? `${role}.${stage}` : role}=${proofErrorCode(entry)}`;
+  };
   if (error instanceof AggregateError) {
-    const entries = error.errors.map((entry, index) => {
-      const stage = index === 0 ? "primary" : index === 1 ? "cleanup" : `secondary-${index}`;
-      return `${stage}=${proofErrorCode(entry)}`;
-    });
-    return entries.join(",");
+    return error.errors
+      .map((entry, index) =>
+        formatEntry(index === 0 ? "primary" : index === 1 ? "cleanup" : `secondary-${index}`, entry)
+      )
+      .join(",");
   }
-  return `primary=${proofErrorCode(error)}`;
+  return formatEntry("primary", error);
 }
 
 export async function runCodexPluginMutationLiveProof(
@@ -509,9 +528,9 @@ export async function runCodexPluginMutationLiveProof(
               resource.installed === true
           );
           if (driftedInstalled) {
-            throw new ServiceError(
-              "CODEX_PLUGIN_MUTATION_PROOF_CLEANUP_IDENTITY_DRIFT",
-              "Governed cleanup refused a residual Plugin whose source identity drifted after approval"
+            throw new CodexPluginMutationProofStageError(
+              "cleanup.identity",
+              "CODEX_PLUGIN_MUTATION_PROOF_CLEANUP_IDENTITY_DRIFT"
             );
           }
           if (exact?.installed === true) {
@@ -536,9 +555,9 @@ export async function runCodexPluginMutationLiveProof(
             cleanupResource.installed !== false ||
             cleanupResource.fingerprint !== original.fingerprint
           ) {
-            throw new ServiceError(
-              "CODEX_PLUGIN_MUTATION_PROOF_CLEANUP_NOT_RESTORED",
-              "Governed cleanup could not restore the original Codex Plugin Resource state"
+            throw new CodexPluginMutationProofStageError(
+              "cleanup.final",
+              "CODEX_PLUGIN_MUTATION_PROOF_CLEANUP_NOT_RESTORED"
             );
           }
         } catch (cleanupError) {

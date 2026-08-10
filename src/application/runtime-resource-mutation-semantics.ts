@@ -93,7 +93,11 @@ function pluginSemantics(
       return requireBooleanState(resource.installed, "installed") === desired;
     },
     isVerified(resource) {
-      return resource?.installed === desired;
+      if (!resource || resource.installed !== desired) return false;
+      const capabilities = new Set(resource.capabilities);
+      return desired
+        ? capabilities.has("plugin:observed:installed")
+        : capabilities.has("plugin:observed:catalog");
     },
     observedState(resource) {
       return resource ? { installed: resource.installed } : { missing: true };

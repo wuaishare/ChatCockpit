@@ -69,7 +69,10 @@ function resource(enabled: boolean): RuntimeResourceDescriptor {
   return { ...base, fingerprint: hashRuntimeResource(base) };
 }
 
-function pluginResource(installed: boolean): RuntimeResourceDescriptor {
+function pluginResource(
+  installed: boolean,
+  observedInstalled = installed
+): RuntimeResourceDescriptor {
   const base = {
     id: "resource_plugin_mutation_fixture",
     runtimeProfileId,
@@ -92,7 +95,8 @@ function pluginResource(installed: boolean): RuntimeResourceDescriptor {
       "plugin:install-policy:available",
       "plugin:auth-policy:on-use",
       "plugin:installation-interstitial:false",
-      "plugin:observed:catalog"
+      "plugin:observed:catalog",
+      ...(observedInstalled ? ["plugin:observed:installed"] : [])
     ],
     publicReason: null
   };
@@ -129,6 +133,23 @@ assert.equal(skillDisable.isNoop(resource(true)), false);
 assert.equal(skillDisable.isVerified(resource(false)), true);
 assert.equal(pluginInstall.isNoop(pluginResource(false)), false);
 assert.equal(pluginInstall.isVerified(pluginResource(true)), true);
+assert.equal(
+  pluginInstall.isVerified(pluginResource(true, false)),
+  false,
+  "Plugin install verification must wait for plugin/installed lifecycle truth, not catalog-only installed state"
+);
+assert.equal(pluginUninstall.isVerified(pluginResource(false)), true);
+assert.equal(
+  pluginUninstall.isVerified(
+    pluginResourceWith(false, {
+      capabilities: pluginResource(false).capabilities.filter(
+        (capability) => capability !== "plugin:observed:catalog"
+      )
+    })
+  ),
+  false,
+  "Plugin uninstall verification must preserve catalog-backed recovery identity"
+);
 assert.deepEqual(pluginUninstall.observedState(pluginResource(false)), {
   installed: false
 });
@@ -571,6 +592,7 @@ let pluginMutationScenario: "success" | "stale-race" | "error-after-change" = "s
 let pluginStaleExternalDesired = false;
 let pluginPostflightStaleReadsRemaining = 0;
 let pluginPostflightStaleInstalled: boolean | null = null;
+let pluginPostflightStaleObservedInstalled = false;
 const fakePluginInventory = {
   inventory: async (input: {
     runtimeProfileId: string;
@@ -590,7 +612,10 @@ const fakePluginInventory = {
     if (useStalePostflight) pluginPostflightStaleReadsRemaining -= 1;
     const current =
       pluginResourceOverride ??
-      pluginResource(useStalePostflight ? pluginPostflightStaleInstalled! : pluginInstalled);
+      pluginResource(
+        useStalePostflight ? pluginPostflightStaleInstalled! : pluginInstalled,
+        useStalePostflight ? pluginPostflightStaleObservedInstalled : pluginInstalled
+      );
     const snapshot = repositories.runtimeResourceSnapshots.create({
       runtimeProfileId,
       providerKind: profile.providerKind,
@@ -785,7 +810,8 @@ assert.equal(pluginMutationCalls, 2);
 
 pluginInstalled = false;
 pluginPostflightStaleReadsRemaining = 2;
-pluginPostflightStaleInstalled = false;
+pluginPostflightStaleInstalled = true;
+pluginPostflightStaleObservedInstalled = false;
 const pluginConvergenceBefore = pluginResource(false);
 const pluginConvergencePrepared = await pluginService.prepare({
   operation: "plugin.install",
@@ -832,7 +858,8 @@ assert.equal(
 );
 pluginInstalled = false;
 pluginPostflightStaleReadsRemaining = 99;
-pluginPostflightStaleInstalled = false;
+pluginPostflightStaleInstalled = true;
+pluginPostflightStaleObservedInstalled = false;
 const pluginExhaustedBefore = pluginResource(false);
 const pluginExhaustedPrepared = await pluginService.prepare({
   operation: "plugin.install",
@@ -867,7 +894,7 @@ assert.equal(
   "RUNTIME_RESOURCE_MUTATION_VERIFICATION_FAILED"
 );
 assert.deepEqual(pluginExhaustedExecution.execution.observedState, {
-  installed: false,
+  installed: true,
   authPolicy: "ON_USE",
   appsNeedingAuthCount: 0
 });
@@ -887,7 +914,8 @@ pluginPostflightStaleInstalled = null;
 
 pluginMutationScenario = "error-after-change";
 pluginPostflightStaleReadsRemaining = 1;
-pluginPostflightStaleInstalled = false;
+pluginPostflightStaleInstalled = true;
+pluginPostflightStaleObservedInstalled = false;
 const pluginAuthoritativeBefore = pluginResource(false);
 const pluginAuthoritativePrepared = await pluginService.prepare({
   operation: "plugin.install",
