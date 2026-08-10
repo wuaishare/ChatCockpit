@@ -1,3 +1,4 @@
+import type { ActorType } from "../../application/operation-context.js";
 import { ServiceError } from "../../application/service-error.js";
 import type { ContinuityDatabase } from "../database.js";
 import type { RuntimeResourceScope } from "../types.js";
@@ -44,6 +45,12 @@ export interface RuntimeResourceMutationApprovalRecord {
   requestedState: Record<string, unknown>;
   mutationHash: string;
   publicSummary: Record<string, unknown>;
+  requestedActorType: ActorType | null;
+  requestedActorIdentityHash: string | null;
+  requestedRequestIdentityHash: string | null;
+  decidedActorType: ActorType | null;
+  decidedActorIdentityHash: string | null;
+  decidedRequestIdentityHash: string | null;
   status: RuntimeResourceMutationApprovalStatus;
   createdAt: string;
   updatedAt: string;
@@ -69,6 +76,9 @@ export interface RuntimeResourceMutationExecutionRecord {
   providerMethod: RuntimeResourceMutationProviderMethod;
   verificationStatus: RuntimeResourceMutationVerificationStatus;
   errorCode: string | null;
+  executedActorType: ActorType | null;
+  executedActorIdentityHash: string | null;
+  executedRequestIdentityHash: string | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -86,6 +96,12 @@ interface ApprovalRow {
   requested_state_json: string;
   mutation_hash: string;
   public_summary_json: string;
+  requested_actor_type: ActorType | null;
+  requested_actor_identity_hash: string | null;
+  requested_request_identity_hash: string | null;
+  decided_actor_type: ActorType | null;
+  decided_actor_identity_hash: string | null;
+  decided_request_identity_hash: string | null;
   status: RuntimeResourceMutationApprovalStatus;
   created_at: string;
   updated_at: string;
@@ -111,6 +127,9 @@ interface ExecutionRow {
   provider_method: RuntimeResourceMutationProviderMethod;
   verification_status: RuntimeResourceMutationVerificationStatus;
   error_code: string | null;
+  executed_actor_type: ActorType | null;
+  executed_actor_identity_hash: string | null;
+  executed_request_identity_hash: string | null;
   started_at: string;
   finished_at: string | null;
 }
@@ -144,6 +163,12 @@ function approvalFromRow(row: ApprovalRow): RuntimeResourceMutationApprovalRecor
     requestedState: parseObject(row.requested_state_json, "requested state"),
     mutationHash: row.mutation_hash,
     publicSummary: parseObject(row.public_summary_json, "public summary"),
+    requestedActorType: row.requested_actor_type,
+    requestedActorIdentityHash: row.requested_actor_identity_hash,
+    requestedRequestIdentityHash: row.requested_request_identity_hash,
+    decidedActorType: row.decided_actor_type,
+    decidedActorIdentityHash: row.decided_actor_identity_hash,
+    decidedRequestIdentityHash: row.decided_request_identity_hash,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -173,6 +198,9 @@ function executionFromRow(row: ExecutionRow): RuntimeResourceMutationExecutionRe
     providerMethod: row.provider_method,
     verificationStatus: row.verification_status,
     errorCode: row.error_code,
+    executedActorType: row.executed_actor_type,
+    executedActorIdentityHash: row.executed_actor_identity_hash,
+    executedRequestIdentityHash: row.executed_request_identity_hash,
     startedAt: row.started_at,
     finishedAt: row.finished_at
   };

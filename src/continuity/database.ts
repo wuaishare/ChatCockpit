@@ -20,6 +20,7 @@ import { runtimeRecoveryAttemptsMigration } from "./migrations/014-runtime-recov
 import { runtimeResourceInventoryMigration } from "./migrations/015-runtime-resource-inventory.js";
 import { runtimeResourceMutationsMigration } from "./migrations/016-runtime-resource-mutations.js";
 import { governedPluginResourceMutationsMigration } from "./migrations/017-governed-plugin-resource-mutations.js";
+import { runtimeResourceMutationProvenanceMigration } from "./migrations/018-runtime-resource-mutation-provenance.js";
 
 interface ContinuityMigration {
   version: number;
@@ -45,7 +46,8 @@ const migrations: readonly ContinuityMigration[] = [
   runtimeRecoveryAttemptsMigration,
   runtimeResourceInventoryMigration,
   runtimeResourceMutationsMigration,
-  governedPluginResourceMutationsMigration
+  governedPluginResourceMutationsMigration,
+  runtimeResourceMutationProvenanceMigration
 ];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

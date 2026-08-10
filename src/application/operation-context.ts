@@ -1,6 +1,7 @@
 export type ActorType =
   | "local-cli"
   | "local-ui"
+  | "rest-api"
   | "gpt-actions"
   | "remote-mcp"
   | "runner";
