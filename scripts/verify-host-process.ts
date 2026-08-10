@@ -8,7 +8,10 @@ import { HostProcessService } from "../src/application/host-process-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { hostProcessPrepareSchema } from "../src/contracts/host-process.ts";
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildPaths } from "../src/core/paths.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
@@ -2137,7 +2140,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 
 try {
   const repositories = buildContinuityRepositories(database);
-  assert.equal(database.schemaVersion(), 15);
+  assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
   assert.ok(repositories.directProcessSessions);
   assert.ok(repositories.directProcessApprovals);
   assert.ok(repositories.directProcessAudit);
