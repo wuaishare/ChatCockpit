@@ -1,0 +1,58 @@
+name: Phase6B process schema patch staging
+
+on:
+  push:
+    branches:
+      - phase6b-schema-patch-staging-20260810
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact current-schema patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=".github/workflows/phase6b-schema-patch-staging.yml"
+          test "$(git hash-object scripts/verify-host-process.ts)" = "ec53ac0429819113f62beafa65bbaa386304bc24"
+          test "$(git hash-object scripts/verify-durable-host-process.ts)" = "32fb379457c4d235cee339c0c454ac974ea30eb1"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path("scripts/verify-host-process.ts"),
+              Path("scripts/verify-durable-host-process.ts"),
+          ]
+          old_import = 'import { ContinuityDatabase } from "../src/continuity/database.ts";'
+          new_import = '''import {
+            ContinuityDatabase,
+            LATEST_CONTINUITY_SCHEMA_VERSION
+          } from "../src/continuity/database.ts";'''
+          old_assert = "assert.equal(database.schemaVersion(), 15);"
+          new_assert = "assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);"
+          for path in files:
+              text = path.read_text(encoding="utf-8")
+              assert text.count(old_import) == 1, path
+              assert text.count(old_assert) == 1, path
+              text = text.replace(old_import, new_import, 1).replace(old_assert, new_assert, 1)
+              assert old_assert not in text, path
+              path.write_text(text, encoding="utf-8")
+          PY
+          host_new="$(git hash-object scripts/verify-host-process.ts)"
+          durable_new="$(git hash-object scripts/verify-durable-host-process.ts)"
+          test "$host_new" != "ec53ac0429819113f62beafa65bbaa386304bc24"
+          test "$durable_new" != "32fb379457c4d235cee339c0c454ac974ea30eb1"
+          rm "$workflow"
+          git diff --check
+          git diff -- scripts/verify-host-process.ts scripts/verify-durable-host-process.ts
+          git config user.name "TokenPilot CI"
+          git config user.email "tokenpilot-ci@users.noreply.github.com"
+          git add scripts/verify-host-process.ts scripts/verify-durable-host-process.ts "$workflow"
+          git commit -m "对齐 Host Process 当前 Schema 真源" -m "host-process=$host_new durable-host-process=$durable_new"
+          git push origin HEAD:phase6b-schema-patch-staging-20260810
