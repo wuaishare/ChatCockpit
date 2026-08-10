@@ -8,6 +8,16 @@ import type { RuntimeResourceMutationPublicService } from "../src/application/ru
 import type { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildRuntimeResourceMutationMcpTools } from "../src/mcp/tools/runtime-resource-mutations.ts";
+import type {
+  CodingRuntimeAdapter,
+  RuntimeCapabilitySnapshot,
+  RuntimeMcpServerProjection,
+  RuntimePluginProjection,
+  RuntimeResourceConfigSummary,
+  RuntimeSkillProjection
+} from "../src/runtime/codex/runtime-adapter.ts";
+import type { CodexPluginMutationAdapter } from "../src/runtime/resources/codex-plugin-mutation-adapter.ts";
+import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
 
@@ -69,6 +79,274 @@ async function catalogFor(exposureEnabled: boolean, repoRoot: string): Promise<L
   const server = await listenTestServer(app);
   try {
     return await listTools(server.baseUrl);
+  } finally {
+    await server.close();
+  }
+}
+
+const notUsed = async (): Promise<never> => {
+  throw new Error("Runtime Resource MCP mutation fixture method not used");
+};
+
+async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
+  let skillEnabled = true;
+  let skillMutationCalls = 0;
+  const fakeCodex: CodingRuntimeAdapter = {
+    capabilities: async (): Promise<RuntimeCapabilitySnapshot> => ({
+      available: true,
+      runtime: "codex-app-server",
+      binarySource: "chatgpt-app",
+      binaryVersion: "codex-cli mcp-mutation-fixture",
+      protocolFamily: "app-server-v2",
+      serverProtocolVersion: "2.0",
+      stableMethods: ["thread/list", "thread/read", "thread/resume", "thread/fork"],
+      experimentalApiEnabled: false,
+      standaloneExecution: null
+    }),
+    listThreads: notUsed,
+    readThread: notUsed,
+    resumeThread: notUsed,
+    forkThread: notUsed,
+    startTurn: notUsed,
+    interruptTurn: async () => {
+      throw new Error("not used");
+    },
+    listSkills: async (): Promise<RuntimeSkillProjection[]> => [
+      {
+        name: "mcp-mutation-skill",
+        description: "MCP mutation fixture Skill",
+        scope: "user",
+        enabled: skillEnabled,
+        displayName: "MCP Mutation Skill",
+        shortDescription: "MCP mutation fixture",
+        brandColor: null
+      }
+    ],
+    listMcpServers: async (): Promise<RuntimeMcpServerProjection[]> => [],
+    listPlugins: async (): Promise<RuntimePluginProjection[]> => [],
+    readResourceConfigSummary: async (): Promise<RuntimeResourceConfigSummary> => ({
+      loaded: true,
+      modelProviderConfigured: true,
+      sandboxModeConfigured: true,
+      desktopConfigPresent: true
+    }),
+    readStandaloneFile: notUsed,
+    writeStandaloneFile: async () => {
+      throw new Error("not used");
+    },
+    listStandaloneDirectory: notUsed,
+    executeStandaloneCommand: notUsed,
+    respondToServerRequest: async () => {
+      throw new Error("not used");
+    },
+    rejectServerRequest: async () => {
+      throw new Error("not used");
+    },
+    setEventSink: () => undefined,
+    close: async () => undefined
+  };
+  const fakeSkillMutation = {
+    setEnabled: async (input: { desiredEnabled: boolean }) => {
+      skillMutationCalls += 1;
+      skillEnabled = input.desiredEnabled;
+      return { effectiveEnabled: skillEnabled };
+    }
+  } as unknown as CodexSkillMutationAdapter;
+  const fakePluginMutation = {
+    install: async () => {
+      throw new Error("MCP mutation fixture must not install a Plugin");
+    },
+    uninstall: async () => {
+      throw new Error("MCP mutation fixture must not uninstall a Plugin");
+    }
+  } as unknown as CodexPluginMutationAdapter;
+
+  const app = buildServer(buildPaths(repoRoot), {
+    codexAdapter: fakeCodex,
+    codexSkillMutationAdapter: fakeSkillMutation,
+    codexPluginMutationAdapter: fakePluginMutation,
+    acpRegistryAdapter: null
+  });
+  const server = await listenTestServer(app);
+  let rpcId = 100;
+  try {
+    const rest = async <T>(method: "GET" | "POST", route: string, body?: unknown) => {
+      const response = await fetch(`${server.baseUrl}${route}`, {
+        method,
+        headers: {
+          authorization: "Bearer runtime-resource-mcp-mutation-fixture-token",
+          ...(body === undefined ? {} : { "content-type": "application/json" })
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) })
+      });
+      const payload = (await response.json()) as T & {
+        error?: { code: string; message: string };
+      };
+      assert.equal(
+        response.ok,
+        true,
+        `${method} ${route} failed: ${JSON.stringify(payload)}`
+      );
+      return payload;
+    };
+    const mcp = async <T>(name: string, args: Record<string, unknown>): Promise<T> => {
+      const response = await fetch(`${server.baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          accept: "application/json, text/event-stream",
+          authorization: "Bearer runtime-resource-mcp-mutation-fixture-token",
+          "content-type": "application/json",
+          "mcp-protocol-version": "2025-06-18"
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: rpcId++,
+          method: "tools/call",
+          params: { name, arguments: args }
+        })
+      });
+      assert.equal(response.status, 200);
+      const message = parseMcpResponse(await response.text()) as {
+        result?: {
+          isError?: boolean;
+          structuredContent?: T & { error?: { code?: string; message?: string } };
+        };
+        error?: unknown;
+      };
+      assert.equal(message.error, undefined, JSON.stringify(message.error));
+      assert.equal(
+        message.result?.isError,
+        undefined,
+        `MCP ${name} failed: ${JSON.stringify(message.result?.structuredContent)}`
+      );
+      assert.ok(message.result?.structuredContent);
+      return message.result.structuredContent;
+    };
+
+    const projects = await rest<{
+      projects: Array<{ workspaces: Array<{ id: string }> }>;
+    }>("GET", "/api/continuity/projects");
+    const workspace = projects.projects[0]!.workspaces[0]!;
+    const profiles = await rest<{
+      profiles: Array<{ id: string; providerKind: string }>;
+    }>("GET", "/api/resources/runtime-profiles");
+    const profile = profiles.profiles.find((entry) => entry.providerKind === "codex")!;
+    const inventory = await rest<{
+      snapshot: { id: string };
+      resources: Array<{
+        id: string;
+        kind: string;
+        enabled: boolean | null;
+        fingerprint: string;
+      }>;
+    }>("POST", "/api/resources/inventory", {
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      idempotencyKey: "mcp-cross-surface-inventory-0001"
+    });
+    const skill = inventory.resources.find((resource) => resource.kind === "skill")!;
+    assert.equal(skill.enabled, true);
+
+    const prepared = await mcp<{
+      ok: true;
+      approval: {
+        id: string;
+        status: string;
+        revision: number;
+        requestedActor: { type: string } | null;
+        decidedActor: { type: string } | null;
+      };
+      replayed: boolean;
+    }>("tokenpilot.resources.mutation.prepare", {
+      operation: "skill.disable",
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedSnapshotId: inventory.snapshot.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "mcp-cross-surface-prepare-0001"
+    });
+    assert.equal(prepared.replayed, false);
+    assert.equal(prepared.approval.status, "pending");
+    assert.equal(prepared.approval.requestedActor?.type, "remote-mcp");
+    assert.equal(prepared.approval.decidedActor, null);
+    assert.equal(skillMutationCalls, 0);
+
+    const decision = await rest<{
+      approval: {
+        id: string;
+        status: string;
+        revision: number;
+        requestedActor: { type: string } | null;
+        decidedActor: { type: string } | null;
+      };
+    }>("POST", "/api/resources/mutations/decision", {
+      approvalId: prepared.approval.id,
+      expectedRevision: prepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "mcp-cross-surface-decision-0001"
+    });
+    assert.equal(decision.approval.status, "approved");
+    assert.equal(decision.approval.requestedActor?.type, "remote-mcp");
+    assert.equal(decision.approval.decidedActor?.type, "rest-api");
+    assert.equal(skillMutationCalls, 0);
+
+    const executeBody = {
+      approvalId: decision.approval.id,
+      expectedApprovalRevision: decision.approval.revision,
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      resourceId: skill.id,
+      expectedFingerprint: skill.fingerprint,
+      idempotencyKey: "mcp-cross-surface-execute-0001"
+    };
+    const executed = await mcp<{
+      execution: {
+        id: string;
+        verificationStatus: string;
+        executedActor: { type: string } | null;
+      };
+      replayed: boolean;
+    }>("tokenpilot.resources.mutation.execute", executeBody);
+    assert.equal(executed.replayed, false);
+    assert.equal(executed.execution.verificationStatus, "verified");
+    assert.equal(executed.execution.executedActor?.type, "remote-mcp");
+    assert.equal(skillMutationCalls, 1);
+    assert.equal(skillEnabled, false);
+
+    const replay = await mcp<typeof executed>(
+      "tokenpilot.resources.mutation.execute",
+      executeBody
+    );
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.execution.id, executed.execution.id);
+    assert.equal(skillMutationCalls, 1);
+
+    const inspected = await mcp<{
+      execution: {
+        id: string;
+        verificationStatus: string;
+        executedActor: { type: string } | null;
+      };
+    }>("tokenpilot.resources.mutation.inspect", {
+      target: "execution",
+      workspaceId: workspace.id,
+      executionId: executed.execution.id
+    });
+    assert.equal(inspected.execution.id, executed.execution.id);
+    assert.equal(inspected.execution.executedActor?.type, "remote-mcp");
+
+    const refreshed = await rest<{
+      resources: Array<{ id: string; enabled: boolean | null }>;
+    }>("POST", "/api/resources/inventory", {
+      runtimeProfileId: profile.id,
+      workspaceId: workspace.id,
+      idempotencyKey: "mcp-cross-surface-inventory-after-0001"
+    });
+    assert.equal(
+      refreshed.resources.find((resource) => resource.id === skill.id)?.enabled,
+      false
+    );
   } finally {
     await server.close();
   }
@@ -152,7 +430,7 @@ fs.writeFileSync(
     {
       workspaceAllowlist: [repoRoot],
       repoMappings: {
-        fixture: { path: repoRoot }
+        tokenpilot: { path: repoRoot }
       }
     },
     null,
@@ -228,6 +506,8 @@ try {
     idempotentHint: true,
     openWorldHint: true
   });
+
+  await runHttpCrossSurfaceFixture(repoRoot);
 } finally {
   if (previous.configPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
   else process.env.TOKENPILOT_CONFIG_PATH = previous.configPath;
