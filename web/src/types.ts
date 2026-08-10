@@ -780,6 +780,94 @@ export type RuntimeResourceSourceKind =
   | "runtime-native"
   | "tokenpilot-local"
   | "acp-registry";
+export type RuntimeResourceMutationOperation =
+  | "skill.enable"
+  | "skill.disable"
+  | "plugin.install"
+  | "plugin.uninstall";
+export type RuntimeResourceMutationApprovalStatus =
+  | "pending"
+  | "approved"
+  | "denied"
+  | "expired"
+  | "stale"
+  | "consumed";
+export type RuntimeResourceMutationVerificationStatus =
+  | "executing"
+  | "verified"
+  | "failed-external"
+  | "failed-verification"
+  | "stale";
+export type RuntimeResourceMutationActorType =
+  | "local-cli"
+  | "local-ui"
+  | "rest-api"
+  | "gpt-actions"
+  | "remote-mcp"
+  | "runner";
+
+export interface RuntimeResourceMutationEligibility {
+  operation: RuntimeResourceMutationOperation;
+  eligible: boolean;
+  code: string;
+  stage: "eligible" | "platform" | "state" | "policy";
+  publicReason: string;
+}
+
+export interface RuntimeResourceMutationEligibilityEntry {
+  resourceId: string;
+  snapshotId: string;
+  operations: RuntimeResourceMutationEligibility[];
+}
+
+export interface RuntimeResourceMutationActor {
+  type: RuntimeResourceMutationActorType;
+  identityHash: string | null;
+}
+
+export interface RuntimeResourceMutationApproval {
+  id: string;
+  operation: RuntimeResourceMutationOperation;
+  runtimeProfileId: string;
+  workspaceId: string;
+  resourceId: string;
+  resourceKind: "skill" | "plugin";
+  resourceScope: RuntimeResourceScope;
+  beforeSnapshotId: string;
+  beforeFingerprint: string;
+  requestedState: Record<string, boolean>;
+  publicSummary: Record<string, string | boolean>;
+  requestedActor: RuntimeResourceMutationActor | null;
+  decidedActor: RuntimeResourceMutationActor | null;
+  status: RuntimeResourceMutationApprovalStatus;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  consumedAt: string | null;
+  revision: number;
+}
+
+export interface RuntimeResourceMutationExecution {
+  id: string;
+  approvalId: string;
+  operation: RuntimeResourceMutationOperation;
+  runtimeProfileId: string;
+  workspaceId: string;
+  resourceId: string;
+  beforeSnapshotId: string;
+  beforeFingerprint: string;
+  afterSnapshotId: string | null;
+  afterFingerprint: string | null;
+  requestedState: Record<string, boolean>;
+  observedState: Record<string, string | number | boolean> | null;
+  providerMethod: "skills/config/write" | "plugin/install" | "plugin/uninstall";
+  verificationStatus: RuntimeResourceMutationVerificationStatus;
+  errorCode: string | null;
+  executedActor: RuntimeResourceMutationActor | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
 
 export interface RuntimeProfileDescriptor {
   id: string;
@@ -878,6 +966,7 @@ export interface RuntimeResourceInventoryResponse {
   snapshot: RuntimeResourceSnapshot;
   profile: RuntimeProfileDescriptor;
   resources: RuntimeResourceDescriptor[];
+  mutationEligibility: RuntimeResourceMutationEligibilityEntry[];
   diagnostics: RuntimeResourceInventoryDiagnostic[];
   diff: RuntimeResourceDiff;
   replayed: boolean;
@@ -892,4 +981,23 @@ export interface RuntimeResourceInspectResponse {
   ok: true;
   snapshot: RuntimeResourceSnapshot;
   resource: RuntimeResourceDescriptor;
+}
+
+export interface RuntimeResourceMutationApprovalResponse {
+  ok: true;
+  approval: RuntimeResourceMutationApproval;
+  replayed: boolean;
+}
+
+export interface RuntimeResourceMutationExecuteResponse {
+  ok: true;
+  approval: RuntimeResourceMutationApproval;
+  execution: RuntimeResourceMutationExecution;
+  replayed: boolean;
+}
+
+export interface RuntimeResourceMutationActivityResponse {
+  ok: true;
+  approvals: RuntimeResourceMutationApproval[];
+  executions: RuntimeResourceMutationExecution[];
 }

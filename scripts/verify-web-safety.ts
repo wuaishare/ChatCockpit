@@ -336,6 +336,14 @@ const resourceCenterSource = fs.readFileSync(
   "utf8"
 );
 const apiSource = fs.readFileSync(path.join(repoRoot, "web/src/api.ts"), "utf8");
+const resourceTypesSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/types.ts"),
+  "utf8"
+);
+const resourceCopySource = fs.readFileSync(
+  path.join(repoRoot, "web/src/i18n/resources.ts"),
+  "utf8"
+);
 
 for (const section of [
   "projects",
@@ -375,6 +383,43 @@ for (const operation of [
 assert.match(apiSource, /\/api\/resources\/runtime-profiles/);
 assert.match(apiSource, /\/api\/resources\/inventory/);
 assert.match(apiSource, /\/api\/resources\/items\//);
+for (const mutationOperation of [
+  "prepareRuntimeResourceMutation",
+  "decideRuntimeResourceMutation",
+  "executeRuntimeResourceMutation",
+  "fetchRuntimeResourceMutationActivity"
+]) {
+  assert.match(apiSource, new RegExp(mutationOperation));
+}
+for (const mutationRoute of [
+  "/api/resources/mutations/prepare",
+  "/api/resources/mutations/decision",
+  "/api/resources/mutations/execute",
+  "/api/resources/mutations/activity"
+]) {
+  assert.equal(apiSource.includes(mutationRoute), true);
+}
+assert.match(resourceTypesSource, /RuntimeResourceMutationApproval/);
+assert.match(resourceTypesSource, /RuntimeResourceMutationExecution/);
+assert.match(resourceTypesSource, /mutationEligibility/);
+for (const forbiddenPublicField of [
+  "mutationHash",
+  "requestedRequestIdentityHash",
+  "decidedRequestIdentityHash",
+  "executedRequestIdentityHash",
+  "remotePluginId",
+  "remoteMarketplaceName",
+  "marketplacePath",
+  "installUrl"
+]) {
+  assert.equal(resourceTypesSource.includes(forbiddenPublicField), false);
+  assert.equal(apiSource.includes(forbiddenPublicField), false);
+}
+assert.match(resourceCopySource, /受治理变更/);
+assert.match(resourceCopySource, /Governed changes/);
+assert.match(resourceCopySource, /authoritative refresh/);
+assert.match(resourceCopySource, /TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED/);
+assert.doesNotMatch(resourceCopySource, /Phase 6A 不执行安装|Phase 6A performs no install/);
 assert.match(resourceCenterSource, /copy\.profilesTitle/);
 assert.match(resourceCenterSource, /resource-center__profile-card/);
 assert.match(resourceCenterSource, /selectedWorkspaceId/);

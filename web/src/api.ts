@@ -25,6 +25,10 @@ import type {
   RuntimeRecoveryExecuteResponse,
   RuntimeResourceInspectResponse,
   RuntimeResourceInventoryResponse,
+  RuntimeResourceMutationActivityResponse,
+  RuntimeResourceMutationApprovalResponse,
+  RuntimeResourceMutationExecuteResponse,
+  RuntimeResourceMutationOperation,
   RuntimeResourceProfilesResponse,
   RuntimeResourceSnapshotResponse,
   SetupStatusResponse,
@@ -254,6 +258,78 @@ export async function fetchRuntimeResourceItem(
 ): Promise<RuntimeResourceInspectResponse> {
   return requestJson<RuntimeResourceInspectResponse>(
     `/api/resources/items/${encodeURIComponent(resourceId)}`,
+    token
+  );
+}
+
+export async function prepareRuntimeResourceMutation(
+  payload: {
+    operation: RuntimeResourceMutationOperation;
+    runtimeProfileId: string;
+    workspaceId: string;
+    resourceId: string;
+    expectedFingerprint: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<RuntimeResourceMutationApprovalResponse> {
+  return postBodyJson<RuntimeResourceMutationApprovalResponse>(
+    "/api/resources/mutations/prepare",
+    payload,
+    token
+  );
+}
+
+export async function decideRuntimeResourceMutation(
+  payload: {
+    approvalId: string;
+    expectedRevision: number;
+    decision: "approved" | "denied";
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<RuntimeResourceMutationApprovalResponse> {
+  return postBodyJson<RuntimeResourceMutationApprovalResponse>(
+    "/api/resources/mutations/decision",
+    payload,
+    token
+  );
+}
+
+export async function executeRuntimeResourceMutation(
+  payload: {
+    approvalId: string;
+    expectedApprovalRevision: number;
+    runtimeProfileId: string;
+    workspaceId: string;
+    resourceId: string;
+    expectedFingerprint: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<RuntimeResourceMutationExecuteResponse> {
+  return postBodyJson<RuntimeResourceMutationExecuteResponse>(
+    "/api/resources/mutations/execute",
+    payload,
+    token
+  );
+}
+
+export async function fetchRuntimeResourceMutationActivity(
+  input: {
+    workspaceId: string;
+    resourceId?: string;
+    approvalStatus?: string;
+    limit?: number;
+  },
+  token?: string | null
+): Promise<RuntimeResourceMutationActivityResponse> {
+  const query = new URLSearchParams({ workspaceId: input.workspaceId });
+  if (input.resourceId) query.set("resourceId", input.resourceId);
+  if (input.approvalStatus) query.set("approvalStatus", input.approvalStatus);
+  if (typeof input.limit === "number") query.set("limit", String(input.limit));
+  return requestJson<RuntimeResourceMutationActivityResponse>(
+    `/api/resources/mutations/activity?${query.toString()}`,
     token
   );
 }
