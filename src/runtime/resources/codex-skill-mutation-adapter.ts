@@ -22,6 +22,11 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function bounded(value: string | null | undefined, max: number): string | null {
+  if (!value) return null;
+  return value.length <= max ? value : value.slice(0, max);
+}
+
 function publicScope(scope: string | null): RuntimeResourceDescriptor["scope"] {
   if (scope === "user") return "user";
   if (["workspace", "project", "repo", "repository"].includes(scope ?? "")) {
@@ -38,6 +43,8 @@ interface PrivateSkillTarget {
   name: string;
   scope: RuntimeResourceDescriptor["scope"];
   enabled: boolean;
+  displayName: string;
+  description: string | null;
 }
 
 export interface CodexSkillMutationInput {
@@ -170,6 +177,7 @@ export class CodexSkillMutationAdapter {
         ) {
           continue;
         }
+        const interfaceInfo = asRecord(skill.interface);
         const scope = publicScope(
           typeof skill.scope === "string" ? skill.scope : null
         );
@@ -177,6 +185,21 @@ export class CodexSkillMutationAdapter {
           .update(skill.path, "utf8")
           .digest("hex");
         const externalId = `skill:${scope}:${skill.name}`;
+        const displayName =
+          bounded(
+            typeof interfaceInfo.displayName === "string"
+              ? interfaceInfo.displayName
+              : skill.name,
+            200
+          ) ?? "Unnamed Skill";
+        const description = bounded(
+          typeof interfaceInfo.shortDescription === "string"
+            ? interfaceInfo.shortDescription
+            : typeof skill.description === "string"
+              ? skill.description
+              : null,
+          1000
+        );
         targets.push({
           resourceId: buildRuntimeResourceId({
             runtimeProfileId: profile.id,
@@ -187,7 +210,9 @@ export class CodexSkillMutationAdapter {
           path: skill.path,
           name: skill.name,
           scope,
-          enabled: skill.enabled !== false
+          enabled: skill.enabled !== false,
+          displayName,
+          description
         });
       }
     }
@@ -204,8 +229,8 @@ export class CodexSkillMutationAdapter {
       runtimeProfileId: profile.id,
       kind: "skill" as const,
       externalId,
-      displayName: target.name,
-      description: null,
+      displayName: target.displayName,
+      description: target.description,
       scope: target.scope,
       installed: true,
       enabled: target.enabled,
