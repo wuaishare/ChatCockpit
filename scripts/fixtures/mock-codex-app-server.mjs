@@ -248,6 +248,8 @@ input.on("line", (line) => {
                 enabled: true,
                 availability: "AVAILABLE",
                 installPolicy: "AVAILABLE",
+                installPolicySource: "WORKSPACE_SETTING",
+                mustShowInstallationInterstitial: false,
                 authPolicy: "ON_USE",
                 source: {
                   type: "local",
@@ -269,6 +271,8 @@ input.on("line", (line) => {
                 enabled: true,
                 availability: "AVAILABLE",
                 installPolicy: "AVAILABLE",
+                installPolicySource: "WORKSPACE_SETTING",
+                mustShowInstallationInterstitial: null,
                 authPolicy: "ON_USE",
                 source: {
                   type: "local",
@@ -304,6 +308,8 @@ input.on("line", (line) => {
                 enabled: true,
                 availability: "AVAILABLE",
                 installPolicy: "AVAILABLE",
+                installPolicySource: "WORKSPACE_SETTING",
+                mustShowInstallationInterstitial: false,
                 authPolicy: "ON_USE",
                 source: {
                   type: "local",
@@ -325,6 +331,8 @@ input.on("line", (line) => {
                 enabled: false,
                 availability: "AVAILABLE",
                 installPolicy: "AVAILABLE",
+                installPolicySource: "WORKSPACE_SETTING",
+                mustShowInstallationInterstitial: true,
                 authPolicy: "ON_INSTALL",
                 source: {
                   type: "local",

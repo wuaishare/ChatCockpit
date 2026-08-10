@@ -66,9 +66,10 @@ function pluginSourceType(value: unknown): RuntimePluginProjection["sourceType"]
   return "unknown";
 }
 
-function pluginSourceIdentityHash(
+export function codexPluginSourceIdentityHash(
   marketplace: Record<string, unknown>,
-  sourceValue: unknown
+  sourceValue: unknown,
+  remotePluginIdValue: unknown = null
 ): string | null {
   const marketplaceIdentity =
     typeof marketplace.path === "string" && marketplace.path
@@ -96,6 +97,11 @@ function pluginSourceIdentityHash(
       typeof source.version === "string" ? source.version : null;
     sourceIdentity.registry =
       typeof source.registry === "string" ? source.registry : null;
+  } else if (sourceType === "remote") {
+    sourceIdentity.remotePluginId =
+      typeof remotePluginIdValue === "string" && remotePluginIdValue
+        ? remotePluginIdValue
+        : null;
   }
 
   return createHash("sha256")
@@ -109,7 +115,7 @@ function pluginSourceIdentityHash(
     .digest("hex");
 }
 
-function normalizePluginResponse(
+export function normalizeCodexPluginResponse(
   value: unknown,
   observedBy: "installed" | "catalog"
 ): RuntimePluginProjection[] {
@@ -126,9 +132,10 @@ function normalizePluginResponse(
       : [];
     for (const rawPlugin of rawPlugins) {
       const plugin = asRecord(rawPlugin);
-      const sourceIdentityHash = pluginSourceIdentityHash(
+      const sourceIdentityHash = codexPluginSourceIdentityHash(
         marketplace,
-        plugin.source
+        plugin.source,
+        plugin.remotePluginId
       );
       if (typeof plugin.id !== "string" || !plugin.id) continue;
       const name =
@@ -167,6 +174,14 @@ function normalizePluginResponse(
           typeof plugin.availability === "string" ? plugin.availability : null,
         installPolicy:
           typeof plugin.installPolicy === "string" ? plugin.installPolicy : null,
+        installPolicySource:
+          typeof plugin.installPolicySource === "string"
+            ? plugin.installPolicySource
+            : null,
+        mustShowInstallationInterstitial:
+          typeof plugin.mustShowInstallationInterstitial === "boolean"
+            ? plugin.mustShowInstallationInterstitial
+            : null,
         authPolicy:
           typeof plugin.authPolicy === "string" ? plugin.authPolicy : null,
         category:
@@ -179,7 +194,7 @@ function normalizePluginResponse(
   return plugins;
 }
 
-function mergePluginProjections(
+export function mergeCodexPluginProjections(
   installed: RuntimePluginProjection[],
   catalog: RuntimePluginProjection[]
 ): RuntimePluginProjection[] {
@@ -218,6 +233,11 @@ function mergePluginProjections(
       enabled: existing.installed ? existing.enabled : plugin.enabled,
       availability: plugin.availability ?? existing.availability,
       installPolicy: plugin.installPolicy ?? existing.installPolicy,
+      installPolicySource:
+        plugin.installPolicySource ?? existing.installPolicySource,
+      mustShowInstallationInterstitial:
+        plugin.mustShowInstallationInterstitial ??
+        existing.mustShowInstallationInterstitial,
       authPolicy: plugin.authPolicy ?? existing.authPolicy,
       category: plugin.category ?? existing.category,
       capabilities: [...new Set([...existing.capabilities, ...plugin.capabilities])].sort(),
@@ -451,9 +471,9 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       client.request<unknown>("plugin/installed", installedParams),
       client.request<unknown>("plugin/list", catalogParams)
     ]);
-    return mergePluginProjections(
-      normalizePluginResponse(installedResponse, "installed"),
-      normalizePluginResponse(catalogResponse, "catalog")
+    return mergeCodexPluginProjections(
+      normalizeCodexPluginResponse(installedResponse, "installed"),
+      normalizeCodexPluginResponse(catalogResponse, "catalog")
     );
   }
 

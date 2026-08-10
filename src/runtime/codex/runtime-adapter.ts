@@ -161,6 +161,8 @@ export interface RuntimePluginProjection {
   enabled: boolean;
   availability: string | null;
   installPolicy: string | null;
+  installPolicySource: string | null;
+  mustShowInstallationInterstitial: boolean | null;
   authPolicy: string | null;
   category: string | null;
   capabilities: string[];

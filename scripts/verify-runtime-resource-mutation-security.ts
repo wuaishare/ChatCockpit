@@ -26,18 +26,33 @@ function readTree(relativeRoot: string): string {
   return chunks.join("\n");
 }
 
-const adapter = readFile("src/runtime/resources/codex-skill-mutation-adapter.ts");
+const skillAdapter = readFile("src/runtime/resources/codex-skill-mutation-adapter.ts");
+const pluginAdapter = readFile("src/runtime/resources/codex-plugin-mutation-adapter.ts");
 const service = readFile("src/application/runtime-resource-mutation-service.ts");
 const reconciliation = readFile(
   "src/application/runtime-resource-mutation-reconciliation-service.ts"
 );
 const liveProof = readFile("scripts/probe-codex-skill-mutation-live.ts");
-const mutationKernel = `${adapter}\n${service}`;
+const mutationKernel = `${skillAdapter}\n${pluginAdapter}\n${service}`;
 
-const providerMethods = [...adapter.matchAll(/client\.request<unknown>\(\s*"([^"]+)"/g)]
+const skillProviderMethods = [
+  ...skillAdapter.matchAll(/client\.request<unknown>\(\s*"([^"]+)"/g)
+]
   .map((match) => match[1]!)
   .sort();
-assert.deepEqual(providerMethods, ["skills/config/write", "skills/list"]);
+assert.deepEqual(skillProviderMethods, ["skills/config/write", "skills/list"]);
+
+const pluginProviderMethods = [
+  ...pluginAdapter.matchAll(/client\.request<unknown>\(\s*"([^"]+)"/g)
+]
+  .map((match) => match[1]!)
+  .sort();
+assert.deepEqual(pluginProviderMethods, [
+  "plugin/install",
+  "plugin/installed",
+  "plugin/list",
+  "plugin/uninstall"
+]);
 
 for (const forbiddenMethod of [
   "turn/start",
@@ -46,20 +61,24 @@ for (const forbiddenMethod of [
   "marketplace/remove",
   "marketplace/upgrade",
   "mcpServer/oauth/login",
-  "plugin/install",
-  "plugin/uninstall"
+  "plugin/search"
 ]) {
   assert.equal(
     mutationKernel.includes(`"${forbiddenMethod}"`),
     false,
-    `Phase 6B1 mutation kernel must not call ${forbiddenMethod}`
+    `Phase 6B2B mutation kernel must not call ${forbiddenMethod}`
   );
 }
 
 assert.equal(
   reconciliation.includes("CodexSkillMutationAdapter"),
   false,
-  "Reconciliation must not depend on the provider mutation adapter"
+  "Reconciliation must not depend on the Skill provider mutation adapter"
+);
+assert.equal(
+  reconciliation.includes("CodexPluginMutationAdapter"),
+  false,
+  "Reconciliation must not depend on the Plugin provider mutation adapter"
 );
 assert.equal(
   reconciliation.includes("CodexAppServerClient"),
@@ -70,6 +89,16 @@ assert.equal(
   reconciliation.includes(".setEnabled("),
   false,
   "Reconciliation must never replay a Skill mutation"
+);
+assert.equal(
+  reconciliation.includes(".install("),
+  false,
+  "Reconciliation must never replay a Plugin install"
+);
+assert.equal(
+  reconciliation.includes(".uninstall("),
+  false,
+  "Reconciliation must never replay a Plugin uninstall"
 );
 
 assert.equal(
@@ -131,19 +160,25 @@ for (const forbiddenSurface of [
   assert.equal(
     externalSurfaces.includes(forbiddenSurface),
     false,
-    `Phase 6B1 internal kernel must not expose ${forbiddenSurface}`
+    `Phase 6B2B internal kernel must not expose ${forbiddenSurface}`
   );
 }
 
+const repositorySource = readFile(
+  "src/continuity/repositories/runtime-resource-mutation-repository.ts"
+);
+const persistenceAndPublicMutationLayer = `${service}\n${repositorySource}`;
 for (const publicLeak of [
   "authorizationUrl",
   "rawConfig",
-  "marketplacePath"
+  "marketplacePath",
+  "remoteMarketplaceName",
+  "installUrl"
 ]) {
   assert.equal(
-    service.includes(publicLeak),
+    persistenceAndPublicMutationLayer.includes(publicLeak),
     false,
-    `Mutation service must not persist or project ${publicLeak}`
+    `Mutation persistence/public layer must not persist or project ${publicLeak}`
   );
 }
 

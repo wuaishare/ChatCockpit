@@ -42,6 +42,8 @@ function fixturePlugin(
     enabled: true,
     availability: "AVAILABLE",
     installPolicy: "AVAILABLE",
+    installPolicySource: "WORKSPACE_SETTING",
+    mustShowInstallationInterstitial: false,
     authPolicy: "ON_USE",
     category: "Engineering",
     capabilities: ["Write", "Read"],
@@ -106,7 +108,9 @@ assert.equal(mcp.description?.includes("4 tools"), true);
 assert.equal(plugin.updateStatus, "update-available");
 assert.deepEqual(plugin.capabilities, [
   "plugin:auth-policy:on-use",
+  "plugin:install-policy-source:workspace-setting",
   "plugin:install-policy:available",
+  "plugin:installation-interstitial:false",
   "plugin:observed:catalog",
   "plugin:observed:installed",
   "plugin:read",
@@ -322,6 +326,9 @@ assert.equal(
 for (const drift of [
   { sourceType: "remote" as const },
   { installPolicy: "INSTALLED_BY_DEFAULT" },
+  { installPolicySource: "IMPLICIT_CANONICAL_APP" },
+  { mustShowInstallationInterstitial: true },
+  { mustShowInstallationInterstitial: null },
   { authPolicy: "ON_INSTALL" }
 ]) {
   const driftAdapter = new CodexResourceInventoryAdapter({

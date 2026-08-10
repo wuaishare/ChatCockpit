@@ -19,6 +19,7 @@ import type {
   RuntimeSkillListInput,
   RuntimeSkillProjection
 } from "../codex/runtime-adapter.js";
+import { buildCodexPluginResourceDescriptor } from "./codex-plugin-resource-projector.js";
 
 interface CodexResourceInventoryRuntime {
   listCodexSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]>;
@@ -60,16 +61,6 @@ function mcpAuthStatus(
   if (/bearer|oauth|authenticated|ready/i.test(status)) return "ready";
   if (/required|unauth|login|not.?logged|needs/i.test(status)) return "required";
   if (status === "unknown") return "unknown";
-  return "unknown";
-}
-
-function pluginUpdateStatus(
-  plugin: RuntimePluginProjection
-): RuntimeResourceDescriptor["updateStatus"] {
-  if (!plugin.installed) return "not-applicable";
-  if (plugin.version && plugin.availableVersion) {
-    return plugin.version === plugin.availableVersion ? "current" : "update-available";
-  }
   return "unknown";
 }
 
@@ -369,58 +360,7 @@ export class CodexResourceInventoryAdapter
       }
 
       for (const plugin of pluginsResult.value) {
-        const externalId = `plugin:${plugin.id}`;
-        const identityExternalId = plugin.sourceIdentityHash
-          ? `${externalId}:source:${plugin.sourceIdentityHash}`
-          : externalId;
-        const available = plugin.availability === null || plugin.availability === "AVAILABLE";
-        const policyCapabilities = [
-          `plugin:source:${plugin.sourceType ?? "unknown"}`,
-          ...(plugin.installPolicy
-            ? [`plugin:install-policy:${plugin.installPolicy.toLowerCase().replaceAll("_", "-")}`]
-            : []),
-          ...(plugin.authPolicy
-            ? [`plugin:auth-policy:${plugin.authPolicy.toLowerCase().replaceAll("_", "-")}`]
-            : []),
-          ...(plugin.observedBy ?? []).map(
-            (source) => `plugin:observed:${source}`
-          )
-        ];
-        const base: ResourceWithoutFingerprint = {
-          id: buildRuntimeResourceId({
-            runtimeProfileId: input.profile.id,
-            kind: "plugin",
-            externalId: identityExternalId
-          }),
-          runtimeProfileId: input.profile.id,
-          kind: "plugin",
-          externalId: bounded(externalId, 300) ?? externalId,
-          displayName: bounded(plugin.displayName, 200) ?? "Unnamed Plugin",
-          description: bounded(plugin.description, 1000),
-          scope: "runtime",
-          installed: plugin.installed,
-          enabled: plugin.enabled,
-          version: bounded(plugin.version, 200),
-          availableVersion: bounded(plugin.availableVersion, 200),
-          updateStatus: pluginUpdateStatus(plugin),
-          authStatus: plugin.authPolicy ? "unknown" : "not-applicable",
-          compatibilityStatus: available ? "ready" : "blocked",
-          sourceKind: "runtime-native",
-          sourceLabel: `Codex:${bounded(plugin.marketplaceName, 120) ?? "marketplace"}`,
-          capabilities: [
-            ...plugin.capabilities.map(
-              (capability) => `plugin:${capability.toLowerCase()}`
-            ),
-            ...policyCapabilities
-          ],
-          publicReason: available
-            ? null
-            : bounded(
-                `Codex plugin availability is ${plugin.availability ?? "unknown"}`,
-                500
-              )
-        };
-        resources.push(finalizeResource(base));
+        resources.push(buildCodexPluginResourceDescriptor(input.profile, plugin));
       }
       diagnostics.push({
         source: "codex-plugins",
