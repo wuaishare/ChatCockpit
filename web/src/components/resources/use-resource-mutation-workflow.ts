@@ -128,6 +128,7 @@ export function useResourceMutationWorkflow({
           runtimeProfileId: selectedProfileId,
           workspaceId: selectedWorkspaceId,
           resourceId: resource.id,
+          expectedSnapshotId: inventory.snapshot.id,
           expectedFingerprint: resource.fingerprint,
           idempotencyKey: mutationOperationKey("prepare")
         },

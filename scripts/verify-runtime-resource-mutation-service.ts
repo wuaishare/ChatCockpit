@@ -217,6 +217,75 @@ repositories.workspaces.create({
   now: NOW
 });
 
+let reviewedSnapshotCounter = 0;
+function persistReviewedSnapshot(
+  current: RuntimeResourceDescriptor,
+  currentProfile: RuntimeProfileDescriptor = profile
+) {
+  reviewedSnapshotCounter += 1;
+  return repositories.runtimeResourceSnapshots.create({
+    runtimeProfileId: currentProfile.id,
+    providerKind: currentProfile.providerKind,
+    protocolKind: currentProfile.protocolKind,
+    status: "ready",
+    profile: currentProfile as unknown as Record<string, unknown>,
+    fingerprint: hashRuntimeResourceSnapshot(currentProfile, [current]),
+    items: [
+      {
+        resourceId: current.id,
+        kind: current.kind,
+        externalId: current.externalId,
+        displayName: current.displayName,
+        description: current.description,
+        scope: current.scope,
+        installed: current.installed,
+        enabled: current.enabled,
+        version: current.version,
+        availableVersion: current.availableVersion,
+        updateStatus: current.updateStatus,
+        authStatus: current.authStatus,
+        compatibilityStatus: current.compatibilityStatus,
+        sourceKind: current.sourceKind,
+        sourceLabel: current.sourceLabel,
+        capabilities: current.capabilities,
+        publicReason: current.publicReason,
+        fingerprint: current.fingerprint
+      }
+    ],
+    now: new Date(Date.parse(NOW) + reviewedSnapshotCounter * 1000).toISOString()
+  });
+}
+
+function inspectReviewedSnapshot(snapshotId: string, targetResourceId: string) {
+  const snapshot = repositories.runtimeResourceSnapshots.get(snapshotId);
+  const item = snapshot.items.find((entry) => entry.resourceId === targetResourceId);
+  assert.ok(item, "Reviewed snapshot fixture must contain the target Resource");
+  return {
+    snapshot,
+    resource: {
+      id: item.resourceId,
+      runtimeProfileId: snapshot.runtimeProfileId,
+      kind: item.kind,
+      externalId: item.externalId,
+      displayName: item.displayName,
+      description: item.description,
+      scope: item.scope,
+      installed: item.installed,
+      enabled: item.enabled,
+      version: item.version,
+      availableVersion: item.availableVersion,
+      updateStatus: item.updateStatus,
+      authStatus: item.authStatus,
+      compatibilityStatus: item.compatibilityStatus,
+      sourceKind: item.sourceKind,
+      sourceLabel: item.sourceLabel,
+      capabilities: [...item.capabilities],
+      publicReason: item.publicReason,
+      fingerprint: item.fingerprint
+    }
+  };
+}
+
 let enabled = true;
 let inventoryCalls = 0;
 const inventoryKeys: string[] = [];
@@ -277,6 +346,25 @@ const fakeInventory = {
       },
       replayed: false
     };
+  },
+  inspectSnapshotResource: inspectReviewedSnapshot,
+  readTarget: async (input: {
+    runtimeProfileId: string;
+    workspaceId?: string;
+    resourceId: string;
+    resourceKind: "skill" | "plugin";
+  }) => {
+    assert.equal(input.runtimeProfileId, runtimeProfileId);
+    assert.equal(input.workspaceId, workspaceId);
+    assert.equal(input.resourceId, resourceId);
+    assert.equal(input.resourceKind, "skill");
+    inventoryCalls += 1;
+    inventoryKeys.push(`target-read:${inventoryCalls}`);
+    return {
+      profile,
+      resource: resource(enabled),
+      diagnostics: []
+    };
   }
 } as unknown as RuntimeResourceInventoryService;
 
@@ -335,10 +423,21 @@ const executeContext = buildOperationContext({
   now: NOW
 });
 
-function bindMutationContexts(raw: RuntimeResourceMutationService) {
+type PrepareFixtureInput = Omit<
+  RuntimeResourceMutationPrepareInput,
+  "expectedSnapshotId"
+> & { expectedSnapshotId?: string };
+
+function bindMutationContexts(
+  raw: RuntimeResourceMutationService,
+  reviewedResource: () => RuntimeResourceDescriptor = () => resource(enabled)
+) {
   return {
-    prepare: (input: RuntimeResourceMutationPrepareInput) =>
-      raw.prepare(prepareContext, input),
+    prepare: (input: PrepareFixtureInput) => {
+      const expectedSnapshotId =
+        input.expectedSnapshotId ?? persistReviewedSnapshot(reviewedResource()).id;
+      return raw.prepare(prepareContext, { ...input, expectedSnapshotId });
+    },
     decide: (input: RuntimeResourceMutationDecisionInput) =>
       raw.decide(decisionContext, input),
     execute: (input: RuntimeResourceMutationExecuteInput) =>
@@ -381,12 +480,12 @@ const freshRetryPrepared = await service.prepare({
   idempotencyKey: "prepare-fresh-retry-001"
 });
 assert.equal(freshRetryPrepared.replayed, false);
-assert.equal(inventoryKeys.length, retryInventoryStart + 2);
-assert.notEqual(
-  inventoryKeys[retryInventoryStart],
-  inventoryKeys[retryInventoryStart + 1],
-  "Failed outer retries must use a fresh authoritative inventory key"
+assert.equal(
+  inventoryKeys.length,
+  retryInventoryStart + 1,
+  "Reviewed snapshot mismatch must fail before a target read; the valid retry performs one fresh target read"
 );
+assert.equal(inventoryKeys[retryInventoryStart]?.startsWith("target-read:"), true);
 
 const prepared = await service.prepare({
   operation: "skill.disable",
@@ -424,6 +523,7 @@ const preparedReplay = await rawService.prepare(sameActorRetryContext, {
   runtimeProfileId,
   workspaceId,
   resourceId,
+  expectedSnapshotId: prepared.approval.beforeSnapshotId,
   expectedFingerprint: before.fingerprint,
   idempotencyKey: "prepare-disable-001"
 });
@@ -449,6 +549,7 @@ await assert.rejects(
       runtimeProfileId,
       workspaceId,
       resourceId,
+      expectedSnapshotId: prepared.approval.beforeSnapshotId,
       expectedFingerprint: before.fingerprint,
       idempotencyKey: "prepare-disable-001"
     }),
@@ -505,7 +606,11 @@ assert.equal(
 assert.deepEqual(executed.execution.observedState, { enabled: false });
 assert.equal(enabled, false);
 assert.equal(mutationCalls, 1);
-assert.ok(executed.execution.afterSnapshotId);
+assert.equal(
+  executed.execution.afterSnapshotId,
+  null,
+  "Target-scoped postflight evidence must not pollute the full snapshot stream"
+);
 assert.equal(executed.execution.afterFingerprint, resource(false).fingerprint);
 
 const callsAfterExecute = inventoryCalls;
@@ -644,7 +749,11 @@ assert.equal(
   "RUNTIME_RESOURCE_MUTATION_STALE"
 );
 assert.deepEqual(staleDesiredExecuted.execution.observedState, { enabled: false });
-assert.ok(staleDesiredExecuted.execution.afterSnapshotId);
+assert.equal(
+  staleDesiredExecuted.execution.afterSnapshotId,
+  null,
+  "Stale target-read evidence must not create a full snapshot"
+);
 assert.equal(enabled, false);
 assert.equal(mutationCalls, 3);
 staleRaceExternalDesired = false;
@@ -766,6 +875,36 @@ const fakePluginInventory = {
       },
       replayed: false
     };
+  },
+  inspectSnapshotResource: inspectReviewedSnapshot,
+  readTarget: async (input: {
+    runtimeProfileId: string;
+    workspaceId?: string;
+    resourceId: string;
+    resourceKind: "skill" | "plugin";
+  }) => {
+    assert.equal(input.runtimeProfileId, runtimeProfileId);
+    assert.equal(input.workspaceId, workspaceId);
+    assert.equal(input.resourceId, pluginResource(false).id);
+    assert.equal(input.resourceKind, "plugin");
+    pluginInventoryCalls += 1;
+    pluginInventoryKeys.push(`target-read:${pluginInventoryCalls}`);
+    const useStalePostflight =
+      pluginInstalled === true &&
+      pluginPostflightStaleReadsRemaining > 0 &&
+      pluginPostflightStaleInstalled !== null;
+    if (useStalePostflight) pluginPostflightStaleReadsRemaining -= 1;
+    const current =
+      pluginResourceOverride ??
+      pluginResource(
+        useStalePostflight ? pluginPostflightStaleInstalled! : pluginInstalled,
+        useStalePostflight ? pluginPostflightStaleObservedInstalled : pluginInstalled
+      );
+    return {
+      profile,
+      resource: current,
+      diagnostics: []
+    };
   }
 } as unknown as RuntimeResourceInventoryService;
 
@@ -823,7 +962,10 @@ const rawPluginService = new RuntimeResourceMutationService(
     pluginPostflightDelayMs: 0
   }
 );
-const pluginService = bindMutationContexts(rawPluginService);
+const pluginService = bindMutationContexts(
+  rawPluginService,
+  () => pluginResourceOverride ?? pluginResource(pluginInstalled)
+);
 
 const pluginBefore = pluginResource(false);
 const pluginInstallPrepared = await pluginService.prepare({
@@ -958,9 +1100,9 @@ assert.equal(
 const convergenceKeys = pluginInventoryKeys.slice(convergenceInventoryStart);
 assert.equal(new Set(convergenceKeys).size, convergenceKeys.length);
 assert.equal(
-  convergenceKeys.filter((key) => key.startsWith("resource-mutation-postflight:")).length,
-  3,
-  "Every convergence observation must use a fresh postflight inventory key"
+  convergenceKeys.every((key) => key.startsWith("target-read:")),
+  true,
+  "Plugin convergence must use fresh target reads rather than full inventory keys"
 );
 pluginInstalled = false;
 pluginPostflightStaleReadsRemaining = 99;

@@ -160,6 +160,7 @@ export const runtimeResourceMutationPrepareSchema = z
     runtimeProfileId: identifierSchema,
     workspaceId: identifierSchema,
     resourceId: identifierSchema,
+    expectedSnapshotId: identifierSchema,
     expectedFingerprint: hashSchema,
     idempotencyKey: idempotencyKeySchema
   })

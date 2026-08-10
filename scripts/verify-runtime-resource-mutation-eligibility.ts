@@ -332,61 +332,53 @@ try {
 
   let parityProfile = profile;
   let parityResource = skill({ enabled: false });
-  let inventoryCalls = 0;
   const fakeInventory = {
-    inventory: async (input: {
-      runtimeProfileId: string;
-      workspaceId?: string;
-      idempotencyKey: string;
-    }) => {
-      inventoryCalls += 1;
-      assert.equal(input.runtimeProfileId, parityProfile.id);
-      assert.equal(input.workspaceId, workspaceId);
-      assert.ok(input.idempotencyKey.startsWith("resource-mutation-prepare:"));
-      const snapshot = repositories.runtimeResourceSnapshots.create({
-        runtimeProfileId: parityProfile.id,
-        providerKind: parityProfile.providerKind,
-        protocolKind: parityProfile.protocolKind,
-        status: "ready",
-        profile: parityProfile as unknown as Record<string, unknown>,
-        fingerprint: hashRuntimeResourceSnapshot(parityProfile, [parityResource]),
-        items: [
-          {
-            resourceId: parityResource.id,
-            kind: parityResource.kind,
-            externalId: parityResource.externalId,
-            displayName: parityResource.displayName,
-            description: parityResource.description,
-            scope: parityResource.scope,
-            installed: parityResource.installed,
-            enabled: parityResource.enabled,
-            version: parityResource.version,
-            availableVersion: parityResource.availableVersion,
-            updateStatus: parityResource.updateStatus,
-            authStatus: parityResource.authStatus,
-            compatibilityStatus: parityResource.compatibilityStatus,
-            sourceKind: parityResource.sourceKind,
-            sourceLabel: parityResource.sourceLabel,
-            capabilities: parityResource.capabilities,
-            publicReason: parityResource.publicReason,
-            fingerprint: parityResource.fingerprint
-          }
-        ],
-        now: new Date(Date.parse(NOW) + inventoryCalls * 1000).toISOString()
-      });
+    inventory: async () => {
+      throw new Error("Eligibility parity must not use full Runtime Resource inventory");
+    },
+    inspectSnapshotResource: (snapshotId: string, resourceId: string) => {
+      const snapshot = repositories.runtimeResourceSnapshots.get(snapshotId);
+      const item = snapshot.items.find((entry) => entry.resourceId === resourceId);
+      assert.ok(item, "Eligibility parity reviewed snapshot must contain target");
       return {
         snapshot,
+        resource: {
+          id: item.resourceId,
+          runtimeProfileId: snapshot.runtimeProfileId,
+          kind: item.kind,
+          externalId: item.externalId,
+          displayName: item.displayName,
+          description: item.description,
+          scope: item.scope,
+          installed: item.installed,
+          enabled: item.enabled,
+          version: item.version,
+          availableVersion: item.availableVersion,
+          updateStatus: item.updateStatus,
+          authStatus: item.authStatus,
+          compatibilityStatus: item.compatibilityStatus,
+          sourceKind: item.sourceKind,
+          sourceLabel: item.sourceLabel,
+          capabilities: [...item.capabilities],
+          publicReason: item.publicReason,
+          fingerprint: item.fingerprint
+        }
+      };
+    },
+    readTarget: async (input: {
+      runtimeProfileId: string;
+      workspaceId?: string;
+      resourceId: string;
+      resourceKind: "skill" | "plugin";
+    }) => {
+      assert.equal(input.runtimeProfileId, parityProfile.id);
+      assert.equal(input.workspaceId, workspaceId);
+      assert.equal(input.resourceId, parityResource.id);
+      assert.equal(input.resourceKind, parityResource.kind);
+      return {
         profile: parityProfile,
-        resources: [parityResource],
-        diagnostics: [],
-        diff: {
-          previousSnapshotId: null,
-          added: [],
-          removed: [],
-          changed: [],
-          unchanged: []
-        },
-        replayed: false
+        resource: parityResource,
+        diagnostics: []
       };
     }
   } as unknown as RuntimeResourceInventoryService;
@@ -426,11 +418,43 @@ try {
           : { codexPlugins: noWritePluginAdapter })
       }
     );
+    const reviewedSnapshot = repositories.runtimeResourceSnapshots.create({
+      runtimeProfileId: parityProfile.id,
+      providerKind: parityProfile.providerKind,
+      protocolKind: parityProfile.protocolKind,
+      status: "ready",
+      profile: parityProfile as unknown as Record<string, unknown>,
+      fingerprint: hashRuntimeResourceSnapshot(parityProfile, [parityResource]),
+      items: [
+        {
+          resourceId: parityResource.id,
+          kind: parityResource.kind,
+          externalId: parityResource.externalId,
+          displayName: parityResource.displayName,
+          description: parityResource.description,
+          scope: parityResource.scope,
+          installed: parityResource.installed,
+          enabled: parityResource.enabled,
+          version: parityResource.version,
+          availableVersion: parityResource.availableVersion,
+          updateStatus: parityResource.updateStatus,
+          authStatus: parityResource.authStatus,
+          compatibilityStatus: parityResource.compatibilityStatus,
+          sourceKind: parityResource.sourceKind,
+          sourceLabel: parityResource.sourceLabel,
+          capabilities: parityResource.capabilities,
+          publicReason: parityResource.publicReason,
+          fingerprint: parityResource.fingerprint
+        }
+      ],
+      now: new Date(Date.parse(NOW) + index * 1000).toISOString()
+    });
     const request = {
       operation: testCase.operation,
       runtimeProfileId: parityProfile.id,
       workspaceId,
       resourceId: parityResource.id,
+      expectedSnapshotId: reviewedSnapshot.id,
       expectedFingerprint: parityResource.fingerprint,
       idempotencyKey: `eligibility-parity-${index}`
     };

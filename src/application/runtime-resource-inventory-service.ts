@@ -47,6 +47,19 @@ export interface RuntimeResourceInspectionResult {
   resource: RuntimeResourceDescriptor;
 }
 
+export interface RuntimeResourceTargetReadInput {
+  runtimeProfileId: string;
+  workspaceId?: string;
+  resourceId: string;
+  resourceKind: "skill" | "plugin";
+}
+
+export interface RuntimeResourceTargetReadResult {
+  profile: RuntimeProfileDescriptor;
+  resource: RuntimeResourceDescriptor | null;
+  diagnostics: RuntimeResourceInventoryDiagnostic[];
+}
+
 function normalizedResource(
   resource: RuntimeResourceDescriptor
 ): RuntimeResourceDescriptor {
@@ -282,6 +295,45 @@ export class RuntimeResourceInventoryService {
       this.now()
     );
     return { ...result.value, replayed: result.replayed };
+  }
+
+  async readTarget(
+    input: RuntimeResourceTargetReadInput
+  ): Promise<RuntimeResourceTargetReadResult> {
+    const profile = await this.profiles.getProfile(input.runtimeProfileId);
+    const adapter = this.adapters.get(profile);
+    if (!adapter.readTarget) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_TARGET_READ_UNAVAILABLE",
+        `Runtime Resource adapter does not support authoritative target reads for ${profile.providerKind}/${profile.protocolKind}`
+      );
+    }
+    const projection = validateProjection(
+      profile,
+      await adapter.readTarget({
+        profile,
+        ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+        resourceId: input.resourceId,
+        resourceKind: input.resourceKind
+      })
+    );
+    if (
+      projection.resources.some(
+        (resource) =>
+          resource.id !== input.resourceId || resource.kind !== input.resourceKind
+      ) ||
+      projection.resources.length > 1
+    ) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_PROJECTION_INVALID",
+        "Runtime Resource target read returned resources outside the requested target"
+      );
+    }
+    return {
+      profile: projection.profile,
+      resource: projection.resources[0] ?? null,
+      diagnostics: projection.diagnostics
+    };
   }
 
   readSnapshot(snapshotId: string): RuntimeResourceSnapshotRecord {

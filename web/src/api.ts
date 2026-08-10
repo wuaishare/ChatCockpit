@@ -268,6 +268,7 @@ export async function prepareRuntimeResourceMutation(
     runtimeProfileId: string;
     workspaceId: string;
     resourceId: string;
+    expectedSnapshotId: string;
     expectedFingerprint: string;
     idempotencyKey: string;
   },

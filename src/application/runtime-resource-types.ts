@@ -81,10 +81,20 @@ export interface RuntimeResourceInventoryRequest {
   workspaceId?: string;
 }
 
+export interface RuntimeResourceTargetReadRequest {
+  profile: RuntimeProfileDescriptor;
+  workspaceId?: string;
+  resourceId: string;
+  resourceKind: "skill" | "plugin";
+}
+
 export interface RuntimeResourceInventoryAdapter {
   readonly providerKind: string;
   readonly protocolKind: string;
   inventory(
     input: RuntimeResourceInventoryRequest
+  ): Promise<RuntimeResourceInventoryProjection>;
+  readTarget?(
+    input: RuntimeResourceTargetReadRequest
   ): Promise<RuntimeResourceInventoryProjection>;
 }

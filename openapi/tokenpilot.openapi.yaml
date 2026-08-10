@@ -4420,6 +4420,7 @@ components:
         runtimeProfileId: { type: string }
         workspaceId: { type: string }
         resourceId: { type: string }
+        expectedSnapshotId: { type: string }
         expectedFingerprint:
           type: string
           pattern: '^[a-f0-9]{64}$'
@@ -4428,7 +4429,7 @@ components:
           minLength: 8
           maxLength: 128
           pattern: '^[A-Za-z0-9._:-]+$'
-      required: [operation, runtimeProfileId, workspaceId, resourceId, expectedFingerprint, idempotencyKey]
+      required: [operation, runtimeProfileId, workspaceId, resourceId, expectedSnapshotId, expectedFingerprint, idempotencyKey]
     RuntimeResourceMutationDecisionPayload:
       type: object
       additionalProperties: false
@@ -7006,7 +7007,7 @@ paths:
     post:
       operationId: prepareRuntimeResourceMutation
       summary: Prepare a governed runtime resource mutation
-      description: Creates a short-lived approval from fresh Runtime Resource state without mutating the provider. Exposed mode also requires TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true. Strict input rejects provider selectors, actor provenance, paths, URLs, and raw provider payloads.
+      description: Creates a short-lived approval bound to the reviewed snapshot, then revalidates the target Resource from fresh authoritative state without provider mutation. Exposed mode also requires TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true. Strict input rejects provider selectors and provenance fields.
       security:
         - bearerAuth: []
       requestBody:

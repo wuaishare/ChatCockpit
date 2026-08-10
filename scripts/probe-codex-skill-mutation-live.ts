@@ -250,7 +250,8 @@ function buildInventoryService(
   const inventoryAdapter: RuntimeResourceInventoryAdapter = {
     providerKind: adapter.providerKind,
     protocolKind: adapter.protocolKind,
-    inventory: (input) => adapter.inventory(input)
+    inventory: (input) => adapter.inventory(input),
+    readTarget: (input) => adapter.readTarget(input)
   };
   const profiles = new RuntimeProfileRegistry([
     {
@@ -289,6 +290,7 @@ async function governedTransition(input: {
   service: RuntimeResourceMutationService;
   operation: "skill.enable" | "skill.disable";
   profileId: string;
+  snapshotId: string;
   resource: RuntimeResourceDescriptor;
   keyPrefix: string;
 }) {
@@ -297,6 +299,7 @@ async function governedTransition(input: {
     runtimeProfileId: input.profileId,
     workspaceId: WORKSPACE_ID,
     resourceId: input.resource.id,
+    expectedSnapshotId: input.snapshotId,
     expectedFingerprint: input.resource.fingerprint,
     idempotencyKey: `${input.keyPrefix}:prepare`
   });
@@ -382,6 +385,7 @@ export async function runCodexSkillMutationLiveProof(
         service: mutation,
         operation: transitionOperation,
         profileId: bundle.profile.id,
+        snapshotId: initial.snapshot.id,
         resource: original,
         keyPrefix: `codex-skill-mutation-live:transition:${crypto.randomUUID()}`
       });
@@ -406,6 +410,7 @@ export async function runCodexSkillMutationLiveProof(
         service: mutation,
         operation: restoreOperation,
         profileId: bundle.profile.id,
+        snapshotId: transitioned.snapshot.id,
         resource: transitionedResource,
         keyPrefix: `codex-skill-mutation-live:restore:${crypto.randomUUID()}`
       });
@@ -466,6 +471,7 @@ export async function runCodexSkillMutationLiveProof(
               service: mutation,
               operation: operationFor(original.enabled),
               profileId: bundle.profile.id,
+              snapshotId: current.snapshot.id,
               resource: currentResource,
               keyPrefix: `codex-skill-mutation-live:cleanup:${crypto.randomUUID()}`
             });

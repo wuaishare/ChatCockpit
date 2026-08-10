@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { OperationContext } from "./operation-context.js";
 import { hashRuntimeResource } from "./runtime-resource-hash.js";
 import { assessRuntimeResourceMutationEligibility } from "./runtime-resource-mutation-eligibility.js";
@@ -39,6 +37,7 @@ export interface RuntimeResourceMutationPrepareInput {
   runtimeProfileId: string;
   workspaceId: string;
   resourceId: string;
+  expectedSnapshotId: string;
   expectedFingerprint: string;
   idempotencyKey: string;
 }
@@ -101,10 +100,6 @@ function isPreWriteStaleCode(code: string | null): boolean {
   return code !== null && PRE_WRITE_STALE_CODES.has(code);
 }
 
-function freshInventoryKey(stage: string, outerIdempotencyKey: string): string {
-  return `${stage}:${outerIdempotencyKey}:${randomUUID()}`;
-}
-
 export class RuntimeResourceMutationService {
   private readonly now: () => string;
   private readonly codexPlugins: CodexPluginMutationAdapter | null;
@@ -152,6 +147,7 @@ export class RuntimeResourceMutationService {
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resourceId: input.resourceId,
+      expectedSnapshotId: input.expectedSnapshotId,
       expectedFingerprint: input.expectedFingerprint,
       actor: {
         type: requestedActor.actorType,
@@ -164,22 +160,40 @@ export class RuntimeResourceMutationService {
     }>("runtime.resource.mutation.prepare", input.idempotencyKey, idempotencyInput);
     if (replay) return { ...replay.value, replayed: true };
 
-    const observed = await this.inventory.inventory({
+    const semantics = mutationSemantics(input.operation);
+    const reviewed = this.inventory.inspectSnapshotResource(
+      input.expectedSnapshotId,
+      input.resourceId
+    );
+    if (
+      reviewed.snapshot.runtimeProfileId !== input.runtimeProfileId ||
+      reviewed.resource.fingerprint !== input.expectedFingerprint
+    ) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_STALE",
+        "Reviewed Runtime Resource snapshot no longer matches the requested mutation target"
+      );
+    }
+    if (reviewed.resource.kind !== semantics.resourceKind) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_UNSUPPORTED",
+        "The requested operation does not match this Resource kind."
+      );
+    }
+
+    const observed = await this.inventory.readTarget({
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
-      idempotencyKey: freshInventoryKey(
-        "resource-mutation-prepare",
-        input.idempotencyKey
-      )
+      resourceId: input.resourceId,
+      resourceKind: semantics.resourceKind
     });
-    const resource = observed.resources.find((entry) => entry.id === input.resourceId);
+    const resource = observed.resource;
     if (!resource) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_NOT_FOUND",
-        "Runtime Resource mutation target is not present in the fresh inventory"
+        "Runtime Resource mutation target is not present in the fresh target read"
       );
     }
-    const semantics = mutationSemantics(input.operation);
     const eligibility = assessRuntimeResourceMutationEligibility({
       profile: observed.profile,
       resource,
@@ -218,7 +232,7 @@ export class RuntimeResourceMutationService {
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resource,
-      beforeSnapshotId: observed.snapshot.id,
+      beforeSnapshotId: input.expectedSnapshotId,
       providerKind: observed.profile.providerKind,
       protocolKind: observed.profile.protocolKind
     });
@@ -235,7 +249,7 @@ export class RuntimeResourceMutationService {
           resourceId: resource.id,
           resourceKind: semantics.resourceKind,
           resourceScope: resource.scope,
-          beforeSnapshotId: observed.snapshot.id,
+          beforeSnapshotId: input.expectedSnapshotId,
           beforeFingerprint: resource.fingerprint,
           requestedState: { ...semantics.requestedState },
           mutationHash,
@@ -312,22 +326,20 @@ export class RuntimeResourceMutationService {
     if (replay) return { ...replay.value, replayed: true };
 
     const approval = this.requireExecutableApproval(input);
-    const preflight = await this.inventory.inventory({
+    const semantics = mutationSemantics(approval.operation);
+    const preflight = await this.inventory.readTarget({
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
-      idempotencyKey: freshInventoryKey(
-        "resource-mutation-preflight",
-        input.idempotencyKey
-      )
+      resourceId: input.resourceId,
+      resourceKind: semantics.resourceKind
     });
-    const before = preflight.resources.find((entry) => entry.id === input.resourceId);
+    const before = preflight.resource;
     if (!before) {
       this.invalidateApprovalForDrift(
         approval,
         "Approved Runtime Resource disappeared before execution"
       );
     }
-    const semantics = mutationSemantics(approval.operation);
     try {
       const eligibility = assessRuntimeResourceMutationEligibility({
         profile: preflight.profile,
@@ -578,17 +590,13 @@ export class RuntimeResourceMutationService {
 
     for (let attempt = 1; attempt <= maxPostflightAttempts; attempt += 1) {
       try {
-        const after = await this.inventory.inventory({
+        const after = await this.inventory.readTarget({
           runtimeProfileId: prepared.profile.id,
           workspaceId: prepared.approval.workspaceId!,
-          idempotencyKey: freshInventoryKey(
-            "resource-mutation-postflight",
-            idempotencyKey
-          )
+          resourceId: prepared.before.id,
+          resourceKind: semantics.resourceKind
         });
-        const resource = after.resources.find(
-          (entry) => entry.id === prepared.before.id
-        );
+        const resource = after.resource ?? undefined;
         const observedState = {
           ...semantics.observedState(resource),
           ...providerEvidence
@@ -597,7 +605,7 @@ export class RuntimeResourceMutationService {
         if (isPreWriteStaleCode(providerError)) {
           return {
             status: "stale",
-            afterSnapshotId: after.snapshot.id,
+            afterSnapshotId: null,
             afterFingerprint: resource?.fingerprint ?? null,
             observedState,
             errorCode: providerError
@@ -606,7 +614,7 @@ export class RuntimeResourceMutationService {
         if (semantics.isVerified(resource)) {
           return {
             status: "verified",
-            afterSnapshotId: after.snapshot.id,
+            afterSnapshotId: null,
             afterFingerprint: resource!.fingerprint,
             observedState,
             errorCode: null
@@ -615,7 +623,7 @@ export class RuntimeResourceMutationService {
 
         lastObservedOutcome = {
           status: providerError ? "failed-external" : "failed-verification",
-          afterSnapshotId: after.snapshot.id,
+          afterSnapshotId: null,
           afterFingerprint: resource?.fingerprint ?? null,
           observedState,
           errorCode:

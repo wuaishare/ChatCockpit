@@ -324,6 +324,7 @@ async function run(): Promise<void> {
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
       resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
       expectedFingerprint: skill.fingerprint,
       idempotencyKey: "resource-api-mutation-prepare-blocked-0001"
     });
@@ -354,6 +355,7 @@ async function run(): Promise<void> {
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
       resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
       expectedFingerprint: skill.fingerprint,
       idempotencyKey: "resource-api-mutation-prepare-forged-actor-0001",
       requestedActorType: "remote-mcp"
@@ -366,6 +368,7 @@ async function run(): Promise<void> {
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
       resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
       expectedFingerprint: "f".repeat(64),
       idempotencyKey: "resource-api-mutation-prepare-stale-0001"
     });
@@ -381,6 +384,7 @@ async function run(): Promise<void> {
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
       resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
       expectedFingerprint: skill.fingerprint,
       idempotencyKey: "resource-api-mutation-prepare-strict-0001",
       remotePluginId: "must-be-rejected"
@@ -393,6 +397,7 @@ async function run(): Promise<void> {
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
       resourceId: skill.id,
+      expectedSnapshotId: restInventory.snapshot.id,
       expectedFingerprint: skill.fingerprint,
       idempotencyKey: "resource-api-mutation-prepare-0001"
     };
@@ -516,6 +521,7 @@ async function run(): Promise<void> {
 
     const refreshed = await rest<{
       ok: true;
+      snapshot: { id: string };
       resources: Array<{
         id: string;
         enabled: boolean | null;
@@ -529,6 +535,7 @@ async function run(): Promise<void> {
       refreshed.resources.find((resource) => resource.id === skill.id)?.enabled,
       false
     );
+    process.stdout.write("VERIFY_RUNTIME_RESOURCE_MUTATION_REST_LIFECYCLE_OK\n");
 
     mutationNow = "2026-08-11T00:01:00.000Z";
     const refreshedSkill = refreshed.resources.find((resource) => resource.id === skill.id)!;
@@ -540,6 +547,7 @@ async function run(): Promise<void> {
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
       resourceId: skill.id,
+      expectedSnapshotId: refreshed.snapshot.id,
       expectedFingerprint: refreshedSkill.fingerprint,
       idempotencyKey: "resource-api-mutation-prepare-expiring-0001"
     });

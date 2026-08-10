@@ -263,6 +263,11 @@ const prepareFlow = workflowSource.match(
 assert.ok(prepareFlow, "Prepare flow must remain inspectable");
 assert.equal(prepareFlow.includes("prepareRuntimeResourceMutation"), true);
 assert.equal(
+  prepareFlow.includes("expectedSnapshotId: inventory.snapshot.id"),
+  true,
+  "Prepare must bind the mutation intent to the exact inventory snapshot reviewed by the operator"
+);
+assert.equal(
   prepareFlow.includes("decideRuntimeResourceMutation"),
   false,
   "The first Resource action click must prepare only"

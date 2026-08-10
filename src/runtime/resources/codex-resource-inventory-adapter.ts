@@ -9,7 +9,8 @@ import type {
   RuntimeResourceInventoryAdapter,
   RuntimeResourceInventoryDiagnostic,
   RuntimeResourceInventoryProjection,
-  RuntimeResourceInventoryRequest
+  RuntimeResourceInventoryRequest,
+  RuntimeResourceTargetReadRequest
 } from "../../application/runtime-resource-types.js";
 import type {
   RuntimeMcpServerProjection,
@@ -75,6 +76,66 @@ function finalizeResource(
     ...normalized,
     fingerprint: hashRuntimeResource(normalized)
   };
+}
+
+function projectSkill(
+  profile: RuntimeProfileDescriptor,
+  skill: RuntimeSkillProjection
+): RuntimeResourceDescriptor {
+  const scope = skillScope(skill.scope);
+  const externalId = `skill:${scope}:${skill.name}`;
+  const identityExternalId = skill.sourceIdentityHash
+    ? `${externalId}:source:${skill.sourceIdentityHash}`
+    : externalId;
+  return finalizeResource({
+    id: buildRuntimeResourceId({
+      runtimeProfileId: profile.id,
+      kind: "skill",
+      externalId: identityExternalId
+    }),
+    runtimeProfileId: profile.id,
+    kind: "skill",
+    externalId: bounded(externalId, 300) ?? externalId,
+    displayName:
+      bounded(skill.displayName ?? skill.name, 200) ?? "Unnamed Skill",
+    description: bounded(skill.shortDescription ?? skill.description, 1000),
+    scope,
+    installed: true,
+    enabled: skill.enabled,
+    version: null,
+    availableVersion: null,
+    updateStatus: "not-applicable",
+    authStatus: "not-applicable",
+    compatibilityStatus: "ready",
+    sourceKind: "runtime-native",
+    sourceLabel: "Codex",
+    capabilities: ["instruction"],
+    publicReason: null
+  });
+}
+
+function projectPlugins(
+  profile: RuntimeProfileDescriptor,
+  plugins: RuntimePluginProjection[]
+): RuntimeResourceDescriptor[] {
+  const sourceIdentitiesByPluginId = new Map<string, Set<string>>();
+  for (const plugin of plugins) {
+    const identities = sourceIdentitiesByPluginId.get(plugin.id) ?? new Set<string>();
+    identities.add(plugin.sourceIdentityHash ?? "unknown-source");
+    sourceIdentitiesByPluginId.set(plugin.id, identities);
+  }
+  const ambiguousPluginId = [...sourceIdentitiesByPluginId.entries()].find(
+    ([, identities]) => identities.size > 1
+  );
+  if (ambiguousPluginId) {
+    throw new ServiceError(
+      "RUNTIME_RESOURCE_DUPLICATE",
+      `Codex Plugin provider identity ${ambiguousPluginId[0]} resolves to multiple source identities`
+    );
+  }
+  return plugins.map((plugin) =>
+    buildCodexPluginResourceDescriptor(profile, plugin)
+  );
 }
 
 function dedupeResourceProjection(
@@ -251,42 +312,9 @@ export class CodexResourceInventoryAdapter
     ]);
 
     if (skillsResult.status === "fulfilled") {
-      for (const skill of skillsResult.value) {
-        const scope = skillScope(skill.scope);
-        const externalId = `skill:${scope}:${skill.name}`;
-        const identityExternalId = skill.sourceIdentityHash
-          ? `${externalId}:source:${skill.sourceIdentityHash}`
-          : externalId;
-        const base: ResourceWithoutFingerprint = {
-          id: buildRuntimeResourceId({
-            runtimeProfileId: input.profile.id,
-            kind: "skill",
-            externalId: identityExternalId
-          }),
-          runtimeProfileId: input.profile.id,
-          kind: "skill",
-          externalId: bounded(externalId, 300) ?? externalId,
-          displayName:
-            bounded(skill.displayName ?? skill.name, 200) ?? "Unnamed Skill",
-          description: bounded(
-            skill.shortDescription ?? skill.description,
-            1000
-          ),
-          scope,
-          installed: true,
-          enabled: skill.enabled,
-          version: null,
-          availableVersion: null,
-          updateStatus: "not-applicable",
-          authStatus: "not-applicable",
-          compatibilityStatus: "ready",
-          sourceKind: "runtime-native",
-          sourceLabel: "Codex",
-          capabilities: ["instruction"],
-          publicReason: null
-        };
-        resources.push(finalizeResource(base));
-      }
+      resources.push(
+        ...skillsResult.value.map((skill) => projectSkill(input.profile, skill))
+      );
       diagnostics.push({
         source: "codex-skills",
         status: "ready",
@@ -343,25 +371,7 @@ export class CodexResourceInventoryAdapter
     }
 
     if (pluginsResult.status === "fulfilled") {
-      const sourceIdentitiesByPluginId = new Map<string, Set<string>>();
-      for (const plugin of pluginsResult.value) {
-        const identities = sourceIdentitiesByPluginId.get(plugin.id) ?? new Set<string>();
-        identities.add(plugin.sourceIdentityHash ?? "unknown-source");
-        sourceIdentitiesByPluginId.set(plugin.id, identities);
-      }
-      const ambiguousPluginId = [...sourceIdentitiesByPluginId.entries()].find(
-        ([, identities]) => identities.size > 1
-      );
-      if (ambiguousPluginId) {
-        throw new ServiceError(
-          "RUNTIME_RESOURCE_DUPLICATE",
-          `Codex Plugin provider identity ${ambiguousPluginId[0]} resolves to multiple source identities`
-        );
-      }
-
-      for (const plugin of pluginsResult.value) {
-        resources.push(buildCodexPluginResourceDescriptor(input.profile, plugin));
-      }
+      resources.push(...projectPlugins(input.profile, pluginsResult.value));
       diagnostics.push({
         source: "codex-plugins",
         status: "ready",
@@ -389,6 +399,66 @@ export class CodexResourceInventoryAdapter
       profile: input.profile,
       resources: boundResourceProjection(resources, diagnostics),
       diagnostics
+    };
+  }
+
+  async readTarget(
+    input: RuntimeResourceTargetReadRequest
+  ): Promise<RuntimeResourceInventoryProjection> {
+    if (
+      input.profile.providerKind !== "codex" ||
+      input.profile.protocolKind !== "native-app-server"
+    ) {
+      throw new ServiceError(
+        "RUNTIME_PROFILE_MISMATCH",
+        "Native Codex Resource target reads require a Codex App Server profile"
+      );
+    }
+    if (!input.workspaceId) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_WORKSPACE_REQUIRED",
+        "Codex Resource target reads require a TokenPilot Workspace"
+      );
+    }
+
+    if (input.resourceKind === "skill") {
+      const skills = await this.runtime.listCodexSkills({
+        workspaceId: input.workspaceId,
+        forceReload: true
+      });
+      return {
+        profile: input.profile,
+        resources: skills
+          .map((skill) => projectSkill(input.profile, skill))
+          .filter((resource) => resource.id === input.resourceId),
+        diagnostics: [
+          {
+            source: "codex-skills-target",
+            status: "ready",
+            code: null,
+            message: null
+          }
+        ]
+      };
+    }
+
+    const plugins = await this.runtime.listCodexPlugins({
+      workspaceId: input.workspaceId,
+      forceRefetch: true
+    });
+    return {
+      profile: input.profile,
+      resources: projectPlugins(input.profile, plugins).filter(
+        (resource) => resource.id === input.resourceId
+      ),
+      diagnostics: [
+        {
+          source: "codex-plugins-target",
+          status: "ready",
+          code: null,
+          message: null
+        }
+      ]
     };
   }
 }
