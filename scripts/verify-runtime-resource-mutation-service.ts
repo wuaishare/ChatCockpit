@@ -10,6 +10,12 @@ import type {
 } from "../src/application/runtime-resource-types.ts";
 import type { RuntimeResourceInventoryService } from "../src/application/runtime-resource-inventory-service.ts";
 import { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
+import {
+  buildLegacySkillMutationHashV1,
+  buildRuntimeResourceMutationHashV2,
+  mutationSemantics,
+  runtimeResourceMutationHashMatches
+} from "../src/application/runtime-resource-mutation-semantics.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import {
   ContinuityDatabase,
@@ -61,6 +67,99 @@ function resource(enabled: boolean): RuntimeResourceDescriptor {
   };
   return { ...base, fingerprint: hashRuntimeResource(base) };
 }
+
+function pluginResource(installed: boolean): RuntimeResourceDescriptor {
+  const base = {
+    id: "resource_plugin_mutation_fixture",
+    runtimeProfileId,
+    kind: "plugin" as const,
+    externalId: "plugin:fixture-plugin@fixture-marketplace",
+    displayName: "Fixture Plugin",
+    description: "Governed Plugin mutation fixture",
+    scope: "runtime" as const,
+    installed,
+    enabled: installed,
+    version: installed ? "1.0.0" : null,
+    availableVersion: "1.0.0",
+    updateStatus: "up-to-date" as const,
+    authStatus: "unknown" as const,
+    compatibilityStatus: "ready" as const,
+    sourceKind: "runtime-native" as const,
+    sourceLabel: "Codex:fixture-marketplace",
+    capabilities: [
+      "plugin:source:remote",
+      "plugin:install-policy:available",
+      "plugin:auth-policy:on-use",
+      "plugin:installation-interstitial:false"
+    ],
+    publicReason: null
+  };
+  return { ...base, fingerprint: hashRuntimeResource(base) };
+}
+
+const skillEnable = mutationSemantics("skill.enable");
+const skillDisable = mutationSemantics("skill.disable");
+const pluginInstall = mutationSemantics("plugin.install");
+const pluginUninstall = mutationSemantics("plugin.uninstall");
+assert.deepEqual(skillEnable.requestedState, { enabled: true });
+assert.deepEqual(skillDisable.requestedState, { enabled: false });
+assert.deepEqual(pluginInstall.requestedState, { installed: true });
+assert.deepEqual(pluginUninstall.requestedState, { installed: false });
+assert.equal(skillEnable.resourceKind, "skill");
+assert.equal(pluginInstall.resourceKind, "plugin");
+assert.equal(skillEnable.providerMethod, "skills/config/write");
+assert.equal(pluginInstall.providerMethod, "plugin/install");
+assert.equal(pluginUninstall.providerMethod, "plugin/uninstall");
+assert.deepEqual(skillDisable.beforeState(resource(true)), { enabled: true });
+assert.deepEqual(pluginInstall.beforeState(pluginResource(false)), {
+  installed: false
+});
+assert.equal(skillDisable.isNoop(resource(true)), false);
+assert.equal(skillDisable.isVerified(resource(false)), true);
+assert.equal(pluginInstall.isNoop(pluginResource(false)), false);
+assert.equal(pluginInstall.isVerified(pluginResource(true)), true);
+assert.deepEqual(pluginUninstall.observedState(pluginResource(false)), {
+  installed: false
+});
+assert.deepEqual(pluginUninstall.observedState(undefined), { missing: true });
+
+const semanticsHashInput = {
+  operation: "skill.disable" as const,
+  runtimeProfileId,
+  workspaceId,
+  resource: resource(true),
+  beforeSnapshotId: "resource_snapshot_semantics_fixture",
+  providerKind: profile.providerKind,
+  protocolKind: profile.protocolKind
+};
+const legacySkillHash = buildLegacySkillMutationHashV1(semanticsHashInput);
+const v2SkillHash = buildRuntimeResourceMutationHashV2(semanticsHashInput);
+assert.notEqual(legacySkillHash, v2SkillHash);
+assert.equal(
+  runtimeResourceMutationHashMatches(legacySkillHash, semanticsHashInput),
+  true,
+  "Existing Schema v16 Skill approvals must retain v1 hash compatibility"
+);
+assert.equal(
+  runtimeResourceMutationHashMatches(v2SkillHash, semanticsHashInput),
+  true
+);
+const pluginHashInput = {
+  operation: "plugin.install" as const,
+  runtimeProfileId,
+  workspaceId,
+  resource: pluginResource(false),
+  beforeSnapshotId: "resource_snapshot_plugin_semantics_fixture",
+  providerKind: profile.providerKind,
+  protocolKind: profile.protocolKind
+};
+assert.equal(
+  runtimeResourceMutationHashMatches(
+    buildRuntimeResourceMutationHashV2(pluginHashInput),
+    pluginHashInput
+  ),
+  true
+);
 
 const database = new ContinuityDatabase({ path: ":memory:" });
 const repositories = buildContinuityRepositories(database);
