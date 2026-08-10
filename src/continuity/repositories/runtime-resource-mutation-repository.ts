@@ -1,4 +1,5 @@
 import type { ActorType } from "../../application/operation-context.js";
+import type { RuntimeResourceMutationProvenance } from "../../application/runtime-resource-mutation-provenance.js";
 import { ServiceError } from "../../application/service-error.js";
 import type { ContinuityDatabase } from "../database.js";
 import type { RuntimeResourceScope } from "../types.js";
@@ -222,6 +223,7 @@ export class RuntimeResourceMutationRepository {
     requestedState: Record<string, unknown>;
     mutationHash: string;
     publicSummary: Record<string, unknown>;
+    requestedActor: RuntimeResourceMutationProvenance;
     expiresAt: string;
     now?: string;
   }): RuntimeResourceMutationApprovalRecord {
@@ -232,9 +234,11 @@ export class RuntimeResourceMutationRepository {
         INSERT INTO runtime_resource_mutation_approvals (
           id, operation, runtime_profile_id, workspace_id, resource_id,
           resource_kind, resource_scope, before_snapshot_id, before_fingerprint,
-          requested_state_json, mutation_hash, public_summary_json, status,
+          requested_state_json, mutation_hash, public_summary_json,
+          requested_actor_type, requested_actor_identity_hash,
+          requested_request_identity_hash, status,
           created_at, updated_at, expires_at, decided_at, consumed_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
       `)
       .run(
         id,
@@ -249,6 +253,9 @@ export class RuntimeResourceMutationRepository {
         JSON.stringify(input.requestedState),
         input.mutationHash,
         JSON.stringify(input.publicSummary),
+        input.requestedActor.actorType,
+        input.requestedActor.actorIdentityHash,
+        input.requestedActor.requestIdentityHash,
         now,
         now,
         input.expiresAt
@@ -333,6 +340,7 @@ export class RuntimeResourceMutationRepository {
     id: string;
     decision: "approved" | "denied";
     expectedRevision: number;
+    decidedActor: RuntimeResourceMutationProvenance;
     now?: string;
   }): RuntimeResourceMutationApprovalRecord {
     const now = nowIso(input.now);
@@ -366,10 +374,21 @@ export class RuntimeResourceMutationRepository {
     const result = this.database.sqlite
       .prepare(`
         UPDATE runtime_resource_mutation_approvals
-        SET status = ?, decided_at = ?, updated_at = ?, revision = revision + 1
+        SET status = ?, decided_actor_type = ?, decided_actor_identity_hash = ?,
+            decided_request_identity_hash = ?, decided_at = ?, updated_at = ?,
+            revision = revision + 1
         WHERE id = ? AND revision = ? AND status = 'pending'
       `)
-      .run(input.decision, now, now, input.id, input.expectedRevision);
+      .run(
+        input.decision,
+        input.decidedActor.actorType,
+        input.decidedActor.actorIdentityHash,
+        input.decidedActor.requestIdentityHash,
+        now,
+        now,
+        input.id,
+        input.expectedRevision
+      );
     assertUpdated(
       result.changes,
       "Runtime Resource mutation approval",
@@ -438,6 +457,7 @@ export class RuntimeResourceMutationRepository {
     id?: string;
     approval: RuntimeResourceMutationApprovalRecord;
     providerMethod: RuntimeResourceMutationProviderMethod;
+    executedActor: RuntimeResourceMutationProvenance;
     now?: string;
   }): RuntimeResourceMutationExecutionRecord {
     const id = input.id ?? newRecordId("resource_mutation_execution");
@@ -449,8 +469,9 @@ export class RuntimeResourceMutationRepository {
           resource_id, before_snapshot_id, before_fingerprint,
           after_snapshot_id, after_fingerprint, requested_state_json,
           observed_state_json, provider_method, verification_status,
-          error_code, started_at, finished_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, 'executing', NULL, ?, NULL)
+          error_code, executed_actor_type, executed_actor_identity_hash,
+          executed_request_identity_hash, started_at, finished_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, 'executing', NULL, ?, ?, ?, ?, NULL)
       `)
       .run(
         id,
@@ -463,6 +484,9 @@ export class RuntimeResourceMutationRepository {
         input.approval.beforeFingerprint,
         JSON.stringify(input.approval.requestedState),
         input.providerMethod,
+        input.executedActor.actorType,
+        input.executedActor.actorIdentityHash,
+        input.executedActor.requestIdentityHash,
         now
       );
     return this.getExecution(id);

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import type { OperationContext } from "./operation-context.js";
 import { hashRuntimeResource } from "./runtime-resource-hash.js";
+import { buildRuntimeResourceMutationProvenance } from "./runtime-resource-mutation-provenance.js";
 import {
   buildRuntimeResourceMutationHashV2,
   mutationSemantics,
@@ -140,14 +142,20 @@ export class RuntimeResourceMutationService {
   }
 
   async prepare(
+    context: OperationContext,
     input: RuntimeResourceMutationPrepareInput
   ): Promise<RuntimeResourceMutationPrepareResult> {
+    const requestedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       operation: input.operation,
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resourceId: input.resourceId,
-      expectedFingerprint: input.expectedFingerprint
+      expectedFingerprint: input.expectedFingerprint,
+      actor: {
+        type: requestedActor.actorType,
+        identityHash: requestedActor.actorIdentityHash
+      }
     };
     const replay = this.repositories.idempotency.replay<{
       ok: true;
@@ -226,6 +234,7 @@ export class RuntimeResourceMutationService {
             ...semantics.publicState(resource),
             runtimeProfileId: observed.profile.id
           },
+          requestedActor,
           expiresAt: approvalExpiry(now),
           now
         })
@@ -235,11 +244,16 @@ export class RuntimeResourceMutationService {
     return { ...executed.value, replayed: executed.replayed };
   }
 
-  decide(input: RuntimeResourceMutationDecisionInput) {
+  decide(context: OperationContext, input: RuntimeResourceMutationDecisionInput) {
+    const decidedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       approvalId: input.approvalId,
       expectedRevision: input.expectedRevision,
-      decision: input.decision
+      decision: input.decision,
+      actor: {
+        type: decidedActor.actorType,
+        identityHash: decidedActor.actorIdentityHash
+      }
     };
     const executed = this.repositories.idempotency.execute(
       "runtime.resource.mutation.decide",
@@ -251,6 +265,7 @@ export class RuntimeResourceMutationService {
           id: input.approvalId,
           expectedRevision: input.expectedRevision,
           decision: input.decision,
+          decidedActor,
           now: this.now()
         })
       }),
@@ -260,15 +275,21 @@ export class RuntimeResourceMutationService {
   }
 
   async execute(
+    context: OperationContext,
     input: RuntimeResourceMutationExecuteInput
   ): Promise<RuntimeResourceMutationExecuteResult> {
+    const executedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       approvalId: input.approvalId,
       expectedApprovalRevision: input.expectedApprovalRevision,
       runtimeProfileId: input.runtimeProfileId,
       workspaceId: input.workspaceId,
       resourceId: input.resourceId,
-      expectedFingerprint: input.expectedFingerprint
+      expectedFingerprint: input.expectedFingerprint,
+      actor: {
+        type: executedActor.actorType,
+        identityHash: executedActor.actorIdentityHash
+      }
     };
     const replay = this.repositories.idempotency.replay<{
       ok: true;
@@ -349,6 +370,7 @@ export class RuntimeResourceMutationService {
         const execution = this.repositories.runtimeResourceMutations.createExecution({
           approval: consumed,
           providerMethod: semantics.providerMethod,
+          executedActor,
           now
         });
         return {

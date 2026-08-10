@@ -9,7 +9,14 @@ import type {
   RuntimeResourceDescriptor
 } from "../src/application/runtime-resource-types.ts";
 import type { RuntimeResourceInventoryService } from "../src/application/runtime-resource-inventory-service.ts";
-import { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
+import { buildOperationContext } from "../src/application/operation-context.ts";
+import { buildRuntimeResourceMutationProvenance } from "../src/application/runtime-resource-mutation-provenance.ts";
+import {
+  RuntimeResourceMutationService,
+  type RuntimeResourceMutationDecisionInput,
+  type RuntimeResourceMutationExecuteInput,
+  type RuntimeResourceMutationPrepareInput
+} from "../src/application/runtime-resource-mutation-service.ts";
 import {
   buildLegacySkillMutationHashV1,
   buildRuntimeResourceMutationHashV2,
@@ -309,12 +316,43 @@ const fakeMutationAdapter = {
   }
 } as unknown as CodexSkillMutationAdapter;
 
-const service = new RuntimeResourceMutationService(
+const prepareContext = buildOperationContext({
+  requestId: "resource-mutation-prepare-request",
+  actorType: "local-ui",
+  actorId: "fixture-operator",
+  now: NOW
+});
+const decisionContext = buildOperationContext({
+  requestId: "resource-mutation-decision-request",
+  actorType: "local-cli",
+  actorId: "fixture-operator",
+  now: NOW
+});
+const executeContext = buildOperationContext({
+  requestId: "resource-mutation-execute-request",
+  actorType: "runner",
+  actorId: "fixture-runner",
+  now: NOW
+});
+
+function bindMutationContexts(raw: RuntimeResourceMutationService) {
+  return {
+    prepare: (input: RuntimeResourceMutationPrepareInput) =>
+      raw.prepare(prepareContext, input),
+    decide: (input: RuntimeResourceMutationDecisionInput) =>
+      raw.decide(decisionContext, input),
+    execute: (input: RuntimeResourceMutationExecuteInput) =>
+      raw.execute(executeContext, input)
+  };
+}
+
+const rawService = new RuntimeResourceMutationService(
   repositories,
   fakeInventory,
   fakeMutationAdapter,
   { now: () => NOW }
 );
+const service = bindMutationContexts(rawService);
 
 const before = resource(true);
 
@@ -363,8 +401,25 @@ assert.equal(prepared.approval.status, "pending");
 assert.equal(prepared.approval.beforeFingerprint, before.fingerprint);
 assert.deepEqual(prepared.approval.requestedState, { enabled: false });
 assert.equal(prepared.approval.expiresAt, "2026-08-10T00:50:00.000Z");
+const expectedPrepareProvenance = buildRuntimeResourceMutationProvenance(prepareContext);
+assert.equal(prepared.approval.requestedActorType, expectedPrepareProvenance.actorType);
+assert.equal(
+  prepared.approval.requestedActorIdentityHash,
+  expectedPrepareProvenance.actorIdentityHash
+);
+assert.equal(
+  prepared.approval.requestedRequestIdentityHash,
+  expectedPrepareProvenance.requestIdentityHash
+);
+assert.equal(prepared.approval.decidedActorType, null);
 const callsAfterPrepare = inventoryCalls;
-const preparedReplay = await service.prepare({
+const sameActorRetryContext = buildOperationContext({
+  requestId: "resource-mutation-prepare-request-retry",
+  actorType: prepareContext.actorType,
+  actorId: prepareContext.actorId,
+  now: NOW
+});
+const preparedReplay = await rawService.prepare(sameActorRetryContext, {
   operation: "skill.disable",
   runtimeProfileId,
   workspaceId,
@@ -374,7 +429,37 @@ const preparedReplay = await service.prepare({
 });
 assert.equal(preparedReplay.replayed, true);
 assert.equal(preparedReplay.approval.id, prepared.approval.id);
+assert.equal(
+  preparedReplay.approval.requestedRequestIdentityHash,
+  expectedPrepareProvenance.requestIdentityHash,
+  "Idempotent replay must preserve the original request provenance"
+);
 assert.equal(inventoryCalls, callsAfterPrepare);
+
+const differentActorContext = buildOperationContext({
+  requestId: "resource-mutation-prepare-request-other-actor",
+  actorType: "local-ui",
+  actorId: "different-fixture-operator",
+  now: NOW
+});
+await assert.rejects(
+  () =>
+    rawService.prepare(differentActorContext, {
+      operation: "skill.disable",
+      runtimeProfileId,
+      workspaceId,
+      resourceId,
+      expectedFingerprint: before.fingerprint,
+      idempotencyKey: "prepare-disable-001"
+    }),
+  (error: unknown) =>
+    error instanceof ServiceError && error.code === "IDEMPOTENCY_CONFLICT"
+);
+assert.equal(
+  inventoryCalls,
+  callsAfterPrepare,
+  "Cross-actor idempotency conflict must fail before a new authoritative read"
+);
 
 const approved = service.decide({
   approvalId: prepared.approval.id,
@@ -384,6 +469,16 @@ const approved = service.decide({
 });
 assert.equal(approved.approval.status, "approved");
 assert.equal(approved.approval.revision, 2);
+const expectedDecisionProvenance = buildRuntimeResourceMutationProvenance(decisionContext);
+assert.equal(approved.approval.decidedActorType, expectedDecisionProvenance.actorType);
+assert.equal(
+  approved.approval.decidedActorIdentityHash,
+  expectedDecisionProvenance.actorIdentityHash
+);
+assert.equal(
+  approved.approval.decidedRequestIdentityHash,
+  expectedDecisionProvenance.requestIdentityHash
+);
 
 const executed = await service.execute({
   approvalId: approved.approval.id,
@@ -397,6 +492,16 @@ const executed = await service.execute({
 assert.equal(executed.replayed, false);
 assert.equal(executed.approval.status, "consumed");
 assert.equal(executed.execution.verificationStatus, "verified");
+const expectedExecuteProvenance = buildRuntimeResourceMutationProvenance(executeContext);
+assert.equal(executed.execution.executedActorType, expectedExecuteProvenance.actorType);
+assert.equal(
+  executed.execution.executedActorIdentityHash,
+  expectedExecuteProvenance.actorIdentityHash
+);
+assert.equal(
+  executed.execution.executedRequestIdentityHash,
+  expectedExecuteProvenance.requestIdentityHash
+);
 assert.deepEqual(executed.execution.observedState, { enabled: false });
 assert.equal(enabled, false);
 assert.equal(mutationCalls, 1);
@@ -707,7 +812,7 @@ const fakePluginMutationAdapter = {
   }
 } as unknown as CodexPluginMutationAdapter;
 
-const pluginService = new RuntimeResourceMutationService(
+const rawPluginService = new RuntimeResourceMutationService(
   repositories,
   fakePluginInventory,
   fakeMutationAdapter,
@@ -718,6 +823,7 @@ const pluginService = new RuntimeResourceMutationService(
     pluginPostflightDelayMs: 0
   }
 );
+const pluginService = bindMutationContexts(rawPluginService);
 
 const pluginBefore = pluginResource(false);
 const pluginInstallPrepared = await pluginService.prepare({
@@ -1093,6 +1199,7 @@ const legacyApprovalRecord = repositories.runtimeResourceMutations.createApprova
     requestedEnabled: false,
     runtimeProfileId
   },
+  requestedActor: buildRuntimeResourceMutationProvenance(prepareContext),
   expiresAt: "2026-08-10T00:50:00.000Z",
   now: NOW
 });

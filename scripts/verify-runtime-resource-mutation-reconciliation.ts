@@ -10,6 +10,8 @@ import type {
   RuntimeResourceDescriptor
 } from "../src/application/runtime-resource-types.ts";
 import type { RuntimeResourceInventoryService } from "../src/application/runtime-resource-inventory-service.ts";
+import { buildOperationContext } from "../src/application/operation-context.ts";
+import { buildRuntimeResourceMutationProvenance } from "../src/application/runtime-resource-mutation-provenance.ts";
 import { RuntimeResourceMutationReconciliationService } from "../src/application/runtime-resource-mutation-reconciliation-service.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
@@ -18,6 +20,30 @@ const NOW = "2026-08-10T01:00:00.000Z";
 const runtimeProfileId = "runtime_profile_reconcile_fixture";
 const workspaceId = "workspace_reconcile_fixture";
 const resourceId = "resource_reconcile_fixture";
+const requestedActor = buildRuntimeResourceMutationProvenance(
+  buildOperationContext({
+    requestId: "reconcile-fixture-prepare",
+    actorType: "local-ui",
+    actorId: "reconcile-fixture-operator",
+    now: NOW
+  })
+);
+const decidedActor = buildRuntimeResourceMutationProvenance(
+  buildOperationContext({
+    requestId: "reconcile-fixture-decide",
+    actorType: "local-cli",
+    actorId: "reconcile-fixture-operator",
+    now: NOW
+  })
+);
+const executedActor = buildRuntimeResourceMutationProvenance(
+  buildOperationContext({
+    requestId: "reconcile-fixture-execute",
+    actorType: "runner",
+    actorId: "reconcile-fixture-runner",
+    now: NOW
+  })
+);
 
 const profile: RuntimeProfileDescriptor = {
   id: runtimeProfileId,
@@ -159,6 +185,7 @@ try {
         beforeEnabled: true,
         requestedEnabled: false
       },
+      requestedActor,
       expiresAt: "2026-08-10T01:05:00.000Z",
       now: NOW
     });
@@ -166,6 +193,7 @@ try {
       id: pending.id,
       decision: "approved",
       expectedRevision: pending.revision,
+      decidedActor,
       now: NOW
     });
     const consumed = repositories.runtimeResourceMutations.consume({
@@ -177,6 +205,7 @@ try {
       id: `execution_${suffix}`,
       approval: consumed,
       providerMethod: "skills/config/write",
+      executedActor,
       now: NOW
     });
   };
@@ -345,6 +374,7 @@ try {
         beforeInstalled,
         requestedInstalled: desiredInstalled
       },
+      requestedActor,
       expiresAt: "2026-08-10T01:05:00.000Z",
       now: NOW
     });
@@ -352,6 +382,7 @@ try {
       id: pending.id,
       decision: "approved",
       expectedRevision: pending.revision,
+      decidedActor,
       now: NOW
     });
     const consumed = repositories.runtimeResourceMutations.consume({
@@ -364,6 +395,7 @@ try {
       approval: consumed,
       providerMethod:
         operation === "plugin.install" ? "plugin/install" : "plugin/uninstall",
+      executedActor,
       now: NOW
     });
   };
