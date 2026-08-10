@@ -287,23 +287,72 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       }
     ]);
     const resourcePlugins = await adapter.listPlugins({
-      workspaceId: rootWorkspace.id
+      workspaceId: rootWorkspace.id,
+      forceRefetch: true
     });
+    const fixtureMarketplaceIdentityHash = createHash("sha256")
+      .update(
+        `marketplace-path:${workspaceRoot}/.codex/plugins/fixture-marketplace/marketplace.json`,
+        "utf8"
+      )
+      .digest("hex");
     assert.deepEqual(resourcePlugins, [
+      {
+        id: "catalog-only@fixture-marketplace",
+        marketplaceName: "fixture-marketplace",
+        sourceIdentityHash: fixtureMarketplaceIdentityHash,
+        sourceType: "local",
+        name: "catalog-only",
+        displayName: "Catalog Only",
+        description: "Catalog endpoint only",
+        version: null,
+        availableVersion: "1.2.3",
+        installed: false,
+        enabled: false,
+        availability: "AVAILABLE",
+        installPolicy: "AVAILABLE",
+        authPolicy: "ON_INSTALL",
+        category: "Engineering",
+        capabilities: ["Read"],
+        observedBy: ["catalog"]
+      },
       {
         id: "fixture-plugin@fixture-marketplace",
         marketplaceName: "fixture-marketplace",
+        sourceIdentityHash: fixtureMarketplaceIdentityHash,
+        sourceType: "local",
         name: "fixture-plugin",
         displayName: "Fixture Plugin",
-        description: "Fixture plugin description",
+        description: "Catalog description wins",
         version: "9.8.7",
+        availableVersion: "9.9.0",
+        installed: true,
+        enabled: true,
+        availability: "AVAILABLE",
+        installPolicy: "AVAILABLE",
+        authPolicy: "ON_USE",
+        category: "Engineering",
+        capabilities: ["Read", "Write"],
+        observedBy: ["catalog", "installed"]
+      },
+      {
+        id: "installed-only@fixture-marketplace",
+        marketplaceName: "fixture-marketplace",
+        sourceIdentityHash: fixtureMarketplaceIdentityHash,
+        sourceType: "local",
+        name: "installed-only",
+        displayName: "Installed Only",
+        description: "Installed endpoint only",
+        version: "2.0.0",
         availableVersion: null,
         installed: true,
         enabled: true,
         availability: "AVAILABLE",
+        installPolicy: "AVAILABLE",
         authPolicy: "ON_USE",
         category: "Engineering",
-        capabilities: ["Read", "Write"]
+        capabilities: ["Read"],
+        observedBy: ["installed"]
       }
     ]);
     const resourceConfig = await adapter.readResourceConfigSummary();
@@ -435,6 +484,21 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
         false
       );
     }
+    const pluginInstalledRequests = traces.filter(
+      (entry) => entry.method === "plugin/installed"
+    );
+    assert.equal(pluginInstalledRequests.length, 1);
+    assert.deepEqual(pluginInstalledRequests[0]?.params, {
+      cwds: [workspaceRoot]
+    });
+    const pluginListRequests = traces.filter(
+      (entry) => entry.method === "plugin/list"
+    );
+    assert.equal(pluginListRequests.length, 1);
+    assert.deepEqual(pluginListRequests[0]?.params, {
+      cwds: [workspaceRoot],
+      forceRefetch: true
+    });
     const listRequests = traces.filter((entry) => entry.method === "thread/list");
     assert.equal(listRequests.length >= 3, true);
     for (const request of listRequests) {

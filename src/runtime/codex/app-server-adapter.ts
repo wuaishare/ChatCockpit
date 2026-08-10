@@ -58,6 +58,147 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function pluginSourceType(value: unknown): RuntimePluginProjection["sourceType"] {
+  const source = asRecord(value);
+  if (["local", "git", "npm", "remote"].includes(String(source.type))) {
+    return String(source.type) as RuntimePluginProjection["sourceType"];
+  }
+  return "unknown";
+}
+
+function pluginSourceIdentityHash(
+  marketplace: Record<string, unknown>
+): string | null {
+  const material =
+    typeof marketplace.path === "string" && marketplace.path
+      ? `marketplace-path:${marketplace.path}`
+      : typeof marketplace.name === "string" && marketplace.name
+        ? `marketplace-name:${marketplace.name}`
+        : null;
+  return material
+    ? createHash("sha256").update(material, "utf8").digest("hex")
+    : null;
+}
+
+function normalizePluginResponse(
+  value: unknown,
+  observedBy: "installed" | "catalog"
+): RuntimePluginProjection[] {
+  const response = asRecord(value);
+  const marketplaces = Array.isArray(response.marketplaces)
+    ? response.marketplaces
+    : [];
+  const plugins: RuntimePluginProjection[] = [];
+  for (const rawMarketplace of marketplaces) {
+    const marketplace = asRecord(rawMarketplace);
+    if (typeof marketplace.name !== "string" || !marketplace.name) continue;
+    const sourceIdentityHash = pluginSourceIdentityHash(marketplace);
+    const rawPlugins = Array.isArray(marketplace.plugins)
+      ? marketplace.plugins
+      : [];
+    for (const rawPlugin of rawPlugins) {
+      const plugin = asRecord(rawPlugin);
+      if (typeof plugin.id !== "string" || !plugin.id) continue;
+      const name =
+        typeof plugin.name === "string" && plugin.name
+          ? plugin.name
+          : plugin.id;
+      const interfaceInfo = asRecord(plugin.interface);
+      const capabilities = Array.isArray(interfaceInfo.capabilities)
+        ? interfaceInfo.capabilities.filter(
+            (entry): entry is string => typeof entry === "string"
+          )
+        : [];
+      plugins.push({
+        id: plugin.id,
+        marketplaceName: marketplace.name,
+        sourceIdentityHash,
+        sourceType: pluginSourceType(plugin.source),
+        name,
+        displayName:
+          typeof interfaceInfo.displayName === "string" && interfaceInfo.displayName
+            ? interfaceInfo.displayName
+            : name,
+        description:
+          typeof interfaceInfo.shortDescription === "string"
+            ? interfaceInfo.shortDescription
+            : typeof interfaceInfo.longDescription === "string"
+              ? interfaceInfo.longDescription
+              : null,
+        version:
+          typeof plugin.localVersion === "string" ? plugin.localVersion : null,
+        availableVersion:
+          typeof plugin.version === "string" ? plugin.version : null,
+        installed: observedBy === "installed" ? true : plugin.installed === true,
+        enabled: plugin.enabled === true,
+        availability:
+          typeof plugin.availability === "string" ? plugin.availability : null,
+        installPolicy:
+          typeof plugin.installPolicy === "string" ? plugin.installPolicy : null,
+        authPolicy:
+          typeof plugin.authPolicy === "string" ? plugin.authPolicy : null,
+        category:
+          typeof interfaceInfo.category === "string" ? interfaceInfo.category : null,
+        capabilities: [...capabilities].sort(),
+        observedBy: [observedBy]
+      });
+    }
+  }
+  return plugins;
+}
+
+function mergePluginProjections(
+  installed: RuntimePluginProjection[],
+  catalog: RuntimePluginProjection[]
+): RuntimePluginProjection[] {
+  const merged = new Map<string, RuntimePluginProjection>();
+  const keyFor = (plugin: RuntimePluginProjection): string =>
+    `${plugin.id}:${plugin.sourceIdentityHash ?? "unknown-source"}`;
+
+  for (const plugin of installed) {
+    merged.set(keyFor(plugin), plugin);
+  }
+  for (const plugin of catalog) {
+    const key = keyFor(plugin);
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, plugin);
+      continue;
+    }
+    if (
+      existing.id !== plugin.id ||
+      existing.marketplaceName !== plugin.marketplaceName ||
+      existing.sourceType !== plugin.sourceType ||
+      existing.name !== plugin.name
+    ) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_DUPLICATE",
+        "Codex Plugin observations conflict for the same provider source identity"
+      );
+    }
+    merged.set(key, {
+      ...existing,
+      displayName: plugin.displayName || existing.displayName,
+      description: plugin.description ?? existing.description,
+      version: existing.version ?? plugin.version,
+      availableVersion: plugin.availableVersion ?? existing.availableVersion,
+      installed: existing.installed || plugin.installed,
+      enabled: existing.installed ? existing.enabled : plugin.enabled,
+      availability: plugin.availability ?? existing.availability,
+      installPolicy: plugin.installPolicy ?? existing.installPolicy,
+      authPolicy: plugin.authPolicy ?? existing.authPolicy,
+      category: plugin.category ?? existing.category,
+      capabilities: [...new Set([...existing.capabilities, ...plugin.capabilities])].sort(),
+      observedBy: [...new Set([...existing.observedBy, ...plugin.observedBy])].sort()
+    });
+  }
+  return [...merged.values()].sort(
+    (left, right) =>
+      left.id.localeCompare(right.id) ||
+      (left.sourceIdentityHash ?? "").localeCompare(right.sourceIdentityHash ?? "")
+  );
+}
+
 function projectRuntimeTurn(value: unknown): RuntimeTurnProjection {
   const turn = asRecord(value);
   const error = asRecord(turn.error);
@@ -264,73 +405,24 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     input: RuntimePluginListInput = {}
   ): Promise<RuntimePluginProjection[]> {
     const client = await this.ensureClient();
-    const params: Record<string, unknown> = {};
+    const installedParams: Record<string, unknown> = {};
+    const catalogParams: Record<string, unknown> = {};
     if (input.workspaceId) {
       const workspace = this.workspaces.getPrivate(input.workspaceId);
-      params.cwds = [workspace.privatePath];
+      installedParams.cwds = [workspace.privatePath];
+      catalogParams.cwds = [workspace.privatePath];
     }
-    const response = asRecord(await client.request<unknown>("plugin/list", params));
-    const marketplaces = Array.isArray(response.marketplaces)
-      ? response.marketplaces
-      : [];
-    const plugins: RuntimePluginProjection[] = [];
-    for (const rawMarketplace of marketplaces) {
-      const marketplace = asRecord(rawMarketplace);
-      if (typeof marketplace.name !== "string" || !marketplace.name) continue;
-      const rawPlugins = Array.isArray(marketplace.plugins)
-        ? marketplace.plugins
-        : [];
-      for (const rawPlugin of rawPlugins) {
-        const plugin = asRecord(rawPlugin);
-        if (typeof plugin.id !== "string" || !plugin.id) continue;
-        const name =
-          typeof plugin.name === "string" && plugin.name
-            ? plugin.name
-            : plugin.id;
-        const interfaceInfo = asRecord(plugin.interface);
-        const capabilities = Array.isArray(interfaceInfo.capabilities)
-          ? interfaceInfo.capabilities.filter(
-              (entry): entry is string => typeof entry === "string"
-            )
-          : [];
-        plugins.push({
-          id: plugin.id,
-          marketplaceName: marketplace.name,
-          name,
-          displayName:
-            typeof interfaceInfo.displayName === "string" &&
-            interfaceInfo.displayName
-              ? interfaceInfo.displayName
-              : name,
-          description:
-            typeof interfaceInfo.shortDescription === "string"
-              ? interfaceInfo.shortDescription
-              : typeof interfaceInfo.longDescription === "string"
-                ? interfaceInfo.longDescription
-                : null,
-          version:
-            typeof plugin.localVersion === "string" ? plugin.localVersion : null,
-          availableVersion:
-            typeof plugin.version === "string" ? plugin.version : null,
-          installed: plugin.installed === true,
-          enabled: plugin.enabled === true,
-          availability:
-            typeof plugin.availability === "string"
-              ? plugin.availability
-              : null,
-          authPolicy:
-            typeof plugin.authPolicy === "string" ? plugin.authPolicy : null,
-          category:
-            typeof interfaceInfo.category === "string"
-              ? interfaceInfo.category
-              : null,
-          capabilities: [...capabilities].sort()
-        });
-      }
+    if (input.forceRefetch === true) {
+      catalogParams.forceRefetch = true;
     }
-    return plugins
-      .slice(0, 1000)
-      .sort((left, right) => left.id.localeCompare(right.id));
+    const [installedResponse, catalogResponse] = await Promise.all([
+      client.request<unknown>("plugin/installed", installedParams),
+      client.request<unknown>("plugin/list", catalogParams)
+    ]);
+    return mergePluginProjections(
+      normalizePluginResponse(installedResponse, "installed"),
+      normalizePluginResponse(catalogResponse, "catalog")
+    );
   }
 
   async readResourceConfigSummary(): Promise<RuntimeResourceConfigSummary> {
