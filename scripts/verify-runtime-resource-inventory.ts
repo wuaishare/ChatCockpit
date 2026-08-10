@@ -10,7 +10,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 16);
+  assert.equal(database.schemaVersion(), 17);
   assert.ok(repositories.runtimeResourceSnapshots);
   assert.ok(repositories.runtimeResourceMutations);
 
