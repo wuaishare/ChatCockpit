@@ -5,8 +5,13 @@ set -euo pipefail
 # Linux and Windows users should use an equivalent supervisor such as systemd, pm2, nohup, or Task Scheduler.
 
 ACTION="${1:-}"
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-RUNTIME_DIR="${ROOT_DIR}/.tokenpilot/runtime"
+SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+INSTALL_ROOT="${TOKENPILOT_INSTALL_ROOT:-${SCRIPT_ROOT}}"
+STATE_ROOT="${TOKENPILOT_STATE_ROOT:-${INSTALL_ROOT}/.tokenpilot}"
+PRIMARY_WORKSPACE_ROOT="${TOKENPILOT_PRIMARY_WORKSPACE_ROOT:-${INSTALL_ROOT}}"
+NODE_BIN="${TOKENPILOT_NODE_BIN:-$(command -v node)}"
+DISTRIBUTION_MODE="${TOKENPILOT_DISTRIBUTION_MODE:-source}"
+RUNTIME_DIR="${STATE_ROOT}/runtime"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"
 RUNNER_PID_FILE="${RUNTIME_DIR}/runner.pid"
@@ -25,8 +30,6 @@ RUNNER_SERVICE_LABEL="com.wuaishare.tokenpilot.runner"
 INSTALLED_RUNNER_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${RUNNER_SERVICE_LABEL}.plist"
 PROCESS_SUPERVISOR_SERVICE_LABEL="com.wuaishare.tokenpilot.process-supervisor"
 INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${PROCESS_SUPERVISOR_SERVICE_LABEL}.plist"
-PORT="${TOKENPILOT_PORT:-4318}"
-RUNNER_INTERVAL="${TOKENPILOT_RUNNER_INTERVAL:-3}"
 USER_DOMAIN="gui/$(id -u)"
 
 mkdir -p "${RUNTIME_DIR}"
@@ -37,6 +40,9 @@ if [[ -f "${ENV_FILE}" ]]; then
   source "${ENV_FILE}"
   set +a
 fi
+
+PORT="${TOKENPILOT_PORT:-4318}"
+RUNNER_INTERVAL="${TOKENPILOT_RUNNER_INTERVAL:-3}"
 
 usage() {
   echo "Usage: $0 {start|stop|restart|status|reset|uninstall}"
@@ -55,7 +61,7 @@ write_server_plist() {
   <key>Label</key>
   <string>${SERVICE_LABEL}</string>
   <key>WorkingDirectory</key>
-  <string>${ROOT_DIR}</string>
+  <string>${INSTALL_ROOT}</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -80,11 +86,21 @@ write_server_plist() {
     <string>${TOKENPILOT_CODEX_BIN:-}</string>
     <key>TOKENPILOT_CODEX_MODEL</key>
     <string>${TOKENPILOT_CODEX_MODEL:-}</string>
+    <key>TOKENPILOT_INSTALL_ROOT</key>
+    <string>${INSTALL_ROOT}</string>
+    <key>TOKENPILOT_STATE_ROOT</key>
+    <string>${STATE_ROOT}</string>
+    <key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT</key>
+    <string>${PRIMARY_WORKSPACE_ROOT}</string>
+    <key>TOKENPILOT_NODE_BIN</key>
+    <string>${NODE_BIN}</string>
+    <key>TOKENPILOT_DISTRIBUTION_MODE</key>
+    <string>${DISTRIBUTION_MODE}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
-    <string>$(command -v node)</string>
-    <string>${ROOT_DIR}/dist/cli/index.js</string>
+    <string>${NODE_BIN}</string>
+    <string>${INSTALL_ROOT}/dist/cli/index.js</string>
     <string>server</string>
   </array>
 </dict>
@@ -101,7 +117,7 @@ write_runner_plist() {
   <key>Label</key>
   <string>${RUNNER_SERVICE_LABEL}</string>
   <key>WorkingDirectory</key>
-  <string>${ROOT_DIR}</string>
+  <string>${INSTALL_ROOT}</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -126,11 +142,21 @@ write_runner_plist() {
     <string>${TOKENPILOT_CODEX_BIN:-}</string>
     <key>TOKENPILOT_CODEX_MODEL</key>
     <string>${TOKENPILOT_CODEX_MODEL:-}</string>
+    <key>TOKENPILOT_INSTALL_ROOT</key>
+    <string>${INSTALL_ROOT}</string>
+    <key>TOKENPILOT_STATE_ROOT</key>
+    <string>${STATE_ROOT}</string>
+    <key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT</key>
+    <string>${PRIMARY_WORKSPACE_ROOT}</string>
+    <key>TOKENPILOT_NODE_BIN</key>
+    <string>${NODE_BIN}</string>
+    <key>TOKENPILOT_DISTRIBUTION_MODE</key>
+    <string>${DISTRIBUTION_MODE}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
-    <string>$(command -v node)</string>
-    <string>${ROOT_DIR}/dist/cli/index.js</string>
+    <string>${NODE_BIN}</string>
+    <string>${INSTALL_ROOT}/dist/cli/index.js</string>
     <string>runner</string>
     <string>--watch</string>
     <string>--interval</string>
@@ -150,7 +176,7 @@ write_process_supervisor_plist() {
   <key>Label</key>
   <string>${PROCESS_SUPERVISOR_SERVICE_LABEL}</string>
   <key>WorkingDirectory</key>
-  <string>${ROOT_DIR}</string>
+  <string>${INSTALL_ROOT}</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -163,11 +189,21 @@ write_process_supervisor_plist() {
   <dict>
     <key>TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH</key>
     <string>${TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH:-}</string>
+    <key>TOKENPILOT_INSTALL_ROOT</key>
+    <string>${INSTALL_ROOT}</string>
+    <key>TOKENPILOT_STATE_ROOT</key>
+    <string>${STATE_ROOT}</string>
+    <key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT</key>
+    <string>${PRIMARY_WORKSPACE_ROOT}</string>
+    <key>TOKENPILOT_NODE_BIN</key>
+    <string>${NODE_BIN}</string>
+    <key>TOKENPILOT_DISTRIBUTION_MODE</key>
+    <string>${DISTRIBUTION_MODE}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
-    <string>$(command -v node)</string>
-    <string>${ROOT_DIR}/dist/cli/index.js</string>
+    <string>${NODE_BIN}</string>
+    <string>${INSTALL_ROOT}/dist/cli/index.js</string>
     <string>process-supervisor</string>
   </array>
 </dict>
@@ -262,10 +298,60 @@ launchctl_process_supervisor_registered() {
   launchctl print "${USER_DOMAIN}/${PROCESS_SUPERVISOR_SERVICE_LABEL}" >/dev/null 2>&1
 }
 
+canonical_directory() {
+  local input="$1"
+  if [[ -d "${input}" ]]; then
+    (cd "${input}" && pwd -P)
+    return
+  fi
+  printf '%s\n' "${input}"
+}
+
+installed_plist_environment_value() {
+  local key="$1"
+  if [[ ! -f "${INSTALLED_PLIST_FILE}" ]]; then
+    return 0
+  fi
+  /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${key}" "${INSTALLED_PLIST_FILE}" 2>/dev/null || true
+}
+
+installed_runtime_ownership_matches() {
+  [[ -f "${INSTALLED_PLIST_FILE}" ]] || return 1
+  local installed_mode=""
+  local installed_root=""
+  installed_mode="$(installed_plist_environment_value TOKENPILOT_DISTRIBUTION_MODE)"
+  installed_root="$(installed_plist_environment_value TOKENPILOT_INSTALL_ROOT)"
+  [[ "${installed_mode}" == "packaged" ]] || return 1
+  [[ -n "${installed_root}" ]] || return 1
+  [[ "$(canonical_directory "${installed_root}")" == "$(canonical_directory "${INSTALL_ROOT}")" ]]
+}
+
+assert_packaged_runtime_ownership() {
+  [[ "${DISTRIBUTION_MODE}" == "packaged" ]] || return 0
+
+  if launchctl_service_registered || launchctl_runner_registered || launchctl_process_supervisor_registered || [[ -f "${INSTALLED_PLIST_FILE}" ]]; then
+    if installed_runtime_ownership_matches; then
+      return 0
+    fi
+    echo "Existing TokenPilot LaunchAgent belongs to another runtime; packaged mode will not take over it automatically. Stop it explicitly in its current mode first."
+    exit 3
+  fi
+}
+
 is_running() {
   local port_pid=""
   port_pid="$(lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
   if [[ -n "${port_pid}" ]]; then
+    if [[ "${DISTRIBUTION_MODE}" == "packaged" ]]; then
+      if [[ -f "${PID_FILE}" ]] && [[ "$(cat "${PID_FILE}")" == "${port_pid}" ]]; then
+        return 0
+      fi
+      if installed_runtime_ownership_matches && launchctl_service_registered; then
+        echo "${port_pid}" > "${PID_FILE}"
+        return 0
+      fi
+      return 1
+    fi
     echo "${port_pid}" > "${PID_FILE}"
     return 0
   fi
@@ -306,10 +392,19 @@ assert_port_available_or_tokenpilot() {
 stop_port_process() {
   local port_pid=""
   port_pid="$(lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
-  if [[ -n "${port_pid}" ]]; then
-    kill "${port_pid}" >/dev/null 2>&1 || true
-    sleep 1
+  if [[ -z "${port_pid}" ]]; then
+    return 0
   fi
+
+  if [[ "${DISTRIBUTION_MODE}" == "packaged" ]]; then
+    if [[ ! -f "${PID_FILE}" ]] || [[ "$(cat "${PID_FILE}")" != "${port_pid}" ]]; then
+      echo "packaged mode: preserving foreign listener on port ${PORT} (pid ${port_pid})"
+      return 0
+    fi
+  fi
+
+  kill "${port_pid}" >/dev/null 2>&1 || true
+  sleep 1
 }
 
 stop_runner_process() {
@@ -381,7 +476,8 @@ wait_for_process_supervisor_ready() {
 
 case "${ACTION}" in
   start)
-    cd "${ROOT_DIR}"
+    cd "${INSTALL_ROOT}"
+    assert_packaged_runtime_ownership
     assert_port_available_or_tokenpilot
     write_server_plist
     write_runner_plist
@@ -437,6 +533,7 @@ case "${ACTION}" in
     echo "next action: open the UI or run npm run doctor:runtime"
     ;;
   stop)
+    assert_packaged_runtime_ownership
     bootout_all_services
     sleep 2
     stop_port_process
@@ -450,7 +547,8 @@ case "${ACTION}" in
     echo "next action: run npm run start:local"
     ;;
   restart)
-    cd "${ROOT_DIR}"
+    cd "${INSTALL_ROOT}"
+    assert_packaged_runtime_ownership
     assert_port_available_or_tokenpilot
     write_server_plist
     write_runner_plist
@@ -537,6 +635,7 @@ case "${ACTION}" in
     exit 1
     ;;
   reset|uninstall)
+    assert_packaged_runtime_ownership
     bootout_all_services
     stop_port_process
     stop_runner_process

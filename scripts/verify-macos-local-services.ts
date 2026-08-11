@@ -11,6 +11,25 @@ assert.match(source, /bootstrap_process_supervisor/);
 assert.match(source, /process_supervisor_ready/);
 assert.match(source, /bootout_all_services/);
 assert.match(source, /stop_process_supervisor_process/);
+assert.match(source, /assert_packaged_runtime_ownership/);
+assert.match(source, /installed_runtime_ownership_matches/);
+assert.match(source, /TOKENPILOT_DISTRIBUTION_MODE/);
+assert.match(source, /TOKENPILOT_INSTALL_ROOT/);
+assert.match(source, /packaged mode will not take over it automatically/i);
+
+assert.match(source, /INSTALL_ROOT="\$\{TOKENPILOT_INSTALL_ROOT:-\$\{SCRIPT_ROOT\}\}"/);
+assert.match(source, /STATE_ROOT="\$\{TOKENPILOT_STATE_ROOT:-\$\{INSTALL_ROOT\}\/\.tokenpilot\}"/);
+assert.match(source, /PRIMARY_WORKSPACE_ROOT="\$\{TOKENPILOT_PRIMARY_WORKSPACE_ROOT:-\$\{INSTALL_ROOT\}\}"/);
+assert.match(source, /NODE_BIN="\$\{TOKENPILOT_NODE_BIN:-\$\(command -v node\)\}"/);
+assert.match(source, /DISTRIBUTION_MODE="\$\{TOKENPILOT_DISTRIBUTION_MODE:-source\}"/);
+assert.match(source, /RUNTIME_DIR="\$\{STATE_ROOT\}\/runtime"/);
+assert.match(source, /<string>\$\{NODE_BIN\}<\/string>/);
+assert.match(source, /<key>TOKENPILOT_STATE_ROOT<\/key>/);
+assert.match(source, /<string>\$\{STATE_ROOT\}<\/string>/);
+assert.match(source, /<key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT<\/key>/);
+assert.match(source, /<string>\$\{PRIMARY_WORKSPACE_ROOT\}<\/string>/);
+assert.match(source, /<key>TOKENPILOT_DISTRIBUTION_MODE<\/key>/);
+assert.match(source, /<string>\$\{DISTRIBUTION_MODE\}<\/string>/);
 
 const restartStart = source.indexOf("  restart)\n");
 const statusStart = source.indexOf("  status)\n", restartStart);
@@ -29,8 +48,17 @@ assert.doesNotMatch(restartBlock, /"\$\{0\}"\s+stop/);
 const stopStart = source.indexOf("  stop)\n");
 const restartBoundary = source.indexOf("  restart)\n", stopStart);
 const stopBlock = source.slice(stopStart, restartBoundary);
+assert.match(stopBlock, /assert_packaged_runtime_ownership/);
 assert.match(stopBlock, /bootout_all_services/);
 assert.match(stopBlock, /stop_process_supervisor_process/);
+
+const stopPortStart = source.indexOf("stop_port_process() {");
+const stopRunnerStart = source.indexOf("stop_runner_process() {", stopPortStart);
+assert.ok(stopPortStart >= 0 && stopRunnerStart > stopPortStart);
+const stopPortBlock = source.slice(stopPortStart, stopRunnerStart);
+assert.match(stopPortBlock, /DISTRIBUTION_MODE.*packaged/s);
+assert.match(stopPortBlock, /PID_FILE/);
+assert.match(stopPortBlock, /preserving foreign listener/i);
 
 const uninstallStart = source.indexOf("  reset\|uninstall)\n");
 assert.ok(uninstallStart >= 0);

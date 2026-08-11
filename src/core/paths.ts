@@ -2,25 +2,38 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { TokenPilotPaths, TokenPilotRepoTargetPaths } from "../types.js";
+import type {
+  TokenPilotDistributionContext,
+  TokenPilotPaths,
+  TokenPilotRepoTargetPaths
+} from "../types.js";
+import {
+  buildDistributionContext,
+  buildSourceDistributionContext
+} from "./distribution-context.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function resolveRepoRoot(): string {
-  const envRepoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim();
-  if (envRepoRoot) {
-    return path.resolve(envRepoRoot);
-  }
-  return path.resolve(__dirname, "../../");
+  return buildDistributionContext().primaryWorkspaceRoot;
 }
 
-export function buildPaths(repoRoot = resolveRepoRoot()): TokenPilotPaths {
-  const workspaceDir = path.join(repoRoot, ".tokenpilot");
+export function buildPaths(
+  input: string | TokenPilotDistributionContext = buildDistributionContext()
+): TokenPilotPaths {
+  const context =
+    typeof input === "string" ? buildSourceDistributionContext(input) : input;
+  const workspaceDir = context.stateRoot;
   const jobsDir = path.join(workspaceDir, "jobs");
   const runtimeDir = path.join(workspaceDir, "runtime");
   return {
-    repoRoot,
+    repoRoot: context.primaryWorkspaceRoot,
+    installRoot: context.installRoot,
+    stateRoot: context.stateRoot,
+    distributionMode: context.mode,
+    nodeExecutable: context.nodeExecutable,
+    configPath: context.configPath,
     workspaceDir,
     bundlesDir: path.join(workspaceDir, "bundles"),
     jobsDir,

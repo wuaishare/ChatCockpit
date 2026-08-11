@@ -1,5 +1,15 @@
 export type JobType = "pack" | "taskpack" | "codex-run";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
+export type TokenPilotDistributionMode = "source" | "packaged";
+
+export interface TokenPilotDistributionContext {
+  mode: TokenPilotDistributionMode;
+  installRoot: string;
+  stateRoot: string;
+  primaryWorkspaceRoot: string;
+  nodeExecutable: string;
+  configPath: string;
+}
 export type TokenPilotTrackedProcessState =
   | "running"
   | "paused"
@@ -9,6 +19,11 @@ export type TokenPilotTrackedProcessState =
 
 export interface TokenPilotPaths {
   repoRoot: string;
+  installRoot: string;
+  stateRoot: string;
+  distributionMode: TokenPilotDistributionMode;
+  nodeExecutable: string;
+  configPath: string;
   workspaceDir: string;
   bundlesDir: string;
   jobsDir: string;

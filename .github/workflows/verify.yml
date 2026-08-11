@@ -58,7 +58,7 @@ jobs:
   macos-desktop:
     name: macOS desktop package
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -73,14 +73,55 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify desktop contract
-        run: npm run verify:macos-desktop
+      - name: Resolve native and static package architectures
+        run: |
+          case "$(uname -m)" in
+            arm64)
+              echo "NATIVE_RUNTIME_ARCH=arm64" >> "$GITHUB_ENV"
+              echo "STATIC_RUNTIME_ARCH=x64" >> "$GITHUB_ENV"
+              ;;
+            x86_64)
+              echo "NATIVE_RUNTIME_ARCH=x64" >> "$GITHUB_ENV"
+              echo "STATIC_RUNTIME_ARCH=arm64" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Unsupported macOS runner architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Verify runtime manifest
+        run: npm run verify:runtime-manifest
+
+      - name: Verify distribution context
+        run: npm run verify:distribution-context
+
+      - name: Verify packaged Doctor contract
+        run: npm run verify:packaged-doctor
 
       - name: Test Swift package
         run: swift test --package-path desktop/macos
 
-      - name: Build unsigned local app
-        run: npm run build:macos-desktop
+      - name: Build native packaged runtime
+        run: npm run build:macos-runtime -- --arch "$NATIVE_RUNTIME_ARCH"
+
+      - name: Verify native packaged runtime payload
+        run: TOKENPILOT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$NATIVE_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:macos-runtime-payload
+
+      - name: Run no-system-Node packaged runtime live proof
+        run: TOKENPILOT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$NATIVE_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:packaged-runtime
+
+      - name: Build other-architecture runtime for static verification
+        run: npm run build:macos-runtime -- --arch "$STATIC_RUNTIME_ARCH"
+
+      - name: Verify other-architecture runtime payload statically
+        run: TOKENPILOT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$STATIC_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:macos-runtime-payload
+
+      - name: Build unsigned native desktop app
+        run: npm run build:macos-desktop -- --arch "$NATIVE_RUNTIME_ARCH"
+
+      - name: Verify desktop contract
+        run: npm run verify:macos-desktop
 
   release-dry-run:
     name: Release dry-run

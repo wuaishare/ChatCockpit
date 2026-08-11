@@ -1,14 +1,17 @@
 import Foundation
 
 public protocol DesktopRuntimeConfigurationReading: Sendable {
-    func read(rootURL: URL) -> DesktopRuntimeConfiguration
+    func read(stateRootURL: URL) -> DesktopRuntimeConfiguration
 }
 
 extension DesktopRuntimeConfigurationReader: DesktopRuntimeConfigurationReading {}
 
 public protocol LifecycleControlling: Sendable {
-    func status(root: TokenPilotRoot) async throws -> LifecycleStatus
-    func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> LifecycleStatus
+    func status(context: LifecycleExecutionContext) async throws -> LifecycleStatus
+    func perform(
+        _ action: LifecycleAction,
+        context: LifecycleExecutionContext
+    ) async throws -> LifecycleStatus
 }
 
 extension LifecycleClient: LifecycleControlling {}
@@ -49,7 +52,7 @@ public enum DesktopOverallStateResolver {
 
 public struct DesktopRuntimeSnapshot: Equatable, Sendable {
     public let overallState: DesktopOverallState
-    public let root: TokenPilotRoot?
+    public let context: DesktopDistributionContext?
     public let node: NodeRuntimeStatus
     public let configuration: DesktopRuntimeConfiguration
     public let lifecycle: LifecycleStatus
@@ -58,7 +61,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
 
     public init(
         overallState: DesktopOverallState,
-        root: TokenPilotRoot?,
+        context: DesktopDistributionContext?,
         node: NodeRuntimeStatus,
         configuration: DesktopRuntimeConfiguration,
         lifecycle: LifecycleStatus,
@@ -66,7 +69,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
         uiReachable: Bool
     ) {
         self.overallState = overallState
-        self.root = root
+        self.context = context
         self.node = node
         self.configuration = configuration
         self.lifecycle = lifecycle
@@ -76,13 +79,26 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
 
     public static let setupRequired = DesktopRuntimeSnapshot(
         overallState: .setupRequired,
-        root: nil,
+        context: nil,
         node: NodeRuntimeStatus(executableURL: nil, version: nil),
         configuration: DesktopRuntimeConfiguration(),
         lifecycle: .unknown,
         healthReachable: false,
         uiReachable: false
     )
+
+    public var root: TokenPilotRoot? {
+        guard let context, context.mode == .source else { return nil }
+        return TokenPilotRoot(url: context.installRootURL)
+    }
+
+    public var primaryWorkspaceURL: URL? {
+        context?.primaryWorkspaceURL
+    }
+
+    public var distributionMode: DistributionMode? {
+        context?.mode
+    }
 
     public var cockpitURL: URL? {
         guard uiReachable else { return nil }
@@ -96,35 +112,51 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
 }
 
 public protocol RuntimeControlling: Sendable {
-    func snapshot(root: TokenPilotRoot) async -> DesktopRuntimeSnapshot
-    func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> DesktopRuntimeSnapshot
+    func snapshot(context: DesktopDistributionContext) async -> DesktopRuntimeSnapshot
+    func perform(
+        _ action: LifecycleAction,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopRuntimeSnapshot
+}
+
+public extension RuntimeControlling {
+    func snapshot(root: TokenPilotRoot) async -> DesktopRuntimeSnapshot {
+        await snapshot(context: .source(root: root))
+    }
+
+    func perform(
+        _ action: LifecycleAction,
+        root: TokenPilotRoot
+    ) async throws -> DesktopRuntimeSnapshot {
+        try await perform(action, context: .source(root: root))
+    }
 }
 
 public struct RuntimeController: RuntimeControlling, Sendable {
     private let configurationReader: any DesktopRuntimeConfigurationReading
-    private let nodeInspector: any NodeRuntimeInspecting
+    private let nodeResolver: any DesktopNodeRuntimeResolving
     private let lifecycle: any LifecycleControlling
     private let health: any LocalHealthChecking
 
     public init(
         configurationReader: any DesktopRuntimeConfigurationReading = DesktopRuntimeConfigurationReader(),
-        nodeInspector: any NodeRuntimeInspecting = ProcessNodeRuntimeInspector(),
+        nodeResolver: any DesktopNodeRuntimeResolving = DualModeNodeRuntimeResolver(),
         lifecycle: any LifecycleControlling = LifecycleClient(),
         health: any LocalHealthChecking = LocalHealthClient()
     ) {
         self.configurationReader = configurationReader
-        self.nodeInspector = nodeInspector
+        self.nodeResolver = nodeResolver
         self.lifecycle = lifecycle
         self.health = health
     }
 
-    public func snapshot(root: TokenPilotRoot) async -> DesktopRuntimeSnapshot {
-        let configuration = configurationReader.read(rootURL: root.url)
-        async let node = nodeInspector.inspect(currentDirectoryURL: root.url)
+    public func snapshot(context: DesktopDistributionContext) async -> DesktopRuntimeSnapshot {
+        let configuration = configurationReader.read(stateRootURL: context.stateRootURL)
+        async let node = nodeResolver.inspect(context: context)
 
         let lifecycleStatus: LifecycleStatus
         do {
-            lifecycleStatus = try await lifecycle.status(root: root)
+            lifecycleStatus = try await lifecycle.status(context: context.lifecycleContext)
         } catch {
             lifecycleStatus = .unknown
         }
@@ -137,8 +169,13 @@ public struct RuntimeController: RuntimeControlling, Sendable {
         }
 
         let nodeStatus = await node
+        var workspaceIsDirectory: ObjCBool = false
+        let workspaceAvailable = FileManager.default.fileExists(
+            atPath: context.primaryWorkspaceURL.path,
+            isDirectory: &workspaceIsDirectory
+        ) && workspaceIsDirectory.boolValue
         let overallState = DesktopOverallStateResolver.resolve(
-            rootAvailable: true,
+            rootAvailable: workspaceAvailable,
             nodeSupported: nodeStatus.supported,
             lifecycle: lifecycleStatus,
             healthReachable: localHealth.healthReachable,
@@ -147,7 +184,7 @@ public struct RuntimeController: RuntimeControlling, Sendable {
 
         return DesktopRuntimeSnapshot(
             overallState: overallState,
-            root: root,
+            context: context,
             node: nodeStatus,
             configuration: configuration,
             lifecycle: lifecycleStatus,
@@ -156,8 +193,11 @@ public struct RuntimeController: RuntimeControlling, Sendable {
         )
     }
 
-    public func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> DesktopRuntimeSnapshot {
-        _ = try await lifecycle.perform(action, root: root)
-        return await snapshot(root: root)
+    public func perform(
+        _ action: LifecycleAction,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopRuntimeSnapshot {
+        _ = try await lifecycle.perform(action, context: context.lifecycleContext)
+        return await snapshot(context: context)
     }
 }

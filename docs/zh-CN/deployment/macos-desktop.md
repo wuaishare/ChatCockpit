@@ -1,84 +1,176 @@
 # TokenPilot Desktop for macOS
 
-TokenPilot Desktop Phase 1 是现有本地 TokenPilot Runtime 之上的原生 SwiftUI 操作壳层。它不会替代 Node Control Plane、Runner、Process Supervisor、Web Cockpit、MCP、OAuth、Continuity、Codex、Approval 或 Resource Center。
+TokenPilot Desktop 是现有 TokenPilot Node Control Plane 之上的原生 SwiftUI 操作壳层。Phase 2 在保持 Node/TypeScript Control Plane、Runner、Process Supervisor、Web Cockpit、MCP、OAuth、Continuity、Codex、Approval 与 Resource Center 单一业务真源的前提下，加入了 Self-contained Packaged Runtime。
 
-## Phase 1 当前边界
+## Phase 2 当前边界
 
-Phase 1 提供：
+Desktop App 现在明确支持两种运行模式。
 
-- macOS 原生菜单栏状态入口；
-- 紧凑的 Status 状态窗口；
-- 原生 Settings 设置窗口；
-- TokenPilot Root 有界自动发现与手动目录选择；
-- 本地 Node Runtime 校验；
-- 复用现有 macOS 生命周期脚本的 Start / Stop / Restart；
-- 本地 Health 与 Cockpit 可达性状态；
-- `Open TokenPilot`，通过默认浏览器打开现有 `/ui`；
-- 可在本机构建验证的 unsigned `.app`。
+### Packaged Mode
 
-Phase 1 **不包含**：
+Packaged Mode 是普通桌面使用场景的 Self-contained 路径：
 
-- 内置 Node；
-- Developer ID 签名；
-- Apple notarization；
-- `.dmg` 正式分发；
-- 自动更新；
-- 把 Web Cockpit 或 TokenPilot 业务逻辑重写成原生版本。
+- `.app` 自带经过校验的 TokenPilot Runtime Payload；
+- Payload 内置当前 macOS 架构对应的精确 Node.js `24.18.1`；
+- 首次使用时把内嵌 Payload 部署到 `~/Library/Application Support/TokenPilot/runtimes/` 下的版本化 Runtime；
+- 可写 TokenPilot 状态独立放在 `~/Library/Application Support/TokenPilot/state/`；
+- 本机私有配置独立放在 `~/Library/Application Support/TokenPilot/config/`；
+- 用户选择 TokenPilot 真正要操作的项目 Workspace；
+- Runtime 目录不会冒充用户 Workspace；
+- 启动 TokenPilot 不要求系统安装 `node` 或 `npm`；
+- Packaged App 运行时不要求存在 TokenPilot 源码 checkout。
 
-## 环境要求
+Git、Python、Codex 等外部工具仍可能是某些具体能力的依赖，但它们缺失时不会让 Packaged Control Plane 本身无法启动。
 
-当前 Phase 1 源码构建要求：
+### Developer Mode
 
-- macOS 14 或更高版本；
-- 可构建该 Swift Package 的 Apple Swift Toolchain；
-- 现有 TokenPilot Runtime 所需的 Node.js `>=22.13.0`；
-- 一个合法的 TokenPilot 源码或已构建 checkout。
+Developer Mode 保留原有源码工作流：
 
-Desktop App 会真正校验所选 Root，而不是只看目录名。合法 Root 必须包含 TokenPilot `package.json`、现有 macOS lifecycle script，并且具有源码 CLI 或构建后的 CLI 入口。
+- 选择合法的 TokenPilot 源码或已构建 checkout；
+- 使用系统 Node.js `>=22.13.0`；
+- Runtime 状态继续放在 checkout 内的 `.tokenpilot/`；
+- 继续使用现有 source-oriented setup、doctor 与开发命令。
+
+Developer Mode 仍面向贡献者和维护者。Phase 2 不会删除它，也不会静默把它迁移掉。
+
+## Runtime 与 Workspace 分离
+
+Packaged Mode 明确区分四种根：
+
+```text
+TokenPilot.app
+├── Contents/Resources/TokenPilotRuntime/       App 内只读分发 Payload
+
+~/Library/Application Support/TokenPilot/
+├── runtimes/<runtime-id>/                      部署后的 immutable Runtime
+├── state/                                      可写本机 Runtime State
+└── config/                                     本机私有配置
+
+<用户选择的项目>/                               TokenPilot 真正操作的 Workspace
+```
+
+部署后的 Runtime 与 Application Support State 不会自动加入 Workspace allowlist。
+
+## Bundled Node 供应链合同
+
+Phase 2 Runtime Manifest 将 Node.js 精确固定为：
+
+```text
+24.18.1
+```
+
+仓库分别记录 Node 官方发布物与 SHA256：
+
+- `darwin-arm64`；
+- `darwin-x64`。
+
+Runtime Payload 构建只读取仓库中已审核的 Manifest，不在构建时动态解析 `latest-v24.x`。Node 下载发生在**构建阶段**，普通 Packaged App 首次启动不会联网下载 Node。
+
+Production Runtime Payload 来自干净的 production dependency install 和已经构建的 TokenPilot 产物，不会直接复制贡献者开发机当前的完整 `node_modules`。
 
 ## 构建本地 unsigned App
 
-在 TokenPilot 仓库根目录执行：
+从源码构建 `.app` 本身仍然需要仓库开发工具链：
 
 ```bash
 npm ci
-npm run verify:macos-desktop
+npm run verify:runtime-manifest
+npm run verify:distribution-context
 swift test --package-path desktop/macos
-npm run build:macos-desktop
+npm run build:macos-desktop -- --arch arm64
 ```
 
-生成：
+构建 Intel 包时使用 `--arch x64`。
+
+输出：
 
 ```text
 dist/macos/TokenPilot.app
 ```
 
-该 App 当前明确是 unsigned / unnotarized 本地构建；构建命令也会直接打印这一限制。
+App 内包含：
 
-## 首次启动
+```text
+Contents/MacOS/TokenPilot
+Contents/Resources/TokenPilotRuntime/
+```
+
+当前构建仍然明确是 **unsigned / unnotarized**。构建命令会直接输出：
+
+```text
+signing: not performed
+notarization: not performed
+```
+
+因此不能把它描述成已签名的正式 macOS 公开发行版。
+
+## Packaged Mode 首次启动
+
+打开本地构建：
 
 ```bash
 open dist/macos/TokenPilot.app
 ```
 
-App 会先执行有界的 TokenPilot Root 发现。找不到合法 Root 时，可从菜单栏或 Settings 手动选择。
+只要 App 中存在合法的 Runtime Payload，Packaged Mode 就可用。用户只需要选择 TokenPilot 真正要操作的项目目录。
 
-所选 Root 只保存在本机 macOS 用户偏好中，不写入公共仓库。
+App 会校验内嵌 Runtime，并通过 staging → verify → atomic promote 的方式部署到 Application Support。新的 Payload 如果损坏或部署失败，不会覆盖此前已经有效的 Runtime。
+
+所选 Workspace 只存于本机 macOS 用户偏好与 TokenPilot 私有配置中，不会把机器绝对路径提交到公共仓库。
+
+## Import Existing Setup
+
+Packaged Mode 提供显式 **Import Existing Setup…** 操作。
+
+导入流程默认非破坏：
+
+- Source checkout 只读；
+- 应用前先展示 Preview；
+- 可导入 Workspace allowlist / repo mapping 与安全的本地 endpoint 设置；
+- 不迁移 API bearer token；
+- 不迁移 OAuth access / refresh token；
+- 不迁移 Process Supervisor token；
+- 不迁移 provider credential 或 cookie。
+
+如果原 Source Setup 开启了 exposed mode，由于 bearer credential 明确不复制，导入后的 Packaged Setup 会安全恢复为 **Local only**。只有重新显式配置 Packaged credential 后，才应该重新打开 exposed mode。
+
+## Runtime 冲突保护
+
+Source Mode 与 Packaged Mode 当前使用相同的 TokenPilot LaunchAgent service identity。因此，在允许 Packaged Mode 执行服务变更之前，Desktop App 会检查已安装 LaunchAgent 的 ownership。
+
+如果检测到以下任一情况：
+
+- 现有 Developer Mode Runtime；
+- 另一份 Packaged Runtime；
+- ownership 无法识别的 TokenPilot LaunchAgent；
+- 已有其他进程占用了配置端口；
+
+Packaged Mode 会进入冲突提示状态，并且**不会自动**：
+
+- 停掉旧 Runtime；
+- Restart 旧 Runtime；
+- 替换旧 LaunchAgent plist；
+- 杀掉 foreign listener；
+- 接管旧 service identity。
+
+用户需要先在现有 Runtime 所属模式中显式处理它，再刷新 Packaged Mode。
+
+同样的 ownership 边界也下沉到了 lifecycle shell，因此绕过 GUI 直接调用 packaged lifecycle，也不会把它变成自动接管 Source Runtime 的通道。
 
 ## Runtime 状态
 
-Desktop Shell 对外只呈现四个整体状态：
+Desktop Shell 继续呈现四个整体状态：
 
-- **Setup Required**：没有合法 TokenPilot Root，或缺少/不支持所需 Node Runtime；
-- **Stopped**：本地设置合法，但 Control Plane 没有运行；
+- **Setup Required**：缺少必要 Workspace/Runtime 输入，或选中的 Runtime 无效；
+- **Stopped**：设置合法，但 Control Plane 尚未运行；
 - **Needs Attention**：Runtime 只有部分组件正常；
-- **Ready**：Node 满足要求、Control Plane running、Runner registered、Process Supervisor ready、`/api/health` 返回 `ok: true`，且 `/ui` 可达。
+- **Ready**：当前 Node Runtime 合法、Control Plane running、Runner registered、Process Supervisor ready、`/api/health` 返回 `ok: true`，并且 `/ui` 可达。
 
-App 不会因为“某个进程存在”就宣布 Ready。
+Runtime Conflict 是独立于上述四态的保护信号：即使某个进程本身可达，只要 ownership 不属于当前 Packaged Runtime，Desktop 也不会因为“端口有人监听”就允许 mutation。
 
 ## Start / Stop / Restart
 
-Swift 层不会重写 LaunchAgent 管理逻辑，而是继续复用唯一生命周期合同：
+Swift 层不会重写 LaunchAgent 管理，而是继续复用：
 
 ```text
 scripts/macos-manage-local-server.sh
@@ -93,70 +185,79 @@ stop
 restart
 ```
 
-继续沿用三个服务的现有语义：
+Lifecycle Helper 管理：
 
 - `com.wuaishare.tokenpilot.control-plane`；
 - `com.wuaishare.tokenpilot.runner`；
 - `com.wuaishare.tokenpilot.process-supervisor`。
 
-特别是 Restart 继续保持现有 Process Supervisor generation 语义，不在 Swift 里制造第二套重启规则。
+Packaged Mode 会显式向这条 lifecycle contract 传入 Install Root、State Root、Primary Workspace、Bundled Node 绝对路径与 Distribution Mode。LaunchAgent 使用 bundled Node 的绝对路径，不再依赖 `command -v node`。
+
+普通 Restart 继续保持既有 Process Supervisor generation 语义。
 
 ## Quit 不等于 Stop
 
 **Quit TokenPilot** 只退出原生 GUI。
 
-它不会隐式停止 Control Plane、Runner 或 Process Supervisor。
-
-只有显式点击 **Stop Services** 才停止本地 TokenPilot 服务栈。这避免用户只是关闭菜单栏工具，却意外终止正在持续运行的受管理任务。
+它不会隐式停止 Control Plane、Runner 或 Process Supervisor。只有明确希望停止当前 Runtime 所拥有的 TokenPilot 服务栈时，才使用 **Stop Services**。
 
 ## Open TokenPilot
 
-本地 Cockpit 可达时，**Open TokenPilot** 打开：
+Cockpit 可达时，**Open TokenPilot** 仍通过系统默认浏览器打开现有 Web UI：
 
 ```text
 http://<configured-host>:<configured-port>/ui
 ```
 
-常见本地默认地址：
+本地默认仍为：
 
 ```text
 http://127.0.0.1:4318/ui
 ```
 
-Phase 1 使用系统默认浏览器打开现有 Web Cockpit，不内嵌 WebView，也不复制一套原生 Cockpit。
+Desktop 不内嵌，也不重写完整 Cockpit。
 
 ## 安全边界
 
-Desktop Shell 继续让现有 TokenPilot 安全模型保持权威：
+原生壳层继续让现有 TokenPilot 安全模型保持权威：
 
 - 不显示 bearer token 值；
+- Existing Setup Import 不复制 secret；
 - 不创建第二套 OAuth；
 - 不绕过 Approval 或 Mutation Policy；
 - 不新增 Remote MCP 权限；
-- 不自动打开 exposed mode；
-- 不提供任意 shell command 输入框。
+- 不提供任意 shell command 输入框；
+- Packaged Runtime / State / Workspace 根保持分离；
+- Payload hash 可以发现 Runtime 损坏，但在 App 尚未签名时不能冒充 publisher authenticity 证明。
 
-Settings 可以显示 local/exposed、API token 是否已配置等安全状态，但 secret 值保持隐藏。
+## Phase 2 验证
 
-## 验证
+主要门禁包括：
 
 ```bash
-npm run verify:macos-desktop
+npm run verify:runtime-manifest
+npm run verify:distribution-context
+npm run verify:packaged-doctor
 swift test --package-path desktop/macos
-npm run build:macos-desktop
+npm run build:macos-runtime -- --arch arm64
+TOKENPILOT_RUNTIME_PAYLOAD_DIR=dist/macos-runtime/arm64/TokenPilotRuntime npm run verify:macos-runtime-payload
+TOKENPILOT_RUNTIME_PAYLOAD_DIR=dist/macos-runtime/arm64/TokenPilotRuntime npm run verify:packaged-runtime
+npm run build:macos-desktop -- --arch arm64
+npm run verify:macos-desktop
 ```
 
-GitHub CI 还包含独立的 `macOS desktop package` job，与 Node 22/24 双矩阵分开验证 Desktop Package。
+`verify:packaged-runtime` 是 live proof，必须使用 CI/本机 runner 的原生架构。它会刻意隐藏 system Node/npm，使用 bundled Node 启动 Packaged Control Plane，验证 health/UI/workspace，并再次确认 immutable runtime hash 未改变。
 
-## 后续 Packaging
+同一 runner 上可以构建另一架构并做静态 Payload 校验，但 arm64 runner 上的 x64 静态校验不会被描述成 Intel-native live execution，反之亦然。
 
-后续阶段继续独立推进：
+## Phase 3 仍然独立
 
-1. bundled Node / self-contained runtime；
-2. 完整 Xcode distribution pipeline；
-3. Developer ID + hardened runtime；
-4. Apple notarization；
-5. `.app` / `.dmg` release workflow；
-6. update strategy。
+Phase 2 **不包含**：
 
-在这些门禁完成前，不把 Phase 1 本地 unsigned build 描述成已签名或已公证的正式发行版本。
+- Developer ID signing；
+- hardened runtime distribution policy；
+- Apple notarization；
+- `.dmg` release packaging；
+- 自动更新分发。
+
+这些仍属于下一阶段 macOS Distribution Gate。Phase 2 解决的是 Self-contained Local Runtime，不会把 unsigned local build 描述成已经具备正式发行者真实性的生产发布版本。

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 import { evaluateWorkspaceCommand } from "./command-policy.js";
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   ShellRunPayload,
@@ -15,7 +15,7 @@ const MAX_OUTPUT_BYTES = 64 * 1024;
 const COMMAND_TIMEOUT_MS = 25_000; // GPT Action 超时 ~30s，留 5s 余量
 
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   return resolveRepoMapping(config, repoId).repoRoot;
 }
 

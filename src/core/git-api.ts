@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import {
   hasStagedPublicUnsafeChanges,
   isPublicSafeGitPath,
@@ -17,7 +17,7 @@ import type {
 } from "../types.js";
 
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   return resolveRepoMapping(config, repoId).repoRoot;
 }
 

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { timestampSlug, writeJson, writeText } from "./files.js";
 import {
   hasStagedPublicUnsafeChanges,
@@ -114,7 +114,7 @@ function prepareExecutionTarget(
   jobId: string,
   payload: CodexRunJobPayload
 ): ExecutionTarget {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   const mapping = resolveRepoMapping(config, payload.repoId);
   ensureGitRepo(mapping.repoRoot);
 

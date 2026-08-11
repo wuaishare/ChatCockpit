@@ -2,14 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { buildOAuthReadiness } from "../auth/oauth-readiness.js";
+import type { TokenPilotDistributionContext } from "../types.js";
+import { buildSourceDistributionContext } from "./distribution-context.js";
 import { runCommand } from "./shell.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { listJobs } from "./jobs.js";
+
+export type DoctorCheckImpact = "runtime-blocking" | "capability" | "informational";
 
 export interface DoctorCheck {
   name: string;
   ok: boolean;
   detail: string;
+  impact: DoctorCheckImpact;
 }
 
 export interface DoctorResult {
@@ -19,48 +24,76 @@ export interface DoctorResult {
   fixes: string[];
 }
 
-export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): DoctorResult {
+export interface RunDoctorOptions {
+  fix?: boolean;
+  context?: TokenPilotDistributionContext;
+}
+
+function commandDetail(stdout: string, stderr: string): string {
+  return stdout.trim() || stderr.trim() || "Command is unavailable.";
+}
+
+export function runDoctor(
+  repoRoot: string,
+  options: RunDoctorOptions = {}
+): DoctorResult {
   const checks: DoctorCheck[] = [];
   const fixes: string[] = [];
-  const paths = buildPaths(repoRoot);
+  const context = options.context ?? buildSourceDistributionContext(repoRoot);
+  const paths = buildPaths(context);
+  const packaged = context.mode === "packaged";
 
   if (options.fix) {
     ensureWorkspaceDirs(paths);
-    fixes.push(`ensured runtime directories under ${path.relative(repoRoot, paths.workspaceDir)}`);
+    fixes.push(
+      packaged
+        ? "ensured packaged runtime state directories"
+        : `ensured runtime directories under ${path.relative(repoRoot, paths.workspaceDir)}`
+    );
   }
 
-  const git = runCommand("git", ["rev-parse", "--show-toplevel"], repoRoot);
+  const git = runCommand("git", ["rev-parse", "--show-toplevel"], paths.repoRoot);
   checks.push({
-    name: "git",
+    name: packaged ? "git-capability" : "git",
     ok: git.exitCode === 0,
-    detail: git.exitCode === 0 ? git.stdout.trim() : git.stderr.trim()
+    detail: commandDetail(git.stdout, git.stderr),
+    impact: packaged ? "capability" : "runtime-blocking"
   });
 
-  const node = runCommand("node", ["--version"], repoRoot);
+  const node = packaged
+    ? runCommand(paths.nodeExecutable, ["--version"], paths.installRoot)
+    : runCommand("node", ["--version"], paths.installRoot);
   checks.push({
     name: "node",
     ok: node.exitCode === 0,
-    detail: node.exitCode === 0 ? node.stdout.trim() : node.stderr.trim()
+    detail:
+      node.exitCode === 0
+        ? `${packaged ? "bundled " : ""}${node.stdout.trim()}`
+        : commandDetail(node.stdout, node.stderr),
+    impact: "runtime-blocking"
   });
 
-  const npm = runCommand("npm", ["--version"], repoRoot);
+  const npm = runCommand("npm", ["--version"], paths.installRoot);
   checks.push({
-    name: "npm",
+    name: packaged ? "npm-capability" : "npm",
     ok: npm.exitCode === 0,
-    detail: npm.exitCode === 0 ? npm.stdout.trim() : npm.stderr.trim()
+    detail: commandDetail(npm.stdout, npm.stderr),
+    impact: packaged ? "capability" : "runtime-blocking"
   });
 
-  const python = runCommand("python3", ["--version"], repoRoot);
+  const python = runCommand("python3", ["--version"], paths.installRoot);
   checks.push({
-    name: "python3",
+    name: packaged ? "python3-capability" : "python3",
     ok: python.exitCode === 0,
-    detail: python.exitCode === 0 ? python.stdout.trim() || python.stderr.trim() : python.stderr.trim()
+    detail: commandDetail(python.stdout, python.stderr),
+    impact: packaged ? "capability" : "runtime-blocking"
   });
 
   checks.push({
     name: "bundle-engine",
     ok: true,
-    detail: "TokenPilot internal XML bundle generator"
+    detail: "TokenPilot internal XML bundle generator",
+    impact: "informational"
   });
 
   const oauth = buildOAuthReadiness(paths);
@@ -70,7 +103,8 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
     detail:
       oauth.status === "ready"
         ? `ready metadata=${oauth.protectedResourceMetadataUrl}`
-        : oauth.detail
+        : oauth.detail,
+    impact: "runtime-blocking"
   });
 
   const jobs = listJobs(paths);
@@ -81,7 +115,8 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
   checks.push({
     name: "job-queue",
     ok: true,
-    detail: `queued=${queued} running=${running} completed=${completed} failed=${failed}`
+    detail: `queued=${queued} running=${running} completed=${completed} failed=${failed}`,
+    impact: "informational"
   });
 
   const runnerStatusPath = paths.runnerStatusPath;
@@ -90,13 +125,15 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
     checks.push({
       name: "runner-status",
       ok: true,
-      detail: raw.trim()
+      detail: raw.trim(),
+      impact: "runtime-blocking"
     });
   } else {
     checks.push({
       name: "runner-status",
       ok: false,
-      detail: `Missing ${runnerStatusPath}`
+      detail: `Missing ${runnerStatusPath}`,
+      impact: "runtime-blocking"
     });
   }
 
@@ -107,7 +144,8 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
     checks.push({
       name: "process-supervisor-status",
       ok: true,
-      detail: "Process Supervisor is not configured in this local runtime yet."
+      detail: "Process Supervisor is not configured in this local runtime yet.",
+      impact: "runtime-blocking"
     });
   } else if (fs.existsSync(paths.processSupervisorStatusPath)) {
     try {
@@ -124,30 +162,39 @@ export function runDoctor(repoRoot: string, options: { fix?: boolean } = {}): Do
         ok: ready,
         detail: `state=${String(status.state)} owned=${String(
           status.ownedProcessCount ?? "unknown"
-        )} protocol=${String(status.protocolVersion ?? "unknown")}`
+        )} protocol=${String(status.protocolVersion ?? "unknown")}`,
+        impact: "runtime-blocking"
       });
     } catch {
       checks.push({
         name: "process-supervisor-status",
         ok: false,
-        detail: "Process Supervisor status file is invalid."
+        detail: "Process Supervisor status file is invalid.",
+        impact: "runtime-blocking"
       });
     }
   } else {
     checks.push({
       name: "process-supervisor-status",
       ok: false,
-      detail: "Process Supervisor is configured but has not reported status."
+      detail: "Process Supervisor is configured but has not reported status.",
+      impact: "runtime-blocking"
     });
   }
 
-  const ok = checks.every((check) => check.ok);
-  const summary = ok
-    ? "TokenPilot local prerequisites look ready."
+  const runtimeBlockingChecks = checks.filter((check) => check.impact === "runtime-blocking");
+  const runtimeReady = runtimeBlockingChecks.every((check) => check.ok);
+  const capabilityNeedsAttention = checks.some(
+    (check) => check.impact === "capability" && !check.ok
+  );
+  const summary = runtimeReady
+    ? capabilityNeedsAttention
+      ? "TokenPilot runtime is ready; optional capabilities need attention."
+      : "TokenPilot local prerequisites look ready."
     : "TokenPilot needs attention before the local workflow is fully ready.";
 
   return {
-    ok,
+    ok: runtimeReady,
     summary,
     checks,
     fixes

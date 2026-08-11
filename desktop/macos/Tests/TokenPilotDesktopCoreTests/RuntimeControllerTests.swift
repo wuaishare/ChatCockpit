@@ -4,7 +4,7 @@ import Testing
 
 @Suite("Desktop runtime controller")
 struct RuntimeControllerTests {
-    private let root = TokenPilotRoot(url: URL(fileURLWithPath: "/tmp/tokenpilot-runtime-fixture", isDirectory: true))
+    private let root = TokenPilotRoot(url: URL(fileURLWithPath: "/tmp", isDirectory: true))
 
     @Test("missing root is setup required")
     func missingRootIsSetupRequired() {
@@ -82,7 +82,7 @@ struct RuntimeControllerTests {
     func controllerBuildsReadySnapshot() async {
         let controller = RuntimeController(
             configurationReader: FixtureConfigurationReader(),
-            nodeInspector: FixtureNodeInspector(supported: true),
+            nodeResolver: FixtureNodeResolver(supported: true),
             lifecycle: FixtureLifecycleController(status: readyLifecycle),
             health: FixtureHealthChecker(status: LocalHealthStatus(healthReachable: true, uiReachable: true))
         )
@@ -92,6 +92,7 @@ struct RuntimeControllerTests {
         #expect(snapshot.overallState == .ready)
         #expect(snapshot.root == root)
         #expect(snapshot.node.supported == true)
+        #expect(snapshot.node.source == .system)
         #expect(snapshot.configuration.port == 4318)
         #expect(snapshot.lifecycle.processSupervisor == .ready)
         #expect(snapshot.healthReachable == true)
@@ -102,7 +103,7 @@ struct RuntimeControllerTests {
     func lifecycleFailureDegrades() async {
         let controller = RuntimeController(
             configurationReader: FixtureConfigurationReader(),
-            nodeInspector: FixtureNodeInspector(supported: true),
+            nodeResolver: FixtureNodeResolver(supported: true),
             lifecycle: FailingLifecycleController(),
             health: FixtureHealthChecker(status: LocalHealthStatus(healthReachable: false, uiReachable: false))
         )
@@ -117,7 +118,7 @@ struct RuntimeControllerTests {
         let lifecycle = RecordingLifecycleController(status: readyLifecycle)
         let controller = RuntimeController(
             configurationReader: FixtureConfigurationReader(),
-            nodeInspector: FixtureNodeInspector(supported: true),
+            nodeResolver: FixtureNodeResolver(supported: true),
             lifecycle: lifecycle,
             health: FixtureHealthChecker(status: LocalHealthStatus(healthReachable: true, uiReachable: true))
         )
@@ -127,6 +128,34 @@ struct RuntimeControllerTests {
 
         #expect(actions == [.restart])
         #expect(snapshot.overallState == .ready)
+    }
+
+    @Test("packaged snapshot keeps workspace separate and reports bundled Node")
+    func packagedSnapshotUsesDistributionContext() async {
+        let context = DesktopDistributionContext(
+            mode: .packaged,
+            installRootURL: URL(fileURLWithPath: "/tmp/runtime/app", isDirectory: true),
+            stateRootURL: URL(fileURLWithPath: "/tmp/runtime-state", isDirectory: true),
+            primaryWorkspaceURL: URL(fileURLWithPath: "/tmp", isDirectory: true),
+            nodeExecutableURL: URL(fileURLWithPath: "/tmp/runtime/node/bin/node"),
+            nodeVersion: SemanticVersion(major: 24, minor: 18, patch: 1),
+            runtimeID: "0.1.0-alpha-node24.18.1-darwin-arm64",
+            architecture: "arm64"
+        )
+        let controller = RuntimeController(
+            configurationReader: FixtureConfigurationReader(),
+            nodeResolver: FixtureNodeResolver(supported: true, source: .bundled),
+            lifecycle: FixtureLifecycleController(status: readyLifecycle),
+            health: FixtureHealthChecker(status: LocalHealthStatus(healthReachable: true, uiReachable: true))
+        )
+
+        let snapshot = await controller.snapshot(context: context)
+
+        #expect(snapshot.overallState == .ready)
+        #expect(snapshot.distributionMode == .packaged)
+        #expect(snapshot.primaryWorkspaceURL?.path == "/tmp")
+        #expect(snapshot.root == nil)
+        #expect(snapshot.node.source == .bundled)
     }
 
     private var readyLifecycle: LifecycleStatus {
@@ -140,19 +169,28 @@ struct RuntimeControllerTests {
 }
 
 private struct FixtureConfigurationReader: DesktopRuntimeConfigurationReading {
-    func read(rootURL: URL) -> DesktopRuntimeConfiguration {
+    func read(stateRootURL: URL) -> DesktopRuntimeConfiguration {
         DesktopRuntimeConfiguration()
     }
 }
 
-private struct FixtureNodeInspector: NodeRuntimeInspecting {
+private struct FixtureNodeResolver: DesktopNodeRuntimeResolving {
     let supported: Bool
+    let source: NodeRuntimeSource
 
-    func inspect(currentDirectoryURL: URL) async -> NodeRuntimeStatus {
+    init(supported: Bool, source: NodeRuntimeSource = .system) {
+        self.supported = supported
+        self.source = source
+    }
+
+    func inspect(context: DesktopDistributionContext) async -> NodeRuntimeStatus {
         if supported {
             return NodeRuntimeStatus(
                 executableURL: URL(fileURLWithPath: "/opt/homebrew/bin/node"),
-                version: SemanticVersion(major: 24, minor: 15, patch: 0)
+                version: source == .bundled
+                    ? SemanticVersion(major: 24, minor: 18, patch: 1)
+                    : SemanticVersion(major: 24, minor: 15, patch: 0),
+                source: source
             )
         }
         return NodeRuntimeStatus(executableURL: nil, version: nil)
@@ -166,21 +204,21 @@ private struct FixtureLifecycleController: LifecycleControlling {
         self.statusValue = status
     }
 
-    func status(root: TokenPilotRoot) async throws -> LifecycleStatus {
+    func status(context: LifecycleExecutionContext) async throws -> LifecycleStatus {
         statusValue
     }
 
-    func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> LifecycleStatus {
+    func perform(_ action: LifecycleAction, context: LifecycleExecutionContext) async throws -> LifecycleStatus {
         statusValue
     }
 }
 
 private struct FailingLifecycleController: LifecycleControlling {
-    func status(root: TokenPilotRoot) async throws -> LifecycleStatus {
+    func status(context: LifecycleExecutionContext) async throws -> LifecycleStatus {
         throw RuntimeControllerFixtureError.lifecycleUnavailable
     }
 
-    func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> LifecycleStatus {
+    func perform(_ action: LifecycleAction, context: LifecycleExecutionContext) async throws -> LifecycleStatus {
         throw RuntimeControllerFixtureError.lifecycleUnavailable
     }
 }
@@ -193,11 +231,11 @@ private actor RecordingLifecycleController: LifecycleControlling {
         self.statusValue = status
     }
 
-    func status(root: TokenPilotRoot) async throws -> LifecycleStatus {
+    func status(context: LifecycleExecutionContext) async throws -> LifecycleStatus {
         statusValue
     }
 
-    func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> LifecycleStatus {
+    func perform(_ action: LifecycleAction, context: LifecycleExecutionContext) async throws -> LifecycleStatus {
         performedActions.append(action)
         return statusValue
     }

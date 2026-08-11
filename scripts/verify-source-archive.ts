@@ -156,6 +156,58 @@ assert.equal(
   fs.existsSync(path.join(sourceRoot, "scripts", "build-macos-desktop-app.sh")),
   true
 );
+for (const required of [
+  path.join("scripts", "runtime", "node-runtime-manifest.json"),
+  path.join("scripts", "build-macos-runtime-payload.sh"),
+  path.join("scripts", "verify-packaged-runtime.ts"),
+  path.join(
+    "desktop",
+    "macos",
+    "Sources",
+    "TokenPilotDesktopCore",
+    "PackagedRuntimeDeployer.swift"
+  ),
+  path.join(
+    "desktop",
+    "macos",
+    "Sources",
+    "TokenPilotDesktopCore",
+    "ExistingSetupImport.swift"
+  ),
+  path.join(
+    "desktop",
+    "macos",
+    "Sources",
+    "TokenPilotDesktopCore",
+    "PackagedRuntimeConflict.swift"
+  )
+]) {
+  assert.equal(
+    fs.existsSync(path.join(sourceRoot, required)),
+    true,
+    `Source archive is missing Phase 2 source: ${required}`
+  );
+}
+
+function collectArchiveFiles(directory: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolutePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectArchiveFiles(absolutePath));
+    } else if (entry.isFile()) {
+      files.push(absolutePath);
+    }
+  }
+  return files;
+}
+
+const initialArchiveFiles = collectArchiveFiles(sourceRoot);
+assert.equal(
+  initialArchiveFiles.some((filePath) => /node-v\d+\.\d+\.\d+-darwin-(?:arm64|x64)\.tar\.xz$/.test(filePath)),
+  false,
+  "Source archive contains a downloaded Node runtime archive"
+);
 
 const isolatedEnv: NodeJS.ProcessEnv = {
   ...process.env,

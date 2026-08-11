@@ -54,6 +54,44 @@ struct DesktopConfigurationTests {
         }
     }
 
+    @Test("reads server.env from explicit state root")
+    func readsExplicitStateRoot() throws {
+        try withTemporaryDirectory { rootURL in
+            let stateRoot = rootURL.appendingPathComponent("state", isDirectory: true)
+            let runtimeDirectory = stateRoot.appendingPathComponent("runtime", isDirectory: true)
+            try FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
+            try "TOKENPILOT_HOST=localhost\nTOKENPILOT_PORT=6123\n".write(
+                to: runtimeDirectory.appendingPathComponent("server.env"),
+                atomically: true,
+                encoding: .utf8
+            )
+
+            let configuration = DesktopRuntimeConfigurationReader().read(stateRootURL: stateRoot)
+            #expect(configuration.host == "localhost")
+            #expect(configuration.port == 6123)
+        }
+    }
+
+    @Test("persists workspace independently from source root")
+    func persistsWorkspacePreference() throws {
+        let suiteName = "TokenPilotDesktopWorkspaceTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = UserDefaultsWorkspacePreferenceStore(
+            defaults: defaults,
+            key: "selectedWorkspace"
+        )
+        let expected = URL(fileURLWithPath: "/tmp/project-workspace", isDirectory: true)
+
+        #expect(store.loadWorkspaceURL() == nil)
+        store.saveWorkspaceURL(expected)
+        #expect(store.loadWorkspaceURL()?.standardizedFileURL == expected.standardizedFileURL)
+        store.saveWorkspaceURL(nil)
+        #expect(store.loadWorkspaceURL() == nil)
+    }
+
     @Test("persists root in isolated UserDefaults suite")
     func persistsRootPreference() throws {
         let suiteName = "TokenPilotDesktopTests.\(UUID().uuidString)"

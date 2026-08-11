@@ -46,26 +46,32 @@ struct MenuBarContentView: View {
                 openWindow(id: "status")
             }
 
-            switch model.snapshot.overallState {
-            case .setupRequired:
-                Button("Choose TokenPilot Folder…") {
-                    model.chooseRootFromPanel()
+            if model.runtimeConflict != nil {
+                Button("Runtime Conflict — Review Settings") {
+                    openSettings()
                 }
-            case .stopped:
-                Button("Start Services") {
-                    Task { await model.start() }
-                }
-                .disabled(model.isRefreshing)
-            case .degraded, .ready:
-                Button("Restart Services") {
-                    Task { await model.restart() }
-                }
-                .disabled(model.isRefreshing)
+            } else {
+                switch model.snapshot.overallState {
+                case .setupRequired:
+                    Button(model.setupActionTitle) {
+                        model.chooseSetupLocationFromPanel()
+                    }
+                case .stopped:
+                    Button("Start Services") {
+                        Task { await model.start() }
+                    }
+                    .disabled(model.isRefreshing)
+                case .degraded, .ready:
+                    Button("Restart Services") {
+                        Task { await model.restart() }
+                    }
+                    .disabled(model.isRefreshing)
 
-                Button("Stop Services") {
-                    Task { await model.stop() }
+                    Button("Stop Services") {
+                        Task { await model.stop() }
+                    }
+                    .disabled(model.isRefreshing)
                 }
-                .disabled(model.isRefreshing)
             }
 
             Divider()
