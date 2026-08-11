@@ -101,13 +101,13 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具分类
 
-当前公开目录包含 62 个工具，覆盖：
+默认 exposed-mode 目录包含 62 个工具。本地非 exposed 模式，或 exposed deployment 显式设置 `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true` 后，会额外注册 3 个受治理 Resource mutation 工具，总数为 65：
 
 - Direct Drive Executor / Capability Discovery、public-safe Host Root Alias Discovery、受治理的 Host Direct 文件读取、审批式 Host Write / Exact Edit、审批式 bounded Host Command、TokenPilot-owned Managed Workspace Process `prepare/decide/execute/read/list`，以及 Workspace Files、Search、Shell、Git；
 - Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
 - Spec/Plan 创建、列表、读取、不可变历史版本读取、追加版本、生命周期与 Task 绑定；
 - Codex Runtime Capability 与 Thread Metadata；
-- 只读 Runtime Resource Center Inventory / Inspect，覆盖 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP 资源与 ACP Registry Agents；Phase 6A 不开放安装、更新、启停或认证 mutation；
+- Runtime Resource Center Inventory / Inspect，覆盖 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP 资源与 ACP Registry Agents；受治理的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 已通过共享 approval kernel 开放。MCP mutation surface 只包含 `tokenpilot.resources.mutation.prepare`、`tokenpilot.resources.mutation.inspect`、`tokenpilot.resources.mutation.execute`，明确不注册 MCP `decide` / `reconcile`。在 exposed mode 下，只有显式设置 `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这 3 个工具；Remote MCP OAuth access token 也不能作为普通 REST mutation decision 的凭据复用；
 - Codex Session Bind、Resume、Fork；
 - 显式 Codex Turn、Interrupt、Approval Response 与 Event Read；
 - Runtime Recovery 的 `tokenpilot.recovery.assess` 与 `tokenpilot.recovery.execute`。Assessment 会持久化五分钟 public-safe Recovery Attempt，但不会触发 Provider mutation；Execute 会重新验证同一 `assessmentHash` 后只执行一个显式动作。Recovery 不会隐式 `turn/start`、不会自动切换 Provider，也不会模糊选择外部 Thread。

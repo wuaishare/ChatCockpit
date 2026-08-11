@@ -1,6 +1,6 @@
 # 本地运行与排障
 
-本文说明如何在本机稳定运行 TokenPilot Control Plane、Continuity Store、Codex App Server Adapter、Runner 和本地操作员 Web UI。REST/MCP、Chat Direct、显式 Codex Session 与 Continuity 已实现；Custom GPT Actions、Remote MCP 和公网 HTTPS 仍属于实验性部署面。
+本文说明如何在本机稳定运行 TokenPilot Control Plane、Continuity Store、Codex App Server Adapter、Runner、Durable Process Supervisor sidecar 和本地操作员 Web UI。REST/MCP、Chat Direct、显式 Codex Session 与 Continuity 已实现；Custom GPT Actions、Remote MCP 和公网 HTTPS 仍属于实验性部署面。
 
 ## 构建与启动
 
@@ -11,12 +11,13 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-macOS 上 `start:local` 会通过 LaunchAgent 同时管理：
+macOS 上 `start:local` 会把三项 LaunchAgent 作为一个本地运行栈统一管理：
 
 - `com.wuaishare.tokenpilot.control-plane`
 - `com.wuaishare.tokenpilot.runner`
+- `com.wuaishare.tokenpilot.process-supervisor`
 
-异步 Job 需要 Runner 消费队列；Chat Direct 与 Codex Session 可以直接使用 Control Plane，不需要等待某个排队 Job 被 Runner 领取。
+异步 Job 需要 Runner 消费队列；Chat Direct 与 Codex Session 可以直接使用 Control Plane，不需要等待某个排队 Job 被 Runner 领取。Process Supervisor 独立持有 Durable Managed Process runtime；普通 `restart` 会重启 Control Plane / Runner，但会保留当前 Process Supervisor generation，而不是静默替换它。
 
 ## 本地配置文件
 
@@ -96,13 +97,15 @@ curl http://127.0.0.1:4318/ui
 `doctor:runtime` 会检查：
 
 - control plane host/port/public base URL
-- LaunchAgent 注册状态
-- runner LaunchAgent 注册状态
+- Control Plane LaunchAgent 注册状态
+- Runner LaunchAgent 注册状态
 - `127.0.0.1:4318` 监听状态
-- runner heartbeat 和最近 job
+- Runner heartbeat 和最近 job
 - 本地 `/api/health`
 - 本地 `/ui`
 - 最近 server log
+
+Process Supervisor 的注册/ready 真源当前由 `npm run mvp:status` 直接报告；`doctor:runtime` 尚未把 Supervisor 诊断纳入统一输出。后者属于后续产品化加固任务，不在本文中提前宣称已经实现。
 
 ## 停止、重启、重置
 
