@@ -23,6 +23,8 @@ For a beginner-friendly source install, use:
 npm run setup
 ```
 
+For the native macOS menu-bar operator shell and local unsigned app build, see [`macos-desktop.md`](./macos-desktop.md).
+
 ## Start The Local Control Plane
 
 ```bash

@@ -10,6 +10,8 @@
   "scripts": {
     "build": "npm run build:web && tsc -p tsconfig.json",
     "build:web": "vite build --config web/vite.config.ts",
+    "build:macos-desktop": "bash ./scripts/build-macos-desktop-app.sh",
+    "verify:macos-desktop": "tsx scripts/verify-macos-desktop.ts",
     "dev:web": "vite --config web/vite.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:web": "tsc --noEmit -p web/tsconfig.json",
