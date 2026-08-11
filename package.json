@@ -13,6 +13,7 @@
     "build:macos-desktop": "bash ./scripts/build-macos-desktop-app.sh",
     "build:macos-runtime": "bash ./scripts/build-macos-runtime-payload.sh",
     "verify:macos-desktop": "tsx scripts/verify-macos-desktop.ts",
+    "verify:macos-xcode-project": "tsx scripts/verify-macos-xcode-project.ts",
     "verify:distribution-context": "tsx scripts/verify-distribution-context.ts",
     "verify:packaged-doctor": "tsx scripts/verify-packaged-doctor.ts",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
