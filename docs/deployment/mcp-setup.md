@@ -103,13 +103,13 @@ The release gate verifies static Bearer compatibility plus OAuth discovery, regi
 
 ## Tool Families
 
-The current public catalog contains 62 tools across:
+The default exposed-mode catalog contains 62 tools. Local non-exposed mode, or an exposed deployment with `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true`, registers three additional governed Resource mutation tools for a total of 65:
 
 - Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read, approval-gated Host Write / Exact Edit, approval-gated bounded Host Command, TokenPilot-owned Managed Workspace Process `prepare/decide/execute/read/list`, and Workspace Files, Search, Shell, and Git operations;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;
-- read-only Runtime Resource Center inventory/inspect operations covering Native Codex Skills/MCP/Plugins/config summaries, Downstream MCP resources, and ACP Registry Agents; Phase 6A exposes no install/update/enable/disable/authentication mutation;
+- Runtime Resource Center inventory/inspect operations covering Native Codex Skills/MCP/Plugins/config summaries, Downstream MCP resources, and ACP Registry Agents; governed Codex Skill enable/disable and Codex Plugin install/uninstall are implemented behind the shared approval kernel. The MCP mutation surface contains only `tokenpilot.resources.mutation.prepare`, `tokenpilot.resources.mutation.inspect`, and `tokenpilot.resources.mutation.execute`; MCP `decide` and `reconcile` are intentionally absent. In exposed mode those three tools are not registered unless `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true`; a Remote MCP OAuth access token cannot be reused as the ordinary REST credential for mutation decision;
 - Codex Session Bind/Resume/Fork;
 - explicit Codex Turn/Interrupt, Approval response, and Event reads.
 

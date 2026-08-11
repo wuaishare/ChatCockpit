@@ -2,9 +2,9 @@
 
 ## 状态
 
-- 已实现基础：SQLite Schema v15、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot 与 Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan、Runtime Recovery 与 Runtime Resource Application Service、REST/MCP Parity、Spec/Plan/Recovery Workbench 治理、只读 Runtime & Resource Center、服务端 Planning / Recovery Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、Process Supervisor Runtime Ownership、Event、Workspace Snapshot 与 Continuity Workbench
+- 已实现基础：SQLite Schema v18、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot 与 Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan、Runtime Recovery 与 Runtime Resource Application Service、REST/MCP Parity、Spec/Plan/Recovery Workbench 治理、Runtime & Resource Center Inventory 与受治理 Codex Skill enable/disable、Codex Plugin install/uninstall、服务端 Planning / Recovery Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、受治理 Runtime Resource Mutation Approval/Execution/Provenance、Process Supervisor Runtime Ownership、Event、Workspace Snapshot 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
-- 目标扩展：更丰富的 Task Transition、更多 Provider Recovery Adapter（包括未来 ACP seam）、受治理的 Resource Center 安装/更新/启停/认证 mutation、TDD/SDD/BDD 编排与模板，以及更多 Provider Adapter
+- 目标扩展：更丰富的 Task Transition、更多 Provider Recovery Adapter（包括未来 ACP seam）、当前 Codex Skill enable/disable 与 Codex Plugin install/uninstall 之外的 Resource Center 受治理操作、TDD/SDD/BDD 编排与模板，以及更多 Provider Adapter
 
 Continuity Engine 的目标是：当开发工作在 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job、Branch、Worktree 或重启进程之间切换时，保持 Task 身份、Writer Ownership、Git 状态、Pending Work 与 Evidence 不丢失。
 
@@ -40,7 +40,7 @@ Spec 与 Plan 已完成 Schema v7 的完整 Spec/Plan First 基础：固定种�
 
 ## Runtime Binding
 
-Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v15 中：
+Schema v4 引入的通用 Runtime Binding 持久层继续保留在当前 Schema v18 中：
 
 ```ts
 interface RuntimeBindingRecord {
@@ -177,7 +177,7 @@ tokenpilot.workspace.snapshot
 - Evidence Checklist；
 - Latest Runtime Binding、Runner Job 状态与 Artifact Link；
 - Runtime Recovery Center：展示服务端 Classification、Compatibility、候选 External Session、Blockers、短期 Recovery Attempt 与仅由服务端允许的显式 Action；
-- Runtime & Resource Center：展示 Runtime Profiles、append-only Inventory Snapshot、Skills/MCP/Plugins/Adapters/ACP Agents、snapshot diff 与 public-safe 详情；Phase 6A 不提供资源 mutation；
+- Runtime & Resource Center：展示 Runtime Profiles、append-only Inventory Snapshot、Skills/MCP/Plugins/Adapters/ACP Agents、snapshot diff 与 public-safe 详情，并对受治理的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 提供 operator prepare → review/decide → execute 工作流；
 - Pending Approval List。
 
 目标扩展：完整 Runtime Binding 历史与 Provider Capability Inspector、完整 Task Board/Timeline，以及覆盖更多 Provider 的 Recovery Timeline / Adapter。
@@ -201,8 +201,8 @@ tokenpilot.workspace.snapshot
 | Replaceable Codex Thread / Runner Job Runtime ID | 已实现 |
 | Public-safe Projection | 已实现 |
 | Runtime Recovery Center：Native Codex + Runner/Chat Direct projection | 已实现基础 |
-| Runtime & Resource Center：Native Codex + Downstream MCP + ACP Registry 只读 Inventory | 已实现基础 |
-| Resource Center 安装/更新/启停/认证 mutation | Phase 6B 设计门 |
+| Runtime & Resource Center：Native Codex + Downstream MCP + ACP Registry Inventory | 已实现 |
+| 受治理 Resource mutation：Codex Skill enable/disable + Codex Plugin install/uninstall | 已实现；Operator REST/Resource Center 可 decide，Remote MCP 仅 prepare/inspect/execute，exposed mode 需显式 opt-in |
 | 覆盖所有 Provider 的通用 Recovery Adapter / Timeline | 目标扩展 |
 
 英文完整实体契约见 [`../../architecture/continuity-engine.md`](../../architecture/continuity-engine.md)。
