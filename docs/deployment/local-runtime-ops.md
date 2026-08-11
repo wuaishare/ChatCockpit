@@ -6,7 +6,7 @@ Provide a stable way to keep the local TokenPilot control plane alive for develo
 
 Current boundary:
 
-- this document covers the local Control Plane, Continuity Store, Codex App Server adapter, paired Runner, and local operator Web UI
+- this document covers the local Control Plane, Continuity Store, Codex App Server adapter, paired Runner, durable Process Supervisor sidecar, and local operator Web UI
 - local REST/MCP services, Chat Direct, explicit Codex Session operations, Continuity state, and Queue/Runner execution are implemented
 - Custom GPT Actions, Remote MCP clients, public HTTPS ingress, and Codex standalone execution remain experimental deployment surfaces
 - the Runner is required for asynchronous Jobs, but Chat Direct and Codex Session operations can use the Control Plane without waiting for a queued Job consumer
@@ -33,15 +33,17 @@ TOKENPILOT_PORT=4318 \
 ./scripts/macos-manage-local-server.sh start
 ```
 
-This macOS helper now installs and manages two LaunchAgents together:
+This macOS helper installs and manages three LaunchAgents as one local runtime stack:
 
 - `com.wuaishare.tokenpilot.control-plane`
 - `com.wuaishare.tokenpilot.runner`
+- `com.wuaishare.tokenpilot.process-supervisor`
 
 The intent is explicit:
 
-- HTTPS / GPT Actions can create jobs through the control plane
-- the local runner must stay alive to consume the same queue and advance jobs out of `queued`
+- HTTPS / GPT Actions / Remote MCP reach the control plane
+- the local runner stays alive to consume the async queue and advance jobs out of `queued`
+- the Process Supervisor owns durable managed-process runtime state separately from ordinary Control Plane restarts, so a normal `restart` does not silently replace its generation
 
 ## Recommended Persistent Env File
 
@@ -129,11 +131,12 @@ npm run runner -- --once
 npm run runner -- --watch --interval 3
 ```
 
-On macOS, `status` should be read as two separate truths:
+On macOS, `status` reports separate runtime truths:
 
 - whether the TokenPilot process is currently listening on `127.0.0.1:4318`
-- whether the persistent LaunchAgent is actually installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.control-plane.plist`
-- whether the paired runner LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.runner.plist`
+- whether the persistent Control Plane LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.control-plane.plist`
+- whether the paired Runner LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.runner.plist`
+- whether `com.wuaishare.tokenpilot.process-supervisor` is registered and its local status file reports `ready`
 
 If a public reverse proxy still appears "started" but the upstream control plane did not come back after reboot, check these in order:
 
@@ -147,13 +150,15 @@ launchctl print gui/$(id -u)/com.wuaishare.tokenpilot.control-plane | sed -n '1,
 `npm run doctor:runtime` is the fastest truth source for this incident class. It prints:
 
 - current local control-plane host/port/public base URL
-- LaunchAgent registration truth
-- runner LaunchAgent registration truth
+- Control Plane LaunchAgent registration truth
+- Runner LaunchAgent registration truth
 - listener truth on `127.0.0.1:4318`
-- runner status file truth, including heartbeat and last consumed job when available
+- Runner status file truth, including heartbeat and last consumed job when available
 - direct local `/api/health`
 - local `/ui`
 - recent server log tail
+
+`npm run mvp:status` is currently the direct local truth source for Process Supervisor registration/readiness; `doctor:runtime` still focuses on the Control Plane, Runner, listener, health/UI probes, and server log. Folding Supervisor diagnostics into Doctor is a separate product-hardening task rather than something this document pretends already exists.
 
 Important operational boundary:
 
@@ -173,11 +178,16 @@ Important operational boundary:
 
 ## Logs
 
-Runtime files live under:
+Runtime status/log files live under `.tokenpilot/runtime/`, including:
 
 ```text
-.tokenpilot/runtime/server.pid
-.tokenpilot/runtime/server.log
+server.pid
+server.log
+runner.pid
+runner.log
+process-supervisor.pid
+process-supervisor.log
+process-supervisor-status.json
 ```
 
 ## Why This Exists
