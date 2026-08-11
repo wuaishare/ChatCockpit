@@ -25,6 +25,8 @@ npm run setup
 
 For the native macOS menu-bar operator shell and local unsigned app build, see [`macos-desktop.md`](./macos-desktop.md).
 
+The commands in this document describe the **Developer / source mode** unless a section explicitly says otherwise. Phase 2 macOS Packaged Mode uses the same Node/TypeScript runtime implementation but deploys it under Application Support with bundled Node `24.18.1`, separate state/config roots, and an operator-selected project workspace. Packaged Mode does not require system Node/npm or a TokenPilot checkout at runtime.
+
 ## Start The Local Control Plane
 
 ```bash
@@ -49,11 +51,13 @@ The intent is explicit:
 
 ## Recommended Persistent Env File
 
-For a repeatable local setup, place runtime variables in:
+For a repeatable **Developer Mode** setup, place runtime variables in:
 
 ```text
 .tokenpilot/runtime/server.env
 ```
+
+Packaged Mode keeps the equivalent private file under TokenPilot's Application Support state root instead of the selected project workspace. Use the Desktop Settings surface rather than copying source-mode secrets into that location manually.
 
 Example:
 
@@ -85,9 +89,9 @@ Current boundary:
 
 ## Local Artifact Retention
 
-TokenPilot keeps local queue records and generated artifacts under `.tokenpilot/`.
+In Developer Mode, TokenPilot keeps local queue records and generated artifacts under `.tokenpilot/`. In Packaged Mode, the equivalent writable runtime state lives under `~/Library/Application Support/TokenPilot/state/`; the selected project remains a separate workspace.
 
-Important directories:
+Developer Mode directories:
 
 - `.tokenpilot/jobs/` stores queued, running, completed, and failed job records.
 - `.tokenpilot/bundles/` stores pack prompts, summaries, manifests, and bundle XML outputs.
@@ -177,6 +181,8 @@ Important operational boundary:
 ```
 
 `reset` removes LaunchAgent registration and pid/plist runtime files while keeping source code and `server.env`.
+
+Packaged Mode additionally enforces LaunchAgent ownership before start/stop/restart/reset. If existing service labels belong to Developer Mode or another packaged runtime, it refuses to take them over automatically. Packaged stop also preserves a listener whose PID is not owned by the active packaged State Root.
 
 ## Logs
 

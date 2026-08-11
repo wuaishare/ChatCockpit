@@ -1,92 +1,175 @@
 # TokenPilot Desktop for macOS
 
-TokenPilot Desktop Phase 1 is a native SwiftUI operator shell around the existing local TokenPilot runtime. It does not replace the Node control plane, Runner, Process Supervisor, Web Cockpit, MCP, OAuth, Continuity, Codex, approval, or Resource Center implementations.
+TokenPilot Desktop is a native SwiftUI operator shell around the existing TokenPilot Node control plane. Phase 2 adds a self-contained packaged runtime while keeping the Node/TypeScript Control Plane, Runner, Process Supervisor, Web Cockpit, MCP, OAuth, Continuity, Codex, approvals, and Resource Center as the single implementation of those product capabilities.
 
-## Current Phase 1 Boundary
+## Current Phase 2 Boundary
 
-Phase 1 provides:
+The desktop app supports two explicit runtime modes.
 
-- a native macOS menu-bar status surface;
-- a compact Status window;
-- a native Settings window;
-- TokenPilot root discovery and manual folder selection;
-- local Node runtime validation;
-- Start / Stop / Restart actions that reuse the existing macOS lifecycle script;
-- local health and Cockpit reachability status;
-- `Open TokenPilot`, which opens the existing `/ui` in the default browser;
-- a locally buildable unsigned `.app` bundle.
+### Packaged Mode
 
-Phase 1 does **not** provide:
+Packaged Mode is the normal self-contained desktop path:
 
-- bundled Node;
-- Developer ID signing;
-- notarization;
-- `.dmg` distribution;
-- auto-update;
-- native rewrites of the Web Cockpit or TokenPilot business logic.
+- the `.app` carries a verified TokenPilot runtime payload;
+- the payload includes an exact bundled Node.js `24.18.1` runtime for the selected macOS architecture;
+- first use deploys the embedded payload into a versioned runtime under `~/Library/Application Support/TokenPilot/runtimes/`;
+- writable TokenPilot state lives separately under `~/Library/Application Support/TokenPilot/state/`;
+- local private configuration lives under `~/Library/Application Support/TokenPilot/config/`;
+- the operator selects the real project workspace TokenPilot should operate on;
+- the runtime directory is never treated as the user workspace;
+- starting TokenPilot does not require a system `node` or `npm` executable;
+- running the packaged app does not require a TokenPilot source checkout.
 
-## Requirements
+Git, Python, Codex, and other external tools can still be required by the individual capabilities that use them, but their absence does not make the packaged Control Plane itself unstartable.
 
-The Phase 1 source-build path currently requires:
+### Developer Mode
 
-- macOS 14 or later;
-- Apple Swift toolchain capable of building the package;
-- Node.js `>=22.13.0` for the existing TokenPilot runtime;
-- a valid TokenPilot source or built checkout.
+Developer Mode preserves the source workflow:
 
-The desktop app validates the selected TokenPilot root instead of trusting the folder name. A valid root must contain the TokenPilot `package.json`, the existing macOS lifecycle script, and either the source CLI entry or built CLI entry.
+- select a valid TokenPilot source or built checkout;
+- use system Node.js `>=22.13.0`;
+- keep runtime state under the checkout-local `.tokenpilot/` directory;
+- continue using the existing source-oriented setup, doctor, and development commands.
+
+Developer Mode remains useful for contributors and maintainers. Phase 2 does not remove or silently migrate it.
+
+## Architecture and state separation
+
+Packaged Mode keeps four concepts separate:
+
+```text
+TokenPilot.app
+├── Contents/Resources/TokenPilotRuntime/       embedded read-only distribution payload
+
+~/Library/Application Support/TokenPilot/
+├── runtimes/<runtime-id>/                      deployed immutable runtime
+├── state/                                      writable local runtime state
+└── config/                                     local private configuration
+
+<operator-selected project>/                    real TokenPilot workspace
+```
+
+The deployed runtime and Application Support state are not automatically added to the workspace allowlist.
+
+## Bundled Node supply-chain contract
+
+The Phase 2 runtime manifest pins Node.js exactly to:
+
+```text
+24.18.1
+```
+
+The repository records separate official Node release artifacts and SHA256 values for:
+
+- `darwin-arm64`;
+- `darwin-x64`.
+
+Runtime payload builds read this checked-in manifest. They do not resolve `latest-v24.x` dynamically. Node download happens during the build process, not on ordinary first launch of the packaged app.
+
+The production runtime payload is assembled from a clean production dependency install plus built TokenPilot assets. It does not copy the contributor workstation's existing development `node_modules` tree.
 
 ## Build the unsigned local app
 
-From the TokenPilot repository root:
+Building the app from source still requires the repository development toolchain:
 
 ```bash
 npm ci
-npm run verify:macos-desktop
+npm run verify:runtime-manifest
+npm run verify:distribution-context
 swift test --package-path desktop/macos
-npm run build:macos-desktop
+npm run build:macos-desktop -- --arch arm64
 ```
 
-The generated local app is:
+Use `--arch x64` when building the Intel package.
+
+The output is:
 
 ```text
 dist/macos/TokenPilot.app
 ```
 
-This build is intentionally unsigned and unnotarized. The build command prints those limits explicitly.
+The app contains:
 
-## First launch
+```text
+Contents/MacOS/TokenPilot
+Contents/Resources/TokenPilotRuntime/
+```
 
-Open the app locally:
+The current build is intentionally **unsigned and unnotarized**. The build command prints:
+
+```text
+signing: not performed
+notarization: not performed
+```
+
+Do not describe this as a signed public macOS release.
+
+## First launch in Packaged Mode
+
+Open the locally built app:
 
 ```bash
 open dist/macos/TokenPilot.app
 ```
 
-The app first tries a bounded TokenPilot-root discovery sequence. If it cannot find a valid root, choose the checkout manually from the menu bar or Settings.
+When a valid embedded runtime payload is present, Packaged Mode is available. Choose the project directory TokenPilot should operate on.
 
-The selected root is stored only in local macOS user preferences. It is not written into the public repository.
+The app then verifies and atomically deploys the embedded runtime into Application Support. A failed or corrupt new deployment does not replace a previously valid deployed runtime.
+
+The selected workspace is stored only in local macOS preferences and private TokenPilot configuration. Machine-specific paths are not committed to the public repository.
+
+## Import Existing Setup
+
+Packaged Mode provides an explicit **Import Existing Setup…** action.
+
+The import flow is deliberately non-destructive:
+
+- the source checkout is read only;
+- the app presents a preview before applying anything;
+- workspace allowlist/repo mappings and safe local endpoint settings can be imported;
+- API bearer tokens are not migrated;
+- OAuth access or refresh tokens are not migrated;
+- Process Supervisor tokens are not migrated;
+- provider credentials and cookies are not migrated.
+
+If the source setup was in exposed mode, the imported packaged setup is reset to **Local only** because its bearer credential is intentionally not copied. Configure new packaged credentials explicitly before enabling exposed mode again.
+
+## Runtime conflict protection
+
+Source Mode and Packaged Mode currently use the same TokenPilot LaunchAgent service identities. The desktop app therefore verifies installed LaunchAgent ownership before allowing packaged service mutations.
+
+If an existing Developer Mode runtime, another packaged runtime, an unknown TokenPilot LaunchAgent, or a foreign process already owns the configured port, Packaged Mode reports a conflict and does **not** automatically:
+
+- stop the old runtime;
+- restart it;
+- replace its LaunchAgent plist;
+- kill the foreign listener;
+- take over its service identity.
+
+Resolve the existing runtime explicitly in its current mode, then refresh Packaged Mode.
+
+The lifecycle shell also enforces this ownership boundary, so bypassing the GUI does not turn packaged lifecycle commands into an automatic source-runtime takeover mechanism.
 
 ## Runtime states
 
-The desktop shell presents four overall states:
+The desktop shell presents four overall runtime states:
 
-- **Setup Required** — no valid TokenPilot root is selected, or the required Node runtime is unavailable/unsupported;
-- **Stopped** — the local setup is valid but the Control Plane is not running;
+- **Setup Required** — a required workspace/runtime input is missing or the selected runtime is invalid;
+- **Stopped** — setup is valid but the Control Plane is not running;
 - **Needs Attention** — only part of the runtime is healthy;
-- **Ready** — Node is supported, Control Plane is running, Runner is registered, Process Supervisor is ready, `/api/health` reports `ok: true`, and `/ui` is reachable.
+- **Ready** — the selected Node runtime is valid, Control Plane is running, Runner is registered, Process Supervisor is ready, `/api/health` reports `ok: true`, and `/ui` is reachable.
 
-The app does not infer `Ready` merely because a process exists.
+A separate runtime-conflict notice can block mutations even when an existing process is otherwise reachable. The app does not infer ownership merely from a listening process.
 
 ## Start, stop, and restart
 
-The desktop shell does not reimplement LaunchAgent behavior in Swift. It calls the existing repository lifecycle contract:
+Swift does not reimplement LaunchAgent management. Both modes reuse:
 
 ```text
 scripts/macos-manage-local-server.sh
 ```
 
-Only these actions are exposed:
+Desktop exposes only:
 
 ```text
 status
@@ -95,84 +178,79 @@ stop
 restart
 ```
 
-This preserves the existing lifecycle semantics for:
+The helper manages:
 
 - `com.wuaishare.tokenpilot.control-plane`;
 - `com.wuaishare.tokenpilot.runner`;
 - `com.wuaishare.tokenpilot.process-supervisor`.
 
-In particular, `restart` preserves the existing Process Supervisor generation behavior instead of inventing a second restart policy in the desktop app.
+Packaged Mode passes explicit install root, state root, primary workspace, bundled Node path, and distribution mode to this lifecycle contract. LaunchAgents use the bundled Node absolute path rather than relying on `command -v node`.
+
+Normal restart continues to preserve the existing Process Supervisor generation semantics.
 
 ## Quit is not Stop
 
-**Quit TokenPilot** exits only the native desktop GUI.
+**Quit TokenPilot** exits only the native GUI.
 
-It does **not** implicitly stop the Control Plane, Runner, or Process Supervisor.
-
-Use **Stop Services** when you explicitly want to stop the local TokenPilot service stack.
-
-This separation prevents closing a menu-bar utility from unexpectedly terminating ongoing managed work.
+It does not implicitly stop the Control Plane, Runner, or Process Supervisor. Use **Stop Services** only when you explicitly intend to stop the TokenPilot service stack owned by the active runtime.
 
 ## Open TokenPilot
 
-When the local Cockpit is reachable, **Open TokenPilot** opens:
+When the Cockpit is reachable, **Open TokenPilot** opens the existing Web UI in the system browser:
 
 ```text
 http://<configured-host>:<configured-port>/ui
 ```
 
-The normal local default is:
+The local default remains:
 
 ```text
 http://127.0.0.1:4318/ui
 ```
 
-Phase 1 intentionally opens the existing Web Cockpit in the system browser. It does not embed or duplicate the Cockpit in a native WebView.
+The desktop app does not embed or reimplement the full Cockpit.
 
 ## Security boundary
 
-The desktop shell keeps the existing TokenPilot security model authoritative:
+The native shell keeps the existing TokenPilot security model authoritative:
 
-- it does not display bearer-token values;
-- it does not create a second OAuth implementation;
+- bearer-token values are never displayed;
+- import does not copy secrets from a source setup;
+- the shell does not create a second OAuth implementation;
 - it does not bypass approval or mutation policy;
 - it does not add Remote MCP permissions;
-- it does not automatically enable exposed mode;
-- it does not expose an arbitrary shell-command text field.
-
-Settings may show safe state such as whether exposed mode or an API token is configured, but secret values remain hidden.
+- it does not expose an arbitrary shell-command input field;
+- packaged runtime/state/workspace roots remain separate;
+- runtime payload integrity checks detect corruption but, while the app is unsigned, do not claim publisher authenticity.
 
 ## Verification
 
-Static desktop boundary verification:
+Useful Phase 2 gates include:
 
 ```bash
+npm run verify:runtime-manifest
+npm run verify:distribution-context
+npm run verify:packaged-doctor
+swift test --package-path desktop/macos
+npm run build:macos-runtime -- --arch arm64
+TOKENPILOT_RUNTIME_PAYLOAD_DIR=dist/macos-runtime/arm64/TokenPilotRuntime npm run verify:macos-runtime-payload
+TOKENPILOT_RUNTIME_PAYLOAD_DIR=dist/macos-runtime/arm64/TokenPilotRuntime npm run verify:packaged-runtime
+npm run build:macos-desktop -- --arch arm64
 npm run verify:macos-desktop
 ```
 
-Swift package tests:
+`verify:packaged-runtime` is a live proof and must use the runner's native architecture. It intentionally hides system Node/npm, starts the packaged Control Plane with bundled Node, verifies health/UI/workspace behavior, and confirms immutable runtime hashes remain unchanged.
 
-```bash
-swift test --package-path desktop/macos
-```
+The other architecture can be built and verified statically on the same CI runner. Static x64 verification on an arm64 runner is not described as Intel-native execution, and vice versa.
 
-Local unsigned app build:
+## Phase 3 remains separate
 
-```bash
-npm run build:macos-desktop
-```
+Phase 2 does **not** provide:
 
-The repository CI also has a dedicated `macOS desktop package` job so the desktop package is validated independently of the Node 22/24 verification matrix.
+- Developer ID signing;
+- hardened runtime distribution policy;
+- Apple notarization;
+- `.dmg` release packaging;
+- automatic update delivery.
 
-## Later packaging milestones
-
-The next packaging stages remain separate work:
-
-1. self-contained runtime with bundled Node;
-2. full Xcode distribution pipeline;
-3. Developer ID signing and hardened runtime;
-4. Apple notarization;
-5. `.app` / `.dmg` release workflow;
-6. update strategy.
-
-Do not describe a Phase 1 local unsigned build as a signed or notarized public release.
+Those remain the next macOS distribution gate. Phase 2 establishes a self-contained local runtime; it does not pretend that unsigned local builds already have production publisher authenticity.

@@ -97,7 +97,9 @@ npm run doctor
 
 完整新手路径见 [`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)。
 
-macOS 上也可以直接启动本地 control plane 和 paired runner：
+macOS Desktop Phase 2 还提供 **Self-contained Packaged Mode**：从源码构建出的 `TokenPilot.app` 内含固定版本的 Node `24.18.1` 与 production runtime payload；App 运行时不要求系统 Node/npm，也不要求继续保留 TokenPilot source checkout，只需要选择真正要操作的项目 Workspace。当前 `.app` 仍是 unsigned / unnotarized 本地构建，详细边界见 [`docs/zh-CN/deployment/macos-desktop.md`](./docs/zh-CN/deployment/macos-desktop.md)。
+
+macOS Developer / Source Mode 也可以直接启动本地 control plane 和 paired runner：
 
 ```bash
 npm run mvp:start

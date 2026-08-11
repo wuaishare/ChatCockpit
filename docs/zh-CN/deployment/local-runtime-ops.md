@@ -13,6 +13,8 @@ npm run doctor:runtime
 
 如果希望使用原生 macOS 菜单栏操作壳和本地 unsigned App，请参阅 [`macos-desktop.md`](./macos-desktop.md)。
 
+除非特别说明，本文命令描述的是 **Developer / Source Mode**。Phase 2 的 macOS Packaged Mode 继续复用同一套 Node/TypeScript Runtime 实现，但使用内置 Node `24.18.1`，把 Runtime / State / Config 部署到 Application Support，并让用户单独选择真实项目 Workspace。Packaged Mode 运行时不要求系统 Node/npm，也不要求 TokenPilot checkout。
+
 macOS 上 `start:local` 会把三项 LaunchAgent 作为一个本地运行栈统一管理：
 
 - `com.wuaishare.tokenpilot.control-plane`
@@ -23,11 +25,13 @@ macOS 上 `start:local` 会把三项 LaunchAgent 作为一个本地运行栈统�
 
 ## 本地配置文件
 
-推荐把运行配置放在：
+Developer Mode 推荐把运行配置放在：
 
 ```text
 .tokenpilot/runtime/server.env
 ```
+
+Packaged Mode 的等价私有配置位于 TokenPilot Application Support State Root，不会写进所选项目 Workspace。不要为了迁移旧环境而手工复制 Source Mode secret；Desktop 的 Existing Setup Import 明确不会迁移 bearer/OAuth/provider 等凭据。
 
 本地模式示例：
 
@@ -119,9 +123,13 @@ npm run reset:local
 
 `reset:local` 会移除 LaunchAgent 和 pid/plist 运行文件，但保留源码和 `.tokenpilot/runtime/server.env`。
 
+Packaged Mode 在 start / stop / restart / reset 前还会检查 LaunchAgent ownership。如果现有 service label 属于 Developer Mode 或另一份 Packaged Runtime，它会拒绝自动接管。Packaged stop 也不会终止不属于当前 Packaged State Root 的 foreign listener。
+
 ## 本地产物保留
 
-TokenPilot 会把本地 job 和产物保存在 `.tokenpilot/`：
+Developer Mode 会把本地 job 和产物保存在 `.tokenpilot/`；Packaged Mode 的等价可写 Runtime State 位于 `~/Library/Application Support/TokenPilot/state/`，与用户选择的项目 Workspace 分离。
+
+Developer Mode 目录：
 
 - `.tokenpilot/jobs/`：queued、running、completed、failed job records
 - `.tokenpilot/bundles/`：pack prompts、summaries、manifests、bundle XML
