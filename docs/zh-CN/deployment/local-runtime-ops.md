@@ -11,6 +11,8 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
+如果希望使用原生 macOS 菜单栏操作壳和本地 unsigned App，请参阅 [`macos-desktop.md`](./macos-desktop.md)。
+
 macOS 上 `start:local` 会把三项 LaunchAgent 作为一个本地运行栈统一管理：
 
 - `com.wuaishare.tokenpilot.control-plane`

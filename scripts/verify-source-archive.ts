@@ -26,6 +26,7 @@ function shouldCopy(source: string): boolean {
   if (!relative) return true;
   const parts = relative.split(path.sep);
   if (blockedRootNames.has(parts[0])) return false;
+  if (parts.includes(".build")) return false;
   if (parts[0] === "web" && parts[1] === "dist") return false;
   const basename = parts.at(-1) ?? "";
   if (basename === ".DS_Store" || basename.endsWith(".log")) return false;
@@ -135,7 +136,8 @@ for (const blocked of [
   ".servbay",
   "node_modules",
   "dist",
-  path.join("web", "dist")
+  path.join("web", "dist"),
+  path.join("desktop", "macos", ".build")
 ]) {
   assert.equal(
     fs.existsSync(path.join(sourceRoot, blocked)),
@@ -145,6 +147,15 @@ for (const blocked of [
 }
 assert.equal(fs.existsSync(path.join(sourceRoot, "package-lock.json")), true);
 assert.equal(fs.existsSync(path.join(sourceRoot, "src", "cli", "index.ts")), true);
+assert.equal(fs.existsSync(path.join(sourceRoot, "desktop", "macos", "Package.swift")), true);
+assert.equal(
+  fs.existsSync(path.join(sourceRoot, "desktop", "macos", "AppBundle", "Info.plist")),
+  true
+);
+assert.equal(
+  fs.existsSync(path.join(sourceRoot, "scripts", "build-macos-desktop-app.sh")),
+  true
+);
 
 const isolatedEnv: NodeJS.ProcessEnv = {
   ...process.env,

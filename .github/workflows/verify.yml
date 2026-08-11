@@ -55,6 +55,33 @@ jobs:
       - name: Scan Git history for privacy leaks
         run: npm run privacy:scan:history
 
+  macos-desktop:
+    name: macOS desktop package
+    runs-on: macos-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify desktop contract
+        run: npm run verify:macos-desktop
+
+      - name: Test Swift package
+        run: swift test --package-path desktop/macos
+
+      - name: Build unsigned local app
+        run: npm run build:macos-desktop
+
   release-dry-run:
     name: Release dry-run
     runs-on: macos-latest
