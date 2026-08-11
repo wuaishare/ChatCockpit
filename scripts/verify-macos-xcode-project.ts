@@ -15,6 +15,7 @@ const schemePath = path.join(
   "TokenPilot.xcscheme"
 );
 const buildScriptPath = path.join(root, "scripts", "build-macos-xcode-app.sh");
+const exportOptionsPath = path.join(root, "desktop", "macos", "ExportOptions.plist");
 
 assert.equal(
   fs.existsSync(projectPath),
@@ -36,11 +37,17 @@ assert.equal(
   true,
   "Missing Xcode distribution build wrapper: scripts/build-macos-xcode-app.sh"
 );
+assert.equal(
+  fs.existsSync(exportOptionsPath),
+  true,
+  "Missing Developer ID export contract: desktop/macos/ExportOptions.plist"
+);
 
 const pbxproj = fs.readFileSync(projectPath, "utf8");
 const entitlements = fs.readFileSync(entitlementsPath, "utf8");
 const scheme = fs.readFileSync(schemePath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
+const exportOptions = fs.readFileSync(exportOptionsPath, "utf8");
 
 assert.match(pbxproj, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.TokenPilot;/);
 assert.match(pbxproj, /MACOSX_DEPLOYMENT_TARGET = 14\.0;/);
@@ -49,12 +56,23 @@ assert.match(pbxproj, /CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop\.entitlements;
 assert.match(pbxproj, /INFOPLIST_FILE = AppBundle\/Info\.plist;/);
 assert.match(pbxproj, /Sources\/TokenPilotDesktopCore/);
 assert.match(pbxproj, /Sources\/TokenPilotDesktop/);
-assert.match(pbxproj, /productType = "com\.apple\.product-type\.application";/);
-assert.match(pbxproj, /productType = "com\.apple\.product-type\.framework";/);
+assert.equal(
+  pbxproj.match(/productType = "com\.apple\.product-type\.application";/g)?.length ?? 0,
+  1,
+  "Xcode project must contain exactly one macOS application target"
+);
+assert.equal(
+  pbxproj.match(/productType = "com\.apple\.product-type\.framework";/g)?.length ?? 0,
+  1,
+  "Xcode project must contain exactly one desktop core framework target"
+);
 assert.match(pbxproj, /name = "Embed Frameworks";/);
 assert.match(pbxproj, /dstSubfolderSpec = 10;/);
 assert.match(pbxproj, /TokenPilotDesktopCore\.framework in Embed Frameworks/);
 assert.doesNotMatch(pbxproj, /\/Users\/[A-Za-z0-9._-]+\//);
+assert.doesNotMatch(pbxproj, /DEVELOPMENT_TEAM\s*=/);
+assert.doesNotMatch(pbxproj, /CODE_SIGN_IDENTITY\s*=/);
+assert.doesNotMatch(pbxproj, /nodejs\.org|latest-v24|24\.18\.1/);
 assert.match(scheme, /BlueprintIdentifier = "010000000000000000000001"/);
 assert.match(scheme, /BlueprintName = "TokenPilot"/);
 assert.match(scheme, /ReferencedContainer = "container:TokenPilot\.xcodeproj"/);
@@ -69,6 +87,9 @@ assert.doesNotMatch(buildScript, /\bcodesign\b/);
 assert.doesNotMatch(buildScript, /\bnotarytool\b/);
 assert.doesNotMatch(buildScript, /TOKENPILOT_SIGNING_IDENTITY|TOKENPILOT_NOTARY_PROFILE/);
 assert.doesNotMatch(buildScript, /\/Users\/[A-Za-z0-9._-]+\//);
+assert.match(exportOptions, /<key>method<\/key>\s*<string>developer-id<\/string>/s);
+assert.match(exportOptions, /<key>signingStyle<\/key>\s*<string>manual<\/string>/s);
+assert.doesNotMatch(exportOptions, /teamID|signingCertificate|provisioningProfiles|Apple ID|password|private key|\/Users\//i);
 
 for (const forbidden of [
   "com.apple.security.cs.disable-library-validation",

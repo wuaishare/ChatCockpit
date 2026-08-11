@@ -76,6 +76,12 @@ jobs:
       - name: Verify Xcode distribution project
         run: npm run verify:macos-xcode-project
 
+      - name: Verify Hardened Runtime entitlement policy
+        run: npm run verify:macos-entitlements
+
+      - name: Verify signing and archive contract
+        run: npm run verify:macos-signing-contract
+
       - name: Show Xcode version
         run: xcodebuild -version
 
@@ -129,8 +135,8 @@ jobs:
       - name: Build unsigned native desktop app
         run: npm run build:macos-desktop -- --arch "$NATIVE_RUNTIME_ARCH"
 
-      - name: Build unsigned native Xcode desktop app
-        run: npm run build:macos-xcode -- --arch "$NATIVE_RUNTIME_ARCH"
+      - name: Build unsigned native distribution archive
+        run: npm run build:macos-distribution -- --arch "$NATIVE_RUNTIME_ARCH" --version 0.1.0 --build "$GITHUB_RUN_NUMBER"
 
       - name: Verify desktop contract
         run: npm run verify:macos-desktop

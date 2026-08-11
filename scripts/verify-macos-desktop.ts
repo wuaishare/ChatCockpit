@@ -159,7 +159,10 @@ for (const dependencyName of Object.keys(dependencies)) {
   assert.equal(/electron|tauri/i.test(dependencyName), false, `Unexpected desktop wrapper dependency: ${dependencyName}`);
 }
 
-const builtAppRoot = path.join(root, "dist", "macos", "TokenPilot.app");
+const builtAppRootInput = process.env.TOKENPILOT_DESKTOP_APP_DIR?.trim();
+const builtAppRoot = builtAppRootInput
+  ? path.resolve(builtAppRootInput)
+  : path.join(root, "dist", "macos", "TokenPilot.app");
 if (fs.existsSync(builtAppRoot)) {
   const runtimeRoot = path.join(builtAppRoot, "Contents", "Resources", "TokenPilotRuntime");
   for (const relativePath of [
