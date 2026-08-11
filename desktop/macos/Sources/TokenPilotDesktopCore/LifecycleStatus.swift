@@ -7,6 +7,56 @@ public enum LifecycleAction: String, CaseIterable, Sendable {
     case restart
 }
 
+public enum DistributionMode: String, Codable, Equatable, Sendable {
+    case source
+    case packaged
+}
+
+public struct LifecycleExecutionContext: Equatable, Sendable {
+    public let installRootURL: URL
+    public let stateRootURL: URL
+    public let primaryWorkspaceURL: URL
+    public let nodeExecutableURL: URL?
+    public let distributionMode: DistributionMode
+
+    public init(
+        installRootURL: URL,
+        stateRootURL: URL,
+        primaryWorkspaceURL: URL,
+        nodeExecutableURL: URL?,
+        distributionMode: DistributionMode
+    ) {
+        self.installRootURL = installRootURL.standardizedFileURL
+        self.stateRootURL = stateRootURL.standardizedFileURL
+        self.primaryWorkspaceURL = primaryWorkspaceURL.standardizedFileURL
+        self.nodeExecutableURL = nodeExecutableURL?.standardizedFileURL
+        self.distributionMode = distributionMode
+    }
+
+    public static func source(root: TokenPilotRoot) -> LifecycleExecutionContext {
+        LifecycleExecutionContext(
+            installRootURL: root.url,
+            stateRootURL: root.url.appendingPathComponent(".tokenpilot", isDirectory: true),
+            primaryWorkspaceURL: root.url,
+            nodeExecutableURL: nil,
+            distributionMode: .source
+        )
+    }
+
+    public var environment: [String: String] {
+        var values = [
+            "TOKENPILOT_INSTALL_ROOT": installRootURL.path,
+            "TOKENPILOT_STATE_ROOT": stateRootURL.path,
+            "TOKENPILOT_PRIMARY_WORKSPACE_ROOT": primaryWorkspaceURL.path,
+            "TOKENPILOT_DISTRIBUTION_MODE": distributionMode.rawValue
+        ]
+        if let nodeExecutableURL {
+            values["TOKENPILOT_NODE_BIN"] = nodeExecutableURL.path
+        }
+        return values
+    }
+}
+
 public enum RuntimeComponentState: String, Equatable, Sendable {
     case unknown
     case unavailable
@@ -127,16 +177,27 @@ public struct LifecycleClient: Sendable {
     }
 
     public func status(root: TokenPilotRoot) async throws -> LifecycleStatus {
-        let result = try await invoke(.status, root: root)
+        try await status(context: .source(root: root))
+    }
+
+    public func status(context: LifecycleExecutionContext) async throws -> LifecycleStatus {
+        let result = try await invoke(.status, context: context)
         return LifecycleStatusParser.parse(combinedOutput(result))
     }
 
     public func perform(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> LifecycleStatus {
+        try await perform(action, context: .source(root: root))
+    }
+
+    public func perform(
+        _ action: LifecycleAction,
+        context: LifecycleExecutionContext
+    ) async throws -> LifecycleStatus {
         if action == .status {
-            return try await status(root: root)
+            return try await status(context: context)
         }
 
-        let result = try await invoke(action, root: root)
+        let result = try await invoke(action, context: context)
         guard result.exitCode == 0 else {
             let message = combinedOutput(result).trimmingCharacters(in: .whitespacesAndNewlines)
             throw LifecycleClientError(
@@ -148,15 +209,19 @@ public struct LifecycleClient: Sendable {
         return LifecycleStatusParser.parse(combinedOutput(result))
     }
 
-    private func invoke(_ action: LifecycleAction, root: TokenPilotRoot) async throws -> RuntimeCommandResult {
-        let executableURL = root.url
+    private func invoke(
+        _ action: LifecycleAction,
+        context: LifecycleExecutionContext
+    ) async throws -> RuntimeCommandResult {
+        let executableURL = context.installRootURL
             .appendingPathComponent("scripts", isDirectory: true)
             .appendingPathComponent("macos-manage-local-server.sh", isDirectory: false)
         let timeout: TimeInterval = action == .status ? 8 : 90
         return try await runner.run(
             executableURL: executableURL,
             arguments: [action.rawValue],
-            currentDirectoryURL: root.url,
+            currentDirectoryURL: context.installRootURL,
+            environment: context.environment,
             timeoutSeconds: timeout
         )
     }

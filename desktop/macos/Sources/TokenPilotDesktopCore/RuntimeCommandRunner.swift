@@ -23,6 +23,7 @@ public protocol RuntimeCommandRunning: Sendable {
         executableURL: URL,
         arguments: [String],
         currentDirectoryURL: URL,
+        environment: [String: String],
         timeoutSeconds: TimeInterval
     ) async throws -> RuntimeCommandResult
 }
@@ -34,6 +35,7 @@ public struct ProcessRuntimeCommandRunner: RuntimeCommandRunning, Sendable {
         executableURL: URL,
         arguments: [String],
         currentDirectoryURL: URL,
+        environment: [String: String],
         timeoutSeconds: TimeInterval
     ) async throws -> RuntimeCommandResult {
         try await withCheckedThrowingContinuation { continuation in
@@ -46,6 +48,9 @@ public struct ProcessRuntimeCommandRunner: RuntimeCommandRunning, Sendable {
                 process.executableURL = executableURL
                 process.arguments = arguments
                 process.currentDirectoryURL = currentDirectoryURL
+                if !environment.isEmpty {
+                    process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
+                }
                 process.standardOutput = standardOutputPipe
                 process.standardError = standardErrorPipe
                 process.terminationHandler = { _ in termination.signal() }

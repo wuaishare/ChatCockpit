@@ -18,20 +18,41 @@ public struct SemanticVersion: Comparable, Equatable, Sendable {
     }
 }
 
+public enum NodeRuntimeSource: String, Equatable, Sendable {
+    case bundled
+    case system
+    case unavailable
+}
+
 public struct NodeRuntimeStatus: Equatable, Sendable {
     public let executableURL: URL?
     public let version: SemanticVersion?
+    public let source: NodeRuntimeSource
     public let supported: Bool
 
-    public init(executableURL: URL?, version: SemanticVersion?) {
+    public init(
+        executableURL: URL?,
+        version: SemanticVersion?,
+        source: NodeRuntimeSource? = nil,
+        exactRequiredVersion: SemanticVersion? = nil
+    ) {
         self.executableURL = executableURL
         self.version = version
-        self.supported = executableURL != nil && NodeRuntimeChecker.isSupported(version)
+        self.source = source ?? (executableURL == nil ? .unavailable : .system)
+        if let exactRequiredVersion {
+            self.supported = executableURL != nil && version == exactRequiredVersion
+        } else {
+            self.supported = executableURL != nil && NodeRuntimeChecker.isSupported(version)
+        }
     }
 }
 
 public protocol NodeRuntimeInspecting: Sendable {
     func inspect(currentDirectoryURL: URL) async -> NodeRuntimeStatus
+}
+
+public protocol DesktopNodeRuntimeResolving: Sendable {
+    func inspect(context: DesktopDistributionContext) async -> NodeRuntimeStatus
 }
 
 public struct ProcessNodeRuntimeInspector: NodeRuntimeInspecting, Sendable {
@@ -59,6 +80,7 @@ public struct ProcessNodeRuntimeInspector: NodeRuntimeInspecting, Sendable {
                 executableURL: executableURL,
                 arguments: ["--version"],
                 currentDirectoryURL: currentDirectoryURL,
+                environment: [:],
                 timeoutSeconds: 3
             )
             guard result.exitCode == 0 else {
@@ -101,6 +123,61 @@ public struct ProcessNodeRuntimeInspector: NodeRuntimeInspecting, Sendable {
             }
         }
         return nil
+    }
+}
+
+public struct DualModeNodeRuntimeResolver: DesktopNodeRuntimeResolving, Sendable {
+    private let sourceInspector: any NodeRuntimeInspecting
+    private let runner: any RuntimeCommandRunning
+
+    public init(
+        sourceInspector: any NodeRuntimeInspecting = ProcessNodeRuntimeInspector(),
+        runner: any RuntimeCommandRunning = ProcessRuntimeCommandRunner()
+    ) {
+        self.sourceInspector = sourceInspector
+        self.runner = runner
+    }
+
+    public func inspect(context: DesktopDistributionContext) async -> NodeRuntimeStatus {
+        if context.mode == .source {
+            return await sourceInspector.inspect(currentDirectoryURL: context.installRootURL)
+        }
+
+        guard let executableURL = context.nodeExecutableURL,
+              let exactVersion = context.nodeVersion else {
+            return NodeRuntimeStatus(
+                executableURL: context.nodeExecutableURL,
+                version: nil,
+                source: context.nodeExecutableURL == nil ? .unavailable : .bundled,
+                exactRequiredVersion: context.nodeVersion
+            )
+        }
+
+        do {
+            let result = try await runner.run(
+                executableURL: executableURL,
+                arguments: ["--version"],
+                currentDirectoryURL: context.installRootURL,
+                environment: [:],
+                timeoutSeconds: 3
+            )
+            let parsed = result.exitCode == 0
+                ? NodeRuntimeChecker.parseVersion(result.standardOutput)
+                : nil
+            return NodeRuntimeStatus(
+                executableURL: executableURL,
+                version: parsed,
+                source: .bundled,
+                exactRequiredVersion: exactVersion
+            )
+        } catch {
+            return NodeRuntimeStatus(
+                executableURL: executableURL,
+                version: nil,
+                source: .bundled,
+                exactRequiredVersion: exactVersion
+            )
+        }
     }
 }
 

@@ -11,6 +11,7 @@ struct RuntimeCommandRunnerTests {
             executableURL: URL(fileURLWithPath: "/usr/bin/printf"),
             arguments: ["tokenpilot-desktop"],
             currentDirectoryURL: URL(fileURLWithPath: "/tmp", isDirectory: true),
+            environment: ["TOKENPILOT_RUNNER_FIXTURE": "visible"],
             timeoutSeconds: 2
         )
 
@@ -28,6 +29,7 @@ struct RuntimeCommandRunnerTests {
                 executableURL: URL(fileURLWithPath: "/bin/sleep"),
                 arguments: ["2"],
                 currentDirectoryURL: URL(fileURLWithPath: "/tmp", isDirectory: true),
+                environment: [:],
                 timeoutSeconds: 0.05
             )
             Issue.record("Expected timeout")

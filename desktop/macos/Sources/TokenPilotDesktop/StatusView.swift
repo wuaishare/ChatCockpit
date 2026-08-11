@@ -29,6 +29,9 @@ struct StatusView: View {
                     componentRow("Runner", state: model.snapshot.lifecycle.runner)
                     componentRow("Process Supervisor", state: model.snapshot.lifecycle.processSupervisor)
                     valueRow("Local Cockpit", value: model.snapshot.uiReachable ? "Reachable" : "Unavailable")
+                    valueRow("Distribution", value: model.distributionModeText)
+                    valueRow("Runtime", value: model.runtimeVersionText)
+                    valueRow("Architecture", value: model.runtimeArchitectureText)
                     valueRow("Node", value: model.nodeVersionText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -37,7 +40,13 @@ struct StatusView: View {
 
             GroupBox("Local Setup") {
                 Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                    valueRow("TokenPilot Root", value: model.selectedRootDisplayPath)
+                    if model.distributionMode == .packaged {
+                        valueRow("Workspace", value: model.selectedWorkspaceDisplayPath)
+                        valueRow("State", value: model.stateLocationText)
+                    } else {
+                        valueRow("Source Checkout", value: model.selectedRootDisplayPath)
+                        valueRow("State", value: model.stateLocationText)
+                    }
                     valueRow("Endpoint", value: "\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)")
                     valueRow("Mode", value: model.snapshot.configuration.exposed ? "Exposed" : "Local only")
                     valueRow("API Token", value: model.snapshot.configuration.apiTokenConfigured ? "Configured" : "Not configured")
@@ -46,7 +55,12 @@ struct StatusView: View {
                 .padding(.vertical, 4)
             }
 
-            if let message = model.lastUserMessage {
+            if let conflict = model.runtimeConflict {
+                Label(conflict.message, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let message = model.lastUserMessage {
                 Label(message, systemImage: "exclamationmark.circle")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -76,26 +90,31 @@ struct StatusView: View {
 
     @ViewBuilder
     private var runtimeActions: some View {
-        switch model.snapshot.overallState {
+        if model.runtimeConflict != nil {
+            Button("Runtime Conflict") {}
+                .disabled(true)
+        } else {
+            switch model.snapshot.overallState {
         case .setupRequired:
-            Button("Choose TokenPilot Folder…") {
-                model.chooseRootFromPanel()
+            Button(model.setupActionTitle) {
+                model.chooseSetupLocationFromPanel()
             }
         case .stopped:
             Button("Start Services") {
                 Task { await model.start() }
             }
             .disabled(model.isRefreshing)
-        case .degraded, .ready:
-            Button("Restart Services") {
-                Task { await model.restart() }
-            }
-            .disabled(model.isRefreshing)
+            case .degraded, .ready:
+                Button("Restart Services") {
+                    Task { await model.restart() }
+                }
+                .disabled(model.isRefreshing)
 
-            Button("Stop Services") {
-                Task { await model.stop() }
+                Button("Stop Services") {
+                    Task { await model.stop() }
+                }
+                .disabled(model.isRefreshing)
             }
-            .disabled(model.isRefreshing)
         }
     }
 

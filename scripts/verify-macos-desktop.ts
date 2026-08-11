@@ -13,6 +13,17 @@ const lifecycleSourcePath = path.join(
 );
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
+const settingsPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "SettingsView.swift");
+const existingSetupImportPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "ExistingSetupImport.swift"
+);
+const runtimeConflictPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "PackagedRuntimeConflict.swift"
+);
 const buildScriptPath = path.join(root, "scripts", "build-macos-desktop-app.sh");
 
 for (const required of [
@@ -21,6 +32,9 @@ for (const required of [
   lifecycleSourcePath,
   appModelPath,
   menuBarPath,
+  settingsPath,
+  existingSetupImportPath,
+  runtimeConflictPath,
   buildScriptPath
 ]) {
   assert.equal(fs.existsSync(required), true, `Missing macOS desktop file: ${path.relative(root, required)}`);
@@ -31,6 +45,9 @@ const infoPlist = fs.readFileSync(infoPlistPath, "utf8");
 const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
+const settings = fs.readFileSync(settingsPath, "utf8");
+const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
+const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
 const gitignore = fs.readFileSync(path.join(root, ".gitignore"), "utf8");
 const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as {
@@ -54,12 +71,29 @@ assert.match(lifecycleSource, /scripts[\s\S]*macos-manage-local-server\.sh/);
 assert.doesNotMatch(lifecycleSource, /\/bin\/(?:sh|zsh)\s+-c/);
 
 assert.match(appModel, /NSWorkspace\.shared\.open/);
+assert.match(appModel, /TokenPilotRuntime/);
+assert.match(appModel, /PackagedRuntimeDeployer/);
+assert.match(appModel, /Choose Workspace/);
 assert.match(menuBar, /NSApplication\.shared\.terminate/);
 assert.match(menuBar, /Stop Services/);
 assert.match(menuBar, /Quit TokenPilot/);
+assert.match(menuBar, /Runtime Conflict — Review Settings/);
+assert.match(settings, /Import Existing Setup…/);
+assert.match(settings, /never migrated/);
+assert.match(appModel, /runtimeConflict/);
+assert.match(appModel, /importExistingSetupFromPanel/);
+assert.match(existingSetupImport, /skippedSecretCategories/);
+assert.match(existingSetupImport, /TOKENPILOT_EXPOSED=false/);
+assert.doesNotMatch(existingSetupImport, /TOKENPILOT_API_TOKEN=/);
+assert.match(runtimeConflict, /LaunchAgentRuntimeOwnership/);
+assert.match(runtimeConflict, /sourceRuntime/);
+assert.match(runtimeConflict, /portOccupied/);
 
+assert.match(buildScript, /build-macos-runtime-payload\.sh/);
 assert.match(buildScript, /swift build --package-path/);
+assert.match(buildScript, /--arch/);
 assert.match(buildScript, /dist\/macos\/TokenPilot\.app/);
+assert.match(buildScript, /Contents\/Resources\/TokenPilotRuntime|RESOURCES_DIR.*TokenPilotRuntime/s);
 assert.match(buildScript, /signing: not performed/);
 assert.match(buildScript, /notarization: not performed/);
 assert.doesNotMatch(buildScript, /\bcodesign\b/);
@@ -91,6 +125,37 @@ const dependencies = {
 };
 for (const dependencyName of Object.keys(dependencies)) {
   assert.equal(/electron|tauri/i.test(dependencyName), false, `Unexpected desktop wrapper dependency: ${dependencyName}`);
+}
+
+const builtAppRoot = path.join(root, "dist", "macos", "TokenPilot.app");
+if (fs.existsSync(builtAppRoot)) {
+  const runtimeRoot = path.join(builtAppRoot, "Contents", "Resources", "TokenPilotRuntime");
+  for (const relativePath of [
+    "manifest.json",
+    "node/bin/node",
+    "app/package.json",
+    "app/dist/cli/index.js",
+    "app/web/dist/index.html",
+    "app/openapi/tokenpilot.openapi.yaml",
+    "app/scripts/macos-manage-local-server.sh"
+  ]) {
+    assert.equal(
+      fs.existsSync(path.join(runtimeRoot, relativePath)),
+      true,
+      `Built app is missing packaged runtime path: ${relativePath}`
+    );
+  }
+  for (const forbidden of [".git", ".tokenpilot", "app/src", "app/web/src"]) {
+    assert.equal(
+      fs.existsSync(path.join(runtimeRoot, forbidden)),
+      false,
+      `Built app contains forbidden packaged runtime path: ${forbidden}`
+    );
+  }
+  const runtimeManifest = fs.readFileSync(path.join(runtimeRoot, "manifest.json"), "utf8");
+  assert.equal(runtimeManifest.includes("24.18.1"), true);
+  assert.equal(runtimeManifest.includes("latest-v24"), false);
+  assert.equal(runtimeManifest.includes("/" + "Users/"), false);
 }
 
 process.stdout.write("VERIFY_MACOS_DESKTOP_OK\n");

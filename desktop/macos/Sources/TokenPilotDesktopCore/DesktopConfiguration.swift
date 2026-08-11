@@ -30,8 +30,14 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
     public init() {}
 
     public func read(rootURL: URL) -> DesktopRuntimeConfiguration {
-        let environmentURL = rootURL
-            .appendingPathComponent(".tokenpilot", isDirectory: true)
+        read(
+            stateRootURL: rootURL
+                .appendingPathComponent(".tokenpilot", isDirectory: true)
+        )
+    }
+
+    public func read(stateRootURL: URL) -> DesktopRuntimeConfiguration {
+        let environmentURL = stateRootURL
             .appendingPathComponent("runtime", isDirectory: true)
             .appendingPathComponent("server.env", isDirectory: false)
 
@@ -95,6 +101,37 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
 public protocol TokenPilotRootPreferenceStoring: Sendable {
     func loadRootURL() -> URL?
     func saveRootURL(_ url: URL?)
+}
+
+public protocol WorkspacePreferenceStoring: Sendable {
+    func loadWorkspaceURL() -> URL?
+    func saveWorkspaceURL(_ url: URL?)
+}
+
+public struct UserDefaultsWorkspacePreferenceStore: WorkspacePreferenceStoring, @unchecked Sendable {
+    private let defaults: UserDefaults
+    private let key: String
+
+    public init(
+        defaults: UserDefaults = .standard,
+        key: String = "tokenpilotDesktop.selectedWorkspace"
+    ) {
+        self.defaults = defaults
+        self.key = key
+    }
+
+    public func loadWorkspaceURL() -> URL? {
+        guard let path = defaults.string(forKey: key), !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+    }
+
+    public func saveWorkspaceURL(_ url: URL?) {
+        guard let url else {
+            defaults.removeObject(forKey: key)
+            return
+        }
+        defaults.set(url.standardizedFileURL.path, forKey: key)
+    }
 }
 
 public struct UserDefaultsTokenPilotRootPreferenceStore: TokenPilotRootPreferenceStoring, @unchecked Sendable {

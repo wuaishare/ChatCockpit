@@ -6,25 +6,93 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("TokenPilot Root") {
-                LabeledContent("Current folder") {
-                    Text(model.selectedRootDisplayPath)
-                        .textSelection(.enabled)
-                        .foregroundStyle(model.selectedRootURL == nil ? .secondary : .primary)
+            Section("Distribution") {
+                LabeledContent("Mode") {
+                    Text(model.distributionModeText)
+                }
+                LabeledContent("Runtime") {
+                    Text(model.runtimeVersionText)
+                }
+                LabeledContent("Architecture") {
+                    Text(model.runtimeArchitectureText)
+                }
+                LabeledContent("State") {
+                    Text(model.stateLocationText)
                 }
 
                 HStack {
-                    Button("Choose Folder…") {
-                        model.chooseRootFromPanel()
+                    Button("Packaged Mode") {
+                        Task { await model.usePackagedMode() }
                     }
-                    Button("Revalidate") {
-                        Task { await model.refresh() }
+                    .disabled(!model.packagedModeAvailable || model.distributionMode == .packaged)
+
+                    Button("Developer Mode") {
+                        Task { await model.useDeveloperMode() }
                     }
-                    .disabled(model.selectedRootURL == nil || model.isRefreshing)
-                    Button("Forget", role: .destructive) {
-                        model.clearRoot()
+                    .disabled(model.distributionMode == .source)
+                }
+            }
+
+            if model.distributionMode == .packaged {
+                Section("Workspace") {
+                    LabeledContent("Current project") {
+                        Text(model.selectedWorkspaceDisplayPath)
+                            .textSelection(.enabled)
+                            .foregroundStyle(model.selectedWorkspaceURL == nil ? .secondary : .primary)
                     }
-                    .disabled(model.selectedRootURL == nil)
+
+                    HStack {
+                        Button("Choose Workspace…") {
+                            model.chooseWorkspaceFromPanel()
+                        }
+                        Button("Revalidate") {
+                            Task { await model.refresh() }
+                        }
+                        .disabled(model.selectedWorkspaceURL == nil || model.isRefreshing)
+                        Button("Forget", role: .destructive) {
+                            model.clearWorkspace()
+                        }
+                        .disabled(model.selectedWorkspaceURL == nil)
+                    }
+
+                    Text("The packaged TokenPilot runtime and Application Support state remain separate from the selected project workspace.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Section("Existing Setup") {
+                    Button("Import Existing Setup…") {
+                        model.importExistingSetupFromPanel()
+                    }
+                    .disabled(model.isRefreshing)
+
+                    Text("Import previews only workspace mappings and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Section("Developer Source") {
+                    LabeledContent("Current checkout") {
+                        Text(model.selectedRootDisplayPath)
+                            .textSelection(.enabled)
+                            .foregroundStyle(model.selectedRootURL == nil ? .secondary : .primary)
+                    }
+
+                    HStack {
+                        Button("Choose Source…") {
+                            model.chooseRootFromPanel()
+                        }
+                        Button("Revalidate") {
+                            Task { await model.refresh() }
+                        }
+                        .disabled(model.selectedRootURL == nil || model.isRefreshing)
+                        Button("Forget", role: .destructive) {
+                            model.clearRoot()
+                        }
+                        .disabled(model.selectedRootURL == nil)
+                    }
                 }
             }
 
@@ -36,8 +104,8 @@ struct SettingsView: View {
                 LabeledContent("Node") {
                     Text(model.nodeVersionText)
                 }
-                LabeledContent("Minimum Node") {
-                    Text("v22.13.0")
+                LabeledContent(model.distributionMode == .packaged ? "Bundled Node" : "Minimum Node") {
+                    Text(model.distributionMode == .packaged ? "v24.18.1 exact" : "v22.13.0")
                 }
                 LabeledContent("Status") {
                     Label(
@@ -65,6 +133,18 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let conflict = model.runtimeConflict {
+                Section("Runtime Conflict") {
+                    Label(conflict.message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("TokenPilot will not stop, restart, replace, or take over the existing runtime automatically. Resolve it explicitly in its current mode, then refresh Packaged Mode.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             if let message = model.lastUserMessage {
                 Section("Attention") {
                     Label(message, systemImage: "exclamationmark.circle")
@@ -73,7 +153,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 430)
+        .frame(width: 590, height: 560)
         .padding(.top, 6)
     }
 }
