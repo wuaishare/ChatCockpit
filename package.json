@@ -11,6 +11,7 @@
     "build": "npm run build:web && tsc -p tsconfig.json",
     "build:web": "vite build --config web/vite.config.ts",
     "build:macos-desktop": "bash ./scripts/build-macos-desktop-app.sh",
+    "build:macos-xcode": "bash ./scripts/build-macos-xcode-app.sh",
     "build:macos-runtime": "bash ./scripts/build-macos-runtime-payload.sh",
     "verify:macos-desktop": "tsx scripts/verify-macos-desktop.ts",
     "verify:macos-xcode-project": "tsx scripts/verify-macos-xcode-project.ts",
