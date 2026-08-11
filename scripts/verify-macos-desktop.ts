@@ -25,6 +25,20 @@ const runtimeConflictPath = path.join(
   "PackagedRuntimeConflict.swift"
 );
 const buildScriptPath = path.join(root, "scripts", "build-macos-desktop-app.sh");
+const xcodeProjectPath = path.join(
+  root,
+  "desktop",
+  "macos",
+  "TokenPilot.xcodeproj",
+  "project.pbxproj"
+);
+const xcodeEntitlementsPath = path.join(
+  root,
+  "desktop",
+  "macos",
+  "TokenPilotDesktop.entitlements"
+);
+const xcodeBuildScriptPath = path.join(root, "scripts", "build-macos-xcode-app.sh");
 
 for (const required of [
   packageManifestPath,
@@ -35,7 +49,10 @@ for (const required of [
   settingsPath,
   existingSetupImportPath,
   runtimeConflictPath,
-  buildScriptPath
+  buildScriptPath,
+  xcodeProjectPath,
+  xcodeEntitlementsPath,
+  xcodeBuildScriptPath
 ]) {
   assert.equal(fs.existsSync(required), true, `Missing macOS desktop file: ${path.relative(root, required)}`);
 }
@@ -49,6 +66,9 @@ const settings = fs.readFileSync(settingsPath, "utf8");
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
+const xcodeProject = fs.readFileSync(xcodeProjectPath, "utf8");
+const xcodeEntitlements = fs.readFileSync(xcodeEntitlementsPath, "utf8");
+const xcodeBuildScript = fs.readFileSync(xcodeBuildScriptPath, "utf8");
 const gitignore = fs.readFileSync(path.join(root, ".gitignore"), "utf8");
 const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as {
   dependencies?: Record<string, string>;
@@ -98,6 +118,18 @@ assert.match(buildScript, /signing: not performed/);
 assert.match(buildScript, /notarization: not performed/);
 assert.doesNotMatch(buildScript, /\bcodesign\b/);
 assert.doesNotMatch(buildScript, /\bnotarytool\b/);
+
+assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.TokenPilot;/);
+assert.match(xcodeProject, /ENABLE_HARDENED_RUNTIME = YES;/);
+assert.match(xcodeProject, /CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop\.entitlements;/);
+assert.match(xcodeProject, /name = "Embed Frameworks";/);
+assert.match(xcodeBuildScript, /FULL_XCODE_REQUIRED/);
+assert.match(xcodeBuildScript, /CODE_SIGNING_ALLOWED=NO/);
+assert.match(xcodeBuildScript, /build-macos-runtime-payload\.sh/);
+assert.match(xcodeBuildScript, /verify:macos-runtime-payload/);
+assert.doesNotMatch(xcodeBuildScript, /\bcodesign\b/);
+assert.doesNotMatch(xcodeBuildScript, /\bnotarytool\b/);
+assert.doesNotMatch(xcodeEntitlements, /com\.apple\.security\.cs\./);
 
 assert.match(gitignore, /^\.build\/$/m);
 
