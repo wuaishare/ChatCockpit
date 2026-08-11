@@ -5,6 +5,15 @@ import path from "node:path";
 const root = process.cwd();
 const projectPath = path.join(root, "desktop", "macos", "TokenPilot.xcodeproj", "project.pbxproj");
 const entitlementsPath = path.join(root, "desktop", "macos", "TokenPilotDesktop.entitlements");
+const schemePath = path.join(
+  root,
+  "desktop",
+  "macos",
+  "TokenPilot.xcodeproj",
+  "xcshareddata",
+  "xcschemes",
+  "TokenPilot.xcscheme"
+);
 
 assert.equal(
   fs.existsSync(projectPath),
@@ -16,9 +25,15 @@ assert.equal(
   true,
   "Missing macOS entitlements: desktop/macos/TokenPilotDesktop.entitlements"
 );
+assert.equal(
+  fs.existsSync(schemePath),
+  true,
+  "Missing shared Xcode scheme: desktop/macos/TokenPilot.xcodeproj/xcshareddata/xcschemes/TokenPilot.xcscheme"
+);
 
 const pbxproj = fs.readFileSync(projectPath, "utf8");
 const entitlements = fs.readFileSync(entitlementsPath, "utf8");
+const scheme = fs.readFileSync(schemePath, "utf8");
 
 assert.match(pbxproj, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.TokenPilot;/);
 assert.match(pbxproj, /MACOSX_DEPLOYMENT_TARGET = 14\.0;/);
@@ -30,6 +45,10 @@ assert.match(pbxproj, /Sources\/TokenPilotDesktop/);
 assert.match(pbxproj, /productType = "com\.apple\.product-type\.application";/);
 assert.match(pbxproj, /productType = "com\.apple\.product-type\.framework";/);
 assert.doesNotMatch(pbxproj, /\/Users\/[A-Za-z0-9._-]+\//);
+assert.match(scheme, /BlueprintIdentifier = "010000000000000000000001"/);
+assert.match(scheme, /BlueprintName = "TokenPilot"/);
+assert.match(scheme, /ReferencedContainer = "container:TokenPilot\.xcodeproj"/);
+assert.doesNotMatch(scheme, /\/Users\/[A-Za-z0-9._-]+\//);
 
 for (const forbidden of [
   "com.apple.security.cs.disable-library-validation",
