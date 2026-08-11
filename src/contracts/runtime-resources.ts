@@ -208,6 +208,35 @@ export const runtimeResourceMutationActivityQuerySchema = z
   })
   .strict();
 
+export const runtimeResourceMutationMcpInspectSchema = z.discriminatedUnion(
+  "target",
+  [
+    z
+      .object({
+        target: z.literal("approval"),
+        workspaceId: identifierSchema,
+        approvalId: identifierSchema
+      })
+      .strict(),
+    z
+      .object({
+        target: z.literal("execution"),
+        workspaceId: identifierSchema,
+        executionId: identifierSchema
+      })
+      .strict(),
+    z
+      .object({
+        target: z.literal("activity"),
+        workspaceId: identifierSchema,
+        resourceId: identifierSchema.optional(),
+        approvalStatus: runtimeResourceMutationApprovalStatusSchema.optional(),
+        limit: z.number().int().positive().max(100).optional()
+      })
+      .strict()
+  ]
+);
+
 export type RuntimeResourceInventoryRequest = z.infer<
   typeof runtimeResourceInventoryRequestSchema
 >;

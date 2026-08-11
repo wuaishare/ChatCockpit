@@ -23,6 +23,26 @@ interface RestResponseProblem {
   };
 }
 
+interface McpJsonRpcResponse {
+  result?: {
+    isError?: boolean;
+    structuredContent?: Record<string, unknown>;
+  };
+  error?: {
+    code?: number;
+    message?: string;
+    data?: unknown;
+  };
+}
+
+function parseMcpResponse(body: string): McpJsonRpcResponse {
+  const dataLines = body
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trim());
+  return JSON.parse(dataLines.length > 0 ? dataLines.join("\n") : body) as McpJsonRpcResponse;
+}
+
 export interface RuntimeResourceRestLiveHarness {
   baseUrl: string;
   token: string;
@@ -37,6 +57,7 @@ export interface RuntimeResourceRestLiveHarness {
   observedProviderMethods: Set<string>;
   providerMethodCalls: string[];
   rest<T>(method: "GET" | "POST", route: string, body?: unknown): Promise<T>;
+  mcp<T>(toolName: string, args: Record<string, unknown>): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -196,6 +217,40 @@ export async function createRuntimeResourceRestLiveHarness(
       return payload;
     };
 
+    const mcp = async <T>(
+      toolName: string,
+      args: Record<string, unknown>
+    ): Promise<T> => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          accept: "application/json, text/event-stream",
+          authorization: `Bearer ${API_TOKEN}`,
+          "content-type": "application/json",
+          "mcp-protocol-version": "2025-06-18"
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: crypto.randomUUID(),
+          method: "tools/call",
+          params: {
+            name: toolName,
+            arguments: args
+          }
+        })
+      });
+      const message = parseMcpResponse(await response.text());
+      assert.equal(response.ok, true, `MCP ${toolName} failed with HTTP ${response.status}`);
+      assert.equal(message.error, undefined, `MCP ${toolName} JSON-RPC error: ${JSON.stringify(message.error)}`);
+      assert.equal(
+        message.result?.isError,
+        undefined,
+        `MCP ${toolName} tool error: ${JSON.stringify(message.result?.structuredContent)}`
+      );
+      assert.ok(message.result?.structuredContent, `MCP ${toolName} returned no structured content`);
+      return message.result.structuredContent as T;
+    };
+
     const projects = await rest<{
       projects: Array<{
         project: { id: string };
@@ -233,6 +288,7 @@ export async function createRuntimeResourceRestLiveHarness(
       observedProviderMethods,
       providerMethodCalls,
       rest,
+      mcp,
       close: async () => {
         await server?.close().catch(() => undefined);
         await app.close().catch(() => undefined);

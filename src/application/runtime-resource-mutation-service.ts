@@ -1,4 +1,4 @@
-import type { OperationContext } from "./operation-context.js";
+import type { ActorType, OperationContext } from "./operation-context.js";
 import { hashRuntimeResource } from "./runtime-resource-hash.js";
 import { assessRuntimeResourceMutationEligibility } from "./runtime-resource-mutation-eligibility.js";
 import { buildRuntimeResourceMutationProvenance } from "./runtime-resource-mutation-provenance.js";
@@ -30,6 +30,11 @@ const PRE_WRITE_STALE_CODES = new Set([
   "RUNTIME_RESOURCE_MUTATION_STALE",
   "RUNTIME_RESOURCE_MUTATION_NOT_FOUND",
   "RUNTIME_RESOURCE_MUTATION_TARGET_AMBIGUOUS"
+]);
+const REMOTE_EXECUTE_DECISION_ACTORS = new Set<ActorType>([
+  "local-cli",
+  "local-ui",
+  "rest-api"
 ]);
 
 export interface RuntimeResourceMutationPrepareInput {
@@ -272,6 +277,12 @@ export class RuntimeResourceMutationService {
   }
 
   decide(context: OperationContext, input: RuntimeResourceMutationDecisionInput) {
+    if (context.actorType === "remote-mcp") {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN",
+        "Remote MCP callers cannot decide Runtime Resource mutation approvals"
+      );
+    }
     const decidedActor = buildRuntimeResourceMutationProvenance(context);
     const idempotencyInput = {
       approvalId: input.approvalId,
@@ -318,6 +329,12 @@ export class RuntimeResourceMutationService {
         identityHash: executedActor.actorIdentityHash
       }
     };
+    if (context.actorType === "remote-mcp") {
+      this.assertRemoteExecutionDecisionProvenance(
+        this.repositories.runtimeResourceMutations.getApproval(input.approvalId)
+      );
+    }
+
     const replay = this.repositories.idempotency.replay<{
       ok: true;
       approval: RuntimeResourceMutationApprovalRecord;
@@ -429,6 +446,20 @@ export class RuntimeResourceMutationService {
       now
     );
     return { ...executed.value, replayed: executed.replayed };
+  }
+
+  private assertRemoteExecutionDecisionProvenance(
+    approval: RuntimeResourceMutationApprovalRecord
+  ): void {
+    if (
+      approval.decidedActorType === null ||
+      !REMOTE_EXECUTE_DECISION_ACTORS.has(approval.decidedActorType)
+    ) {
+      throw new ServiceError(
+        "RUNTIME_RESOURCE_MUTATION_EXECUTION_FORBIDDEN",
+        "Remote MCP execution requires an approval decided by an operator surface"
+      );
+    }
   }
 
   private requireExecutableApproval(
