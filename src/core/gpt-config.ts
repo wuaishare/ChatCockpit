@@ -3,8 +3,13 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { TokenPilotHealthStatus, TokenPilotRepoGovernanceRecord } from "../types.js";
+import type {
+  TokenPilotDistributionContext,
+  TokenPilotHealthStatus,
+  TokenPilotRepoGovernanceRecord
+} from "../types.js";
 import { buildRepoGovernance } from "./config.js";
+import { buildSourceDistributionContext } from "./distribution-context.js";
 
 export interface TokenPilotGptConfig {
   version: string;
@@ -262,7 +267,8 @@ export function buildGptInstructions(
 
 export function buildGptConfig(
   locale: "zh-CN" | "en-US" = "zh-CN",
-  repoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim() || process.cwd()
+  repoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim() || process.cwd(),
+  distributionContext: TokenPilotDistributionContext = buildSourceDistributionContext(repoRoot)
 ): TokenPilotGptConfig {
   // Use last git commit date so config metadata stays stable between commits.
   const lastCommitDate = spawnSync(
@@ -276,7 +282,7 @@ export function buildGptConfig(
   const health = buildHealthStatusSnapshot();
   const actionHost = resolveActionHost(health.publicBaseUrl);
   const versionParts = buildGptVersionParts();
-  const repoGovernance = buildRepoGovernance(repoRoot);
+  const repoGovernance = buildRepoGovernance(repoRoot, distributionContext);
   return {
     version: versionParts.version,
     productVersion: versionParts.productVersion,

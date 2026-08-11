@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import type {
   JobArtifactKey,
   JobRecord,
@@ -40,7 +40,7 @@ function resolveArtifactRepoRoot(
   }
 
   try {
-    const config = loadUserConfig(paths.repoRoot);
+    const config = loadUserConfigForPaths(paths);
     return resolveRepoMapping(config, repoId).repoRoot;
   } catch {
     return paths.repoRoot;

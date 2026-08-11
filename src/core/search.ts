@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   SearchPayload,
@@ -59,7 +59,7 @@ function buildExcludeArgs(tool: string): string[] {
 }
 
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   return resolveRepoMapping(config, repoId).repoRoot;
 }
 

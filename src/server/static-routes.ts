@@ -166,13 +166,13 @@ export function registerStaticRoutes(
   app: FastifyInstance,
   paths: TokenPilotPaths
 ): void {
-  const uiDistDir = path.join(paths.repoRoot, "web", "dist");
+  const uiDistDir = path.join(paths.installRoot, "web", "dist");
   const hasUiDist = fs.existsSync(uiDistDir);
   const uiRootRealPath = hasUiDist ? fs.realpathSync(uiDistDir) : null;
 
   app.get("/openapi.yaml", async (request, reply) => {
     reply.type("text/yaml");
-    return renderOpenApiDocument(request, paths.repoRoot);
+    return renderOpenApiDocument(request, paths.installRoot);
   });
 
   app.get("/ui", async (_request, reply) => {

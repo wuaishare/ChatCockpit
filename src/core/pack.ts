@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { buildBundleManifest } from "./manifest.js";
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { timestampSlug } from "./files.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { writeRepoBundleXml } from "./repo-bundle.js";
@@ -61,7 +61,7 @@ export function runPackForRepo(
   paths: TokenPilotPaths,
   repoId: string
 ): RepoBundleManifest {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   const mapping = resolveRepoMapping(config, repoId);
   const repoPaths = buildPaths(mapping.repoRoot);
   ensureWorkspaceDirs(repoPaths);

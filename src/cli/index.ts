@@ -2,6 +2,7 @@ import process from "node:process";
 import path from "node:path";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
+import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
 import { runDoctor } from "../core/doctor.js";
 import { initLocalRuntime } from "../core/setup.js";
 import { runPack } from "../core/pack.js";
@@ -142,7 +143,8 @@ async function main(): Promise<void> {
     }
     case "doctor": {
       const result = runDoctor(paths.repoRoot, {
-        fix: process.argv.includes("--fix")
+        fix: process.argv.includes("--fix"),
+        context: buildDistributionContextFromPaths(paths)
       });
       if (process.argv.includes("--json")) {
         printJson(result);

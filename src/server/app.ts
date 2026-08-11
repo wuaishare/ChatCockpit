@@ -46,6 +46,7 @@ import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
+import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
 import { buildSetupStatus } from "../core/setup-status.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
@@ -427,7 +428,11 @@ export function buildServer(
   const gptConfigHandler = async () => {
     return {
       ok: true,
-      config: buildGptConfig("zh-CN", paths.repoRoot)
+      config: buildGptConfig(
+        "zh-CN",
+        paths.repoRoot,
+        buildDistributionContextFromPaths(paths)
+      )
     };
   };
 

@@ -3,10 +3,16 @@ import os from "node:os";
 import path from "node:path";
 
 import type {
+  TokenPilotDistributionContext,
+  TokenPilotPaths,
   TokenPilotRepoGovernanceEntry,
   TokenPilotRepoGovernanceRecord,
   TokenPilotUserConfig
 } from "../types.js";
+import {
+  buildDistributionContextFromPaths,
+  buildSourceDistributionContext
+} from "./distribution-context.js";
 
 export const DEFAULT_REPO_ID = "tokenpilot";
 const DEFAULT_SIBLING_REPOS: Record<string, string> = {
@@ -14,8 +20,9 @@ const DEFAULT_SIBLING_REPOS: Record<string, string> = {
   "ai-wuaishare-cn": "ai.wuaishare.cn"
 };
 
-function defaultConfigPath(): string {
-  return path.join(os.homedir(), ".tokenpilot", "config.json");
+function defaultConfigPath(context?: TokenPilotDistributionContext): string {
+  if (context) return context.configPath;
+  return process.env.TOKENPILOT_CONFIG_PATH?.trim() || path.join(os.homedir(), ".tokenpilot", "config.json");
 }
 
 function normalizeAbsolutePath(input: string): string {
@@ -50,9 +57,13 @@ function dedupeSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort();
 }
 
-function buildDefaultConfig(repoRoot: string): TokenPilotUserConfig {
-  const normalizedRepoRoot = normalizeAbsolutePath(repoRoot);
-  const siblingMappings = discoverSiblingRepoMappings(normalizedRepoRoot);
+function buildDefaultConfig(
+  repoRoot: string,
+  context: TokenPilotDistributionContext
+): TokenPilotUserConfig {
+  const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
+  const siblingMappings =
+    context.mode === "source" ? discoverSiblingRepoMappings(normalizedRepoRoot) : {};
   const siblingAllowlist = Object.values(siblingMappings).map((mapping) => mapping.path);
   return {
     workspaceAllowlist: dedupeSorted([normalizedRepoRoot, ...siblingAllowlist]),
@@ -96,14 +107,17 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
   };
 }
 
-export function getUserConfigPath(): string {
-  return process.env.TOKENPILOT_CONFIG_PATH?.trim() || defaultConfigPath();
+export function getUserConfigPath(context?: TokenPilotDistributionContext): string {
+  return defaultConfigPath(context);
 }
 
-export function loadUserConfig(repoRoot: string): TokenPilotUserConfig {
-  const configPath = getUserConfigPath();
+export function loadUserConfig(
+  repoRoot: string,
+  context: TokenPilotDistributionContext = buildSourceDistributionContext(repoRoot)
+): TokenPilotUserConfig {
+  const configPath = getUserConfigPath(context);
   if (!fs.existsSync(configPath)) {
-    const config = buildDefaultConfig(repoRoot);
+    const config = buildDefaultConfig(repoRoot, context);
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     return config;
@@ -112,7 +126,7 @@ export function loadUserConfig(repoRoot: string): TokenPilotUserConfig {
   const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as TokenPilotUserConfig;
   const normalized = normalizeConfig(parsed);
   const needsDefaultRepoMapping = !normalized.repoMappings[DEFAULT_REPO_ID];
-  const normalizedRepoRoot = normalizeAbsolutePath(repoRoot);
+  const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
 
   if (needsDefaultRepoMapping) {
     normalized.repoMappings[DEFAULT_REPO_ID] = {
@@ -120,7 +134,8 @@ export function loadUserConfig(repoRoot: string): TokenPilotUserConfig {
     };
   }
 
-  const siblingMappings = discoverSiblingRepoMappings(normalizedRepoRoot);
+  const siblingMappings =
+    context.mode === "source" ? discoverSiblingRepoMappings(normalizedRepoRoot) : {};
   for (const [repoId, mapping] of Object.entries(siblingMappings)) {
     if (!normalized.repoMappings[repoId]) {
       normalized.repoMappings[repoId] = mapping;
@@ -137,6 +152,17 @@ export function loadUserConfig(repoRoot: string): TokenPilotUserConfig {
   assertUniqueRepoMappings(normalized);
 
   return normalized;
+}
+
+export function loadUserConfigForPaths(paths: TokenPilotPaths): TokenPilotUserConfig {
+  const context = buildDistributionContextFromPaths(paths);
+  if (context.mode === "source") {
+    const envConfigPath = process.env.TOKENPILOT_CONFIG_PATH?.trim();
+    if (envConfigPath) {
+      context.configPath = normalizeAbsolutePath(envConfigPath);
+    }
+  }
+  return loadUserConfig(paths.repoRoot, context);
 }
 
 export function isWithinWorkspaceAllowlist(repoRoot: string, allowlist: string[]): boolean {
@@ -171,8 +197,11 @@ function getDefaultRepoIds(): string[] {
   return [DEFAULT_REPO_ID, ...Object.keys(DEFAULT_SIBLING_REPOS)].sort();
 }
 
-export function buildRepoGovernance(repoRoot: string): TokenPilotRepoGovernanceRecord {
-  const config = loadUserConfig(repoRoot);
+export function buildRepoGovernance(
+  repoRoot: string,
+  context: TokenPilotDistributionContext = buildSourceDistributionContext(repoRoot)
+): TokenPilotRepoGovernanceRecord {
+  const config = loadUserConfig(repoRoot, context);
   const repoIds = Array.from(
     new Set([...getDefaultRepoIds(), ...Object.keys(config.repoMappings)])
   ).sort((a, b) => {

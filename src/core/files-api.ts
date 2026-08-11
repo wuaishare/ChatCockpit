@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { loadUserConfig, resolveRepoMapping } from "./config.js";
+import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   FileReadBatchPayload,
@@ -198,7 +198,7 @@ export function resolveReadableRepoFileTarget(
   repoId: string,
   inputPath: string
 ): ReadableRepoFileTarget {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   const { repoRoot, workspaceAllowlist } = resolveRepoPath(config, repoId);
   if (!isWithinAllowlist(repoRoot, workspaceAllowlist)) {
     throw new Error(`repoId ${repoId} is not in the workspace allowlist`);
@@ -233,7 +233,7 @@ function readFileContent(
 }
 
 export function readRepoFile(paths: TokenPilotPaths, payload: FileReadPayload) {
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   const { repoRoot, workspaceAllowlist } = resolveRepoPath(config, payload.repoId);
 
   if (!isWithinAllowlist(repoRoot, workspaceAllowlist)) {
@@ -261,7 +261,7 @@ export function readRepoFiles(paths: TokenPilotPaths, payload: FileReadBatchPayl
     throw new Error(`At most ${MAX_BATCH_FILES} files can be read at once`);
   }
 
-  const config = loadUserConfig(paths.repoRoot);
+  const config = loadUserConfigForPaths(paths);
   const { repoRoot, workspaceAllowlist } = resolveRepoPath(config, payload.repoId);
 
   if (!isWithinAllowlist(repoRoot, workspaceAllowlist)) {

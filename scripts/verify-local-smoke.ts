@@ -616,6 +616,11 @@ function verifyInitAndDoctor(): void {
   assert.equal(fs.existsSync(paths.workspaceDir), false);
   assert.equal(beforeDoctor.fixes.length, 0);
   assert.match(beforeDoctor.summary, /TokenPilot/);
+  for (const name of ["git", "node", "npm", "python3"]) {
+    const check = beforeDoctor.checks.find((entry) => entry.name === name);
+    assert.ok(check, `Missing source Doctor check: ${name}`);
+    assert.equal(check.impact, "runtime-blocking");
+  }
 
   const fixedDoctor = runDoctor(paths.repoRoot, { fix: true });
   assert.equal(fs.existsSync(paths.workspaceDir), true);
