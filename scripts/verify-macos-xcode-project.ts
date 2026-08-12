@@ -56,6 +56,53 @@ assert.match(pbxproj, /CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop\.entitlements;
 assert.match(pbxproj, /INFOPLIST_FILE = AppBundle\/Info\.plist;/);
 assert.match(pbxproj, /Sources\/TokenPilotDesktopCore/);
 assert.match(pbxproj, /Sources\/TokenPilotDesktop/);
+
+function swiftSourceNames(directory: string): string[] {
+  return fs
+    .readdirSync(path.join(root, "desktop", "macos", "Sources", directory), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".swift"))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function sourcePhaseBody(phaseId: string): string {
+  const marker = `${phaseId} /* Sources */ = {`;
+  const start = pbxproj.indexOf(marker);
+  assert.ok(start >= 0, `Missing Xcode source phase ${phaseId}`);
+  const end = pbxproj.indexOf("\n\t\t};", start);
+  assert.ok(end > start, `Unable to parse Xcode source phase ${phaseId}`);
+  return pbxproj.slice(start, end);
+}
+
+const desktopCoreSources = swiftSourceNames("TokenPilotDesktopCore");
+const desktopAppSources = swiftSourceNames("TokenPilotDesktop");
+const corePhase = sourcePhaseBody("023000000000000000000001");
+const appPhase = sourcePhaseBody("020000000000000000000001");
+
+for (const source of desktopCoreSources) {
+  assert.equal(
+    pbxproj.includes(`path = Sources/TokenPilotDesktopCore/${source};`),
+    true,
+    `Xcode project is missing TokenPilotDesktopCore file reference: ${source}`
+  );
+  assert.equal(
+    corePhase.includes(`/* ${source} in Sources */`),
+    true,
+    `Xcode TokenPilotDesktopCore target is missing source: ${source}`
+  );
+}
+for (const source of desktopAppSources) {
+  assert.equal(
+    pbxproj.includes(`path = Sources/TokenPilotDesktop/${source};`),
+    true,
+    `Xcode project is missing TokenPilotDesktop file reference: ${source}`
+  );
+  assert.equal(
+    appPhase.includes(`/* ${source} in Sources */`),
+    true,
+    `Xcode TokenPilot app target is missing source: ${source}`
+  );
+}
 assert.equal(
   pbxproj.match(/productType = "com\.apple\.product-type\.application";/g)?.length ?? 0,
   1,
