@@ -4,10 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_PATH=""
 PROFILE="${TOKENPILOT_NOTARY_PROFILE:-}"
+KEYCHAIN="${TOKENPILOT_NOTARY_KEYCHAIN:-}"
 EVIDENCE_DIR="${TOKENPILOT_NOTARY_EVIDENCE_DIR:-}"
 
 usage() {
-  echo "Usage: TOKENPILOT_NOTARY_PROFILE=<keychain profile> TOKENPILOT_NOTARY_EVIDENCE_DIR=<outside-repo directory> $0 --app <TokenPilot.app>" >&2
+  echo "Usage: TOKENPILOT_NOTARY_PROFILE=<keychain profile> [TOKENPILOT_NOTARY_KEYCHAIN=<keychain path>] TOKENPILOT_NOTARY_EVIDENCE_DIR=<outside-repo directory> $0 --app <TokenPilot.app>" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -38,6 +39,16 @@ if [[ -z "${APP_PATH}" ]] || [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Co
   exit 1
 fi
 APP_PATH="$(cd "$(dirname "${APP_PATH}")" && pwd)/$(basename "${APP_PATH}")"
+
+notary_keychain_args=()
+if [[ -n "${KEYCHAIN}" ]]; then
+  if [[ ! -f "${KEYCHAIN}" ]]; then
+    echo "INVALID_NOTARY_KEYCHAIN_REFERENCE" >&2
+    exit 2
+  fi
+  KEYCHAIN="$(cd "$(dirname "${KEYCHAIN}")" && pwd)/$(basename "${KEYCHAIN}")"
+  notary_keychain_args+=(--keychain "${KEYCHAIN}")
+fi
 
 if [[ -z "${EVIDENCE_DIR}" ]]; then
   echo "NOTARY_EVIDENCE_DIR_REQUIRED: set TOKENPILOT_NOTARY_EVIDENCE_DIR to an existing directory outside the repository" >&2
@@ -100,6 +111,7 @@ SUBMISSION_JSON="${TEMP_ROOT}/notary-submit.json"
 
 /usr/bin/xcrun notarytool submit "${ZIP_PATH}" \
   --keychain-profile "${PROFILE}" \
+  "${notary_keychain_args[@]}" \
   --wait \
   --no-progress \
   --output-format json > "${SUBMISSION_JSON}"
@@ -116,6 +128,7 @@ LOG_EVIDENCE="${EVIDENCE_DIR}/notary-log-${SUBMISSION_ID}.json"
 cp "${SUBMISSION_JSON}" "${SUBMISSION_EVIDENCE}"
 /usr/bin/xcrun notarytool log "${SUBMISSION_ID}" \
   --keychain-profile "${PROFILE}" \
+  "${notary_keychain_args[@]}" \
   "${LOG_EVIDENCE}"
 
 if [[ "${STATUS}" != "Accepted" ]]; then

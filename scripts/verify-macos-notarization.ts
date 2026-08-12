@@ -19,6 +19,7 @@ assert.equal(shellLint.status, 0, shellLint.stderr);
 const script = fs.readFileSync(notarizationScriptPath, "utf8");
 for (const required of [
   "TOKENPILOT_NOTARY_PROFILE",
+  "TOKENPILOT_NOTARY_KEYCHAIN",
   "TOKENPILOT_NOTARY_EVIDENCE_DIR",
   "NOTARY_PROFILE_REQUIRED",
   "NOTARY_EVIDENCE_DIR_REQUIRED",
@@ -32,6 +33,8 @@ for (const required of [
   "submit",
   "--wait",
   "--keychain-profile",
+  "--keychain",
+  "INVALID_NOTARY_KEYCHAIN_REFERENCE",
   "--output-format",
   "json",
   "Accepted",
@@ -77,6 +80,7 @@ assert.ok(gatekeeperIndex < signedVerifier, "Full signed-app verification must r
 
 const noProfileEnv = { ...process.env } as NodeJS.ProcessEnv;
 delete noProfileEnv.TOKENPILOT_NOTARY_PROFILE;
+delete noProfileEnv.TOKENPILOT_NOTARY_KEYCHAIN;
 delete noProfileEnv.TOKENPILOT_NOTARY_EVIDENCE_DIR;
 const missingProfile = spawnSync(
   "bash",
