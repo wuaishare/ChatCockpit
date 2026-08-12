@@ -1,0 +1,400 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		200000000000000000000001 /* DesktopConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000001 /* DesktopConfiguration.swift */; };
+		200000000000000000000002 /* DistributionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* DistributionContext.swift */; };
+		200000000000000000000003 /* ExistingSetupImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000003 /* ExistingSetupImport.swift */; };
+		200000000000000000000004 /* LifecycleStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000004 /* LifecycleStatus.swift */; };
+		200000000000000000000005 /* LocalHealthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000005 /* LocalHealthClient.swift */; };
+		200000000000000000000006 /* NodeRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000006 /* NodeRuntime.swift */; };
+		200000000000000000000007 /* PackagedRuntimeConflict.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000007 /* PackagedRuntimeConflict.swift */; };
+		200000000000000000000008 /* PackagedRuntimeDeployer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000008 /* PackagedRuntimeDeployer.swift */; };
+		200000000000000000000009 /* PackagedRuntimePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000009 /* PackagedRuntimePaths.swift */; };
+		20000000000000000000000A /* RuntimeCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000A /* RuntimeCommandRunner.swift */; };
+		20000000000000000000000B /* RuntimeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000B /* RuntimeController.swift */; };
+		20000000000000000000000C /* RuntimeManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000C /* RuntimeManifest.swift */; };
+		20000000000000000000000D /* TokenPilotRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000D /* TokenPilotRoot.swift */; };
+		20000000000000000000000E /* DesktopAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* DesktopAppModel.swift */; };
+		20000000000000000000000F /* MenuBarContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* MenuBarContentView.swift */; };
+		200000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* SettingsView.swift */; };
+		200000000000000000000011 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* StatusView.swift */; };
+		200000000000000000000012 /* TokenPilotDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* TokenPilotDesktopApp.swift */; };
+		200000000000000000000013 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* main.swift */; };
+		250000000000000000000001 /* TokenPilotDesktopCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 040000000000000000000002 /* TokenPilotDesktopCore.framework */; };
+		250000000000000000000002 /* TokenPilotDesktopCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 040000000000000000000002 /* TokenPilotDesktopCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		030000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 010000000000000000000002;
+			remoteInfo = TokenPilotDesktopCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		026000000000000000000001 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				250000000000000000000002 /* TokenPilotDesktopCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		040000000000000000000001 /* TokenPilot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenPilot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		040000000000000000000002 /* TokenPilotDesktopCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = TokenPilotDesktopCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000001 /* DesktopConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopConfiguration.swift; sourceTree = "<group>"; };
+		100000000000000000000002 /* DistributionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DistributionContext.swift; sourceTree = "<group>"; };
+		100000000000000000000003 /* ExistingSetupImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/ExistingSetupImport.swift; sourceTree = "<group>"; };
+		100000000000000000000004 /* LifecycleStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/LifecycleStatus.swift; sourceTree = "<group>"; };
+		100000000000000000000005 /* LocalHealthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/LocalHealthClient.swift; sourceTree = "<group>"; };
+		100000000000000000000006 /* NodeRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/NodeRuntime.swift; sourceTree = "<group>"; };
+		100000000000000000000007 /* PackagedRuntimeConflict.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/PackagedRuntimeConflict.swift; sourceTree = "<group>"; };
+		100000000000000000000008 /* PackagedRuntimeDeployer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/PackagedRuntimeDeployer.swift; sourceTree = "<group>"; };
+		100000000000000000000009 /* PackagedRuntimePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/PackagedRuntimePaths.swift; sourceTree = "<group>"; };
+		10000000000000000000000A /* RuntimeCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/RuntimeCommandRunner.swift; sourceTree = "<group>"; };
+		10000000000000000000000B /* RuntimeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/RuntimeController.swift; sourceTree = "<group>"; };
+		10000000000000000000000C /* RuntimeManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/RuntimeManifest.swift; sourceTree = "<group>"; };
+		10000000000000000000000D /* TokenPilotRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/TokenPilotRoot.swift; sourceTree = "<group>"; };
+		10000000000000000000000E /* DesktopAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/DesktopAppModel.swift; sourceTree = "<group>"; };
+		10000000000000000000000F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/MenuBarContentView.swift; sourceTree = "<group>"; };
+		100000000000000000000010 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/SettingsView.swift; sourceTree = "<group>"; };
+		100000000000000000000011 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/StatusView.swift; sourceTree = "<group>"; };
+		100000000000000000000012 /* TokenPilotDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/TokenPilotDesktopApp.swift; sourceTree = "<group>"; };
+		100000000000000000000013 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/main.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		021000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				250000000000000000000001 /* TokenPilotDesktopCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		024000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		002000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				004000000000000000000001 /* Sources */,
+				003000000000000000000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		003000000000000000000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				040000000000000000000001 /* TokenPilot.app */,
+				040000000000000000000002 /* TokenPilotDesktopCore.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		004000000000000000000001 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000001 /* DesktopConfiguration.swift */,
+				100000000000000000000002 /* DistributionContext.swift */,
+				100000000000000000000003 /* ExistingSetupImport.swift */,
+				100000000000000000000004 /* LifecycleStatus.swift */,
+				100000000000000000000005 /* LocalHealthClient.swift */,
+				100000000000000000000006 /* NodeRuntime.swift */,
+				100000000000000000000007 /* PackagedRuntimeConflict.swift */,
+				100000000000000000000008 /* PackagedRuntimeDeployer.swift */,
+				100000000000000000000009 /* PackagedRuntimePaths.swift */,
+				10000000000000000000000A /* RuntimeCommandRunner.swift */,
+				10000000000000000000000B /* RuntimeController.swift */,
+				10000000000000000000000C /* RuntimeManifest.swift */,
+				10000000000000000000000D /* TokenPilotRoot.swift */,
+				10000000000000000000000E /* DesktopAppModel.swift */,
+				10000000000000000000000F /* MenuBarContentView.swift */,
+				100000000000000000000010 /* SettingsView.swift */,
+				100000000000000000000011 /* StatusView.swift */,
+				100000000000000000000012 /* TokenPilotDesktopApp.swift */,
+				100000000000000000000013 /* main.swift */,
+			);
+			name = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		010000000000000000000001 /* TokenPilot */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 510000000000000000000001 /* Build configuration list for PBXNativeTarget "TokenPilot" */;
+			buildPhases = (
+				020000000000000000000001 /* Sources */,
+				021000000000000000000001 /* Frameworks */,
+				026000000000000000000001 /* Embed Frameworks */,
+				022000000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				030000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = TokenPilot;
+			productName = TokenPilot;
+			productReference = 040000000000000000000001 /* TokenPilot.app */;
+			productType = "com.apple.product-type.application";
+		};
+		010000000000000000000002 /* TokenPilotDesktopCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 510000000000000000000002 /* Build configuration list for PBXNativeTarget "TokenPilotDesktopCore" */;
+			buildPhases = (
+				023000000000000000000001 /* Sources */,
+				024000000000000000000001 /* Frameworks */,
+				025000000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TokenPilotDesktopCore;
+			productName = TokenPilotDesktopCore;
+			productReference = 040000000000000000000002 /* TokenPilotDesktopCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					010000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					010000000000000000000002 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 500000000000000000000001 /* Build configuration list for PBXProject "TokenPilot" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 002000000000000000000001;
+			productRefGroup = 003000000000000000000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				010000000000000000000001 /* TokenPilot */,
+				010000000000000000000002 /* TokenPilotDesktopCore */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		022000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		025000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		020000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				20000000000000000000000E /* DesktopAppModel.swift in Sources */,
+				20000000000000000000000F /* MenuBarContentView.swift in Sources */,
+				200000000000000000000010 /* SettingsView.swift in Sources */,
+				200000000000000000000011 /* StatusView.swift in Sources */,
+				200000000000000000000012 /* TokenPilotDesktopApp.swift in Sources */,
+				200000000000000000000013 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		023000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				200000000000000000000001 /* DesktopConfiguration.swift in Sources */,
+				200000000000000000000002 /* DistributionContext.swift in Sources */,
+				200000000000000000000003 /* ExistingSetupImport.swift in Sources */,
+				200000000000000000000004 /* LifecycleStatus.swift in Sources */,
+				200000000000000000000005 /* LocalHealthClient.swift in Sources */,
+				200000000000000000000006 /* NodeRuntime.swift in Sources */,
+				200000000000000000000007 /* PackagedRuntimeConflict.swift in Sources */,
+				200000000000000000000008 /* PackagedRuntimeDeployer.swift in Sources */,
+				200000000000000000000009 /* PackagedRuntimePaths.swift in Sources */,
+				20000000000000000000000A /* RuntimeCommandRunner.swift in Sources */,
+				20000000000000000000000B /* RuntimeController.swift in Sources */,
+				20000000000000000000000C /* RuntimeManifest.swift in Sources */,
+				20000000000000000000000D /* TokenPilotRoot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		030000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 010000000000000000000002 /* TokenPilotDesktopCore */;
+			targetProxy = 030000000000000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		400000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		400000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		410000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = AppBundle/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.TokenPilot;
+				PRODUCT_NAME = TokenPilot;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		410000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = AppBundle/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.TokenPilot;
+				PRODUCT_NAME = TokenPilot;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		420000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEFINES_MODULE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.TokenPilotDesktopCore;
+				PRODUCT_NAME = TokenPilotDesktopCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		420000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEFINES_MODULE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.TokenPilotDesktopCore;
+				PRODUCT_NAME = TokenPilotDesktopCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		500000000000000000000001 /* Build configuration list for PBXProject "TokenPilot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				400000000000000000000001 /* Debug */,
+				400000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		510000000000000000000001 /* Build configuration list for PBXNativeTarget "TokenPilot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				410000000000000000000001 /* Debug */,
+				410000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		510000000000000000000002 /* Build configuration list for PBXNativeTarget "TokenPilotDesktopCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				420000000000000000000001 /* Debug */,
+				420000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000000001 /* Project object */;
+}

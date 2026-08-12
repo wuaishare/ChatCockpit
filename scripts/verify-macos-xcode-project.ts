@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+const root = process.cwd();
+const projectPath = path.join(root, "desktop", "macos", "TokenPilot.xcodeproj", "project.pbxproj");
+const entitlementsPath = path.join(root, "desktop", "macos", "TokenPilotDesktop.entitlements");
+const schemePath = path.join(
+  root,
+  "desktop",
+  "macos",
+  "TokenPilot.xcodeproj",
+  "xcshareddata",
+  "xcschemes",
+  "TokenPilot.xcscheme"
+);
+const buildScriptPath = path.join(root, "scripts", "build-macos-xcode-app.sh");
+const exportOptionsPath = path.join(root, "desktop", "macos", "ExportOptions.plist");
+
+assert.equal(
+  fs.existsSync(projectPath),
+  true,
+  "Missing macOS Xcode project: desktop/macos/TokenPilot.xcodeproj/project.pbxproj"
+);
+assert.equal(
+  fs.existsSync(entitlementsPath),
+  true,
+  "Missing macOS entitlements: desktop/macos/TokenPilotDesktop.entitlements"
+);
+assert.equal(
+  fs.existsSync(schemePath),
+  true,
+  "Missing shared Xcode scheme: desktop/macos/TokenPilot.xcodeproj/xcshareddata/xcschemes/TokenPilot.xcscheme"
+);
+assert.equal(
+  fs.existsSync(buildScriptPath),
+  true,
+  "Missing Xcode distribution build wrapper: scripts/build-macos-xcode-app.sh"
+);
+assert.equal(
+  fs.existsSync(exportOptionsPath),
+  true,
+  "Missing Developer ID export contract: desktop/macos/ExportOptions.plist"
+);
+
+const pbxproj = fs.readFileSync(projectPath, "utf8");
+const entitlements = fs.readFileSync(entitlementsPath, "utf8");
+const scheme = fs.readFileSync(schemePath, "utf8");
+const buildScript = fs.readFileSync(buildScriptPath, "utf8");
+const exportOptions = fs.readFileSync(exportOptionsPath, "utf8");
+
+assert.match(pbxproj, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.TokenPilot;/);
+assert.match(pbxproj, /MACOSX_DEPLOYMENT_TARGET = 14\.0;/);
+assert.match(pbxproj, /ENABLE_HARDENED_RUNTIME = YES;/);
+assert.match(pbxproj, /CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop\.entitlements;/);
+assert.match(pbxproj, /INFOPLIST_FILE = AppBundle\/Info\.plist;/);
+assert.match(pbxproj, /Sources\/TokenPilotDesktopCore/);
+assert.match(pbxproj, /Sources\/TokenPilotDesktop/);
+assert.equal(
+  pbxproj.match(/productType = "com\.apple\.product-type\.application";/g)?.length ?? 0,
+  1,
+  "Xcode project must contain exactly one macOS application target"
+);
+assert.equal(
+  pbxproj.match(/productType = "com\.apple\.product-type\.framework";/g)?.length ?? 0,
+  1,
+  "Xcode project must contain exactly one desktop core framework target"
+);
+assert.match(pbxproj, /name = "Embed Frameworks";/);
+assert.match(pbxproj, /dstSubfolderSpec = 10;/);
+assert.match(pbxproj, /TokenPilotDesktopCore\.framework in Embed Frameworks/);
+assert.doesNotMatch(pbxproj, /\/Users\/[A-Za-z0-9._-]+\//);
+assert.doesNotMatch(pbxproj, /DEVELOPMENT_TEAM\s*=/);
+assert.doesNotMatch(pbxproj, /CODE_SIGN_IDENTITY\s*=/);
+assert.doesNotMatch(pbxproj, /nodejs\.org|latest-v24|24\.18\.1/);
+assert.match(scheme, /BlueprintIdentifier = "010000000000000000000001"/);
+assert.match(scheme, /BlueprintName = "TokenPilot"/);
+assert.match(scheme, /ReferencedContainer = "container:TokenPilot\.xcodeproj"/);
+assert.doesNotMatch(scheme, /\/Users\/[A-Za-z0-9._-]+\//);
+assert.match(buildScript, /FULL_XCODE_REQUIRED/);
+assert.match(buildScript, /build-macos-runtime-payload\.sh/);
+assert.match(buildScript, /CODE_SIGNING_ALLOWED=NO/);
+assert.match(buildScript, /CODE_SIGNING_REQUIRED=NO/);
+assert.match(buildScript, /Contents\/Resources\/TokenPilotRuntime/);
+assert.match(buildScript, /verify:macos-runtime-payload/);
+assert.doesNotMatch(buildScript, /\bcodesign\b/);
+assert.doesNotMatch(buildScript, /\bnotarytool\b/);
+assert.doesNotMatch(buildScript, /TOKENPILOT_SIGNING_IDENTITY|TOKENPILOT_NOTARY_PROFILE/);
+assert.doesNotMatch(buildScript, /\/Users\/[A-Za-z0-9._-]+\//);
+assert.match(exportOptions, /<key>method<\/key>\s*<string>developer-id<\/string>/s);
+assert.match(exportOptions, /<key>signingStyle<\/key>\s*<string>manual<\/string>/s);
+assert.doesNotMatch(exportOptions, /teamID|signingCertificate|provisioningProfiles|Apple ID|password|private key|\/Users\//i);
+
+for (const forbidden of [
+  "com.apple.security.cs.disable-library-validation",
+  "com.apple.security.cs.allow-dyld-environment-variables",
+  "com.apple.security.cs.allow-unsigned-executable-memory",
+  "com.apple.security.cs.disable-executable-page-protection",
+  "com.apple.security.cs.allow-jit"
+]) {
+  assert.equal(
+    entitlements.includes(forbidden),
+    false,
+    `Unexpected default hardened-runtime exception: ${forbidden}`
+  );
+}
+
+assert.match(entitlements, /<plist version="1\.0">[\s\S]*<dict\s*\/>[\s\S]*<\/plist>/);
+assert.doesNotMatch(entitlements, /TOKENPILOT_|Apple ID|app-specific|private key|notary/i);
+
+process.stdout.write("VERIFY_MACOS_XCODE_PROJECT_OK\n");
