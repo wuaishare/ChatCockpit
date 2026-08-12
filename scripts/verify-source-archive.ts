@@ -8,6 +8,14 @@ import { sleep, waitForValue } from "./test-support/wait.ts";
 
 const repoRoot = process.cwd();
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-source-archive-"));
+let tempRootCleaned = false;
+function cleanupTempRoot(): void {
+  if (tempRootCleaned) return;
+  tempRootCleaned = true;
+  fs.rmSync(tempRoot, { recursive: true, force: true });
+}
+process.on("exit", cleanupTempRoot);
+
 const sourceRoot = path.join(tempRoot, "tokenpilot-source");
 const homeRoot = path.join(tempRoot, "home");
 const configPath = path.join(tempRoot, "config.json");
