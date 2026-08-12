@@ -82,6 +82,9 @@ jobs:
       - name: Verify signing and archive contract
         run: npm run verify:macos-signing-contract
 
+      - name: Verify notarization contract
+        run: npm run verify:macos-notarization
+
       - name: Show Xcode version
         run: xcodebuild -version
 
