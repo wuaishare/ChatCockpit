@@ -144,6 +144,14 @@ jobs:
       - name: Build and verify development DMG
         run: npm run build:macos-dmg -- --mode development --arch "$NATIVE_RUNTIME_ARCH" --version 0.1.0 --app "dist/macos-distribution/$NATIVE_RUNTIME_ARCH/TokenPilot.app"
 
+      - name: Generate and verify development release manifest
+        run: |
+          DMG_DIR="dist/macos-dmg/development/$NATIVE_RUNTIME_ARCH"
+          DMG_PATH="$DMG_DIR/TokenPilot-0.1.0-macos-$NATIVE_RUNTIME_ARCH.dmg"
+          MANIFEST_PATH="$DMG_DIR/release-manifest.json"
+          npm run generate:macos-release-manifest -- --version 0.1.0 --build "$GITHUB_RUN_NUMBER" --commit "$(git rev-parse HEAD)" --trust development --output "$MANIFEST_PATH" --artifact "$NATIVE_RUNTIME_ARCH:dmg:$DMG_PATH"
+          TOKENPILOT_MACOS_RELEASE_MANIFEST="$MANIFEST_PATH" npm run verify:macos-release-manifest
+
       - name: Verify desktop contract
         run: npm run verify:macos-desktop
 
