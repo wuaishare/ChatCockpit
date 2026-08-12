@@ -20,6 +20,8 @@
 		20000000000000000000000B /* RuntimeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000B /* RuntimeController.swift */; };
 		20000000000000000000000C /* RuntimeManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000C /* RuntimeManifest.swift */; };
 		20000000000000000000000D /* TokenPilotRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000D /* TokenPilotRoot.swift */; };
+		200000000000000000000014 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000014 /* UpdateChecker.swift */; };
+		200000000000000000000015 /* UpdateManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* UpdateManifest.swift */; };
 		20000000000000000000000E /* DesktopAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* DesktopAppModel.swift */; };
 		20000000000000000000000F /* MenuBarContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* MenuBarContentView.swift */; };
 		200000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* SettingsView.swift */; };
@@ -70,6 +72,8 @@
 		10000000000000000000000B /* RuntimeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/RuntimeController.swift; sourceTree = "<group>"; };
 		10000000000000000000000C /* RuntimeManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/RuntimeManifest.swift; sourceTree = "<group>"; };
 		10000000000000000000000D /* TokenPilotRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/TokenPilotRoot.swift; sourceTree = "<group>"; };
+		100000000000000000000014 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/UpdateChecker.swift; sourceTree = "<group>"; };
+		100000000000000000000015 /* UpdateManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/UpdateManifest.swift; sourceTree = "<group>"; };
 		10000000000000000000000E /* DesktopAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/DesktopAppModel.swift; sourceTree = "<group>"; };
 		10000000000000000000000F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/MenuBarContentView.swift; sourceTree = "<group>"; };
 		100000000000000000000010 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/SettingsView.swift; sourceTree = "<group>"; };
@@ -130,6 +134,8 @@
 				10000000000000000000000B /* RuntimeController.swift */,
 				10000000000000000000000C /* RuntimeManifest.swift */,
 				10000000000000000000000D /* TokenPilotRoot.swift */,
+				100000000000000000000014 /* UpdateChecker.swift */,
+				100000000000000000000015 /* UpdateManifest.swift */,
 				10000000000000000000000E /* DesktopAppModel.swift */,
 				10000000000000000000000F /* MenuBarContentView.swift */,
 				100000000000000000000010 /* SettingsView.swift */,
@@ -264,6 +270,8 @@
 				20000000000000000000000B /* RuntimeController.swift in Sources */,
 				20000000000000000000000C /* RuntimeManifest.swift in Sources */,
 				20000000000000000000000D /* TokenPilotRoot.swift in Sources */,
+				200000000000000000000014 /* UpdateChecker.swift in Sources */,
+				200000000000000000000015 /* UpdateManifest.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

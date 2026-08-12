@@ -97,7 +97,7 @@ npm run doctor
 
 完整新手路径见 [`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)。
 
-macOS Desktop Phase 2 还提供 **Self-contained Packaged Mode**：从源码构建出的 `TokenPilot.app` 内含固定版本的 Node `24.18.1` 与 production runtime payload；App 运行时不要求系统 Node/npm，也不要求继续保留 TokenPilot source checkout，只需要选择真正要操作的项目 Workspace。当前 `.app` 仍是 unsigned / unnotarized 本地构建，详细边界见 [`docs/zh-CN/deployment/macos-desktop.md`](./docs/zh-CN/deployment/macos-desktop.md)。
+macOS Desktop 提供 **Self-contained Packaged Mode**：从源码构建出的 `TokenPilot.app` 内含固定版本的 Node `24.18.1` 与 production runtime payload；App 运行时不要求系统 Node/npm，也不要求继续保留 TokenPilot source checkout，只需要选择真正要操作的项目 Workspace。Phase 3 的 secretless distribution engineering 现已支持 arm64/x64 development DMG、trust-aware release manifest，以及显式 **Check for Updates → Download Update** 的 Manual Verified Update v1；development 产物始终保持 `releaseEligible=false`。当前项目尚未完成 Developer ID / Apple notarization 认证，因此不能把这些 development DMG 描述成正式 macOS 发行版。桌面边界见 [`docs/zh-CN/deployment/macos-desktop.md`](./docs/zh-CN/deployment/macos-desktop.md)，分发与认证边界见 [`docs/zh-CN/deployment/macos-release.md`](./docs/zh-CN/deployment/macos-release.md)。
 
 macOS Developer / Source Mode 也可以直接启动本地 control plane 和 paired runner：
 

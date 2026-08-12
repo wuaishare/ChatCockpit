@@ -19,6 +19,8 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var deployedRuntime: DeployedRuntime?
     @Published private(set) var runtimeConflict: PackagedRuntimeConflict?
     @Published private(set) var isRefreshing = false
+    @Published private(set) var isCheckingForUpdates = false
+    @Published private(set) var updateCheckResult: MacOSUpdateCheckResult?
     @Published var lastUserMessage: String?
 
     private let rootValidator: TokenPilotRootValidator
@@ -32,6 +34,9 @@ final class DesktopAppModel: ObservableObject {
     private let applicationSupportRoot: URL
     private let bundlePayloadURL: URL?
     private let bundleManifest: RuntimeManifest?
+    private let updateChecker: any MacOSUpdateChecking
+    private let appVersion: String
+    private let appBuildNumber: String
 
     init(
         rootValidator: TokenPilotRootValidator = TokenPilotRootValidator(),
@@ -43,7 +48,10 @@ final class DesktopAppModel: ObservableObject {
         existingSetupImporter: ExistingSetupImporter = ExistingSetupImporter(),
         conflictDetector: any PackagedRuntimeConflictDetecting = PackagedRuntimeConflictDetector(),
         applicationSupportRoot: URL = PackagedRuntimePaths.defaultApplicationSupportRoot,
-        bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL()
+        bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL(),
+        updateChecker: any MacOSUpdateChecking = MacOSUpdateChecker(),
+        appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+        appBuildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     ) {
         self.rootValidator = rootValidator
         self.rootDiscovery = rootDiscovery
@@ -55,6 +63,9 @@ final class DesktopAppModel: ObservableObject {
         self.conflictDetector = conflictDetector
         self.applicationSupportRoot = applicationSupportRoot.standardizedFileURL
         self.bundlePayloadURL = bundlePayloadURL?.standardizedFileURL
+        self.updateChecker = updateChecker
+        self.appVersion = appVersion
+        self.appBuildNumber = appBuildNumber
 
         var decodedManifest: RuntimeManifest?
         if let bundlePayloadURL,
@@ -127,6 +138,32 @@ final class DesktopAppModel: ObservableObject {
     var runtimeVersionText: String {
         guard distributionMode == .packaged else { return "Source checkout" }
         return deployedRuntime?.manifest.tokenPilotVersion ?? bundleManifest?.tokenPilotVersion ?? "Unavailable"
+    }
+
+    var currentAppVersionText: String {
+        appVersion == "0.0.0" ? "Unavailable" : appVersion
+    }
+
+    var currentAppBuildText: String {
+        appBuildNumber == "0" ? "Unavailable" : appBuildNumber
+    }
+
+    var updateStatusText: String {
+        switch updateCheckResult {
+        case nil:
+            return "Not checked"
+        case let .upToDate(version):
+            return "Up to date — v\(version)"
+        case let .available(version, _, _):
+            return "Version \(version) available"
+        case .unableToCheck:
+            return "Unable to check"
+        }
+    }
+
+    var updateAvailable: Bool {
+        if case .available = updateCheckResult { return true }
+        return false
     }
 
     var runtimeArchitectureText: String {
@@ -347,6 +384,23 @@ final class DesktopAppModel: ObservableObject {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    func checkForUpdates() async {
+        guard !isCheckingForUpdates else { return }
+        guard MacOSReleaseVersion.parse(appVersion) != nil else {
+            updateCheckResult = .unableToCheck
+            return
+        }
+
+        isCheckingForUpdates = true
+        defer { isCheckingForUpdates = false }
+        updateCheckResult = await updateChecker.check(currentVersion: appVersion)
+    }
+
+    func openAvailableUpdate() {
+        guard case let .available(_, _, downloadURL) = updateCheckResult else { return }
+        NSWorkspace.shared.open(downloadURL)
     }
 
     private func perform(_ action: LifecycleAction) async {

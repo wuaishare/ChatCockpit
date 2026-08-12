@@ -1,0 +1,282 @@
+name: macOS Production Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version matching the selected v<version> tag
+        required: true
+        type: string
+      build:
+        description: Positive macOS bundle build number
+        required: true
+        type: string
+      release_notes_summary:
+        description: Short public release summary
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Certified macOS release
+    runs-on: macos-latest
+    timeout-minutes: 60
+    environment: macos-production-release
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_BUILD: ${{ inputs.build }}
+      RELEASE_NOTES_SUMMARY: ${{ inputs.release_notes_summary }}
+      TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64 }}
+      TOKENPILOT_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.TOKENPILOT_MACOS_CERTIFICATE_PASSWORD }}
+      TOKENPILOT_SIGNING_IDENTITY: ${{ secrets.TOKENPILOT_SIGNING_IDENTITY }}
+      TOKENPILOT_NOTARY_API_KEY_BASE64: ${{ secrets.TOKENPILOT_NOTARY_API_KEY_BASE64 }}
+      TOKENPILOT_NOTARY_KEY_ID: ${{ secrets.TOKENPILOT_NOTARY_KEY_ID }}
+      TOKENPILOT_NOTARY_ISSUER_ID: ${{ secrets.TOKENPILOT_NOTARY_ISSUER_ID }}
+      TOKENPILOT_NOTARY_PROFILE: TokenPilot-GitHub-Release
+      TOKENPILOT_RELEASE_KEYCHAIN: ${{ runner.temp }}/tokenpilot-release.keychain-db
+      TOKENPILOT_RELEASE_CERTIFICATE: ${{ runner.temp }}/tokenpilot-release.p12
+      TOKENPILOT_RELEASE_API_KEY: ${{ runner.temp }}/tokenpilot-release-api-key.p8
+      TOKENPILOT_RELEASE_EVIDENCE_DIR: ${{ runner.temp }}/tokenpilot-release-evidence
+      TOKENPILOT_RELEASE_OUTPUT_DIR: ${{ runner.temp }}/tokenpilot-release-output
+
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Require explicit tag and exact commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == "tag" ]] || { echo "RELEASE_TAG_REQUIRED" >&2; exit 2; }
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "INVALID_RELEASE_VERSION" >&2; exit 2; }
+          [[ "$RELEASE_BUILD" =~ ^[1-9][0-9]*$ ]] || { echo "INVALID_RELEASE_BUILD" >&2; exit 2; }
+          [[ "$GITHUB_REF_NAME" == "v${RELEASE_VERSION}" ]] || { echo "RELEASE_TAG_MUST_MATCH_VERSION" >&2; exit 2; }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || { echo "RELEASE_COMMIT_MISMATCH" >&2; exit 1; }
+          git diff --exit-code
+
+      - name: Require all release credentials before build or publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64 \
+            TOKENPILOT_MACOS_CERTIFICATE_PASSWORD \
+            TOKENPILOT_SIGNING_IDENTITY \
+            TOKENPILOT_NOTARY_API_KEY_BASE64 \
+            TOKENPILOT_NOTARY_KEY_ID \
+            TOKENPILOT_NOTARY_ISSUER_ID; do
+            [[ -n "${!name:-}" ]] || missing+=("$name")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'RELEASE_CREDENTIALS_REQUIRED missing=%s\n' "$(IFS=,; echo "${missing[*]}")" >&2
+            exit 2
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release contracts before credential mutation
+        run: |
+          npm run verify:macos-signing-contract
+          npm run verify:macos-notarization
+          npm run verify:macos-dmg
+          npm run verify:macos-release-manifest
+          npm run verify:macos-update-manifest
+          npm run verify:macos-release-workflow
+
+      - name: Create ephemeral signing and notarization keychain
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::${KEYCHAIN_PASSWORD}"
+          echo "TOKENPILOT_RELEASE_KEYCHAIN_PASSWORD=${KEYCHAIN_PASSWORD}" >> "$GITHUB_ENV"
+
+          /usr/bin/security create-keychain -p "$KEYCHAIN_PASSWORD" "$TOKENPILOT_RELEASE_KEYCHAIN"
+          /usr/bin/security set-keychain-settings -lut 21600 "$TOKENPILOT_RELEASE_KEYCHAIN"
+          /usr/bin/security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$TOKENPILOT_RELEASE_KEYCHAIN"
+
+          printf '%s' "$TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64" | /usr/bin/base64 -D > "$TOKENPILOT_RELEASE_CERTIFICATE"
+          chmod 600 "$TOKENPILOT_RELEASE_CERTIFICATE"
+          /usr/bin/security import "$TOKENPILOT_RELEASE_CERTIFICATE" \
+            -k "$TOKENPILOT_RELEASE_KEYCHAIN" \
+            -P "$TOKENPILOT_MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          /usr/bin/security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$TOKENPILOT_RELEASE_KEYCHAIN"
+          /usr/bin/security find-identity -v -p codesigning "$TOKENPILOT_RELEASE_KEYCHAIN" \
+            | grep -F "$TOKENPILOT_SIGNING_IDENTITY" \
+            | grep -F 'Developer ID Application' >/dev/null \
+            || { echo "DEVELOPER_ID_APPLICATION_IDENTITY_NOT_FOUND" >&2; exit 2; }
+
+          printf '%s' "$TOKENPILOT_NOTARY_API_KEY_BASE64" | /usr/bin/base64 -D > "$TOKENPILOT_RELEASE_API_KEY"
+          chmod 600 "$TOKENPILOT_RELEASE_API_KEY"
+          /usr/bin/xcrun notarytool store-credentials "$TOKENPILOT_NOTARY_PROFILE" \
+            --key "$TOKENPILOT_RELEASE_API_KEY" \
+            --key-id "$TOKENPILOT_NOTARY_KEY_ID" \
+            --issuer "$TOKENPILOT_NOTARY_ISSUER_ID" \
+            --keychain "$TOKENPILOT_RELEASE_KEYCHAIN"
+
+          mkdir -p "$TOKENPILOT_RELEASE_EVIDENCE_DIR" "$TOKENPILOT_RELEASE_OUTPUT_DIR"
+
+      - name: Build sign notarize and verify both architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in arm64 x64; do
+            npm run build:macos-distribution -- \
+              --arch "$arch" \
+              --version "$RELEASE_VERSION" \
+              --build "$RELEASE_BUILD"
+
+            APP_PATH="dist/macos-distribution/$arch/TokenPilot.app"
+            APP_EVIDENCE_DIR="$TOKENPILOT_RELEASE_EVIDENCE_DIR/$arch-app"
+            mkdir -p "$APP_EVIDENCE_DIR"
+
+            TOKENPILOT_SIGNING_KEYCHAIN="$TOKENPILOT_RELEASE_KEYCHAIN" \
+              npm run sign:macos-distribution -- --app "$APP_PATH"
+
+            TOKENPILOT_NOTARY_KEYCHAIN="$TOKENPILOT_RELEASE_KEYCHAIN" \
+            TOKENPILOT_NOTARY_EVIDENCE_DIR="$APP_EVIDENCE_DIR" \
+              npm run notarize:macos-distribution -- --app "$APP_PATH"
+
+            npm run build:macos-dmg -- \
+              --mode production \
+              --arch "$arch" \
+              --version "$RELEASE_VERSION" \
+              --app "$APP_PATH"
+
+            DMG_PATH="dist/macos-dmg/production/$arch/TokenPilot-${RELEASE_VERSION}-macos-${arch}.dmg"
+            DMG_EVIDENCE_DIR="$TOKENPILOT_RELEASE_EVIDENCE_DIR/$arch-dmg"
+            mkdir -p "$DMG_EVIDENCE_DIR"
+
+            /usr/bin/codesign \
+              --sign "$TOKENPILOT_SIGNING_IDENTITY" \
+              --keychain "$TOKENPILOT_RELEASE_KEYCHAIN" \
+              --timestamp \
+              -i "cn.wuaishare.TokenPilot.dmg.${arch}" \
+              "$DMG_PATH"
+            /usr/bin/codesign --verify --verbose=4 "$DMG_PATH"
+
+            DMG_SUBMISSION_JSON="$DMG_EVIDENCE_DIR/notary-submit.json"
+            /usr/bin/xcrun notarytool submit "$DMG_PATH" \
+              --keychain-profile "$TOKENPILOT_NOTARY_PROFILE" \
+              --keychain "$TOKENPILOT_RELEASE_KEYCHAIN" \
+              --wait \
+              --no-progress \
+              --output-format json > "$DMG_SUBMISSION_JSON"
+            DMG_STATUS="$(/usr/bin/plutil -extract status raw -o - "$DMG_SUBMISSION_JSON")"
+            DMG_SUBMISSION_ID="$(/usr/bin/plutil -extract id raw -o - "$DMG_SUBMISSION_JSON")"
+            /usr/bin/xcrun notarytool log "$DMG_SUBMISSION_ID" \
+              --keychain-profile "$TOKENPILOT_NOTARY_PROFILE" \
+              --keychain "$TOKENPILOT_RELEASE_KEYCHAIN" \
+              "$DMG_EVIDENCE_DIR/notary-log.json"
+            [[ "$DMG_STATUS" == "Accepted" ]] || { echo "DMG_NOTARIZATION_NOT_ACCEPTED status=$DMG_STATUS" >&2; exit 1; }
+
+            /usr/bin/xcrun stapler staple "$DMG_PATH"
+            /usr/bin/xcrun stapler validate "$DMG_PATH"
+            /usr/bin/hdiutil verify "$DMG_PATH"
+            /usr/sbin/spctl -a -t open --context context:primary-signature -v "$DMG_PATH"
+            TOKENPILOT_DMG_PATH="$DMG_PATH" \
+            TOKENPILOT_DMG_MODE=production \
+            TOKENPILOT_DMG_ARCH="$arch" \
+              npm run verify:macos-dmg
+
+            cp "$DMG_PATH" "$TOKENPILOT_RELEASE_OUTPUT_DIR/"
+          done
+
+      - name: Generate bound certification evidence and release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARM64_DMG="$TOKENPILOT_RELEASE_OUTPUT_DIR/TokenPilot-${RELEASE_VERSION}-macos-arm64.dmg"
+          X64_DMG="$TOKENPILOT_RELEASE_OUTPUT_DIR/TokenPilot-${RELEASE_VERSION}-macos-x64.dmg"
+          CERTIFICATION_EVIDENCE="$TOKENPILOT_RELEASE_EVIDENCE_DIR/certification-evidence.json"
+          npm run generate:macos-certification-evidence -- \
+            --commit "$GITHUB_SHA" \
+            --output "$CERTIFICATION_EVIDENCE" \
+            --artifact "arm64:$ARM64_DMG" \
+            --artifact "x64:$X64_DMG"
+
+          RELEASE_MANIFEST="$TOKENPILOT_RELEASE_OUTPUT_DIR/release-manifest.json"
+          npm run generate:macos-release-manifest -- \
+            --version "$RELEASE_VERSION" \
+            --build "$RELEASE_BUILD" \
+            --commit "$GITHUB_SHA" \
+            --trust certified \
+            --certification-evidence "$CERTIFICATION_EVIDENCE" \
+            --output "$RELEASE_MANIFEST" \
+            --artifact "arm64:dmg:$ARM64_DMG" \
+            --artifact "x64:dmg:$X64_DMG"
+          TOKENPILOT_MACOS_RELEASE_MANIFEST="$RELEASE_MANIFEST" \
+          TOKENPILOT_MACOS_RELEASE_ARTIFACT_DIR="$TOKENPILOT_RELEASE_OUTPUT_DIR" \
+            npm run verify:macos-release-manifest
+
+          UPDATE_MANIFEST="$TOKENPILOT_RELEASE_OUTPUT_DIR/macos-update.json"
+          npm run generate:macos-update-manifest -- \
+            --release-manifest "$RELEASE_MANIFEST" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "$GITHUB_REF_NAME" \
+            --minimum-macos "14.0" \
+            --summary "$RELEASE_NOTES_SUMMARY" \
+            --output "$UPDATE_MANIFEST"
+          TOKENPILOT_MACOS_UPDATE_MANIFEST="$UPDATE_MANIFEST" \
+            npm run verify:macos-update-manifest
+
+          (
+            cd "$TOKENPILOT_RELEASE_OUTPUT_DIR"
+            shasum -a 256 TokenPilot-*.dmg | LC_ALL=C sort > SHA256SUMS.txt
+          )
+
+      - name: Publish only fully certified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_MANIFEST="$TOKENPILOT_RELEASE_OUTPUT_DIR/release-manifest.json"
+          UPDATE_MANIFEST="$TOKENPILOT_RELEASE_OUTPUT_DIR/macos-update.json"
+          TOKENPILOT_MACOS_RELEASE_MANIFEST="$RELEASE_MANIFEST" \
+          TOKENPILOT_MACOS_RELEASE_ARTIFACT_DIR="$TOKENPILOT_RELEASE_OUTPUT_DIR" \
+            npm run verify:macos-release-manifest
+          TOKENPILOT_MACOS_UPDATE_MANIFEST="$UPDATE_MANIFEST" \
+            npm run verify:macos-update-manifest
+
+          gh release create "$GITHUB_REF_NAME" \
+            "$TOKENPILOT_RELEASE_OUTPUT_DIR/TokenPilot-${RELEASE_VERSION}-macos-arm64.dmg" \
+            "$TOKENPILOT_RELEASE_OUTPUT_DIR/TokenPilot-${RELEASE_VERSION}-macos-x64.dmg" \
+            "$RELEASE_MANIFEST" \
+            "$UPDATE_MANIFEST" \
+            "$TOKENPILOT_RELEASE_OUTPUT_DIR/SHA256SUMS.txt" \
+            --verify-tag \
+            --title "TokenPilot ${RELEASE_VERSION}" \
+            --notes "$RELEASE_NOTES_SUMMARY"
+
+      - name: Delete ephemeral keychain and credential files
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [[ -n "${TOKENPILOT_RELEASE_KEYCHAIN_PASSWORD:-}" && -f "$TOKENPILOT_RELEASE_KEYCHAIN" ]]; then
+            /usr/bin/security unlock-keychain -p "$TOKENPILOT_RELEASE_KEYCHAIN_PASSWORD" "$TOKENPILOT_RELEASE_KEYCHAIN"
+          fi
+          /usr/bin/security delete-keychain "$TOKENPILOT_RELEASE_KEYCHAIN" 2>/dev/null || true
+          rm -f "$TOKENPILOT_RELEASE_CERTIFICATE" "$TOKENPILOT_RELEASE_API_KEY"
+          rm -rf "$TOKENPILOT_RELEASE_EVIDENCE_DIR"

@@ -33,6 +33,36 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Updates") {
+                LabeledContent("App version") {
+                    Text(model.currentAppVersionText)
+                }
+                LabeledContent("Build") {
+                    Text(model.currentAppBuildText)
+                }
+                LabeledContent("Status") {
+                    Text(model.updateStatusText)
+                }
+
+                HStack {
+                    Button(model.isCheckingForUpdates ? "Checking…" : "Check for Updates") {
+                        Task { await model.checkForUpdates() }
+                    }
+                    .disabled(model.isCheckingForUpdates)
+
+                    if model.updateAvailable {
+                        Button("Download Update") {
+                            model.openAvailableUpdate()
+                        }
+                    }
+                }
+
+                Text("Update checks are explicit and read public release metadata only. TokenPilot never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if model.distributionMode == .packaged {
                 Section("Workspace") {
                     LabeledContent("Current project") {
@@ -153,7 +183,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 590, height: 560)
+        .frame(width: 590, height: 650)
         .padding(.top, 6)
     }
 }

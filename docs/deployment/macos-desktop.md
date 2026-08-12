@@ -243,14 +243,10 @@ npm run verify:macos-desktop
 
 The other architecture can be built and verified statically on the same CI runner. Static x64 verification on an arm64 runner is not described as Intel-native execution, and vice versa.
 
-## Phase 3 remains separate
+## Phase 3 distribution engineering
 
-Phase 2 does **not** provide:
+Phase 3 secretless distribution engineering is now implemented alongside the Phase 2 runtime. It adds development DMG verification, trust-aware release metadata, and an explicit Manual Verified Update path while keeping production certification as a separate future gate.
 
-- Developer ID signing;
-- hardened runtime distribution policy;
-- Apple notarization;
-- `.dmg` release packaging;
-- automatic update delivery.
+Development artifacts remain non-production and are never release eligible. The Settings update check is explicit, and Download Update does not silently replace the app or restart TokenPilot services.
 
-Those remain the next macOS distribution gate. Phase 2 establishes a self-contained local runtime; it does not pretend that unsigned local builds already have production publisher authenticity.
+See [`macos-release.md`](./macos-release.md) for the current distribution status, DMG workflow, release-manifest trust rules, Manual Verified Update behavior, and the deferred production-certification boundary.

@@ -250,14 +250,10 @@ npm run verify:macos-desktop
 
 同一 runner 上可以构建另一架构并做静态 Payload 校验，但 arm64 runner 上的 x64 静态校验不会被描述成 Intel-native live execution，反之亦然。
 
-## Phase 3 仍然独立
+## Phase 3 分发工程状态
 
-Phase 2 **不包含**：
+Phase 3 Secretless Distribution Engineering 现在已经建立在 Phase 2 Runtime 之上，新增 Development DMG 验证、Trust-aware Release Metadata 与显式 Manual Verified Update，同时把正式生产认证继续保留为独立的未来 Gate。
 
-- Developer ID signing；
-- hardened runtime distribution policy；
-- Apple notarization；
-- `.dmg` release packaging；
-- 自动更新分发。
+Development Artifact 仍然不是 Production Release，也永远不能直接标记为 Release Eligible。Settings 中的更新检查只由用户显式触发，Download Update 不会静默替换 App，也不会自动重启 TokenPilot 服务。
 
-这些仍属于下一阶段 macOS Distribution Gate。Phase 2 解决的是 Self-contained Local Runtime，不会把 unsigned local build 描述成已经具备正式发行者真实性的生产发布版本。
+当前分发状态、DMG 流程、Release Manifest 信任规则、Manual Verified Update 行为与延后的 Production Certification Boundary，见 [`macos-release.md`](./macos-release.md)。
