@@ -141,6 +141,9 @@ jobs:
       - name: Build unsigned native distribution archive
         run: npm run build:macos-distribution -- --arch "$NATIVE_RUNTIME_ARCH" --version 0.1.0 --build "$GITHUB_RUN_NUMBER"
 
+      - name: Build and verify development DMG
+        run: npm run build:macos-dmg -- --mode development --arch "$NATIVE_RUNTIME_ARCH" --version 0.1.0 --app "dist/macos-distribution/$NATIVE_RUNTIME_ARCH/TokenPilot.app"
+
       - name: Verify desktop contract
         run: npm run verify:macos-desktop
 
