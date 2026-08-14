@@ -46,7 +46,7 @@ try {
     updateStatus: "not-applicable" as const,
     authStatus: "not-applicable" as const,
     compatibilityStatus: "ready" as const,
-    sourceKind: "tokenpilot-local" as const,
+    sourceKind: "control-plane-local" as const,
     sourceLabel: "Security Fixture",
     capabilities: ["instruction"],
     publicReason: null,
@@ -196,11 +196,11 @@ for (const forbiddenMutation of [
   );
 }
 
-assert.match(resourceMcpSource, /tokenpilot\.resources\.inventory/);
-assert.match(resourceMcpSource, /tokenpilot\.resources\.inspect/);
+assert.match(resourceMcpSource, /chatcockpit\.resources\.inventory/);
+assert.match(resourceMcpSource, /chatcockpit\.resources\.inspect/);
 assert.doesNotMatch(
   resourceMcpSource,
-  /tokenpilot\.resources\.mutation\.(?:prepare|decide|execute|reconcile)/
+  /chatcockpit\.resources\.mutation\.(?:prepare|decide|execute|reconcile)/
 );
 for (const requiredRestMutationRoute of [
   "/api/resources/mutations/prepare",

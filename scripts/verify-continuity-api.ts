@@ -27,7 +27,7 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 }
 
 async function runContinuityApiVerification(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-continuity-api-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-continuity-api-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Continuity API fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
@@ -42,9 +42,11 @@ async function runContinuityApiVerification(): Promise<void> {
     configPath,
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
         repoMappings: {
-          tokenpilot: {
+          primary: {
             path: repoRoot
           }
         }
@@ -55,12 +57,12 @@ async function runContinuityApiVerification(): Promise<void> {
     "utf8"
   );
 
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  const originalToken = process.env.TOKENPILOT_API_TOKEN;
-  const originalExposed = process.env.TOKENPILOT_EXPOSED;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "test-token";
-  process.env.TOKENPILOT_EXPOSED = "true";
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const originalToken = process.env.CHATCOCKPIT_API_TOKEN;
+  const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+  process.env.CHATCOCKPIT_EXPOSED = "true";
 
   const app = buildServer(paths);
   let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
@@ -182,7 +184,7 @@ async function runContinuityApiVerification(): Promise<void> {
         workspaces: Array<{ id: string; revision: number }>;
       }>;
     }>("GET", "/api/continuity/projects");
-    const mcpProjects = await mcp<typeof restProjects>("tokenpilot.project.list", {});
+    const mcpProjects = await mcp<typeof restProjects>("chatcockpit.project.list", {});
     assert.deepEqual(mcpProjects, restProjects);
     assert.equal(restProjects.projects.length, 1);
     assert.doesNotMatch(JSON.stringify(restProjects), new RegExp(repoRoot));
@@ -194,7 +196,7 @@ async function runContinuityApiVerification(): Promise<void> {
       `/api/continuity/projects/${project.id}`
     );
     const projectMcp = await mcp<Record<string, unknown>>(
-      "tokenpilot.project.get",
+      "chatcockpit.project.get",
       { projectId: project.id }
     );
     assert.deepEqual(projectMcp, projectRest);
@@ -213,7 +215,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/tasks", taskInput);
     assert.equal(restTask.replayed, false);
-    const mcpTask = await mcp<typeof restTask>("tokenpilot.task.create", taskInput);
+    const mcpTask = await mcp<typeof restTask>("chatcockpit.task.create", taskInput);
     assert.equal(mcpTask.replayed, true);
     assert.deepEqual(mcpTask.task, restTask.task);
 
@@ -221,7 +223,7 @@ async function runContinuityApiVerification(): Promise<void> {
       "GET",
       `/api/continuity/tasks/${restTask.task.id}`
     );
-    const taskMcpRead = await mcp<Record<string, unknown>>("tokenpilot.task.get", {
+    const taskMcpRead = await mcp<Record<string, unknown>>("chatcockpit.task.get", {
       taskId: restTask.task.id
     });
     assert.deepEqual(taskMcpRead, taskRestRead);
@@ -240,7 +242,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/sessions/start", sessionInput);
     const mcpSession = await mcp<typeof restSession>(
-      "tokenpilot.session.start",
+      "chatcockpit.session.start",
       sessionInput
     );
     assert.equal(restSession.replayed, false);
@@ -253,7 +255,7 @@ async function runContinuityApiVerification(): Promise<void> {
       `/api/continuity/sessions/${restSession.session.id}`
     );
     const sessionMcpRead = await mcp<Record<string, unknown>>(
-      "tokenpilot.session.get",
+      "chatcockpit.session.get",
       { sessionId: restSession.session.id }
     );
     assert.deepEqual(sessionMcpRead, sessionRestRead);
@@ -270,7 +272,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/leases/acquire", leaseInput);
     const mcpLease = await mcp<typeof restLease>(
-      "tokenpilot.lease.acquire",
+      "chatcockpit.lease.acquire",
       leaseInput
     );
     assert.equal(restLease.replayed, false);
@@ -296,7 +298,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/evidence/record", evidenceInput);
     const mcpEvidence = await mcp<typeof restEvidence>(
-      "tokenpilot.evidence.record",
+      "chatcockpit.evidence.record",
       evidenceInput
     );
     assert.equal(restEvidence.replayed, false);
@@ -316,7 +318,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/tasks/submit-review", reviewInput);
     const mcpReview = await mcp<typeof restReview>(
-      "tokenpilot.task.submitReview",
+      "chatcockpit.task.submitReview",
       reviewInput
     );
     assert.equal(restReview.replayed, false);
@@ -350,7 +352,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/handoffs/prepare", handoffInput);
     const mcpHandoff = await mcp<typeof restHandoff>(
-      "tokenpilot.handoff.prepare",
+      "chatcockpit.handoff.prepare",
       handoffInput
     );
     assert.equal(restHandoff.replayed, false);
@@ -410,7 +412,7 @@ async function runContinuityApiVerification(): Promise<void> {
       `/api/continuity/workspaces/${workspace.id}/snapshot`
     );
     const mcpSnapshot = await mcp<typeof restSnapshot>(
-      "tokenpilot.workspace.snapshot",
+      "chatcockpit.workspace.snapshot",
       { workspaceId: workspace.id }
     );
     assert.deepEqual(mcpSnapshot, restSnapshot);
@@ -476,7 +478,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/handoffs/accept", acceptInput);
     const mcpAccepted = await mcp<typeof restAccepted>(
-      "tokenpilot.handoff.accept",
+      "chatcockpit.handoff.accept",
       acceptInput
     );
     assert.equal(restAccepted.replayed, false);
@@ -497,7 +499,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/leases/release", releaseInput);
     const mcpReleased = await mcp<typeof restReleased>(
-      "tokenpilot.lease.release",
+      "chatcockpit.lease.release",
       releaseInput
     );
     assert.equal(restReleased.replayed, false);
@@ -536,7 +538,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/tasks/complete", completionInput);
     const mcpCompleted = await mcp<typeof restCompleted>(
-      "tokenpilot.task.complete",
+      "chatcockpit.task.complete",
       completionInput
     );
     assert.equal(restCompleted.replayed, false);
@@ -630,7 +632,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/async-jobs/queue", asyncQueueInput);
     const mcpAsyncQueue = await mcp<typeof restAsyncQueue>(
-      "tokenpilot.asyncJob.queue",
+      "chatcockpit.asyncJob.queue",
       asyncQueueInput
     );
     assert.equal(restAsyncQueue.replayed, false);
@@ -639,7 +641,7 @@ async function runContinuityApiVerification(): Promise<void> {
     assert.deepEqual(mcpAsyncQueue.session, restAsyncQueue.session);
     assert.deepEqual(mcpAsyncQueue.binding, restAsyncQueue.binding);
     assert.deepEqual(mcpAsyncQueue.job, restAsyncQueue.job);
-    assert.equal(restAsyncQueue.binding.runtimeKind, "tokenpilot-runner");
+    assert.equal(restAsyncQueue.binding.runtimeKind, "async-runner");
     assert.equal(restAsyncQueue.binding.externalRunId, restAsyncQueue.job.id);
     assert.equal(restAsyncQueue.binding.relation, "queued");
     assert.equal(
@@ -663,7 +665,7 @@ async function runContinuityApiVerification(): Promise<void> {
       ({ sessionId }) => sessionId === asyncSession.session.id
     );
     assert.equal(asyncRuntime?.binding?.id, restAsyncQueue.binding.id);
-    assert.equal(asyncRuntime?.binding?.runtimeKind, "tokenpilot-runner");
+    assert.equal(asyncRuntime?.binding?.runtimeKind, "async-runner");
     assert.equal(asyncRuntime?.binding?.externalRunId, restAsyncQueue.job.id);
     assert.equal(asyncRuntime?.job?.id, restAsyncQueue.job.id);
     assert.equal(asyncRuntime?.job?.status, "queued");
@@ -731,7 +733,7 @@ async function runContinuityApiVerification(): Promise<void> {
       cancelInput
     );
     const mcpCancelled = await mcp<typeof restCancelled>(
-      "tokenpilot.handoff.cancel",
+      "chatcockpit.handoff.cancel",
       cancelInput
     );
     assert.equal(restCancelled.replayed, false);
@@ -805,7 +807,7 @@ async function runContinuityApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/handoffs/fork", forkInput);
     const mcpForked = await mcp<typeof restForked>(
-      "tokenpilot.handoff.fork",
+      "chatcockpit.handoff.fork",
       forkInput
     );
     assert.equal(restForked.replayed, false);
@@ -839,19 +841,19 @@ async function runContinuityApiVerification(): Promise<void> {
   } finally {
     await testServer?.close();
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
     if (originalToken === undefined) {
-      delete process.env.TOKENPILOT_API_TOKEN;
+      delete process.env.CHATCOCKPIT_API_TOKEN;
     } else {
-      process.env.TOKENPILOT_API_TOKEN = originalToken;
+      process.env.CHATCOCKPIT_API_TOKEN = originalToken;
     }
     if (originalExposed === undefined) {
-      delete process.env.TOKENPILOT_EXPOSED;
+      delete process.env.CHATCOCKPIT_EXPOSED;
     } else {
-      process.env.TOKENPILOT_EXPOSED = originalExposed;
+      process.env.CHATCOCKPIT_EXPOSED = originalExposed;
     }
   }
 }

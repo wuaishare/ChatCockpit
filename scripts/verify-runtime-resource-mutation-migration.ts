@@ -295,8 +295,8 @@ upgradeFixtureToV17(databasePath);
 
 const database = new ContinuityDatabase({ path: databasePath });
 try {
-  assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 18);
-  assert.equal(database.schemaVersion(), 18);
+  assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 19);
+  assert.equal(database.schemaVersion(), 19);
 
   const legacyApproval = database.sqlite
     .prepare("SELECT * FROM runtime_resource_mutation_approvals WHERE id = ?")

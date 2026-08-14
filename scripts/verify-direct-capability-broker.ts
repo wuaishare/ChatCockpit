@@ -9,9 +9,10 @@ import {
   type DirectExecutorDescriptor
 } from "../src/direct/capability-broker.ts";
 import {
-  createCodexStandaloneExecutorSource,
-  createTokenPilotDirectExecutorSource
+  createBuiltInDirectExecutorSource,
+  createCodexStandaloneExecutorSource
 } from "../src/direct/executor-sources.ts";
+import { DEFAULT_PRODUCT_IDENTITY } from "../src/core/product-identity.ts";
 import {
   CodexStandaloneCapabilityStore,
   type CodexStandaloneCapabilitySnapshot,
@@ -87,14 +88,16 @@ function assertPublicDescriptor(descriptor: DirectExecutorDescriptor): void {
 }
 
 function verifyDirectCapabilityBroker(): void {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-broker-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-broker-"));
   const store = new CodexStandaloneCapabilityStore(runtimeDir);
   store.write(buildSnapshot());
 
   const broker = new DirectCapabilityBroker([
     createCodexStandaloneExecutorSource(store),
-    createTokenPilotDirectExecutorSource()
-  ]);
+    createBuiltInDirectExecutorSource()
+  ], {
+    executorAliases: DEFAULT_PRODUCT_IDENTITY.directExecutorInputAliases
+  });
 
   const automaticRead = broker.resolve({
     capability: "files.read",
@@ -108,17 +111,26 @@ function verifyDirectCapabilityBroker(): void {
     capability: "files.read",
     scope: "workspace",
     access: "read",
+    executorId: "builtin-direct"
+  });
+  assert.equal(explicitBuiltIn.executorId, "builtin-direct");
+  assert.equal(explicitBuiltIn.selectionMode, "explicit");
+
+  const legacyBuiltInAlias = broker.resolve({
+    capability: "files.read",
+    scope: "workspace",
+    access: "read",
     executorId: "tokenpilot-direct"
   });
-  assert.equal(explicitBuiltIn.executorId, "tokenpilot-direct");
-  assert.equal(explicitBuiltIn.selectionMode, "explicit");
+  assert.equal(legacyBuiltInAlias.executorId, "builtin-direct");
+  assert.equal(legacyBuiltInAlias.selectionMode, "explicit");
 
   const automaticEdit = broker.resolve({
     capability: "files.edit",
     scope: "workspace",
     access: "write"
   });
-  assert.equal(automaticEdit.executorId, "tokenpilot-direct");
+  assert.equal(automaticEdit.executorId, "builtin-direct");
 
   assert.throws(
     () =>
@@ -152,7 +164,7 @@ function verifyDirectCapabilityBroker(): void {
   const catalog = broker.catalog();
   assert.equal(catalog.length, 2);
   assert.equal(catalog[0]?.id, "codex-app-server-standalone");
-  assert.equal(catalog[1]?.id, "tokenpilot-direct");
+  assert.equal(catalog[1]?.id, "builtin-direct");
   for (const descriptor of catalog) {
     assertPublicDescriptor(descriptor);
   }
@@ -160,18 +172,20 @@ function verifyDirectCapabilityBroker(): void {
   fs.rmSync(runtimeDir, { recursive: true, force: true });
 
   const unavailableStore = new CodexStandaloneCapabilityStore(
-    fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-broker-empty-"))
+    fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-broker-empty-"))
   );
   const fallbackBroker = new DirectCapabilityBroker([
     createCodexStandaloneExecutorSource(unavailableStore),
-    createTokenPilotDirectExecutorSource()
-  ]);
+    createBuiltInDirectExecutorSource()
+  ], {
+    executorAliases: DEFAULT_PRODUCT_IDENTITY.directExecutorInputAliases
+  });
   const fallback = fallbackBroker.resolve({
     capability: "files.read",
     scope: "workspace",
     access: "read"
   });
-  assert.equal(fallback.executorId, "tokenpilot-direct");
+  assert.equal(fallback.executorId, "builtin-direct");
 }
 
 verifyDirectCapabilityBroker();

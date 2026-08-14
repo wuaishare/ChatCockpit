@@ -13,9 +13,10 @@ import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import {
-  createCodexStandaloneExecutorSource,
-  createTokenPilotDirectExecutorSource
+  createBuiltInDirectExecutorSource,
+  createCodexStandaloneExecutorSource
 } from "../src/direct/executor-sources.ts";
+import { DEFAULT_PRODUCT_IDENTITY } from "../src/core/product-identity.ts";
 import {
   CodexStandaloneCapabilityStore,
   type CodexStandaloneCapabilitySnapshot,
@@ -242,7 +243,7 @@ function runGit(repoRoot: string, args: string[]): void {
 }
 
 async function verifyChatDirectRouting(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-chat-direct-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-chat-direct-"));
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Chat Direct\n", "utf8");
   fs.writeFileSync(
@@ -251,30 +252,32 @@ async function verifyChatDirectRouting(): Promise<void> {
     "utf8"
   );
   runGit(repoRoot, ["init"]);
-  runGit(repoRoot, ["config", "user.name", "TokenPilot Test"]);
-  runGit(repoRoot, ["config", "user.email", "tokenpilot@example.com"]);
+  runGit(repoRoot, ["config", "user.name", "ChatCockpit Test"]);
+  runGit(repoRoot, ["config", "user.email", "chatcockpit@example.invalid"]);
   runGit(repoRoot, ["add", "-A"]);
   runGit(repoRoot, ["commit", "-m", "initial"]);
 
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
-  const configPath = path.join(repoRoot, ".tokenpilot-test-config.json");
+  const configPath = path.join(repoRoot, ".chatcockpit-test-config.json");
   fs.writeFileSync(
     configPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
-        repoMappings: { tokenpilot: { path: repoRoot } }
+        repoMappings: { primary: { path: repoRoot } }
       },
       null,
       2
     )}\n`,
     "utf8"
   );
-  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  const previousExposed = process.env.TOKENPILOT_EXPOSED;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_EXPOSED = "false";
+  const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const previousExposed = process.env.CHATCOCKPIT_EXPOSED;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_EXPOSED = "false";
 
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
@@ -289,7 +292,7 @@ async function verifyChatDirectRouting(): Promise<void> {
   const workspace = repositories.workspaces.create({
     id: "workspace_chat_direct",
     projectId: project.id,
-    repoId: "tokenpilot",
+    repoId: "primary",
     privatePath: repoRoot,
     kind: "checkout",
     branch: "main",
@@ -370,8 +373,10 @@ async function verifyChatDirectRouting(): Promise<void> {
   const runtime = new RuntimeRouter(adapter);
   const broker = new DirectCapabilityBroker([
     createCodexStandaloneExecutorSource(capabilityStore),
-    createTokenPilotDirectExecutorSource()
-  ]);
+    createBuiltInDirectExecutorSource()
+  ], {
+    executorAliases: DEFAULT_PRODUCT_IDENTITY.directExecutorInputAliases
+  });
   const service = new ChatDirectService(paths, runtime, broker, repositories);
   const context = buildOperationContext({
     requestId: "verify-chat-direct",
@@ -382,7 +387,7 @@ async function verifyChatDirectRouting(): Promise<void> {
 
   try {
     const read = await service.read(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       path: "README.md"
     });
     assert.equal(read.file.content, "# Chat Direct\n");
@@ -395,18 +400,25 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(executorCatalog.hostDirectExposed, true);
     assert.deepEqual(
       executorCatalog.executors.map((executor) => executor.id),
-      ["codex-app-server-standalone", "tokenpilot-direct"]
+      ["codex-app-server-standalone", "builtin-direct"]
     );
 
     const standaloneReadCalls = adapter.calls.filter(
       (call) => call.method === "fs/readFile"
     ).length;
     const explicitBuiltInRead = await service.read(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
+      path: "README.md",
+      executorId: "builtin-direct"
+    });
+    assert.equal(explicitBuiltInRead.execution.executor, "builtin-direct");
+    const legacyBuiltInAliasRead = await service.read(context, {
+      repoId: "primary",
       path: "README.md",
       executorId: "tokenpilot-direct"
     });
-    assert.equal(explicitBuiltInRead.execution.executor, "tokenpilot-direct");
+    assert.equal(legacyBuiltInAliasRead.execution.executor, "builtin-direct");
+    assert.equal(legacyBuiltInAliasRead.execution.selectionMode, "explicit");
     assert.equal(explicitBuiltInRead.execution.selectionMode, "explicit");
     assert.equal(
       adapter.calls.filter((call) => call.method === "fs/readFile").length,
@@ -414,21 +426,21 @@ async function verifyChatDirectRouting(): Promise<void> {
     );
 
     const batch = await service.readBatch(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       paths: ["README.md", "src/fixture.ts"]
     });
     assert.equal(batch.files.length, 2);
     assert.equal(batch.execution.executor, "codex-app-server-standalone");
 
     const listed = await service.list(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       path: "src"
     });
     assert.ok(listed.entries.some((entry) => entry.name === "fixture.ts"));
     assert.equal(listed.execution.executor, "codex-app-server-standalone");
 
     const written = await service.write(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       sessionId: session.id,
       path: "src/standalone.ts",
       content: "export const standalone = true;\n"
@@ -444,28 +456,28 @@ async function verifyChatDirectRouting(): Promise<void> {
       (call) => call.method === "fs/writeFile"
     ).length;
     const edited = await service.edit(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       sessionId: session.id,
       path: "src/fixture.ts",
       search: "before",
       replace: "after"
     });
-    assert.equal(edited.execution.executor, "tokenpilot-direct");
+    assert.equal(edited.execution.executor, "builtin-direct");
     assert.equal(
       adapter.calls.filter((call) => call.method === "fs/writeFile").length,
       standaloneWriteCalls
     );
 
     const searched = await service.search(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       pattern: "standalone",
       path: "src",
       maxResults: 10
     });
-    assert.equal(searched.execution.executor, "tokenpilot-direct");
+    assert.equal(searched.execution.executor, "builtin-direct");
 
     const standaloneShell = await service.shell(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       command: "git",
       args: ["status", "--short"]
     });
@@ -478,18 +490,18 @@ async function verifyChatDirectRouting(): Promise<void> {
     );
 
     const directShell = await service.shell(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       sessionId: session.id,
       command: "node",
-      args: ["-e", "console.log('tokenpilot-direct')"]
+      args: ["-e", "console.log('builtin-direct')"]
     });
-    assert.equal(directShell.execution.executor, "tokenpilot-direct");
-    assert.match(directShell.stdout, /tokenpilot-direct/);
+    assert.equal(directShell.execution.executor, "builtin-direct");
+    assert.match(directShell.stdout, /builtin-direct/);
 
-    const gitStatus = await service.gitStatus(context, "tokenpilot");
-    assert.equal(gitStatus.execution.executor, "tokenpilot-direct");
-    const gitDiff = await service.gitDiff(context, "tokenpilot", false);
-    assert.equal(gitDiff.execution.executor, "tokenpilot-direct");
+    const gitStatus = await service.gitStatus(context, "primary");
+    assert.equal(gitStatus.execution.executor, "builtin-direct");
+    const gitDiff = await service.gitDiff(context, "primary", false);
+    assert.equal(gitDiff.execution.executor, "builtin-direct");
 
     adapter.nextReadError = new ServiceError(
       "CAPABILITY_UNAVAILABLE",
@@ -498,7 +510,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     await assert.rejects(
       () =>
         service.read(context, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           path: "README.md",
           executorId: "codex-app-server-standalone"
         }),
@@ -514,10 +526,10 @@ async function verifyChatDirectRouting(): Promise<void> {
       "standalone read unavailable"
     );
     const fallbackRead = await service.read(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       path: "README.md"
     });
-    assert.equal(fallbackRead.execution.executor, "tokenpilot-direct");
+    assert.equal(fallbackRead.execution.executor, "builtin-direct");
     assert.equal(
       fallbackRead.execution.fallbackReason,
       "standalone-read-unavailable"
@@ -528,12 +540,12 @@ async function verifyChatDirectRouting(): Promise<void> {
       "standalone write unavailable"
     );
     const fallbackWrite = await service.write(context, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       sessionId: session.id,
       path: "src/fallback.ts",
       content: "export const fallback = true;\n"
     });
-    assert.equal(fallbackWrite.execution.executor, "tokenpilot-direct");
+    assert.equal(fallbackWrite.execution.executor, "builtin-direct");
     assert.equal(
       fallbackWrite.execution.fallbackReason,
       "standalone-write-unavailable"
@@ -550,7 +562,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     await assert.rejects(
       () =>
         service.write(context, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           sessionId: session.id,
           path: "src/uncertain.ts",
           content: "export const uncertain = true;\n"
@@ -566,7 +578,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     await assert.rejects(
       () =>
         service.write(context, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           sessionId: competingSession.id,
           path: "src/competing.ts",
           content: "export const competing = true;\n"
@@ -582,7 +594,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     await assert.rejects(
       () =>
         service.shell(context, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           command: "node",
           args: ["-e", "console.log('missing-session')"]
         }),
@@ -602,7 +614,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     await assert.rejects(
       () =>
         service.edit(context, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           sessionId: session.id,
           path: "src/fixture.ts",
           search: "after",
@@ -630,14 +642,14 @@ async function verifyChatDirectRouting(): Promise<void> {
     await runtime.close();
     database.close();
     if (previousConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousConfigPath;
     }
     if (previousExposed === undefined) {
-      delete process.env.TOKENPILOT_EXPOSED;
+      delete process.env.CHATCOCKPIT_EXPOSED;
     } else {
-      process.env.TOKENPILOT_EXPOSED = previousExposed;
+      process.env.CHATCOCKPIT_EXPOSED = previousExposed;
     }
   }
 }

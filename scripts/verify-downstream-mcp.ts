@@ -308,7 +308,7 @@ async function verifyDownstreamMcp(): Promise<void> {
       configuredBroker.catalog().map((executor) => executor.id),
       [
         "codex-app-server-standalone",
-        "tokenpilot-direct",
+        "builtin-direct",
         "downstream-mcp:operator-fixture"
       ]
     );

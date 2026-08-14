@@ -56,6 +56,10 @@ export interface DirectExecutorSelection {
   selectionMode: "automatic" | "explicit";
 }
 
+export interface DirectCapabilityBrokerOptions {
+  executorAliases?: Readonly<Record<string, string>>;
+}
+
 export class DirectCapabilityBrokerError extends Error {
   constructor(
     readonly code:
@@ -105,7 +109,14 @@ function supports(
 }
 
 export class DirectCapabilityBroker {
-  constructor(private readonly sources: DirectExecutorSource[]) {}
+  private readonly executorAliases: Readonly<Record<string, string>>;
+
+  constructor(
+    private readonly sources: DirectExecutorSource[],
+    options: DirectCapabilityBrokerOptions = {}
+  ) {
+    this.executorAliases = options.executorAliases ?? {};
+  }
 
   catalog(): DirectExecutorDescriptor[] {
     return this.sources.map((source) => cloneDescriptor(source.describe()));
@@ -115,8 +126,10 @@ export class DirectCapabilityBroker {
     const descriptors = this.catalog();
 
     if (request.executorId) {
+      const resolvedExecutorId =
+        this.executorAliases[request.executorId] ?? request.executorId;
       const descriptor = descriptors.find(
-        (entry) => entry.id === request.executorId
+        (entry) => entry.id === resolvedExecutorId
       );
       if (!descriptor) {
         throw new DirectCapabilityBrokerError(
@@ -124,6 +137,7 @@ export class DirectCapabilityBroker {
           `Direct executor ${request.executorId} is not registered`,
           {
             executorId: request.executorId,
+            resolvedExecutorId,
             capability: request.capability,
             scope: request.scope,
             access: request.access

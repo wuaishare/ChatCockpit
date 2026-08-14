@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DEFAULT_PRODUCT_IDENTITY } from "../core/product-identity.js";
+
 const directExecutorPreference = {
   executorId: z.string().min(1).max(160).optional()
 };
@@ -80,16 +82,16 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
   };
 }
 
-const TOKENPILOT_DIRECT_TOOL_SCHEMAS = buildDirectToolSchemas("tokenpilot");
+const DEFAULT_DIRECT_TOOL_SCHEMAS = buildDirectToolSchemas(DEFAULT_PRODUCT_IDENTITY.defaultRepoId);
 
-export const fileWriteSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.fileWriteSchema;
-export const fileEditSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.fileEditSchema;
-export const fileListSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.fileListSchema;
-export const searchSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.searchSchema;
-export const shellRunSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.shellRunSchema;
-export const gitStatusSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
-export const gitDiffSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
-export const gitCommitSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
+export const fileWriteSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileWriteSchema;
+export const fileEditSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileEditSchema;
+export const fileListSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileListSchema;
+export const searchSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.searchSchema;
+export const shellRunSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.shellRunSchema;
+export const gitStatusSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
+export const gitDiffSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
+export const gitCommitSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
 
 export type FileReadInput = z.infer<typeof fileReadSchema>;
 export type FileReadBatchInput = z.infer<typeof fileReadBatchSchema>;

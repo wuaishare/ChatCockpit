@@ -8,6 +8,7 @@ import { completeJob, claimNextQueuedJob, failJob, listJobs } from "../core/jobs
 import { runCodexRunJob } from "../core/codex-run.js";
 import { getTrackedJobProcess } from "../core/job-processes.js";
 import { productIdentityForKey } from "../core/product-identity.js";
+import { LEGACY_DEFAULT_REPO_ID } from "../core/user-config-schema.js";
 import { runPackForRepo } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
 import { buildRunnerOperationContext } from "./identity.js";
@@ -55,7 +56,7 @@ function resolvePackRepoId(payload: TokenPilotJobPayload): string {
   }
 
   if (typeof (payload as { repoRoot?: string }).repoRoot === "string") {
-    return "tokenpilot";
+    return LEGACY_DEFAULT_REPO_ID;
   }
 
   return "";
@@ -74,6 +75,7 @@ function reconcileTerminalRunningJobs(
   paths: TokenPilotPaths,
   reconciliation: AsyncJobReconciliationService
 ): number {
+  const identity = productIdentityForKey(paths.productIdentity);
   let reconciled = 0;
 
   for (const job of listJobs(paths)) {
@@ -106,7 +108,7 @@ function reconcileTerminalRunningJobs(
 
     process.stdout.write(
       [
-        "[TokenPilot runner]",
+        `[${identity.displayName} runner]`,
         "mode=reconcile",
         `job=${job.id}`,
         `processState=${processRecord.state}`
@@ -144,6 +146,7 @@ async function runNextJob(
   paths: TokenPilotPaths,
   reconciliation: AsyncJobReconciliationService
 ): Promise<boolean> {
+  const identity = productIdentityForKey(paths.productIdentity);
   const startedAt = new Date().toISOString();
   const reconciledCount =
     reconcileTerminalRunningJobs(paths, reconciliation) +
@@ -177,7 +180,7 @@ async function runNextJob(
 
   process.stdout.write(
     [
-      "[TokenPilot runner]",
+      `[${identity.displayName} runner]`,
       `mode=phase2-dual-mode`,
       `job=${job.id}`,
       `type=${job.type}`,
@@ -252,6 +255,7 @@ export async function runRunner(
   paths: TokenPilotPaths,
   options: RunnerOptions = {}
 ): Promise<void> {
+  const identity = productIdentityForKey(paths.productIdentity);
   const intervalSeconds = options.intervalSeconds ?? 3;
   markRunnerStarted(paths, options.watch ? "watch" : "once");
   const continuityDatabase = new ContinuityDatabase({
@@ -270,9 +274,9 @@ export async function runRunner(
       if (!didProcessJob) {
         process.stdout.write(
           [
-            "[TokenPilot runner]",
+            `[${identity.displayName} runner]`,
             "mode=once",
-            "repoId=tokenpilot",
+            `repoId=${identity.defaultRepoId}`,
             `startedAt=${new Date().toISOString()}`,
             "No queued jobs found."
           ].join(" ") + "\n"
@@ -291,7 +295,7 @@ export async function runRunner(
     if (stopRequested) return;
     stopRequested = true;
     process.stdout.write(
-      `[TokenPilot runner] mode=watch signal=${signal} Stopping after current cycle.\n`
+      `[${identity.displayName} runner] mode=watch signal=${signal} Stopping after current cycle.\n`
     );
   };
 
@@ -300,9 +304,9 @@ export async function runRunner(
 
   process.stdout.write(
     [
-      "[TokenPilot runner]",
+      `[${identity.displayName} runner]`,
       "mode=watch",
-      "repoId=tokenpilot",
+      `repoId=${identity.defaultRepoId}`,
       `interval=${intervalSeconds}s`,
       `startedAt=${new Date().toISOString()}`
     ].join(" ") + "\n"
@@ -321,7 +325,7 @@ export async function runRunner(
       if (!isIdle) {
         isIdle = true;
         process.stdout.write(
-          `[TokenPilot runner] mode=watch repoId=tokenpilot No queued jobs found. Waiting ${intervalSeconds}s.\n`
+          `[${identity.displayName} runner] mode=watch repoId=${identity.defaultRepoId} No queued jobs found. Waiting ${intervalSeconds}s.\n`
         );
       }
 
@@ -330,6 +334,8 @@ export async function runRunner(
   } finally {
     continuityDatabase.close();
     markRunnerStopped(paths);
-    process.stdout.write("[TokenPilot runner] mode=watch Graceful shutdown complete.\n");
+    process.stdout.write(
+      `[${identity.displayName} runner] mode=watch Graceful shutdown complete.\n`
+    );
   }
 }

@@ -30,16 +30,16 @@ export function buildRuntimeResourceMcpTools(
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
-      name: "tokenpilot.resources.inventory",
+      name: "chatcockpit.resources.inventory",
       title: "Inventory runtime resources",
       description:
-        "Read one explicit Runtime Profile through its reviewed TokenPilot adapter, normalize only public-safe Skills/MCP/Plugins/Agents metadata, and append an idempotent local Resource Snapshot. This never installs, updates, removes, enables, disables, authenticates, starts a model turn, or executes arbitrary shell commands.",
+        "Read one explicit Runtime Profile through its reviewed ChatCockpit adapter, normalize only public-safe Skills/MCP/Plugins/Agents metadata, and append an idempotent local Resource Snapshot. This never installs, updates, removes, enables, disables, authenticates, starts a model turn, or executes arbitrary shell commands.",
       inputSchema: runtimeResourceInventoryRequestSchema,
       annotations: inventoryAnnotations,
       handler: (_context, input) => services.inventory.inventory(input)
     }),
     defineMcpTool({
-      name: "tokenpilot.resources.inspect",
+      name: "chatcockpit.resources.inspect",
       title: "Inspect runtime resource state",
       description:
         "Read public-safe Runtime Profiles, a persisted Resource Snapshot, or the latest persisted observation of one Resource ID. This performs no provider or filesystem mutation.",

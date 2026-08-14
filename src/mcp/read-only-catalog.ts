@@ -1,5 +1,6 @@
 import type { ChatDirectService } from "../application/chat-direct-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
+import { DEFAULT_PRODUCT_IDENTITY } from "../core/product-identity.js";
 import type { TokenPilotMcpTool } from "./tool-definition.js";
 import { buildDirectReadOnlyTools } from "./tools/direct.js";
 import { buildFilesReadOnlyTools } from "./tools/files.js";
@@ -14,7 +15,7 @@ export interface ReadOnlyMcpToolServices {
 
 export function buildReadOnlyMcpToolCatalog(
   services: ReadOnlyMcpToolServices,
-  defaultRepoId = "tokenpilot"
+  defaultRepoId = DEFAULT_PRODUCT_IDENTITY.defaultRepoId
 ): TokenPilotMcpTool[] {
   const tools = [
     ...buildDirectReadOnlyTools(services.chatDirect),

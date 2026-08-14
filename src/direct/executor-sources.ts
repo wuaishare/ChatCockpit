@@ -1,4 +1,7 @@
-import { productIdentityForKey } from "../core/product-identity.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "../core/product-identity.js";
 import type { ProductIdentityKey } from "../types.js";
 import type { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
 import type { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
@@ -39,7 +42,7 @@ const BUILT_IN_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
 ];
 
 export function createBuiltInDirectExecutorSource(
-  productIdentity: ProductIdentityKey = "tokenpilot"
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
 ): DirectExecutorSource {
   const identity = productIdentityForKey(productIdentity);
   return {

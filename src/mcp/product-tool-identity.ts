@@ -19,17 +19,20 @@ export function projectProductOwnedMcpText(
   value: string,
   productIdentity: ProductIdentityKey
 ): string {
-  if (productIdentity === "tokenpilot") return value;
+  if (productIdentity === "chatcockpit") {
+    return value
+      .replaceAll("TokenPilot", "ChatCockpit")
+      .replaceAll("tokenpilot.", "chatcockpit.");
+  }
   return value
-    .replaceAll("TokenPilot", "ChatCockpit")
-    .replaceAll("tokenpilot.", "chatcockpit.");
+    .replaceAll("ChatCockpit", "TokenPilot")
+    .replaceAll("chatcockpit.", "tokenpilot.");
 }
 
 export function projectMcpToolForProduct<T extends TokenPilotMcpTool>(
   tool: T,
   productIdentity: ProductIdentityKey
 ): T {
-  if (productIdentity === "tokenpilot") return tool;
   return {
     ...tool,
     name: productMcpToolName(tool.name, productIdentity),

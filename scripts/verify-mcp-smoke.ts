@@ -20,8 +20,8 @@ interface JsonRpcResponse {
 
 function initGitRepo(repoRoot: string): void {
   runGit(repoRoot, ["init"]);
-  runGit(repoRoot, ["config", "user.email", "tokenpilot-mcp@example.invalid"]);
-  runGit(repoRoot, ["config", "user.name", "TokenPilot MCP Test"]);
+  runGit(repoRoot, ["config", "user.email", "chatcockpit-mcp@example.invalid"]);
+  runGit(repoRoot, ["config", "user.name", "ChatCockpit MCP Test"]);
   runGit(repoRoot, ["add", "README.md", "src/catalog-fixture.ts"]);
   runGit(repoRoot, ["commit", "-m", "init"]);
 }
@@ -66,12 +66,12 @@ async function postMcp(
 }
 
 async function runMcpSmoke(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-mcp-smoke-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-mcp-smoke-"));
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# MCP fixture\n", "utf8");
   fs.writeFileSync(
     path.join(repoRoot, "src", "catalog-fixture.ts"),
-    "export const mcpNeedle = 'tokenpilot-mcp-smoke';\n",
+    "export const mcpNeedle = 'chatcockpit-mcp-smoke';\n",
     "utf8"
   );
   fs.writeFileSync(path.join(repoRoot, ".env"), "SECRET=must-not-leak\n", "utf8");
@@ -84,9 +84,11 @@ async function runMcpSmoke(): Promise<void> {
     configPath,
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
         repoMappings: {
-          tokenpilot: {
+          primary: {
             path: repoRoot
           }
         }
@@ -97,12 +99,12 @@ async function runMcpSmoke(): Promise<void> {
     "utf8"
   );
 
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  const originalToken = process.env.TOKENPILOT_API_TOKEN;
-  const originalExposed = process.env.TOKENPILOT_EXPOSED;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "test-token";
-  process.env.TOKENPILOT_EXPOSED = "true";
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const originalToken = process.env.CHATCOCKPIT_API_TOKEN;
+  const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+  process.env.CHATCOCKPIT_EXPOSED = "true";
 
   const app = buildServer(paths);
   let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
@@ -160,7 +162,7 @@ async function runMcpSmoke(): Promise<void> {
           protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: {
-            name: "tokenpilot-mcp-smoke",
+            name: "chatcockpit-mcp-smoke",
             version: "1.0.0"
           }
         }
@@ -171,7 +173,7 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(initialize.message.error, undefined);
     assert.equal(
       (initialize.message.result?.serverInfo as { name: string }).name,
-      "tokenpilot"
+      "chatcockpit"
     );
 
     const list = await postMcp(
@@ -194,80 +196,84 @@ async function runMcpSmoke(): Promise<void> {
         openWorldHint?: boolean;
       };
     }>;
+    assert.equal(
+      tools.every((tool) => tool.name.startsWith("chatcockpit.")),
+      true
+    );
     assert.deepEqual(
-      tools.map((tool) => tool.name).sort(),
+      tools.map((tool) => tool.name.replace(/^chatcockpit\./, "")).sort(),
       [
-        "tokenpilot.asyncJob.queue",
-        "tokenpilot.direct.executors.list",
-        "tokenpilot.document.appendVersion",
-        "tokenpilot.document.create",
-        "tokenpilot.document.get",
-        "tokenpilot.document.list",
-        "tokenpilot.document.updateStatus",
-        "tokenpilot.document.version.get",
-        "tokenpilot.evidence.record",
-        "tokenpilot.files.edit",
-        "tokenpilot.files.list",
-        "tokenpilot.files.read",
-        "tokenpilot.files.readBatch",
-        "tokenpilot.files.write",
-        "tokenpilot.git.commit",
-        "tokenpilot.git.diff",
-        "tokenpilot.git.status",
-        "tokenpilot.host.command.decide",
-        "tokenpilot.host.command.execute",
-        "tokenpilot.host.command.prepare",
-        "tokenpilot.host.files.read",
-        "tokenpilot.host.mutation.decide",
-        "tokenpilot.host.mutation.execute",
-        "tokenpilot.host.mutation.prepare",
-        "tokenpilot.host.process.decide",
-        "tokenpilot.host.process.execute",
-        "tokenpilot.host.process.list",
-        "tokenpilot.host.process.prepare",
-        "tokenpilot.host.process.read",
-        "tokenpilot.host.roots.list",
-        "tokenpilot.handoff.accept",
-        "tokenpilot.handoff.cancel",
-        "tokenpilot.handoff.fork",
-        "tokenpilot.handoff.prepare",
-        "tokenpilot.lease.acquire",
-        "tokenpilot.lease.release",
-        "tokenpilot.project.get",
-        "tokenpilot.project.list",
-        "tokenpilot.recovery.assess",
-        "tokenpilot.recovery.execute",
-        "tokenpilot.resources.inspect",
-        "tokenpilot.resources.inventory",
-        "tokenpilot.runtime.capabilities",
-        "tokenpilot.search.code",
-        "tokenpilot.codex.approval.respond",
-        "tokenpilot.codex.events.read",
-        "tokenpilot.codex.session.bind",
-        "tokenpilot.codex.session.fork",
-        "tokenpilot.codex.session.resume",
-        "tokenpilot.codex.thread.list",
-        "tokenpilot.codex.thread.read",
-        "tokenpilot.codex.turn.interrupt",
-        "tokenpilot.codex.turn.start",
-        "tokenpilot.session.get",
-        "tokenpilot.session.start",
-        "tokenpilot.shell.run",
-        "tokenpilot.task.bindDocuments",
-        "tokenpilot.task.complete",
-        "tokenpilot.task.create",
-        "tokenpilot.task.get",
-        "tokenpilot.task.submitReview",
-        "tokenpilot.workspace.snapshot"
+        "asyncJob.queue",
+        "direct.executors.list",
+        "document.appendVersion",
+        "document.create",
+        "document.get",
+        "document.list",
+        "document.updateStatus",
+        "document.version.get",
+        "evidence.record",
+        "files.edit",
+        "files.list",
+        "files.read",
+        "files.readBatch",
+        "files.write",
+        "git.commit",
+        "git.diff",
+        "git.status",
+        "host.command.decide",
+        "host.command.execute",
+        "host.command.prepare",
+        "host.files.read",
+        "host.mutation.decide",
+        "host.mutation.execute",
+        "host.mutation.prepare",
+        "host.process.decide",
+        "host.process.execute",
+        "host.process.list",
+        "host.process.prepare",
+        "host.process.read",
+        "host.roots.list",
+        "handoff.accept",
+        "handoff.cancel",
+        "handoff.fork",
+        "handoff.prepare",
+        "lease.acquire",
+        "lease.release",
+        "project.get",
+        "project.list",
+        "recovery.assess",
+        "recovery.execute",
+        "resources.inspect",
+        "resources.inventory",
+        "runtime.capabilities",
+        "search.code",
+        "codex.approval.respond",
+        "codex.events.read",
+        "codex.session.bind",
+        "codex.session.fork",
+        "codex.session.resume",
+        "codex.thread.list",
+        "codex.thread.read",
+        "codex.turn.interrupt",
+        "codex.turn.start",
+        "session.get",
+        "session.start",
+        "shell.run",
+        "task.bindDocuments",
+        "task.complete",
+        "task.create",
+        "task.get",
+        "task.submitReview",
+        "workspace.snapshot"
       ].sort()
     );
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
     for (const mutationToolName of [
-      "tokenpilot.resources.mutation.prepare",
-      "tokenpilot.resources.mutation.inspect",
-      "tokenpilot.resources.mutation.execute",
-      "tokenpilot.resources.mutation.decide",
-      "tokenpilot.resources.mutation.reconcile"
+      "chatcockpit.resources.mutation.prepare",
+      "chatcockpit.resources.mutation.inspect",
+      "chatcockpit.resources.mutation.execute",
+      "chatcockpit.resources.mutation.decide",
+      "chatcockpit.resources.mutation.reconcile"
     ]) {
       assert.equal(
         toolByName.has(mutationToolName),
@@ -287,152 +293,152 @@ async function runMcpSmoke(): Promise<void> {
       assert.equal(toolByName.has(rawDownstreamName), false);
     }
     for (const name of [
-      "tokenpilot.direct.executors.list",
-      "tokenpilot.document.get",
-      "tokenpilot.document.list",
-      "tokenpilot.document.version.get",
-      "tokenpilot.files.list",
-      "tokenpilot.files.read",
-      "tokenpilot.files.readBatch",
-      "tokenpilot.git.diff",
-      "tokenpilot.git.status",
-      "tokenpilot.host.files.read",
-      "tokenpilot.host.process.list",
-      "tokenpilot.host.process.read",
-      "tokenpilot.host.roots.list",
-      "tokenpilot.project.get",
-      "tokenpilot.project.list",
-      "tokenpilot.resources.inspect",
-      "tokenpilot.runtime.capabilities",
-      "tokenpilot.search.code",
-      "tokenpilot.codex.events.read",
-      "tokenpilot.codex.thread.list",
-      "tokenpilot.codex.thread.read",
-      "tokenpilot.session.get",
-      "tokenpilot.task.get",
-      "tokenpilot.workspace.snapshot"
+      "chatcockpit.direct.executors.list",
+      "chatcockpit.document.get",
+      "chatcockpit.document.list",
+      "chatcockpit.document.version.get",
+      "chatcockpit.files.list",
+      "chatcockpit.files.read",
+      "chatcockpit.files.readBatch",
+      "chatcockpit.git.diff",
+      "chatcockpit.git.status",
+      "chatcockpit.host.files.read",
+      "chatcockpit.host.process.list",
+      "chatcockpit.host.process.read",
+      "chatcockpit.host.roots.list",
+      "chatcockpit.project.get",
+      "chatcockpit.project.list",
+      "chatcockpit.resources.inspect",
+      "chatcockpit.runtime.capabilities",
+      "chatcockpit.search.code",
+      "chatcockpit.codex.events.read",
+      "chatcockpit.codex.thread.list",
+      "chatcockpit.codex.thread.read",
+      "chatcockpit.session.get",
+      "chatcockpit.task.get",
+      "chatcockpit.workspace.snapshot"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.readOnlyHint, true);
       assert.equal(toolByName.get(name)?.annotations.destructiveHint, false);
     }
-    assert.equal(toolByName.get("tokenpilot.files.write")?.annotations.readOnlyHint, false);
-    assert.equal(toolByName.get("tokenpilot.files.write")?.annotations.destructiveHint, true);
-    assert.equal(toolByName.get("tokenpilot.files.edit")?.annotations.readOnlyHint, false);
-    assert.equal(toolByName.get("tokenpilot.files.edit")?.annotations.destructiveHint, false);
-    assert.equal(toolByName.get("tokenpilot.shell.run")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.files.write")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.files.write")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.files.edit")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.files.edit")?.annotations.destructiveHint, false);
+    assert.equal(toolByName.get("chatcockpit.shell.run")?.annotations.destructiveHint, true);
     assert.equal(
-      toolByName.get("tokenpilot.host.command.execute")?.annotations.readOnlyHint,
+      toolByName.get("chatcockpit.host.command.execute")?.annotations.readOnlyHint,
       false
     );
     assert.equal(
-      toolByName.get("tokenpilot.host.command.execute")?.annotations.destructiveHint,
+      toolByName.get("chatcockpit.host.command.execute")?.annotations.destructiveHint,
       true
     );
     assert.equal(
-      toolByName.get("tokenpilot.host.mutation.execute")?.annotations.readOnlyHint,
+      toolByName.get("chatcockpit.host.mutation.execute")?.annotations.readOnlyHint,
       false
     );
     assert.equal(
-      toolByName.get("tokenpilot.host.mutation.execute")?.annotations.destructiveHint,
+      toolByName.get("chatcockpit.host.mutation.execute")?.annotations.destructiveHint,
       true
     );
     assert.equal(
-      toolByName.get("tokenpilot.host.process.execute")?.annotations.readOnlyHint,
+      toolByName.get("chatcockpit.host.process.execute")?.annotations.readOnlyHint,
       false
     );
     assert.equal(
-      toolByName.get("tokenpilot.host.process.execute")?.annotations.destructiveHint,
+      toolByName.get("chatcockpit.host.process.execute")?.annotations.destructiveHint,
       true
     );
     for (const name of [
-      "tokenpilot.host.command.prepare",
-      "tokenpilot.host.command.decide",
-      "tokenpilot.host.command.execute",
-      "tokenpilot.host.mutation.prepare",
-      "tokenpilot.host.mutation.decide",
-      "tokenpilot.host.mutation.execute",
-      "tokenpilot.host.process.prepare",
-      "tokenpilot.host.process.decide",
-      "tokenpilot.host.process.execute",
-      "tokenpilot.host.process.read",
-      "tokenpilot.host.process.list",
-      "tokenpilot.recovery.assess",
-      "tokenpilot.recovery.execute",
-      "tokenpilot.resources.inspect"
+      "chatcockpit.host.command.prepare",
+      "chatcockpit.host.command.decide",
+      "chatcockpit.host.command.execute",
+      "chatcockpit.host.mutation.prepare",
+      "chatcockpit.host.mutation.decide",
+      "chatcockpit.host.mutation.execute",
+      "chatcockpit.host.process.prepare",
+      "chatcockpit.host.process.decide",
+      "chatcockpit.host.process.execute",
+      "chatcockpit.host.process.read",
+      "chatcockpit.host.process.list",
+      "chatcockpit.recovery.assess",
+      "chatcockpit.recovery.execute",
+      "chatcockpit.resources.inspect"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
       assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
     }
-    assert.equal(toolByName.get("tokenpilot.git.commit")?.annotations.destructiveHint, false);
-    assert.equal(toolByName.get("tokenpilot.lease.acquire")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.git.commit")?.annotations.destructiveHint, false);
+    assert.equal(toolByName.get("chatcockpit.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [
-      "tokenpilot.document.appendVersion",
-      "tokenpilot.document.create",
-      "tokenpilot.document.updateStatus",
-      "tokenpilot.codex.session.bind",
-      "tokenpilot.codex.session.fork",
-      "tokenpilot.codex.session.resume",
-      "tokenpilot.codex.turn.interrupt",
-      "tokenpilot.asyncJob.queue",
-      "tokenpilot.evidence.record",
-      "tokenpilot.handoff.accept",
-      "tokenpilot.handoff.cancel",
-      "tokenpilot.handoff.fork",
-      "tokenpilot.handoff.prepare",
-      "tokenpilot.host.command.decide",
-      "tokenpilot.host.command.prepare",
-      "tokenpilot.host.mutation.decide",
-      "tokenpilot.host.mutation.prepare",
-      "tokenpilot.host.process.decide",
-      "tokenpilot.host.process.prepare",
-      "tokenpilot.lease.release",
-      "tokenpilot.recovery.assess",
-      "tokenpilot.recovery.execute",
-      "tokenpilot.resources.inventory",
-      "tokenpilot.session.start",
-      "tokenpilot.task.bindDocuments",
-      "tokenpilot.task.complete",
-      "tokenpilot.task.create",
-      "tokenpilot.task.submitReview"
+      "chatcockpit.document.appendVersion",
+      "chatcockpit.document.create",
+      "chatcockpit.document.updateStatus",
+      "chatcockpit.codex.session.bind",
+      "chatcockpit.codex.session.fork",
+      "chatcockpit.codex.session.resume",
+      "chatcockpit.codex.turn.interrupt",
+      "chatcockpit.asyncJob.queue",
+      "chatcockpit.evidence.record",
+      "chatcockpit.handoff.accept",
+      "chatcockpit.handoff.cancel",
+      "chatcockpit.handoff.fork",
+      "chatcockpit.handoff.prepare",
+      "chatcockpit.host.command.decide",
+      "chatcockpit.host.command.prepare",
+      "chatcockpit.host.mutation.decide",
+      "chatcockpit.host.mutation.prepare",
+      "chatcockpit.host.process.decide",
+      "chatcockpit.host.process.prepare",
+      "chatcockpit.lease.release",
+      "chatcockpit.recovery.assess",
+      "chatcockpit.recovery.execute",
+      "chatcockpit.resources.inventory",
+      "chatcockpit.session.start",
+      "chatcockpit.task.bindDocuments",
+      "chatcockpit.task.complete",
+      "chatcockpit.task.create",
+      "chatcockpit.task.submitReview"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.readOnlyHint, false);
       assert.equal(toolByName.get(name)?.annotations.destructiveHint, false);
     }
     assert.equal(
-      toolByName.get("tokenpilot.task.complete")?.annotations.idempotentHint,
+      toolByName.get("chatcockpit.task.complete")?.annotations.idempotentHint,
       true
     );
     assert.equal(
-      toolByName.get("tokenpilot.task.complete")?.annotations.openWorldHint,
+      toolByName.get("chatcockpit.task.complete")?.annotations.openWorldHint,
       false
     );
     assert.equal(
-      toolByName.get("tokenpilot.task.submitReview")?.annotations.idempotentHint,
+      toolByName.get("chatcockpit.task.submitReview")?.annotations.idempotentHint,
       true
     );
     assert.equal(
-      toolByName.get("tokenpilot.task.submitReview")?.annotations.openWorldHint,
+      toolByName.get("chatcockpit.task.submitReview")?.annotations.openWorldHint,
       false
     );
     assert.equal(
-      toolByName.get("tokenpilot.asyncJob.queue")?.annotations.idempotentHint,
+      toolByName.get("chatcockpit.asyncJob.queue")?.annotations.idempotentHint,
       true
     );
     assert.equal(
-      toolByName.get("tokenpilot.asyncJob.queue")?.annotations.openWorldHint,
+      toolByName.get("chatcockpit.asyncJob.queue")?.annotations.openWorldHint,
       false
     );
     assert.equal(
-      toolByName.get("tokenpilot.resources.inventory")?.annotations.idempotentHint,
+      toolByName.get("chatcockpit.resources.inventory")?.annotations.idempotentHint,
       true
     );
     assert.equal(
-      toolByName.get("tokenpilot.resources.inventory")?.annotations.openWorldHint,
+      toolByName.get("chatcockpit.resources.inventory")?.annotations.openWorldHint,
       true
     );
     for (const name of [
-      "tokenpilot.codex.approval.respond",
-      "tokenpilot.codex.turn.start"
+      "chatcockpit.codex.approval.respond",
+      "chatcockpit.codex.turn.start"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.readOnlyHint, false);
       assert.equal(toolByName.get(name)?.annotations.destructiveHint, true);
@@ -445,9 +451,9 @@ async function runMcpSmoke(): Promise<void> {
         id: 3,
         method: "tools/call",
         params: {
-          name: "tokenpilot.files.read",
+          name: "chatcockpit.files.read",
           arguments: {
-            repoId: "tokenpilot",
+            repoId: "primary",
             path: "README.md"
           }
         }
@@ -473,7 +479,7 @@ async function runMcpSmoke(): Promise<void> {
     assert.match(readResult.structuredContent.file.content, /MCP fixture/);
     assert.equal(readResult.structuredContent.execution.lane, "chat-direct");
     assert.equal(readResult.structuredContent.execution.modelLoopOwner, "chatgpt");
-    assert.equal(readResult.structuredContent.execution.executor, "tokenpilot-direct");
+    assert.equal(readResult.structuredContent.execution.executor, "builtin-direct");
 
     const restReadResponse = await fetch(`${baseUrl}/api/files/read`, {
       method: "POST",
@@ -482,7 +488,7 @@ async function runMcpSmoke(): Promise<void> {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         path: "README.md"
       })
     });
@@ -491,7 +497,7 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(restRead.file.content, readResult.structuredContent.file.content);
     assert.equal(restRead.execution.lane, "chat-direct");
     assert.equal(restRead.execution.modelLoopOwner, "chatgpt");
-    assert.equal(restRead.execution.executor, "tokenpilot-direct");
+    assert.equal(restRead.execution.executor, "builtin-direct");
 
     const blocked = await postMcp(
       baseUrl,
@@ -500,9 +506,9 @@ async function runMcpSmoke(): Promise<void> {
         id: 4,
         method: "tools/call",
         params: {
-          name: "tokenpilot.files.read",
+          name: "chatcockpit.files.read",
           arguments: {
-            repoId: "tokenpilot",
+            repoId: "primary",
             path: ".env"
           }
         }
@@ -595,9 +601,9 @@ async function runMcpSmoke(): Promise<void> {
         id: 41,
         method: "tools/call",
         params: {
-          name: "tokenpilot.files.edit",
+          name: "chatcockpit.files.edit",
           arguments: {
-            repoId: "tokenpilot",
+            repoId: "primary",
             sessionId: competingSessionResult.session.id,
             path: "README.md",
             search: "MCP fixture",
@@ -629,9 +635,9 @@ async function runMcpSmoke(): Promise<void> {
         id: 42,
         method: "tools/call",
         params: {
-          name: "tokenpilot.shell.run",
+          name: "chatcockpit.shell.run",
           arguments: {
-            repoId: "tokenpilot",
+            repoId: "primary",
             command: "git",
             args: ["add", "README.md"],
             idempotencyKey: "shell-missing-session-0001"
@@ -657,7 +663,7 @@ async function runMcpSmoke(): Promise<void> {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         command: "git",
         args: ["add", "README.md"]
       })
@@ -672,9 +678,9 @@ async function runMcpSmoke(): Promise<void> {
       jsonrpc: "2.0",
       method: "tools/call",
       params: {
-        name: "tokenpilot.files.edit",
+        name: "chatcockpit.files.edit",
         arguments: {
-          repoId: "tokenpilot",
+          repoId: "primary",
           sessionId: sessionResult.session.id,
           path: "README.md",
           search: "MCP fixture",
@@ -707,7 +713,7 @@ async function runMcpSmoke(): Promise<void> {
     assert.deepEqual(firstEditResult.structuredContent.changedPaths, ["README.md"]);
     assert.equal(firstEditResult.structuredContent.execution.lane, "chat-direct");
     assert.equal(firstEditResult.structuredContent.execution.modelLoopOwner, "chatgpt");
-    assert.equal(firstEditResult.structuredContent.execution.executor, "tokenpilot-direct");
+    assert.equal(firstEditResult.structuredContent.execution.executor, "builtin-direct");
     assert.equal(firstEditResult.structuredContent.idempotency.replayed, false);
     assert.equal(fs.readFileSync(path.join(repoRoot, "README.md"), "utf8"), "# MCP updated\n");
 
@@ -744,9 +750,9 @@ async function runMcpSmoke(): Promise<void> {
         id: 7,
         method: "tools/call",
         params: {
-          name: "tokenpilot.files.edit",
+          name: "chatcockpit.files.edit",
           arguments: {
-            repoId: "tokenpilot",
+            repoId: "primary",
             sessionId: sessionResult.session.id,
             path: "README.md",
             search: "MCP updated",
@@ -779,9 +785,9 @@ async function runMcpSmoke(): Promise<void> {
         id: 8,
         method: "tools/call",
         params: {
-          name: "tokenpilot.shell.run",
+          name: "chatcockpit.shell.run",
           arguments: {
-            repoId: "tokenpilot",
+            repoId: "primary",
             sessionId: sessionResult.session.id,
             command: "node",
             args: ["--version"],
@@ -807,19 +813,19 @@ async function runMcpSmoke(): Promise<void> {
   } finally {
     await testServer?.close();
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
     if (originalToken === undefined) {
-      delete process.env.TOKENPILOT_API_TOKEN;
+      delete process.env.CHATCOCKPIT_API_TOKEN;
     } else {
-      process.env.TOKENPILOT_API_TOKEN = originalToken;
+      process.env.CHATCOCKPIT_API_TOKEN = originalToken;
     }
     if (originalExposed === undefined) {
-      delete process.env.TOKENPILOT_EXPOSED;
+      delete process.env.CHATCOCKPIT_EXPOSED;
     } else {
-      process.env.TOKENPILOT_EXPOSED = originalExposed;
+      process.env.CHATCOCKPIT_EXPOSED = originalExposed;
     }
   }
 }

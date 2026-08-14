@@ -18,6 +18,7 @@ import {
   listJobs
 } from "../src/core/jobs.ts";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { DEFAULT_PRODUCT_IDENTITY } from "../src/core/product-identity.ts";
 import { runRunner } from "../src/runner/index.ts";
 import type { CodexRunJobResult } from "../src/types.ts";
 
@@ -57,13 +58,15 @@ function createTaskSession(
 }
 
 function verifyAsyncJobBinding(): void {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-async-job-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-async-job-"));
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
   });
-  const repositories = buildContinuityRepositories(database);
+  const repositories = buildContinuityRepositories(database, {
+    asyncRunnerRuntimeKind: DEFAULT_PRODUCT_IDENTITY.asyncRunnerRuntimeKind
+  });
   const service = new AsyncJobService(paths, repositories);
 
   try {
@@ -76,7 +79,7 @@ function verifyAsyncJobBinding(): void {
     const workspace = repositories.workspaces.create({
       id: "workspace_async",
       projectId: project.id,
-      repoId: "tokenpilot",
+      repoId: "primary",
       privatePath: repoRoot,
       branch: "main",
       headCommit: "abc123",
@@ -111,7 +114,7 @@ function verifyAsyncJobBinding(): void {
     assert.equal(queued.replayed, false);
     assert.equal(queued.task.id, started.task.id);
     assert.equal(queued.session.activeRuntimeBindingId, queued.binding.id);
-    assert.equal(queued.binding.runtimeKind, "tokenpilot-runner");
+    assert.equal(queued.binding.runtimeKind, "async-runner");
     assert.equal(queued.binding.externalRunId, queued.job.id);
     assert.equal(queued.binding.relation, "queued");
     assert.equal(queued.job.status, "queued");
@@ -223,26 +226,28 @@ function successfulResult(repoId: string, title: string): CodexRunJobResult {
     gitStatus: "clean",
     hasDiff: false,
     commit: { committed: false },
-    promptPath: ".tokenpilot/runtime/prompt.md",
-    stdoutPath: ".tokenpilot/runtime/stdout.jsonl",
-    stderrPath: ".tokenpilot/runtime/stderr.txt",
-    diffPath: ".tokenpilot/runtime/diff.patch",
-    reviewPath: ".tokenpilot/runtime/review.md",
-    summaryPath: ".tokenpilot/runtime/summary.json",
+    promptPath: ".chatcockpit/runtime/prompt.md",
+    stdoutPath: ".chatcockpit/runtime/stdout.jsonl",
+    stderrPath: ".chatcockpit/runtime/stderr.txt",
+    diffPath: ".chatcockpit/runtime/diff.patch",
+    reviewPath: ".chatcockpit/runtime/review.md",
+    summaryPath: ".chatcockpit/runtime/summary.json",
     artifacts: []
   };
 }
 
 function verifyTerminalReconciliation(): void {
   const repoRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-async-terminal-")
+    path.join(os.tmpdir(), "chatcockpit-async-terminal-")
   );
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
   });
-  const repositories = buildContinuityRepositories(database);
+  const repositories = buildContinuityRepositories(database, {
+    asyncRunnerRuntimeKind: DEFAULT_PRODUCT_IDENTITY.asyncRunnerRuntimeKind
+  });
   const queue = new AsyncJobService(paths, repositories);
   const reconciliation = new AsyncJobReconciliationService(repositories);
 
@@ -256,7 +261,7 @@ function verifyTerminalReconciliation(): void {
     const workspace = repositories.workspaces.create({
       id: "workspace_terminal",
       projectId: project.id,
-      repoId: "tokenpilot",
+      repoId: "primary",
       privatePath: repoRoot,
       branch: "main",
       headCommit: "abc123",
@@ -377,14 +382,16 @@ function verifyTerminalReconciliation(): void {
 
 async function verifyRunnerRestartReconciliation(): Promise<void> {
   const repoRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-async-restart-")
+    path.join(os.tmpdir(), "chatcockpit-async-restart-")
   );
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   let database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
   });
-  let repositories = buildContinuityRepositories(database);
+  let repositories = buildContinuityRepositories(database, {
+    asyncRunnerRuntimeKind: DEFAULT_PRODUCT_IDENTITY.asyncRunnerRuntimeKind
+  });
   const queue = new AsyncJobService(paths, repositories);
 
   const project = repositories.projects.create({
@@ -396,7 +403,7 @@ async function verifyRunnerRestartReconciliation(): Promise<void> {
   const workspace = repositories.workspaces.create({
     id: "workspace_restart",
     projectId: project.id,
-    repoId: "tokenpilot",
+    repoId: "primary",
     privatePath: repoRoot,
     branch: "main",
     headCommit: "abc123",
@@ -440,7 +447,9 @@ async function verifyRunnerRestartReconciliation(): Promise<void> {
   database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
   });
-  repositories = buildContinuityRepositories(database);
+  repositories = buildContinuityRepositories(database, {
+    asyncRunnerRuntimeKind: DEFAULT_PRODUCT_IDENTITY.asyncRunnerRuntimeKind
+  });
   try {
     const task = repositories.tasks.get(started.task.id);
     const session = repositories.sessions.get(started.session.id);

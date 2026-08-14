@@ -2,7 +2,10 @@ import { z } from "zod";
 
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
 import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
-import { productIdentityForKey } from "../../core/product-identity.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "../../core/product-identity.js";
 import type { GitStatusResponse, ProductIdentityKey } from "../../types.js";
 import type { McpIdempotencyStore } from "../idempotency-store.js";
 import { productMcpToolName } from "../product-tool-identity.js";
@@ -80,7 +83,7 @@ export interface WorkspaceWriteToolServices {
 
 export function buildWorkspaceWriteTools(
   services: WorkspaceWriteToolServices,
-  productIdentity: ProductIdentityKey = "tokenpilot"
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
 ): TokenPilotMcpTool[] {
   const identity = productIdentityForKey(productIdentity);
   const {

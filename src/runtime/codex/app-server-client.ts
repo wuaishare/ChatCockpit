@@ -3,6 +3,11 @@ import { randomUUID } from "node:crypto";
 import readline from "node:readline";
 
 import { ServiceError } from "../../application/service-error.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "../../core/product-identity.js";
+import type { ProductIdentityKey } from "../../types.js";
 
 interface AppServerRpcError {
   code: number;
@@ -53,6 +58,7 @@ export interface CodexAppServerClientOptions {
   env?: NodeJS.ProcessEnv;
   requestTimeoutMs?: number;
   clientVersion?: string;
+  productIdentity?: ProductIdentityKey;
 }
 
 export interface CodexAppServerInitialization {
@@ -115,8 +121,10 @@ export class CodexAppServerClient {
   private initialization: CodexAppServerInitialization | null = null;
   private stderr = "";
   private closing = false;
+  private readonly productIdentity: ProductIdentityKey;
 
   constructor(options: CodexAppServerClientOptions) {
+    this.productIdentity = options.productIdentity ?? DEFAULT_PRODUCT_IDENTITY.key;
     this.options = {
       ...options,
       args: options.args ?? ["app-server", "--stdio"],
@@ -305,11 +313,12 @@ export class CodexAppServerClient {
       });
     });
 
+    const identity = productIdentityForKey(this.productIdentity);
     const raw = asRecord(
       await this.sendRequest<Record<string, unknown>>("initialize", {
         clientInfo: {
-          name: "tokenpilot",
-          title: "TokenPilot",
+          name: identity.packageName,
+          title: identity.displayName,
           version: this.options.clientVersion
         },
         capabilities: {
