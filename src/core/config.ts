@@ -13,6 +13,7 @@ import {
   buildDistributionContextFromPaths,
   buildSourceDistributionContext
 } from "./distribution-context.js";
+import { readIdentityEnv } from "./identity-env.js";
 
 export const DEFAULT_REPO_ID = "tokenpilot";
 const DEFAULT_SIBLING_REPOS: Record<string, string> = {
@@ -22,7 +23,7 @@ const DEFAULT_SIBLING_REPOS: Record<string, string> = {
 
 function defaultConfigPath(context?: TokenPilotDistributionContext): string {
   if (context) return context.configPath;
-  return process.env.TOKENPILOT_CONFIG_PATH?.trim() || path.join(os.homedir(), ".tokenpilot", "config.json");
+  return readIdentityEnv("CONFIG_PATH") ?? path.join(os.homedir(), ".tokenpilot", "config.json");
 }
 
 function normalizeAbsolutePath(input: string): string {
@@ -157,7 +158,7 @@ export function loadUserConfig(
 export function loadUserConfigForPaths(paths: TokenPilotPaths): TokenPilotUserConfig {
   const context = buildDistributionContextFromPaths(paths);
   if (context.mode === "source") {
-    const envConfigPath = process.env.TOKENPILOT_CONFIG_PATH?.trim();
+    const envConfigPath = readIdentityEnv("CONFIG_PATH");
     if (envConfigPath) {
       context.configPath = normalizeAbsolutePath(envConfigPath);
     }

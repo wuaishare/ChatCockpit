@@ -591,7 +591,7 @@ function verifyAuthConfig(): void {
       validateServerAuthConfig({
         TOKENPILOT_EXPOSED: "true"
       }),
-    /TOKENPILOT_EXPOSED=true requires TOKENPILOT_API_TOKEN/
+    /Exposed mode requires a configured API token/
   );
 
   validateServerAuthConfig({

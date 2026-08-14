@@ -1,9 +1,8 @@
 import fp from "fastify-plugin";
 import type { FastifyRequest } from "fastify";
 
+import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
 import { ApiError } from "./errors.js";
-
-type EnvLike = Record<string, string | undefined>;
 
 const OAUTH_PUBLIC_PATHS = new Set([
   "/.well-known/oauth-protected-resource",
@@ -55,16 +54,16 @@ function readEnvFlag(value: string | undefined): boolean {
 }
 
 export function isExposedMode(env: EnvLike = process.env): boolean {
-  return readEnvFlag(env.TOKENPILOT_EXPOSED);
+  return readEnvFlag(readIdentityEnv("EXPOSED", env));
 }
 
 export function isAuthRequired(env: EnvLike = process.env): boolean {
-  return isExposedMode(env) || Boolean(env.TOKENPILOT_API_TOKEN?.trim());
+  return isExposedMode(env) || Boolean(readIdentityEnv("API_TOKEN", env));
 }
 
 export function validateServerAuthConfig(env: EnvLike = process.env): void {
-  if (isExposedMode(env) && !env.TOKENPILOT_API_TOKEN?.trim()) {
-    throw new Error("TOKENPILOT_EXPOSED=true requires TOKENPILOT_API_TOKEN");
+  if (isExposedMode(env) && !readIdentityEnv("API_TOKEN", env)) {
+    throw new Error("Exposed mode requires a configured API token");
   }
 }
 
@@ -83,15 +82,15 @@ export function createTokenPilotAuthPlugin(
         return;
       }
 
-      if (isExposedMode() && !process.env.TOKENPILOT_API_TOKEN?.trim()) {
+      const configured = readIdentityEnv("API_TOKEN");
+      if (isExposedMode() && !configured) {
         throw new ApiError(
           503,
           "AUTH_CONFIG_MISSING",
-          "Exposed mode is missing TOKENPILOT_API_TOKEN"
+          "Exposed mode is missing the configured API token"
         );
       }
 
-      const configured = process.env.TOKENPILOT_API_TOKEN?.trim();
       if (!configured) {
         return;
       }

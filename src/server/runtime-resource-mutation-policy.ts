@@ -1,4 +1,4 @@
-type EnvLike = Record<string, string | undefined>;
+import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
 
 function enabled(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test(value?.trim() || "");
@@ -7,6 +7,6 @@ function enabled(value: string | undefined): boolean {
 export function isResourceMutationExposureEnabled(
   env: EnvLike = process.env
 ): boolean {
-  if (!enabled(env.TOKENPILOT_EXPOSED)) return true;
-  return enabled(env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED);
+  if (!enabled(readIdentityEnv("EXPOSED", env))) return true;
+  return enabled(readIdentityEnv("RESOURCE_MUTATIONS_EXPOSED", env));
 }

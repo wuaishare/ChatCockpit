@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { ServiceError } from "../../application/service-error.js";
+import { readIdentityEnv } from "../../core/identity-env.js";
 
 export type CodexBinarySource =
   | "configured"
@@ -41,7 +42,7 @@ function candidateList(options: ResolveCodexBinaryOptions): Candidate[] {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
   const homeDir = options.homeDir ?? os.homedir();
-  const configured = env.TOKENPILOT_CODEX_BIN?.trim();
+  const configured = readIdentityEnv("CODEX_BIN", env);
   const candidates: Candidate[] = [];
 
   if (configured) {

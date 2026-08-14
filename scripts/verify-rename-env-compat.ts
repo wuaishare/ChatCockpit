@@ -5,6 +5,10 @@ import {
   RUNTIME_IDENTITY_ENV,
   readIdentityEnv
 } from "../src/core/identity-env.js";
+import { buildDistributionContext } from "../src/core/distribution-context.js";
+import { isAuthRequired, isExposedMode } from "../src/server/auth.js";
+import { resolveOAuthPublicConfig } from "../src/auth/oauth-config.js";
+import { isResourceMutationExposureEnabled } from "../src/server/runtime-resource-mutation-policy.js";
 
 const empty = {};
 assert.equal(readIdentityEnv("API_TOKEN", empty), undefined);
@@ -49,5 +53,44 @@ assert.doesNotMatch(conflict.message, /target-do-not-print/);
 
 assert.equal(RUNTIME_IDENTITY_ENV.CONFIG_PATH.legacy, "TOKENPILOT_CONFIG_PATH");
 assert.equal(RUNTIME_IDENTITY_ENV.CONFIG_PATH.target, "CHATCOCKPIT_CONFIG_PATH");
+
+const targetOnlyEnv = {
+  CHATCOCKPIT_DISTRIBUTION_MODE: "packaged",
+  CHATCOCKPIT_INSTALL_ROOT: "/tmp/chatcockpit-install",
+  CHATCOCKPIT_STATE_ROOT: "/tmp/chatcockpit-state",
+  CHATCOCKPIT_PRIMARY_WORKSPACE_ROOT: "/tmp/chatcockpit-workspace",
+  CHATCOCKPIT_NODE_BIN: process.execPath,
+  CHATCOCKPIT_CONFIG_PATH: "/tmp/chatcockpit-config.json"
+};
+const targetContext = buildDistributionContext({}, targetOnlyEnv);
+assert.equal(targetContext.mode, "packaged");
+assert.equal(targetContext.stateRoot.endsWith("chatcockpit-state"), true);
+
+assert.equal(isExposedMode({ CHATCOCKPIT_EXPOSED: "true" }), true);
+assert.equal(
+  isAuthRequired({ CHATCOCKPIT_API_TOKEN: "target-only-secret" }),
+  true
+);
+assert.equal(
+  isResourceMutationExposureEnabled({
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED: "true"
+  }),
+  true
+);
+
+const oauth = resolveOAuthPublicConfig({
+  CHATCOCKPIT_PUBLIC_BASE_URL: "https://example.invalid"
+});
+assert.equal(oauth?.resource, "https://example.invalid/mcp");
+
+assert.throws(
+  () =>
+    isAuthRequired({
+      TOKENPILOT_API_TOKEN: "one",
+      CHATCOCKPIT_API_TOKEN: "two"
+    }),
+  IdentityEnvConflictError
+);
 
 process.stdout.write("VERIFY_RENAME_ENV_COMPAT_OK\n");

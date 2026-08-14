@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 import { buildOAuthReadiness, type OAuthReadinessStatus } from "../auth/oauth-readiness.js";
 import { buildHealthStatusSnapshot } from "./gpt-config.js";
+import { readIdentityEnv } from "./identity-env.js";
 import { listJobs } from "./jobs.js";
 import type { TokenPilotPaths } from "../types.js";
 
@@ -32,7 +33,7 @@ function envFilePath(paths: TokenPilotPaths): string {
 }
 
 function hasTokenConfigured(): boolean {
-  return Boolean(process.env.TOKENPILOT_API_TOKEN?.trim());
+  return Boolean(readIdentityEnv("API_TOKEN"));
 }
 
 export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {

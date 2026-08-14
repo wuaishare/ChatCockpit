@@ -5,14 +5,15 @@ import crypto from "node:crypto";
 import { buildBundleManifest } from "./manifest.js";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { timestampSlug } from "./files.js";
+import { readIdentityEnv } from "./identity-env.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { writeRepoBundleXml } from "./repo-bundle.js";
 import type { RepoBundleManifest, TokenPilotPaths } from "../types.js";
 
 function readBundleHistoryLimit(): number | null {
   const raw =
-    process.env.TOKENPILOT_BUNDLE_HISTORY_LIMIT?.trim() ||
-    process.env.TOKENPILOT_REPOMIX_HISTORY_LIMIT?.trim();
+    readIdentityEnv("BUNDLE_HISTORY_LIMIT") ??
+    readIdentityEnv("REPOMIX_HISTORY_LIMIT");
   if (!raw) {
     return null;
   }

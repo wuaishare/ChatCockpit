@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
+import { readIdentityEnv } from "../core/identity-env.js";
 import { runDoctor } from "../core/doctor.js";
 import { initLocalRuntime } from "../core/setup.js";
 import { runPack } from "../core/pack.js";
@@ -52,7 +53,7 @@ function redactForHumanOutput(value: string, repoRoot: string): string {
     [repoRoot, "<repo-root>"],
     [process.env.HOME, "~"],
     [process.env.USER, "<local-user>"],
-    [process.env.TOKENPILOT_API_TOKEN, "<redacted-token>"]
+    [readIdentityEnv("API_TOKEN"), "<redacted-token>"]
   ];
   for (const [from, to] of replacements) {
     if (from) {
@@ -248,8 +249,8 @@ async function main(): Promise<void> {
     }
     case "server": {
       const app = buildServer(paths);
-      const port = Number(process.env.TOKENPILOT_PORT || "4318");
-      const host = process.env.TOKENPILOT_HOST || "127.0.0.1";
+      const port = Number(readIdentityEnv("PORT") ?? "4318");
+      const host = readIdentityEnv("HOST") ?? "127.0.0.1";
       await app.listen({ host, port });
       return;
     }

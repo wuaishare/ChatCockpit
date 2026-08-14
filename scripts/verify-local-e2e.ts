@@ -282,7 +282,7 @@ async function runE2E(): Promise<void> {
   assert.notEqual(failClosed.code, 0);
   assert.match(
     `${failClosed.stdout}${failClosed.stderr}`,
-    /TOKENPILOT_EXPOSED=true requires TOKENPILOT_API_TOKEN/
+    /Exposed mode requires a configured API token/
   );
 
   const noUiRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-e2e-no-ui-"));

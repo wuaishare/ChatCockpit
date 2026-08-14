@@ -10,6 +10,7 @@ import type {
 } from "../types.js";
 import { buildRepoGovernance } from "./config.js";
 import { buildSourceDistributionContext } from "./distribution-context.js";
+import { readIdentityEnv } from "./identity-env.js";
 
 export interface TokenPilotGptConfig {
   version: string;
@@ -75,7 +76,7 @@ function resolveLocalTimeZone(): string {
 }
 
 function resolvePublicBaseUrl(): string | null {
-  return process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim() || null;
+  return readIdentityEnv("PUBLIC_BASE_URL") ?? null;
 }
 
 function resolveActionHost(publicBaseUrl: string | null): string {
@@ -92,12 +93,12 @@ function resolveActionHost(publicBaseUrl: string | null): string {
 
 export function buildHealthStatusSnapshot(): TokenPilotHealthStatus {
   const publicBaseUrl = resolvePublicBaseUrl();
+  const exposed = /^(1|true|yes|on)$/i.test(readIdentityEnv("EXPOSED") ?? "");
   return {
     ok: true,
     mode: "phase2-dual-mode",
-    authRequired: /^(1|true|yes|on)$/i.test(process.env.TOKENPILOT_EXPOSED?.trim() || "") ||
-      Boolean(process.env.TOKENPILOT_API_TOKEN?.trim()),
-    exposed: /^(1|true|yes|on)$/i.test(process.env.TOKENPILOT_EXPOSED?.trim() || ""),
+    authRequired: exposed || Boolean(readIdentityEnv("API_TOKEN")),
+    exposed,
     publicBaseUrl,
     openapiUrl: publicBaseUrl
       ? `${publicBaseUrl.replace(/\/+$/, "")}/openapi.yaml`
@@ -267,7 +268,7 @@ export function buildGptInstructions(
 
 export function buildGptConfig(
   locale: "zh-CN" | "en-US" = "zh-CN",
-  repoRoot = process.env.TOKENPILOT_REPO_ROOT?.trim() || process.cwd(),
+  repoRoot = readIdentityEnv("REPO_ROOT") ?? process.cwd(),
   distributionContext: TokenPilotDistributionContext = buildSourceDistributionContext(repoRoot)
 ): TokenPilotGptConfig {
   // Use last git commit date so config metadata stays stable between commits.

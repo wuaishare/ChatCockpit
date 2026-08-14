@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { readIdentityEnv } from "./identity-env.js";
+
 export type CommandEffect = "read" | "write";
 
 export interface CommandPolicyDecision {
@@ -59,10 +61,8 @@ function assertHighTrustCommandAllowed(command: string): void {
   if (!HIGH_TRUST_COMMANDS.has(command)) {
     return;
   }
-  const exposed = envFlagEnabled(process.env.TOKENPILOT_EXPOSED);
-  const explicitlyAllowed = envFlagEnabled(
-    process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS
-  );
+  const exposed = envFlagEnabled(readIdentityEnv("EXPOSED"));
+  const explicitlyAllowed = envFlagEnabled(readIdentityEnv("ALLOW_HIGH_TRUST_COMMANDS"));
   if (exposed && !explicitlyAllowed) {
     throw new Error(
       `High-trust command ${command} is blocked in exposed mode. ` +

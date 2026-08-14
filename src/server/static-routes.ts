@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
+import { readIdentityEnv } from "../core/identity-env.js";
 import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
 import type { TokenPilotPaths } from "../types.js";
 import { sendApiError } from "./errors.js";
@@ -25,7 +26,7 @@ function uiAssetContentType(filePath: string): string {
 }
 
 function resolveOpenApiServerUrl(request: FastifyRequest): string {
-  const configured = process.env.TOKENPILOT_PUBLIC_BASE_URL?.trim();
+  const configured = readIdentityEnv("PUBLIC_BASE_URL");
   if (configured) {
     return configured.replace(/\/+$/, "");
   }

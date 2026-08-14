@@ -1,10 +1,8 @@
 import fs from "node:fs";
 
 import type { TokenPilotPaths } from "../types.js";
-import {
-  resolveOAuthPublicConfig,
-  type EnvLike
-} from "./oauth-config.js";
+import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
+import { resolveOAuthPublicConfig } from "./oauth-config.js";
 
 export type OAuthReadinessStatus = "disabled" | "ready" | "needs-attention";
 
@@ -34,7 +32,7 @@ export function buildOAuthReadiness(
   paths: TokenPilotPaths,
   env: EnvLike = process.env
 ): OAuthReadiness {
-  const exposed = readEnvFlag(env.TOKENPILOT_EXPOSED);
+  const exposed = readEnvFlag(readIdentityEnv("EXPOSED", env));
   if (!exposed) {
     return {
       status: "disabled",
@@ -46,7 +44,7 @@ export function buildOAuthReadiness(
     };
   }
 
-  if (!env.TOKENPILOT_API_TOKEN?.trim()) {
+  if (!readIdentityEnv("API_TOKEN", env)) {
     return {
       status: "needs-attention",
       ready: false,

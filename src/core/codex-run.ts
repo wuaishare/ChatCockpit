@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
+import { readIdentityEnv } from "./identity-env.js";
 import { timestampSlug, writeJson, writeText } from "./files.js";
 import {
   hasStagedPublicUnsafeChanges,
@@ -50,7 +51,7 @@ function effectiveSandbox(payload: CodexRunJobPayload): "read-only" | "workspace
 
 function codexBaseArgs(): string[] {
   const args = ["--ignore-user-config"];
-  const configuredModel = process.env.TOKENPILOT_CODEX_MODEL?.trim() || "gpt-5.4";
+  const configuredModel = readIdentityEnv("CODEX_MODEL") ?? "gpt-5.4";
   if (configuredModel) {
     args.push("--model", configuredModel);
   }
@@ -257,7 +258,7 @@ async function runCodexExec(
   prompt: string,
   codexCommand: string | null
 ): Promise<CapturedProcessResult> {
-  if (process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock") {
+  if (readIdentityEnv("CODEX_RUNNER_MODE") === "mock") {
     const markerPath = path.join(target.executionRoot, "tokenpilot-mock-codex-run.txt");
     if (executionMode(payload) === "develop") {
       fs.appendFileSync(markerPath, `\nmock codex run for ${payload.title}\n`, "utf8");
@@ -301,7 +302,7 @@ async function runCodexReview(
   codexCommand: string | null
 ): Promise<CapturedProcessResult> {
   const instructions = "Review the current uncommitted changes. Focus on correctness, regressions, missing tests, and unsafe behavior. Keep findings concise.";
-  if (process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock") {
+  if (readIdentityEnv("CODEX_RUNNER_MODE") === "mock") {
     return {
       exitCode: 0,
       stdout: `Mock review completed for ${title}.\n`,
@@ -412,7 +413,7 @@ export async function runCodexRunJob(
 
   const mode = executionMode(payload);
   const codexCommand =
-    process.env.TOKENPILOT_CODEX_RUNNER_MODE === "mock"
+    readIdentityEnv("CODEX_RUNNER_MODE") === "mock"
       ? null
       : resolveCodexBinary().command;
   const execResult = mode === "review"

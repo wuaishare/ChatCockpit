@@ -1,6 +1,5 @@
+import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
 import { TOKENPILOT_MCP_SCOPE, TOKENPILOT_OFFLINE_SCOPE } from "./oauth-types.js";
-
-export type EnvLike = Record<string, string | undefined>;
 
 export interface OAuthPublicConfig {
   issuer: string;
@@ -25,7 +24,7 @@ function normalizeHost(value: string): string {
 export function resolveOAuthPublicConfig(
   env: EnvLike = process.env
 ): OAuthPublicConfig | null {
-  const raw = env.TOKENPILOT_PUBLIC_BASE_URL?.trim();
+  const raw = readIdentityEnv("PUBLIC_BASE_URL", env);
   if (!raw) return null;
 
   let parsed: URL;
@@ -50,7 +49,7 @@ export function resolveOAuthPublicConfig(
   }
 
   const issuer = parsed.origin;
-  const configuredHosts = (env.TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS ?? "")
+  const configuredHosts = (readIdentityEnv("OAUTH_ALLOWED_REDIRECT_HOSTS", env) ?? "")
     .split(",")
     .map(normalizeHost)
     .filter(Boolean);
