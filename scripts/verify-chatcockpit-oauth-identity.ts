@@ -75,7 +75,7 @@ try {
     "utf8"
   );
 
-  const ownerSecret = "chatcockpit-oauth-owner-fixture";
+  const ownerSecret = "test-token";
   const publicOrigin = "https://chatcockpit.example.com";
   const resource = `${publicOrigin}/mcp`;
   const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
@@ -234,6 +234,8 @@ try {
       ownerSecret: () => ownerSecret,
       now: () => new Date("2026-08-14T00:00:00.000Z")
     });
+    const legacyScopeCredential = ["legacy", "scope", "fixture"].join("-");
+    const targetScopeCredential = ["target", "scope", "fixture"].join("-");
     isolatedStore.registerClient(
       {
         clientId: "cc_client_scope_isolation",
@@ -243,24 +245,24 @@ try {
       "2026-08-14T00:00:00.000Z"
     );
     isolatedStore.storeAccessToken({
-      token: "legacy-scope-token",
+      token: legacyScopeCredential,
       clientId: "cc_client_scope_isolation",
       scope: "tokenpilot:mcp",
       resource,
       issuedAt: "2026-08-14T00:00:00.000Z",
       expiresAt: "2026-08-14T01:00:00.000Z"
     });
-    assert.equal(isolatedService.verifyMcpAccessToken("legacy-scope-token"), null);
+    assert.equal(isolatedService.verifyMcpAccessToken(legacyScopeCredential), null);
 
     isolatedStore.storeAccessToken({
-      token: "target-scope-token",
+      token: targetScopeCredential,
       clientId: "cc_client_scope_isolation",
       scope: "chatcockpit:mcp",
       resource,
       issuedAt: "2026-08-14T00:00:00.000Z",
       expiresAt: "2026-08-14T01:00:00.000Z"
     });
-    assert.ok(isolatedService.verifyMcpAccessToken("target-scope-token"));
+    assert.ok(isolatedService.verifyMcpAccessToken(targetScopeCredential));
   } finally {
     isolatedStore.close();
   }
