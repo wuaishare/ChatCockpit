@@ -16,6 +16,7 @@ export function projectOpenApiForProduct(
 
   projected = projected
     .replaceAll("TokenPilot", identity.displayName)
+    .replaceAll("TOKENPILOT_", `${identity.envPrefix}_`)
     .replaceAll("tokenpilot-direct", identity.builtInDirectExecutorId)
     .replaceAll("tokenpilot-runner", identity.asyncRunnerRuntimeKind)
     .replaceAll("tokenpilot-local", identity.localResourceSourceKind)

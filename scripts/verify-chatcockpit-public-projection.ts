@@ -76,13 +76,15 @@ try {
     assert.deepEqual(openApiPaths(targetOpenApi), openApiPaths(currentOpenApi));
     assert.match(targetOpenApi, /^  title: ChatCockpit Local Control Plane API$/m);
     assert.match(targetOpenApi, /^  - url: https:\/\/chatcockpit\.example\.com$/m);
-    assert.doesNotMatch(targetOpenApi, /TokenPilot/);
+    assert.doesNotMatch(targetOpenApi, /TokenPilot|TOKENPILOT_/);
     assert.doesNotMatch(targetOpenApi, /tokenpilot-direct|tokenpilot-runner|tokenpilot-local/);
     assert.doesNotMatch(targetOpenApi, /default: tokenpilot|Defaults to tokenpilot/);
     assert.match(targetOpenApi, /builtin-direct/);
     assert.match(targetOpenApi, /async-runner/);
     assert.match(targetOpenApi, /control-plane-local/);
     assert.match(targetOpenApi, /default: primary/);
+    assert.match(targetOpenApi, /CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true/);
+    assert.match(targetOpenApi, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true/);
     assert.doesNotMatch(targetOpenApi, /\/chatcockpit\/(?:api|mcp)/);
 
     const gptConfig = await app.inject({ method: "GET", url: "/api/gpt/config" });
