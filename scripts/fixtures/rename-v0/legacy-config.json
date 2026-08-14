@@ -1,0 +1,8 @@
+{
+  "workspaceAllowlist": ["__WORKSPACE__"],
+  "repoMappings": {
+    "tokenpilot": {
+      "path": "__WORKSPACE__"
+    }
+  }
+}

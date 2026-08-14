@@ -36,6 +36,8 @@
     "verify:rename-env-compat": "tsx scripts/verify-rename-env-compat.ts",
     "verify:rename-config-migration": "tsx scripts/verify-rename-config-migration.ts",
     "verify:rename-state-machine": "tsx scripts/verify-rename-state-machine.ts",
+    "verify:rename-migration-preview": "tsx scripts/verify-rename-migration-preview.ts",
+    "verify:rename-foundation": "npm run verify:rename-env-compat && npm run verify:rename-config-migration && npm run verify:rename-state-machine && npm run verify:rename-migration-preview",
     "verify:packaged-doctor": "tsx scripts/verify-packaged-doctor.ts",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
     "verify:runtime-manifest": "tsx scripts/verify-runtime-manifest.ts",

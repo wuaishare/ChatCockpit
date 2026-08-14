@@ -1,0 +1,7 @@
+{
+  "labels": [
+    "com.wuaishare.tokenpilot.control-plane",
+    "com.wuaishare.tokenpilot.runner",
+    "com.wuaishare.tokenpilot.process-supervisor"
+  ]
+}
