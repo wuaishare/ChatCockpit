@@ -57,7 +57,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Text("Update checks are explicit and read public release metadata only. TokenPilot never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution.")
+                Text("Update checks are explicit and read public release metadata only. \(ProductIdentity.current.displayName) never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +85,7 @@ struct SettingsView: View {
                         .disabled(model.selectedWorkspaceURL == nil)
                     }
 
-                    Text("The packaged TokenPilot runtime and Application Support state remain separate from the selected project workspace.")
+                    Text("The packaged \(ProductIdentity.current.displayName) runtime and Application Support state remain separate from the selected project workspace.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -144,7 +144,7 @@ struct SettingsView: View {
                     )
                 }
 
-                Button("Open TokenPilot") {
+                Button("Open \(ProductIdentity.current.displayName)") {
                     model.openCockpit()
                 }
                 .disabled(model.snapshot.cockpitURL == nil)
@@ -157,7 +157,7 @@ struct SettingsView: View {
                 LabeledContent("API token") {
                     Text(model.snapshot.configuration.apiTokenConfigured ? "Configured" : "Not configured")
                 }
-                Text("Token values are never displayed by the desktop shell. Remote MCP, OAuth, approvals, and mutation policy remain owned by the existing TokenPilot control plane.")
+                Text("Token values are never displayed by the desktop shell. Remote MCP, OAuth, approvals, and mutation policy remain owned by the existing \(ProductIdentity.current.displayName) control plane.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -168,7 +168,7 @@ struct SettingsView: View {
                     Label(conflict.message, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("TokenPilot will not stop, restart, replace, or take over the existing runtime automatically. Resolve it explicitly in its current mode, then refresh Packaged Mode.")
+                    Text("\(ProductIdentity.current.displayName) will not stop, restart, replace, or take over the existing runtime automatically. Resolve it explicitly in its current mode, then refresh Packaged Mode.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

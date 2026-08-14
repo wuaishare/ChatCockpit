@@ -18,40 +18,50 @@ public struct LifecycleExecutionContext: Equatable, Sendable {
     public let primaryWorkspaceURL: URL
     public let nodeExecutableURL: URL?
     public let distributionMode: DistributionMode
+    public let productIdentity: ProductIdentity
 
     public init(
         installRootURL: URL,
         stateRootURL: URL,
         primaryWorkspaceURL: URL,
         nodeExecutableURL: URL?,
-        distributionMode: DistributionMode
+        distributionMode: DistributionMode,
+        productIdentity: ProductIdentity = .current
     ) {
         self.installRootURL = installRootURL.standardizedFileURL
         self.stateRootURL = stateRootURL.standardizedFileURL
         self.primaryWorkspaceURL = primaryWorkspaceURL.standardizedFileURL
         self.nodeExecutableURL = nodeExecutableURL?.standardizedFileURL
         self.distributionMode = distributionMode
+        self.productIdentity = productIdentity
     }
 
-    public static func source(root: TokenPilotRoot) -> LifecycleExecutionContext {
+    public static func source(
+        root: TokenPilotRoot,
+        productIdentity: ProductIdentity = .current
+    ) -> LifecycleExecutionContext {
         LifecycleExecutionContext(
             installRootURL: root.url,
-            stateRootURL: root.url.appendingPathComponent(".tokenpilot", isDirectory: true),
+            stateRootURL: root.url.appendingPathComponent(
+                productIdentity.stateDirectoryName,
+                isDirectory: true
+            ),
             primaryWorkspaceURL: root.url,
             nodeExecutableURL: nil,
-            distributionMode: .source
+            distributionMode: .source,
+            productIdentity: productIdentity
         )
     }
 
     public var environment: [String: String] {
         var values = [
-            "TOKENPILOT_INSTALL_ROOT": installRootURL.path,
-            "TOKENPILOT_STATE_ROOT": stateRootURL.path,
-            "TOKENPILOT_PRIMARY_WORKSPACE_ROOT": primaryWorkspaceURL.path,
-            "TOKENPILOT_DISTRIBUTION_MODE": distributionMode.rawValue
+            productIdentity.environmentName("INSTALL_ROOT"): installRootURL.path,
+            productIdentity.environmentName("STATE_ROOT"): stateRootURL.path,
+            productIdentity.environmentName("PRIMARY_WORKSPACE_ROOT"): primaryWorkspaceURL.path,
+            productIdentity.environmentName("DISTRIBUTION_MODE"): distributionMode.rawValue
         ]
         if let nodeExecutableURL {
-            values["TOKENPILOT_NODE_BIN"] = nodeExecutableURL.path
+            values[productIdentity.environmentName("NODE_BIN")] = nodeExecutableURL.path
         }
         return values
     }
@@ -203,7 +213,9 @@ public struct LifecycleClient: Sendable {
             throw LifecycleClientError(
                 action: action,
                 exitCode: result.exitCode,
-                message: message.isEmpty ? "TokenPilot lifecycle action failed." : message
+                message: message.isEmpty
+                    ? "\(context.productIdentity.displayName) lifecycle action failed."
+                    : message
             )
         }
         return LifecycleStatusParser.parse(combinedOutput(result))
@@ -219,7 +231,11 @@ public struct LifecycleClient: Sendable {
         let timeout: TimeInterval = action == .status ? 8 : 90
         return try await runner.run(
             executableURL: executableURL,
-            arguments: [action.rawValue],
+            arguments: [
+                action.rawValue,
+                "--product-identity",
+                context.productIdentity.key
+            ],
             currentDirectoryURL: context.installRootURL,
             environment: context.environment,
             timeoutSeconds: timeout

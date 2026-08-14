@@ -14,14 +14,20 @@ public protocol LaunchAgentOwnershipInspecting: Sendable {
 
 public struct InstalledLaunchAgentOwnershipInspector: LaunchAgentOwnershipInspecting, Sendable {
     private let plistURL: URL
+    private let productIdentity: ProductIdentity
 
     public init(
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        serviceLabel: String = "com.wuaishare.tokenpilot.control-plane"
+        productIdentity: ProductIdentity = .current,
+        serviceLabel: String? = nil
     ) {
+        self.productIdentity = productIdentity
         self.plistURL = homeDirectoryURL
             .appendingPathComponent("Library/LaunchAgents", isDirectory: true)
-            .appendingPathComponent("\(serviceLabel).plist", isDirectory: false)
+            .appendingPathComponent(
+                "\(serviceLabel ?? productIdentity.controlPlaneServiceLabel).plist",
+                isDirectory: false
+            )
     }
 
     public func ownership(expectedInstallRootURL: URL) -> LaunchAgentRuntimeOwnership {
@@ -39,9 +45,9 @@ public struct InstalledLaunchAgentOwnershipInspector: LaunchAgentOwnershipInspec
             return .source
         }
 
-        let mode = (environment["TOKENPILOT_DISTRIBUTION_MODE"] as? String)?
+        let mode = (environment[productIdentity.environmentName("DISTRIBUTION_MODE")] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let installRoot = (environment["TOKENPILOT_INSTALL_ROOT"] as? String)?
+        let installRoot = (environment[productIdentity.environmentName("INSTALL_ROOT")] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         if mode == DistributionMode.packaged.rawValue {
@@ -147,19 +153,19 @@ public struct PackagedRuntimeConflictDetector: PackagedRuntimeConflictDetecting,
             return PackagedRuntimeConflict(
                 kind: .sourceRuntime,
                 port: configuration.port,
-                message: "A Developer Mode TokenPilot LaunchAgent already owns the local service labels. Stop it explicitly in Developer Mode before starting Packaged Mode."
+                message: "A Developer Mode \(context.productIdentity.displayName) LaunchAgent already owns the local service labels. Stop it explicitly in Developer Mode before starting Packaged Mode."
             )
         case .otherPackaged:
             return PackagedRuntimeConflict(
                 kind: .otherPackagedRuntime,
                 port: configuration.port,
-                message: "Another packaged TokenPilot runtime owns the local service labels. Stop that runtime explicitly before switching versions."
+                message: "Another packaged \(context.productIdentity.displayName) runtime owns the local service labels. Stop that runtime explicitly before switching versions."
             )
         case .unknown:
             return PackagedRuntimeConflict(
                 kind: .unknownLaunchAgentOwnership,
                 port: configuration.port,
-                message: "An existing TokenPilot LaunchAgent has unknown ownership. Review the installed local service before changing it."
+                message: "An existing \(context.productIdentity.displayName) LaunchAgent has unknown ownership. Review the installed local service before changing it."
             )
         case .samePackaged, .none:
             break
@@ -173,7 +179,7 @@ public struct PackagedRuntimeConflictDetector: PackagedRuntimeConflictDetecting,
             return PackagedRuntimeConflict(
                 kind: .portOccupied,
                 port: configuration.port,
-                message: "Port \(configuration.port) is already in use. Choose another port or stop the existing process explicitly; TokenPilot will not terminate it automatically."
+                message: "Port \(configuration.port) is already in use. Choose another port or stop the existing process explicitly; \(context.productIdentity.displayName) will not terminate it automatically."
             )
         }
 

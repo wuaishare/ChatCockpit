@@ -43,6 +43,7 @@
     "verify:chatcockpit-oauth-identity": "tsx scripts/verify-chatcockpit-oauth-identity.ts",
     "verify:chatcockpit-public-projection": "tsx scripts/verify-chatcockpit-public-projection.ts",
     "verify:chatcockpit-target-continuity": "tsx scripts/verify-chatcockpit-target-continuity.ts",
+    "verify:chatcockpit-macos-identity": "tsx scripts/verify-chatcockpit-macos-identity.ts",
     "verify:packaged-doctor": "tsx scripts/verify-packaged-doctor.ts",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
     "verify:runtime-manifest": "tsx scripts/verify-runtime-manifest.ts",

@@ -2,7 +2,11 @@ import process from "node:process";
 import path from "node:path";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
-import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
+import {
+  buildDistributionContextForProduct,
+  buildDistributionContextFromPaths
+} from "../core/distribution-context.js";
+import type { ProductIdentityKey } from "../types.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { runDoctor } from "../core/doctor.js";
 import { initLocalRuntime } from "../core/setup.js";
@@ -41,6 +45,13 @@ function getFlag(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   if (index === -1) return undefined;
   return process.argv[index + 1];
+}
+
+function productIdentityFromArgs(): ProductIdentityKey {
+  const value = getFlag("--product-identity");
+  if (value === undefined || value === "tokenpilot") return "tokenpilot";
+  if (value === "chatcockpit") return "chatcockpit";
+  throw new Error("--product-identity must be tokenpilot or chatcockpit");
 }
 
 function printJson(value: unknown): void {
@@ -125,7 +136,8 @@ function printDoctorResult(result: ReturnType<typeof runDoctor>, repoRoot: strin
 
 async function main(): Promise<void> {
   const command = process.argv[2];
-  const paths = buildPaths();
+  const productIdentity = productIdentityFromArgs();
+  const paths = buildPaths(buildDistributionContextForProduct(productIdentity));
   if (command !== "doctor") {
     ensureWorkspaceDirs(paths);
   }

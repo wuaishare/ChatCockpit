@@ -138,6 +138,15 @@ jobs:
       - name: Build unsigned native desktop app
         run: npm run build:macos-desktop -- --arch "$NATIVE_RUNTIME_ARCH"
 
+      - name: Verify ChatCockpit macOS target identity contract
+        run: npm run verify:chatcockpit-macos-identity
+
+      - name: Build explicit ChatCockpit Xcode target app
+        run: npm run build:macos-xcode -- --arch "$NATIVE_RUNTIME_ARCH" --product-identity chatcockpit
+
+      - name: Verify built ChatCockpit target app
+        run: CHATCOCKPIT_MACOS_APP_DIR="dist/macos-xcode/chatcockpit/$NATIVE_RUNTIME_ARCH/ChatCockpit.app" npm run verify:chatcockpit-macos-identity
+
       - name: Build unsigned native distribution archive
         run: npm run build:macos-distribution -- --arch "$NATIVE_RUNTIME_ARCH" --version 0.1.0 --build "$GITHUB_RUN_NUMBER"
 

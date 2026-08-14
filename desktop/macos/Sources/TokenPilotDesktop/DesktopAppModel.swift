@@ -95,7 +95,7 @@ final class DesktopAppModel: ObservableObject {
         }
 
         if bundlePayloadURL != nil, decodedManifest == nil {
-            lastUserMessage = "The bundled TokenPilot runtime manifest is invalid for this Mac. Rebuild or replace the app before starting services."
+            lastUserMessage = "The bundled \(ProductIdentity.current.displayName) runtime manifest is invalid for this Mac. Rebuild or replace the app before starting services."
         }
 
         Task { [weak self] in
@@ -171,11 +171,13 @@ final class DesktopAppModel: ObservableObject {
     }
 
     var stateLocationText: String {
-        distributionMode == .packaged ? "Application Support / TokenPilot" : "Project .tokenpilot"
+        distributionMode == .packaged
+            ? "Application Support / \(ProductIdentity.current.applicationSupportName)"
+            : "Project \(ProductIdentity.current.stateDirectoryName)"
     }
 
     var setupActionTitle: String {
-        distributionMode == .packaged ? "Choose Workspace…" : "Choose TokenPilot Folder…"
+        distributionMode == .packaged ? "Choose Workspace…" : "Choose \(ProductIdentity.current.displayName) Folder…"
     }
 
     var runtimeControlAllowed: Bool {
@@ -210,7 +212,7 @@ final class DesktopAppModel: ObservableObject {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
-            lastUserMessage = "Choose an existing project folder for the TokenPilot workspace."
+            lastUserMessage = "Choose an existing project folder for the \(ProductIdentity.current.displayName) workspace."
             return
         }
 
@@ -225,7 +227,7 @@ final class DesktopAppModel: ObservableObject {
     func chooseWorkspaceFromPanel() {
         let panel = NSOpenPanel()
         panel.title = "Choose Workspace"
-        panel.message = "Select the project folder TokenPilot should operate on. The packaged runtime remains separate from this workspace."
+        panel.message = "Select the project folder \(ProductIdentity.current.displayName) should operate on. The packaged runtime remains separate from this workspace."
         panel.prompt = "Choose Workspace"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -248,14 +250,14 @@ final class DesktopAppModel: ObservableObject {
             lastUserMessage = nil
             snapshot = await runtimeController.snapshot(context: .source(root: root))
         } catch {
-            lastUserMessage = "The selected folder is not a valid TokenPilot source or built checkout."
+            lastUserMessage = "The selected folder is not a valid \(ProductIdentity.current.displayName) source or built checkout."
         }
     }
 
     func chooseRootFromPanel() {
         let panel = NSOpenPanel()
-        panel.title = "Choose TokenPilot Source Folder"
-        panel.message = "Developer Mode uses an existing TokenPilot source or built checkout with the system Node runtime."
+        panel.title = "Choose \(ProductIdentity.current.displayName) Source Folder"
+        panel.message = "Developer Mode uses an existing \(ProductIdentity.current.displayName) source or built checkout with the system Node runtime."
         panel.prompt = "Choose Source"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -328,7 +330,7 @@ final class DesktopAppModel: ObservableObject {
 
     func usePackagedMode() async {
         guard packagedModeAvailable else {
-            lastUserMessage = "This app build does not contain a valid packaged TokenPilot runtime."
+            lastUserMessage = "This app build does not contain a valid packaged \(ProductIdentity.current.displayName) runtime."
             return
         }
         distributionMode = .packaged
@@ -380,7 +382,7 @@ final class DesktopAppModel: ObservableObject {
 
     func openCockpit() {
         guard let url = snapshot.cockpitURL else {
-            lastUserMessage = "TokenPilot Cockpit is not reachable. Start or repair the local services first."
+            lastUserMessage = "\(ProductIdentity.current.displayName) Cockpit is not reachable. Start or repair the local services first."
             return
         }
         NSWorkspace.shared.open(url)
@@ -413,8 +415,8 @@ final class DesktopAppModel: ObservableObject {
                 snapshot = .setupRequired
                 runtimeConflict = nil
                 lastUserMessage = distributionMode == .packaged
-                    ? "Choose a workspace before controlling packaged TokenPilot services."
-                    : "Choose a valid TokenPilot source folder before controlling services."
+                    ? "Choose a workspace before controlling packaged \(ProductIdentity.current.displayName) services."
+                    : "Choose a valid \(ProductIdentity.current.displayName) source folder before controlling services."
                 return
             }
 
@@ -446,7 +448,7 @@ final class DesktopAppModel: ObservableObject {
             } else {
                 snapshot = .setupRequired
             }
-            lastUserMessage = "The TokenPilot service action did not complete. Check local runtime diagnostics and retry."
+            lastUserMessage = "The \(ProductIdentity.current.displayName) service action did not complete. Check local runtime diagnostics and retry."
         }
     }
 
@@ -502,7 +504,7 @@ final class DesktopAppModel: ObservableObject {
         } catch {
             rootPreferenceStore.saveRootURL(nil)
             self.selectedRootURL = nil
-            lastUserMessage = "The saved TokenPilot source folder is no longer valid. Choose it again."
+            lastUserMessage = "The saved \(ProductIdentity.current.displayName) source folder is no longer valid. Choose it again."
             return nil
         }
     }
@@ -534,9 +536,9 @@ final class DesktopAppModel: ObservableObject {
 
     private func userMessage(for error: Error) -> String {
         if error is PackagedRuntimeDeploymentError {
-            return "The packaged TokenPilot runtime could not be verified or deployed. The previous active runtime was kept unchanged."
+            return "The packaged \(ProductIdentity.current.displayName) runtime could not be verified or deployed. The previous active runtime was kept unchanged."
         }
-        return "TokenPilot setup could not be completed. Review the local runtime details and retry."
+        return "\(ProductIdentity.current.displayName) setup could not be completed. Review the local runtime details and retry."
     }
 }
 

@@ -1,16 +1,54 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# macOS-only helper for keeping the local TokenPilot control plane alive with launchctl.
+# macOS-only helper for keeping the local control plane alive with launchctl.
 # Linux and Windows users should use an equivalent supervisor such as systemd, pm2, nohup, or Task Scheduler.
 
 ACTION="${1:-}"
+PRODUCT_IDENTITY="tokenpilot"
+if [[ "${2:-}" == "--product-identity" ]]; then
+  PRODUCT_IDENTITY="${3:-}"
+elif [[ -n "${2:-}" ]]; then
+  echo "Unknown argument: ${2}" >&2
+  exit 2
+fi
+
+case "${PRODUCT_IDENTITY}" in
+  tokenpilot)
+    DISPLAY_NAME="TokenPilot"
+    ENV_PREFIX="TOKENPILOT"
+    STATE_DIR_NAME=".tokenpilot"
+    SERVICE_PREFIX="com.wuaishare.tokenpilot"
+    ;;
+  chatcockpit)
+    DISPLAY_NAME="ChatCockpit"
+    ENV_PREFIX="CHATCOCKPIT"
+    STATE_DIR_NAME=".chatcockpit"
+    SERVICE_PREFIX="com.wuaishare.chatcockpit"
+    ;;
+  *)
+    echo "Unsupported product identity: ${PRODUCT_IDENTITY}" >&2
+    exit 2
+    ;;
+esac
+
+identity_env_value() {
+  local suffix="$1"
+  local variable_name="${ENV_PREFIX}_${suffix}"
+  printf '%s' "${!variable_name:-}"
+}
+
 SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-INSTALL_ROOT="${TOKENPILOT_INSTALL_ROOT:-${SCRIPT_ROOT}}"
-STATE_ROOT="${TOKENPILOT_STATE_ROOT:-${INSTALL_ROOT}/.tokenpilot}"
-PRIMARY_WORKSPACE_ROOT="${TOKENPILOT_PRIMARY_WORKSPACE_ROOT:-${INSTALL_ROOT}}"
-NODE_BIN="${TOKENPILOT_NODE_BIN:-$(command -v node)}"
-DISTRIBUTION_MODE="${TOKENPILOT_DISTRIBUTION_MODE:-source}"
+INSTALL_ROOT="$(identity_env_value INSTALL_ROOT)"
+INSTALL_ROOT="${INSTALL_ROOT:-${SCRIPT_ROOT}}"
+STATE_ROOT="$(identity_env_value STATE_ROOT)"
+STATE_ROOT="${STATE_ROOT:-${INSTALL_ROOT}/${STATE_DIR_NAME}}"
+PRIMARY_WORKSPACE_ROOT="$(identity_env_value PRIMARY_WORKSPACE_ROOT)"
+PRIMARY_WORKSPACE_ROOT="${PRIMARY_WORKSPACE_ROOT:-${INSTALL_ROOT}}"
+NODE_BIN="$(identity_env_value NODE_BIN)"
+NODE_BIN="${NODE_BIN:-$(command -v node)}"
+DISTRIBUTION_MODE="$(identity_env_value DISTRIBUTION_MODE)"
+DISTRIBUTION_MODE="${DISTRIBUTION_MODE:-source}"
 RUNTIME_DIR="${STATE_ROOT}/runtime"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"
@@ -20,15 +58,15 @@ PROCESS_SUPERVISOR_PID_FILE="${RUNTIME_DIR}/process-supervisor.pid"
 PROCESS_SUPERVISOR_LOG_FILE="${RUNTIME_DIR}/process-supervisor.log"
 PROCESS_SUPERVISOR_STATUS_FILE="${RUNTIME_DIR}/process-supervisor-status.json"
 ENV_FILE="${RUNTIME_DIR}/server.env"
-PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.control-plane.plist"
-RUNNER_PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.runner.plist"
-PROCESS_SUPERVISOR_PLIST_FILE="${RUNTIME_DIR}/com.wuaishare.tokenpilot.process-supervisor.plist"
+SERVICE_LABEL="${SERVICE_PREFIX}.control-plane"
+RUNNER_SERVICE_LABEL="${SERVICE_PREFIX}.runner"
+PROCESS_SUPERVISOR_SERVICE_LABEL="${SERVICE_PREFIX}.process-supervisor"
+PLIST_FILE="${RUNTIME_DIR}/${SERVICE_LABEL}.plist"
+RUNNER_PLIST_FILE="${RUNTIME_DIR}/${RUNNER_SERVICE_LABEL}.plist"
+PROCESS_SUPERVISOR_PLIST_FILE="${RUNTIME_DIR}/${PROCESS_SUPERVISOR_SERVICE_LABEL}.plist"
 LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
-SERVICE_LABEL="com.wuaishare.tokenpilot.control-plane"
 INSTALLED_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${SERVICE_LABEL}.plist"
-RUNNER_SERVICE_LABEL="com.wuaishare.tokenpilot.runner"
 INSTALLED_RUNNER_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${RUNNER_SERVICE_LABEL}.plist"
-PROCESS_SUPERVISOR_SERVICE_LABEL="com.wuaishare.tokenpilot.process-supervisor"
 INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE="${LAUNCH_AGENTS_DIR}/${PROCESS_SUPERVISOR_SERVICE_LABEL}.plist"
 USER_DOMAIN="gui/$(id -u)"
 
@@ -41,11 +79,22 @@ if [[ -f "${ENV_FILE}" ]]; then
   set +a
 fi
 
-PORT="${TOKENPILOT_PORT:-4318}"
-RUNNER_INTERVAL="${TOKENPILOT_RUNNER_INTERVAL:-3}"
+PORT="$(identity_env_value PORT)"
+PORT="${PORT:-4318}"
+RUNNER_INTERVAL="$(identity_env_value RUNNER_INTERVAL)"
+RUNNER_INTERVAL="${RUNNER_INTERVAL:-3}"
+API_TOKEN="$(identity_env_value API_TOKEN)"
+EXPOSED="$(identity_env_value EXPOSED)"
+EXPOSED="${EXPOSED:-false}"
+HOST="$(identity_env_value HOST)"
+HOST="${HOST:-127.0.0.1}"
+PUBLIC_BASE_URL="$(identity_env_value PUBLIC_BASE_URL)"
+CODEX_BIN="$(identity_env_value CODEX_BIN)"
+CODEX_MODEL="$(identity_env_value CODEX_MODEL)"
+DIRECT_EXECUTORS_CONFIG_PATH="$(identity_env_value DIRECT_EXECUTORS_CONFIG_PATH)"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|reset|uninstall}"
+  echo "Usage: $0 {start|stop|restart|status|reset|uninstall} [--product-identity {tokenpilot|chatcockpit}]"
 }
 
 ensure_launch_agents_dir() {
@@ -72,29 +121,29 @@ write_server_plist() {
   <string>${LOG_FILE}</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>TOKENPILOT_API_TOKEN</key>
-    <string>${TOKENPILOT_API_TOKEN:-}</string>
-    <key>TOKENPILOT_EXPOSED</key>
-    <string>${TOKENPILOT_EXPOSED:-false}</string>
-    <key>TOKENPILOT_HOST</key>
-    <string>${TOKENPILOT_HOST:-127.0.0.1}</string>
-    <key>TOKENPILOT_PORT</key>
+    <key>${ENV_PREFIX}_API_TOKEN</key>
+    <string>${API_TOKEN}</string>
+    <key>${ENV_PREFIX}_EXPOSED</key>
+    <string>${EXPOSED}</string>
+    <key>${ENV_PREFIX}_HOST</key>
+    <string>${HOST}</string>
+    <key>${ENV_PREFIX}_PORT</key>
     <string>${PORT}</string>
-    <key>TOKENPILOT_PUBLIC_BASE_URL</key>
-    <string>${TOKENPILOT_PUBLIC_BASE_URL:-}</string>
-    <key>TOKENPILOT_CODEX_BIN</key>
-    <string>${TOKENPILOT_CODEX_BIN:-}</string>
-    <key>TOKENPILOT_CODEX_MODEL</key>
-    <string>${TOKENPILOT_CODEX_MODEL:-}</string>
-    <key>TOKENPILOT_INSTALL_ROOT</key>
+    <key>${ENV_PREFIX}_PUBLIC_BASE_URL</key>
+    <string>${PUBLIC_BASE_URL}</string>
+    <key>${ENV_PREFIX}_CODEX_BIN</key>
+    <string>${CODEX_BIN}</string>
+    <key>${ENV_PREFIX}_CODEX_MODEL</key>
+    <string>${CODEX_MODEL}</string>
+    <key>${ENV_PREFIX}_INSTALL_ROOT</key>
     <string>${INSTALL_ROOT}</string>
-    <key>TOKENPILOT_STATE_ROOT</key>
+    <key>${ENV_PREFIX}_STATE_ROOT</key>
     <string>${STATE_ROOT}</string>
-    <key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT</key>
+    <key>${ENV_PREFIX}_PRIMARY_WORKSPACE_ROOT</key>
     <string>${PRIMARY_WORKSPACE_ROOT}</string>
-    <key>TOKENPILOT_NODE_BIN</key>
+    <key>${ENV_PREFIX}_NODE_BIN</key>
     <string>${NODE_BIN}</string>
-    <key>TOKENPILOT_DISTRIBUTION_MODE</key>
+    <key>${ENV_PREFIX}_DISTRIBUTION_MODE</key>
     <string>${DISTRIBUTION_MODE}</string>
   </dict>
   <key>ProgramArguments</key>
@@ -102,6 +151,8 @@ write_server_plist() {
     <string>${NODE_BIN}</string>
     <string>${INSTALL_ROOT}/dist/cli/index.js</string>
     <string>server</string>
+    <string>--product-identity</string>
+    <string>${PRODUCT_IDENTITY}</string>
   </array>
 </dict>
 </plist>
@@ -128,29 +179,29 @@ write_runner_plist() {
   <string>${RUNNER_LOG_FILE}</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>TOKENPILOT_API_TOKEN</key>
-    <string>${TOKENPILOT_API_TOKEN:-}</string>
-    <key>TOKENPILOT_EXPOSED</key>
-    <string>${TOKENPILOT_EXPOSED:-false}</string>
-    <key>TOKENPILOT_HOST</key>
-    <string>${TOKENPILOT_HOST:-127.0.0.1}</string>
-    <key>TOKENPILOT_PORT</key>
+    <key>${ENV_PREFIX}_API_TOKEN</key>
+    <string>${API_TOKEN}</string>
+    <key>${ENV_PREFIX}_EXPOSED</key>
+    <string>${EXPOSED}</string>
+    <key>${ENV_PREFIX}_HOST</key>
+    <string>${HOST}</string>
+    <key>${ENV_PREFIX}_PORT</key>
     <string>${PORT}</string>
-    <key>TOKENPILOT_PUBLIC_BASE_URL</key>
-    <string>${TOKENPILOT_PUBLIC_BASE_URL:-}</string>
-    <key>TOKENPILOT_CODEX_BIN</key>
-    <string>${TOKENPILOT_CODEX_BIN:-}</string>
-    <key>TOKENPILOT_CODEX_MODEL</key>
-    <string>${TOKENPILOT_CODEX_MODEL:-}</string>
-    <key>TOKENPILOT_INSTALL_ROOT</key>
+    <key>${ENV_PREFIX}_PUBLIC_BASE_URL</key>
+    <string>${PUBLIC_BASE_URL}</string>
+    <key>${ENV_PREFIX}_CODEX_BIN</key>
+    <string>${CODEX_BIN}</string>
+    <key>${ENV_PREFIX}_CODEX_MODEL</key>
+    <string>${CODEX_MODEL}</string>
+    <key>${ENV_PREFIX}_INSTALL_ROOT</key>
     <string>${INSTALL_ROOT}</string>
-    <key>TOKENPILOT_STATE_ROOT</key>
+    <key>${ENV_PREFIX}_STATE_ROOT</key>
     <string>${STATE_ROOT}</string>
-    <key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT</key>
+    <key>${ENV_PREFIX}_PRIMARY_WORKSPACE_ROOT</key>
     <string>${PRIMARY_WORKSPACE_ROOT}</string>
-    <key>TOKENPILOT_NODE_BIN</key>
+    <key>${ENV_PREFIX}_NODE_BIN</key>
     <string>${NODE_BIN}</string>
-    <key>TOKENPILOT_DISTRIBUTION_MODE</key>
+    <key>${ENV_PREFIX}_DISTRIBUTION_MODE</key>
     <string>${DISTRIBUTION_MODE}</string>
   </dict>
   <key>ProgramArguments</key>
@@ -161,6 +212,8 @@ write_runner_plist() {
     <string>--watch</string>
     <string>--interval</string>
     <string>${RUNNER_INTERVAL}</string>
+    <string>--product-identity</string>
+    <string>${PRODUCT_IDENTITY}</string>
   </array>
 </dict>
 </plist>
@@ -187,17 +240,17 @@ write_process_supervisor_plist() {
   <string>${PROCESS_SUPERVISOR_LOG_FILE}</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH</key>
-    <string>${TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH:-}</string>
-    <key>TOKENPILOT_INSTALL_ROOT</key>
+    <key>${ENV_PREFIX}_DIRECT_EXECUTORS_CONFIG_PATH</key>
+    <string>${DIRECT_EXECUTORS_CONFIG_PATH}</string>
+    <key>${ENV_PREFIX}_INSTALL_ROOT</key>
     <string>${INSTALL_ROOT}</string>
-    <key>TOKENPILOT_STATE_ROOT</key>
+    <key>${ENV_PREFIX}_STATE_ROOT</key>
     <string>${STATE_ROOT}</string>
-    <key>TOKENPILOT_PRIMARY_WORKSPACE_ROOT</key>
+    <key>${ENV_PREFIX}_PRIMARY_WORKSPACE_ROOT</key>
     <string>${PRIMARY_WORKSPACE_ROOT}</string>
-    <key>TOKENPILOT_NODE_BIN</key>
+    <key>${ENV_PREFIX}_NODE_BIN</key>
     <string>${NODE_BIN}</string>
-    <key>TOKENPILOT_DISTRIBUTION_MODE</key>
+    <key>${ENV_PREFIX}_DISTRIBUTION_MODE</key>
     <string>${DISTRIBUTION_MODE}</string>
   </dict>
   <key>ProgramArguments</key>
@@ -205,6 +258,8 @@ write_process_supervisor_plist() {
     <string>${NODE_BIN}</string>
     <string>${INSTALL_ROOT}/dist/cli/index.js</string>
     <string>process-supervisor</string>
+    <string>--product-identity</string>
+    <string>${PRODUCT_IDENTITY}</string>
   </array>
 </dict>
 </plist>
@@ -319,8 +374,8 @@ installed_runtime_ownership_matches() {
   [[ -f "${INSTALLED_PLIST_FILE}" ]] || return 1
   local installed_mode=""
   local installed_root=""
-  installed_mode="$(installed_plist_environment_value TOKENPILOT_DISTRIBUTION_MODE)"
-  installed_root="$(installed_plist_environment_value TOKENPILOT_INSTALL_ROOT)"
+  installed_mode="$(installed_plist_environment_value "${ENV_PREFIX}_DISTRIBUTION_MODE")"
+  installed_root="$(installed_plist_environment_value "${ENV_PREFIX}_INSTALL_ROOT")"
   [[ "${installed_mode}" == "packaged" ]] || return 1
   [[ -n "${installed_root}" ]] || return 1
   [[ "$(canonical_directory "${installed_root}")" == "$(canonical_directory "${INSTALL_ROOT}")" ]]
@@ -333,7 +388,7 @@ assert_packaged_runtime_ownership() {
     if installed_runtime_ownership_matches; then
       return 0
     fi
-    echo "Existing TokenPilot LaunchAgent belongs to another runtime; packaged mode will not take over it automatically. Stop it explicitly in its current mode first."
+    echo "Existing ${DISPLAY_NAME} LaunchAgent belongs to another runtime; packaged mode will not take over it automatically. Stop it explicitly in its current mode first."
     exit 3
   fi
 }
@@ -385,7 +440,7 @@ assert_port_available_or_tokenpilot() {
     return 0
   fi
 
-  echo "Port ${PORT} is already in use by PID ${port_pid}; stop that process or set TOKENPILOT_PORT before starting TokenPilot."
+  echo "Port ${PORT} is already in use by PID ${port_pid}; stop that process or set ${ENV_PREFIX}_PORT before starting ${DISPLAY_NAME}."
   exit 2
 }
 
@@ -507,7 +562,7 @@ case "${ACTION}" in
     if ! wait_for_listen 30 || ! wait_for_runner_registration 30; then
       cat "${LOG_FILE}" 2>/dev/null || true
       cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
-      echo "Failed to start TokenPilot control plane or runner"
+      echo "Failed to start ${DISPLAY_NAME} control plane or runner"
       exit 1
     fi
 
@@ -522,14 +577,14 @@ case "${ACTION}" in
 
     if ! wait_for_process_supervisor_ready 30; then
       cat "${PROCESS_SUPERVISOR_LOG_FILE}" 2>/dev/null || true
-      echo "Failed to start TokenPilot Process Supervisor"
+      echo "Failed to start ${DISPLAY_NAME} Process Supervisor"
       exit 1
     fi
 
     echo "control plane: running (pid $(cat "${PID_FILE}"))"
     echo "runner: registered"
     echo "process supervisor: ready (generation preserved across control-plane restart)"
-    echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+    echo "UI: http://${HOST}:${PORT}/ui"
     echo "next action: open the UI or run npm run doctor:runtime"
     ;;
   stop)
@@ -585,7 +640,7 @@ case "${ACTION}" in
       echo "control plane: running (pid $(cat "${PID_FILE}"))"
       echo "runner: registered"
       echo "process supervisor: ready (not restarted)"
-      echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+      echo "UI: http://${HOST}:${PORT}/ui"
       echo "next action: run npm run doctor:runtime"
       exit 0
     fi
@@ -593,7 +648,7 @@ case "${ACTION}" in
     cat "${LOG_FILE}" 2>/dev/null || true
     cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
     cat "${PROCESS_SUPERVISOR_LOG_FILE}" 2>/dev/null || true
-    echo "Failed to restart TokenPilot control plane without disturbing Process Supervisor"
+    echo "Failed to restart ${DISPLAY_NAME} control plane without disturbing Process Supervisor"
     exit 1
     ;;
   status)
@@ -615,7 +670,7 @@ case "${ACTION}" in
       fi
       echo "runner: ${runner_state}"
       echo "process supervisor: ${process_supervisor_state}"
-      echo "UI: http://${TOKENPILOT_HOST:-127.0.0.1}:${PORT}/ui"
+      echo "UI: http://${HOST}:${PORT}/ui"
       echo "next action: open UI or run npm run doctor:runtime"
       exit 0
     fi

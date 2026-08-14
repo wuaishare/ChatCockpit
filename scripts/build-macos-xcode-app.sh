@@ -5,16 +5,38 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT="${ROOT}/desktop/macos/TokenPilot.xcodeproj"
 SCHEME="TokenPilot"
 ARCH=""
+PRODUCT_IDENTITY="tokenpilot"
 
 usage() {
-  echo "Usage: $0 {arm64|x64} | --arch {arm64|x64}"
+  echo "Usage: $0 [{arm64|x64} | --arch {arm64|x64}] [--product-identity {tokenpilot|chatcockpit}]"
 }
 
-if [[ "${1:-}" == "--arch" ]]; then
-  ARCH="${2:-}"
-elif [[ -n "${1:-}" ]]; then
-  ARCH="$1"
-else
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --arch)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      ARCH="$2"
+      shift 2
+      ;;
+    --product-identity)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      PRODUCT_IDENTITY="$2"
+      shift 2
+      ;;
+    arm64|x64)
+      [[ -z "${ARCH}" ]] || { echo "Architecture specified more than once" >&2; exit 2; }
+      ARCH="$1"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "${ARCH}" ]]; then
   case "$(uname -m)" in
     arm64) ARCH="arm64" ;;
     x86_64) ARCH="x64" ;;
@@ -38,6 +60,27 @@ case "${ARCH}" in
     ;;
 esac
 
+case "${PRODUCT_IDENTITY}" in
+  tokenpilot)
+    DISPLAY_NAME="TokenPilot"
+    BUNDLE_IDENTIFIER="cn.wuaishare.TokenPilot"
+    FINAL_EXECUTABLE="TokenPilot"
+    DERIVED_DATA="${ROOT}/dist/xcode-derived/${ARCH}"
+    OUTPUT_ROOT="${ROOT}/dist/macos-xcode/${ARCH}"
+    ;;
+  chatcockpit)
+    DISPLAY_NAME="ChatCockpit"
+    BUNDLE_IDENTIFIER="cn.wuaishare.ChatCockpit"
+    FINAL_EXECUTABLE="ChatCockpit"
+    DERIVED_DATA="${ROOT}/dist/xcode-derived/chatcockpit/${ARCH}"
+    OUTPUT_ROOT="${ROOT}/dist/macos-xcode/chatcockpit/${ARCH}"
+    ;;
+  *)
+    echo "Unsupported product identity: ${PRODUCT_IDENTITY}" >&2
+    exit 2
+    ;;
+esac
+
 DEVELOPER_DIR_VALUE="$(xcode-select -p 2>/dev/null || true)"
 if [[ "${DEVELOPER_DIR_VALUE}" == "/Library/Developer/CommandLineTools" ]] || ! command -v xcodebuild >/dev/null 2>&1; then
   echo "FULL_XCODE_REQUIRED: install/select full Xcode before running the Xcode distribution build" >&2
@@ -49,10 +92,8 @@ if [[ ! -d "${PROJECT}" ]]; then
   exit 1
 fi
 
-DERIVED_DATA="${ROOT}/dist/xcode-derived/${ARCH}"
 BUILT_APP="${DERIVED_DATA}/Build/Products/Release/TokenPilot.app"
-OUTPUT_ROOT="${ROOT}/dist/macos-xcode/${ARCH}"
-OUTPUT_APP="${OUTPUT_ROOT}/TokenPilot.app"
+OUTPUT_APP="${OUTPUT_ROOT}/${DISPLAY_NAME}.app"
 RUNTIME_PAYLOAD="${ROOT}/dist/macos-runtime/${ARCH}/TokenPilotRuntime"
 EMBEDDED_RUNTIME="${OUTPUT_APP}/Contents/Resources/TokenPilotRuntime"
 
@@ -66,24 +107,38 @@ fi
 rm -rf "${DERIVED_DATA}" "${OUTPUT_ROOT}"
 mkdir -p "${OUTPUT_ROOT}"
 
-xcodebuild \
-  -project "${PROJECT}" \
-  -scheme "${SCHEME}" \
-  -configuration Release \
-  -destination "generic/platform=macOS" \
-  -derivedDataPath "${DERIVED_DATA}" \
-  ARCHS="${SWIFT_ARCH}" \
-  ONLY_ACTIVE_ARCH=YES \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  build
+XCODE_BUILD_ARGS=(
+  -project "${PROJECT}"
+  -scheme "${SCHEME}"
+  -configuration Release
+  -destination "generic/platform=macOS"
+  -derivedDataPath "${DERIVED_DATA}"
+  "ARCHS=${SWIFT_ARCH}"
+  ONLY_ACTIVE_ARCH=YES
+  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_REQUIRED=NO
+)
+if [[ "${PRODUCT_IDENTITY}" == "chatcockpit" ]]; then
+  XCODE_BUILD_ARGS+=("SWIFT_ACTIVE_COMPILATION_CONDITIONS=CHATCOCKPIT_TARGET")
+fi
+
+xcodebuild "${XCODE_BUILD_ARGS[@]}" build
 
 if [[ ! -d "${BUILT_APP}" ]] || [[ ! -x "${BUILT_APP}/Contents/MacOS/TokenPilot" ]]; then
-  echo "Missing Xcode-built TokenPilot.app at ${BUILT_APP}" >&2
+  echo "Missing Xcode-built TokenPilot implementation app at ${BUILT_APP}" >&2
   exit 1
 fi
 
 cp -R "${BUILT_APP}" "${OUTPUT_APP}"
+
+if [[ "${PRODUCT_IDENTITY}" == "chatcockpit" ]]; then
+  mv "${OUTPUT_APP}/Contents/MacOS/TokenPilot" "${OUTPUT_APP}/Contents/MacOS/${FINAL_EXECUTABLE}"
+  plutil -replace CFBundleDisplayName -string "${DISPLAY_NAME}" "${OUTPUT_APP}/Contents/Info.plist"
+  plutil -replace CFBundleExecutable -string "${FINAL_EXECUTABLE}" "${OUTPUT_APP}/Contents/Info.plist"
+  plutil -replace CFBundleIdentifier -string "${BUNDLE_IDENTIFIER}" "${OUTPUT_APP}/Contents/Info.plist"
+  plutil -replace CFBundleName -string "${DISPLAY_NAME}" "${OUTPUT_APP}/Contents/Info.plist"
+fi
+
 mkdir -p "${OUTPUT_APP}/Contents/Resources"
 rm -rf "${EMBEDDED_RUNTIME}"
 cp -R "${RUNTIME_PAYLOAD}" "${EMBEDDED_RUNTIME}"
@@ -91,7 +146,28 @@ cp -R "${RUNTIME_PAYLOAD}" "${EMBEDDED_RUNTIME}"
 TOKENPILOT_RUNTIME_PAYLOAD_DIR="${EMBEDDED_RUNTIME}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
 plutil -lint "${OUTPUT_APP}/Contents/Info.plist"
 
-APP_ARCH="$(file "${OUTPUT_APP}/Contents/MacOS/TokenPilot")"
+[[ "$(plutil -extract CFBundleDisplayName raw "${OUTPUT_APP}/Contents/Info.plist")" == "${DISPLAY_NAME}" ]] || {
+  echo "Unexpected CFBundleDisplayName for ${PRODUCT_IDENTITY}" >&2
+  exit 1
+}
+[[ "$(plutil -extract CFBundleName raw "${OUTPUT_APP}/Contents/Info.plist")" == "${DISPLAY_NAME}" ]] || {
+  echo "Unexpected CFBundleName for ${PRODUCT_IDENTITY}" >&2
+  exit 1
+}
+[[ "$(plutil -extract CFBundleIdentifier raw "${OUTPUT_APP}/Contents/Info.plist")" == "${BUNDLE_IDENTIFIER}" ]] || {
+  echo "Unexpected CFBundleIdentifier for ${PRODUCT_IDENTITY}" >&2
+  exit 1
+}
+[[ "$(plutil -extract CFBundleExecutable raw "${OUTPUT_APP}/Contents/Info.plist")" == "${FINAL_EXECUTABLE}" ]] || {
+  echo "Unexpected CFBundleExecutable for ${PRODUCT_IDENTITY}" >&2
+  exit 1
+}
+[[ -x "${OUTPUT_APP}/Contents/MacOS/${FINAL_EXECUTABLE}" ]] || {
+  echo "Missing target executable ${FINAL_EXECUTABLE}" >&2
+  exit 1
+}
+
+APP_ARCH="$(file "${OUTPUT_APP}/Contents/MacOS/${FINAL_EXECUTABLE}")"
 NODE_ARCH="$(file "${EMBEDDED_RUNTIME}/node/bin/node")"
 case "${ARCH}" in
   arm64)
@@ -104,9 +180,13 @@ case "${ARCH}" in
     ;;
 esac
 
-printf 'created unsigned Xcode distribution app: dist/macos-xcode/%s/TokenPilot.app\n' "${ARCH}"
+printf 'created unsigned Xcode target app: %s\n' "${OUTPUT_APP#${ROOT}/}"
+printf 'product identity: %s\n' "${PRODUCT_IDENTITY}"
+printf 'bundle identifier: %s\n' "${BUNDLE_IDENTIFIER}"
 printf 'architecture: %s\n' "${ARCH}"
 printf 'runtime payload: Contents/Resources/TokenPilotRuntime\n'
+printf 'distribution trust: development\n'
+printf 'release eligible: false\n'
 printf 'hardened runtime build setting: enabled\n'
 printf 'signing: not performed\n'
 printf 'notarization: not performed\n'

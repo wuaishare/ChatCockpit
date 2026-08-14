@@ -79,7 +79,7 @@ struct LifecycleStatusTests {
         #expect(status.controlPlane == .stopped)
         #expect(calls.count == 1)
         #expect(calls[0].executableURL.path.hasSuffix("/scripts/macos-manage-local-server.sh"))
-        #expect(calls[0].arguments == ["status"])
+        #expect(calls[0].arguments == ["status", "--product-identity", "tokenpilot"])
         #expect(calls[0].currentDirectoryURL == root.url)
         #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == root.url.path)
         #expect(calls[0].environment["TOKENPILOT_STATE_ROOT"] == root.url.appendingPathComponent(".tokenpilot").path)
@@ -103,7 +103,32 @@ struct LifecycleStatusTests {
         let calls = await runner.recordedCalls()
 
         #expect(calls.count == 1)
-        #expect(calls[0].arguments == ["start"])
+        #expect(calls[0].arguments == ["start", "--product-identity", "tokenpilot"])
+    }
+
+    @Test("ChatCockpit target uses target lifecycle identity and environment only")
+    func chatCockpitTargetLifecycleIdentityIsExplicit() async throws {
+        let root = TokenPilotRoot(url: URL(fileURLWithPath: "/tmp/chatcockpit-fixture", isDirectory: true))
+        let runner = RecordingRuntimeCommandRunner(
+            result: RuntimeCommandResult(
+                exitCode: 1,
+                standardOutput: "control plane: stopped\nrunner: not registered\nprocess supervisor: not registered\nUI: unavailable\n",
+                standardError: ""
+            )
+        )
+        let client = LifecycleClient(runner: runner)
+        let context = LifecycleExecutionContext.source(root: root, productIdentity: .chatCockpit)
+
+        _ = try await client.status(context: context)
+        let calls = await runner.recordedCalls()
+
+        #expect(calls.count == 1)
+        #expect(calls[0].arguments == ["status", "--product-identity", "chatcockpit"])
+        #expect(calls[0].environment["CHATCOCKPIT_INSTALL_ROOT"] == root.url.path)
+        #expect(calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == root.url.appendingPathComponent(".chatcockpit").path)
+        #expect(calls[0].environment["CHATCOCKPIT_DISTRIBUTION_MODE"] == "source")
+        #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == nil)
+        #expect(calls[0].environment["TOKENPILOT_STATE_ROOT"] == nil)
     }
 
     @Test("packaged context passes exact runtime roots and bundled Node")

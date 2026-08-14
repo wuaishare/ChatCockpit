@@ -96,7 +96,10 @@ assert.match(appModel, /PackagedRuntimeDeployer/);
 assert.match(appModel, /Choose Workspace/);
 assert.match(menuBar, /NSApplication\.shared\.terminate/);
 assert.match(menuBar, /Stop Services/);
-assert.match(menuBar, /Quit TokenPilot/);
+assert.equal(
+  menuBar.includes('Button("Quit \\(ProductIdentity.current.displayName)")'),
+  true
+);
 assert.match(menuBar, /Runtime Conflict — Review Settings/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
@@ -124,6 +127,8 @@ assert.match(xcodeProject, /ENABLE_HARDENED_RUNTIME = YES;/);
 assert.match(xcodeProject, /CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop\.entitlements;/);
 assert.match(xcodeProject, /name = "Embed Frameworks";/);
 assert.match(xcodeBuildScript, /FULL_XCODE_REQUIRED/);
+assert.match(xcodeBuildScript, /--product-identity/);
+assert.match(xcodeBuildScript, /CHATCOCKPIT_TARGET/);
 assert.match(xcodeBuildScript, /CODE_SIGNING_ALLOWED=NO/);
 assert.match(xcodeBuildScript, /build-macos-runtime-payload\.sh/);
 assert.match(xcodeBuildScript, /verify:macos-runtime-payload/);

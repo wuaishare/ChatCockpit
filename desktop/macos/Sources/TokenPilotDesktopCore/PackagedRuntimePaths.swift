@@ -2,6 +2,12 @@ import Foundation
 
 public struct PackagedRuntimePaths: Equatable, Sendable {
     public static var defaultApplicationSupportRoot: URL {
+        defaultApplicationSupportRoot(for: .current)
+    }
+
+    public static func defaultApplicationSupportRoot(
+        for identity: ProductIdentity
+    ) -> URL {
         let fileManager = FileManager.default
         if let applicationSupport = try? fileManager.url(
             for: .applicationSupportDirectory,
@@ -9,10 +15,16 @@ public struct PackagedRuntimePaths: Equatable, Sendable {
             appropriateFor: nil,
             create: false
         ) {
-            return applicationSupport.appendingPathComponent("TokenPilot", isDirectory: true)
+            return applicationSupport.appendingPathComponent(
+                identity.applicationSupportName,
+                isDirectory: true
+            )
         }
         return fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/TokenPilot", isDirectory: true)
+            .appendingPathComponent(
+                "Library/Application Support/\(identity.applicationSupportName)",
+                isDirectory: true
+            )
     }
 
     public let applicationSupportRoot: URL

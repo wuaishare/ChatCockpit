@@ -11,7 +11,7 @@ struct StatusView: View {
                     .font(.system(size: 30, weight: .semibold))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("TokenPilot")
+                    Text(ProductIdentity.current.displayName)
                         .font(.title2.weight(.semibold))
                     Text(model.snapshot.overallState.displayName)
                         .foregroundStyle(.secondary)
@@ -77,7 +77,7 @@ struct StatusView: View {
 
                 runtimeActions
 
-                Button("Open TokenPilot") {
+                Button("Open \(ProductIdentity.current.displayName)") {
                     model.openCockpit()
                 }
                 .keyboardShortcut(.defaultAction)

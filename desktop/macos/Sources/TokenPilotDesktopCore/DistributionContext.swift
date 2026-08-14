@@ -9,6 +9,7 @@ public struct DesktopDistributionContext: Equatable, Sendable {
     public let nodeVersion: SemanticVersion?
     public let runtimeID: String?
     public let architecture: String?
+    public let productIdentity: ProductIdentity
 
     public init(
         mode: DistributionMode,
@@ -18,7 +19,8 @@ public struct DesktopDistributionContext: Equatable, Sendable {
         nodeExecutableURL: URL?,
         nodeVersion: SemanticVersion? = nil,
         runtimeID: String?,
-        architecture: String?
+        architecture: String?,
+        productIdentity: ProductIdentity = .current
     ) {
         self.mode = mode
         self.installRootURL = installRootURL.standardizedFileURL
@@ -28,6 +30,7 @@ public struct DesktopDistributionContext: Equatable, Sendable {
         self.nodeVersion = nodeVersion
         self.runtimeID = runtimeID
         self.architecture = architecture
+        self.productIdentity = productIdentity
     }
 
     public static func packaged(
@@ -46,16 +49,23 @@ public struct DesktopDistributionContext: Equatable, Sendable {
         )
     }
 
-    public static func source(root: TokenPilotRoot) -> DesktopDistributionContext {
+    public static func source(
+        root: TokenPilotRoot,
+        productIdentity: ProductIdentity = .current
+    ) -> DesktopDistributionContext {
         DesktopDistributionContext(
             mode: .source,
             installRootURL: root.url,
-            stateRootURL: root.url.appendingPathComponent(".tokenpilot", isDirectory: true),
+            stateRootURL: root.url.appendingPathComponent(
+                productIdentity.stateDirectoryName,
+                isDirectory: true
+            ),
             primaryWorkspaceURL: root.url,
             nodeExecutableURL: nil,
             nodeVersion: nil,
             runtimeID: nil,
-            architecture: nil
+            architecture: nil,
+            productIdentity: productIdentity
         )
     }
 
@@ -65,7 +75,8 @@ public struct DesktopDistributionContext: Equatable, Sendable {
             stateRootURL: stateRootURL,
             primaryWorkspaceURL: primaryWorkspaceURL,
             nodeExecutableURL: nodeExecutableURL,
-            distributionMode: mode
+            distributionMode: mode,
+            productIdentity: productIdentity
         )
     }
 }

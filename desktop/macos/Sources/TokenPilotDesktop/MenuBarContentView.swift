@@ -14,7 +14,7 @@ struct MenuBarContentView: View {
                     .font(.title3.weight(.semibold))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("TokenPilot")
+                    Text(ProductIdentity.current.displayName)
                         .font(.headline)
                     Text(model.snapshot.overallState.displayName)
                         .font(.caption)
@@ -37,7 +37,7 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button("Open TokenPilot") {
+            Button("Open \(ProductIdentity.current.displayName)") {
                 model.openCockpit()
             }
             .disabled(model.snapshot.cockpitURL == nil)
@@ -81,7 +81,7 @@ struct MenuBarContentView: View {
             }
             .keyboardShortcut(",", modifiers: .command)
 
-            Button("Quit TokenPilot") {
+            Button("Quit \(ProductIdentity.current.displayName)") {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q", modifiers: .command)
