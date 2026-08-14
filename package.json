@@ -1,11 +1,11 @@
 {
-  "name": "tokenpilot",
-  "version": "0.1.0-alpha",
+  "name": "chatcockpit",
+  "version": "0.2.0-alpha",
   "private": true,
   "description": "Local-first development continuity and agent routing platform for ChatGPT, Codex, and async agent workflows",
   "type": "module",
   "bin": {
-    "tokenpilot": "./dist/cli/index.js"
+    "chatcockpit": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "npm run build:web && tsc -p tsconfig.json",
