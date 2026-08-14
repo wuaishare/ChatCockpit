@@ -57,7 +57,7 @@ required("app/package.json");
 required("app/package-lock.json");
 required("app/dist/cli/index.js");
 required("app/web/dist/index.html");
-required("app/openapi/tokenpilot.openapi.yaml");
+required("app/openapi/chatcockpit.openapi.yaml");
 required("app/node_modules");
 required("app/scripts/macos-manage-local-server.sh");
 
@@ -130,7 +130,7 @@ for (const requiredHashPath of [
   "app/package.json",
   "app/dist/cli/index.js",
   "app/web/dist/index.html",
-  "app/openapi/tokenpilot.openapi.yaml",
+  "app/openapi/chatcockpit.openapi.yaml",
   "app/scripts/macos-manage-local-server.sh"
 ]) {
   assert.ok(manifest.payload.files[requiredHashPath], `Manifest missing critical hash: ${requiredHashPath}`);

@@ -143,8 +143,8 @@ async function run(): Promise<void> {
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Runtime Resource API fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
-    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    path.join(repoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
 
   const paths = buildPaths(repoRoot);

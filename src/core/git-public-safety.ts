@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
+
 export const NO_PUBLIC_SAFE_CHANGES = "(no public-safe changes)";
 
 const MAX_DIFF_BYTES = 256 * 1024; // 256 KB
@@ -22,7 +24,7 @@ const BLOCKED_DIFF_SEGMENTS = new Set([
   ".servbay",
   ".ops-private",
   ".ssh",
-  ".tokenpilot",
+  ...PRODUCT_STATE_DIR_NAMES,
   "node_modules"
 ]);
 const BLOCKED_DIFF_EXTENSIONS = new Set([

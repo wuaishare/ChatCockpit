@@ -115,7 +115,7 @@ const criticalFiles = [
   "app/package-lock.json",
   "app/dist/cli/index.js",
   "app/web/dist/index.html",
-  "app/openapi/tokenpilot.openapi.yaml",
+  "app/openapi/chatcockpit.openapi.yaml",
   "app/scripts/macos-manage-local-server.sh"
 ];
 

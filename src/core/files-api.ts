@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 import type {
   FileReadBatchPayload,
   FileReadPayload,
@@ -123,8 +124,8 @@ function validateRelativePath(inputPath: string): string {
     throw new Error("Requested path is blocked");
   }
 
-  if (normalized.startsWith(".tokenpilot/")) {
-    if (!isAllowedTokenPilotArtifactPath(normalized)) {
+  if (PRODUCT_STATE_DIR_NAMES.some((stateDir) => normalized.startsWith(`${stateDir}/`))) {
+    if (!isAllowedProductArtifactPath(normalized)) {
       throw new Error("Requested path is blocked");
     }
   }
@@ -141,11 +142,12 @@ function validateRelativePath(inputPath: string): string {
   return normalized;
 }
 
-function isAllowedTokenPilotArtifactPath(relativePath: string): boolean {
+function isAllowedProductArtifactPath(relativePath: string): boolean {
+  const stateRootPattern = "\\.(?:tokenpilot|chatcockpit)";
   return (
-    /^\.tokenpilot\/repomix-output(?:-[A-Za-z0-9TZ:-]+-[0-9a-f]{8})?\.xml$/i.test(relativePath) ||
-    /^\.tokenpilot\/bundles\/bundle-(?:prompt|summary|manifest)\.(md|json)$/i.test(relativePath) ||
-    /^\.tokenpilot\/bundles\/bundle-[A-Za-z0-9TZ:-]+-[0-9a-f]{8}-(prompt|summary|manifest)\.(md|json)$/i.test(relativePath)
+    new RegExp(`^${stateRootPattern}/repomix-output(?:-[A-Za-z0-9TZ:-]+-[0-9a-f]{8})?\\.xml$`, "i").test(relativePath) ||
+    new RegExp(`^${stateRootPattern}/bundles/bundle-(?:prompt|summary|manifest)\\.(?:md|json)$`, "i").test(relativePath) ||
+    new RegExp(`^${stateRootPattern}/bundles/bundle-[A-Za-z0-9TZ:-]+-[0-9a-f]{8}-(?:prompt|summary|manifest)\\.(?:md|json)$`, "i").test(relativePath)
   );
 }
 

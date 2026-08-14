@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
-  title: TokenPilot Local Control Plane API
+  title: ChatCockpit Local Control Plane API
   version: 0.1.0-alpha
   description: >
-    Local-first automation surface for TokenPilot. Phase 2 supports ChatGPT direct-drive
+    Local-first automation surface for ChatCockpit. Phase 2 supports ChatGPT direct-drive
     operations for small trusted edits plus asynchronous Codex jobs for complex work. The
     full HTTPS / Custom GPT Actions automation loop remains under validation.
 servers:
-  - url: https://tokenpilot.example.com
+  - url: https://chatcockpit.example.com
 components:
   securitySchemes:
     bearerAuth:
@@ -224,7 +224,7 @@ components:
           enum: [workspace, host]
         executor:
           type: string
-          description: Selected Direct Drive executor id. Current built-in ids include tokenpilot-direct and codex-app-server-standalone; future downstream MCP executor ids remain dynamic.
+          description: Selected Direct Drive executor id. Current built-in ids include builtin-direct and codex-app-server-standalone; future downstream MCP executor ids remain dynamic.
         selectionMode:
           type: string
           enum: [automatic, explicit]
@@ -262,7 +262,7 @@ components:
       properties:
         repoId:
           type: string
-          description: Public repository alias resolved to a private local path by the operator. Defaults to tokenpilot in the current single-repo local-first setup.
+          description: Public repository alias resolved to a private local path by the operator. Defaults to primary in the current single-repo local-first setup.
     TaskPackJobPayload:
       type: object
       additionalProperties: false
@@ -300,7 +300,7 @@ components:
       properties:
         repoId:
           type: string
-          description: Public repository alias resolved by the local allowlist. Defaults to tokenpilot.
+          description: Public repository alias resolved by the local allowlist. Defaults to primary.
         title:
           type: string
         instructions:
@@ -1047,7 +1047,7 @@ components:
             - type: "null"
         output:
           type: string
-          description: Bounded merged process output after TokenPilot public-safe projection.
+          description: Bounded merged process output after ChatCockpit public-safe projection.
         truncated:
           type: boolean
         timedOut:
@@ -1126,7 +1126,7 @@ components:
           type: string
           minLength: 1
           maxLength: 8192
-          description: Transient input. TokenPilot persists only its SHA-256 and byte count, not the raw value.
+          description: Transient input. ChatCockpit persists only its SHA-256 and byte count, not the raw value.
         waitForPrompt:
           type: boolean
           default: true
@@ -1465,7 +1465,7 @@ components:
           type: string
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         path:
           type: string
           description: Relative text file path inside the mapped repository.
@@ -1486,7 +1486,7 @@ components:
           type: string
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         paths:
           type: array
           items:
@@ -1602,10 +1602,10 @@ components:
       properties:
         repoId:
           type: string
-          default: tokenpilot
+          default: primary
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -1643,10 +1643,10 @@ components:
       properties:
         repoId:
           type: string
-          default: tokenpilot
+          default: primary
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -1684,10 +1684,10 @@ components:
       properties:
         repoId:
           type: string
-          default: tokenpilot
+          default: primary
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         path:
           type: string
           default: "."
@@ -1730,10 +1730,10 @@ components:
       properties:
         repoId:
           type: string
-          default: tokenpilot
+          default: primary
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         pattern:
           type: string
           description: Search pattern (regex-compatible).
@@ -1794,10 +1794,10 @@ components:
       properties:
         repoId:
           type: string
-          default: tokenpilot
+          default: primary
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -1805,7 +1805,7 @@ components:
           description: Required when policy classifies the command as potentially mutating; the session must own the active writer lease. Read-only commands may omit it.
         command:
           type: string
-          description: Whitelisted command name. node, python, python3, npx, tsx, and make are high-trust commands and are blocked in exposed mode unless the operator explicitly sets TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true.
+          description: Whitelisted command name. node, python, python3, npx, tsx, and make are high-trust commands and are blocked in exposed mode unless the operator explicitly sets CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true.
         args:
           type: array
           items:
@@ -1889,10 +1889,10 @@ components:
       properties:
         repoId:
           type: string
-          default: tokenpilot
+          default: primary
         executorId:
           type: string
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
         sessionId:
           type: string
           minLength: 1
@@ -4012,7 +4012,7 @@ components:
           enum: [ready, degraded, blocked, unknown]
         sourceKind:
           type: string
-          enum: [runtime-native, tokenpilot-local, acp-registry]
+          enum: [runtime-native, control-plane-local, acp-registry]
         sourceLabel: { type: string }
         capabilities:
           type: array
@@ -4089,7 +4089,7 @@ components:
           enum: [ready, degraded, blocked, unknown]
         sourceKind:
           type: string
-          enum: [runtime-native, tokenpilot-local, acp-registry]
+          enum: [runtime-native, control-plane-local, acp-registry]
         sourceLabel: { type: string }
         capabilities:
           type: array
@@ -4744,7 +4744,7 @@ components:
         workspaceId: { type: string }
         runtimeKind:
           type: string
-          const: tokenpilot-runner
+          const: async-runner
         externalSessionId:
           type: "null"
         externalRunId: { type: string }
@@ -5286,7 +5286,7 @@ paths:
     get:
       operationId: health
       summary: Health check
-      description: Returns the current TokenPilot control-plane health information.
+      description: Returns the current ChatCockpit control-plane health information.
       responses:
         "200":
           description: OK
@@ -5333,7 +5333,7 @@ paths:
           required: false
           schema:
             type: string
-          description: Public repository alias. Defaults to tokenpilot.
+          description: Public repository alias. Defaults to primary.
         - name: limit
           in: query
           required: false
@@ -5344,7 +5344,7 @@ paths:
         - name: executorId
           in: query
           required: false
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
           schema:
             type: string
       responses:
@@ -5358,7 +5358,7 @@ paths:
     post:
       operationId: createPack
       summary: Queue a repo bundle job
-      description: Creates a queued pack job that produces a repomix bundle and bundle manifest for an approved repo alias. If repoId is omitted, the current default repo tokenpilot is used.
+      description: Creates a queued pack job that produces a repomix bundle and bundle manifest for an approved repo alias. If repoId is omitted, the current default repo primary is used.
       requestBody:
         required: false
         content:
@@ -5418,7 +5418,7 @@ paths:
     get:
       operationId: listJobs
       summary: List queued and completed jobs
-      description: Returns a bounded job summary page from the local TokenPilot queue. Results are omitted by default; call getJob for detail or set includeResult=true for explicit operator inspection.
+      description: Returns a bounded job summary page from the local ChatCockpit queue. Results are omitted by default; call getJob for detail or set includeResult=true for explicit operator inspection.
       security:
         - bearerAuth: []
       parameters:
@@ -5606,7 +5606,7 @@ paths:
     post:
       operationId: terminateAllJobs
       summary: Terminate all tracked local Codex job processes
-      description: Emergency stop for TokenPilot-tracked Codex job processes. This is not a raw shell endpoint.
+      description: Emergency stop for ChatCockpit-tracked Codex job processes. This is not a raw shell endpoint.
       security:
         - bearerAuth: []
       responses:
@@ -5940,7 +5940,7 @@ paths:
     post:
       operationId: executeHostManagedProcess
       summary: Execute one approved Managed Process action
-      description: Executes an approved start, input, or stop through a TokenPilot-owned process identity. Downstream PID/session handles remain private, mutation results exclude stdout, and Audit/Evidence record only public-safe metadata.
+      description: Executes an approved start, input, or stop through a ChatCockpit-owned process identity. Downstream PID/session handles remain private, mutation results exclude stdout, and Audit/Evidence record only public-safe metadata.
       security:
         - bearerAuth: []
       requestBody:
@@ -5984,7 +5984,7 @@ paths:
     post:
       operationId: readHostManagedProcess
       summary: Read bounded Managed Process output
-      description: Reads public-safe output for one TokenPilot processId, reconciles Writer Lease/runtime ownership, and updates terminal state when observed. OS PID is never accepted or returned.
+      description: Reads public-safe output for one ChatCockpit processId, reconciles Writer Lease/runtime ownership, and updates terminal state when observed. OS PID is never accepted or returned.
       security:
         - bearerAuth: []
       requestBody:
@@ -6015,8 +6015,8 @@ paths:
   /api/host/processes:
     get:
       operationId: listHostManagedProcesses
-      summary: List TokenPilot Managed Process records
-      description: Lists public-safe TokenPilot process identities and state after runtime/Writer Lease reconciliation. Raw downstream sessions and OS PIDs are never projected.
+      summary: List ChatCockpit Managed Process records
+      description: Lists public-safe ChatCockpit process identities and state after runtime/Writer Lease reconciliation. Raw downstream sessions and OS PIDs are never projected.
       security:
         - bearerAuth: []
       parameters:
@@ -6196,7 +6196,7 @@ paths:
     get:
       operationId: getGitDiff
       summary: Get the current git diff
-      description: Returns the working tree diff (unstaged changes by default). Public-safe paths only; env files, TokenPilot runtime state, logs, and local agent state are omitted.
+      description: Returns the working tree diff (unstaged changes by default). Public-safe paths only; env files, ChatCockpit runtime state, logs, and local agent state are omitted.
       security:
         - bearerAuth: []
       parameters:
@@ -6205,7 +6205,7 @@ paths:
           required: false
           schema:
             type: string
-            default: tokenpilot
+            default: primary
         - name: staged
           in: query
           required: false
@@ -6215,7 +6215,7 @@ paths:
         - name: executorId
           in: query
           required: false
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
           schema:
             type: string
       responses:
@@ -6238,11 +6238,11 @@ paths:
           required: false
           schema:
             type: string
-            default: tokenpilot
+            default: primary
         - name: executorId
           in: query
           required: false
-          description: Optional explicit Direct Drive executor id. When set, TokenPilot will not silently fall back to another executor.
+          description: Optional explicit Direct Drive executor id. When set, ChatCockpit will not silently fall back to another executor.
           schema:
             type: string
       responses:
@@ -6256,7 +6256,7 @@ paths:
     post:
       operationId: gitCommit
       summary: Stage public-safe changes and commit
-      description: Stages only public-safe changed paths and creates a commit with the given message. Env files, TokenPilot runtime state, logs, and local agent state are not staged by this endpoint.
+      description: Stages only public-safe changed paths and creates a commit with the given message. Env files, ChatCockpit runtime state, logs, and local agent state are not staged by this endpoint.
       security:
         - bearerAuth: []
       requestBody:
@@ -6276,7 +6276,7 @@ paths:
     get:
       operationId: listContinuityProjects
       summary: List continuity projects
-      description: Synchronizes allowlisted repo mappings into durable TokenPilot project and workspace identities. Local absolute paths are omitted from the response.
+      description: Synchronizes allowlisted repo mappings into durable ChatCockpit project and workspace identities. Local absolute paths are omitted from the response.
       security:
         - bearerAuth: []
       parameters:
@@ -6494,7 +6494,7 @@ paths:
     post:
       operationId: queueContinuityAsyncJob
       summary: Queue a continuity-bound async Job
-      description: Creates one file-backed Codex Runner Job for an active async-agent Session, persists the Job ID as a TokenPilot Runner Runtime Binding, and replays the original result for the same idempotency key.
+      description: Creates one file-backed Codex Runner Job for an active async-agent Session, persists the Job ID as a ChatCockpit Runner Runtime Binding, and replays the original result for the same idempotency key.
       security:
         - bearerAuth: []
       requestBody:
@@ -6592,7 +6592,7 @@ paths:
     get:
       operationId: getContinuityTask
       summary: Read continuity task
-      description: Returns one durable TokenPilot task by id.
+      description: Returns one durable ChatCockpit task by id.
       security:
         - bearerAuth: []
       parameters:
@@ -6632,7 +6632,7 @@ paths:
     get:
       operationId: getContinuitySession
       summary: Read development session
-      description: Returns one durable TokenPilot development session by id.
+      description: Returns one durable ChatCockpit development session by id.
       security:
         - bearerAuth: []
       parameters:
@@ -6792,7 +6792,7 @@ paths:
     post:
       operationId: assessRuntimeRecovery
       summary: Assess runtime recovery
-      description: Inspect TokenPilot continuity and local provider state, then persist a short-lived Recovery Attempt. This operation never resumes, forks, binds, starts a model turn, creates a job, or mutates workspace files.
+      description: Inspect ChatCockpit continuity and local provider state, then persist a short-lived Recovery Attempt. This operation never resumes, forks, binds, starts a model turn, creates a job, or mutates workspace files.
       security:
         - bearerAuth: []
       requestBody:
@@ -6877,7 +6877,7 @@ paths:
     get:
       operationId: getRuntimeRecoveryAttempt
       summary: Read runtime recovery attempt
-      description: Read one persisted public-safe Recovery Attempt by TokenPilot recovery id.
+      description: Read one persisted public-safe Recovery Attempt by ChatCockpit recovery id.
       security:
         - bearerAuth: []
       parameters:
@@ -7007,7 +7007,7 @@ paths:
     post:
       operationId: prepareRuntimeResourceMutation
       summary: Prepare a governed runtime resource mutation
-      description: Creates a short-lived approval bound to the reviewed snapshot, then revalidates the target Resource from fresh authoritative state without provider mutation. Exposed mode also requires TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true. Strict input rejects provider selectors and provenance fields.
+      description: Creates a short-lived approval bound to the reviewed snapshot, then revalidates the target Resource from fresh authoritative state without provider mutation. Exposed mode also requires CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true. Strict input rejects provider selectors and provenance fields.
       security:
         - bearerAuth: []
       requestBody:
@@ -7256,7 +7256,7 @@ paths:
           required: false
           schema:
             type: string
-          description: TokenPilot workspace id. The private workspace path is resolved only inside the local runtime.
+          description: ChatCockpit workspace id. The private workspace path is resolved only inside the local runtime.
         - name: searchTerm
           in: query
           required: false
@@ -7280,7 +7280,7 @@ paths:
     get:
       operationId: getCodexRuntimeThread
       summary: Read Codex thread metadata
-      description: Reads one public-safe thread metadata projection. Turn history remains unavailable until TokenPilot defines and verifies a safe projection.
+      description: Reads one public-safe thread metadata projection. Turn history remains unavailable until ChatCockpit defines and verifies a safe projection.
       security:
         - bearerAuth: []
       parameters:
@@ -7307,7 +7307,7 @@ paths:
     post:
       operationId: bindCodexRuntimeSession
       summary: Bind an existing Codex thread
-      description: Validates TokenPilot session revision and workspace identity, then binds an existing Codex thread without starting a Codex turn. Repeated requests with the same idempotency key replay the original result.
+      description: Validates ChatCockpit session revision and workspace identity, then binds an existing Codex thread without starting a Codex turn. Repeated requests with the same idempotency key replay the original result.
       security:
         - bearerAuth: []
       requestBody:
@@ -7347,7 +7347,7 @@ paths:
     post:
       operationId: forkCodexRuntimeSession
       summary: Fork and bind a Codex thread
-      description: Creates a durable non-ephemeral Codex thread fork and binds it to the TokenPilot session with two-phase idempotency. An optional lastTurnId limits the fork boundary. This operation does not start a Codex turn.
+      description: Creates a durable non-ephemeral Codex thread fork and binds it to the ChatCockpit session with two-phase idempotency. An optional lastTurnId limits the fork boundary. This operation does not start a Codex turn.
       security:
         - bearerAuth: []
       requestBody:
@@ -7427,7 +7427,7 @@ paths:
     get:
       operationId: readCodexRuntimeEvents
       summary: Read public-safe Codex runtime events
-      description: Reads append-only lifecycle, approval, item, warning, and error events for one TokenPilot Session or Runtime Run. Raw prompts, command output, cwd, file patches, private approval payloads, and App Server request handles are omitted.
+      description: Reads append-only lifecycle, approval, item, warning, and error events for one ChatCockpit Session or Runtime Run. Raw prompts, command output, cwd, file patches, private approval payloads, and App Server request handles are omitted.
       security:
         - bearerAuth: []
       parameters:
@@ -7436,13 +7436,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Filter by TokenPilot Development Session. sessionId or runId is required.
+          description: Filter by ChatCockpit Development Session. sessionId or runId is required.
         - name: runId
           in: query
           required: false
           schema:
             type: string
-          description: Filter by TokenPilot Runtime Run. sessionId or runId is required.
+          description: Filter by ChatCockpit Runtime Run. sessionId or runId is required.
         - name: afterSequence
           in: query
           required: false

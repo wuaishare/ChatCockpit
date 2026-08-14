@@ -80,6 +80,7 @@ export class DownstreamMcpCapabilityStore {
 
   publicPath(executorId: string): string {
     assertExecutorId(executorId);
-    return `.tokenpilot/runtime/capabilities/downstream-mcp/${snapshotFileName(executorId)}`;
+    const stateDirName = path.basename(path.dirname(this.runtimeDir));
+    return `${stateDirName}/runtime/capabilities/downstream-mcp/${snapshotFileName(executorId)}`;
   }
 }

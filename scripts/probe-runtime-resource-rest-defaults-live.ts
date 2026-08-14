@@ -40,8 +40,8 @@ export async function runRuntimeResourceRestDefaultsLiveProbe(
   fs.writeFileSync(path.join(serverRoot, "README.md"), "# REST defaults live probe fixture\n", "utf8");
   fs.mkdirSync(path.join(serverRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
-    path.join(serverRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    path.join(serverRoot, "openapi", "chatcockpit.openapi.yaml")
   );
   const paths = buildPaths(serverRoot);
   ensureWorkspaceDirs(paths);

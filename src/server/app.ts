@@ -1052,7 +1052,7 @@ export function buildServer(
     reply.type("application/json; charset=utf-8");
     return {
       ok: true,
-      service: "tokenpilot-control-plane",
+      service: `${identity.packageName}-control-plane`,
       health: buildPublicHealthStatus(paths),
       ui: "/ui",
       openapi: "/openapi.yaml"

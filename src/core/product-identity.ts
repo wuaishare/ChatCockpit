@@ -73,6 +73,11 @@ export const CHATCOCKPIT_PRODUCT_IDENTITY: ProductIdentity = {
 
 export const DEFAULT_PRODUCT_IDENTITY = CHATCOCKPIT_PRODUCT_IDENTITY;
 
+export const PRODUCT_STATE_DIR_NAMES = [
+  TOKENPILOT_PRODUCT_IDENTITY.stateDirName,
+  CHATCOCKPIT_PRODUCT_IDENTITY.stateDirName
+] as const;
+
 export function productIdentityForKey(key: ProductIdentityKey): ProductIdentity {
   return key === "chatcockpit"
     ? CHATCOCKPIT_PRODUCT_IDENTITY

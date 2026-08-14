@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 import type {
   FileWritePayload,
   FileWriteResponse,
@@ -98,9 +99,8 @@ export function validateRelativePathForWrite(inputPath: string): string {
     throw new Error("Requested path is blocked");
   }
 
-  // Block writes into .tokenpilot unless explicitly for public artifacts
-  if (normalized.startsWith(".tokenpilot/")) {
-    throw new Error("Cannot write into .tokenpilot directory");
+  if (PRODUCT_STATE_DIR_NAMES.some((stateDir) => normalized.startsWith(`${stateDir}/`))) {
+    throw new Error("Cannot write into product runtime state directories");
   }
 
   const basename = parts[parts.length - 1] || "";

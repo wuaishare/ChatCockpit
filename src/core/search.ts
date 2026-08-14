@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 import type {
   SearchPayload,
   SearchResponse,
@@ -21,7 +22,7 @@ const BLOCKED_SEGMENTS = [
   ".ops-private",
   "node_modules",
   "dist",
-  ".tokenpilot"
+  ...PRODUCT_STATE_DIR_NAMES
 ];
 
 function findRipgrep(): string | null {

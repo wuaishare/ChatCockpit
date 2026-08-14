@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { buildSourceDistributionContextForProduct } from "../src/core/distribution-context.js";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.js";
+import { projectOpenApiForProduct } from "../src/core/openapi-product-projection.js";
 import { buildServer } from "../src/server/app.js";
 import { runGit } from "./test-support/git.js";
 
@@ -37,8 +38,8 @@ try {
   fs.mkdirSync(homeRoot, { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# ChatCockpit public projection fixture\n", "utf8");
   fs.copyFileSync(
-    path.resolve("openapi/tokenpilot.openapi.yaml"),
-    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.resolve("openapi/chatcockpit.openapi.yaml"),
+    path.join(repoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
   runGit(repoRoot, ["init"]);
   runGit(repoRoot, ["config", "user.email", "chatcockpit-public@example.invalid"]);
@@ -72,7 +73,7 @@ try {
     const openApi = await app.inject({ method: "GET", url: "/openapi.yaml" });
     assert.equal(openApi.statusCode, 200, openApi.body);
     const targetOpenApi = openApi.body;
-    const currentOpenApi = fs.readFileSync(path.resolve("openapi/tokenpilot.openapi.yaml"), "utf8");
+    const currentOpenApi = fs.readFileSync(path.resolve("openapi/chatcockpit.openapi.yaml"), "utf8");
     assert.deepEqual(openApiPaths(targetOpenApi), openApiPaths(currentOpenApi));
     assert.match(targetOpenApi, /^  title: ChatCockpit Local Control Plane API$/m);
     assert.match(targetOpenApi, /^  - url: https:\/\/chatcockpit\.example\.com$/m);
@@ -86,6 +87,19 @@ try {
     assert.match(targetOpenApi, /CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true/);
     assert.match(targetOpenApi, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true/);
     assert.doesNotMatch(targetOpenApi, /\/chatcockpit\/(?:api|mcp)/);
+
+    const legacyProjection = projectOpenApiForProduct(
+      currentOpenApi,
+      "tokenpilot",
+      "https://tokenpilot.example.com"
+    );
+    assert.match(legacyProjection, /^  title: TokenPilot Local Control Plane API$/m);
+    assert.match(legacyProjection, /TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true/);
+    assert.match(legacyProjection, /tokenpilot-direct/);
+    assert.match(legacyProjection, /tokenpilot-runner/);
+    assert.match(legacyProjection, /tokenpilot-local/);
+    assert.match(legacyProjection, /default: tokenpilot/);
+    assert.doesNotMatch(legacyProjection, /ChatCockpit|CHATCOCKPIT_/);
 
     const gptConfig = await app.inject({ method: "GET", url: "/api/gpt/config" });
     assert.equal(gptConfig.statusCode, 200, gptConfig.body);

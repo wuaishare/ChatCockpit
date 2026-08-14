@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { writeText } from "./files.js";
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 
 interface RepoBundleConfig {
   include?: string[];
@@ -31,7 +32,7 @@ const DEFAULT_INCLUDE_ENTRIES = [
 
 const BLOCKED_PATH_SEGMENTS = new Set([
   ".git",
-  ".tokenpilot",
+  ...PRODUCT_STATE_DIR_NAMES,
   ".codex",
   ".servbay",
   ".ops-private",

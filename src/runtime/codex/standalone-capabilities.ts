@@ -100,6 +100,7 @@ export class CodexStandaloneCapabilityStore {
   }
 
   publicPath(): string {
-    return ".tokenpilot/runtime/capabilities/codex-app-server-standalone.json";
+    const stateDirName = path.basename(path.dirname(this.runtimeDir));
+    return `${stateDirName}/runtime/capabilities/codex-app-server-standalone.json`;
   }
 }
