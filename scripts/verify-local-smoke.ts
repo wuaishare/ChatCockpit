@@ -830,6 +830,8 @@ async function verifyRunnerReconcilesTerminalRunningJobs(): Promise<void> {
 function verifyDefaultRepoDiscovery(): void {
   const paths = buildPaths(process.cwd());
   const config = loadUserConfig(paths.repoRoot);
+  assert.equal(config.schemaVersion, 1);
+  assert.equal(config.defaultRepoId, "tokenpilot");
   assert.ok(config.repoMappings.tokenpilot);
   if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "sourceflow-refactor"))) {
     assert.ok(config.repoMappings["sourceflow-refactor"]);
@@ -862,6 +864,8 @@ function verifyCanonicalRepoIdentity(): void {
     );
     const canonical = fs.realpathSync.native(repoRoot);
     const normalized = loadUserConfig(repoRoot);
+    assert.equal(normalized.schemaVersion, 1);
+    assert.equal(normalized.defaultRepoId, "tokenpilot");
     assert.equal(normalized.repoMappings.tokenpilot.path, canonical);
     assert.deepEqual(normalized.workspaceAllowlist, [canonical]);
     assert.equal(resolveRepoMapping(normalized, "tokenpilot").repoRoot, canonical);

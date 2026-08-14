@@ -14,8 +14,14 @@ import {
   buildSourceDistributionContext
 } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
+import {
+  CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
+  LEGACY_DEFAULT_REPO_ID,
+  USER_CONFIG_SCHEMA_VERSION,
+  parseUserConfig
+} from "./user-config-schema.js";
 
-export const DEFAULT_REPO_ID = "tokenpilot";
+export const DEFAULT_REPO_ID = LEGACY_DEFAULT_REPO_ID;
 const DEFAULT_SIBLING_REPOS: Record<string, string> = {
   "sourceflow-refactor": "sourceflow-refactor",
   "ai-wuaishare-cn": "ai.wuaishare.cn"
@@ -60,16 +66,19 @@ function dedupeSorted(values: string[]): string[] {
 
 function buildDefaultConfig(
   repoRoot: string,
-  context: TokenPilotDistributionContext
+  context: TokenPilotDistributionContext,
+  defaultRepoId: string = LEGACY_DEFAULT_REPO_ID
 ): TokenPilotUserConfig {
   const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
   const siblingMappings =
     context.mode === "source" ? discoverSiblingRepoMappings(normalizedRepoRoot) : {};
   const siblingAllowlist = Object.values(siblingMappings).map((mapping) => mapping.path);
   return {
+    schemaVersion: USER_CONFIG_SCHEMA_VERSION,
+    defaultRepoId,
     workspaceAllowlist: dedupeSorted([normalizedRepoRoot, ...siblingAllowlist]),
     repoMappings: {
-      [DEFAULT_REPO_ID]: {
+      [defaultRepoId]: {
         path: normalizedRepoRoot
       },
       ...siblingMappings
@@ -94,6 +103,8 @@ function discoverSiblingRepoMappings(normalizedRepoRoot: string): Record<string,
 
 function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
   return {
+    schemaVersion: USER_CONFIG_SCHEMA_VERSION,
+    defaultRepoId: config.defaultRepoId,
     workspaceAllowlist: dedupeSorted(
       (config.workspaceAllowlist || []).map(normalizeAbsolutePath)
     ),
@@ -106,6 +117,15 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
       ])
     )
   };
+}
+
+export function buildChatCockpitTargetConfigPreview(
+  repoRoot: string,
+  context: TokenPilotDistributionContext = buildSourceDistributionContext(repoRoot)
+): TokenPilotUserConfig {
+  return normalizeConfig(
+    buildDefaultConfig(repoRoot, context, CHATCOCKPIT_TARGET_DEFAULT_REPO_ID)
+  );
 }
 
 export function getUserConfigPath(context?: TokenPilotDistributionContext): string {
@@ -124,15 +144,18 @@ export function loadUserConfig(
     return config;
   }
 
-  const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as TokenPilotUserConfig;
-  const normalized = normalizeConfig(parsed);
-  const needsDefaultRepoMapping = !normalized.repoMappings[DEFAULT_REPO_ID];
+  const raw = JSON.parse(fs.readFileSync(configPath, "utf8")) as unknown;
+  const parsed = parseUserConfig(raw);
+  const normalized = normalizeConfig(parsed.config);
   const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
 
-  if (needsDefaultRepoMapping) {
-    normalized.repoMappings[DEFAULT_REPO_ID] = {
+  if (parsed.sourceSchemaVersion === 0 && !normalized.repoMappings[LEGACY_DEFAULT_REPO_ID]) {
+    normalized.repoMappings[LEGACY_DEFAULT_REPO_ID] = {
       path: normalizedRepoRoot
     };
+  }
+  if (!normalized.repoMappings[normalized.defaultRepoId]) {
+    throw new Error(`User config defaultRepoId ${normalized.defaultRepoId} has no repo mapping`);
   }
 
   const siblingMappings =
@@ -194,8 +217,8 @@ export function resolveRepoMapping(
   return { repoId, repoRoot };
 }
 
-function getDefaultRepoIds(): string[] {
-  return [DEFAULT_REPO_ID, ...Object.keys(DEFAULT_SIBLING_REPOS)].sort();
+function getDefaultRepoIds(configuredDefaultRepoId: string): string[] {
+  return [configuredDefaultRepoId, ...Object.keys(DEFAULT_SIBLING_REPOS)].sort();
 }
 
 export function buildRepoGovernance(
@@ -203,11 +226,12 @@ export function buildRepoGovernance(
   context: TokenPilotDistributionContext = buildSourceDistributionContext(repoRoot)
 ): TokenPilotRepoGovernanceRecord {
   const config = loadUserConfig(repoRoot, context);
+  const defaultRepoIds = getDefaultRepoIds(config.defaultRepoId);
   const repoIds = Array.from(
-    new Set([...getDefaultRepoIds(), ...Object.keys(config.repoMappings)])
+    new Set([...defaultRepoIds, ...Object.keys(config.repoMappings)])
   ).sort((a, b) => {
-    if (a === DEFAULT_REPO_ID) return -1;
-    if (b === DEFAULT_REPO_ID) return 1;
+    if (a === config.defaultRepoId) return -1;
+    if (b === config.defaultRepoId) return 1;
     return a.localeCompare(b);
   });
 
@@ -217,10 +241,10 @@ export function buildRepoGovernance(
     const allowlisted = pathConfigured
       ? isWithinWorkspaceAllowlist(mapping.path, config.workspaceAllowlist)
       : false;
-    const isKnownDefault = getDefaultRepoIds().includes(repoId);
+    const isKnownDefault = defaultRepoIds.includes(repoId);
     const status = pathConfigured ? (allowlisted ? "enabled" : "blocked") : "missing";
     const source =
-      repoId === DEFAULT_REPO_ID
+      repoId === config.defaultRepoId
         ? "default"
         : isKnownDefault
           ? "default-sibling"
@@ -229,7 +253,7 @@ export function buildRepoGovernance(
     return {
       repoId,
       status,
-      defaultRepo: repoId === DEFAULT_REPO_ID,
+      defaultRepo: repoId === config.defaultRepoId,
       source,
       pathConfigured,
       allowlisted,
@@ -239,7 +263,7 @@ export function buildRepoGovernance(
   });
 
   return {
-    defaultRepoId: DEFAULT_REPO_ID,
+    defaultRepoId: config.defaultRepoId,
     configScope: "local-private",
     pathVisibility: "hidden",
     repos

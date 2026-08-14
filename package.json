@@ -34,6 +34,7 @@
     "verify:macos-signed-app": "tsx scripts/verify-macos-signed-app.ts",
     "verify:distribution-context": "tsx scripts/verify-distribution-context.ts",
     "verify:rename-env-compat": "tsx scripts/verify-rename-env-compat.ts",
+    "verify:rename-config-migration": "tsx scripts/verify-rename-config-migration.ts",
     "verify:packaged-doctor": "tsx scripts/verify-packaged-doctor.ts",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
     "verify:runtime-manifest": "tsx scripts/verify-runtime-manifest.ts",
