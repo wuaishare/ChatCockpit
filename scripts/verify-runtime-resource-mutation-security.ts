@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  IdentityEnvConflictError,
+  RUNTIME_IDENTITY_ENV
+} from "../src/core/identity-env.js";
+import { isResourceMutationExposureEnabled } from "../src/server/runtime-resource-mutation-policy.js";
+
 function readFile(relativePath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
@@ -166,9 +172,39 @@ const mutationExposurePolicy = readFile(
   "src/server/runtime-resource-mutation-policy.ts"
 );
 assert.equal(
-  mutationExposurePolicy.includes("TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED"),
+  mutationExposurePolicy.includes('readIdentityEnv("RESOURCE_MUTATIONS_EXPOSED"'),
   true,
-  "Exposed Resource mutation writes must require an explicit deployment opt-in"
+  "Exposed Resource mutation writes must use the shared identity-aware deployment opt-in"
+);
+assert.equal(
+  RUNTIME_IDENTITY_ENV.RESOURCE_MUTATIONS_EXPOSED.legacy,
+  "TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED"
+);
+assert.equal(
+  RUNTIME_IDENTITY_ENV.RESOURCE_MUTATIONS_EXPOSED.target,
+  "CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED"
+);
+assert.equal(
+  isResourceMutationExposureEnabled({ TOKENPILOT_EXPOSED: "true" }),
+  false,
+  "Legacy exposed mode must keep Resource mutation writes closed without explicit opt-in"
+);
+assert.equal(
+  isResourceMutationExposureEnabled({
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED: "true"
+  }),
+  true,
+  "Target identity exposed mode must allow Resource mutation writes only after explicit opt-in"
+);
+assert.throws(
+  () =>
+    isResourceMutationExposureEnabled({
+      TOKENPILOT_EXPOSED: "true",
+      CHATCOCKPIT_EXPOSED: "false"
+    }),
+  IdentityEnvConflictError,
+  "Conflicting legacy/target exposure settings must fail closed"
 );
 
 const mcpSurfaces = readTree("src/mcp");

@@ -36,11 +36,6 @@ jobs:
       TOKENPILOT_NOTARY_KEY_ID: ${{ secrets.TOKENPILOT_NOTARY_KEY_ID }}
       TOKENPILOT_NOTARY_ISSUER_ID: ${{ secrets.TOKENPILOT_NOTARY_ISSUER_ID }}
       TOKENPILOT_NOTARY_PROFILE: TokenPilot-GitHub-Release
-      TOKENPILOT_RELEASE_KEYCHAIN: ${{ runner.temp }}/tokenpilot-release.keychain-db
-      TOKENPILOT_RELEASE_CERTIFICATE: ${{ runner.temp }}/tokenpilot-release.p12
-      TOKENPILOT_RELEASE_API_KEY: ${{ runner.temp }}/tokenpilot-release-api-key.p8
-      TOKENPILOT_RELEASE_EVIDENCE_DIR: ${{ runner.temp }}/tokenpilot-release-evidence
-      TOKENPILOT_RELEASE_OUTPUT_DIR: ${{ runner.temp }}/tokenpilot-release-output
 
     steps:
       - name: Checkout exact release commit
@@ -54,6 +49,18 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+
+      - name: Initialize ephemeral release paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "TOKENPILOT_RELEASE_KEYCHAIN=$RUNNER_TEMP/tokenpilot-release.keychain-db"
+            echo "TOKENPILOT_RELEASE_CERTIFICATE=$RUNNER_TEMP/tokenpilot-release.p12"
+            echo "TOKENPILOT_RELEASE_API_KEY=$RUNNER_TEMP/tokenpilot-release-api-key.p8"
+            echo "TOKENPILOT_RELEASE_EVIDENCE_DIR=$RUNNER_TEMP/tokenpilot-release-evidence"
+            echo "TOKENPILOT_RELEASE_OUTPUT_DIR=$RUNNER_TEMP/tokenpilot-release-output"
+          } >> "$GITHUB_ENV"
 
       - name: Require explicit tag and exact commit
         shell: bash

@@ -61,6 +61,21 @@ for (const required of [
 }
 
 assert.doesNotMatch(workflow, /pull_request:|push:/, "Credentialed release workflow must not run on PR/push contexts");
+assert.equal(
+  workflow.includes("${{ runner.temp }}"),
+  false,
+  "Job-level release env must not use runner context before a runner exists"
+);
+assert.equal(
+  workflow.includes("TOKENPILOT_RELEASE_KEYCHAIN=$RUNNER_TEMP/tokenpilot-release.keychain-db"),
+  true,
+  "Release workflow must initialize ephemeral paths from RUNNER_TEMP after runner startup"
+);
+assert.equal(
+  workflow.includes('} >> "$GITHUB_ENV"'),
+  true,
+  "Release workflow must persist ephemeral runner paths through GITHUB_ENV"
+);
 assert.doesNotMatch(workflow, /\baltool\b/i);
 assert.doesNotMatch(workflow, /\/Users\/[A-Za-z0-9._-]+\//);
 assert.doesNotMatch(workflow, /BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY/);
