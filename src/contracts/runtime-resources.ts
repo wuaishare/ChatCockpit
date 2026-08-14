@@ -90,7 +90,12 @@ export const runtimeResourceDescriptorSchema = z
       "not-applicable"
     ]),
     compatibilityStatus: z.enum(["ready", "degraded", "blocked", "unknown"]),
-    sourceKind: z.enum(["runtime-native", "tokenpilot-local", "acp-registry"]),
+    sourceKind: z.enum([
+      "runtime-native",
+      "tokenpilot-local",
+      "control-plane-local",
+      "acp-registry"
+    ]),
     sourceLabel: z.string().min(1).max(160),
     capabilities: z.array(capabilitySchema).max(200),
     publicReason: z.string().max(500).nullable(),

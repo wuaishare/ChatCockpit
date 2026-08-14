@@ -345,7 +345,7 @@ export function buildServer(
   const runtimeResourceAdapterRegistry =
     new RuntimeResourceInventoryAdapterRegistry([
       new CodexResourceInventoryAdapter(runtimeRouter),
-      new DownstreamResourceInventoryAdapter(downstreamResourceSource),
+      new DownstreamResourceInventoryAdapter(downstreamResourceSource, identity),
       ...(acpRegistryAdapter ? [acpRegistryAdapter] : [])
     ]);
   const codexSkillMutationAdapter =

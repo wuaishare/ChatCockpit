@@ -11,6 +11,7 @@ import type { HandoffService } from "./handoff-service.js";
 import type { WorkspaceContinuityService } from "./workspace-continuity-service.js";
 import { RuntimeRecoveryAssessmentService } from "./runtime-recovery-assessment-service.js";
 import { RuntimeRecoveryExecutionService } from "./runtime-recovery-execution-service.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 
 export interface RuntimeRecoveryServices {
   adapters: RuntimeRecoveryAdapterRegistry;
@@ -27,10 +28,12 @@ export function buildRuntimeRecoveryServices(input: {
   runtimeBindingService: RuntimeBindingService;
   handoffService: HandoffService;
 }): RuntimeRecoveryServices {
+  const identity = productIdentityForKey(input.paths.productIdentity);
   const adapters = new RuntimeRecoveryAdapterRegistry([
     new NativeCodexRecoveryAdapter(input.runtimeRouter),
     new RunnerRecoveryAdapter(
-      new TokenPilotRunnerRecoverySource(input.paths, input.repositories)
+      new TokenPilotRunnerRecoverySource(input.paths, input.repositories),
+      { protocolFamily: identity.asyncRunnerRuntimeKind }
     ),
     new ChatDirectRecoveryAdapter()
   ]);

@@ -1,4 +1,8 @@
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import {
+  isAsyncRunnerRuntimeKind,
+  isRunnerRuntimeBindingRecord
+} from "../continuity/runtime-identity.js";
 import type {
   DevelopmentSessionRecord,
   EvidenceBundleRecord,
@@ -259,7 +263,7 @@ export class AsyncJobReconciliationService {
       session.taskId !== task.id ||
       session.workspaceId !== task.workspaceId ||
       session.mode !== "async-agent" ||
-      binding.runtimeKind !== "tokenpilot-runner" ||
+      !isAsyncRunnerRuntimeKind(binding.runtimeKind) ||
       binding.sessionId !== session.id ||
       binding.workspaceId !== task.workspaceId ||
       binding.externalRunId !== job.id ||
@@ -334,7 +338,7 @@ export class AsyncJobReconciliationService {
         released.revision,
         now
       );
-      if (updated.runtimeKind !== "tokenpilot-runner") {
+      if (!isRunnerRuntimeBindingRecord(updated)) {
         throw new ServiceError(
           "CONTINUITY_RECORD_INVALID",
           `Runtime binding ${updated.id} changed runtime kind`

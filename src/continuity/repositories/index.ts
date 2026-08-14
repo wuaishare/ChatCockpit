@@ -15,6 +15,7 @@ import { LeaseRepository } from "./lease-repository.js";
 import { ProjectRepository } from "./project-repository.js";
 import { RuntimeApprovalRepository } from "./runtime-approval-repository.js";
 import { RuntimeBindingRepository } from "./runtime-binding-repository.js";
+import type { AsyncRunnerRuntimeBindingKind } from "../types.js";
 import { RuntimeEventRepository } from "./runtime-event-repository.js";
 import { RuntimeRunRepository } from "./runtime-run-repository.js";
 import { RuntimeRecoveryAttemptRepository } from "./runtime-recovery-attempt-repository.js";
@@ -51,8 +52,13 @@ export interface ContinuityRepositories {
   idempotency: IdempotencyRepository;
 }
 
+export interface ContinuityRepositoryIdentityOptions {
+  asyncRunnerRuntimeKind?: AsyncRunnerRuntimeBindingKind;
+}
+
 export function buildContinuityRepositories(
-  database: ContinuityDatabase
+  database: ContinuityDatabase,
+  identity: ContinuityRepositoryIdentityOptions = {}
 ): ContinuityRepositories {
   return {
     projects: new ProjectRepository(database),
@@ -66,7 +72,10 @@ export function buildContinuityRepositories(
     directProcessSessions: new DirectProcessSessionRepository(database),
     directProcessRuntimeOwnership: new DirectProcessRuntimeOwnershipRepository(database),
     runtimeApprovals: new RuntimeApprovalRepository(database),
-    runtimeBindings: new RuntimeBindingRepository(database),
+    runtimeBindings: new RuntimeBindingRepository(
+      database,
+      identity.asyncRunnerRuntimeKind
+    ),
     runtimeEvents: new RuntimeEventRepository(database),
     runtimeRuns: new RuntimeRunRepository(database),
     runtimeRecoveryAttempts: new RuntimeRecoveryAttemptRepository(database),

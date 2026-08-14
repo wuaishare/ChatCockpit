@@ -1,4 +1,6 @@
 import { ServiceError } from "../../application/service-error.js";
+import type { AsyncRunnerRuntimeBindingKind } from "../../continuity/types.js";
+import { LEGACY_ASYNC_RUNNER_RUNTIME_KIND } from "../../continuity/runtime-identity.js";
 import type {
   ExternalSessionInspection,
   RecoverableExternalSession,
@@ -84,12 +86,18 @@ export class RunnerRecoveryAdapter implements RuntimeRecoveryAdapter {
   readonly providerKind = "runner";
   readonly protocolKind = "runner" as const;
   private readonly now: () => string;
+  private readonly protocolFamily: AsyncRunnerRuntimeBindingKind;
 
   constructor(
     private readonly source: RunnerRecoverySource,
-    options: { now?: () => string } = {}
+    options: {
+      now?: () => string;
+      protocolFamily?: AsyncRunnerRuntimeBindingKind;
+    } = {}
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
+    this.protocolFamily =
+      options.protocolFamily ?? LEGACY_ASYNC_RUNNER_RUNTIME_KIND;
   }
 
   async probeCompatibility(): Promise<RuntimeCompatibilityDescriptor> {
@@ -101,7 +109,7 @@ export class RunnerRecoveryAdapter implements RuntimeRecoveryAdapter {
       executableVersion: null,
       minimumSupportedVersion: null,
       testedVersionRange: null,
-      protocolFamily: "tokenpilot-runner",
+      protocolFamily: this.protocolFamily,
       protocolVersion: "1",
       schemaFingerprint: null,
       compatibilityStatus: "ready",

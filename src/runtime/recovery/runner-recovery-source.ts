@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { AsyncJobReconciliationService } from "../../application/async-job-reconciliation-service.js";
 import { buildOperationContext } from "../../application/operation-context.js";
 import type { ContinuityRepositories } from "../../continuity/repositories/index.js";
+import { isAsyncRunnerRuntimeKind } from "../../continuity/runtime-identity.js";
 import { getJob, listJobs } from "../../core/jobs.js";
 import type { CodexRunJobPayload, JobRecord, TokenPilotPaths } from "../../types.js";
 import type {
@@ -82,7 +83,7 @@ export class TokenPilotRunnerRecoverySource implements RunnerRecoverySource {
         task.workspaceId !== session.workspaceId ||
         binding.sessionId !== session.id ||
         binding.workspaceId !== task.workspaceId ||
-        binding.runtimeKind !== "tokenpilot-runner" ||
+        !isAsyncRunnerRuntimeKind(binding.runtimeKind) ||
         binding.externalRunId !== job.id
       ) {
         return null;

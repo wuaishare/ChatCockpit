@@ -1,5 +1,4 @@
 import { AsyncJobReconciliationService } from "../application/async-job-reconciliation-service.js";
-import { buildOperationContext } from "../application/operation-context.js";
 import {
   ContinuityDatabase,
   continuityDatabasePath
@@ -8,8 +7,10 @@ import { buildContinuityRepositories } from "../continuity/repositories/index.js
 import { completeJob, claimNextQueuedJob, failJob, listJobs } from "../core/jobs.js";
 import { runCodexRunJob } from "../core/codex-run.js";
 import { getTrackedJobProcess } from "../core/job-processes.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import { runPackForRepo } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
+import { buildRunnerOperationContext } from "./identity.js";
 import {
   markRunnerClaimed,
   markRunnerCompleted,
@@ -69,16 +70,6 @@ async function sleep(seconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
-function runnerContext(jobId: string, now = new Date().toISOString()) {
-  return buildOperationContext({
-    requestId: `runner:${jobId}`,
-    actorType: "runner",
-    actorId: "tokenpilot-runner",
-    publicProjection: false,
-    now
-  });
-}
-
 function reconcileTerminalRunningJobs(
   paths: TokenPilotPaths,
   reconciliation: AsyncJobReconciliationService
@@ -101,7 +92,10 @@ function reconcileTerminalRunningJobs(
     ].join(" ");
     const failed = failJob(paths, job.id, message);
     try {
-      reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+      reconciliation.reconcileTerminal(
+        buildRunnerOperationContext(paths, job.id),
+        failed
+      );
     } catch (error) {
       const reconciliationError =
         error instanceof Error ? error.message : String(error);
@@ -132,7 +126,7 @@ function reconcilePersistedTerminalJobs(
     if (job.status !== "completed" && job.status !== "failed") continue;
     try {
       const result = reconciliation.reconcileTerminal(
-        runnerContext(job.id, job.updatedAt),
+        buildRunnerOperationContext(paths, job.id, job.updatedAt),
         job
       );
       if (result && !result.replayed) reconciled += 1;
@@ -162,12 +156,18 @@ async function runNextJob(
 
   markRunnerClaimed(paths, job.id, job.type);
   try {
-    reconciliation.claim(runnerContext(job.id, job.updatedAt), job);
+    reconciliation.claim(
+      buildRunnerOperationContext(paths, job.id, job.updatedAt),
+      job
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const failed = failJob(paths, job.id, message);
     try {
-      reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+      reconciliation.reconcileTerminal(
+        buildRunnerOperationContext(paths, job.id),
+        failed
+      );
     } catch {
       // The original identity failure is the authoritative Runner error.
     }
@@ -206,7 +206,7 @@ async function runNextJob(
       const completed = completeJob(paths, job.id, result);
       try {
         reconciliation.reconcileTerminal(
-          runnerContext(job.id, completed.updatedAt),
+          buildRunnerOperationContext(paths, job.id, completed.updatedAt),
           completed
         );
         markRunnerCompleted(paths);
@@ -221,13 +221,19 @@ async function runNextJob(
 
     const unsupported = `Unsupported job payload for type: ${job.type}`;
     const failed = failJob(paths, job.id, unsupported);
-    reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+    reconciliation.reconcileTerminal(
+      buildRunnerOperationContext(paths, job.id),
+      failed
+    );
     markRunnerFailed(paths, unsupported);
   } catch (error) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
     const failed = failJob(paths, job.id, message);
     try {
-      reconciliation.reconcileTerminal(runnerContext(job.id), failed);
+      reconciliation.reconcileTerminal(
+        buildRunnerOperationContext(paths, job.id),
+        failed
+      );
     } catch (reconciliationError) {
       markRunnerFailed(
         paths,
@@ -252,7 +258,9 @@ export async function runRunner(
     path: continuityDatabasePath(paths.runtimeDir)
   });
   const reconciliation = new AsyncJobReconciliationService(
-    buildContinuityRepositories(continuityDatabase)
+    buildContinuityRepositories(continuityDatabase, {
+      asyncRunnerRuntimeKind: productIdentityForKey(paths.productIdentity).asyncRunnerRuntimeKind
+    })
   );
 
   if (!options.watch) {

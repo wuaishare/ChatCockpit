@@ -27,7 +27,8 @@ export type SessionStatus =
   | "completed"
   | "failed";
 export type LeaseStatus = "active" | "released" | "expired" | "revoked";
-export type RuntimeBindingKind = "codex-app-server" | "tokenpilot-runner";
+export type AsyncRunnerRuntimeBindingKind = "tokenpilot-runner" | "async-runner";
+export type RuntimeBindingKind = "codex-app-server" | AsyncRunnerRuntimeBindingKind;
 export type RuntimeBindingRelation = "bound" | "resumed" | "forked" | "queued";
 export type RuntimeBindingStatus = "active" | "superseded" | "released" | "stale";
 export type RuntimeRunStatus =
@@ -140,6 +141,7 @@ export type RuntimeResourceCompatibilityStatus =
 export type RuntimeResourceSourceKind =
   | "runtime-native"
   | "tokenpilot-local"
+  | "control-plane-local"
   | "acp-registry";
 export type RuntimeEventCategory =
   | "lifecycle"
@@ -278,7 +280,7 @@ export interface CodexRuntimeBindingRecord extends RuntimeBindingBaseRecord {
 }
 
 export interface RunnerRuntimeBindingRecord extends RuntimeBindingBaseRecord {
-  runtimeKind: "tokenpilot-runner";
+  runtimeKind: AsyncRunnerRuntimeBindingKind;
   externalSessionId: null;
   externalRunId: string;
   externalThreadId: null;

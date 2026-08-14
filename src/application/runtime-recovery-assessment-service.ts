@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { RecoveryAssessInput } from "../contracts/runtime-recovery.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import { isAsyncRunnerRuntimeKind } from "../continuity/runtime-identity.js";
 import type {
   DevelopmentSessionRecord,
   RuntimeBindingRecord,
@@ -62,7 +63,7 @@ function providerFor(
 ): string {
   if (requested) return requested;
   if (binding?.runtimeKind === "codex-app-server") return "codex";
-  if (binding?.runtimeKind === "tokenpilot-runner") return "runner";
+  if (isAsyncRunnerRuntimeKind(binding?.runtimeKind)) return "runner";
   if (session.mode === "codex-session") return "codex";
   if (session.mode === "async-agent") return "runner";
   return "chat-direct";
@@ -105,7 +106,7 @@ function bindingMatchesProvider(
 ): boolean {
   if (!binding) return true;
   if (providerKind === "codex") return binding.runtimeKind === "codex-app-server";
-  if (providerKind === "runner") return binding.runtimeKind === "tokenpilot-runner";
+  if (providerKind === "runner") return isAsyncRunnerRuntimeKind(binding.runtimeKind);
   if (providerKind === "chat-direct") return false;
   return false;
 }
@@ -436,7 +437,7 @@ export class RuntimeRecoveryAssessmentService {
       }
       if (
         providerKind === "runner" &&
-        binding?.runtimeKind === "tokenpilot-runner" &&
+        isAsyncRunnerRuntimeKind(binding?.runtimeKind) &&
         externalSession?.exists &&
         externalSession.identityMatched
       ) {

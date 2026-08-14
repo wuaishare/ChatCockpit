@@ -15,6 +15,7 @@ import { TaskCompletionService } from "./task-completion-service.js";
 import { TaskService } from "./task-service.js";
 import { TaskExecutionPolicyService } from "./task-execution-policy.js";
 import { WorkspaceContinuityService } from "./workspace-continuity-service.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 
 export interface ContinuityServices {
   repositories: ContinuityRepositories;
@@ -35,7 +36,10 @@ export function buildContinuityServices(
   paths: TokenPilotPaths,
   database: ContinuityDatabase
 ): ContinuityServices {
-  const repositories = buildContinuityRepositories(database);
+  const identity = productIdentityForKey(paths.productIdentity);
+  const repositories = buildContinuityRepositories(database, {
+    asyncRunnerRuntimeKind: identity.asyncRunnerRuntimeKind
+  });
   const taskExecutionPolicy = new TaskExecutionPolicyService(repositories);
   return {
     repositories,

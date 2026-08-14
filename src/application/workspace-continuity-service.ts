@@ -1,5 +1,6 @@
 import type { WorkspaceSnapshotInput } from "../contracts/continuity.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import { isRunnerRuntimeBindingRecord } from "../continuity/runtime-identity.js";
 import type {
   DevelopmentSessionRecord,
   EvidenceBundleRecord,
@@ -181,7 +182,7 @@ export class WorkspaceContinuityService {
     const binding = this.repositories.runtimeBindings.latestForSession(
       session.id
     );
-    if (!binding || binding.runtimeKind !== "tokenpilot-runner") {
+    if (!isRunnerRuntimeBindingRecord(binding)) {
       return { sessionId: session.id, binding, job: null };
     }
     const stored = getJob(this.paths, binding.externalRunId);

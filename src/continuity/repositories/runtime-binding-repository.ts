@@ -1,6 +1,7 @@
 import { ServiceError } from "../../application/service-error.js";
 import type { ContinuityDatabase } from "../database.js";
 import type {
+  AsyncRunnerRuntimeBindingKind,
   CodexRuntimeBindingRecord,
   RunnerRuntimeBindingRecord,
   RuntimeBindingKind,
@@ -8,6 +9,11 @@ import type {
   RuntimeBindingRelation,
   RuntimeBindingStatus
 } from "../types.js";
+import {
+  isAsyncRunnerRuntimeKind,
+  isRunnerRuntimeBindingRecord,
+  LEGACY_ASYNC_RUNNER_RUNTIME_KIND
+} from "../runtime-identity.js";
 import {
   assertUpdated,
   newRecordId,
@@ -65,7 +71,11 @@ function bindingFromRow(row: RuntimeBindingRow): RuntimeBindingRecord {
     };
   }
 
-  if (!row.external_run_id || row.external_session_id !== null) {
+  if (
+    !isAsyncRunnerRuntimeKind(row.runtime_kind) ||
+    !row.external_run_id ||
+    row.external_session_id !== null
+  ) {
     throw new ServiceError(
       "CONTINUITY_RECORD_INVALID",
       `Runner runtime binding ${row.id} has invalid external identity`
@@ -73,7 +83,7 @@ function bindingFromRow(row: RuntimeBindingRow): RuntimeBindingRecord {
   }
   return {
     ...common,
-    runtimeKind: "tokenpilot-runner",
+    runtimeKind: row.runtime_kind,
     externalSessionId: null,
     externalRunId: row.external_run_id,
     externalThreadId: null,
@@ -103,7 +113,11 @@ export interface ReplaceRunnerRuntimeBindingInput {
 }
 
 export class RuntimeBindingRepository {
-  constructor(private readonly database: ContinuityDatabase) {}
+  constructor(
+    private readonly database: ContinuityDatabase,
+    private readonly asyncRunnerRuntimeKind: AsyncRunnerRuntimeBindingKind =
+      LEGACY_ASYNC_RUNNER_RUNTIME_KIND
+  ) {}
 
   replaceActive(input: ReplaceRuntimeBindingInput): CodexRuntimeBindingRecord {
     const binding = this.replaceGeneric({
@@ -134,7 +148,7 @@ export class RuntimeBindingRepository {
       id: input.id,
       sessionId: input.sessionId,
       workspaceId: input.workspaceId,
-      runtimeKind: "tokenpilot-runner",
+      runtimeKind: this.asyncRunnerRuntimeKind,
       externalSessionId: null,
       externalRunId: input.externalRunId,
       sourceExternalId: input.sourceExternalId ?? null,
@@ -142,7 +156,7 @@ export class RuntimeBindingRepository {
       modelProvider: null,
       now: input.now
     });
-    if (binding.runtimeKind !== "tokenpilot-runner") {
+    if (!isRunnerRuntimeBindingRecord(binding)) {
       throw new ServiceError(
         "CONTINUITY_RECORD_INVALID",
         `Runtime binding ${binding.id} is not a Runner binding`
@@ -207,7 +221,7 @@ export class RuntimeBindingRepository {
     const row = this.database.sqlite
       .prepare(`
         SELECT * FROM runtime_bindings
-        WHERE runtime_kind = 'tokenpilot-runner'
+        WHERE runtime_kind IN ('tokenpilot-runner', 'async-runner')
           AND external_run_id = ?
           AND status = 'active'
         LIMIT 1
@@ -215,7 +229,7 @@ export class RuntimeBindingRepository {
       .get(externalRunId) as RuntimeBindingRow | undefined;
     if (!row) return null;
     const binding = bindingFromRow(row);
-    return binding.runtimeKind === "tokenpilot-runner" ? binding : null;
+    return isRunnerRuntimeBindingRecord(binding) ? binding : null;
   }
 
   release(

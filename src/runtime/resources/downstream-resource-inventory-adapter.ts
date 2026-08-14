@@ -12,6 +12,10 @@ import type {
 } from "../../application/runtime-resource-types.js";
 import type { DownstreamMcpExecutorsConfig } from "../../direct/downstream-mcp-config.js";
 import type { DownstreamMcpProbeSummary } from "../../direct/downstream-mcp-operator.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  type ProductIdentity
+} from "../../core/product-identity.js";
 
 interface DownstreamResourceInventorySource {
   loadConfig(): DownstreamMcpExecutorsConfig;
@@ -47,7 +51,10 @@ export class DownstreamResourceInventoryAdapter
   readonly providerKind = "downstream-mcp";
   readonly protocolKind = "mcp-legacy-stdio";
 
-  constructor(private readonly source: DownstreamResourceInventorySource) {}
+  constructor(
+    private readonly source: DownstreamResourceInventorySource,
+    private readonly identity: ProductIdentity = DEFAULT_PRODUCT_IDENTITY
+  ) {}
 
   async inventory(
     input: RuntimeResourceInventoryRequest
@@ -135,7 +142,7 @@ export class DownstreamResourceInventoryAdapter
       kind: "mcp-server",
       externalId: serverExternalId,
       displayName: summary.serverName || executor.displayName,
-      description: `Verified downstream MCP server with ${summary.verifiedCapabilities.length} TokenPilot capabilities`,
+      description: `Verified downstream MCP server with ${summary.verifiedCapabilities.length} ${this.identity.displayName} capabilities`,
       scope: "runtime",
       installed: true,
       enabled,
@@ -144,8 +151,8 @@ export class DownstreamResourceInventoryAdapter
       updateStatus: "unknown",
       authStatus: "not-applicable",
       compatibilityStatus,
-      sourceKind: "tokenpilot-local",
-      sourceLabel: "TokenPilot Downstream MCP",
+      sourceKind: this.identity.localResourceSourceKind,
+      sourceLabel: `${this.identity.displayName} Downstream MCP`,
       capabilities: publicCapabilities,
       publicReason:
         summary.health === "ready"
@@ -164,7 +171,7 @@ export class DownstreamResourceInventoryAdapter
       kind: "runtime-adapter",
       externalId: adapterExternalId,
       displayName: `${executor.displayName} Adapter`,
-      description: "TokenPilot governed downstream MCP capability adapter",
+      description: `${this.identity.displayName} governed downstream MCP capability adapter`,
       scope: "runtime",
       installed: true,
       enabled,
@@ -173,8 +180,8 @@ export class DownstreamResourceInventoryAdapter
       updateStatus: "not-applicable",
       authStatus: "not-applicable",
       compatibilityStatus,
-      sourceKind: "tokenpilot-local",
-      sourceLabel: "TokenPilot",
+      sourceKind: this.identity.localResourceSourceKind,
+      sourceLabel: this.identity.displayName,
       capabilities: publicCapabilities,
       publicReason:
         summary.health === "ready"
