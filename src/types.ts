@@ -1,8 +1,10 @@
 export type JobType = "pack" | "taskpack" | "codex-run";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 export type TokenPilotDistributionMode = "source" | "packaged";
+export type ProductIdentityKey = "tokenpilot" | "chatcockpit";
 
 export interface TokenPilotDistributionContext {
+  productIdentity: ProductIdentityKey;
   mode: TokenPilotDistributionMode;
   installRoot: string;
   stateRoot: string;
@@ -18,6 +20,7 @@ export type TokenPilotTrackedProcessState =
   | "failed";
 
 export interface TokenPilotPaths {
+  productIdentity: ProductIdentityKey;
   repoRoot: string;
   installRoot: string;
   stateRoot: string;

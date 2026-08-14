@@ -1,3 +1,5 @@
+import type { ProductIdentityKey } from "../types.js";
+
 export type EnvLike = Record<string, string | undefined>;
 
 export const RUNTIME_IDENTITY_ENV = {
@@ -88,6 +90,14 @@ export const RUNTIME_IDENTITY_ENV = {
 } as const;
 
 export type RuntimeIdentityEnvKey = keyof typeof RUNTIME_IDENTITY_ENV;
+
+export function runtimeIdentityEnvName(
+  key: RuntimeIdentityEnvKey,
+  productIdentity: ProductIdentityKey
+): string {
+  const pair = RUNTIME_IDENTITY_ENV[key];
+  return productIdentity === "chatcockpit" ? pair.target : pair.legacy;
+}
 
 function normalized(value: string | undefined): string | undefined {
   const trimmed = value?.trim();

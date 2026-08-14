@@ -14,6 +14,7 @@ import {
   buildSourceDistributionContext
 } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
+import { productIdentityForKey } from "./product-identity.js";
 import {
   CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
   LEGACY_DEFAULT_REPO_ID,
@@ -67,7 +68,7 @@ function dedupeSorted(values: string[]): string[] {
 function buildDefaultConfig(
   repoRoot: string,
   context: TokenPilotDistributionContext,
-  defaultRepoId: string = LEGACY_DEFAULT_REPO_ID
+  defaultRepoId: string = productIdentityForKey(context.productIdentity).defaultRepoId
 ): TokenPilotUserConfig {
   const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
   const siblingMappings =

@@ -11,6 +11,7 @@ import {
   buildDistributionContext,
   buildSourceDistributionContext
 } from "./distribution-context.js";
+import { productIdentityForKey } from "./product-identity.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,7 +28,9 @@ export function buildPaths(
   const workspaceDir = context.stateRoot;
   const jobsDir = path.join(workspaceDir, "jobs");
   const runtimeDir = path.join(workspaceDir, "runtime");
+  const identity = productIdentityForKey(context.productIdentity);
   return {
+    productIdentity: context.productIdentity,
     repoRoot: context.primaryWorkspaceRoot,
     installRoot: context.installRoot,
     stateRoot: context.stateRoot,
@@ -46,7 +49,10 @@ export function buildPaths(
     runnerStatusPath: path.join(runtimeDir, "runner-status.json"),
     runnerLogPath: path.join(runtimeDir, "runner.log"),
     runnerPidPath: path.join(runtimeDir, "runner.pid"),
-    runnerPlistPath: path.join(runtimeDir, "com.wuaishare.tokenpilot.runner.plist"),
+    runnerPlistPath: path.join(
+      runtimeDir,
+      `${identity.launchAgentPrefix}.runner.plist`
+    ),
     processSupervisorSocketPath: path.join(runtimeDir, "process-supervisor.sock"),
     processSupervisorTokenPath: path.join(runtimeDir, "process-supervisor.token"),
     processSupervisorStatusPath: path.join(runtimeDir, "process-supervisor-status.json"),
@@ -55,7 +61,7 @@ export function buildPaths(
     processSupervisorEventsPath: path.join(runtimeDir, "process-supervisor-events.jsonl"),
     processSupervisorPlistPath: path.join(
       runtimeDir,
-      "com.wuaishare.tokenpilot.process-supervisor.plist"
+      `${identity.launchAgentPrefix}.process-supervisor.plist`
     )
   };
 }
