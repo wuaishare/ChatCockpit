@@ -85,19 +85,19 @@ async function main(): Promise<void> {
   assert.throws(
     () =>
       resolveOAuthPublicConfig({
-        TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com/mcp"
+        CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com/mcp"
       }),
     /must be an origin without a path/
   );
   assert.throws(
     () =>
       resolveOAuthPublicConfig({
-        TOKENPILOT_PUBLIC_BASE_URL: "http://tokenpilot.example.com"
+        CHATCOCKPIT_PUBLIC_BASE_URL: "http://chatcockpit.example.com"
       }),
     /must use HTTPS/
   );
 
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-oauth-flow-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-oauth-flow-"));
   fs.writeFileSync(path.join(root, "README.md"), "# OAuth fixture\n", "utf8");
   const paths = buildPaths(root);
   ensureWorkspaceDirs(paths);
@@ -105,31 +105,33 @@ async function main(): Promise<void> {
   fs.writeFileSync(
     configPath,
     JSON.stringify({
+      schemaVersion: 1,
+      defaultRepoId: "primary",
       workspaceAllowlist: [root],
-      repoMappings: { tokenpilot: { path: root } }
+      repoMappings: { primary: { path: root } }
     }),
     "utf8"
   );
 
   const original = {
-    configPath: process.env.TOKENPILOT_CONFIG_PATH,
-    token: process.env.TOKENPILOT_API_TOKEN,
-    exposed: process.env.TOKENPILOT_EXPOSED,
-    publicBaseUrl: process.env.TOKENPILOT_PUBLIC_BASE_URL,
-    redirectHosts: process.env.TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS
+    configPath: process.env.CHATCOCKPIT_CONFIG_PATH,
+    token: process.env.CHATCOCKPIT_API_TOKEN,
+    exposed: process.env.CHATCOCKPIT_EXPOSED,
+    publicBaseUrl: process.env.CHATCOCKPIT_PUBLIC_BASE_URL,
+    redirectHosts: process.env.CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS
   };
   const ownerToken = "oauth-owner-test-token";
-  const publicOrigin = "https://tokenpilot.example.com";
+  const publicOrigin = "https://chatcockpit.example.com";
   const resource = `${publicOrigin}/mcp`;
   const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
   const verifier = "v".repeat(64);
   const state = "oauth-state-test";
 
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = ownerToken;
-  process.env.TOKENPILOT_EXPOSED = "true";
-  process.env.TOKENPILOT_PUBLIC_BASE_URL = publicOrigin;
-  delete process.env.TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = ownerToken;
+  process.env.CHATCOCKPIT_EXPOSED = "true";
+  process.env.CHATCOCKPIT_PUBLIC_BASE_URL = publicOrigin;
+  delete process.env.CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS;
 
   let server = await startServer(paths);
   try {
@@ -145,7 +147,7 @@ async function main(): Promise<void> {
     };
     assert.equal(protectedMetadata.resource, resource);
     assert.deepEqual(protectedMetadata.authorization_servers, [publicOrigin]);
-    assert.deepEqual(protectedMetadata.scopes_supported, ["tokenpilot:mcp"]);
+    assert.deepEqual(protectedMetadata.scopes_supported, ["chatcockpit:mcp"]);
     assert.equal(protectedMetadata.scopes_supported.includes("offline_access"), false);
 
     const pathMetadata = await fetch(
@@ -187,7 +189,7 @@ async function main(): Promise<void> {
     assert.equal(unauthorized.status, 401);
     assert.equal(
       unauthorized.headers.get("www-authenticate"),
-      `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="tokenpilot:mcp"`
+      `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="chatcockpit:mcp"`
     );
 
     const blockedRegistration = await fetch(`${server.baseUrl}/oauth/register`, {
@@ -209,7 +211,7 @@ async function main(): Promise<void> {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        client_name: "ChatGPT TokenPilot OAuth Test",
+        client_name: "ChatGPT ChatCockpit OAuth Test",
         redirect_uris: [redirectUri],
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
@@ -222,7 +224,7 @@ async function main(): Promise<void> {
       client_secret?: string;
       redirect_uris: string[];
     };
-    assert.match(registration.client_id, /^tp_client_/);
+    assert.match(registration.client_id, /^cc_client_/);
     assert.equal(registration.client_secret, undefined);
     assert.deepEqual(registration.redirect_uris, [redirectUri]);
 
@@ -230,7 +232,7 @@ async function main(): Promise<void> {
     authorizeUrl.searchParams.set("client_id", registration.client_id);
     authorizeUrl.searchParams.set("redirect_uri", redirectUri);
     authorizeUrl.searchParams.set("response_type", "code");
-    authorizeUrl.searchParams.set("scope", "tokenpilot:mcp offline_access");
+    authorizeUrl.searchParams.set("scope", "chatcockpit:mcp offline_access");
     authorizeUrl.searchParams.set("resource", resource);
     authorizeUrl.searchParams.set("state", state);
     authorizeUrl.searchParams.set("code_challenge", challenge(verifier));
@@ -251,7 +253,7 @@ async function main(): Promise<void> {
     const approvalResponse = await fetch(authorizeUrl);
     assert.equal(approvalResponse.status, 200);
     const approvalHtml = await approvalResponse.text();
-    assert.match(approvalHtml, /Authorize TokenPilot MCP/);
+    assert.match(approvalHtml, /Authorize ChatCockpit MCP/);
     assert.doesNotMatch(approvalHtml, new RegExp(ownerToken));
     const requestId = /name="request_id" value="([^"]+)"/.exec(approvalHtml)?.[1];
     assert.ok(requestId);
@@ -304,11 +306,11 @@ async function main(): Promise<void> {
       expires_in: number;
       scope: string;
     };
-    assert.match(tokens.access_token, /^tp_access_/);
-    assert.match(tokens.refresh_token, /^tp_refresh_/);
+    assert.match(tokens.access_token, /^cc_access_/);
+    assert.match(tokens.refresh_token, /^cc_refresh_/);
     assert.equal(tokens.token_type, "Bearer");
     assert.equal(tokens.expires_in, 3600);
-    assert.match(tokens.scope, /tokenpilot:mcp/);
+    assert.match(tokens.scope, /chatcockpit:mcp/);
 
     const reusedCode = await postForm(`${server.baseUrl}/oauth/token`, {
       grant_type: "authorization_code",
@@ -389,7 +391,7 @@ async function main(): Promise<void> {
       id: 11,
       method: "tools/call",
       params: {
-        name: "tokenpilot.task.get",
+        name: "chatcockpit.task.get",
         arguments: { taskId: taskCreated.task.id }
       }
     });
@@ -414,7 +416,7 @@ async function main(): Promise<void> {
       token_type: string;
       scope: string;
     };
-    assert.match(refreshed.access_token, /^tp_access_/);
+    assert.match(refreshed.access_token, /^cc_access_/);
     assert.notEqual(refreshed.access_token, tokens.access_token);
     assert.equal(refreshed.token_type, "Bearer");
 
@@ -436,7 +438,7 @@ async function main(): Promise<void> {
       id: 13,
       method: "tools/call",
       params: {
-        name: "tokenpilot.task.get",
+        name: "chatcockpit.task.get",
         arguments: { taskId: taskCreated.task.id }
       }
     });
@@ -475,22 +477,22 @@ async function main(): Promise<void> {
     assert.equal(revokedMcp.status, 401);
     assert.equal(
       revokedMcp.headers.get("www-authenticate"),
-      `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="tokenpilot:mcp"`
+      `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="chatcockpit:mcp"`
     );
   } finally {
     await server.close().catch(() => undefined);
-    if (original.configPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = original.configPath;
-    if (original.token === undefined) delete process.env.TOKENPILOT_API_TOKEN;
-    else process.env.TOKENPILOT_API_TOKEN = original.token;
-    if (original.exposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-    else process.env.TOKENPILOT_EXPOSED = original.exposed;
-    if (original.publicBaseUrl === undefined) delete process.env.TOKENPILOT_PUBLIC_BASE_URL;
-    else process.env.TOKENPILOT_PUBLIC_BASE_URL = original.publicBaseUrl;
+    if (original.configPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = original.configPath;
+    if (original.token === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = original.token;
+    if (original.exposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+    else process.env.CHATCOCKPIT_EXPOSED = original.exposed;
+    if (original.publicBaseUrl === undefined) delete process.env.CHATCOCKPIT_PUBLIC_BASE_URL;
+    else process.env.CHATCOCKPIT_PUBLIC_BASE_URL = original.publicBaseUrl;
     if (original.redirectHosts === undefined) {
-      delete process.env.TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS;
+      delete process.env.CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS;
     } else {
-      process.env.TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS = original.redirectHosts;
+      process.env.CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS = original.redirectHosts;
     }
     fs.rmSync(root, { recursive: true, force: true });
   }

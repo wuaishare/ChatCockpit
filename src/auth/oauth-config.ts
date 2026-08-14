@@ -3,9 +3,15 @@ import {
   runtimeIdentityEnvName,
   type EnvLike
 } from "../core/identity-env.js";
-import { productIdentityForKey } from "../core/product-identity.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "../core/product-identity.js";
 import type { ProductIdentityKey } from "../types.js";
-import { TOKENPILOT_MCP_SCOPE, TOKENPILOT_OFFLINE_SCOPE } from "./oauth-types.js";
+import {
+  CHATCOCKPIT_MCP_SCOPE,
+  OAUTH_OFFLINE_SCOPE
+} from "./oauth-types.js";
 
 export interface OAuthPublicConfig {
   productIdentity: ProductIdentityKey;
@@ -33,7 +39,7 @@ function normalizeHost(value: string): string {
 
 export function resolveOAuthPublicConfig(
   env: EnvLike = process.env,
-  productIdentity: ProductIdentityKey = "tokenpilot"
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
 ): OAuthPublicConfig | null {
   const identity = productIdentityForKey(productIdentity);
   const publicBaseEnv = runtimeIdentityEnvName("PUBLIC_BASE_URL", productIdentity);
@@ -84,7 +90,7 @@ export function resolveOAuthPublicConfig(
     tokenEndpoint: `${issuer}/oauth/token`,
     registrationEndpoint: `${issuer}/oauth/register`,
     revocationEndpoint: `${issuer}/oauth/revoke`,
-    scopesSupported: [identity.oauthMcpScope, TOKENPILOT_OFFLINE_SCOPE],
+    scopesSupported: [identity.oauthMcpScope, OAUTH_OFFLINE_SCOPE],
     resourceScopesSupported: [identity.oauthMcpScope],
     allowedRedirectHosts
   };
@@ -122,12 +128,12 @@ export function validateOAuthRedirectUri(
 
 export function isOAuthScopeAllowed(
   scope: string,
-  mcpScope: string = TOKENPILOT_MCP_SCOPE
+  mcpScope: string = CHATCOCKPIT_MCP_SCOPE
 ): boolean {
   const values = scope.split(/\s+/).filter(Boolean);
   if (values.length === 0 || !values.includes(mcpScope)) return false;
   return values.every(
-    (value) => value === mcpScope || value === TOKENPILOT_OFFLINE_SCOPE
+    (value) => value === mcpScope || value === OAUTH_OFFLINE_SCOPE
   );
 }
 
