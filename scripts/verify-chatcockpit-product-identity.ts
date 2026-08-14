@@ -12,6 +12,7 @@ import {
 } from "../src/core/distribution-context.js";
 import { runtimeIdentityEnvName } from "../src/core/identity-env.js";
 import { buildPaths } from "../src/core/paths.js";
+import { initLocalRuntime } from "../src/core/setup.js";
 import {
   CHATCOCKPIT_PRODUCT_IDENTITY,
   DEFAULT_PRODUCT_IDENTITY,
@@ -69,6 +70,24 @@ try {
   assert.equal(targetConfig.repoMappings.primary?.path, canonical(repoRoot));
   assert.equal(targetConfig.repoMappings.tokenpilot, undefined);
 
+  const targetInit = initLocalRuntime(targetPaths);
+  assert.equal(targetInit.created, true);
+  assert.equal(targetInit.tokenGenerated, true);
+  const targetEnv = fs.readFileSync(path.join(targetPaths.runtimeDir, "server.env"), "utf8");
+  assert.match(targetEnv, /^# ChatCockpit local runtime config\./m);
+  assert.match(targetEnv, /^CHATCOCKPIT_HOST=127\.0\.0\.1$/m);
+  assert.match(targetEnv, /^CHATCOCKPIT_PORT=4318$/m);
+  assert.match(targetEnv, /^CHATCOCKPIT_EXPOSED=false$/m);
+  assert.match(targetEnv, /^CHATCOCKPIT_API_TOKEN=cc_local_[A-Za-z0-9_-]+$/m);
+  assert.match(targetEnv, /^CHATCOCKPIT_PUBLIC_BASE_URL=$/m);
+  assert.match(targetEnv, /^CHATCOCKPIT_RUNNER_INTERVAL=3$/m);
+  assert.doesNotMatch(targetEnv, /TOKENPILOT_/);
+  assert.doesNotMatch(targetEnv, /TokenPilot/);
+  assert.equal(
+    targetInit.messages.some((message) => message.includes(".chatcockpit/runtime/server.env")),
+    true
+  );
+
   const currentConfigPath = path.join(targetHome, "current-config.json");
   const currentConfig = loadUserConfig(
     repoRoot,
@@ -76,6 +95,21 @@ try {
   );
   assert.equal(currentConfig.defaultRepoId, "tokenpilot");
   assert.equal(currentConfig.repoMappings.tokenpilot?.path, canonical(repoRoot));
+
+  const currentPathsForInit = buildPaths(
+    buildSourceDistributionContext(repoRoot, {
+      stateRoot: path.join(root, "current-state", ".tokenpilot"),
+      configPath: currentConfigPath
+    })
+  );
+  initLocalRuntime(currentPathsForInit);
+  const currentEnv = fs.readFileSync(
+    path.join(currentPathsForInit.runtimeDir, "server.env"),
+    "utf8"
+  );
+  assert.match(currentEnv, /^# TokenPilot local runtime config\./m);
+  assert.match(currentEnv, /^TOKENPILOT_API_TOKEN=tp_local_[A-Za-z0-9_-]+$/m);
+  assert.doesNotMatch(currentEnv, /CHATCOCKPIT_/);
 
   const packagedTarget = buildDistributionContextForProduct(
     "chatcockpit",

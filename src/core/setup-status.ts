@@ -2,7 +2,7 @@ import fs from "node:fs";
 
 import { buildOAuthReadiness, type OAuthReadinessStatus } from "../auth/oauth-readiness.js";
 import { buildHealthStatusSnapshot } from "./gpt-config.js";
-import { readIdentityEnv } from "./identity-env.js";
+import { readIdentityEnv, runtimeIdentityEnvName } from "./identity-env.js";
 import { listJobs } from "./jobs.js";
 import type { TokenPilotPaths } from "../types.js";
 
@@ -38,6 +38,8 @@ function hasTokenConfigured(): boolean {
 
 export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
   const health = buildHealthStatusSnapshot();
+  const apiTokenEnv = runtimeIdentityEnvName("API_TOKEN", paths.productIdentity);
+  const repoRootEnv = runtimeIdentityEnvName("REPO_ROOT", paths.productIdentity);
   const runtimeExists = fs.existsSync(paths.runtimeDir);
   const envExists = fs.existsSync(envFilePath(paths));
   const runnerReady = fs.existsSync(paths.runnerStatusPath);
@@ -61,9 +63,9 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
       ok: !health.authRequired || tokenConfigured,
       label: "Bearer auth",
       detail: health.authRequired
-        ? "Protected endpoints require TOKENPILOT_API_TOKEN"
+        ? `Protected endpoints require ${apiTokenEnv}`
         : "Local-only mode does not require a token",
-      nextAction: health.authRequired && !tokenConfigured ? "Set TOKENPILOT_API_TOKEN" : "Continue"
+      nextAction: health.authRequired && !tokenConfigured ? `Set ${apiTokenEnv}` : "Continue"
     },
     {
       key: "oauth",
@@ -77,7 +79,7 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
       ok: repoReady,
       label: "Repository allowlist",
       detail: repoReady ? "Default repoId can resolve locally" : "Repository root is unavailable",
-      nextAction: repoReady ? "Continue" : "Check TOKENPILOT_REPO_ROOT"
+      nextAction: repoReady ? "Continue" : `Check ${repoRootEnv}`
     },
     {
       key: "runner",

@@ -3,7 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { TokenPilotPaths } from "../types.js";
+import { runtimeIdentityEnvName } from "./identity-env.js";
 import { ensureWorkspaceDirs } from "./paths.js";
+import { productIdentityForKey } from "./product-identity.js";
 
 export interface InitResult {
   ok: true;
@@ -13,8 +15,8 @@ export interface InitResult {
   messages: string[];
 }
 
-function generateLocalToken(): string {
-  return `tp_local_${crypto.randomBytes(24).toString("base64url")}`;
+function generateLocalToken(prefix: "tp_local" | "cc_local"): string {
+  return `${prefix}_${crypto.randomBytes(24).toString("base64url")}`;
 }
 
 export function initLocalRuntime(paths: TokenPilotPaths, options: { force?: boolean } = {}): InitResult {
@@ -35,16 +37,19 @@ export function initLocalRuntime(paths: TokenPilotPaths, options: { force?: bool
     };
   }
 
-  const token = generateLocalToken();
+  const identity = productIdentityForKey(paths.productIdentity);
+  const token = generateLocalToken(identity.localTokenPrefix);
+  const envName = (key: Parameters<typeof runtimeIdentityEnvName>[0]) =>
+    runtimeIdentityEnvName(key, paths.productIdentity);
   const content = [
-    "# TokenPilot local runtime config.",
-    "# This file is machine-local state under .tokenpilot/runtime and must not be committed.",
-    "TOKENPILOT_HOST=127.0.0.1",
-    "TOKENPILOT_PORT=4318",
-    "TOKENPILOT_EXPOSED=false",
-    `TOKENPILOT_API_TOKEN=${token}`,
-    "TOKENPILOT_PUBLIC_BASE_URL=",
-    "TOKENPILOT_RUNNER_INTERVAL=3",
+    `# ${identity.displayName} local runtime config.`,
+    `# This file is machine-local state under ${identity.stateDirName}/runtime and must not be committed.`,
+    `${envName("HOST")}=127.0.0.1`,
+    `${envName("PORT")}=4318`,
+    `${envName("EXPOSED")}=false`,
+    `${envName("API_TOKEN")}=${token}`,
+    `${envName("PUBLIC_BASE_URL")}=`,
+    `${identity.envPrefix}_RUNNER_INTERVAL=3`,
     ""
   ].join("\n");
 
@@ -52,7 +57,7 @@ export function initLocalRuntime(paths: TokenPilotPaths, options: { force?: bool
   fs.writeFileSync(envPath, content, "utf8");
   messages.push(`created ${envPath}`);
   messages.push("generated a local bearer token for this machine");
-  messages.push("keep .tokenpilot/runtime/server.env private");
+  messages.push(`keep ${identity.stateDirName}/runtime/server.env private`);
 
   return {
     ok: true,
