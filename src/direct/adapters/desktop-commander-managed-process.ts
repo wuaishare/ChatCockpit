@@ -24,8 +24,8 @@ import type { DownstreamMcpClient } from "../downstream-mcp-types.js";
 
 const DEFAULT_READ_TIMEOUT_MS = 250;
 const DEFAULT_OUTPUT_LINES = 1_000;
-const TERMINATION_CONFIRM_TIMEOUT_MS = 1_750;
-const TERMINATION_POLL_INTERVAL_MS = 75;
+const DEFAULT_TERMINATION_CONFIRM_TIMEOUT_MS = 5_000;
+const DEFAULT_TERMINATION_POLL_INTERVAL_MS = 75;
 
 export type ManagedProcessAdapterStatus =
   | "running"
@@ -83,6 +83,11 @@ export type ManagedProcessClientFactory = (
   executor: DownstreamMcpStdioExecutorConfig
 ) => DownstreamMcpClient;
 
+export interface DesktopCommanderManagedProcessSupervisorOptions {
+  terminationConfirmTimeoutMs?: number;
+  terminationPollIntervalMs?: number;
+}
+
 interface ManagedProcessRuntime {
   processId: string;
   privatePid: number;
@@ -124,7 +129,8 @@ export class DesktopCommanderManagedProcessSupervisor {
   constructor(
     runtimeDir: string,
     private readonly configPath?: string,
-    private readonly clientFactory: ManagedProcessClientFactory = defaultClientFactory
+    private readonly clientFactory: ManagedProcessClientFactory = defaultClientFactory,
+    private readonly options: DesktopCommanderManagedProcessSupervisorOptions = {}
   ) {
     this.snapshotStore = new DownstreamMcpCapabilityStore(runtimeDir);
   }
@@ -319,7 +325,13 @@ export class DesktopCommanderManagedProcessSupervisor {
       );
     }
 
-    const deadline = Date.now() + TERMINATION_CONFIRM_TIMEOUT_MS;
+    const terminationConfirmTimeoutMs =
+      this.options.terminationConfirmTimeoutMs ??
+      DEFAULT_TERMINATION_CONFIRM_TIMEOUT_MS;
+    const terminationPollIntervalMs =
+      this.options.terminationPollIntervalMs ??
+      DEFAULT_TERMINATION_POLL_INTERVAL_MS;
+    const deadline = Date.now() + terminationConfirmTimeoutMs;
     let lastObservedText = terminated.text;
     while (Date.now() < deadline) {
       try {
@@ -353,7 +365,7 @@ export class DesktopCommanderManagedProcessSupervisor {
         // Keep polling until the bounded confirmation deadline expires.
       }
       await new Promise((resolve) =>
-        setTimeout(resolve, TERMINATION_POLL_INTERVAL_MS)
+        setTimeout(resolve, terminationPollIntervalMs)
       );
     }
     return await this.finishUnknown(runtime, lastObservedText);

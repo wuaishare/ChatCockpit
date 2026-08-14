@@ -53,11 +53,16 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
   closed = false;
   private state: "running" | "exited" | "terminated" = "running";
 
+  private remainingTerminationConfirmationReads: number;
+
   constructor(
     readonly pid: number,
     private readonly largeOutput = false,
-    private readonly terminationExitCode: number | null = 143
-  ) {}
+    private readonly terminationExitCode: number | null = 143,
+    terminationConfirmationReads = 0
+  ) {
+    this.remainingTerminationConfirmationReads = terminationConfirmationReads;
+  }
 
   async initialize(): Promise<DownstreamMcpServerIdentity> {
     return {
@@ -96,6 +101,21 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
       };
     }
     if (name === DESKTOP_COMMANDER_READ_PROCESS_OUTPUT_TOOL) {
+      if (
+        this.state === "terminated" &&
+        this.remainingTerminationConfirmationReads > 0
+      ) {
+        this.remainingTerminationConfirmationReads -= 1;
+        return {
+          content: [
+            {
+              type: "text",
+              text: `[Reading ${this.pid}]\nready-${this.pid}`
+            }
+          ],
+          isError: false
+        };
+      }
       if (this.largeOutput && this.state === "running") {
         return {
           content: [{ type: "text", text: "x".repeat(80 * 1024) }],
@@ -300,6 +320,29 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
     assert.equal(supervisor.has("host_process_adapter_a"), false);
     assert.equal(clients[0]?.closed, true);
     assert.equal(supervisor.has("host_process_adapter_b"), true);
+
+    const delayedSupervisor = new DesktopCommanderManagedProcessSupervisor(
+      runtimeDir,
+      configPath,
+      () => new ManagedProcessFixtureClient(5177, false, 143, 4),
+      {
+        terminationConfirmTimeoutMs: 1_000,
+        terminationPollIntervalMs: 10
+      }
+    );
+    await delayedSupervisor.start({
+      processId: "host_process_adapter_delayed_stop",
+      cwd: process.cwd(),
+      command: "npm",
+      args: ["test"],
+      startupTimeoutMs: 1000
+    });
+    const delayedStopped = await delayedSupervisor.stop(
+      "host_process_adapter_delayed_stop"
+    );
+    assert.equal(delayedStopped.status, "terminated");
+    assert.equal(delayedStopped.exitCode, 143);
+    assert.equal(delayedSupervisor.activeProcessIds().length, 0);
 
     const cleanup = await supervisor.closeAll();
     assert.equal(cleanup.length, 1);
