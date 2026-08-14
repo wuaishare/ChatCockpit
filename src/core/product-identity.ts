@@ -66,7 +66,7 @@ export const CHATCOCKPIT_PRODUCT_IDENTITY: ProductIdentity = {
   oauthOpaquePrefix: "cc"
 };
 
-export const DEFAULT_PRODUCT_IDENTITY = TOKENPILOT_PRODUCT_IDENTITY;
+export const DEFAULT_PRODUCT_IDENTITY = CHATCOCKPIT_PRODUCT_IDENTITY;
 
 export function productIdentityForKey(key: ProductIdentityKey): ProductIdentity {
   return key === "chatcockpit"

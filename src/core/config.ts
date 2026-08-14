@@ -14,7 +14,10 @@ import {
   buildSourceDistributionContext
 } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
-import { productIdentityForKey } from "./product-identity.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "./product-identity.js";
 import {
   CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
   LEGACY_DEFAULT_REPO_ID,
@@ -22,7 +25,7 @@ import {
   parseUserConfig
 } from "./user-config-schema.js";
 
-export const DEFAULT_REPO_ID = LEGACY_DEFAULT_REPO_ID;
+export const DEFAULT_REPO_ID = DEFAULT_PRODUCT_IDENTITY.defaultRepoId;
 const DEFAULT_SIBLING_REPOS: Record<string, string> = {
   "sourceflow-refactor": "sourceflow-refactor",
   "ai-wuaishare-cn": "ai.wuaishare.cn"
@@ -30,7 +33,10 @@ const DEFAULT_SIBLING_REPOS: Record<string, string> = {
 
 function defaultConfigPath(context?: TokenPilotDistributionContext): string {
   if (context) return context.configPath;
-  return readIdentityEnv("CONFIG_PATH") ?? path.join(os.homedir(), ".tokenpilot", "config.json");
+  return (
+    readIdentityEnv("CONFIG_PATH") ??
+    path.join(os.homedir(), DEFAULT_PRODUCT_IDENTITY.stateDirName, "config.json")
+  );
 }
 
 function normalizeAbsolutePath(input: string): string {

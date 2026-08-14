@@ -8,6 +8,10 @@ import {
 } from "../core/distribution-context.js";
 import type { ProductIdentityKey } from "../types.js";
 import { readIdentityEnv } from "../core/identity-env.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "../core/product-identity.js";
 import { runDoctor } from "../core/doctor.js";
 import { initLocalRuntime } from "../core/setup.js";
 import { runPack } from "../core/pack.js";
@@ -20,24 +24,25 @@ import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-
 import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js";
 
 function printUsage(): void {
-  process.stdout.write(`TokenPilot CLI
+  const identity = DEFAULT_PRODUCT_IDENTITY;
+  process.stdout.write(`${identity.displayName} CLI
 
 Usage:
-  tokenpilot init [--force]
-  tokenpilot doctor [--fix] [--json]
-  tokenpilot pack
-  tokenpilot manifest
-  tokenpilot taskpack --title "..." --problem "..."
-  tokenpilot queue-pack
-  tokenpilot queue-taskpack --title "..." --problem "..."
-  tokenpilot queue-codex-run --title "..." --instructions "..." [--repo-id tokenpilot]
-  tokenpilot jobs
-  tokenpilot job --id "<job-id>"
-  tokenpilot server
-  tokenpilot runner [--once]
-  tokenpilot runner --watch --interval 3
-  tokenpilot process-supervisor
-  tokenpilot probe-direct-executors [--executor-id "downstream-mcp:..."]
+  ${identity.cliName} init [--force]
+  ${identity.cliName} doctor [--fix] [--json]
+  ${identity.cliName} pack
+  ${identity.cliName} manifest
+  ${identity.cliName} taskpack --title "..." --problem "..."
+  ${identity.cliName} queue-pack
+  ${identity.cliName} queue-taskpack --title "..." --problem "..."
+  ${identity.cliName} queue-codex-run --title "..." --instructions "..." [--repo-id ${identity.defaultRepoId}]
+  ${identity.cliName} jobs
+  ${identity.cliName} job --id "<job-id>"
+  ${identity.cliName} server
+  ${identity.cliName} runner [--once]
+  ${identity.cliName} runner --watch --interval 3
+  ${identity.cliName} process-supervisor
+  ${identity.cliName} probe-direct-executors [--executor-id "downstream-mcp:..."]
 `);
 }
 
@@ -49,9 +54,9 @@ function getFlag(name: string): string | undefined {
 
 function productIdentityFromArgs(): ProductIdentityKey {
   const value = getFlag("--product-identity");
-  if (value === undefined || value === "tokenpilot") return "tokenpilot";
-  if (value === "chatcockpit") return "chatcockpit";
-  throw new Error("--product-identity must be tokenpilot or chatcockpit");
+  if (value === undefined) return DEFAULT_PRODUCT_IDENTITY.key;
+  if (value === "tokenpilot" || value === "chatcockpit") return value;
+  throw new Error("--product-identity is an internal compatibility selector and names an unsupported product identity");
 }
 
 function printJson(value: unknown): void {
@@ -102,7 +107,7 @@ function displayPath(filePath: string, repoRoot: string): string {
 }
 
 function printInitResult(result: ReturnType<typeof initLocalRuntime>, repoRoot: string): void {
-  process.stdout.write("TokenPilot init\n");
+  process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} init\n`);
   process.stdout.write(`Status: ${result.created ? "created local runtime config" : "already initialized"}\n`);
   process.stdout.write(`Runtime env: ${displayPath(result.envPath, repoRoot)}\n`);
   process.stdout.write(`Token generated: ${result.tokenGenerated ? "yes" : "no"}\n`);
@@ -115,7 +120,7 @@ function printInitResult(result: ReturnType<typeof initLocalRuntime>, repoRoot: 
 }
 
 function printDoctorResult(result: ReturnType<typeof runDoctor>, repoRoot: string): void {
-  process.stdout.write("TokenPilot doctor\n");
+  process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} doctor\n`);
   process.stdout.write(`Summary: ${result.summary}\n`);
   process.stdout.write(`Status: ${result.ok ? "ready" : "needs attention"}\n`);
   if (result.fixes.length > 0) {
@@ -195,7 +200,7 @@ async function main(): Promise<void> {
     }
     case "queue-pack": {
       const job = createJob(paths, "pack", {
-        repoId: "tokenpilot"
+        repoId: productIdentityForKey(paths.productIdentity).defaultRepoId
       });
       process.stdout.write(`${JSON.stringify(job, null, 2)}\n`);
       return;
@@ -214,7 +219,8 @@ async function main(): Promise<void> {
       return;
     }
     case "queue-codex-run": {
-      const repoId = getFlag("--repo-id") || "tokenpilot";
+      const repoId =
+        getFlag("--repo-id") || productIdentityForKey(paths.productIdentity).defaultRepoId;
       const title = getFlag("--title");
       const instructions = getFlag("--instructions");
       const executionMode = getFlag("--execution-mode") || "develop";
@@ -283,7 +289,7 @@ async function main(): Promise<void> {
           "No downstream MCP executors are configured in the local Direct Executor config.\n"
         );
       } else {
-        process.stdout.write("TokenPilot Direct Executor probe\n");
+        process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} Direct Executor probe\n`);
         printHumanJson(results, paths.repoRoot);
       }
       return;

@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   try {
     const currentRunnerContext = buildRunnerOperationContext(
       buildPaths(
-        buildSourceDistributionContext(workspacePath, {
+        buildSourceDistributionContextForProduct("tokenpilot", workspacePath, {
           stateRoot: path.join(root, "current-state", ".tokenpilot")
         })
       ),
