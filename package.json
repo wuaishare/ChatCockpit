@@ -47,6 +47,8 @@
     "verify:chatcockpit-package-identity": "tsx scripts/verify-chatcockpit-package-identity.ts",
     "verify:chatcockpit-generation": "tsx scripts/verify-chatcockpit-generation.ts",
     "verify:chatcockpit-identity-generation": "npm run verify:chatcockpit-product-identity && npm run verify:chatcockpit-mcp-identity && npm run verify:chatcockpit-oauth-identity && npm run verify:chatcockpit-public-projection && npm run verify:chatcockpit-target-continuity && npm run verify:chatcockpit-macos-identity && npm run verify:chatcockpit-package-identity && npm run verify:chatcockpit-generation",
+    "inventory:chatcockpit-r3": "tsx scripts/verify-chatcockpit-r3-identity-inventory.ts --report",
+    "verify:chatcockpit-r3-identity-inventory": "tsx scripts/verify-chatcockpit-r3-identity-inventory.ts",
     "verify:packaged-doctor": "tsx scripts/verify-packaged-doctor.ts",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
     "verify:runtime-manifest": "tsx scripts/verify-runtime-manifest.ts",

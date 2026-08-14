@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "legacy-product-profile",
+      "class": "implementation-history",
+      "pathRegex": "^src/core/product-identity\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R3 keeps the explicit TokenPilot product descriptor as a bounded compatibility/migration profile while ChatCockpit becomes canonical.",
+      "removalGate": "Review after R4 real migration and R5 compatibility burn-in; do not remove while legacy inspection/import still depends on the descriptor."
+    },
+    {
+      "id": "legacy-runtime-env-input-map",
+      "class": "C1",
+      "pathRegex": "^src/core/identity-env\\.ts$",
+      "lineRegex": "TOKENPILOT_",
+      "reason": "ADR-0004 permits legacy runtime environment names as receive-only 0.2.x input aliases with conflict fail-closed behavior.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-http-route-aliases-server",
+      "class": "C1",
+      "pathRegex": "^src/server/(?:app|auth)\\.ts$",
+      "lineRegex": "\\/tokenpilot\\/(?:api|mcp)",
+      "reason": "Bounded 0.2.x receive-only branded HTTP compatibility aliases; canonical transport remains /api/* and /mcp.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-http-route-alias-mcp-adapter",
+      "class": "C1",
+      "pathRegex": "^src/mcp/http-adapter\\.ts$",
+      "lineRegex": "\\/tokenpilot\\/mcp",
+      "reason": "Bounded 0.2.x receive-only MCP route alias.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-config-default-repo-id",
+      "class": "C3",
+      "pathRegex": "^src/core/user-config-schema\\.ts$",
+      "lineRegex": "LEGACY_DEFAULT_REPO_ID|tokenpilot",
+      "reason": "Legacy config repoId=tokenpilot is durable identity and must remain readable/preserved during migration.",
+      "removalGate": "Retain while legacy config migration is supported; do not cosmetically rewrite durable identity."
+    },
+    {
+      "id": "rename-migration-runtime",
+      "class": "C2",
+      "pathRegex": "^src/migration/",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "Rename migration state machine/classifier must recognize legacy TokenPilot state as migration input without activating or dual-writing it.",
+      "removalGate": "Retain as migration reader beyond active 0.2.x aliases if needed."
+    },
+    {
+      "id": "rename-v0-fixtures",
+      "class": "C2",
+      "pathRegex": "^scripts/fixtures/rename-v0/",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "Sanitized historical 0.1.x fixtures intentionally encode legacy identity for migration verification.",
+      "removalGate": "Permanent test history unless legacy migration support is formally removed."
+    },
+    {
+      "id": "rename-foundation-verifiers",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-rename-(?:env-compat|config-migration|state-machine|migration-preview)\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R1 regression verifiers intentionally exercise legacy identity inputs and migration fixtures.",
+      "removalGate": "Retain while ADR-0004 compatibility/migration contracts remain supported."
+    },
+    {
+      "id": "r2-target-continuity-verifier",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-chatcockpit-target-continuity\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R2 copied-state verifier intentionally compares legacy and target durable/runtime identities.",
+      "removalGate": "Retain through R4/R5 as regression evidence."
+    },
+    {
+      "id": "r2-generation-verifier",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-chatcockpit-generation\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R2 isolated-generation verifier intentionally proves legacy fixture preservation and real .tokenpilot non-mutation.",
+      "removalGate": "Retain through R4/R5 as regression evidence."
+    },
+    {
+      "id": "legacy-oauth-scope-symbol",
+      "class": "C2",
+      "pathRegex": "^src/auth/oauth-types\\.ts$",
+      "lineRegex": "TOKENPILOT_MCP_SCOPE|tokenpilot",
+      "reason": "Legacy OAuth scope remains an explicit old authority identity for rejection/migration tests; it must never silently upgrade to chatcockpit:mcp.",
+      "removalGate": "Retain while legacy OAuth migration/rejection behavior is verified."
+    }
+  ]
+}
