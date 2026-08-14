@@ -13,7 +13,6 @@ import {
 } from "./oauth-config.js";
 import { OAuthStore } from "./oauth-store.js";
 import {
-  TOKENPILOT_MCP_SCOPE,
   type OAuthAuthorizationRequestRecord,
   type OAuthClientRecord,
   type OAuthTokenRecord
@@ -137,7 +136,7 @@ export class OAuthService {
     if ((input.tokenEndpointAuthMethod ?? "none") !== "none") {
       throw new OAuthProtocolError(
         "invalid_client_metadata",
-        "TokenPilot OAuth accepts public clients only"
+        `${this.config.displayName} OAuth accepts public clients only`
       );
     }
 
@@ -177,7 +176,7 @@ export class OAuthService {
     const createdAt = this.now();
     const client = this.store.registerClient(
       {
-        clientId: `tp_client_${randomBytes(18).toString("base64url")}`,
+        clientId: `${this.config.oauthOpaquePrefix}_client_${randomBytes(18).toString("base64url")}`,
         clientName: requireNonEmpty(input.clientName ?? "ChatGPT MCP client", "client_name", 120),
         redirectUris: uniqueRedirectUris,
         grantTypes: [...new Set(grantTypes)],
@@ -204,11 +203,14 @@ export class OAuthService {
     if (input.responseType !== "code") {
       throw new OAuthProtocolError("unsupported_response_type", "response_type must be code");
     }
-    if (!isOAuthScopeAllowed(input.scope)) {
+    if (!isOAuthScopeAllowed(input.scope, this.config.mcpScope)) {
       throw new OAuthProtocolError("invalid_scope", "Requested OAuth scope is not supported");
     }
     if (input.resource !== this.config.resource) {
-      throw new OAuthProtocolError("invalid_target", "OAuth resource does not match TokenPilot MCP");
+      throw new OAuthProtocolError(
+        "invalid_target",
+        `OAuth resource does not match ${this.config.displayName} MCP`
+      );
     }
     if (input.codeChallengeMethod !== "S256" || !PKCE_CHALLENGE_PATTERN.test(input.codeChallenge)) {
       throw new OAuthProtocolError("invalid_request", "PKCE S256 code_challenge is required");
@@ -241,7 +243,7 @@ export class OAuthService {
       throw new OAuthProtocolError("access_denied", "Owner approval was denied", 403);
     }
 
-    const code = opaqueToken("tp_code");
+    const code = opaqueToken(`${this.config.oauthOpaquePrefix}_code`);
     const now = this.now();
     const consumed = this.store.transaction(() => {
       const request = this.store.consumeAuthorizationRequest(requestId, iso(now));
@@ -283,8 +285,8 @@ export class OAuthService {
       throw new OAuthProtocolError("invalid_grant", "PKCE code_verifier is invalid");
     }
     const now = this.now();
-    const accessToken = opaqueToken("tp_access");
-    const refreshToken = opaqueToken("tp_refresh");
+    const accessToken = opaqueToken(`${this.config.oauthOpaquePrefix}_access`);
+    const refreshToken = opaqueToken(`${this.config.oauthOpaquePrefix}_refresh`);
 
     return this.store.transaction(() => {
       const authorizationCode = this.store.findActiveAuthorizationCode(input.code, iso(now));
@@ -345,7 +347,7 @@ export class OAuthService {
     ) {
       throw new OAuthProtocolError("invalid_grant", "Refresh token is invalid or expired");
     }
-    const accessToken = opaqueToken("tp_access");
+    const accessToken = opaqueToken(`${this.config.oauthOpaquePrefix}_access`);
     this.store.storeAccessToken({
       token: accessToken,
       clientId: stored.clientId,
@@ -373,7 +375,7 @@ export class OAuthService {
     if (
       !record ||
       record.resource !== this.config.resource ||
-      !hasOAuthScope(record.scope, TOKENPILOT_MCP_SCOPE)
+      !hasOAuthScope(record.scope, this.config.mcpScope)
     ) {
       return null;
     }

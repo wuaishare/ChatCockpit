@@ -1,7 +1,12 @@
 import fs from "node:fs";
 
 import type { TokenPilotPaths } from "../types.js";
-import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
+import {
+  readIdentityEnv,
+  runtimeIdentityEnvName,
+  type EnvLike
+} from "../core/identity-env.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import { resolveOAuthPublicConfig } from "./oauth-config.js";
 
 export type OAuthReadinessStatus = "disabled" | "ready" | "needs-attention";
@@ -32,6 +37,12 @@ export function buildOAuthReadiness(
   paths: TokenPilotPaths,
   env: EnvLike = process.env
 ): OAuthReadiness {
+  const identity = productIdentityForKey(paths.productIdentity);
+  const apiTokenEnv = runtimeIdentityEnvName("API_TOKEN", paths.productIdentity);
+  const publicBaseEnv = runtimeIdentityEnvName(
+    "PUBLIC_BASE_URL",
+    paths.productIdentity
+  );
   const exposed = readEnvFlag(readIdentityEnv("EXPOSED", env));
   if (!exposed) {
     return {
@@ -50,14 +61,14 @@ export function buildOAuthReadiness(
       ready: false,
       required: true,
       protectedResourceMetadataUrl: null,
-      detail: "Remote MCP OAuth needs the existing TokenPilot owner secret.",
-      nextAction: "Set TOKENPILOT_API_TOKEN before enabling exposed mode."
+      detail: `Remote MCP OAuth needs the existing ${identity.displayName} owner secret.`,
+      nextAction: `Set ${apiTokenEnv} before enabling exposed mode.`
     };
   }
 
   let config;
   try {
-    config = resolveOAuthPublicConfig(env);
+    config = resolveOAuthPublicConfig(env, paths.productIdentity);
   } catch (error) {
     return {
       status: "needs-attention",
@@ -65,7 +76,7 @@ export function buildOAuthReadiness(
       required: true,
       protectedResourceMetadataUrl: null,
       detail: error instanceof Error ? error.message : "OAuth public origin is invalid.",
-      nextAction: "Fix TOKENPILOT_PUBLIC_BASE_URL and restart TokenPilot."
+      nextAction: `Fix ${publicBaseEnv} and restart ${identity.displayName}.`
     };
   }
 
@@ -76,7 +87,7 @@ export function buildOAuthReadiness(
       required: true,
       protectedResourceMetadataUrl: null,
       detail: "Remote MCP OAuth needs a canonical public origin.",
-      nextAction: "Set TOKENPILOT_PUBLIC_BASE_URL to the HTTPS origin without /mcp."
+      nextAction: `Set ${publicBaseEnv} to the HTTPS origin without /mcp.`
     };
   }
 
@@ -86,8 +97,8 @@ export function buildOAuthReadiness(
       ready: false,
       required: true,
       protectedResourceMetadataUrl: config.protectedResourceMetadataUrl,
-      detail: "TokenPilot runtime state is not writable for OAuth persistence.",
-      nextAction: "Fix local runtime directory permissions, then restart TokenPilot."
+      detail: `${identity.displayName} runtime state is not writable for OAuth persistence.`,
+      nextAction: `Fix local runtime directory permissions, then restart ${identity.displayName}.`
     };
   }
 

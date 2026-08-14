@@ -1,5 +1,13 @@
-export const TOKENPILOT_MCP_SCOPE = "tokenpilot:mcp";
+import { productIdentityForKey } from "../core/product-identity.js";
+import type { ProductIdentityKey } from "../types.js";
+
+export const TOKENPILOT_MCP_SCOPE = productIdentityForKey("tokenpilot").oauthMcpScope;
+export const CHATCOCKPIT_MCP_SCOPE = productIdentityForKey("chatcockpit").oauthMcpScope;
 export const TOKENPILOT_OFFLINE_SCOPE = "offline_access";
+
+export function oauthMcpScopeForProduct(productIdentity: ProductIdentityKey): string {
+  return productIdentityForKey(productIdentity).oauthMcpScope;
+}
 
 export interface OAuthClientRecord {
   clientId: string;

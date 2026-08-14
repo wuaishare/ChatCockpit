@@ -81,6 +81,7 @@ function approvalPage(input: {
   clientName: string;
   scope: string;
   resource: string;
+  displayName: string;
 }): string {
   return `<!doctype html>
 <html lang="en">
@@ -88,7 +89,7 @@ function approvalPage(input: {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>Authorize TokenPilot MCP</title>
+  <title>Authorize ${escapeHtml(input.displayName)} MCP</title>
   <style>
     :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: Canvas; color: CanvasText; }
@@ -103,12 +104,12 @@ function approvalPage(input: {
 </head>
 <body>
   <main>
-    <h1>Authorize TokenPilot MCP</h1>
-    <p><strong>${escapeHtml(input.clientName)}</strong> is requesting access to your TokenPilot MCP endpoint.</p>
+    <h1>Authorize ${escapeHtml(input.displayName)} MCP</h1>
+    <p><strong>${escapeHtml(input.clientName)}</strong> is requesting access to your ${escapeHtml(input.displayName)} MCP endpoint.</p>
     <p class="meta">Scope: ${escapeHtml(input.scope)}<br>Resource: ${escapeHtml(input.resource)}</p>
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="request_id" value="${escapeHtml(input.requestId)}">
-      <label>TokenPilot owner secret
+      <label>${escapeHtml(input.displayName)} owner secret
         <input name="owner_secret" type="password" autocomplete="current-password" required maxlength="512">
       </label>
       <button type="submit">Authorize</button>
@@ -148,7 +149,7 @@ export function registerOAuthRoutes(
       authorization_servers: [config.issuer],
       scopes_supported: config.resourceScopesSupported,
       bearer_methods_supported: ["header"],
-      resource_name: "TokenPilot MCP"
+      resource_name: `${config.displayName} MCP`
     };
   };
   app.get("/.well-known/oauth-protected-resource", protectedResourceMetadata);
@@ -226,7 +227,8 @@ export function registerOAuthRoutes(
         requestId: pending.requestId,
         clientName: client.clientName,
         scope: pending.scope,
-        resource: pending.resource
+        resource: pending.resource,
+        displayName: config.displayName
       });
     } catch (error) {
       return sendOAuthError(reply, error);

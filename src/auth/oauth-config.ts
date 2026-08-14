@@ -1,7 +1,17 @@
-import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
+import {
+  readIdentityEnv,
+  runtimeIdentityEnvName,
+  type EnvLike
+} from "../core/identity-env.js";
+import { productIdentityForKey } from "../core/product-identity.js";
+import type { ProductIdentityKey } from "../types.js";
 import { TOKENPILOT_MCP_SCOPE, TOKENPILOT_OFFLINE_SCOPE } from "./oauth-types.js";
 
 export interface OAuthPublicConfig {
+  productIdentity: ProductIdentityKey;
+  displayName: string;
+  mcpScope: string;
+  oauthOpaquePrefix: "tp" | "cc";
   issuer: string;
   resource: string;
   protectedResourceMetadataUrl: string;
@@ -22,8 +32,11 @@ function normalizeHost(value: string): string {
 }
 
 export function resolveOAuthPublicConfig(
-  env: EnvLike = process.env
+  env: EnvLike = process.env,
+  productIdentity: ProductIdentityKey = "tokenpilot"
 ): OAuthPublicConfig | null {
+  const identity = productIdentityForKey(productIdentity);
+  const publicBaseEnv = runtimeIdentityEnvName("PUBLIC_BASE_URL", productIdentity);
   const raw = readIdentityEnv("PUBLIC_BASE_URL", env);
   if (!raw) return null;
 
@@ -31,21 +44,21 @@ export function resolveOAuthPublicConfig(
   try {
     parsed = new URL(raw);
   } catch {
-    throw new Error("TOKENPILOT_PUBLIC_BASE_URL must be a valid absolute URL");
+    throw new Error(`${publicBaseEnv} must be a valid absolute URL`);
   }
 
   if (parsed.username || parsed.password) {
-    throw new Error("TOKENPILOT_PUBLIC_BASE_URL must not contain credentials");
+    throw new Error(`${publicBaseEnv} must not contain credentials`);
   }
   if (parsed.search || parsed.hash) {
-    throw new Error("TOKENPILOT_PUBLIC_BASE_URL must not contain query or fragment data");
+    throw new Error(`${publicBaseEnv} must not contain query or fragment data`);
   }
   if (parsed.pathname !== "/" && parsed.pathname !== "") {
-    throw new Error("TOKENPILOT_PUBLIC_BASE_URL must be an origin without a path such as /mcp");
+    throw new Error(`${publicBaseEnv} must be an origin without a path such as /mcp`);
   }
   const localHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
   if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && localHost)) {
-    throw new Error("TOKENPILOT_PUBLIC_BASE_URL must use HTTPS outside localhost");
+    throw new Error(`${publicBaseEnv} must use HTTPS outside localhost`);
   }
 
   const issuer = parsed.origin;
@@ -59,6 +72,10 @@ export function resolveOAuthPublicConfig(
   ]);
 
   return {
+    productIdentity,
+    displayName: identity.displayName,
+    mcpScope: identity.oauthMcpScope,
+    oauthOpaquePrefix: identity.oauthOpaquePrefix,
     issuer,
     resource: `${issuer}/mcp`,
     protectedResourceMetadataUrl: `${issuer}/.well-known/oauth-protected-resource`,
@@ -67,8 +84,8 @@ export function resolveOAuthPublicConfig(
     tokenEndpoint: `${issuer}/oauth/token`,
     registrationEndpoint: `${issuer}/oauth/register`,
     revocationEndpoint: `${issuer}/oauth/revoke`,
-    scopesSupported: [TOKENPILOT_MCP_SCOPE, TOKENPILOT_OFFLINE_SCOPE],
-    resourceScopesSupported: [TOKENPILOT_MCP_SCOPE],
+    scopesSupported: [identity.oauthMcpScope, TOKENPILOT_OFFLINE_SCOPE],
+    resourceScopesSupported: [identity.oauthMcpScope],
     allowedRedirectHosts
   };
 }
@@ -94,7 +111,7 @@ export function validateOAuthRedirectUri(
   }
   const host = normalizeHost(parsed.hostname);
   if (!config.allowedRedirectHosts.has(host)) {
-    throw new Error("redirect_uri host is not allowed by TokenPilot OAuth policy");
+    throw new Error(`redirect_uri host is not allowed by ${config.displayName} OAuth policy`);
   }
   const localHost = host === "localhost" || host === "127.0.0.1";
   if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && localHost)) {
@@ -103,11 +120,14 @@ export function validateOAuthRedirectUri(
   return parsed;
 }
 
-export function isOAuthScopeAllowed(scope: string): boolean {
+export function isOAuthScopeAllowed(
+  scope: string,
+  mcpScope: string = TOKENPILOT_MCP_SCOPE
+): boolean {
   const values = scope.split(/\s+/).filter(Boolean);
-  if (values.length === 0 || !values.includes(TOKENPILOT_MCP_SCOPE)) return false;
+  if (values.length === 0 || !values.includes(mcpScope)) return false;
   return values.every(
-    (value) => value === TOKENPILOT_MCP_SCOPE || value === TOKENPILOT_OFFLINE_SCOPE
+    (value) => value === mcpScope || value === TOKENPILOT_OFFLINE_SCOPE
   );
 }
 

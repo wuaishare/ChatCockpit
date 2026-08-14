@@ -34,7 +34,6 @@ import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
 import { registerOAuthRoutes } from "../auth/oauth-routes.js";
 import { OAuthService } from "../auth/oauth-service.js";
 import { OAuthStore, oauthDatabasePath } from "../auth/oauth-store.js";
-import { TOKENPILOT_MCP_SCOPE } from "../auth/oauth-types.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -203,7 +202,9 @@ export function buildServer(
   validateServerAuthConfig();
 
   const app = Fastify({ logger: true });
-  const oauthConfig = isExposedMode() ? resolveOAuthPublicConfig() : null;
+  const oauthConfig = isExposedMode()
+    ? resolveOAuthPublicConfig(process.env, paths.productIdentity)
+    : null;
   const oauthStore = oauthConfig
     ? new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) })
     : null;
@@ -373,7 +374,7 @@ export function buildServer(
       oauthService && oauthConfig
         ? {
             protectedResourceMetadataUrl: oauthConfig.protectedResourceMetadataUrl,
-            scope: TOKENPILOT_MCP_SCOPE,
+            scope: oauthConfig.mcpScope,
             verifyAccessToken: (token) => Boolean(oauthService.verifyMcpAccessToken(token))
           }
         : null

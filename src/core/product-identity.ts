@@ -19,6 +19,7 @@ export interface ProductIdentity {
   localResourceSourceKind: "tokenpilot-local" | "control-plane-local";
   defaultRepoId: "tokenpilot" | "primary";
   localTokenPrefix: "tp_local" | "cc_local";
+  oauthOpaquePrefix: "tp" | "cc";
 }
 
 export const TOKENPILOT_PRODUCT_IDENTITY: ProductIdentity = {
@@ -39,7 +40,8 @@ export const TOKENPILOT_PRODUCT_IDENTITY: ProductIdentity = {
   asyncRunnerRuntimeKind: "tokenpilot-runner",
   localResourceSourceKind: "tokenpilot-local",
   defaultRepoId: "tokenpilot",
-  localTokenPrefix: "tp_local"
+  localTokenPrefix: "tp_local",
+  oauthOpaquePrefix: "tp"
 };
 
 export const CHATCOCKPIT_PRODUCT_IDENTITY: ProductIdentity = {
@@ -60,7 +62,8 @@ export const CHATCOCKPIT_PRODUCT_IDENTITY: ProductIdentity = {
   asyncRunnerRuntimeKind: "async-runner",
   localResourceSourceKind: "control-plane-local",
   defaultRepoId: "primary",
-  localTokenPrefix: "cc_local"
+  localTokenPrefix: "cc_local",
+  oauthOpaquePrefix: "cc"
 };
 
 export const DEFAULT_PRODUCT_IDENTITY = TOKENPILOT_PRODUCT_IDENTITY;
