@@ -11,6 +11,11 @@ import type {
 import { buildRepoGovernance } from "./config.js";
 import { buildSourceDistributionContext } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
+import {
+  productIdentityForKey,
+  type ProductIdentity
+} from "./product-identity.js";
+import type { ProductIdentityKey } from "../types.js";
 
 export interface TokenPilotGptConfig {
   version: string;
@@ -79,7 +84,10 @@ function resolvePublicBaseUrl(): string | null {
   return readIdentityEnv("PUBLIC_BASE_URL") ?? null;
 }
 
-function resolveActionHost(publicBaseUrl: string | null): string {
+function resolveActionHost(
+  publicBaseUrl: string | null,
+  productIdentity: ProductIdentityKey = "tokenpilot"
+): string {
   if (!publicBaseUrl) {
     return "local-only";
   }
@@ -87,11 +95,21 @@ function resolveActionHost(publicBaseUrl: string | null): string {
   try {
     return new URL(publicBaseUrl).host;
   } catch {
-    return "tokenpilot.example.com";
+    return `${productIdentityForKey(productIdentity).packageName}.example.com`;
   }
 }
 
-export function buildHealthStatusSnapshot(): TokenPilotHealthStatus {
+function projectGptIdentityText(
+  value: string,
+  identity: ProductIdentity
+): string {
+  if (identity.key === "tokenpilot") return value;
+  return value.replaceAll("TokenPilot", identity.displayName);
+}
+
+export function buildHealthStatusSnapshot(
+  productIdentity: ProductIdentityKey = "tokenpilot"
+): TokenPilotHealthStatus {
   const publicBaseUrl = resolvePublicBaseUrl();
   const exposed = /^(1|true|yes|on)$/i.test(readIdentityEnv("EXPOSED") ?? "");
   return {
@@ -108,14 +126,16 @@ export function buildHealthStatusSnapshot(): TokenPilotHealthStatus {
 
 export function buildGptInstructions(
   health: Pick<TokenPilotHealthStatus, "mode" | "authRequired" | "publicBaseUrl" | "openapiUrl">,
-  locale: "zh-CN" | "en-US" = "zh-CN"
+  locale: "zh-CN" | "en-US" = "zh-CN",
+  productIdentity: ProductIdentityKey = "tokenpilot"
 ): string {
+  const identity = productIdentityForKey(productIdentity);
   const localTimeZone = resolveLocalTimeZone();
-  const actionHost = resolveActionHost(health.publicBaseUrl);
+  const actionHost = resolveActionHost(health.publicBaseUrl, productIdentity);
   const versionParts = buildGptVersionParts();
 
   if (locale === "en-US") {
-    return [
+    return projectGptIdentityText([
       "You are TokenPilot's workflow cockpit for local-first ChatGPT + Codex collaboration.",
       "Use TokenPilot Actions and APIs to inspect health, queue jobs, control tracked processes, read public-safe results, and directly perform file and repository operations.",
       "Do not claim a completed HTTPS / Custom GPT Actions production loop unless the operator explicitly confirms it.",
@@ -171,10 +191,10 @@ export function buildGptInstructions(
       "",
       "Current phase: local-first GPT Actions + ChatGPT direct-drive + Codex CLI execution MVP.",
       "Full HTTPS / Custom GPT Actions automation loop is still under validation."
-    ].join("\n");
+    ].join("\n"), identity);
   }
 
-  return [
+  return projectGptIdentityText([
     "你是 TokenPilot 的工作流驾驶舱。你的职责是：",
     "1. 帮用户澄清目标并生成清晰的 Task Pack。",
     "2. 通过已配置的 Actions 调用 TokenPilot 控制面来读取文件、搜索代码、编辑文件、运行高信任本地命令、管理 public-safe git 改动、创建 job、查询状态、读取公开安全结果。",
@@ -263,7 +283,7 @@ export function buildGptInstructions(
     "- 先给事实，再给判断，再给下一步建议。",
     "- 明确区分：已确认、推断、仍待验证。",
     "- 不要因为一次空队列或一次 queued 就制造不必要的异常叙事。"
-  ].join("\n");
+  ].join("\n"), identity);
 }
 
 export function buildGptConfig(
@@ -280,8 +300,10 @@ export function buildGptConfig(
   const updatedAt = (lastCommitDate.status === 0 && lastCommitDate.stdout.trim())
     ? lastCommitDate.stdout.trim()
     : new Date().toISOString();
-  const health = buildHealthStatusSnapshot();
-  const actionHost = resolveActionHost(health.publicBaseUrl);
+  const productIdentity = distributionContext.productIdentity;
+  const identity = productIdentityForKey(productIdentity);
+  const health = buildHealthStatusSnapshot(productIdentity);
+  const actionHost = resolveActionHost(health.publicBaseUrl, productIdentity);
   const versionParts = buildGptVersionParts();
   const repoGovernance = buildRepoGovernance(repoRoot, distributionContext);
   return {
@@ -295,13 +317,13 @@ export function buildGptConfig(
     publicBaseUrl: health.publicBaseUrl,
     schemaImportUrl: health.openapiUrl,
     repoGovernance,
-    instructions: buildGptInstructions(health, locale),
+    instructions: buildGptInstructions(health, locale, productIdentity),
     notes: [
       "Phase 2 双模式：ChatGPT 直驱（writeFile/editFile/runShell 实时编辑） + Codex 异步（createCodexRun 复杂任务）。",
       "直驱模式适合：改文案、修 typo、单文件小改、跑 lint/build 验证。超时边界约 25s，长任务请走 Codex。",
       "Codex 异步适合：跨文件重构、深度探索、需要自动审查的场景。支持 worktree 隔离和 commit policy。",
       "所有端点复用同一套 allowlist + repo mapping 安全模型，runShell 为高信任本地命令 API，Git/Codex diff artifact 只输出 public-safe 路径。",
-      "默认支持 tokenpilot、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。",
+      `默认支持 ${identity.defaultRepoId}、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。`,
       "如产品版本、指令与 Schema 修订、OpenAPI URL 或域名变化，建议去 GPT Builder 侧重新导入 schema 并更新指令。",
       "当前阶段为 local-first 双模式验证版，GPT Actions 超时 ~30s、上下文 ≥ 53KB 已验证。"
     ]

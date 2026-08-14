@@ -4,6 +4,7 @@ import path from "node:path";
 import { buildOAuthReadiness } from "../auth/oauth-readiness.js";
 import type { TokenPilotDistributionContext } from "../types.js";
 import { buildSourceDistributionContext } from "./distribution-context.js";
+import { productIdentityForKey } from "./product-identity.js";
 import { runCommand } from "./shell.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { listJobs } from "./jobs.js";
@@ -42,6 +43,7 @@ export function runDoctor(
   const context = options.context ?? buildSourceDistributionContext(repoRoot);
   const paths = buildPaths(context);
   const packaged = context.mode === "packaged";
+  const identity = productIdentityForKey(context.productIdentity);
 
   if (options.fix) {
     ensureWorkspaceDirs(paths);
@@ -92,7 +94,7 @@ export function runDoctor(
   checks.push({
     name: "bundle-engine",
     ok: true,
-    detail: "TokenPilot internal XML bundle generator",
+    detail: `${identity.displayName} internal XML bundle generator`,
     impact: "informational"
   });
 
@@ -189,9 +191,9 @@ export function runDoctor(
   );
   const summary = runtimeReady
     ? capabilityNeedsAttention
-      ? "TokenPilot runtime is ready; optional capabilities need attention."
-      : "TokenPilot local prerequisites look ready."
-    : "TokenPilot needs attention before the local workflow is fully ready.";
+      ? `${identity.displayName} runtime is ready; optional capabilities need attention.`
+      : `${identity.displayName} local prerequisites look ready.`
+    : `${identity.displayName} needs attention before the local workflow is fully ready.`;
 
   return {
     ok: runtimeReady,

@@ -3,7 +3,9 @@ import path from "node:path";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { readIdentityEnv } from "../core/identity-env.js";
+import { projectOpenApiForProduct } from "../core/openapi-product-projection.js";
 import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
 import { sendApiError } from "./errors.js";
 
@@ -25,7 +27,10 @@ function uiAssetContentType(filePath: string): string {
   return uiAssetContentTypes[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
-function resolveOpenApiServerUrl(request: FastifyRequest): string {
+function resolveOpenApiServerUrl(
+  request: FastifyRequest,
+  paths: TokenPilotPaths
+): string {
   const configured = readIdentityEnv("PUBLIC_BASE_URL");
   if (configured) {
     return configured.replace(/\/+$/, "");
@@ -39,30 +44,30 @@ function resolveOpenApiServerUrl(request: FastifyRequest): string {
   const host = request.headers.host?.trim();
 
   if (!host) {
-    return "https://tokenpilot.example.com";
+    const identity = productIdentityForKey(paths.productIdentity);
+    return `https://${identity.packageName}.example.com`;
   }
 
   return `${protocol}://${host}`;
 }
 
-function renderOpenApiDocument(request: FastifyRequest, repoRoot: string): string {
-  const filePath = path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml");
+function renderOpenApiDocument(
+  request: FastifyRequest,
+  paths: TokenPilotPaths
+): string {
+  const filePath = path.join(paths.installRoot, "openapi", "tokenpilot.openapi.yaml");
   const source = fs.readFileSync(filePath, "utf8");
-  const serverUrl = resolveOpenApiServerUrl(request);
-
-  return source.replace(
-    /^servers:\n  - url: .+$/m,
-    `servers:\n  - url: ${serverUrl}`
-  );
+  const serverUrl = resolveOpenApiServerUrl(request, paths);
+  return projectOpenApiForProduct(source, paths.productIdentity, serverUrl);
 }
 
-function renderUiNotBuiltPage(): string {
+function renderUiNotBuiltPage(displayName: string): string {
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TokenPilot Web UI Not Built</title>
+    <title>${displayName} Web UI Not Built</title>
     <style>
       :root {
         color-scheme: light;
@@ -129,7 +134,7 @@ function renderUiNotBuiltPage(): string {
   </head>
   <body>
     <main>
-      <h1>TokenPilot Web UI is not built yet</h1>
+      <h1>${displayName} Web UI is not built yet</h1>
       <p>The local-first operator Web UI is served from built static assets under <code>web/dist</code>.</p>
       <p>Build the frontend first, then restart the server and open <code>/ui</code> again.</p>
       <ul>
@@ -143,19 +148,19 @@ function renderUiNotBuiltPage(): string {
 </html>`;
 }
 
-function renderPrivacyPolicy(): string {
+function renderPrivacyPolicy(displayName: string): string {
   return `<!doctype html>
 <html lang="zh-Hans">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TokenPilot Privacy Policy</title>
+    <title>${displayName} Privacy Policy</title>
   </head>
   <body>
     <main style="max-width: 760px; margin: 40px auto; font: 16px/1.7 -apple-system, BlinkMacSystemFont, sans-serif;">
-      <h1>TokenPilot Privacy Policy</h1>
-      <p>TokenPilot is a local-first automation layer for repository packaging, task-pack generation, and local runner orchestration.</p>
-      <p>For this MVP, requests sent to the TokenPilot control plane may be logged locally for debugging and job traceability. Repository artifacts are generated on the local machine and remain under the local workspace unless the operator explicitly exposes the control plane or shares generated files.</p>
+      <h1>${displayName} Privacy Policy</h1>
+      <p>${displayName} is a local-first automation layer for repository packaging, task-pack generation, and local runner orchestration.</p>
+      <p>For this MVP, requests sent to the ${displayName} control plane may be logged locally for debugging and job traceability. Repository artifacts are generated on the local machine and remain under the local workspace unless the operator explicitly exposes the control plane or shares generated files.</p>
       <p>This MVP does not intentionally transmit repository contents to third-party services except through actions explicitly initiated by the operator, such as Custom GPT Actions calling the configured HTTPS endpoint.</p>
       <p>Operators are responsible for securing bearer tokens, public endpoints, and exposed infrastructure such as reverse proxies and tunnels.</p>
     </main>
@@ -167,19 +172,20 @@ export function registerStaticRoutes(
   app: FastifyInstance,
   paths: TokenPilotPaths
 ): void {
+  const identity = productIdentityForKey(paths.productIdentity);
   const uiDistDir = path.join(paths.installRoot, "web", "dist");
   const hasUiDist = fs.existsSync(uiDistDir);
   const uiRootRealPath = hasUiDist ? fs.realpathSync(uiDistDir) : null;
 
   app.get("/openapi.yaml", async (request, reply) => {
     reply.type("text/yaml");
-    return renderOpenApiDocument(request, paths.installRoot);
+    return renderOpenApiDocument(request, paths);
   });
 
   app.get("/ui", async (_request, reply) => {
     reply.type("text/html; charset=utf-8");
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
-      return renderUiNotBuiltPage();
+      return renderUiNotBuiltPage(identity.displayName);
     }
     return fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
   });
@@ -188,7 +194,7 @@ export function registerStaticRoutes(
     const indexPath = path.join(uiDistDir, "index.html");
     if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
       reply.type("text/html; charset=utf-8");
-      return renderUiNotBuiltPage();
+      return renderUiNotBuiltPage(identity.displayName);
     }
 
     const requestUrl = request.url;
@@ -243,6 +249,6 @@ export function registerStaticRoutes(
 
   app.get("/privacy-policy", async (_request, reply) => {
     reply.type("text/html; charset=utf-8");
-    return renderPrivacyPolicy();
+    return renderPrivacyPolicy(identity.displayName);
   });
 }

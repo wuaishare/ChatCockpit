@@ -101,7 +101,7 @@ async function verifyMcpErrors(
     );
     assert.equal(
       (rawResult.structuredContent.error as { message: string }).message,
-      "Unexpected TokenPilot error. Check local server logs with the request ID."
+      "Unexpected control-plane error. Check local server logs with the request ID."
     );
     assert.equal(
       (rawResult.structuredContent.error as { details?: { requestId?: string } }).details
@@ -141,7 +141,7 @@ async function main(): Promise<void> {
   assert.equal(rawBody.error.code, "INTERNAL_ERROR");
   assert.equal(
     rawBody.error.message,
-    "Unexpected TokenPilot error. Check local server logs with the request ID."
+    "Unexpected control-plane error. Check local server logs with the request ID."
   );
   assert.deepEqual(rawBody.error.details, { requestId: "req-public-error-rest" });
   assertPublicBodySafe(rawBody, [sensitiveMessage, sensitivePath]);

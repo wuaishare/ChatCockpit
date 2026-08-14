@@ -16,14 +16,9 @@ import {
   terminateAllJobProcesses
 } from "../core/job-processes.js";
 import {
-  fileEditSchema,
-  fileListSchema,
+  buildDirectToolSchemas,
   fileReadBatchSchema,
-  fileReadSchema,
-  fileWriteSchema,
-  gitCommitSchema,
-  searchSchema,
-  shellRunSchema
+  fileReadSchema
 } from "../contracts/direct-tools.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
@@ -45,6 +40,7 @@ import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
 import { buildSetupStatus } from "../core/setup-status.js";
@@ -116,35 +112,37 @@ const taskPackSchema = z.object({
   acceptanceCriteria: z.array(z.string()).optional()
 });
 
-const packJobSchema = z
-  .object({
-    repoId: z.string().min(1).default("tokenpilot")
-  })
-  .default({
-    repoId: "tokenpilot"
-  });
-
-const codexRunSchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  title: z.string().min(1),
-  instructions: z.string().min(1),
-  executionMode: z.enum(["plan", "review", "develop"]).default("develop"),
-  worktreePolicy: z.enum(["auto", "always", "never"]).default("auto"),
-  branchName: z.string().min(1).optional(),
-  approvalPolicy: z.enum(["untrusted", "on-request", "never"]).default("never"),
-  sandbox: z.enum(["read-only", "workspace-write", "danger-full-access"]).default("workspace-write"),
-  verificationCommands: z.array(z.string()).optional(),
-  acceptanceCriteria: z.array(z.string()).optional(),
-  commitPolicy: z.enum(["none", "propose", "commit"]).default("propose"),
-  commitTitle: z.string().min(1).optional(),
-  commitBody: z.string().min(1).optional()
-});
-
-const recentCommitsQuerySchema = z.object({
-  repoId: z.string().min(1).default("tokenpilot"),
-  limit: z.coerce.number().int().positive().max(50).optional(),
-  executorId: z.string().min(1).max(160).optional()
-});
+function buildProductRequestSchemas(defaultRepoId: string) {
+  return {
+    packJobSchema: z
+      .object({
+        repoId: z.string().min(1).default(defaultRepoId)
+      })
+      .default({
+        repoId: defaultRepoId
+      }),
+    codexRunSchema: z.object({
+      repoId: z.string().min(1).default(defaultRepoId),
+      title: z.string().min(1),
+      instructions: z.string().min(1),
+      executionMode: z.enum(["plan", "review", "develop"]).default("develop"),
+      worktreePolicy: z.enum(["auto", "always", "never"]).default("auto"),
+      branchName: z.string().min(1).optional(),
+      approvalPolicy: z.enum(["untrusted", "on-request", "never"]).default("never"),
+      sandbox: z.enum(["read-only", "workspace-write", "danger-full-access"]).default("workspace-write"),
+      verificationCommands: z.array(z.string()).optional(),
+      acceptanceCriteria: z.array(z.string()).optional(),
+      commitPolicy: z.enum(["none", "propose", "commit"]).default("propose"),
+      commitTitle: z.string().min(1).optional(),
+      commitBody: z.string().min(1).optional()
+    }),
+    recentCommitsQuerySchema: z.object({
+      repoId: z.string().min(1).default(defaultRepoId),
+      limit: z.coerce.number().int().positive().max(50).optional(),
+      executorId: z.string().min(1).max(160).optional()
+    })
+  };
+}
 
 const listJobsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
@@ -179,7 +177,7 @@ function replyFrom(value: unknown): ReplyLike {
 }
 
 function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
-  return buildHealthStatusSnapshot();
+  return buildHealthStatusSnapshot(paths.productIdentity);
 }
 
 function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
@@ -200,6 +198,21 @@ export function buildServer(
   options: BuildServerOptions = {}
 ) {
   validateServerAuthConfig();
+
+  const identity = productIdentityForKey(paths.productIdentity);
+  const {
+    packJobSchema,
+    codexRunSchema,
+    recentCommitsQuerySchema
+  } = buildProductRequestSchemas(identity.defaultRepoId);
+  const {
+    fileEditSchema,
+    fileListSchema,
+    fileWriteSchema,
+    gitCommitSchema,
+    searchSchema,
+    shellRunSchema
+  } = buildDirectToolSchemas(identity.defaultRepoId);
 
   const app = Fastify({ logger: true });
   const oauthConfig = isExposedMode()

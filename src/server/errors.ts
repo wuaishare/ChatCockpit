@@ -213,7 +213,7 @@ export function sendApiError(
 }
 
 const INTERNAL_ERROR_MESSAGE =
-  "Unexpected TokenPilot error. Check local server logs with the request ID.";
+  "Unexpected control-plane error. Check local server logs with the request ID.";
 
 function requestIdFromReply(reply: FastifyReply): string {
   return String(reply.request.id);
@@ -224,7 +224,7 @@ export function sendUnknownApiError(reply: FastifyReply, error: unknown): ApiErr
   if (error instanceof ServiceError && error.cause !== undefined) {
     reply.request.log.warn(
       { err: error.cause, requestId, code: error.code },
-      "TokenPilot service operation failed"
+      "Control-plane service operation failed"
     );
   }
 
@@ -244,7 +244,7 @@ export function sendUnknownApiError(reply: FastifyReply, error: unknown): ApiErr
 
   reply.request.log.error(
     { err: error, requestId },
-    "Unhandled TokenPilot request error"
+    "Unhandled control-plane request error"
   );
   return sendApiError(reply, 500, "INTERNAL_ERROR", INTERNAL_ERROR_MESSAGE, {
     details: { requestId }

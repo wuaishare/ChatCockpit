@@ -64,7 +64,7 @@ function toToolResult(value: unknown): TokenPilotMcpToolResult {
 }
 
 const INTERNAL_TOOL_ERROR_MESSAGE =
-  "Unexpected TokenPilot error. Check local server logs with the request ID.";
+  "Unexpected control-plane error. Check local server logs with the request ID.";
 
 function logPrivateToolError(
   context: OperationContext,
@@ -74,7 +74,7 @@ function logPrivateToolError(
   const diagnostic =
     error instanceof Error ? error.stack ?? error.message : String(error);
   process.stderr.write(
-    `[TokenPilot MCP] requestId=${context.requestId} code=${code} ${diagnostic}\n`
+    `[Control Plane MCP] requestId=${context.requestId} code=${code} ${diagnostic}\n`
   );
 }
 
