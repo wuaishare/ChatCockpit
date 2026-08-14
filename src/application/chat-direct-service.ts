@@ -11,6 +11,7 @@ import {
   resolveWritableRepoPathTarget
 } from "../core/files-write.js";
 import { prepareShellCommand } from "../core/shell-api.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import type {
   FileEditPayload,
   FileListPayload,
@@ -400,7 +401,9 @@ export class ChatDirectService {
         selection,
         [],
         access === "write" && selection.selectionMode === "automatic"
-          ? "command-policy-kept-tokenpilot-direct"
+          ? `command-policy-kept-${
+              productIdentityForKey(this.paths.productIdentity).builtInDirectExecutorId
+            }`
           : undefined
       )
     };
@@ -480,7 +483,7 @@ export class ChatDirectService {
       if (error instanceof DirectCapabilityBrokerError) {
         throw new ServiceError(error.code, error.message, {
           hint:
-            "Inspect tokenpilot.direct.executors.list and choose an executor that supports the requested Workspace Direct capability.",
+            `Inspect ${productIdentityForKey(this.paths.productIdentity).mcpNamespace}.direct.executors.list and choose an executor that supports the requested Workspace Direct capability.`,
           details: error.details
         });
       }
@@ -492,7 +495,11 @@ export class ChatDirectService {
     capability: DirectCapabilityId,
     access: DirectCapabilityAccess
   ): DirectExecutorSelection {
-    const selection = this.select(capability, access, "tokenpilot-direct");
+    const selection = this.select(
+      capability,
+      access,
+      productIdentityForKey(this.paths.productIdentity).builtInDirectExecutorId
+    );
     return { ...selection, selectionMode: "automatic" };
   }
 

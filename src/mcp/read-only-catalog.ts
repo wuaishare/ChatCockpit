@@ -13,14 +13,15 @@ export interface ReadOnlyMcpToolServices {
 }
 
 export function buildReadOnlyMcpToolCatalog(
-  services: ReadOnlyMcpToolServices
+  services: ReadOnlyMcpToolServices,
+  defaultRepoId = "tokenpilot"
 ): TokenPilotMcpTool[] {
   const tools = [
     ...buildDirectReadOnlyTools(services.chatDirect),
     ...buildHostDirectReadOnlyTools(services.hostDirect),
-    ...buildFilesReadOnlyTools(services.chatDirect),
-    ...buildSearchReadOnlyTools(services.chatDirect),
-    ...buildGitReadOnlyTools(services.chatDirect)
+    ...buildFilesReadOnlyTools(services.chatDirect, defaultRepoId),
+    ...buildSearchReadOnlyTools(services.chatDirect, defaultRepoId),
+    ...buildGitReadOnlyTools(services.chatDirect, defaultRepoId)
   ];
 
   const names = new Set<string>();

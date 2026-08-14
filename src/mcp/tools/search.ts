@@ -1,5 +1,5 @@
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
-import { searchSchema } from "../../contracts/direct-tools.js";
+import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
 import {
   defineMcpTool,
   readOnlyToolAnnotations,
@@ -7,8 +7,10 @@ import {
 } from "../tool-definition.js";
 
 export function buildSearchReadOnlyTools(
-  chatDirect: ChatDirectService
+  chatDirect: ChatDirectService,
+  defaultRepoId = "tokenpilot"
 ): TokenPilotMcpTool[] {
+  const { searchSchema } = buildDirectToolSchemas(defaultRepoId);
   return [
     defineMcpTool({
       name: "tokenpilot.search.code",

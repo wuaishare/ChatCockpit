@@ -1,14 +1,11 @@
 import { z } from "zod";
 
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
-import {
-  fileEditSchema,
-  fileWriteSchema,
-  gitCommitSchema,
-  shellRunSchema
-} from "../../contracts/direct-tools.js";
-import type { GitStatusResponse } from "../../types.js";
+import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
+import { productIdentityForKey } from "../../core/product-identity.js";
+import type { GitStatusResponse, ProductIdentityKey } from "../../types.js";
 import type { McpIdempotencyStore } from "../idempotency-store.js";
+import { productMcpToolName } from "../product-tool-identity.js";
 import {
   defineMcpTool,
   type McpToolAnnotations,
@@ -20,22 +17,6 @@ const idempotencyKeySchema = z
   .min(8)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
-
-const fileWriteMcpSchema = fileWriteSchema.extend({
-  idempotencyKey: idempotencyKeySchema
-});
-
-const fileEditMcpSchema = fileEditSchema.extend({
-  idempotencyKey: idempotencyKeySchema
-});
-
-const shellRunMcpSchema = shellRunSchema.extend({
-  idempotencyKey: idempotencyKeySchema
-});
-
-const gitCommitMcpSchema = gitCommitSchema.extend({
-  idempotencyKey: idempotencyKeySchema
-});
 
 const reversibleMutationAnnotations: McpToolAnnotations = {
   readOnlyHint: false,
@@ -98,11 +79,34 @@ export interface WorkspaceWriteToolServices {
 }
 
 export function buildWorkspaceWriteTools(
-  services: WorkspaceWriteToolServices
+  services: WorkspaceWriteToolServices,
+  productIdentity: ProductIdentityKey = "tokenpilot"
 ): TokenPilotMcpTool[] {
+  const identity = productIdentityForKey(productIdentity);
+  const {
+    fileEditSchema,
+    fileWriteSchema,
+    gitCommitSchema,
+    shellRunSchema
+  } = buildDirectToolSchemas(identity.defaultRepoId);
+  const fileWriteMcpSchema = fileWriteSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const fileEditMcpSchema = fileEditSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const shellRunMcpSchema = shellRunSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const gitCommitMcpSchema = gitCommitSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const toolName = (suffix: string) => productMcpToolName(suffix, productIdentity);
+  const gitEvidenceHints = [toolName("git.status"), toolName("git.diff")];
+
   return [
     defineMcpTool({
-      name: "tokenpilot.files.write",
+      name: toolName("files.write"),
       title: "Write repository file",
       description:
         "Create or overwrite a public-safe text file. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
@@ -111,7 +115,7 @@ export function buildWorkspaceWriteTools(
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
         const execution = await services.idempotency.execute(
-          "tokenpilot.files.write",
+          toolName("files.write"),
           idempotencyKey,
           payload,
           async () =>
@@ -121,7 +125,7 @@ export function buildWorkspaceWriteTools(
                 payload
               )) as unknown as Record<string, unknown>,
               [payload.path],
-              ["tokenpilot.git.status", "tokenpilot.git.diff"]
+              gitEvidenceHints
             )
         );
         return withIdempotency(
@@ -132,7 +136,7 @@ export function buildWorkspaceWriteTools(
       }
     }),
     defineMcpTool({
-      name: "tokenpilot.files.edit",
+      name: toolName("files.edit"),
       title: "Edit repository file",
       description:
         "Apply one unique search-and-replace edit. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
@@ -141,7 +145,7 @@ export function buildWorkspaceWriteTools(
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
         const execution = await services.idempotency.execute(
-          "tokenpilot.files.edit",
+          toolName("files.edit"),
           idempotencyKey,
           payload,
           async () =>
@@ -151,7 +155,7 @@ export function buildWorkspaceWriteTools(
                 payload
               )) as unknown as Record<string, unknown>,
               [payload.path],
-              ["tokenpilot.git.status", "tokenpilot.git.diff"]
+              gitEvidenceHints
             )
         );
         return withIdempotency(
@@ -162,16 +166,16 @@ export function buildWorkspaceWriteTools(
       }
     }),
     defineMcpTool({
-      name: "tokenpilot.shell.run",
+      name: toolName("shell.run"),
       title: "Run controlled repository command",
       description:
-        "Run a command allowed by TokenPilot policy. Read-only commands may omit sessionId; potentially mutating commands require a chat-direct session that owns the active writer lease. Exposed-mode high-trust controls still apply.",
+        `Run a command allowed by ${identity.displayName} policy. Read-only commands may omit sessionId; potentially mutating commands require a chat-direct session that owns the active writer lease. Exposed-mode high-trust controls still apply.`,
       inputSchema: shellRunMcpSchema,
       annotations: destructiveMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
         const execution = await services.idempotency.execute(
-          "tokenpilot.shell.run",
+          toolName("shell.run"),
           idempotencyKey,
           payload,
           async () => {
@@ -183,7 +187,7 @@ export function buildWorkspaceWriteTools(
             return mutationValue(
               value as unknown as Record<string, unknown>,
               publicChangedPaths(status),
-              ["tokenpilot.git.status", "tokenpilot.git.diff"]
+              gitEvidenceHints
             );
           }
         );
@@ -195,7 +199,7 @@ export function buildWorkspaceWriteTools(
       }
     }),
     defineMcpTool({
-      name: "tokenpilot.git.commit",
+      name: toolName("git.commit"),
       title: "Commit public-safe repository changes",
       description:
         "Stage and commit only public-safe changes. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
@@ -204,7 +208,7 @@ export function buildWorkspaceWriteTools(
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
         const execution = await services.idempotency.execute(
-          "tokenpilot.git.commit",
+          toolName("git.commit"),
           idempotencyKey,
           payload,
           async () => {
@@ -219,7 +223,7 @@ export function buildWorkspaceWriteTools(
             return mutationValue(
               value as unknown as Record<string, unknown>,
               publicChangedPaths(before),
-              ["tokenpilot.git.status", "tokenpilot.git.diff"]
+              gitEvidenceHints
             );
           }
         );

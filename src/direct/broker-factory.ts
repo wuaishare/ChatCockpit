@@ -4,9 +4,9 @@ import { DirectCapabilityBroker } from "./capability-broker.js";
 import { loadDownstreamMcpExecutorsConfig } from "./downstream-mcp-config.js";
 import { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
 import {
+  createBuiltInDirectExecutorSource,
   createCodexStandaloneExecutorSource,
-  createDownstreamMcpExecutorSource,
-  createTokenPilotDirectExecutorSource
+  createDownstreamMcpExecutorSource
 } from "./executor-sources.js";
 
 export function buildConfiguredDirectCapabilityBroker(options: {
@@ -19,7 +19,7 @@ export function buildConfiguredDirectCapabilityBroker(options: {
 
   return new DirectCapabilityBroker([
     createCodexStandaloneExecutorSource(options.codexStandaloneStore),
-    createTokenPilotDirectExecutorSource(),
+    createBuiltInDirectExecutorSource(options.paths.productIdentity),
     ...config.executors.map((executor) =>
       createDownstreamMcpExecutorSource(
         downstreamStore,

@@ -1,8 +1,5 @@
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
-import {
-  gitDiffSchema,
-  gitStatusSchema
-} from "../../contracts/direct-tools.js";
+import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
 import {
   defineMcpTool,
   readOnlyToolAnnotations,
@@ -10,8 +7,10 @@ import {
 } from "../tool-definition.js";
 
 export function buildGitReadOnlyTools(
-  chatDirect: ChatDirectService
+  chatDirect: ChatDirectService,
+  defaultRepoId = "tokenpilot"
 ): TokenPilotMcpTool[] {
+  const { gitDiffSchema, gitStatusSchema } = buildDirectToolSchemas(defaultRepoId);
   return [
     defineMcpTool({
       name: "tokenpilot.git.status",

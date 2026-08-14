@@ -1,3 +1,5 @@
+import { productIdentityForKey } from "../core/product-identity.js";
+import type { ProductIdentityKey } from "../types.js";
 import type { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
 import type { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
 import type {
@@ -22,7 +24,7 @@ function capability(
   };
 }
 
-const TOKENPILOT_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
+const BUILT_IN_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
   capability("files.read", ["read"]),
   capability("files.readBatch", ["read"]),
   capability("files.list", ["read"]),
@@ -36,16 +38,19 @@ const TOKENPILOT_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
   capability("git.log", ["read"])
 ];
 
-export function createTokenPilotDirectExecutorSource(): DirectExecutorSource {
+export function createBuiltInDirectExecutorSource(
+  productIdentity: ProductIdentityKey = "tokenpilot"
+): DirectExecutorSource {
+  const identity = productIdentityForKey(productIdentity);
   return {
     describe(): DirectExecutorDescriptor {
       return {
-        id: "tokenpilot-direct",
+        id: identity.builtInDirectExecutorId,
         kind: "built-in",
-        displayName: "TokenPilot Built-in",
+        displayName: `${identity.displayName} Built-in`,
         health: "ready",
         scopes: [...WORKSPACE_SCOPE],
-        capabilities: TOKENPILOT_DIRECT_CAPABILITIES.map((entry) => ({
+        capabilities: BUILT_IN_DIRECT_CAPABILITIES.map((entry) => ({
           ...entry,
           scopes: [...entry.scopes],
           access: [...entry.access]
@@ -53,6 +58,10 @@ export function createTokenPilotDirectExecutorSource(): DirectExecutorSource {
       };
     }
   };
+}
+
+export function createTokenPilotDirectExecutorSource(): DirectExecutorSource {
+  return createBuiltInDirectExecutorSource("tokenpilot");
 }
 
 function isVerified(

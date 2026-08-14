@@ -22,9 +22,11 @@ import type { RuntimeTurnService } from "../application/runtime-turn-service.js"
 import type { RuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
 import type { RuntimeResourceMutationService } from "../application/runtime-resource-mutation-service.js";
 import type { RuntimeResourceServices } from "../application/runtime-resource-services.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
+import { projectMcpToolsForProduct } from "./product-tool-identity.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
@@ -81,15 +83,22 @@ export function buildTokenPilotMcpHandler(
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   onerror?: (error: Error) => void
 ): McpHttpHandler {
-  const tools = [
-    ...buildReadOnlyMcpToolCatalog({ chatDirect, hostDirect }),
+  const identity = productIdentityForKey(paths.productIdentity);
+  const tools = projectMcpToolsForProduct([
+    ...buildReadOnlyMcpToolCatalog(
+      { chatDirect, hostDirect },
+      identity.defaultRepoId
+    ),
     ...buildHostMutationTools(hostMutation),
     ...buildHostCommandTools(hostCommand),
     ...buildHostProcessTools(hostProcess),
-    ...buildWorkspaceWriteTools({
-      chatDirect,
-      idempotency: new McpIdempotencyStore(paths.runtimeDir)
-    }),
+    ...buildWorkspaceWriteTools(
+      {
+        chatDirect,
+        idempotency: new McpIdempotencyStore(paths.runtimeDir)
+      },
+      paths.productIdentity
+    ),
     ...buildContinuityMcpTools(continuityServices),
     ...buildRuntimeMcpTools(
       runtimeService,
@@ -106,12 +115,12 @@ export function buildTokenPilotMcpHandler(
           publicMutations: runtimeResourceServices.mutations
         })
       : [])
-  ];
+  ], paths.productIdentity);
 
   return createMcpHandler(
     (requestContext) => {
       const server = new McpServer({
-        name: "tokenpilot",
+        name: identity.mcpServerName,
         version: "0.1.0-alpha"
       });
 

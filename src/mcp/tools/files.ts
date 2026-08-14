@@ -1,6 +1,6 @@
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
 import {
-  fileListSchema,
+  buildDirectToolSchemas,
   fileReadBatchSchema,
   fileReadSchema
 } from "../../contracts/direct-tools.js";
@@ -11,8 +11,10 @@ import {
 } from "../tool-definition.js";
 
 export function buildFilesReadOnlyTools(
-  chatDirect: ChatDirectService
+  chatDirect: ChatDirectService,
+  defaultRepoId = "tokenpilot"
 ): TokenPilotMcpTool[] {
+  const { fileListSchema } = buildDirectToolSchemas(defaultRepoId);
   return [
     defineMcpTool({
       name: "tokenpilot.files.read",

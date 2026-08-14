@@ -20,66 +20,76 @@ export const fileReadBatchSchema = z.object({
   limit: z.number().int().positive().optional()
 });
 
-export const fileWriteSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  sessionId: z.string().min(1).max(160),
-  path: z.string().min(1),
-  content: z.string().min(1)
-});
+export function buildDirectToolSchemas(defaultRepoId: string) {
+  return {
+    fileReadSchema,
+    fileReadBatchSchema,
+    fileWriteSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160),
+      path: z.string().min(1),
+      content: z.string().min(1)
+    }),
+    fileEditSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160),
+      path: z.string().min(1),
+      search: z.string().min(1),
+      replace: z.string()
+    }),
+    fileListSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      path: z.string().min(1).default(".")
+    }),
+    searchSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      pattern: z.string().min(1),
+      path: z.string().optional(),
+      maxResults: z.number().int().positive().max(40).optional(),
+      contextLines: z.number().int().nonnegative().max(3).optional(),
+      caseSensitive: z.boolean().optional()
+    }),
+    shellRunSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      command: z.string().min(1),
+      args: z.array(z.string()),
+      workdir: z.string().optional()
+    }),
+    gitStatusSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId)
+    }),
+    gitDiffSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      staged: z.boolean().default(false)
+    }),
+    gitCommitSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160),
+      message: z.string().min(1),
+      body: z.string().optional()
+    })
+  };
+}
 
-export const fileEditSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  sessionId: z.string().min(1).max(160),
-  path: z.string().min(1),
-  search: z.string().min(1),
-  replace: z.string()
-});
+const TOKENPILOT_DIRECT_TOOL_SCHEMAS = buildDirectToolSchemas("tokenpilot");
 
-export const fileListSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  path: z.string().min(1).default(".")
-});
-
-export const searchSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  pattern: z.string().min(1),
-  path: z.string().optional(),
-  maxResults: z.number().int().positive().max(40).optional(),
-  contextLines: z.number().int().nonnegative().max(3).optional(),
-  caseSensitive: z.boolean().optional()
-});
-
-export const shellRunSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  sessionId: z.string().min(1).max(160).optional(),
-  command: z.string().min(1),
-  args: z.array(z.string()),
-  workdir: z.string().optional()
-});
-
-export const gitStatusSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot")
-});
-
-export const gitDiffSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  staged: z.boolean().default(false)
-});
-
-export const gitCommitSchema = z.object({
-  ...directExecutorPreference,
-  repoId: z.string().min(1).default("tokenpilot"),
-  sessionId: z.string().min(1).max(160),
-  message: z.string().min(1),
-  body: z.string().optional()
-});
+export const fileWriteSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.fileWriteSchema;
+export const fileEditSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.fileEditSchema;
+export const fileListSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.fileListSchema;
+export const searchSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.searchSchema;
+export const shellRunSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.shellRunSchema;
+export const gitStatusSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
+export const gitDiffSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
+export const gitCommitSchema = TOKENPILOT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
 
 export type FileReadInput = z.infer<typeof fileReadSchema>;
 export type FileReadBatchInput = z.infer<typeof fileReadBatchSchema>;
