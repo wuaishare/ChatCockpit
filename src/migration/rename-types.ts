@@ -11,6 +11,16 @@ export type RenameMigrationState =
   | "recovery-required"
   | "failed";
 
+export type RenameTargetConfigDisposition =
+  | "absent"
+  | "canonical-equivalent"
+  | "conflict";
+
+export type RenameTargetStateDisposition =
+  | "absent"
+  | "empty-scaffold"
+  | "active-conflict";
+
 export type RenameStateEntryClass =
   | "durable-copy"
   | "durable-copy-with-revalidation"

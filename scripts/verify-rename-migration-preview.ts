@@ -75,6 +75,9 @@ const preview = buildRenameMigrationPreview({
   targetConfigPath: path.join(targetHome, "config.json")
 });
 assert.equal(preview.state, "legacy-detected");
+assert.equal(preview.targetStateDisposition, "absent");
+assert.equal(preview.targetConfigDisposition, "absent");
+assert.deepEqual(preview.blockers, []);
 assert.equal(fs.existsSync(targetState), false);
 assert.equal(fs.existsSync(targetHome), false);
 
@@ -105,7 +108,43 @@ idsAfterDb.close();
 assert.deepEqual(projectAfter, projectBefore);
 assert.deepEqual(workspaceAfter, workspaceBefore);
 
-fs.mkdirSync(targetState, { recursive: true });
+for (const directory of [
+  targetState,
+  path.join(targetState, "bundles"),
+  path.join(targetState, "jobs", "queued"),
+  path.join(targetState, "jobs", "running"),
+  path.join(targetState, "jobs", "completed"),
+  path.join(targetState, "jobs", "failed"),
+  path.join(targetState, "manifests"),
+  path.join(targetState, "runtime")
+]) {
+  fs.mkdirSync(directory, { recursive: true });
+}
+fs.mkdirSync(targetHome, { recursive: true });
+const targetContext = buildSourceDistributionContext(workspace, {
+  configPath: path.join(targetHome, "config.json")
+});
+const targetConfig = buildChatCockpitTargetConfigPreview(workspace, targetContext);
+assert.equal(targetConfig.defaultRepoId, "primary");
+assert.ok(targetConfig.repoMappings.primary);
+fs.writeFileSync(
+  path.join(targetHome, "config.json"),
+  `${JSON.stringify(targetConfig, null, 2)}\n`,
+  "utf8"
+);
+
+const benignTarget = buildRenameMigrationPreview({
+  legacyStateRoot: legacyState,
+  targetStateRoot: targetState,
+  legacyConfigPath,
+  targetConfigPath: path.join(targetHome, "config.json")
+});
+assert.equal(benignTarget.state, "legacy-detected");
+assert.equal(benignTarget.targetStateDisposition, "empty-scaffold");
+assert.equal(benignTarget.targetConfigDisposition, "canonical-equivalent");
+assert.deepEqual(benignTarget.blockers, []);
+
+fs.writeFileSync(path.join(targetState, "runtime", "server.env"), "CHATCOCKPIT_EXPOSED=false\n");
 const conflict = buildRenameMigrationPreview({
   legacyStateRoot: legacyState,
   targetStateRoot: targetState,
@@ -113,13 +152,11 @@ const conflict = buildRenameMigrationPreview({
   targetConfigPath: path.join(targetHome, "config.json")
 });
 assert.equal(conflict.state, "conflict");
-
-const targetContext = buildSourceDistributionContext(workspace, {
-  configPath: path.join(targetHome, "config.json")
-});
-const targetConfig = buildChatCockpitTargetConfigPreview(workspace, targetContext);
-assert.equal(targetConfig.defaultRepoId, "primary");
-assert.ok(targetConfig.repoMappings.primary);
+assert.equal(conflict.targetStateDisposition, "active-conflict");
+assert.equal(
+  conflict.blockers.some((blocker) => blocker.includes("target-state-active-entry:runtime/server.env")),
+  true
+);
 
 const launchAgentFixture = JSON.parse(
   fs.readFileSync(path.join(fixtureRoot, "legacy-launchagents.json"), "utf8")
