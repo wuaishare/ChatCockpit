@@ -7,12 +7,9 @@ const QUIESCED_RUNTIME_ABSENCES = [
   "server.pid",
   "runner.pid",
   "process-supervisor.pid",
-  "process-supervisor.sock",
-  "continuity.sqlite-wal",
-  "continuity.sqlite-shm",
-  "oauth.sqlite-wal",
-  "oauth.sqlite-shm"
+  "process-supervisor.sock"
 ] as const;
+const QUIESCED_ZERO_WALS = ["continuity.sqlite-wal", "oauth.sqlite-wal"] as const;
 const REGENERATED_RUNTIME_ENTRIES = [
   "server.pid",
   "runner.pid",
@@ -21,6 +18,10 @@ const REGENERATED_RUNTIME_ENTRIES = [
   "process-supervisor.token",
   "process-supervisor-status.json",
   "runner-status.json",
+  "continuity.sqlite-wal",
+  "continuity.sqlite-shm",
+  "oauth.sqlite-wal",
+  "oauth.sqlite-shm",
   "com.wuaishare.chatcockpit.control-plane.plist",
   "com.wuaishare.chatcockpit.runner.plist",
   "com.wuaishare.chatcockpit.process-supervisor.plist"
@@ -116,6 +117,20 @@ function findSymlinks(root: string): string[] {
   return values;
 }
 
+function sqliteQuickCheckOk(databasePath: string): boolean {
+  if (!fs.existsSync(databasePath)) return false;
+  let database: DatabaseSync | null = null;
+  try {
+    database = new DatabaseSync(databasePath, { readOnly: true });
+    const integrity = database.prepare("PRAGMA quick_check").get() as { quick_check?: string } | undefined;
+    return integrity?.quick_check === "ok";
+  } catch {
+    return false;
+  } finally {
+    database?.close();
+  }
+}
+
 function inspectContinuity(databasePath: string): {
   schemaVersion: number | null;
   targetIdentityMarkerPresent: boolean;
@@ -195,6 +210,10 @@ export function inspectChatCockpitSourceStateRelocation(
 
   const continuity = inspectContinuity(path.join(sourceStateRoot, "runtime", "continuity.sqlite"));
   if (!continuity.integrityOk) blockers.push("source-continuity-integrity-failed");
+  const oauthPath = path.join(sourceStateRoot, "runtime", "oauth.sqlite");
+  if (fs.existsSync(oauthPath) && !sqliteQuickCheckOk(oauthPath)) {
+    blockers.push("source-oauth-integrity-failed");
+  }
   if (continuity.schemaVersion !== 19) blockers.push("source-continuity-schema-not-v19");
   if (!continuity.targetIdentityMarkerPresent) blockers.push("source-target-identity-marker-missing");
 
@@ -227,6 +246,12 @@ export function inspectChatCockpitSourceStateRelocation(
   const runtimeDir = path.join(sourceStateRoot, "runtime");
   for (const relative of QUIESCED_RUNTIME_ABSENCES) {
     if (fs.existsSync(path.join(runtimeDir, relative))) blockers.push(`source-not-quiesced:${relative}`);
+  }
+  for (const relative of QUIESCED_ZERO_WALS) {
+    const walPath = path.join(runtimeDir, relative);
+    if (fs.existsSync(walPath) && fs.statSync(walPath).size > 0) {
+      blockers.push(`source-uncheckpointed-wal:${relative}`);
+    }
   }
 
   return {
@@ -273,6 +298,10 @@ export function stageChatCockpitSourceStateRelocation(
     !stagedInspection.targetIdentityMarkerPresent
   ) {
     throw new Error("staged ChatCockpit continuity database failed target-only verification");
+  }
+  const stagedOauthPath = path.join(input.stagingRoot, "runtime", "oauth.sqlite");
+  if (fs.existsSync(stagedOauthPath) && !sqliteQuickCheckOk(stagedOauthPath)) {
+    throw new Error("staged ChatCockpit OAuth database failed integrity verification");
   }
   for (const entry of REGENERATED_RUNTIME_ENTRIES) {
     if (fs.existsSync(path.join(runtimeDir, entry))) {

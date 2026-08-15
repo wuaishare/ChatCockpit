@@ -11,6 +11,22 @@ import {
   stageChatCockpitSourceStateRelocation
 } from "../src/migration/source-state-relocation.js";
 
+function buildOAuthFixture(databasePath: string): void {
+  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  const database = new DatabaseSync(databasePath);
+  try {
+    database.exec(`
+      CREATE TABLE oauth_fixture (
+        id TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO oauth_fixture (id, value) VALUES ('fixture', 'preserve-me');
+    `);
+  } finally {
+    database.close();
+  }
+}
+
 function buildTargetOnlyContinuity(databasePath: string): void {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
@@ -70,7 +86,7 @@ try {
     "utf8"
   );
   buildTargetOnlyContinuity(path.join(sourceStateRoot, "runtime", "continuity.sqlite"));
-  fs.writeFileSync(path.join(sourceStateRoot, "runtime", "oauth.sqlite"), "oauth-fixture", "utf8");
+  buildOAuthFixture(path.join(sourceStateRoot, "runtime", "oauth.sqlite"));
   fs.writeFileSync(path.join(sourceStateRoot, "runtime", "server.log"), "log-fixture\n", "utf8");
   fs.writeFileSync(path.join(sourceStateRoot, "runtime", "runner-status.json"), "{}\n", "utf8");
   fs.writeFileSync(path.join(sourceStateRoot, "runtime", "process-supervisor.token"), "fixture\n", "utf8");
@@ -112,6 +128,35 @@ try {
   assert.equal(running.blockers.includes("source-not-quiesced:server.pid"), true);
 
   fs.rmSync(path.join(sourceStateRoot, "runtime", "server.pid"));
+  const runtimeDir = path.join(sourceStateRoot, "runtime");
+  for (const relative of [
+    "continuity.sqlite-wal",
+    "continuity.sqlite-shm",
+    "oauth.sqlite-wal",
+    "oauth.sqlite-shm"
+  ]) {
+    fs.writeFileSync(path.join(runtimeDir, relative), "");
+  }
+  const readyWithEmptyWalFiles = inspectChatCockpitSourceStateRelocation({
+    sourceStateRoot,
+    targetStateRoot,
+    targetConfigPath
+  });
+  assert.equal(readyWithEmptyWalFiles.ready, true, readyWithEmptyWalFiles.blockers.join("\n"));
+
+  fs.writeFileSync(path.join(runtimeDir, "oauth.sqlite-wal"), "pending-wal");
+  const uncheckpointed = inspectChatCockpitSourceStateRelocation({
+    sourceStateRoot,
+    targetStateRoot,
+    targetConfigPath
+  });
+  assert.equal(uncheckpointed.ready, false);
+  assert.equal(
+    uncheckpointed.blockers.includes("source-uncheckpointed-wal:oauth.sqlite-wal"),
+    true
+  );
+  fs.writeFileSync(path.join(runtimeDir, "oauth.sqlite-wal"), "");
+
   const ready = inspectChatCockpitSourceStateRelocation({
     sourceStateRoot,
     targetStateRoot,
@@ -137,6 +182,14 @@ try {
   );
   assert.equal(fs.existsSync(path.join(stagingRoot, "runtime", "server.log")), true);
   assert.equal(fs.existsSync(path.join(stagingRoot, "runtime", "oauth.sqlite")), true);
+  for (const relative of [
+    "continuity.sqlite-wal",
+    "continuity.sqlite-shm",
+    "oauth.sqlite-wal",
+    "oauth.sqlite-shm"
+  ]) {
+    assert.equal(fs.existsSync(path.join(stagingRoot, "runtime", relative)), false, relative);
+  }
   assert.equal(fs.existsSync(path.join(stagingRoot, "jobs", "completed", "job.json")), true);
   assert.deepEqual(
     JSON.parse(fs.readFileSync(path.join(stagingRoot, "config.json"), "utf8")),
