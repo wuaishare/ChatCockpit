@@ -41,10 +41,10 @@ async function runProbe(
   }
 ) {
   const tempRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-standalone-verify-")
+    path.join(os.tmpdir(), "chatcockpit-standalone-verify-")
   );
   const probeRoot = path.join(tempRoot, "probe-root");
-  const runtimeDir = path.join(tempRoot, "runtime");
+  const runtimeDir = path.join(tempRoot, ".chatcockpit", "runtime");
   const tracePath = path.join(tempRoot, "trace.jsonl");
   const fixturePath = path.join(
     process.cwd(),
@@ -59,10 +59,10 @@ async function runProbe(
     args: [fixturePath],
     env: {
       ...process.env,
-      TOKENPILOT_MOCK_STANDALONE_ROOT: probeRoot,
-      TOKENPILOT_MOCK_STANDALONE_TRACE: tracePath,
+      CHATCOCKPIT_MOCK_STANDALONE_ROOT: probeRoot,
+      CHATCOCKPIT_MOCK_STANDALONE_TRACE: tracePath,
       ...(options.unsupportedMethod
-        ? { TOKENPILOT_MOCK_UNSUPPORTED_METHOD: options.unsupportedMethod }
+        ? { CHATCOCKPIT_MOCK_UNSUPPORTED_METHOD: options.unsupportedMethod }
         : {})
     },
     requestTimeoutMs: 5_000
@@ -82,7 +82,7 @@ async function runProbe(
     assert.deepEqual(restored, snapshot);
     assert.equal(
       store.publicPath(),
-      ".tokenpilot/runtime/capabilities/codex-app-server-standalone.json"
+      ".chatcockpit/runtime/capabilities/codex-app-server-standalone.json"
     );
     assert.doesNotMatch(JSON.stringify(snapshot), new RegExp(tempRoot));
     return {

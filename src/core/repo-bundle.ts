@@ -240,7 +240,7 @@ function readFileForBundle(filePath: string): string {
     return buffer.toString("utf8");
   }
 
-  return `${utf8SafeSlice(buffer, maxBytes).toString("utf8")}\n[TokenPilot: file truncated at ${maxBytes} bytes]\n`;
+  return `${utf8SafeSlice(buffer, maxBytes).toString("utf8")}\n[ChatCockpit: file truncated at ${maxBytes} bytes]\n`;
 }
 
 export function writeRepoBundleXml(repoRoot: string, outputPath: string): RepoBundleResult {

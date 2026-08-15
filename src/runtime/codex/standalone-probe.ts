@@ -83,22 +83,22 @@ export class CodexStandaloneCapabilityProbe {
     fs.mkdirSync(this.rootPath, { recursive: true });
     const initialization = await this.client.start();
     const suffix = randomUUID().slice(0, 8);
-    const sourceName = `tokenpilot-standalone-${suffix}.txt`;
+    const sourceName = `chatcockpit-standalone-${suffix}.txt`;
     const sourcePath = path.join(this.rootPath, sourceName);
     const writtenPath = path.join(
       this.rootPath,
-      `tokenpilot-standalone-written-${suffix}.txt`
+      `chatcockpit-standalone-written-${suffix}.txt`
     );
     const copiedPath = path.join(
       this.rootPath,
-      `tokenpilot-standalone-copied-${suffix}.txt`
+      `chatcockpit-standalone-copied-${suffix}.txt`
     );
     const createdDirectory = path.join(
       this.rootPath,
-      `tokenpilot-standalone-dir-${suffix}`
+      `chatcockpit-standalone-dir-${suffix}`
     );
-    const fixtureContent = `TokenPilot standalone probe ${suffix}\n`;
-    const writtenContent = `TokenPilot App Server write ${suffix}\n`;
+    const fixtureContent = `ChatCockpit standalone probe ${suffix}\n`;
+    const writtenContent = `ChatCockpit App Server write ${suffix}\n`;
     fs.writeFileSync(sourcePath, fixtureContent, "utf8");
 
     const operations = {} as Record<
@@ -304,7 +304,7 @@ export class CodexStandaloneCapabilityProbe {
         "command/exec",
         true,
         async () => {
-          const marker = `tokenpilot-command-${suffix}`;
+          const marker = `chatcockpit-command-${suffix}`;
           const response = await this.request<CommandExecResponse>(
             "command/exec",
             {

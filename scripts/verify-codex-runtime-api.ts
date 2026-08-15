@@ -103,7 +103,7 @@ class FakeCodexRuntimeAdapter implements CodingRuntimeAdapter {
           status: { type: "idle" },
           projectId: this.projectId,
           workspaceId: input.workspaceId ?? this.workspaceId,
-          repoId: "tokenpilot",
+          repoId: "primary",
           parentThreadId: null,
           agentNickname: null,
           agentRole: null
@@ -134,7 +134,7 @@ class FakeCodexRuntimeAdapter implements CodingRuntimeAdapter {
       status: { type: "idle" },
       projectId: outsideWorkspace ? null : this.projectId,
       workspaceId: outsideWorkspace ? null : this.workspaceId,
-      repoId: outsideWorkspace ? null : "tokenpilot",
+      repoId: outsideWorkspace ? null : "primary",
       parentThreadId: null,
       agentNickname: null,
       agentRole: null
@@ -335,7 +335,7 @@ class FakeCodexRuntimeAdapter implements CodingRuntimeAdapter {
 }
 
 async function runCodexRuntimeApiVerification(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-runtime-api-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-api-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Runtime API fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
@@ -349,9 +349,11 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
     configPath,
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
         repoMappings: {
-          tokenpilot: {
+          primary: {
             path: repoRoot
           }
         }
@@ -362,12 +364,12 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
     "utf8"
   );
 
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  const originalToken = process.env.TOKENPILOT_API_TOKEN;
-  const originalExposed = process.env.TOKENPILOT_EXPOSED;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "test-token";
-  process.env.TOKENPILOT_EXPOSED = "true";
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const originalToken = process.env.CHATCOCKPIT_API_TOKEN;
+  const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+  process.env.CHATCOCKPIT_EXPOSED = "true";
 
   const adapter = new FakeCodexRuntimeAdapter();
   const app = buildServer(paths, { codexAdapter: adapter });
@@ -521,7 +523,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       "/api/runtime/codex/capabilities"
     );
     const mcpCapabilities = await mcp<Record<string, unknown>>(
-      "tokenpilot.runtime.capabilities",
+      "chatcockpit.runtime.capabilities",
       {}
     );
     assert.deepEqual(mcpCapabilities, restCapabilities);
@@ -538,7 +540,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       `/api/runtime/codex/threads?limit=2&workspaceId=${encodeURIComponent(workspace.id)}&searchTerm=Runtime&archived=true`
     );
     const mcpThreads = await mcp<Record<string, unknown>>(
-      "tokenpilot.codex.thread.list",
+      "chatcockpit.codex.thread.list",
       listArguments
     );
     assert.deepEqual(mcpThreads, restThreads);
@@ -551,7 +553,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       "/api/runtime/codex/threads/thread_api_fixture"
     );
     const mcpThread = await mcp<Record<string, unknown>>(
-      "tokenpilot.codex.thread.read",
+      "chatcockpit.codex.thread.read",
       {
         threadId: "thread_api_fixture",
         includeTurns: false
@@ -604,7 +606,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/runtime/codex/sessions/bind", bindInput);
     const mcpBind = await mcp<typeof restBind>(
-      "tokenpilot.codex.session.bind",
+      "chatcockpit.codex.session.bind",
       bindInput
     );
     assert.equal(restBind.replayed, false);
@@ -628,7 +630,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       resumeInput
     );
     const mcpResume = await mcp<typeof restResume>(
-      "tokenpilot.codex.session.resume",
+      "chatcockpit.codex.session.resume",
       resumeInput
     );
     assert.equal(restResume.replayed, false);
@@ -650,7 +652,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       forkInput
     );
     const mcpFork = await mcp<typeof restFork>(
-      "tokenpilot.codex.session.fork",
+      "chatcockpit.codex.session.fork",
       forkInput
     );
     assert.equal(restFork.replayed, false);
@@ -690,7 +692,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/runtime/codex/turns/start", turnStartInput);
     const mcpTurnStart = await mcp<typeof restTurnStart>(
-      "tokenpilot.codex.turn.start",
+      "chatcockpit.codex.turn.start",
       turnStartInput
     );
     assert.equal(restTurnStart.replayed, false);
@@ -743,7 +745,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       idempotencyKey: "codex-runtime-approval-0001"
     });
     const mcpApprovalResponse = await mcp<typeof approvalResponse>(
-      "tokenpilot.codex.approval.respond",
+      "chatcockpit.codex.approval.respond",
       {
         approvalId,
         expectedRevision: 1,
@@ -773,7 +775,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
         : null;
     }, { label: "runtime API completed event", intervalMs: 10 });
     const mcpEvents = await mcp<typeof restEvents>(
-      "tokenpilot.codex.events.read",
+      "chatcockpit.codex.events.read",
       {
         runId: restTurnStart.run.id,
         limit: 100
@@ -842,7 +844,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/runtime/codex/turns/interrupt", interruptInput);
     const mcpInterrupt = await mcp<typeof restInterrupt>(
-      "tokenpilot.codex.turn.interrupt",
+      "chatcockpit.codex.turn.interrupt",
       interruptInput
     );
     assert.equal(restInterrupt.replayed, false);
@@ -908,7 +910,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
         id: requestId++,
         method: "tools/call",
         params: {
-          name: "tokenpilot.codex.thread.read",
+          name: "chatcockpit.codex.thread.read",
           arguments: {
             threadId: "thread_api_fixture",
             includeTurns: true
@@ -931,19 +933,19 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
   } finally {
     await testServer?.close();
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
     if (originalToken === undefined) {
-      delete process.env.TOKENPILOT_API_TOKEN;
+      delete process.env.CHATCOCKPIT_API_TOKEN;
     } else {
-      process.env.TOKENPILOT_API_TOKEN = originalToken;
+      process.env.CHATCOCKPIT_API_TOKEN = originalToken;
     }
     if (originalExposed === undefined) {
-      delete process.env.TOKENPILOT_EXPOSED;
+      delete process.env.CHATCOCKPIT_EXPOSED;
     } else {
-      process.env.TOKENPILOT_EXPOSED = originalExposed;
+      process.env.CHATCOCKPIT_EXPOSED = originalExposed;
     }
   }
 

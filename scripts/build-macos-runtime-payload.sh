@@ -40,8 +40,8 @@ read_manifest_value() {
 NODE_VERSION="$(read_manifest_value nodeVersion)"
 NODE_ARTIFACT="$(read_manifest_value "architectures.${ARCH}.artifact")"
 NODE_SHA256="$(read_manifest_value "architectures.${ARCH}.sha256")"
-TOKENPILOT_VERSION="$(node -p "require('${ROOT}/package.json').version")"
-RUNTIME_ID="${TOKENPILOT_VERSION}-node${NODE_VERSION}-darwin-${ARCH}"
+CHATCOCKPIT_VERSION="$(node -p "require('${ROOT}/package.json').version")"
+RUNTIME_ID="${CHATCOCKPIT_VERSION}-node${NODE_VERSION}-darwin-${ARCH}"
 OUTPUT_DIR="${OUTPUT_BASE}/${ARCH}/TokenPilotRuntime"
 STAGING_DIR="${OUTPUT_BASE}/${ARCH}/.staging-${RUNTIME_ID}-$$"
 APP_DIR="${STAGING_DIR}/app"
@@ -103,7 +103,7 @@ tar -xJf "${ARCHIVE_PATH}" \
   "node-v${NODE_VERSION}-darwin-${ARCH}/bin/node"
 chmod 755 "${NODE_DIR}/bin/node"
 
-node - "${STAGING_DIR}" "${TOKENPILOT_VERSION}" "${RUNTIME_ID}" "${ARCH}" "${NODE_VERSION}" "${NODE_ARTIFACT}" "${NODE_SHA256}" <<'NODE'
+node - "${STAGING_DIR}" "${CHATCOCKPIT_VERSION}" "${RUNTIME_ID}" "${ARCH}" "${NODE_VERSION}" "${NODE_ARTIFACT}" "${NODE_SHA256}" <<'NODE'
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -146,7 +146,7 @@ const manifest = {
 fs.writeFileSync(path.join(payloadRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 NODE
 
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${STAGING_DIR}" npx tsx "${ROOT}/scripts/verify-macos-runtime-payload.ts"
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${STAGING_DIR}" npx tsx "${ROOT}/scripts/verify-macos-runtime-payload.ts"
 
 rm -rf "${OUTPUT_DIR}"
 mv "${STAGING_DIR}" "${OUTPUT_DIR}"

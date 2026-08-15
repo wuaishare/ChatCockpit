@@ -93,8 +93,8 @@ async function expectCode(
 }
 
 async function verifyHostDirectRead(): Promise<void> {
-  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-host-read-"));
-  const runtimeRoot = path.join(sandbox, "tokenpilot-runtime-root");
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-host-read-"));
+  const runtimeRoot = path.join(sandbox, "chatcockpit-runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const outsideRoot = path.join(sandbox, "outside");
   const configPath = path.join(sandbox, "direct-executors.json");

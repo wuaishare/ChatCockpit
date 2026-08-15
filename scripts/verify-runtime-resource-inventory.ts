@@ -84,7 +84,7 @@ try {
   });
   for (const forbidden of [
     "/home/private/runtime",
-    "/private/tokenpilot-runtime-sentinel",
+    "/private/chatcockpit-runtime-sentinel",
     "secret-auth-token",
     "raw-provider-config",
     "private-command-arg"

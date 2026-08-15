@@ -83,7 +83,7 @@ function sourceExecutor(options: {
   );
   if (!executor) {
     throw new Error(
-      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to the local Direct Executor config or provide TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC.`
+      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to the local Direct Executor config or provide CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC.`
     );
   }
   return {
@@ -268,12 +268,12 @@ async function startSidecar(options: {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TOKENPILOT_REPO_ROOT: options.runtimeRoot,
-        TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH: options.configPath,
-        TOKENPILOT_PROCESS_SUPERVISOR_HEARTBEAT_MS: "50",
-        TOKENPILOT_PROCESS_SUPERVISOR_WATCHDOG_MS: "100",
+        CHATCOCKPIT_REPO_ROOT: options.runtimeRoot,
+        CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH: options.configPath,
+        CHATCOCKPIT_PROCESS_SUPERVISOR_HEARTBEAT_MS: "50",
+        CHATCOCKPIT_PROCESS_SUPERVISOR_WATCHDOG_MS: "100",
         ...(options.allowAbruptTestExit
-          ? { TOKENPILOT_PROCESS_SUPERVISOR_TEST_ABRUPT_EXIT: "true" }
+          ? { CHATCOCKPIT_PROCESS_SUPERVISOR_TEST_ABRUPT_EXIT: "true" }
           : {})
       },
       stdio: ["pipe", "pipe", "pipe"]
@@ -421,15 +421,18 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
   const sourceConfigPath =
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const packageSpec =
-    options.packageSpec ?? process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
+    options.packageSpec ??
+    process.env.CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC ??
+    process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
   const crashMode = options.crashMode ?? "hard-kill";
-  const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-dc-durable-live-"));
+  // Keep the temporary prefix short: macOS Unix-domain socket paths are length-bounded.
+  const sandbox = fs.mkdtempSync(path.join("/tmp", "cc-dc-"));
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, WORKSPACE_RELATIVE);
-  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
-  const previousUserConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
+  const previousUserConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   fs.mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 });
   fs.mkdirSync(workspaceRoot, { recursive: true, mode: 0o700 });
   writeWorkspaceFixture(workspaceRoot);
@@ -437,9 +440,11 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
     userConfigPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [runtimeRoot, workspaceRoot],
         repoMappings: {
-          tokenpilot: { path: runtimeRoot },
+          primary: { path: runtimeRoot },
           "live-workspace": { path: workspaceRoot }
         }
       },
@@ -448,7 +453,7 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
     )}\n`,
     { encoding: "utf8", mode: 0o600 }
   );
-  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = userConfigPath;
 
   const paths = buildPaths(runtimeRoot);
   const databasePath = path.join(paths.runtimeDir, "continuity.sqlite");
@@ -531,7 +536,7 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
     });
     const generationA = sidecar.generation;
 
-    // Proof A: same TokenPilot process survives Control Plane restart.
+    // Proof A: the same ChatCockpit-owned process survives Control Plane restart.
     controlPlane = openControlPlane({ paths, configPath: liveConfigPath });
     const startA = await prepareApproveExecute(
       controlPlane,
@@ -831,9 +836,9 @@ export async function runDesktopCommanderDurableProcessLiveProof(options: {
       }
     }
     if (previousUserConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousUserConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousUserConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
@@ -846,7 +851,8 @@ const isCliEntry = Boolean(
 if (isCliEntry) {
   try {
     const requestedCrashMode =
-      process.env.TOKENPILOT_DURABLE_PROCESS_PROOF_CRASH_MODE === "abrupt-exit"
+      (process.env.CHATCOCKPIT_DURABLE_PROCESS_PROOF_CRASH_MODE ??
+        process.env.TOKENPILOT_DURABLE_PROCESS_PROOF_CRASH_MODE) === "abrupt-exit"
         ? "abrupt-exit"
         : "hard-kill";
     const summary = await runDesktopCommanderDurableProcessLiveProof({

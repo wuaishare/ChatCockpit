@@ -2,7 +2,7 @@
 
 简体中文 | [English](./README.en.md)
 
-![ChatCockpit 项目海报](./docs/assets/tokenpilot-hero-zh-CN.webp)
+![ChatCockpit 项目海报](./docs/assets/chatcockpit-hero-zh-CN.webp)
 
 **v0.2.0-alpha：ChatCockpit 原子产品切换预览。**
 
@@ -80,9 +80,9 @@ flowchart TB
 
 Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Recovery、Handoffs、Evidence、Approvals 八个稳定深链；独立 `/ui/resources` Resource Center 提供 Runtime Profile 选择、显式资源刷新、snapshot diff、Skills/MCP/Plugins/Adapters/ACP Agents 分类清单与详情检查，并对已获治理支持的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 提供 prepare → review/decide → execute 工作流。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
 
-![ChatCockpit GPT Helper 配置界面](./docs/assets/tokenpilot-gpt-helper-config.webp)
+![ChatCockpit GPT Helper 配置界面](./docs/assets/chatcockpit-gpt-helper-config.webp)
 
-![ChatCockpit GPT Actions 写入文件实测](./docs/assets/tokenpilot-gpt-actions-writefile.webp)
+![ChatCockpit GPT Actions 写入文件实测](./docs/assets/chatcockpit-gpt-actions-writefile.webp)
 
 在需要鉴权的模式下，浏览器会话提供 bearer token 前，受保护数据不会展示。
 

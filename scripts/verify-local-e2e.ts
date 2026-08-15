@@ -26,7 +26,7 @@ function makeTempRepoRoot(): string {
     JSON.stringify(
       {
         output: {
-          filePath: ".tokenpilot/repomix-output.xml",
+          filePath: ".chatcockpit/repomix-output.xml",
           style: "xml"
         },
         include: ["README.md", ".repomix.config.json", "docs/**", "src/**", "web/**"]
@@ -52,7 +52,7 @@ function makeTempRepoRoot(): string {
   );
   fs.writeFileSync(
     path.join(repoRoot, "web", "dist", "assets", "app.js"),
-    "console.log('tokenpilot-web-ui-fixture')",
+    "console.log('chatcockpit-web-ui-fixture')",
     "utf8"
   );
   runGit(repoRoot, ["init"]);
@@ -435,7 +435,7 @@ async function runE2E(): Promise<void> {
 
     const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
     assert.equal(uiAsset.status, 200);
-    assert.match(await uiAsset.text(), /tokenpilot-web-ui-fixture/);
+    assert.match(await uiAsset.text(), /chatcockpit-web-ui-fixture/);
 
     const noAuthJobs = await fetch(`http://127.0.0.1:${port}/api/jobs`);
     assert.equal(noAuthJobs.status, 401);

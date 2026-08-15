@@ -1,6 +1,6 @@
 {
   "output": {
-    "filePath": ".tokenpilot/repomix-output.xml",
+    "filePath": ".chatcockpit/repomix-output.xml",
     "style": "xml"
   },
   "include": [
@@ -25,6 +25,7 @@
       ".playwright-mcp/**",
       "dist/**",
       "node_modules/**",
+      ".chatcockpit/**",
       ".tokenpilot/**"
     ]
   }

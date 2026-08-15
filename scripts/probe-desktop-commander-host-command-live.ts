@@ -28,7 +28,7 @@ const LIVE_ROOT_ID = "desktop-commander-command-live-proof";
 const PURE_WORKDIR = "pure-host";
 const WORKSPACE_RELATIVE = "projects/workspace-a";
 const LIVE_WRITE_PATH = "src/live.txt";
-const LIVE_WRITE_CONTENT = "TokenPilot Desktop Commander Host Command live proof\n";
+const LIVE_WRITE_CONTENT = "ChatCockpit Desktop Commander Host Command live proof\n";
 const SLOW_MARKER = "slow-marker.txt";
 const NOW = "2026-08-08T14:30:00.000Z";
 
@@ -74,7 +74,7 @@ function sourceExecutor(options: {
   );
   if (!executor) {
     throw new Error(
-      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to ${options.sourceConfigPath}, or set TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC for this operator-only proof.`
+      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to ${options.sourceConfigPath}, or set CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC for this operator-only proof.`
     );
   }
   return {
@@ -136,7 +136,7 @@ function writeWorkspaceFixture(workspaceRoot: string): void {
     path.join(workspaceRoot, "package.json"),
     `${JSON.stringify(
       {
-        name: "tokenpilot-host-command-live-fixture",
+        name: "chatcockpit-host-command-live-fixture",
         version: "1.0.0",
         private: true,
         scripts: {
@@ -168,7 +168,7 @@ function writeWorkspaceFixture(workspaceRoot: string): void {
   execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
     cwd: workspaceRoot
   });
-  execFileSync("git", ["config", "user.name", "TokenPilot Live Fixture"], {
+  execFileSync("git", ["config", "user.name", "ChatCockpit Live Fixture"], {
     cwd: workspaceRoot
   });
   execFileSync("git", ["add", "."], { cwd: workspaceRoot });
@@ -198,7 +198,7 @@ export interface DesktopCommanderHostCommandLiveProofSummary {
   serverVersion: string;
   health: "ready" | "degraded" | "unavailable";
   verifiedCapabilities: string[];
-  commandTool: "tokenpilot.host.command.execute";
+  commandTool: "chatcockpit.host.command.execute";
   executionScope: "host";
   selectionMode: "explicit";
   pureHostExitCode: 0;
@@ -213,17 +213,19 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
   const sourceConfigPath =
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const packageSpec =
-    options.packageSpec ?? process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
+    options.packageSpec ??
+    process.env.CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC ??
+    process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-commander-command-live-")
+    path.join(os.tmpdir(), "chatcockpit-desktop-commander-command-live-")
   );
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const pureHostRoot = path.join(hostRoot, PURE_WORKDIR);
   const workspaceRoot = path.join(hostRoot, WORKSPACE_RELATIVE);
-  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
-  const previousUserConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
+  const previousUserConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   fs.mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 });
   fs.mkdirSync(pureHostRoot, { recursive: true, mode: 0o700 });
   writeWorkspaceFixture(workspaceRoot);
@@ -242,9 +244,11 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
     userConfigPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [runtimeRoot, workspaceRoot],
         repoMappings: {
-          tokenpilot: { path: runtimeRoot },
+          primary: { path: runtimeRoot },
           "live-workspace": { path: workspaceRoot }
         }
       },
@@ -253,7 +257,7 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
     )}\n`,
     { encoding: "utf8", mode: 0o600 }
   );
-  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = userConfigPath;
 
   let database: ContinuityDatabase | null = null;
   try {
@@ -340,9 +344,9 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
     const tools = new Map(
       buildHostCommandTools(service).map((tool) => [tool.name, tool])
     );
-    const prepareTool = tools.get("tokenpilot.host.command.prepare");
-    const decideTool = tools.get("tokenpilot.host.command.decide");
-    const executeTool = tools.get("tokenpilot.host.command.execute");
+    const prepareTool = tools.get("chatcockpit.host.command.prepare");
+    const decideTool = tools.get("chatcockpit.host.command.decide");
+    const executeTool = tools.get("chatcockpit.host.command.execute");
     assert.ok(prepareTool, "Host Command prepare MCP tool is not registered");
     assert.ok(decideTool, "Host Command decide MCP tool is not registered");
     assert.ok(executeTool, "Host Command execute MCP tool is not registered");
@@ -492,7 +496,7 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
     assert.doesNotMatch(publicResults, new RegExp(workspaceRoot));
     assert.doesNotMatch(publicResults, new RegExp(sandbox));
     assert.doesNotMatch(publicResults, /"pid"/i);
-    assert.doesNotMatch(publicResults, /TOKENPILOT_API_TOKEN/);
+    assert.doesNotMatch(publicResults, /(?:CHATCOCKPIT|TOKENPILOT)_API_TOKEN/);
 
     return {
       ok: true,
@@ -501,7 +505,7 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
       serverVersion: probeSummary.serverVersion,
       health: probeSummary.health,
       verifiedCapabilities: probeSummary.verifiedCapabilities,
-      commandTool: "tokenpilot.host.command.execute",
+      commandTool: "chatcockpit.host.command.execute",
       executionScope: "host",
       selectionMode: "explicit",
       pureHostExitCode: 0,
@@ -511,9 +515,9 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
   } finally {
     database?.close();
     if (previousUserConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousUserConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousUserConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
   }

@@ -6,7 +6,7 @@
 
 ## 背景
 
-TokenPilot 必须支持两种不同的本地开发方式：
+ChatCockpit 必须支持两种不同的本地开发方式：
 
 1. 普通 ChatGPT / MCP Client 直接操作 Allowlisted Project；
 2. ChatGPT 显式发现并委托一个 Codex Session。
@@ -15,12 +15,12 @@ TokenPilot 必须支持两种不同的本地开发方式：
 
 ## 决策
 
-TokenPilot 使用一个 Codex App Server Adapter，但公开两个明确通道。
+ChatCockpit 使用一个 Codex App Server Adapter，但公开两个明确通道。
 
 ### Chat Direct
 
 - Model Loop Owner：ChatGPT；
-- 可以使用本机 Probe 验证过的 App Server Standalone，或 TokenPilot Direct Executor；
+- 可以使用本机 Probe 验证过的 App Server Standalone，或 ChatCockpit Direct Executor；
 - 不得隐式调用 `turn/start`、`codex exec` 或等价 Agent Loop；
 - 结果必须记录 Lane、Owner、Executor、Operation ID、Changed Paths 与 Evidence 关联；
 - Unsupported Capability 返回稳定降级，而不是假装成功。
@@ -33,7 +33,7 @@ TokenPilot 使用一个 Codex App Server Adapter，但公开两个明确通道�
 - 支持 Thread List/Read/Bind/Resume/Fork；
 - Turn Start、Interrupt、Approval、Event 都是显式操作；
 - Write-capable Turn 必须通过 Runtime Binding、Writer Lease、Pre-run Handoff、Evidence 与 Revision 检查；
-- External Thread ID 是可替换 Runtime Binding，不是 TokenPilot Task 主键。
+- External Thread ID 是可替换 Runtime Binding，不是 ChatCockpit Task 主键。
 
 ## Chat Direct 合同
 
@@ -81,7 +81,7 @@ Adapter 启动或 Probe 时记录：
 - Approval / Event；
 - Degraded Behavior。
 
-TokenPilot 不会因为旧版本曾存在某方法就默认当前可用。
+ChatCockpit 不会因为旧版本曾存在某方法就默认当前可用。
 
 ## 已拒绝方案
 
@@ -91,7 +91,7 @@ TokenPilot 不会因为旧版本曾存在某方法就默认当前可用。
 
 ### 只做低层文件和 Shell
 
-无法复用专业 App Server Runtime，也会把 TokenPilot 降级成普通 MCP Server。
+无法复用专业 App Server Runtime，也会把 ChatCockpit 降级成普通 MCP Server。
 
 ### 优先 Fork / Embed Codex Internal
 

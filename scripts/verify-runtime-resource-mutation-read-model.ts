@@ -129,7 +129,7 @@ try {
       id: workspaceId,
       projectId: "project_mutation_read_fixture",
       repoId,
-      privatePath: `/private/tokenpilot-runtime-sentinel/${repoId}`,
+      privatePath: `/private/chatcockpit-runtime-sentinel/${repoId}`,
       now: NOW
     });
   }
@@ -497,7 +497,7 @@ try {
     "remotePluginId",
     "marketplacePath",
     "installUrl",
-    "/private/tokenpilot-runtime-sentinel"
+    "/private/chatcockpit-runtime-sentinel"
   ]) {
     assert.equal(publicJson.includes(forbidden), false, `Public mutation read model leaked ${forbidden}`);
   }

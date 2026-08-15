@@ -34,7 +34,7 @@ function mockResolution(command: string): CodexBinaryResolution {
 }
 
 async function verifyCodexExecution(): Promise<void> {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-codex-execution-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-codex-execution-"));
   const workspaceRoot = path.join(tempRoot, "workspace");
   const nestedWorkspaceRoot = path.join(workspaceRoot, ".worktrees", "feature");
   const configPath = path.join(tempRoot, "config.json");
@@ -48,17 +48,19 @@ async function verifyCodexExecution(): Promise<void> {
   fs.mkdirSync(nestedWorkspaceRoot, { recursive: true });
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "# Execution fixture\n", "utf8");
   runGit(workspaceRoot, ["init", "-b", "main"]);
-  runGit(workspaceRoot, ["config", "user.email", "tokenpilot@example.invalid"]);
-  runGit(workspaceRoot, ["config", "user.name", "TokenPilot Test"]);
+  runGit(workspaceRoot, ["config", "user.email", "chatcockpit@example.invalid"]);
+  runGit(workspaceRoot, ["config", "user.name", "ChatCockpit Test"]);
   runGit(workspaceRoot, ["add", "README.md"]);
   runGit(workspaceRoot, ["commit", "-m", "Initial fixture"]);
   fs.writeFileSync(
     configPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [workspaceRoot],
         repoMappings: {
-          tokenpilot: { path: workspaceRoot }
+          primary: { path: workspaceRoot }
         }
       },
       null,
@@ -67,8 +69,8 @@ async function verifyCodexExecution(): Promise<void> {
     "utf8"
   );
 
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   const paths = buildPaths(workspaceRoot);
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
@@ -82,7 +84,7 @@ async function verifyCodexExecution(): Promise<void> {
   const workspace = repositories.workspaces.create({
     id: "workspace_execution",
     projectId: project.id,
-    repoId: "tokenpilot",
+    repoId: "primary",
     privatePath: workspaceRoot,
     kind: "checkout",
     branch: "main",
@@ -108,9 +110,9 @@ async function verifyCodexExecution(): Promise<void> {
 
   const env = {
     ...process.env,
-    TOKENPILOT_MOCK_WORKSPACE_ROOT: workspaceRoot,
-    TOKENPILOT_MOCK_NESTED_WORKSPACE_ROOT: nestedWorkspaceRoot,
-    TOKENPILOT_MOCK_APP_SERVER_TRACE: tracePath
+    CHATCOCKPIT_MOCK_WORKSPACE_ROOT: workspaceRoot,
+    CHATCOCKPIT_MOCK_NESTED_WORKSPACE_ROOT: nestedWorkspaceRoot,
+    CHATCOCKPIT_MOCK_APP_SERVER_TRACE: tracePath
   };
   const adapter = new CodexAppServerAdapter({
     workspaces: repositories.workspaces,
@@ -297,9 +299,9 @@ async function verifyCodexExecution(): Promise<void> {
     await runtime.close();
     database.close();
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }

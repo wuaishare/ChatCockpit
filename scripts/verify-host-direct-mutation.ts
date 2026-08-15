@@ -42,7 +42,7 @@ function expectServiceCode(operation: () => unknown, code: string): void {
 
 function verifyDirectMutationPersistence(): void {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-mutation-")
+    path.join(os.tmpdir(), "chatcockpit-host-mutation-")
   );
   const database = new ContinuityDatabase({
     path: path.join(sandbox, "continuity.sqlite")
@@ -218,7 +218,7 @@ function expectHostPathCode(operation: () => unknown, code: string): void {
 
 function verifyHostMutationPathPolicy(): void {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-mutation-policy-")
+    path.join(os.tmpdir(), "chatcockpit-host-mutation-policy-")
   );
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
@@ -512,7 +512,7 @@ function verifyHostMutationPathPolicy(): void {
 
 async function verifyHostMutationPrepareAndDecision(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-mutation-prepare-")
+    path.join(os.tmpdir(), "chatcockpit-host-mutation-prepare-")
   );
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
@@ -737,7 +737,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
         rootId: "fixture",
         path: "notes/wrong-executor.txt",
         content: "blocked\n",
-        executorId: "tokenpilot-direct",
+        executorId: "builtin-direct",
         idempotencyKey: "prepare-wrong-executor"
       }),
       "DIRECT_EXECUTOR_UNSUPPORTED"
@@ -997,7 +997,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
 
 async function verifyHostMutationExecutorDrift(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-mutation-executor-drift-")
+    path.join(os.tmpdir(), "chatcockpit-host-mutation-executor-drift-")
   );
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
@@ -1128,14 +1128,14 @@ async function verifyHostMutationExecutorDrift(): Promise<void> {
 
 async function verifyWorkspaceMutationReentry(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-mutation-workspace-")
+    path.join(os.tmpdir(), "chatcockpit-host-mutation-workspace-")
   );
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
   const configPath = path.join(sandbox, "direct-executors.json");
-  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
-  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
+  const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
 
   fs.mkdirSync(path.join(workspaceRoot, "src"), { recursive: true });
   fs.mkdirSync(runtimeRoot, { recursive: true });
@@ -1144,7 +1144,7 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
   execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
     cwd: workspaceRoot
   });
-  execFileSync("git", ["config", "user.name", "TokenPilot Fixture"], {
+  execFileSync("git", ["config", "user.name", "ChatCockpit Fixture"], {
     cwd: workspaceRoot
   });
   execFileSync("git", ["add", "README.md"], { cwd: workspaceRoot });
@@ -1165,9 +1165,11 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
   fs.writeFileSync(
     userConfigPath,
     JSON.stringify({
+      schemaVersion: 1,
+      defaultRepoId: "primary",
       workspaceAllowlist: [runtimeRoot, workspaceRoot],
       repoMappings: {
-        tokenpilot: { path: runtimeRoot },
+        primary: { path: runtimeRoot },
         "fixture-repo": { path: workspaceRoot }
       }
     }),
@@ -1217,7 +1219,7 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
     "utf8"
   );
 
-  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = userConfigPath;
   const paths = buildPaths(runtimeRoot);
   const database = new ContinuityDatabase({ path: ":memory:" });
   const repositories = buildContinuityRepositories(database);
@@ -1430,9 +1432,9 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
   } finally {
     database.close();
     if (previousConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
@@ -1440,7 +1442,7 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
 
 async function verifyHostMutationRestParity(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-mutation-rest-")
+    path.join(os.tmpdir(), "chatcockpit-host-mutation-rest-")
   );
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");

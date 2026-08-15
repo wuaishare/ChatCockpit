@@ -25,7 +25,7 @@ function readGitValue(args: string[], fallback: string): string {
 }
 
 export default defineConfig(() => {
-  const apiTarget = process.env.TOKENPILOT_WEB_API_ORIGIN || "http://127.0.0.1:4318";
+  const apiTarget = process.env.CHATCOCKPIT_WEB_API_ORIGIN || "http://127.0.0.1:4318";
   const productVersion = readPackageVersion();
   const schemaVersion = readGitValue(["rev-list", "--count", "HEAD"], "0");
   const buildVersion = readGitValue(
@@ -38,7 +38,7 @@ export default defineConfig(() => {
     base: "/ui/",
     plugins: [react()],
     define: {
-      __TOKENPILOT_VERSION__: JSON.stringify({
+      __CHATCOCKPIT_VERSION__: JSON.stringify({
         version: `${productVersion} (${schemaVersion})`,
         productVersion,
         schemaVersion,

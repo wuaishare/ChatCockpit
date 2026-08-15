@@ -34,7 +34,7 @@ import { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-
 import { RuntimeProfileRegistry } from "../src/runtime/resources/runtime-profile-registry.ts";
 import { RuntimeResourceInventoryAdapterRegistry } from "../src/runtime/resources/runtime-resource-inventory-adapter-registry.ts";
 
-const OPT_IN_ENV = "TOKENPILOT_CODEX_PLUGIN_MUTATION_PROOF";
+const OPT_IN_ENV = "CHATCOCKPIT_CODEX_PLUGIN_MUTATION_PROOF";
 const OPT_IN_VALUE = "I_UNDERSTAND_REVERSIBLE_PLUGIN_MUTATION";
 const PROJECT_ID = "project_codex_plugin_mutation_live";
 const WORKSPACE_ID = "workspace_codex_plugin_mutation_live";

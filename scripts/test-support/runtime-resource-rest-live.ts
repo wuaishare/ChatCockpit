@@ -109,7 +109,7 @@ export async function createRuntimeResourceRestLiveHarness(
 ): Promise<RuntimeResourceRestLiveHarness> {
   const workspaceRoot = fs.realpathSync(workspaceRootInput);
   const serverRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-runtime-resource-rest-live-")
+    path.join(os.tmpdir(), "chatcockpit-runtime-resource-rest-live-")
   );
   fs.writeFileSync(path.join(serverRoot, "README.md"), "# REST live proof fixture\n", "utf8");
   fs.mkdirSync(path.join(serverRoot, "openapi"), { recursive: true });
@@ -124,9 +124,11 @@ export async function createRuntimeResourceRestLiveHarness(
     configPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [workspaceRoot],
         repoMappings: {
-          "runtime-resource-rest-live": { path: workspaceRoot }
+          primary: { path: workspaceRoot }
         }
       },
       null,
@@ -136,15 +138,15 @@ export async function createRuntimeResourceRestLiveHarness(
   );
 
   const previous = {
-    configPath: process.env.TOKENPILOT_CONFIG_PATH,
-    apiToken: process.env.TOKENPILOT_API_TOKEN,
-    exposed: process.env.TOKENPILOT_EXPOSED,
-    resourceMutationsExposed: process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED
+    configPath: process.env.CHATCOCKPIT_CONFIG_PATH,
+    apiToken: process.env.CHATCOCKPIT_API_TOKEN,
+    exposed: process.env.CHATCOCKPIT_EXPOSED,
+    resourceMutationsExposed: process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED
   };
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = API_TOKEN;
-  process.env.TOKENPILOT_EXPOSED = "true";
-  process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = "true";
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = API_TOKEN;
+  process.env.CHATCOCKPIT_EXPOSED = "true";
+  process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED = "true";
 
   const privateDatabase = new ContinuityDatabase({ path: ":memory:" });
   const privateRepositories = buildContinuityRepositories(privateDatabase);
@@ -178,16 +180,16 @@ export async function createRuntimeResourceRestLiveHarness(
   let server: Awaited<ReturnType<typeof listenTestServer>> | null = null;
 
   const restoreEnvironment = (): void => {
-    if (previous.configPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = previous.configPath;
-    if (previous.apiToken === undefined) delete process.env.TOKENPILOT_API_TOKEN;
-    else process.env.TOKENPILOT_API_TOKEN = previous.apiToken;
-    if (previous.exposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-    else process.env.TOKENPILOT_EXPOSED = previous.exposed;
+    if (previous.configPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = previous.configPath;
+    if (previous.apiToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = previous.apiToken;
+    if (previous.exposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+    else process.env.CHATCOCKPIT_EXPOSED = previous.exposed;
     if (previous.resourceMutationsExposed === undefined) {
-      delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
+      delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
     } else {
-      process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED =
+      process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED =
         previous.resourceMutationsExposed;
     }
   };

@@ -26,7 +26,7 @@ export class ChatDirectRecoveryAdapter implements RuntimeRecoveryAdapter {
       executableVersion: null,
       minimumSupportedVersion: null,
       testedVersionRange: null,
-      protocolFamily: "tokenpilot-chat-direct",
+      protocolFamily: "chatcockpit-chat-direct",
       protocolVersion: "1",
       schemaFingerprint: null,
       compatibilityStatus: "ready",
@@ -40,7 +40,7 @@ export class ChatDirectRecoveryAdapter implements RuntimeRecoveryAdapter {
     workspaceId: string;
     repoId: string;
   }): Promise<RecoverableExternalSession[]> {
-    // Chat Direct is a TokenPilot continuity lane, not an external provider
+    // Chat Direct is a ChatCockpit continuity lane, not an external provider
     // session. Never manufacture a fake external identity for UI convenience.
     return [];
   }

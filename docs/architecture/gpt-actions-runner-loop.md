@@ -6,7 +6,7 @@ This document describes the public execution contract that turns short GPT-facin
 
 ```text
 ChatGPT / GPT Actions / MCP client
-  -> authenticated TokenPilot control plane
+  -> authenticated ChatCockpit control plane
   -> durable job or direct operation
   -> local runner / explicit runtime adapter
   -> allowlisted repository
@@ -18,7 +18,7 @@ ChatGPT / GPT Actions / MCP client
 
 Remote action calls should stay bounded. Long-running builds, complex refactors, and large outputs should not block one HTTP request.
 
-For asynchronous work TokenPilot:
+For asynchronous work ChatCockpit:
 
 1. creates a durable job;
 2. records its repository/workspace and runtime binding;

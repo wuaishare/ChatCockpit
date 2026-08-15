@@ -448,7 +448,7 @@ export class CodexAppServerClient {
           void this.rejectServerRequest(
             requestKey,
             -32601,
-            "TokenPilot does not handle this Codex App Server request"
+            "ChatCockpit does not handle this Codex App Server request"
           );
           return;
         }
@@ -464,7 +464,7 @@ export class CodexAppServerClient {
           void this.rejectServerRequest(
             requestKey,
             -32603,
-            "TokenPilot could not persist the Codex App Server request"
+            "ChatCockpit could not persist the Codex App Server request"
           );
         });
         return;

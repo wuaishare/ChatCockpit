@@ -57,7 +57,7 @@ async function verifyMcpErrors(
     publicProjection: true
   });
   const rawTool = defineMcpTool({
-    name: "tokenpilot.test.rawError",
+    name: "chatcockpit.test.rawError",
     title: "Raw error fixture",
     description: "Test-only tool that proves unknown errors stay private.",
     inputSchema: z.object({}),
@@ -67,7 +67,7 @@ async function verifyMcpErrors(
     }
   });
   const wrappedTool = defineMcpTool({
-    name: "tokenpilot.test.serviceError",
+    name: "chatcockpit.test.serviceError",
     title: "Service error fixture",
     description: "Test-only tool that proves private causes stay private.",
     inputSchema: z.object({}),
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
   assert.match(serviceLoggedError.message, new RegExp(sensitiveMessage));
   assert.equal(serviceLoggedError.message.includes(sensitivePath), true);
 
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-public-errors-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-public-errors-"));
   const paths = buildPaths(root);
   ensureWorkspaceDirs(paths);
   const configPath = path.join(paths.runtimeDir, "public-error-config.json");
@@ -201,12 +201,14 @@ async function main(): Promise<void> {
     configPath,
     JSON.stringify({
       workspaceAllowlist: [root],
-      repoMappings: { tokenpilot: { path: root } }
+      schemaVersion: 1,
+      defaultRepoId: "primary",
+      repoMappings: { primary: { path: root } }
     }),
     "utf8"
   );
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   try {
     const files = new FilesService(paths);
     const context = buildOperationContext({
@@ -215,7 +217,7 @@ async function main(): Promise<void> {
       publicProjection: true
     });
     assert.throws(
-      () => files.read(context, { repoId: "tokenpilot", path: "../outside.txt" }),
+      () => files.read(context, { repoId: "primary", path: "../outside.txt" }),
       (error) => {
         assert.ok(error instanceof ServiceError);
         assert.equal(error.code, "FILES_READ_BLOCKED");
@@ -226,8 +228,8 @@ async function main(): Promise<void> {
       }
     );
   } finally {
-    if (originalConfigPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+    if (originalConfigPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     fs.rmSync(root, { recursive: true, force: true });
   }
 

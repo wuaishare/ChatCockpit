@@ -288,7 +288,7 @@ function expectConstraintFailure(operation: () => void): void {
   assert.throws(operation, /constraint|CHECK/i);
 }
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-resource-mutation-v18-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-resource-mutation-v18-"));
 const databasePath = path.join(tempRoot, "continuity.sqlite");
 createV16Fixture(databasePath);
 upgradeFixtureToV17(databasePath);

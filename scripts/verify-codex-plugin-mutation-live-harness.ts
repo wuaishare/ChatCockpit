@@ -247,7 +247,7 @@ const probeSource = fs.readFileSync(
   "utf8"
 );
 for (const required of [
-  "TOKENPILOT_CODEX_PLUGIN_MUTATION_PROOF",
+  "CHATCOCKPIT_CODEX_PLUGIN_MUTATION_PROOF",
   "I_UNDERSTAND_REVERSIBLE_PLUGIN_MUTATION",
   "Refusing real Codex Plugin mutation without",
   "new RuntimeResourceMutationService(",

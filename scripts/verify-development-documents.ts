@@ -23,7 +23,7 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 }
 
 async function verifyDevelopmentDocuments(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-documents-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-documents-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Document fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(

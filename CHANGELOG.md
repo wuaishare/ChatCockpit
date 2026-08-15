@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to TokenPilot will be documented in this file.
+All notable changes to ChatCockpit will be documented in this file.
 
 This project uses prerelease tags while the local-first workflow is still in alpha.
 

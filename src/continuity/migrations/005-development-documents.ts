@@ -14,7 +14,7 @@ export const developmentDocumentsMigration = {
       .get() as { count: number };
     if (Number(unresolved.count) > 0) {
       throw new Error(
-        "Schema v5 cannot safely migrate unresolved legacy spec_id/plan_id strings. Clear or export those references before upgrading; TokenPilot will not discard or invent document content."
+        "Schema v5 cannot safely migrate unresolved legacy spec_id/plan_id strings. Clear or export those references before upgrading; ChatCockpit will not discard or invent document content."
       );
     }
 

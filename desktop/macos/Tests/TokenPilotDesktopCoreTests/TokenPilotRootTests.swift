@@ -35,7 +35,7 @@ struct TokenPilotRootTests {
     }
 
     @Test("legacy TokenPilot checkout is not accepted as an active R3 source runtime")
-    func rejectsLegacyTokenPilotPackageAsActiveRoot() throws {
+    func rejectsLegacyPackageAsActiveRoot() throws {
         try withTemporaryDirectory { temporaryDirectory in
             let root = try makeRoot(
                 under: temporaryDirectory,

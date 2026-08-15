@@ -1,13 +1,13 @@
 # GPT Actions 与本地 Runner 闭环
 
-本文说明 TokenPilot 如何把 Custom GPT Actions 请求转成可追踪的本地执行。
+本文说明 ChatCockpit 如何把 Custom GPT Actions 请求转成可追踪的本地执行。
 
 ## 目标链路
 
 ```text
 Custom GPT Actions
   ↓ HTTPS + bearer auth
-TokenPilot control plane
+ChatCockpit control plane
   ↓
 file-backed job queue
   ↓
@@ -24,7 +24,7 @@ ChatGPT review
 
 GPT Actions 适合短请求。长耗时任务、复杂重构和大输出不应该同步卡在一次 HTTPS 调用里。
 
-TokenPilot 的做法是：
+ChatCockpit 的做法是：
 
 1. GPT Actions 创建 job。
 2. Control plane 持久化 job。

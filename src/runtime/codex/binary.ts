@@ -190,7 +190,7 @@ export function resolveCodexBinary(
     "No working Codex CLI binary could be resolved",
     {
       hint:
-        "Install Codex CLI or set TOKENPILOT_CODEX_BIN to a working binary that supports --version.",
+        "Install Codex CLI or set CHATCOCKPIT_CODEX_BIN to a working binary that supports --version.",
       details: {
         attempts
       }

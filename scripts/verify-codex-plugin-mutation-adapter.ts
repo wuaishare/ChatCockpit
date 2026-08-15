@@ -16,7 +16,7 @@ import {
 } from "../src/runtime/resources/codex-plugin-mutation-adapter.ts";
 import { buildCodexPluginResourceDescriptor } from "../src/runtime/resources/codex-plugin-resource-projector.ts";
 
-const privateWorkspacePath = "/private/tokenpilot-runtime-sentinel/plugin-workspace";
+const privateWorkspacePath = "/private/chatcockpit-runtime-sentinel/plugin-workspace";
 const marketplaceName = "fixture-remote-marketplace";
 const providerPluginId = "fixture-remote-plugin@fixture-remote-marketplace";
 const pluginName = "fixture-remote-plugin";

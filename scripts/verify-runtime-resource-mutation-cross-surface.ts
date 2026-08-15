@@ -73,7 +73,7 @@ repositories.workspaces.create({
   id: workspaceId,
   projectId: "project_cross_surface_fixture",
   repoId: "cross-surface-fixture",
-  privatePath: "/private/tokenpilot-runtime-sentinel/cross-surface-workspace",
+  privatePath: "/private/chatcockpit-runtime-sentinel/cross-surface-workspace",
   status: "ready",
   now: NOW
 });

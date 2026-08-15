@@ -93,7 +93,7 @@ export class DownstreamMcpStdioClient implements DownstreamMcpClient {
       protocolVersion: LATEST_PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: {
-        name: "tokenpilot-downstream-mcp",
+        name: "chatcockpit-downstream-mcp",
         version: "0.1.0-alpha"
       }
     });
@@ -303,7 +303,7 @@ export class DownstreamMcpStdioClient implements DownstreamMcpClient {
         id: record.id,
         error: {
           code: -32601,
-          message: "TokenPilot downstream probe does not support server requests"
+          message: "ChatCockpit downstream probe does not support server requests"
         }
       });
     }

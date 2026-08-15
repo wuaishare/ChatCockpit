@@ -73,7 +73,7 @@ function sourceExecutor(options: {
   );
   if (!executor) {
     throw new Error(
-      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to ${options.sourceConfigPath}, or set TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC for this operator-only proof.`
+      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to ${options.sourceConfigPath}, or set CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC for this operator-only proof.`
     );
   }
   return {
@@ -134,7 +134,7 @@ function writeWorkspaceFixture(workspaceRoot: string): void {
     path.join(workspaceRoot, "package.json"),
     `${JSON.stringify(
       {
-        name: "tokenpilot-host-process-live-fixture",
+        name: "chatcockpit-host-process-live-fixture",
         version: "1.0.0",
         private: true,
         scripts: {
@@ -193,7 +193,7 @@ export interface DesktopCommanderHostProcessLiveProofSummary {
   serverVersion: string;
   health: "ready" | "degraded" | "unavailable";
   verifiedCapabilities: string[];
-  processTool: "tokenpilot.host.process.execute";
+  processTool: "chatcockpit.host.process.execute";
   executionScope: "host";
   publicProcessIdentity: true;
   inputNotPersisted: true;
@@ -209,14 +209,16 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
   const sourceConfigPath =
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const packageSpec =
-    options.packageSpec ?? process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
-  const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-dc-hp-live-"));
+    options.packageSpec ??
+    process.env.CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC ??
+    process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
+  const sandbox = fs.mkdtempSync(path.join("/tmp", "chatcockpit-dc-hp-live-"));
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, WORKSPACE_RELATIVE);
-  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
-  const previousUserConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
+  const previousUserConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   fs.mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 });
   fs.mkdirSync(workspaceRoot, { recursive: true, mode: 0o700 });
   writeWorkspaceFixture(workspaceRoot);
@@ -225,9 +227,11 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     userConfigPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [runtimeRoot, workspaceRoot],
         repoMappings: {
-          tokenpilot: { path: runtimeRoot },
+          primary: { path: runtimeRoot },
           "live-workspace": { path: workspaceRoot }
         }
       },
@@ -236,7 +240,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     )}\n`,
     { encoding: "utf8", mode: 0o600 }
   );
-  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = userConfigPath;
 
   let database: ContinuityDatabase | null = null;
   let processSupervisorDaemon: ProcessSupervisorDaemon | null = null;
@@ -283,7 +287,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       projectId: project.id,
       workspaceId: workspace.id,
       title: "Desktop Commander Host Process live proof",
-      goal: "Prove TokenPilot-owned Managed Process lifecycle",
+      goal: "Prove ChatCockpit-owned Managed Process lifecycle",
       status: "in-progress",
       now: NOW
     });
@@ -332,11 +336,11 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     const tools = new Map(
       buildHostProcessTools(service).map((tool) => [tool.name, tool])
     );
-    const prepareTool = tools.get("tokenpilot.host.process.prepare");
-    const decideTool = tools.get("tokenpilot.host.process.decide");
-    const executeTool = tools.get("tokenpilot.host.process.execute");
-    const readTool = tools.get("tokenpilot.host.process.read");
-    const listTool = tools.get("tokenpilot.host.process.list");
+    const prepareTool = tools.get("chatcockpit.host.process.prepare");
+    const decideTool = tools.get("chatcockpit.host.process.decide");
+    const executeTool = tools.get("chatcockpit.host.process.execute");
+    const readTool = tools.get("chatcockpit.host.process.read");
+    const listTool = tools.get("chatcockpit.host.process.list");
     assert.ok(prepareTool && decideTool && executeTool && readTool && listTool);
 
     const context = buildOperationContext({
@@ -438,7 +442,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     assert.doesNotMatch(readyOutput, new RegExp(workspaceRoot));
     assert.doesNotMatch(readyOutput, new RegExp(hostRoot));
 
-    const transientInput = `tokenpilot-live-input-${randomUUID()}\n`;
+    const transientInput = `chatcockpit-live-input-${randomUUID()}\n`;
     const expectedReply = transientInput.trimEnd();
     const inputRequest = {
       operation: "input",
@@ -556,7 +560,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       serverVersion: probeSummary.serverVersion,
       health: probeSummary.health,
       verifiedCapabilities: probeSummary.verifiedCapabilities,
-      processTool: "tokenpilot.host.process.execute",
+      processTool: "chatcockpit.host.process.execute",
       executionScope: "host",
       publicProcessIdentity: true,
       inputNotPersisted: true,
@@ -569,9 +573,9 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
     await processSupervisorDaemon?.close().catch(() => undefined);
     database?.close();
     if (previousUserConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousUserConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousUserConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
   }

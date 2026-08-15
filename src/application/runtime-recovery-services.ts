@@ -4,7 +4,7 @@ import { NativeCodexRecoveryAdapter } from "../runtime/recovery/native-codex-rec
 import { RunnerRecoveryAdapter } from "../runtime/recovery/runner-recovery-adapter.js";
 import { ChatDirectRecoveryAdapter } from "../runtime/recovery/chat-direct-recovery-adapter.js";
 import { RuntimeRecoveryAdapterRegistry } from "../runtime/recovery/runtime-recovery-adapter-registry.js";
-import { TokenPilotRunnerRecoverySource } from "../runtime/recovery/runner-recovery-source.js";
+import { AsyncRunnerRecoverySource } from "../runtime/recovery/runner-recovery-source.js";
 import type { RuntimeRouter } from "./runtime-router.js";
 import type { RuntimeBindingService } from "./runtime-binding-service.js";
 import type { HandoffService } from "./handoff-service.js";
@@ -32,7 +32,7 @@ export function buildRuntimeRecoveryServices(input: {
   const adapters = new RuntimeRecoveryAdapterRegistry([
     new NativeCodexRecoveryAdapter(input.runtimeRouter),
     new RunnerRecoveryAdapter(
-      new TokenPilotRunnerRecoverySource(input.paths, input.repositories),
+      new AsyncRunnerRecoverySource(input.paths, input.repositories),
       { protocolFamily: identity.asyncRunnerRuntimeKind }
     ),
     new ChatDirectRecoveryAdapter()

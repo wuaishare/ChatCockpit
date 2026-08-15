@@ -213,7 +213,7 @@ repositories.workspaces.create({
   id: workspaceId,
   projectId: "project_mutation_fixture",
   repoId: "repo_mutation_fixture",
-  privatePath: "/private/tokenpilot-runtime-sentinel/mutation-workspace",
+  privatePath: "/private/chatcockpit-runtime-sentinel/mutation-workspace",
   now: NOW
 });
 
@@ -1385,7 +1385,7 @@ const publicJson = JSON.stringify({
   legacyExecuted
 });
 for (const forbidden of [
-  "/private/tokenpilot-runtime-sentinel/mutation-workspace",
+  "/private/chatcockpit-runtime-sentinel/mutation-workspace",
   "SKILL.md",
   "rawConfig",
   "authorizationUrl",

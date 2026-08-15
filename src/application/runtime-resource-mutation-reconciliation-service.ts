@@ -20,10 +20,10 @@ export interface RuntimeResourceMutationReconcileResult {
 
 /**
  * Reconciles a Resource mutation whose provider-side outcome may already have
- * happened while TokenPilot's final persistence step did not complete.
+ * happened while ChatCockpit's final persistence step did not complete.
  *
  * This service is deliberately read-only with respect to the provider. It may
- * refresh authoritative inventory and finalize TokenPilot evidence, but it
+ * refresh authoritative inventory and finalize ChatCockpit evidence, but it
  * must never replay `skills/config/write` or any other provider mutation.
  * The original execute idempotency reservation is intentionally left pending:
  * callers must reconcile the known execution rather than retry the side effect.

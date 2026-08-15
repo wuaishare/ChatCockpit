@@ -543,7 +543,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Turn history projection is not available in the read-only Codex adapter yet",
         {
           hint:
-            "Use metadata-only thread reads until TokenPilot adds a reviewed public-safe turn projection."
+            "Use metadata-only thread reads until ChatCockpit adds a reviewed public-safe turn projection."
         }
       );
     }
@@ -827,7 +827,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           await client.rejectServerRequest(
             request.requestKey,
             -32601,
-            "TokenPilot runtime approval handling is not configured"
+            "ChatCockpit runtime approval handling is not configured"
           );
           return;
         }

@@ -185,6 +185,42 @@ function assertCanonicalCutover(): void {
     true,
     "R3 enforce mode requires canonical openapi/chatcockpit.openapi.yaml"
   );
+
+  const envExample = fs.readFileSync(path.join(root, ".env.example"), "utf8");
+  assert.match(envExample, /^CHATCOCKPIT_EXPOSED=false$/m);
+  assert.match(envExample, /^CHATCOCKPIT_API_TOKEN=$/m);
+  assert.doesNotMatch(envExample, /^TOKENPILOT_/m);
+
+  const setupSource = fs.readFileSync(path.join(root, "src", "core", "setup.ts"), "utf8");
+  assert.match(setupSource, /runtimeIdentityEnvName\(key, paths\.productIdentity\)/);
+  assert.doesNotMatch(setupSource, /TOKENPILOT_[A-Z_]+/);
+
+  const mcpToolSource = trackedFiles()
+    .filter((file) => file.startsWith("src/mcp/tools/") && file.endsWith(".ts"))
+    .map((file) => fs.readFileSync(path.join(root, file), "utf8"))
+    .join("\n");
+  assert.match(mcpToolSource, /name: "chatcockpit\./);
+  assert.doesNotMatch(mcpToolSource, /name: "tokenpilot\./);
+
+  const oauthConfigSource = fs.readFileSync(path.join(root, "src", "auth", "oauth-config.ts"), "utf8");
+  assert.match(oauthConfigSource, /mcpScope: string = CHATCOCKPIT_MCP_SCOPE/);
+
+  const macLifecycleSource = fs.readFileSync(
+    path.join(root, "scripts", "macos-manage-local-server.sh"),
+    "utf8"
+  );
+  assert.match(macLifecycleSource, /PRODUCT_IDENTITY="chatcockpit"/);
+  assert.match(macLifecycleSource, /Legacy TokenPilot start\/restart is disabled in R3/);
+  assert.match(macLifecycleSource, /SERVICE_PREFIX="com\.wuaishare\.chatcockpit"/);
+
+  const webSource = [
+    fs.readFileSync(path.join(root, "web", "src", "App.tsx"), "utf8"),
+    fs.readFileSync(path.join(root, "web", "src", "theme.ts"), "utf8"),
+    fs.readFileSync(path.join(root, "web", "src", "i18n.ts"), "utf8")
+  ].join("\n");
+  assert.match(webSource, /chatcockpit:web:bearer-token/);
+  assert.match(webSource, /chatcockpit:web:theme-mode/);
+  assert.match(webSource, /chatcockpit:web:locale/);
 }
 
 const rules = readAllowlist();
@@ -200,7 +236,6 @@ assert.equal(
 
 const blockers = occurrences.filter((entry) => !entry.ruleId);
 if (reportMode) {
-  assert.ok(blockers.length > 0, "R3 pre-cutover report unexpectedly has no blockers; switch to enforce mode");
   process.stdout.write("R3_IDENTITY_INVENTORY_REPORT_OK\n");
 } else {
   assertCanonicalCutover();

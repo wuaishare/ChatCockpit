@@ -112,7 +112,7 @@ assert.equal(
 );
 
 assert.equal(
-  liveProof.includes("TOKENPILOT_CODEX_SKILL_MUTATION_PROOF"),
+  liveProof.includes("CHATCOCKPIT_CODEX_SKILL_MUTATION_PROOF"),
   true,
   "Real Codex Skill mutation proof must require an explicit opt-in environment variable"
 );

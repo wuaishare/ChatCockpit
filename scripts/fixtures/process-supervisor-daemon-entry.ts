@@ -16,11 +16,11 @@ function positiveMs(name: string, fallback: number): number {
 const paths = buildPaths();
 const daemon = new ProcessSupervisorDaemon(paths, {
   heartbeatIntervalMs: positiveMs(
-    "TOKENPILOT_PROCESS_SUPERVISOR_HEARTBEAT_MS",
+    "CHATCOCKPIT_PROCESS_SUPERVISOR_HEARTBEAT_MS",
     100
   ),
   watchdogIntervalMs: positiveMs(
-    "TOKENPILOT_PROCESS_SUPERVISOR_WATCHDOG_MS",
+    "CHATCOCKPIT_PROCESS_SUPERVISOR_WATCHDOG_MS",
     100
   )
 });
@@ -28,7 +28,7 @@ const daemon = new ProcessSupervisorDaemon(paths, {
 await daemon.start();
 process.stdout.write("PROCESS_SUPERVISOR_FIXTURE_READY\n");
 
-if (process.env.TOKENPILOT_PROCESS_SUPERVISOR_TEST_ABRUPT_EXIT === "true") {
+if (process.env.CHATCOCKPIT_PROCESS_SUPERVISOR_TEST_ABRUPT_EXIT === "true") {
   process.once("SIGUSR2", () => {
     // Test-only abrupt exit: intentionally bypass daemon.close() so the guardian
     // must react to parent stdio loss exactly as it would after an unexpected crash.

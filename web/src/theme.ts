@@ -1,9 +1,10 @@
 import type { ThemeConfig } from "antd";
 import type { ThemeMode } from "antd-style";
 
-export type TokenPilotAppearance = "dark" | "light";
+export type ChatCockpitAppearance = "dark" | "light";
 
-export const THEME_STORAGE_KEY = "tokenpilot:web:theme-mode";
+export const THEME_STORAGE_KEY = "chatcockpit:web:theme-mode";
+const LEGACY_THEME_STORAGE_KEY = "tokenpilot:web:theme-mode";
 
 export const DEFAULT_THEME_MODE: ThemeMode = "auto";
 
@@ -30,10 +31,22 @@ export function getStoredThemeMode(): ThemeMode {
   }
 
   const stored = sessionStorage.getItem(THEME_STORAGE_KEY);
-  return isThemeMode(stored) ? stored : DEFAULT_THEME_MODE;
+  if (isThemeMode(stored)) {
+    sessionStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+    return stored;
+  }
+
+  const legacyStored = sessionStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+  if (isThemeMode(legacyStored)) {
+    sessionStorage.setItem(THEME_STORAGE_KEY, legacyStored);
+    sessionStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+    return legacyStored;
+  }
+
+  return DEFAULT_THEME_MODE;
 }
 
-export function getSystemAppearance(): TokenPilotAppearance {
+export function getSystemAppearance(): ChatCockpitAppearance {
   if (typeof window === "undefined") {
     return "dark";
   }
@@ -41,11 +54,11 @@ export function getSystemAppearance(): TokenPilotAppearance {
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
-export function resolveAppearance(themeMode: ThemeMode): TokenPilotAppearance {
+export function resolveAppearance(themeMode: ThemeMode): ChatCockpitAppearance {
   return themeMode === "auto" ? getSystemAppearance() : themeMode;
 }
 
-export function buildAntdTheme(appearance: TokenPilotAppearance): ThemeConfig {
+export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
   const isDark = appearance === "dark";
 
   return {

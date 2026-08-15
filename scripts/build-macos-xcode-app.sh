@@ -97,7 +97,7 @@ EMBEDDED_RUNTIME="${OUTPUT_APP}/Contents/Resources/TokenPilotRuntime"
 bash "${ROOT}/scripts/build-macos-runtime-payload.sh" "${ARCH}"
 
 if [[ ! -f "${RUNTIME_PAYLOAD}/manifest.json" ]] || [[ ! -x "${RUNTIME_PAYLOAD}/node/bin/node" ]]; then
-  echo "Missing verified TokenPilot runtime payload at ${RUNTIME_PAYLOAD}" >&2
+  echo "Missing verified ChatCockpit embedded runtime payload at ${RUNTIME_PAYLOAD}" >&2
   exit 1
 fi
 

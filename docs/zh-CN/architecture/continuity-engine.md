@@ -1,8 +1,8 @@
-# TokenPilot Continuity Engine
+# ChatCockpit Continuity Engine
 
 ## 状态
 
-- 已实现基础：SQLite Schema v18、Project、Workspace、Task、Development Session、支持 Codex Thread 与 TokenPilot Runner Job ID 的通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot 与 Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan、Runtime Recovery 与 Runtime Resource Application Service、REST/MCP Parity、Spec/Plan/Recovery Workbench 治理、Runtime & Resource Center Inventory 与受治理 Codex Skill enable/disable、Codex Plugin install/uninstall、服务端 Planning / Recovery Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、受治理 Runtime Resource Mutation Approval/Execution/Provenance、Process Supervisor Runtime Ownership、Event、Workspace Snapshot 与 Continuity Workbench
+- 已实现基础：SQLite Schema v18、Project、Workspace、Task、Development Session、支持 Codex Thread 与 ChatCockpit Runner Job ID 的通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot 与 Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 `planning-required | planning-optional` Task 执行策略、共享 Spec/Plan、Runtime Recovery 与 Runtime Resource Application Service、REST/MCP Parity、Spec/Plan/Recovery Workbench 治理、Runtime & Resource Center Inventory 与受治理 Codex Skill enable/disable、Codex Plugin install/uninstall、服务端 Planning / Recovery Assessment、Writer Lease、Handoff、Evidence、受证据约束的 Task Review/Completion、Runtime Run、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、受治理 Runtime Resource Mutation Approval/Execution/Provenance、Process Supervisor Runtime Ownership、Event、Workspace Snapshot 与 Continuity Workbench
 - 实验性：Codex App Server 协议适配、Chat Direct Standalone 路由、通过 Custom GPT Actions 或 MCP 远程访问
 - 目标扩展：更丰富的 Task Transition、更多 Provider Recovery Adapter（包括未来 ACP seam）、当前 Codex Skill enable/disable 与 Codex Plugin install/uninstall 之外的 Resource Center 受治理操作、TDD/SDD/BDD 编排与模板，以及更多 Provider Adapter
 
@@ -10,7 +10,7 @@ Continuity Engine 的目标是：当开发工作在 ChatGPT Native、Chat Direct
 
 ## 核心原则
 
-1. 跨调用状态使用 TokenPilot ID，不把外部 Runtime ID 当主键；
+1. 跨调用状态使用 ChatCockpit ID，不把外部 Runtime ID 当主键；
 2. 每个可写 Workspace 最多一个 Active Writer；
 3. Handoff 必须显式记录 Goal、Completed、Pending、Changed Files、Risks 与 Next Action；
 4. “已验证”只来自结构化 Evidence；
@@ -73,7 +73,7 @@ Chat Direct 不伪装成 Codex Thread，而是在每个结果中记录：
 }
 ```
 
-Codex Binding 使用 `externalSessionId` 保存 Thread ID，并继续在现有 REST/MCP 投影中提供 `externalThreadId/sourceThreadId` 兼容字段；Runner Binding 使用 `externalRunId` 保存 file-backed Job ID。`tokenpilot.asyncJob.queue` 会事务化、幂等地创建一个 Job 文件和 Runner Binding，并从公共响应中移除私有 Instructions。Runner Claim 时校验绑定身份；终态时记录结构化 Evidence、释放 Binding，并将 Task 推进到 `review` 或 `blocked`，绝不虚假完成 Task。启动时会扫描终态 Job 文件，幂等修复进程中断造成的 SQLite 对账缺口。
+Codex Binding 使用 `externalSessionId` 保存 Thread ID，并继续在现有 REST/MCP 投影中提供 `externalThreadId/sourceThreadId` 兼容字段；Runner Binding 使用 `externalRunId` 保存 file-backed Job ID。`chatcockpit.asyncJob.queue` 会事务化、幂等地创建一个 Job 文件和 Runner Binding，并从公共响应中移除私有 Instructions。Runner Claim 时校验绑定身份；终态时记录结构化 Evidence、释放 Binding，并将 Task 推进到 `review` 或 `blocked`，绝不虚假完成 Task。启动时会扫描终态 Job 文件，幂等修复进程中断造成的 SQLite 对账缺口。
 
 ## Writer Lease
 
@@ -127,9 +127,9 @@ Evidence Record -> Task Submit Review
 Accepted Handoff + Released Writer -> Task Complete
 ```
 
-`tokenpilot.task.submitReview` 会校验至少一个 Required Evidence，要求全部 Required Item Passed，Finalize Evidence Bundle，并把 `in-progress` 或 `blocked` Task 推进到 `review`。
+`chatcockpit.task.submitReview` 会校验至少一个 Required Evidence，要求全部 Required Item Passed，Finalize Evidence Bundle，并把 `in-progress` 或 `blocked` Task 推进到 `review`。
 
-`tokenpilot.task.complete` 只有在以下条件全部成立时才会完成 Task：
+`chatcockpit.task.complete` 只有在以下条件全部成立时才会完成 Task：
 
 - Latest Handoff 属于该 Task 且已经 Accepted；
 - Latest Evidence Bundle 属于该 Task Session、状态为 Complete，并与 Handoff 引用一致；
@@ -144,7 +144,7 @@ Accepted Handoff + Released Writer -> Task Complete
 
 ```text
 GET /api/continuity/workspaces/{workspaceId}/snapshot
-tokenpilot.workspace.snapshot
+chatcockpit.workspace.snapshot
 ```
 
 返回 Public-safe：

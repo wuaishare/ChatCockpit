@@ -128,7 +128,7 @@ export class ContinuityDatabase {
         "SCHEMA_VERSION_UNSUPPORTED",
         `Continuity schema version ${currentVersion} is newer than supported version ${LATEST_CONTINUITY_SCHEMA_VERSION}`,
         {
-          hint: "Upgrade TokenPilot before opening this continuity database."
+          hint: "Upgrade ChatCockpit before opening this continuity database."
         }
       );
     }

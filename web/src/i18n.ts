@@ -7,7 +7,34 @@ import {
 
 export type LocaleCode = "zh-CN" | "en-US";
 
-export const LOCALE_STORAGE_KEY = "tokenpilot:web:locale";
+export const LOCALE_STORAGE_KEY = "chatcockpit:web:locale";
+const LEGACY_LOCALE_STORAGE_KEY = "tokenpilot:web:locale";
+
+export function getStoredLocale(): LocaleCode {
+  if (typeof window === "undefined") {
+    return "zh-CN";
+  }
+
+  const current = sessionStorage.getItem(LOCALE_STORAGE_KEY);
+  if (current === "zh-CN" || current === "en-US") {
+    sessionStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
+    return current;
+  }
+
+  const legacy = sessionStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
+  if (legacy === "zh-CN" || legacy === "en-US") {
+    sessionStorage.setItem(LOCALE_STORAGE_KEY, legacy);
+    sessionStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
+    return legacy;
+  }
+
+  return "zh-CN";
+}
+
+export function persistLocale(locale: LocaleCode): void {
+  sessionStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  sessionStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
+}
 
 export const localeOptions: Array<{ label: string; value: LocaleCode }> = [
   { label: "简体中文", value: "zh-CN" },

@@ -23,10 +23,10 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
   const importUrl = config?.schemaImportUrl ?? health.openapiUrl;
   const openapiUrl = config?.openapiUrl ?? health.openapiUrl;
   const showSeparateSchemaUrl = importUrl !== openapiUrl;
-  const productVersion = config?.productVersion ?? __TOKENPILOT_VERSION__.productVersion;
-  const schemaVersion = config?.schemaVersion ?? __TOKENPILOT_VERSION__.schemaVersion;
-  const buildVersion = config?.buildVersion ?? __TOKENPILOT_VERSION__.buildVersion;
-  const displayVersion = config?.version ?? __TOKENPILOT_VERSION__.version;
+  const productVersion = config?.productVersion ?? __CHATCOCKPIT_VERSION__.productVersion;
+  const schemaVersion = config?.schemaVersion ?? __CHATCOCKPIT_VERSION__.schemaVersion;
+  const buildVersion = config?.buildVersion ?? __CHATCOCKPIT_VERSION__.buildVersion;
+  const displayVersion = config?.version ?? __CHATCOCKPIT_VERSION__.version;
   const displayVersionValue = (
     <>
       <span>{productVersion}</span>{" "}

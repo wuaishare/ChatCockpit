@@ -2,7 +2,7 @@
 
 [简体中文](./README.md) | English
 
-![ChatCockpit hero poster](./docs/assets/tokenpilot-hero-en.webp)
+![ChatCockpit hero poster](./docs/assets/chatcockpit-hero-en.webp)
 
 **v0.2.0-alpha: ChatCockpit atomic product-cutover preview**
 
@@ -77,9 +77,9 @@ A ChatCockpit Task can move between those modes through Writer Lease, Handoff Ch
 
 The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard, and GPT Helper, the Continuity Workbench provides eight stable routes: Projects, Specs & Plans, Tasks, Sessions, Recovery, Handoffs, Evidence, and Approvals. Specs & Plans manages real document versions, hashes, lifecycle, approval, and Task binding; Task and Recovery views consume server-produced Planning/Recovery Assessment instead of inferring execution or recovery eligibility in the browser.
 
-![ChatCockpit GPT Helper configuration](./docs/assets/tokenpilot-gpt-helper-config.webp)
+![ChatCockpit GPT Helper configuration](./docs/assets/chatcockpit-gpt-helper-config.webp)
 
-![ChatCockpit GPT Actions writeFile proof](./docs/assets/tokenpilot-gpt-actions-writefile.webp)
+![ChatCockpit GPT Actions writeFile proof](./docs/assets/chatcockpit-gpt-actions-writefile.webp)
 
 In auth-required mode, protected data stays hidden until the operator provides a bearer token in the browser session.
 

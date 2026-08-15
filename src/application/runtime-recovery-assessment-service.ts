@@ -365,7 +365,7 @@ export class RuntimeRecoveryAssessmentService {
         blockers.push(
           blocker(
             "external-runtime-identity-mismatch",
-            "Bound external runtime does not match the TokenPilot Workspace identity",
+            "Bound external runtime does not match the ChatCockpit Workspace identity",
             { bindingId: binding.id, externalSessionId: externalId }
           )
         );

@@ -1,4 +1,4 @@
-# TokenPilot Local-First Control Plane
+# ChatCockpit Local-First Control Plane
 
 ## Status
 
@@ -10,13 +10,13 @@ This document describes the current architecture. Earlier “Phase 1” language
 
 ## Product Role
 
-TokenPilot is a local-first Development Continuity & Agent Routing Platform with ChatGPT as the primary conversational entry surface.
+ChatCockpit is a local-first Development Continuity & Agent Routing Platform with ChatGPT as the primary conversational entry surface.
 
-ChatGPT Native is the entry and model-loop host, not a fourth runtime lane. When local execution is required, TokenPilot selects one of three explicit execution modes:
+ChatGPT Native is the entry and model-loop host, not a fourth runtime lane. When local execution is required, ChatCockpit selects one of three explicit execution modes:
 
 ```text
 ChatGPT Native
-  -> TokenPilot Remote MCP / Control Plane
+  -> ChatCockpit Remote MCP / Control Plane
        -> Direct Drive
             -> Workspace Direct (implemented)
             -> Host Direct (Files + approval-gated bounded Command implemented)
@@ -24,7 +24,7 @@ ChatGPT Native
        -> Async Agent Job
 ```
 
-ChatGPT owns conversation, intent, planning, and review. In Direct Drive it also remains the only model-loop owner while TokenPilot executes deterministic tools. In Codex Session, ownership is explicitly delegated to Codex. In Async Agent Job, a delegated agent runtime owns the background model loop while TokenPilot owns the Job lifecycle. TokenPilot always owns durable local identity, execution policy, continuity state, public-safe projections, and cross-runtime handoff.
+ChatGPT owns conversation, intent, planning, and review. In Direct Drive it also remains the only model-loop owner while ChatCockpit executes deterministic tools. In Codex Session, ownership is explicitly delegated to Codex. In Async Agent Job, a delegated agent runtime owns the background model loop while ChatCockpit owns the Job lifecycle. ChatCockpit always owns durable local identity, execution policy, continuity state, public-safe projections, and cross-runtime handoff.
 
 ## Control-Plane Responsibilities
 
@@ -46,21 +46,21 @@ The Control Plane currently provides:
 
 ### Direct Drive — Workspace Direct and governed Host Files / bounded Command implemented
 
-Direct Drive is the product-level name for execution where ChatGPT retains the only model loop and TokenPilot performs deterministic local operations. The persisted runtime lane remains `chat-direct` for compatibility.
+Direct Drive is the product-level name for execution where ChatGPT retains the only model loop and ChatCockpit performs deterministic local operations. The persisted runtime lane remains `chat-direct` for compatibility.
 
 Direct Drive has two execution scopes:
 
 - **Workspace Direct — implemented:** operations are restricted to an allowlisted Project/Workspace and use the existing path, command, Git, Writer Lease, Evidence, and public-projection governance.
 - **Host Direct — implemented for governed Files and bounded Command:** Remote MCP can read small text-like files, perform approval-gated text Write / Exact Edit when the Root includes `write`, and run bounded non-interactive Host Commands through a separate Direct Command Approval lifecycle. File mutations keep canonical containment, symlink/sensitive-path checks, 64 KiB text limits, exact mutation-hash binding, and post-write verification. Host Command accepts structured `command + args + relative workdir`, not raw shell source; Pure Host is restricted to an explicit read-only policy, while Workspace write effects re-enter chat-direct Session, Writer Lease, Git, and Task Evidence governance. Public output is bounded and projected without PID/private cwd. System-wide arbitrary process attach/list/kill remains unexposed.
 
-The confirmed executor architecture for Direct Drive is **TokenPilot Capability Broker + Pluggable Downstream MCP Executor**.
+The confirmed executor architecture for Direct Drive is **ChatCockpit Capability Broker + Pluggable Downstream MCP Executor**.
 
-**Durable Host Managed Workspace Process — implemented:** TokenPilot keeps a bounded interactive Workspace process behind a public `host_process_*` identity while a separate local Process Supervisor sidecar owns the Desktop Commander stdio/PID namespace. Start and input require the owning chat-direct Session and Writer Lease; read/list expose only bounded public-safe state/output; stop remains available for cleanup. A normal Control Plane restart reconnects only when the same sidecar generation still owns the exact TokenPilot process/Workspace/Task/Session/Lease identity. The sidecar independently reads Lease/Session/Workspace authority through read-only SQLite, journals terminal events for later Audit/Evidence ingestion, and wraps downstream MCP processes in a process-group guardian so a hard-killed sidecar cannot leave the managed child producing delayed side effects. Schema v13 permits sidecar-owned running records with `private_pid = NULL`; persisted PID is never a recovery credential. A new Supervisor generation never reattaches old runtimes by PID, and system-wide arbitrary process attach/list/kill remains intentionally unexposed. TokenPilot Built-in and verified App Server Standalone providers are projected through normalized capability descriptors, health/scope metadata, public-safe discovery, and `automatic | explicit` selection. TokenPilot remains the only remote MCP boundary exposed to ChatGPT. The Downstream MCP layer is also implemented: local-only executor config drives a stdio probe, official MCP schema validation, explicit tool-to-capability mapping, a local capability snapshot, Broker descriptor projection, and normalized execution. Through the Desktop Commander adapter contract, governed Host execution covers `files.read`, `files.write`, `files.edit`, and bounded `shell.exec` mapped to current `start_process`. `read_process_output`, `interact_with_process`, and `force_terminate` remain private lifecycle dependencies. Raw downstream tool names, raw shell source, raw downstream process control, system-wide arbitrary PID operations, and arbitrary downstream execution remain unexposed; all public Host execution stays behind TokenPilot-owned scope, Approval, Workspace re-entry, Writer Lease, Git, Evidence/Audit, idempotency, timeout, output, and secret-safety rules.
+**Durable Host Managed Workspace Process — implemented:** ChatCockpit keeps a bounded interactive Workspace process behind a public `host_process_*` identity while a separate local Process Supervisor sidecar owns the Desktop Commander stdio/PID namespace. Start and input require the owning chat-direct Session and Writer Lease; read/list expose only bounded public-safe state/output; stop remains available for cleanup. A normal Control Plane restart reconnects only when the same sidecar generation still owns the exact ChatCockpit process/Workspace/Task/Session/Lease identity. The sidecar independently reads Lease/Session/Workspace authority through read-only SQLite, journals terminal events for later Audit/Evidence ingestion, and wraps downstream MCP processes in a process-group guardian so a hard-killed sidecar cannot leave the managed child producing delayed side effects. Schema v13 permits sidecar-owned running records with `private_pid = NULL`; persisted PID is never a recovery credential. A new Supervisor generation never reattaches old runtimes by PID, and system-wide arbitrary process attach/list/kill remains intentionally unexposed. ChatCockpit Built-in and verified App Server Standalone providers are projected through normalized capability descriptors, health/scope metadata, public-safe discovery, and `automatic | explicit` selection. ChatCockpit remains the only remote MCP boundary exposed to ChatGPT. The Downstream MCP layer is also implemented: local-only executor config drives a stdio probe, official MCP schema validation, explicit tool-to-capability mapping, a local capability snapshot, Broker descriptor projection, and normalized execution. Through the Desktop Commander adapter contract, governed Host execution covers `files.read`, `files.write`, `files.edit`, and bounded `shell.exec` mapped to current `start_process`. `read_process_output`, `interact_with_process`, and `force_terminate` remain private lifecycle dependencies. Raw downstream tool names, raw shell source, raw downstream process control, system-wide arbitrary PID operations, and arbitrary downstream execution remain unexposed; all public Host execution stays behind ChatCockpit-owned scope, Approval, Workspace re-entry, Writer Lease, Git, Evidence/Audit, idempotency, timeout, output, and secret-safety rules.
 
 For implemented Workspace Direct operations, the Capability Broker currently resolves normalized capabilities in provider order:
 
 1. verified Codex App Server Standalone when its probe marks the requested operation safe for Chat Direct;
-2. TokenPilot Built-in for remaining supported capabilities or controlled automatic fallback after an eligible Standalone runtime failure.
+2. ChatCockpit Built-in for remaining supported capabilities or controlled automatic fallback after an eligible Standalone runtime failure.
 
 An explicitly selected executor never silently falls back to another provider. A configured and successfully probed Downstream MCP descriptor may advertise mapped Host capabilities to the Broker, while public Host execution remains separately allowlisted: current Remote MCP contracts authorize governed `files.read`, approval-gated `files.write` / `files.edit` through the Host Mutation lifecycle, and bounded `shell.exec` only through the Host Command `prepare → decide → execute` lifecycle. Desktop Commander process tools themselves are not public capabilities.
 
@@ -79,11 +79,11 @@ Every result records:
 }
 ```
 
-The release gate proves Chat Direct does not invoke `turn/start` or create a Codex Thread. Standalone execution never bypasses TokenPilot path, command, workspace, timeout, output, or exposed-mode policy. File write/edit, Git commit, and potentially mutating Shell operations require an active `chat-direct` Session that owns the Workspace Writer Lease; read-only observers remain lease-free.
+The release gate proves Chat Direct does not invoke `turn/start` or create a Codex Thread. Standalone execution never bypasses ChatCockpit path, command, workspace, timeout, output, or exposed-mode policy. File write/edit, Git commit, and potentially mutating Shell operations require an active `chat-direct` Session that owns the Workspace Writer Lease; read-only observers remain lease-free.
 
 ### Codex Session — implemented, experimental protocol adapter
 
-A TokenPilot `codex-session` can bind, resume, or fork a Codex App Server Thread. Starting a Codex model loop is a separate explicit operation that requires:
+A ChatCockpit `codex-session` can bind, resume, or fork a Codex App Server Thread. Starting a Codex model loop is a separate explicit operation that requires:
 
 - active Runtime Binding;
 - matching Project, Workspace, Task, and Session revisions;
@@ -96,9 +96,9 @@ Command and file-change Approval requests are stored and exposed through public-
 
 ### Async Agent Job — implemented delegated background lane
 
-The file-backed Queue and Runner support Pack, TaskPack, and Codex-run Jobs with Artifacts and optional isolated Worktrees. Async Agent Job is the delegated background execution mode: the Agent runtime owns its model loop while TokenPilot owns queueing, claim, Runtime Binding, lifecycle, artifacts, Evidence, restart reconciliation, and the transition back to review or blocked state.
+The file-backed Queue and Runner support Pack, TaskPack, and Codex-run Jobs with Artifacts and optional isolated Worktrees. Async Agent Job is the delegated background execution mode: the Agent runtime owns its model loop while ChatCockpit owns queueing, claim, Runtime Binding, lifecycle, artifacts, Evidence, restart reconciliation, and the transition back to review or blocked state.
 
-Async Jobs are already first-class Runtime Bindings in the shared Continuity model. Runner Job IDs are stored as external run identities rather than TokenPilot Task identity, and terminal/restart reconciliation is idempotent.
+Async Jobs are already first-class Runtime Bindings in the shared Continuity model. Runner Job IDs are stored as external run identities rather than ChatCockpit Task identity, and terminal/restart reconciliation is idempotent.
 
 ## Continuity System of Record
 

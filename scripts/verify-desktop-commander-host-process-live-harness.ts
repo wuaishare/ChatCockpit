@@ -11,7 +11,7 @@ import {
 import { runDesktopCommanderHostProcessLiveProof } from "./probe-desktop-commander-host-process-live.ts";
 
 const sandbox = fs.mkdtempSync(
-  path.join(os.tmpdir(), "tokenpilot-host-process-live-harness-")
+  path.join(os.tmpdir(), "chatcockpit-host-process-live-harness-")
 );
 const fixtureServer = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -59,7 +59,7 @@ try {
   assert.equal(summary.serverName, "fake-downstream");
   assert.equal(summary.health, "ready");
   assert.ok(summary.verifiedCapabilities.includes("shell.exec"));
-  assert.equal(summary.processTool, "tokenpilot.host.process.execute");
+  assert.equal(summary.processTool, "chatcockpit.host.process.execute");
   assert.equal(summary.executionScope, "host");
   assert.equal(summary.publicProcessIdentity, true);
   assert.equal(summary.inputNotPersisted, true);

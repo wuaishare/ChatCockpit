@@ -8,8 +8,8 @@ import {
   oauthDatabasePath
 } from "../src/auth/oauth-store.js";
 import {
-  TOKENPILOT_MCP_SCOPE,
-  TOKENPILOT_OFFLINE_SCOPE
+  OAUTH_OFFLINE_SCOPE,
+  TOKENPILOT_MCP_SCOPE
 } from "../src/auth/oauth-types.js";
 
 const now = "2026-08-07T10:00:00.000Z";
@@ -60,7 +60,7 @@ function main(): void {
     requestId,
     clientId,
     redirectUri: client.redirectUris[0],
-    scope: `${TOKENPILOT_MCP_SCOPE} ${TOKENPILOT_OFFLINE_SCOPE}`,
+    scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
     resource: "https://tokenpilot.example.com/mcp",
     state: "state-1",
     codeChallenge: "challenge-value",
@@ -99,7 +99,7 @@ function main(): void {
   store.storeRefreshToken({
     token: refreshToken,
     clientId,
-    scope: `${TOKENPILOT_MCP_SCOPE} ${TOKENPILOT_OFFLINE_SCOPE}`,
+    scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
     resource: "https://tokenpilot.example.com/mcp",
     issuedAt: now,
     expiresAt: later

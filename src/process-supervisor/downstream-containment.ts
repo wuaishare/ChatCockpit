@@ -2,7 +2,7 @@ import { DownstreamMcpStdioClient } from "../direct/downstream-mcp-stdio-client.
 import type { DownstreamMcpStdioExecutorConfig } from "../direct/downstream-mcp-config.js";
 import type { ManagedProcessClientFactory } from "../direct/adapters/desktop-commander-managed-process.js";
 
-const GUARDIAN_SPEC_ENV = "TOKENPILOT_DOWNSTREAM_GUARDIAN_SPEC";
+const GUARDIAN_SPEC_ENV = "CHATCOCKPIT_DOWNSTREAM_GUARDIAN_SPEC";
 
 // Intentionally plain Node.js source so the guardian works from both tsx source mode
 // and compiled dist without requiring another runtime asset or loader.

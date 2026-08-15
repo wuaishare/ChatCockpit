@@ -78,7 +78,7 @@ export interface ResourceCenterCopy {
   registryScope: string;
   unknownScope: string;
   runtimeNative: string;
-  tokenpilotLocal: string;
+  legacyLocal: string;
   acpRegistry: string;
   mutationActions: string;
   mutationActivity: string;
@@ -190,7 +190,7 @@ const zhCN: ResourceCenterCopy = {
   registryScope: "Registry",
   unknownScope: "未知",
   runtimeNative: "Runtime Native",
-  tokenpilotLocal: "ChatCockpit Local",
+  legacyLocal: "ChatCockpit Local",
   acpRegistry: "ACP Registry",
   mutationActions: "受治理变更",
   mutationActivity: "最近变更记录",
@@ -302,7 +302,7 @@ const enUS: ResourceCenterCopy = {
   registryScope: "Registry",
   unknownScope: "Unknown",
   runtimeNative: "Runtime Native",
-  tokenpilotLocal: "ChatCockpit Local",
+  legacyLocal: "ChatCockpit Local",
   acpRegistry: "ACP Registry",
   mutationActions: "Governed changes",
   mutationActivity: "Recent mutation activity",

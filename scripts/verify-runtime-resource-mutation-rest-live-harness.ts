@@ -14,7 +14,7 @@ const skillProof = read("scripts/probe-codex-skill-mutation-rest-live.ts");
 const pluginProof = read("scripts/probe-codex-plugin-mutation-rest-live.ts");
 
 assert.match(helper, /buildServer\(/);
-assert.match(helper, /TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = "true"/);
+assert.match(helper, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED = "true"/);
 assert.match(helper, /providerMethodCalls/);
 assert.match(helper, /TrackingAppServerClient/);
 assert.match(helper, /authorization:/);
@@ -58,7 +58,7 @@ for (const source of [skillProof, pluginProof]) {
     "REST live proof must verify persisted rest-api actor provenance"
   );
   assert.equal(
-    source.includes("tokenpilot.resources.mutation."),
+    source.includes("chatcockpit.resources.mutation."),
     false,
     "6B2C2 live proof must not depend on MCP mutation tools"
   );
@@ -79,7 +79,7 @@ assert.equal(
   "Skill-only safety baseline must select the same deterministic candidate as the REST proof"
 );
 
-assert.match(skillProof, /TOKENPILOT_CODEX_SKILL_REST_MUTATION_PROOF/);
+assert.match(skillProof, /CHATCOCKPIT_CODEX_SKILL_REST_MUTATION_PROOF/);
 assert.match(skillProof, /I_UNDERSTAND_REVERSIBLE_REST_MUTATION/);
 assert.match(skillProof, /Refusing real Codex Skill REST mutation without/);
 assert.equal(skillProof.includes("skills/config/write"), true);
@@ -90,7 +90,7 @@ assert.equal(
   "Skill REST proof must restore original state through a new governed intent"
 );
 
-assert.match(pluginProof, /TOKENPILOT_CODEX_PLUGIN_REST_MUTATION_PROOF/);
+assert.match(pluginProof, /CHATCOCKPIT_CODEX_PLUGIN_REST_MUTATION_PROOF/);
 assert.match(pluginProof, /I_UNDERSTAND_REVERSIBLE_PLUGIN_REST_MUTATION/);
 assert.match(pluginProof, /Refusing real Codex Plugin REST mutation without/);
 assert.equal(pluginProof.includes('"plugin.install"'), true);
@@ -103,10 +103,10 @@ assert.equal(
   "Plugin REST proof must verify read-only installed coverage before and after mutation"
 );
 
-const previousSkillOptIn = process.env.TOKENPILOT_CODEX_SKILL_REST_MUTATION_PROOF;
-const previousPluginOptIn = process.env.TOKENPILOT_CODEX_PLUGIN_REST_MUTATION_PROOF;
-delete process.env.TOKENPILOT_CODEX_SKILL_REST_MUTATION_PROOF;
-delete process.env.TOKENPILOT_CODEX_PLUGIN_REST_MUTATION_PROOF;
+const previousSkillOptIn = process.env.CHATCOCKPIT_CODEX_SKILL_REST_MUTATION_PROOF;
+const previousPluginOptIn = process.env.CHATCOCKPIT_CODEX_PLUGIN_REST_MUTATION_PROOF;
+delete process.env.CHATCOCKPIT_CODEX_SKILL_REST_MUTATION_PROOF;
+delete process.env.CHATCOCKPIT_CODEX_PLUGIN_REST_MUTATION_PROOF;
 try {
   await assert.rejects(
     () => runCodexSkillMutationRestLiveProof(),
@@ -118,14 +118,14 @@ try {
   );
 } finally {
   if (previousSkillOptIn === undefined) {
-    delete process.env.TOKENPILOT_CODEX_SKILL_REST_MUTATION_PROOF;
+    delete process.env.CHATCOCKPIT_CODEX_SKILL_REST_MUTATION_PROOF;
   } else {
-    process.env.TOKENPILOT_CODEX_SKILL_REST_MUTATION_PROOF = previousSkillOptIn;
+    process.env.CHATCOCKPIT_CODEX_SKILL_REST_MUTATION_PROOF = previousSkillOptIn;
   }
   if (previousPluginOptIn === undefined) {
-    delete process.env.TOKENPILOT_CODEX_PLUGIN_REST_MUTATION_PROOF;
+    delete process.env.CHATCOCKPIT_CODEX_PLUGIN_REST_MUTATION_PROOF;
   } else {
-    process.env.TOKENPILOT_CODEX_PLUGIN_REST_MUTATION_PROOF = previousPluginOptIn;
+    process.env.CHATCOCKPIT_CODEX_PLUGIN_REST_MUTATION_PROOF = previousPluginOptIn;
   }
 }
 

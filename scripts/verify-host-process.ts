@@ -254,7 +254,7 @@ async function expectServiceCode(
 
 async function verifyManagedProcessSupervisor(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-process-adapter-")
+    path.join(os.tmpdir(), "chatcockpit-host-process-adapter-")
   );
   try {
     const { runtimeDir, configPath } = writeManagedProcessFixture({ sandbox });
@@ -600,7 +600,7 @@ class ReadyProcessSupervisor {
 
 async function verifyHostProcessStartGovernance(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-process-service-")
+    path.join(os.tmpdir(), "chatcockpit-host-process-service-")
   );
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
@@ -1637,8 +1637,8 @@ async function verifyHostProcessRestParity(): Promise<void> {
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
   const directConfigPath = path.join(sandbox, "direct-executors.json");
-  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
-  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
+  const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   fs.mkdirSync(runtimeRoot, { recursive: true });
   fs.mkdirSync(workspaceRoot, { recursive: true });
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "fixture\n", "utf8");
@@ -1682,15 +1682,17 @@ async function verifyHostProcessRestParity(): Promise<void> {
   fs.writeFileSync(
     userConfigPath,
     JSON.stringify({
+      schemaVersion: 1,
+      defaultRepoId: "primary",
       workspaceAllowlist: [runtimeRoot, workspaceRoot],
       repoMappings: {
-        tokenpilot: { path: runtimeRoot },
+        primary: { path: runtimeRoot },
         "fixture-repo": { path: workspaceRoot }
       }
     }),
     "utf8"
   );
-  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = userConfigPath;
   const paths = buildPaths(runtimeRoot);
   await probeConfiguredDownstreamMcpExecutors({
     paths,
@@ -2058,9 +2060,9 @@ async function verifyHostProcessRestParity(): Promise<void> {
     await app.close();
     await processSupervisorDaemon.close();
     if (previousConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
@@ -2068,7 +2070,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
 
 async function verifyHostProcessRestartReconciliation(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-process-restart-")
+    path.join(os.tmpdir(), "chatcockpit-host-process-restart-")
   );
   const databasePath = path.join(sandbox, "continuity.sqlite");
   const workspaceRoot = path.join(sandbox, "workspace");

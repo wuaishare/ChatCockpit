@@ -174,11 +174,11 @@ const workspaceRoot = path.join(sandbox, "workspace");
 fs.mkdirSync(workspaceRoot, { recursive: true });
 fs.writeFileSync(path.join(workspaceRoot, "README.md"), "recovery harness\n", "utf8");
 execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
-execFileSync("git", ["config", "user.name", "TokenPilot Test"], {
+execFileSync("git", ["config", "user.name", "ChatCockpit Test"], {
   cwd: workspaceRoot,
   stdio: "ignore"
 });
-execFileSync("git", ["config", "user.email", "tokenpilot@example.invalid"], {
+execFileSync("git", ["config", "user.email", "chatcockpit@example.invalid"], {
   cwd: workspaceRoot,
   stdio: "ignore"
 });

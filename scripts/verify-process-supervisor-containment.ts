@@ -26,7 +26,7 @@ const guardian = spawn(
   {
     env: {
       ...process.env,
-      TOKENPILOT_DOWNSTREAM_GUARDIAN_SPEC: guardianSpec
+      CHATCOCKPIT_DOWNSTREAM_GUARDIAN_SPEC: guardianSpec
     },
     stdio: ["pipe", "pipe", "pipe"]
   }

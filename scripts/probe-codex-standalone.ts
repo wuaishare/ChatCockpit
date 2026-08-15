@@ -13,7 +13,7 @@ async function probeCurrentCodex(): Promise<void> {
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const rootPath = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-codex-standalone-real-")
+    path.join(os.tmpdir(), "chatcockpit-codex-standalone-real-")
   );
   const binary = resolveCodexBinary();
   const client = new CodexAppServerClient({

@@ -63,10 +63,6 @@ export function createBuiltInDirectExecutorSource(
   };
 }
 
-export function createTokenPilotDirectExecutorSource(): DirectExecutorSource {
-  return createBuiltInDirectExecutorSource("tokenpilot");
-}
-
 function isVerified(
   store: CodexStandaloneCapabilityStore,
   operation: "files.read" | "files.write" | "files.list" | "command.exec"
