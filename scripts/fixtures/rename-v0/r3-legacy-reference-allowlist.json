@@ -464,6 +464,14 @@
       "lineRegex": "tokenpilot\\|chatcockpit",
       "reason": "Web public-path safety rejects both canonical and historical private runtime/job state roots to prevent old state from becoming exposable.",
       "removalGate": "Retain while historical .tokenpilot state can exist or be rendered by compatibility data."
+    },
+    {
+      "id": "r3-fresh-install-legacy-negative-assertions",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-chatcockpit-r3-cutover\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "The R3 isolated fresh-install verifier names legacy identity only in negative assertions and real-state isolation checks proving that default ChatCockpit generation neither emits nor mutates old TokenPilot state.",
+      "removalGate": "Retain while R3/R4 regression coverage must prove fresh installs do not recreate or mutate legacy identity; narrow or remove only with the corresponding compatibility closeout."
     }
   ]
 }
