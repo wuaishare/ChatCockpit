@@ -32,6 +32,33 @@ assert.equal(
   "durable-copy-with-revalidation"
 );
 assert.equal(
+  classifyRenameStatePath("jobs/running/job-2.json").classification,
+  "durable-copy-with-revalidation"
+);
+assert.equal(classifyRenameStatePath("jobs/failed/job-3.json").classification, "durable-copy");
+assert.equal(
+  classifyRenameStatePath("runtime/worktrees/repo/worktree/README.md").classification,
+  "archive-only"
+);
+assert.equal(
+  classifyRenameStatePath("runtime/job-processes/job-1.json").classification,
+  "ephemeral-never-migrate"
+);
+assert.equal(
+  classifyRenameStatePath("runtime/capabilities/codex.json").classification,
+  "ephemeral-never-migrate"
+);
+assert.equal(
+  classifyRenameStatePath("runtime/continuity.sqlite-wal").classification,
+  "archive-only"
+);
+assert.equal(
+  classifyRenameStatePath("runtime/continuity.sqlite-shm").classification,
+  "archive-only"
+);
+assert.equal(classifyRenameStatePath("repomix-output.xml").classification, "archive-only");
+assert.equal(classifyRenameStatePath(".DS_Store").classification, "ephemeral-never-migrate");
+assert.equal(
   classifyRenameStatePath("runtime/oauth.sqlite").classification,
   "security-reset"
 );
