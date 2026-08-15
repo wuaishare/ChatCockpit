@@ -24,14 +24,15 @@ struct DistributionContextTests {
         #expect(context.lifecycleContext.nodeExecutableURL == context.nodeExecutableURL)
     }
 
-    @Test("source context uses the canonical ChatCockpit state root")
-    func sourceContextUsesCheckout() {
+    @Test("source context uses the global ChatCockpit state root")
+    func sourceContextUsesGlobalState() {
         let root = TokenPilotRoot(url: URL(fileURLWithPath: "/tmp/tokenpilot-source", isDirectory: true))
-        let context = DesktopDistributionContext.source(root: root)
+        let home = URL(fileURLWithPath: "/tmp/chatcockpit-home", isDirectory: true)
+        let context = DesktopDistributionContext.source(root: root, homeDirectoryURL: home)
 
         #expect(context.mode == .source)
         #expect(context.installRootURL == root.url)
-        #expect(context.stateRootURL == root.url.appendingPathComponent(".chatcockpit", isDirectory: true))
+        #expect(context.stateRootURL == home.appendingPathComponent(".chatcockpit", isDirectory: true))
         #expect(context.primaryWorkspaceURL == root.url)
         #expect(context.runtimeID == nil)
         #expect(context.architecture == nil)

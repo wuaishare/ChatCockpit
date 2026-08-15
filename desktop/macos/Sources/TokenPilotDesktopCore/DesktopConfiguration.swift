@@ -29,10 +29,15 @@ public struct DesktopRuntimeConfiguration: Equatable, Sendable, CustomStringConv
 public struct DesktopRuntimeConfigurationReader: Sendable {
     public init() {}
 
-    public func read(rootURL: URL) -> DesktopRuntimeConfiguration {
+    public func read(
+        rootURL: URL,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> DesktopRuntimeConfiguration {
         read(
-            stateRootURL: rootURL
-                .appendingPathComponent(ProductIdentity.current.stateDirectoryName, isDirectory: true)
+            stateRootURL: ProductIdentity.current.sourceStateRootURL(
+                installRootURL: rootURL,
+                homeDirectoryURL: homeDirectoryURL
+            )
         )
     }
 

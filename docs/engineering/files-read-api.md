@@ -60,14 +60,16 @@ These endpoints only allow public-safe artifact reads that are already declared 
 - pack: `repomixXml`, `prompt`, `summary`, `manifest`
 - taskpack: `markdown`, `json`
 
-`POST /api/files/read` and `POST /api/files/read-batch` allow only a narrow subset of public-safe artifact paths under the canonical `.chatcockpit/` state root, including:
+`POST /api/files/read` and `POST /api/files/read-batch` allow only a narrow subset of public-safe artifact paths under the canonical `.chatcockpit/` logical namespace, including:
 
 - `.chatcockpit/repomix-output-*.xml`
 - `.chatcockpit/bundles/bundle-*-prompt.md`
 - `.chatcockpit/bundles/bundle-*-summary.md`
 - `.chatcockpit/bundles/bundle-*-manifest.json`
 
-The same bounded shapes under legacy `.tokenpilot/` remain receive-only compatibility inputs. Legacy fixed filenames such as `.tokenpilot/repomix-output.xml`, `.tokenpilot/bundles/bundle-prompt.md`, and `.tokenpilot/bundles/bundle-summary.md` remain readable for backward compatibility; new pack runs write timestamped artifacts under `.chatcockpit/`.
+In Source/Developer Mode, that logical `.chatcockpit/...` namespace resolves to the physical global state root `~/.chatcockpit/...`; it is deliberately not a path relative to the selected Git checkout. Packaged Mode resolves the same logical namespace to its Application Support state root. This keeps public artifact identities stable without exposing a user's home-directory path.
+
+The same bounded shapes under legacy `.tokenpilot/` remain receive-only compatibility inputs. Legacy fixed filenames such as `.tokenpilot/repomix-output.xml`, `.tokenpilot/bundles/bundle-prompt.md`, and `.tokenpilot/bundles/bundle-summary.md` remain readable for backward compatibility; new pack runs write timestamped artifacts under the logical `.chatcockpit/` namespace.
 
 ## Output model
 

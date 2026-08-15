@@ -68,12 +68,21 @@ export function runPackForRepo(
 ): RepoBundleManifest {
   const config = loadUserConfigForPaths(paths);
   const mapping = resolveRepoMapping(config, repoId);
-  const repoPaths = buildPaths(mapping.repoRoot);
+  const repoPaths = buildPaths({
+    productIdentity: paths.productIdentity,
+    mode: paths.distributionMode,
+    installRoot: paths.installRoot,
+    stateRoot: paths.stateRoot,
+    primaryWorkspaceRoot: mapping.repoRoot,
+    nodeExecutable: paths.nodeExecutable,
+    configPath: paths.configPath
+  });
   ensureWorkspaceDirs(repoPaths);
   const bundleOutputPath = nextBundleOutputPath(repoPaths.workspaceDir);
   writeRepoBundleXml(mapping.repoRoot, bundleOutputPath);
 
   const manifest = buildBundleManifest(
+    repoPaths,
     mapping.repoRoot,
     repoPaths.bundlesDir,
     bundleOutputPath,

@@ -45,14 +45,22 @@ identity_env_value() {
 SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_ROOT="$(identity_env_value INSTALL_ROOT)"
 INSTALL_ROOT="${INSTALL_ROOT:-${SCRIPT_ROOT}}"
+DISTRIBUTION_MODE="$(identity_env_value DISTRIBUTION_MODE)"
+DISTRIBUTION_MODE="${DISTRIBUTION_MODE:-source}"
 STATE_ROOT="$(identity_env_value STATE_ROOT)"
-STATE_ROOT="${STATE_ROOT:-${INSTALL_ROOT}/${STATE_DIR_NAME}}"
+if [[ -z "${STATE_ROOT}" ]]; then
+  if [[ "${DISTRIBUTION_MODE}" == "packaged" ]]; then
+    STATE_ROOT="${HOME}/Library/Application Support/${DISPLAY_NAME}/state"
+  elif [[ "${PRODUCT_IDENTITY}" == "chatcockpit" ]]; then
+    STATE_ROOT="${HOME}/${STATE_DIR_NAME}"
+  else
+    STATE_ROOT="${INSTALL_ROOT}/${STATE_DIR_NAME}"
+  fi
+fi
 PRIMARY_WORKSPACE_ROOT="$(identity_env_value PRIMARY_WORKSPACE_ROOT)"
 PRIMARY_WORKSPACE_ROOT="${PRIMARY_WORKSPACE_ROOT:-${INSTALL_ROOT}}"
 NODE_BIN="$(identity_env_value NODE_BIN)"
 NODE_BIN="${NODE_BIN:-$(command -v node)}"
-DISTRIBUTION_MODE="$(identity_env_value DISTRIBUTION_MODE)"
-DISTRIBUTION_MODE="${DISTRIBUTION_MODE:-source}"
 RUNTIME_DIR="${STATE_ROOT}/runtime"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"

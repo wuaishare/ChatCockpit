@@ -17,7 +17,8 @@ import {
   getJob,
   listJobs
 } from "../src/core/jobs.ts";
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 import { DEFAULT_PRODUCT_IDENTITY } from "../src/core/product-identity.ts";
 import { runRunner } from "../src/runner/index.ts";
 import type { CodexRunJobResult } from "../src/types.ts";
@@ -59,7 +60,7 @@ function createTaskSession(
 
 function verifyAsyncJobBinding(): void {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-async-job-"));
-  const paths = buildPaths(repoRoot);
+  const paths = buildFixturePaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
@@ -240,7 +241,7 @@ function verifyTerminalReconciliation(): void {
   const repoRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "chatcockpit-async-terminal-")
   );
-  const paths = buildPaths(repoRoot);
+  const paths = buildFixturePaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
@@ -384,7 +385,7 @@ async function verifyRunnerRestartReconciliation(): Promise<void> {
   const repoRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "chatcockpit-async-restart-")
   );
-  const paths = buildPaths(repoRoot);
+  const paths = buildFixturePaths(repoRoot);
   ensureWorkspaceDirs(paths);
   let database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")

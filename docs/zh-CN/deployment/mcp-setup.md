@@ -165,7 +165,7 @@ chatcockpit probe-direct-executors
 chatcockpit probe-direct-executors --executor-id 'downstream-mcp:example'
 ```
 
-Probe 会完成 MCP Initialize 与 `tools/list`，使用官方 MCP Schema 校验响应，再把本地 Capability Snapshot 写入 `.chatcockpit/runtime/capabilities/downstream-mcp/`。只有显式 Mapping 的 Capability 才能进入 Broker，不会根据 Tool Name 前缀自动猜测，也不会在公共 Executor Descriptor 中暴露下游 Tool Name。
+Probe 会完成 MCP Initialize 与 `tools/list`，使用官方 MCP Schema 校验响应，再把本地 Capability Snapshot 写入 `~/.chatcockpit/runtime/capabilities/downstream-mcp/`。只有显式 Mapping 的 Capability 才能进入 Broker，不会根据 Tool Name 前缀自动猜测，也不会在公共 Executor Descriptor 中暴露下游 Tool Name。
 
 Desktop Commander 继续使用同一份 local-only 配置，并固定 Executor ID 为 `downstream-mcp:desktop-commander`。上游标准 stdio 启动方式是 `npx -y @wonderwhy-er/desktop-commander@latest`；ChatCockpit 不会主动安装该包。但如果操作员显式运行使用这条 `npx` transport 的 Probe，而本机尚未缓存该包，`npx` 可能会在执行本地命令时下载并缓存它。当前 Desktop Commander Adapter 可以显式映射受治理的 Host Files 与 bounded Host Command normalized capability：
 

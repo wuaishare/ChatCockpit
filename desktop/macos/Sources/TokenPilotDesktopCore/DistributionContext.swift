@@ -51,14 +51,15 @@ public struct DesktopDistributionContext: Equatable, Sendable {
 
     public static func source(
         root: TokenPilotRoot,
-        productIdentity: ProductIdentity = .current
+        productIdentity: ProductIdentity = .current,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> DesktopDistributionContext {
         DesktopDistributionContext(
             mode: .source,
             installRootURL: root.url,
-            stateRootURL: root.url.appendingPathComponent(
-                productIdentity.stateDirectoryName,
-                isDirectory: true
+            stateRootURL: productIdentity.sourceStateRootURL(
+                installRootURL: root.url,
+                homeDirectoryURL: homeDirectoryURL
             ),
             primaryWorkspaceURL: root.url,
             nodeExecutableURL: nil,

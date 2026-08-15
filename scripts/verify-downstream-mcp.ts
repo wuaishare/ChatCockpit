@@ -15,7 +15,7 @@ import {
   DESKTOP_COMMANDER_START_PROCESS_TOOL
 } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { loadDownstreamMcpExecutorsConfig } from "../src/direct/downstream-mcp-config.ts";
 import {
   DownstreamMcpExecutionError,

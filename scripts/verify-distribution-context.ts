@@ -65,12 +65,18 @@ assert.equal(packagedConfig.workspaceAllowlist.includes(canonical(installRoot)),
 assert.equal(packagedConfig.workspaceAllowlist.includes(canonical(stateRoot)), false);
 
 const sourceRoot = path.join(tempRoot, "source-checkout");
+const sourceHome = path.join(tempRoot, "source-home");
 fs.mkdirSync(sourceRoot, { recursive: true });
-const source = buildSourceDistributionContext(sourceRoot, {
-  configPath: path.join(tempRoot, "source-config.json"),
-  nodeExecutable: process.execPath
-});
-const sourcePaths = buildPaths(sourceRoot);
+fs.mkdirSync(sourceHome, { recursive: true });
+const source = buildSourceDistributionContext(
+  sourceRoot,
+  {
+    configPath: path.join(tempRoot, "source-config.json"),
+    nodeExecutable: process.execPath
+  },
+  { ...process.env, HOME: sourceHome }
+);
+const sourcePaths = buildPaths(source);
 const sourceDynamicConfigPath = path.join(tempRoot, "source-dynamic-config.json");
 process.env.CHATCOCKPIT_CONFIG_PATH = sourceDynamicConfigPath;
 const sourceConfig = loadUserConfigForPaths(sourcePaths);
@@ -80,11 +86,11 @@ assert.equal(fs.existsSync(sourceDynamicConfigPath), true);
 assert.equal(sourceConfig.repoMappings.primary?.path, canonical(sourceRoot));
 assert.equal(source.mode, "source");
 assert.equal(source.installRoot, canonical(sourceRoot));
-assert.equal(source.stateRoot, path.join(canonical(sourceRoot), ".chatcockpit"));
+assert.equal(source.stateRoot, path.join(canonical(sourceHome), ".chatcockpit"));
 assert.equal(source.primaryWorkspaceRoot, canonical(sourceRoot));
 assert.equal(sourcePaths.repoRoot, canonical(sourceRoot));
 assert.equal(sourcePaths.installRoot, canonical(sourceRoot));
-assert.equal(sourcePaths.workspaceDir, path.join(canonical(sourceRoot), ".chatcockpit"));
+assert.equal(sourcePaths.workspaceDir, path.join(canonical(sourceHome), ".chatcockpit"));
 assert.equal(sourcePaths.distributionMode, "source");
 
 if (originalConfigPath === undefined) {

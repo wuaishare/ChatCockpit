@@ -91,7 +91,8 @@ assert.match(productIdentity, /static var current: ProductIdentity \{\s*\.chatCo
 assert.doesNotMatch(productIdentity, /#if CHATCOCKPIT_TARGET/);
 
 // Product-owned paths, lifecycle environment and service ownership derive from identity.
-assert.match(distributionContext, /productIdentity\.stateDirectoryName/);
+assert.match(distributionContext, /productIdentity\.sourceStateRootURL/);
+assert.match(productIdentity, /sourceStateRootURL[\s\S]*key == Self\.chatCockpit\.key \? homeDirectoryURL : installRootURL/);
 assert.match(distributionContext, /productIdentity: productIdentity/);
 assert.match(lifecycle, /productIdentity\.environmentName\("INSTALL_ROOT"\)/);
 assert.match(lifecycle, /productIdentity\.environmentName\("STATE_ROOT"\)/);
@@ -107,7 +108,7 @@ assert.match(existingSetupImport, /"defaultRepoId": "primary"/);
 assert.match(existingSetupImport, /CHATCOCKPIT_HOST=/);
 assert.match(existingSetupImport, /CHATCOCKPIT_EXPOSED=false/);
 assert.doesNotMatch(existingSetupImport, /"TOKENPILOT_HOST=/);
-assert.match(desktopConfiguration, /ProductIdentity\.current\.stateDirectoryName/);
+assert.match(desktopConfiguration, /ProductIdentity\.current\.sourceStateRootURL/);
 assert.match(desktopConfiguration, /CHATCOCKPIT_/);
 assert.match(desktopConfiguration, /TOKENPILOT_/);
 assert.match(sourceRoot, /packageIdentity\.name == "chatcockpit"/);

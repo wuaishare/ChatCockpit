@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { resolveOAuthPublicConfig } from "../src/auth/oauth-config.js";
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.js";
+import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { buildServer } from "../src/server/app.js";
 import { listenTestServer, type TestServerHandle } from "./test-support/server.ts";
 

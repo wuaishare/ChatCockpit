@@ -5,9 +5,10 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import net from "node:net";
 
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
 import { runGit } from "./test-support/git.ts";
+import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 import {
   waitForHttpReady,
   waitForTextMatch,
@@ -251,8 +252,12 @@ async function runE2E(): Promise<void> {
   const projectRoot = process.cwd();
   const fixtureRepoRoot = makeTempRepoRoot();
   const siblingRepoRoot = makeTempRepoRoot();
-  const paths = buildPaths(fixtureRepoRoot);
+  const paths = buildFixturePaths(fixtureRepoRoot);
   ensureWorkspaceDirs(paths);
+  const fixtureRuntimeEnv = {
+    HOME: path.dirname(paths.stateRoot),
+    CHATCOCKPIT_STATE_ROOT: paths.stateRoot
+  };
   const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-config-"));
   const configPath = path.join(configDir, "config.json");
   fs.writeFileSync(
@@ -278,8 +283,11 @@ async function runE2E(): Promise<void> {
   );
 
   const failClosed = runCommand(projectRoot, ["run", "server"], {
+    ...fixtureRuntimeEnv,
     CHATCOCKPIT_EXPOSED: "true",
-    CHATCOCKPIT_PORT: "43199"
+    CHATCOCKPIT_PORT: "43199",
+    CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+    CHATCOCKPIT_CONFIG_PATH: configPath
   });
   assert.notEqual(failClosed.code, 0);
   assert.match(
@@ -293,8 +301,11 @@ async function runE2E(): Promise<void> {
     path.join(projectRoot, "openapi", "chatcockpit.openapi.yaml"),
     path.join(noUiRepoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
+  const noUiPaths = buildFixturePaths(noUiRepoRoot);
   const noUiPort = await findFreePort();
   const noUiServer = await startServer(projectRoot, noUiPort, {
+    HOME: path.dirname(noUiPaths.stateRoot),
+    CHATCOCKPIT_STATE_ROOT: noUiPaths.stateRoot,
     CHATCOCKPIT_EXPOSED: "false",
     CHATCOCKPIT_REPO_ROOT: noUiRepoRoot
   });
@@ -309,6 +320,7 @@ async function runE2E(): Promise<void> {
 
   const port = await findFreePort();
   const server = await startServer(projectRoot, port, {
+    ...fixtureRuntimeEnv,
     CHATCOCKPIT_EXPOSED: "true",
     CHATCOCKPIT_API_TOKEN: "test-token",
     CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com",
@@ -514,6 +526,7 @@ async function runE2E(): Promise<void> {
     const taskpackId = taskpackJob.job.id as string;
 
     const onceRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
+      ...fixtureRuntimeEnv,
       CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
       CHATCOCKPIT_CONFIG_PATH: configPath
     });
@@ -525,6 +538,7 @@ async function runE2E(): Promise<void> {
     if (!isTerminalStatus(taskpackStatus.status) || taskpackStatus.status !== "completed") {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const followupRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
+          ...fixtureRuntimeEnv,
           CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
           CHATCOCKPIT_CONFIG_PATH: configPath
         });
@@ -618,6 +632,7 @@ async function runE2E(): Promise<void> {
       codexRunId,
       "test-token",
       {
+        ...fixtureRuntimeEnv,
         CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
         CHATCOCKPIT_CONFIG_PATH: configPath,
         CHATCOCKPIT_CODEX_RUNNER_MODE: "mock"
@@ -634,6 +649,7 @@ async function runE2E(): Promise<void> {
       siblingPackId,
       "test-token",
       {
+        ...fixtureRuntimeEnv,
         CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
         CHATCOCKPIT_CONFIG_PATH: configPath
       }
@@ -688,6 +704,7 @@ async function runE2E(): Promise<void> {
         cwd: projectRoot,
         env: {
           ...process.env,
+          ...fixtureRuntimeEnv,
           CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
           CHATCOCKPIT_CONFIG_PATH: configPath
         },
@@ -715,6 +732,7 @@ async function runE2E(): Promise<void> {
     if (secondTaskpackFinal.status !== "completed") {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const followupRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
+          ...fixtureRuntimeEnv,
           CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
           CHATCOCKPIT_CONFIG_PATH: configPath
         });

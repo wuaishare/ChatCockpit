@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
+import { resolveLogicalPath } from "./logical-paths.js";
 import type {
   JobArtifactKey,
   JobRecord,
@@ -107,6 +108,7 @@ function ensureArtifactPath(value: unknown): string | null {
 }
 
 function buildArtifactSummary(
+  paths: TokenPilotPaths,
   key: JobArtifactKey,
   label: string,
   contentType: string,
@@ -118,7 +120,7 @@ function buildArtifactSummary(
     return null;
   }
 
-  const diskPath = path.join(repoRoot, safeRelativePath);
+  const diskPath = resolveLogicalPath(paths, repoRoot, safeRelativePath);
   if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
     return null;
   }
@@ -150,28 +152,28 @@ export function listJobArtifacts(
 
   if (job.type === "pack") {
     return [
-      buildArtifactSummary("repomixXml", "Bundle XML", "application/xml", result.repomixXmlPath, artifactRepoRoot),
-      buildArtifactSummary("prompt", "Bundle Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
-      buildArtifactSummary("summary", "Bundle Summary", "text/markdown", result.summaryPath, artifactRepoRoot),
-      buildArtifactSummary("manifest", "Bundle Manifest", "application/json", result.manifestPath, artifactRepoRoot)
+      buildArtifactSummary(paths, "repomixXml", "Bundle XML", "application/xml", result.repomixXmlPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "prompt", "Bundle Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "summary", "Bundle Summary", "text/markdown", result.summaryPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "manifest", "Bundle Manifest", "application/json", result.manifestPath, artifactRepoRoot)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 
   if (job.type === "taskpack") {
     return [
-      buildArtifactSummary("markdown", "Task Pack Markdown", "text/markdown", result.markdownPath, artifactRepoRoot),
-      buildArtifactSummary("json", "Task Pack JSON", "application/json", result.jsonPath, artifactRepoRoot)
+      buildArtifactSummary(paths, "markdown", "Task Pack Markdown", "text/markdown", result.markdownPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "json", "Task Pack JSON", "application/json", result.jsonPath, artifactRepoRoot)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 
   if (job.type === "codex-run") {
     return [
-      buildArtifactSummary("codexPrompt", "Codex Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
-      buildArtifactSummary("codexStdout", "Codex JSONL Output", "application/jsonl", result.stdoutPath, artifactRepoRoot),
-      buildArtifactSummary("codexStderr", "Codex Stderr", "text/plain", result.stderrPath, artifactRepoRoot),
-      buildArtifactSummary("codexDiff", "Git Diff", "text/x-diff", result.diffPath, artifactRepoRoot),
-      buildArtifactSummary("codexReview", "Codex Review", "text/markdown", result.reviewPath, artifactRepoRoot),
-      buildArtifactSummary("codexSummary", "Codex Summary", "application/json", result.summaryPath, artifactRepoRoot)
+      buildArtifactSummary(paths, "codexPrompt", "Codex Prompt", "text/markdown", result.promptPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "codexStdout", "Codex JSONL Output", "application/jsonl", result.stdoutPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "codexStderr", "Codex Stderr", "text/plain", result.stderrPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "codexDiff", "Git Diff", "text/x-diff", result.diffPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "codexReview", "Codex Review", "text/markdown", result.reviewPath, artifactRepoRoot),
+      buildArtifactSummary(paths, "codexSummary", "Codex Summary", "application/json", result.summaryPath, artifactRepoRoot)
     ].filter((artifact): artifact is ResolvedJobArtifact => Boolean(artifact));
   }
 

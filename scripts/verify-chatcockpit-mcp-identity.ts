@@ -66,13 +66,18 @@ async function catalogFor(
   runGit(repoRoot, ["add", "README.md"]);
   runGit(repoRoot, ["commit", "-m", "init"]);
 
-  const context = buildSourceDistributionContextForProduct(productIdentity, repoRoot, {
-    configPath: path.join(
-      homeRoot,
-      productIdentity === "chatcockpit" ? ".chatcockpit" : ".tokenpilot",
-      "config.json"
-    )
-  });
+  const context = buildSourceDistributionContextForProduct(
+    productIdentity,
+    repoRoot,
+    {
+      configPath: path.join(
+        homeRoot,
+        productIdentity === "chatcockpit" ? ".chatcockpit" : ".tokenpilot",
+        "config.json"
+      )
+    },
+    { ...process.env, HOME: homeRoot }
+  );
   const paths = buildPaths(context);
   ensureWorkspaceDirs(paths);
   loadUserConfig(repoRoot, context);

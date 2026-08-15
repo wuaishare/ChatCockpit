@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 
 import { writeJson, writeText } from "./files.js";
+import { logicalPathForFile } from "./logical-paths.js";
 import type { TaskPackArtifact, TaskPackInput, TokenPilotPaths } from "../types.js";
 
 function toBullet(items: string[] | undefined): string[] {
@@ -45,8 +46,8 @@ export function createTaskPack(
   const baseName = buildTaskPackBaseName(input, createdAt);
   const markdownFilePath = path.join(paths.manifestsDir, `${baseName}.md`);
   const jsonFilePath = path.join(paths.manifestsDir, `${baseName}.json`);
-  const markdownPath = path.relative(paths.repoRoot, markdownFilePath).replace(/\\/g, "/");
-  const jsonPath = path.relative(paths.repoRoot, jsonFilePath).replace(/\\/g, "/");
+  const markdownPath = logicalPathForFile(paths, markdownFilePath);
+  const jsonPath = logicalPathForFile(paths, jsonFilePath);
 
   const markdown = [
     "# Codex Task Pack",

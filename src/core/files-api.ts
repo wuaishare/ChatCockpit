@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
-import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
+import { PRODUCT_STATE_DIR_NAMES, productIdentityForKey } from "./product-identity.js";
 import type {
   FileReadBatchPayload,
   FileReadPayload,
@@ -195,6 +195,20 @@ export interface ReadableRepoFileTarget {
   absolutePath: string;
 }
 
+function resolveReadableDiskPath(
+  paths: TokenPilotPaths,
+  repoRoot: string,
+  relativePath: string
+): string {
+  const stateDirName = productIdentityForKey(paths.productIdentity).stateDirName;
+  if (relativePath.startsWith(`${stateDirName}/`)) {
+    const stateRelativePath = relativePath.slice(stateDirName.length + 1);
+    return resolvePathInsideRoot(paths.stateRoot, stateRelativePath, "Product state artifact path")
+      .absolutePath;
+  }
+  return resolvePathInsideRoot(repoRoot, relativePath, "File path").absolutePath;
+}
+
 export function resolveReadableRepoFileTarget(
   paths: TokenPilotPaths,
   repoId: string,
@@ -206,11 +220,7 @@ export function resolveReadableRepoFileTarget(
     throw new Error(`repoId ${repoId} is not in the workspace allowlist`);
   }
   const relativePath = validateRelativePath(inputPath);
-  const absolutePath = resolvePathInsideRoot(
-    repoRoot,
-    relativePath,
-    "File path"
-  ).absolutePath;
+  const absolutePath = resolveReadableDiskPath(paths, repoRoot, relativePath);
   if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
     throw new Error(`File not found: ${relativePath}`);
   }
@@ -219,11 +229,10 @@ export function resolveReadableRepoFileTarget(
 }
 
 function readFileContent(
-  repoRoot: string,
   relativePath: string,
+  diskPath: string,
   options?: { offset?: number; limit?: number }
 ): TokenPilotTextPreview {
-  const diskPath = path.join(repoRoot, relativePath);
   if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
     throw new Error(`File not found: ${relativePath}`);
   }
@@ -243,11 +252,11 @@ export function readRepoFile(paths: TokenPilotPaths, payload: FileReadPayload) {
   }
 
   const relativePath = validateRelativePath(payload.path);
-  resolvePathInsideRoot(repoRoot, relativePath, "File path");
+  const diskPath = resolveReadableDiskPath(paths, repoRoot, relativePath);
   return {
     ok: true,
     repoId: payload.repoId,
-    file: readFileContent(repoRoot, relativePath, {
+    file: readFileContent(relativePath, diskPath, {
       offset: payload.offset,
       limit: payload.limit
     })
@@ -273,8 +282,8 @@ export function readRepoFiles(paths: TokenPilotPaths, payload: FileReadBatchPayl
   const files = payload.paths.map((inputPath) =>
     {
       const relativePath = validateRelativePath(inputPath);
-      resolvePathInsideRoot(repoRoot, relativePath, "File path");
-      return readFileContent(repoRoot, relativePath, {
+      const diskPath = resolveReadableDiskPath(paths, repoRoot, relativePath);
+      return readFileContent(relativePath, diskPath, {
         offset: payload.offset,
         limit: payload.limit
       });

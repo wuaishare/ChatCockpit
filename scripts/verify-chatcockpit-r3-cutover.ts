@@ -168,8 +168,9 @@ try {
   const context = buildSourceDistributionContext(workspaceRoot);
   const paths = buildPaths(context);
   const expectedWorkspaceRoot = fs.realpathSync.native(workspaceRoot);
-  const expectedStateRoot = path.join(expectedWorkspaceRoot, ".chatcockpit");
-  const expectedConfigPath = path.join(homeRoot, ".chatcockpit", "config.json");
+  const expectedHomeRoot = fs.realpathSync.native(homeRoot);
+  const expectedStateRoot = path.join(expectedHomeRoot, ".chatcockpit");
+  const expectedConfigPath = path.join(expectedStateRoot, "config.json");
 
   assert.equal(context.productIdentity, "chatcockpit");
   assert.equal(paths.productIdentity, "chatcockpit");

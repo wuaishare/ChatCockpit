@@ -28,7 +28,7 @@ import {
   ContinuityDatabase,
   LATEST_CONTINUITY_SCHEMA_VERSION
 } from "../src/continuity/database.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   evaluatePureHostCommand,

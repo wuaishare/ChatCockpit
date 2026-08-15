@@ -3,7 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { buildPaths, ensureWorkspaceDirs } from "../../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./fixture-paths.ts";
 import { ContinuityDatabase } from "../../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../../src/continuity/repositories/index.ts";
 import { CodexAppServerAdapter } from "../../src/runtime/codex/app-server-adapter.ts";

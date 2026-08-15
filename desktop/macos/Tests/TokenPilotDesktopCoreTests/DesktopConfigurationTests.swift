@@ -37,10 +37,12 @@ struct DesktopConfigurationTests {
         #expect(configuration.publicBaseURLConfigured == false)
     }
 
-    @Test("reads server.env from selected ChatCockpit root")
+    @Test("reads server.env from the global ChatCockpit source state root")
     func readsServerEnv() throws {
         try withTemporaryDirectory { rootURL in
-            let runtimeDirectory = rootURL.appendingPathComponent(".chatcockpit/runtime", isDirectory: true)
+            let installRoot = rootURL.appendingPathComponent("checkout", isDirectory: true)
+            let home = rootURL.appendingPathComponent("home", isDirectory: true)
+            let runtimeDirectory = home.appendingPathComponent(".chatcockpit/runtime", isDirectory: true)
             try FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
             try "CHATCOCKPIT_HOST=localhost\nCHATCOCKPIT_PORT=5123\n".write(
                 to: runtimeDirectory.appendingPathComponent("server.env"),
@@ -48,7 +50,10 @@ struct DesktopConfigurationTests {
                 encoding: .utf8
             )
 
-            let configuration = DesktopRuntimeConfigurationReader().read(rootURL: rootURL)
+            let configuration = DesktopRuntimeConfigurationReader().read(
+                rootURL: installRoot,
+                homeDirectoryURL: home
+            )
             #expect(configuration.host == "localhost")
             #expect(configuration.port == 5123)
         }

@@ -60,9 +60,12 @@ try {
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# ChatCockpit OAuth fixture\n", "utf8");
 
   const configPath = path.join(targetHome, "config.json");
-  const context = buildSourceDistributionContextForProduct("chatcockpit", repoRoot, {
-    configPath
-  });
+  const context = buildSourceDistributionContextForProduct(
+    "chatcockpit",
+    repoRoot,
+    { configPath },
+    { ...process.env, HOME: path.dirname(targetHome) }
+  );
   const paths = buildPaths(context);
   ensureWorkspaceDirs(paths);
   const config = loadUserConfig(repoRoot, context);

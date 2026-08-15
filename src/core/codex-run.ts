@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { readIdentityEnv } from "./identity-env.js";
 import { timestampSlug, writeJson, writeText } from "./files.js";
+import { logicalPathForFile } from "./logical-paths.js";
 import {
   hasStagedPublicUnsafeChanges,
   publicSafeChangedPaths,
@@ -78,7 +79,7 @@ function safeSlug(value: string): string {
 }
 
 function relativeArtifactPath(paths: TokenPilotPaths, filePath: string): string {
-  return path.relative(paths.repoRoot, filePath).replace(/\\/g, "/");
+  return logicalPathForFile(paths, filePath);
 }
 
 function codexRunBaseName(jobId: string, title: string): string {

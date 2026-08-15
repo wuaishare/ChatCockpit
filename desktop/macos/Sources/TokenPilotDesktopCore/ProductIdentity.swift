@@ -66,4 +66,12 @@ public struct ProductIdentity: Equatable, Sendable {
     public func environmentName(_ suffix: String) -> String {
         "\(environmentPrefix)_\(suffix)"
     }
+
+    public func sourceStateRootURL(
+        installRootURL: URL,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        let baseURL = key == Self.chatCockpit.key ? homeDirectoryURL : installRootURL
+        return baseURL.appendingPathComponent(stateDirectoryName, isDirectory: true)
+    }
 }

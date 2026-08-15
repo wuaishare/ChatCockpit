@@ -47,16 +47,16 @@ Private Git is still not a secret store: live credentials and raw auth/session s
 ## Local Only: Do Not Push Anywhere By Default
 
 - live bearer tokens or API keys
-- `.chatcockpit/runtime/server.env`
+- `~/.chatcockpit/runtime/server.env`
 - raw session state under `.codex/`
-- local runtime scratch state under `.chatcockpit/`
+- global Source/Developer Mode runtime state under `~/.chatcockpit/`
 - compatibility-period historical runtime state under `.tokenpilot/`
 - root-level `repomix-output*.xml`
 - machine-specific local app directories unless explicitly curated
 
 ## Current Repo Conventions
 
-- `.codex/`, `.servbay/`, `.chatcockpit/`, compatibility-period historical `.tokenpilot/`, and `docs/superpowers/` are ignored in the public repo
+- `.codex/`, `.servbay/`, accidental checkout-local `.chatcockpit/`, compatibility-period historical `.tokenpilot/`, and `docs/superpowers/` are ignored in the public repo; canonical Source/Developer Mode state lives outside the repo at `~/.chatcockpit/`
 - public docs and OpenAPI templates may use placeholder deployment domains such as `chatcockpit.example.com`
 - real domains, tokens, and absolute paths should be injected from local/private configuration
 - reverse-proxy/tunnel scripts, public-loop probes, and GPT Builder operating checklists should stay in local configuration or private notes

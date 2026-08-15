@@ -39,12 +39,14 @@ try {
   fs.mkdirSync(fixtureHome, { recursive: true });
 
   const defaultConfigPath = path.join(fixtureHome, ".chatcockpit", "config.json");
-  const defaultSource = buildSourceDistributionContext(repoRoot, {
-    configPath: defaultConfigPath
-  });
+  const defaultSource = buildSourceDistributionContext(
+    repoRoot,
+    { configPath: defaultConfigPath },
+    { ...process.env, HOME: fixtureHome }
+  );
   const defaultPaths = buildPaths(defaultSource);
   assert.equal(defaultSource.productIdentity, "chatcockpit");
-  assert.equal(defaultSource.stateRoot, path.join(canonical(repoRoot), ".chatcockpit"));
+  assert.equal(defaultSource.stateRoot, path.join(canonical(fixtureHome), ".chatcockpit"));
   assert.equal(defaultSource.configPath, path.resolve(defaultConfigPath));
   assert.match(defaultPaths.runnerPlistPath, /com\.wuaishare\.chatcockpit\.runner\.plist$/);
   assert.match(
@@ -79,9 +81,12 @@ try {
   // R3 still retains an explicit legacy profile for migration/compatibility tooling,
   // but it is no longer the default source generation path.
   const legacyConfigPath = path.join(fixtureHome, ".tokenpilot", "config.json");
-  const legacySource = buildSourceDistributionContextForProduct("tokenpilot", repoRoot, {
-    configPath: legacyConfigPath
-  });
+  const legacySource = buildSourceDistributionContextForProduct(
+    "tokenpilot",
+    repoRoot,
+    { configPath: legacyConfigPath },
+    { ...process.env, HOME: fixtureHome }
+  );
   const legacyPaths = buildPaths(legacySource);
   assert.equal(legacySource.productIdentity, "tokenpilot");
   assert.equal(legacySource.stateRoot, path.join(canonical(repoRoot), ".tokenpilot"));
@@ -103,7 +108,7 @@ try {
       installRoot: repoRoot,
       primaryWorkspaceRoot: repoRoot
     },
-    {}
+    { HOME: fixtureHome }
   );
   assert.equal(packagedDefault.productIdentity, "chatcockpit");
   assert.match(packagedDefault.stateRoot, /Library\/Application Support\/ChatCockpit\/state$/);
@@ -119,7 +124,7 @@ try {
       installRoot: repoRoot,
       primaryWorkspaceRoot: repoRoot
     },
-    {}
+    { HOME: fixtureHome }
   );
   assert.deepEqual(packagedDefault, explicitPackagedTarget);
 } finally {

@@ -26,7 +26,7 @@ local runner / Codex CLI
 
 ## 推荐配置
 
-`.chatcockpit/runtime/server.env`：
+`~/.chatcockpit/runtime/server.env`：
 
 ```bash
 CHATCOCKPIT_EXPOSED=true

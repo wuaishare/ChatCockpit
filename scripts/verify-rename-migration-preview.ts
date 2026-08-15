@@ -16,7 +16,7 @@ const workspace = path.join(root, "workspace");
 const legacyHome = path.join(root, ".tokenpilot");
 const legacyState = path.join(root, "checkout", ".tokenpilot");
 const targetHome = path.join(root, ".chatcockpit");
-const targetState = path.join(root, "checkout", ".chatcockpit");
+const targetState = targetHome;
 fs.mkdirSync(workspace, { recursive: true });
 fs.mkdirSync(path.join(legacyState, "runtime"), { recursive: true });
 fs.mkdirSync(path.join(legacyState, "jobs", "queued"), { recursive: true });
@@ -121,9 +121,11 @@ for (const directory of [
   fs.mkdirSync(directory, { recursive: true });
 }
 fs.mkdirSync(targetHome, { recursive: true });
-const targetContext = buildSourceDistributionContext(workspace, {
-  configPath: path.join(targetHome, "config.json")
-});
+const targetContext = buildSourceDistributionContext(
+  workspace,
+  { configPath: path.join(targetHome, "config.json") },
+  { ...process.env, HOME: root }
+);
 const targetConfig = buildChatCockpitTargetConfigPreview(workspace, targetContext);
 assert.equal(targetConfig.defaultRepoId, "primary");
 assert.ok(targetConfig.repoMappings.primary);
