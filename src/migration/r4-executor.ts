@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { backup, DatabaseSync } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 
 import { ContinuityDatabase, LATEST_CONTINUITY_SCHEMA_VERSION } from "../continuity/database.js";
 import { buildSourceDistributionContextForProduct } from "../core/distribution-context.js";
@@ -49,6 +49,7 @@ export interface R4MigrationExecutorResult {
   skippedEphemeralEntries: number;
   resetSecurityEntries: number;
   targetConfigDefaultRepoId: "primary";
+  continuityBackupMethod: "node-sqlite-backup" | "vacuum-into";
   targetContinuitySchemaVersion: number;
   runtimeBindingRowsUpdated: number;
   runtimeResourceRowsUpdated: number;
@@ -337,12 +338,37 @@ function assertLegacyContinuityReady(sourcePath: string): void {
   }
 }
 
-async function backupContinuityDatabase(sourcePath: string, targetPath: string): Promise<void> {
+export async function backupR4SqliteDatabaseForMigration(
+  sourcePath: string,
+  targetPath: string,
+  options: { forceVacuumInto?: boolean } = {}
+): Promise<"node-sqlite-backup" | "vacuum-into"> {
   if (!fs.existsSync(sourcePath)) throw new Error("R4 legacy continuity database is missing");
+  if (fs.existsSync(targetPath) && fs.statSync(targetPath).size > 0) {
+    throw new Error("R4 target continuity backup path must not contain an existing database");
+  }
   fs.mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+
+  const sqliteModule = (await import("node:sqlite")) as unknown as {
+    backup?: (source: DatabaseSync, destination: string) => Promise<unknown>;
+  };
+  const nativeBackup = options.forceVacuumInto ? undefined : sqliteModule.backup;
+  if (typeof nativeBackup === "function") {
+    const source = new DatabaseSync(sourcePath, { readOnly: true });
+    try {
+      await nativeBackup(source, targetPath);
+      return "node-sqlite-backup";
+    } finally {
+      source.close();
+    }
+  }
+
+  if (fs.existsSync(targetPath)) fs.rmSync(targetPath, { force: true });
   const source = new DatabaseSync(sourcePath, { readOnly: true });
   try {
-    await backup(source, targetPath);
+    const escapedTarget = path.resolve(targetPath).replaceAll("'", "''");
+    source.exec(`VACUUM INTO '${escapedTarget}'`);
+    return "vacuum-into";
   } finally {
     source.close();
   }
@@ -487,7 +513,10 @@ export async function buildR4MigrationStaging(
 
   const copyStats = copyApprovedStateEntries(input.legacyStateRoot, stagingStateRoot, entries);
   const targetDatabasePath = path.join(stagingStateRoot, "runtime", "continuity.sqlite");
-  await backupContinuityDatabase(sourceDatabasePath, targetDatabasePath);
+  const continuityBackupMethod = await backupR4SqliteDatabaseForMigration(
+    sourceDatabasePath,
+    targetDatabasePath
+  );
   const continuity = verifyTargetContinuityDatabase(targetDatabasePath);
 
   const targetConfig = stageTargetConfig(input, stagingConfigPath);
@@ -501,6 +530,7 @@ export async function buildR4MigrationStaging(
     classifiedStateEntries: entries.length,
     ...copyStats,
     targetConfigDefaultRepoId: targetConfig.defaultRepoId as "primary",
+    continuityBackupMethod,
     targetContinuitySchemaVersion: continuity.schemaVersion,
     runtimeBindingRowsUpdated: continuity.runtimeBindingRowsUpdated,
     runtimeResourceRowsUpdated: continuity.runtimeResourceRowsUpdated,

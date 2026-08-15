@@ -6,6 +6,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import {
+  backupR4SqliteDatabaseForMigration,
   buildR4MigrationStaging,
   R4_REAL_PATH_OPT_IN
 } from "../src/migration/r4-executor.js";
@@ -219,6 +220,10 @@ try {
   assert.match(result.snapshotManifestSha256, /^[a-f0-9]{64}$/);
   assert.equal(result.classifiedStateEntries > 0, true);
   assert.equal(result.targetConfigDefaultRepoId, "primary");
+  assert.equal(
+    ["node-sqlite-backup", "vacuum-into"].includes(result.continuityBackupMethod),
+    true
+  );
   assert.equal(result.targetContinuitySchemaVersion, 19);
   assert.equal(result.runtimeBindingRowsUpdated, 1);
   assert.equal(result.runtimeResourceRowsUpdated, 1);
@@ -295,6 +300,34 @@ try {
     target.close();
   }
 
+  assert.equal(sha256(fixture.databasePath), sourceMainHashBefore);
+  assert.equal(sha256(sourceWalPath), sourceWalHashBefore);
+
+  const forcedFallbackPath = path.join(root, "forced-vacuum-backup.sqlite");
+  assert.equal(
+    await backupR4SqliteDatabaseForMigration(
+      fixture.databasePath,
+      forcedFallbackPath,
+      { forceVacuumInto: true }
+    ),
+    "vacuum-into"
+  );
+  const forcedFallback = new DatabaseSync(forcedFallbackPath, { readOnly: true });
+  try {
+    assert.equal(
+      (forcedFallback.prepare("PRAGMA integrity_check").get() as { integrity_check: string })
+        .integrity_check,
+      "ok"
+    );
+    assert.equal(
+      (forcedFallback
+        .prepare("SELECT COUNT(*) AS count FROM runtime_bindings WHERE id='binding_r4_fixture'")
+        .get() as { count: number }).count,
+      1
+    );
+  } finally {
+    forcedFallback.close();
+  }
   assert.equal(sha256(fixture.databasePath), sourceMainHashBefore);
   assert.equal(sha256(sourceWalPath), sourceWalHashBefore);
 
