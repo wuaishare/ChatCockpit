@@ -8,6 +8,10 @@ import {
   loadUserConfig
 } from "../src/core/config.js";
 import { buildSourceDistributionContext } from "../src/core/distribution-context.js";
+import {
+  assessChatCockpitTargetConfig,
+  migrateLegacyUserConfigToChatCockpit
+} from "../src/migration/chatcockpit-config-migration.js";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-rename-config-"));
 const repoRoot = path.join(root, "repo");
@@ -32,6 +36,70 @@ assert.equal(migrated.schemaVersion, 1);
 assert.equal(migrated.defaultRepoId, "tokenpilot");
 assert.equal(migrated.repoMappings.tokenpilot?.path, fs.realpathSync.native(repoRoot));
 assert.equal(fs.readFileSync(configPath, "utf8"), legacyRaw);
+
+const pureTarget = migrateLegacyUserConfigToChatCockpit(JSON.parse(legacyRaw));
+assert.equal(pureTarget.schemaVersion, 1);
+assert.equal(pureTarget.defaultRepoId, "primary");
+assert.equal(pureTarget.repoMappings.primary?.path, fs.realpathSync.native(repoRoot));
+assert.equal(pureTarget.repoMappings.tokenpilot, undefined);
+
+const customRepoRoot = path.join(root, "custom-repo");
+fs.mkdirSync(customRepoRoot, { recursive: true });
+const customTarget = migrateLegacyUserConfigToChatCockpit({
+  workspaceAllowlist: [repoRoot, customRepoRoot],
+  repoMappings: {
+    tokenpilot: { path: repoRoot },
+    custom: { path: customRepoRoot }
+  }
+});
+assert.equal(customTarget.repoMappings.primary?.path, fs.realpathSync.native(repoRoot));
+assert.equal(customTarget.repoMappings.custom?.path, fs.realpathSync.native(customRepoRoot));
+
+const equivalent = assessChatCockpitTargetConfig({
+  legacyConfigRaw: JSON.parse(legacyRaw),
+  targetConfigRaw: pureTarget
+});
+assert.equal(equivalent.disposition, "canonical-equivalent");
+assert.deepEqual(equivalent.blockers, []);
+
+const conflicting = assessChatCockpitTargetConfig({
+  legacyConfigRaw: JSON.parse(legacyRaw),
+  targetConfigRaw: {
+    ...pureTarget,
+    workspaceAllowlist: [repoRoot, customRepoRoot],
+    repoMappings: {
+      ...pureTarget.repoMappings,
+      primary: { path: customRepoRoot }
+    }
+  }
+});
+assert.equal(conflicting.disposition, "conflict");
+assert.equal(
+  conflicting.blockers.includes("target-config-does-not-match-migrated-legacy-config"),
+  true
+);
+
+assert.throws(
+  () =>
+    migrateLegacyUserConfigToChatCockpit({
+      workspaceAllowlist: [repoRoot],
+      repoMappings: {
+        tokenpilot: { path: repoRoot },
+        primary: { path: repoRoot }
+      }
+    }),
+  /reserved target repoId primary|resolve to the same physical path/
+);
+assert.throws(
+  () =>
+    migrateLegacyUserConfigToChatCockpit({
+      workspaceAllowlist: [repoRoot],
+      repoMappings: {
+        tokenpilot: { path: repoRoot, extra: "not-supported" }
+      }
+    }),
+  /unsupported field/
+);
 
 const target = buildChatCockpitTargetConfigPreview(repoRoot, context);
 assert.equal(target.schemaVersion, 1);

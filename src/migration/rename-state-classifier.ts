@@ -21,16 +21,17 @@ export function classifyRenameStatePath(relativePath: string): RenameStateEntry 
       reason: "durable continuity source of truth"
     };
   }
-  if (/^jobs\/queued\/[^/]+\.json$/.test(value)) {
+  if (/^jobs\/(?:queued|running)\/[^/]+\.json$/.test(value)) {
     return {
       relativePath: value,
       classification: "durable-copy-with-revalidation",
       action: "copy-then-reconcile",
-      reason: "queued work requires ownership and schema revalidation"
+      reason: "nonterminal queued/running work requires ownership and schema revalidation"
     };
   }
   if (
     value.startsWith("jobs/completed/") ||
+    value.startsWith("jobs/failed/") ||
     value.startsWith("bundles/") ||
     value.startsWith("manifests/")
   ) {
@@ -39,6 +40,62 @@ export function classifyRenameStatePath(relativePath: string): RenameStateEntry 
       classification: "durable-copy",
       action: "copy-to-new-state",
       reason: "durable artifact/evidence state"
+    };
+  }
+  if (/^runtime\/worktrees\//.test(value)) {
+    return {
+      relativePath: value,
+      classification: "archive-only",
+      action: "retain-in-legacy-state-and-verify-worktree-clean",
+      reason: "registered Git worktrees are external workspace state and must not become active target runtime state"
+    };
+  }
+  if (/^runtime\/job-processes\//.test(value)) {
+    return {
+      relativePath: value,
+      classification: "ephemeral-never-migrate",
+      action: "reconcile-from-new-runtime",
+      reason: "old process ownership and PID-linked job process records are invalid after quiesce"
+    };
+  }
+  if (/^runtime\/capabilities\//.test(value)) {
+    return {
+      relativePath: value,
+      classification: "ephemeral-never-migrate",
+      action: "reprobe-under-new-runtime",
+      reason: "capability truth must be observed again under the ChatCockpit runtime"
+    };
+  }
+  if (/^repomix-output(?:-[^/]+)?\.xml$/i.test(value)) {
+    return {
+      relativePath: value,
+      classification: "archive-only",
+      action: "retain-only-in-legacy-snapshot",
+      reason: "legacy generated repository bundles are historical artifacts and can be regenerated"
+    };
+  }
+  if (/^runtime\/continuity\.sqlite-(?:wal|shm)$/.test(value)) {
+    return {
+      relativePath: value,
+      classification: "archive-only",
+      action: "retain-in-forensic-snapshot-only",
+      reason: "WAL/SHM are forensic source components; active target DB must come from a consistent SQLite backup"
+    };
+  }
+  if (value === "runtime/durable-proof-real-config.json") {
+    return {
+      relativePath: value,
+      classification: "archive-only",
+      action: "retain-only-in-legacy-snapshot",
+      reason: "historical migration/proof fixture is not active runtime configuration"
+    };
+  }
+  if (value === ".DS_Store") {
+    return {
+      relativePath: value,
+      classification: "ephemeral-never-migrate",
+      action: "discard-os-metadata",
+      reason: "filesystem UI metadata is not product state"
     };
   }
   if (value === "runtime/server.env") {
