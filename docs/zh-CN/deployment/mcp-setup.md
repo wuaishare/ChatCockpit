@@ -5,8 +5,8 @@
 - 本地 MCP HTTP 传输：已实现
 - REST/MCP 共用 Application Service 与 Parity 测试：已实现
 - Exposed Mode 静态 Bearer 兼容鉴权：已实现
-- ChatGPT 兼容 OAuth 2.1 Discovery、DCR、PKCE、Refresh、Revoke 与重启持久化：已实现并完成本地确定性验证
-- 通过远程 ChatGPT 或其他 MCP 客户端使用：外部客户端与网络边界仍属实验性
+- ChatGPT 兼容 OAuth 2.1 Discovery、DCR、PKCE、Refresh、Revoke 与重启持久化：已实现，并已完成真实 ChatGPT custom MCP app 授权与调用验证
+- 远程 ChatGPT / MCP 客户端长期稳定性：alpha 验证中，重点覆盖跨客户端、代理、refresh/reconnect 与长时间运行
 - ChatCockpit 公共托管 MCP 服务：未实现
 
 ChatCockpit 的 REST 与 MCP 使用同一套应用服务。MCP Handler 不会直接写 SQLite、独立抢占 Writer Lease，也不会绕过文件、命令、Git 与 public-safe 投影规则。
@@ -19,14 +19,13 @@ npm run start:local
 npm run doctor
 ```
 
-默认本地 MCP 地址：
+默认 canonical 本地 MCP 地址：
 
 ```text
 http://127.0.0.1:4318/mcp
-http://127.0.0.1:4318/mcp
 ```
 
-两条路径是别名。客户端配置时固定使用其中一条即可。
+0.2.x 仍保留 receive-only legacy transport alias，但新的客户端配置应只使用 canonical `/mcp`。
 
 ## 2. 鉴权
 
@@ -73,6 +72,8 @@ Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 OAuth Access Token 刻意只授权 canonical `/mcp` 与兼容期 receive-only `/tokenpilot/mcp`，不会顺便获得 REST Control Plane 权限。
 
 不要把真实 Owner Secret、域名、Tunnel 凭据、OAuth 数据库或机器路径提交到 Git。
+
+如果 ChatGPT custom MCP app 已经连接，建议直接按 [`../testing/chatgpt-connector-smoke.md`](../testing/chatgpt-connector-smoke.md) 做真实用户 smoke，而不是只停在 OAuth 成功页。
 
 ## 3. 验证 MCP Transport
 

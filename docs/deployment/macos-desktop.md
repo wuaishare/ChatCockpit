@@ -118,6 +118,8 @@ The app then verifies and atomically deploys the embedded runtime into Applicati
 
 The selected workspace is stored only in local macOS preferences and private ChatCockpit configuration. Machine-specific paths are not committed to the public repository.
 
+For a reproducible real-user launch, Developer Mode check, Packaged Mode conflict guard, and standalone Packaged Runtime test, see [`../testing/macos-desktop-smoke.md`](../testing/macos-desktop-smoke.md).
+
 ## Import Existing Setup
 
 Packaged Mode provides an explicit **Import Existing Setup…** action.
