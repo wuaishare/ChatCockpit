@@ -118,21 +118,10 @@ function projectPlugins(
   profile: RuntimeProfileDescriptor,
   plugins: RuntimePluginProjection[]
 ): RuntimeResourceDescriptor[] {
-  const sourceIdentitiesByPluginId = new Map<string, Set<string>>();
-  for (const plugin of plugins) {
-    const identities = sourceIdentitiesByPluginId.get(plugin.id) ?? new Set<string>();
-    identities.add(plugin.sourceIdentityHash ?? "unknown-source");
-    sourceIdentitiesByPluginId.set(plugin.id, identities);
-  }
-  const ambiguousPluginId = [...sourceIdentitiesByPluginId.entries()].find(
-    ([, identities]) => identities.size > 1
-  );
-  if (ambiguousPluginId) {
-    throw new ServiceError(
-      "RUNTIME_RESOURCE_DUPLICATE",
-      `Codex Plugin provider identity ${ambiguousPluginId[0]} resolves to multiple source identities`
-    );
-  }
+  // A Codex marketplace may legitimately expose multiple catalog entries with
+  // the same provider-level Plugin id. The opaque Resource id already includes
+  // sourceIdentityHash, so keep those observations distinct here and let the
+  // normal Resource-id/fingerprint dedupe layer reject only true collisions.
   return plugins.map((plugin) =>
     buildCodexPluginResourceDescriptor(profile, plugin)
   );

@@ -238,24 +238,10 @@ export class CodexPluginMutationAdapter {
     const catalog = normalizeCodexPluginResponse(catalogResponse, "catalog");
     const projections = mergeCodexPluginProjections(installed, catalog);
 
-    const sourceIdentitiesByPluginId = new Map<string, Set<string>>();
-    for (const plugin of projections) {
-      const identities =
-        sourceIdentitiesByPluginId.get(plugin.id) ?? new Set<string>();
-      identities.add(plugin.sourceIdentityHash ?? "unknown-source");
-      sourceIdentitiesByPluginId.set(plugin.id, identities);
-    }
-    if (
-      [...sourceIdentitiesByPluginId.values()].some(
-        (identities) => identities.size > 1
-      )
-    ) {
-      throw new ServiceError(
-        "RUNTIME_RESOURCE_MUTATION_TARGET_AMBIGUOUS",
-        "Codex Plugin provider identity resolves to multiple live source identities"
-      );
-    }
-
+    // Provider-level Plugin ids are not globally unique across all remote
+    // catalog source identities. Mutation remains fail-closed at the approved
+    // Resource id + fingerprint + source-specific private selector boundary
+    // below instead of rejecting unrelated same-provider catalog entries.
     const selectors = catalogSelectors(catalogResponse);
     const targets = projections.map((projection) => ({
       projection,

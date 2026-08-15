@@ -391,26 +391,33 @@ for (const drift of [
   );
 }
 
-const conflictingPluginSourceAdapter = new CodexResourceInventoryAdapter({
+const multiSourcePluginAdapter = new CodexResourceInventoryAdapter({
   ...runtime,
   listCodexSkills: async () => [],
   listCodexMcpServers: async () => [],
   listCodexPlugins: async () => [
-    fixturePlugin({ sourceIdentityHash: "1".repeat(64) }),
-    fixturePlugin({ sourceIdentityHash: "2".repeat(64) })
+    fixturePlugin({
+      sourceIdentityHash: "1".repeat(64),
+      displayName: "Shared Provider / Source One"
+    }),
+    fixturePlugin({
+      sourceIdentityHash: "2".repeat(64),
+      displayName: "Shared Provider / Source Two"
+    })
   ]
 });
-await assert.rejects(
-  () =>
-    conflictingPluginSourceAdapter.inventory({
-      profile,
-      workspaceId: "workspace_fixture"
-    }),
-  (error: unknown) =>
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code?: string }).code === "RUNTIME_RESOURCE_DUPLICATE"
+const multiSourcePlugins = await multiSourcePluginAdapter.inventory({
+  profile,
+  workspaceId: "workspace_fixture"
+});
+assert.equal(multiSourcePlugins.resources.length, 2);
+assert.equal(new Set(multiSourcePlugins.resources.map((resource) => resource.id)).size, 2);
+assert.deepEqual(
+  multiSourcePlugins.resources.map((resource) => resource.externalId),
+  [pluginFingerprintBaseResource.externalId, pluginFingerprintBaseResource.externalId]
 );
+assert.equal(JSON.stringify(multiSourcePlugins).includes("1".repeat(64)), false);
+assert.equal(JSON.stringify(multiSourcePlugins).includes("2".repeat(64)), false);
 
 const installedFirstAdapter = new CodexResourceInventoryAdapter({
   ...runtime,

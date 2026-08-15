@@ -218,6 +218,70 @@ assert.deepEqual(installFixture.observedMethods, [
 ]);
 assert.equal(installFixture.writeParams.length, 1);
 
+const siblingRemotePluginId = "plugins~Plugin_sibling_backend_id";
+const multiSourceObservedMethods: string[] = [];
+const multiSourceWriteParams: Array<{ method: string; params: unknown }> = [];
+const multiSourceClient = {
+  request: async (method: string, params: unknown) => {
+    multiSourceObservedMethods.push(method);
+    if (method === "plugin/installed") {
+      assert.deepEqual(params, { cwds: [privateWorkspacePath] });
+      return { marketplaces: [], marketplaceLoadErrors: [] };
+    }
+    if (method === "plugin/list") {
+      assert.deepEqual(params, {
+        cwds: [privateWorkspacePath],
+        forceRefetch: true
+      });
+      const sibling = {
+        ...rawPlugin(false),
+        remotePluginId: siblingRemotePluginId,
+        interface: {
+          ...rawPlugin(false).interface,
+          displayName: "Same Provider / Distinct Source"
+        }
+      };
+      return {
+        marketplaces: [
+          {
+            name: marketplaceName,
+            path: null,
+            interface: null,
+            plugins: [rawPlugin(false), sibling]
+          }
+        ],
+        marketplaceLoadErrors: []
+      };
+    }
+    if (method === "plugin/install") {
+      multiSourceWriteParams.push({ method, params });
+      assert.deepEqual(params, {
+        pluginName: remotePluginId,
+        remoteMarketplaceName: marketplaceName
+      });
+      return { appsNeedingAuth: [], authPolicy: "ON_USE" };
+    }
+    throw new Error(`unexpected method ${method}`);
+  },
+  close: async () => undefined
+} as unknown as CodexAppServerClient;
+const multiSourceInstallResult = await adapterFor(multiSourceClient).install({
+  profile,
+  workspaceId: "workspace_fixture",
+  resourceId: originalResource.id,
+  expectedFingerprint: originalResource.fingerprint
+});
+assert.deepEqual(multiSourceInstallResult, {
+  authPolicy: "ON_USE",
+  appsNeedingAuthCount: 0
+});
+assert.deepEqual(multiSourceObservedMethods, [
+  "plugin/installed",
+  "plugin/list",
+  "plugin/install"
+]);
+assert.equal(multiSourceWriteParams.length, 1);
+
 const uninstallFixture = makeClient({ initialInstalled: true });
 const uninstallAdapter = adapterFor(uninstallFixture.client);
 await uninstallAdapter.uninstall({
