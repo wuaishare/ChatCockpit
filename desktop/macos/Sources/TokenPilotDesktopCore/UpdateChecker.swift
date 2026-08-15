@@ -44,7 +44,7 @@ public struct URLSessionMacOSUpdateManifestLoader: MacOSUpdateManifestLoading, S
 
 public struct MacOSUpdateChecker: MacOSUpdateChecking, Sendable {
     public static let defaultManifestURL = URL(
-        string: "https://github.com/wuaishare/TokenPilot/releases/latest/download/macos-update.json"
+        string: "https://github.com/wuaishare/ChatCockpit/releases/latest/download/macos-update.json"
     )!
 
     private let manifestURL: URL

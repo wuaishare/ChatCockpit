@@ -191,7 +191,7 @@ try {
       "--release-manifest",
       certifiedReleasePath,
       "--repository",
-      "wuaishare/TokenPilot",
+      "wuaishare/ChatCockpit",
       "--tag",
       "v0.1.0",
       "--minimum-macos",
@@ -208,7 +208,7 @@ try {
   assert.equal(generatedManifest.releaseEligible, true);
   assert.equal(
     generatedManifest.artifacts[0]?.downloadURL,
-    "https://github.com/wuaishare/TokenPilot/releases/download/v0.1.0/ChatCockpit-0.1.0-macos-arm64.dmg"
+    "https://github.com/wuaishare/ChatCockpit/releases/download/v0.1.0/ChatCockpit-0.1.0-macos-arm64.dmg"
   );
 
   const developmentReleasePath = path.join(fixtureRoot, "development-release.json");
@@ -224,7 +224,7 @@ try {
       "--release-manifest",
       developmentReleasePath,
       "--repository",
-      "wuaishare/TokenPilot",
+      "wuaishare/ChatCockpit",
       "--tag",
       "v0.1.0",
       "--minimum-macos",
