@@ -1,6 +1,6 @@
-# TokenPilot Beginner Quickstart
+# ChatCockpit Beginner Quickstart
 
-TokenPilot is a ChatGPT-first Development Continuity & Agent Routing Platform. ChatGPT owns conversation, planning, and review; TokenPilot owns local continuity, execution policy, and public-safe state across Chat Direct, Codex Session, and Async Agent Job modes.
+ChatCockpit is a ChatGPT-first Development Continuity & Agent Routing Platform. ChatGPT owns conversation, planning, and review; ChatCockpit owns local continuity, execution policy, and public-safe state across Chat Direct, Codex Session, and Async Agent Job modes.
 
 ## 5 Minute Local Preview
 
@@ -42,7 +42,7 @@ The first successful result is:
 
 Local-only mode keeps the API on `127.0.0.1` and is the default beginner path.
 
-Exposed HTTPS mode is only for an authenticated endpoint that you control. Set `TOKENPILOT_EXPOSED=true` only when `TOKENPILOT_API_TOKEN` is configured. Keep real domains, tunnel tokens, and machine-specific paths out of Git.
+Exposed HTTPS mode is only for an authenticated endpoint that you control. Set `CHATCOCKPIT_EXPOSED=true` only when `CHATCOCKPIT_API_TOKEN` is configured. Keep real domains, tunnel tokens, and machine-specific paths out of Git.
 
 For full setup, see:
 
@@ -70,11 +70,11 @@ npm run reset:local
 
 | Symptom | Likely cause | Next action |
 | --- | --- | --- |
-| Port already in use | Another process owns `4318` | Stop that process or set `TOKENPILOT_PORT` |
+| Port already in use | Another process owns `4318` | Stop that process or set `CHATCOCKPIT_PORT` |
 | Codex jobs stay queued | Runner is not active | Run `npm run start:local` then `npm run doctor:runtime` |
-| Continuity page has no project | No valid repository mapping is configured | Run setup/init and inspect the local TokenPilot config |
+| Continuity page has no project | No valid repository mapping is configured | Run setup/init and inspect the local ChatCockpit config |
 | Workspace is read-only | Another Session holds the Writer Lease | Inspect the Writer banner and prepare or consume a Handoff instead of forcing a write |
 | Handoff is not verified | Required Evidence is missing, incomplete, skipped, or failed | Record and finalize the required verification checks |
-| UI asks for token | Auth-required mode is enabled | Enter `TOKENPILOT_API_TOKEN` in the browser session |
+| UI asks for token | Auth-required mode is enabled | Enter `CHATCOCKPIT_API_TOKEN` in the browser session |
 | GPT schema import fails | Wrong public URL or no HTTPS path | Use GPT Helper and [`public-https-tunnel.md`](./public-https-tunnel.md) |
-| `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |
+| `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |

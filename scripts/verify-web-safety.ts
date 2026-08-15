@@ -425,7 +425,7 @@ for (const forbiddenPublicField of [
 assert.match(resourceCopySource, /受治理变更/);
 assert.match(resourceCopySource, /Governed changes/);
 assert.match(resourceCopySource, /authoritative refresh/);
-assert.match(resourceCopySource, /TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED/);
+assert.match(resourceCopySource, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED/);
 assert.doesNotMatch(resourceCopySource, /Phase 6A 不执行安装|Phase 6A performs no install/);
 assert.match(resourceCenterSource, /copy\.profilesTitle/);
 assert.match(resourceCenterSource, /resource-center__profile-card/);

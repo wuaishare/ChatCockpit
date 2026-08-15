@@ -259,7 +259,7 @@ async function runCodexExec(
   codexCommand: string | null
 ): Promise<CapturedProcessResult> {
   if (readIdentityEnv("CODEX_RUNNER_MODE") === "mock") {
-    const markerPath = path.join(target.executionRoot, "tokenpilot-mock-codex-run.txt");
+    const markerPath = path.join(target.executionRoot, "chatcockpit-mock-codex-run.txt");
     if (executionMode(payload) === "develop") {
       fs.appendFileSync(markerPath, `\nmock codex run for ${payload.title}\n`, "utf8");
     }

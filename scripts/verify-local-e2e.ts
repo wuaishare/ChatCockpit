@@ -47,7 +47,7 @@ function makeTempRepoRoot(): string {
   );
   fs.writeFileSync(
     path.join(repoRoot, "web", "dist", "index.html"),
-    "<!doctype html><html><body><div id=\"root\">TokenPilot Web UI Fixture</div></body></html>",
+    "<!doctype html><html><body><div id=\"root\">ChatCockpit Web UI Fixture</div></body></html>",
     "utf8"
   );
   fs.writeFileSync(
@@ -412,11 +412,11 @@ async function runE2E(): Promise<void> {
 
     const ui = await fetch(`http://127.0.0.1:${port}/ui`);
     assert.equal(ui.status, 200);
-    assert.match(await ui.text(), /TokenPilot Web UI Fixture/);
+    assert.match(await ui.text(), /ChatCockpit Web UI Fixture/);
 
     const uiDeepLink = await fetch(`http://127.0.0.1:${port}/ui/jobs/demo`);
     assert.equal(uiDeepLink.status, 200);
-    assert.match(await uiDeepLink.text(), /TokenPilot Web UI Fixture/);
+    assert.match(await uiDeepLink.text(), /ChatCockpit Web UI Fixture/);
 
     for (const section of [
       "projects",
@@ -430,7 +430,7 @@ async function runE2E(): Promise<void> {
         `http://127.0.0.1:${port}/ui/continuity/${section}`
       );
       assert.equal(continuityDeepLink.status, 200);
-      assert.match(await continuityDeepLink.text(), /TokenPilot Web UI Fixture/);
+      assert.match(await continuityDeepLink.text(), /ChatCockpit Web UI Fixture/);
     }
 
     const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
@@ -831,7 +831,7 @@ async function runE2E(): Promise<void> {
     const packPromptBody = (await packPromptResponse.json()) as {
       file: { content: string; previewMode: string; maxBytes: number; nextOffset: number | null; eof: boolean };
     };
-    assert.match(packPromptBody.file.content, /TokenPilot Repo Bundle Prompt/);
+    assert.match(packPromptBody.file.content, /ChatCockpit Repo Bundle Prompt/);
     assert.doesNotMatch(packPromptBody.file.content, /\/Users\//);
     assert.equal(packPromptBody.file.previewMode, "head");
     assert.equal(typeof packPromptBody.file.maxBytes, "number");
@@ -876,7 +876,7 @@ async function runE2E(): Promise<void> {
     const packPromptFileReadBody = (await packPromptFileRead.json()) as {
       file: { content: string; previewMode: string; maxBytes: number };
     };
-    assert.match(packPromptFileReadBody.file.content, /TokenPilot Repo Bundle Prompt/);
+    assert.match(packPromptFileReadBody.file.content, /ChatCockpit Repo Bundle Prompt/);
     assert.equal(packPromptFileReadBody.file.previewMode, "head");
 
     const packSummaryFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {

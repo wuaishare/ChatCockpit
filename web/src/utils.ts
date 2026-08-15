@@ -6,7 +6,7 @@ const SUSPICIOUS_PATH_PATTERNS = [
   /^\/(Users|home|var|private|Volumes)\//i,
   /^[A-Za-z]:\\/,
   /(^|\/)\.\.(\/|$)/,
-  /(^|\/)\.tokenpilot\/(runtime|jobs)(\/|$)/i,
+  /(^|\/)\.(?:tokenpilot|chatcockpit)\/(runtime|jobs)(\/|$)/i,
   /(^|\/)\.codex(\/|$)/i,
   /(^|\/)\.servbay(\/|$)/i
 ];
@@ -117,8 +117,8 @@ export function buildGptHelperText(health: {
   const copy = getUiCopy(locale);
   return [
     locale === "zh-CN"
-      ? "你当前连接的是 TokenPilot 的本地优先工作流控制面。"
-      : "You are connected to the TokenPilot local-first workflow control plane.",
+      ? "你当前连接的是 ChatCockpit 的本地优先工作流控制面。"
+      : "You are connected to the ChatCockpit local-first workflow control plane.",
     `${copy.gpt.modeLabel}: ${health.mode}`,
     `${copy.gpt.authRequiredLabel}: ${health.authRequired ? copy.status.yes : copy.status.no}`,
     `${copy.gpt.openapiLabel}: ${health.openapiUrl}`,

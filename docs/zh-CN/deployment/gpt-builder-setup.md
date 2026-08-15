@@ -1,6 +1,6 @@
 # GPT Builder 配置指南
 
-本指南说明如何把 TokenPilot 接入一个 Custom GPT，让 ChatGPT 通过 GPT Actions 调用你的本地控制面。GPT Actions 是建立在已实现 REST/OpenAPI 服务之上的实验性部署面；GPT Builder 缓存、代理、HTTPS 入口和客户端兼容性仍取决于实际环境。
+本指南说明如何把 ChatCockpit 接入一个 Custom GPT，让 ChatGPT 通过 GPT Actions 调用你的本地控制面。GPT Actions 是建立在已实现 REST/OpenAPI 服务之上的实验性部署面；GPT Builder 缓存、代理、HTTPS 入口和客户端兼容性仍取决于实际环境。
 
 ## 前提
 
@@ -10,18 +10,18 @@
 - 本地控制面已启动
 - 本地 runner 已启动
 - 已准备一个公网 HTTPS 地址，能转发到 `http://127.0.0.1:4318`
-- 已准备一个强随机 `TOKENPILOT_API_TOKEN`
+- 已准备一个强随机 `CHATCOCKPIT_API_TOKEN`
 
 ## 1. 配置运行环境
 
-编辑 `.tokenpilot/runtime/server.env`：
+编辑 `.chatcockpit/runtime/server.env`：
 
 ```bash
-TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-strong-token
-TOKENPILOT_HOST=127.0.0.1
-TOKENPILOT_PORT=4318
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
+CHATCOCKPIT_EXPOSED=true
+CHATCOCKPIT_API_TOKEN=replace-with-a-strong-token
+CHATCOCKPIT_HOST=127.0.0.1
+CHATCOCKPIT_PORT=4318
+CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
 然后重启：
@@ -40,8 +40,8 @@ curl http://127.0.0.1:4318/api/health
 确认公网 HTTPS 地址可访问：
 
 ```text
-https://tokenpilot.example.com/api/health
-https://tokenpilot.example.com/openapi.yaml
+https://chatcockpit.example.com/api/health
+https://chatcockpit.example.com/openapi.yaml
 ```
 
 这里的域名是占位示例。实际配置时使用你自己的 HTTPS 地址。
@@ -87,7 +87,7 @@ http://127.0.0.1:4318/ui/gpt-helper
 2. 导入 GPT Helper 给出的 Schema 导入 URL，通常是：
 
 ```text
-https://tokenpilot.example.com/openapi.yaml
+https://chatcockpit.example.com/openapi.yaml
 ```
 
 3. 确认 OpenAPI server URL 指向你的 HTTPS 地址。
@@ -100,11 +100,11 @@ https://tokenpilot.example.com/openapi.yaml
 - OpenAPI description 是否超过 GPT Builder 限制。
 - 是否仍在使用旧域名或旧缓存。
 
-TokenPilot 的本地 E2E 已检查 OpenAPI description 长度，避免超过常见导入限制。
+ChatCockpit 的本地 E2E 已检查 OpenAPI description 长度，避免超过常见导入限制。
 
 ## 5. 配置 Authentication
 
-TokenPilot exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应配置为 API Key / Bearer 类型，并使用与 `.tokenpilot/runtime/server.env` 中相同的 `TOKENPILOT_API_TOKEN`。
+ChatCockpit exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应配置为 API Key / Bearer 类型，并使用与 `.chatcockpit/runtime/server.env` 中相同的 `CHATCOCKPIT_API_TOKEN`。
 
 不要把 token 写进 README、OpenAPI 文件、GPT Instructions 或 Git 提交。
 
@@ -113,7 +113,7 @@ TokenPilot exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应�
 在 GPT 预览里先执行只读测试：
 
 ```text
-请调用 TokenPilot health，确认控制面可达。不要写文件。
+请调用 ChatCockpit health，确认控制面可达。不要写文件。
 ```
 
 再测试 jobs：
@@ -142,7 +142,7 @@ TokenPilot exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应�
 
 - OpenAPI schema 变化
 - GPT instructions / schema 修订号变化
-- `TOKENPILOT_PUBLIC_BASE_URL` 变化
+- `CHATCOCKPIT_PUBLIC_BASE_URL` 变化
 - 域名、路径、HTTPS 入口变化
 - 产品版本变化
 - 新增或删除 Actions
@@ -166,6 +166,6 @@ TokenPilot exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应�
 | Continuity / Runtime 操作 | 已实现 |
 | 通过自有 HTTPS 连接 Custom GPT Actions | 实验性 |
 | 不同 GPT Builder 版本、代理和网络的长期兼容 | 验证中 |
-| TokenPilot 公共托管服务 | 未实现 |
+| ChatCockpit 公共托管服务 | 未实现 |
 
 MCP 客户端请使用 [`mcp-setup.md`](./mcp-setup.md)，不要导入 OpenAPI Schema。

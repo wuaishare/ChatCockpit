@@ -1,8 +1,8 @@
-# TokenPilot Local Runtime Ops
+# ChatCockpit Local Runtime Ops
 
 ## Purpose
 
-Provide a stable way to keep the local TokenPilot control plane alive for development and private operator testing.
+Provide a stable way to keep the local ChatCockpit control plane alive for development and private operator testing.
 
 Current boundary:
 
@@ -25,23 +25,23 @@ npm run setup
 
 For the native macOS menu-bar operator shell and local unsigned app build, see [`macos-desktop.md`](./macos-desktop.md).
 
-The commands in this document describe the **Developer / source mode** unless a section explicitly says otherwise. Phase 2 macOS Packaged Mode uses the same Node/TypeScript runtime implementation but deploys it under Application Support with bundled Node `24.18.1`, separate state/config roots, and an operator-selected project workspace. Packaged Mode does not require system Node/npm or a TokenPilot checkout at runtime.
+The commands in this document describe the **Developer / source mode** unless a section explicitly says otherwise. macOS Packaged Mode uses the same Node/TypeScript runtime implementation but deploys it under Application Support with bundled Node `24.18.1`, separate state/config roots, and an operator-selected project workspace. Packaged Mode does not require system Node/npm or a ChatCockpit checkout at runtime.
 
 ## Start The Local Control Plane
 
 ```bash
-TOKENPILOT_API_TOKEN=your-secret \
-TOKENPILOT_EXPOSED=false \
-TOKENPILOT_HOST=127.0.0.1 \
-TOKENPILOT_PORT=4318 \
+CHATCOCKPIT_API_TOKEN=your-secret \
+CHATCOCKPIT_EXPOSED=false \
+CHATCOCKPIT_HOST=127.0.0.1 \
+CHATCOCKPIT_PORT=4318 \
 ./scripts/macos-manage-local-server.sh start
 ```
 
 This macOS helper installs and manages three LaunchAgents as one local runtime stack:
 
-- `com.wuaishare.tokenpilot.control-plane`
-- `com.wuaishare.tokenpilot.runner`
-- `com.wuaishare.tokenpilot.process-supervisor`
+- `com.wuaishare.chatcockpit.control-plane`
+- `com.wuaishare.chatcockpit.runner`
+- `com.wuaishare.chatcockpit.process-supervisor`
 
 The intent is explicit:
 
@@ -54,18 +54,18 @@ The intent is explicit:
 For a repeatable **Developer Mode** setup, place runtime variables in:
 
 ```text
-.tokenpilot/runtime/server.env
+.chatcockpit/runtime/server.env
 ```
 
-Packaged Mode keeps the equivalent private file under TokenPilot's Application Support state root instead of the selected project workspace. Use the Desktop Settings surface rather than copying source-mode secrets into that location manually.
+Packaged Mode keeps the equivalent private file under ChatCockpit's Application Support state root instead of the selected project workspace. Use the Desktop Settings surface rather than copying source-mode secrets into that location manually.
 
 Example:
 
 ```bash
-TOKENPILOT_API_TOKEN=replace-with-your-builder-token
-TOKENPILOT_EXPOSED=false
-TOKENPILOT_HOST=127.0.0.1
-TOKENPILOT_PORT=4318
+CHATCOCKPIT_API_TOKEN=replace-with-your-builder-token
+CHATCOCKPIT_EXPOSED=false
+CHATCOCKPIT_HOST=127.0.0.1
+CHATCOCKPIT_PORT=4318
 ```
 
 `macos-manage-local-server.sh` will load this file automatically when it exists.
@@ -89,34 +89,34 @@ Current boundary:
 
 ## Local Artifact Retention
 
-In Developer Mode, TokenPilot keeps local queue records and generated artifacts under `.tokenpilot/`. In Packaged Mode, the equivalent writable runtime state lives under `~/Library/Application Support/TokenPilot/state/`; the selected project remains a separate workspace.
+In Developer Mode, ChatCockpit keeps local queue records and generated artifacts under `.chatcockpit/`. In Packaged Mode, the equivalent writable runtime state lives under `~/Library/Application Support/ChatCockpit/state/`; the selected project remains a separate workspace.
 
 Developer Mode directories:
 
-- `.tokenpilot/jobs/` stores queued, running, completed, and failed job records.
-- `.tokenpilot/bundles/` stores pack prompts, summaries, manifests, and bundle XML outputs.
-- `.tokenpilot/runtime/repos/<repoId>/` stores per-repository Codex prompts, stdout/stderr, diffs, reviews, and summaries.
-- `.tokenpilot/manifests/` stores task-pack markdown and JSON artifacts.
+- `.chatcockpit/jobs/` stores queued, running, completed, and failed job records.
+- `.chatcockpit/bundles/` stores pack prompts, summaries, manifests, and bundle XML outputs.
+- `.chatcockpit/runtime/repos/<repoId>/` stores per-repository Codex prompts, stdout/stderr, diffs, reviews, and summaries.
+- `.chatcockpit/manifests/` stores task-pack markdown and JSON artifacts.
 
-Alpha retention is intentionally conservative: TokenPilot does not delete job records or Codex artifacts by default. Bundle XML pruning only runs when an operator explicitly sets `TOKENPILOT_BUNDLE_HISTORY_LIMIT` or `TOKENPILOT_REPOMIX_HISTORY_LIMIT` to a positive number. Leave those unset when you want a full local audit trail; set them only when you are comfortable pruning older generated bundle files.
+Alpha retention is intentionally conservative: ChatCockpit does not delete job records or Codex artifacts by default. Bundle XML pruning only runs when an operator explicitly sets `CHATCOCKPIT_BUNDLE_HISTORY_LIMIT` or `CHATCOCKPIT_REPOMIX_HISTORY_LIMIT` to a positive number. Leave those unset when you want a full local audit trail; set them only when you are comfortable pruning older generated bundle files.
 
 ## Exposed Mode
 
-- `TOKENPILOT_EXPOSED=false` is the default local-development mode. If `TOKENPILOT_API_TOKEN` is omitted, private job APIs remain open for local-only testing.
-- `TOKENPILOT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, or Custom GPT Actions access. In this mode, `TOKENPILOT_API_TOKEN` is mandatory and the server will refuse to start without it.
+- `CHATCOCKPIT_EXPOSED=false` is the default local-development mode. If `CHATCOCKPIT_API_TOKEN` is omitted, private job APIs remain open for local-only testing.
+- `CHATCOCKPIT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, or Custom GPT Actions access. In this mode, `CHATCOCKPIT_API_TOKEN` is mandatory and the server will refuse to start without it.
 - even in exposed mode, the current Web UI MVP remains an operator console for an authenticated endpoint that you control
 
 Example:
 
 ```bash
-TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-real-secret
-TOKENPILOT_HOST=127.0.0.1
-TOKENPILOT_PORT=4318
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
+CHATCOCKPIT_EXPOSED=true
+CHATCOCKPIT_API_TOKEN=replace-with-a-real-secret
+CHATCOCKPIT_HOST=127.0.0.1
+CHATCOCKPIT_PORT=4318
+CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
-`https://tokenpilot.example.com` is a documentation placeholder. Use your own HTTPS URL at runtime, and keep real domains, reverse-proxy settings, tunnel tokens, and GPT Builder operating notes out of Git.
+`https://chatcockpit.example.com` is a documentation placeholder. Use your own HTTPS URL at runtime, and keep real domains, reverse-proxy settings, tunnel tokens, and GPT Builder operating notes out of Git.
 
 For remote client setup, see:
 
@@ -139,10 +139,10 @@ npm run runner -- --watch --interval 3
 
 On macOS, `status` reports separate runtime truths:
 
-- whether the TokenPilot process is currently listening on `127.0.0.1:4318`
-- whether the persistent Control Plane LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.control-plane.plist`
-- whether the paired Runner LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.tokenpilot.runner.plist`
-- whether `com.wuaishare.tokenpilot.process-supervisor` is registered and its local status file reports `ready`
+- whether the ChatCockpit process is currently listening on `127.0.0.1:4318`
+- whether the persistent Control Plane LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.chatcockpit.control-plane.plist`
+- whether the paired Runner LaunchAgent is installed and registered under `~/Library/LaunchAgents/com.wuaishare.chatcockpit.runner.plist`
+- whether `com.wuaishare.chatcockpit.process-supervisor` is registered and its local status file reports `ready`
 
 If a public reverse proxy still appears "started" but the upstream control plane did not come back after reboot, check these in order:
 
@@ -150,7 +150,7 @@ If a public reverse proxy still appears "started" but the upstream control plane
 npm run doctor:runtime
 ./scripts/macos-manage-local-server.sh status
 lsof -nP -iTCP:4318 -sTCP:LISTEN
-launchctl print gui/$(id -u)/com.wuaishare.tokenpilot.control-plane | sed -n '1,80p'
+launchctl print gui/$(id -u)/com.wuaishare.chatcockpit.control-plane | sed -n '1,80p'
 ```
 
 `npm run doctor:runtime` is the fastest truth source for this incident class. It prints:
@@ -169,7 +169,7 @@ launchctl print gui/$(id -u)/com.wuaishare.tokenpilot.control-plane | sed -n '1,
 Important operational boundary:
 
 - a reverse-proxy site being "started" only proves the reverse-proxy layer is up
-- it does **not** prove the TokenPilot local control-plane process behind `127.0.0.1:4318` has been restored
+- it does **not** prove the ChatCockpit local control-plane process behind `127.0.0.1:4318` has been restored
 - if the site is up but the control plane is down, external callers will typically see `502`
 
 ## Stop Or Restart
@@ -186,7 +186,7 @@ Packaged Mode additionally enforces LaunchAgent ownership before start/stop/rest
 
 ## Logs
 
-Runtime status/log files live under `.tokenpilot/runtime/`, including:
+Runtime status/log files live under `.chatcockpit/runtime/`, including:
 
 ```text
 server.pid

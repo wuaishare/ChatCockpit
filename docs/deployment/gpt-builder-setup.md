@@ -1,6 +1,6 @@
 # GPT Builder Setup
 
-This guide shows how to connect TokenPilot to a Custom GPT through GPT Actions. This is an experimental deployment surface over implemented REST/OpenAPI application services; client caching, proxy behavior, HTTPS ingress, and GPT Builder compatibility remain environment-dependent.
+This guide shows how to connect ChatCockpit to a Custom GPT through GPT Actions. This is an experimental deployment surface over implemented REST/OpenAPI application services; client caching, proxy behavior, HTTPS ingress, and GPT Builder compatibility remain environment-dependent.
 
 ## Prerequisites
 
@@ -11,18 +11,18 @@ You also need:
 - the local control plane running
 - the local runner running
 - a public HTTPS URL that forwards to `http://127.0.0.1:4318`
-- a strong `TOKENPILOT_API_TOKEN`
+- a strong `CHATCOCKPIT_API_TOKEN`
 
 ## 1. Configure Runtime Environment
 
-Edit `.tokenpilot/runtime/server.env`:
+Edit `.chatcockpit/runtime/server.env`:
 
 ```bash
-TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-strong-token
-TOKENPILOT_HOST=127.0.0.1
-TOKENPILOT_PORT=4318
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
+CHATCOCKPIT_EXPOSED=true
+CHATCOCKPIT_API_TOKEN=replace-with-a-strong-token
+CHATCOCKPIT_HOST=127.0.0.1
+CHATCOCKPIT_PORT=4318
+CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
 Restart and verify:
@@ -41,8 +41,8 @@ curl http://127.0.0.1:4318/api/health
 Check the public HTTPS URL:
 
 ```text
-https://tokenpilot.example.com/api/health
-https://tokenpilot.example.com/openapi.yaml
+https://chatcockpit.example.com/api/health
+https://chatcockpit.example.com/openapi.yaml
 ```
 
 The domain is a placeholder. Use your own HTTPS URL.
@@ -84,7 +84,7 @@ In the Actions area:
 2. Import the schema URL from GPT Helper, usually:
 
 ```text
-https://tokenpilot.example.com/openapi.yaml
+https://chatcockpit.example.com/openapi.yaml
 ```
 
 3. Confirm the OpenAPI server URL points to your HTTPS URL.
@@ -97,11 +97,11 @@ If import fails, check:
 - OpenAPI descriptions are within GPT Builder limits
 - GPT Builder is not using an old domain or cached schema
 
-TokenPilot E2E verifies OpenAPI description length to avoid common import failures.
+ChatCockpit E2E verifies OpenAPI description length to avoid common import failures.
 
 ## 5. Configure Authentication
 
-TokenPilot exposed mode uses bearer auth. In GPT Builder Authentication, configure API key / Bearer auth with the same value as `TOKENPILOT_API_TOKEN`.
+ChatCockpit exposed mode uses bearer auth. In GPT Builder Authentication, configure API key / Bearer auth with the same value as `CHATCOCKPIT_API_TOKEN`.
 
 Keep tokens out of README, OpenAPI files, GPT Instructions, and commits.
 
@@ -110,7 +110,7 @@ Keep tokens out of README, OpenAPI files, GPT Instructions, and commits.
 Start with read-only tests:
 
 ```text
-Call TokenPilot health and confirm the control plane is reachable. Do not write files.
+Call ChatCockpit health and confirm the control plane is reachable. Do not write files.
 ```
 
 ```text
@@ -135,7 +135,7 @@ Re-import schema and update instructions when:
 
 - OpenAPI schema changes
 - GPT instructions / schema revision changes
-- `TOKENPILOT_PUBLIC_BASE_URL` changes
+- `CHATCOCKPIT_PUBLIC_BASE_URL` changes
 - domain, path, or HTTPS entrypoint changes
 - product version changes
 - Actions are added or removed
@@ -159,6 +159,6 @@ Re-import schema and update instructions when:
 | Idempotent Continuity and Runtime mutations | Implemented |
 | Custom GPT Actions over a user-operated HTTPS endpoint | Experimental |
 | Long-term compatibility across GPT Builder revisions and proxies | Under validation |
-| Public hosted TokenPilot service | Not implemented |
+| Public hosted ChatCockpit service | Not implemented |
 
 For MCP clients, use [`mcp-setup.md`](./mcp-setup.md) instead of importing the OpenAPI schema.

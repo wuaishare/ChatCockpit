@@ -1,6 +1,6 @@
-# TokenPilot 新手快速开始
+# ChatCockpit 新手快速开始
 
-这是一条从源码到本地控制台的最短路径。TokenPilot 是本地优先的 AI 开发连续性与 Agent 能力路由平台；先跑通本地 Control Plane、Continuity Workbench 与运行模式，再配置 Custom GPT Actions 或 MCP。
+这是一条从源码到本地控制台的最短路径。ChatCockpit 是本地优先的 AI 开发连续性与 Agent 能力路由平台；先跑通本地 Control Plane、Continuity Workbench 与运行模式，再配置 Custom GPT Actions 或 MCP。
 
 ## 1. 准备环境
 
@@ -43,9 +43,9 @@ http://127.0.0.1:4318/ui
 本地模式是默认新手路径：
 
 ```bash
-TOKENPILOT_EXPOSED=false
-TOKENPILOT_HOST=127.0.0.1
-TOKENPILOT_PORT=4318
+CHATCOCKPIT_EXPOSED=false
+CHATCOCKPIT_HOST=127.0.0.1
+CHATCOCKPIT_PORT=4318
 ```
 
 Custom GPT Actions 需要 ChatGPT 访问一个 HTTPS 地址。你的电脑在家用网络或公司网络里时，通常需要一层公网入口把 HTTPS 请求转发到本机 `127.0.0.1:4318`，例如：
@@ -56,19 +56,19 @@ Custom GPT Actions 需要 ChatGPT 访问一个 HTTPS 地址。你的电脑在家
 - Tailscale Funnel
 - 其他你信任的内网穿透服务
 
-TokenPilot 不绑定某个穿透供应商。你只需要保证最终有一个你控制的 HTTPS URL 指向本机控制面。
+ChatCockpit 不绑定某个穿透供应商。你只需要保证最终有一个你控制的 HTTPS URL 指向本机控制面。
 
 暴露给 GPT Actions 时必须启用 token：
 
 ```bash
-TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-strong-token
-TOKENPILOT_HOST=127.0.0.1
-TOKENPILOT_PORT=4318
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
+CHATCOCKPIT_EXPOSED=true
+CHATCOCKPIT_API_TOKEN=replace-with-a-strong-token
+CHATCOCKPIT_HOST=127.0.0.1
+CHATCOCKPIT_PORT=4318
+CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
-`https://tokenpilot.example.com` 是占位示例。实际使用时换成你的 HTTPS 地址，不要把真实域名、Bearer token、tunnel token 或机器路径提交到 Git。
+`https://chatcockpit.example.com` 是占位示例。实际使用时换成你的 HTTPS 地址，不要把真实域名、Bearer token、tunnel token 或机器路径提交到 Git。
 
 ## 4. 创建并配置 Custom GPT
 
@@ -76,9 +76,9 @@ Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.
 
 最短流程：
 
-1. 启动 TokenPilot 本地控制面和 runner。
+1. 启动 ChatCockpit 本地控制面和 runner。
 2. 配置你的 HTTPS 入口，让它转发到 `http://127.0.0.1:4318`。
-3. 设置 `.tokenpilot/runtime/server.env` 里的 `TOKENPILOT_PUBLIC_BASE_URL` 和 `TOKENPILOT_API_TOKEN`。
+3. 设置 `.chatcockpit/runtime/server.env` 里的 `CHATCOCKPIT_PUBLIC_BASE_URL` 和 `CHATCOCKPIT_API_TOKEN`。
 4. 打开 `http://127.0.0.1:4318/ui/gpt-helper`。
 5. 复制 GPT Instructions。
 6. 在 GPT Builder 里创建或编辑 GPT，把说明粘贴到 Instructions。
@@ -91,7 +91,7 @@ Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.
 先测试只读能力：
 
 ```text
-请调用 TokenPilot health，然后列出当前可见 jobs。不要修改文件。
+请调用 ChatCockpit health，然后列出当前可见 jobs。不要修改文件。
 ```
 
 再测试一个小的 Chat Direct 任务：
@@ -108,9 +108,9 @@ Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.
 | --- | --- | --- |
 | UI 能打开，但 GPT Actions 访问失败 | GPT 不能访问 `127.0.0.1` | 配置 HTTPS 入口或内网穿透 |
 | GPT Builder 导入 schema 失败 | URL 不是公网 HTTPS，或 `/openapi.yaml` 不可达 | 先在浏览器访问 `https://你的域名/openapi.yaml` |
-| 调用 Actions 返回 401 | Bearer token 不一致 | 检查 GPT Builder Authentication 和 `TOKENPILOT_API_TOKEN` |
+| 调用 Actions 返回 401 | Bearer token 不一致 | 检查 GPT Builder Authentication 和 `CHATCOCKPIT_API_TOKEN` |
 | Codex job 一直 queued | Runner 未运行 | 执行 `npm run start:local` 和 `npm run doctor:runtime` |
-| Continuity 页面没有项目 | 尚未配置有效 Repo Mapping | 重新运行 Setup/Init，并检查本地 TokenPilot 配置 |
+| Continuity 页面没有项目 | 尚未配置有效 Repo Mapping | 重新运行 Setup/Init，并检查本地 ChatCockpit 配置 |
 | Workspace 显示只读 | 另一个 Session 持有 Writer Lease | 查看 Writer Banner，通过 Handoff 接力，不要强行并发写入 |
 | Handoff 没有显示已验证 | 必需 Evidence 缺失、不完整、跳过或失败 | 记录并完成必需验证项 |
-| `runShell` 被拒绝 | exposed mode 阻止高信任命令 | 使用本地模式，或确认风险后设置 `TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true` |
+| `runShell` 被拒绝 | exposed mode 阻止高信任命令 | 使用本地模式，或确认风险后设置 `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` |

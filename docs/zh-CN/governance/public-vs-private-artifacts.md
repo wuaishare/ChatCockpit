@@ -2,7 +2,7 @@
 
 ## 目的
 
-公开 `TokenPilot` 仓库只保存用户和贡献者需要的产品真源；维护者内部知识、真实部署运维和 Secret 分别进入私有治理面或纯本地状态。
+公开 ChatCockpit 仓库只保存用户和贡献者需要的产品真源；维护者内部知识、真实部署运维和 Secret 分别进入私有治理面或纯本地状态。
 
 ## 可以进入公开仓库
 
@@ -30,16 +30,17 @@
 ## 只应保留在本地，不应进入任何 Git
 
 - API Key、Bearer Token、Cookie
-- `.tokenpilot/runtime/server.env`
+- `.chatcockpit/runtime/server.env`
+- 兼容期历史 `.tokenpilot/` 运行态
 - 原始 Auth / Session 状态
 - 未脱敏的本机调试导出
 - 其他实时凭据或敏感运行态
 
 ## 当前约定
 
-- 公开文档使用 `https://tokenpilot.example.com` 等占位值。
-- `.codex/`、`.servbay/`、`.tokenpilot/`、`docs/superpowers/` 等本机/Agent 状态不进入公开 Git。
-- 维护者可以在本地使用 `.ops-private` 软链接访问私库，但该入口只写入 `.git/info/exclude`，不得提交；TokenPilot 的路径与 Bundle 安全边界也必须拒绝它。
+- 公开文档使用 `https://chatcockpit.example.com` 等占位值。
+- `.codex/`、`.servbay/`、`.chatcockpit/`、兼容期历史 `.tokenpilot/`、`docs/superpowers/` 等本机/Agent 状态不进入公开 Git。
+- 维护者可以在本地使用 `.ops-private` 软链接访问私库，但该入口只写入 `.git/info/exclude`，不得提交；ChatCockpit 的路径与 Bundle 安全边界也必须拒绝它。
 - HTTP / MCP / Git / Artifact 公共投影不能回显真实部署域名、本机路径或私有治理内容。
 
 ## 提交与发布门禁

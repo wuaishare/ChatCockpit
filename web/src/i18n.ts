@@ -231,9 +231,9 @@ export interface UiCopy {
 }
 
 const zhCN: UiCopy = {
-  pageTitle: "TokenPilot 控制台",
+  pageTitle: "ChatCockpit 控制台",
   header: {
-    title: "TokenPilot 控制台",
+    title: "ChatCockpit 控制台",
     refresh: "刷新",
     refreshTooltip: "刷新健康状态与任务数据",
     dashboard: "总览",
@@ -277,15 +277,15 @@ const zhCN: UiCopy = {
     "codex-run": "Codex 执行"
   },
   notices: {
-    loadingConsoleTitle: "正在加载 TokenPilot 控制台",
+    loadingConsoleTitle: "正在加载 ChatCockpit 控制台",
     loadingConsoleDescription: "正在读取健康状态与 OpenAPI 元数据。",
     bootstrapFailedTitle: "控制台初始化失败"
   },
   tokenBar: {
     title: "浏览器会话令牌",
-    authRequiredDescription: "受保护接口需填写服务端 TOKENPILOT_API_TOKEN 的值。",
+    authRequiredDescription: "受保护接口需填写服务端 CHATCOCKPIT_API_TOKEN 的值。",
     optionalDescription: "当前模式可选，仅保存在 sessionStorage 中。",
-    authRequiredShort: "填写 TOKENPILOT_API_TOKEN。",
+    authRequiredShort: "填写 CHATCOCKPIT_API_TOKEN。",
     optionalShort: "当前模式可选，仅保存在当前会话。",
     expand: "设置令牌",
     collapse: "收起",
@@ -313,7 +313,7 @@ const zhCN: UiCopy = {
     emptyStateTitle: "当前本地队列为空",
     emptyStateDescription: "可以先复制 GPT 接入指引，或在接入后刷新当前状态。",
     protectedStateTitle: "任务数据受保护",
-    protectedStateDescription: "当前接口需要浏览器会话令牌；输入 TOKENPILOT_API_TOKEN 后再读取真实队列状态。",
+    protectedStateDescription: "当前接口需要浏览器会话令牌；输入 CHATCOCKPIT_API_TOKEN 后再读取真实队列状态。",
     queued: "排队",
     running: "运行中",
     failed: "失败",
@@ -334,7 +334,7 @@ const zhCN: UiCopy = {
     repoGovernanceTitle: "Repo 治理",
     repoGovernanceDescription: "当前允许 GPT Actions 与本地 Codex 协同使用的公开 repoId；本机路径只在私有配置中解析。",
     repoGovernanceConfigScope:
-      "配置来源：本机私有 TokenPilot 配置（默认 ~/.tokenpilot/config.json，可用 TOKENPILOT_CONFIG_PATH 覆盖）",
+      "配置来源：本机私有 ChatCockpit 配置（默认 ~/.chatcockpit/config.json，可用 CHATCOCKPIT_CONFIG_PATH 覆盖）",
     repoGovernancePathHidden: "路径已隐藏",
     repoGovernanceDefaultLabel: "默认",
     repoGovernanceMissingHint: "未发现对应仓库目录，当前不可执行。",
@@ -365,9 +365,9 @@ const zhCN: UiCopy = {
       auth: {
         label: "鉴权令牌",
         detailReady: "当前鉴权状态满足本地访问要求。",
-        detailPending: "受保护接口需要配置 TOKENPILOT_API_TOKEN。",
+        detailPending: "受保护接口需要配置 CHATCOCKPIT_API_TOKEN。",
         nextReady: "继续下一步",
-        nextPending: "在本地运行态中配置 TOKENPILOT_API_TOKEN"
+        nextPending: "在本地运行态中配置 CHATCOCKPIT_API_TOKEN"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
@@ -381,7 +381,7 @@ const zhCN: UiCopy = {
         detailReady: "默认 repoId 可以在本地解析。",
         detailPending: "默认仓库根目录不可用。",
         nextReady: "继续下一步",
-        nextPending: "检查 TOKENPILOT_REPO_ROOT"
+        nextPending: "检查 CHATCOCKPIT_REPO_ROOT"
       },
       runner: {
         label: "本地 Runner",
@@ -410,10 +410,10 @@ const zhCN: UiCopy = {
     sectionTitle: "任务",
     authRequiredTitle: "需要浏览器会话令牌",
     authRequiredSectionDescription: "当前接口受保护。",
-    authRequiredDescription: "当前接口受保护。请先在顶部输入 TOKENPILOT_API_TOKEN 的值，再查看任务队列与详情。",
-    authRequiredBody: "请先在顶部输入 TOKENPILOT_API_TOKEN 的值，再查看任务队列与详情。",
+    authRequiredDescription: "当前接口受保护。请先在顶部输入 CHATCOCKPIT_API_TOKEN 的值，再查看任务队列与详情。",
+    authRequiredBody: "请先在顶部输入 CHATCOCKPIT_API_TOKEN 的值，再查看任务队列与详情。",
     authRequiredNextLabel: "下一步",
-    authRequiredNextValue: "先在上方令牌区输入 TOKENPILOT_API_TOKEN",
+    authRequiredNextValue: "先在上方令牌区输入 CHATCOCKPIT_API_TOKEN",
     authRequiredScopeLabel: "访问范围",
     authRequiredScopeValue: "任务队列与详情",
     authRequiredSessionLabel: "令牌作用域",
@@ -493,11 +493,11 @@ const zhCN: UiCopy = {
     updateTitle: "版本更新提醒",
     fallbackNote: "当前回退到了本地拼装的说明文本，建议检查 GPT 配置接口是否可达。",
     protectedFallbackNote:
-      "当前未提供 TOKENPILOT_API_TOKEN，因此无法读取真实 GPT 配置；输入令牌后可查看完整 GPT 指令、版本更新时间与机器侧备注。",
+      "当前未提供 CHATCOCKPIT_API_TOKEN，因此无法读取真实 GPT 配置；输入令牌后可查看完整 GPT 指令、版本更新时间与机器侧备注。",
     notesTitle: "操作员备注",
     notesDescription: "面向鉴权模式下的人类操作员。",
     tokenNote:
-      "访问令牌来自服务端 TOKENPILOT_API_TOKEN，仅限当前浏览器会话输入，界面只做掩码展示。",
+      "访问令牌来自服务端 CHATCOCKPIT_API_TOKEN，仅限当前浏览器会话输入，界面只做掩码展示。",
     checklist: [
       "操作员检查清单",
       "- 确认 /api/health 可访问。",
@@ -510,9 +510,9 @@ const zhCN: UiCopy = {
 };
 
 const enUS: UiCopy = {
-  pageTitle: "TokenPilot Operator Console",
+  pageTitle: "ChatCockpit Operator Console",
   header: {
-    title: "TokenPilot Operator Console",
+    title: "ChatCockpit Operator Console",
     refresh: "Refresh",
     refreshTooltip: "Refresh health and job data",
     dashboard: "Dashboard",
@@ -556,16 +556,16 @@ const enUS: UiCopy = {
     "codex-run": "Codex Run"
   },
   notices: {
-    loadingConsoleTitle: "Loading TokenPilot console",
+    loadingConsoleTitle: "Loading ChatCockpit console",
     loadingConsoleDescription: "Reading health and OpenAPI metadata.",
     bootstrapFailedTitle: "Console bootstrap failed"
   },
   tokenBar: {
     title: "Browser Session Token",
     authRequiredDescription:
-      "Protected endpoints require the value of TOKENPILOT_API_TOKEN.",
+      "Protected endpoints require the value of CHATCOCKPIT_API_TOKEN.",
     optionalDescription: "Optional for current mode. Saved only in sessionStorage.",
-    authRequiredShort: "Enter TOKENPILOT_API_TOKEN.",
+    authRequiredShort: "Enter CHATCOCKPIT_API_TOKEN.",
     optionalShort: "Optional for current mode. Session-only storage.",
     expand: "Configure token",
     collapse: "Collapse",
@@ -593,7 +593,7 @@ const enUS: UiCopy = {
     emptyStateTitle: "The local queue is currently empty",
     emptyStateDescription: "Open GPT Helper for the integration instructions, or refresh again after connecting a workflow.",
     protectedStateTitle: "Job data is protected",
-    protectedStateDescription: "Enter TOKENPILOT_API_TOKEN in the browser session before reading the real queue state.",
+    protectedStateDescription: "Enter CHATCOCKPIT_API_TOKEN in the browser session before reading the real queue state.",
     queued: "Queued",
     running: "Running",
     failed: "Failed",
@@ -614,7 +614,7 @@ const enUS: UiCopy = {
     repoGovernanceTitle: "Repo Governance",
     repoGovernanceDescription: "Public repoIds currently available to GPT Actions and local Codex collaboration. Local paths resolve only inside private operator config.",
     repoGovernanceConfigScope:
-      "Config source: local private TokenPilot config (default ~/.tokenpilot/config.json, override with TOKENPILOT_CONFIG_PATH)",
+      "Config source: local private ChatCockpit config (default ~/.chatcockpit/config.json, override with CHATCOCKPIT_CONFIG_PATH)",
     repoGovernancePathHidden: "Path hidden",
     repoGovernanceDefaultLabel: "Default",
     repoGovernanceMissingHint: "Repository directory was not found; execution is unavailable.",
@@ -645,9 +645,9 @@ const enUS: UiCopy = {
       auth: {
         label: "Bearer auth",
         detailReady: "Current auth state is ready for local access.",
-        detailPending: "Protected endpoints need TOKENPILOT_API_TOKEN.",
+        detailPending: "Protected endpoints need CHATCOCKPIT_API_TOKEN.",
         nextReady: "Continue",
-        nextPending: "Configure TOKENPILOT_API_TOKEN locally"
+        nextPending: "Configure CHATCOCKPIT_API_TOKEN locally"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
@@ -661,7 +661,7 @@ const enUS: UiCopy = {
         detailReady: "The default repoId resolves locally.",
         detailPending: "The default repository root is unavailable.",
         nextReady: "Continue",
-        nextPending: "Check TOKENPILOT_REPO_ROOT"
+        nextPending: "Check CHATCOCKPIT_REPO_ROOT"
       },
       runner: {
         label: "Runner",
@@ -690,10 +690,10 @@ const enUS: UiCopy = {
     sectionTitle: "Jobs",
     authRequiredTitle: "Browser session token required",
     authRequiredSectionDescription: "Protected endpoints are enabled.",
-    authRequiredDescription: "Protected endpoints are enabled. Enter TOKENPILOT_API_TOKEN above before viewing queue and detail data.",
-    authRequiredBody: "Enter TOKENPILOT_API_TOKEN above before viewing queue and detail data.",
+    authRequiredDescription: "Protected endpoints are enabled. Enter CHATCOCKPIT_API_TOKEN above before viewing queue and detail data.",
+    authRequiredBody: "Enter CHATCOCKPIT_API_TOKEN above before viewing queue and detail data.",
     authRequiredNextLabel: "Next step",
-    authRequiredNextValue: "Enter TOKENPILOT_API_TOKEN in the token bar above",
+    authRequiredNextValue: "Enter CHATCOCKPIT_API_TOKEN in the token bar above",
     authRequiredScopeLabel: "Access scope",
     authRequiredScopeValue: "Queue and job detail",
     authRequiredSessionLabel: "Token scope",
@@ -774,11 +774,11 @@ const enUS: UiCopy = {
     updateTitle: "Version Update Reminder",
     fallbackNote: "The UI fell back to a locally assembled helper text. Check whether the GPT config endpoint is reachable.",
     protectedFallbackNote:
-      "TOKENPILOT_API_TOKEN is not present in this browser session, so the live GPT config is unavailable. Enter the token to load the full instructions, updated timestamp, and machine-side notes.",
+      "CHATCOCKPIT_API_TOKEN is not present in this browser session, so the live GPT config is unavailable. Enter the token to load the full instructions, updated timestamp, and machine-side notes.",
     notesTitle: "Operator Notes",
     notesDescription: "Compact reminders for human operators using auth-required mode.",
     tokenNote:
-      "Enter the TOKENPILOT_API_TOKEN value only in this browser session. The UI masks it for display.",
+      "Enter the CHATCOCKPIT_API_TOKEN value only in this browser session. The UI masks it for display.",
     checklist: [
       "Operator checklist",
       "- Confirm /api/health is reachable.",

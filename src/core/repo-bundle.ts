@@ -247,7 +247,7 @@ export function writeRepoBundleXml(repoRoot: string, outputPath: string): RepoBu
   const files = collectBundleFiles(repoRoot);
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<repoBundle generator="tokenpilot" format="xml">',
+    '<repoBundle generator="chatcockpit" format="xml">',
     "  <file_summary>"
   ];
 

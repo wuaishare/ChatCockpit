@@ -65,7 +65,7 @@ function mutationWriteBlocked(reply: FastifyReply): unknown | null {
     reply,
     403,
     "RUNTIME_RESOURCE_MUTATION_EXPOSURE_DISABLED",
-    "Runtime Resource mutation writes are disabled for this exposed TokenPilot deployment."
+    "Runtime Resource mutation writes are disabled for this exposed ChatCockpit deployment."
   );
 }
 
