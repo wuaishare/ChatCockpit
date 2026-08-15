@@ -16,6 +16,8 @@ dist/macos/ChatCockpit.app
 open dist/macos/ChatCockpit.app
 ```
 
+正常情况下会立即出现 **ChatCockpit Status** 主窗口，同时菜单栏保留 ChatCockpit 状态项。关闭主窗口不会停止 Runtime，App 仍可从菜单栏继续操作。
+
 如果还没有本地 App，可构建当前架构：
 
 ```bash

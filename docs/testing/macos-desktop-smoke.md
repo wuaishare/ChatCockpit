@@ -16,6 +16,8 @@ Launch it with:
 open dist/macos/ChatCockpit.app
 ```
 
+A normal launch should immediately present the **ChatCockpit Status** window while keeping the ChatCockpit status item in the menu bar. Closing the main window does not stop the runtime; the app remains available from the menu bar.
+
 If the local app has not been built yet:
 
 ```bash
