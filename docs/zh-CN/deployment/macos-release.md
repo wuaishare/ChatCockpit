@@ -1,6 +1,6 @@
-# TokenPilot macOS 分发与发布
+# ChatCockpit macOS 分发与发布
 
-TokenPilot 明确把 **分发工程能力** 与 **Apple 正式发行认证** 拆成两条独立链路。这样可以在尚未加入付费 Apple Developer Program 的阶段继续完善 DMG、Manifest 与更新体验，同时不会把 unsigned / unnotarized 产物冒充成正式生产发行版。
+ChatCockpit 明确把 **分发工程能力** 与 **Apple 正式发行认证** 拆成两条独立链路。这样可以在尚未加入付费 Apple Developer Program 的阶段继续完善 DMG、Manifest 与更新体验，同时不会把 unsigned / unnotarized 产物冒充成正式生产发行版。
 
 ## 当前状态
 
@@ -18,7 +18,7 @@ TokenPilot 明确把 **分发工程能力** 与 **Apple 正式发行认证** 拆
 - Desktop Settings 中的 Manual Verified Update v1；
 - 显式、Tag-only 的 credentialed GitHub release workflow contract。
 
-TokenPilot 当前还没有使用 Apple Developer Program 下的正式 Developer ID Application identity。因此项目**不会声称**公开 TokenPilot DMG 已经：
+ChatCockpit 当前还没有使用 Apple Developer Program 下的正式 Developer ID Application identity。因此项目**不会声称**公开 ChatCockpit DMG 已经：
 
 - Developer ID 正式签名；
 - 通过 Gatekeeper 生产发行验收；
@@ -69,7 +69,7 @@ npm run build:macos-dmg -- \
   --mode development \
   --arch arm64 \
   --version 0.1.0 \
-  --app dist/macos/TokenPilot.app
+  --app dist/macos/ChatCockpit.app
 ```
 
 Intel 构建使用 `--arch x64`，并传入 x64 App。
@@ -77,13 +77,13 @@ Intel 构建使用 `--arch x64`，并传入 x64 App。
 输出命名合同：
 
 ```text
-dist/macos-dmg/development/arm64/TokenPilot-<version>-macos-arm64.dmg
-dist/macos-dmg/development/x64/TokenPilot-<version>-macos-x64.dmg
+dist/macos-dmg/development/arm64/ChatCockpit-<version>-macos-arm64.dmg
+dist/macos-dmg/development/x64/ChatCockpit-<version>-macos-x64.dmg
 ```
 
 Builder / Verifier 会检查：
 
-- 顶层可见内容严格为 `TokenPilot.app` + Applications Folder Symlink；
+- 顶层可见内容严格为 `ChatCockpit.app` + Applications Folder Symlink；
 - Bundle Identifier；
 - App Architecture；
 - `hdiutil verify`；
@@ -164,7 +164,7 @@ Update Checker 强制要求：
 
 更新检查**只由用户显式触发**。启动或创建 Desktop App Model 不会自动联网检查更新。
 
-**Download Update** 只会把已经通过上述信任校验的 HTTPS Release Asset URL 交给系统浏览器打开。TokenPilot 不会静默下载、替换、Patch、重启 App，也不会自动 Stop / Restart Control Plane、Runner 或 Process Supervisor。
+**Download Update** 只会把已经通过上述信任校验的 HTTPS Release Asset URL 交给系统浏览器打开。ChatCockpit 不会静默下载、替换、Patch、重启 App，也不会自动 Stop / Restart Control Plane、Runner 或 Process Supervisor。
 
 ## 正式认证 Workflow Contract
 
@@ -187,12 +187,12 @@ Update Checker 强制要求：
 真正准备打开 Apple 正式认证时，只在受保护的 `macos-production-release` Environment 配置：
 
 ```text
-TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64
-TOKENPILOT_MACOS_CERTIFICATE_PASSWORD
-TOKENPILOT_SIGNING_IDENTITY
-TOKENPILOT_NOTARY_API_KEY_BASE64
-TOKENPILOT_NOTARY_KEY_ID
-TOKENPILOT_NOTARY_ISSUER_ID
+CHATCOCKPIT_MACOS_CERTIFICATE_P12_BASE64
+CHATCOCKPIT_MACOS_CERTIFICATE_PASSWORD
+CHATCOCKPIT_SIGNING_IDENTITY
+CHATCOCKPIT_NOTARY_API_KEY_BASE64
+CHATCOCKPIT_NOTARY_KEY_ID
+CHATCOCKPIT_NOTARY_ISSUER_ID
 ```
 
 这里只记录 Secret **名称/引用合同**。不要把真实证书、Private Key、Password、Apple Account Credential、导出的 Keychain 提交到 Repository、Documentation、Issue、PR Comment 或 CI Log。
@@ -226,7 +226,7 @@ explicit versioned tag + exact SHA
 
 ## Apple Certification Boundary
 
-Apple 当前针对 Mac App Store 之外的软件分发使用 Developer ID + Notarization 信任链。TokenPilot 的 Production Workflow 保留并遵循这条路线，只使用 `notarytool`，不使用已经退出 Notarization 服务支持的 `altool` 路线。
+Apple 当前针对 Mac App Store 之外的软件分发使用 Developer ID + Notarization 信任链。ChatCockpit 的 Production Workflow 保留并遵循这条路线，只使用 `notarytool`，不使用已经退出 Notarization 服务支持的 `altool` 路线。
 
 官方参考：
 
@@ -234,7 +234,7 @@ Apple 当前针对 Mac App Store 之外的软件分发使用 Developer ID + Nota
 - [Packaging Mac software for distribution](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)
 - [Customizing the notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)
 
-这些链接描述的是**未来 Certification Lane**，并不意味着 TokenPilot 当前已经完成正式认证。
+这些链接描述的是**未来 Certification Lane**，并不意味着 ChatCockpit 当前已经完成正式认证。
 
 ## Secretless Verification
 

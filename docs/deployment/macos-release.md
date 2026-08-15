@@ -1,6 +1,6 @@
-# TokenPilot macOS Distribution and Release
+# ChatCockpit macOS Distribution and Release
 
-TokenPilot separates **distribution engineering** from **Apple production certification**. This keeps development moving without misrepresenting unsigned or unnotarized artifacts as public production releases.
+ChatCockpit separates **distribution engineering** from **Apple production certification**. This keeps development moving without misrepresenting unsigned or unnotarized artifacts as public production releases.
 
 ## Current status
 
@@ -18,7 +18,7 @@ The repository currently implements the secretless engineering lane:
 - Manual Verified Update v1 in the desktop Settings UI;
 - an explicit, tag-only credentialed GitHub release workflow contract.
 
-The project owner is not currently using an Apple Developer Program production identity for TokenPilot. Therefore the repository does **not** claim that a public TokenPilot DMG is currently:
+The project owner is not currently using an Apple Developer Program production identity for ChatCockpit. Therefore the repository does **not** claim that a public ChatCockpit DMG is currently:
 
 - Developer ID signed;
 - accepted by Gatekeeper as a production distribution;
@@ -69,7 +69,7 @@ npm run build:macos-dmg -- \
   --mode development \
   --arch arm64 \
   --version 0.1.0 \
-  --app dist/macos/TokenPilot.app
+  --app dist/macos/ChatCockpit.app
 ```
 
 For Intel packaging, use `--arch x64` with an x64 app input.
@@ -77,13 +77,13 @@ For Intel packaging, use `--arch x64` with an x64 app input.
 The output naming contract is:
 
 ```text
-dist/macos-dmg/development/arm64/TokenPilot-<version>-macos-arm64.dmg
-dist/macos-dmg/development/x64/TokenPilot-<version>-macos-x64.dmg
+dist/macos-dmg/development/arm64/ChatCockpit-<version>-macos-arm64.dmg
+dist/macos-dmg/development/x64/ChatCockpit-<version>-macos-x64.dmg
 ```
 
 The builder/verifier checks:
 
-- exact top-level contents: `TokenPilot.app` plus the Applications-folder symlink;
+- exact top-level contents: `ChatCockpit.app` plus the Applications-folder symlink;
 - expected bundle identifier;
 - expected application architecture;
 - `hdiutil verify`;
@@ -164,7 +164,7 @@ The checker requires:
 
 Update checks are **explicit only**. Constructing or launching the desktop app does not automatically fetch update metadata.
 
-**Download Update** opens the already-validated HTTPS release asset URL in the system browser. TokenPilot does not silently download, replace, patch, relaunch, stop, or restart the application or its service stack.
+**Download Update** opens the already-validated HTTPS release asset URL in the system browser. ChatCockpit does not silently download, replace, patch, relaunch, stop, or restart the application or its service stack.
 
 ## Production certification workflow contract
 
@@ -187,12 +187,12 @@ Ordinary PR/push verification does not read Apple release secrets.
 When Apple production certification is intentionally enabled, configure these values in the protected `macos-production-release` environment rather than committing them:
 
 ```text
-TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64
-TOKENPILOT_MACOS_CERTIFICATE_PASSWORD
-TOKENPILOT_SIGNING_IDENTITY
-TOKENPILOT_NOTARY_API_KEY_BASE64
-TOKENPILOT_NOTARY_KEY_ID
-TOKENPILOT_NOTARY_ISSUER_ID
+CHATCOCKPIT_MACOS_CERTIFICATE_P12_BASE64
+CHATCOCKPIT_MACOS_CERTIFICATE_PASSWORD
+CHATCOCKPIT_SIGNING_IDENTITY
+CHATCOCKPIT_NOTARY_API_KEY_BASE64
+CHATCOCKPIT_NOTARY_KEY_ID
+CHATCOCKPIT_NOTARY_ISSUER_ID
 ```
 
 These names are references only. Never place real certificate bytes, private keys, passwords, Apple account credentials, or exported keychains in the repository, documentation, issue comments, or CI logs.
@@ -226,7 +226,7 @@ No earlier stage may publish a production asset.
 
 ## Apple certification boundary
 
-Apple's current external-distribution model uses Developer ID and notarization for software distributed outside the Mac App Store. TokenPilot's production workflow follows that model and uses `notarytool`; it does not use the deprecated `altool` notarization path.
+Apple's current external-distribution model uses Developer ID and notarization for software distributed outside the Mac App Store. ChatCockpit's production workflow follows that model and uses `notarytool`; it does not use the deprecated `altool` notarization path.
 
 References:
 
@@ -234,7 +234,7 @@ References:
 - [Packaging Mac software for distribution](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)
 - [Customizing the notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)
 
-These references describe the future certification lane. Their presence does not imply that TokenPilot has already completed that lane.
+These references describe the future certification lane. Their presence does not imply that ChatCockpit has already completed that lane.
 
 ## Useful secretless verification
 

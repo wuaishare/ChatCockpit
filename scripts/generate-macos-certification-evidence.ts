@@ -49,7 +49,7 @@ const artifacts = artifactSpecs.map((spec) => {
     fail(`Missing certified DMG for ${architecture}`, 1);
   }
   const filename = path.basename(artifactPath);
-  if (!new RegExp(`^TokenPilot-.+-macos-${architecture}\\.dmg$`).test(filename)) {
+  if (!new RegExp(`^ChatCockpit-.+-macos-${architecture}\\.dmg$`).test(filename)) {
     fail(`Invalid certified DMG filename for ${architecture}`, 1);
   }
   const sha256 = crypto.createHash("sha256").update(fs.readFileSync(artifactPath)).digest("hex");

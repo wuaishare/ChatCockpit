@@ -1,4 +1,4 @@
-name: Release Package
+name: ChatCockpit Release Package
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ jobs:
       - name: Upload source package
         uses: actions/upload-artifact@v4
         with:
-          name: tokenpilot-source-v${{ inputs.version }}
+          name: ChatCockpit-source-v${{ inputs.version }}
           path: |
-            dist/release/tokenpilot-source-v${{ inputs.version }}.tar.gz
-            dist/release/tokenpilot-source-v${{ inputs.version }}.tar.gz.sha256
+            dist/release/ChatCockpit-source-v${{ inputs.version }}.tar.gz
+            dist/release/ChatCockpit-source-v${{ inputs.version }}.tar.gz.sha256

@@ -18,9 +18,9 @@ assert.equal(shellLint.status, 0, shellLint.stderr);
 
 const script = fs.readFileSync(notarizationScriptPath, "utf8");
 for (const required of [
-  "TOKENPILOT_NOTARY_PROFILE",
-  "TOKENPILOT_NOTARY_KEYCHAIN",
-  "TOKENPILOT_NOTARY_EVIDENCE_DIR",
+  "CHATCOCKPIT_NOTARY_PROFILE",
+  "CHATCOCKPIT_NOTARY_KEYCHAIN",
+  "CHATCOCKPIT_NOTARY_EVIDENCE_DIR",
   "NOTARY_PROFILE_REQUIRED",
   "NOTARY_EVIDENCE_DIR_REQUIRED",
   "verify:macos-runtime-payload",
@@ -59,7 +59,7 @@ assert.doesNotMatch(
 assert.doesNotMatch(script, /\/Users\/[A-Za-z0-9._-]+\//);
 
 const profileGate = script.indexOf("NOTARY_PROFILE_REQUIRED");
-const appGate = script.indexOf("Invalid TokenPilot app bundle");
+const appGate = script.indexOf("Invalid ChatCockpit app bundle");
 const evidenceGate = script.indexOf("NOTARY_EVIDENCE_DIR_REQUIRED");
 const codesignPreflightIndex = script.indexOf("codesign --verify");
 const runtimePreflightIndex = script.indexOf("verify:macos-runtime-payload");
@@ -79,21 +79,24 @@ assert.ok(acceptedIndex < stapleIndex && stapleIndex < validateIndex && validate
 assert.ok(gatekeeperIndex < signedVerifier, "Full signed-app verification must run after stapling and Gatekeeper assessment");
 
 const noProfileEnv = { ...process.env } as NodeJS.ProcessEnv;
+delete noProfileEnv.CHATCOCKPIT_NOTARY_PROFILE;
+delete noProfileEnv.CHATCOCKPIT_NOTARY_KEYCHAIN;
+delete noProfileEnv.CHATCOCKPIT_NOTARY_EVIDENCE_DIR;
 delete noProfileEnv.TOKENPILOT_NOTARY_PROFILE;
 delete noProfileEnv.TOKENPILOT_NOTARY_KEYCHAIN;
 delete noProfileEnv.TOKENPILOT_NOTARY_EVIDENCE_DIR;
 const missingProfile = spawnSync(
   "bash",
-  [notarizationScriptPath, "--app", "/tmp/TokenPilot-notary-contract-placeholder.app"],
+  [notarizationScriptPath, "--app", "/tmp/ChatCockpit-notary-contract-placeholder.app"],
   { cwd: root, encoding: "utf8", env: noProfileEnv }
 );
 assert.equal(missingProfile.status, 2);
 assert.match(`${missingProfile.stdout}\n${missingProfile.stderr}`, /NOTARY_PROFILE_REQUIRED/);
 
-const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-notary-contract-"));
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-notary-contract-"));
 try {
-  const fakeApp = path.join(fixtureRoot, "TokenPilot.app");
-  const fakeExecutable = path.join(fakeApp, "Contents", "MacOS", "TokenPilot");
+  const fakeApp = path.join(fixtureRoot, "ChatCockpit.app");
+  const fakeExecutable = path.join(fakeApp, "Contents", "MacOS", "ChatCockpit");
   fs.mkdirSync(path.dirname(fakeExecutable), { recursive: true });
   fs.writeFileSync(fakeExecutable, "notary-contract-fixture", { encoding: "utf8", mode: 0o755 });
   const beforeBytes = fs.readFileSync(fakeExecutable);
@@ -102,8 +105,8 @@ try {
     encoding: "utf8",
     env: {
       ...process.env,
-      TOKENPILOT_NOTARY_PROFILE: "TokenPilot-Notary-Contract-Fixture",
-      TOKENPILOT_NOTARY_EVIDENCE_DIR: ""
+      CHATCOCKPIT_NOTARY_PROFILE: "ChatCockpit-Notary-Contract-Fixture",
+      CHATCOCKPIT_NOTARY_EVIDENCE_DIR: ""
     }
   });
   assert.equal(missingEvidence.status, 2);

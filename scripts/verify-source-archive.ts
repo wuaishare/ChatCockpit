@@ -7,7 +7,7 @@ import path from "node:path";
 import { sleep, waitForValue } from "./test-support/wait.ts";
 
 const repoRoot = process.cwd();
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-source-archive-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-source-archive-"));
 let tempRootCleaned = false;
 function cleanupTempRoot(): void {
   if (tempRootCleaned) return;
@@ -16,12 +16,13 @@ function cleanupTempRoot(): void {
 }
 process.on("exit", cleanupTempRoot);
 
-const sourceRoot = path.join(tempRoot, "tokenpilot-source");
+const sourceRoot = path.join(tempRoot, "chatcockpit-source");
 const homeRoot = path.join(tempRoot, "home");
 const configPath = path.join(tempRoot, "config.json");
 
 const blockedRootNames = new Set([
   ".git",
+  ".chatcockpit",
   ".tokenpilot",
   ".codex",
   ".servbay",
@@ -139,6 +140,7 @@ fs.cpSync(repoRoot, sourceRoot, {
 
 for (const blocked of [
   ".git",
+  ".chatcockpit",
   ".tokenpilot",
   ".codex",
   ".servbay",
@@ -220,9 +222,9 @@ assert.equal(
 const isolatedEnv: NodeJS.ProcessEnv = {
   ...process.env,
   HOME: homeRoot,
-  TOKENPILOT_REPO_ROOT: sourceRoot,
-  TOKENPILOT_CONFIG_PATH: configPath,
-  TOKENPILOT_EXPOSED: "false"
+  CHATCOCKPIT_REPO_ROOT: sourceRoot,
+  CHATCOCKPIT_CONFIG_PATH: configPath,
+  CHATCOCKPIT_EXPOSED: "false"
 };
 
 run(
@@ -244,8 +246,8 @@ const child = spawn(process.execPath, ["dist/cli/index.js", "server"], {
   cwd: sourceRoot,
   env: {
     ...isolatedEnv,
-    TOKENPILOT_HOST: "127.0.0.1",
-    TOKENPILOT_PORT: String(port)
+    CHATCOCKPIT_HOST: "127.0.0.1",
+    CHATCOCKPIT_PORT: String(port)
   },
   stdio: ["pipe", "pipe", "pipe"]
 });
@@ -279,8 +281,8 @@ try {
     }>;
   };
   assert.equal(projectBody.ok, true);
-  assert.equal(projectBody.projects[0]?.project.slug, "tokenpilot");
-  assert.equal(projectBody.projects[0]?.workspaces[0]?.repoId, "tokenpilot");
+  assert.equal(projectBody.projects[0]?.project.slug, "primary");
+  assert.equal(projectBody.projects[0]?.workspaces[0]?.repoId, "primary");
   assert.equal(JSON.stringify(projectBody).includes(sourceRoot), false);
 
   const continuityUi = await fetch(`${baseUrl}/ui/continuity/projects`);

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="${ROOT}/desktop/macos/TokenPilot.xcodeproj"
-SCHEME="TokenPilot"
+PROJECT="${ROOT}/desktop/macos/ChatCockpit.xcodeproj"
+SCHEME="ChatCockpit"
 ARCH=""
 VERSION=""
 BUILD_NUMBER=""
@@ -74,16 +74,16 @@ fi
 RUNTIME_PAYLOAD="${ROOT}/dist/macos-runtime/${ARCH}/TokenPilotRuntime"
 DIST_ROOT="${ROOT}/dist/macos-distribution/${ARCH}"
 DERIVED_DATA="${ROOT}/dist/xcode-derived/distribution-${ARCH}"
-ARCHIVE_PATH="${DIST_ROOT}/TokenPilot.xcarchive"
+ARCHIVE_PATH="${DIST_ROOT}/ChatCockpit.xcarchive"
 ARCHIVE_APPLICATIONS_SUBDIR="Applications"
-ARCHIVED_APP="${ARCHIVE_PATH}/Products/${ARCHIVE_APPLICATIONS_SUBDIR}/TokenPilot.app"
-OUTPUT_APP="${DIST_ROOT}/TokenPilot.app"
+ARCHIVED_APP="${ARCHIVE_PATH}/Products/${ARCHIVE_APPLICATIONS_SUBDIR}/ChatCockpit.app"
+OUTPUT_APP="${DIST_ROOT}/ChatCockpit.app"
 EMBEDDED_RUNTIME="${OUTPUT_APP}/Contents/Resources/TokenPilotRuntime"
 
 bash "${ROOT}/scripts/build-macos-runtime-payload.sh" "${ARCH}"
 
 if [[ ! -f "${RUNTIME_PAYLOAD}/manifest.json" ]] || [[ ! -x "${RUNTIME_PAYLOAD}/node/bin/node" ]]; then
-  echo "Missing verified TokenPilot runtime payload at ${RUNTIME_PAYLOAD}" >&2
+  echo "Missing verified ChatCockpit runtime payload at ${RUNTIME_PAYLOAD}" >&2
   exit 1
 fi
 
@@ -105,8 +105,8 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   archive
 
-if [[ ! -d "${ARCHIVED_APP}" ]] || [[ ! -x "${ARCHIVED_APP}/Contents/MacOS/TokenPilot" ]]; then
-  echo "Missing archived TokenPilot.app at ${ARCHIVED_APP}" >&2
+if [[ ! -d "${ARCHIVED_APP}" ]] || [[ ! -x "${ARCHIVED_APP}/Contents/MacOS/ChatCockpit" ]]; then
+  echo "Missing archived ChatCockpit.app at ${ARCHIVED_APP}" >&2
   exit 1
 fi
 
@@ -129,11 +129,11 @@ if [[ ! -d "${OUTPUT_APP}/Contents/Frameworks/TokenPilotDesktopCore.framework" ]
 fi
 
 npm --prefix "${ROOT}" run verify:runtime-manifest
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${EMBEDDED_RUNTIME}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
-TOKENPILOT_DESKTOP_APP_DIR="${OUTPUT_APP}" npm --prefix "${ROOT}" run verify:macos-desktop
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${EMBEDDED_RUNTIME}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
+CHATCOCKPIT_DESKTOP_APP_DIR="${OUTPUT_APP}" npm --prefix "${ROOT}" run verify:macos-desktop
 plutil -lint "${OUTPUT_APP}/Contents/Info.plist"
 
-APP_ARCH="$(file "${OUTPUT_APP}/Contents/MacOS/TokenPilot")"
+APP_ARCH="$(file "${OUTPUT_APP}/Contents/MacOS/ChatCockpit")"
 NODE_ARCH="$(file "${EMBEDDED_RUNTIME}/node/bin/node")"
 case "${ARCH}" in
   arm64)
@@ -146,8 +146,8 @@ case "${ARCH}" in
     ;;
 esac
 
-printf 'created unsigned distribution archive: dist/macos-distribution/%s/TokenPilot.xcarchive\n' "${ARCH}"
-printf 'created unsigned distribution app: dist/macos-distribution/%s/TokenPilot.app\n' "${ARCH}"
+printf 'created unsigned distribution archive: dist/macos-distribution/%s/ChatCockpit.xcarchive\n' "${ARCH}"
+printf 'created unsigned distribution app: dist/macos-distribution/%s/ChatCockpit.app\n' "${ARCH}"
 printf 'version: %s\n' "${VERSION}"
 printf 'build: %s\n' "${BUILD_NUMBER}"
 printf 'architecture: %s\n' "${ARCH}"

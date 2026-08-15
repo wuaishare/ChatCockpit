@@ -50,8 +50,8 @@ for (const required of [
   "verify:runtime-manifest",
   "verify:macos-runtime-payload",
   "verify:macos-desktop",
-  "TOKENPILOT_DESKTOP_APP_DIR",
-  "TokenPilot.xcarchive"
+  "CHATCOCKPIT_DESKTOP_APP_DIR",
+  "ChatCockpit.xcarchive"
 ]) {
   assert.equal(distributionScript.includes(required), true, `Distribution wrapper missing contract marker: ${required}`);
 }
@@ -87,8 +87,8 @@ for (const testCase of distributionFailureCases) {
 }
 
 for (const required of [
-  "TOKENPILOT_SIGNING_IDENTITY",
-  "TOKENPILOT_SIGNING_KEYCHAIN",
+  "CHATCOCKPIT_SIGNING_IDENTITY",
+  "CHATCOCKPIT_SIGNING_KEYCHAIN",
   "SIGNING_IDENTITY_REQUIRED",
   "INVALID_DEVELOPER_IDENTITY_REFERENCE",
   "DEVELOPER_ID_APPLICATION_IDENTITY_NOT_FOUND",
@@ -117,6 +117,8 @@ assert.ok(refreshIndex > signingScript.indexOf("runtime_macho_count=0"), "Runtim
 assert.ok(outerEntitlementsIndex > refreshIndex, "Outer app must be signed only after signed runtime hashes are refreshed");
 
 const noIdentityEnv = { ...process.env } as NodeJS.ProcessEnv;
+delete noIdentityEnv.CHATCOCKPIT_SIGNING_IDENTITY;
+delete noIdentityEnv.CHATCOCKPIT_SIGNING_KEYCHAIN;
 delete noIdentityEnv.TOKENPILOT_SIGNING_IDENTITY;
 delete noIdentityEnv.TOKENPILOT_SIGNING_KEYCHAIN;
 const missingIdentity = spawnSync("bash", [signingScriptPath, "--app", "/tmp/ChatCockpit-contract-placeholder.app"], {
@@ -140,7 +142,7 @@ try {
     encoding: "utf8",
     env: {
       ...process.env,
-      TOKENPILOT_SIGNING_IDENTITY: "Developer ID Application: ChatCockpit Contract Fixture (0000000000)"
+      CHATCOCKPIT_SIGNING_IDENTITY: "Developer ID Application: ChatCockpit Contract Fixture (0000000000)"
     }
   });
   assert.equal(fakeIdentity.status, 2);
@@ -182,7 +184,7 @@ for (const required of [
 assert.doesNotMatch(refreshHashes, /node\.sha256\s*=/, "Runtime rehash must not rewrite the upstream Node artifact checksum");
 
 assert.equal(fs.existsSync(tsxBin), true, "Local tsx executable is required for signing-contract behavior tests");
-const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-runtime-rehash-"));
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-rehash-"));
 try {
   const nodeFixture = path.join(fixtureRoot, "node", "bin", "node");
   const untouchedFixture = path.join(fixtureRoot, "app", "package.json");

@@ -27,12 +27,12 @@ for (const required of [
   "GITHUB_SHA",
   "RELEASE_TAG_MUST_MATCH_VERSION",
   "macos-production-release",
-  "TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64",
-  "TOKENPILOT_MACOS_CERTIFICATE_PASSWORD",
-  "TOKENPILOT_SIGNING_IDENTITY",
-  "TOKENPILOT_NOTARY_API_KEY_BASE64",
-  "TOKENPILOT_NOTARY_KEY_ID",
-  "TOKENPILOT_NOTARY_ISSUER_ID",
+  "CHATCOCKPIT_MACOS_CERTIFICATE_P12_BASE64",
+  "CHATCOCKPIT_MACOS_CERTIFICATE_PASSWORD",
+  "CHATCOCKPIT_SIGNING_IDENTITY",
+  "CHATCOCKPIT_NOTARY_API_KEY_BASE64",
+  "CHATCOCKPIT_NOTARY_KEY_ID",
+  "CHATCOCKPIT_NOTARY_ISSUER_ID",
   "RELEASE_CREDENTIALS_REQUIRED",
   "security create-keychain",
   "security import",
@@ -67,7 +67,7 @@ assert.equal(
   "Job-level release env must not use runner context before a runner exists"
 );
 assert.equal(
-  workflow.includes("TOKENPILOT_RELEASE_KEYCHAIN=$RUNNER_TEMP/tokenpilot-release.keychain-db"),
+  workflow.includes("CHATCOCKPIT_RELEASE_KEYCHAIN=$RUNNER_TEMP/chatcockpit-release.keychain-db"),
   true,
   "Release workflow must initialize ephemeral paths from RUNNER_TEMP after runner startup"
 );
@@ -113,11 +113,11 @@ for (const required of [
 assert.doesNotMatch(evidenceGenerator, /\/Users\/[A-Za-z0-9._-]+\//);
 
 for (const secretName of [
-  "TOKENPILOT_MACOS_CERTIFICATE_P12_BASE64",
-  "TOKENPILOT_MACOS_CERTIFICATE_PASSWORD",
-  "TOKENPILOT_NOTARY_API_KEY_BASE64",
-  "TOKENPILOT_NOTARY_KEY_ID",
-  "TOKENPILOT_NOTARY_ISSUER_ID"
+  "CHATCOCKPIT_MACOS_CERTIFICATE_P12_BASE64",
+  "CHATCOCKPIT_MACOS_CERTIFICATE_PASSWORD",
+  "CHATCOCKPIT_NOTARY_API_KEY_BASE64",
+  "CHATCOCKPIT_NOTARY_KEY_ID",
+  "CHATCOCKPIT_NOTARY_ISSUER_ID"
 ]) {
   assert.equal(
     ordinaryWorkflow.includes(secretName),
@@ -127,10 +127,10 @@ for (const secretName of [
 }
 assert.equal(ordinaryWorkflow.includes("secrets."), false, "Ordinary verification workflow must stay secretless");
 
-const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-certification-evidence-"));
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-certification-evidence-"));
 try {
-  const arm64Path = path.join(fixtureRoot, "TokenPilot-0.1.0-macos-arm64.dmg");
-  const x64Path = path.join(fixtureRoot, "TokenPilot-0.1.0-macos-x64.dmg");
+  const arm64Path = path.join(fixtureRoot, "ChatCockpit-0.1.0-macos-arm64.dmg");
+  const x64Path = path.join(fixtureRoot, "ChatCockpit-0.1.0-macos-x64.dmg");
   fs.writeFileSync(arm64Path, "arm64-certified-fixture", "utf8");
   fs.writeFileSync(x64Path, "x64-certified-fixture", "utf8");
   const outputPath = path.join(fixtureRoot, "certification-evidence.json");

@@ -26,6 +26,7 @@ for (const required of [
   "MacOSUpdateArtifact",
   "MacOSUpdateManifest",
   "validateForProduction",
+  "invalidProductIdentity",
   "releaseNotEligible",
   "insecureURL",
   "invalidSHA256",
@@ -70,6 +71,7 @@ type UpdateArtifact = {
 };
 type UpdateManifest = {
   schemaVersion: number;
+  product: "ChatCockpit";
   version: string;
   releaseIdentifier: string;
   releasePageURL: string;
@@ -90,6 +92,7 @@ function validateManifest(raw: string): UpdateManifest {
   assertPublicSafeJson(raw);
   const value = JSON.parse(raw) as UpdateManifest;
   assert.equal(value.schemaVersion, 1);
+  assert.equal(value.product, "ChatCockpit");
   assert.match(value.version, /^[0-9]+\.[0-9]+\.[0-9]+(?:[-.][0-9A-Za-z][0-9A-Za-z.-]*)?(?:\+[0-9A-Za-z.-]+)?$/);
   assert.ok(value.releaseIdentifier.trim().length > 0);
   requireHTTPS(value.releasePageURL);
@@ -105,7 +108,7 @@ function validateManifest(raw: string): UpdateManifest {
     seen.add(artifact.architecture);
     assert.equal(
       artifact.filename,
-      `TokenPilot-${value.version}-macos-${artifact.architecture}.dmg`
+      `ChatCockpit-${value.version}-macos-${artifact.architecture}.dmg`
     );
     assert.match(artifact.sha256, /^[a-f0-9]{64}$/);
     requireHTTPS(artifact.downloadURL);
@@ -115,6 +118,7 @@ function validateManifest(raw: string): UpdateManifest {
 
 const eligibleFixture = JSON.stringify({
   schemaVersion: 1,
+  product: "ChatCockpit",
   version: "0.1.0",
   releaseIdentifier: "v0.1.0",
   releasePageURL: "https://example.com/releases/v0.1.0",
@@ -125,9 +129,9 @@ const eligibleFixture = JSON.stringify({
   artifacts: [
     {
       architecture: "arm64",
-      filename: "TokenPilot-0.1.0-macos-arm64.dmg",
+      filename: "ChatCockpit-0.1.0-macos-arm64.dmg",
       sha256: "a".repeat(64),
-      downloadURL: "https://example.com/releases/v0.1.0/TokenPilot-0.1.0-macos-arm64.dmg"
+      downloadURL: "https://example.com/releases/v0.1.0/ChatCockpit-0.1.0-macos-arm64.dmg"
     }
   ]
 });
@@ -140,12 +144,13 @@ assert.throws(
   /RELEASE_NOT_ELIGIBLE/
 );
 
-const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-update-manifest-"));
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-update-manifest-"));
 try {
   const certifiedReleasePath = path.join(fixtureRoot, "certified-release.json");
   const certifiedRelease = {
     schemaVersion: 1,
-    tokenPilotVersion: "0.1.0",
+    product: "ChatCockpit",
+    version: "0.1.0",
     buildNumber: "1",
     commit: "a".repeat(40),
     distributionTrust: "certified",
@@ -154,7 +159,7 @@ try {
       {
         architecture: "arm64",
         kind: "dmg",
-        filename: "TokenPilot-0.1.0-macos-arm64.dmg",
+        filename: "ChatCockpit-0.1.0-macos-arm64.dmg",
         sha256: "b".repeat(64)
       }
     ],
@@ -163,7 +168,7 @@ try {
         {
           architecture: "arm64",
           kind: "dmg",
-          filename: "TokenPilot-0.1.0-macos-arm64.dmg",
+          filename: "ChatCockpit-0.1.0-macos-arm64.dmg",
           sha256: "b".repeat(64),
           developerIdSigned: true,
           hardenedRuntime: true,
@@ -203,7 +208,7 @@ try {
   assert.equal(generatedManifest.releaseEligible, true);
   assert.equal(
     generatedManifest.artifacts[0]?.downloadURL,
-    "https://github.com/wuaishare/TokenPilot/releases/download/v0.1.0/TokenPilot-0.1.0-macos-arm64.dmg"
+    "https://github.com/wuaishare/TokenPilot/releases/download/v0.1.0/ChatCockpit-0.1.0-macos-arm64.dmg"
   );
 
   const developmentReleasePath = path.join(fixtureRoot, "development-release.json");
@@ -237,7 +242,9 @@ try {
   fs.rmSync(fixtureRoot, { recursive: true, force: true });
 }
 
-const actualManifestInput = process.env.TOKENPILOT_MACOS_UPDATE_MANIFEST?.trim();
+const actualManifestInput =
+  process.env.CHATCOCKPIT_MACOS_UPDATE_MANIFEST?.trim() ??
+  process.env.TOKENPILOT_MACOS_UPDATE_MANIFEST?.trim();
 if (actualManifestInput) {
   const actualPath = path.resolve(actualManifestInput);
   assert.equal(fs.existsSync(actualPath), true, "Update manifest does not exist");

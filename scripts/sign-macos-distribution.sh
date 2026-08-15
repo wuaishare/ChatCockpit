@@ -3,12 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_PATH=""
-IDENTITY="${TOKENPILOT_SIGNING_IDENTITY:-}"
-KEYCHAIN="${TOKENPILOT_SIGNING_KEYCHAIN:-}"
+IDENTITY="${CHATCOCKPIT_SIGNING_IDENTITY:-${TOKENPILOT_SIGNING_IDENTITY:-}}"
+KEYCHAIN="${CHATCOCKPIT_SIGNING_KEYCHAIN:-${TOKENPILOT_SIGNING_KEYCHAIN:-}}"
 ENTITLEMENTS="${ROOT}/desktop/macos/ChatCockpit.entitlements"
 
 usage() {
-  echo "Usage: TOKENPILOT_SIGNING_IDENTITY=<Developer ID Application identity> $0 --app <ChatCockpit.app>" >&2
+  echo "Usage: CHATCOCKPIT_SIGNING_IDENTITY=<Developer ID Application identity> $0 --app <ChatCockpit.app>" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${IDENTITY}" ]]; then
-  echo "SIGNING_IDENTITY_REQUIRED: set TOKENPILOT_SIGNING_IDENTITY to a Developer ID Application identity reference" >&2
+  echo "SIGNING_IDENTITY_REQUIRED: set CHATCOCKPIT_SIGNING_IDENTITY to a Developer ID Application identity reference" >&2
   exit 2
 fi
 if [[ ! "${IDENTITY}" =~ ^[[:xdigit:]]{40}$ && ! "${IDENTITY}" =~ ^Developer\ ID\ Application:\ .+\ \([[:alnum:]]{10}\)$ ]]; then

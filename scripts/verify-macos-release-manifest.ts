@@ -15,7 +15,8 @@ assert.equal(fs.existsSync(tsxBin), true, "Local tsx executable is required");
 const generator = fs.readFileSync(generatorPath, "utf8");
 for (const required of [
   "schemaVersion",
-  "tokenPilotVersion",
+  "product",
+  "version",
   "buildNumber",
   "commit",
   "distributionTrust",
@@ -61,7 +62,8 @@ type ReleaseArtifact = {
 type CertificationArtifact = ReleaseArtifact & Record<(typeof certificationFields)[number], boolean>;
 type ReleaseManifest = {
   schemaVersion: number;
-  tokenPilotVersion: string;
+  product: "ChatCockpit";
+  version: string;
   buildNumber: string;
   commit: string;
   distributionTrust: "development" | "certified";
@@ -86,7 +88,8 @@ function validateManifest(manifestPath: string, artifactDir?: string): ReleaseMa
   assertPublicSafeJson(raw);
   const value = JSON.parse(raw) as ReleaseManifest;
   assert.equal(value.schemaVersion, 1);
-  assert.match(value.tokenPilotVersion, /^[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z][0-9A-Za-z.-]*)?$/);
+  assert.equal(value.product, "ChatCockpit");
+  assert.match(value.version, /^[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z][0-9A-Za-z.-]*)?$/);
   assert.match(value.buildNumber, /^[1-9][0-9]*$/);
   assert.match(value.commit, /^[a-f0-9]{40}$/);
   assert.ok(value.distributionTrust === "development" || value.distributionTrust === "certified");
@@ -96,7 +99,7 @@ function validateManifest(manifestPath: string, artifactDir?: string): ReleaseMa
   for (const artifact of value.artifacts) {
     assert.ok(artifact.architecture === "arm64" || artifact.architecture === "x64");
     assert.equal(artifact.kind, "dmg");
-    assert.match(artifact.filename, /^TokenPilot-.+-macos-(?:arm64|x64)\.dmg$/);
+    assert.match(artifact.filename, /^ChatCockpit-.+-macos-(?:arm64|x64)\.dmg$/);
     assert.equal(path.basename(artifact.filename), artifact.filename, "Artifact filename must not contain a path");
     assert.match(artifact.sha256, /^[a-f0-9]{64}$/);
     assert.equal(seenArchitectures.has(artifact.architecture), false, `Duplicate artifact architecture: ${artifact.architecture}`);
@@ -132,18 +135,22 @@ function validateManifest(manifestPath: string, artifactDir?: string): ReleaseMa
   return value;
 }
 
-const actualManifestInput = process.env.TOKENPILOT_MACOS_RELEASE_MANIFEST?.trim();
+const actualManifestInput =
+  process.env.CHATCOCKPIT_MACOS_RELEASE_MANIFEST?.trim() ??
+  process.env.TOKENPILOT_MACOS_RELEASE_MANIFEST?.trim();
 if (actualManifestInput) {
   const manifestPath = path.resolve(actualManifestInput);
-  const artifactDir = process.env.TOKENPILOT_MACOS_RELEASE_ARTIFACT_DIR?.trim();
+  const artifactDir =
+    process.env.CHATCOCKPIT_MACOS_RELEASE_ARTIFACT_DIR?.trim() ??
+    process.env.TOKENPILOT_MACOS_RELEASE_ARTIFACT_DIR?.trim();
   validateManifest(manifestPath, artifactDir ? path.resolve(artifactDir) : path.dirname(manifestPath));
   process.stdout.write("VERIFY_MACOS_RELEASE_MANIFEST_OK\n");
   process.exit(0);
 }
 
-const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-release-manifest-"));
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-release-manifest-"));
 try {
-  const dmgPath = path.join(fixtureRoot, "TokenPilot-0.1.0-macos-arm64.dmg");
+  const dmgPath = path.join(fixtureRoot, "ChatCockpit-0.1.0-macos-arm64.dmg");
   fs.writeFileSync(dmgPath, "development-dmg-fixture", "utf8");
   const manifestPath = path.join(fixtureRoot, "release-manifest.json");
   const commit = "a".repeat(40);

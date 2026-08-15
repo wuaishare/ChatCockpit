@@ -111,6 +111,7 @@ public struct MacOSUpdateArtifact: Codable, Equatable, Sendable {
 
 public enum MacOSUpdateManifestError: Error, Equatable, Sendable {
     case unsupportedSchema
+    case invalidProductIdentity
     case invalidVersion
     case releaseNotEligible
     case insecureURL
@@ -123,6 +124,7 @@ public enum MacOSUpdateManifestError: Error, Equatable, Sendable {
 
 public struct MacOSUpdateManifest: Codable, Equatable, Sendable {
     public let schemaVersion: Int
+    public let product: String
     public let version: String
     public let releaseIdentifier: String
     public let releasePageURL: URL
@@ -134,6 +136,7 @@ public struct MacOSUpdateManifest: Codable, Equatable, Sendable {
 
     public init(
         schemaVersion: Int,
+        product: String = "ChatCockpit",
         version: String,
         releaseIdentifier: String,
         releasePageURL: URL,
@@ -144,6 +147,7 @@ public struct MacOSUpdateManifest: Codable, Equatable, Sendable {
         artifacts: [MacOSUpdateArtifact]
     ) {
         self.schemaVersion = schemaVersion
+        self.product = product
         self.version = version
         self.releaseIdentifier = releaseIdentifier
         self.releasePageURL = releasePageURL
@@ -157,6 +161,9 @@ public struct MacOSUpdateManifest: Codable, Equatable, Sendable {
     public func validateForProduction() throws {
         guard schemaVersion == 1 else {
             throw MacOSUpdateManifestError.unsupportedSchema
+        }
+        guard product == "ChatCockpit" else {
+            throw MacOSUpdateManifestError.invalidProductIdentity
         }
         guard MacOSReleaseVersion.parse(version) != nil else {
             throw MacOSUpdateManifestError.invalidVersion
@@ -189,7 +196,7 @@ public struct MacOSUpdateManifest: Codable, Equatable, Sendable {
             ) != nil else {
                 throw MacOSUpdateManifestError.invalidSHA256
             }
-            let expectedFilename = "TokenPilot-\(version)-macos-\(artifact.architecture.rawValue).dmg"
+            let expectedFilename = "ChatCockpit-\(version)-macos-\(artifact.architecture.rawValue).dmg"
             guard artifact.filename == expectedFilename else {
                 throw MacOSUpdateManifestError.invalidArtifactFilename
             }

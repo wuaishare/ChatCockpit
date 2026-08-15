@@ -8,7 +8,7 @@ VERSION=""
 MODE=""
 
 usage() {
-  echo "Usage: $0 --mode {development|production} --arch {arm64|x64} --version <version> --app <TokenPilot.app>" >&2
+  echo "Usage: $0 --mode {development|production} --arch {arm64|x64} --version <version> --app <ChatCockpit.app>" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -66,8 +66,8 @@ if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$
   exit 2
 fi
 
-if [[ -z "${APP_PATH}" ]] || [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Contents/MacOS/TokenPilot" ]]; then
-  echo "Invalid TokenPilot app bundle" >&2
+if [[ -z "${APP_PATH}" ]] || [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Contents/MacOS/ChatCockpit" ]]; then
+  echo "Invalid ChatCockpit app bundle" >&2
   exit 1
 fi
 APP_PATH="$(cd "$(dirname "${APP_PATH}")" && pwd)/$(basename "${APP_PATH}")"
@@ -79,28 +79,28 @@ for command_path in /usr/bin/file /usr/bin/hdiutil /usr/bin/plutil; do
   fi
 done
 if ! command -v npm >/dev/null 2>&1; then
-  echo "Missing npm required for TokenPilot verification" >&2
+  echo "Missing npm required for ChatCockpit verification" >&2
   exit 1
 fi
 
 INFO_PLIST="${APP_PATH}/Contents/Info.plist"
 if [[ ! -f "${INFO_PLIST}" ]]; then
-  echo "TokenPilot app is missing Info.plist" >&2
+  echo "ChatCockpit app is missing Info.plist" >&2
   exit 1
 fi
 BUNDLE_ID="$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "${INFO_PLIST}" 2>/dev/null || true)"
-if [[ "${BUNDLE_ID}" != "cn.wuaishare.TokenPilot" ]]; then
-  echo "Unexpected TokenPilot bundle identifier" >&2
+if [[ "${BUNDLE_ID}" != "cn.wuaishare.ChatCockpit" ]]; then
+  echo "Unexpected ChatCockpit bundle identifier" >&2
   exit 1
 fi
-APP_ARCH="$(/usr/bin/file -b "${APP_PATH}/Contents/MacOS/TokenPilot")"
+APP_ARCH="$(/usr/bin/file -b "${APP_PATH}/Contents/MacOS/ChatCockpit")"
 if [[ "${APP_ARCH}" != *"${EXPECTED_ARCH}"* ]]; then
-  echo "TokenPilot app architecture does not match --arch" >&2
+  echo "ChatCockpit app architecture does not match --arch" >&2
   exit 1
 fi
 
 if [[ "${MODE}" == "production" ]]; then
-  if ! TOKENPILOT_SIGNED_APP_DIR="${APP_PATH}" npm --prefix "${ROOT}" run verify:macos-signed-app; then
+  if ! CHATCOCKPIT_SIGNED_APP_DIR="${APP_PATH}" npm --prefix "${ROOT}" run verify:macos-signed-app; then
     echo "PRODUCTION_APP_CERTIFICATION_REQUIRED" >&2
     exit 1
   fi
@@ -111,9 +111,9 @@ if [[ "${MODE}" == "production" ]]; then
 fi
 
 OUTPUT_DIR="${ROOT}/dist/macos-dmg/${MODE}/${ARCH}"
-OUTPUT_DMG="${OUTPUT_DIR}/TokenPilot-${VERSION}-macos-${ARCH}.dmg"
-VOLUME_NAME="TokenPilot-${VERSION}-${ARCH}-${MODE}"
-STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tokenpilot-dmg.XXXXXX")"
+OUTPUT_DMG="${OUTPUT_DIR}/ChatCockpit-${VERSION}-macos-${ARCH}.dmg"
+VOLUME_NAME="ChatCockpit-${VERSION}-${ARCH}-${MODE}"
+STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/chatcockpit-dmg.XXXXXX")"
 cleanup() {
   rm -rf "${STAGING_DIR}"
 }
@@ -121,13 +121,13 @@ trap cleanup EXIT
 
 mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DMG}"
-cp -R "${APP_PATH}" "${STAGING_DIR}/TokenPilot.app"
+cp -R "${APP_PATH}" "${STAGING_DIR}/ChatCockpit.app"
 APPLICATIONS_DIR_NAME="Applications"
 APPLICATIONS_TARGET="/${APPLICATIONS_DIR_NAME}"
 ln -s "${APPLICATIONS_TARGET}" "${STAGING_DIR}/${APPLICATIONS_DIR_NAME}"
 
 VISIBLE_STAGING="$(find "${STAGING_DIR}" -mindepth 1 -maxdepth 1 ! -name '.*' -print | wc -l | tr -d ' ')"
-if [[ "${VISIBLE_STAGING}" != "2" ]] || [[ ! -L "${STAGING_DIR}/${APPLICATIONS_DIR_NAME}" ]] || [[ ! -d "${STAGING_DIR}/TokenPilot.app" ]]; then
+if [[ "${VISIBLE_STAGING}" != "2" ]] || [[ ! -L "${STAGING_DIR}/${APPLICATIONS_DIR_NAME}" ]] || [[ ! -d "${STAGING_DIR}/ChatCockpit.app" ]]; then
   echo "Invalid DMG staging layout" >&2
   exit 1
 fi
@@ -140,9 +140,9 @@ fi
   "${OUTPUT_DMG}"
 
 /usr/bin/hdiutil verify "${OUTPUT_DMG}"
-TOKENPILOT_DMG_PATH="${OUTPUT_DMG}" \
-TOKENPILOT_DMG_MODE="${MODE}" \
-TOKENPILOT_DMG_ARCH="${ARCH}" \
+CHATCOCKPIT_DMG_PATH="${OUTPUT_DMG}" \
+CHATCOCKPIT_DMG_MODE="${MODE}" \
+CHATCOCKPIT_DMG_ARCH="${ARCH}" \
 npm --prefix "${ROOT}" run verify:macos-dmg
 
 printf 'created macOS DMG: %s\n' "${OUTPUT_DMG#"${ROOT}/"}"

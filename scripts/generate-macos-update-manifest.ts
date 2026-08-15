@@ -88,7 +88,8 @@ type ReleaseArtifact = {
 type CertificationArtifact = ReleaseArtifact & Record<(typeof certificationFields)[number], boolean>;
 type CertifiedReleaseManifest = {
   schemaVersion: number;
-  tokenPilotVersion: string;
+  product: "ChatCockpit";
+  version: string;
   distributionTrust: "development" | "certified";
   releaseEligible: boolean;
   artifacts: ReleaseArtifact[];
@@ -107,6 +108,7 @@ assertPublicSafeJson(releaseRaw);
 const release = JSON.parse(releaseRaw) as CertifiedReleaseManifest;
 if (
   release.schemaVersion !== 1 ||
+  release.product !== "ChatCockpit" ||
   release.distributionTrust !== "certified" ||
   release.releaseEligible !== true ||
   !Array.isArray(release.artifacts) ||
@@ -117,7 +119,7 @@ if (
 ) {
   fail("CERTIFIED_RELEASE_MANIFEST_REQUIRED", 1);
 }
-if (tag !== `v${release.tokenPilotVersion}`) {
+if (tag !== `v${release.version}`) {
   fail("RELEASE_TAG_VERSION_MISMATCH", 1);
 }
 
@@ -145,7 +147,8 @@ const releaseBaseURL = `https://github.com/${repository}/releases`;
 const encodedTag = encodeURIComponent(tag);
 const manifest = {
   schemaVersion: 1,
-  version: release.tokenPilotVersion,
+  product: "ChatCockpit",
+  version: release.version,
   releaseIdentifier: tag,
   releasePageURL: `${releaseBaseURL}/tag/${encodedTag}`,
   minimumMacOSVersion,
@@ -167,4 +170,4 @@ fs.mkdirSync(path.dirname(absoluteOutput), { recursive: true });
 const temporaryPath = `${absoluteOutput}.tmp-${process.pid}`;
 fs.writeFileSync(temporaryPath, serialized, { encoding: "utf8", mode: 0o644 });
 fs.renameSync(temporaryPath, absoluteOutput);
-process.stdout.write(`GENERATE_MACOS_UPDATE_MANIFEST_OK version=${release.tokenPilotVersion}\n`);
+process.stdout.write(`GENERATE_MACOS_UPDATE_MANIFEST_OK version=${release.version}\n`);
