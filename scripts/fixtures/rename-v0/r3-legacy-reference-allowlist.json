@@ -496,6 +496,14 @@
       "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
       "reason": "The R4 sandbox executor verifier intentionally builds a v18 TokenPilot/WAL fixture with historical runner/resource identities and secret-bearing legacy runtime input to prove target-only staged migration without source mutation.",
       "removalGate": "Retain through R4/R5 migration regression coverage; remove only after the supported legacy migration path is formally retired."
+    },
+    {
+      "id": "r4-full-rehearsal-legacy-fixture-assertions",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-r4-full-rehearsal\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "The R4 full sandbox rehearsal intentionally constructs legacy TokenPilot state and authority fixtures to prove quiesce, staging, activation and rollback semantics across migration failure modes.",
+      "removalGate": "Retain through R4/R5 migration acceptance and rollback regression coverage; remove only after legacy migration support is formally retired."
     }
   ]
 }
