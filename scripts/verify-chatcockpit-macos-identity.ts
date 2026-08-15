@@ -11,6 +11,9 @@ const distributionContextPath = path.join(coreRoot, "DistributionContext.swift")
 const lifecyclePath = path.join(coreRoot, "LifecycleStatus.swift");
 const packagedPathsPath = path.join(coreRoot, "PackagedRuntimePaths.swift");
 const packagedConflictPath = path.join(coreRoot, "PackagedRuntimeConflict.swift");
+const existingSetupImportPath = path.join(coreRoot, "ExistingSetupImport.swift");
+const desktopConfigurationPath = path.join(coreRoot, "DesktopConfiguration.swift");
+const sourceRootPath = path.join(coreRoot, "TokenPilotRoot.swift");
 const appModelPath = path.join(appRoot, "DesktopAppModel.swift");
 const appPath = path.join(appRoot, "TokenPilotDesktopApp.swift");
 const menuBarPath = path.join(appRoot, "MenuBarContentView.swift");
@@ -18,17 +21,18 @@ const statusViewPath = path.join(appRoot, "StatusView.swift");
 const settingsViewPath = path.join(appRoot, "SettingsView.swift");
 const lifecycleScriptPath = path.join(root, "scripts", "macos-manage-local-server.sh");
 const xcodeBuildScriptPath = path.join(root, "scripts", "build-macos-xcode-app.sh");
-const projectPath = path.join(root, "desktop", "macos", "TokenPilot.xcodeproj", "project.pbxproj");
+const projectPath = path.join(root, "desktop", "macos", "ChatCockpit.xcodeproj", "project.pbxproj");
 const schemePath = path.join(
   root,
   "desktop",
   "macos",
-  "TokenPilot.xcodeproj",
+  "ChatCockpit.xcodeproj",
   "xcshareddata",
   "xcschemes",
-  "TokenPilot.xcscheme"
+  "ChatCockpit.xcscheme"
 );
 const infoPlistPath = path.join(root, "desktop", "macos", "AppBundle", "Info.plist");
+const entitlementsPath = path.join(root, "desktop", "macos", "ChatCockpit.entitlements");
 
 for (const required of [
   productIdentityPath,
@@ -36,6 +40,9 @@ for (const required of [
   lifecyclePath,
   packagedPathsPath,
   packagedConflictPath,
+  existingSetupImportPath,
+  desktopConfigurationPath,
+  sourceRootPath,
   appModelPath,
   appPath,
   menuBarPath,
@@ -45,10 +52,12 @@ for (const required of [
   xcodeBuildScriptPath,
   projectPath,
   schemePath,
-  infoPlistPath
+  infoPlistPath,
+  entitlementsPath
 ]) {
   assert.equal(fs.existsSync(required), true, `Missing Task 8 file: ${path.relative(root, required)}`);
 }
+assert.equal(fs.existsSync(path.join(root, "desktop", "macos", "TokenPilot.xcodeproj")), false);
 
 const read = (file: string): string => fs.readFileSync(file, "utf8");
 const productIdentity = read(productIdentityPath);
@@ -56,6 +65,9 @@ const distributionContext = read(distributionContextPath);
 const lifecycle = read(lifecyclePath);
 const packagedPaths = read(packagedPathsPath);
 const packagedConflict = read(packagedConflictPath);
+const existingSetupImport = read(existingSetupImportPath);
+const desktopConfiguration = read(desktopConfigurationPath);
+const sourceRoot = read(sourceRootPath);
 const appModel = read(appModelPath);
 const desktopApp = read(appPath);
 const menuBar = read(menuBarPath);
@@ -67,24 +79,18 @@ const project = read(projectPath);
 const scheme = read(schemePath);
 const infoPlist = read(infoPlistPath);
 
-// R2 keeps TokenPilot as the normal/default build identity and exposes ChatCockpit only explicitly.
+// R3 keeps the old descriptor only for migration/inspection and makes ChatCockpit canonical.
 assert.match(productIdentity, /static let tokenPilot = ProductIdentity\([\s\S]*displayName: "TokenPilot"/);
-assert.match(productIdentity, /environmentPrefix: "TOKENPILOT"/);
-assert.match(productIdentity, /stateDirectoryName: "\.tokenpilot"/);
-assert.match(productIdentity, /bundleIdentifier: "cn\.wuaishare\.TokenPilot"/);
-assert.match(productIdentity, /launchAgentPrefix: "com\.wuaishare\.tokenpilot"/);
 assert.match(productIdentity, /static let chatCockpit = ProductIdentity\([\s\S]*displayName: "ChatCockpit"/);
 assert.match(productIdentity, /environmentPrefix: "CHATCOCKPIT"/);
 assert.match(productIdentity, /stateDirectoryName: "\.chatcockpit"/);
 assert.match(productIdentity, /applicationSupportName: "ChatCockpit"/);
 assert.match(productIdentity, /bundleIdentifier: "cn\.wuaishare\.ChatCockpit"/);
 assert.match(productIdentity, /launchAgentPrefix: "com\.wuaishare\.chatcockpit"/);
-assert.match(
-  productIdentity,
-  /#if CHATCOCKPIT_TARGET[\s\S]*\.chatCockpit[\s\S]*#else[\s\S]*\.tokenPilot[\s\S]*#endif/
-);
+assert.match(productIdentity, /static var current: ProductIdentity \{\s*\.chatCockpit\s*\}/);
+assert.doesNotMatch(productIdentity, /#if CHATCOCKPIT_TARGET/);
 
-// Product-owned paths, lifecycle environment and service ownership must derive from the identity.
+// Product-owned paths, lifecycle environment and service ownership derive from identity.
 assert.match(distributionContext, /productIdentity\.stateDirectoryName/);
 assert.match(distributionContext, /productIdentity: productIdentity/);
 assert.match(lifecycle, /productIdentity\.environmentName\("INSTALL_ROOT"\)/);
@@ -94,7 +100,20 @@ assert.match(packagedPaths, /identity\.applicationSupportName/);
 assert.match(packagedConflict, /productIdentity\.controlPlaneServiceLabel/);
 assert.match(packagedConflict, /productIdentity\.environmentName\("DISTRIBUTION_MODE"\)/);
 
-// Target-sensitive desktop UI strings are derived from ProductIdentity.current rather than a second UI fork.
+// Import reads historical state but writes only canonical target state.
+assert.match(existingSetupImport, /\.appendingPathComponent\("\.tokenpilot"/);
+assert.match(existingSetupImport, /"schemaVersion": 1/);
+assert.match(existingSetupImport, /"defaultRepoId": "primary"/);
+assert.match(existingSetupImport, /CHATCOCKPIT_HOST=/);
+assert.match(existingSetupImport, /CHATCOCKPIT_EXPOSED=false/);
+assert.doesNotMatch(existingSetupImport, /"TOKENPILOT_HOST=/);
+assert.match(desktopConfiguration, /ProductIdentity\.current\.stateDirectoryName/);
+assert.match(desktopConfiguration, /CHATCOCKPIT_/);
+assert.match(desktopConfiguration, /TOKENPILOT_/);
+assert.match(sourceRoot, /packageIdentity\.name == "chatcockpit"/);
+assert.doesNotMatch(sourceRoot, /packageIdentity\.name == "tokenpilot"/);
+
+// Target-sensitive desktop UI strings are derived from ProductIdentity.current.
 for (const [name, source] of [
   ["desktop app", desktopApp],
   ["menu bar", menuBar],
@@ -102,49 +121,41 @@ for (const [name, source] of [
   ["settings view", settingsView],
   ["desktop app model", appModel]
 ] as const) {
-  assert.match(
-    source,
-    /ProductIdentity\.current/,
-    `${name} must derive product-owned presentation from ProductIdentity.current`
-  );
+  assert.match(source, /ProductIdentity\.current/, `${name} must derive presentation from ProductIdentity.current`);
 }
 assert.doesNotMatch(statusView, /Text\("TokenPilot"\)/);
-assert.doesNotMatch(statusView, /Button\("Open TokenPilot"/);
 assert.doesNotMatch(menuBar, /Button\("(?:Open|Quit) TokenPilot"/);
 assert.doesNotMatch(settingsView, /Button\("Open TokenPilot"/);
 
-// The lifecycle helper supports exactly the two R2 identities and derives env/service names from one prefix.
-assert.match(lifecycleScript, /--product-identity \{tokenpilot\|chatcockpit\}/);
-assert.match(lifecycleScript, /tokenpilot\)[\s\S]*ENV_PREFIX="TOKENPILOT"[\s\S]*SERVICE_PREFIX="com\.wuaishare\.tokenpilot"/);
+// Normal lifecycle operations are ChatCockpit. Legacy identity is quiesce/inspection only.
+assert.match(lifecycleScript, /PRODUCT_IDENTITY="chatcockpit"/);
 assert.match(lifecycleScript, /chatcockpit\)[\s\S]*ENV_PREFIX="CHATCOCKPIT"[\s\S]*STATE_DIR_NAME="\.chatcockpit"[\s\S]*SERVICE_PREFIX="com\.wuaishare\.chatcockpit"/);
+assert.match(lifecycleScript, /tokenpilot\)[\s\S]*Legacy TokenPilot start\/restart is disabled in R3/);
+assert.match(lifecycleScript, /ACTION.*start.*restart/s);
 assert.match(lifecycleScript, /SERVICE_LABEL="\$\{SERVICE_PREFIX\}\.control-plane"/);
 assert.match(lifecycleScript, /RUNNER_SERVICE_LABEL="\$\{SERVICE_PREFIX\}\.runner"/);
 assert.match(lifecycleScript, /PROCESS_SUPERVISOR_SERVICE_LABEL="\$\{SERVICE_PREFIX\}\.process-supervisor"/);
-assert.match(lifecycleScript, /<key>\$\{ENV_PREFIX\}_INSTALL_ROOT<\/key>/);
-assert.match(lifecycleScript, /<key>\$\{ENV_PREFIX\}_STATE_ROOT<\/key>/);
 
-// Xcode canonical implementation identity stays TokenPilot in R2.
-assert.match(project, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.TokenPilot;/);
-assert.match(project, /PRODUCT_NAME = TokenPilot;/);
+// Xcode canonical identity is directly ChatCockpit; no post-build identity projection.
+assert.match(project, /\/\* ChatCockpit\.app \*\//);
+assert.match(project, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.ChatCockpit;/);
+assert.match(project, /PRODUCT_NAME = ChatCockpit;/);
+assert.match(project, /CODE_SIGN_ENTITLEMENTS = ChatCockpit\.entitlements;/);
 assert.match(project, /path = Sources\/TokenPilotDesktopCore\/ProductIdentity\.swift;/);
-assert.match(project, /ProductIdentity\.swift in Sources/);
-assert.match(scheme, /BlueprintName = "TokenPilot"/);
-assert.match(scheme, /container:TokenPilot\.xcodeproj/);
-assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>TokenPilot<\/string>/s);
-assert.match(infoPlist, /<key>CFBundleIdentifier<\/key>\s*<string>cn\.wuaishare\.TokenPilot<\/string>/s);
+assert.match(scheme, /BuildableName = "ChatCockpit\.app"/);
+assert.match(scheme, /BlueprintName = "ChatCockpit"/);
+assert.match(scheme, /container:ChatCockpit\.xcodeproj/);
+assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>ChatCockpit<\/string>/s);
+assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>ChatCockpit<\/string>/s);
+assert.match(infoPlist, /<key>CFBundleIdentifier<\/key>\s*<string>cn\.wuaishare\.ChatCockpit<\/string>/s);
 
-// Explicit target generation is opt-in, isolated from the default output, unsigned and development-only.
-assert.match(xcodeBuildScript, /PRODUCT_IDENTITY="tokenpilot"/);
-assert.match(xcodeBuildScript, /--product-identity/);
-assert.match(xcodeBuildScript, /chatcockpit\)[\s\S]*DISPLAY_NAME="ChatCockpit"/);
-assert.match(xcodeBuildScript, /BUNDLE_IDENTIFIER="cn\.wuaishare\.ChatCockpit"/);
-assert.match(xcodeBuildScript, /FINAL_EXECUTABLE="ChatCockpit"/);
-assert.match(xcodeBuildScript, /dist\/macos-xcode\/chatcockpit/);
-assert.match(xcodeBuildScript, /SWIFT_ACTIVE_COMPILATION_CONDITIONS=CHATCOCKPIT_TARGET/);
-assert.match(xcodeBuildScript, /plutil -replace CFBundleDisplayName/);
-assert.match(xcodeBuildScript, /plutil -replace CFBundleExecutable/);
-assert.match(xcodeBuildScript, /plutil -replace CFBundleIdentifier/);
-assert.match(xcodeBuildScript, /plutil -replace CFBundleName/);
+assert.match(xcodeBuildScript, /PROJECT="\$\{ROOT\}\/desktop\/macos\/ChatCockpit\.xcodeproj"/);
+assert.match(xcodeBuildScript, /SCHEME="ChatCockpit"/);
+assert.match(xcodeBuildScript, /PRODUCT_IDENTITY="chatcockpit"/);
+assert.match(xcodeBuildScript, /BUILT_APP="\$\{DERIVED_DATA\}\/Build\/Products\/Release\/ChatCockpit\.app"/);
+assert.match(xcodeBuildScript, /Legacy TokenPilot app generation is disabled in R3/);
+assert.doesNotMatch(xcodeBuildScript, /SWIFT_ACTIVE_COMPILATION_CONDITIONS=CHATCOCKPIT_TARGET/);
+assert.doesNotMatch(xcodeBuildScript, /plutil -replace CFBundle/);
 assert.match(xcodeBuildScript, /distribution trust: development/);
 assert.match(xcodeBuildScript, /release eligible: false/);
 assert.match(xcodeBuildScript, /CODE_SIGNING_ALLOWED=NO/);
@@ -157,24 +168,18 @@ if (builtAppInput) {
   const builtApp = path.resolve(builtAppInput);
   assert.equal(path.basename(builtApp), "ChatCockpit.app");
   const plist = path.join(builtApp, "Contents", "Info.plist");
-  assert.equal(fs.existsSync(plist), true, "ChatCockpit target app is missing Info.plist");
-
+  assert.equal(fs.existsSync(plist), true, "ChatCockpit app is missing Info.plist");
   const plistValue = (key: string): string =>
     execFileSync("/usr/bin/plutil", ["-extract", key, "raw", plist], { encoding: "utf8" }).trim();
-
   assert.equal(plistValue("CFBundleDisplayName"), "ChatCockpit");
   assert.equal(plistValue("CFBundleName"), "ChatCockpit");
   assert.equal(plistValue("CFBundleIdentifier"), "cn.wuaishare.ChatCockpit");
   assert.equal(plistValue("CFBundleExecutable"), "ChatCockpit");
-  assert.equal(
-    fs.existsSync(path.join(builtApp, "Contents", "MacOS", "ChatCockpit")),
-    true,
-    "ChatCockpit target executable is missing"
-  );
+  assert.equal(fs.existsSync(path.join(builtApp, "Contents", "MacOS", "ChatCockpit")), true);
   assert.equal(
     fs.existsSync(path.join(builtApp, "Contents", "Resources", "TokenPilotRuntime", "manifest.json")),
     true,
-    "ChatCockpit target app is missing the verified runtime payload"
+    "ChatCockpit app is missing the verified runtime payload"
   );
   process.stdout.write("VERIFY_CHATCOCKPIT_MACOS_IDENTITY_BUILD_OK\n");
 }

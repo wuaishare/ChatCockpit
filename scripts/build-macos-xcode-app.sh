@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="${ROOT}/desktop/macos/TokenPilot.xcodeproj"
-SCHEME="TokenPilot"
+PROJECT="${ROOT}/desktop/macos/ChatCockpit.xcodeproj"
+SCHEME="ChatCockpit"
 ARCH=""
-PRODUCT_IDENTITY="tokenpilot"
+PRODUCT_IDENTITY="chatcockpit"
 
 usage() {
-  echo "Usage: $0 [{arm64|x64} | --arch {arm64|x64}] [--product-identity {tokenpilot|chatcockpit}]"
+  echo "Usage: $0 [{arm64|x64} | --arch {arm64|x64}] [--product-identity chatcockpit]"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -61,19 +61,16 @@ case "${ARCH}" in
 esac
 
 case "${PRODUCT_IDENTITY}" in
-  tokenpilot)
-    DISPLAY_NAME="TokenPilot"
-    BUNDLE_IDENTIFIER="cn.wuaishare.TokenPilot"
-    FINAL_EXECUTABLE="TokenPilot"
-    DERIVED_DATA="${ROOT}/dist/xcode-derived/${ARCH}"
-    OUTPUT_ROOT="${ROOT}/dist/macos-xcode/${ARCH}"
-    ;;
   chatcockpit)
     DISPLAY_NAME="ChatCockpit"
     BUNDLE_IDENTIFIER="cn.wuaishare.ChatCockpit"
     FINAL_EXECUTABLE="ChatCockpit"
-    DERIVED_DATA="${ROOT}/dist/xcode-derived/chatcockpit/${ARCH}"
-    OUTPUT_ROOT="${ROOT}/dist/macos-xcode/chatcockpit/${ARCH}"
+    DERIVED_DATA="${ROOT}/dist/xcode-derived/${ARCH}"
+    OUTPUT_ROOT="${ROOT}/dist/macos-xcode/${ARCH}"
+    ;;
+  tokenpilot)
+    echo "Legacy TokenPilot app generation is disabled in R3; use migration/inspection tooling instead of creating fresh old-identity products." >&2
+    exit 3
     ;;
   *)
     echo "Unsupported product identity: ${PRODUCT_IDENTITY}" >&2
@@ -92,7 +89,7 @@ if [[ ! -d "${PROJECT}" ]]; then
   exit 1
 fi
 
-BUILT_APP="${DERIVED_DATA}/Build/Products/Release/TokenPilot.app"
+BUILT_APP="${DERIVED_DATA}/Build/Products/Release/ChatCockpit.app"
 OUTPUT_APP="${OUTPUT_ROOT}/${DISPLAY_NAME}.app"
 RUNTIME_PAYLOAD="${ROOT}/dist/macos-runtime/${ARCH}/TokenPilotRuntime"
 EMBEDDED_RUNTIME="${OUTPUT_APP}/Contents/Resources/TokenPilotRuntime"
@@ -118,32 +115,20 @@ XCODE_BUILD_ARGS=(
   CODE_SIGNING_ALLOWED=NO
   CODE_SIGNING_REQUIRED=NO
 )
-if [[ "${PRODUCT_IDENTITY}" == "chatcockpit" ]]; then
-  XCODE_BUILD_ARGS+=("SWIFT_ACTIVE_COMPILATION_CONDITIONS=CHATCOCKPIT_TARGET")
-fi
-
 xcodebuild "${XCODE_BUILD_ARGS[@]}" build
 
-if [[ ! -d "${BUILT_APP}" ]] || [[ ! -x "${BUILT_APP}/Contents/MacOS/TokenPilot" ]]; then
-  echo "Missing Xcode-built TokenPilot implementation app at ${BUILT_APP}" >&2
+if [[ ! -d "${BUILT_APP}" ]] || [[ ! -x "${BUILT_APP}/Contents/MacOS/${FINAL_EXECUTABLE}" ]]; then
+  echo "Missing Xcode-built ChatCockpit app at ${BUILT_APP}" >&2
   exit 1
 fi
 
 cp -R "${BUILT_APP}" "${OUTPUT_APP}"
 
-if [[ "${PRODUCT_IDENTITY}" == "chatcockpit" ]]; then
-  mv "${OUTPUT_APP}/Contents/MacOS/TokenPilot" "${OUTPUT_APP}/Contents/MacOS/${FINAL_EXECUTABLE}"
-  plutil -replace CFBundleDisplayName -string "${DISPLAY_NAME}" "${OUTPUT_APP}/Contents/Info.plist"
-  plutil -replace CFBundleExecutable -string "${FINAL_EXECUTABLE}" "${OUTPUT_APP}/Contents/Info.plist"
-  plutil -replace CFBundleIdentifier -string "${BUNDLE_IDENTIFIER}" "${OUTPUT_APP}/Contents/Info.plist"
-  plutil -replace CFBundleName -string "${DISPLAY_NAME}" "${OUTPUT_APP}/Contents/Info.plist"
-fi
-
 mkdir -p "${OUTPUT_APP}/Contents/Resources"
 rm -rf "${EMBEDDED_RUNTIME}"
 cp -R "${RUNTIME_PAYLOAD}" "${EMBEDDED_RUNTIME}"
 
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${EMBEDDED_RUNTIME}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${EMBEDDED_RUNTIME}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
 plutil -lint "${OUTPUT_APP}/Contents/Info.plist"
 
 [[ "$(plutil -extract CFBundleDisplayName raw "${OUTPUT_APP}/Contents/Info.plist")" == "${DISPLAY_NAME}" ]] || {

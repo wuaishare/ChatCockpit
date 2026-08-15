@@ -3,7 +3,7 @@ import Testing
 
 @Suite("Product identity")
 struct ProductIdentityTests {
-    @Test("TokenPilot identity remains the default source identity")
+    @Test("legacy TokenPilot identity remains available for migration and compatibility inspection")
     func tokenPilotIdentity() {
         let identity = ProductIdentity.tokenPilot
         #expect(identity.displayName == "TokenPilot")
@@ -30,12 +30,8 @@ struct ProductIdentityTests {
         #expect(identity.environmentName("API_TOKEN") == "CHATCOCKPIT_API_TOKEN")
     }
 
-    @Test("normal Swift builds remain TokenPilot until explicit target compilation")
+    @Test("normal Swift builds use ChatCockpit as the canonical product identity")
     func defaultBuildIdentity() {
-        #if CHATCOCKPIT_TARGET
         #expect(ProductIdentity.current == .chatCockpit)
-        #else
-        #expect(ProductIdentity.current == .tokenPilot)
-        #endif
     }
 }

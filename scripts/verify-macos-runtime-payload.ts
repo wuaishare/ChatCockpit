@@ -21,8 +21,10 @@ interface PayloadManifest {
   };
 }
 
-const payloadRootInput = process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
-assert.ok(payloadRootInput, "TOKENPILOT_RUNTIME_PAYLOAD_DIR is required");
+const payloadRootInput =
+  process.env.CHATCOCKPIT_RUNTIME_PAYLOAD_DIR?.trim() ??
+  process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
+assert.ok(payloadRootInput, "CHATCOCKPIT_RUNTIME_PAYLOAD_DIR is required");
 const payloadRoot = path.resolve(payloadRootInput);
 
 function required(relativePath: string): string {
@@ -82,7 +84,8 @@ if (manifest.architecture === "arm64") {
 const allFiles = walkFiles(payloadRoot);
 const forbiddenPatterns: Array<[string, RegExp]> = [
   ["git metadata", /(^|\/)\.git(\/|$)/],
-  ["TokenPilot mutable state", /(^|\/)\.tokenpilot(\/|$)/],
+  ["ChatCockpit mutable state", /(^|\/)\.chatcockpit(\/|$)/],
+  ["legacy mutable state", /(^|\/)\.tokenpilot(\/|$)/],
   ["Codex local state", /(^|\/)\.codex(\/|$)/],
   ["dotenv", /(^|\/)\.env(?:\.|$)/],
   ["server.env", /(^|\/)server\.env$/],

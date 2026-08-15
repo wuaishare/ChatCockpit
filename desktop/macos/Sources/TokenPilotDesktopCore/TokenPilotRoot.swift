@@ -50,7 +50,7 @@ public struct TokenPilotRootValidator: Sendable {
             throw TokenPilotRootValidationError.packageUnreadable
         }
 
-        guard packageIdentity.name == "tokenpilot" else {
+        guard packageIdentity.name == "chatcockpit" else {
             throw TokenPilotRootValidationError.wrongPackageName
         }
 
@@ -108,7 +108,14 @@ public struct TokenPilotRootDiscovery: Sendable {
             current = parent
         }
 
-        for relativePath in ["Developer/TokenPilot", "Projects/TokenPilot", "GitHub/TokenPilot"] {
+        for relativePath in [
+            "Developer/ChatCockpit",
+            "Projects/ChatCockpit",
+            "GitHub/ChatCockpit",
+            "Developer/TokenPilot",
+            "Projects/TokenPilot",
+            "GitHub/TokenPilot"
+        ] {
             append(homeDirectory.appendingPathComponent(relativePath, isDirectory: true))
         }
 

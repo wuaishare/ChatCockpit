@@ -79,12 +79,13 @@ struct LifecycleStatusTests {
         #expect(status.controlPlane == .stopped)
         #expect(calls.count == 1)
         #expect(calls[0].executableURL.path.hasSuffix("/scripts/macos-manage-local-server.sh"))
-        #expect(calls[0].arguments == ["status", "--product-identity", "tokenpilot"])
+        #expect(calls[0].arguments == ["status", "--product-identity", "chatcockpit"])
         #expect(calls[0].currentDirectoryURL == root.url)
-        #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == root.url.path)
-        #expect(calls[0].environment["TOKENPILOT_STATE_ROOT"] == root.url.appendingPathComponent(".tokenpilot").path)
-        #expect(calls[0].environment["TOKENPILOT_DISTRIBUTION_MODE"] == "source")
-        #expect(calls[0].environment["TOKENPILOT_NODE_BIN"] == nil)
+        #expect(calls[0].environment["CHATCOCKPIT_INSTALL_ROOT"] == root.url.path)
+        #expect(calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == root.url.appendingPathComponent(".chatcockpit").path)
+        #expect(calls[0].environment["CHATCOCKPIT_DISTRIBUTION_MODE"] == "source")
+        #expect(calls[0].environment["CHATCOCKPIT_NODE_BIN"] == nil)
+        #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == nil)
     }
 
     @Test("start invokes exactly the start action")
@@ -103,7 +104,7 @@ struct LifecycleStatusTests {
         let calls = await runner.recordedCalls()
 
         #expect(calls.count == 1)
-        #expect(calls[0].arguments == ["start", "--product-identity", "tokenpilot"])
+        #expect(calls[0].arguments == ["start", "--product-identity", "chatcockpit"])
     }
 
     @Test("ChatCockpit target uses target lifecycle identity and environment only")
@@ -159,11 +160,12 @@ struct LifecycleStatusTests {
         #expect(calls.count == 1)
         #expect(calls[0].executableURL.path == "/tmp/tokenpilot-runtime/app/scripts/macos-manage-local-server.sh")
         #expect(calls[0].currentDirectoryURL == installRoot)
-        #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == installRoot.path)
-        #expect(calls[0].environment["TOKENPILOT_STATE_ROOT"] == stateRoot.path)
-        #expect(calls[0].environment["TOKENPILOT_PRIMARY_WORKSPACE_ROOT"] == workspace.path)
-        #expect(calls[0].environment["TOKENPILOT_NODE_BIN"] == node.path)
-        #expect(calls[0].environment["TOKENPILOT_DISTRIBUTION_MODE"] == "packaged")
+        #expect(calls[0].environment["CHATCOCKPIT_INSTALL_ROOT"] == installRoot.path)
+        #expect(calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == stateRoot.path)
+        #expect(calls[0].environment["CHATCOCKPIT_PRIMARY_WORKSPACE_ROOT"] == workspace.path)
+        #expect(calls[0].environment["CHATCOCKPIT_NODE_BIN"] == node.path)
+        #expect(calls[0].environment["CHATCOCKPIT_DISTRIBUTION_MODE"] == "packaged")
+        #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == nil)
     }
 
     @Test("failed mutation action is a structured lifecycle error")
@@ -173,7 +175,7 @@ struct LifecycleStatusTests {
             result: RuntimeCommandResult(
                 exitCode: 2,
                 standardOutput: "",
-                standardError: "Failed to start TokenPilot control plane or runner"
+                standardError: "Failed to start ChatCockpit control plane or runner"
             )
         )
         let client = LifecycleClient(runner: runner)
@@ -184,7 +186,7 @@ struct LifecycleStatusTests {
         } catch let error as LifecycleClientError {
             #expect(error.action == .start)
             #expect(error.exitCode == 2)
-            #expect(error.message.contains("Failed to start TokenPilot") == true)
+            #expect(error.message.contains("Failed to start ChatCockpit") == true)
         }
     }
 }

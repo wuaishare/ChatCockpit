@@ -110,17 +110,21 @@ struct ExistingSetupImportTests {
             let configObject = try #require(
                 JSONSerialization.jsonObject(with: configData) as? [String: Any]
             )
+            #expect(configObject["schemaVersion"] as? Int == 1)
+            #expect(configObject["defaultRepoId"] as? String == "primary")
             let mappings = try #require(configObject["repoMappings"] as? [String: Any])
-            let tokenpilot = try #require(mappings["tokenpilot"] as? [String: Any])
-            #expect(tokenpilot["path"] as? String == workspace.standardizedFileURL.path)
+            let primary = try #require(mappings["primary"] as? [String: Any])
+            #expect(primary["path"] as? String == workspace.standardizedFileURL.path)
+            #expect(mappings["tokenpilot"] == nil)
             #expect(configText.contains("must-not-import") == false)
 
             let envText = try String(contentsOf: paths.serverEnvironmentURL, encoding: .utf8)
-            #expect(envText.contains("TOKENPILOT_HOST=127.0.0.1"))
-            #expect(envText.contains("TOKENPILOT_PORT=5222"))
-            #expect(envText.contains("TOKENPILOT_EXPOSED=false"))
-            #expect(envText.contains("TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com"))
-            #expect(envText.contains("TOKENPILOT_API_TOKEN") == false)
+            #expect(envText.contains("CHATCOCKPIT_HOST=127.0.0.1"))
+            #expect(envText.contains("CHATCOCKPIT_PORT=5222"))
+            #expect(envText.contains("CHATCOCKPIT_EXPOSED=false"))
+            #expect(envText.contains("CHATCOCKPIT_PUBLIC_BASE_URL=https://tokenpilot.example.com"))
+            #expect(envText.contains("TOKENPILOT_") == false)
+            #expect(envText.contains("CHATCOCKPIT_API_TOKEN") == false)
             #expect(envText.contains("OAUTH") == false)
             #expect(envText.contains("COOKIE") == false)
         }

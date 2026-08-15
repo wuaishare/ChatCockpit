@@ -58,7 +58,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		040000000000000000000001 /* TokenPilot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenPilot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		040000000000000000000001 /* ChatCockpit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatCockpit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		040000000000000000000002 /* TokenPilotDesktopCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = TokenPilotDesktopCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000001 /* DesktopConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopConfiguration.swift; sourceTree = "<group>"; };
 		100000000000000000000002 /* DistributionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DistributionContext.swift; sourceTree = "<group>"; };
@@ -114,7 +114,7 @@
 		003000000000000000000001 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				040000000000000000000001 /* TokenPilot.app */,
+				040000000000000000000001 /* ChatCockpit.app */,
 				040000000000000000000002 /* TokenPilotDesktopCore.framework */,
 			);
 			name = Products;
@@ -152,9 +152,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		010000000000000000000001 /* TokenPilot */ = {
+		010000000000000000000001 /* ChatCockpit */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 510000000000000000000001 /* Build configuration list for PBXNativeTarget "TokenPilot" */;
+			buildConfigurationList = 510000000000000000000001 /* Build configuration list for PBXNativeTarget "ChatCockpit" */;
 			buildPhases = (
 				020000000000000000000001 /* Sources */,
 				021000000000000000000001 /* Frameworks */,
@@ -166,9 +166,9 @@
 			dependencies = (
 				030000000000000000000001 /* PBXTargetDependency */,
 			);
-			name = TokenPilot;
-			productName = TokenPilot;
-			productReference = 040000000000000000000001 /* TokenPilot.app */;
+			name = ChatCockpit;
+			productName = ChatCockpit;
+			productReference = 040000000000000000000001 /* ChatCockpit.app */;
 			productType = "com.apple.product-type.application";
 		};
 		010000000000000000000002 /* TokenPilotDesktopCore */ = {
@@ -206,7 +206,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 500000000000000000000001 /* Build configuration list for PBXProject "TokenPilot" */;
+			buildConfigurationList = 500000000000000000000001 /* Build configuration list for PBXProject "ChatCockpit" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -219,7 +219,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				010000000000000000000001 /* TokenPilot */,
+				010000000000000000000001 /* ChatCockpit */,
 				010000000000000000000002 /* TokenPilotDesktopCore */,
 			);
 		};
@@ -315,7 +315,7 @@
 		410000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ChatCockpit.entitlements;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = AppBundle/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -323,8 +323,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.TokenPilot;
-				PRODUCT_NAME = TokenPilot;
+				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.ChatCockpit;
+				PRODUCT_NAME = ChatCockpit;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
 			};
@@ -333,7 +333,7 @@
 		410000000000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ChatCockpit.entitlements;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = AppBundle/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -341,8 +341,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.TokenPilot;
-				PRODUCT_NAME = TokenPilot;
+				PRODUCT_BUNDLE_IDENTIFIER = cn.wuaishare.ChatCockpit;
+				PRODUCT_NAME = ChatCockpit;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
 			};
@@ -379,7 +379,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		500000000000000000000001 /* Build configuration list for PBXProject "TokenPilot" */ = {
+		500000000000000000000001 /* Build configuration list for PBXProject "ChatCockpit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				400000000000000000000001 /* Debug */,
@@ -388,7 +388,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		510000000000000000000001 /* Build configuration list for PBXNativeTarget "TokenPilot" */ = {
+		510000000000000000000001 /* Build configuration list for PBXNativeTarget "ChatCockpit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				410000000000000000000001 /* Debug */,

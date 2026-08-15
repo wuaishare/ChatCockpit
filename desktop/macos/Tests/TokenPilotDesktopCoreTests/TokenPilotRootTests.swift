@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import TokenPilotDesktopCore
 
-@Suite("TokenPilot root validation")
+@Suite("ChatCockpit source root validation")
 struct TokenPilotRootTests {
     @Test("rejects directory without package.json")
     func rejectsDirectoryWithoutPackageJSON() throws {
@@ -34,12 +34,30 @@ struct TokenPilotRootTests {
         }
     }
 
+    @Test("legacy TokenPilot checkout is not accepted as an active R3 source runtime")
+    func rejectsLegacyTokenPilotPackageAsActiveRoot() throws {
+        try withTemporaryDirectory { temporaryDirectory in
+            let root = try makeRoot(
+                under: temporaryDirectory,
+                packageName: "tokenpilot",
+                includeLifecycleScript: true,
+                runtimeEntry: .source
+            )
+            do {
+                _ = try TokenPilotRootValidator().validate(root)
+                Issue.record("Expected wrongPackageName")
+            } catch {
+                #expect(error as? TokenPilotRootValidationError == .wrongPackageName)
+            }
+        }
+    }
+
     @Test("rejects missing lifecycle script")
     func rejectsMissingLifecycleScript() throws {
         try withTemporaryDirectory { temporaryDirectory in
             let root = try makeRoot(
                 under: temporaryDirectory,
-                packageName: "tokenpilot",
+                packageName: "chatcockpit",
                 includeLifecycleScript: false,
                 runtimeEntry: .source
             )
@@ -57,7 +75,7 @@ struct TokenPilotRootTests {
         try withTemporaryDirectory { temporaryDirectory in
             let root = try makeRoot(
                 under: temporaryDirectory,
-                packageName: "tokenpilot",
+                packageName: "chatcockpit",
                 includeLifecycleScript: true,
                 runtimeEntry: .source
             )
@@ -71,7 +89,7 @@ struct TokenPilotRootTests {
         try withTemporaryDirectory { temporaryDirectory in
             let root = try makeRoot(
                 under: temporaryDirectory,
-                packageName: "tokenpilot",
+                packageName: "chatcockpit",
                 includeLifecycleScript: true,
                 runtimeEntry: .built
             )
@@ -85,7 +103,7 @@ struct TokenPilotRootTests {
         try withTemporaryDirectory { temporaryDirectory in
             let root = try makeRoot(
                 under: temporaryDirectory,
-                packageName: "tokenpilot",
+                packageName: "chatcockpit",
                 includeLifecycleScript: true,
                 runtimeEntry: .none
             )
@@ -103,7 +121,7 @@ struct TokenPilotRootTests {
         try withTemporaryDirectory { temporaryDirectory in
             let saved = try makeRoot(
                 at: temporaryDirectory.appendingPathComponent("saved", isDirectory: true),
-                packageName: "tokenpilot",
+                packageName: "chatcockpit",
                 includeLifecycleScript: true,
                 runtimeEntry: .source
             )

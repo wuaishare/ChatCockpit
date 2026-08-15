@@ -5,10 +5,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_PATH=""
 IDENTITY="${TOKENPILOT_SIGNING_IDENTITY:-}"
 KEYCHAIN="${TOKENPILOT_SIGNING_KEYCHAIN:-}"
-ENTITLEMENTS="${ROOT}/desktop/macos/TokenPilotDesktop.entitlements"
+ENTITLEMENTS="${ROOT}/desktop/macos/ChatCockpit.entitlements"
 
 usage() {
-  echo "Usage: TOKENPILOT_SIGNING_IDENTITY=<Developer ID Application identity> $0 --app <TokenPilot.app>" >&2
+  echo "Usage: TOKENPILOT_SIGNING_IDENTITY=<Developer ID Application identity> $0 --app <ChatCockpit.app>" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -39,18 +39,18 @@ if [[ ! "${IDENTITY}" =~ ^[[:xdigit:]]{40}$ && ! "${IDENTITY}" =~ ^Developer\ ID
 fi
 
 if [[ -z "${APP_PATH}" ]]; then
-  echo "SIGNED_APP_REQUIRED: provide --app <TokenPilot.app>" >&2
+  echo "SIGNED_APP_REQUIRED: provide --app <ChatCockpit.app>" >&2
   usage
   exit 2
 fi
 APP_PATH="$(cd "$(dirname "${APP_PATH}")" 2>/dev/null && pwd)/$(basename "${APP_PATH}")"
 
-if [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Contents/MacOS/TokenPilot" ]]; then
-  echo "Invalid TokenPilot app bundle" >&2
+if [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Contents/MacOS/ChatCockpit" ]]; then
+  echo "Invalid ChatCockpit app bundle" >&2
   exit 1
 fi
 if [[ ! -f "${ENTITLEMENTS}" ]]; then
-  echo "Missing TokenPilot app entitlements" >&2
+  echo "Missing ChatCockpit app entitlements" >&2
   exit 1
 fi
 
@@ -80,15 +80,15 @@ fi
 
 RUNTIME_ROOT="${APP_PATH}/Contents/Resources/TokenPilotRuntime"
 NODE_PATH="${RUNTIME_ROOT}/node/bin/node"
-MAIN_EXECUTABLE="${APP_PATH}/Contents/MacOS/TokenPilot"
+MAIN_EXECUTABLE="${APP_PATH}/Contents/MacOS/ChatCockpit"
 FRAMEWORKS_ROOT="${APP_PATH}/Contents/Frameworks"
 
 if [[ ! -f "${RUNTIME_ROOT}/manifest.json" ]] || [[ ! -x "${NODE_PATH}" ]]; then
-  echo "Signed app input is missing the verified TokenPilot runtime payload" >&2
+  echo "Signed app input is missing the verified ChatCockpit runtime payload" >&2
   exit 1
 fi
 
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
 
 sign_macho() {
   local target="$1"
@@ -123,10 +123,10 @@ fi
 # Developer ID signing mutates Mach-O bytes. Rebuild the Phase 2 payload hashes
 # before the outer app is signed so runtime integrity remains fail-closed.
 runtime_rehash_list="$(printf '%s\n' "${runtime_rehash_paths[@]}")"
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" \
-TOKENPILOT_RUNTIME_REHASH_PATHS="${runtime_rehash_list}" \
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" \
+CHATCOCKPIT_RUNTIME_REHASH_PATHS="${runtime_rehash_list}" \
 npm --prefix "${ROOT}" run refresh:macos-runtime-payload-hashes
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
 
 nested_macho_count=0
 while IFS= read -r -d '' candidate; do
@@ -162,6 +162,6 @@ fi
   --sign "${IDENTITY}" \
   "${APP_PATH}"
 
-TOKENPILOT_SIGNED_APP_DIR="${APP_PATH}" npm --prefix "${ROOT}" run verify:macos-signed-app
+CHATCOCKPIT_SIGNED_APP_DIR="${APP_PATH}" npm --prefix "${ROOT}" run verify:macos-signed-app
 
 printf 'SIGNED_MACOS_DISTRIBUTION_OK runtime_macho=%d nested_macho=%d\n' "${runtime_macho_count}" "${nested_macho_count}"

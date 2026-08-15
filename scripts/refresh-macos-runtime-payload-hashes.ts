@@ -11,12 +11,17 @@ interface RuntimeManifest {
   };
 }
 
-const payloadRootInput = process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
-assert.ok(payloadRootInput, "TOKENPILOT_RUNTIME_PAYLOAD_DIR is required");
+const payloadRootInput =
+  process.env.CHATCOCKPIT_RUNTIME_PAYLOAD_DIR?.trim() ??
+  process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
+assert.ok(payloadRootInput, "CHATCOCKPIT_RUNTIME_PAYLOAD_DIR is required");
 const payloadRoot = path.resolve(payloadRootInput);
-const rehashPathsInput = process.env.TOKENPILOT_RUNTIME_REHASH_PATHS ?? "";
+const rehashPathsInput =
+  process.env.CHATCOCKPIT_RUNTIME_REHASH_PATHS ??
+  process.env.TOKENPILOT_RUNTIME_REHASH_PATHS ??
+  "";
 const rehashPaths = [...new Set(rehashPathsInput.split("\n").map((value) => value.trim()).filter(Boolean))].sort();
-assert.ok(rehashPaths.length > 0, "TOKENPILOT_RUNTIME_REHASH_PATHS is required");
+assert.ok(rehashPaths.length > 0, "CHATCOCKPIT_RUNTIME_REHASH_PATHS is required");
 
 const manifestPath = path.join(payloadRoot, "manifest.json");
 assert.equal(fs.existsSync(manifestPath), true, "Missing runtime payload manifest.json");

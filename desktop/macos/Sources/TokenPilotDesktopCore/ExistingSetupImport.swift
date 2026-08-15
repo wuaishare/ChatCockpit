@@ -156,12 +156,20 @@ public struct ExistingSetupImporter: Sendable {
         )
 
         let workspaceAllowlist = preview.workspaces.map(\.standardizedFileURL.path)
-        let repoMappings = Dictionary(
-            uniqueKeysWithValues: preview.repoMappings.map { key, value in
-                (key, ["path": value.standardizedFileURL.path])
+        var repoMappings: [String: [String: String]] = [:]
+        for (key, value) in preview.repoMappings {
+            let targetKey = key == "tokenpilot" ? "primary" : key
+            if let existing = repoMappings[targetKey], existing["path"] != value.standardizedFileURL.path {
+                throw ExistingSetupImportError.invalidConfig
             }
-        )
+            repoMappings[targetKey] = ["path": value.standardizedFileURL.path]
+        }
+        if repoMappings["primary"] == nil {
+            repoMappings["primary"] = ["path": primaryWorkspace.standardizedFileURL.path]
+        }
         let configObject: [String: Any] = [
+            "schemaVersion": 1,
+            "defaultRepoId": "primary",
             "workspaceAllowlist": workspaceAllowlist,
             "repoMappings": repoMappings
         ]
@@ -173,13 +181,13 @@ public struct ExistingSetupImporter: Sendable {
 
         let publicBaseURL = preview.publicBaseURL?.absoluteString ?? ""
         let environment = [
-            "# TokenPilot packaged runtime config imported from an existing setup.",
+            "# ChatCockpit packaged runtime config imported from an existing setup.",
             "# Secrets are intentionally not migrated. Existing exposed mode is reset to local-only.",
-            "TOKENPILOT_HOST=\(preview.host)",
-            "TOKENPILOT_PORT=\(preview.port)",
-            "TOKENPILOT_EXPOSED=false",
-            "TOKENPILOT_PUBLIC_BASE_URL=\(publicBaseURL)",
-            "TOKENPILOT_RUNNER_INTERVAL=3",
+            "CHATCOCKPIT_HOST=\(preview.host)",
+            "CHATCOCKPIT_PORT=\(preview.port)",
+            "CHATCOCKPIT_EXPOSED=false",
+            "CHATCOCKPIT_PUBLIC_BASE_URL=\(publicBaseURL)",
+            "CHATCOCKPIT_RUNNER_INTERVAL=3",
             ""
         ].joined(separator: "\n")
         try environment.write(

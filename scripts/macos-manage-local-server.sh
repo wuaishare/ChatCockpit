@@ -5,7 +5,7 @@ set -euo pipefail
 # Linux and Windows users should use an equivalent supervisor such as systemd, pm2, nohup, or Task Scheduler.
 
 ACTION="${1:-}"
-PRODUCT_IDENTITY="tokenpilot"
+PRODUCT_IDENTITY="chatcockpit"
 if [[ "${2:-}" == "--product-identity" ]]; then
   PRODUCT_IDENTITY="${3:-}"
 elif [[ -n "${2:-}" ]]; then
@@ -19,6 +19,10 @@ case "${PRODUCT_IDENTITY}" in
     ENV_PREFIX="TOKENPILOT"
     STATE_DIR_NAME=".tokenpilot"
     SERVICE_PREFIX="com.wuaishare.tokenpilot"
+    if [[ "${ACTION}" == "start" || "${ACTION}" == "restart" ]]; then
+      echo "Legacy TokenPilot start/restart is disabled in R3; only inspection or quiesce actions may address old LaunchAgents." >&2
+      exit 3
+    fi
     ;;
   chatcockpit)
     DISPLAY_NAME="ChatCockpit"
@@ -425,7 +429,7 @@ port_listener_pid() {
   lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-assert_port_available_or_tokenpilot() {
+assert_port_available_or_owned_runtime() {
   local port_pid=""
   port_pid="$(port_listener_pid)"
   if [[ -z "${port_pid}" ]]; then
@@ -533,7 +537,7 @@ case "${ACTION}" in
   start)
     cd "${INSTALL_ROOT}"
     assert_packaged_runtime_ownership
-    assert_port_available_or_tokenpilot
+    assert_port_available_or_owned_runtime
     write_server_plist
     write_runner_plist
     write_process_supervisor_plist
@@ -604,7 +608,7 @@ case "${ACTION}" in
   restart)
     cd "${INSTALL_ROOT}"
     assert_packaged_runtime_ownership
-    assert_port_available_or_tokenpilot
+    assert_port_available_or_owned_runtime
     write_server_plist
     write_runner_plist
     write_process_supervisor_plist
