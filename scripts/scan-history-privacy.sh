@@ -56,6 +56,7 @@ scan_product_hosts() {
       [[ -z "${match}" ]] && continue
       [[ "${match}" == *"chatcockpit.example.com"* ]] && continue
       [[ "${match}" == *"tokenpilot.example.com"* ]] && continue
+      [[ "${match}" == *".example.invalid"* ]] && continue
       rest="${match#*:}"
       file="${rest%%:*}"
       report_path "non-placeholder ChatCockpit/legacy deployment host" "${rev}" "${file}"

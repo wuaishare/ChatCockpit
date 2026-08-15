@@ -189,6 +189,7 @@ function mapAdapterError(error: unknown): ProcessSupervisorRuntimeError {
 export class ProcessSupervisorRuntimeService {
   private readonly owned = new Map<string, SupervisorOwnedProcess>();
   private readonly receipts = new Map<string, SupervisorActionReceipt>();
+  private readonly activeProcessActions = new Map<string, number>();
   private readonly now: () => string;
   private watchdogTimer: NodeJS.Timeout | null = null;
 
@@ -243,6 +244,9 @@ export class ProcessSupervisorRuntimeService {
       return;
     }
     for (const process of this.listOwned()) {
+      if ((this.activeProcessActions.get(process.processId) ?? 0) > 0) {
+        continue;
+      }
       const authority = authorityReader.check(process, now);
       if (!authority.valid) {
         if (!this.options.adapter.has(process.processId)) {
@@ -401,11 +405,13 @@ export class ProcessSupervisorRuntimeService {
       );
     }
     try {
-      const snapshot = await this.options.adapter.read(request.processId, {
-        ...(request.offset === undefined ? {} : { offset: request.offset }),
-        ...(request.length === undefined ? {} : { length: request.length }),
-        ...(request.waitMs === undefined ? {} : { waitMs: request.waitMs })
-      });
+      const snapshot = await this.withActiveProcessAction(request.processId, () =>
+        this.options.adapter.read(request.processId, {
+          ...(request.offset === undefined ? {} : { offset: request.offset }),
+          ...(request.length === undefined ? {} : { length: request.length }),
+          ...(request.waitMs === undefined ? {} : { waitMs: request.waitMs })
+        })
+      );
       if (snapshot.status !== "running") {
         this.owned.delete(request.processId);
         this.appendTerminalSnapshot(
@@ -441,11 +447,13 @@ export class ProcessSupervisorRuntimeService {
       );
     }
     try {
-      const snapshot = await this.options.adapter.input(request.processId, {
-        input: request.input,
-        timeoutMs: request.timeoutMs,
-        waitForPrompt: request.waitForPrompt
-      });
+      const snapshot = await this.withActiveProcessAction(request.processId, () =>
+        this.options.adapter.input(request.processId, {
+          input: request.input,
+          timeoutMs: request.timeoutMs,
+          waitForPrompt: request.waitForPrompt
+        })
+      );
       const result = safeMutationResult(snapshot);
       if (snapshot.status !== "running") {
         this.owned.delete(request.processId);
@@ -503,7 +511,10 @@ export class ProcessSupervisorRuntimeService {
       );
     }
     try {
-      const snapshot = await this.options.adapter.stop(request.processId);
+      const snapshot = await this.withActiveProcessAction(
+        request.processId,
+        () => this.options.adapter.stop(request.processId)
+      );
       this.owned.delete(request.processId);
       const result = safeMutationResult(snapshot);
       this.appendTerminalSnapshot(
@@ -536,6 +547,26 @@ export class ProcessSupervisorRuntimeService {
         result: null
       });
       throw mapped;
+    }
+  }
+
+  private async withActiveProcessAction<T>(
+    processId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    this.activeProcessActions.set(
+      processId,
+      (this.activeProcessActions.get(processId) ?? 0) + 1
+    );
+    try {
+      return await operation();
+    } finally {
+      const remaining = (this.activeProcessActions.get(processId) ?? 1) - 1;
+      if (remaining <= 0) {
+        this.activeProcessActions.delete(processId);
+      } else {
+        this.activeProcessActions.set(processId, remaining);
+      }
     }
   }
 

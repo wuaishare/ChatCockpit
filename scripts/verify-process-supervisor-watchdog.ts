@@ -29,8 +29,26 @@ class WatchdogFixtureAdapter implements ProcessSupervisorManagedAdapter {
   readonly stopCalls: string[] = [];
   readonly closeCalls: string[] = [];
   readonly inputCalls: string[] = [];
+  readonly observeCalls: string[] = [];
   private readonly runtimes = new Map<string, number>();
   private nextPid = 6100;
+  private stopGate: {
+    entered: () => void;
+    release: Promise<void>;
+  } | null = null;
+
+  pauseNextStop(): { entered: Promise<void>; release: () => void } {
+    let signalEntered!: () => void;
+    let signalRelease!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      signalEntered = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      signalRelease = resolve;
+    });
+    this.stopGate = { entered: signalEntered, release };
+    return { entered, release: signalRelease };
+  }
 
   assertReady(): unknown {
     return {};
@@ -57,6 +75,7 @@ class WatchdogFixtureAdapter implements ProcessSupervisorManagedAdapter {
     processId: string,
     _options?: ManagedProcessReadOptions
   ): Promise<ManagedProcessAdapterSnapshot> {
+    this.observeCalls.push(processId);
     return this.read(processId);
   }
   async read(
@@ -85,6 +104,12 @@ class WatchdogFixtureAdapter implements ProcessSupervisorManagedAdapter {
   }
   async stop(processId: string): Promise<ManagedProcessAdapterSnapshot> {
     this.stopCalls.push(processId);
+    const gate = this.stopGate;
+    if (gate) {
+      this.stopGate = null;
+      gate.entered();
+      await gate.release;
+    }
     const pid = this.runtimes.get(processId);
     if (!pid) {
       throw new Error("fixture runtime missing");
@@ -251,6 +276,49 @@ try {
   assert.equal(listed.events.length, 1);
   await service.handle("events.ack", { eventIds: [events[0]!.eventId] });
   assert.equal(journal.list().length, 0);
+
+  const restoreAuthorityDatabase = new ContinuityDatabase({ path: databasePath });
+  try {
+    restoreAuthorityDatabase.sqlite
+      .prepare("UPDATE writer_leases SET expires_at = ? WHERE id = ?")
+      .run("2026-08-09T07:20:00.000Z", "lease_watchdog");
+  } finally {
+    restoreAuthorityDatabase.close();
+  }
+
+  await service.start({
+    processId: "host_process_watchdog",
+    workspaceId: "workspace_watchdog",
+    taskId: "task_watchdog",
+    sessionId: "session_watchdog",
+    writerLeaseId: "lease_watchdog",
+    executorId: "downstream-mcp:desktop-commander",
+    actionId: "action-watchdog-restart",
+    actionHash: "d".repeat(64),
+    cwd: sandbox,
+    command: "node",
+    args: ["fixture.mjs"],
+    startupTimeoutMs: 1000
+  });
+  const stopGate = adapter.pauseNextStop();
+  const stopping = service.stop({
+    processId: "host_process_watchdog",
+    actionId: "action-watchdog-stop",
+    actionHash: "e".repeat(64)
+  });
+  await stopGate.entered;
+  const observeCallsBeforeStopReconcile = adapter.observeCalls.length;
+  await service.reconcileAuthorityOnce(NOW);
+  assert.equal(
+    adapter.observeCalls.length,
+    observeCallsBeforeStopReconcile,
+    "Watchdog must not observe a runtime while an explicit stop action is active"
+  );
+  assert.equal(service.listOwned().length, 1);
+  stopGate.release();
+  const stopped = await stopping;
+  assert.equal(stopped.status, "terminated");
+  assert.equal(service.listOwned().length, 0);
 
   process.stdout.write("VERIFY_PROCESS_SUPERVISOR_WATCHDOG_OK\n");
 } finally {
