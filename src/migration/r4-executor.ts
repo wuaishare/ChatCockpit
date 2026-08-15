@@ -16,6 +16,7 @@ import {
   CHATCOCKPIT_TARGET_IDENTITY_MIGRATION,
   migrateChatCockpitTargetContinuityDatabase
 } from "./chatcockpit-target-continuity.js";
+import { inspectR4LegacyContinuitySource, type R4LegacyContinuitySourceContract } from "./r4-legacy-continuity.js";
 import { buildRenameMigrationPreview } from "./rename-preview.js";
 import { buildRenameMigrationManifest } from "./rename-state-classifier.js";
 import type { RenameMigrationManifest, RenameStateEntry } from "./rename-types.js";
@@ -49,6 +50,7 @@ export interface R4MigrationExecutorResult {
   skippedEphemeralEntries: number;
   resetSecurityEntries: number;
   targetConfigDefaultRepoId: "primary";
+  legacyContinuitySourceContract: Exclude<R4LegacyContinuitySourceContract, "invalid">;
   continuityBackupMethod: "node-sqlite-backup" | "vacuum-into";
   targetContinuitySchemaVersion: number;
   runtimeBindingRowsUpdated: number;
@@ -319,7 +321,9 @@ function copyApprovedStateEntries(
   };
 }
 
-function assertLegacyContinuityReady(sourcePath: string): void {
+function assertLegacyContinuityReady(
+  sourcePath: string
+): Exclude<R4LegacyContinuitySourceContract, "invalid"> {
   if (!fs.existsSync(sourcePath)) throw new Error("R4 legacy continuity database is missing");
   const source = new DatabaseSync(sourcePath, { readOnly: true });
   try {
@@ -327,12 +331,13 @@ function assertLegacyContinuityReady(sourcePath: string): void {
     if (integrity.quick_check !== "ok") {
       throw new Error("R4 legacy continuity database quick_check failed");
     }
-    const row = source
-      .prepare("SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations")
-      .get() as { version: number };
-    if (Number(row.version) !== 18) {
-      throw new Error(`R4 legacy continuity database must be schema v18, received ${String(row.version)}`);
+    const inspection = inspectR4LegacyContinuitySource(source);
+    if (inspection.sourceContract === "invalid") {
+      throw new Error(
+        `R4 legacy continuity source contract is invalid at schema v${String(inspection.schemaVersion)}`
+      );
     }
+    return inspection.sourceContract;
   } finally {
     source.close();
   }
@@ -495,7 +500,7 @@ export async function buildR4MigrationStaging(
     throw new Error(`R4_UNKNOWN_STATE_ENTRIES:${previewUnknown}`);
   }
   const sourceDatabasePath = path.join(input.legacyStateRoot, "runtime", "continuity.sqlite");
-  assertLegacyContinuityReady(sourceDatabasePath);
+  const legacyContinuitySourceContract = assertLegacyContinuityReady(sourceDatabasePath);
 
   const migrationId = `r4_${randomUUID()}`;
   const snapshot = createForensicSnapshot(input, migrationId);
@@ -530,6 +535,7 @@ export async function buildR4MigrationStaging(
     classifiedStateEntries: entries.length,
     ...copyStats,
     targetConfigDefaultRepoId: targetConfig.defaultRepoId as "primary",
+    legacyContinuitySourceContract,
     continuityBackupMethod,
     targetContinuitySchemaVersion: continuity.schemaVersion,
     runtimeBindingRowsUpdated: continuity.runtimeBindingRowsUpdated,
