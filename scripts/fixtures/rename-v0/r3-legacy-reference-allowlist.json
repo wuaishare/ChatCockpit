@@ -258,14 +258,6 @@
       "removalGate": "Permanent historical record unless the entire historical artifact is intentionally retired."
     },
     {
-      "id": "current-real-github-repository-coordinate",
-      "class": "C3",
-      "pathRegex": "^(?:README(?:\\.en)?\\.md|desktop/macos/Sources/TokenPilotDesktopCore/UpdateChecker\\.swift|scripts/verify-macos-update-manifest\\.ts)$",
-      "lineRegex": "(?:github\\.com/)?wuaishare/TokenPilot",
-      "reason": "The physical GitHub repository is still named wuaishare/TokenPilot until the separate R4 repository migration, so current links must remain resolvable.",
-      "removalGate": "Replace atomically during R4 after the GitHub repository rename is complete and redirects are verified."
-    },
-    {
       "id": "web-legacy-session-storage-readers",
       "class": "C2",
       "pathRegex": "^web/src/(?:App|theme|i18n)\\.(?:tsx|ts)$",

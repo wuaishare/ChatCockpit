@@ -248,8 +248,8 @@ npm run privacy:scan:history
 
 ChatCockpit 是一个实验性开源的 AI 开发连续性与 Agent 能力路由平台，面向 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job 之间的可审计接力，以及 Token-conscious Planner / Coder / Reviewer 工作流。
 
-- GitHub Discussions: <https://github.com/wuaishare/TokenPilot/discussions>
-- GitHub Issues: <https://github.com/wuaishare/TokenPilot/issues>
+- GitHub Discussions: <https://github.com/wuaishare/ChatCockpit/discussions>
+- GitHub Issues: <https://github.com/wuaishare/ChatCockpit/issues>
 - Pull Requests: 欢迎提交模板、文档、示例和工具改进。
 
 ## 免责声明

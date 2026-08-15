@@ -241,8 +241,8 @@ npm run privacy:scan:history
 
 ChatCockpit is an experimental open-source Development Continuity & Agent Routing Platform for auditable handoff across ChatGPT Native, Chat Direct, Codex Session, and Async Agent Job modes, with token-conscious planner/coder/reviewer workflows.
 
-- GitHub Discussions: <https://github.com/wuaishare/TokenPilot/discussions>
-- GitHub Issues: <https://github.com/wuaishare/TokenPilot/issues>
+- GitHub Discussions: <https://github.com/wuaishare/ChatCockpit/discussions>
+- GitHub Issues: <https://github.com/wuaishare/ChatCockpit/issues>
 - Pull Requests: templates, docs, examples, and tool improvements are welcome.
 
 ## Disclaimer
