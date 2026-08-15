@@ -349,6 +349,29 @@ launchctl_service_registered() {
   launchctl print "${USER_DOMAIN}/${SERVICE_LABEL}" >/dev/null 2>&1
 }
 
+launchctl_service_pid() {
+  launchctl print "${USER_DOMAIN}/${SERVICE_LABEL}" 2>/dev/null |
+    awk '$1 == "pid" && $2 == "=" { print $3; exit }'
+}
+
+health_probe_host() {
+  local probe_host="${HOST}"
+  case "${probe_host}" in
+    0.0.0.0|::|"[::]") probe_host="127.0.0.1" ;;
+  esac
+  if [[ "${probe_host}" == *:* && "${probe_host}" != \[*\] ]]; then
+    probe_host="[${probe_host}]"
+  fi
+  printf '%s' "${probe_host}"
+}
+
+http_health_reachable() {
+  local probe_host=""
+  probe_host="$(health_probe_host)"
+  curl -fsS --max-time 2 "http://${probe_host}:${PORT}/api/health" 2>/dev/null |
+    grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+}
+
 launchctl_runner_registered() {
   launchctl print "${USER_DOMAIN}/${RUNNER_SERVICE_LABEL}" >/dev/null 2>&1
 }
@@ -415,10 +438,28 @@ is_running() {
     return 0
   fi
 
+  # Some macOS environments do not expose a launchd-owned listening socket to
+  # lsof even while the service is reachable. Fall back only when the
+  # identity-specific LaunchAgent owns a live PID and the expected health
+  # endpoint responds successfully. HTTP reachability alone is never enough.
+  local launch_pid=""
+  launch_pid="$(launchctl_service_pid)"
+  if [[ -n "${launch_pid}" ]] &&
+     kill -0 "${launch_pid}" >/dev/null 2>&1 &&
+     http_health_reachable; then
+    if [[ "${DISTRIBUTION_MODE}" == "packaged" ]] && ! installed_runtime_ownership_matches; then
+      return 1
+    fi
+    echo "${launch_pid}" > "${PID_FILE}"
+    return 0
+  fi
+
   if [[ -f "${PID_FILE}" ]]; then
     local pid
     pid="$(cat "${PID_FILE}")"
-    if [[ -n "${pid}" ]] && kill -0 "${pid}" >/dev/null 2>&1; then
+    if [[ -n "${pid}" ]] &&
+       kill -0 "${pid}" >/dev/null 2>&1 &&
+       http_health_reachable; then
       return 0
     fi
   fi

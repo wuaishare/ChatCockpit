@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const scriptPath = "scripts/macos-manage-local-server.sh";
 const source = fs.readFileSync(scriptPath, "utf8");
@@ -17,6 +20,9 @@ assert.match(source, /bootout_all_services/);
 assert.match(source, /stop_process_supervisor_process/);
 assert.match(source, /assert_packaged_runtime_ownership/);
 assert.match(source, /installed_runtime_ownership_matches/);
+assert.match(source, /launchctl_service_pid\(\)/);
+assert.match(source, /http_health_reachable\(\)/);
+assert.match(source, /HTTP reachability alone is never enough/);
 assert.match(source, /identity_env_value\(\)/);
 assert.match(source, /variable_name="\$\{ENV_PREFIX\}_\$\{suffix\}"/);
 assert.match(source, /packaged mode will not take over it automatically/i);
@@ -80,5 +86,55 @@ const bootoutStart = source.indexOf("bootout_control_plane_and_runner() {", remo
 assert.ok(removeInstalledStart >= 0 && bootoutStart > removeInstalledStart);
 const removeInstalledBlock = source.slice(removeInstalledStart, bootoutStart);
 assert.match(removeInstalledBlock, /INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE/);
+
+const fallbackRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-macos-health-fallback-"));
+try {
+  const binDir = path.join(fallbackRoot, "bin");
+  const stateRoot = path.join(fallbackRoot, "legacy-state");
+  const homeRoot = path.join(fallbackRoot, "home");
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.mkdirSync(homeRoot, { recursive: true });
+  const writeExecutable = (name: string, content: string) => {
+    const filePath = path.join(binDir, name);
+    fs.writeFileSync(filePath, content, { mode: 0o755 });
+    fs.chmodSync(filePath, 0o755);
+  };
+  writeExecutable(
+    "lsof",
+    `#!/bin/sh\nexit 0\n`
+  );
+  writeExecutable(
+    "curl",
+    `#!/bin/sh\nprintf '%s\\n' '{"ok":true}'\n`
+  );
+  writeExecutable(
+    "launchctl",
+    `#!/bin/sh\ncase "$*" in\n  *process-supervisor*) exit 1 ;;\n  *control-plane*|*runner*)\n    if [ "$1" = "print" ]; then\n      printf 'state = running\\npid = %s\\n' "$MOCK_LAUNCH_PID"\n    fi\n    exit 0\n    ;;\n  *) exit 0 ;;\nesac\n`
+  );
+
+  const fallback = spawnSync(
+    "bash",
+    [scriptPath, "status", "--product-identity", "tokenpilot"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: homeRoot,
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        MOCK_LAUNCH_PID: String(process.pid),
+        TOKENPILOT_INSTALL_ROOT: process.cwd(),
+        TOKENPILOT_STATE_ROOT: stateRoot,
+        TOKENPILOT_CONFIG_PATH: path.join(homeRoot, ".tokenpilot", "config.json"),
+        TOKENPILOT_DISTRIBUTION_MODE: "source"
+      }
+    }
+  );
+  assert.equal(fallback.status, 0, fallback.stderr || fallback.stdout);
+  assert.match(fallback.stdout, new RegExp(`control plane: running \\(pid ${process.pid}\\)`));
+  assert.equal(fs.readFileSync(path.join(stateRoot, "runtime", "server.pid"), "utf8").trim(), String(process.pid));
+} finally {
+  fs.rmSync(fallbackRoot, { recursive: true, force: true });
+}
 
 process.stdout.write("VERIFY_MACOS_LOCAL_SERVICES_OK\n");
