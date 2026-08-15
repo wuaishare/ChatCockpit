@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { CodexAppServerClient } from "../src/runtime/codex/app-server-client.ts";
 import { resolveCodexBinary } from "../src/runtime/codex/binary.ts";
 import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";

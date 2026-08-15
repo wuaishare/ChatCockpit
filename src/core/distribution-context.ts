@@ -31,14 +31,29 @@ function defaultSourceInstallRoot(): string {
   return path.resolve(__dirname, "../../");
 }
 
-function defaultPackagedSupportRoot(productIdentity: ProductIdentityKey): string {
+function homeDirectory(env: EnvLike): string {
+  return resolvePath(env.HOME ?? os.homedir());
+}
+
+function defaultPackagedSupportRoot(productIdentity: ProductIdentityKey, env: EnvLike): string {
   const identity = productIdentityForKey(productIdentity);
   return path.join(
-    os.homedir(),
+    homeDirectory(env),
     "Library",
     "Application Support",
     identity.applicationSupportName
   );
+}
+
+function defaultSourceStateRoot(
+  productIdentity: ProductIdentityKey,
+  installRoot: string,
+  env: EnvLike
+): string {
+  const identity = productIdentityForKey(productIdentity);
+  return productIdentity === "chatcockpit"
+    ? path.join(homeDirectory(env), identity.stateDirName)
+    : path.join(installRoot, identity.stateDirName);
 }
 
 export function buildDistributionContextForProduct(
@@ -56,13 +71,13 @@ export function buildDistributionContextForProduct(
       readIdentityEnv("REPO_ROOT", env) ??
       defaultSourceInstallRoot()
   );
-  const supportRoot = defaultPackagedSupportRoot(productIdentity);
+  const supportRoot = defaultPackagedSupportRoot(productIdentity, env);
   const stateRoot = resolvePath(
     overrides.stateRoot ??
       readIdentityEnv("STATE_ROOT", env) ??
       (mode === "packaged"
         ? path.join(supportRoot, "state")
-        : path.join(installRoot, identity.stateDirName))
+        : defaultSourceStateRoot(productIdentity, installRoot, env))
   );
   const primaryWorkspaceRoot = resolvePath(
     overrides.primaryWorkspaceRoot ??
@@ -77,7 +92,7 @@ export function buildDistributionContextForProduct(
       readIdentityEnv("CONFIG_PATH", env) ??
       (mode === "packaged"
         ? path.join(supportRoot, "config", "config.json")
-        : path.join(os.homedir(), identity.stateDirName, "config.json"))
+        : path.join(homeDirectory(env), identity.stateDirName, "config.json"))
   );
 
   return {
@@ -119,27 +134,29 @@ export function buildDistributionContextFromPaths(
 export function buildSourceDistributionContextForProduct(
   productIdentity: ProductIdentityKey,
   repoRoot: string,
-  overrides: Partial<TokenPilotDistributionContext> = {}
+  overrides: Partial<TokenPilotDistributionContext> = {},
+  env: EnvLike = process.env
 ): TokenPilotDistributionContext {
   const installRoot = resolvePath(repoRoot);
-  const identity = productIdentityForKey(productIdentity);
   return buildDistributionContextForProduct(productIdentity, {
     ...overrides,
     productIdentity,
     mode: "source",
     installRoot,
-    stateRoot: overrides.stateRoot ?? path.join(installRoot, identity.stateDirName),
+    stateRoot: overrides.stateRoot ?? defaultSourceStateRoot(productIdentity, installRoot, env),
     primaryWorkspaceRoot: overrides.primaryWorkspaceRoot ?? installRoot
-  });
+  }, env);
 }
 
 export function buildSourceDistributionContext(
   repoRoot: string,
-  overrides: Partial<TokenPilotDistributionContext> = {}
+  overrides: Partial<TokenPilotDistributionContext> = {},
+  env: EnvLike = process.env
 ): TokenPilotDistributionContext {
   return buildSourceDistributionContextForProduct(
     overrides.productIdentity ?? DEFAULT_PRODUCT_IDENTITY.key,
     repoRoot,
-    overrides
+    overrides,
+    env
   );
 }

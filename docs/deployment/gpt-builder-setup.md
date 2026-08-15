@@ -15,7 +15,7 @@ You also need:
 
 ## 1. Configure Runtime Environment
 
-Edit `.chatcockpit/runtime/server.env`:
+Edit `~/.chatcockpit/runtime/server.env`:
 
 ```bash
 CHATCOCKPIT_EXPOSED=true

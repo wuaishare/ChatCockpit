@@ -9,7 +9,7 @@ import { buildDesktopCommanderHostCommandService } from "../src/application/host
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import {
   DESKTOP_COMMANDER_DISPLAY_NAME,
   DESKTOP_COMMANDER_EXECUTOR_ID

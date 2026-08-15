@@ -82,10 +82,10 @@ function createFixture(label: string): ScenarioFixture {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `chatcockpit-r4-rehearsal-${label}-`));
   const repoRoot = path.join(root, "repo");
   const legacyStateRoot = path.join(repoRoot, ".tokenpilot");
-  const targetStateRoot = path.join(repoRoot, ".chatcockpit");
   const homeRoot = path.join(root, "home");
+  const targetStateRoot = path.join(homeRoot, ".chatcockpit");
   const legacyConfigPath = path.join(homeRoot, ".tokenpilot", "config.json");
-  const targetConfigPath = path.join(homeRoot, ".chatcockpit", "config.json");
+  const targetConfigPath = path.join(targetStateRoot, "config.json");
   const snapshotRoot = path.join(root, "snapshot");
   const stagingRoot = path.join(root, "staging");
   const rollbackRoot = path.join(root, "rollback");
@@ -186,6 +186,18 @@ function activateStaging(fixture: ScenarioFixture): {
   assert.equal(fs.existsSync(stagedState), true);
   assert.equal(fs.existsSync(stagedConfig), true);
 
+  const configRelative = path.relative(fixture.targetStateRoot, fixture.targetConfigPath);
+  const configInsideTargetState =
+    configRelative !== "" &&
+    !path.isAbsolute(configRelative) &&
+    configRelative !== ".." &&
+    !configRelative.startsWith(`..${path.sep}`);
+  if (configInsideTargetState) {
+    const stagedTargetConfig = path.join(stagedState, configRelative);
+    fs.mkdirSync(path.dirname(stagedTargetConfig), { recursive: true });
+    fs.copyFileSync(stagedConfig, stagedTargetConfig);
+  }
+
   let targetStateBackupPath: string | null = null;
   if (fs.existsSync(fixture.targetStateRoot)) {
     targetStateBackupPath = path.join(fixture.rollbackRoot, "target-state-before");
@@ -194,7 +206,7 @@ function activateStaging(fixture: ScenarioFixture): {
   fs.renameSync(stagedState, fixture.targetStateRoot);
 
   let configCreated = false;
-  if (!fs.existsSync(fixture.targetConfigPath)) {
+  if (!configInsideTargetState && !fs.existsSync(fixture.targetConfigPath)) {
     fs.mkdirSync(path.dirname(fixture.targetConfigPath), { recursive: true });
     fs.copyFileSync(stagedConfig, fixture.targetConfigPath);
     configCreated = true;

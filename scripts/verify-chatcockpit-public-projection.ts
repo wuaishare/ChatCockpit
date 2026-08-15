@@ -48,9 +48,12 @@ try {
   runGit(repoRoot, ["commit", "-m", "init"]);
 
   const configPath = path.join(homeRoot, "config.json");
-  const context = buildSourceDistributionContextForProduct("chatcockpit", repoRoot, {
-    configPath
-  });
+  const context = buildSourceDistributionContextForProduct(
+    "chatcockpit",
+    repoRoot,
+    { configPath },
+    { ...process.env, HOME: path.dirname(homeRoot) }
+  );
   const paths = buildPaths(context);
   ensureWorkspaceDirs(paths);
   const directConfigPath = path.join(paths.runtimeDir, "direct-executors.json");

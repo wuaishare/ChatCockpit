@@ -54,7 +54,7 @@ The intent is explicit:
 For a repeatable **Developer Mode** setup, place runtime variables in:
 
 ```text
-.chatcockpit/runtime/server.env
+~/.chatcockpit/runtime/server.env
 ```
 
 Packaged Mode keeps the equivalent private file under ChatCockpit's Application Support state root instead of the selected project workspace. Use the Desktop Settings surface rather than copying source-mode secrets into that location manually.
@@ -89,14 +89,14 @@ Current boundary:
 
 ## Local Artifact Retention
 
-In Developer Mode, ChatCockpit keeps local queue records and generated artifacts under `.chatcockpit/`. In Packaged Mode, the equivalent writable runtime state lives under `~/Library/Application Support/ChatCockpit/state/`; the selected project remains a separate workspace.
+In Developer Mode, ChatCockpit keeps its writable product state globally under `~/.chatcockpit/`; the selected project remains a separate workspace. In Packaged Mode, the equivalent writable runtime state lives under `~/Library/Application Support/ChatCockpit/state/`.
 
 Developer Mode directories:
 
-- `.chatcockpit/jobs/` stores queued, running, completed, and failed job records.
-- `.chatcockpit/bundles/` stores pack prompts, summaries, manifests, and bundle XML outputs.
-- `.chatcockpit/runtime/repos/<repoId>/` stores per-repository Codex prompts, stdout/stderr, diffs, reviews, and summaries.
-- `.chatcockpit/manifests/` stores task-pack markdown and JSON artifacts.
+- `~/.chatcockpit/jobs/` stores queued, running, completed, and failed job records.
+- `~/.chatcockpit/bundles/` stores pack prompts, summaries, manifests, and bundle XML outputs.
+- `~/.chatcockpit/runtime/repos/<repoId>/` stores per-repository Codex prompts, stdout/stderr, diffs, reviews, and summaries.
+- `~/.chatcockpit/manifests/` stores task-pack markdown and JSON artifacts.
 
 Alpha retention is intentionally conservative: ChatCockpit does not delete job records or Codex artifacts by default. Bundle XML pruning only runs when an operator explicitly sets `CHATCOCKPIT_BUNDLE_HISTORY_LIMIT` or `CHATCOCKPIT_REPOMIX_HISTORY_LIMIT` to a positive number. Leave those unset when you want a full local audit trail; set them only when you are comfortable pruning older generated bundle files.
 
@@ -186,7 +186,7 @@ Packaged Mode additionally enforces LaunchAgent ownership before start/stop/rest
 
 ## Logs
 
-Runtime status/log files live under `.chatcockpit/runtime/`, including:
+Runtime status/log files live under `~/.chatcockpit/runtime/`, including:
 
 ```text
 server.pid

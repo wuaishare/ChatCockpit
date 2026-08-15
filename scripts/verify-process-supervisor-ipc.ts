@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import {
   PROCESS_SUPERVISOR_PROTOCOL_VERSION,
   PROCESS_SUPERVISOR_REQUEST_MAX_BYTES,

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { HostDirectService } from "../src/application/host-direct-service.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
 import { DownstreamMcpExecutionRegistry } from "../src/direct/downstream-mcp-executor.ts";

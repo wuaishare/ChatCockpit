@@ -30,6 +30,11 @@ import {
   validateServerAuthConfig
 } from "../src/server/auth.ts";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import {
+  buildDistributionContextFromPaths,
+  buildSourceDistributionContext
+} from "../src/core/distribution-context.ts";
+import { resolveLogicalPath } from "../src/core/logical-paths.ts";
 import { ChatDirectService } from "../src/application/chat-direct-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import type { RuntimeRouter } from "../src/application/runtime-router.ts";
@@ -291,8 +296,17 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
 }
 
 function buildTempPaths(): TokenPilotPaths {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-verify-local-smoke-"));
-  const paths = buildPaths(repoRoot);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-verify-local-smoke-"));
+  const repoRoot = path.join(root, "repo");
+  const homeRoot = path.join(root, "home");
+  fs.mkdirSync(repoRoot, { recursive: true });
+  fs.mkdirSync(homeRoot, { recursive: true });
+  const context = buildSourceDistributionContext(
+    repoRoot,
+    {},
+    { ...process.env, HOME: homeRoot }
+  );
+  const paths = buildPaths(context);
   ensureWorkspaceDirs(paths);
   return paths;
 }
@@ -350,8 +364,8 @@ function verifyTaskPackNaming(): void {
   assert.equal(new Set(jsonPaths).size, artifacts.length);
 
   for (const artifact of artifacts) {
-    const markdownDiskPath = path.join(paths.repoRoot, artifact.markdownPath);
-    const jsonDiskPath = path.join(paths.repoRoot, artifact.jsonPath);
+    const markdownDiskPath = resolveLogicalPath(paths, paths.repoRoot, artifact.markdownPath);
+    const jsonDiskPath = resolveLogicalPath(paths, paths.repoRoot, artifact.jsonPath);
 
     assert.match(artifact.markdownPath, /^\.chatcockpit\/manifests\/taskpack-/);
     assert.match(artifact.jsonPath, /^\.chatcockpit\/manifests\/taskpack-/);
@@ -398,21 +412,21 @@ function verifyPackArtifactNaming(): void {
   try {
     const first = runPack(paths);
     const second = runPack(paths);
-    const firstRepoRoot = paths.repoRoot;
-    const secondRepoRoot = paths.repoRoot;
-
     assert.match(first.repomixXmlPath, /^\.chatcockpit\/repomix-output-/);
     assert.match(second.repomixXmlPath, /^\.chatcockpit\/repomix-output-/);
     assert.notEqual(first.repomixXmlPath, second.repomixXmlPath);
     assert.match(first.promptPath, /^\.chatcockpit\/bundles\/bundle-/);
     assert.match(first.summaryPath, /^\.chatcockpit\/bundles\/bundle-/);
     assert.match(first.manifestPath, /^\.chatcockpit\/bundles\/bundle-/);
-    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.repomixXmlPath)));
-    assert.ok(fs.existsSync(path.join(secondRepoRoot, second.repomixXmlPath)));
-    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.promptPath)));
-    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.summaryPath)));
-    assert.ok(fs.existsSync(path.join(firstRepoRoot, first.manifestPath)));
-    const bundleContent = fs.readFileSync(path.join(firstRepoRoot, first.repomixXmlPath), "utf8");
+    assert.ok(fs.existsSync(resolveLogicalPath(paths, paths.repoRoot, first.repomixXmlPath)));
+    assert.ok(fs.existsSync(resolveLogicalPath(paths, paths.repoRoot, second.repomixXmlPath)));
+    assert.ok(fs.existsSync(resolveLogicalPath(paths, paths.repoRoot, first.promptPath)));
+    assert.ok(fs.existsSync(resolveLogicalPath(paths, paths.repoRoot, first.summaryPath)));
+    assert.ok(fs.existsSync(resolveLogicalPath(paths, paths.repoRoot, first.manifestPath)));
+    const bundleContent = fs.readFileSync(
+      resolveLogicalPath(paths, paths.repoRoot, first.repomixXmlPath),
+      "utf8"
+    );
     assert.match(bundleContent, /<repoBundle generator="chatcockpit"/);
     assert.match(bundleContent, /README\.md/);
     assert.doesNotMatch(bundleContent, /secret/);
@@ -427,7 +441,10 @@ function verifyPackArtifactNaming(): void {
       });
     }
     const webBundle = runPack(paths);
-    const webBundleContent = fs.readFileSync(path.join(paths.repoRoot, webBundle.repomixXmlPath), "utf8");
+    const webBundleContent = fs.readFileSync(
+      resolveLogicalPath(paths, paths.repoRoot, webBundle.repomixXmlPath),
+      "utf8"
+    );
     assert.match(webBundleContent, /web\/src\/App\.tsx/);
   } finally {
     if (originalConfigPath === undefined) {
@@ -476,7 +493,11 @@ function verifyPathContainmentAndShellTrust(): void {
   fs.mkdirSync(evilRoot, { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "src", "ok.txt"), "needle\n", "utf8");
   fs.writeFileSync(path.join(evilRoot, "secret.txt"), "needle secret\n", "utf8");
-  const paths = buildPaths(repoRoot);
+  const homeRoot = path.join(parent, "home");
+  fs.mkdirSync(homeRoot, { recursive: true });
+  const paths = buildPaths(
+    buildSourceDistributionContext(repoRoot, {}, { ...process.env, HOME: homeRoot })
+  );
   ensureWorkspaceDirs(paths);
   const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
@@ -614,7 +635,9 @@ function verifyInitAndDoctor(): void {
   const envPath = path.join(paths.runtimeDir, "server.env");
   fs.rmSync(paths.workspaceDir, { recursive: true, force: true });
 
-  const beforeDoctor = runDoctor(paths.repoRoot);
+  const beforeDoctor = runDoctor(paths.repoRoot, {
+    context: buildDistributionContextFromPaths(paths)
+  });
   assert.equal(fs.existsSync(paths.workspaceDir), false);
   assert.equal(beforeDoctor.fixes.length, 0);
   assert.match(beforeDoctor.summary, /ChatCockpit/);
@@ -624,7 +647,10 @@ function verifyInitAndDoctor(): void {
     assert.equal(check.impact, "runtime-blocking");
   }
 
-  const fixedDoctor = runDoctor(paths.repoRoot, { fix: true });
+  const fixedDoctor = runDoctor(paths.repoRoot, {
+    fix: true,
+    context: buildDistributionContextFromPaths(paths)
+  });
   assert.equal(fs.existsSync(paths.workspaceDir), true);
   assert.ok(fixedDoctor.fixes.some((fix) => fix.includes("ensured runtime directories")));
 
@@ -830,16 +856,26 @@ async function verifyRunnerReconcilesTerminalRunningJobs(): Promise<void> {
 }
 
 function verifyDefaultRepoDiscovery(): void {
-  const paths = buildPaths(process.cwd());
-  const config = loadUserConfig(paths.repoRoot);
-  assert.equal(config.schemaVersion, 1);
-  assert.equal(config.defaultRepoId, "primary");
-  assert.ok(config.repoMappings.primary);
-  if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "sourceflow-refactor"))) {
-    assert.ok(config.repoMappings["sourceflow-refactor"]);
-  }
-  if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "ai.wuaishare.cn"))) {
-    assert.ok(config.repoMappings["ai-wuaishare-cn"]);
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-default-repo-home-"));
+  try {
+    const context = buildSourceDistributionContext(
+      process.cwd(),
+      {},
+      { ...process.env, HOME: homeRoot }
+    );
+    const paths = buildPaths(context);
+    const config = loadUserConfig(paths.repoRoot, context);
+    assert.equal(config.schemaVersion, 1);
+    assert.equal(config.defaultRepoId, "primary");
+    assert.ok(config.repoMappings.primary);
+    if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "sourceflow-refactor"))) {
+      assert.ok(config.repoMappings["sourceflow-refactor"]);
+    }
+    if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "ai.wuaishare.cn"))) {
+      assert.ok(config.repoMappings["ai-wuaishare-cn"]);
+    }
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
   }
 }
 
@@ -928,12 +964,15 @@ async function verifyCodexRunMock(): Promise<void> {
     assert.match(fs.readFileSync(path.join(paths.repoRoot, "chatcockpit-mock-codex-run.txt"), "utf8"), /mock codex run/);
     assert.ok(result.artifacts.some((artifact) => artifact.key === "codexDiff"));
     assert.doesNotMatch(
-      fs.readFileSync(path.join(paths.repoRoot, secondResult.diffPath), "utf8"),
+      fs.readFileSync(resolveLogicalPath(paths, paths.repoRoot, secondResult.diffPath), "utf8"),
       /CHATCOCKPIT_FIXTURE_VALUE|\.env\.local/
     );
     assert.doesNotMatch(JSON.stringify(result), /\/Users\//);
     for (const artifact of result.artifacts) {
-      assert.ok(fs.existsSync(path.join(paths.repoRoot, artifact.path)), artifact.path);
+      assert.ok(
+        fs.existsSync(resolveLogicalPath(paths, paths.repoRoot, artifact.path)),
+        artifact.path
+      );
     }
 
     const beforeReview = fs.readFileSync(path.join(paths.repoRoot, "chatcockpit-mock-codex-run.txt"), "utf8");
@@ -949,7 +988,7 @@ async function verifyCodexRunMock(): Promise<void> {
     assert.equal(reviewResult.worktreeCreated, false);
     assert.equal(reviewResult.codexExitCode, 0);
     assert.match(
-      fs.readFileSync(path.join(paths.repoRoot, reviewResult.stdoutPath), "utf8"),
+      fs.readFileSync(resolveLogicalPath(paths, paths.repoRoot, reviewResult.stdoutPath), "utf8"),
       /Review mode skips/
     );
     assert.equal(afterReview, beforeReview);
@@ -1249,7 +1288,10 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
     });
     assert.equal(result.codexExitCode, 0);
     assert.equal(result.reviewExitCode, 0);
-    assert.match(fs.readFileSync(path.join(paths.repoRoot, result.stdoutPath), "utf8"), /"type":"shim"/);
+    assert.match(
+      fs.readFileSync(resolveLogicalPath(paths, paths.repoRoot, result.stdoutPath), "utf8"),
+      /"type":"shim"/
+    );
   } finally {
     if (originalConfigPath === undefined) {
       delete process.env.CHATCOCKPIT_CONFIG_PATH;

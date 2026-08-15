@@ -82,7 +82,11 @@ struct LifecycleStatusTests {
         #expect(calls[0].arguments == ["status", "--product-identity", "chatcockpit"])
         #expect(calls[0].currentDirectoryURL == root.url)
         #expect(calls[0].environment["CHATCOCKPIT_INSTALL_ROOT"] == root.url.path)
-        #expect(calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == root.url.appendingPathComponent(".chatcockpit").path)
+        #expect(
+            calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == ProductIdentity.chatCockpit
+                .sourceStateRootURL(installRootURL: root.url)
+                .path
+        )
         #expect(calls[0].environment["CHATCOCKPIT_DISTRIBUTION_MODE"] == "source")
         #expect(calls[0].environment["CHATCOCKPIT_NODE_BIN"] == nil)
         #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == nil)
@@ -118,7 +122,12 @@ struct LifecycleStatusTests {
             )
         )
         let client = LifecycleClient(runner: runner)
-        let context = LifecycleExecutionContext.source(root: root, productIdentity: .chatCockpit)
+        let home = URL(fileURLWithPath: "/tmp/chatcockpit-home", isDirectory: true)
+        let context = LifecycleExecutionContext.source(
+            root: root,
+            productIdentity: .chatCockpit,
+            homeDirectoryURL: home
+        )
 
         _ = try await client.status(context: context)
         let calls = await runner.recordedCalls()
@@ -126,7 +135,7 @@ struct LifecycleStatusTests {
         #expect(calls.count == 1)
         #expect(calls[0].arguments == ["status", "--product-identity", "chatcockpit"])
         #expect(calls[0].environment["CHATCOCKPIT_INSTALL_ROOT"] == root.url.path)
-        #expect(calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == root.url.appendingPathComponent(".chatcockpit").path)
+        #expect(calls[0].environment["CHATCOCKPIT_STATE_ROOT"] == home.appendingPathComponent(".chatcockpit").path)
         #expect(calls[0].environment["CHATCOCKPIT_DISTRIBUTION_MODE"] == "source")
         #expect(calls[0].environment["TOKENPILOT_INSTALL_ROOT"] == nil)
         #expect(calls[0].environment["TOKENPILOT_STATE_ROOT"] == nil)

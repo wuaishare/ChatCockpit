@@ -6,7 +6,8 @@ import path from "node:path";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import type { RuntimeResourceMutationPublicService } from "../src/application/runtime-resource-mutation-public-service.ts";
 import type { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { buildRuntimeResourceMutationMcpTools } from "../src/mcp/tools/runtime-resource-mutations.ts";
 import type {
   CodingRuntimeAdapter,

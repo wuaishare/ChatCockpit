@@ -22,9 +22,9 @@ function buildLegacyFixture(root: string) {
   const repoRoot = path.join(root, "repo");
   const homeRoot = path.join(root, "home");
   const legacyStateRoot = path.join(repoRoot, ".tokenpilot");
-  const targetStateRoot = path.join(repoRoot, ".chatcockpit");
+  const targetStateRoot = path.join(homeRoot, ".chatcockpit");
   const legacyConfigPath = path.join(homeRoot, ".tokenpilot", "config.json");
-  const targetConfigPath = path.join(homeRoot, ".chatcockpit", "config.json");
+  const targetConfigPath = path.join(targetStateRoot, "config.json");
   const snapshotRoot = path.join(root, "snapshot");
   const stagingRoot = path.join(root, "staging");
 

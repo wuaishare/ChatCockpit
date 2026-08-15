@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-RUNTIME_DIR="${ROOT_DIR}/.chatcockpit/runtime"
+STATE_ROOT="${CHATCOCKPIT_STATE_ROOT:-${HOME}/.chatcockpit}"
+RUNTIME_DIR="${STATE_ROOT}/runtime"
 ENV_FILE="${RUNTIME_DIR}/server.env"
 SERVICE_LABEL="com.wuaishare.chatcockpit.control-plane"
 RUNNER_SERVICE_LABEL="com.wuaishare.chatcockpit.runner"

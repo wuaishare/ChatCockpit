@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import type {
   ManagedProcessAdapterSnapshot,
   ManagedProcessInputOptions,

@@ -10,7 +10,7 @@ const home = os.homedir();
 const report = await buildR4PreflightReport({
   repoRoot,
   legacyStateRoot: path.join(repoRoot, ".tokenpilot"),
-  targetStateRoot: path.join(repoRoot, ".chatcockpit"),
+  targetStateRoot: path.join(home, ".chatcockpit"),
   legacyConfigPath: path.join(home, ".tokenpilot", "config.json"),
   targetConfigPath: path.join(home, ".chatcockpit", "config.json")
 });

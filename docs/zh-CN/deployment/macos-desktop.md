@@ -28,7 +28,7 @@ Developer Mode 保留原有源码工作流：
 
 - 选择合法的 ChatCockpit 源码或已构建 checkout；
 - 使用系统 Node.js `>=22.13.0`；
-- Runtime 状态继续放在 checkout 内的 `.chatcockpit/`；
+- Source/Developer Mode Runtime 状态统一放在全局 `~/.chatcockpit/`，与选中的 checkout 分离；
 - 继续使用现有 source-oriented setup、doctor 与开发命令。
 
 Developer Mode 仍面向贡献者和维护者。Phase 2 不会删除它，也不会静默把它迁移掉。

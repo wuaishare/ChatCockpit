@@ -113,7 +113,7 @@ npm run doctor:runtime
 http://127.0.0.1:4318/ui
 ```
 
-可重复的本地配置放在 `.chatcockpit/runtime/server.env`：
+可重复的本地配置放在 `~/.chatcockpit/runtime/server.env`：
 
 ```bash
 CHATCOCKPIT_API_TOKEN=replace-with-your-builder-token
@@ -232,7 +232,7 @@ ChatCockpit 明确区分公开产品代码和私有 operator 事实。
 - API keys、bearer tokens、cookies、local session files。
 - 真实部署域名、tunnel tokens、private IP、internal hostnames。
 - 个人绝对路径或机器相关运行态。
-- `.codex/`、`.chatcockpit/runtime/`、兼容期历史 `.tokenpilot/runtime/`、`.servbay/`、生成调试记录或私有规划材料。
+- `.codex/`、全局 `~/.chatcockpit/runtime/`、兼容期历史 `.tokenpilot/runtime/`、`.servbay/`、生成调试记录或私有规划材料。
 
 提交前至少运行：
 

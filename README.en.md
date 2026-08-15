@@ -108,7 +108,7 @@ Open the local operator UI:
 http://127.0.0.1:4318/ui
 ```
 
-For a repeatable local setup, place runtime variables in `.chatcockpit/runtime/server.env`:
+For a repeatable local setup, place runtime variables in `~/.chatcockpit/runtime/server.env`:
 
 ```bash
 CHATCOCKPIT_API_TOKEN=replace-with-your-builder-token
@@ -225,7 +225,7 @@ Do not commit:
 - API keys, bearer tokens, cookies, or local session files.
 - Real deployment domains, tunnel tokens, private IPs, or internal hostnames.
 - Personal absolute paths or machine-specific runtime state.
-- `.codex/`, `.chatcockpit/runtime/`, compatibility-period historical `.tokenpilot/runtime/`, `.servbay/`, generated debug notes, or private planning artifacts.
+- `.codex/`, global `~/.chatcockpit/runtime/`, compatibility-period historical `.tokenpilot/runtime/`, `.servbay/`, generated debug notes, or private planning artifacts.
 
 Before preparing a commit, run:
 

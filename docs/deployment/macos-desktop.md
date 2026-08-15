@@ -28,7 +28,7 @@ Developer Mode preserves the source workflow:
 
 - select a valid ChatCockpit source or built checkout;
 - use system Node.js `>=22.13.0`;
-- keep runtime state under the checkout-local `.chatcockpit/` directory;
+- keep Source/Developer Mode runtime state under the global `~/.chatcockpit/` directory, separate from the selected checkout;
 - continue using the existing source-oriented setup, doctor, and development commands.
 
 Developer Mode remains useful for contributors and maintainers. Phase 2 does not remove or silently migrate it.

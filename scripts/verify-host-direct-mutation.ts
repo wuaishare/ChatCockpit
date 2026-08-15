@@ -14,7 +14,7 @@ import {
   LATEST_CONTINUITY_SCHEMA_VERSION
 } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
 import { DownstreamMcpExecutionRegistry } from "../src/direct/downstream-mcp-executor.ts";

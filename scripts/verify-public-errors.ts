@@ -8,7 +8,8 @@ import { z } from "zod";
 import { FilesService } from "../src/application/files-service.js";
 import { buildOperationContext } from "../src/application/operation-context.js";
 import { ServiceError } from "../src/application/service-error.js";
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.js";
+import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { defineMcpTool, readOnlyToolAnnotations } from "../src/mcp/tool-definition.js";
 import { sendUnknownApiError } from "../src/server/errors.js";
 

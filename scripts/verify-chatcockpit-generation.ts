@@ -237,12 +237,15 @@ try {
   runGit(workspaceRoot, ["add", "README.md", "openapi/chatcockpit.openapi.yaml"]);
   runGit(workspaceRoot, ["commit", "-m", "init"]);
 
-  const context = buildSourceDistributionContextForProduct("chatcockpit", workspaceRoot, {
-    configPath
-  });
+  const context = buildSourceDistributionContextForProduct(
+    "chatcockpit",
+    workspaceRoot,
+    { configPath },
+    { ...process.env, HOME: homeRoot }
+  );
   const paths = buildPaths(context);
   assert.equal(context.productIdentity, "chatcockpit");
-  assert.equal(context.stateRoot, path.join(fs.realpathSync.native(workspaceRoot), ".chatcockpit"));
+  assert.equal(context.stateRoot, path.join(fs.realpathSync.native(homeRoot), ".chatcockpit"));
   assert.equal(paths.productIdentity, "chatcockpit");
   assertWithin(paths.stateRoot, root);
   assertWithin(paths.configPath, root);

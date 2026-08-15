@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { ServiceError } from "../src/application/service-error.ts";
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,

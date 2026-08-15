@@ -178,6 +178,7 @@ async function main(): Promise<void> {
     }
     case "manifest": {
       const manifest = buildBundleManifest(
+        paths,
         paths.repoRoot,
         paths.bundlesDir,
         `${paths.workspaceDir}/repomix-output-manual.xml`

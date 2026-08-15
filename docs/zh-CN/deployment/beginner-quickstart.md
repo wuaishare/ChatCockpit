@@ -78,7 +78,7 @@ Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.
 
 1. 启动 ChatCockpit 本地控制面和 runner。
 2. 配置你的 HTTPS 入口，让它转发到 `http://127.0.0.1:4318`。
-3. 设置 `.chatcockpit/runtime/server.env` 里的 `CHATCOCKPIT_PUBLIC_BASE_URL` 和 `CHATCOCKPIT_API_TOKEN`。
+3. 设置 `~/.chatcockpit/runtime/server.env` 里的 `CHATCOCKPIT_PUBLIC_BASE_URL` 和 `CHATCOCKPIT_API_TOKEN`。
 4. 打开 `http://127.0.0.1:4318/ui/gpt-helper`。
 5. 复制 GPT Instructions。
 6. 在 GPT Builder 里创建或编辑 GPT，把说明粘贴到 Instructions。

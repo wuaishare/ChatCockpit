@@ -17,7 +17,8 @@ import {
 } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { listJobs } from "../src/core/jobs.ts";
-import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import type {
   CodingRuntimeAdapter,
   RuntimeEventSink

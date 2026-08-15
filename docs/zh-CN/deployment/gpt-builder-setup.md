@@ -14,7 +14,7 @@
 
 ## 1. 配置运行环境
 
-编辑 `.chatcockpit/runtime/server.env`：
+编辑 `~/.chatcockpit/runtime/server.env`：
 
 ```bash
 CHATCOCKPIT_EXPOSED=true
@@ -104,7 +104,7 @@ ChatCockpit 的本地 E2E 已检查 OpenAPI description 长度，避免超过常
 
 ## 5. 配置 Authentication
 
-ChatCockpit exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应配置为 API Key / Bearer 类型，并使用与 `.chatcockpit/runtime/server.env` 中相同的 `CHATCOCKPIT_API_TOKEN`。
+ChatCockpit exposed mode 使用 bearer auth。GPT Builder 的 Authentication 应配置为 API Key / Bearer 类型，并使用与 `~/.chatcockpit/runtime/server.env` 中相同的 `CHATCOCKPIT_API_TOKEN`。
 
 不要把 token 写进 README、OpenAPI 文件、GPT Instructions 或 Git 提交。
 

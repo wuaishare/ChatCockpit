@@ -11,7 +11,7 @@ import { RuntimeRouter } from "../src/application/runtime-router.ts";
 import { RuntimeTurnService } from "../src/application/runtime-turn-service.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { CodexAppServerAdapter } from "../src/runtime/codex/app-server-adapter.ts";
 import { CodexAppServerClient } from "../src/runtime/codex/app-server-client.ts";
 import type { CodexBinaryResolution } from "../src/runtime/codex/binary.ts";

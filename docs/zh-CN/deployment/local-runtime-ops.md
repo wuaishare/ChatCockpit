@@ -28,7 +28,7 @@ macOS 上 `start:local` 会把三项 LaunchAgent 作为一个本地运行栈统�
 Developer Mode 推荐把运行配置放在：
 
 ```text
-.chatcockpit/runtime/server.env
+~/.chatcockpit/runtime/server.env
 ```
 
 Packaged Mode 的等价私有配置位于 ChatCockpit Application Support State Root，不会写进所选项目 Workspace。不要为了迁移旧环境而手工复制 Source Mode secret；Desktop 的 Existing Setup Import 明确不会迁移 bearer/OAuth/provider 等凭据。
@@ -121,19 +121,19 @@ npm run mvp:restart
 npm run reset:local
 ```
 
-`reset:local` 会移除 LaunchAgent 和 pid/plist 运行文件，但保留源码和 `.chatcockpit/runtime/server.env`。
+`reset:local` 会移除 LaunchAgent 和 pid/plist 运行文件，但保留源码和 `~/.chatcockpit/runtime/server.env`。
 
 Packaged Mode 在 start / stop / restart / reset 前还会检查 LaunchAgent ownership。如果现有 service label 属于 Developer Mode 或另一份 Packaged Runtime，它会拒绝自动接管。Packaged stop 也不会终止不属于当前 Packaged State Root 的 foreign listener。
 
 ## 本地产物保留
 
-Developer Mode 会把本地 job 和产物保存在 `.chatcockpit/`；Packaged Mode 的等价可写 Runtime State 位于 `~/Library/Application Support/ChatCockpit/state/`，与用户选择的项目 Workspace 分离。
+Developer Mode 会把 ChatCockpit 的可写产品状态统一保存在 `~/.chatcockpit/`，与用户选择的项目 Workspace 分离；Packaged Mode 的等价可写 Runtime State 位于 `~/Library/Application Support/ChatCockpit/state/`。
 
 Developer Mode 目录：
 
-- `.chatcockpit/jobs/`：queued、running、completed、failed job records
-- `.chatcockpit/bundles/`：pack prompts、summaries、manifests、bundle XML
-- `.chatcockpit/runtime/repos/<repoId>/`：Codex prompts、stdout/stderr、diffs、reviews、summaries
-- `.chatcockpit/manifests/`：task-pack markdown 和 JSON
+- `~/.chatcockpit/jobs/`：queued、running、completed、failed job records
+- `~/.chatcockpit/bundles/`：pack prompts、summaries、manifests、bundle XML
+- `~/.chatcockpit/runtime/repos/<repoId>/`：Codex prompts、stdout/stderr、diffs、reviews、summaries
+- `~/.chatcockpit/manifests/`：task-pack markdown 和 JSON
 
 Alpha 阶段默认保守，不主动删除 job records 或 Codex artifacts。需要清理 bundle XML 时，显式设置 `CHATCOCKPIT_BUNDLE_HISTORY_LIMIT` 或 `CHATCOCKPIT_REPOMIX_HISTORY_LIMIT`。

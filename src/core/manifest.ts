@@ -3,13 +3,15 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { timestampSlug, writeJson, writeText } from "./files.js";
+import { logicalPathForFile } from "./logical-paths.js";
 import {
   isPublicRepoBundleIncludeEntry,
   readRepoBundleIncludeEntries
 } from "./repo-bundle.js";
-import type { RepoBundleManifest } from "../types.js";
+import type { RepoBundleManifest, TokenPilotPaths } from "../types.js";
 
 export function buildBundleManifest(
+  paths: TokenPilotPaths,
   repoRoot: string,
   bundlesDir: string,
   repomixXmlPath: string,
@@ -29,10 +31,10 @@ export function buildBundleManifest(
     createdAt,
     repoId: repoId?.trim() || repoName.toLowerCase(),
     repoName,
-    repomixXmlPath: path.relative(repoRoot, repomixXmlPath).replace(/\\/g, "/"),
-    promptPath: path.relative(repoRoot, promptPath).replace(/\\/g, "/"),
-    summaryPath: path.relative(repoRoot, summaryPath).replace(/\\/g, "/"),
-    manifestPath: path.relative(repoRoot, manifestPath).replace(/\\/g, "/"),
+    repomixXmlPath: logicalPathForFile(paths, repomixXmlPath, repoRoot),
+    promptPath: logicalPathForFile(paths, promptPath, repoRoot),
+    summaryPath: logicalPathForFile(paths, summaryPath, repoRoot),
+    manifestPath: logicalPathForFile(paths, manifestPath, repoRoot),
     publicIncludeEntries,
     // Deprecated compatibility field. New code should read publicIncludeEntries.
     sourceFiles: publicIncludeEntries

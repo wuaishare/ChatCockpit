@@ -20,7 +20,7 @@ ChatCockpit remains source-friendly, while the macOS desktop path now has a self
    - writable state/config separated from the runtime and user workspace;
    - selected project workspace semantics instead of treating the app/runtime as a repository;
    - Packaged Mode starts without system Node/npm and without a ChatCockpit source checkout;
-   - Developer Mode remains compatible with system Node `>=22.13.0` and checkout-local `.chatcockpit` state;
+   - Developer Mode remains compatible with system Node `>=22.13.0` and global `~/.chatcockpit` state, separate from the selected checkout;
    - non-destructive Existing Setup import excludes bearer/OAuth/supervisor/provider/cookie secrets;
    - LaunchAgent ownership and port-conflict protection prevent automatic takeover of another runtime;
    - native-architecture packaged runtime live proof plus other-architecture static payload verification.

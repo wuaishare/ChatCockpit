@@ -13,7 +13,7 @@ import {
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
-import { buildPaths } from "../src/core/paths.ts";
+import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import {
   DESKTOP_COMMANDER_DISPLAY_NAME,
   DESKTOP_COMMANDER_EXECUTOR_ID
@@ -268,7 +268,10 @@ async function startSidecar(options: {
       cwd: process.cwd(),
       env: {
         ...process.env,
+        HOME: path.dirname(options.paths.stateRoot),
+        CHATCOCKPIT_STATE_ROOT: options.paths.stateRoot,
         CHATCOCKPIT_REPO_ROOT: options.runtimeRoot,
+        CHATCOCKPIT_CONFIG_PATH: process.env.CHATCOCKPIT_CONFIG_PATH ?? options.paths.configPath,
         CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH: options.configPath,
         CHATCOCKPIT_PROCESS_SUPERVISOR_HEARTBEAT_MS: "50",
         CHATCOCKPIT_PROCESS_SUPERVISOR_WATCHDOG_MS: "100",

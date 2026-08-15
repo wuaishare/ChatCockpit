@@ -64,7 +64,10 @@ function collectRelativeFiles(root: string): string[] {
   return values;
 }
 
-function assessTargetState(root: string): {
+function assessTargetState(
+  root: string,
+  allowedFiles: ReadonlySet<string> = new Set()
+): {
   disposition: RenameTargetStateDisposition;
   blockers: string[];
 } {
@@ -91,6 +94,7 @@ function assessTargetState(root: string): {
         continue;
       }
       if (!entry.isDirectory()) {
+        if (entry.isFile() && allowedFiles.has(childRelative)) continue;
         blockers.push(`target-state-active-entry:${childRelative}`);
         continue;
       }
@@ -145,7 +149,17 @@ export function buildRenameMigrationPreview(input: RenamePreviewInput): RenameMi
   const legacyConfigPresent = fs.existsSync(input.legacyConfigPath);
   const targetConfigPresent = fs.existsSync(input.targetConfigPath);
   const relativeFiles = collectRelativeFiles(input.legacyStateRoot);
-  const targetState = assessTargetState(input.targetStateRoot);
+  const allowedTargetFiles = new Set<string>();
+  const targetConfigRelative = path.relative(input.targetStateRoot, input.targetConfigPath);
+  if (
+    targetConfigRelative &&
+    !path.isAbsolute(targetConfigRelative) &&
+    targetConfigRelative !== ".." &&
+    !targetConfigRelative.startsWith(`..${path.sep}`)
+  ) {
+    allowedTargetFiles.add(targetConfigRelative.split(path.sep).join("/"));
+  }
+  const targetState = assessTargetState(input.targetStateRoot, allowedTargetFiles);
   const legacyConfig = readJson(input.legacyConfigPath);
   const targetConfig = readJson(input.targetConfigPath);
   const configBlockers = [legacyConfig.blocker, targetConfig.blocker].filter(
