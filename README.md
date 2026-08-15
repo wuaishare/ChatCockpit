@@ -2,21 +2,46 @@
 
 简体中文 | [English](./README.en.md)
 
+[![Verify](https://img.shields.io/github/actions/workflow/status/wuaishare/ChatCockpit/verify.yml?branch=main&style=flat-square&label=Verify)](https://github.com/wuaishare/ChatCockpit/actions/workflows/verify.yml)
+[![Version](https://img.shields.io/github/package-json/v/wuaishare/ChatCockpit?style=flat-square&label=version)](./package.json)
+![Node](https://img.shields.io/badge/Node-%3E%3D22.13.0-339933?style=flat-square&logo=node.js&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)
+[![License](https://img.shields.io/github/license/wuaishare/ChatCockpit?style=flat-square)](./LICENSE)
+![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)
+
 ![ChatCockpit 项目海报](./docs/assets/chatcockpit-hero-zh-CN.webp)
 
-**v0.2.0-alpha：ChatCockpit 原子产品切换预览。**
+**让 ChatGPT、Codex、本地工具和异步 Agent 在同一个开发连续性控制面中协作。**
 
-ChatCockpit 是一个以 ChatGPT 为入口的 **Development Continuity & Agent Routing Platform（AI 开发连续性与 Agent 能力路由平台）**。
+ChatCockpit 是一个 **local-first Development Continuity & Agent Routing Platform**。它把 ChatGPT 作为主要对话入口，把本机文件、Git、受控命令、Codex Session、异步 Agent Job、Approval、Handoff、Evidence 与恢复状态统一到一个可审计的控制面中。
 
-**One repo. Multiple AI runtimes. Seamless handoff.**  一个项目，多种 AI 执行模式，无缝接力开发。
+**One repo. Multiple AI runtimes. Seamless handoff.** 一个项目，多种 AI 执行模式，无缝接力开发。
 
-ChatGPT 负责对话、意图、规划与审查；ChatCockpit 提供本地优先控制面，统一管理 Project、Workspace、Task、Session、Writer Lease、Handoff、Evidence、Approval 与 Runtime Binding；Codex App Server 和本地 Runner 则分别承担显式 Codex Session 与异步 Agent Job 执行。
+它不是另一个聊天 UI，也不是让模型获得无限制本机权限的“万能代理”。ChatCockpit 的核心目标是：**让 AI 能够持续工作，同时让 Workspace、权限、写入、审批和证据边界始终明确。**
 
-**省 Token，不省思考。谋定而后动，减少返工，有效开发。**
+> **v0.2.0-alpha**：真实 ChatGPT Remote MCP/OAuth、macOS Desktop、Web Cockpit、CLI 与全局 Source state 已完成端到端迁移验证；当前处于 alpha 稳定化阶段。正式 macOS 生产签名/公证仍未完成。
 
-当前 alpha 已实现并可本地验证：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct 路由、Codex Thread Bind/Resume/Fork、显式 Turn/Approval/Interrupt、SQLite Continuity Store、版本化 Spec/Plan 真源与 REST/MCP 操作、Task 文档版本固定、显式 `planning-required | planning-optional` 执行策略、Writer Lease、结构化 Handoff、Evidence、Workspace Continuity Snapshot、证据约束的 Task Review/Completion、Continuity-bound Async Job Queue、Runner Claim/终态/重启对账、Runtime Recovery Center、60 个 MCP Tools，以及支持 Spec/Plan、Recovery、Handoff、Evidence 与真实规划/恢复阻塞项的 Continuity Workbench Web UI。
+## 立即体验
 
-ChatCockpit 默认运行在你的本地开发环境中。连接 Custom GPT Actions 时，请使用你自己的受鉴权 HTTPS 地址；公开仓库只保留占位示例，不提交真实域名、Bearer token、隧道配置或机器路径。
+| 入口 | 适合场景 | 怎么开始 |
+| --- | --- | --- |
+| **ChatGPT App / Remote MCP** | 日常对话中读取项目、查看 Git、管理 Continuity、发起受审批操作 | 在 ChatGPT 新聊天中选择已连接的 **ChatCockpit** App，或在提示词中提及它 |
+| **macOS Desktop** | 原生查看 Runtime 状态、Developer/Packaged Mode、Start/Stop/Restart、打开 Web Cockpit | `open dist/macos/ChatCockpit.app` |
+| **Web Cockpit / CLI** | 开发者、贡献者、本机运维与深度调试 | `npm run setup && npm run start:local`，然后打开 `http://127.0.0.1:4318/ui` |
+
+更完整的真实交互测试见：
+
+- [ChatGPT Connector Smoke Test](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
+- [macOS Desktop Smoke Test](./docs/zh-CN/testing/macos-desktop-smoke.md)
+- [新手快速开始](./docs/zh-CN/deployment/beginner-quickstart.md)
+
+## 为什么是 ChatCockpit
+
+- **ChatGPT-first**：对话、意图、规划和审查留在 ChatGPT；需要本地执行时再调用受治理的 MCP 能力。
+- **Local-first**：运行状态、Workspace 映射、Approval 与 Continuity 默认留在本机；公开仓库不保存真实 token、域名或机器路径。
+- **Durable continuity**：Task、Session、Writer Lease、Handoff、Evidence 和 Runtime Binding 独立于某个聊天窗口、Codex Thread 或 Runner Job。
+- **Explicit execution lanes**：Direct Drive、Codex Session、Async Agent Job 明确区分谁持有模型循环、执行发生在哪里，以及何时需要审批。
+- **Fail-closed mutation**：文件写入、Host Command、Managed Workspace Process 与资源 mutation 都经过显式边界和审计，不提供无限制 raw shell 通道。
 
 ## 它做什么
 
@@ -67,7 +92,7 @@ flowchart TB
 
 ### 实验性
 
-- 通过 Custom GPT Actions 或 Remote MCP 从 ChatGPT 访问本地 ChatCockpit。
+- ChatGPT custom MCP app / Remote MCP 的跨客户端、refresh/reconnect 与长期运行稳定性。
 - Codex App Server standalone 文件与命令执行；能力由本机 Probe 验证后才启用。
 - Continuity Workbench 的交互式运行时治理。
 
@@ -86,56 +111,73 @@ Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT
 
 在需要鉴权的模式下，浏览器会话提供 bearer token 前，受保护数据不会展示。
 
-## 快速开始
+## 开始使用
+
+### 1. Source / Web Cockpit
+
+适合贡献者和本地开发：
 
 ```bash
+npm ci
 npm run setup
 npm run start:local
-npm run mvp:status
-npm run doctor
-```
-
-完整新手路径见 [`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)。
-
-macOS Desktop 提供 **Self-contained Packaged Mode**：从源码构建出的 `ChatCockpit.app` 内含固定版本的 Node `24.18.1` 与 production runtime payload；App 运行时不要求系统 Node/npm，也不要求继续保留 ChatCockpit source checkout，只需要选择真正要操作的项目 Workspace。Phase 3 的 secretless distribution engineering 现已支持 arm64/x64 development DMG、trust-aware release manifest，以及显式 **Check for Updates → Download Update** 的 Manual Verified Update v1；development 产物始终保持 `releaseEligible=false`。当前项目尚未完成 Developer ID / Apple notarization 认证，因此不能把这些 development DMG 描述成正式 macOS 发行版。桌面边界见 [`docs/zh-CN/deployment/macos-desktop.md`](./docs/zh-CN/deployment/macos-desktop.md)，分发与认证边界见 [`docs/zh-CN/deployment/macos-release.md`](./docs/zh-CN/deployment/macos-release.md)。
-
-macOS Developer / Source Mode 也可以直接启动本地 control plane 和 paired runner：
-
-```bash
-npm run mvp:start
 npm run mvp:status
 npm run doctor:runtime
 ```
 
-打开本地控制台：
+打开：
 
 ```text
 http://127.0.0.1:4318/ui
 ```
 
-可重复的本地配置放在 `~/.chatcockpit/runtime/server.env`：
+Source/Developer Mode 的 canonical state 位于 `~/.chatcockpit/`，与源码 checkout 分离。
+
+### 2. macOS App
+
+如果已经构建过当前 App：
 
 ```bash
-CHATCOCKPIT_API_TOKEN=replace-with-your-builder-token
-CHATCOCKPIT_EXPOSED=false
-CHATCOCKPIT_HOST=127.0.0.1
-CHATCOCKPIT_PORT=4318
+open dist/macos/ChatCockpit.app
 ```
 
-只有在你已经配置好 HTTPS 和访问凭据时，才使用 `CHATCOCKPIT_EXPOSED=true`。
+当前 Source services 正在运行时，优先在 App Settings 中使用 **Developer Mode**；切换到 Packaged Mode 时，ChatCockpit 会显式检测 ownership conflict，而不是自动抢占现有 LaunchAgents。
 
-## Custom GPT Actions 状态
+完整测试步骤：[`docs/zh-CN/testing/macos-desktop-smoke.md`](./docs/zh-CN/testing/macos-desktop-smoke.md)。
 
-公开 OpenAPI 合约位于 [`openapi/chatcockpit.openapi.yaml`](./openapi/chatcockpit.openapi.yaml)。其中的 `https://chatcockpit.example.com` 是占位域名；实际使用时请替换为你自己的 HTTPS 地址，不要把真实域名或 bearer token 提交到 Git。
+macOS Desktop 还提供 Self-contained Packaged Mode：App 内含固定 Node `24.18.1` 与 production runtime payload，不要求目标机器另装 Node/npm。当前 development App/DMG 仍是 development trust，尚未完成 Developer ID / Apple notarization。更多边界见 [`docs/zh-CN/deployment/macos-desktop.md`](./docs/zh-CN/deployment/macos-desktop.md) 与 [`docs/zh-CN/deployment/macos-release.md`](./docs/zh-CN/deployment/macos-release.md)。
 
-Custom GPT Actions / Remote MCP 接入属于实验性部署面，但本地 REST/MCP 应用服务、鉴权、结构化错误、幂等和协议门禁已经实现。Direct Drive 适合由 ChatGPT 保持模型循环的确定性本机操作；当前已实现 Workspace Direct，以及受 Host Root Alias / 路径策略约束的 Host Direct Files 与 bounded Host Command。文本 Write / Exact Edit 使用 Direct Mutation Approval；Host Command 使用独立 Direct Command Approval，Pure Host 仅允许显式只读命令，Workspace write-effect Command 自动回流 Writer Lease / Git / Task Evidence。Raw shell、交互式终端和后台 Process Management 尚未开放。显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的交互式 Agent 工作；更长或适合隔离执行的任务可通过 `createCodexRun` 进入 Async Agent Job。
+### 3. ChatGPT App / Remote MCP
+
+ChatCockpit 可作为自定义 MCP App 连接到 ChatGPT。连接完成后，在新的 ChatGPT 对话中从工具菜单选择 **ChatCockpit**，或者在提示词中明确要求使用 ChatCockpit。
+
+推荐从只读路径开始：
+
+```text
+使用 ChatCockpit 列出当前 Projects，然后查看 primary Workspace snapshot 和 git status。
+不要修改任何内容，并告诉我实际调用了哪些 ChatCockpit tools。
+```
+
+再逐步测试 Continuity、Approval、Codex Session 与 Async Agent Job。完整 smoke matrix：[`docs/zh-CN/testing/chatgpt-connector-smoke.md`](./docs/zh-CN/testing/chatgpt-connector-smoke.md)。
+
+本地可重复配置位于 `~/.chatcockpit/runtime/server.env`。只有在已经配置好 HTTPS 与访问凭据时才使用 `CHATCOCKPIT_EXPOSED=true`；真实域名、token、隧道凭据和机器路径不要提交到 Git。
+
+## ChatGPT App / Remote MCP
+
+ChatGPT custom MCP app / Remote MCP 已完成真实 OAuth 与工具调用验证；它仍属于 alpha 产品面，需要继续验证不同 ChatGPT 客户端、网络代理、refresh/reconnect 和长时间运行行为。ChatGPT 端应使用 `chatcockpit:mcp` authority；0.2.x 不会把 legacy MCP scope 静默升级为新权限。
+
+公开 OpenAPI 合约仍位于 [`openapi/chatcockpit.openapi.yaml`](./openapi/chatcockpit.openapi.yaml)，主要用于 REST / Actions 兼容与调试；Remote MCP 使用 `/mcp`。仓库中的 `https://chatcockpit.example.com` 是占位域名，真实 endpoint 和 bearer/OAuth authority 不应提交到 Git。
+
+Direct Drive 适合由 ChatGPT 保持模型循环的确定性本机操作；当前已实现 Workspace Direct，以及受 Host Root Alias / 路径策略约束的 Host Direct Files 与 bounded Host Command。文本 Write / Exact Edit 使用 Direct Mutation Approval；Host Command 使用独立 Direct Command Approval，Workspace write-effect Command 自动回流 Writer Lease / Git / Task Evidence。Raw unrestricted shell 不对 Remote MCP 开放。显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的交互式 Agent 工作；更长或适合隔离执行的任务可进入 Async Agent Job。
 
 `runShell` 不是 raw shell，Standalone `command/exec` 也不会绕过 ChatCockpit 的命令白名单、工作区 allowlist、exposed-mode 高信任开关、超时与输出上限。公网或隧道访问必须启用 Bearer Auth。
 
-创建 Custom GPT、导入 Actions schema、配置鉴权和绑定公网 HTTPS 地址的完整步骤见：
+相关文档：
 
-- [`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
-- [`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
+- ChatGPT Connector Smoke：[`docs/zh-CN/testing/chatgpt-connector-smoke.md`](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
+- MCP 接入：[`docs/zh-CN/deployment/mcp-setup.md`](./docs/zh-CN/deployment/mcp-setup.md)
+- GPT Builder / Actions 兼容路径：[`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
+- 公网 HTTPS / tunnel：[`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
 
 ## Codex Task Pack 最小模板
 
@@ -192,6 +234,8 @@ npm run test
 ## 公开文档
 
 - 新手快速开始：[`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)
+- ChatGPT Connector Smoke：[`docs/zh-CN/testing/chatgpt-connector-smoke.md`](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
+- macOS Desktop Smoke：[`docs/zh-CN/testing/macos-desktop-smoke.md`](./docs/zh-CN/testing/macos-desktop-smoke.md)
 - GPT Builder 配置：[`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
 - MCP 接入：[`docs/zh-CN/deployment/mcp-setup.md`](./docs/zh-CN/deployment/mcp-setup.md)
 - 公网 HTTPS / 内网穿透：[`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)

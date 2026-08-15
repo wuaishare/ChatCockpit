@@ -2,19 +2,46 @@
 
 [简体中文](./README.md) | English
 
+[![Verify](https://img.shields.io/github/actions/workflow/status/wuaishare/ChatCockpit/verify.yml?branch=main&style=flat-square&label=Verify)](https://github.com/wuaishare/ChatCockpit/actions/workflows/verify.yml)
+[![Version](https://img.shields.io/github/package-json/v/wuaishare/ChatCockpit?style=flat-square&label=version)](./package.json)
+![Node](https://img.shields.io/badge/Node-%3E%3D22.13.0-339933?style=flat-square&logo=node.js&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)
+[![License](https://img.shields.io/github/license/wuaishare/ChatCockpit?style=flat-square)](./LICENSE)
+![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)
+
 ![ChatCockpit hero poster](./docs/assets/chatcockpit-hero-en.webp)
 
-**v0.2.0-alpha: ChatCockpit atomic product-cutover preview**
+**Give ChatGPT, Codex, local tools, and async agents one governed development-continuity control plane.**
 
-ChatCockpit is a ChatGPT-first **Development Continuity & Agent Routing Platform**.
+ChatCockpit is a **local-first Development Continuity & Agent Routing Platform**. It keeps ChatGPT as the primary conversational surface while bringing local files, Git, bounded commands, Codex Sessions, asynchronous Agent Jobs, Approvals, Handoffs, Evidence, and recovery state into one auditable control plane.
 
 **One repo. Multiple AI runtimes. Seamless handoff.**
 
-ChatGPT owns conversation, intent, planning, and review. ChatCockpit provides the local-first control plane for Project, Workspace, Task, Session, Writer Lease, Handoff, Evidence, Approval, and Runtime Binding state. Codex App Server and the local Runner provide explicit Codex Session and asynchronous Agent Job execution.
+It is not another chat UI, and it is not an unrestricted “computer-use” gateway. Its core goal is to let AI keep working while **Workspace ownership, permissions, writes, approvals, and evidence remain explicit**.
 
-Save tokens, not thinking. Plan first, reduce rework, and ship more effective changes.
+> **v0.2.0-alpha**: real ChatGPT Remote MCP/OAuth, macOS Desktop, Web Cockpit, CLI, and global Source state have completed end-to-end migration proof. The project is now in alpha stabilization. Production macOS signing/notarization is not complete.
 
-The current alpha implements and locally verifies a CLI, Fastify Control Plane, REST/MCP/OpenAPI, Chat Direct routing, Codex Thread Bind/Resume/Fork, explicit Turn/Approval/Interrupt, SQLite continuity state, versioned Spec/Plan truth with REST/MCP operations and immutable Task version pins, explicit `planning-required | planning-optional` execution policy, Writer Lease, structured Handoff and Evidence, Workspace Continuity Snapshot, evidence-governed Task Review/Completion, Continuity-bound Async Job Queue, Runner claim/terminal/restart reconciliation, Runtime Recovery Center, 60 MCP tools, and a Continuity Workbench Web UI for Spec/Plan, Recovery, Handoff, Evidence, and real planning/recovery blockers.
+## Try ChatCockpit
+
+| Surface | Best for | Start here |
+| --- | --- | --- |
+| **ChatGPT App / Remote MCP** | Read projects, inspect Git, manage Continuity, and invoke approval-gated actions from a conversation | Select the connected **ChatCockpit** app in a new ChatGPT conversation, or mention it in your prompt |
+| **macOS Desktop** | Native Runtime status, Developer/Packaged Mode, Start/Stop/Restart, and opening the Web Cockpit | `open dist/macos/ChatCockpit.app` |
+| **Web Cockpit / CLI** | Contributors, local operations, and deeper debugging | `npm run setup && npm run start:local`, then open `http://127.0.0.1:4318/ui` |
+
+For reproducible interactive checks, see:
+
+- [ChatGPT Connector Smoke Test](./docs/testing/chatgpt-connector-smoke.md)
+- [macOS Desktop Smoke Test](./docs/testing/macos-desktop-smoke.md)
+- [Beginner Quick Start](./docs/deployment/beginner-quickstart.md)
+
+## Why ChatCockpit
+
+- **ChatGPT-first**: conversation, intent, planning, and review stay in ChatGPT; governed MCP capabilities are invoked only when local action is needed.
+- **Local-first**: runtime state, Workspace mappings, Approvals, and Continuity stay local by default; the public repository never needs real tokens, deployment domains, or machine paths.
+- **Durable continuity**: Task, Session, Writer Lease, Handoff, Evidence, and Runtime Binding live independently from one ChatGPT conversation, Codex Thread, or Runner Job.
+- **Explicit execution lanes**: Direct Drive, Codex Session, and Async Agent Job distinguish model-loop ownership, execution location, and approval requirements.
+- **Fail-closed mutation**: file writes, Host Command, Managed Workspace Process, and resource mutation remain bounded and auditable; raw unrestricted shell is not exposed.
 
 ## What It Does
 
@@ -60,11 +87,11 @@ A ChatCockpit Task can move between those modes through Writer Lease, Handoff Ch
 - SQLite Schema v19 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding, Runtime Recovery Attempt, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit Task Execution Policy, Writer Lease, Handoff, Evidence, Runtime Approval, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Direct Process Session/Approval/Audit, governed Runtime Resource Mutation Approval/Execution/Provenance, Process Supervisor Runtime Ownership, and Runtime Event state.
 - Workspace Continuity Snapshot and Web UI for real Writer, Git, Specs & Plans, Task, Session, Handoff, Evidence, Approval, Planning/Completion Blocker, Runtime Binding, and Runner Job state, including document create/version/Ready/Approve/bind plus Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
 - File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and durable Task/Session/Binding identity with claim, terminal Evidence, and restart reconciliation.
-- 60 MCP tools, including Direct Drive executor discovery, Host Root Alias discovery, Host Direct file read, approval-gated Host Write / Exact Edit, bounded Host Command, ChatCockpit-owned Managed Workspace Process, and `chatcockpit.recovery.assess` / `chatcockpit.recovery.execute`, plus Spec/Plan create/read/version/lifecycle/Task-binding operations, exposed-mode Bearer Auth, public-safe projections, history privacy scanning, and source-archive operation without `.git` metadata.
+- 62 exposed-mode MCP tools, including Direct Drive executor discovery, Host Root Alias discovery, Host Direct file read, approval-gated Host Write / Exact Edit, bounded Host Command, ChatCockpit-owned Managed Workspace Process, and `chatcockpit.recovery.assess` / `chatcockpit.recovery.execute`, plus Spec/Plan create/read/version/lifecycle/Task-binding operations, exposed-mode Bearer/OAuth Auth, public-safe projections, history privacy scanning, and source-archive operation without `.git` metadata.
 
 ### Experimental
 
-- Connecting ChatGPT through Custom GPT Actions or Remote MCP.
+- Long-term stability of the ChatGPT custom MCP app / Remote MCP across clients, refresh/reconnect, and extended use.
 - Codex App Server standalone file and command execution, enabled only after a local capability probe verifies the exact operation.
 - Interactive runtime governance through the Continuity Workbench.
 
@@ -83,52 +110,71 @@ The Web UI is a local operator console. Alongside Dashboard, Jobs, Setup Wizard,
 
 In auth-required mode, protected data stays hidden until the operator provides a bearer token in the browser session.
 
-## Quick Start
+## Get Started
+
+### 1. Source / Web Cockpit
+
+For contributors and local development:
 
 ```bash
+npm ci
 npm run setup
 npm run start:local
-npm run mvp:status
-npm run doctor
-```
-
-See the beginner path in [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md).
-
-Start the paired local control plane and runner on macOS:
-
-```bash
-npm run mvp:start
 npm run mvp:status
 npm run doctor:runtime
 ```
 
-Open the local operator UI:
+Open:
 
 ```text
 http://127.0.0.1:4318/ui
 ```
 
-For a repeatable local setup, place runtime variables in `~/.chatcockpit/runtime/server.env`:
+The canonical Source/Developer Mode state lives in `~/.chatcockpit/`, independently from the source checkout.
+
+### 2. macOS App
+
+If the current app has already been built:
 
 ```bash
-CHATCOCKPIT_API_TOKEN=replace-with-your-builder-token
-CHATCOCKPIT_EXPOSED=false
-CHATCOCKPIT_HOST=127.0.0.1
-CHATCOCKPIT_PORT=4318
+open dist/macos/ChatCockpit.app
 ```
 
-Use `CHATCOCKPIT_EXPOSED=true` only after you have configured HTTPS and an access token. Keep real domains, reverse-proxy or tunnel settings, bearer tokens, and machine-specific paths out of Git.
+When Source services are already running, use **Developer Mode** first. Switching to Packaged Mode triggers an explicit ownership-conflict check instead of taking over existing LaunchAgents.
 
-## Custom GPT Actions Status
+Full checklist: [`docs/testing/macos-desktop-smoke.md`](./docs/testing/macos-desktop-smoke.md).
 
-The public OpenAPI contract is available in [`openapi/chatcockpit.openapi.yaml`](./openapi/chatcockpit.openapi.yaml). The placeholder server URL `https://chatcockpit.example.com` is intentionally generic. Replace it with your own HTTPS URL when configuring GPT Builder, and do not commit real domains or bearer tokens to Git.
+The macOS app also provides a self-contained Packaged Mode with bundled Node `24.18.1` and a production runtime payload, so the target machine does not need a separate Node/npm install. The current app/DMG remains development trust and is not yet Developer ID signed/notarized. See [`docs/deployment/macos-desktop.md`](./docs/deployment/macos-desktop.md) and [`docs/deployment/macos-release.md`](./docs/deployment/macos-release.md).
 
-Custom GPT Actions and Remote MCP remain experimental deployment surfaces, while the local REST/MCP application services, authentication, structured errors, idempotency, and protocol release gates are implemented. Use Direct Drive when ChatGPT should retain the model loop; Workspace Direct plus governed Host Direct Files and bounded Host Command are implemented today. File mutation uses Direct Mutation Approval; Host Command uses separate Direct Command Approval, limits Pure Host to an explicit read-only policy, and re-enters Writer Lease / Git / Task Evidence for Workspace write effects. Raw shell, interactive terminal sessions, and background Process Management remain unexposed. Use explicit Codex Session operations for interactive Thread, Turn, and Approval workflows; use `createCodexRun` for longer or isolated Async Agent Jobs.
+### 3. ChatGPT App / Remote MCP
 
-For Custom GPT creation, Actions schema import, authentication, and public HTTPS/tunnel setup, see:
+ChatCockpit can be connected to ChatGPT as a custom MCP app. After connecting it, select **ChatCockpit** from the tools menu in a new conversation or explicitly ask ChatGPT to use it.
 
-- [`docs/deployment/gpt-builder-setup.md`](./docs/deployment/gpt-builder-setup.md)
-- [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)
+Start with a read-only prompt:
+
+```text
+Use ChatCockpit to list the current Projects, then inspect the primary Workspace snapshot and git status.
+Do not modify anything, and tell me which ChatCockpit tools you actually called.
+```
+
+Then move through Continuity, Approval, Codex Session, and Async Agent Job tests. Full smoke matrix: [`docs/testing/chatgpt-connector-smoke.md`](./docs/testing/chatgpt-connector-smoke.md).
+
+Repeatable local configuration lives in `~/.chatcockpit/runtime/server.env`. Use `CHATCOCKPIT_EXPOSED=true` only after HTTPS and access authority are configured. Keep real deployment domains, tokens, tunnel credentials, and machine paths out of Git.
+
+## ChatGPT App / Remote MCP
+
+The ChatGPT custom MCP app / Remote MCP path has completed real OAuth and tool-call verification. It remains an alpha product surface while cross-client behavior, proxy behavior, refresh/reconnect, and long-running use continue to be validated. ChatGPT authority is `chatcockpit:mcp`; the 0.2.x compatibility layer does not silently promote a legacy MCP scope into new authority.
+
+The public OpenAPI contract remains available at [`openapi/chatcockpit.openapi.yaml`](./openapi/chatcockpit.openapi.yaml) for REST / Actions compatibility and debugging; Remote MCP uses `/mcp`. The repository's `https://chatcockpit.example.com` URL is intentionally a placeholder. Real endpoints and bearer/OAuth authority do not belong in Git.
+
+Use Direct Drive when ChatGPT should retain the model loop. Workspace Direct plus governed Host Direct Files and bounded Host Command are implemented today. File mutation uses Direct Mutation Approval; Host Command uses separate Direct Command Approval, and Workspace write effects re-enter Writer Lease / Git / Task Evidence. Unrestricted raw shell is not exposed to Remote MCP. Use explicit Codex Session operations for interactive Thread, Turn, and Approval workflows; use Async Agent Job for longer or isolated execution.
+
+Related documentation:
+
+- ChatGPT Connector Smoke: [`docs/testing/chatgpt-connector-smoke.md`](./docs/testing/chatgpt-connector-smoke.md)
+- MCP setup: [`docs/deployment/mcp-setup.md`](./docs/deployment/mcp-setup.md)
+- GPT Builder / Actions compatibility path: [`docs/deployment/gpt-builder-setup.md`](./docs/deployment/gpt-builder-setup.md)
+- Public HTTPS / tunnel: [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)
 
 ## Task Pack Template
 
@@ -188,6 +234,8 @@ npm run test
 - Continuity Engine: [`docs/architecture/continuity-engine.md`](./docs/architecture/continuity-engine.md)
 - Chat Direct / Codex Session ADR: [`docs/architecture/adr-001-chat-direct-and-codex-session-lanes.md`](./docs/architecture/adr-001-chat-direct-and-codex-session-lanes.md)
 - Beginner quickstart: [`docs/deployment/beginner-quickstart.md`](./docs/deployment/beginner-quickstart.md)
+- ChatGPT Connector Smoke: [`docs/testing/chatgpt-connector-smoke.md`](./docs/testing/chatgpt-connector-smoke.md)
+- macOS Desktop Smoke: [`docs/testing/macos-desktop-smoke.md`](./docs/testing/macos-desktop-smoke.md)
 - GPT Builder setup: [`docs/deployment/gpt-builder-setup.md`](./docs/deployment/gpt-builder-setup.md)
 - MCP setup: [`docs/deployment/mcp-setup.md`](./docs/deployment/mcp-setup.md)
 - Public HTTPS / tunnel setup: [`docs/deployment/public-https-tunnel.md`](./docs/deployment/public-https-tunnel.md)

@@ -118,6 +118,8 @@ App 会校验内嵌 Runtime，并通过 staging → verify → atomic promote �
 
 所选 Workspace 只存于本机 macOS 用户偏好与 ChatCockpit 私有配置中，不会把机器绝对路径提交到公共仓库。
 
+真实启动、Developer Mode、Packaged Mode conflict guard 与 standalone Packaged Runtime 的可重复验收步骤见 [`../testing/macos-desktop-smoke.md`](../testing/macos-desktop-smoke.md)。
+
 ## Import Existing Setup
 
 Packaged Mode 提供显式 **Import Existing Setup…** 操作。

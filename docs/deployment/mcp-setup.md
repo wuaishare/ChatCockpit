@@ -5,8 +5,8 @@
 - Local MCP HTTP transport: implemented
 - REST/MCP shared Application Services and parity tests: implemented
 - Exposed-mode static Bearer compatibility: implemented
-- ChatGPT-compatible OAuth 2.1 discovery, DCR, PKCE, refresh, revoke, and restart persistence: implemented and locally verified
-- Use through a remote ChatGPT/MCP client: experimental at the external client/network boundary
+- ChatGPT-compatible OAuth 2.1 discovery, DCR, PKCE, refresh, revoke, and restart persistence: implemented, with a real ChatGPT custom MCP app authorization and call path verified
+- Long-term remote ChatGPT/MCP stability: under alpha validation across clients, proxies, refresh/reconnect, and extended use
 - Public hosted ChatCockpit MCP service: not implemented
 
 ChatCockpit exposes the same governed domain operations through REST and MCP. MCP handlers do not write SQLite directly, acquire Writer Leases independently, or bypass file/command/Git safety checks.
@@ -21,14 +21,13 @@ npm run start:local
 npm run doctor
 ```
 
-Default local endpoints:
+Default canonical local endpoint:
 
 ```text
 http://127.0.0.1:4318/mcp
-http://127.0.0.1:4318/mcp
 ```
 
-The two paths are aliases. Use one consistently in a client configuration.
+A receive-only legacy transport alias remains during the 0.2.x compatibility window, but new client configuration should use canonical `/mcp` only.
 
 ## Authentication
 
@@ -75,6 +74,8 @@ Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 An OAuth access token is intentionally accepted on canonical `/mcp` and the compatibility-period receive-only `/tokenpilot/mcp`; it does not widen access to the REST control plane.
 
 Never put the real owner secret, domain, tunnel credential, OAuth database, or machine path in this repository.
+
+If the ChatGPT custom MCP app is already connected, use [`../testing/chatgpt-connector-smoke.md`](../testing/chatgpt-connector-smoke.md) for a real user smoke test instead of stopping at the OAuth success page.
 
 ## Verify The MCP Transport
 
