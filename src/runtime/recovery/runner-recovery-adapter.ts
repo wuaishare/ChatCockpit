@@ -165,7 +165,7 @@ export class RunnerRecoveryAdapter implements RuntimeRecoveryAdapter {
     if (!identityMatches(job, input)) {
       throw new ServiceError(
         "RUNTIME_WORKSPACE_MISMATCH",
-        "Reconciled Runner Job does not match the TokenPilot workspace identity"
+        "Reconciled Runner Job does not match the ChatCockpit workspace identity"
       );
     }
     return {

@@ -72,9 +72,9 @@ async function listTools(baseUrl: string): Promise<ListedTool[]> {
 
 async function catalogFor(exposureEnabled: boolean, repoRoot: string): Promise<ListedTool[]> {
   if (exposureEnabled) {
-    process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = "true";
+    process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED = "true";
   } else {
-    delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
+    delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
   }
   const paths = buildPaths(repoRoot);
   const app = buildServer(paths);
@@ -259,7 +259,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
         decidedActor: { type: string } | null;
       };
       replayed: boolean;
-    }>("tokenpilot.resources.mutation.prepare", {
+    }>("chatcockpit.resources.mutation.prepare", {
       operation: "skill.disable",
       runtimeProfileId: profile.id,
       workspaceId: workspace.id,
@@ -309,7 +309,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
         executedActor: { type: string } | null;
       };
       replayed: boolean;
-    }>("tokenpilot.resources.mutation.execute", executeBody);
+    }>("chatcockpit.resources.mutation.execute", executeBody);
     assert.equal(executed.replayed, false);
     assert.equal(executed.execution.verificationStatus, "verified");
     assert.equal(executed.execution.executedActor?.type, "remote-mcp");
@@ -317,7 +317,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
     assert.equal(skillEnabled, false);
 
     const replay = await mcp<typeof executed>(
-      "tokenpilot.resources.mutation.execute",
+      "chatcockpit.resources.mutation.execute",
       executeBody
     );
     assert.equal(replay.replayed, true);
@@ -330,7 +330,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
         verificationStatus: string;
         executedActor: { type: string } | null;
       };
-    }>("tokenpilot.resources.mutation.inspect", {
+    }>("chatcockpit.resources.mutation.inspect", {
       target: "execution",
       workspaceId: workspace.id,
       executionId: executed.execution.id
@@ -379,8 +379,8 @@ const directTools = buildRuntimeResourceMutationMcpTools({
   } as unknown as RuntimeResourceMutationPublicService
 });
 const directByName = new Map(directTools.map((tool) => [tool.name, tool]));
-assert.equal(directByName.has("tokenpilot.resources.mutation.decide"), false);
-assert.equal(directByName.has("tokenpilot.resources.mutation.reconcile"), false);
+assert.equal(directByName.has("chatcockpit.resources.mutation.decide"), false);
+assert.equal(directByName.has("chatcockpit.resources.mutation.reconcile"), false);
 const directContext = buildOperationContext({
   requestId: "runtime-resource-mcp-mutation-schema-request",
   actorType: "remote-mcp",
@@ -389,7 +389,7 @@ const directContext = buildOperationContext({
   now: "2026-08-11T03:10:00.000Z"
 });
 const invalidPrepare = await directByName
-  .get("tokenpilot.resources.mutation.prepare")!
+  .get("chatcockpit.resources.mutation.prepare")!
   .execute(directContext, {
     operation: "skill.disable",
     runtimeProfileId: "runtime_profile_fixture",
@@ -407,7 +407,7 @@ assert.equal(
 );
 assert.equal(directCalls.prepare, 0);
 const invalidInspect = await directByName
-  .get("tokenpilot.resources.mutation.inspect")!
+  .get("chatcockpit.resources.mutation.inspect")!
   .execute(directContext, {
     target: "activity",
     workspaceId: "workspace_fixture",
@@ -421,7 +421,7 @@ assert.equal(
 assert.equal(directCalls.execute, 0);
 
 const repoRoot = fs.mkdtempSync(
-  path.join(os.tmpdir(), "tokenpilot-runtime-resource-mcp-mutation-")
+  path.join(os.tmpdir(), "chatcockpit-runtime-resource-mcp-mutation-")
 );
 const paths = buildPaths(repoRoot);
 ensureWorkspaceDirs(paths);
@@ -430,9 +430,11 @@ fs.writeFileSync(
   configPath,
   `${JSON.stringify(
     {
+      schemaVersion: 1,
+      defaultRepoId: "primary",
       workspaceAllowlist: [repoRoot],
       repoMappings: {
-        tokenpilot: { path: repoRoot }
+        primary: { path: repoRoot }
       }
     },
     null,
@@ -442,24 +444,24 @@ fs.writeFileSync(
 );
 
 const previous = {
-  configPath: process.env.TOKENPILOT_CONFIG_PATH,
-  apiToken: process.env.TOKENPILOT_API_TOKEN,
-  exposed: process.env.TOKENPILOT_EXPOSED,
-  mutationExposed: process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED
+  configPath: process.env.CHATCOCKPIT_CONFIG_PATH,
+  apiToken: process.env.CHATCOCKPIT_API_TOKEN,
+  exposed: process.env.CHATCOCKPIT_EXPOSED,
+  mutationExposed: process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED
 };
 
 try {
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = API_TOKEN;
-  process.env.TOKENPILOT_EXPOSED = "true";
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = API_TOKEN;
+  process.env.CHATCOCKPIT_EXPOSED = "true";
 
   const closedCatalog = await catalogFor(false, repoRoot);
   for (const forbidden of [
-    "tokenpilot.resources.mutation.prepare",
-    "tokenpilot.resources.mutation.inspect",
-    "tokenpilot.resources.mutation.execute",
-    "tokenpilot.resources.mutation.decide",
-    "tokenpilot.resources.mutation.reconcile"
+    "chatcockpit.resources.mutation.prepare",
+    "chatcockpit.resources.mutation.inspect",
+    "chatcockpit.resources.mutation.execute",
+    "chatcockpit.resources.mutation.decide",
+    "chatcockpit.resources.mutation.reconcile"
   ]) {
     assert.equal(
       closedCatalog.some((tool) => tool.name === forbidden),
@@ -470,39 +472,39 @@ try {
 
   const enabledCatalog = await catalogFor(true, repoRoot);
   const mutationTools = enabledCatalog
-    .filter((tool) => tool.name.startsWith("tokenpilot.resources.mutation."))
+    .filter((tool) => tool.name.startsWith("chatcockpit.resources.mutation."))
     .sort((left, right) => left.name.localeCompare(right.name));
   assert.deepEqual(
     mutationTools.map((tool) => tool.name),
     [
-      "tokenpilot.resources.mutation.execute",
-      "tokenpilot.resources.mutation.inspect",
-      "tokenpilot.resources.mutation.prepare"
+      "chatcockpit.resources.mutation.execute",
+      "chatcockpit.resources.mutation.inspect",
+      "chatcockpit.resources.mutation.prepare"
     ]
   );
   assert.equal(
-    enabledCatalog.some((tool) => tool.name === "tokenpilot.resources.mutation.decide"),
+    enabledCatalog.some((tool) => tool.name === "chatcockpit.resources.mutation.decide"),
     false
   );
   assert.equal(
-    enabledCatalog.some((tool) => tool.name === "tokenpilot.resources.mutation.reconcile"),
+    enabledCatalog.some((tool) => tool.name === "chatcockpit.resources.mutation.reconcile"),
     false
   );
 
   const byName = new Map(mutationTools.map((tool) => [tool.name, tool]));
-  assert.deepEqual(byName.get("tokenpilot.resources.mutation.prepare")?.annotations, {
+  assert.deepEqual(byName.get("chatcockpit.resources.mutation.prepare")?.annotations, {
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false
   });
-  assert.deepEqual(byName.get("tokenpilot.resources.mutation.inspect")?.annotations, {
+  assert.deepEqual(byName.get("chatcockpit.resources.mutation.inspect")?.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false
   });
-  assert.deepEqual(byName.get("tokenpilot.resources.mutation.execute")?.annotations, {
+  assert.deepEqual(byName.get("chatcockpit.resources.mutation.execute")?.annotations, {
     readOnlyHint: false,
     destructiveHint: true,
     idempotentHint: true,
@@ -511,16 +513,16 @@ try {
 
   await runHttpCrossSurfaceFixture(repoRoot);
 } finally {
-  if (previous.configPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-  else process.env.TOKENPILOT_CONFIG_PATH = previous.configPath;
-  if (previous.apiToken === undefined) delete process.env.TOKENPILOT_API_TOKEN;
-  else process.env.TOKENPILOT_API_TOKEN = previous.apiToken;
-  if (previous.exposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-  else process.env.TOKENPILOT_EXPOSED = previous.exposed;
+  if (previous.configPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+  else process.env.CHATCOCKPIT_CONFIG_PATH = previous.configPath;
+  if (previous.apiToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+  else process.env.CHATCOCKPIT_API_TOKEN = previous.apiToken;
+  if (previous.exposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+  else process.env.CHATCOCKPIT_EXPOSED = previous.exposed;
   if (previous.mutationExposed === undefined) {
-    delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
+    delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
   } else {
-    process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = previous.mutationExposed;
+    process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED = previous.mutationExposed;
   }
   fs.rmSync(repoRoot, { recursive: true, force: true });
 }

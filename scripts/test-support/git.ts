@@ -30,7 +30,7 @@ export function initializeGitFixture(
 ): void {
   runGit(cwd, ["init", "-q"]);
   runGit(cwd, ["config", "user.email", options.email ?? "fixture@example.invalid"]);
-  runGit(cwd, ["config", "user.name", options.name ?? "TokenPilot Fixture"]);
+  runGit(cwd, ["config", "user.name", options.name ?? "ChatCockpit Fixture"]);
   runGit(cwd, ["add", "-A"]);
   runGit(cwd, ["commit", "-qm", options.commitMessage ?? "fixture"]);
 }

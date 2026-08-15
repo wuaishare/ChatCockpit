@@ -13,7 +13,7 @@ const fixtureServer = fileURLToPath(
 
 async function verifyLiveHarness(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-mutation-harness-")
+    path.join(os.tmpdir(), "chatcockpit-desktop-mutation-harness-")
   );
   const sourceConfigPath = path.join(sandbox, "direct-executors.json");
   fs.writeFileSync(
@@ -59,8 +59,8 @@ async function verifyLiveHarness(): Promise<void> {
       [...summary.verifiedCapabilities].sort(),
       ["files.edit", "files.read", "files.write"].sort()
     );
-    assert.equal(summary.writeTool, "tokenpilot.host.mutation.execute");
-    assert.equal(summary.editTool, "tokenpilot.host.mutation.execute");
+    assert.equal(summary.writeTool, "chatcockpit.host.mutation.execute");
+    assert.equal(summary.editTool, "chatcockpit.host.mutation.execute");
     assert.equal(summary.executionScope, "host");
     assert.equal(summary.selectionMode, "explicit");
     assert.equal(

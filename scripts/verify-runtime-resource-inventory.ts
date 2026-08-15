@@ -10,7 +10,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 18);
+  assert.equal(database.schemaVersion(), 19);
   assert.ok(repositories.runtimeResourceSnapshots);
   assert.ok(repositories.runtimeResourceMutations);
 
@@ -84,7 +84,7 @@ try {
   });
   for (const forbidden of [
     "/home/private/runtime",
-    "/private/tokenpilot-runtime-sentinel",
+    "/private/chatcockpit-runtime-sentinel",
     "secret-auth-token",
     "raw-provider-config",
     "private-command-arg"

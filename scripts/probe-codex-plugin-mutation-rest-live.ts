@@ -12,7 +12,7 @@ import {
   type RuntimeResourceRestLiveHarness
 } from "./test-support/runtime-resource-rest-live.ts";
 
-const OPT_IN_ENV = "TOKENPILOT_CODEX_PLUGIN_REST_MUTATION_PROOF";
+const OPT_IN_ENV = "CHATCOCKPIT_CODEX_PLUGIN_REST_MUTATION_PROOF";
 const OPT_IN_VALUE = "I_UNDERSTAND_REVERSIBLE_PLUGIN_REST_MUTATION";
 
 type PluginOperation = "plugin.install" | "plugin.uninstall";

@@ -295,7 +295,7 @@ export class CodexResourceInventoryAdapter
     if (!input.workspaceId) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_WORKSPACE_REQUIRED",
-        "Codex Resource Inventory requires a TokenPilot Workspace"
+        "Codex Resource Inventory requires a ChatCockpit Workspace"
       );
     }
 
@@ -417,7 +417,7 @@ export class CodexResourceInventoryAdapter
     if (!input.workspaceId) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_WORKSPACE_REQUIRED",
-        "Codex Resource target reads require a TokenPilot Workspace"
+        "Codex Resource target reads require a ChatCockpit Workspace"
       );
     }
 

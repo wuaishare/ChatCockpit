@@ -32,7 +32,7 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
     public func read(rootURL: URL) -> DesktopRuntimeConfiguration {
         read(
             stateRootURL: rootURL
-                .appendingPathComponent(".tokenpilot", isDirectory: true)
+                .appendingPathComponent(ProductIdentity.current.stateDirectoryName, isDirectory: true)
         )
     }
 
@@ -48,37 +48,36 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
     }
 
     public static func parse(_ text: String) -> DesktopRuntimeConfiguration {
-        var configuration = DesktopRuntimeConfiguration()
-
+        var values: [String: String] = [:]
         for rawLine in text.split(whereSeparator: \ .isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !line.isEmpty, !line.hasPrefix("#") else { continue }
             guard let separator = line.firstIndex(of: "=") else { continue }
-
             let key = String(line[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
             let rawValue = String(line[line.index(after: separator)...])
-            let value = normalizeValue(rawValue)
-
-            switch key {
-            case "TOKENPILOT_HOST":
-                if !value.isEmpty {
-                    configuration.host = value
-                }
-            case "TOKENPILOT_PORT":
-                if let parsedPort = Int(value), (1...65_535).contains(parsedPort) {
-                    configuration.port = parsedPort
-                }
-            case "TOKENPILOT_EXPOSED":
-                configuration.exposed = enabled(value)
-            case "TOKENPILOT_API_TOKEN":
-                configuration.apiTokenConfigured = !value.isEmpty
-            case "TOKENPILOT_PUBLIC_BASE_URL":
-                configuration.publicBaseURLConfigured = !value.isEmpty
-            default:
-                continue
-            }
+            values[key] = normalizeValue(rawValue)
         }
 
+        func identityValue(_ suffix: String) -> String? {
+            values["CHATCOCKPIT_\(suffix)"] ?? values["TOKENPILOT_\(suffix)"]
+        }
+
+        var configuration = DesktopRuntimeConfiguration()
+        if let host = identityValue("HOST"), !host.isEmpty {
+            configuration.host = host
+        }
+        if let port = identityValue("PORT"), let parsedPort = Int(port), (1...65_535).contains(parsedPort) {
+            configuration.port = parsedPort
+        }
+        if let exposed = identityValue("EXPOSED") {
+            configuration.exposed = enabled(exposed)
+        }
+        if let apiToken = identityValue("API_TOKEN") {
+            configuration.apiTokenConfigured = !apiToken.isEmpty
+        }
+        if let publicBaseURL = identityValue("PUBLIC_BASE_URL") {
+            configuration.publicBaseURLConfigured = !publicBaseURL.isEmpty
+        }
         return configuration
     }
 
@@ -111,51 +110,71 @@ public protocol WorkspacePreferenceStoring: Sendable {
 public struct UserDefaultsWorkspacePreferenceStore: WorkspacePreferenceStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
+    private let legacyKey: String?
 
     public init(
         defaults: UserDefaults = .standard,
-        key: String = "tokenpilotDesktop.selectedWorkspace"
+        key: String = "chatcockpitDesktop.selectedWorkspace",
+        legacyKey: String? = "tokenpilotDesktop.selectedWorkspace"
     ) {
         self.defaults = defaults
         self.key = key
+        self.legacyKey = legacyKey
     }
 
     public func loadWorkspaceURL() -> URL? {
-        guard let path = defaults.string(forKey: key), !path.isEmpty else { return nil }
+        if let path = defaults.string(forKey: key), !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        }
+        guard let legacyKey,
+              let path = defaults.string(forKey: legacyKey),
+              !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
     }
 
     public func saveWorkspaceURL(_ url: URL?) {
         guard let url else {
             defaults.removeObject(forKey: key)
+            if let legacyKey { defaults.removeObject(forKey: legacyKey) }
             return
         }
         defaults.set(url.standardizedFileURL.path, forKey: key)
+        if let legacyKey { defaults.removeObject(forKey: legacyKey) }
     }
 }
 
 public struct UserDefaultsTokenPilotRootPreferenceStore: TokenPilotRootPreferenceStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
+    private let legacyKey: String?
 
     public init(
         defaults: UserDefaults = .standard,
-        key: String = "tokenpilotDesktop.selectedRoot"
+        key: String = "chatcockpitDesktop.selectedRoot",
+        legacyKey: String? = "tokenpilotDesktop.selectedRoot"
     ) {
         self.defaults = defaults
         self.key = key
+        self.legacyKey = legacyKey
     }
 
     public func loadRootURL() -> URL? {
-        guard let path = defaults.string(forKey: key), !path.isEmpty else { return nil }
+        if let path = defaults.string(forKey: key), !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        }
+        guard let legacyKey,
+              let path = defaults.string(forKey: legacyKey),
+              !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
     }
 
     public func saveRootURL(_ url: URL?) {
         guard let url else {
             defaults.removeObject(forKey: key)
+            if let legacyKey { defaults.removeObject(forKey: legacyKey) }
             return
         }
         defaults.set(url.standardizedFileURL.path, forKey: key)
+        if let legacyKey { defaults.removeObject(forKey: legacyKey) }
     }
 }

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 import type {
   JobArtifactKey,
   JobRecord,
@@ -90,13 +91,19 @@ function ensureArtifactPath(value: unknown): string | null {
     path.isAbsolute(normalized) ||
     normalized === ".." ||
     normalized.startsWith("../") ||
-    normalized.includes("\\") ||
-    !normalized.startsWith(".tokenpilot/")
+    normalized.includes("\\")
   ) {
     return null;
   }
 
-  return normalized;
+  const inProductState = PRODUCT_STATE_DIR_NAMES.some((stateDir) =>
+    normalized.startsWith(`${stateDir}/`)
+  );
+  const inPublicArtifactArea =
+    normalized.includes("/bundles/") ||
+    normalized.includes("/manifests/") ||
+    /\/repomix-output(?:-[^/]+)?\.xml$/i.test(normalized);
+  return inProductState && inPublicArtifactArea ? normalized : null;
 }
 
 function buildArtifactSummary(

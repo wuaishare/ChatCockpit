@@ -12,7 +12,7 @@ const fixtureServer = fileURLToPath(
 );
 
 const sandbox = fs.mkdtempSync(
-  path.join(os.tmpdir(), "tokenpilot-desktop-command-live-harness-")
+  path.join(os.tmpdir(), "chatcockpit-desktop-command-live-harness-")
 );
 const configPath = path.join(sandbox, "direct-executors.json");
 
@@ -60,7 +60,7 @@ try {
   assert.equal(summary.serverName, "fake-downstream");
   assert.equal(summary.serverVersion, "1.0.0");
   assert.ok(summary.verifiedCapabilities.includes("shell.exec"));
-  assert.equal(summary.commandTool, "tokenpilot.host.command.execute");
+  assert.equal(summary.commandTool, "chatcockpit.host.command.execute");
   assert.equal(summary.executionScope, "host");
   assert.equal(summary.selectionMode, "explicit");
   assert.equal(summary.pureHostExitCode, 0);

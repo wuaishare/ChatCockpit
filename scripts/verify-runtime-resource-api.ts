@@ -139,12 +139,12 @@ const fakePluginMutationAdapter = {
 } as unknown as CodexPluginMutationAdapter;
 
 async function run(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-resource-api-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-resource-api-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Runtime Resource API fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
-    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    path.join(repoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
 
   const paths = buildPaths(repoRoot);
@@ -154,8 +154,10 @@ async function run(): Promise<void> {
     configPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
-        repoMappings: { tokenpilot: { path: repoRoot } }
+        repoMappings: { primary: { path: repoRoot } }
       },
       null,
       2
@@ -164,15 +166,15 @@ async function run(): Promise<void> {
   );
 
   const previous = {
-    config: process.env.TOKENPILOT_CONFIG_PATH,
-    token: process.env.TOKENPILOT_API_TOKEN,
-    exposed: process.env.TOKENPILOT_EXPOSED,
-    resourceMutationsExposed: process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED
+    config: process.env.CHATCOCKPIT_CONFIG_PATH,
+    token: process.env.CHATCOCKPIT_API_TOKEN,
+    exposed: process.env.CHATCOCKPIT_EXPOSED,
+    resourceMutationsExposed: process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED
   };
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "test-token";
-  process.env.TOKENPILOT_EXPOSED = "true";
-  delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+  process.env.CHATCOCKPIT_EXPOSED = "true";
+  delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
 
   const app = buildServer(paths, {
     codexAdapter: fakeCodex,
@@ -341,7 +343,7 @@ async function run(): Promise<void> {
     );
     assert.equal(stillReadable.snapshot.id, restInventory.snapshot.id);
 
-    process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED = "true";
+    process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED = "true";
     const enabledInventory = await rest<typeof restInventory>(
       "POST",
       "/api/resources/inventory",
@@ -567,7 +569,7 @@ async function run(): Promise<void> {
     assert.equal(skillMutationCalls, 1);
 
     const mcpReplay = await mcp<typeof restInventory>(
-      "tokenpilot.resources.inventory",
+      "chatcockpit.resources.inventory",
       inventoryInput
     );
     assert.equal(mcpReplay.replayed, true);
@@ -590,11 +592,11 @@ async function run(): Promise<void> {
 
     const mcpProfiles = await mcp<{
       profiles: Array<{ id: string; providerKind: string }>;
-    }>("tokenpilot.resources.inspect", { target: "profiles" });
+    }>("chatcockpit.resources.inspect", { target: "profiles" });
     assert.equal(mcpProfiles.profiles[0]?.id, profile.id);
     const mcpSnapshot = await mcp<{
       snapshot: { id: string };
-    }>("tokenpilot.resources.inspect", {
+    }>("chatcockpit.resources.inspect", {
       target: "snapshot",
       id: restInventory.snapshot.id
     });
@@ -602,7 +604,7 @@ async function run(): Promise<void> {
     const mcpResource = await mcp<{
       resource: { id: string };
       snapshot: { id: string };
-    }>("tokenpilot.resources.inspect", {
+    }>("chatcockpit.resources.inspect", {
       target: "resource",
       id: resourceId
     });
@@ -621,7 +623,7 @@ async function run(): Promise<void> {
     ]) {
       assert.match(openapiText, new RegExp(`operationId: ${operationId}`));
     }
-    assert.match(openapiText, /TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true/);
+    assert.match(openapiText, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true/);
     for (const forbidden of [
       "remotePluginId",
       "remoteMarketplaceName",
@@ -668,16 +670,16 @@ async function run(): Promise<void> {
   } finally {
     if (server) await server.close();
     await app.close().catch(() => undefined);
-    if (previous.config === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = previous.config;
-    if (previous.token === undefined) delete process.env.TOKENPILOT_API_TOKEN;
-    else process.env.TOKENPILOT_API_TOKEN = previous.token;
-    if (previous.exposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-    else process.env.TOKENPILOT_EXPOSED = previous.exposed;
+    if (previous.config === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = previous.config;
+    if (previous.token === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = previous.token;
+    if (previous.exposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+    else process.env.CHATCOCKPIT_EXPOSED = previous.exposed;
     if (previous.resourceMutationsExposed === undefined) {
-      delete process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED;
+      delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
     } else {
-      process.env.TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED =
+      process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED =
         previous.resourceMutationsExposed;
     }
     fs.rmSync(repoRoot, { recursive: true, force: true });

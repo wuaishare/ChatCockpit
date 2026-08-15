@@ -110,7 +110,7 @@ export class RuntimeEventService implements RuntimeEventSink {
       await this.runtime.rejectCodexServerRequest(
         request.requestKey,
         -32602,
-        "TokenPilot requires threadId and turnId for runtime approval requests"
+        "ChatCockpit requires threadId and turnId for runtime approval requests"
       );
       return;
     }
@@ -120,7 +120,7 @@ export class RuntimeEventService implements RuntimeEventSink {
       await this.runtime.rejectCodexServerRequest(
         request.requestKey,
         -32602,
-        "TokenPilot could not associate the approval request with an active run"
+        "ChatCockpit could not associate the approval request with an active run"
       );
       return;
     }
@@ -189,7 +189,7 @@ export class RuntimeEventService implements RuntimeEventSink {
     await this.runtime.rejectCodexServerRequest(
       request.requestKey,
       -32601,
-      "This approval request type is not supported by TokenPilot"
+      "This approval request type is not supported by ChatCockpit"
     );
     approval = this.repositories.runtimeApprovals.markStale(
       approval.id,

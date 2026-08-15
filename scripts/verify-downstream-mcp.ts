@@ -117,7 +117,8 @@ async function verifyDownstreamMcp(): Promise<void> {
     "interact_with_process"
   );
 
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-downstream-"));
+  const storeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-downstream-"));
+  const runtimeDir = path.join(storeRoot, ".chatcockpit", "runtime");
   const store = new DownstreamMcpCapabilityStore(runtimeDir);
 
   try {
@@ -168,7 +169,7 @@ async function verifyDownstreamMcp(): Promise<void> {
     assert.deepEqual(persisted, snapshot);
     assert.match(
       store.publicPath("downstream-mcp:desktop-commander-fixture"),
-      /^\.tokenpilot\/runtime\/capabilities\/downstream-mcp\//
+      /^\.chatcockpit\/runtime\/capabilities\/downstream-mcp\//
     );
 
     const source = createDownstreamMcpExecutorSource(
@@ -249,7 +250,7 @@ async function verifyDownstreamMcp(): Promise<void> {
     await exitClient.close();
 
     const operatorRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "tokenpilot-downstream-operator-")
+      path.join(os.tmpdir(), "chatcockpit-downstream-operator-")
     );
     const operatorConfigPath = path.join(operatorRoot, "direct-executors.json");
     fs.writeFileSync(
@@ -308,7 +309,7 @@ async function verifyDownstreamMcp(): Promise<void> {
       configuredBroker.catalog().map((executor) => executor.id),
       [
         "codex-app-server-standalone",
-        "tokenpilot-direct",
+        "builtin-direct",
         "downstream-mcp:operator-fixture"
       ]
     );
@@ -379,7 +380,7 @@ async function verifyDownstreamMcp(): Promise<void> {
     fs.rmSync(operatorRoot, { recursive: true, force: true });
 
     const emptyStoreRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "tokenpilot-downstream-empty-")
+      path.join(os.tmpdir(), "chatcockpit-downstream-empty-")
     );
     const emptyStore = new DownstreamMcpCapabilityStore(emptyStoreRoot);
     const unavailable = createDownstreamMcpExecutorSource(
@@ -390,7 +391,7 @@ async function verifyDownstreamMcp(): Promise<void> {
     assert.deepEqual(unavailable.capabilities, []);
     fs.rmSync(emptyStoreRoot, { recursive: true, force: true });
   } finally {
-    fs.rmSync(runtimeDir, { recursive: true, force: true });
+    fs.rmSync(storeRoot, { recursive: true, force: true });
   }
 }
 

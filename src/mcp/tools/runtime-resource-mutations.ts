@@ -39,7 +39,7 @@ export function buildRuntimeResourceMutationMcpTools(input: {
 }): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
-      name: "tokenpilot.resources.mutation.prepare",
+      name: "chatcockpit.resources.mutation.prepare",
       title: "Prepare runtime resource mutation",
       description:
         "Prepare a governed Skill or Plugin mutation from an exact reviewed Resource Snapshot. This creates durable approval evidence only and does not perform the provider write or decide the approval.",
@@ -65,7 +65,7 @@ export function buildRuntimeResourceMutationMcpTools(input: {
       }
     }),
     defineMcpTool({
-      name: "tokenpilot.resources.mutation.inspect",
+      name: "chatcockpit.resources.mutation.inspect",
       title: "Inspect runtime resource mutation",
       description:
         "Read public-safe approval, execution, or recent mutation activity evidence for one Workspace. This never decides an approval or performs a provider mutation.",
@@ -104,7 +104,7 @@ export function buildRuntimeResourceMutationMcpTools(input: {
       }
     }),
     defineMcpTool({
-      name: "tokenpilot.resources.mutation.execute",
+      name: "chatcockpit.resources.mutation.execute",
       title: "Execute approved runtime resource mutation",
       description:
         "Execute one already-approved governed Skill or Plugin mutation, then verify authoritative Runtime state. Remote MCP execution is accepted only when the persisted approval was decided by an operator surface.",

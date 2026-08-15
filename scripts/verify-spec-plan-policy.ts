@@ -119,11 +119,11 @@ function createRequiredTask(
 }
 
 async function verifySpecPlanPolicy(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-spec-plan-policy-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-spec-plan-policy-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Policy fixture\n", "utf8");
   execFileSync("git", ["init", "-q"], { cwd: repoRoot });
   execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: repoRoot });
-  execFileSync("git", ["config", "user.name", "TokenPilot Fixture"], { cwd: repoRoot });
+  execFileSync("git", ["config", "user.name", "ChatCockpit Fixture"], { cwd: repoRoot });
   execFileSync("git", ["add", "README.md"], { cwd: repoRoot });
   execFileSync("git", ["commit", "-qm", "fixture"], { cwd: repoRoot });
 
@@ -204,7 +204,7 @@ async function verifySpecPlanPolicy(): Promise<void> {
     const workspace = repositories.workspaces.create({
       id: "workspace_policy",
       projectId: project.id,
-      repoId: "tokenpilot",
+      repoId: "primary",
       privatePath: repoRoot,
       branch: "main",
       headCommit: execFileSync("git", ["rev-parse", "HEAD"], {

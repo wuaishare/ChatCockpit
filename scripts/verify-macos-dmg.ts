@@ -41,7 +41,7 @@ assert.doesNotMatch(
 );
 
 const modeGate = builder.indexOf("Invalid or missing --mode");
-const appGate = builder.indexOf("Invalid TokenPilot app bundle");
+const appGate = builder.indexOf("Invalid ChatCockpit app bundle");
 const createIndex = builder.indexOf("hdiutil create");
 assert.ok(modeGate >= 0 && modeGate < appGate, "Trust mode must be validated before app processing");
 assert.ok(appGate >= 0 && appGate < createIndex, "App validation must precede DMG mutation");
@@ -49,7 +49,7 @@ assert.ok(appGate >= 0 && appGate < createIndex, "App validation must precede DM
 for (const testCase of [
   { args: [], expected: /Invalid or missing --mode/ },
   {
-    args: ["--mode", "release", "--arch", "arm64", "--version", "0.1.0", "--app", "/tmp/TokenPilot.app"],
+    args: ["--mode", "release", "--arch", "arm64", "--version", "0.2.0", "--app", "/tmp/ChatCockpit.app"],
     expected: /Invalid or missing --mode/
   }
 ]) {
@@ -62,16 +62,18 @@ for (const testCase of [
   assert.match(`${result.stdout}\n${result.stderr}`, testCase.expected);
 }
 
-const dmgInput = process.env.TOKENPILOT_DMG_PATH?.trim();
+const dmgInput =
+  process.env.CHATCOCKPIT_DMG_PATH?.trim() ??
+  process.env.TOKENPILOT_DMG_PATH?.trim();
 if (!dmgInput) {
   process.stdout.write("VERIFY_MACOS_DMG_CONTRACT_OK\n");
   process.exit(0);
 }
 
-const mode = process.env.TOKENPILOT_DMG_MODE?.trim();
-const arch = process.env.TOKENPILOT_DMG_ARCH?.trim();
-assert.ok(mode === "development" || mode === "production", "TOKENPILOT_DMG_MODE must be development or production");
-assert.ok(arch === "arm64" || arch === "x64", "TOKENPILOT_DMG_ARCH must be arm64 or x64");
+const mode = process.env.CHATCOCKPIT_DMG_MODE?.trim() ?? process.env.TOKENPILOT_DMG_MODE?.trim();
+const arch = process.env.CHATCOCKPIT_DMG_ARCH?.trim() ?? process.env.TOKENPILOT_DMG_ARCH?.trim();
+assert.ok(mode === "development" || mode === "production", "CHATCOCKPIT_DMG_MODE must be development or production");
+assert.ok(arch === "arm64" || arch === "x64", "CHATCOCKPIT_DMG_ARCH must be arm64 or x64");
 const dmgPath = path.resolve(dmgInput);
 assert.equal(fs.existsSync(dmgPath), true, "DMG artifact does not exist");
 assert.equal(path.extname(dmgPath), ".dmg", "DMG artifact must end in .dmg");
@@ -96,15 +98,15 @@ const mountPoint = mountMatch[1];
 
 try {
   const visibleEntries = fs.readdirSync(mountPoint).filter((name) => !name.startsWith(".")).sort();
-  assert.deepEqual(visibleEntries, ["Applications", "TokenPilot.app"]);
+  assert.deepEqual(visibleEntries, ["Applications", "ChatCockpit.app"]);
 
   const applicationsLink = path.join(mountPoint, "Applications");
   assert.equal(fs.lstatSync(applicationsLink).isSymbolicLink(), true, "Applications entry must be a symlink");
   assert.equal(fs.readlinkSync(applicationsLink), `/${"Applications"}`);
 
-  const mountedApp = path.join(mountPoint, "TokenPilot.app");
+  const mountedApp = path.join(mountPoint, "ChatCockpit.app");
   const infoPlist = path.join(mountedApp, "Contents", "Info.plist");
-  const executable = path.join(mountedApp, "Contents", "MacOS", "TokenPilot");
+  const executable = path.join(mountedApp, "Contents", "MacOS", "ChatCockpit");
   assert.equal(fs.existsSync(infoPlist), true, "Mounted app is missing Info.plist");
   assert.equal(fs.existsSync(executable), true, "Mounted app is missing executable");
 
@@ -112,7 +114,7 @@ try {
     encoding: "utf8"
   });
   assert.equal(bundleId.status, 0, bundleId.stderr);
-  assert.equal(bundleId.stdout.trim(), "cn.wuaishare.TokenPilot");
+  assert.equal(bundleId.stdout.trim(), "cn.wuaishare.ChatCockpit");
 
   const fileInfo = spawnSync("/usr/bin/file", ["-b", executable], { encoding: "utf8" });
   assert.equal(fileInfo.status, 0, fileInfo.stderr);
@@ -124,7 +126,7 @@ try {
     assert.equal(stapler.status, 0, `${stapler.stdout}\n${stapler.stderr}`);
     const signed = spawnSync("npm", ["--prefix", root, "run", "verify:macos-signed-app"], {
       encoding: "utf8",
-      env: { ...process.env, TOKENPILOT_SIGNED_APP_DIR: mountedApp }
+      env: { ...process.env, CHATCOCKPIT_SIGNED_APP_DIR: mountedApp }
     });
     assert.equal(signed.status, 0, `${signed.stdout}\n${signed.stderr}`);
   }

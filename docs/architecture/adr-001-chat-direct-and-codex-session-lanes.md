@@ -2,12 +2,12 @@
 
 - Status: Accepted and implemented for the current Chat Direct and Codex Session mutation surfaces
 - Date: 2026-08-06
-- Decision owners: TokenPilot maintainers
+- Decision owners: ChatCockpit maintainers
 - Related governance: `docs/governance/product-principles.md`
 
 ## Context
 
-TokenPilot must support two forms of local development from ChatGPT:
+ChatCockpit must support two forms of local development from ChatGPT:
 
 1. ordinary ChatGPT Chat directly operates an allowlisted local project;
 2. ChatGPT discovers and delegates to an official Codex session.
@@ -16,17 +16,17 @@ Both forms may use capabilities exposed by the official Codex App Server, but th
 
 Without an explicit split, a low-level tool such as “run command” could silently start a Codex turn. That would make Chat Direct unreliable, obscure usage and cost, confuse approvals, and make handoff semantics impossible to reason about.
 
-A second risk is implementing a large TokenPilot-owned coding runtime even where the official App Server already provides stable execution or session capabilities.
+A second risk is implementing a large ChatCockpit-owned coding runtime even where the official App Server already provides stable execution or session capabilities.
 
 ## Decision
 
-TokenPilot will implement one Codex App Server adapter with two explicit lanes.
+ChatCockpit will implement one Codex App Server adapter with two explicit lanes.
 
 ### Lane A: Chat Direct
 
 ChatGPT owns the reasoning and tool-selection loop.
 
-TokenPilot may use official App Server standalone capabilities or TokenPilot-owned deterministic executors, provided the operation does not start a Codex model turn. An ephemeral carrier thread remains an allowed target fallback but is not required by the currently verified standalone file and command methods.
+ChatCockpit may use official App Server standalone capabilities or ChatCockpit-owned deterministic executors, provided the operation does not start a Codex model turn. An ephemeral carrier thread remains an allowed target fallback but is not required by the currently verified standalone file and command methods.
 
 Chat Direct must not call `turn/start`, `codex exec`, or an equivalent agent-loop entry point implicitly.
 
@@ -34,7 +34,7 @@ Chat Direct must not call `turn/start`, `codex exec`, or an equivalent agent-loo
 
 Codex owns the delegated agent loop.
 
-TokenPilot exposes explicit operations for thread discovery, read, bind, resume, fork, turn start, interrupt, approval, events, and status.
+ChatCockpit exposes explicit operations for thread discovery, read, bind, resume, fork, turn start, interrupt, approval, events, and status.
 
 Any operation that can start or continue Codex model inference must be named, classified, and visible to the operator.
 
@@ -80,7 +80,7 @@ Chat Direct operations must:
 - keep ChatGPT as the only model loop;
 - return structured, bounded results;
 - record what changed and how it was verified;
-- expose whether the implementation used App Server standalone execution or a TokenPilot fallback executor.
+- expose whether the implementation used App Server standalone execution or a ChatCockpit fallback executor.
 
 Current implementation note: file write, file edit, Git commit, and every Shell command classified as potentially mutating require a `chat-direct` Session that is active for its Task and owns the Workspace Writer Lease. Read-only Files/Search/Git operations and Shell commands conservatively classified as read-only do not require Writer ownership. Codex Turn independently enforces its bound Session and Writer Lease.
 
@@ -97,7 +97,7 @@ Codex Session operations may:
 
 - list and search threads;
 - read thread metadata and history projections;
-- bind a TokenPilot development session to a Codex thread;
+- bind a ChatCockpit development session to a Codex thread;
 - resume or fork a thread;
 - start and interrupt turns;
 - broker approvals;
@@ -108,7 +108,7 @@ Codex Session operations must:
 
 - make `turn/start` and provider selection explicit;
 - acquire or transfer the workspace writer lease before starting a write-capable turn;
-- preserve the external Codex thread ID as a runtime binding, not TokenPilot's primary domain identity;
+- preserve the external Codex thread ID as a runtime binding, not ChatCockpit's primary domain identity;
 - create a handoff checkpoint before changing active runtime or writer;
 - record capability and protocol versions.
 
@@ -121,7 +121,7 @@ An ephemeral carrier thread:
 - is not presented as the user's native Codex development session;
 - must not start a Codex model turn;
 - has a bounded lifetime;
-- is tagged with its TokenPilot operation ID;
+- is tagged with its ChatCockpit operation ID;
 - is cleaned up or archived according to adapter policy;
 - is excluded from default native-session search unless explicitly requested.
 
@@ -138,7 +138,7 @@ The adapter must negotiate capabilities at startup and record:
 - approval and event support;
 - known degraded behaviors.
 
-TokenPilot must not assume that an experimental method exists solely because it existed in a previous tested version.
+ChatCockpit must not assume that an experimental method exists solely because it existed in a previous tested version.
 
 Unsupported capabilities return a stable `CAPABILITY_UNAVAILABLE` result and identify the available fallback, if one exists.
 
@@ -160,8 +160,8 @@ The split enables separate policies:
 | Concern | Chat Direct | Codex Session |
 |---|---|---|
 | Model inference owner | ChatGPT | Codex |
-| Shell policy | TokenPilot allowlist and approval | Codex sandbox and approval plus TokenPilot policy |
-| Session persistence | TokenPilot operation/session | Native Codex thread binding |
+| Shell policy | ChatCockpit allowlist and approval | Codex sandbox and approval plus ChatCockpit policy |
+| Session persistence | ChatCockpit operation/session | Native Codex thread binding |
 | Usage impact | Chat experience and invoked tools | Codex/agentic usage |
 | Mutations | writer lease required | writer lease required |
 | Hidden escalation | forbidden | not applicable; entry is explicit |
@@ -174,7 +174,7 @@ Rejected because it removes the independent Chat Direct lane, introduces a secon
 
 ### Implement only low-level filesystem and shell tools
 
-Rejected because it fails to reuse professional App Server execution capabilities and would reduce TokenPilot to a generic MCP server.
+Rejected because it fails to reuse professional App Server execution capabilities and would reduce ChatCockpit to a generic MCP server.
 
 ### Fork or embed Codex internals first
 
@@ -197,7 +197,7 @@ Rejected because shared workspace mutation without ownership produces non-determ
 - reuse of official Codex runtime capabilities;
 - reliable handoff between ChatGPT and Codex;
 - room for additional runtime adapters;
-- compatibility with TokenPilot's existing async runner.
+- compatibility with ChatCockpit's existing async runner.
 
 ### Costs
 

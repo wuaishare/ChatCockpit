@@ -21,45 +21,62 @@ const rootPackage = JSON.parse(fs.readFileSync(packagePath, "utf8")) as {
   private?: boolean;
   [key: string]: unknown;
 };
+const packageLock = JSON.parse(fs.readFileSync(packageLockPath, "utf8")) as {
+  name: string;
+  version: string;
+  packages?: Record<string, { name?: string; version?: string; bin?: Record<string, string> }>;
+};
 const rootPackageSnapshot = structuredClone(rootPackage);
 
-assert.equal(rootPackage.name, "tokenpilot");
-assert.equal(rootPackage.version, "0.1.0-alpha");
+assert.equal(rootPackage.name, "chatcockpit");
+assert.equal(rootPackage.version, "0.2.0-alpha");
 assert.deepEqual(rootPackage.bin, {
-  tokenpilot: "./dist/cli/index.js"
-});
-assert.equal(rootPackage.bin?.chatcockpit, undefined);
-
-const chatCockpitProjection = projectPackageProductIdentity(rootPackage, "chatcockpit");
-assert.equal(chatCockpitProjection.name, "chatcockpit");
-assert.equal(chatCockpitProjection.version, "0.1.0-alpha");
-assert.deepEqual(chatCockpitProjection.bin, {
   chatcockpit: "./dist/cli/index.js"
 });
-assert.equal(chatCockpitProjection.bin.tokenpilot, undefined);
-assert.equal(chatCockpitProjection.private, rootPackage.private);
+assert.equal(rootPackage.bin?.tokenpilot, undefined);
 
-// Projection must be pure: the caller-owned object and tracked package files stay unchanged.
+assert.equal(packageLock.name, "chatcockpit");
+assert.equal(packageLock.version, "0.2.0-alpha");
+assert.equal(packageLock.packages?.[""]?.name, "chatcockpit");
+assert.equal(packageLock.packages?.[""]?.version, "0.2.0-alpha");
+assert.deepEqual(packageLock.packages?.[""]?.bin, {
+  chatcockpit: "dist/cli/index.js"
+});
+
+const canonicalProjection = projectPackageProductIdentity(rootPackage, "chatcockpit");
+assert.equal(canonicalProjection.name, "chatcockpit");
+assert.equal(canonicalProjection.version, "0.2.0-alpha");
+assert.deepEqual(canonicalProjection.bin, {
+  chatcockpit: "./dist/cli/index.js"
+});
+assert.equal(canonicalProjection.private, rootPackage.private);
+
+// Projection remains pure even after the target identity becomes canonical.
 assert.deepEqual(rootPackage, rootPackageSnapshot);
 assert.equal(digest(packagePath), packageDigestBefore);
 assert.equal(digest(packageLockPath), packageLockDigestBefore);
 
-const futureVersionFixture = {
+// Historical package identity stays available only as an explicit compatibility fixture.
+const legacyPackageFixture = {
   ...rootPackage,
-  version: "0.2.0-alpha"
+  name: "tokenpilot",
+  version: "0.1.0-alpha",
+  bin: {
+    tokenpilot: "./dist/cli/index.js"
+  }
 };
-const futureProjection = projectPackageProductIdentity(futureVersionFixture, "chatcockpit");
-assert.equal(futureProjection.name, "chatcockpit");
-assert.equal(futureProjection.version, "0.2.0-alpha");
-assert.deepEqual(futureProjection.bin, {
-  chatcockpit: "./dist/cli/index.js"
+const legacyProjection = projectPackageProductIdentity(legacyPackageFixture, "tokenpilot");
+assert.equal(legacyProjection.name, "tokenpilot");
+assert.equal(legacyProjection.version, "0.1.0-alpha");
+assert.deepEqual(legacyProjection.bin, {
+  tokenpilot: "./dist/cli/index.js"
 });
 
-const tokenPilotProjection = projectPackageProductIdentity(rootPackage, "tokenpilot");
-assert.equal(tokenPilotProjection.name, "tokenpilot");
-assert.equal(tokenPilotProjection.version, rootPackage.version);
-assert.deepEqual(tokenPilotProjection.bin, {
-  tokenpilot: "./dist/cli/index.js"
+const migratedProjection = projectPackageProductIdentity(legacyPackageFixture, "chatcockpit");
+assert.equal(migratedProjection.name, "chatcockpit");
+assert.equal(migratedProjection.version, "0.1.0-alpha");
+assert.deepEqual(migratedProjection.bin, {
+  chatcockpit: "./dist/cli/index.js"
 });
 
 process.stdout.write("VERIFY_CHATCOCKPIT_PACKAGE_IDENTITY_OK\n");

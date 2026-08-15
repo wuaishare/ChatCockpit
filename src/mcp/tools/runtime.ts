@@ -43,7 +43,7 @@ export function buildRuntimeMcpTools(
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
-      name: "tokenpilot.runtime.capabilities",
+      name: "chatcockpit.runtime.capabilities",
       title: "Read coding runtime capabilities",
       description:
         "Read the public-safe Codex App Server availability, version source, protocol family, and stable method snapshot without exposing local binary paths.",
@@ -55,10 +55,10 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.thread.list",
+      name: "chatcockpit.codex.thread.list",
       title: "List Codex threads",
       description:
-        "List public-safe Codex thread metadata with optional TokenPilot workspace, search, archive, cursor, and limit filters. Raw cwd and instruction paths are omitted.",
+        "List public-safe Codex thread metadata with optional ChatCockpit workspace, search, archive, cursor, and limit filters. Raw cwd and instruction paths are omitted.",
       inputSchema: codexThreadListSchema,
       annotations: readOnlyToolAnnotations,
       handler: async (context, input) => ({
@@ -67,7 +67,7 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.thread.read",
+      name: "chatcockpit.codex.thread.read",
       title: "Read Codex thread metadata",
       description:
         "Read one public-safe Codex thread metadata projection. Turn history is intentionally unavailable until a reviewed public-safe projection exists.",
@@ -79,10 +79,10 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.session.bind",
+      name: "chatcockpit.codex.session.bind",
       title: "Bind Codex thread to session",
       description:
-        "Bind an existing Codex thread to a TokenPilot codex-session after validating session revision and workspace identity. This does not start a Codex turn.",
+        "Bind an existing Codex thread to a ChatCockpit codex-session after validating session revision and workspace identity. This does not start a Codex turn.",
       inputSchema: codexSessionBindSchema,
       annotations: runtimeMutationAnnotations,
       handler: async (context, input) => ({
@@ -91,10 +91,10 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.session.resume",
+      name: "chatcockpit.codex.session.resume",
       title: "Resume and bind Codex thread",
       description:
-        "Resume an existing Codex App Server thread and bind it to a TokenPilot codex-session using two-phase idempotency. This does not start a Codex turn.",
+        "Resume an existing Codex App Server thread and bind it to a ChatCockpit codex-session using two-phase idempotency. This does not start a Codex turn.",
       inputSchema: codexSessionResumeSchema,
       annotations: runtimeMutationAnnotations,
       handler: async (context, input) => ({
@@ -103,10 +103,10 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.session.fork",
+      name: "chatcockpit.codex.session.fork",
       title: "Fork and bind Codex thread",
       description:
-        "Fork a Codex thread into a new durable thread and bind the fork to a TokenPilot codex-session using two-phase idempotency. This does not start a Codex turn.",
+        "Fork a Codex thread into a new durable thread and bind the fork to a ChatCockpit codex-session using two-phase idempotency. This does not start a Codex turn.",
       inputSchema: codexSessionForkSchema,
       annotations: runtimeMutationAnnotations,
       handler: async (context, input) => ({
@@ -115,7 +115,7 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.turn.start",
+      name: "chatcockpit.codex.turn.start",
       title: "Start explicit Codex turn",
       description:
         "Start one explicit Codex model loop only after validating Runtime Binding, Writer Lease, Git checkpoint, Evidence Bundle, Session revision, and Task revision. The operation fixes approval routing to on-request user review and does not allow cwd, model, sandbox, or instruction overrides.",
@@ -127,7 +127,7 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.turn.interrupt",
+      name: "chatcockpit.codex.turn.interrupt",
       title: "Interrupt Codex turn",
       description:
         "Interrupt one active Codex turn, close its writer lease, move the session to handoff-ready, and record a lifecycle event using an idempotent explicit operation.",
@@ -139,7 +139,7 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.approval.respond",
+      name: "chatcockpit.codex.approval.respond",
       title: "Respond to Codex approval",
       description:
         "Respond explicitly to a pending command or file-change approval with accept, decline, or cancel. Session-wide approval and permission escalation are intentionally unavailable.",
@@ -151,10 +151,10 @@ export function buildRuntimeMcpTools(
       })
     }),
     defineMcpTool({
-      name: "tokenpilot.codex.events.read",
+      name: "chatcockpit.codex.events.read",
       title: "Read Codex runtime events",
       description:
-        "Read append-only public-safe lifecycle, approval, item, warning, and error events for one TokenPilot Session or Runtime Run. Command output, cwd, file patches, raw prompts, and private request payloads are omitted.",
+        "Read append-only public-safe lifecycle, approval, item, warning, and error events for one ChatCockpit Session or Runtime Run. Command output, cwd, file patches, raw prompts, and private request payloads are omitted.",
       inputSchema: codexRuntimeEventsQuerySchema,
       annotations: readOnlyToolAnnotations,
       handler: async (context, input) => ({

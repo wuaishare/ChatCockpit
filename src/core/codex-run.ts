@@ -99,7 +99,7 @@ function assertExecutionRootWithinWorkspace(paths: TokenPilotPaths, target: Exec
     (normalizedExecutionRoot === normalizedWorkspace ||
       normalizedExecutionRoot.startsWith(`${normalizedWorkspace}${path.sep}`))
   ) {
-    throw new Error("codex-run execution root cannot be TokenPilot's private workspace");
+    throw new Error("codex-run execution root cannot be ChatCockpit's private workspace");
   }
 }
 
@@ -155,7 +155,7 @@ function buildPrompt(payload: CodexRunJobPayload, target: ExecutionTarget): stri
     : "- The task is complete, verified, and summarized with residual risks.";
 
   return [
-    "# TokenPilot Codex Run",
+    "# ChatCockpit Codex Run",
     "",
     `Title: ${payload.title}`,
     `Repo id: ${payload.repoId}`,
@@ -259,7 +259,7 @@ async function runCodexExec(
   codexCommand: string | null
 ): Promise<CapturedProcessResult> {
   if (readIdentityEnv("CODEX_RUNNER_MODE") === "mock") {
-    const markerPath = path.join(target.executionRoot, "tokenpilot-mock-codex-run.txt");
+    const markerPath = path.join(target.executionRoot, "chatcockpit-mock-codex-run.txt");
     if (executionMode(payload) === "develop") {
       fs.appendFileSync(markerPath, `\nmock codex run for ${payload.title}\n`, "utf8");
     }

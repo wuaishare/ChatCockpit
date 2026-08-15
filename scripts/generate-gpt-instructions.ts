@@ -2,7 +2,7 @@ import { buildGptConfig } from "../src/core/gpt-config.js";
 
 const config = buildGptConfig("zh-CN");
 
-const content = `# TokenPilot GPT 指令草稿
+const content = `# ChatCockpit GPT 指令草稿
 
 以下内容可直接粘贴到 GPT 编辑页主说明框。你也可以根据自己的习惯手动修改。
 

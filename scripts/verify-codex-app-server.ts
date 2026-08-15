@@ -42,7 +42,7 @@ function mockResolution(command: string): CodexBinaryResolution {
 }
 
 async function verifyCodexAppServerAdapter(): Promise<void> {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-codex-adapter-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-codex-adapter-"));
   const workspaceRoot = path.join(tempRoot, "workspace");
   const nestedWorkspaceRoot = path.join(workspaceRoot, ".worktrees", "feature");
   const tracePath = path.join(tempRoot, "app-server-trace.jsonl");
@@ -73,7 +73,7 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
   const resolved = resolveCodexBinary({
     env: {
       ...process.env,
-      TOKENPILOT_CODEX_BIN: resolverShim
+      CHATCOCKPIT_CODEX_BIN: resolverShim
     }
   });
   assert.equal(resolved.command, resolverShim);
@@ -91,7 +91,7 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
   const rootWorkspace = repositories.workspaces.create({
     id: "workspace_root",
     projectId: project.id,
-    repoId: "tokenpilot",
+    repoId: "primary",
     privatePath: workspaceRoot,
     kind: "checkout",
     status: "ready",
@@ -100,7 +100,7 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
   const nestedWorkspace = repositories.workspaces.create({
     id: "workspace_nested",
     projectId: project.id,
-    repoId: "tokenpilot-feature",
+    repoId: "primary-feature",
     privatePath: nestedWorkspaceRoot,
     kind: "worktree",
     status: "ready",
@@ -109,9 +109,9 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
 
   const env = {
     ...process.env,
-    TOKENPILOT_MOCK_WORKSPACE_ROOT: workspaceRoot,
-    TOKENPILOT_MOCK_NESTED_WORKSPACE_ROOT: nestedWorkspaceRoot,
-    TOKENPILOT_MOCK_APP_SERVER_TRACE: tracePath
+    CHATCOCKPIT_MOCK_WORKSPACE_ROOT: workspaceRoot,
+    CHATCOCKPIT_MOCK_NESTED_WORKSPACE_ROOT: nestedWorkspaceRoot,
+    CHATCOCKPIT_MOCK_APP_SERVER_TRACE: tracePath
   };
   const resolution = mockResolution(process.execPath);
   const createClient = () =>

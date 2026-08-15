@@ -41,7 +41,7 @@ export function buildBundleManifest(
   writeText(
     promptPath,
     [
-      "# TokenPilot Repo Bundle Prompt",
+      "# ChatCockpit Repo Bundle Prompt",
       "",
       `Repo: \`${repoName}\``,
       `Created: \`${createdAt}\``,
@@ -58,7 +58,7 @@ export function buildBundleManifest(
   writeText(
     summaryPath,
     [
-      "# TokenPilot Bundle Summary",
+      "# ChatCockpit Bundle Summary",
       "",
       `- Repo id: \`${manifest.repoId}\``,
       `- XML bundle: \`${manifest.repomixXmlPath}\``,

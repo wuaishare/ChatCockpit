@@ -23,12 +23,12 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 }
 
 async function run(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-recovery-api-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-recovery-api-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Runtime Recovery API fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
-    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    path.join(repoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
 
   const paths = buildPaths(repoRoot);
@@ -38,8 +38,10 @@ async function run(): Promise<void> {
     configPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
-        repoMappings: { tokenpilot: { path: repoRoot } }
+        repoMappings: { primary: { path: repoRoot } }
       },
       null,
       2
@@ -48,13 +50,13 @@ async function run(): Promise<void> {
   );
 
   const previous = {
-    config: process.env.TOKENPILOT_CONFIG_PATH,
-    token: process.env.TOKENPILOT_API_TOKEN,
-    exposed: process.env.TOKENPILOT_EXPOSED
+    config: process.env.CHATCOCKPIT_CONFIG_PATH,
+    token: process.env.CHATCOCKPIT_API_TOKEN,
+    exposed: process.env.CHATCOCKPIT_EXPOSED
   };
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "test-token";
-  process.env.TOKENPILOT_EXPOSED = "true";
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+  process.env.CHATCOCKPIT_EXPOSED = "true";
 
   const app = buildServer(paths);
   let server: Awaited<ReturnType<typeof listenTestServer>> | null = null;
@@ -197,7 +199,7 @@ async function run(): Promise<void> {
     );
 
     const mcpAssessment = await mcp<typeof restAssessment>(
-      "tokenpilot.recovery.assess",
+      "chatcockpit.recovery.assess",
       {
         workspaceId: workspace.id,
         taskId: startedSession.task.id,
@@ -208,7 +210,7 @@ async function run(): Promise<void> {
     );
     assert.equal(mcpAssessment.assessment.classification, "healthy");
     const mcpExecution = await mcp<typeof restExecution>(
-      "tokenpilot.recovery.execute",
+      "chatcockpit.recovery.execute",
       {
         recoveryId: mcpAssessment.attempt.id,
         assessmentHash: mcpAssessment.assessment.assessmentHash,
@@ -228,12 +230,12 @@ async function run(): Promise<void> {
   } finally {
     if (server) await server.close();
     await app.close().catch(() => undefined);
-    if (previous.config === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = previous.config;
-    if (previous.token === undefined) delete process.env.TOKENPILOT_API_TOKEN;
-    else process.env.TOKENPILOT_API_TOKEN = previous.token;
-    if (previous.exposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-    else process.env.TOKENPILOT_EXPOSED = previous.exposed;
+    if (previous.config === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = previous.config;
+    if (previous.token === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = previous.token;
+    if (previous.exposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+    else process.env.CHATCOCKPIT_EXPOSED = previous.exposed;
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 }

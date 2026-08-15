@@ -24,8 +24,11 @@ interface RuntimeManifest {
 }
 
 const repoRoot = process.cwd();
-const payloadRoot = process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim()
-  ? path.resolve(process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR)
+const payloadRootInput =
+  process.env.CHATCOCKPIT_RUNTIME_PAYLOAD_DIR?.trim() ??
+  process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
+const payloadRoot = payloadRootInput
+  ? path.resolve(payloadRootInput)
   : path.join(repoRoot, "dist", "macos-runtime", "arm64", "TokenPilotRuntime");
 assert.equal(
   fs.existsSync(path.join(payloadRoot, "manifest.json")),
@@ -45,9 +48,9 @@ assert.equal(
   `Packaged runtime live proof must execute the runner-native architecture; runner=${nativeArchitecture} payload=${manifest.architecture}`
 );
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-packaged-runtime-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-packaged-runtime-"));
 const homeRoot = path.join(tempRoot, "home");
-const supportRoot = path.join(homeRoot, "Library", "Application Support", "TokenPilot");
+const supportRoot = path.join(homeRoot, "Library", "Application Support", "ChatCockpit");
 const runtimeRoot = path.join(supportRoot, "runtimes", manifest.runtimeId);
 const installRoot = path.join(runtimeRoot, "app");
 const stateRoot = path.join(supportRoot, "state");
@@ -163,16 +166,18 @@ const childEnv: NodeJS.ProcessEnv = {
   ...process.env,
   HOME: homeRoot,
   PATH: emptyPath,
-  TOKENPILOT_DISTRIBUTION_MODE: "packaged",
-  TOKENPILOT_INSTALL_ROOT: installRoot,
-  TOKENPILOT_STATE_ROOT: stateRoot,
-  TOKENPILOT_PRIMARY_WORKSPACE_ROOT: workspaceRoot,
-  TOKENPILOT_NODE_BIN: nodeBin,
-  TOKENPILOT_CONFIG_PATH: configPath,
-  TOKENPILOT_EXPOSED: "false",
-  TOKENPILOT_HOST: "127.0.0.1",
-  TOKENPILOT_PORT: String(port)
+  CHATCOCKPIT_DISTRIBUTION_MODE: "packaged",
+  CHATCOCKPIT_INSTALL_ROOT: installRoot,
+  CHATCOCKPIT_STATE_ROOT: stateRoot,
+  CHATCOCKPIT_PRIMARY_WORKSPACE_ROOT: workspaceRoot,
+  CHATCOCKPIT_NODE_BIN: nodeBin,
+  CHATCOCKPIT_CONFIG_PATH: configPath,
+  CHATCOCKPIT_EXPOSED: "false",
+  CHATCOCKPIT_HOST: "127.0.0.1",
+  CHATCOCKPIT_PORT: String(port)
 };
+delete childEnv.CHATCOCKPIT_REPO_ROOT;
+delete childEnv.CHATCOCKPIT_API_TOKEN;
 delete childEnv.TOKENPILOT_REPO_ROOT;
 delete childEnv.TOKENPILOT_API_TOKEN;
 delete childEnv.NODE_PATH;
@@ -211,7 +216,7 @@ try {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      repoId: "tokenpilot",
+      repoId: "primary",
       path: "docs/packaged-runtime-fixture.md"
     })
   });
@@ -221,10 +226,15 @@ try {
   assert.match(fileReadBody.file?.content ?? "", /PACKAGED_RUNTIME_WORKSPACE_OK/);
 
   const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+    schemaVersion: number;
+    defaultRepoId: string;
     workspaceAllowlist: string[];
     repoMappings: Record<string, { path: string }>;
   };
-  assert.equal(fs.realpathSync.native(config.repoMappings.tokenpilot.path), fs.realpathSync.native(workspaceRoot));
+  assert.equal(config.schemaVersion, 1);
+  assert.equal(config.defaultRepoId, "primary");
+  assert.equal(fs.realpathSync.native(config.repoMappings.primary.path), fs.realpathSync.native(workspaceRoot));
+  assert.equal(config.repoMappings.tokenpilot, undefined);
   assert.equal(
     config.workspaceAllowlist.some((entry) => fs.realpathSync.native(entry) === fs.realpathSync.native(runtimeRoot)),
     false
@@ -242,6 +252,7 @@ try {
 }
 
 assertCriticalHashes(runtimeRoot);
+assert.equal(fs.existsSync(path.join(runtimeRoot, ".chatcockpit")), false);
 assert.equal(fs.existsSync(path.join(runtimeRoot, ".tokenpilot")), false);
 assert.equal(fs.existsSync(path.join(installRoot, ".git")), false);
 

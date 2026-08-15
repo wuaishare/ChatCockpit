@@ -8,7 +8,7 @@ import { validateRelativePathForWrite } from "../src/core/files-write.ts";
 import { isPublicSafeGitPath } from "../src/core/git-public-safety.ts";
 import { isPublicRepoBundleIncludeEntry } from "../src/core/repo-bundle.ts";
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-path-guard-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-path-guard-"));
 const repoRoot = path.join(tempRoot, "repo");
 const externalRoot = path.join(tempRoot, "external");
 fs.mkdirSync(repoRoot, { recursive: true });

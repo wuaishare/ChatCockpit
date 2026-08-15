@@ -353,9 +353,9 @@ assert.equal(
   "Durable mutation activity must have a dedicated responsive presentation"
 );
 for (const forbidden of [
-  "tokenpilot.resources.mutation.prepare",
-  "tokenpilot.resources.mutation.decide",
-  "tokenpilot.resources.mutation.execute"
+  "chatcockpit.resources.mutation.prepare",
+  "chatcockpit.resources.mutation.decide",
+  "chatcockpit.resources.mutation.execute"
 ]) {
   assert.equal(
     `${resourceCenterSource}\n${reviewSource}\n${workflowSource}`.includes(forbidden),

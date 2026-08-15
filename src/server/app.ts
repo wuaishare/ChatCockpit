@@ -243,6 +243,7 @@ export function buildServer(
     options.codexAdapter ??
     new CodexAppServerAdapter({
       workspaces: continuityServices.repositories.workspaces,
+      productIdentity: paths.productIdentity,
       standaloneCapabilityStore
     });
   const runtimeRouter = new RuntimeRouter(codexAdapter);
@@ -989,7 +990,7 @@ export function buildServer(
         query?: { repoId?: string; staged?: string; executorId?: string };
       }
     ).query ?? {};
-    const repoId = query.repoId ?? "tokenpilot";
+    const repoId = query.repoId ?? identity.defaultRepoId;
     const staged = query.staged === "true" || query.staged === "1";
     try {
       return await chatDirect.gitDiff(
@@ -1007,7 +1008,7 @@ export function buildServer(
     const query = (
       request as { query?: { repoId?: string; executorId?: string } }
     ).query ?? {};
-    const repoId = query.repoId ?? "tokenpilot";
+    const repoId = query.repoId ?? identity.defaultRepoId;
     try {
       return await chatDirect.gitStatus(
         operationContextFromRequest(request),
@@ -1051,7 +1052,7 @@ export function buildServer(
     reply.type("application/json; charset=utf-8");
     return {
       ok: true,
-      service: "tokenpilot-control-plane",
+      service: `${identity.packageName}-control-plane`,
       health: buildPublicHealthStatus(paths),
       ui: "/ui",
       openapi: "/openapi.yaml"

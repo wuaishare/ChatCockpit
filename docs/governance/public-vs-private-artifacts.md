@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keep the public `TokenPilot` repository focused on reusable product code and public documentation, while keeping environment-specific operations material in local configuration or private governance notes.
+Keep the public ChatCockpit repository focused on reusable product code and public documentation, while keeping environment-specific operations material in local configuration or private governance notes.
 
 ## Public Repository: Safe To Track
 
@@ -47,16 +47,17 @@ Private Git is still not a secret store: live credentials and raw auth/session s
 ## Local Only: Do Not Push Anywhere By Default
 
 - live bearer tokens or API keys
-- `.tokenpilot/runtime/server.env`
+- `.chatcockpit/runtime/server.env`
 - raw session state under `.codex/`
-- local runtime scratch state under `.tokenpilot/`
+- local runtime scratch state under `.chatcockpit/`
+- compatibility-period historical runtime state under `.tokenpilot/`
 - root-level `repomix-output*.xml`
 - machine-specific local app directories unless explicitly curated
 
 ## Current Repo Conventions
 
-- `.codex/`, `.servbay/`, `.tokenpilot/`, and `docs/superpowers/` are ignored in the public repo
-- public docs and OpenAPI templates may use placeholder deployment domains such as `tokenpilot.example.com`
+- `.codex/`, `.servbay/`, `.chatcockpit/`, compatibility-period historical `.tokenpilot/`, and `docs/superpowers/` are ignored in the public repo
+- public docs and OpenAPI templates may use placeholder deployment domains such as `chatcockpit.example.com`
 - real domains, tokens, and absolute paths should be injected from local/private configuration
 - reverse-proxy/tunnel scripts, public-loop probes, and GPT Builder operating checklists should stay in local configuration or private notes
 - `.env`, `server.env`, and runtime logs are local-only by default
@@ -77,7 +78,7 @@ Recommended order:
 5. Rewrite history with `git filter-repo` or an equivalent reviewed process.
 6. Force-push only after coordinating with collaborators.
 
-For local-only follow-up, add operator-specific regexes through `TOKENPILOT_HISTORY_PRIVATE_PATTERNS` in your shell or private env file. Do not commit real private domains or usernames into the scanner itself.
+For local-only follow-up, add operator-specific regexes through `CHATCOCKPIT_HISTORY_PRIVATE_PATTERNS` in your shell or private env file. Do not commit real private domains or usernames into the scanner itself.
 
 ## Rule Of Thumb
 

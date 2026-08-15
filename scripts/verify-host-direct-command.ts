@@ -229,7 +229,7 @@ function writeDesktopCommanderProcessFixture(options: {
 
 async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-process-adapter-")
+    path.join(os.tmpdir(), "chatcockpit-desktop-process-adapter-")
   );
   const runtimeDir = path.join(sandbox, "runtime");
   fs.mkdirSync(runtimeDir, { recursive: true });
@@ -268,7 +268,7 @@ async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
     assert.equal(client?.calls[0]?.name, "start_process");
     assert.equal(client?.calls[0]?.args.shell, "/bin/zsh");
     assert.equal(client?.calls[0]?.args.origin, "llm");
-    assert.doesNotMatch(String(client?.calls[0]?.args.command), /TOKENPILOT_API_TOKEN/);
+    assert.doesNotMatch(String(client?.calls[0]?.args.command), /(?:CHATCOCKPIT|TOKENPILOT)_API_TOKEN/);
 
     const nonzero = await adapterFor("nonzero").execute({
       cwd: "/tmp/fixture",
@@ -498,15 +498,15 @@ async function expectAsyncCode(
 
 async function verifyHostCommandServiceLifecycle(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-command-service-")
+    path.join(os.tmpdir(), "chatcockpit-host-command-service-")
   );
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const pureHostDir = path.join(hostRoot, "notes");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
   const directConfigPath = path.join(sandbox, "direct-executors.json");
-  const userConfigPath = path.join(sandbox, "tokenpilot-config.json");
-  const previousConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
+  const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   fs.mkdirSync(runtimeRoot, { recursive: true });
   fs.mkdirSync(pureHostDir, { recursive: true });
   fs.mkdirSync(path.join(workspaceRoot, "src"), { recursive: true });
@@ -515,7 +515,7 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
   execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
     cwd: workspaceRoot
   });
-  execFileSync("git", ["config", "user.name", "TokenPilot Fixture"], {
+  execFileSync("git", ["config", "user.name", "ChatCockpit Fixture"], {
     cwd: workspaceRoot
   });
   execFileSync("git", ["add", "README.md"], { cwd: workspaceRoot });
@@ -550,14 +550,16 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
   fs.writeFileSync(
     userConfigPath,
     JSON.stringify({
+      schemaVersion: 1,
+      defaultRepoId: "primary",
       workspaceAllowlist: [runtimeRoot, workspaceRoot],
       repoMappings: {
-        tokenpilot: { path: runtimeRoot },
+        primary: { path: runtimeRoot },
         "fixture-repo": { path: workspaceRoot }
       }
     })
   );
-  process.env.TOKENPILOT_CONFIG_PATH = userConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = userConfigPath;
 
   const paths = buildPaths(runtimeRoot);
   const database = new ContinuityDatabase({
@@ -1042,9 +1044,9 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
   } finally {
     database.close();
     if (previousConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = previousConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = previousConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
@@ -1052,7 +1054,7 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
 
 async function verifyHostCommandRestParity(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-command-rest-")
+    path.join(os.tmpdir(), "chatcockpit-host-command-rest-")
   );
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
@@ -1354,7 +1356,7 @@ try {
   );
 
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-host-command-policy-")
+    path.join(os.tmpdir(), "chatcockpit-host-command-policy-")
   );
   const hostRoot = path.join(sandbox, "host-root");
   const outsideRoot = path.join(sandbox, "outside");
@@ -1455,19 +1457,19 @@ try {
     assert.equal(evaluateWorkspaceCommand("git", ["status", "--short"]).effect, "read");
     assert.equal(evaluateWorkspaceCommand("npm", ["test"]).effect, "write");
 
-    const previousExposed = process.env.TOKENPILOT_EXPOSED;
-    const previousHighTrust = process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
-    process.env.TOKENPILOT_EXPOSED = "true";
-    delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+    const previousExposed = process.env.CHATCOCKPIT_EXPOSED;
+    const previousHighTrust = process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
+    process.env.CHATCOCKPIT_EXPOSED = "true";
+    delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
     try {
       assert.throws(() => evaluateWorkspaceCommand("node", ["script.js"]));
     } finally {
-      if (previousExposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-      else process.env.TOKENPILOT_EXPOSED = previousExposed;
+      if (previousExposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+      else process.env.CHATCOCKPIT_EXPOSED = previousExposed;
       if (previousHighTrust === undefined) {
-        delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+        delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
       } else {
-        process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS = previousHighTrust;
+        process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS = previousHighTrust;
       }
     }
 

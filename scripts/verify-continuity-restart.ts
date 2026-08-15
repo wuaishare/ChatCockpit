@@ -10,7 +10,7 @@ import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 
 const tempRoot = fs.mkdtempSync(
-  path.join(os.tmpdir(), "tokenpilot-continuity-restart-")
+  path.join(os.tmpdir(), "chatcockpit-continuity-restart-")
 );
 const databasePath = path.join(tempRoot, "continuity.sqlite");
 const workspacePath = path.join(tempRoot, "workspace");
@@ -27,7 +27,7 @@ const prepareInput = {
   taskId: "task_restart",
   sessionId: "session_restart",
   toMode: "codex-session" as const,
-  goal: "Resume the task after a TokenPilot process restart",
+  goal: "Resume the task after a ChatCockpit process restart",
   completedItems: ["Persisted source work"],
   pendingItems: ["Create the child execution line"],
   changedFiles: ["src/restart-fixture.ts"],

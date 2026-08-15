@@ -1,4 +1,4 @@
-# RTK Trial For TokenPilot
+# RTK Trial for ChatCockpit
 
 Only use `rtk` in this repo for commands that usually emit long, noisy output.
 

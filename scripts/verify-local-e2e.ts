@@ -15,18 +15,18 @@ import {
 } from "./test-support/wait.ts";
 
 function makeTempRepoRoot(): string {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-e2e-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-e2e-"));
   fs.mkdirSync(path.join(repoRoot, "docs"), { recursive: true });
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
   fs.mkdirSync(path.join(repoRoot, "web", "dist", "assets"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, "README.md"), "# TokenPilot E2E Fixture\n", "utf8");
+  fs.writeFileSync(path.join(repoRoot, "README.md"), "# ChatCockpit E2E Fixture\n", "utf8");
   fs.writeFileSync(
     path.join(repoRoot, ".repomix.config.json"),
     JSON.stringify(
       {
         output: {
-          filePath: ".tokenpilot/repomix-output.xml",
+          filePath: ".chatcockpit/repomix-output.xml",
           style: "xml"
         },
         include: ["README.md", ".repomix.config.json", "docs/**", "src/**", "web/**"]
@@ -42,22 +42,22 @@ function makeTempRepoRoot(): string {
     "utf8"
   );
   fs.copyFileSync(
-    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
-    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    path.join(repoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
   fs.writeFileSync(
     path.join(repoRoot, "web", "dist", "index.html"),
-    "<!doctype html><html><body><div id=\"root\">TokenPilot Web UI Fixture</div></body></html>",
+    "<!doctype html><html><body><div id=\"root\">ChatCockpit Web UI Fixture</div></body></html>",
     "utf8"
   );
   fs.writeFileSync(
     path.join(repoRoot, "web", "dist", "assets", "app.js"),
-    "console.log('tokenpilot-web-ui-fixture')",
+    "console.log('chatcockpit-web-ui-fixture')",
     "utf8"
   );
   runGit(repoRoot, ["init"]);
-  runGit(repoRoot, ["config", "user.email", "tokenpilot@example.invalid"]);
-  runGit(repoRoot, ["config", "user.name", "TokenPilot Test"]);
+  runGit(repoRoot, ["config", "user.email", "chatcockpit@example.invalid"]);
+  runGit(repoRoot, ["config", "user.name", "ChatCockpit Test"]);
   runGit(repoRoot, ["add", "-A"]);
   runGit(repoRoot, ["commit", "-m", "init"]);
   return repoRoot;
@@ -202,8 +202,8 @@ async function startServer(
       cwd,
       env: {
         ...process.env,
-        TOKENPILOT_PORT: String(port),
-        TOKENPILOT_HOST: "127.0.0.1",
+        CHATCOCKPIT_PORT: String(port),
+        CHATCOCKPIT_HOST: "127.0.0.1",
         ...env
       },
       stdio: ["ignore", "pipe", "pipe"]
@@ -253,15 +253,17 @@ async function runE2E(): Promise<void> {
   const siblingRepoRoot = makeTempRepoRoot();
   const paths = buildPaths(fixtureRepoRoot);
   ensureWorkspaceDirs(paths);
-  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-config-"));
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-config-"));
   const configPath = path.join(configDir, "config.json");
   fs.writeFileSync(
     configPath,
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [fixtureRepoRoot, siblingRepoRoot],
         repoMappings: {
-          tokenpilot: {
+          primary: {
             path: fixtureRepoRoot
           },
           "sourceflow-refactor": {
@@ -276,8 +278,8 @@ async function runE2E(): Promise<void> {
   );
 
   const failClosed = runCommand(projectRoot, ["run", "server"], {
-    TOKENPILOT_EXPOSED: "true",
-    TOKENPILOT_PORT: "43199"
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_PORT: "43199"
   });
   assert.notEqual(failClosed.code, 0);
   assert.match(
@@ -285,16 +287,16 @@ async function runE2E(): Promise<void> {
     /Exposed mode requires a configured API token/
   );
 
-  const noUiRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-e2e-no-ui-"));
+  const noUiRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-e2e-no-ui-"));
   fs.mkdirSync(path.join(noUiRepoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
-    path.join(projectRoot, "openapi", "tokenpilot.openapi.yaml"),
-    path.join(noUiRepoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(projectRoot, "openapi", "chatcockpit.openapi.yaml"),
+    path.join(noUiRepoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
   const noUiPort = await findFreePort();
   const noUiServer = await startServer(projectRoot, noUiPort, {
-    TOKENPILOT_EXPOSED: "false",
-    TOKENPILOT_REPO_ROOT: noUiRepoRoot
+    CHATCOCKPIT_EXPOSED: "false",
+    CHATCOCKPIT_REPO_ROOT: noUiRepoRoot
   });
 
   try {
@@ -307,11 +309,11 @@ async function runE2E(): Promise<void> {
 
   const port = await findFreePort();
   const server = await startServer(projectRoot, port, {
-    TOKENPILOT_EXPOSED: "true",
-    TOKENPILOT_API_TOKEN: "test-token",
-    TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com",
-    TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-    TOKENPILOT_CONFIG_PATH: configPath
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_API_TOKEN: "test-token",
+    CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com",
+    CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+    CHATCOCKPIT_CONFIG_PATH: configPath
   });
 
   try {
@@ -320,14 +322,14 @@ async function runE2E(): Promise<void> {
     const healthBody = await health.json();
     assert.equal(healthBody.authRequired, true);
     assert.equal(healthBody.exposed, true);
-    assert.equal(healthBody.publicBaseUrl, "https://tokenpilot.example.com");
-    assert.equal(healthBody.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
+    assert.equal(healthBody.publicBaseUrl, "https://chatcockpit.example.com");
+    assert.equal(healthBody.openapiUrl, "https://chatcockpit.example.com/openapi.yaml");
 
     const openapi = await fetch(`http://127.0.0.1:${port}/openapi.yaml`);
     assert.equal(openapi.status, 200);
     const openapiText = await openapi.text();
-    assert.match(openapiText, /TokenPilot Local Control Plane API/);
-    assert.match(openapiText, /^servers:\n  - url: https:\/\/tokenpilot\.example\.com/m);
+    assert.match(openapiText, /ChatCockpit Local Control Plane API/);
+    assert.match(openapiText, /^servers:\n  - url: https:\/\/chatcockpit\.example\.com/m);
     assert.equal(/FileReadBatchPayload:[\s\S]*offset:[\s\S]*limit:/.test(openapiText), true);
     assert.equal(/\/api\/setup\/status:[\s\S]*SetupStatusResponse/.test(openapiText), true);
     assertOpenApiDescriptionLimit(openapiText);
@@ -342,7 +344,7 @@ async function runE2E(): Promise<void> {
     assert.equal(setupStatusBody.oauthStatus, "ready");
     assert.equal(
       setupStatusBody.oauthProtectedResourceMetadataUrl,
-      "https://tokenpilot.example.com/.well-known/oauth-protected-resource"
+      "https://chatcockpit.example.com/.well-known/oauth-protected-resource"
     );
     assert.equal(typeof setupStatusBody.openapiUrl, "string");
     assert.equal(Array.isArray(setupStatusBody.steps), true);
@@ -370,9 +372,9 @@ async function runE2E(): Promise<void> {
     assert.equal(typeof gptConfigBody.config.buildVersion, "string");
     assert.equal(typeof gptConfigBody.config.updatedAt, "string");
     assert.equal(typeof gptConfigBody.config.instructions, "string");
-    assert.match(gptConfigBody.config.instructions, /TokenPilot|工作流驾驶舱/);
-    assert.equal(gptConfigBody.config.openapiUrl, "https://tokenpilot.example.com/openapi.yaml");
-    assert.equal(gptConfigBody.config.productVersion, "v0.1.0-alpha");
+    assert.match(gptConfigBody.config.instructions, /ChatCockpit|工作流驾驶舱/);
+    assert.equal(gptConfigBody.config.openapiUrl, "https://chatcockpit.example.com/openapi.yaml");
+    assert.equal(gptConfigBody.config.productVersion, "v0.2.0-alpha");
     assert.match(gptConfigBody.config.schemaVersion, /^\d+$/);
     assert.match(gptConfigBody.config.buildVersion, /^\d{2}\.\d{4}\.\d{6}$/);
     assert.equal(
@@ -393,7 +395,7 @@ async function runE2E(): Promise<void> {
     assert.equal(recentCommits.status, 200);
     const recentCommitsBody = await recentCommits.json();
     assert.equal(recentCommitsBody.ok, true);
-    assert.equal(recentCommitsBody.repoId, "tokenpilot");
+    assert.equal(recentCommitsBody.repoId, "primary");
     assert.equal(Array.isArray(recentCommitsBody.commits), true);
 
     const siblingRecentCommits = await fetch(
@@ -410,11 +412,11 @@ async function runE2E(): Promise<void> {
 
     const ui = await fetch(`http://127.0.0.1:${port}/ui`);
     assert.equal(ui.status, 200);
-    assert.match(await ui.text(), /TokenPilot Web UI Fixture/);
+    assert.match(await ui.text(), /ChatCockpit Web UI Fixture/);
 
     const uiDeepLink = await fetch(`http://127.0.0.1:${port}/ui/jobs/demo`);
     assert.equal(uiDeepLink.status, 200);
-    assert.match(await uiDeepLink.text(), /TokenPilot Web UI Fixture/);
+    assert.match(await uiDeepLink.text(), /ChatCockpit Web UI Fixture/);
 
     for (const section of [
       "projects",
@@ -428,12 +430,12 @@ async function runE2E(): Promise<void> {
         `http://127.0.0.1:${port}/ui/continuity/${section}`
       );
       assert.equal(continuityDeepLink.status, 200);
-      assert.match(await continuityDeepLink.text(), /TokenPilot Web UI Fixture/);
+      assert.match(await continuityDeepLink.text(), /ChatCockpit Web UI Fixture/);
     }
 
     const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
     assert.equal(uiAsset.status, 200);
-    assert.match(await uiAsset.text(), /tokenpilot-web-ui-fixture/);
+    assert.match(await uiAsset.text(), /chatcockpit-web-ui-fixture/);
 
     const noAuthJobs = await fetch(`http://127.0.0.1:${port}/api/jobs`);
     assert.equal(noAuthJobs.status, 401);
@@ -454,7 +456,7 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         path: "docs/readme-note.md"
       })
     });
@@ -486,8 +488,8 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
-        path: ".tokenpilot/runtime/server.env"
+        repoId: "primary",
+        path: ".chatcockpit/runtime/server.env"
       })
     });
     assert.equal(blockedRead.status, 400);
@@ -512,8 +514,8 @@ async function runE2E(): Promise<void> {
     const taskpackId = taskpackJob.job.id as string;
 
     const onceRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
-      TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-      TOKENPILOT_CONFIG_PATH: configPath
+      CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+      CHATCOCKPIT_CONFIG_PATH: configPath
     });
     assert.equal(onceRun.code, 0);
     assert.match(`${onceRun.stdout}${onceRun.stderr}`, /type=(taskpack|pack)/);
@@ -523,8 +525,8 @@ async function runE2E(): Promise<void> {
     if (!isTerminalStatus(taskpackStatus.status) || taskpackStatus.status !== "completed") {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const followupRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
-          TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-          TOKENPILOT_CONFIG_PATH: configPath
+          CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+          CHATCOCKPIT_CONFIG_PATH: configPath
         });
         assert.equal(followupRun.code, 0);
         taskpackStatus = await waitForJobTerminalState(port, taskpackId, "test-token");
@@ -564,7 +566,7 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         title: "Codex run mock E2E",
         instructions: "Create a tiny mock change and return public-safe artifacts.",
         executionMode: "develop",
@@ -582,11 +584,11 @@ async function runE2E(): Promise<void> {
         Authorization: "Bearer test-token",
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ repoId: "tokenpilot" })
+      body: JSON.stringify({ repoId: "primary" })
     });
     assert.equal(packJobResponse.status, 200);
     const packJobBody = await packJobResponse.json();
-    assert.equal(packJobBody.job.payload.repoId, "tokenpilot");
+    assert.equal(packJobBody.job.payload.repoId, "primary");
 
     const siblingPackJobResponse = await fetch(`http://127.0.0.1:${port}/api/jobs/pack`, {
       method: "POST",
@@ -608,7 +610,7 @@ async function runE2E(): Promise<void> {
     });
     assert.equal(defaultPackJobResponse.status, 200);
     const defaultPackJobBody = await defaultPackJobResponse.json();
-    assert.equal(defaultPackJobBody.job.payload.repoId, "tokenpilot");
+    assert.equal(defaultPackJobBody.job.payload.repoId, "primary");
 
     const codexRunFinal = await runRunnerUntilJobTerminal(
       projectRoot,
@@ -616,9 +618,9 @@ async function runE2E(): Promise<void> {
       codexRunId,
       "test-token",
       {
-        TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-        TOKENPILOT_CONFIG_PATH: configPath,
-        TOKENPILOT_CODEX_RUNNER_MODE: "mock"
+        CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+        CHATCOCKPIT_CONFIG_PATH: configPath,
+        CHATCOCKPIT_CODEX_RUNNER_MODE: "mock"
       }
     );
     assert.equal(codexRunFinal.status, "completed");
@@ -632,8 +634,8 @@ async function runE2E(): Promise<void> {
       siblingPackId,
       "test-token",
       {
-        TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-        TOKENPILOT_CONFIG_PATH: configPath
+        CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+        CHATCOCKPIT_CONFIG_PATH: configPath
       }
     );
     assert.equal(siblingPackFinal.status, "completed");
@@ -686,8 +688,8 @@ async function runE2E(): Promise<void> {
         cwd: projectRoot,
         env: {
           ...process.env,
-          TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-          TOKENPILOT_CONFIG_PATH: configPath
+          CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+          CHATCOCKPIT_CONFIG_PATH: configPath
         },
         stdio: ["ignore", "pipe", "pipe"]
       }
@@ -713,8 +715,8 @@ async function runE2E(): Promise<void> {
     if (secondTaskpackFinal.status !== "completed") {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const followupRun = runCommand(projectRoot, ["run", "runner", "--", "--once"], {
-          TOKENPILOT_REPO_ROOT: fixtureRepoRoot,
-          TOKENPILOT_CONFIG_PATH: configPath
+          CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
+          CHATCOCKPIT_CONFIG_PATH: configPath
         });
         assert.equal(followupRun.code, 0);
         secondTaskpackFinal = await waitForJobTerminalState(port, secondTaskpackId, "test-token");
@@ -792,7 +794,7 @@ async function runE2E(): Promise<void> {
     const packJobId = (
       packResults.find((job) => job.id === (packJobBody.job.id as string))?.id ??
       packResults.find(
-        (job) => (job.result as Record<string, unknown> | undefined)?.repoId === "tokenpilot"
+        (job) => (job.result as Record<string, unknown> | undefined)?.repoId === "primary"
       )?.id
     ) as string;
     assert.equal(typeof packJobId, "string");
@@ -816,7 +818,7 @@ async function runE2E(): Promise<void> {
     assert.ok(packArtifactsBody.artifacts.some((artifact) => artifact.key === "manifest"));
     assert.match(
       packArtifactsBody.artifacts.find((artifact) => artifact.key === "repomixXml")?.path ?? "",
-      /^\.tokenpilot\/repomix-output-/
+      /^\.chatcockpit\/repomix-output-/
     );
 
     const packPromptResponse = await fetch(
@@ -829,7 +831,7 @@ async function runE2E(): Promise<void> {
     const packPromptBody = (await packPromptResponse.json()) as {
       file: { content: string; previewMode: string; maxBytes: number; nextOffset: number | null; eof: boolean };
     };
-    assert.match(packPromptBody.file.content, /TokenPilot Repo Bundle Prompt/);
+    assert.match(packPromptBody.file.content, /ChatCockpit Repo Bundle Prompt/);
     assert.doesNotMatch(packPromptBody.file.content, /\/Users\//);
     assert.equal(packPromptBody.file.previewMode, "head");
     assert.equal(typeof packPromptBody.file.maxBytes, "number");
@@ -866,7 +868,7 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         path: primaryPackJobResult.promptPath
       })
     });
@@ -874,7 +876,7 @@ async function runE2E(): Promise<void> {
     const packPromptFileReadBody = (await packPromptFileRead.json()) as {
       file: { content: string; previewMode: string; maxBytes: number };
     };
-    assert.match(packPromptFileReadBody.file.content, /TokenPilot Repo Bundle Prompt/);
+    assert.match(packPromptFileReadBody.file.content, /ChatCockpit Repo Bundle Prompt/);
     assert.equal(packPromptFileReadBody.file.previewMode, "head");
 
     const packSummaryFileRead = await fetch(`http://127.0.0.1:${port}/api/files/read`, {
@@ -884,7 +886,7 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         path: primaryPackJobResult.summaryPath
       })
     });
@@ -897,7 +899,7 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         paths: [
           primaryPackJobResult.promptPath,
           primaryPackJobResult.summaryPath
@@ -917,7 +919,7 @@ async function runE2E(): Promise<void> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        repoId: "tokenpilot",
+        repoId: "primary",
         path: primaryPackJobResult.repomixXmlPath
       })
     });
@@ -946,7 +948,7 @@ async function runE2E(): Promise<void> {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          repoId: "tokenpilot",
+          repoId: "primary",
           path: primaryPackJobResult.repomixXmlPath,
           offset: packXmlFileReadBody.file.nextOffset,
           limit: 4096

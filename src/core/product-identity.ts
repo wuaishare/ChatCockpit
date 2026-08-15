@@ -15,6 +15,7 @@ export interface ProductIdentity {
   bundleIdentifier: "cn.wuaishare.TokenPilot" | "cn.wuaishare.ChatCockpit";
   launchAgentPrefix: "com.wuaishare.tokenpilot" | "com.wuaishare.chatcockpit";
   builtInDirectExecutorId: "tokenpilot-direct" | "builtin-direct";
+  directExecutorInputAliases: Readonly<Record<string, string>>;
   asyncRunnerRuntimeKind: "tokenpilot-runner" | "async-runner";
   localResourceSourceKind: "tokenpilot-local" | "control-plane-local";
   defaultRepoId: "tokenpilot" | "primary";
@@ -37,6 +38,7 @@ export const TOKENPILOT_PRODUCT_IDENTITY: ProductIdentity = {
   bundleIdentifier: "cn.wuaishare.TokenPilot",
   launchAgentPrefix: "com.wuaishare.tokenpilot",
   builtInDirectExecutorId: "tokenpilot-direct",
+  directExecutorInputAliases: {},
   asyncRunnerRuntimeKind: "tokenpilot-runner",
   localResourceSourceKind: "tokenpilot-local",
   defaultRepoId: "tokenpilot",
@@ -59,6 +61,9 @@ export const CHATCOCKPIT_PRODUCT_IDENTITY: ProductIdentity = {
   bundleIdentifier: "cn.wuaishare.ChatCockpit",
   launchAgentPrefix: "com.wuaishare.chatcockpit",
   builtInDirectExecutorId: "builtin-direct",
+  directExecutorInputAliases: {
+    "tokenpilot-direct": "builtin-direct"
+  },
   asyncRunnerRuntimeKind: "async-runner",
   localResourceSourceKind: "control-plane-local",
   defaultRepoId: "primary",
@@ -66,7 +71,12 @@ export const CHATCOCKPIT_PRODUCT_IDENTITY: ProductIdentity = {
   oauthOpaquePrefix: "cc"
 };
 
-export const DEFAULT_PRODUCT_IDENTITY = TOKENPILOT_PRODUCT_IDENTITY;
+export const DEFAULT_PRODUCT_IDENTITY = CHATCOCKPIT_PRODUCT_IDENTITY;
+
+export const PRODUCT_STATE_DIR_NAMES = [
+  TOKENPILOT_PRODUCT_IDENTITY.stateDirName,
+  CHATCOCKPIT_PRODUCT_IDENTITY.stateDirName
+] as const;
 
 export function productIdentityForKey(key: ProductIdentityKey): ProductIdentity {
   return key === "chatcockpit"

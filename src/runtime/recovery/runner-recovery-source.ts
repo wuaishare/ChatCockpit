@@ -24,7 +24,7 @@ function isContinuityCodexJob(
   );
 }
 
-export class TokenPilotRunnerRecoverySource implements RunnerRecoverySource {
+export class AsyncRunnerRecoverySource implements RunnerRecoverySource {
   private readonly reconciliation: AsyncJobReconciliationService;
 
   constructor(

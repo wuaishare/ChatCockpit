@@ -20,7 +20,7 @@ import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-
 
 const LIVE_ROOT_ID = "desktop-commander-live-proof";
 const LIVE_RELATIVE_PATH = "fixture/readme.txt";
-const LIVE_FIXTURE_CONTENT = "TokenPilot Desktop Commander live proof\n";
+const LIVE_FIXTURE_CONTENT = "ChatCockpit Desktop Commander live proof\n";
 
 function buildLiveConfig(configPath: string, sandbox: string, hostRoot: string): string {
   const config = loadDownstreamMcpExecutorsConfig(configPath);
@@ -76,7 +76,7 @@ export async function runDesktopCommanderLiveProof(options: {
   const sourceConfigPath =
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-commander-live-")
+    path.join(os.tmpdir(), "chatcockpit-desktop-commander-live-")
   );
   fs.chmodSync(sandbox, 0o700);
 
@@ -120,7 +120,7 @@ export async function runDesktopCommanderLiveProof(options: {
       liveConfigPath
     );
     const tool = buildHostDirectReadOnlyTools(hostDirect).find(
-      (candidate) => candidate.name === "tokenpilot.host.files.read"
+      (candidate) => candidate.name === "chatcockpit.host.files.read"
     );
     assert.ok(tool, "Host Direct MCP read tool is not registered");
 
@@ -139,7 +139,7 @@ export async function runDesktopCommanderLiveProof(options: {
     assert.equal(result.isError, undefined, JSON.stringify(result.structuredContent));
 
     const publicResult = JSON.stringify(result.structuredContent);
-    assert.match(publicResult, /TokenPilot Desktop Commander live proof/);
+    assert.match(publicResult, /ChatCockpit Desktop Commander live proof/);
     assert.match(publicResult, /"executionScope":"host"/);
     assert.match(publicResult, /"modelLoopOwner":"chatgpt"/);
     assert.match(publicResult, /"selectionMode":"explicit"/);

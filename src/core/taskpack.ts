@@ -45,8 +45,8 @@ export function createTaskPack(
   const baseName = buildTaskPackBaseName(input, createdAt);
   const markdownFilePath = path.join(paths.manifestsDir, `${baseName}.md`);
   const jsonFilePath = path.join(paths.manifestsDir, `${baseName}.json`);
-  const markdownPath = `.tokenpilot/manifests/${baseName}.md`;
-  const jsonPath = `.tokenpilot/manifests/${baseName}.json`;
+  const markdownPath = path.relative(paths.repoRoot, markdownFilePath).replace(/\\/g, "/");
+  const jsonPath = path.relative(paths.repoRoot, jsonFilePath).replace(/\\/g, "/");
 
   const markdown = [
     "# Codex Task Pack",

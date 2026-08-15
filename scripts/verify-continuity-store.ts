@@ -369,7 +369,7 @@ function verifyVersionOneUpgrade(tempRoot: string): void {
 }
 
 async function verifyContinuityStore(): Promise<void> {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-continuity-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-continuity-"));
   const databasePath = path.join(tempRoot, "continuity.sqlite");
   const privateWorkspacePath = path.join(tempRoot, "private-workspace");
 
@@ -419,7 +419,7 @@ async function verifyContinuityStore(): Promise<void> {
     const workspacePrivate = workspaces.create({
       id: "workspace_fixture",
       projectId: project.id,
-      repoId: "tokenpilot",
+      repoId: "primary",
       privatePath: privateWorkspacePath,
       branch: "main",
       headCommit: "abc123",
@@ -603,7 +603,7 @@ async function verifyContinuityStore(): Promise<void> {
     const otherWorkspace = workspaces.create({
       id: "workspace_document_other",
       projectId: project.id,
-      repoId: "tokenpilot-other",
+      repoId: "fixture-other",
       privatePath: path.join(tempRoot, "other-workspace"),
       branch: "main",
       now: "2026-08-06T00:00:01.850Z"
@@ -725,7 +725,7 @@ async function verifyContinuityStore(): Promise<void> {
       projectId: project.id,
       workspaceId: workspacePrivate.id,
       title: "Competing runtime binding",
-      goal: "Prove one active TokenPilot session per Codex thread",
+      goal: "Prove one active ChatCockpit session per Codex thread",
       status: "in-progress",
       now: "2026-08-06T00:00:05.200Z"
     });

@@ -48,11 +48,7 @@ public struct ProductIdentity: Equatable, Sendable {
     )
 
     public static var current: ProductIdentity {
-        #if CHATCOCKPIT_TARGET
         .chatCockpit
-        #else
-        .tokenPilot
-        #endif
     }
 
     public var controlPlaneServiceLabel: String {

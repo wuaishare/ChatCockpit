@@ -1,10 +1,10 @@
-# TokenPilot Release Checklist
+# ChatCockpit Release Checklist
 
 This checklist defines the minimum bar for a GitHub prerelease source package.
 
 ## Release Shape
 
-- Current target: `0.1.0-alpha.1`
+- Current target: `0.2.0-alpha`
 - Intended audience: developers evaluating a local-first Development Continuity & Agent Routing Platform across Chat Direct, Codex Session, and Async Agent Job modes
 - Release type: GitHub prerelease source preview
 - Not included yet: npm publish, native installer, public SaaS mode, production-grade multi-runner service
@@ -33,7 +33,7 @@ git diff --check
 
 ## Current Release Watch Items
 
-- `npm audit --audit-level=moderate` is a required gate. TokenPilot removed the hard `repomix` devDependency after `repomix -> @modelcontextprotocol/sdk -> express -> qs@6.15.1` began blocking release readiness with GHSA-q8mj-m7cp-5q26.
+- `npm audit --audit-level=moderate` is a required gate. ChatCockpit removed the hard `repomix` devDependency after `repomix -> @modelcontextprotocol/sdk -> express -> qs@6.15.1` began blocking release readiness with GHSA-q8mj-m7cp-5q26.
 
 ## Artifact Policy
 
@@ -45,7 +45,8 @@ The prerelease package may include:
 
 The prerelease package must not include:
 
-- `.tokenpilot/`
+- `.chatcockpit/`
+- compatibility-period historical `.tokenpilot/`
 - `.codex/`
 - `.servbay/`
 - real `.env*` files except curated public examples such as `.env.example`
@@ -77,14 +78,14 @@ The prerelease package must not include:
 
 - Product positioning: Development Continuity & Agent Routing Platform
 - Runtime ladder: ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
-- Implemented capabilities: Continuity Engine through Schema v18, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Runtime Recovery Assessment/Attempt/Execution, Native Codex Recovery with compatibility gating, Runner and Chat Direct recovery projections, append-only Runtime Resource Inventory Snapshot truth, durable Resource mutation approval/execution/actor provenance, Native Codex Skills/MCP/Plugins/config inventory, Downstream MCP resource inventory, ACP Registry Agent catalog, governed Codex Skill enable/disable and Codex Plugin install/uninstall, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Workspace Snapshot, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, versioned Spec/Plan truth with immutable Task version pins, explicit planning-required/planning-optional execution policy, server-derived Planning Assessment, a default exposed-mode catalog of 62 MCP tools plus 3 constrained Resource mutation tools when Resource mutation exposure is enabled, Direct Drive executor discovery, Host Root Alias discovery, Host Direct file read, approval-gated Write/Exact Edit, approval-gated bounded Host Command lifecycle, and Durable TokenPilot-owned Managed Workspace Process lifecycle with separate Process Supervisor generation/ownership, offline Writer Lease watchdog, terminal-event reconciliation, and downstream process-group crash containment, plus Spec/Plan/Completion/Runtime Recovery Workbench UX, `/ui/resources` Resource Center, Queue/Runner, and public-safe artifacts
+- Implemented capabilities: Continuity Engine through Schema v19, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Runtime Recovery Assessment/Attempt/Execution, Native Codex Recovery with compatibility gating, Runner and Chat Direct recovery projections, append-only Runtime Resource Inventory Snapshot truth, durable Resource mutation approval/execution/actor provenance, Native Codex Skills/MCP/Plugins/config inventory, Downstream MCP resource inventory, ACP Registry Agent catalog, governed Codex Skill enable/disable and Codex Plugin install/uninstall, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Workspace Snapshot, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, versioned Spec/Plan truth with immutable Task version pins, explicit planning-required/planning-optional execution policy, server-derived Planning Assessment, a default exposed-mode catalog of 62 MCP tools plus 3 constrained Resource mutation tools when Resource mutation exposure is enabled, Direct Drive executor discovery, Host Root Alias discovery, Host Direct file read, approval-gated Write/Exact Edit, approval-gated bounded Host Command lifecycle, and Durable ChatCockpit-owned Managed Workspace Process lifecycle with separate Process Supervisor generation/ownership, offline Writer Lease watchdog, terminal-event reconciliation, and downstream process-group crash containment, plus Spec/Plan/Completion/Runtime Recovery Workbench UX, `/ui/resources` Resource Center, Queue/Runner, and public-safe artifacts
 - Experimental surfaces: Custom GPT Actions, Remote MCP, public HTTPS, and Codex App Server standalone execution
 - Security model: Bearer/OAuth MCP Auth, allowlisted Workspace/commands, optimistic revisions, idempotency, Writer Lease, public-safe projections, Resource mutation actor provenance and operator-decision separation, privacy/history gates, and no-Git source archive validation
 - Known limitations: no native installer, no public SaaS, Resource mutation is intentionally limited to governed Codex Skill enable/disable and Codex Plugin install/uninstall; MCP decision/reconcile, marketplace add/remove/upgrade, automatic Plugin OAuth, MCP server config writes, broader update/authentication mutations, full TDD/SDD/BDD orchestration, a generic transition service for every Task edge, and a generic ACP recovery adapter remain out of scope. Recovery remains explicit, never auto-starts `turn/start`, and never silently switches providers
 - Beginner quickstart link: `docs/deployment/beginner-quickstart.md`
 - Packaging roadmap link: `docs/release/packaging-roadmap.md`
 - Upgrade note: this is an alpha source preview and may change storage/layout contracts
-- Source file: `docs/release/0.1.0-alpha.1.md`
+- Source file: `docs/release/0.2.0-alpha.md`
 
 ## Manual Smoke Check
 
@@ -95,4 +96,4 @@ After publishing the prerelease, verify:
 - `npm run verify:source-archive` succeeds and proves the compiled Control Plane starts from a fresh extracted source copy with no `.git` directory.
 - `npm run verify:protocol-core` succeeds on the release commit.
 - Continuity deep links including `/ui/continuity/documents` render; Planning/Completion Blockers and Runner Job identity come from the Workspace Snapshot; no absolute path is exposed.
-- `/ui/resources` renders real Runtime Profiles, inventory state, and governed Skill enable/disable plus Plugin install/uninstall actions. Confirm the default exposed-mode MCP catalog remains 62 tools; with `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true`, confirm the three constrained Resource mutation tools are registered (65 total) while MCP `decide` and `reconcile` remain absent.
+- `/ui/resources` renders real Runtime Profiles, inventory state, and governed Skill enable/disable plus Plugin install/uninstall actions. Confirm the default exposed-mode MCP catalog remains 62 tools; with `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`, confirm the three constrained Resource mutation tools are registered (65 total) while MCP `decide` and `reconcile` remain absent.

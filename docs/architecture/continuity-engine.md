@@ -1,9 +1,9 @@
-# TokenPilot Continuity Engine
+# ChatCockpit Continuity Engine
 
 ## Status
 
 - Status: implemented vNext foundation plus explicitly marked target extensions
-- Implemented: SQLite Schema v18; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and TokenPilot Runner Job IDs, Runtime Recovery Attempt, append-only Runtime Resource Snapshot and Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit `planning-required | planning-optional` Task execution policy, shared Spec/Plan, Runtime Recovery, and Runtime Resource application services, REST/MCP parity, Spec/Plan/Recovery Workbench governance, Runtime & Resource Center inventory plus governed Codex Skill enable/disable and Codex Plugin install/uninstall, server-derived Planning and Recovery Assessment, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Runtime Approval, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Direct Process Session/Approval/Audit, governed Runtime Resource Mutation Approval/Execution/Provenance, Process Supervisor Runtime Ownership, Event, Workspace Snapshot, and Continuity Workbench projections
+- Implemented: SQLite Schema v18; Project, Workspace, Task, Development Session, generic Runtime Binding persistence for Codex Threads and ChatCockpit Runner Job IDs, Runtime Recovery Attempt, append-only Runtime Resource Snapshot and Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit `planning-required | planning-optional` Task execution policy, shared Spec/Plan, Runtime Recovery, and Runtime Resource application services, REST/MCP parity, Spec/Plan/Recovery Workbench governance, Runtime & Resource Center inventory plus governed Codex Skill enable/disable and Codex Plugin install/uninstall, server-derived Planning and Recovery Assessment, Writer Lease, Handoff, Evidence, governed Task Review/Completion, Runtime Run, Runtime Approval, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Direct Process Session/Approval/Audit, governed Runtime Resource Mutation Approval/Execution/Provenance, Process Supervisor Runtime Ownership, Event, Workspace Snapshot, and Continuity Workbench projections
 - Experimental: Codex App Server protocol integration, Chat Direct standalone routing, and remote ChatGPT access through Custom GPT Actions or MCP
 - Target extensions: richer Task transitions; additional provider Recovery adapters including a future ACP seam; Resource Center operations beyond the currently governed Codex Skill enable/disable and Codex Plugin install/uninstall slice; TDD/SDD/BDD orchestration and templates; and additional provider adapters
 - Scope: local-first continuity state shared by REST, MCP, Web UI, CLI, Codex adapters, and async agents
@@ -16,16 +16,16 @@ The Continuity Engine preserves development identity and evidence when work move
 - Chat Direct Mode;
 - Codex Desktop or CLI;
 - Codex Session Mode;
-- TokenPilot async jobs;
+- ChatCockpit async jobs;
 - future external coding agents;
 - branches and worktrees;
 - interrupted or restarted processes.
 
-A runtime session is not sufficient as the system of record. Runtime IDs can disappear, fail to resume, or belong to one provider. TokenPilot therefore owns durable project, task, handoff, evidence, and writer identities and binds external sessions to them.
+A runtime session is not sufficient as the system of record. Runtime IDs can disappear, fail to resume, or belong to one provider. ChatCockpit therefore owns durable project, task, handoff, evidence, and writer identities and binds external sessions to them.
 
 ## Design Principles
 
-1. **Explicit identity:** all cross-call state uses TokenPilot handles.
+1. **Explicit identity:** all cross-call state uses ChatCockpit handles.
 2. **One writer per writable workspace:** readers may coexist; writers may not.
 3. **Specs and plans survive clients:** non-trivial execution references durable intent.
 4. **Evidence before completion:** a task is not verified because an agent says it is.
@@ -159,7 +159,7 @@ export interface TaskRecord {
 
 ### Development Session
 
-A Development Session is TokenPilot's durable unit of continuation. It is not the same as a ChatGPT conversation, Codex thread, or runner job.
+A Development Session is ChatCockpit's durable unit of continuation. It is not the same as a ChatGPT conversation, Codex thread, or runner job.
 
 ```ts
 export interface DevelopmentSessionRecord {
@@ -198,7 +198,7 @@ export interface RuntimeBindingRecord {
 }
 ```
 
-The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v18. Codex bindings persist a Thread as `externalSessionId`; TokenPilot Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `tokenpilot.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, execution scope, selected executor, selection mode, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
+The generic Runtime Binding store introduced in Schema v4 remains part of the current Schema v18. Codex bindings persist a Thread as `externalSessionId`; ChatCockpit Runner bindings persist a file-backed Job ID as `externalRunId`. Existing Codex REST/MCP projections retain `externalThreadId` and `sourceThreadId` compatibility fields. `chatcockpit.asyncJob.queue` creates one file-backed Job and Runner Binding transactionally and idempotently while omitting private instructions from the public response. The Runner validates binding identity on claim, records structured Evidence on terminal state, releases the Binding, and moves the Task to `review` or `blocked` without falsely completing it. Startup scans terminal Job files and idempotently repairs an interrupted SQLite handoff. Chat Direct records its lane, model-loop owner, execution scope, selected executor, selection mode, operation ID, changed paths, and Evidence association per operation without pretending that a ChatGPT conversation is a Codex Thread.
 
 ```ts
 export interface ChatDirectExecutionMetadata {
@@ -326,9 +326,9 @@ Evidence Record -> Task Submit Review
 Accepted Handoff + Released Writer -> Task Complete
 ```
 
-`tokenpilot.task.submitReview` requires at least one required Evidence item, requires every required item to pass, finalizes the Evidence Bundle, and moves an `in-progress` or `blocked` Task into `review`.
+`chatcockpit.task.submitReview` requires at least one required Evidence item, requires every required item to pass, finalizes the Evidence Bundle, and moves an `in-progress` or `blocked` Task into `review`.
 
-`tokenpilot.task.complete` completes only when:
+`chatcockpit.task.complete` completes only when:
 
 - the latest Handoff belongs to the Task and is accepted;
 - the latest Evidence Bundle belongs to a Task Session, is complete, and matches the Handoff evidence reference;
@@ -442,7 +442,7 @@ On startup:
 1. run schema compatibility and migrations;
 2. mark expired writer leases;
 3. reconcile sessions marked `running` against runtime processes and adapter state;
-4. reconcile existing TokenPilot job process records;
+4. reconcile existing ChatCockpit job process records;
 5. capture a recovery event for every changed status;
 6. never automatically claim a workspace lease for a new writer;
 7. expose actionable recovery choices in the UI.
@@ -450,7 +450,7 @@ On startup:
 For a disconnected runtime:
 
 ```text
-read TokenPilot task/session
+read ChatCockpit task/session
   -> resolve workspace
   -> read latest handoff
   -> inspect current Git state

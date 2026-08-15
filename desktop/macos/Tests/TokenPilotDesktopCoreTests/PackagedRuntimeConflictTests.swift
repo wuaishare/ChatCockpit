@@ -60,7 +60,7 @@ struct PackagedRuntimeConflictTests {
         #expect(conflict == nil)
     }
 
-    @Test("occupied port with no TokenPilot ownership is blocked before start")
+    @Test("occupied port with no ChatCockpit ownership is blocked before start")
     func occupiedForeignPortConflicts() async {
         let detector = PackagedRuntimeConflictDetector(
             ownershipInspector: FixtureOwnershipInspector(.none),
@@ -97,7 +97,10 @@ struct PackagedRuntimeConflictTests {
             )
             try data.write(to: plistURL)
 
-            let inspector = InstalledLaunchAgentOwnershipInspector(homeDirectoryURL: home)
+            let inspector = InstalledLaunchAgentOwnershipInspector(
+                homeDirectoryURL: home,
+                productIdentity: .tokenPilot
+            )
             #expect(inspector.ownership(expectedInstallRootURL: context.installRootURL) == .source)
         }
     }
@@ -107,7 +110,7 @@ struct PackagedRuntimeConflictTests {
         try withTemporaryDirectory { home in
             let plistURL = home
                 .appendingPathComponent("Library/LaunchAgents", isDirectory: true)
-                .appendingPathComponent("com.wuaishare.tokenpilot.control-plane.plist")
+                .appendingPathComponent("com.wuaishare.chatcockpit.control-plane.plist")
             try FileManager.default.createDirectory(
                 at: plistURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -115,10 +118,10 @@ struct PackagedRuntimeConflictTests {
 
             func writePlist(installRoot: String) throws {
                 let plist: [String: Any] = [
-                    "Label": "com.wuaishare.tokenpilot.control-plane",
+                    "Label": "com.wuaishare.chatcockpit.control-plane",
                     "EnvironmentVariables": [
-                        "TOKENPILOT_DISTRIBUTION_MODE": "packaged",
-                        "TOKENPILOT_INSTALL_ROOT": installRoot
+                        "CHATCOCKPIT_DISTRIBUTION_MODE": "packaged",
+                        "CHATCOCKPIT_INSTALL_ROOT": installRoot
                     ]
                 ]
                 let data = try PropertyListSerialization.data(

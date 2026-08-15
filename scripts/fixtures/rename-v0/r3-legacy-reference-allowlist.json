@@ -1,0 +1,477 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "legacy-product-profile",
+      "class": "implementation-history",
+      "pathRegex": "^src/core/product-identity\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R3 keeps the explicit TokenPilot product descriptor as a bounded compatibility/migration profile while ChatCockpit becomes canonical.",
+      "removalGate": "Review after R4 real migration and R5 compatibility burn-in; do not remove while legacy inspection/import still depends on the descriptor."
+    },
+    {
+      "id": "legacy-runtime-env-input-map",
+      "class": "C1",
+      "pathRegex": "^src/core/identity-env\\.ts$",
+      "lineRegex": "TOKENPILOT_",
+      "reason": "ADR-0004 permits legacy runtime environment names as receive-only 0.2.x input aliases with conflict fail-closed behavior.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-http-route-aliases-server",
+      "class": "C1",
+      "pathRegex": "^src/server/(?:app|auth)\\.ts$",
+      "lineRegex": "\\/tokenpilot\\/(?:api|mcp)",
+      "reason": "Bounded 0.2.x receive-only branded HTTP compatibility aliases; canonical transport remains /api/* and /mcp.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-http-route-aliases-domain-routes",
+      "class": "C1",
+      "pathRegex": "^src/server/(?:continuity-routes|recovery-routes|runtime-routes|runtime-resource-routes)\\.ts$",
+      "lineRegex": "\\/tokenpilot",
+      "reason": "Domain route registrars keep the same bounded receive-only /tokenpilot compatibility aliases while canonical routes remain unbranded.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-http-route-alias-mcp-adapter",
+      "class": "C1",
+      "pathRegex": "^src/mcp/http-adapter\\.ts$",
+      "lineRegex": "\\/tokenpilot\\/mcp",
+      "reason": "Bounded 0.2.x receive-only MCP route alias.",
+      "removalGate": "0.3.0-alpha compatibility review."
+    },
+    {
+      "id": "legacy-config-default-repo-id",
+      "class": "C3",
+      "pathRegex": "^src/core/user-config-schema\\.ts$",
+      "lineRegex": "LEGACY_DEFAULT_REPO_ID|tokenpilot",
+      "reason": "Legacy config repoId=tokenpilot is durable identity and must remain readable/preserved during migration.",
+      "removalGate": "Retain while legacy config migration is supported; do not cosmetically rewrite durable identity."
+    },
+    {
+      "id": "rename-migration-runtime",
+      "class": "C2",
+      "pathRegex": "^src/migration/",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "Rename migration state machine/classifier must recognize legacy TokenPilot state as migration input without activating or dual-writing it.",
+      "removalGate": "Retain as migration reader beyond active 0.2.x aliases if needed."
+    },
+    {
+      "id": "rename-v0-fixtures",
+      "class": "C2",
+      "pathRegex": "^scripts/fixtures/rename-v0/",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "Sanitized historical 0.1.x fixtures intentionally encode legacy identity for migration verification.",
+      "removalGate": "Permanent test history unless legacy migration support is formally removed."
+    },
+    {
+      "id": "rename-foundation-verifiers",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-rename-(?:env-compat|config-migration|state-machine|migration-preview)\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R1 regression verifiers intentionally exercise legacy identity inputs and migration fixtures.",
+      "removalGate": "Retain while ADR-0004 compatibility/migration contracts remain supported."
+    },
+    {
+      "id": "r2-target-continuity-verifier",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-chatcockpit-target-continuity\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R2 copied-state verifier intentionally compares legacy and target durable/runtime identities.",
+      "removalGate": "Retain through R4/R5 as regression evidence."
+    },
+    {
+      "id": "r2-generation-verifier",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-chatcockpit-generation\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "R2 isolated-generation verifier intentionally proves legacy fixture preservation and real .tokenpilot non-mutation.",
+      "removalGate": "Retain through R4/R5 as regression evidence."
+    },
+    {
+      "id": "legacy-oauth-scope-symbol",
+      "class": "C2",
+      "pathRegex": "^src/auth/oauth-types\\.ts$",
+      "lineRegex": "TOKENPILOT_MCP_SCOPE|tokenpilot",
+      "reason": "Legacy OAuth scope remains an explicit old authority identity for rejection/migration tests; it must never silently upgrade to chatcockpit:mcp.",
+      "removalGate": "Retain while legacy OAuth migration/rejection behavior is verified."
+    },
+    {
+      "id": "internal-typescript-symbol-names",
+      "class": "implementation-history",
+      "pathRegex": "^src/(?!migration/).+\\.ts$",
+      "lineRegex": "\\bTokenPilot[A-Z][A-Za-z0-9]*\\b",
+      "reason": "PascalCase TokenPilot-prefixed TypeScript interfaces and internal helper names are implementation symbols, not emitted product identity; canonical output is independently hard-gated.",
+      "removalGate": "Rename opportunistically after R3/R4 when a low-risk internal API cleanup can update all imports atomically."
+    },
+    {
+      "id": "legacy-product-selector-type",
+      "class": "C1",
+      "pathRegex": "^src/types\\.ts$",
+      "lineRegex": "\\\"tokenpilot\\\"",
+      "reason": "The product identity key union keeps tokenpilot solely so bounded migration/inspection selectors remain type-safe during compatibility.",
+      "removalGate": "Remove after the legacy product selector is retired following R5 compatibility burn-in."
+    },
+    {
+      "id": "legacy-cli-product-selector",
+      "class": "C1",
+      "pathRegex": "^src/cli/index\\.ts$",
+      "lineRegex": "tokenpilot",
+      "reason": "CLI parsing still accepts the explicit legacy product selector for bounded inspection/quiesce compatibility; canonical CLI identity is chatcockpit.",
+      "removalGate": "Remove when legacy product inspection/quiesce is no longer supported."
+    },
+    {
+      "id": "durable-runtime-identity-values",
+      "class": "C3",
+      "pathRegex": "^src/(?:continuity/(?:types|runtime-identity)|contracts/runtime-resources)\\.ts$",
+      "lineRegex": "tokenpilot-(?:runner|local)",
+      "reason": "Persisted runtime/resource identity values from 0.1.x remain readable as durable database values and are normalized without cosmetic history rewrites.",
+      "removalGate": "Retain until all supported continuity databases have crossed a reviewed durable-identity migration boundary."
+    },
+    {
+      "id": "legacy-job-public-projection-shape",
+      "class": "C3",
+      "pathRegex": "^src/server/job-public-projection\\.ts$",
+      "lineRegex": "repoId = \\\"tokenpilot\\\"",
+      "reason": "Public projection recognizes legacy persisted pack-like job records that predate repoId so historical jobs can still be rendered safely.",
+      "removalGate": "Remove only after legacy job records are no longer supported or have a complete durable migration."
+    },
+    {
+      "id": "legacy-private-state-read-safety",
+      "class": "C2",
+      "pathRegex": "^src/core/files-api\\.ts$",
+      "lineRegex": "tokenpilot\\|chatcockpit",
+      "reason": "File safety deliberately recognizes both canonical and historical private state roots so old runtime artifacts cannot become accidentally public-readable.",
+      "removalGate": "Retain while historical .tokenpilot state may exist on supported installations."
+    },
+    {
+      "id": "legacy-mcp-tool-projection",
+      "class": "C1",
+      "pathRegex": "^src/mcp/product-tool-identity\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot",
+      "reason": "Tool identity projection can render legacy names only for explicit compatibility inspection while the canonical catalog itself is hard-gated to chatcockpit.*.",
+      "removalGate": "Remove legacy projection after compatibility tooling no longer needs to compare 0.1.x tool identities."
+    },
+    {
+      "id": "swift-internal-tokenpilot-symbols",
+      "class": "implementation-history",
+      "pathRegex": "^desktop/macos/",
+      "lineRegex": "TokenPilot(?:Desktop|Root|Runtime|PackageIdentity)",
+      "reason": "Swift module, source-file, core framework, root helper, and embedded runtime directory names remain internal implementation symbols after the emitted app identity became ChatCockpit.",
+      "removalGate": "Rename only in a dedicated low-risk Swift module cleanup after full-Xcode CI and migration compatibility are stable."
+    },
+    {
+      "id": "macos-legacy-input-and-migration",
+      "class": "C2",
+      "pathRegex": "^desktop/macos/(?:Sources|Tests)/",
+      "lineRegex": "TOKENPILOT_|\\.tokenpilot|tokenpilotDesktop|com\\.wuaishare\\.tokenpilot|cn\\.wuaishare\\.TokenPilot|\\btokenpilot\\b|\\bTokenPilot\\b|\\.tokenPilot",
+      "reason": "macOS source/import/tests explicitly read or assert historical TokenPilot state, preferences, LaunchAgents, and product profile without allowing legacy fresh start/restart.",
+      "removalGate": "Retain through migration burn-in; remove only when historical desktop setup import and ownership inspection are retired."
+    },
+    {
+      "id": "macos-identity-regression-verifiers",
+      "class": "C2",
+      "pathRegex": "^scripts/(?:verify-chatcockpit-macos-identity|verify-macos-desktop|verify-macos-xcode-project|verify-packaged-doctor|verify-packaged-runtime|verify-macos-runtime-payload|verify-macos-entitlements|verify-macos-signing-contract|verify-macos-notarization)\\.(?:ts|sh)$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "macOS regression verifiers intentionally assert legacy absence, bounded fallback readers, migration state blocking, or stable internal runtime/module names.",
+      "removalGate": "Review after R5; retain any assertions still needed to prevent reintroducing a second legacy active mode."
+    },
+    {
+      "id": "canonical-cutover-legacy-regression-verifiers",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-chatcockpit-(?:product-identity|public-projection|mcp-identity|oauth-identity)\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "These R3 verifiers intentionally construct or reject legacy identity inputs while proving that current public product, MCP, OAuth, and projection outputs remain ChatCockpit-only.",
+      "removalGate": "Retain through the compatibility window and remove only with the corresponding legacy input contract."
+    },
+    {
+      "id": "legacy-oauth-store-regression",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-oauth-store\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "OAuth store regression fixtures preserve the historical authority/resource identity to verify isolation, rejection, expiry, and persistence behavior.",
+      "removalGate": "Retain while legacy OAuth authority data remains a supported migration/rejection case."
+    },
+    {
+      "id": "legacy-local-smoke-regression",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-local-smoke\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "Local smoke includes explicit historical configuration and private-state fixtures to prove receive-old/write-new migration and safety behavior.",
+      "removalGate": "Retain through R5 while legacy config/state migration remains part of the supported smoke matrix."
+    },
+    {
+      "id": "legacy-desktop-commander-operator-env-fallback",
+      "class": "C1",
+      "pathRegex": "^scripts/probe-desktop-commander-.+\\.ts$",
+      "lineRegex": "TOKENPILOT_",
+      "reason": "Operator-only Desktop Commander live probes prefer CHATCOCKPIT_* and retain TOKENPILOT_* solely as receive-only environment fallback during compatibility.",
+      "removalGate": "Remove fallback after the 0.2.x compatibility window and operator migration guidance expire."
+    },
+    {
+      "id": "legacy-macos-env-fallback",
+      "class": "C1",
+      "pathRegex": "^scripts/(?:sign-macos-distribution|notarize-macos-distribution|verify-macos-dmg|verify-macos-signed-app|verify-macos-release-manifest|verify-macos-update-manifest|verify-macos-runtime-payload)\\.(?:sh|ts)$",
+      "lineRegex": "TOKENPILOT_",
+      "reason": "Distribution helpers prefer CHATCOCKPIT_* and accept selected old environment variable names only as receive-only operator compatibility inputs.",
+      "removalGate": "Remove old variable fallbacks after release-operator migration is complete."
+    },
+    {
+      "id": "internal-tokenpilot-runtime-payload-name",
+      "class": "implementation-history",
+      "pathRegex": "^(?:\\.github/workflows/verify\\.yml|scripts/.+|docs/(?:zh-CN/)?deployment/macos-desktop\\.md|desktop/macos/.+)$",
+      "lineRegex": "TokenPilotRuntime",
+      "reason": "TokenPilotRuntime is the stable internal embedded payload directory name; it is not an emitted product, app, bundle, service, or user-facing release identity.",
+      "removalGate": "Rename only with an atomic runtime-payload layout migration after R3/R4, including signed hash and deployed-runtime compatibility."
+    },
+    {
+      "id": "legacy-private-state-root-config",
+      "class": "C2",
+      "pathRegex": "^(?:\\.gitignore|\\.repomix\\.config\\.json|AGENTS\\.md)$",
+      "lineRegex": "TokenPilot|\\.tokenpilot",
+      "reason": "Repository safety configuration keeps historical .tokenpilot state ignored/blocked as receive-only private data while canonical writes use .chatcockpit.",
+      "removalGate": "Retain while supported machines may still contain historical .tokenpilot private state."
+    },
+    {
+      "id": "current-docs-legacy-compatibility",
+      "class": "C2",
+      "pathRegex": "^(?:README(?:\\.en)?\\.md|docs/(?:engineering/files-read-api|engineering/gpt-instructions|architecture/web-ui-design-system|architecture/stability-oauth-hardening|release/0\\.2\\.0-alpha|release/release-checklist|governance/public-vs-private-artifacts|zh-CN/governance/public-vs-private-artifacts|deployment/mcp-setup|zh-CN/deployment/mcp-setup)\\.md)$",
+      "lineRegex": "TOKENPILOT_|\\.tokenpilot|tokenpilot:web|\\/tokenpilot\\/|tokenpilot-direct|TokenPilot|compatibility-period historical",
+      "reason": "Current documentation mentions old names only to describe bounded receive-only compatibility, private-state blocking, or migration behavior; fresh instructions use ChatCockpit.",
+      "removalGate": "Remove each compatibility mention together with the corresponding C1/C2 input after the compatibility window."
+    },
+    {
+      "id": "durable-runtime-identity-docs",
+      "class": "C3",
+      "pathRegex": "^docs/(?:zh-CN/)?architecture/continuity-engine\\.md$",
+      "lineRegex": "tokenpilot-runner",
+      "reason": "Architecture docs record the historical durable runtimeKind value that existing continuity databases must preserve and continue to understand.",
+      "removalGate": "Retain until a reviewed durable database identity migration removes support for tokenpilot-runner."
+    },
+    {
+      "id": "historical-release-and-proof-docs",
+      "class": "C3",
+      "pathRegex": "^(?:CHANGELOG\\.md|docs/release/0\\.1\\.0-alpha\\.1\\.md|docs/proof/.+)$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "Historical changelog, release, and proof artifacts describe evidence produced under the 0.1.x TokenPilot identity and must not be rewritten as if it occurred under ChatCockpit.",
+      "removalGate": "Permanent historical record unless the entire historical artifact is intentionally retired."
+    },
+    {
+      "id": "current-real-github-repository-coordinate",
+      "class": "C3",
+      "pathRegex": "^(?:README(?:\\.en)?\\.md|desktop/macos/Sources/TokenPilotDesktopCore/UpdateChecker\\.swift|scripts/verify-macos-update-manifest\\.ts)$",
+      "lineRegex": "(?:github\\.com/)?wuaishare/TokenPilot",
+      "reason": "The physical GitHub repository is still named wuaishare/TokenPilot until the separate R4 repository migration, so current links must remain resolvable.",
+      "removalGate": "Replace atomically during R4 after the GitHub repository rename is complete and redirects are verified."
+    },
+    {
+      "id": "web-legacy-session-storage-readers",
+      "class": "C2",
+      "pathRegex": "^web/src/(?:App|theme|i18n)\\.(?:tsx|ts)$",
+      "lineRegex": "tokenpilot:web",
+      "reason": "Web UI reads legacy sessionStorage keys once, migrates values to chatcockpit:web:* keys, and removes old keys; no normal write path creates legacy state.",
+      "removalGate": "Remove after the 0.2.x browser-state migration window."
+    },
+    {
+      "id": "legacy-macos-lifecycle-selector",
+      "class": "C1",
+      "pathRegex": "^scripts/(?:macos-manage-local-server|build-macos-xcode-app)\\.sh$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot|com\\.wuaishare\\.tokenpilot",
+      "reason": "macOS lifecycle/build entrypoints retain an explicit legacy selector only to reject fresh old-identity generation and permit bounded inspection/quiesce behavior.",
+      "removalGate": "Remove after legacy LaunchAgent inspection/quiesce support is retired."
+    },
+    {
+      "id": "legacy-package-projection-verifier",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-chatcockpit-package-identity\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot",
+      "reason": "Package identity verifier constructs a sanitized 0.1.x package fixture to prove the canonical package/bin cannot regress to the legacy projection.",
+      "removalGate": "Retain through R5 as package-identity regression evidence."
+    },
+    {
+      "id": "source-archive-legacy-safety-and-internal-modules",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-source-archive\\.ts$",
+      "lineRegex": "\\.tokenpilot|TokenPilotDesktopCore",
+      "reason": "Source archive verification blocks historical private state and confirms stable internal Swift module sources remain included without exposing legacy product identity.",
+      "removalGate": "Keep private-state blocking while legacy state exists; revisit internal module checks only with a Swift module rename."
+    },
+    {
+      "id": "internal-macos-module-names-in-tooling",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/(?:build-macos-desktop-app|build-macos-distribution-app|verify-macos-manual-update)\\.(?:sh|ts)$",
+      "lineRegex": "TokenPilotDesktop(?:Core)?",
+      "reason": "These build/verifier references name the still-internal Swift executable/framework modules, while emitted app/archive/DMG identities are hard-gated as ChatCockpit.",
+      "removalGate": "Rename only in a dedicated Swift module migration after full-Xcode CI remains stable."
+    },
+    {
+      "id": "private-governance-path-safety",
+      "class": "C3",
+      "pathRegex": "^scripts/verify-path-guards\\.ts$",
+      "lineRegex": "\\.ops-private/tokenpilot",
+      "reason": "The local private governance directory retains its historical physical path until a separate private-workspace migration; public path guards must keep blocking it.",
+      "removalGate": "Update atomically only if the private governance directory is physically renamed."
+    },
+    {
+      "id": "web-safety-legacy-state-and-host-patterns",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-web-safety\\.ts$",
+      "lineRegex": "\\.tokenpilot|tokenpilot|TOKENPILOT_",
+      "reason": "Public-safety scanning deliberately detects historical private state, old deployment hosts, and old secret variable names in addition to canonical ChatCockpit values.",
+      "removalGate": "Retain as defense-in-depth while old state or history can still appear in source/archive scans."
+    },
+    {
+      "id": "history-privacy-legacy-inputs",
+      "class": "C2",
+      "pathRegex": "^scripts/scan-history-privacy\\.sh$",
+      "lineRegex": "tokenpilot|TOKENPILOT_",
+      "reason": "History privacy scanning checks both current ChatCockpit and historical TokenPilot hosts and accepts the old operator pattern variable only as a fallback input.",
+      "removalGate": "Retain historical host scanning permanently; remove the old operator env fallback after compatibility expiry."
+    },
+    {
+      "id": "continuity-store-legacy-fixtures",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-continuity-store\\.ts$",
+      "lineRegex": "'tokenpilot'|tokenpilot-runner",
+      "reason": "Continuity store regression fixtures preserve legacy repo/runtime values to prove schema upgrade and durable identity compatibility across historical databases.",
+      "removalGate": "Retain while migrations from supported 0.1.x continuity schemas remain supported."
+    },
+    {
+      "id": "legacy-resource-mutation-env-security",
+      "class": "C1",
+      "pathRegex": "^scripts/verify-runtime-resource-mutation-security\\.ts$",
+      "lineRegex": "TOKENPILOT_",
+      "reason": "Security regression explicitly exercises old environment aliases and conflict fail-closed behavior against the canonical CHATCOCKPIT_* mutation exposure settings.",
+      "removalGate": "Remove together with the legacy environment alias map after compatibility expiry."
+    },
+    {
+      "id": "durable-continuity-migration-identities",
+      "class": "C3",
+      "pathRegex": "^src/continuity/migrations/(?:004-generic-runtime-bindings|019-chatcockpit-runtime-binding-identity)\\.ts$",
+      "lineRegex": "tokenpilot-(?:runner|local)",
+      "reason": "Database migrations must recognize historical durable runtime identity values exactly so existing continuity records can be upgraded without identity fabrication.",
+      "removalGate": "Permanent migration history unless support for all source schemas containing these values is intentionally dropped."
+    },
+    {
+      "id": "legacy-runtime-hash-env-fallback",
+      "class": "C1",
+      "pathRegex": "^scripts/refresh-macos-runtime-payload-hashes\\.ts$",
+      "lineRegex": "TOKENPILOT_RUNTIME_",
+      "reason": "Runtime hash refresh prefers CHATCOCKPIT_* and accepts old payload/rehash environment names solely as receive-only release-operator fallback.",
+      "removalGate": "Remove after release operator compatibility migration is complete."
+    },
+    {
+      "id": "legacy-mcp-route-smoke",
+      "class": "C1",
+      "pathRegex": "^scripts/verify-mcp-smoke\\.ts$",
+      "lineRegex": "\\/tokenpilot\\/mcp",
+      "reason": "MCP smoke deliberately verifies the bounded legacy receive-only transport alias alongside the canonical /mcp route.",
+      "removalGate": "Remove with the legacy MCP route alias after compatibility expiry."
+    },
+    {
+      "id": "runtime-manifest-secret-negative-checks",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-runtime-manifest\\.ts$",
+      "lineRegex": "TOKENPILOT_",
+      "reason": "Runtime manifest verifier explicitly rejects historical secret/environment names so legacy configuration cannot leak into immutable distribution metadata.",
+      "removalGate": "Retain as defense-in-depth while old local state may be encountered by builders."
+    },
+    {
+      "id": "internal-lowercase-tokenpilot-helper-names",
+      "class": "implementation-history",
+      "pathRegex": "^src/(?:server/app|server/auth|mcp/server)\\.ts$",
+      "lineRegex": "(?:build|create)TokenPilot|tokenPilotAuthPlugin",
+      "reason": "Lower-camel internal server helper names predate the public cutover; they do not determine emitted routes, tools, scopes, state roots, or product identity.",
+      "removalGate": "Rename opportunistically with an internal server API cleanup after R3."
+    },
+    {
+      "id": "legacy-direct-executor-input-alias-tests",
+      "class": "C1",
+      "pathRegex": "^scripts/(?:verify-chat-direct-routing|verify-host-direct-read|verify-direct-capability-broker)\\.ts$",
+      "lineRegex": "tokenpilot-direct",
+      "reason": "Direct routing regressions explicitly prove the old executor selector is accepted as a bounded input alias and resolves to canonical builtin-direct output.",
+      "removalGate": "Remove with the tokenpilot-direct selector alias after compatibility expiry."
+    },
+    {
+      "id": "web-durable-runtime-source-values",
+      "class": "C3",
+      "pathRegex": "^web/src/(?:types|components/resources/ResourceCenterView)\\.(?:ts|tsx)$",
+      "lineRegex": "tokenpilot-(?:runner|local)",
+      "reason": "Web types/rendering must understand historical durable runtime/resource source values returned from migrated continuity data while displaying ChatCockpit labels.",
+      "removalGate": "Retain until durable backend identity migration no longer emits or reads these historical values."
+    },
+    {
+      "id": "knowledge-and-release-private-state-blocking",
+      "class": "C2",
+      "pathRegex": "^scripts/(?:verify-knowledge-boundary\\.ts|verify-release-dry-run\\.sh)$",
+      "lineRegex": "\\.tokenpilot",
+      "reason": "Knowledge-boundary and release dry-run gates deliberately block historical .tokenpilot private state in addition to canonical .chatcockpit state.",
+      "removalGate": "Retain while historical private state may exist in supported checkouts or archives."
+    },
+    {
+      "id": "legacy-macos-lifecycle-regression-assertion",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-macos-local-services\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot|com\\.wuaishare\\.tokenpilot",
+      "reason": "The local-services verifier explicitly asserts that the legacy macOS identity exists only behind the R3 start/restart rejection guard.",
+      "removalGate": "Retain until legacy LaunchAgent inspection/quiesce support is removed."
+    },
+    {
+      "id": "internal-symbols-in-final-verifiers",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/(?:verify-local-e2e|verify-macos-update-manifest)\\.ts$",
+      "lineRegex": "TokenPilot(?:Paths|DesktopCore)",
+      "reason": "These verifier imports/reference checks name stable internal TypeScript/Swift implementation symbols rather than emitted ChatCockpit product identity.",
+      "removalGate": "Rename with the corresponding internal type/module cleanup after R3."
+    },
+    {
+      "id": "legacy-runtime-resource-route-api-proof",
+      "class": "C1",
+      "pathRegex": "^scripts/verify-runtime-resource-api\\.ts$",
+      "lineRegex": "\\/tokenpilot\\/api\\/resources",
+      "reason": "Runtime Resource API verification exercises the bounded receive-only branded HTTP alias alongside canonical unbranded REST routes.",
+      "removalGate": "Remove when the branded HTTP compatibility alias is retired."
+    },
+    {
+      "id": "durable-resource-source-migration-value",
+      "class": "C3",
+      "pathRegex": "^src/continuity/migrations/015-runtime-resource-inventory\\.ts$",
+      "lineRegex": "tokenpilot-local",
+      "reason": "Schema migration 015 must preserve the historical durable resource source_kind value tokenpilot-local exactly for existing databases.",
+      "removalGate": "Permanent migration history unless support for that source schema is intentionally dropped."
+    },
+    {
+      "id": "durable-runner-repository-query",
+      "class": "C3",
+      "pathRegex": "^src/continuity/repositories/runtime-binding-repository\\.ts$",
+      "lineRegex": "tokenpilot-runner",
+      "reason": "Runtime-binding reads still recognize historical durable tokenpilot-runner rows while canonical writes use async-runner.",
+      "removalGate": "Remove only after a reviewed durable migration guarantees no supported database retains tokenpilot-runner rows."
+    },
+    {
+      "id": "first-task-legacy-private-state-warning",
+      "class": "C2",
+      "pathRegex": "^templates/first-task/safe-doc-edit\\.md$",
+      "lineRegex": "legacy `\\.tokenpilot`",
+      "reason": "The starter task explicitly warns that historical .tokenpilot state remains private and must not leak into a documentation edit.",
+      "removalGate": "Retain while historical .tokenpilot state may still be present on supported machines."
+    },
+    {
+      "id": "web-private-state-path-safety",
+      "class": "C2",
+      "pathRegex": "^web/src/utils\\.ts$",
+      "lineRegex": "tokenpilot\\|chatcockpit",
+      "reason": "Web public-path safety rejects both canonical and historical private runtime/job state roots to prevent old state from becoming exposable.",
+      "removalGate": "Retain while historical .tokenpilot state can exist or be rendered by compatibility data."
+    },
+    {
+      "id": "r3-fresh-install-legacy-negative-assertions",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-chatcockpit-r3-cutover\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "The R3 isolated fresh-install verifier names legacy identity only in negative assertions and real-state isolation checks proving that default ChatCockpit generation neither emits nor mutates old TokenPilot state.",
+      "removalGate": "Retain while R3/R4 regression coverage must prove fresh installs do not recreate or mutate legacy identity; narrow or remove only with the corresponding compatibility closeout."
+    }
+  ]
+}

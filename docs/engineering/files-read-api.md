@@ -1,6 +1,6 @@
 # Files Read API
 
-TokenPilot now provides a controlled read-only file API for GPT / automation use.
+ChatCockpit provides a controlled read-only file API for GPT / automation use.
 
 It exists to solve a specific gap:
 
@@ -34,7 +34,7 @@ The API only reads files when all of these are true:
 - the requested path stays inside that repo root
 - the requested path is not in blocked locations such as:
   - `.git/`
-  - `.tokenpilot/`
+  - `.chatcockpit/` and legacy `.tokenpilot/`
   - `.codex/`
   - `.servbay/`
   - `node_modules/`
@@ -44,13 +44,13 @@ The API only reads files when all of these are true:
   - `*.log`
 - the file looks like a text file
 
-## Why `.tokenpilot/` stays blocked
+## Why private ChatCockpit state stays blocked
 
-Direct reads into most of `.tokenpilot/` remain blocked on purpose.
+Direct reads into most of `.chatcockpit/` and legacy `.tokenpilot/` remain blocked on purpose.
 
 That directory contains mixed local runtime state, queue files, logs, and generated artifacts. Opening it up as a generic read surface would weaken the control-plane boundary and make it easier to accidentally expose internal runtime data.
 
-Instead, TokenPilot exposes a narrower job-driven artifact surface:
+Instead, ChatCockpit exposes a narrower job-driven artifact surface:
 
 - `GET /api/jobs/{id}/artifacts`
 - `GET /api/jobs/{id}/artifacts/{artifactKey}`
@@ -60,14 +60,14 @@ These endpoints only allow public-safe artifact reads that are already declared 
 - pack: `repomixXml`, `prompt`, `summary`, `manifest`
 - taskpack: `markdown`, `json`
 
-For compatibility, `POST /api/files/read` and `POST /api/files/read-batch` also allow a narrow subset of public-safe artifact paths under `.tokenpilot/`, including:
+`POST /api/files/read` and `POST /api/files/read-batch` allow only a narrow subset of public-safe artifact paths under the canonical `.chatcockpit/` state root, including:
 
-- `.tokenpilot/repomix-output-*.xml`
-- `.tokenpilot/bundles/bundle-*-prompt.md`
-- `.tokenpilot/bundles/bundle-*-summary.md`
-- `.tokenpilot/bundles/bundle-*-manifest.json`
+- `.chatcockpit/repomix-output-*.xml`
+- `.chatcockpit/bundles/bundle-*-prompt.md`
+- `.chatcockpit/bundles/bundle-*-summary.md`
+- `.chatcockpit/bundles/bundle-*-manifest.json`
 
-Legacy fixed filenames such as `.tokenpilot/repomix-output.xml`, `.tokenpilot/bundles/bundle-prompt.md`, and `.tokenpilot/bundles/bundle-summary.md` remain readable for backward compatibility, but new pack runs now produce timestamped artifact names.
+The same bounded shapes under legacy `.tokenpilot/` remain receive-only compatibility inputs. Legacy fixed filenames such as `.tokenpilot/repomix-output.xml`, `.tokenpilot/bundles/bundle-prompt.md`, and `.tokenpilot/bundles/bundle-summary.md` remain readable for backward compatibility; new pack runs write timestamped artifacts under `.chatcockpit/`.
 
 ## Output model
 

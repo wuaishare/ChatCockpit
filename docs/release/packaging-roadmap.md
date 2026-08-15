@@ -1,6 +1,6 @@
-# TokenPilot Packaging Roadmap
+# ChatCockpit Packaging Roadmap
 
-TokenPilot remains source-friendly, while the macOS desktop path now has a self-contained runtime layer around the same authoritative Node/TypeScript control plane.
+ChatCockpit remains source-friendly, while the macOS desktop path now has a self-contained runtime layer around the same authoritative Node/TypeScript control plane.
 
 ## Packaging milestones
 
@@ -19,8 +19,8 @@ TokenPilot remains source-friendly, while the macOS desktop path now has a self-
    - versioned immutable runtime deployment under Application Support;
    - writable state/config separated from the runtime and user workspace;
    - selected project workspace semantics instead of treating the app/runtime as a repository;
-   - Packaged Mode starts without system Node/npm and without a TokenPilot source checkout;
-   - Developer Mode remains compatible with system Node `>=22.13.0` and checkout-local `.tokenpilot` state;
+   - Packaged Mode starts without system Node/npm and without a ChatCockpit source checkout;
+   - Developer Mode remains compatible with system Node `>=22.13.0` and checkout-local `.chatcockpit` state;
    - non-destructive Existing Setup import excludes bearer/OAuth/supervisor/provider/cookie secrets;
    - LaunchAgent ownership and port-conflict protection prevent automatic takeover of another runtime;
    - native-architecture packaged runtime live proof plus other-architecture static payload verification.
@@ -37,7 +37,7 @@ TokenPilot remains source-friendly, while the macOS desktop path now has a self-
 
 ## Architecture rule
 
-Keep the existing TokenPilot Node control plane authoritative. The native macOS app is an operator shell and packaged-runtime host, not a second implementation of Continuity, MCP, OAuth, Codex, Resource Center, approvals, mutations, Runner, or Process Supervisor behavior.
+Keep the existing ChatCockpit Node control plane authoritative. The native macOS app is an operator shell and packaged-runtime host, not a second implementation of Continuity, MCP, OAuth, Codex, Resource Center, approvals, mutations, Runner, or Process Supervisor behavior.
 
 Packaged distribution also keeps these roots distinct:
 
@@ -45,11 +45,11 @@ Packaged distribution also keeps these roots distinct:
 app bundle payload != deployed runtime != writable state != user workspace
 ```
 
-The desktop shell must not hide security-critical state, display secret values, or automatically replace a runtime owned by another mode. Quitting the GUI remains separate from explicitly stopping TokenPilot services.
+The desktop shell must not hide security-critical state, display secret values, or automatically replace a runtime owned by another mode. Quitting the GUI remains separate from explicitly stopping ChatCockpit services.
 
 ## Current distribution honesty
 
-TokenPilot now has two intentionally separate distribution lanes.
+ChatCockpit now has two intentionally separate distribution lanes.
 
 The **secretless engineering lane** can build and verify development DMGs, generate checksummed release manifests, validate public update metadata, and expose an explicit Manual Verified Update UI. These capabilities prove packaging and update-contract behavior, not publisher authenticity. Development manifests are permanently constrained to:
 
@@ -58,7 +58,7 @@ distributionTrust=development
 releaseEligible=false
 ```
 
-The **certification lane** remains deferred. Until a real Developer ID Application identity and Apple notarization credentials are available and the credentialed workflow completes successfully, TokenPilot Desktop must not be described as:
+The **certification lane** remains deferred. Until a real Developer ID Application identity and Apple notarization credentials are available and the credentialed workflow completes successfully, ChatCockpit Desktop must not be described as:
 
 - Developer ID signed for public distribution;
 - Apple notarized or stapled;
@@ -66,4 +66,4 @@ The **certification lane** remains deferred. Until a real Developer ID Applicati
 - a production/release-eligible `.dmg`;
 - silently or automatically updating.
 
-Manual Verified Update v1 is deliberately not a silent updater. The app checks public metadata only after an explicit operator action and exposes **Download Update** only when that metadata validates as `releaseEligible=true`; it does not replace the app or stop/restart TokenPilot services.
+Manual Verified Update v1 is deliberately not a silent updater. The app checks public metadata only after an explicit operator action and exposes **Download Update** only when that metadata validates as `releaseEligible=true`; it does not replace the app or stop/restart ChatCockpit services.

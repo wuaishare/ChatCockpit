@@ -12,7 +12,7 @@ import {
   type RuntimeResourceRestLiveHarness
 } from "./test-support/runtime-resource-rest-live.ts";
 
-const OPT_IN_ENV = "TOKENPILOT_CODEX_PLUGIN_MCP_MUTATION_PROOF";
+const OPT_IN_ENV = "CHATCOCKPIT_CODEX_PLUGIN_MCP_MUTATION_PROOF";
 const OPT_IN_VALUE = "I_UNDERSTAND_REVERSIBLE_MCP_OPERATOR_MUTATION";
 
 type PluginOperation = "plugin.install" | "plugin.uninstall";
@@ -206,7 +206,7 @@ async function governedTransition(
     ok: true;
     approval: ApprovalProjection;
     replayed: boolean;
-  }>("tokenpilot.resources.mutation.prepare", {
+  }>("chatcockpit.resources.mutation.prepare", {
     operation,
     runtimeProfileId: harness.profile.id,
     workspaceId: harness.workspaceId,
@@ -225,7 +225,7 @@ async function governedTransition(
   const inspectedPending = await harness.mcp<{
     ok: true;
     approval: ApprovalProjection;
-  }>("tokenpilot.resources.mutation.inspect", {
+  }>("chatcockpit.resources.mutation.inspect", {
     target: "approval",
     workspaceId: harness.workspaceId,
     approvalId: prepared.approval.id
@@ -253,7 +253,7 @@ async function governedTransition(
   const inspectedApproved = await harness.mcp<{
     ok: true;
     approval: ApprovalProjection;
-  }>("tokenpilot.resources.mutation.inspect", {
+  }>("chatcockpit.resources.mutation.inspect", {
     target: "approval",
     workspaceId: harness.workspaceId,
     approvalId: prepared.approval.id
@@ -276,7 +276,7 @@ async function governedTransition(
     approval: ApprovalProjection;
     execution: ExecutionProjection;
     replayed: boolean;
-  }>("tokenpilot.resources.mutation.execute", executeBody);
+  }>("chatcockpit.resources.mutation.execute", executeBody);
   const executeDurationMs = Date.now() - executeStartedAt;
   assert.equal(executed.replayed, false);
   assert.equal(executed.execution.verificationStatus, "verified");
@@ -289,7 +289,7 @@ async function governedTransition(
     ok: true;
     execution: ExecutionProjection;
     replayed: boolean;
-  }>("tokenpilot.resources.mutation.execute", executeBody);
+  }>("chatcockpit.resources.mutation.execute", executeBody);
   assert.equal(replay.replayed, true);
   assert.equal(replay.execution.id, executed.execution.id);
   assert.equal(writeCount(harness.providerMethodCalls, method), writesBefore + 1);
@@ -297,7 +297,7 @@ async function governedTransition(
   const inspectedExecution = await harness.mcp<{
     ok: true;
     execution: ExecutionProjection;
-  }>("tokenpilot.resources.mutation.inspect", {
+  }>("chatcockpit.resources.mutation.inspect", {
     target: "execution",
     workspaceId: harness.workspaceId,
     executionId: executed.execution.id
@@ -393,7 +393,7 @@ export async function runCodexPluginMutationMcpLiveProof(
         ok: true;
         approvals: ApprovalProjection[];
         executions: ExecutionProjection[];
-      }>("tokenpilot.resources.mutation.inspect", {
+      }>("chatcockpit.resources.mutation.inspect", {
         target: "activity",
         workspaceId: harness.workspaceId,
         resourceId: original.id,

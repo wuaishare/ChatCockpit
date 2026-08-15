@@ -15,7 +15,7 @@ function canonical(value: string): string {
   return fs.existsSync(resolved) ? fs.realpathSync.native(resolved) : resolved;
 }
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-distribution-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-distribution-"));
 const installRoot = path.join(tempRoot, "runtime", "app");
 const stateRoot = path.join(tempRoot, "state");
 const workspaceRoot = path.join(tempRoot, "workspace");
@@ -52,14 +52,14 @@ assert.equal(packagedPaths.distributionMode, "packaged");
 assert.equal(packagedPaths.nodeExecutable, canonical(nodeExecutable));
 assert.equal(packagedPaths.configPath, canonical(configPath));
 
-const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
 const packagedEnvOverride = path.join(tempRoot, "packaged-env-override.json");
-process.env.TOKENPILOT_CONFIG_PATH = packagedEnvOverride;
+process.env.CHATCOCKPIT_CONFIG_PATH = packagedEnvOverride;
 const packagedConfig = loadUserConfigForPaths(packagedPaths);
 assert.equal(packagedConfig.schemaVersion, 1);
-assert.equal(packagedConfig.defaultRepoId, "tokenpilot");
+assert.equal(packagedConfig.defaultRepoId, "primary");
 assert.equal(fs.existsSync(packagedEnvOverride), false);
-assert.equal(packagedConfig.repoMappings.tokenpilot?.path, canonical(workspaceRoot));
+assert.equal(packagedConfig.repoMappings.primary?.path, canonical(workspaceRoot));
 assert.equal(packagedConfig.workspaceAllowlist.includes(canonical(workspaceRoot)), true);
 assert.equal(packagedConfig.workspaceAllowlist.includes(canonical(installRoot)), false);
 assert.equal(packagedConfig.workspaceAllowlist.includes(canonical(stateRoot)), false);
@@ -72,25 +72,25 @@ const source = buildSourceDistributionContext(sourceRoot, {
 });
 const sourcePaths = buildPaths(sourceRoot);
 const sourceDynamicConfigPath = path.join(tempRoot, "source-dynamic-config.json");
-process.env.TOKENPILOT_CONFIG_PATH = sourceDynamicConfigPath;
+process.env.CHATCOCKPIT_CONFIG_PATH = sourceDynamicConfigPath;
 const sourceConfig = loadUserConfigForPaths(sourcePaths);
 assert.equal(sourceConfig.schemaVersion, 1);
-assert.equal(sourceConfig.defaultRepoId, "tokenpilot");
+assert.equal(sourceConfig.defaultRepoId, "primary");
 assert.equal(fs.existsSync(sourceDynamicConfigPath), true);
-assert.equal(sourceConfig.repoMappings.tokenpilot?.path, canonical(sourceRoot));
+assert.equal(sourceConfig.repoMappings.primary?.path, canonical(sourceRoot));
 assert.equal(source.mode, "source");
 assert.equal(source.installRoot, canonical(sourceRoot));
-assert.equal(source.stateRoot, path.join(canonical(sourceRoot), ".tokenpilot"));
+assert.equal(source.stateRoot, path.join(canonical(sourceRoot), ".chatcockpit"));
 assert.equal(source.primaryWorkspaceRoot, canonical(sourceRoot));
 assert.equal(sourcePaths.repoRoot, canonical(sourceRoot));
 assert.equal(sourcePaths.installRoot, canonical(sourceRoot));
-assert.equal(sourcePaths.workspaceDir, path.join(canonical(sourceRoot), ".tokenpilot"));
+assert.equal(sourcePaths.workspaceDir, path.join(canonical(sourceRoot), ".chatcockpit"));
 assert.equal(sourcePaths.distributionMode, "source");
 
 if (originalConfigPath === undefined) {
-  delete process.env.TOKENPILOT_CONFIG_PATH;
+  delete process.env.CHATCOCKPIT_CONFIG_PATH;
 } else {
-  process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
 }
 
 process.stdout.write("VERIFY_DISTRIBUTION_CONTEXT_OK\n");

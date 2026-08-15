@@ -1,4 +1,4 @@
-# TokenPilot MCP Setup
+# ChatCockpit MCP Setup
 
 ## Status
 
@@ -7,13 +7,13 @@
 - Exposed-mode static Bearer compatibility: implemented
 - ChatGPT-compatible OAuth 2.1 discovery, DCR, PKCE, refresh, revoke, and restart persistence: implemented and locally verified
 - Use through a remote ChatGPT/MCP client: experimental at the external client/network boundary
-- Public hosted TokenPilot MCP service: not implemented
+- Public hosted ChatCockpit MCP service: not implemented
 
-TokenPilot exposes the same governed domain operations through REST and MCP. MCP handlers do not write SQLite directly, acquire Writer Leases independently, or bypass file/command/Git safety checks.
+ChatCockpit exposes the same governed domain operations through REST and MCP. MCP handlers do not write SQLite directly, acquire Writer Leases independently, or bypass file/command/Git safety checks.
 
 ## Prerequisites
 
-Start TokenPilot first:
+Start ChatCockpit first:
 
 ```bash
 npm run setup
@@ -25,7 +25,7 @@ Default local endpoints:
 
 ```text
 http://127.0.0.1:4318/mcp
-http://127.0.0.1:4318/tokenpilot/mcp
+http://127.0.0.1:4318/mcp
 ```
 
 The two paths are aliases. Use one consistently in a client configuration.
@@ -37,20 +37,20 @@ Local non-exposed mode can be used without a Bearer token when the operator expl
 For ChatGPT Remote MCP, OAuth is the preferred authentication path. Public exposure requires:
 
 ```bash
-TOKENPILOT_EXPOSED=true
-TOKENPILOT_API_TOKEN=replace-with-a-strong-owner-secret
-TOKENPILOT_PUBLIC_BASE_URL=https://tokenpilot.example.com
+CHATCOCKPIT_EXPOSED=true
+CHATCOCKPIT_API_TOKEN=replace-with-a-strong-owner-secret
+CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
-`TOKENPILOT_PUBLIC_BASE_URL` is the canonical OAuth issuer origin. Configure the HTTPS origin only: do not append `/mcp`, query data, credentials, or a fragment. TokenPilot does not derive its OAuth issuer from `Host` or forwarded-host headers.
+`CHATCOCKPIT_PUBLIC_BASE_URL` is the canonical OAuth issuer origin. Configure the HTTPS origin only: do not append `/mcp`, query data, credentials, or a fragment. ChatCockpit does not derive its OAuth issuer from `Host` or forwarded-host headers.
 
 When ChatGPT connects to:
 
 ```text
-https://tokenpilot.example.com/mcp
+https://chatcockpit.example.com/mcp
 ```
 
-TokenPilot exposes:
+ChatCockpit exposes:
 
 ```text
 /.well-known/oauth-protected-resource
@@ -62,17 +62,17 @@ TokenPilot exposes:
 /oauth/revoke
 ```
 
-The authorization flow uses a public OAuth client, PKCE S256, the `tokenpilot:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. The browser approval page asks for the existing local `TOKENPILOT_API_TOKEN` as the owner secret; that secret is never returned to the MCP client or stored in OAuth token records.
+The authorization flow uses a public OAuth client, PKCE S256, the `chatcockpit:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. The browser approval page asks for the existing local `CHATCOCKPIT_API_TOKEN` as the owner secret; that secret is never returned to the MCP client or stored in OAuth token records.
 
-Default redirect hosts are limited to HTTPS `chatgpt.com` and local test callbacks on `localhost` / `127.0.0.1`. Additional redirect hosts require explicit local `TOKENPILOT_OAUTH_ALLOWED_REDIRECT_HOSTS` configuration. Registered redirect URIs still require exact matching.
+Default redirect hosts are limited to HTTPS `chatgpt.com` and local test callbacks on `localhost` / `127.0.0.1`. Additional redirect hosts require explicit local `CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS` configuration. Registered redirect URIs still require exact matching.
 
 Static Bearer authentication remains supported for local operator workflows and compatibility clients:
 
 ```text
-Authorization: Bearer <TOKENPILOT_API_TOKEN>
+Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 ```
 
-An OAuth access token is intentionally accepted only on `/mcp` and `/tokenpilot/mcp`; it does not widen access to the REST control plane.
+An OAuth access token is intentionally accepted on canonical `/mcp` and the compatibility-period receive-only `/tokenpilot/mcp`; it does not widen access to the REST control plane.
 
 Never put the real owner secret, domain, tunnel credential, OAuth database, or machine path in this repository.
 
@@ -99,17 +99,17 @@ Add the Bearer header when authentication is required:
 -H 'Authorization: Bearer replace-with-your-token'
 ```
 
-The release gate verifies static Bearer compatibility plus OAuth discovery, registration, PKCE, refresh/restart, revocation, tool listing, tool calls, structured errors, mutation idempotency, and the `/mcp` plus `/tokenpilot/mcp` aliases.
+The release gate verifies static Bearer compatibility plus OAuth discovery, registration, PKCE, refresh/restart, revocation, tool listing, tool calls, structured errors, mutation idempotency, canonical `/mcp`, and the receive-only `/tokenpilot/mcp` compatibility alias.
 
 ## Tool Families
 
-The default exposed-mode catalog contains 62 tools. Local non-exposed mode, or an exposed deployment with `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true`, registers three additional governed Resource mutation tools for a total of 65:
+The default exposed-mode catalog contains 62 tools. Local non-exposed mode, or an exposed deployment with `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`, registers three additional governed Resource mutation tools for a total of 65:
 
-- Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read, approval-gated Host Write / Exact Edit, approval-gated bounded Host Command, TokenPilot-owned Managed Workspace Process `prepare/decide/execute/read/list`, and Workspace Files, Search, Shell, and Git operations;
+- Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read, approval-gated Host Write / Exact Edit, approval-gated bounded Host Command, ChatCockpit-owned Managed Workspace Process `prepare/decide/execute/read/list`, and Workspace Files, Search, Shell, and Git operations;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;
-- Runtime Resource Center inventory/inspect operations covering Native Codex Skills/MCP/Plugins/config summaries, Downstream MCP resources, and ACP Registry Agents; governed Codex Skill enable/disable and Codex Plugin install/uninstall are implemented behind the shared approval kernel. The MCP mutation surface contains only `tokenpilot.resources.mutation.prepare`, `tokenpilot.resources.mutation.inspect`, and `tokenpilot.resources.mutation.execute`; MCP `decide` and `reconcile` are intentionally absent. In exposed mode those three tools are not registered unless `TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED=true`; a Remote MCP OAuth access token cannot be reused as the ordinary REST credential for mutation decision;
+- Runtime Resource Center inventory/inspect operations covering Native Codex Skills/MCP/Plugins/config summaries, Downstream MCP resources, and ACP Registry Agents; governed Codex Skill enable/disable and Codex Plugin install/uninstall are implemented behind the shared approval kernel. The MCP mutation surface contains only `chatcockpit.resources.mutation.prepare`, `chatcockpit.resources.mutation.inspect`, and `chatcockpit.resources.mutation.execute`; MCP `decide` and `reconcile` are intentionally absent. In exposed mode those three tools are not registered unless `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`; a Remote MCP OAuth access token cannot be reused as the ordinary REST credential for mutation decision;
 - Codex Session Bind/Resume/Fork;
 - explicit Codex Turn/Interrupt, Approval response, and Event reads.
 
@@ -117,7 +117,7 @@ Read the live tool list instead of hard-coding an old catalog into a client.
 
 ## Local Downstream MCP Discovery
 
-Downstream MCP executors use a separate local-only config at `~/.tokenpilot/direct-executors.json` (override with `TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH`). This file is not part of repository governance and is never writable through Remote MCP.
+Downstream MCP executors use a separate local-only config at `~/.chatcockpit/direct-executors.json` (override with `CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH`). This file is not part of repository governance and is never writable through Remote MCP.
 
 Minimal shape:
 
@@ -157,18 +157,18 @@ Minimal shape:
 Probe configured executors locally with:
 
 ```bash
-tokenpilot probe-direct-executors
+chatcockpit probe-direct-executors
 ```
 
 or one executor with:
 
 ```bash
-tokenpilot probe-direct-executors --executor-id 'downstream-mcp:example'
+chatcockpit probe-direct-executors --executor-id 'downstream-mcp:example'
 ```
 
-The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `.tokenpilot/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
+The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `.chatcockpit/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
 
-For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; TokenPilot does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A Desktop Commander executor entry can explicitly map the normalized Host Files and bounded Host Command capabilities used by the current governed adapter:
+For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; ChatCockpit does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A Desktop Commander executor entry can explicitly map the normalized Host Files and bounded Host Command capabilities used by the current governed adapter:
 
 ```json
 {
@@ -214,7 +214,7 @@ The original operator-only read proof remains available:
 npm run probe:desktop-commander-live
 ```
 
-It creates a permission-restricted temporary config plus a temporary read-only Host Root fixture, probes the real MCP server, requires verified `files.read`, then executes the ChatGPT-facing `tokenpilot.host.files.read` MCP tool. Temporary runtime/config/root state is deleted afterward.
+It creates a permission-restricted temporary config plus a temporary read-only Host Root fixture, probes the real MCP server, requires verified `files.read`, then executes the ChatGPT-facing `chatcockpit.host.files.read` MCP tool. Temporary runtime/config/root state is deleted afterward.
 
 After Host mutation mappings are available, run the operator-only Write/Exact-Edit proof:
 
@@ -222,37 +222,37 @@ After Host mutation mappings are available, run the operator-only Write/Exact-Ed
 npm run probe:desktop-commander-host-mutation-live
 ```
 
-The mutation proof copies only the selected local Desktop Commander transport into a permission-restricted temporary config, creates a temporary `read + write` Host Root, probes `files.read/files.write/files.edit`, then drives the actual ChatGPT-facing `tokenpilot.host.mutation.prepare`, `tokenpilot.host.mutation.decide`, and `tokenpilot.host.mutation.execute` lifecycle. It performs a real rewrite and exact replacement, verifies the resulting file hashes/content locally, checks public results for absolute-path leakage, and deletes the temporary config/runtime/root/database. For an explicit one-off operator proof without persisting a local executor entry, the script also accepts `TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`; this still runs the external package only because the operator explicitly invoked the live-proof command.
+The mutation proof copies only the selected local Desktop Commander transport into a permission-restricted temporary config, creates a temporary `read + write` Host Root, probes `files.read/files.write/files.edit`, then drives the actual ChatGPT-facing `chatcockpit.host.mutation.prepare`, `chatcockpit.host.mutation.decide`, and `chatcockpit.host.mutation.execute` lifecycle. It performs a real rewrite and exact replacement, verifies the resulting file hashes/content locally, checks public results for absolute-path leakage, and deletes the temporary config/runtime/root/database. For an explicit one-off operator proof without persisting a local executor entry, the script also accepts `CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest'`; this still runs the external package only because the operator explicitly invoked the live-proof command.
 
-For the governed bounded Host Command path, current Desktop Commander uses `start_process` rather than the legacy `execute_command`. TokenPilot keeps `read_process_output` and `force_terminate` as private lifecycle dependencies; they are not Remote MCP tools. Run the operator-only process proof with:
+For the governed bounded Host Command path, current Desktop Commander uses `start_process` rather than the legacy `execute_command`. ChatCockpit keeps `read_process_output` and `force_terminate` as private lifecycle dependencies; they are not Remote MCP tools. Run the operator-only process proof with:
 
 ```bash
-TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-command-live
+CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-command-live
 ```
 
-The proof drives the ChatGPT-facing `tokenpilot.host.command.prepare` → `tokenpilot.host.command.decide` → `tokenpilot.host.command.execute` lifecycle. It verifies a Pure Host read command, a Workspace write-effect command with Writer Lease/Git/Task Evidence re-entry, and a bounded slow command that must be force-terminated without leaving its delayed child side effect. Public results are checked for PID, private cwd, environment, and absolute-path leakage. Real external proofs stay out of the default verification suite; deterministic fake-MCP harnesses cover the same drivers in protocol gates.
+The proof drives the ChatGPT-facing `chatcockpit.host.command.prepare` → `chatcockpit.host.command.decide` → `chatcockpit.host.command.execute` lifecycle. It verifies a Pure Host read command, a Workspace write-effect command with Writer Lease/Git/Task Evidence re-entry, and a bounded slow command that must be force-terminated without leaving its delayed child side effect. Public results are checked for PID, private cwd, environment, and absolute-path leakage. Real external proofs stay out of the default verification suite; deterministic fake-MCP harnesses cover the same drivers in protocol gates.
 
-For the governed Managed Workspace Process path, TokenPilot keeps Desktop Commander's `start_process`, `read_process_output`, `interact_with_process`, and `force_terminate` as private Adapter dependencies. Remote MCP exposes only the TokenPilot-owned `tokenpilot.host.process.prepare`, `tokenpilot.host.process.decide`, `tokenpilot.host.process.execute`, `tokenpilot.host.process.read`, and `tokenpilot.host.process.list` contract. Managed Process is Workspace-only, requires the owning chat-direct Session/Writer Lease for start and input, uses TokenPilot `host_process_*` public identities instead of PID, and records Process Audit/Task Evidence. Run the operator-only live proof with:
+For the governed Managed Workspace Process path, ChatCockpit keeps Desktop Commander's `start_process`, `read_process_output`, `interact_with_process`, and `force_terminate` as private Adapter dependencies. Remote MCP exposes only the ChatCockpit-owned `chatcockpit.host.process.prepare`, `chatcockpit.host.process.decide`, `chatcockpit.host.process.execute`, `chatcockpit.host.process.read`, and `chatcockpit.host.process.list` contract. Managed Process is Workspace-only, requires the owning chat-direct Session/Writer Lease for start and input, uses ChatCockpit `host_process_*` public identities instead of PID, and records Process Audit/Task Evidence. Run the operator-only live proof with:
 
 ```bash
-TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-process-live
+CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-process-live
 ```
 
 The live proof drives `start → read → input → list → stop` through the actual ChatGPT-facing Host Process tools. It verifies that initial/interact output remains available through bounded in-memory process reads without being persisted by mutation idempotency, raw input is absent from SQLite, PID/private paths stay private, stop reaches a confirmed Desktop Commander terminal state, and the stopped process cannot produce its delayed side effect. The deterministic `verify:desktop-commander-host-process-live-harness` runs the same driver in the default protocol gate.
 
-For the Durable Managed Process Supervisor path, TokenPilot moves the private Desktop Commander stdio/PID namespace into a separate local sidecar. A normal Control Plane restart must preserve the sidecar generation and the same public `host_process_*` identity, while the sidecar independently watches the owning Writer Lease through a read-only Continuity database connection. Downstream MCP processes are wrapped by a private process-group guardian so an unexpected sidecar disconnect can contain the Desktop Commander process tree without persisting or reattaching by PID. Run the final operator-only durability proof with:
+For the Durable Managed Process Supervisor path, ChatCockpit moves the private Desktop Commander stdio/PID namespace into a separate local sidecar. A normal Control Plane restart must preserve the sidecar generation and the same public `host_process_*` identity, while the sidecar independently watches the owning Writer Lease through a read-only Continuity database connection. Downstream MCP processes are wrapped by a private process-group guardian so an unexpected sidecar disconnect can contain the Desktop Commander process tree without persisting or reattaching by PID. Run the final operator-only durability proof with:
 
 ```bash
-TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-durable-process-live
+CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-durable-process-live
 ```
 
-The final durability marker is **only** `DESKTOP_COMMANDER_DURABLE_PROCESS_LIVE_PROOF_OK`. It requires all three fault domains to pass in one driver: Control Plane restart continuity, Writer Lease expiry while the Control Plane is offline, and a hard-killed Process Supervisor that leaves no delayed managed-child side effect. For deterministic/default gates, `verify:desktop-commander-durable-process-live-harness` uses a test-only abrupt sidecar exit with no graceful `daemon.close()` and validates the same guardian containment path. Operators may run the real external package in diagnostic abrupt mode with `TOKENPILOT_DURABLE_PROCESS_PROOF_CRASH_MODE=abrupt-exit`; that mode deliberately emits the different `DESKTOP_COMMANDER_DURABLE_PROCESS_ABRUPT_PROOF_OK` marker and **does not satisfy the final hard-kill release gate**. Raw downstream process tools, system-wide process listing/killing, persisted-PID adoption, socket paths, sidecar tokens, and private PID remain outside the Remote MCP contract.
+The final durability marker is **only** `DESKTOP_COMMANDER_DURABLE_PROCESS_LIVE_PROOF_OK`. It requires all three fault domains to pass in one driver: Control Plane restart continuity, Writer Lease expiry while the Control Plane is offline, and a hard-killed Process Supervisor that leaves no delayed managed-child side effect. For deterministic/default gates, `verify:desktop-commander-durable-process-live-harness` uses a test-only abrupt sidecar exit with no graceful `daemon.close()` and validates the same guardian containment path. Operators may run the real external package in diagnostic abrupt mode with `CHATCOCKPIT_DURABLE_PROCESS_PROOF_CRASH_MODE=abrupt-exit`; that mode deliberately emits the different `DESKTOP_COMMANDER_DURABLE_PROCESS_ABRUPT_PROOF_OK` marker and **does not satisfy the final hard-kill release gate**. Raw downstream process tools, system-wide process listing/killing, persisted-PID adoption, socket paths, sidecar tokens, and private PID remain outside the Remote MCP contract.
 
-Remote MCP exposes governed Host Files, bounded Host Command, and TokenPilot-owned Managed Workspace Process capabilities without exposing raw downstream tools. `tokenpilot.host.roots.list` returns public-safe aliases and per-root `read/write` access. Write/Exact Edit use `tokenpilot.host.mutation.prepare` → `decide` → `execute`; bounded commands use `tokenpilot.host.command.prepare` → `decide` → `execute`; Managed Process uses `tokenpilot.host.process.prepare` → `decide` → `execute` plus `read/list`. Pure Host commands remain restricted to the explicit read-only command policy. Workspace write-effect commands and Managed Process start/input require chat-direct governance and record Evidence. Raw shell source, arbitrary PID attach, system-wide `list_processes`/`kill_process`, PID, and raw Desktop Commander process tools remain unexposed.
+Remote MCP exposes governed Host Files, bounded Host Command, and ChatCockpit-owned Managed Workspace Process capabilities without exposing raw downstream tools. `chatcockpit.host.roots.list` returns public-safe aliases and per-root `read/write` access. Write/Exact Edit use `chatcockpit.host.mutation.prepare` → `decide` → `execute`; bounded commands use `chatcockpit.host.command.prepare` → `decide` → `execute`; Managed Process uses `chatcockpit.host.process.prepare` → `decide` → `execute` plus `read/list`. Pure Host commands remain restricted to the explicit read-only command policy. Workspace write-effect commands and Managed Process start/input require chat-direct governance and record Evidence. Raw shell source, arbitrary PID attach, system-wide `list_processes`/`kill_process`, PID, and raw Desktop Commander process tools remain unexposed.
 
 ### Runtime Recovery operator proof
 
-Runtime Recovery adds only two Remote MCP tools: `tokenpilot.recovery.assess` and `tokenpilot.recovery.execute`. Assessment persists a five-minute public-safe Recovery Attempt but performs no provider mutation. Execute revalidates the exact assessment hash before applying one explicit action. Recovery never implicitly starts `turn/start`, never automatically switches provider, and never fuzzy-selects an external thread.
+Runtime Recovery adds only two Remote MCP tools: `chatcockpit.recovery.assess` and `chatcockpit.recovery.execute`. Assessment persists a five-minute public-safe Recovery Attempt but performs no provider mutation. Execute revalidates the exact assessment hash before applying one explicit action. Recovery never implicitly starts `turn/start`, never automatically switches provider, and never fuzzy-selects an external thread.
 
 The default Recovery protocol gate uses a deterministic scripted Codex runtime and the same A/B/C/D driver as the operator proof:
 
@@ -266,7 +266,7 @@ To prove the Native Codex Recovery path against the actual Codex App Server disc
 npm run probe:codex-runtime-recovery-live
 ```
 
-The operator proof first discovers one existing persistent Codex thread with an accessible workspace `cwd`, then creates a proof-owned fork without starting a model Turn. The temporary TokenPilot Continuity database lives outside that workspace. The proof requires: explicit bound-thread resume; explicit Recovery fork with a distinct thread id and persisted source relation; compatibility-fingerprint drift rejection before provider effect; and honest handling of an intentionally missing external thread, where Codex recovery is not faked and continuation is allowed only through an explicit ready Handoff to Chat Direct. The final marker is **`CODEX_RUNTIME_RECOVERY_LIVE_PROOF_OK`**. The summary must report `turnStartObserved: false`.
+The operator proof first discovers one existing persistent Codex thread with an accessible workspace `cwd`, then creates a proof-owned fork without starting a model Turn. The temporary ChatCockpit Continuity database lives outside that workspace. The proof requires: explicit bound-thread resume; explicit Recovery fork with a distinct thread id and persisted source relation; compatibility-fingerprint drift rejection before provider effect; and honest handling of an intentionally missing external thread, where Codex recovery is not faked and continuation is allowed only through an explicit ready Handoff to Chat Direct. The final marker is **`CODEX_RUNTIME_RECOVERY_LIVE_PROOF_OK`**. The summary must report `turnStartObserved: false`.
 
 The proof may create proof-owned Codex thread forks in the user's Codex history, but it does not start a model Turn or write workspace files. Existing provider thread previews may appear in the immediate assessment response; Recovery Attempt history intentionally persists only public-safe identity/status metadata and never stores raw provider transcripts, prompts, reasoning, stderr, auth data, executable paths, or private workspace paths.
 
@@ -299,7 +299,7 @@ Use the Codex Session tools only when Codex should own an explicit model loop.
 
 Recommended order:
 
-1. Create or read the TokenPilot Task and Session.
+1. Create or read the ChatCockpit Task and Session.
 2. Bind, resume, or fork the Codex Thread.
 3. Start an explicit Turn.
 4. Read Runtime Events.
@@ -317,13 +317,13 @@ Use the continuity-bound Async Job Queue for longer Runner work. Queue creation 
 Use the document tools to create and govern durable requirements and execution plans:
 
 ```text
-tokenpilot.document.create
-tokenpilot.document.list
-tokenpilot.document.get
-tokenpilot.document.version.get
-tokenpilot.document.appendVersion
-tokenpilot.document.updateStatus
-tokenpilot.task.bindDocuments
+chatcockpit.document.create
+chatcockpit.document.list
+chatcockpit.document.get
+chatcockpit.document.version.get
+chatcockpit.document.appendVersion
+chatcockpit.document.updateStatus
+chatcockpit.task.bindDocuments
 ```
 
 Task binding pins the current immutable `specVersion` and `planVersion`. Later document versions do not silently rewrite the Task's governing context. Public Markdown reads redact common absolute paths and credential assignments; local SQLite remains the private truth.
@@ -333,7 +333,7 @@ Task binding pins the current immutable `specVersion` and `planVersion`. Later d
 Read one governed workspace state through:
 
 ```text
-tokenpilot.workspace.snapshot
+chatcockpit.workspace.snapshot
 ```
 
 The snapshot includes public-safe:

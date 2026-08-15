@@ -4,9 +4,10 @@ import fs from "node:fs";
 const scriptPath = "scripts/macos-manage-local-server.sh";
 const source = fs.readFileSync(scriptPath, "utf8");
 
-assert.match(source, /PRODUCT_IDENTITY="tokenpilot"/);
-assert.match(source, /tokenpilot\)[\s\S]*ENV_PREFIX="TOKENPILOT"[\s\S]*STATE_DIR_NAME="\.tokenpilot"[\s\S]*SERVICE_PREFIX="com\.wuaishare\.tokenpilot"/);
+assert.match(source, /PRODUCT_IDENTITY="chatcockpit"/);
+assert.match(source, /tokenpilot\)[\s\S]*ENV_PREFIX="TOKENPILOT"[\s\S]*STATE_DIR_NAME="\.tokenpilot"[\s\S]*SERVICE_PREFIX="com\.wuaishare\.tokenpilot"[\s\S]*Legacy TokenPilot start\/restart is disabled in R3/);
 assert.match(source, /chatcockpit\)[\s\S]*ENV_PREFIX="CHATCOCKPIT"[\s\S]*STATE_DIR_NAME="\.chatcockpit"[\s\S]*SERVICE_PREFIX="com\.wuaishare\.chatcockpit"/);
+assert.match(source, /ACTION.*start.*restart/s);
 assert.match(source, /PROCESS_SUPERVISOR_SERVICE_LABEL="\$\{SERVICE_PREFIX\}\.process-supervisor"/);
 assert.match(source, /<string>process-supervisor<\/string>/);
 assert.match(source, /write_process_supervisor_plist/);

@@ -20,6 +20,7 @@ const repoRoot = process.cwd();
 
 const localArtifactPaths = [
   ".playwright-mcp",
+  ".chatcockpit",
   ".tokenpilot",
   ".servbay",
   ".ops-private",
@@ -32,6 +33,7 @@ const fallbackExcludedDirectories = new Set([
   ".git",
   ".playwright",
   ".playwright-mcp",
+  ".chatcockpit",
   ".tokenpilot",
   ".servbay",
   ".codex",
@@ -66,7 +68,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const privateHostPattern = /\b(?:https?:\/\/|Host:\s*)tokenpilot\.(?!example\.com\b)[a-z0-9.-]+\.[a-z]{2,}\b/i;
+const privateHostPattern = /\b(?:https?:\/\/|Host:\s*)(?:chatcockpit|tokenpilot)\.(?!example\.(?:com|invalid)\b)[a-z0-9.-]+\.[a-z]{2,}\b/i;
 const homePathMarker = "/" + "Users/";
 const servBayPathMarker = "/" + "Applications/" + "ServBay";
 const localUser = process.env.USER?.trim();
@@ -77,7 +79,7 @@ const localIpPattern = /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}
 
 const safetyPatterns: Array<{ label: string; test: (content: string) => boolean }> = [
   { label: "local home absolute path", test: (content) => content.includes(homePathMarker) },
-  { label: "non-placeholder TokenPilot deployment host", test: (content) => privateHostPattern.test(content) },
+  { label: "non-placeholder ChatCockpit/legacy deployment host", test: (content) => privateHostPattern.test(content) },
   {
     label: "local machine username",
     test: (content) => shouldScanLocalUser && Boolean(localUserPattern?.test(content))
@@ -94,9 +96,9 @@ const safetyPatterns: Array<{ label: string; test: (content: string) => boolean 
   },
   { label: "ServBay absolute path", test: (content) => content.includes(servBayPathMarker) },
   {
-    label: "literal TOKENPILOT_API_TOKEN assignment",
+    label: "literal ChatCockpit/legacy API token assignment",
     test: (content) =>
-      /TOKENPILOT_API_TOKEN\s*=\s*(?!your-|replace-with-|demo-token|test-token|\$\{|<)[^\s"'`]+/i.test(content)
+      /(?:CHATCOCKPIT|TOKENPILOT)_API_TOKEN\s*=\s*(?!your-|replace-with-|demo-token|test-token|\$\{|<)[^\s"'`]+/i.test(content)
   },
   {
     label: "Authorization Bearer non-test value",
@@ -108,7 +110,7 @@ const safetyPatterns: Array<{ label: string; test: (content: string) => boolean 
   {
     label: "token-looking secret assignment",
     test: (content) =>
-      /\b(token|secret|password|api[_-]?key)\b\s*[:=]\s*["'`](?!test-token|demo-token|replace-with-|your-|tokenpilot\.example\.com|tokenpilot-web-ui-fixture)[^"'`\n]{8,}["'`]/i.test(
+      /\b(token|secret|password|api[_-]?key)\b\s*[:=]\s*["'`](?!test-token|demo-token|replace-with-|your-|chatcockpit\.example\.com|tokenpilot\.example\.com|chatcockpit-web-ui-fixture|tokenpilot-web-ui-fixture)[^"'`\n]{8,}["'`]/i.test(
         content
       )
   }
@@ -205,7 +207,7 @@ function walkSourceArchiveFiles(targetPath: string): string[] {
 function scanContent(content: string): string {
   return content
     .split(/\r?\n/)
-    .filter((line) => !line.includes("TOKENPILOT_API_TOKEN"))
+    .filter((line) => !/(?:CHATCOCKPIT|TOKENPILOT)_API_TOKEN/.test(line))
     .join("\n");
 }
 
@@ -425,7 +427,7 @@ for (const forbiddenPublicField of [
 assert.match(resourceCopySource, /受治理变更/);
 assert.match(resourceCopySource, /Governed changes/);
 assert.match(resourceCopySource, /authoritative refresh/);
-assert.match(resourceCopySource, /TOKENPILOT_RESOURCE_MUTATIONS_EXPOSED/);
+assert.match(resourceCopySource, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED/);
 assert.doesNotMatch(resourceCopySource, /Phase 6A 不执行安装|Phase 6A performs no install/);
 assert.match(resourceCenterSource, /copy\.profilesTitle/);
 assert.match(resourceCenterSource, /resource-center__profile-card/);

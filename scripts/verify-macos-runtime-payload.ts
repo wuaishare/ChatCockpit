@@ -21,8 +21,10 @@ interface PayloadManifest {
   };
 }
 
-const payloadRootInput = process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
-assert.ok(payloadRootInput, "TOKENPILOT_RUNTIME_PAYLOAD_DIR is required");
+const payloadRootInput =
+  process.env.CHATCOCKPIT_RUNTIME_PAYLOAD_DIR?.trim() ??
+  process.env.TOKENPILOT_RUNTIME_PAYLOAD_DIR?.trim();
+assert.ok(payloadRootInput, "CHATCOCKPIT_RUNTIME_PAYLOAD_DIR is required");
 const payloadRoot = path.resolve(payloadRootInput);
 
 function required(relativePath: string): string {
@@ -57,7 +59,7 @@ required("app/package.json");
 required("app/package-lock.json");
 required("app/dist/cli/index.js");
 required("app/web/dist/index.html");
-required("app/openapi/tokenpilot.openapi.yaml");
+required("app/openapi/chatcockpit.openapi.yaml");
 required("app/node_modules");
 required("app/scripts/macos-manage-local-server.sh");
 
@@ -82,7 +84,8 @@ if (manifest.architecture === "arm64") {
 const allFiles = walkFiles(payloadRoot);
 const forbiddenPatterns: Array<[string, RegExp]> = [
   ["git metadata", /(^|\/)\.git(\/|$)/],
-  ["TokenPilot mutable state", /(^|\/)\.tokenpilot(\/|$)/],
+  ["ChatCockpit mutable state", /(^|\/)\.chatcockpit(\/|$)/],
+  ["legacy mutable state", /(^|\/)\.tokenpilot(\/|$)/],
   ["Codex local state", /(^|\/)\.codex(\/|$)/],
   ["dotenv", /(^|\/)\.env(?:\.|$)/],
   ["server.env", /(^|\/)server\.env$/],
@@ -130,7 +133,7 @@ for (const requiredHashPath of [
   "app/package.json",
   "app/dist/cli/index.js",
   "app/web/dist/index.html",
-  "app/openapi/tokenpilot.openapi.yaml",
+  "app/openapi/chatcockpit.openapi.yaml",
   "app/scripts/macos-manage-local-server.sh"
 ]) {
   assert.ok(manifest.payload.files[requiredHashPath], `Manifest missing critical hash: ${requiredHashPath}`);

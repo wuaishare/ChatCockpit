@@ -3,7 +3,7 @@ import type { ProductIdentityKey } from "../types.js";
 
 export const TOKENPILOT_MCP_SCOPE = productIdentityForKey("tokenpilot").oauthMcpScope;
 export const CHATCOCKPIT_MCP_SCOPE = productIdentityForKey("chatcockpit").oauthMcpScope;
-export const TOKENPILOT_OFFLINE_SCOPE = "offline_access";
+export const OAUTH_OFFLINE_SCOPE = "offline_access";
 
 export function oauthMcpScopeForProduct(productIdentity: ProductIdentityKey): string {
   return productIdentityForKey(productIdentity).oauthMcpScope;

@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 
 import { ServiceError } from "../../application/service-error.js";
+import { DEFAULT_PRODUCT_IDENTITY } from "../../core/product-identity.js";
 import type { WorkspaceRepository } from "../../continuity/repositories/workspace-repository.js";
+import type { ProductIdentityKey } from "../../types.js";
 import {
   resolveCodexBinary,
   type CodexBinaryResolution
@@ -278,6 +280,7 @@ function projectRuntimeTurn(value: unknown): RuntimeTurnProjection {
 
 export interface CodexAppServerAdapterOptions {
   workspaces: WorkspaceRepository;
+  productIdentity?: ProductIdentityKey;
   resolveBinary?: () => CodexBinaryResolution;
   createClient?: (resolution: CodexBinaryResolution) => CodexAppServerClient;
   standaloneCapabilityStore?: CodexStandaloneCapabilityStore;
@@ -285,6 +288,7 @@ export interface CodexAppServerAdapterOptions {
 
 export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   private readonly workspaces: WorkspaceRepository;
+  private readonly productIdentity: ProductIdentityKey;
   private readonly binaryResolver: () => CodexBinaryResolution;
   private readonly clientFactory: (
     resolution: CodexBinaryResolution
@@ -298,13 +302,15 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
 
   constructor(options: CodexAppServerAdapterOptions) {
     this.workspaces = options.workspaces;
+    this.productIdentity = options.productIdentity ?? DEFAULT_PRODUCT_IDENTITY.key;
     this.binaryResolver = options.resolveBinary ?? (() => resolveCodexBinary());
     this.standaloneCapabilityStore = options.standaloneCapabilityStore ?? null;
     this.clientFactory =
       options.createClient ??
       ((resolution) =>
         new CodexAppServerClient({
-          command: resolution.command
+          command: resolution.command,
+          productIdentity: this.productIdentity
         }));
   }
 
@@ -537,7 +543,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Turn history projection is not available in the read-only Codex adapter yet",
         {
           hint:
-            "Use metadata-only thread reads until TokenPilot adds a reviewed public-safe turn projection."
+            "Use metadata-only thread reads until ChatCockpit adds a reviewed public-safe turn projection."
         }
       );
     }
@@ -821,7 +827,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           await client.rejectServerRequest(
             request.requestKey,
             -32601,
-            "TokenPilot runtime approval handling is not configured"
+            "ChatCockpit runtime approval handling is not configured"
           );
           return;
         }

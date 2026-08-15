@@ -127,7 +127,7 @@ export function assertChatDirectWriterLease(
   if (!workspace) {
     throw new ServiceError(
       "CONTINUITY_RELATION_INVALID",
-      `No TokenPilot workspace is mapped to repository ${repoId}`,
+      `No ChatCockpit workspace is mapped to repository ${repoId}`,
       { details: { repoId } }
     );
   }

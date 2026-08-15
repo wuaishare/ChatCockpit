@@ -25,7 +25,7 @@ const REQUIRED_STABLE_METHODS = [
   "thread/fork"
 ] as const;
 
-// TokenPilot currently gates Native Codex Recovery by the stable App Server
+// ChatCockpit currently gates Native Codex Recovery by the stable App Server
 // protocol/method fingerprint rather than claiming an unverified semver floor.
 export const CODEX_RECOVERY_MINIMUM_SUPPORTED_VERSION: string | null = null;
 export const CODEX_RECOVERY_TESTED_VERSION_RANGE: string | null = null;
@@ -102,7 +102,7 @@ function assertIdentity(
   if (!identityMatches(thread, expected)) {
     throw new ServiceError(
       "RUNTIME_WORKSPACE_MISMATCH",
-      "Recovered Codex thread does not match the TokenPilot workspace identity",
+      "Recovered Codex thread does not match the ChatCockpit workspace identity",
       {
         details: {
           threadId: thread.id,

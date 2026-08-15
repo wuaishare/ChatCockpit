@@ -23,12 +23,12 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 }
 
 async function verifyDevelopmentDocuments(): Promise<void> {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-documents-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-documents-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Document fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), "openapi", "tokenpilot.openapi.yaml"),
-    path.join(repoRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    path.join(repoRoot, "openapi", "chatcockpit.openapi.yaml")
   );
 
   const paths = buildPaths(repoRoot);
@@ -38,8 +38,10 @@ async function verifyDevelopmentDocuments(): Promise<void> {
     configPath,
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [repoRoot],
-        repoMappings: { tokenpilot: { path: repoRoot } }
+        repoMappings: { primary: { path: repoRoot } }
       },
       null,
       2
@@ -47,12 +49,12 @@ async function verifyDevelopmentDocuments(): Promise<void> {
     "utf8"
   );
 
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  const originalToken = process.env.TOKENPILOT_API_TOKEN;
-  const originalExposed = process.env.TOKENPILOT_EXPOSED;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
-  process.env.TOKENPILOT_API_TOKEN = "test-token";
-  process.env.TOKENPILOT_EXPOSED = "true";
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const originalToken = process.env.CHATCOCKPIT_API_TOKEN;
+  const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+  process.env.CHATCOCKPIT_EXPOSED = "true";
 
   const app = buildServer(paths);
   let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
@@ -132,7 +134,7 @@ async function verifyDevelopmentDocuments(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/documents", specInput);
     const mcpSpec = await mcp<typeof restSpec>(
-      "tokenpilot.document.create",
+      "chatcockpit.document.create",
       specInput
     );
     assert.equal(restSpec.replayed, false);
@@ -193,7 +195,7 @@ async function verifyDevelopmentDocuments(): Promise<void> {
         input
       );
       const replay = await mcp<typeof restSpec>(
-        "tokenpilot.document.updateStatus",
+        "chatcockpit.document.updateStatus",
         input
       );
       assert.equal(first.replayed, false);
@@ -244,7 +246,7 @@ async function verifyDevelopmentDocuments(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/continuity/tasks/bind-documents", bindInput);
     const mcpBinding = await mcp<typeof restBinding>(
-      "tokenpilot.task.bindDocuments",
+      "chatcockpit.task.bindDocuments",
       bindInput
     );
     assert.equal(restBinding.replayed, false);
@@ -292,7 +294,7 @@ async function verifyDevelopmentDocuments(): Promise<void> {
       appendInput
     );
     const appendedReplay = await mcp<typeof restSpec>(
-      "tokenpilot.document.appendVersion",
+      "chatcockpit.document.appendVersion",
       appendInput
     );
     assert.equal(appended.document.currentVersion, 2);
@@ -321,7 +323,7 @@ async function verifyDevelopmentDocuments(): Promise<void> {
 
     const oldVersion = await mcp<{
       version: { version: number; contentMarkdown: string; contentHash: string };
-    }>("tokenpilot.document.version.get", {
+    }>("chatcockpit.document.version.get", {
       documentId: approvedSpec.document.id,
       version: 1
     });
@@ -347,12 +349,12 @@ async function verifyDevelopmentDocuments(): Promise<void> {
     }
   } finally {
     await testServer?.close();
-    if (originalConfigPath === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
-    if (originalToken === undefined) delete process.env.TOKENPILOT_API_TOKEN;
-    else process.env.TOKENPILOT_API_TOKEN = originalToken;
-    if (originalExposed === undefined) delete process.env.TOKENPILOT_EXPOSED;
-    else process.env.TOKENPILOT_EXPOSED = originalExposed;
+    if (originalConfigPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
+    if (originalToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = originalToken;
+    if (originalExposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+    else process.env.CHATCOCKPIT_EXPOSED = originalExposed;
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 }

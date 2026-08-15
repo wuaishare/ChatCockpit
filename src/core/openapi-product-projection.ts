@@ -1,5 +1,8 @@
 import type { ProductIdentityKey } from "../types.js";
-import { productIdentityForKey } from "./product-identity.js";
+import {
+  DEFAULT_PRODUCT_IDENTITY,
+  productIdentityForKey
+} from "./product-identity.js";
 
 export function projectOpenApiForProduct(
   source: string,
@@ -12,19 +15,19 @@ export function projectOpenApiForProduct(
     `servers:\n  - url: ${serverUrl}`
   );
 
-  if (productIdentity === "tokenpilot") return projected;
+  if (productIdentity === DEFAULT_PRODUCT_IDENTITY.key) return projected;
 
   projected = projected
-    .replaceAll("TokenPilot", identity.displayName)
-    .replaceAll("TOKENPILOT_", `${identity.envPrefix}_`)
-    .replaceAll("tokenpilot-direct", identity.builtInDirectExecutorId)
-    .replaceAll("tokenpilot-runner", identity.asyncRunnerRuntimeKind)
-    .replaceAll("tokenpilot-local", identity.localResourceSourceKind)
-    .replaceAll("default: tokenpilot", `default: ${identity.defaultRepoId}`)
-    .replaceAll("Defaults to tokenpilot", `Defaults to ${identity.defaultRepoId}`)
-    .replaceAll("default repo tokenpilot", `default repo ${identity.defaultRepoId}`)
+    .replaceAll("ChatCockpit", identity.displayName)
+    .replaceAll("CHATCOCKPIT_", `${identity.envPrefix}_`)
+    .replaceAll("builtin-direct", identity.builtInDirectExecutorId)
+    .replaceAll("async-runner", identity.asyncRunnerRuntimeKind)
+    .replaceAll("control-plane-local", identity.localResourceSourceKind)
+    .replaceAll("default: primary", `default: ${identity.defaultRepoId}`)
+    .replaceAll("Defaults to primary", `Defaults to ${identity.defaultRepoId}`)
+    .replaceAll("default repo primary", `default repo ${identity.defaultRepoId}`)
     .replaceAll(
-      "current default repo tokenpilot",
+      "current default repo primary",
       `current default repo ${identity.defaultRepoId}`
     );
 

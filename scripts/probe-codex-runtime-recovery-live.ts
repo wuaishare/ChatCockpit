@@ -101,7 +101,7 @@ class TrackingCodingRuntimeAdapter implements CodingRuntimeAdapter {
       binaryVersion: `${capability.binaryVersion ?? "unknown"}+recovery-proof-${this.compatibilityEpoch}`,
       stableMethods: [
         ...capability.stableMethods,
-        `tokenpilot/recovery-proof-${this.compatibilityEpoch}`
+        `chatcockpit/recovery-proof-${this.compatibilityEpoch}`
       ]
     };
   }
@@ -188,9 +188,11 @@ function writeLocalConfig(
     configPath,
     `${JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [runtimeRoot, workspaceRoot],
         repoMappings: {
-          tokenpilot: { path: runtimeRoot },
+          primary: { path: runtimeRoot },
           [REPO_ID]: { path: workspaceRoot }
         }
       },
@@ -261,14 +263,14 @@ export async function runCodexRuntimeRecoveryLiveProof(
         : await discoverRealPersistentCodexThread();
   const workspaceRoot = discovered.workspaceRoot;
   const explicitSourceThreadId = discovered.threadId;
-  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "tp-codex-recovery-live-"));
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "cc-codex-recovery-live-"));
   const runtimeRoot = path.join(sandbox, "runtime-root");
   fs.mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 });
-  const configPath = path.join(sandbox, "tokenpilot-config.json");
+  const configPath = path.join(sandbox, "chatcockpit-config.json");
   writeLocalConfig(configPath, runtimeRoot, workspaceRoot);
 
-  const previousConfig = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
+  const previousConfig = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   const paths = buildPaths(runtimeRoot);
   ensureWorkspaceDirs(paths);
   const database = new ContinuityDatabase({
@@ -379,7 +381,7 @@ export async function runCodexRuntimeRecoveryLiveProof(
 
     // Fork the existing persistent source directly. thread/fork loads the rollout
     // without requiring the source thread to be owned by this App Server process.
-    // The resulting proof-owned thread is then identity-checked before TokenPilot
+    // The resulting proof-owned thread is then identity-checked before ChatCockpit
     // binds it. This setup does not start a model turn.
     const seed = await runtime.forkCodexThread({ threadId: sourceThreadId });
     assert.notEqual(seed.id, sourceThreadId);
@@ -527,7 +529,7 @@ export async function runCodexRuntimeRecoveryLiveProof(
       toMode: "chat-direct",
       goal: task.goal,
       completedItems: ["Codex Recovery A/B verified"],
-      pendingItems: ["Continue from TokenPilot continuity state"],
+      pendingItems: ["Continue from ChatCockpit continuity state"],
       changedFiles: [],
       risks: ["Bound external Codex thread is intentionally missing for proof"],
       nextAction: "Continue through Chat Direct without faking Codex recovery",
@@ -589,8 +591,8 @@ export async function runCodexRuntimeRecoveryLiveProof(
   } finally {
     await runtime.close().catch(() => undefined);
     database.close();
-    if (previousConfig === undefined) delete process.env.TOKENPILOT_CONFIG_PATH;
-    else process.env.TOKENPILOT_CONFIG_PATH = previousConfig;
+    if (previousConfig === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
+    else process.env.CHATCOCKPIT_CONFIG_PATH = previousConfig;
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
 }

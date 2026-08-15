@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PACKAGE_DIR="${ROOT}/desktop/macos"
 APP_TEMPLATE="${PACKAGE_DIR}/AppBundle/Info.plist"
-APP_DIR="${ROOT}/dist/macos/TokenPilot.app"
+APP_DIR="${ROOT}/dist/macos/ChatCockpit.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
@@ -46,7 +46,7 @@ bash "${ROOT}/scripts/build-macos-runtime-payload.sh" "${ARCH}"
 RUNTIME_PAYLOAD="${ROOT}/dist/macos-runtime/${ARCH}/TokenPilotRuntime"
 
 if [[ ! -f "${RUNTIME_PAYLOAD}/manifest.json" ]] || [[ ! -x "${RUNTIME_PAYLOAD}/node/bin/node" ]]; then
-  echo "Missing verified TokenPilot runtime payload at ${RUNTIME_PAYLOAD}"
+  echo "Missing verified ChatCockpit runtime payload at ${RUNTIME_PAYLOAD}"
   exit 1
 fi
 
@@ -61,14 +61,14 @@ fi
 
 rm -rf "${APP_DIR}"
 mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
-cp "${SOURCE_BINARY}" "${MACOS_DIR}/TokenPilot"
-chmod 755 "${MACOS_DIR}/TokenPilot"
+cp "${SOURCE_BINARY}" "${MACOS_DIR}/ChatCockpit"
+chmod 755 "${MACOS_DIR}/ChatCockpit"
 cp "${APP_TEMPLATE}" "${CONTENTS_DIR}/Info.plist"
 cp -R "${RUNTIME_PAYLOAD}" "${RESOURCES_DIR}/TokenPilotRuntime"
 
 plutil -lint "${CONTENTS_DIR}/Info.plist"
 
-APP_ARCH="$(file "${MACOS_DIR}/TokenPilot")"
+APP_ARCH="$(file "${MACOS_DIR}/ChatCockpit")"
 NODE_ARCH="$(file "${RESOURCES_DIR}/TokenPilotRuntime/node/bin/node")"
 case "${ARCH}" in
   arm64)
@@ -81,7 +81,7 @@ case "${ARCH}" in
     ;;
 esac
 
-printf 'created unsigned local app: dist/macos/TokenPilot.app\n'
+printf 'created unsigned local app: dist/macos/ChatCockpit.app\n'
 printf 'architecture: %s\n' "${ARCH}"
 printf 'runtime payload: Contents/Resources/TokenPilotRuntime\n'
 printf 'signing: not performed\n'

@@ -4,9 +4,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
-const entitlementsPath = path.join(root, "desktop", "macos", "TokenPilotDesktop.entitlements");
+const entitlementsPath = path.join(root, "desktop", "macos", "ChatCockpit.entitlements");
 
-assert.equal(fs.existsSync(entitlementsPath), true, "Missing TokenPilotDesktop.entitlements");
+assert.equal(fs.existsSync(entitlementsPath), true, "Missing ChatCockpit.entitlements");
 
 const bytes = fs.readFileSync(entitlementsPath);
 assert.equal(
@@ -32,7 +32,7 @@ for (const forbidden of [
   assert.equal(text.includes(forbidden), false, `Forbidden default entitlement: ${forbidden}`);
 }
 
-assert.doesNotMatch(text, /TOKENPILOT_|Apple ID|app-specific|private key|notary/i);
+assert.doesNotMatch(text, /TOKENPILOT_|CHATCOCKPIT_|Apple ID|app-specific|private key|notary/i);
 assert.doesNotMatch(text, /\/Users\/[A-Za-z0-9._-]+\//);
 
 process.stdout.write("VERIFY_MACOS_ENTITLEMENTS_OK\n");

@@ -8,7 +8,7 @@ import type { CodexAppServerClient } from "../src/runtime/codex/app-server-clien
 import { CodexResourceInventoryAdapter } from "../src/runtime/resources/codex-resource-inventory-adapter.ts";
 import { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 
-const privateWorkspacePath = "/private/tokenpilot-runtime-sentinel/workspace";
+const privateWorkspacePath = "/private/chatcockpit-runtime-sentinel/workspace";
 const firstSkillPath = `${privateWorkspacePath}/first/SKILL.md`;
 const secondSkillPath = `${privateWorkspacePath}/second/SKILL.md`;
 

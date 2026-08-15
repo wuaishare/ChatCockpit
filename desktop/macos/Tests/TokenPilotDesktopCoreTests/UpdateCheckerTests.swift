@@ -16,7 +16,7 @@ struct UpdateCheckerTests {
         #expect(result == .available(
             version: "0.2.0",
             releasePageURL: URL(string: "https://example.com/releases/v0.2.0")!,
-            downloadURL: URL(string: "https://example.com/releases/v0.2.0/TokenPilot-0.2.0-macos-arm64.dmg")!
+            downloadURL: URL(string: "https://example.com/releases/v0.2.0/ChatCockpit-0.2.0-macos-arm64.dmg")!
         ))
     }
 
@@ -109,6 +109,7 @@ struct UpdateCheckerTests {
             """
             {
               "schemaVersion": 1,
+              "product": "ChatCockpit",
               "version": "\(version)",
               "releaseIdentifier": "v\(version)",
               "releasePageURL": "https://example.com/releases/v\(version)",
@@ -119,9 +120,9 @@ struct UpdateCheckerTests {
               "artifacts": [
                 {
                   "architecture": "arm64",
-                  "filename": "TokenPilot-\(version)-macos-arm64.dmg",
+                  "filename": "ChatCockpit-\(version)-macos-arm64.dmg",
                   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                  "downloadURL": "https://example.com/releases/v\(version)/TokenPilot-\(version)-macos-arm64.dmg"
+                  "downloadURL": "https://example.com/releases/v\(version)/ChatCockpit-\(version)-macos-arm64.dmg"
                 }
               ]
             }

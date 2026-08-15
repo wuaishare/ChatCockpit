@@ -1,4 +1,5 @@
 import type { TokenPilotPaths } from "../types.js";
+import { productIdentityForKey } from "../core/product-identity.js";
 import type { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
 import { DirectCapabilityBroker } from "./capability-broker.js";
 import { loadDownstreamMcpExecutorsConfig } from "./downstream-mcp-config.js";
@@ -16,6 +17,7 @@ export function buildConfiguredDirectCapabilityBroker(options: {
 }): DirectCapabilityBroker {
   const config = loadDownstreamMcpExecutorsConfig(options.downstreamConfigPath);
   const downstreamStore = new DownstreamMcpCapabilityStore(options.paths.runtimeDir);
+  const identity = productIdentityForKey(options.paths.productIdentity);
 
   return new DirectCapabilityBroker([
     createCodexStandaloneExecutorSource(options.codexStandaloneStore),
@@ -27,5 +29,7 @@ export function buildConfiguredDirectCapabilityBroker(options: {
         executor.displayName
       )
     )
-  ]);
+  ], {
+    executorAliases: identity.directExecutorInputAliases
+  });
 }

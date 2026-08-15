@@ -5,6 +5,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { readIdentityEnv } from "../core/identity-env.js";
+import { DEFAULT_PRODUCT_IDENTITY } from "../core/product-identity.js";
 import type { DownstreamMcpCapabilityMapping } from "./downstream-mcp-types.js";
 
 const capabilitySchema = z.enum([
@@ -97,7 +98,7 @@ export interface DownstreamMcpExecutorsConfig {
 export function getDownstreamMcpExecutorsConfigPath(): string {
   return (
     readIdentityEnv("DIRECT_EXECUTORS_CONFIG_PATH") ??
-    path.join(os.homedir(), ".tokenpilot", "direct-executors.json")
+    path.join(os.homedir(), DEFAULT_PRODUCT_IDENTITY.stateDirName, "direct-executors.json")
   );
 }
 

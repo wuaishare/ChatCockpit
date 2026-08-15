@@ -18,7 +18,7 @@ import {
   type CodexSkillMutationLiveRuntimeBundle
 } from "./probe-codex-skill-mutation-live.ts";
 
-const privateSkillPath = "/private/tokenpilot-runtime-sentinel/live-proof-skill/SKILL.md";
+const privateSkillPath = "/private/chatcockpit-runtime-sentinel/live-proof-skill/SKILL.md";
 const sourceIdentityHash = createHash("sha256")
   .update(privateSkillPath, "utf8")
   .digest("hex");
@@ -60,7 +60,7 @@ class FakeMutationClient extends CodexAppServerClient {
       return {
         data: [
           {
-            cwd: "/private/tokenpilot-runtime-sentinel/workspace",
+            cwd: "/private/chatcockpit-runtime-sentinel/workspace",
             skills: [
               {
                 name: "live-proof-skill",
@@ -183,7 +183,7 @@ assert.equal(state.providerWrites, 2, "Live-proof orchestration must perform exa
 assert.equal(observed.has("skills/config/write"), true);
 assert.equal(observed.has("turn/start"), false);
 assert.equal(
-  JSON.stringify(summary).includes("/private/tokenpilot-runtime-sentinel"),
+  JSON.stringify(summary).includes("/private/chatcockpit-runtime-sentinel"),
   false
 );
 

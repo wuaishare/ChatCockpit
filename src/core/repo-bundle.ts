@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { writeText } from "./files.js";
+import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 
 interface RepoBundleConfig {
   include?: string[];
@@ -31,7 +32,7 @@ const DEFAULT_INCLUDE_ENTRIES = [
 
 const BLOCKED_PATH_SEGMENTS = new Set([
   ".git",
-  ".tokenpilot",
+  ...PRODUCT_STATE_DIR_NAMES,
   ".codex",
   ".servbay",
   ".ops-private",
@@ -239,14 +240,14 @@ function readFileForBundle(filePath: string): string {
     return buffer.toString("utf8");
   }
 
-  return `${utf8SafeSlice(buffer, maxBytes).toString("utf8")}\n[TokenPilot: file truncated at ${maxBytes} bytes]\n`;
+  return `${utf8SafeSlice(buffer, maxBytes).toString("utf8")}\n[ChatCockpit: file truncated at ${maxBytes} bytes]\n`;
 }
 
 export function writeRepoBundleXml(repoRoot: string, outputPath: string): RepoBundleResult {
   const files = collectBundleFiles(repoRoot);
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<repoBundle generator="tokenpilot" format="xml">',
+    '<repoBundle generator="chatcockpit" format="xml">',
     "  <file_summary>"
   ];
 

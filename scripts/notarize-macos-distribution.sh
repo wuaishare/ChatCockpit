@@ -3,12 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_PATH=""
-PROFILE="${TOKENPILOT_NOTARY_PROFILE:-}"
-KEYCHAIN="${TOKENPILOT_NOTARY_KEYCHAIN:-}"
-EVIDENCE_DIR="${TOKENPILOT_NOTARY_EVIDENCE_DIR:-}"
+PROFILE="${CHATCOCKPIT_NOTARY_PROFILE:-${TOKENPILOT_NOTARY_PROFILE:-}}"
+KEYCHAIN="${CHATCOCKPIT_NOTARY_KEYCHAIN:-${TOKENPILOT_NOTARY_KEYCHAIN:-}}"
+EVIDENCE_DIR="${CHATCOCKPIT_NOTARY_EVIDENCE_DIR:-${TOKENPILOT_NOTARY_EVIDENCE_DIR:-}}"
 
 usage() {
-  echo "Usage: TOKENPILOT_NOTARY_PROFILE=<keychain profile> [TOKENPILOT_NOTARY_KEYCHAIN=<keychain path>] TOKENPILOT_NOTARY_EVIDENCE_DIR=<outside-repo directory> $0 --app <TokenPilot.app>" >&2
+  echo "Usage: CHATCOCKPIT_NOTARY_PROFILE=<keychain profile> [CHATCOCKPIT_NOTARY_KEYCHAIN=<keychain path>] CHATCOCKPIT_NOTARY_EVIDENCE_DIR=<outside-repo directory> $0 --app <ChatCockpit.app>" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -30,12 +30,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${PROFILE}" ]]; then
-  echo "NOTARY_PROFILE_REQUIRED: set TOKENPILOT_NOTARY_PROFILE to a notarytool keychain profile reference" >&2
+  echo "NOTARY_PROFILE_REQUIRED: set CHATCOCKPIT_NOTARY_PROFILE to a notarytool keychain profile reference" >&2
   exit 2
 fi
 
-if [[ -z "${APP_PATH}" ]] || [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Contents/MacOS/TokenPilot" ]]; then
-  echo "Invalid TokenPilot app bundle" >&2
+if [[ -z "${APP_PATH}" ]] || [[ ! -d "${APP_PATH}" ]] || [[ ! -x "${APP_PATH}/Contents/MacOS/ChatCockpit" ]]; then
+  echo "Invalid ChatCockpit app bundle" >&2
   exit 1
 fi
 APP_PATH="$(cd "$(dirname "${APP_PATH}")" && pwd)/$(basename "${APP_PATH}")"
@@ -51,7 +51,7 @@ if [[ -n "${KEYCHAIN}" ]]; then
 fi
 
 if [[ -z "${EVIDENCE_DIR}" ]]; then
-  echo "NOTARY_EVIDENCE_DIR_REQUIRED: set TOKENPILOT_NOTARY_EVIDENCE_DIR to an existing directory outside the repository" >&2
+  echo "NOTARY_EVIDENCE_DIR_REQUIRED: set CHATCOCKPIT_NOTARY_EVIDENCE_DIR to an existing directory outside the repository" >&2
   exit 2
 fi
 if [[ ! -d "${EVIDENCE_DIR}" ]] || [[ ! -w "${EVIDENCE_DIR}" ]]; then
@@ -73,7 +73,7 @@ for command_path in /usr/bin/codesign /usr/bin/ditto /usr/bin/file /usr/bin/plut
   fi
 done
 if ! command -v npm >/dev/null 2>&1; then
-  echo "Missing npm required for TokenPilot verification" >&2
+  echo "Missing npm required for ChatCockpit verification" >&2
   exit 1
 fi
 if ! /usr/bin/xcrun --find notarytool >/dev/null 2>&1 || ! /usr/bin/xcrun --find stapler >/dev/null 2>&1; then
@@ -83,7 +83,7 @@ fi
 
 RUNTIME_ROOT="${APP_PATH}/Contents/Resources/TokenPilotRuntime"
 if [[ ! -f "${RUNTIME_ROOT}/manifest.json" ]]; then
-  echo "Signed app input is missing the TokenPilot runtime payload" >&2
+  echo "Signed app input is missing the ChatCockpit runtime payload" >&2
   exit 1
 fi
 
@@ -97,15 +97,15 @@ if ! printf '%s\n' "${signature_details}" | grep -E 'flags=.*runtime' >/dev/null
   echo "HARDENED_RUNTIME_REQUIRED" >&2
   exit 1
 fi
-TOKENPILOT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
+CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="${RUNTIME_ROOT}" npm --prefix "${ROOT}" run verify:macos-runtime-payload
 
-TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/tokenpilot-notary.XXXXXX")"
+TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/chatcockpit-notary.XXXXXX")"
 cleanup() {
   rm -rf "${TEMP_ROOT}"
 }
 trap cleanup EXIT
 
-ZIP_PATH="${TEMP_ROOT}/TokenPilot.zip"
+ZIP_PATH="${TEMP_ROOT}/ChatCockpit.zip"
 SUBMISSION_JSON="${TEMP_ROOT}/notary-submit.json"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_PATH}"
 
@@ -139,6 +139,6 @@ fi
 /usr/bin/xcrun stapler staple "${APP_PATH}"
 /usr/bin/xcrun stapler validate "${APP_PATH}"
 /usr/sbin/spctl --assess --type execute --verbose=4 "${APP_PATH}"
-TOKENPILOT_SIGNED_APP_DIR="${APP_PATH}" npm --prefix "${ROOT}" run verify:macos-signed-app
+CHATCOCKPIT_SIGNED_APP_DIR="${APP_PATH}" npm --prefix "${ROOT}" run verify:macos-signed-app
 
 printf 'NOTARIZED_MACOS_DISTRIBUTION_OK submission=%s\n' "${SUBMISSION_ID}"

@@ -50,8 +50,8 @@ for (const required of [
   "verify:runtime-manifest",
   "verify:macos-runtime-payload",
   "verify:macos-desktop",
-  "TOKENPILOT_DESKTOP_APP_DIR",
-  "TokenPilot.xcarchive"
+  "CHATCOCKPIT_DESKTOP_APP_DIR",
+  "ChatCockpit.xcarchive"
 ]) {
   assert.equal(distributionScript.includes(required), true, `Distribution wrapper missing contract marker: ${required}`);
 }
@@ -87,8 +87,8 @@ for (const testCase of distributionFailureCases) {
 }
 
 for (const required of [
-  "TOKENPILOT_SIGNING_IDENTITY",
-  "TOKENPILOT_SIGNING_KEYCHAIN",
+  "CHATCOCKPIT_SIGNING_IDENTITY",
+  "CHATCOCKPIT_SIGNING_KEYCHAIN",
   "SIGNING_IDENTITY_REQUIRED",
   "INVALID_DEVELOPER_IDENTITY_REFERENCE",
   "DEVELOPER_ID_APPLICATION_IDENTITY_NOT_FOUND",
@@ -99,7 +99,7 @@ for (const required of [
   "node/bin/node",
   "refresh:macos-runtime-payload-hashes",
   "verify:macos-runtime-payload",
-  "TokenPilotDesktop.entitlements",
+  "ChatCockpit.entitlements",
   "verify:macos-signed-app"
 ]) {
   assert.equal(signingScript.includes(required), true, `Signing entrypoint missing contract marker: ${required}`);
@@ -109,7 +109,7 @@ assert.doesNotMatch(signingScript, /\bnotarytool\b|TOKENPILOT_NOTARY_PROFILE|\.p
 assert.doesNotMatch(signingScript, /\/Users\/[A-Za-z0-9._-]+\//);
 
 const identityGateIndex = signingScript.indexOf("SIGNING_IDENTITY_REQUIRED");
-const appValidationIndex = signingScript.indexOf("Invalid TokenPilot app bundle");
+const appValidationIndex = signingScript.indexOf("Invalid ChatCockpit app bundle");
 const refreshIndex = signingScript.indexOf("refresh:macos-runtime-payload-hashes");
 const outerEntitlementsIndex = signingScript.lastIndexOf('--entitlements "${ENTITLEMENTS}"');
 assert.ok(identityGateIndex >= 0 && identityGateIndex < appValidationIndex, "Signing identity must fail closed before app mutation/validation");
@@ -117,9 +117,11 @@ assert.ok(refreshIndex > signingScript.indexOf("runtime_macho_count=0"), "Runtim
 assert.ok(outerEntitlementsIndex > refreshIndex, "Outer app must be signed only after signed runtime hashes are refreshed");
 
 const noIdentityEnv = { ...process.env } as NodeJS.ProcessEnv;
+delete noIdentityEnv.CHATCOCKPIT_SIGNING_IDENTITY;
+delete noIdentityEnv.CHATCOCKPIT_SIGNING_KEYCHAIN;
 delete noIdentityEnv.TOKENPILOT_SIGNING_IDENTITY;
 delete noIdentityEnv.TOKENPILOT_SIGNING_KEYCHAIN;
-const missingIdentity = spawnSync("bash", [signingScriptPath, "--app", "/tmp/TokenPilot-contract-placeholder.app"], {
+const missingIdentity = spawnSync("bash", [signingScriptPath, "--app", "/tmp/ChatCockpit-contract-placeholder.app"], {
   cwd: root,
   encoding: "utf8",
   env: noIdentityEnv
@@ -128,10 +130,10 @@ assert.equal(missingIdentity.status, 2);
 assert.match(`${missingIdentity.stdout}\n${missingIdentity.stderr}`, /SIGNING_IDENTITY_REQUIRED/);
 assert.doesNotMatch(`${missingIdentity.stdout}\n${missingIdentity.stderr}`, /ad-?hoc/i);
 
-const fakeAppParent = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-signing-identity-"));
+const fakeAppParent = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-signing-identity-"));
 try {
-  const fakeApp = path.join(fakeAppParent, "TokenPilot.app");
-  const fakeExecutable = path.join(fakeApp, "Contents", "MacOS", "TokenPilot");
+  const fakeApp = path.join(fakeAppParent, "ChatCockpit.app");
+  const fakeExecutable = path.join(fakeApp, "Contents", "MacOS", "ChatCockpit");
   fs.mkdirSync(path.dirname(fakeExecutable), { recursive: true });
   fs.writeFileSync(fakeExecutable, "unsigned-fixture-bytes", { encoding: "utf8", mode: 0o755 });
   const beforeFakeExecutable = fs.readFileSync(fakeExecutable);
@@ -140,7 +142,7 @@ try {
     encoding: "utf8",
     env: {
       ...process.env,
-      TOKENPILOT_SIGNING_IDENTITY: "Developer ID Application: TokenPilot Contract Fixture (0000000000)"
+      CHATCOCKPIT_SIGNING_IDENTITY: "Developer ID Application: ChatCockpit Contract Fixture (0000000000)"
     }
   });
   assert.equal(fakeIdentity.status, 2);
@@ -151,7 +153,7 @@ try {
 }
 
 for (const required of [
-  "TOKENPILOT_SIGNED_APP_DIR",
+  "CHATCOCKPIT_SIGNED_APP_DIR",
   "verify:macos-runtime-payload",
   "/usr/bin/codesign",
   "--verify",
@@ -170,8 +172,8 @@ for (const required of [
 assert.doesNotMatch(signedAppVerifier, /\bnotarytool\b|\bstapler\b|TOKENPILOT_NOTARY_PROFILE/);
 
 for (const required of [
-  "TOKENPILOT_RUNTIME_PAYLOAD_DIR",
-  "TOKENPILOT_RUNTIME_REHASH_PATHS",
+  "CHATCOCKPIT_RUNTIME_PAYLOAD_DIR",
+  "CHATCOCKPIT_RUNTIME_REHASH_PATHS",
   "manifest.payload.files = nextFiles",
   "fs.renameSync",
   'rehashPaths.includes("node/bin/node")',
@@ -182,7 +184,7 @@ for (const required of [
 assert.doesNotMatch(refreshHashes, /node\.sha256\s*=/, "Runtime rehash must not rewrite the upstream Node artifact checksum");
 
 assert.equal(fs.existsSync(tsxBin), true, "Local tsx executable is required for signing-contract behavior tests");
-const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-runtime-rehash-"));
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-rehash-"));
 try {
   const nodeFixture = path.join(fixtureRoot, "node", "bin", "node");
   const untouchedFixture = path.join(fixtureRoot, "app", "package.json");

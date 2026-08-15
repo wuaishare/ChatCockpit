@@ -1,4 +1,4 @@
-# TokenPilot 本地优先控制面架构
+# ChatCockpit 本地优先控制面架构
 
 ## 能力状态
 
@@ -6,13 +6,13 @@
 - 实验性：Custom GPT Actions、Remote MCP、公网 HTTPS、Codex App Server Standalone
 - 近期方向：Remote MCP 稳定性、Direct Drive 硬化、Codex Session 生命周期可靠性、Async Agent Job 可靠性，以及受治理的 Host Direct Scope
 
-TokenPilot 是一个以 ChatGPT 为主要对话入口、本地优先的 **AI 开发连续性与 Agent 能力路由平台**。
+ChatCockpit 是一个以 ChatGPT 为主要对话入口、本地优先的 **AI 开发连续性与 Agent 能力路由平台**。
 
-ChatGPT Native 是入口与模型循环宿主，不再与本地执行模式排成一条线性“升级链”。当任务需要本机执行时，由 TokenPilot 进入三种显式执行模式之一：
+ChatGPT Native 是入口与模型循环宿主，不再与本地执行模式排成一条线性“升级链”。当任务需要本机执行时，由 ChatCockpit 进入三种显式执行模式之一：
 
 ```text
 ChatGPT Native
-  -> TokenPilot Remote MCP / Control Plane
+  -> ChatCockpit Remote MCP / Control Plane
        -> Direct Drive
             -> Workspace Direct（已实现）
             -> Host Direct（Files + 审批式 bounded Command 已实现）
@@ -20,7 +20,7 @@ ChatGPT Native
        -> Async Agent Job
 ```
 
-ChatGPT 负责对话、意图、规划与审查。在 Direct Drive 中，ChatGPT 同时保持唯一模型循环，TokenPilot 只负责确定性执行；进入 Codex Session 后，模型循环被显式委托给 Codex；进入 Async Agent Job 后，由被委托的 Agent Runtime 在后台持有模型循环，而 TokenPilot 管理 Job 生命周期。TokenPilot 始终负责持久身份、执行策略、连续性状态、Public-safe Projection 与跨运行模式 Handoff。
+ChatGPT 负责对话、意图、规划与审查。在 Direct Drive 中，ChatGPT 同时保持唯一模型循环，ChatCockpit 只负责确定性执行；进入 Codex Session 后，模型循环被显式委托给 Codex；进入 Async Agent Job 后，由被委托的 Agent Runtime 在后台持有模型循环，而 ChatCockpit 管理 Job 生命周期。ChatCockpit 始终负责持久身份、执行策略、连续性状态、Public-safe Projection 与跨运行模式 Handoff。
 
 ## 控制面职责
 
@@ -42,21 +42,21 @@ ChatGPT 负责对话、意图、规划与审查。在 Direct Drive 中，ChatGPT
 
 ### Direct Drive — Workspace Direct 与受治理 Host Files / bounded Command 已实现
 
-Direct Drive 是“ChatGPT 保持唯一模型循环、TokenPilot 执行确定性本机操作”的产品级总称。为保持现有持久化合同兼容，底层 Runtime Lane 仍使用 `chat-direct`。
+Direct Drive 是“ChatGPT 保持唯一模型循环、ChatCockpit 执行确定性本机操作”的产品级总称。为保持现有持久化合同兼容，底层 Runtime Lane 仍使用 `chat-direct`。
 
 Direct Drive 分为两个执行 Scope：
 
 - **Workspace Direct — 已实现：** 只在显式允许的 Project/Workspace 内操作，并继续使用现有 Path、Command、Git、Writer Lease、Evidence 与 Public-safe Projection 治理。
 - **Host Direct — 已实现受治理 Files 与 bounded Command：** Remote MCP 可以读取小型 text-like 文件，并在 Root 包含 `write` 时执行受审批的文本 Write / Exact Edit；同时可以通过独立 Direct Command Approval 生命周期执行 bounded non-interactive Host Command。文件变更继续受 canonical containment、symlink/sensitive-path 阻断、64 KiB 文本上限、exact mutation hash 与写后校验约束。Host Command 只接受结构化 `command + args + relative workdir`，不接受 raw shell source；Pure Host 仅允许显式只读 policy，Workspace write effect 必须回流 chat-direct Session、Writer Lease、Git 与 Task Evidence。公共输出有界且不暴露 PID/private cwd；系统级任意进程 attach/list/kill 仍未开放。
 
-Direct Drive 已确认采用 **TokenPilot Capability Broker + Pluggable Downstream MCP Executor** 架构。
+Direct Drive 已确认采用 **ChatCockpit Capability Broker + Pluggable Downstream MCP Executor** 架构。
 
-**Durable Host Managed Workspace Process — 已实现：** TokenPilot 继续通过公共 `host_process_*` 身份管理受控 Workspace 交互进程，但真实 Desktop Commander stdio/PID namespace 已迁移到独立本机 Process Supervisor sidecar。Start 与 Input 必须由 owning chat-direct Session + Writer Lease 发起；Read/List 只返回有界 public-safe 状态/输出；Stop 保留用于安全清理。普通 Control Plane restart 只有在同一个 sidecar generation 仍拥有完全一致的 TokenPilot Process / Workspace / Task / Session / Lease identity 时才允许重连。Sidecar 会通过 read-only SQLite 独立检查 Lease/Session/Workspace authority，把离线期间的 terminal event 记入本地 journal，待 Control Plane 恢复后幂等回流 Audit/Evidence；Downstream MCP 外层还有 process-group guardian，因此真实 hard-kill sidecar 后 managed child 不能继续产生延迟副作用。Schema v13 允许 sidecar-owned `running` 记录保持 `private_pid = NULL`；persisted PID 从来不是恢复凭据，新 Supervisor generation 也不会根据旧 PID 重连。系统级任意进程 attach/list/kill 继续明确不开放。TokenPilot Built-in 与经过验证的 App Server Standalone 会被标准化为统一 Capability Descriptor，并提供 Health / Scope、public-safe discovery 与 `automatic | explicit` Provider Selection。ChatGPT 对外仍只连接 TokenPilot Remote MCP。Downstream MCP 层也已实现：local-only Executor 配置驱动 stdio Probe，通过官方 MCP Schema 校验后，以显式 Tool → Capability Mapping 生成本地 Capability Snapshot，再投影 `downstream-mcp` Descriptor 并执行 normalized capability。当前 Desktop Commander Adapter Contract 已受治理地覆盖 Host `files.read`、`files.write`、`files.edit`，以及映射到当前 `start_process` 的 bounded `shell.exec`；`read_process_output`、`interact_with_process` 与 `force_terminate` 只作为 Adapter 私有生命周期依赖。Raw downstream tool name、raw shell source、raw downstream 进程控制、系统级任意 PID 操作和任意下游执行都不暴露；公共 Host 执行仍统一受 Scope、Approval、Workspace re-entry、Writer Lease、Git、Evidence/Audit、Idempotency、Timeout、Output Bound 与 Secret Safety 规则约束。
+**Durable Host Managed Workspace Process — 已实现：** ChatCockpit 继续通过公共 `host_process_*` 身份管理受控 Workspace 交互进程，但真实 Desktop Commander stdio/PID namespace 已迁移到独立本机 Process Supervisor sidecar。Start 与 Input 必须由 owning chat-direct Session + Writer Lease 发起；Read/List 只返回有界 public-safe 状态/输出；Stop 保留用于安全清理。普通 Control Plane restart 只有在同一个 sidecar generation 仍拥有完全一致的 ChatCockpit Process / Workspace / Task / Session / Lease identity 时才允许重连。Sidecar 会通过 read-only SQLite 独立检查 Lease/Session/Workspace authority，把离线期间的 terminal event 记入本地 journal，待 Control Plane 恢复后幂等回流 Audit/Evidence；Downstream MCP 外层还有 process-group guardian，因此真实 hard-kill sidecar 后 managed child 不能继续产生延迟副作用。Schema v13 允许 sidecar-owned `running` 记录保持 `private_pid = NULL`；persisted PID 从来不是恢复凭据，新 Supervisor generation 也不会根据旧 PID 重连。系统级任意进程 attach/list/kill 继续明确不开放。ChatCockpit Built-in 与经过验证的 App Server Standalone 会被标准化为统一 Capability Descriptor，并提供 Health / Scope、public-safe discovery 与 `automatic | explicit` Provider Selection。ChatGPT 对外仍只连接 ChatCockpit Remote MCP。Downstream MCP 层也已实现：local-only Executor 配置驱动 stdio Probe，通过官方 MCP Schema 校验后，以显式 Tool → Capability Mapping 生成本地 Capability Snapshot，再投影 `downstream-mcp` Descriptor 并执行 normalized capability。当前 Desktop Commander Adapter Contract 已受治理地覆盖 Host `files.read`、`files.write`、`files.edit`，以及映射到当前 `start_process` 的 bounded `shell.exec`；`read_process_output`、`interact_with_process` 与 `force_terminate` 只作为 Adapter 私有生命周期依赖。Raw downstream tool name、raw shell source、raw downstream 进程控制、系统级任意 PID 操作和任意下游执行都不暴露；公共 Host 执行仍统一受 Scope、Approval、Workspace re-entry、Writer Lease、Git、Evidence/Audit、Idempotency、Timeout、Output Bound 与 Secret Safety 规则约束。
 
 当前已实现的 Workspace Direct 由 Capability Broker 按以下 Provider 顺序解析 normalized capability：
 
 1. 本机 Probe 已验证且标记为 Chat Direct 安全的 Codex App Server Standalone；
-2. 其余能力或允许的自动回退由 TokenPilot Built-in 承担。
+2. 其余能力或允许的自动回退由 ChatCockpit Built-in 承担。
 
 显式指定 Executor 后不得静默切换到其他 Provider。已配置并成功 Probe 的 Downstream MCP Descriptor 可以向 Broker 声明经过映射的 Host Capability，但公共 Host Execution 仍单独受 allowlist 管理：当前 Remote MCP 授权受治理的 `files.read`、通过 Host Mutation 生命周期审批的 `files.write` / `files.edit`，以及只能通过 Host Command `prepare → decide → execute` 生命周期调用的 bounded `shell.exec`。Desktop Commander Process Tool 本身不是公共 Capability。
 
@@ -66,7 +66,7 @@ Direct Drive 已确认采用 **TokenPilot Capability Broker + Pluggable Downstre
 
 ### Codex Session — 已实现，协议适配层为实验性
 
-TokenPilot `codex-session` 可以 Bind、Resume、Fork Codex App Server Thread。启动模型循环是单独的显式操作，并要求：
+ChatCockpit `codex-session` 可以 Bind、Resume、Fork Codex App Server Thread。启动模型循环是单独的显式操作，并要求：
 
 - Active Runtime Binding；
 - Project / Workspace / Task / Session Revision 匹配；
@@ -79,9 +79,9 @@ TokenPilot `codex-session` 可以 Bind、Resume、Fork Codex App Server Thread�
 
 ### Async Agent Job — 已实现的委托式后台执行通道
 
-File-backed Queue / Runner 支持 Pack、TaskPack、Codex Run、Artifact 与可选隔离 Worktree。Async Agent Job 的本质是“委托后台执行”：Agent Runtime 持有模型循环，TokenPilot 负责 Queue、Claim、Runtime Binding、生命周期、Artifact、Evidence、重启对账，以及执行结束后进入 Review 或 Blocked 的状态转换。
+File-backed Queue / Runner 支持 Pack、TaskPack、Codex Run、Artifact 与可选隔离 Worktree。Async Agent Job 的本质是“委托后台执行”：Agent Runtime 持有模型循环，ChatCockpit 负责 Queue、Claim、Runtime Binding、生命周期、Artifact、Evidence、重启对账，以及执行结束后进入 Review 或 Blocked 的状态转换。
 
-Async Job 已经是一等 Runtime Binding。Runner Job ID 作为 External Run Identity 持久化，而不是替代 TokenPilot Task Identity；终态与 Restart Reconciliation 都按幂等合同处理。
+Async Job 已经是一等 Runtime Binding。Runner Job ID 作为 External Run Identity 持久化，而不是替代 ChatCockpit Task Identity；终态与 Restart Reconciliation 都按幂等合同处理。
 
 ## Continuity System of Record
 
@@ -94,7 +94,7 @@ SQLite 是持续状态真源。核心约束包括：
 - 外部 Mutation 使用 Pending/Completed Idempotency；
 - Binding、Run、Approval、Event、Handoff 与 Evidence 保留历史，而不是原地覆盖。
 
-ChatGPT Conversation、Codex Thread、Process ID 或 Runner Job 都不是 TokenPilot Task 的唯一身份。
+ChatGPT Conversation、Codex Thread、Process ID 或 Runner Job 都不是 ChatCockpit Task 的唯一身份。
 
 ## Web UI
 

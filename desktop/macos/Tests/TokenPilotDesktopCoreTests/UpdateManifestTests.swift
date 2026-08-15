@@ -29,7 +29,8 @@ struct UpdateManifestTests {
         let manifest = makeManifest()
         try manifest.validateForProduction()
         #expect(try manifest.isNewer(than: "0.1.0-alpha") == true)
-        #expect(manifest.artifact(for: .arm64)?.filename == "TokenPilot-0.1.0-macos-arm64.dmg")
+        #expect(manifest.product == "ChatCockpit")
+        #expect(manifest.artifact(for: .arm64)?.filename == "ChatCockpit-0.1.0-macos-arm64.dmg")
     }
 
     @Test("development metadata is never installable production metadata")
@@ -50,7 +51,7 @@ struct UpdateManifestTests {
         }
 
         let insecureArtifact = makeManifest(
-            artifactURL: URL(string: "http://example.com/TokenPilot-0.1.0-macos-arm64.dmg")!
+            artifactURL: URL(string: "http://example.com/ChatCockpit-0.1.0-macos-arm64.dmg")!
         )
         #expect(throws: MacOSUpdateManifestError.insecureURL) {
             try insecureArtifact.validateForProduction()
@@ -82,6 +83,7 @@ struct UpdateManifestTests {
         let json = """
         {
           "schemaVersion": 1,
+          "product": "ChatCockpit",
           "version": "0.1.0",
           "releaseIdentifier": "v0.1.0",
           "releasePageURL": "https://example.com/releases/v0.1.0",
@@ -92,9 +94,9 @@ struct UpdateManifestTests {
           "artifacts": [
             {
               "architecture": "arm64",
-              "filename": "TokenPilot-0.1.0-macos-arm64.dmg",
+              "filename": "ChatCockpit-0.1.0-macos-arm64.dmg",
               "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "downloadURL": "https://example.com/releases/v0.1.0/TokenPilot-0.1.0-macos-arm64.dmg"
+              "downloadURL": "https://example.com/releases/v0.1.0/ChatCockpit-0.1.0-macos-arm64.dmg"
             }
           ]
         }
@@ -108,7 +110,7 @@ struct UpdateManifestTests {
     private func makeManifest(
         releaseEligible: Bool = true,
         releasePageURL: URL = URL(string: "https://example.com/releases/v0.1.0")!,
-        artifactURL: URL = URL(string: "https://example.com/releases/v0.1.0/TokenPilot-0.1.0-macos-arm64.dmg")!,
+        artifactURL: URL = URL(string: "https://example.com/releases/v0.1.0/ChatCockpit-0.1.0-macos-arm64.dmg")!,
         artifacts: [MacOSUpdateArtifact]? = nil
     ) -> MacOSUpdateManifest {
         MacOSUpdateManifest(
@@ -123,7 +125,7 @@ struct UpdateManifestTests {
             artifacts: artifacts ?? [
                 MacOSUpdateArtifact(
                     architecture: .arm64,
-                    filename: "TokenPilot-0.1.0-macos-arm64.dmg",
+                    filename: "ChatCockpit-0.1.0-macos-arm64.dmg",
                     sha256: String(repeating: "a", count: 64),
                     downloadURL: artifactURL
                 )
@@ -137,9 +139,9 @@ struct UpdateManifestTests {
     ) -> MacOSUpdateArtifact {
         MacOSUpdateArtifact(
             architecture: architecture,
-            filename: "TokenPilot-0.1.0-macos-\(architecture.rawValue).dmg",
+            filename: "ChatCockpit-0.1.0-macos-\(architecture.rawValue).dmg",
             sha256: sha256,
-            downloadURL: URL(string: "https://example.com/releases/v0.1.0/TokenPilot-0.1.0-macos-\(architecture.rawValue).dmg")!
+            downloadURL: URL(string: "https://example.com/releases/v0.1.0/ChatCockpit-0.1.0-macos-\(architecture.rawValue).dmg")!
         )
     }
 }

@@ -13,7 +13,7 @@ const fixtureServer = fileURLToPath(
 
 async function verifyDesktopCommanderLiveHarness(): Promise<void> {
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-live-harness-")
+    path.join(os.tmpdir(), "chatcockpit-desktop-live-harness-")
   );
   const configPath = path.join(sandbox, "direct-executors.json");
 
@@ -61,7 +61,7 @@ async function verifyDesktopCommanderLiveHarness(): Promise<void> {
     assert.equal(summary.serverName, "fake-downstream");
     assert.equal(summary.serverVersion, "1.0.0");
     assert.ok(summary.verifiedCapabilities.includes("files.read"));
-    assert.equal(summary.mcpTool, "tokenpilot.host.files.read");
+    assert.equal(summary.mcpTool, "chatcockpit.host.files.read");
     assert.equal(summary.executionScope, "host");
     assert.equal(summary.selectionMode, "explicit");
     assert.equal(

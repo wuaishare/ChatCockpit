@@ -27,7 +27,7 @@ export function buildHostMutationTools(
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
-      name: "tokenpilot.host.mutation.prepare",
+      name: "chatcockpit.host.mutation.prepare",
       title: "Prepare governed Host mutation",
       description:
         "Validate and prepare one exact Host text-file write/edit and create a short-lived Direct Mutation approval. This step does not modify the file.",
@@ -36,7 +36,7 @@ export function buildHostMutationTools(
       handler: (context, input) => service.prepare(context, input)
     }),
     defineMcpTool({
-      name: "tokenpilot.host.mutation.decide",
+      name: "chatcockpit.host.mutation.decide",
       title: "Decide Host mutation approval",
       description:
         "Approve or deny one pending exact Host mutation approval using optimistic revision control.",
@@ -45,7 +45,7 @@ export function buildHostMutationTools(
       handler: (context, input) => service.decide(context, input)
     }),
     defineMcpTool({
-      name: "tokenpilot.host.mutation.execute",
+      name: "chatcockpit.host.mutation.execute",
       title: "Execute approved Host mutation",
       description:
         "Execute one previously approved exact Host text-file write/edit. Revalidates path, Workspace governance, mutation hash, executor mapping and approval state before the external effect.",

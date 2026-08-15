@@ -12,10 +12,10 @@ export function buildDirectReadOnlyTools(
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
-      name: "tokenpilot.direct.executors.list",
+      name: "chatcockpit.direct.executors.list",
       title: "List Direct Drive executors",
       description:
-        "List public-safe Direct Drive executors, health, scopes, and normalized capabilities available through TokenPilot.",
+        "List public-safe Direct Drive executors, health, scopes, and normalized capabilities available through ChatCockpit.",
       inputSchema: z.object({}),
       annotations: readOnlyToolAnnotations,
       handler: () => chatDirect.listExecutors()

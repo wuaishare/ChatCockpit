@@ -112,7 +112,7 @@ assert.equal(
 );
 
 assert.equal(
-  liveProof.includes("TOKENPILOT_CODEX_SKILL_MUTATION_PROOF"),
+  liveProof.includes("CHATCOCKPIT_CODEX_SKILL_MUTATION_PROOF"),
   true,
   "Real Codex Skill mutation proof must require an explicit opt-in environment variable"
 );
@@ -209,9 +209,9 @@ assert.throws(
 
 const mcpSurfaces = readTree("src/mcp");
 for (const requiredMcpSurface of [
-  "tokenpilot.resources.mutation.prepare",
-  "tokenpilot.resources.mutation.inspect",
-  "tokenpilot.resources.mutation.execute"
+  "chatcockpit.resources.mutation.prepare",
+  "chatcockpit.resources.mutation.inspect",
+  "chatcockpit.resources.mutation.execute"
 ]) {
   assert.equal(
     mcpSurfaces.includes(requiredMcpSurface),
@@ -220,8 +220,8 @@ for (const requiredMcpSurface of [
   );
 }
 for (const forbiddenMcpSurface of [
-  "tokenpilot.resources.mutation.decide",
-  "tokenpilot.resources.mutation.reconcile"
+  "chatcockpit.resources.mutation.decide",
+  "chatcockpit.resources.mutation.reconcile"
 ]) {
   assert.equal(
     mcpSurfaces.includes(forbiddenMcpSurface),
@@ -234,7 +234,7 @@ const allExternalSurfaces = ["src/server", "src/mcp", "openapi", "web/src"]
   .map(readTree)
   .join("\n");
 assert.equal(
-  allExternalSurfaces.includes("tokenpilot.resources.mutation.reconcile"),
+  allExternalSurfaces.includes("chatcockpit.resources.mutation.reconcile"),
   false,
   "Crash reconciliation must remain internal-only"
 );

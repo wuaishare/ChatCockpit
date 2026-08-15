@@ -66,7 +66,7 @@ function assertHighTrustCommandAllowed(command: string): void {
   if (exposed && !explicitlyAllowed) {
     throw new Error(
       `High-trust command ${command} is blocked in exposed mode. ` +
-        "Set TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS=true only in a private authenticated operator environment."
+        "Set CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true only in a private authenticated operator environment."
     );
   }
 }

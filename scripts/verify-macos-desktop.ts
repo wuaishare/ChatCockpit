@@ -29,14 +29,14 @@ const xcodeProjectPath = path.join(
   root,
   "desktop",
   "macos",
-  "TokenPilot.xcodeproj",
+  "ChatCockpit.xcodeproj",
   "project.pbxproj"
 );
 const xcodeEntitlementsPath = path.join(
   root,
   "desktop",
   "macos",
-  "TokenPilotDesktop.entitlements"
+  "ChatCockpit.entitlements"
 );
 const xcodeBuildScriptPath = path.join(root, "scripts", "build-macos-xcode-app.sh");
 
@@ -79,8 +79,8 @@ assert.match(packageManifest, /\.macOS\(\.v14\)/);
 assert.match(packageManifest, /TokenPilotDesktopCore/);
 assert.match(packageManifest, /TokenPilotDesktop/);
 
-assert.match(infoPlist, /<string>cn\.wuaishare\.TokenPilot<\/string>/);
-assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>TokenPilot<\/string>/s);
+assert.match(infoPlist, /<string>cn\.wuaishare\.ChatCockpit<\/string>/);
+assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>ChatCockpit<\/string>/s);
 assert.match(infoPlist, /<key>LSMinimumSystemVersion<\/key>\s*<string>14\.0<\/string>/s);
 assert.match(infoPlist, /<key>LSUIElement<\/key>\s*<true\/>/s);
 
@@ -106,8 +106,9 @@ assert.match(settings, /never migrated/);
 assert.match(appModel, /runtimeConflict/);
 assert.match(appModel, /importExistingSetupFromPanel/);
 assert.match(existingSetupImport, /skippedSecretCategories/);
-assert.match(existingSetupImport, /TOKENPILOT_EXPOSED=false/);
-assert.doesNotMatch(existingSetupImport, /TOKENPILOT_API_TOKEN=/);
+assert.match(existingSetupImport, /CHATCOCKPIT_EXPOSED=false/);
+assert.doesNotMatch(existingSetupImport, /"TOKENPILOT_HOST=/);
+assert.doesNotMatch(existingSetupImport, /CHATCOCKPIT_API_TOKEN=/);
 assert.match(runtimeConflict, /LaunchAgentRuntimeOwnership/);
 assert.match(runtimeConflict, /sourceRuntime/);
 assert.match(runtimeConflict, /portOccupied/);
@@ -115,20 +116,22 @@ assert.match(runtimeConflict, /portOccupied/);
 assert.match(buildScript, /build-macos-runtime-payload\.sh/);
 assert.match(buildScript, /swift build --package-path/);
 assert.match(buildScript, /--arch/);
-assert.match(buildScript, /dist\/macos\/TokenPilot\.app/);
+assert.match(buildScript, /dist\/macos\/ChatCockpit\.app/);
 assert.match(buildScript, /Contents\/Resources\/TokenPilotRuntime|RESOURCES_DIR.*TokenPilotRuntime/s);
 assert.match(buildScript, /signing: not performed/);
 assert.match(buildScript, /notarization: not performed/);
 assert.doesNotMatch(buildScript, /\bcodesign\b/);
 assert.doesNotMatch(buildScript, /\bnotarytool\b/);
 
-assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.TokenPilot;/);
+assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.ChatCockpit;/);
+assert.match(xcodeProject, /PRODUCT_NAME = ChatCockpit;/);
 assert.match(xcodeProject, /ENABLE_HARDENED_RUNTIME = YES;/);
-assert.match(xcodeProject, /CODE_SIGN_ENTITLEMENTS = TokenPilotDesktop\.entitlements;/);
+assert.match(xcodeProject, /CODE_SIGN_ENTITLEMENTS = ChatCockpit\.entitlements;/);
 assert.match(xcodeProject, /name = "Embed Frameworks";/);
 assert.match(xcodeBuildScript, /FULL_XCODE_REQUIRED/);
-assert.match(xcodeBuildScript, /--product-identity/);
-assert.match(xcodeBuildScript, /CHATCOCKPIT_TARGET/);
+assert.match(xcodeBuildScript, /PRODUCT_IDENTITY="chatcockpit"/);
+assert.match(xcodeBuildScript, /Legacy TokenPilot app generation is disabled in R3/);
+assert.doesNotMatch(xcodeBuildScript, /CHATCOCKPIT_TARGET/);
 assert.match(xcodeBuildScript, /CODE_SIGNING_ALLOWED=NO/);
 assert.match(xcodeBuildScript, /build-macos-runtime-payload\.sh/);
 assert.match(xcodeBuildScript, /verify:macos-runtime-payload/);
@@ -164,10 +167,10 @@ for (const dependencyName of Object.keys(dependencies)) {
   assert.equal(/electron|tauri/i.test(dependencyName), false, `Unexpected desktop wrapper dependency: ${dependencyName}`);
 }
 
-const builtAppRootInput = process.env.TOKENPILOT_DESKTOP_APP_DIR?.trim();
+const builtAppRootInput = process.env.CHATCOCKPIT_DESKTOP_APP_DIR?.trim();
 const builtAppRoot = builtAppRootInput
   ? path.resolve(builtAppRootInput)
-  : path.join(root, "dist", "macos", "TokenPilot.app");
+  : path.join(root, "dist", "macos", "ChatCockpit.app");
 if (fs.existsSync(builtAppRoot)) {
   const runtimeRoot = path.join(builtAppRoot, "Contents", "Resources", "TokenPilotRuntime");
   for (const relativePath of [
@@ -176,7 +179,7 @@ if (fs.existsSync(builtAppRoot)) {
     "app/package.json",
     "app/dist/cli/index.js",
     "app/web/dist/index.html",
-    "app/openapi/tokenpilot.openapi.yaml",
+    "app/openapi/chatcockpit.openapi.yaml",
     "app/scripts/macos-manage-local-server.sh"
   ]) {
     assert.equal(
@@ -185,7 +188,7 @@ if (fs.existsSync(builtAppRoot)) {
       `Built app is missing packaged runtime path: ${relativePath}`
     );
   }
-  for (const forbidden of [".git", ".tokenpilot", "app/src", "app/web/src"]) {
+  for (const forbidden of [".git", ".chatcockpit", ".tokenpilot", "app/src", "app/web/src"]) {
     assert.equal(
       fs.existsSync(path.join(runtimeRoot, forbidden)),
       false,

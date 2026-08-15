@@ -23,12 +23,13 @@ if [[ -n "${USER:-}" && ! "${USER}" =~ ^(runner|root|node|ubuntu|actions)$ ]]; t
   labels+=("local machine username")
 fi
 
-if [[ -n "${TOKENPILOT_HISTORY_PRIVATE_PATTERNS:-}" ]]; then
+history_private_patterns="${CHATCOCKPIT_HISTORY_PRIVATE_PATTERNS:-${TOKENPILOT_HISTORY_PRIVATE_PATTERNS:-}}"
+if [[ -n "${history_private_patterns}" ]]; then
   while IFS= read -r pattern; do
     [[ -z "${pattern}" ]] && continue
     patterns+=("${pattern}")
     labels+=("operator-supplied private pattern")
-  done <<< "${TOKENPILOT_HISTORY_PRIVATE_PATTERNS}"
+  done <<< "${history_private_patterns}"
 fi
 
 exclude_pathspecs=(
@@ -48,21 +49,23 @@ report_path() {
   printf '%s %s %s\n' "${label}" "${rev:0:12}" "${file}" >> "${reportfile}"
 }
 
-scan_tokenpilot_hosts() {
+scan_product_hosts() {
   local rev="$1"
-  if git grep -I -n -E "(https?://|Host:[[:space:]]*)tokenpilot\\.[[:alnum:].-]+\\.[[:alpha:]]{2,}" "${rev}" -- . "${exclude_pathspecs[@]}" > "${tmpfile}"; then
+  if git grep -I -n -E "(https?://|Host:[[:space:]]*)(chatcockpit|tokenpilot)\\.[[:alnum:].-]+\\.[[:alpha:]]{2,}" "${rev}" -- . "${exclude_pathspecs[@]}" > "${tmpfile}"; then
     while IFS= read -r match; do
       [[ -z "${match}" ]] && continue
+      [[ "${match}" == *"chatcockpit.example.com"* ]] && continue
       [[ "${match}" == *"tokenpilot.example.com"* ]] && continue
+      [[ "${match}" == *".example.invalid"* ]] && continue
       rest="${match#*:}"
       file="${rest%%:*}"
-      report_path "non-placeholder TokenPilot deployment host" "${rev}" "${file}"
+      report_path "non-placeholder ChatCockpit/legacy deployment host" "${rev}" "${file}"
     done < "${tmpfile}"
   fi
 }
 
 while IFS= read -r rev; do
-  scan_tokenpilot_hosts "${rev}"
+  scan_product_hosts "${rev}"
 
   for i in "${!patterns[@]}"; do
     if git grep -I -E -l "${patterns[$i]}" "${rev}" -- . "${exclude_pathspecs[@]}" > "${tmpfile}"; then

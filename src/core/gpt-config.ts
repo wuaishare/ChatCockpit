@@ -12,6 +12,7 @@ import { buildRepoGovernance } from "./config.js";
 import { buildSourceDistributionContext } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
 import {
+  DEFAULT_PRODUCT_IDENTITY,
   productIdentityForKey,
   type ProductIdentity
 } from "./product-identity.js";
@@ -86,7 +87,7 @@ function resolvePublicBaseUrl(): string | null {
 
 function resolveActionHost(
   publicBaseUrl: string | null,
-  productIdentity: ProductIdentityKey = "tokenpilot"
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
 ): string {
   if (!publicBaseUrl) {
     return "local-only";
@@ -103,12 +104,12 @@ function projectGptIdentityText(
   value: string,
   identity: ProductIdentity
 ): string {
-  if (identity.key === "tokenpilot") return value;
-  return value.replaceAll("TokenPilot", identity.displayName);
+  if (identity.key === DEFAULT_PRODUCT_IDENTITY.key) return value;
+  return value.replaceAll("ChatCockpit", identity.displayName);
 }
 
 export function buildHealthStatusSnapshot(
-  productIdentity: ProductIdentityKey = "tokenpilot"
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
 ): TokenPilotHealthStatus {
   const publicBaseUrl = resolvePublicBaseUrl();
   const exposed = /^(1|true|yes|on)$/i.test(readIdentityEnv("EXPOSED") ?? "");
@@ -127,7 +128,7 @@ export function buildHealthStatusSnapshot(
 export function buildGptInstructions(
   health: Pick<TokenPilotHealthStatus, "mode" | "authRequired" | "publicBaseUrl" | "openapiUrl">,
   locale: "zh-CN" | "en-US" = "zh-CN",
-  productIdentity: ProductIdentityKey = "tokenpilot"
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
 ): string {
   const identity = productIdentityForKey(productIdentity);
   const localTimeZone = resolveLocalTimeZone();
@@ -136,8 +137,8 @@ export function buildGptInstructions(
 
   if (locale === "en-US") {
     return projectGptIdentityText([
-      "You are TokenPilot's workflow cockpit for local-first ChatGPT + Codex collaboration.",
-      "Use TokenPilot Actions and APIs to inspect health, queue jobs, control tracked processes, read public-safe results, and directly perform file and repository operations.",
+      "You are ChatCockpit's workflow cockpit for local-first ChatGPT + Codex collaboration.",
+      "Use ChatCockpit Actions and APIs to inspect health, queue jobs, control tracked processes, read public-safe results, and directly perform file and repository operations.",
       "Do not claim a completed HTTPS / Custom GPT Actions production loop unless the operator explicitly confirms it.",
       "Never request or expose local absolute paths, secrets, env files, or runtime-private configuration.",
       "",
@@ -195,9 +196,9 @@ export function buildGptInstructions(
   }
 
   return projectGptIdentityText([
-    "你是 TokenPilot 的工作流驾驶舱。你的职责是：",
+    "你是 ChatCockpit 的工作流驾驶舱。你的职责是：",
     "1. 帮用户澄清目标并生成清晰的 Task Pack。",
-    "2. 通过已配置的 Actions 调用 TokenPilot 控制面来读取文件、搜索代码、编辑文件、运行高信任本地命令、管理 public-safe git 改动、创建 job、查询状态、读取公开安全结果。",
+    "2. 通过已配置的 Actions 调用 ChatCockpit 控制面来读取文件、搜索代码、编辑文件、运行高信任本地命令、管理 public-safe git 改动、创建 job、查询状态、读取公开安全结果。",
     "3. 对简单修改（改文案、修 bug、单文件编辑）可以直接使用 writeFile/editFile/runShell 完成；对复杂任务使用 createCodexRun 交给本地 Codex CLI 执行和自动审查。",
     "4. 不要请求或暴露 raw shell；runShell 是受鉴权和本地操作者边界保护的高信任命令 API，不应暴露为公网通用执行面。",
     "5. 基于 job 结果或直接操作结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",

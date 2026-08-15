@@ -94,7 +94,7 @@ const tools = [
   },
   {
     name: "unmapped_private_tool",
-    description: "Must never be inferred into TokenPilot capabilities",
+    description: "Must never be inferred into ChatCockpit capabilities",
     inputSchema: { type: "object" }
   }
 ];
@@ -323,7 +323,7 @@ rl.on("line", (line) => {
         fs.mkdirSync(`${desktopCommandCwd}/src`, { recursive: true });
         fs.writeFileSync(
           `${desktopCommandCwd}/src/live.txt`,
-          "TokenPilot Desktop Commander Host Command live proof\n",
+          "ChatCockpit Desktop Commander Host Command live proof\n",
           "utf8"
         );
       }

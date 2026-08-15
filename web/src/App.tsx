@@ -21,7 +21,7 @@ import {
   fetchSetupStatus,
   terminateAllJobs
 } from "./api";
-import tokenPilotLogo from "./assets/tokenpilot-logo.svg";
+import chatCockpitLogo from "./assets/chatcockpit-logo.svg";
 import { DashboardView } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
@@ -36,16 +36,37 @@ import type {
 } from "./types";
 import { countJobs, summarizeJob } from "./utils";
 import {
+  getStoredLocale,
   getUiCopy,
-  LOCALE_STORAGE_KEY,
   localeOptions,
+  persistLocale,
   type LocaleCode
 } from "./i18n";
 import { themeLabels } from "./theme";
 import { getResourceCenterCopy } from "./i18n/resources";
 import type { ApiProblem } from "./types";
 
-const SESSION_TOKEN_KEY = "tokenpilot:web:bearer-token";
+const SESSION_TOKEN_KEY = "chatcockpit:web:bearer-token";
+const LEGACY_SESSION_TOKEN_KEY = "tokenpilot:web:bearer-token";
+
+function readSessionToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const current = sessionStorage.getItem(SESSION_TOKEN_KEY);
+  if (current !== null) {
+    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
+    return current;
+  }
+
+  const legacy = sessionStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
+  if (legacy !== null) {
+    sessionStorage.setItem(SESSION_TOKEN_KEY, legacy);
+    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
+  }
+  return legacy;
+}
 const JobsView = lazy(() =>
   import("./components/JobsView").then((module) => ({ default: module.JobsView }))
 );
@@ -159,17 +180,11 @@ function parseRoute(): {
 }
 
 export default function App({ themeMode, onThemeModeChange }: AppProps) {
-  const [locale, setLocale] = useState<LocaleCode>(() =>
-    typeof window === "undefined"
-      ? "zh-CN"
-      : ((sessionStorage.getItem(LOCALE_STORAGE_KEY) as LocaleCode | null) ?? "zh-CN")
-  );
+  const [locale, setLocale] = useState<LocaleCode>(getStoredLocale);
   const [activeView, setActiveView] = useState<ViewKey>(() => parseRoute().view);
   const [activeContinuitySection, setActiveContinuitySection] =
     useState<ContinuitySectionKey>(() => parseRoute().continuitySection);
-  const [token, setToken] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : sessionStorage.getItem(SESSION_TOKEN_KEY)
-  );
+  const [token, setToken] = useState<string | null>(readSessionToken);
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -419,16 +434,18 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       return;
     }
     sessionStorage.setItem(SESSION_TOKEN_KEY, normalized);
+    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
     setToken(normalized);
   }
 
   function clearToken() {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
     setToken(null);
   }
 
   function updateLocale(nextLocale: LocaleCode) {
-    sessionStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
+    persistLocale(nextLocale);
     setLocale(nextLocale);
   }
 
@@ -509,9 +526,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const counts = countJobs(jobs);
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? null;
   const jobsProtected = health.authRequired && !token?.trim();
-  const headerProductVersion = gptConfig?.productVersion ?? __TOKENPILOT_VERSION__.productVersion;
-  const headerSchemaVersion = gptConfig?.schemaVersion ?? __TOKENPILOT_VERSION__.schemaVersion;
-  const headerBuildVersion = gptConfig?.buildVersion ?? __TOKENPILOT_VERSION__.buildVersion;
+  const headerProductVersion = gptConfig?.productVersion ?? __CHATCOCKPIT_VERSION__.productVersion;
+  const headerSchemaVersion = gptConfig?.schemaVersion ?? __CHATCOCKPIT_VERSION__.schemaVersion;
+  const headerBuildVersion = gptConfig?.buildVersion ?? __CHATCOCKPIT_VERSION__.buildVersion;
   const headerVersionText = headerSchemaVersion
     ? `${headerProductVersion} (${headerSchemaVersion})`
     : headerProductVersion;
@@ -550,7 +567,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           <div className="app-header__top">
             <div className="app-header__masthead">
               <div className="app-header__brand">
-                <img className="app-header__logo" src={tokenPilotLogo} alt="" aria-hidden="true" />
+                <img className="app-header__logo" src={chatCockpitLogo} alt="" aria-hidden="true" />
                 <div className="app-header__copy">
                   <Text as="div" className="app-header__title">
                     {copy.header.title}
@@ -584,11 +601,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 />
               </div>
               <div className="app-toolbar__group">
-                <span className="sr-only" id="tokenpilot-theme-mode-label">
+                <span className="sr-only" id="chatcockpit-theme-mode-label">
                   {copy.header.themeModeLabel}
                 </span>
                 <Segmented<ThemeMode>
-                  aria-labelledby="tokenpilot-theme-mode-label"
+                  aria-labelledby="chatcockpit-theme-mode-label"
                   className="theme-switch"
                   value={themeMode}
                   onChange={(value) => onThemeModeChange(value)}

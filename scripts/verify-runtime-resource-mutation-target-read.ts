@@ -69,7 +69,7 @@ repositories.workspaces.create({
   id: workspaceId,
   projectId: "project_target_read_fixture",
   repoId: "target-read-fixture",
-  privatePath: "/private/tokenpilot-runtime-sentinel/target-read-workspace",
+  privatePath: "/private/chatcockpit-runtime-sentinel/target-read-workspace",
   status: "ready",
   now: NOW
 });

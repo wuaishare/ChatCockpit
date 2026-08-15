@@ -17,7 +17,7 @@ import {
 import "./styles.css";
 import "./styles/continuity-responsive.css";
 
-function TokenPilotRoot() {
+function ChatCockpitRoot() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode);
   const [systemAppearance, setSystemAppearance] = useState(getSystemAppearance);
   const appearance = themeMode === "auto" ? systemAppearance : resolveAppearance(themeMode);
@@ -63,6 +63,6 @@ function TokenPilotRoot() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <TokenPilotRoot />
+    <ChatCockpitRoot />
   </React.StrictMode>
 );

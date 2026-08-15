@@ -26,8 +26,8 @@ import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-
 
 const LIVE_ROOT_ID = "desktop-commander-mutation-live-proof";
 const LIVE_RELATIVE_PATH = "fixture/live.txt";
-const FIRST_CONTENT = "TokenPilot Desktop Commander Host Mutation live proof alpha\n";
-const SECOND_CONTENT = "TokenPilot Desktop Commander Host Mutation live proof beta\n";
+const FIRST_CONTENT = "ChatCockpit Desktop Commander Host Mutation live proof alpha\n";
+const SECOND_CONTENT = "ChatCockpit Desktop Commander Host Mutation live proof beta\n";
 
 const REQUIRED_MAPPINGS: DownstreamMcpStdioExecutorConfig["mappings"] = [
   {
@@ -83,7 +83,7 @@ function sourceExecutor(options: {
   );
   if (!executor) {
     throw new Error(
-      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to ${options.sourceConfigPath}, or set TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC for this operator-only proof.`
+      `Desktop Commander executor is not configured. Add ${DESKTOP_COMMANDER_EXECUTOR_ID} to ${options.sourceConfigPath}, or set CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC for this operator-only proof.`
     );
   }
   return {
@@ -151,8 +151,8 @@ export interface DesktopCommanderHostMutationLiveProofSummary {
   serverVersion: string;
   health: "ready" | "degraded" | "unavailable";
   verifiedCapabilities: string[];
-  writeTool: "tokenpilot.host.mutation.execute";
-  editTool: "tokenpilot.host.mutation.execute";
+  writeTool: "chatcockpit.host.mutation.execute";
+  editTool: "chatcockpit.host.mutation.execute";
   executionScope: "host";
   selectionMode: "explicit";
   fixturePath: string;
@@ -165,9 +165,11 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
   const sourceConfigPath =
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const packageSpec =
-    options.packageSpec ?? process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
+    options.packageSpec ??
+    process.env.CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC ??
+    process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-desktop-commander-mutation-live-")
+    path.join(os.tmpdir(), "chatcockpit-desktop-commander-mutation-live-")
   );
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
@@ -215,9 +217,9 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
     const tools = new Map(
       buildHostMutationTools(hostMutation).map((tool) => [tool.name, tool])
     );
-    const prepareTool = tools.get("tokenpilot.host.mutation.prepare");
-    const decideTool = tools.get("tokenpilot.host.mutation.decide");
-    const executeTool = tools.get("tokenpilot.host.mutation.execute");
+    const prepareTool = tools.get("chatcockpit.host.mutation.prepare");
+    const decideTool = tools.get("chatcockpit.host.mutation.decide");
+    const executeTool = tools.get("chatcockpit.host.mutation.execute");
     assert.ok(prepareTool, "Host Mutation prepare MCP tool is not registered");
     assert.ok(decideTool, "Host Mutation decide MCP tool is not registered");
     assert.ok(executeTool, "Host Mutation execute MCP tool is not registered");
@@ -325,8 +327,8 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
       serverVersion: summary.serverVersion,
       health: summary.health,
       verifiedCapabilities: summary.verifiedCapabilities,
-      writeTool: "tokenpilot.host.mutation.execute",
-      editTool: "tokenpilot.host.mutation.execute",
+      writeTool: "chatcockpit.host.mutation.execute",
+      editTool: "chatcockpit.host.mutation.execute",
       executionScope: "host",
       selectionMode: "explicit",
       fixturePath: `${LIVE_ROOT_ID}/${LIVE_RELATIVE_PATH}`

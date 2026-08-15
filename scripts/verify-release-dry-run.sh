@@ -16,7 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-archive="${tmp_dir}/tokenpilot-source.tar.gz"
+archive="${tmp_dir}/ChatCockpit-source.tar.gz"
 extract_dir="${tmp_dir}/extract"
 
 git archive --format=tar.gz --output="${archive}" HEAD
@@ -24,6 +24,7 @@ mkdir -p "${extract_dir}"
 tar -xzf "${archive}" -C "${extract_dir}"
 
 blocked_paths=(
+  ".chatcockpit"
   ".tokenpilot"
   ".codex"
   ".servbay"

@@ -3,9 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-const root = path.resolve(process.env.TOKENPILOT_MOCK_STANDALONE_ROOT || process.cwd());
-const tracePath = process.env.TOKENPILOT_MOCK_STANDALONE_TRACE;
-const unsupportedMethod = process.env.TOKENPILOT_MOCK_UNSUPPORTED_METHOD || "";
+const root = path.resolve(process.env.CHATCOCKPIT_MOCK_STANDALONE_ROOT || process.cwd());
+const tracePath = process.env.CHATCOCKPIT_MOCK_STANDALONE_TRACE;
+const unsupportedMethod = process.env.CHATCOCKPIT_MOCK_UNSUPPORTED_METHOD || "";
 
 function trace(message) {
   if (!tracePath) return;
@@ -98,7 +98,7 @@ lineReader.on("line", (line) => {
             fuzzyFileSearch: true
           },
           serverInfo: {
-            name: "tokenpilot-mock-standalone",
+            name: "chatcockpit-mock-standalone",
             version: "1.0.0"
           }
         });

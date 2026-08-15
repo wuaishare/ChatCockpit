@@ -336,7 +336,7 @@ export function RuntimeRecoverySection({
             options={[
               { value: "auto", label: copy.recoveryProviderAuto },
               { value: "codex", label: "Codex App Server" },
-              { value: "runner", label: "TokenPilot Runner" },
+              { value: "runner", label: "ChatCockpit Runner" },
               { value: "chat-direct", label: "Chat Direct" }
             ]}
             onChange={(value) => {

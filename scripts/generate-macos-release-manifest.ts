@@ -122,7 +122,7 @@ const artifacts: ReleaseArtifact[] = artifactsInput.map((spec) => {
     fail(`Missing artifact for ${architecture}`, 1);
   }
   const filename = path.basename(artifactPath);
-  const expectedFilename = `TokenPilot-${version}-macos-${architecture}.dmg`;
+  const expectedFilename = `ChatCockpit-${version}-macos-${architecture}.dmg`;
   if (filename !== expectedFilename) {
     fail(`Artifact filename mismatch for ${architecture}`, 1);
   }
@@ -201,7 +201,8 @@ if (distributionTrust === "development") {
 
 const manifest = {
   schemaVersion: 1,
-  tokenPilotVersion: version,
+  product: "ChatCockpit",
+  version,
   buildNumber,
   commit,
   distributionTrust,

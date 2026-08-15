@@ -228,13 +228,13 @@ try {
   fs.mkdirSync(path.join(workspaceRoot, "openapi"), { recursive: true });
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "# isolated target workspace\n", "utf8");
   fs.copyFileSync(
-    path.resolve("openapi/tokenpilot.openapi.yaml"),
-    path.join(workspaceRoot, "openapi", "tokenpilot.openapi.yaml")
+    path.resolve("openapi/chatcockpit.openapi.yaml"),
+    path.join(workspaceRoot, "openapi", "chatcockpit.openapi.yaml")
   );
   runGit(workspaceRoot, ["init"]);
   runGit(workspaceRoot, ["config", "user.email", "generation@example.invalid"]);
   runGit(workspaceRoot, ["config", "user.name", "Target generation fixture"]);
-  runGit(workspaceRoot, ["add", "README.md", "openapi/tokenpilot.openapi.yaml"]);
+  runGit(workspaceRoot, ["add", "README.md", "openapi/chatcockpit.openapi.yaml"]);
   runGit(workspaceRoot, ["commit", "-m", "init"]);
 
   const context = buildSourceDistributionContextForProduct("chatcockpit", workspaceRoot, {

@@ -1313,11 +1313,11 @@ button,
   color: var(--tp-text);
 }
 
-.tokenpilot-empty {
+.chatcockpit-empty {
   padding: 12px 0 6px;
 }
 
-.tokenpilot-empty .ant-empty-image {
+.chatcockpit-empty .ant-empty-image {
   opacity: 0.76;
   filter: saturate(1.12);
 }

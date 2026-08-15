@@ -55,7 +55,7 @@ function renderOpenApiDocument(
   request: FastifyRequest,
   paths: TokenPilotPaths
 ): string {
-  const filePath = path.join(paths.installRoot, "openapi", "tokenpilot.openapi.yaml");
+  const filePath = path.join(paths.installRoot, "openapi", "chatcockpit.openapi.yaml");
   const source = fs.readFileSync(filePath, "utf8");
   const serverUrl = resolveOpenApiServerUrl(request, paths);
   return projectOpenApiForProduct(source, paths.productIdentity, serverUrl);

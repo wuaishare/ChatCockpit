@@ -61,7 +61,7 @@ export class RuntimeApprovalService {
     ) {
       throw new ServiceError(
         "CAPABILITY_UNAVAILABLE",
-        "TokenPilot currently supports explicit command and file-change approval responses only"
+        "ChatCockpit currently supports explicit command and file-change approval responses only"
       );
     }
 

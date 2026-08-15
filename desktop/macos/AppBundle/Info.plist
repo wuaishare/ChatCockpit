@@ -5,19 +5,19 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>TokenPilot</string>
+    <string>ChatCockpit</string>
     <key>CFBundleExecutable</key>
-    <string>TokenPilot</string>
+    <string>ChatCockpit</string>
     <key>CFBundleIdentifier</key>
-    <string>cn.wuaishare.TokenPilot</string>
+    <string>cn.wuaishare.ChatCockpit</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>TokenPilot</string>
+    <string>ChatCockpit</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.2.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>

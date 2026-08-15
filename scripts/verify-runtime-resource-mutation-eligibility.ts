@@ -326,7 +326,7 @@ try {
     id: workspaceId,
     projectId: "project_eligibility_fixture",
     repoId: "repo_eligibility_fixture",
-    privatePath: "/private/tokenpilot-runtime-sentinel/eligibility-workspace",
+    privatePath: "/private/chatcockpit-runtime-sentinel/eligibility-workspace",
     now: NOW
   });
 

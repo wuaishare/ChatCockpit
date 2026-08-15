@@ -3,7 +3,7 @@ import fs from "node:fs";
 
 import { runCodexPluginMutationMcpLiveProof } from "./probe-codex-plugin-mutation-mcp-live.ts";
 
-const OPT_IN_ENV = "TOKENPILOT_CODEX_PLUGIN_MCP_MUTATION_PROOF";
+const OPT_IN_ENV = "CHATCOCKPIT_CODEX_PLUGIN_MCP_MUTATION_PROOF";
 const OPT_IN_VALUE = "I_UNDERSTAND_REVERSIBLE_MCP_OPERATOR_MUTATION";
 
 const proofSource = fs.readFileSync(
@@ -32,12 +32,12 @@ assert.equal(
   "Real MCP/operator proof must fail closed before starting live baseline work"
 );
 
-assert.equal(proofSource.includes('"tokenpilot.resources.mutation.prepare"'), true);
-assert.equal(proofSource.includes('"tokenpilot.resources.mutation.execute"'), true);
-assert.equal(proofSource.includes('"tokenpilot.resources.mutation.inspect"'), true);
-assert.equal(proofSource.includes('"tokenpilot.resources.mutation.decide"'), false);
-assert.equal(mcpToolSource.includes('name: "tokenpilot.resources.mutation.decide"'), false);
-assert.equal(mcpToolSource.includes('name: "tokenpilot.resources.mutation.reconcile"'), false);
+assert.equal(proofSource.includes('"chatcockpit.resources.mutation.prepare"'), true);
+assert.equal(proofSource.includes('"chatcockpit.resources.mutation.execute"'), true);
+assert.equal(proofSource.includes('"chatcockpit.resources.mutation.inspect"'), true);
+assert.equal(proofSource.includes('"chatcockpit.resources.mutation.decide"'), false);
+assert.equal(mcpToolSource.includes('name: "chatcockpit.resources.mutation.decide"'), false);
+assert.equal(mcpToolSource.includes('name: "chatcockpit.resources.mutation.reconcile"'), false);
 
 const transitionSource = proofSource.match(
   /async function governedTransition[\s\S]*?(?=\nexport async function runCodexPluginMutationMcpLiveProof)/
@@ -45,7 +45,7 @@ const transitionSource = proofSource.match(
 assert.ok(transitionSource, "Governed MCP/operator transition helper must remain inspectable");
 assert.equal(
   transitionSource.includes('harness.mcp<{') &&
-    transitionSource.includes('"tokenpilot.resources.mutation.prepare"'),
+    transitionSource.includes('"chatcockpit.resources.mutation.prepare"'),
   true,
   "Prepare must traverse the real MCP tool contract"
 );
@@ -56,7 +56,7 @@ assert.equal(
   "Approval decision must traverse the operator REST contract"
 );
 assert.equal(
-  transitionSource.includes('"tokenpilot.resources.mutation.execute"'),
+  transitionSource.includes('"chatcockpit.resources.mutation.execute"'),
   true,
   "Execute must traverse the real MCP tool contract"
 );

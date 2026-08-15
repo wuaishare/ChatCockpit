@@ -42,8 +42,8 @@ import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import {
-  createCodexStandaloneExecutorSource,
-  createTokenPilotDirectExecutorSource
+  createBuiltInDirectExecutorSource,
+  createCodexStandaloneExecutorSource
 } from "../src/direct/executor-sources.ts";
 import { toApiError } from "../src/server/errors.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
@@ -73,15 +73,15 @@ function verifyApplicationServiceFoundation(): void {
 
 async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
   const paths = buildTempPaths();
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   const configPath = path.join(paths.runtimeDir, "mcp-catalog-config.json");
-  process.env.TOKENPILOT_CONFIG_PATH = configPath;
+  process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
 
   initGitRepo(paths.repoRoot);
   fs.mkdirSync(path.join(paths.repoRoot, "src"), { recursive: true });
   fs.writeFileSync(
     path.join(paths.repoRoot, "src", "catalog-fixture.ts"),
-    "export const catalogNeedle = 'tokenpilot-mcp-catalog';\n",
+    "export const catalogNeedle = 'chatcockpit-mcp-catalog';\n",
     "utf8"
   );
   fs.writeFileSync(path.join(paths.repoRoot, ".env"), "SECRET=blocked\n", "utf8");
@@ -89,9 +89,11 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     configPath,
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [paths.repoRoot],
         repoMappings: {
-          tokenpilot: {
+          primary: {
             path: paths.repoRoot
           }
         }
@@ -111,7 +113,7 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     const standaloneStore = new CodexStandaloneCapabilityStore(paths.runtimeDir);
     const broker = new DirectCapabilityBroker([
       createCodexStandaloneExecutorSource(standaloneStore),
-      createTokenPilotDirectExecutorSource()
+      createBuiltInDirectExecutorSource(paths.productIdentity)
     ]);
     const chatDirect = new ChatDirectService(
       paths,
@@ -158,15 +160,15 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
         })
     );
     const expectedNames = [
-      "tokenpilot.direct.executors.list",
-      "tokenpilot.files.read",
-      "tokenpilot.files.readBatch",
-      "tokenpilot.files.list",
-      "tokenpilot.search.code",
-      "tokenpilot.git.status",
-      "tokenpilot.git.diff",
-      "tokenpilot.host.roots.list",
-      "tokenpilot.host.files.read"
+      "chatcockpit.direct.executors.list",
+      "chatcockpit.files.read",
+      "chatcockpit.files.readBatch",
+      "chatcockpit.files.list",
+      "chatcockpit.search.code",
+      "chatcockpit.git.status",
+      "chatcockpit.git.diff",
+      "chatcockpit.host.roots.list",
+      "chatcockpit.host.files.read"
     ];
 
     assert.deepEqual(
@@ -177,7 +179,7 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     assert.equal(tools.every((tool) => !tool.annotations.destructiveHint), true);
     assert.deepEqual([...registered.keys()].sort(), [...expectedNames].sort());
     assert.equal(
-      (registered.get("tokenpilot.files.read")!.config.annotations as {
+      (registered.get("chatcockpit.files.read")!.config.annotations as {
         readOnlyHint: boolean;
       }).readOnlyHint,
       true
@@ -191,19 +193,19 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     });
 
     const executorsResult = await toolByName
-      .get("tokenpilot.direct.executors.list")!
+      .get("chatcockpit.direct.executors.list")!
       .execute(context, {});
     assert.equal(executorsResult.isError, undefined);
     assert.deepEqual(
       (executorsResult.structuredContent as {
         executors: Array<{ id: string }>;
       }).executors.map((executor) => executor.id),
-      ["codex-app-server-standalone", "tokenpilot-direct"]
+      ["codex-app-server-standalone", "builtin-direct"]
     );
     assert.doesNotMatch(JSON.stringify(executorsResult.structuredContent), /binarySource/);
 
-    const readResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
-      repoId: "tokenpilot",
+    const readResult = await toolByName.get("chatcockpit.files.read")!.execute(context, {
+      repoId: "primary",
       path: "README.md"
     });
     assert.equal(readResult.isError, undefined);
@@ -221,7 +223,7 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
         lane: "chat-direct",
         modelLoopOwner: "chatgpt",
         executionScope: "workspace",
-        executor: "tokenpilot-direct",
+        executor: "builtin-direct",
         selectionMode: "automatic",
         operationId: (readResult.structuredContent as {
           execution: { operationId: string };
@@ -232,10 +234,10 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     );
 
     const registeredReadResult = (await registered
-      .get("tokenpilot.files.read")!
+      .get("chatcockpit.files.read")!
       .handler(
         {
-          repoId: "tokenpilot",
+          repoId: "primary",
           path: "README.md"
         },
         {}
@@ -243,8 +245,8 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     assert.equal(registeredReadResult.isError, undefined);
     assert.equal(registeredReadResult.structuredContent.ok, true);
 
-    const invalidResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
-      repoId: "tokenpilot"
+    const invalidResult = await toolByName.get("chatcockpit.files.read")!.execute(context, {
+      repoId: "primary"
     });
     assert.equal(invalidResult.isError, true);
     assert.equal(
@@ -252,8 +254,8 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
       "VALIDATION_ERROR"
     );
 
-    const blockedResult = await toolByName.get("tokenpilot.files.read")!.execute(context, {
-      repoId: "tokenpilot",
+    const blockedResult = await toolByName.get("chatcockpit.files.read")!.execute(context, {
+      repoId: "primary",
       path: ".env"
     });
     assert.equal(blockedResult.isError, true);
@@ -263,8 +265,8 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     );
     assert.doesNotMatch(JSON.stringify(blockedResult.structuredContent), /SECRET=blocked/);
 
-    const searchResult = await toolByName.get("tokenpilot.search.code")!.execute(context, {
-      repoId: "tokenpilot",
+    const searchResult = await toolByName.get("chatcockpit.search.code")!.execute(context, {
+      repoId: "primary",
       pattern: "catalogNeedle",
       path: "src"
     });
@@ -272,8 +274,8 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     assert.equal(searchResult.structuredContent.ok, true);
     assert.match(JSON.stringify(searchResult.structuredContent), /catalog-fixture\.ts/);
 
-    const statusResult = await toolByName.get("tokenpilot.git.status")!.execute(context, {
-      repoId: "tokenpilot"
+    const statusResult = await toolByName.get("chatcockpit.git.status")!.execute(context, {
+      repoId: "primary"
     });
     assert.equal(statusResult.isError, undefined);
     assert.equal(statusResult.structuredContent.ok, true);
@@ -281,15 +283,15 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
   } finally {
     database.close();
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
 
 function buildTempPaths(): TokenPilotPaths {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-verify-local-smoke-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-verify-local-smoke-"));
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   return paths;
@@ -307,13 +309,13 @@ function initGitRepo(repoRoot: string): void {
   };
   git(["init"]);
   git(["config", "user.email", "tokenpilot@example.com"]);
-  git(["config", "user.name", "TokenPilot Test"]);
+  git(["config", "user.name", "ChatCockpit Test"]);
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Codex run fixture\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "docs", "release"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "docs", "release", "release-checklist.md"), "# Release\n", "utf8");
-  fs.writeFileSync(path.join(repoRoot, ".gitignore"), ".tokenpilot/\n", "utf8");
-  fs.writeFileSync(path.join(repoRoot, "tokenpilot-mock-codex-run.txt"), "mock fixture\n", "utf8");
-  git(["add", "README.md", "docs/release/release-checklist.md", ".gitignore", "tokenpilot-mock-codex-run.txt"]);
+  fs.writeFileSync(path.join(repoRoot, ".gitignore"), ".chatcockpit/\n.tokenpilot/\n", "utf8");
+  fs.writeFileSync(path.join(repoRoot, "chatcockpit-mock-codex-run.txt"), "mock fixture\n", "utf8");
+  git(["add", "README.md", "docs/release/release-checklist.md", ".gitignore", "chatcockpit-mock-codex-run.txt"]);
   git(["commit", "-m", "init"]);
 }
 
@@ -351,8 +353,8 @@ function verifyTaskPackNaming(): void {
     const markdownDiskPath = path.join(paths.repoRoot, artifact.markdownPath);
     const jsonDiskPath = path.join(paths.repoRoot, artifact.jsonPath);
 
-    assert.match(artifact.markdownPath, /^\.tokenpilot\/manifests\/taskpack-/);
-    assert.match(artifact.jsonPath, /^\.tokenpilot\/manifests\/taskpack-/);
+    assert.match(artifact.markdownPath, /^\.chatcockpit\/manifests\/taskpack-/);
+    assert.match(artifact.jsonPath, /^\.chatcockpit\/manifests\/taskpack-/);
     assert.doesNotMatch(artifact.markdownPath, /task-pack\.md$/);
     assert.doesNotMatch(artifact.jsonPath, /task-pack\.json$/);
     assert.ok(
@@ -374,17 +376,17 @@ function verifyTaskPackNaming(): void {
 
 function verifyPackArtifactNaming(): void {
   const paths = buildTempPaths();
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
   fs.writeFileSync(
     path.join(paths.repoRoot, ".repomix.config.json"),
     JSON.stringify(
       {
         output: {
-          filePath: ".tokenpilot/repomix-output.xml",
+          filePath: ".chatcockpit/repomix-output.xml",
           style: "xml"
         },
-        include: ["README.md", "web/**", ".env", ".tokenpilot/**"]
+        include: ["README.md", "web/**", ".env", ".chatcockpit/**", ".tokenpilot/**"]
       },
       null,
       2
@@ -392,26 +394,26 @@ function verifyPackArtifactNaming(): void {
     "utf8"
   );
   fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Smoke fixture\n", "utf8");
-  fs.writeFileSync(path.join(paths.repoRoot, ".env"), "TOKENPILOT_API_TOKEN=secret\n", "utf8");
+  fs.writeFileSync(path.join(paths.repoRoot, ".env"), "CHATCOCKPIT_API_TOKEN=secret\n", "utf8");
   try {
     const first = runPack(paths);
     const second = runPack(paths);
     const firstRepoRoot = paths.repoRoot;
     const secondRepoRoot = paths.repoRoot;
 
-    assert.match(first.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
-    assert.match(second.repomixXmlPath, /^\.tokenpilot\/repomix-output-/);
+    assert.match(first.repomixXmlPath, /^\.chatcockpit\/repomix-output-/);
+    assert.match(second.repomixXmlPath, /^\.chatcockpit\/repomix-output-/);
     assert.notEqual(first.repomixXmlPath, second.repomixXmlPath);
-    assert.match(first.promptPath, /^\.tokenpilot\/bundles\/bundle-/);
-    assert.match(first.summaryPath, /^\.tokenpilot\/bundles\/bundle-/);
-    assert.match(first.manifestPath, /^\.tokenpilot\/bundles\/bundle-/);
+    assert.match(first.promptPath, /^\.chatcockpit\/bundles\/bundle-/);
+    assert.match(first.summaryPath, /^\.chatcockpit\/bundles\/bundle-/);
+    assert.match(first.manifestPath, /^\.chatcockpit\/bundles\/bundle-/);
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.repomixXmlPath)));
     assert.ok(fs.existsSync(path.join(secondRepoRoot, second.repomixXmlPath)));
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.promptPath)));
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.summaryPath)));
     assert.ok(fs.existsSync(path.join(firstRepoRoot, first.manifestPath)));
     const bundleContent = fs.readFileSync(path.join(firstRepoRoot, first.repomixXmlPath), "utf8");
-    assert.match(bundleContent, /<repoBundle generator="tokenpilot"/);
+    assert.match(bundleContent, /<repoBundle generator="chatcockpit"/);
     assert.match(bundleContent, /README\.md/);
     assert.doesNotMatch(bundleContent, /secret/);
 
@@ -429,9 +431,9 @@ function verifyPackArtifactNaming(): void {
     assert.match(webBundleContent, /web\/src\/App\.tsx/);
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
@@ -439,12 +441,12 @@ function verifyPackArtifactNaming(): void {
 function verifyGitStatusParsing(): void {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
 
   try {
     fs.writeFileSync(path.join(paths.repoRoot, "docs", "release", "release-checklist.md"), "# Release\n\nunstaged\n", "utf8");
-    const unstaged = getGitStatus(paths, "tokenpilot");
+    const unstaged = getGitStatus(paths, "primary");
     const unstagedEntry = unstaged.entries.find((entry) => entry.path === "docs/release/release-checklist.md");
     assert.ok(unstagedEntry, "Expected unstaged path to preserve its first character");
     assert.equal(unstagedEntry.staged, false);
@@ -453,21 +455,21 @@ function verifyGitStatusParsing(): void {
       cwd: paths.repoRoot,
       encoding: "utf8"
     });
-    const staged = getGitStatus(paths, "tokenpilot");
+    const staged = getGitStatus(paths, "primary");
     const stagedEntry = staged.entries.find((entry) => entry.path === "docs/release/release-checklist.md");
     assert.ok(stagedEntry);
     assert.equal(stagedEntry.staged, true);
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
 
 function verifyPathContainmentAndShellTrust(): void {
-  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "tokenpilot-prefix-parent-"));
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-prefix-parent-"));
   const repoRoot = path.join(parent, "app");
   const evilRoot = path.join(parent, "app-evil");
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
@@ -476,14 +478,14 @@ function verifyPathContainmentAndShellTrust(): void {
   fs.writeFileSync(path.join(evilRoot, "secret.txt"), "needle secret\n", "utf8");
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  const originalExposed = process.env.TOKENPILOT_EXPOSED;
-  const originalHighTrust = process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  const originalHighTrust = process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
 
   try {
     const validSearch = searchRepo(paths, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       pattern: "needle",
       path: "src"
     });
@@ -491,7 +493,7 @@ function verifyPathContainmentAndShellTrust(): void {
     assert.throws(
       () =>
         searchRepo(paths, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           pattern: "needle",
           path: "../app-evil"
         }),
@@ -500,7 +502,7 @@ function verifyPathContainmentAndShellTrust(): void {
     assert.throws(
       () =>
         runShellCommand(paths, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           command: "git",
           args: ["status"],
           workdir: "../app-evil"
@@ -508,40 +510,40 @@ function verifyPathContainmentAndShellTrust(): void {
       /workdir must stay within the repository root/
     );
 
-    process.env.TOKENPILOT_EXPOSED = "true";
-    delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+    process.env.CHATCOCKPIT_EXPOSED = "true";
+    delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
     assert.throws(
       () =>
         runShellCommand(paths, {
-          repoId: "tokenpilot",
+          repoId: "primary",
           command: "node",
           args: ["--version"]
         }),
       /High-trust command node is blocked in exposed mode/
     );
 
-    process.env.TOKENPILOT_EXPOSED = "false";
+    process.env.CHATCOCKPIT_EXPOSED = "false";
     const nodeVersion = runShellCommand(paths, {
-      repoId: "tokenpilot",
+      repoId: "primary",
       command: "node",
       args: ["--version"]
     });
     assert.equal(nodeVersion.ok, true);
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
     if (originalExposed === undefined) {
-      delete process.env.TOKENPILOT_EXPOSED;
+      delete process.env.CHATCOCKPIT_EXPOSED;
     } else {
-      process.env.TOKENPILOT_EXPOSED = originalExposed;
+      process.env.CHATCOCKPIT_EXPOSED = originalExposed;
     }
     if (originalHighTrust === undefined) {
-      delete process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS;
+      delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
     } else {
-      process.env.TOKENPILOT_ALLOW_HIGH_TRUST_COMMANDS = originalHighTrust;
+      process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS = originalHighTrust;
     }
   }
 }
@@ -549,39 +551,39 @@ function verifyPathContainmentAndShellTrust(): void {
 function verifyAuthConfig(): void {
   const paths = buildTempPaths();
   assert.equal(
-    buildOAuthReadiness(paths, { TOKENPILOT_EXPOSED: "false" }).status,
+    buildOAuthReadiness(paths, { CHATCOCKPIT_EXPOSED: "false" }).status,
     "disabled"
   );
   const missingPublicOrigin = buildOAuthReadiness(paths, {
-    TOKENPILOT_EXPOSED: "true",
-    TOKENPILOT_API_TOKEN: "test-owner-token"
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_API_TOKEN: "test-owner-token"
   });
   assert.equal(missingPublicOrigin.status, "needs-attention");
   assert.match(missingPublicOrigin.detail, /canonical public origin/);
   const invalidPublicOrigin = buildOAuthReadiness(paths, {
-    TOKENPILOT_EXPOSED: "true",
-    TOKENPILOT_API_TOKEN: "test-owner-token",
-    TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com/mcp"
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_API_TOKEN: "test-owner-token",
+    CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com/mcp"
   });
   assert.equal(invalidPublicOrigin.status, "needs-attention");
   assert.match(invalidPublicOrigin.detail, /origin without a path/);
   const readyOAuth = buildOAuthReadiness(paths, {
-    TOKENPILOT_EXPOSED: "true",
-    TOKENPILOT_API_TOKEN: "test-owner-token",
-    TOKENPILOT_PUBLIC_BASE_URL: "https://tokenpilot.example.com"
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_API_TOKEN: "test-owner-token",
+    CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com"
   });
   assert.equal(readyOAuth.status, "ready");
   assert.equal(
     readyOAuth.protectedResourceMetadataUrl,
-    "https://tokenpilot.example.com/.well-known/oauth-protected-resource"
+    "https://chatcockpit.example.com/.well-known/oauth-protected-resource"
   );
 
   validateServerAuthConfig({
-    TOKENPILOT_EXPOSED: "false"
+    CHATCOCKPIT_EXPOSED: "false"
   });
   assert.equal(
     isAuthRequired({
-      TOKENPILOT_EXPOSED: "false"
+      CHATCOCKPIT_EXPOSED: "false"
     }),
     false
   );
@@ -589,19 +591,19 @@ function verifyAuthConfig(): void {
   assert.throws(
     () =>
       validateServerAuthConfig({
-        TOKENPILOT_EXPOSED: "true"
+        CHATCOCKPIT_EXPOSED: "true"
       }),
     /Exposed mode requires a configured API token/
   );
 
   validateServerAuthConfig({
-    TOKENPILOT_EXPOSED: "true",
-    TOKENPILOT_API_TOKEN: "demo-token"
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_API_TOKEN: "demo-token"
   });
   assert.equal(
     isAuthRequired({
-      TOKENPILOT_EXPOSED: "true",
-      TOKENPILOT_API_TOKEN: "demo-token"
+      CHATCOCKPIT_EXPOSED: "true",
+      CHATCOCKPIT_API_TOKEN: "demo-token"
     }),
     true
   );
@@ -615,7 +617,7 @@ function verifyInitAndDoctor(): void {
   const beforeDoctor = runDoctor(paths.repoRoot);
   assert.equal(fs.existsSync(paths.workspaceDir), false);
   assert.equal(beforeDoctor.fixes.length, 0);
-  assert.match(beforeDoctor.summary, /TokenPilot/);
+  assert.match(beforeDoctor.summary, /ChatCockpit/);
   for (const name of ["git", "node", "npm", "python3"]) {
     const check = beforeDoctor.checks.find((entry) => entry.name === name);
     assert.ok(check, `Missing source Doctor check: ${name}`);
@@ -631,7 +633,7 @@ function verifyInitAndDoctor(): void {
   assert.equal(firstInit.tokenGenerated, true);
   assert.equal(fs.existsSync(envPath), true);
   const firstContent = fs.readFileSync(envPath, "utf8");
-  assert.match(firstContent, /TOKENPILOT_API_TOKEN=tp_local_/);
+  assert.match(firstContent, /CHATCOCKPIT_API_TOKEN=cc_local_/);
 
   const secondInit = initLocalRuntime(paths);
   assert.equal(secondInit.created, false);
@@ -645,12 +647,12 @@ async function verifyUiServing(): Promise<void> {
   fs.mkdirSync(uiDistDir, { recursive: true });
   fs.writeFileSync(
     path.join(paths.repoRoot, "web", "dist", "index.html"),
-    "<!doctype html><html><body><div id=\"root\">TokenPilot UI</div></body></html>",
+    "<!doctype html><html><body><div id=\"root\">ChatCockpit UI</div></body></html>",
     "utf8"
   );
   fs.writeFileSync(path.join(uiDistDir, "app.js"), "console.log('ok')", "utf8");
   const externalAssetDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "tokenpilot-ui-asset-escape-")
+    path.join(os.tmpdir(), "chatcockpit-ui-asset-escape-")
   );
   const externalAssetPath = path.join(externalAssetDir, "private.js");
   fs.writeFileSync(externalAssetPath, "SHOULD_NOT_BE_SERVED", "utf8");
@@ -664,7 +666,7 @@ async function verifyUiServing(): Promise<void> {
     url: "/ui"
   });
   assert.equal(uiResponse.statusCode, 200);
-  assert.match(uiResponse.body, /TokenPilot UI/);
+  assert.match(uiResponse.body, /ChatCockpit UI/);
 
   const assetResponse = await app.inject({
     method: "GET",
@@ -699,14 +701,14 @@ async function verifyUiServing(): Promise<void> {
     url: "/ui/jobs/123"
   });
   assert.equal(fallbackResponse.statusCode, 200);
-  assert.match(fallbackResponse.body, /TokenPilot UI/);
+  assert.match(fallbackResponse.body, /ChatCockpit UI/);
 
   const continuityDocumentsResponse = await app.inject({
     method: "GET",
     url: "/ui/continuity/documents"
   });
   assert.equal(continuityDocumentsResponse.statusCode, 200);
-  assert.match(continuityDocumentsResponse.body, /TokenPilot UI/);
+  assert.match(continuityDocumentsResponse.body, /ChatCockpit UI/);
 
   const healthResponse = await app.inject({
     method: "GET",
@@ -743,7 +745,7 @@ async function verifyJobProcessProjection(): Promise<void> {
       createdAt: "2026-05-21T00:00:00.000Z",
       updatedAt: "2026-05-21T00:00:01.000Z",
       payload: {
-        repoId: "tokenpilot",
+        repoId: "primary",
         title: "Process projection fixture",
         instructions: "fixture"
       }
@@ -797,7 +799,7 @@ async function verifyJobProcessProjection(): Promise<void> {
 async function verifyRunnerReconcilesTerminalRunningJobs(): Promise<void> {
   const paths = buildTempPaths();
   const job = createJob(paths, "codex-run", {
-    repoId: "tokenpilot",
+    repoId: "primary",
     title: "Stale running fixture",
     instructions: "fixture"
   });
@@ -831,8 +833,8 @@ function verifyDefaultRepoDiscovery(): void {
   const paths = buildPaths(process.cwd());
   const config = loadUserConfig(paths.repoRoot);
   assert.equal(config.schemaVersion, 1);
-  assert.equal(config.defaultRepoId, "tokenpilot");
-  assert.ok(config.repoMappings.tokenpilot);
+  assert.equal(config.defaultRepoId, "primary");
+  assert.ok(config.repoMappings.primary);
   if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "sourceflow-refactor"))) {
     assert.ok(config.repoMappings["sourceflow-refactor"]);
   }
@@ -895,55 +897,55 @@ function verifyCanonicalRepoIdentity(): void {
 async function verifyCodexRunMock(): Promise<void> {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
-  const originalMode = process.env.TOKENPILOT_CODEX_RUNNER_MODE;
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
-  process.env.TOKENPILOT_CODEX_RUNNER_MODE = "mock";
+  const originalMode = process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  process.env.CHATCOCKPIT_CODEX_RUNNER_MODE = "mock";
   try {
     const result = await runCodexRunJob(paths, "job-smoke-12345678", {
-      repoId: "tokenpilot",
+      repoId: "primary",
       title: "Mock Codex Run",
       instructions: "Make a tiny mock change and report it.",
       executionMode: "develop",
       worktreePolicy: "never",
       commitPolicy: "propose"
     });
-    fs.writeFileSync(path.join(paths.repoRoot, ".env.local"), "TOKENPILOT_FIXTURE_VALUE=not-for-artifacts\n", "utf8");
+    fs.writeFileSync(path.join(paths.repoRoot, ".env.local"), "CHATCOCKPIT_FIXTURE_VALUE=not-for-artifacts\n", "utf8");
     const secondResult = await runCodexRunJob(paths, "job-smoke-secret-12345678", {
-      repoId: "tokenpilot",
+      repoId: "primary",
       title: "Mock Secret Diff Guard",
       instructions: "Make another tiny mock change and keep secrets out of artifacts.",
       executionMode: "develop",
       worktreePolicy: "never",
       commitPolicy: "propose"
     });
-    assert.equal(result.repoId, "tokenpilot");
+    assert.equal(result.repoId, "primary");
     assert.equal(result.worktreeCreated, false);
     assert.equal(result.codexExitCode, 0);
     assert.equal(result.reviewExitCode, 0);
     assert.equal(result.hasDiff, true);
     assert.equal(result.commit.committed, false);
-    assert.match(fs.readFileSync(path.join(paths.repoRoot, "tokenpilot-mock-codex-run.txt"), "utf8"), /mock codex run/);
+    assert.match(fs.readFileSync(path.join(paths.repoRoot, "chatcockpit-mock-codex-run.txt"), "utf8"), /mock codex run/);
     assert.ok(result.artifacts.some((artifact) => artifact.key === "codexDiff"));
     assert.doesNotMatch(
       fs.readFileSync(path.join(paths.repoRoot, secondResult.diffPath), "utf8"),
-      /TOKENPILOT_FIXTURE_VALUE|\.env\.local/
+      /CHATCOCKPIT_FIXTURE_VALUE|\.env\.local/
     );
     assert.doesNotMatch(JSON.stringify(result), /\/Users\//);
     for (const artifact of result.artifacts) {
       assert.ok(fs.existsSync(path.join(paths.repoRoot, artifact.path)), artifact.path);
     }
 
-    const beforeReview = fs.readFileSync(path.join(paths.repoRoot, "tokenpilot-mock-codex-run.txt"), "utf8");
+    const beforeReview = fs.readFileSync(path.join(paths.repoRoot, "chatcockpit-mock-codex-run.txt"), "utf8");
     const reviewResult = await runCodexRunJob(paths, "job-review-mode-12345678", {
-      repoId: "tokenpilot",
+      repoId: "primary",
       title: "Mock Review Mode",
       instructions: "Review only; do not modify files.",
       executionMode: "review",
       worktreePolicy: "auto",
       commitPolicy: "propose"
     });
-    const afterReview = fs.readFileSync(path.join(paths.repoRoot, "tokenpilot-mock-codex-run.txt"), "utf8");
+    const afterReview = fs.readFileSync(path.join(paths.repoRoot, "chatcockpit-mock-codex-run.txt"), "utf8");
     assert.equal(reviewResult.worktreeCreated, false);
     assert.equal(reviewResult.codexExitCode, 0);
     assert.match(
@@ -953,31 +955,33 @@ async function verifyCodexRunMock(): Promise<void> {
     assert.equal(afterReview, beforeReview);
   } finally {
     if (originalMode === undefined) {
-      delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+      delete process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
     } else {
-      process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
+      process.env.CHATCOCKPIT_CODEX_RUNNER_MODE = originalMode;
     }
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
 
 function verifyRecentCommitsStrictRepoMapping(): void {
   const paths = buildTempPaths();
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
   const invalidRepoRoot = path.join(paths.repoRoot, "not-a-git-repo");
   fs.mkdirSync(invalidRepoRoot, { recursive: true });
   fs.writeFileSync(
     path.join(paths.runtimeDir, "config.json"),
     JSON.stringify(
       {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
         workspaceAllowlist: [paths.repoRoot],
         repoMappings: {
-          tokenpilot: { path: invalidRepoRoot }
+          primary: { path: invalidRepoRoot }
         }
       },
       null,
@@ -988,14 +992,14 @@ function verifyRecentCommitsStrictRepoMapping(): void {
 
   try {
     assert.throws(
-      () => readRecentGitCommitsForRepo(paths.repoRoot, "tokenpilot", 5),
+      () => readRecentGitCommitsForRepo(paths.repoRoot, "primary", 5),
       /git log failed|not a git repository/
     );
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
@@ -1003,8 +1007,8 @@ function verifyRecentCommitsStrictRepoMapping(): void {
 function verifyUntrackedDiffTruncationNotice(): void {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
 
   try {
     for (let index = 0; index < 25; index += 1) {
@@ -1015,14 +1019,14 @@ function verifyUntrackedDiffTruncationNotice(): void {
       );
     }
 
-    const diff = getGitDiff(paths, "tokenpilot");
+    const diff = getGitDiff(paths, "primary");
     assert.equal(diff.ok, true);
     assert.match(diff.diff, /20 public-safe untracked files shown, 5 omitted/);
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
@@ -1030,19 +1034,19 @@ function verifyUntrackedDiffTruncationNotice(): void {
 async function verifyCodexRunMissingCliFailure(): Promise<void> {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   const originalPath = process.env.PATH;
-  const originalMode = process.env.TOKENPILOT_CODEX_RUNNER_MODE;
-  const originalCodexBin = process.env.TOKENPILOT_CODEX_BIN;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalMode = process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
+  const originalCodexBin = process.env.CHATCOCKPIT_CODEX_BIN;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
   process.env.PATH = "/usr/bin:/bin";
-  process.env.TOKENPILOT_CODEX_BIN = path.join(paths.repoRoot, "missing-codex");
-  delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+  process.env.CHATCOCKPIT_CODEX_BIN = path.join(paths.repoRoot, "missing-codex");
+  delete process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
   try {
     await assert.rejects(
       () =>
         runCodexRunJob(paths, "job-missing-cli-12345678", {
-          repoId: "tokenpilot",
+          repoId: "primary",
           title: "Missing Codex CLI",
           instructions: "This should fail cleanly when codex is unavailable.",
           executionMode: "review",
@@ -1060,9 +1064,9 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
     assert.notEqual(control.message, "Job process terminated");
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
     if (originalPath === undefined) {
       delete process.env.PATH;
@@ -1070,14 +1074,14 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
       process.env.PATH = originalPath;
     }
     if (originalMode === undefined) {
-      delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+      delete process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
     } else {
-      process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
+      process.env.CHATCOCKPIT_CODEX_RUNNER_MODE = originalMode;
     }
     if (originalCodexBin === undefined) {
-      delete process.env.TOKENPILOT_CODEX_BIN;
+      delete process.env.CHATCOCKPIT_CODEX_BIN;
     } else {
-      process.env.TOKENPILOT_CODEX_BIN = originalCodexBin;
+      process.env.CHATCOCKPIT_CODEX_BIN = originalCodexBin;
     }
   }
 }
@@ -1085,19 +1089,19 @@ async function verifyCodexRunMissingCliFailure(): Promise<void> {
 async function verifyPublicSafeGitBoundaries(): Promise<void> {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
 
   try {
     const secretPath = path.join(paths.repoRoot, ".env.example");
-    fs.writeFileSync(secretPath, "TOKENPILOT_PUBLIC_PLACEHOLDER=old\n", "utf8");
+    fs.writeFileSync(secretPath, "CHATCOCKPIT_PUBLIC_PLACEHOLDER=old\n", "utf8");
     spawnSync("git", ["add", ".env.example"], { cwd: paths.repoRoot, encoding: "utf8" });
     spawnSync("git", ["commit", "-m", "track env example"], {
       cwd: paths.repoRoot,
       encoding: "utf8"
     });
 
-    fs.writeFileSync(secretPath, "TOKENPILOT_PUBLIC_PLACEHOLDER=SECRET_SHOULD_NOT_LEAK\n", "utf8");
+    fs.writeFileSync(secretPath, "CHATCOCKPIT_PUBLIC_PLACEHOLDER=SECRET_SHOULD_NOT_LEAK\n", "utf8");
     fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Public-safe change\n", "utf8");
     fs.mkdirSync(path.join(paths.repoRoot, ".github", "workflows"), { recursive: true });
     fs.writeFileSync(path.join(paths.repoRoot, ".github", "workflows", "ci.yml"), "name: CI\n", "utf8");
@@ -1105,7 +1109,7 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
     fs.writeFileSync(path.join(paths.repoRoot, "hero.webp"), "WEBP_BINARY_FIXTURE\n", "utf8");
     fs.writeFileSync(path.join(paths.repoRoot, ".npmrc"), "//registry.example.com/:_authToken=SECRET_NPM_TOKEN\n", "utf8");
 
-    const diff = getGitDiff(paths, "tokenpilot");
+    const diff = getGitDiff(paths, "primary");
     assert.match(diff.diff, /Public-safe change/);
     assert.match(diff.diff, /name: CI/);
     assert.doesNotMatch(
@@ -1113,7 +1117,7 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
       /SECRET_SHOULD_NOT_LEAK|\.env\.example|WEBP_BINARY_FIXTURE|hero\.webp|SECRET_NPM_TOKEN|\.npmrc|SECRET_PRIVATE_KEY|private\.pem/
     );
 
-    const commit = gitCommit(paths, "tokenpilot", "commit public-safe change");
+    const commit = gitCommit(paths, "primary", "commit public-safe change");
     assert.equal(commit.ok, true);
     assert.equal(commit.committed, true);
 
@@ -1137,7 +1141,7 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
     fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Unsafe staged guard\n", "utf8");
     spawnSync("git", ["add", ".env.example"], { cwd: paths.repoRoot, encoding: "utf8" });
 
-    const guardedCommit = gitCommit(paths, "tokenpilot", "should not commit unsafe staged path");
+    const guardedCommit = gitCommit(paths, "primary", "should not commit unsafe staged path");
     assert.equal(guardedCommit.ok, false);
     assert.match(guardedCommit.error ?? "", /public-unsafe paths are staged/);
 
@@ -1149,9 +1153,9 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
     assert.doesNotMatch(cached.stdout, /README\.md/);
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
   }
 }
@@ -1159,15 +1163,15 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
 async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
   const paths = buildTempPaths();
   initGitRepo(paths.repoRoot);
-  const originalConfigPath = process.env.TOKENPILOT_CONFIG_PATH;
+  const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   const originalPath = process.env.PATH;
-  const originalMode = process.env.TOKENPILOT_CODEX_RUNNER_MODE;
-  const originalCodexBin = process.env.TOKENPILOT_CODEX_BIN;
+  const originalMode = process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
+  const originalCodexBin = process.env.CHATCOCKPIT_CODEX_BIN;
   const codexShimPath = path.join(paths.repoRoot, "fake-codex.sh");
-  process.env.TOKENPILOT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
+  process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "config.json");
   process.env.PATH = "/usr/bin:/bin";
-  delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
-  process.env.TOKENPILOT_CODEX_BIN = codexShimPath;
+  delete process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
+  process.env.CHATCOCKPIT_CODEX_BIN = codexShimPath;
   fs.writeFileSync(
     codexShimPath,
     [
@@ -1235,7 +1239,7 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
 
   try {
     const result = await runCodexRunJob(paths, "job-custom-codex-bin-1234", {
-      repoId: "tokenpilot",
+      repoId: "primary",
       title: "Custom Codex Bin",
       instructions: "Use the configured codex binary override.",
       executionMode: "develop",
@@ -1248,9 +1252,9 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
     assert.match(fs.readFileSync(path.join(paths.repoRoot, result.stdoutPath), "utf8"), /"type":"shim"/);
   } finally {
     if (originalConfigPath === undefined) {
-      delete process.env.TOKENPILOT_CONFIG_PATH;
+      delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {
-      process.env.TOKENPILOT_CONFIG_PATH = originalConfigPath;
+      process.env.CHATCOCKPIT_CONFIG_PATH = originalConfigPath;
     }
     if (originalPath === undefined) {
       delete process.env.PATH;
@@ -1258,14 +1262,14 @@ async function verifyCodexRunCustomBinaryOverride(): Promise<void> {
       process.env.PATH = originalPath;
     }
     if (originalMode === undefined) {
-      delete process.env.TOKENPILOT_CODEX_RUNNER_MODE;
+      delete process.env.CHATCOCKPIT_CODEX_RUNNER_MODE;
     } else {
-      process.env.TOKENPILOT_CODEX_RUNNER_MODE = originalMode;
+      process.env.CHATCOCKPIT_CODEX_RUNNER_MODE = originalMode;
     }
     if (originalCodexBin === undefined) {
-      delete process.env.TOKENPILOT_CODEX_BIN;
+      delete process.env.CHATCOCKPIT_CODEX_BIN;
     } else {
-      process.env.TOKENPILOT_CODEX_BIN = originalCodexBin;
+      process.env.CHATCOCKPIT_CODEX_BIN = originalCodexBin;
     }
   }
 }

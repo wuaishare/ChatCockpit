@@ -59,7 +59,7 @@ export class CodexRuntimeProfileAdapter implements RuntimeProfileSourceAdapter {
         capabilities: [...capability.stableMethods].sort(),
         publicReason: capability.available
           ? capability.experimentalApiEnabled
-            ? "Codex experimental API is enabled; TokenPilot Resource Center uses reviewed read-only methods only"
+            ? "Codex experimental API is enabled; ChatCockpit Resource Center uses reviewed read-only methods only"
             : null
           : "Codex App Server is unavailable"
       }

@@ -24,16 +24,17 @@ struct DistributionContextTests {
         #expect(context.lifecycleContext.nodeExecutableURL == context.nodeExecutableURL)
     }
 
-    @Test("source context retains checkout based compatibility")
+    @Test("source context uses the canonical ChatCockpit state root")
     func sourceContextUsesCheckout() {
         let root = TokenPilotRoot(url: URL(fileURLWithPath: "/tmp/tokenpilot-source", isDirectory: true))
         let context = DesktopDistributionContext.source(root: root)
 
         #expect(context.mode == .source)
         #expect(context.installRootURL == root.url)
-        #expect(context.stateRootURL == root.url.appendingPathComponent(".tokenpilot", isDirectory: true))
+        #expect(context.stateRootURL == root.url.appendingPathComponent(".chatcockpit", isDirectory: true))
         #expect(context.primaryWorkspaceURL == root.url)
         #expect(context.runtimeID == nil)
         #expect(context.architecture == nil)
+        #expect(context.productIdentity == .chatCockpit)
     }
 }

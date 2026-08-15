@@ -6,9 +6,9 @@ if (process.argv.includes("--version")) {
   process.exit(0);
 }
 
-const workspaceRoot = process.env.TOKENPILOT_MOCK_WORKSPACE_ROOT;
-const nestedWorkspaceRoot = process.env.TOKENPILOT_MOCK_NESTED_WORKSPACE_ROOT;
-const tracePath = process.env.TOKENPILOT_MOCK_APP_SERVER_TRACE;
+const workspaceRoot = process.env.CHATCOCKPIT_MOCK_WORKSPACE_ROOT;
+const nestedWorkspaceRoot = process.env.CHATCOCKPIT_MOCK_NESTED_WORKSPACE_ROOT;
+const tracePath = process.env.CHATCOCKPIT_MOCK_APP_SERVER_TRACE;
 
 if (!workspaceRoot || !nestedWorkspaceRoot) {
   process.stderr.write("mock workspace roots are required\n");

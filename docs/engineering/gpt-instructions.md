@@ -14,7 +14,7 @@ The Web UI now provides a built-in GPT configuration panel, including:
 
 This document and the related generation script remain as a CLI-compatible companion, but the Web UI should now be treated as the primary operator-facing source of GPT configuration truth.
 
-如果你要给 TokenPilot 配置一个 Custom GPT，建议同时准备两样东西：
+如果你要给 ChatCockpit 配置一个 Custom GPT，建议同时准备两样东西：
 
 - 一份适合粘贴进 GPT 编辑页主说明框的指令
 - 一份与你当前部署域名、动作主机和本机时区相匹配的版本
@@ -30,10 +30,10 @@ npm run gpt:instructions
 它会输出一份可直接复制的 GPT 指令草稿，并自动带上：
 
 - 当前机器的 IANA 时区
-- 当前 `TOKENPILOT_PUBLIC_BASE_URL`
+- 当前 `CHATCOCKPIT_PUBLIC_BASE_URL`
 - 由该基址解析出的动作主机
 
-如果你没有设置 `TOKENPILOT_PUBLIC_BASE_URL`，脚本会回退到占位值 `https://tokenpilot.example.com`。
+如果你没有设置 `CHATCOCKPIT_PUBLIC_BASE_URL`，脚本会回退到占位值 `https://chatcockpit.example.com`。
 
 ## 为什么需要自动生成
 
@@ -93,7 +93,7 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 
 ## ChatGPT 直驱开发模式（Phase 2）
 
-自 Phase 2 起，TokenPilot 已补齐写侧 API，ChatGPT 可以在不经过 Codex CLI 的情况下直接完成本地开发任务。
+自 Phase 2 起，ChatCockpit 已补齐写侧 API，ChatGPT 可以在不经过 Codex CLI 的情况下直接完成本地开发任务。
 
 ### 新增能力
 
@@ -123,8 +123,8 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 
 - 所有写操作复用现有 allowlist + repo mapping + 路径校验
 - `runShell` 为命令白名单模式，不是 raw shell；但它仍是高信任本地命令执行 API，只应在私有、受鉴权的 operator 环境中使用
-- `getGitDiff`、`gitCommit` 和 Codex diff artifacts 只处理 public-safe 路径；`.env`、`.tokenpilot`、日志等本地私有路径不会进入公开 diff / commit 输出
-- 默认需要 bearer auth（`TOKENPILOT_EXPOSED=1` + `TOKENPILOT_API_TOKEN`）
+- `getGitDiff`、`gitCommit` 和 Codex diff artifacts 只处理 public-safe 路径；`.env`、`.chatcockpit`、legacy `.tokenpilot`、日志等本地私有路径不会进入公开 diff / commit 输出
+- 默认需要 bearer auth（`CHATCOCKPIT_EXPOSED=1` + `CHATCOCKPIT_API_TOKEN`）
 
 ### GPT 指令更新建议
 

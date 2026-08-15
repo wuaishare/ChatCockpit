@@ -1,20 +1,20 @@
-# TokenPilot Stability and OAuth Hardening
+# ChatCockpit Stability and OAuth Hardening
 
 ## Status
 
 - Product scope: hardening only; no new product surface beyond completing the existing Remote MCP access path with OAuth.
-- Primary goal: make current TokenPilot capabilities professionally reliable under reconnects, restarts, proxying, malformed requests, stale state, concurrent access, and release packaging.
+- Primary goal: make current ChatCockpit capabilities professionally reliable under reconnects, restarts, proxying, malformed requests, stale state, concurrent access, and release packaging.
 - Highest-priority path: ChatGPT Remote MCP over OAuth 2.1.
 
 ## Why this phase exists
 
-TokenPilot already has the core product model: Chat Direct, Codex Session, Async Agent Job, Continuity, Spec/Plan First, Writer Lease, Handoff, Evidence, Completion governance, REST/MCP parity, and the Web control plane. The next release should improve correctness and operational reliability rather than expand the feature catalog.
+ChatCockpit already has the core product model: Chat Direct, Codex Session, Async Agent Job, Continuity, Spec/Plan First, Writer Lease, Handoff, Evidence, Completion governance, REST/MCP parity, and the Web control plane. The next release should improve correctness and operational reliability rather than expand the feature catalog.
 
 The current Remote MCP endpoint is protected only by a static bearer token. That path is useful for controlled testing, but it does not provide the browser authorization, refresh-token continuity, discovery metadata, PKCE, or client registration expected by modern ChatGPT MCP OAuth flows. OAuth therefore counts as completion of the core remote access path, not as a new product area.
 
 ## External failure-mode benchmark
 
-DevSpace v1.0.6 is used as a comparative reliability benchmark, not a feature checklist. Its release and related review work highlight failure modes that TokenPilot must explicitly test:
+DevSpace v1.0.6 is used as a comparative reliability benchmark, not a feature checklist. Its release and related review work highlight failure modes that ChatCockpit must explicitly test:
 
 - persisted host/session bindings surviving reconnect and server restart;
 - stale binding replacement without deleting valid state;
@@ -26,7 +26,7 @@ DevSpace v1.0.6 is used as a comparative reliability benchmark, not a feature ch
 - actionable recovery guidance instead of leaking implementation flags;
 - proxy/public URL, Host, OAuth redirect-host, and setup diagnostics.
 
-These are translated into TokenPilot tests only where they apply to existing capabilities.
+These are translated into ChatCockpit tests only where they apply to existing capabilities.
 
 ## OAuth compatibility baseline
 
@@ -43,11 +43,11 @@ The implementation targets the current MCP authorization requirements and the Ch
 9. Access tokens are opaque, short-lived, audience-bound, and stored only as hashes at rest.
 10. Refresh tokens are opaque, longer-lived, audience-bound, stored only as hashes, and allow ChatGPT to remain connected after access-token expiry. `offline_access` is advertised by the authorization server but not by the protected resource metadata.
 11. Refresh, revoke, restart, and repeated MCP initialize/tool calls must not destroy Continuity state.
-12. Static `TOKENPILOT_API_TOKEN` bearer access remains accepted for backward compatibility and local operator workflows.
+12. Legacy static `TOKENPILOT_API_TOKEN` bearer input remains accepted for backward compatibility and local operator workflows; fresh configuration uses `CHATCOCKPIT_API_TOKEN`.
 
 ## OAuth persistence boundary
 
-OAuth state uses a separate local-private SQLite database under TokenPilot runtime state rather than the Continuity database.
+OAuth state uses a separate local-private SQLite database under ChatCockpit runtime state rather than the Continuity database.
 
 Reasons:
 
@@ -69,7 +69,7 @@ No plaintext access token, refresh token, owner secret, local path, or private p
 
 ## Redirect and proxy security
 
-Public origin must come from validated TokenPilot configuration, not arbitrary forwarded headers. Forwarded headers may describe the inbound request to the MCP transport, but OAuth issuer, metadata URLs, redirect construction, and audience checks use the configured public base URL.
+Public origin must come from validated ChatCockpit configuration, not arbitrary forwarded headers. Forwarded headers may describe the inbound request to the MCP transport, but OAuth issuer, metadata URLs, redirect construction, and audience checks use the configured public base URL.
 
 Default allowed OAuth redirect hosts:
 
@@ -96,7 +96,7 @@ The MCP handler itself remains transport/authentication agnostic. A validated pr
 
 This phase deliberately uses one resource scope:
 
-`tokenpilot:mcp`
+`chatcockpit:mcp`
 
 The goal is reliable ChatGPT connectivity, not a new permissions product. Existing Writer Lease, allowlists, shell restrictions, approval policy, Continuity ownership, and domain checks continue to enforce operation safety. Fine-grained OAuth scopes can be evaluated later only if there is a concrete product need.
 
@@ -126,9 +126,9 @@ Benchmark sources:
 - `https://github.com/Waishnav/devspace/releases/tag/v1.0.6`
 - `https://github.com/Waishnav/devspace/blob/main/docs/gotchas.md`
 
-The benchmark is mapped to TokenPilot invariants instead of copied feature-for-feature:
+The benchmark is mapped to ChatCockpit invariants instead of copied feature-for-feature:
 
-| DevSpace failure mode / improvement | TokenPilot mapping | Hardening result |
+| DevSpace failure mode / improvement | ChatCockpit mapping | Hardening result |
 |---|---|---|
 | Persisted checkout/review state across restart | Durable Task/Session/Handoff/Idempotency/Runtime Binding | Existing `verify:continuity-restart` and Runner restart gates already cover persisted state; OAuth now adds restart-safe refresh and fresh MCP reconnect. |
 | Stale checkout binding | Replaceable Runtime Binding history | Existing Continuity Store test proves a new active binding supersedes the old binding and refuses one external runtime identity on two active Sessions. |
@@ -136,8 +136,8 @@ The benchmark is mapped to TokenPilot invariants instead of copied feature-for-f
 | Workspace-root mismatch | Canonical repoId -> physical checkout relation | Existing Codex Runtime API rejects Workspace mismatch; config canonicalization now closes symlink/alias identity splits before Project/Workspace sync. |
 | Missing review checkpoint/ref | Handoff/Evidence relation integrity | Handoff preparation now has explicit regression coverage for missing Evidence IDs and Evidence belonging to a different Session; neither failed request may create a Ready Handoff. |
 | Internal lifecycle/diagnostics leaked to cards | Public-safe REST/MCP/Web projections | Existing privacy, snapshot, document, event and Web safety gates remain authoritative; OAuth readiness exposes status/metadata URL only, never owner secret, token/hash, local DB path, or raw auth state. |
-| Conversation-aware checkout reuse | Not adopted | TokenPilot deliberately treats ChatGPT conversation metadata as an adapter hint, not the durable system of record. Task/Session/Handoff state already provides explicit portable continuity, so hidden host conversation binding is not required for correctness. |
-| Compact model-facing workspace IDs | Already native | TokenPilot Continuity IDs are compact opaque IDs and public projections hide private paths; no new ID system is added. |
+| Conversation-aware checkout reuse | Not adopted | ChatCockpit deliberately treats ChatGPT conversation metadata as an adapter hint, not the durable system of record. Task/Session/Handoff state already provides explicit portable continuity, so hidden host conversation binding is not required for correctness. |
+| Compact model-facing workspace IDs | Already native | ChatCockpit Continuity IDs are compact opaque IDs and public projections hide private paths; no new ID system is added. |
 | Tool-card visual refresh / skills and provider cards | Out of scope | These are product/UI expansion rather than reliability prerequisites and remain frozen during hardening. |
 
 ## Comparative hardening beyond OAuth
@@ -171,9 +171,9 @@ The phase is successful only when:
 
 1. ChatGPT-compatible OAuth discovery -> registration -> PKCE authorization -> token -> refresh -> authenticated MCP calls is covered by deterministic E2E tests.
 2. OAuth state survives process restart; authorization codes remain single-use; revoked/expired tokens fail correctly.
-3. repeated token refresh or new MCP transport sessions do not lose TokenPilot Task/Workspace/Continuity state.
+3. repeated token refresh or new MCP transport sessions do not lose ChatCockpit Task/Workspace/Continuity state.
 4. proxy/public-origin and redirect-host validation have explicit negative tests.
 5. static bearer compatibility remains green.
-6. DevSpace-derived failure modes relevant to TokenPilot have corresponding tests or documented non-applicability.
-7. existing 60 MCP tools, including explicit Runtime Recovery assessment/execution, Direct Drive with governed Host Direct file read, approval-gated Write/Exact Edit, approval-gated bounded Host Command, Durable TokenPilot-owned Managed Workspace Process lifecycle with separate Process Supervisor restart continuity, offline Writer Lease enforcement and crash containment, Codex Session, Async Agent Job, Spec/Plan First, Completion, and Web flows do not regress; Recovery must continue to avoid implicit `turn/start` and automatic provider switching.
+6. DevSpace-derived failure modes relevant to ChatCockpit have corresponding tests or documented non-applicability.
+7. existing MCP tools, including explicit Runtime Recovery assessment/execution, Direct Drive with governed Host Direct file read, approval-gated Write/Exact Edit, approval-gated bounded Host Command, Durable ChatCockpit-owned Managed Workspace Process lifecycle with separate Process Supervisor restart continuity, offline Writer Lease enforcement and crash containment, Codex Session, Async Agent Job, Spec/Plan First, Completion, and Web flows do not regress; Recovery must continue to avoid implicit `turn/start` and automatic provider switching.
 8. release gates pass from a clean committed HEAD and the worktree is clean.

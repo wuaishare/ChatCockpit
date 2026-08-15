@@ -3,7 +3,7 @@
 Ask ChatGPT:
 
 ```text
-Use TokenPilot to check health, list recent jobs, and summarize whether the local control plane and runner look ready. Do not write files.
+Use ChatCockpit to check health, list recent jobs, and summarize whether the local control plane and runner look ready. Do not write files.
 ```
 
 Expected result:

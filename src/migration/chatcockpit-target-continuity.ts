@@ -9,13 +9,13 @@ export interface ChatCockpitTargetContinuityMigrationResult {
   runtimeResourceRowsUpdated: number;
 }
 
-function requireContinuityV18(database: DatabaseSync): void {
+function requireContinuityV19(database: DatabaseSync): void {
   const row = database
     .prepare("SELECT MAX(version) AS version FROM schema_migrations")
     .get() as { version: number | null } | undefined;
-  if (Number(row?.version ?? 0) !== 18) {
+  if (Number(row?.version ?? 0) !== 19) {
     throw new Error(
-      `ChatCockpit target identity migration requires continuity schema v18, received ${String(
+      `ChatCockpit target identity migration requires continuity schema v19, received ${String(
         row?.version ?? "unknown"
       )}`
     );
@@ -85,14 +85,21 @@ export function migrateChatCockpitTargetContinuityDatabase(
   const database = new DatabaseSync(databasePath);
   database.exec("PRAGMA foreign_keys = ON");
   try {
-    requireContinuityV18(database);
-    if (hasIdentityMigration(database)) {
-      verifyTargetSchema(database);
-      return {
-        alreadyApplied: true,
-        runtimeBindingRowsUpdated: 0,
-        runtimeResourceRowsUpdated: 0
-      };
+    requireContinuityV19(database);
+    const alreadyApplied = hasIdentityMigration(database);
+    if (alreadyApplied) {
+      try {
+        verifyTargetSchema(database);
+        return {
+          alreadyApplied: true,
+          runtimeBindingRowsUpdated: 0,
+          runtimeResourceRowsUpdated: 0
+        };
+      } catch {
+        // Continuity schema upgrades may deliberately widen shared compatibility
+        // constraints. Re-apply the target-only projection below to restore the
+        // copied ChatCockpit database contract without touching the legacy source.
+      }
     }
 
     const runtimeBindingRowsUpdated = countValue(
@@ -259,7 +266,7 @@ export function migrateChatCockpitTargetContinuityDatabase(
       `);
       database
         .prepare(
-          "INSERT INTO product_identity_migrations (name, applied_at) VALUES (?, ?)"
+          "INSERT OR IGNORE INTO product_identity_migrations (name, applied_at) VALUES (?, ?)"
         )
         .run(
           CHATCOCKPIT_TARGET_IDENTITY_MIGRATION,
@@ -279,7 +286,7 @@ export function migrateChatCockpitTargetContinuityDatabase(
 
     verifyTargetSchema(database);
     return {
-      alreadyApplied: false,
+      alreadyApplied,
       runtimeBindingRowsUpdated,
       runtimeResourceRowsUpdated
     };

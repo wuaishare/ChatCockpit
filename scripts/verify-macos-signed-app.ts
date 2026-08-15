@@ -4,8 +4,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
-const appInput = process.env.TOKENPILOT_SIGNED_APP_DIR?.trim();
-assert.ok(appInput, "TOKENPILOT_SIGNED_APP_DIR is required");
+const appInput =
+  process.env.CHATCOCKPIT_SIGNED_APP_DIR?.trim() ??
+  process.env.TOKENPILOT_SIGNED_APP_DIR?.trim();
+assert.ok(appInput, "CHATCOCKPIT_SIGNED_APP_DIR is required");
 const appRoot = path.resolve(appInput);
 const infoPlist = path.join(appRoot, "Contents", "Info.plist");
 const runtimeRoot = path.join(appRoot, "Contents", "Resources", "TokenPilotRuntime");
@@ -20,12 +22,12 @@ function run(command: string, args: string[], env = process.env) {
 
 const bundleId = run("plutil", ["-extract", "CFBundleIdentifier", "raw", infoPlist]);
 assert.equal(bundleId.status, 0, "Unable to read signed app bundle identifier");
-assert.equal(bundleId.stdout.trim(), "cn.wuaishare.TokenPilot");
+assert.equal(bundleId.stdout.trim(), "cn.wuaishare.ChatCockpit");
 
 const runtimeIntegrity = run(
   "npm",
   ["--prefix", root, "run", "verify:macos-runtime-payload"],
-  { ...process.env, TOKENPILOT_RUNTIME_PAYLOAD_DIR: runtimeRoot }
+  { ...process.env, CHATCOCKPIT_RUNTIME_PAYLOAD_DIR: runtimeRoot }
 );
 assert.equal(runtimeIntegrity.status, 0, "Signed runtime payload integrity verification failed");
 
@@ -37,7 +39,7 @@ assert.equal(details.status, 0, "Unable to inspect Developer ID app signature");
 const detailText = `${details.stdout}\n${details.stderr}`;
 assert.match(detailText, /Authority=Developer ID Application:/, "App is not signed by Developer ID Application");
 assert.match(detailText, /flags=.*runtime/i, "App signature is missing Hardened Runtime");
-assert.match(detailText, /Identifier=cn\.wuaishare\.TokenPilot/);
+assert.match(detailText, /Identifier=cn\.wuaishare\.ChatCockpit/);
 
 const entitlementsResult = run("/usr/bin/codesign", ["-d", "--entitlements", ":-", appRoot]);
 assert.equal(entitlementsResult.status, 0, "Unable to inspect signed app entitlements");

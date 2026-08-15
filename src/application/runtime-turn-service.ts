@@ -269,7 +269,7 @@ export class RuntimeTurnService {
         this.runtime.startCodexTurn({
           threadId: prepared.run.threadId,
           text: input.text,
-          clientUserMessageId: `tokenpilot:${prepared.run.id}`
+          clientUserMessageId: `chatcockpit:${prepared.run.id}`
         }),
       (prepared, turn) => {
         let run = this.repositories.runtimeRuns.get(prepared.run.id);

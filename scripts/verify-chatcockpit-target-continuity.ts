@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   try {
     const currentRunnerContext = buildRunnerOperationContext(
       buildPaths(
-        buildSourceDistributionContext(workspacePath, {
+        buildSourceDistributionContextForProduct("tokenpilot", workspacePath, {
           stateRoot: path.join(root, "current-state", ".tokenpilot")
         })
       ),
@@ -267,7 +267,7 @@ async function main(): Promise<void> {
       assert.equal(
         targetInspection.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()
           ?.version,
-        18
+        19
       );
       assert.equal(
         targetInspection
@@ -467,13 +467,13 @@ async function main(): Promise<void> {
     const unknownDatabase = new DatabaseSync(unknownSchemaPath);
     unknownDatabase
       .prepare(
-        "INSERT INTO schema_migrations (version, name, applied_at) VALUES (19, 'future-fixture', '2026-08-14T00:00:00.000Z')"
+        "INSERT INTO schema_migrations (version, name, applied_at) VALUES (20, 'future-fixture', '2026-08-14T00:00:00.000Z')"
       )
       .run();
     unknownDatabase.close();
     assert.throws(
       () => migrateChatCockpitTargetContinuityDatabase(unknownSchemaPath),
-      /requires continuity schema v18, received 19/
+      /requires continuity schema v19, received 20/
     );
 
     console.log("VERIFY_CHATCOCKPIT_TARGET_CONTINUITY_OK");

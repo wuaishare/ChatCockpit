@@ -282,7 +282,7 @@ export class AcpRegistryAdapter
         signal: controller.signal,
         headers: {
           accept: "application/json",
-          "user-agent": "TokenPilot-Runtime-Resource-Center/0.1"
+          "user-agent": "ChatCockpit-Runtime-Resource-Center/0.2"
         }
       });
     } catch (error) {
@@ -334,7 +334,7 @@ export class AcpRegistryAdapter
     if (!parsed.success) {
       throw new ServiceError(
         "ACP_REGISTRY_INVALID",
-        "Official ACP Registry failed TokenPilot schema validation",
+        "Official ACP Registry failed ChatCockpit schema validation",
         {
           details: {
             issueCount: parsed.error.issues.length

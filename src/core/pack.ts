@@ -7,6 +7,7 @@ import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { timestampSlug } from "./files.js";
 import { readIdentityEnv } from "./identity-env.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
+import { productIdentityForKey } from "./product-identity.js";
 import { writeRepoBundleXml } from "./repo-bundle.js";
 import type { RepoBundleManifest, TokenPilotPaths } from "../types.js";
 
@@ -55,7 +56,10 @@ function pruneBundleOutputs(workspaceDir: string): void {
 }
 
 export function runPack(paths: TokenPilotPaths): RepoBundleManifest {
-  return runPackForRepo(paths, "tokenpilot");
+  return runPackForRepo(
+    paths,
+    productIdentityForKey(paths.productIdentity).defaultRepoId
+  );
 }
 
 export function runPackForRepo(

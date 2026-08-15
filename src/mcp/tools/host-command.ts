@@ -27,7 +27,7 @@ export function buildHostCommandTools(
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
-      name: "tokenpilot.host.command.prepare",
+      name: "chatcockpit.host.command.prepare",
       title: "Prepare governed Host command",
       description:
         "Validate one structured Host command, classify its effect and scope, and create a short-lived Direct Command approval. This step does not start a process.",
@@ -36,7 +36,7 @@ export function buildHostCommandTools(
       handler: (context, input) => service.prepare(context, input)
     }),
     defineMcpTool({
-      name: "tokenpilot.host.command.decide",
+      name: "chatcockpit.host.command.decide",
       title: "Decide Host command approval",
       description:
         "Approve or deny one pending Host command approval using optimistic revision control.",
@@ -45,10 +45,10 @@ export function buildHostCommandTools(
       handler: (context, input) => service.decide(context, input)
     }),
     defineMcpTool({
-      name: "tokenpilot.host.command.execute",
+      name: "chatcockpit.host.command.execute",
       title: "Execute approved Host command",
       description:
-        "Execute one approved bounded non-interactive Host command. TokenPilot revalidates command policy, scope, Workspace governance, exact command hash and executor lifecycle before starting the process.",
+        "Execute one approved bounded non-interactive Host command. ChatCockpit revalidates command policy, scope, Workspace governance, exact command hash and executor lifecycle before starting the process.",
       inputSchema: hostCommandExecuteSchema,
       annotations: commandAnnotations,
       handler: (context, input) => service.execute(context, input)

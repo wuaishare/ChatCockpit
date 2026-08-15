@@ -377,7 +377,7 @@ export function ResourceCenterView({
 
   const sourceLabel = (source: RuntimeResourceSourceKind): string => {
     if (source === "runtime-native") return copy.runtimeNative;
-    if (source === "tokenpilot-local") return copy.tokenpilotLocal;
+    if (source === "tokenpilot-local") return copy.legacyLocal;
     return copy.acpRegistry;
   };
 

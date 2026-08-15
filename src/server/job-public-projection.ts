@@ -165,7 +165,7 @@ function deriveJobHeadline(job: JobRecord<TokenPilotJobPayload>): string {
     const title = (job.payload as { title?: unknown }).title;
     return typeof title === "string" && title.trim() ? title.trim() : "Codex run job";
   }
-  return "TokenPilot job";
+  return "ChatCockpit job";
 }
 
 function projectJobPayloadForUi(

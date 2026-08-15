@@ -131,7 +131,7 @@ try {
     id: workspaceId,
     projectId: "project_reconcile_fixture",
     repoId: "repo_reconcile_fixture",
-    privatePath: "/private/tokenpilot-runtime-sentinel/reconcile-workspace",
+    privatePath: "/private/chatcockpit-runtime-sentinel/reconcile-workspace",
     now: NOW
   });
 
@@ -594,7 +594,7 @@ try {
     pluginUninstallMissing
   });
   for (const forbidden of [
-    "/private/tokenpilot-runtime-sentinel/reconcile-workspace",
+    "/private/chatcockpit-runtime-sentinel/reconcile-workspace",
     "SKILL.md",
     "skills/config/write" + ":{",
     "authorizationUrl"
