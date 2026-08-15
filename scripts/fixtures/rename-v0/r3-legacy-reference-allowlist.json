@@ -488,6 +488,14 @@
       "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
       "reason": "The R4 preflight verifier intentionally constructs sanitized legacy TokenPilot fixtures to prove migration detection, secret-safe reporting and target-only generation behavior.",
       "removalGate": "Retain as migration regression evidence through R4/R5; remove only with formal retirement of legacy migration support."
+    },
+    {
+      "id": "r4-migration-executor-legacy-fixture-assertions",
+      "class": "implementation-history",
+      "pathRegex": "^scripts/verify-r4-migration-executor\\.ts$",
+      "lineRegex": "TokenPilot|tokenpilot|TOKENPILOT_|\\.tokenpilot",
+      "reason": "The R4 sandbox executor verifier intentionally builds a v18 TokenPilot/WAL fixture with historical runner/resource identities and secret-bearing legacy runtime input to prove target-only staged migration without source mutation.",
+      "removalGate": "Retain through R4/R5 migration regression coverage; remove only after the supported legacy migration path is formally retired."
     }
   ]
 }
