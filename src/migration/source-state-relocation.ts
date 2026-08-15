@@ -180,6 +180,21 @@ function copyDirectory(source: string, target: string): void {
   });
 }
 
+function removeRegeneratedRuntimeEntries(runtimeDir: string): void {
+  for (const entry of REGENERATED_RUNTIME_ENTRIES) {
+    fs.rmSync(path.join(runtimeDir, entry), { recursive: true, force: true });
+  }
+}
+
+function assertNoNonZeroWal(runtimeDir: string, label: string): void {
+  for (const entry of QUIESCED_ZERO_WALS) {
+    const walPath = path.join(runtimeDir, entry);
+    if (fs.existsSync(walPath) && fs.statSync(walPath).size > 0) {
+      throw new Error(`${label} produced non-zero WAL authority: ${entry}`);
+    }
+  }
+}
+
 export function inspectChatCockpitSourceStateRelocation(
   input: SourceStateRelocationInput
 ): SourceStateRelocationInspection {
@@ -281,9 +296,7 @@ export function stageChatCockpitSourceStateRelocation(
 
   copyDirectory(input.sourceStateRoot, input.stagingRoot);
   const runtimeDir = path.join(input.stagingRoot, "runtime");
-  for (const entry of REGENERATED_RUNTIME_ENTRIES) {
-    fs.rmSync(path.join(runtimeDir, entry), { recursive: true, force: true });
-  }
+  removeRegeneratedRuntimeEntries(runtimeDir);
   for (const fileName of PRESERVED_HOME_FILES) {
     const existing = path.join(input.targetStateRoot, fileName);
     if (!fs.existsSync(existing)) continue;
@@ -303,6 +316,8 @@ export function stageChatCockpitSourceStateRelocation(
   if (fs.existsSync(stagedOauthPath) && !sqliteQuickCheckOk(stagedOauthPath)) {
     throw new Error("staged ChatCockpit OAuth database failed integrity verification");
   }
+  assertNoNonZeroWal(runtimeDir, "staged ChatCockpit database verification");
+  removeRegeneratedRuntimeEntries(runtimeDir);
   for (const entry of REGENERATED_RUNTIME_ENTRIES) {
     if (fs.existsSync(path.join(runtimeDir, entry))) {
       throw new Error(`staged runtime still contains regenerated authority: ${entry}`);

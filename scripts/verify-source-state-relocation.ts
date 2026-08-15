@@ -15,6 +15,7 @@ function buildOAuthFixture(databasePath: string): void {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
   try {
+    database.exec("PRAGMA journal_mode=WAL;");
     database.exec(`
       CREATE TABLE oauth_fixture (
         id TEXT PRIMARY KEY,
@@ -31,6 +32,7 @@ function buildTargetOnlyContinuity(databasePath: string): void {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
   try {
+    database.exec("PRAGMA journal_mode=WAL;");
     database.exec(`
       CREATE TABLE schema_migrations (
         version INTEGER PRIMARY KEY,
