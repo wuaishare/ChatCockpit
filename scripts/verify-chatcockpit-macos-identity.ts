@@ -127,6 +127,14 @@ for (const [name, source] of [
 assert.doesNotMatch(statusView, /Text\("TokenPilot"\)/);
 assert.doesNotMatch(menuBar, /Button\("(?:Open|Quit) TokenPilot"/);
 assert.doesNotMatch(settingsView, /Button\("Open TokenPilot"/);
+const statusWindowSceneIndex = desktopApp.indexOf('Window("\\(ProductIdentity.current.displayName) Status"');
+const menuBarSceneIndex = desktopApp.indexOf("MenuBarExtra(ProductIdentity.current.displayName");
+assert.ok(statusWindowSceneIndex >= 0, "Desktop app must declare the Status Window");
+assert.ok(menuBarSceneIndex >= 0, "Desktop app must declare the MenuBarExtra");
+assert.ok(
+  statusWindowSceneIndex < menuBarSceneIndex,
+  "Status Window must remain the first desktop scene so launching ChatCockpit presents a visible window"
+);
 
 // Normal lifecycle operations are ChatCockpit. Legacy identity is quiesce/inspection only.
 assert.match(lifecycleScript, /PRODUCT_IDENTITY="chatcockpit"/);
