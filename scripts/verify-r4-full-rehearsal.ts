@@ -329,7 +329,7 @@ async function runDatabaseFailure(): Promise<void> {
           snapshotRoot: fixture.snapshotRoot,
           stagingRoot: fixture.stagingRoot
         }),
-      /must be schema v18/
+      /source contract is invalid/
     );
     transition(states, "recovery-required");
     await services.restoreLegacy();

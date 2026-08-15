@@ -3,11 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { inspectR4LegacyContinuitySource, type R4LegacyContinuitySourceContract } from "./r4-legacy-continuity.js";
 import { buildRenameMigrationPreview } from "./rename-preview.js";
 import type { RenameStateEntryClass } from "./rename-types.js";
 
 const GIB = 1024 * 1024 * 1024;
-const R4_LEGACY_CONTINUITY_SCHEMA_VERSION = 18;
 
 export interface R4ServiceIdentityState {
   loaded: boolean;
@@ -71,6 +71,8 @@ export interface R4PreflightReport {
     present: boolean;
     integrity: "ok" | "failed" | "missing" | "unreadable";
     schemaVersion: number | null;
+    sourceContract: R4LegacyContinuitySourceContract | "missing" | "unreadable";
+    targetIdentityMarkerPresent: boolean;
     activeWriterLeases: number;
     nonterminalSessions: number;
     activeRuntimeBindings: number;
@@ -214,6 +216,8 @@ function inspectDatabase(databasePath: string) {
     present: false,
     integrity: "missing" as const,
     schemaVersion: null,
+    sourceContract: "missing" as const,
+    targetIdentityMarkerPresent: false,
     activeWriterLeases: 0,
     nonterminalSessions: 0,
     activeRuntimeBindings: 0,
@@ -229,11 +233,7 @@ function inspectDatabase(databasePath: string) {
     const quick = database.prepare("PRAGMA quick_check").get() as {
       quick_check?: string;
     };
-    const schemaRow = tableExists(database, "schema_migrations")
-      ? (database
-          .prepare("SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations")
-          .get() as { version: number })
-      : { version: 0 };
+    const legacySource = inspectR4LegacyContinuitySource(database);
 
     const directMutationApprovals = countWhere(
       database,
@@ -260,7 +260,9 @@ function inspectDatabase(databasePath: string) {
     return {
       present: true,
       integrity: quick.quick_check === "ok" ? ("ok" as const) : ("failed" as const),
-      schemaVersion: Number(schemaRow.version),
+      schemaVersion: legacySource.schemaVersion,
+      sourceContract: legacySource.sourceContract,
+      targetIdentityMarkerPresent: legacySource.targetIdentityMarkerPresent,
       activeWriterLeases: countWhere(database, "writer_leases", "status='active'"),
       nonterminalSessions: countWhere(
         database,
@@ -289,7 +291,8 @@ function inspectDatabase(databasePath: string) {
     return {
       ...empty,
       present: true,
-      integrity: "unreadable" as const
+      integrity: "unreadable" as const,
+      sourceContract: "unreadable" as const
     };
   } finally {
     database?.close();
@@ -462,8 +465,8 @@ export async function buildR4PreflightReport(input: R4PreflightInput): Promise<R
   );
   if (!database.present) blockers.push("legacy-continuity-database-missing");
   if (database.integrity !== "ok") blockers.push("legacy-continuity-database-integrity-failed");
-  if (database.schemaVersion !== R4_LEGACY_CONTINUITY_SCHEMA_VERSION) {
-    blockers.push("legacy-continuity-schema-not-v18");
+  if (database.sourceContract !== "v18" && database.sourceContract !== "v19-compatible") {
+    blockers.push("legacy-continuity-source-contract-invalid");
   }
   if (database.activeWriterLeases > 0) blockers.push("active-writer-leases-present");
   if (database.nonterminalSessions > 0) blockers.push("nonterminal-development-sessions-present");

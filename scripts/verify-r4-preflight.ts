@@ -3,7 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { ContinuityDatabase } from "../src/continuity/database.js";
 import { migrateLegacyUserConfigToChatCockpit } from "../src/migration/chatcockpit-config-migration.js";
+import { migrateChatCockpitTargetContinuityDatabase } from "../src/migration/chatcockpit-target-continuity.js";
 import {
   buildR4PreflightReport,
   type R4ServiceProbeResult
@@ -87,10 +89,8 @@ fs.writeFileSync(
   "utf8"
 );
 
-buildTokenPilotV18FixtureDatabase(
-  path.join(legacyStateRoot, "runtime", "continuity.sqlite"),
-  workspace
-);
+const continuityPath = path.join(legacyStateRoot, "runtime", "continuity.sqlite");
+buildTokenPilotV18FixtureDatabase(continuityPath, workspace);
 fs.writeFileSync(
   path.join(legacyStateRoot, "jobs", "completed", "completed.json"),
   "{}\n",
@@ -138,6 +138,8 @@ assert.equal(ready.migration.targetStateDisposition, "empty-scaffold");
 assert.equal(ready.migration.unknownEntries, 0);
 assert.equal(ready.database.integrity, "ok");
 assert.equal(ready.database.schemaVersion, 18);
+assert.equal(ready.database.sourceContract, "v18");
+assert.equal(ready.database.targetIdentityMarkerPresent, false);
 assert.equal(ready.database.activeWriterLeases, 0);
 assert.equal(ready.database.activeRuntimeRuns, 0);
 assert.deepEqual(ready.jobs, { queued: 0, running: 0, completed: 1, failed: 1 });
@@ -146,6 +148,16 @@ assert.equal(ready.services.old.controlPlane.loaded, true);
 assert.equal(ready.services.target.controlPlane.loaded, false);
 assert.equal(JSON.stringify(ready).includes(root), false, "Preflight report leaked fixture absolute path");
 assert.equal(JSON.stringify(ready).includes("fixture-secret"), false, "Preflight report leaked secret");
+
+const compatibilityUpgrade = new ContinuityDatabase({ path: continuityPath });
+assert.equal(compatibilityUpgrade.schemaVersion(), 19);
+compatibilityUpgrade.close();
+const v19Compatible = await report();
+assert.equal(v19Compatible.state, "ready-to-migrate");
+assert.deepEqual(v19Compatible.blockers, []);
+assert.equal(v19Compatible.database.schemaVersion, 19);
+assert.equal(v19Compatible.database.sourceContract, "v19-compatible");
+assert.equal(v19Compatible.database.targetIdentityMarkerPresent, false);
 
 fs.writeFileSync(path.join(legacyStateRoot, "runtime", "unknown-authority.bin"), "x", "utf8");
 const unknownBlocked = await report();
@@ -193,6 +205,19 @@ const targetServiceBlocked = await report(async () => ({
 assert.equal(targetServiceBlocked.state, "blocked");
 assert.equal(
   targetServiceBlocked.blockers.includes("target-chatcockpit-service-already-loaded"),
+  true
+);
+
+migrateChatCockpitTargetContinuityDatabase(continuityPath, {
+  now: "2026-08-15T00:00:00.000Z"
+});
+const targetOnlySourceBlocked = await report();
+assert.equal(targetOnlySourceBlocked.state, "blocked");
+assert.equal(targetOnlySourceBlocked.database.schemaVersion, 19);
+assert.equal(targetOnlySourceBlocked.database.sourceContract, "invalid");
+assert.equal(targetOnlySourceBlocked.database.targetIdentityMarkerPresent, true);
+assert.equal(
+  targetOnlySourceBlocked.blockers.includes("legacy-continuity-source-contract-invalid"),
   true
 );
 

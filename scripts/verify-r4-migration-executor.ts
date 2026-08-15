@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { ContinuityDatabase } from "../src/continuity/database.js";
+import { migrateChatCockpitTargetContinuityDatabase } from "../src/migration/chatcockpit-target-continuity.js";
 import {
   backupR4SqliteDatabaseForMigration,
   buildR4MigrationStaging,
@@ -220,6 +222,7 @@ try {
   assert.match(result.snapshotManifestSha256, /^[a-f0-9]{64}$/);
   assert.equal(result.classifiedStateEntries > 0, true);
   assert.equal(result.targetConfigDefaultRepoId, "primary");
+  assert.equal(result.legacyContinuitySourceContract, "v18");
   assert.equal(
     ["node-sqlite-backup", "vacuum-into"].includes(result.continuityBackupMethod),
     true
@@ -421,6 +424,51 @@ try {
   );
   targetConflictFixture.sourceDatabase.close();
 
+  const v19CompatibleRoot = fs.mkdtempSync(path.join(root, "v19-compatible-"));
+  const v19CompatibleFixture = buildLegacyFixture(v19CompatibleRoot);
+  v19CompatibleFixture.sourceDatabase.close();
+  const compatibilityUpgrade = new ContinuityDatabase({ path: v19CompatibleFixture.databasePath });
+  assert.equal(compatibilityUpgrade.schemaVersion(), 19);
+  compatibilityUpgrade.close();
+  const v19CompatibleResult = await buildR4MigrationStaging({
+    sandboxRoot: v19CompatibleRoot,
+    repoRoot: v19CompatibleFixture.repoRoot,
+    legacyStateRoot: v19CompatibleFixture.legacyStateRoot,
+    legacyConfigPath: v19CompatibleFixture.legacyConfigPath,
+    targetStateRoot: v19CompatibleFixture.targetStateRoot,
+    targetConfigPath: v19CompatibleFixture.targetConfigPath,
+    snapshotRoot: v19CompatibleFixture.snapshotRoot,
+    stagingRoot: v19CompatibleFixture.stagingRoot
+  });
+  assert.equal(v19CompatibleResult.legacyContinuitySourceContract, "v19-compatible");
+  assert.equal(v19CompatibleResult.targetContinuitySchemaVersion, 19);
+  assert.equal(v19CompatibleResult.runtimeBindingRowsUpdated, 1);
+  assert.equal(v19CompatibleResult.runtimeResourceRowsUpdated, 1);
+
+  const targetOnlyRoot = fs.mkdtempSync(path.join(root, "target-only-source-"));
+  const targetOnlyFixture = buildLegacyFixture(targetOnlyRoot);
+  targetOnlyFixture.sourceDatabase.close();
+  const targetOnlyUpgrade = new ContinuityDatabase({ path: targetOnlyFixture.databasePath });
+  assert.equal(targetOnlyUpgrade.schemaVersion(), 19);
+  targetOnlyUpgrade.close();
+  migrateChatCockpitTargetContinuityDatabase(targetOnlyFixture.databasePath, {
+    now: "2026-08-15T00:00:00.000Z"
+  });
+  await assert.rejects(
+    () =>
+      buildR4MigrationStaging({
+        sandboxRoot: targetOnlyRoot,
+        repoRoot: targetOnlyFixture.repoRoot,
+        legacyStateRoot: targetOnlyFixture.legacyStateRoot,
+        legacyConfigPath: targetOnlyFixture.legacyConfigPath,
+        targetStateRoot: targetOnlyFixture.targetStateRoot,
+        targetConfigPath: targetOnlyFixture.targetConfigPath,
+        snapshotRoot: targetOnlyFixture.snapshotRoot,
+        stagingRoot: targetOnlyFixture.stagingRoot
+      }),
+    /source contract is invalid/
+  );
+
   const wrongSchemaRoot = fs.mkdtempSync(path.join(root, "wrong-schema-"));
   const wrongSchemaFixture = buildLegacyFixture(wrongSchemaRoot);
   wrongSchemaFixture.sourceDatabase
@@ -438,7 +486,7 @@ try {
         snapshotRoot: wrongSchemaFixture.snapshotRoot,
         stagingRoot: wrongSchemaFixture.stagingRoot
       }),
-    /must be schema v18/
+    /source contract is invalid/
   );
   wrongSchemaFixture.sourceDatabase.close();
 
