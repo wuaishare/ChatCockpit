@@ -2,9 +2,327 @@ import AppKit
 import SwiftUI
 import TokenPilotDesktopCore
 
+enum MainAppSection: String, CaseIterable, Identifiable {
+    case overview
+    case runtime
+    case workspaces
+    case accessSecurity
+    case integrations
+    case updates
+    case diagnostics
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: return DesktopL10n.string("Overview")
+        case .runtime: return DesktopL10n.string("Runtime")
+        case .workspaces: return DesktopL10n.string("Workspaces")
+        case .accessSecurity: return DesktopL10n.string("Access & Security")
+        case .integrations: return DesktopL10n.string("Integrations")
+        case .updates: return DesktopL10n.string("Updates")
+        case .diagnostics: return DesktopL10n.string("Diagnostics")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .overview: return "gauge.with.dots.needle.67percent"
+        case .runtime: return "server.rack"
+        case .workspaces: return "folder.badge.gearshape"
+        case .accessSecurity: return "lock.shield"
+        case .integrations: return "point.3.connected.trianglepath.dotted"
+        case .updates: return "arrow.down.circle"
+        case .diagnostics: return "stethoscope"
+        }
+    }
+}
+
+struct MainAppView: View {
+    @ObservedObject var model: DesktopAppModel
+    @Binding var selection: MainAppSection?
+
+    private var activeSection: MainAppSection {
+        selection ?? .overview
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            List(MainAppSection.allCases) { section in
+                AccessibleSidebarButton(
+                    title: section.title,
+                    systemName: section.systemImage,
+                    selected: activeSection == section
+                ) {
+                    selection = section
+                }
+                .frame(maxWidth: .infinity, minHeight: 28)
+                .padding(.horizontal, 4)
+                .background(
+                    activeSection == section
+                        ? Color.accentColor.opacity(0.16)
+                        : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 7)
+                )
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
+        } detail: {
+            Group {
+                switch activeSection {
+                case .overview:
+                    StatusView(model: model)
+                case .runtime:
+                    SettingsView(model: model, scope: .runtime)
+                case .workspaces:
+                    SettingsView(model: model, scope: .workspaces)
+                case .accessSecurity:
+                    SettingsView(model: model, scope: .accessSecurity)
+                case .integrations:
+                    NativeIntegrationsBridgeView(model: model)
+                case .updates:
+                    SettingsView(model: model, scope: .updates)
+                case .diagnostics:
+                    NativeDiagnosticsView(model: model)
+                }
+            }
+        }
+        .frame(minWidth: 920, minHeight: 640)
+        .task {
+            await model.refresh()
+            await model.refreshSecurity()
+        }
+    }
+}
+
+private struct AccessibleSidebarButton: NSViewRepresentable {
+    let title: String
+    let systemName: String
+    let selected: Bool
+    let action: () -> Void
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func invoke() {
+            action()
+        }
+    }
+
+    final class PointerButton: NSButton {
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(bounds, cursor: isEnabled ? .pointingHand : .arrow)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = PointerButton()
+        button.isBordered = false
+        button.imagePosition = .imageLeading
+        button.alignment = .left
+        button.focusRingType = .default
+        button.refusesFirstResponder = false
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.invoke)
+        configure(button, coordinator: context.coordinator)
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        configure(button, coordinator: context.coordinator)
+    }
+
+    private func configure(_ button: NSButton, coordinator: Coordinator) {
+        coordinator.action = action
+        button.title = title
+        button.image = NSImage(
+            systemSymbolName: systemName,
+            accessibilityDescription: nil
+        )
+        button.toolTip = title
+        button.setAccessibilityLabel(title)
+        button.setAccessibilityHelp(title)
+        button.setAccessibilityRole(.button)
+        button.setAccessibilitySelected(selected)
+        button.window?.invalidateCursorRects(for: button)
+    }
+}
+
+private struct NativeIntegrationsBridgeView: View {
+    @ObservedObject var model: DesktopAppModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                GroupBox(DesktopL10n.string("Integration Status")) {
+                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+                        summaryRow(
+                            DesktopL10n.string("Web Owner"),
+                            value: model.operatorSecurityStatus?.configured == true
+                                ? DesktopL10n.string("Configured")
+                                : DesktopL10n.string("Not configured")
+                        )
+                        summaryRow(
+                            DesktopL10n.string("Machine API token"),
+                            value: model.machineApiTokenStatus?.configured == true
+                                ? DesktopL10n.string("Configured")
+                                : DesktopL10n.string("Not configured")
+                        )
+                        summaryRow(
+                            DesktopL10n.string("Public Cockpit"),
+                            value: model.snapshot.publicCockpitURL == nil
+                                ? DesktopL10n.string("Not configured")
+                                : DesktopL10n.string("Available")
+                        )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+
+                GroupBox(DesktopL10n.string("Web Integrations")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(
+                            DesktopL10n.string(
+                                "ChatGPT OAuth, Passkeys, API/OpenAPI integration details, and other operator workflows stay in the Web Cockpit. The native App shows machine-local status and opens the precise Web destination without taking over Web authority."
+                            )
+                        )
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        webDestination(
+                            DesktopL10n.string("Local Integrations"),
+                            cockpitURL: model.snapshot.localCockpitURL
+                        )
+                        webDestination(
+                            DesktopL10n.string("Public Integrations"),
+                            cockpitURL: model.snapshot.publicCockpitURL
+                        )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 760, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func summaryRow(_ title: String, value: String) -> some View {
+        GridRow {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Text(value)
+        }
+    }
+
+    @ViewBuilder
+    private func webDestination(_ title: String, cockpitURL: URL?) -> some View {
+        if let cockpitURL {
+            let url = cockpitURL.appendingPathComponent("integrations", isDirectory: false)
+            Link(destination: url) {
+                HStack(spacing: 8) {
+                    Text(title)
+                    Spacer()
+                    Text(verbatim: url.absoluteString)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "arrow.up.right.square")
+                }
+            }
+            .contentShape(Rectangle())
+            .focusable(true)
+            .onHover { hovering in
+                (hovering ? NSCursor.pointingHand : NSCursor.arrow).set()
+            }
+            .accessibilityLabel("\(title): \(url.absoluteString)")
+            .accessibilityHint(DesktopL10n.string("Open in Browser"))
+            .help("\(DesktopL10n.string("Open in Browser")): \(url.absoluteString)")
+        }
+    }
+}
+
+private struct NativeDiagnosticsView: View {
+    @ObservedObject var model: DesktopAppModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                GroupBox(DesktopL10n.string("Runtime Diagnostics")) {
+                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+                        diagnosticRow(DesktopL10n.string("Overall status"), model.snapshot.overallState.displayName)
+                        diagnosticRow(DesktopL10n.string("Control Plane"), model.snapshot.lifecycle.controlPlane.displayName)
+                        diagnosticRow(DesktopL10n.string("Runner"), model.snapshot.lifecycle.runner.displayName)
+                        diagnosticRow(DesktopL10n.string("Process Supervisor"), model.snapshot.lifecycle.processSupervisor.displayName)
+                        diagnosticRow(DesktopL10n.string("Endpoint"), model.endpointText)
+                        diagnosticRow(DesktopL10n.string("Node"), model.nodeVersionText)
+                        diagnosticRow(DesktopL10n.string("State"), model.stateLocationText)
+                        diagnosticRow(
+                            model.distributionMode == .packaged
+                                ? DesktopL10n.string("Primary Workspace")
+                                : DesktopL10n.string("Source Checkout"),
+                            model.distributionMode == .packaged
+                                ? model.selectedWorkspaceDisplayPath
+                                : model.selectedRootDisplayPath
+                        )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+
+                if let conflict = model.runtimeConflict {
+                    Label(model.localizedConflictMessage(conflict), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let message = model.lastUserMessage {
+                    Label(message, systemImage: "info.circle")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack {
+                    Button(DesktopL10n.string("Refresh")) {
+                        Task { await model.refresh() }
+                    }
+                    .disabled(model.isRefreshing)
+
+                    if model.isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 760, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func diagnosticRow(_ title: String, _ value: String) -> some View {
+        GridRow {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
+}
+
 struct StatusView: View {
     @ObservedObject var model: DesktopAppModel
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -114,12 +432,6 @@ struct StatusView: View {
                         Task { await model.refresh() }
                     }
                     .disabled(model.isRefreshing)
-
-                    Button(DesktopL10n.string("Settings…")) {
-                        DesktopScenePresentation.present {
-                            openSettings()
-                        }
-                    }
 
                     Spacer()
 

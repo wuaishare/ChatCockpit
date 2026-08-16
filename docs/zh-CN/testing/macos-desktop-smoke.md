@@ -16,7 +16,7 @@ dist/macos/ChatCockpit.app
 open dist/macos/ChatCockpit.app
 ```
 
-正常情况下会立即出现 **ChatCockpit 状态** 主窗口，Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。
+正常情况下会立即出现唯一的 **ChatCockpit** 主窗口，左侧导航包含 **概览 / 运行环境 / 工作区 / 访问与安全 / 集成 / 更新 / 诊断**；Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。系统 **设置…** 只保留 App 自身偏好入口，不再复制 Runtime、Workspace 或 Security 运维界面。
 
 如果还没有本地 App，可构建当前架构：
 
@@ -34,17 +34,17 @@ Intel Mac 使用 `--arch x64`。
 如果当前 Source Runtime 已经通过 `npm run mvp:start` / `npm run start:local` 运行，优先使用 Developer Mode。首次启动时，只要 ChatCockpit 能发现合法 source checkout，就会自动选择 Developer Mode；用户之后手动选择的 Developer/Packaged Mode 会被记住。
 
 1. 启动 `ChatCockpit.app`；
-2. 确认主窗口没有裁切，底部 **刷新 / 设置… / Runtime 操作** 始终可用；Runtime 区域中的 **本机控制台 / 公网控制台** 地址应直接显示为原生可点击链接，鼠标悬浮时出现手型指针，键盘焦点能够到达，并且 VoiceOver 能读出目标地址与“在浏览器中打开”提示。只有 exposed 模式存在合法公网基址时才显示公网地址；
-3. 如果已自动发现 source checkout，确认 Distribution 为 **Developer**；否则打开 Settings，选择 **Developer Mode** 并点击 **Choose Source…**；
+2. 确认主窗口没有裁切，侧栏 7 个运维入口都可键盘/鼠标访问；**概览**底部的刷新与 Runtime 操作始终可用。Runtime 区域中的 **本机控制台 / 公网控制台** 地址应直接显示为原生可点击链接，鼠标悬浮时出现手型指针，键盘焦点能够到达，并且 VoiceOver 能读出目标地址与“在浏览器中打开”提示。只有 exposed 模式存在合法公网基址时才显示公网地址；
+3. 如果已自动发现 source checkout，确认 **运行环境** 中 Distribution 为 **Developer**；否则在 **运行环境** 中选择 **Developer Mode** 并点击 **Choose Source…**；
 4. 如需手动选择，选择当前 ChatCockpit source checkout；
 5. 点击 **Revalidate**；
 6. 确认 Runtime 状态为 **Ready**；
 7. 确认 Endpoint 为 `127.0.0.1:4318`（除非你明确配置了其他本地 endpoint）；
 8. 确认 State 显示全局 `~/.chatcockpit`，而不是 checkout-local state；
 9. 在 **安全与访问** 中确认控制台管理员状态与机器 API 令牌分开显示。机器令牌默认只能显示指纹（例如 `cc_local_…abc123`），不能直接暴露明文；**显示 / 复制 / 轮换** 必须作为令牌值同行的图标动作存在，不得另起一行。**本机 API 基址 / 本机 MCP 端点** 及公网 API/MCP 地址（如已开放）各自带同行复制图标；所有这些图标动作悬浮时使用手型指针、可通过键盘聚焦，并为 VoiceOver 提供独立动作说明；
-10. 确认 **显示令牌** 只有在用户明确操作后才临时显示明文，并会自动再次隐藏；**复制令牌 / 复制 API 地址** 成功后只在当前图标位置短时切换为“已复制”，约 2 秒后自动恢复，不得写入 Settings 或主状态窗口的长期“提示”区域。普通 smoke test 不要轮换真实令牌；
-11. 确认 **设置 / 管理管理员…** 可修改管理员用户名与密码，**撤销 Web 会话** 可独立撤销现有会话，且不会暴露密码或 Session Secret；
-12. 已配置管理员时，从 App 执行 **打开本机控制台**，应无需再次输入密码即可进入：App 生成短时一次性 loopback 登录凭据，浏览器中的 `#local-login=…` fragment 必须立即消失，最后得到的仍是普通 HttpOnly 管理员 Session；同一凭据再次兑换必须失败。若尚未配置管理员，则仍进入正常本机初始化流程。公网控制台必须继续使用配置的 HTTPS `/ui`，且绝不能携带这枚本机免密凭据。
+10. 确认 **显示令牌** 只有在用户明确操作后才临时显示明文，并会自动再次隐藏；**复制令牌 / 复制 API 地址** 成功后只在当前图标位置短时切换为“已复制”，约 2 秒后自动恢复，不得写入主窗口的长期“提示”区域。普通 smoke test 不要轮换真实令牌；
+11. 在 **访问与安全** 中确认 **设置 / 管理管理员…** 可修改管理员用户名与密码，**撤销 Web 会话** 可独立撤销现有会话，且不会暴露密码或 Session Secret；
+12. 已配置管理员时，从 App 执行 **打开本机控制台**，应无需再次输入密码即可进入：App 生成短时一次性 loopback 登录凭据，浏览器中的 `#local-login=…` fragment 必须立即消失，最后得到的仍是普通 HttpOnly 管理员 Session；同一凭据再次兑换必须失败。若尚未配置管理员，则仍进入正常本机初始化流程。公网控制台必须继续使用配置的 HTTPS 控制台入口路径，且绝不能携带这枚本机免密凭据。
 
 Source/Developer Mode 的 canonical state root 是：
 
@@ -73,7 +73,7 @@ Desktop App 是这台 Mac 上的人类控制台管理员与机器 API 凭据管�
 测试：
 
 1. 保持 Developer Mode services 运行；
-2. 在 App Settings 切到 **Packaged Mode**；
+2. 在主窗口 **运行环境** 中切到 **Packaged Mode**；
 3. 点击 **选择主工作区…**，选择一个真实项目目录；
 4. Refresh / Revalidate；
 5. 应看到 **Runtime Conflict**，说明 Developer Mode 已拥有当前 ChatCockpit service identity。
@@ -104,7 +104,7 @@ npm run mvp:stop
 ### 3.2 启动 Packaged Mode
 
 1. 打开 `ChatCockpit.app`；
-2. Settings → **Packaged Mode**；
+2. 主窗口 **运行环境** → **Packaged Mode**；
 3. **选择主工作区…** 选择测试项目；
 4. 在 **工作区** 区域添加第二个测试项目，确认两个目录分别显示稳定 repo ID，且只有一个带 **主工作区** 标记；
 5. 将第二个项目 **设为主工作区**，确认 App 明确提示不会自动启动/停止/重启 Runtime；再将预期项目恢复为主工作区；
@@ -129,7 +129,7 @@ Packaged Mode 使用独立路径：
 
 如果希望把 Source Setup 的安全配置迁给 Packaged Mode：
 
-1. Settings → Packaged Mode；
+1. 主窗口 **运行环境** → Packaged Mode；
 2. 点击 **Import Existing Setup…**；
 3. 先看 Preview；
 4. 确认后再 Apply。

@@ -4,8 +4,8 @@ import TokenPilotDesktopCore
 
 struct MenuBarContentView: View {
     @ObservedObject var model: DesktopAppModel
+    @Binding var mainSection: MainAppSection?
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -57,17 +57,13 @@ struct MenuBarContentView: View {
                 }
             }
 
-            Button(DesktopL10n.string("Open Status Window")) {
-                DesktopScenePresentation.present {
-                    openWindow(id: "status")
-                }
+            Button(DesktopL10n.string("Open ChatCockpit")) {
+                openMainWindow(.overview)
             }
 
             if model.runtimeConflict != nil {
-                Button(DesktopL10n.string("Runtime Conflict — Review Settings")) {
-                    DesktopScenePresentation.present {
-                        openSettings()
-                    }
+                Button(DesktopL10n.string("Runtime Conflict — Review Runtime")) {
+                    openMainWindow(.runtime)
                 }
             } else {
                 switch model.snapshot.overallState {
@@ -95,12 +91,9 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button(DesktopL10n.string("Settings…")) {
-                DesktopScenePresentation.present {
-                    openSettings()
-                }
+            Button(DesktopL10n.string("Access & Security…")) {
+                openMainWindow(.accessSecurity)
             }
-            .keyboardShortcut(",", modifiers: .command)
 
             Button(DesktopL10n.string("Quit ChatCockpit")) {
                 NSApplication.shared.terminate(nil)
@@ -111,6 +104,13 @@ struct MenuBarContentView: View {
         .frame(width: 290)
         .task {
             await model.refresh()
+        }
+    }
+
+    private func openMainWindow(_ section: MainAppSection) {
+        mainSection = section
+        DesktopScenePresentation.present {
+            openWindow(id: "main")
         }
     }
 
