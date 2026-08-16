@@ -55,6 +55,37 @@ import type { ApiProblem } from "./types";
 
 type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
 
+function readOAuthApprovalReturnTo(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("returnTo");
+  if (!raw || !raw.startsWith("/")) return null;
+
+  try {
+    const target = new URL(raw, window.location.origin);
+    if (
+      target.origin !== window.location.origin ||
+      target.pathname !== "/oauth/authorize" ||
+      target.searchParams.size !== 1
+    ) {
+      return null;
+    }
+    const requestId = target.searchParams.get("request_id");
+    if (!requestId || !/^oauth_request_[0-9a-f-]{36}$/i.test(requestId)) {
+      return null;
+    }
+    return `/oauth/authorize?request_id=${encodeURIComponent(requestId)}`;
+  } catch {
+    return null;
+  }
+}
+
+function continueOAuthApprovalIfRequested(): boolean {
+  const returnTo = readOAuthApprovalReturnTo();
+  if (!returnTo || typeof window === "undefined") return false;
+  window.location.assign(returnTo);
+  return true;
+}
+
 const JobsView = lazy(() =>
   import("./components/JobsView").then((module) => ({ default: module.JobsView }))
 );
@@ -271,7 +302,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       try {
         const session = await fetchOperatorSession();
         setOperatorSession(session);
-        setOperatorAuthState("authenticated");
+        if (!continueOAuthApprovalIfRequested()) {
+          setOperatorAuthState("authenticated");
+        }
       } catch (error) {
         const problem = error as ApiProblem;
         setOperatorSession(null);
@@ -295,7 +328,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     try {
       const session = await loginOperator(input);
       setOperatorSession(session);
-      setOperatorAuthState("authenticated");
+      if (!continueOAuthApprovalIfRequested()) {
+        setOperatorAuthState("authenticated");
+      }
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
     } finally {

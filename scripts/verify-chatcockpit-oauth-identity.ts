@@ -7,6 +7,8 @@ import path from "node:path";
 import { resolveOAuthPublicConfig } from "../src/auth/oauth-config.js";
 import { OAuthService } from "../src/auth/oauth-service.js";
 import { OAuthStore } from "../src/auth/oauth-store.js";
+import { OperatorService } from "../src/auth/operator-service.js";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { loadUserConfig } from "../src/core/config.js";
 import { buildSourceDistributionContextForProduct } from "../src/core/distribution-context.js";
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.js";
@@ -20,14 +22,37 @@ function challenge(verifier: string): string {
 async function postForm(
   url: string,
   fields: Record<string, string>,
-  options: { redirect?: RequestRedirect } = {}
+  options: { redirect?: RequestRedirect; cookie?: string } = {}
 ): Promise<Response> {
+  const headers = new Headers({ "content-type": "application/x-www-form-urlencoded" });
+  if (options.cookie) headers.set("cookie", options.cookie);
   return fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers,
     body: new URLSearchParams(fields),
     redirect: options.redirect
   });
+}
+
+function cookiePair(response: Response): string {
+  const value = response.headers.get("set-cookie");
+  assert.ok(value, "Owner login must set an Operator session cookie");
+  return value.split(";", 1)[0];
+}
+
+function approvalContinuation(location: string, baseUrl: string): {
+  returnTo: string;
+  requestId: string;
+} {
+  const loginUrl = new URL(location, baseUrl);
+  assert.equal(loginUrl.pathname, "/ui/login");
+  const returnTo = loginUrl.searchParams.get("returnTo");
+  assert.ok(returnTo);
+  const continuation = new URL(returnTo, baseUrl);
+  assert.equal(continuation.pathname, "/oauth/authorize");
+  const requestId = continuation.searchParams.get("request_id");
+  assert.match(requestId ?? "", /^oauth_request_[0-9a-f-]{36}$/i);
+  return { returnTo, requestId: requestId! };
 }
 
 const MANAGED_ENV = [
@@ -71,6 +96,16 @@ try {
   const config = loadUserConfig(repoRoot, context);
   assert.equal(config.defaultRepoId, "primary");
 
+  const operatorStore = new OperatorStore({
+    path: operatorDatabasePath(paths.runtimeDir)
+  });
+  const operatorService = new OperatorService({ store: operatorStore });
+  await operatorService.setOwnerPassword({
+    username: "owner",
+    password: "test-password-chatcockpit-oauth-identity"
+  });
+  operatorStore.close();
+
   const directConfigPath = path.join(paths.runtimeDir, "direct-executors.json");
   fs.writeFileSync(
     directConfigPath,
@@ -78,7 +113,7 @@ try {
     "utf8"
   );
 
-  const ownerSecret = "test-token";
+  const ownerSecret = "test-token-machine-owner";
   const publicOrigin = "https://chatcockpit.example.com";
   const resource = `${publicOrigin}/mcp`;
   const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
@@ -166,22 +201,46 @@ try {
   assert.equal(legacyScope.status, 400);
   assert.equal(((await legacyScope.json()) as { error: string }).error, "invalid_scope");
 
-  const approvalResponse = await fetch(
-    buildAuthorizeUrl("chatcockpit:mcp offline_access")
+  const approvalStart = await fetch(
+    buildAuthorizeUrl("chatcockpit:mcp offline_access"),
+    { redirect: "manual" }
   );
+  assert.equal(approvalStart.status, 302);
+  const loginLocation = approvalStart.headers.get("location");
+  assert.ok(loginLocation);
+  const { returnTo, requestId } = approvalContinuation(loginLocation, server.baseUrl);
+
+  const ownerLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      username: "owner",
+      password: "test-password-chatcockpit-oauth-identity"
+    })
+  });
+  assert.equal(ownerLogin.status, 200);
+  const ownerLoginBody = (await ownerLogin.json()) as { csrfToken: string };
+  const ownerCookie = cookiePair(ownerLogin);
+
+  const approvalResponse = await fetch(new URL(returnTo, server.baseUrl), {
+    headers: { cookie: ownerCookie }
+  });
   assert.equal(approvalResponse.status, 200);
   const approvalHtml = await approvalResponse.text();
   assert.match(approvalHtml, /Authorize ChatCockpit MCP/);
-  assert.match(approvalHtml, /ChatCockpit owner secret/);
+  assert.match(approvalHtml, /Signed in as\s*<strong>owner<\/strong>/);
+  assert.doesNotMatch(approvalHtml, /owner_secret|type="password"/i);
   assert.doesNotMatch(approvalHtml, /TokenPilot/);
   assert.doesNotMatch(approvalHtml, new RegExp(ownerSecret));
-  const requestId = /name="request_id" value="([^"]+)"/.exec(approvalHtml)?.[1];
-  assert.ok(requestId);
 
   const approved = await postForm(
     `${server.baseUrl}/oauth/authorize`,
-    { request_id: requestId, owner_secret: ownerSecret },
-    { redirect: "manual" }
+    {
+      request_id: requestId,
+      csrf_token: ownerLoginBody.csrfToken,
+      decision: "approve"
+    },
+    { redirect: "manual", cookie: ownerCookie }
   );
   assert.equal(approved.status, 302);
   const location = approved.headers.get("location");
@@ -234,7 +293,6 @@ try {
     const isolatedService = new OAuthService({
       store: isolatedStore,
       config: targetConfig,
-      ownerSecret: () => ownerSecret,
       now: () => new Date("2026-08-14T00:00:00.000Z")
     });
     const legacyScopeCredential = ["legacy", "scope", "fixture"].join("-");

@@ -312,13 +312,16 @@ try {
   authorize.searchParams.set("state", "r3-fresh-install");
   authorize.searchParams.set("code_challenge", challenge);
   authorize.searchParams.set("code_challenge_method", "S256");
-  const approval = await fetch(authorize);
-  assert.equal(approval.status, 200);
-  const approvalHtml = await approval.text();
-  assert.match(approvalHtml, /Authorize ChatCockpit MCP/);
-  assert.match(approvalHtml, /ChatCockpit owner secret/);
-  assertCanonicalText("fresh OAuth approval page", approvalHtml);
-  assert.equal(approvalHtml.includes(ownerToken), false);
+  const approval = await fetch(authorize, { redirect: "manual" });
+  assert.equal(approval.status, 302);
+  const approvalLocation = approval.headers.get("location") ?? "";
+  assert.match(approvalLocation, /^\/ui\/login\?returnTo=/);
+  assert.match(
+    decodeURIComponent(approvalLocation),
+    /\/oauth\/authorize\?request_id=oauth_request_/
+  );
+  assertCanonicalText("fresh OAuth approval login redirect", approvalLocation);
+  assert.equal(approvalLocation.includes(ownerToken), false);
 
   const initializedMcp = await mcpRequest(server.baseUrl, ownerToken, 1, "initialize", {
     protocolVersion: "2025-06-18",

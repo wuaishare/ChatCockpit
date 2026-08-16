@@ -413,7 +413,7 @@ const zhCN: UiCopy = {
       oauth: {
         label: "ChatGPT MCP OAuth",
         detailReady: "OAuth 已就绪，或当前本地模式无需远程 OAuth。",
-        detailPending: "ChatGPT Remote MCP OAuth 尚未满足公开地址、Owner Secret 或持久化条件。",
+        detailPending: "ChatGPT Remote MCP OAuth 尚未满足公网地址、机器 API authority、Web Owner 账户或持久化条件。",
         nextReady: "继续下一步",
         nextPending: "运行 npm run doctor 查看 OAuth readiness 原因"
       },
@@ -699,7 +699,7 @@ const enUS: UiCopy = {
       oauth: {
         label: "ChatGPT MCP OAuth",
         detailReady: "OAuth is ready, or remote OAuth is not required in local-only mode.",
-        detailPending: "Remote MCP OAuth is missing a valid public origin, owner secret, or writable runtime state.",
+        detailPending: "Remote MCP OAuth is missing a valid public origin, machine API authority, Web Owner account, or writable runtime state.",
         nextReady: "Continue",
         nextPending: "Run npm run doctor for the OAuth readiness reason"
       },

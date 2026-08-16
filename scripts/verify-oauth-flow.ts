@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { resolveOAuthPublicConfig } from "../src/auth/oauth-config.js";
+import { OperatorService } from "../src/auth/operator-service.js";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { buildServer } from "../src/server/app.js";
@@ -51,14 +53,38 @@ function challenge(verifier: string): string {
 async function postForm(
   url: string,
   fields: Record<string, string>,
-  options: { redirect?: RequestRedirect } = {}
+  options: { redirect?: RequestRedirect; cookie?: string } = {}
 ): Promise<Response> {
+  const headers = new Headers({ "content-type": "application/x-www-form-urlencoded" });
+  if (options.cookie) headers.set("cookie", options.cookie);
   return fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers,
     body: new URLSearchParams(fields),
     redirect: options.redirect
   });
+}
+
+function cookiePair(response: Response): string {
+  const value = response.headers.get("set-cookie");
+  assert.ok(value, "Owner login must set an Operator session cookie");
+  return value.split(";", 1)[0];
+}
+
+function approvalContinuation(location: string, baseUrl: string): {
+  returnTo: string;
+  requestId: string;
+} {
+  const loginUrl = new URL(location, baseUrl);
+  assert.equal(loginUrl.pathname, "/ui/login");
+  const returnTo = loginUrl.searchParams.get("returnTo");
+  assert.ok(returnTo);
+  const continuation = new URL(returnTo, baseUrl);
+  assert.equal(continuation.pathname, "/oauth/authorize");
+  assert.equal([...continuation.searchParams.keys()].join(","), "request_id");
+  const requestId = continuation.searchParams.get("request_id");
+  assert.match(requestId ?? "", /^oauth_request_[0-9a-f-]{36}$/i);
+  return { returnTo, requestId: requestId! };
 }
 
 async function authorizedJson<T>(
@@ -114,6 +140,16 @@ async function main(): Promise<void> {
     "utf8"
   );
 
+  const operatorStore = new OperatorStore({
+    path: operatorDatabasePath(paths.runtimeDir)
+  });
+  const operatorService = new OperatorService({ store: operatorStore });
+  await operatorService.setOwnerPassword({
+    username: "owner",
+    password: "test-password-oauth-full-flow"
+  });
+  operatorStore.close();
+
   const original = {
     configPath: process.env.CHATCOCKPIT_CONFIG_PATH,
     token: process.env.CHATCOCKPIT_API_TOKEN,
@@ -121,7 +157,7 @@ async function main(): Promise<void> {
     publicBaseUrl: process.env.CHATCOCKPIT_PUBLIC_BASE_URL,
     redirectHosts: process.env.CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS
   };
-  const ownerToken = "oauth-owner-test-token";
+  const ownerToken = "test-token-oauth-machine-owner";
   const publicOrigin = "https://chatcockpit.example.com";
   const resource = `${publicOrigin}/mcp`;
   const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
@@ -251,25 +287,69 @@ async function main(): Promise<void> {
     assert.equal(invalidResource.status, 400);
     assert.equal(((await invalidResource.json()) as { error: string }).error, "invalid_target");
 
-    const approvalResponse = await fetch(authorizeUrl);
+    const approvalStart = await fetch(authorizeUrl, { redirect: "manual" });
+    assert.equal(approvalStart.status, 302);
+    const approvalLoginLocation = approvalStart.headers.get("location");
+    assert.ok(approvalLoginLocation);
+    const { returnTo: approvalReturnTo, requestId } = approvalContinuation(
+      approvalLoginLocation,
+      server.baseUrl
+    );
+    assert.doesNotMatch(
+      approvalLoginLocation,
+      /client_id|redirect_uri|code_challenge|owner_secret/i
+    );
+
+    const ownerLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "test-password-oauth-full-flow"
+      })
+    });
+    assert.equal(ownerLogin.status, 200);
+    const ownerLoginBody = (await ownerLogin.json()) as { csrfToken: string };
+    const ownerCookie = cookiePair(ownerLogin);
+
+    const approvalResponse = await fetch(new URL(approvalReturnTo, server.baseUrl), {
+      headers: { cookie: ownerCookie }
+    });
     assert.equal(approvalResponse.status, 200);
     const approvalHtml = await approvalResponse.text();
     assert.match(approvalHtml, /Authorize ChatCockpit MCP/);
+    assert.match(approvalHtml, /Signed in as\s*<strong>owner<\/strong>/);
+    assert.match(
+      approvalHtml,
+      new RegExp(`name="request_id" value="${requestId}"`)
+    );
+    assert.match(
+      approvalHtml,
+      new RegExp(`name="csrf_token" value="${ownerLoginBody.csrfToken}"`)
+    );
+    assert.doesNotMatch(
+      approvalHtml,
+      /owner_secret|CHATCOCKPIT_API_TOKEN|type="password"/i
+    );
     assert.doesNotMatch(approvalHtml, new RegExp(ownerToken));
-    const requestId = /name="request_id" value="([^"]+)"/.exec(approvalHtml)?.[1];
-    assert.ok(requestId);
 
-    const denied = await postForm(`${server.baseUrl}/oauth/authorize`, {
-      request_id: requestId,
-      owner_secret: "wrong-owner-token"
-    }, { redirect: "manual" });
+    const denied = await postForm(
+      `${server.baseUrl}/oauth/authorize`,
+      {
+        request_id: requestId,
+        csrf_token: "wrong-csrf",
+        decision: "approve"
+      },
+      { redirect: "manual", cookie: ownerCookie }
+    );
     assert.equal(denied.status, 403);
     assert.equal(((await denied.json()) as { error: string }).error, "access_denied");
 
     const approved = await postForm(`${server.baseUrl}/oauth/authorize`, {
       request_id: requestId,
-      owner_secret: ownerToken
-    }, { redirect: "manual" });
+      csrf_token: ownerLoginBody.csrfToken,
+      decision: "approve"
+    }, { redirect: "manual", cookie: ownerCookie });
     assert.equal(approved.status, 302);
     const location = approved.headers.get("location");
     assert.ok(location);

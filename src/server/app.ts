@@ -103,6 +103,10 @@ import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
+import {
+  registerWebSecurityHeaders,
+  trustLoopbackProxy
+} from "./security-headers.js";
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -217,7 +221,11 @@ export function buildServer(
     shellRunSchema
   } = buildDirectToolSchemas(identity.defaultRepoId);
 
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    trustProxy: trustLoopbackProxy
+  });
+  registerWebSecurityHeaders(app);
   const oauthConfig = isExposedMode()
     ? resolveOAuthPublicConfig(process.env, paths.productIdentity)
     : null;
@@ -227,8 +235,7 @@ export function buildServer(
   const oauthService = oauthConfig && oauthStore
     ? new OAuthService({
         store: oauthStore,
-        config: oauthConfig,
-        ownerSecret: () => readIdentityEnv("API_TOKEN") ?? null
+        config: oauthConfig
       })
     : null;
   const operatorStore = new OperatorStore({

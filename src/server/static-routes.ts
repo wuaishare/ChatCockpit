@@ -36,12 +36,8 @@ function resolveOpenApiServerUrl(
     return configured.replace(/\/+$/, "");
   }
 
-  const forwardedProtoHeader = request.headers["x-forwarded-proto"];
-  const forwardedProto = Array.isArray(forwardedProtoHeader)
-    ? forwardedProtoHeader[0]
-    : forwardedProtoHeader;
-  const protocol = forwardedProto?.split(",")[0]?.trim() || "http";
-  const host = request.headers.host?.trim();
+  const protocol = request.protocol;
+  const host = request.host?.trim();
 
   if (!host) {
     const identity = productIdentityForKey(paths.productIdentity);

@@ -213,6 +213,24 @@ export function operatorDatabasePath(runtimeDir: string): string {
   return path.join(runtimeDir, "operator-auth.sqlite");
 }
 
+export function hasConfiguredOperatorOwner(runtimeDir: string): boolean {
+  const databasePath = operatorDatabasePath(runtimeDir);
+  if (!fs.existsSync(databasePath)) return false;
+
+  let sqlite: DatabaseSync | null = null;
+  try {
+    sqlite = new DatabaseSync(databasePath, { readOnly: true });
+    const row = sqlite
+      .prepare("SELECT 1 AS configured FROM operator_principals WHERE role = 'owner' LIMIT 1")
+      .get() as { configured: number } | undefined;
+    return row?.configured === 1;
+  } catch {
+    return false;
+  } finally {
+    sqlite?.close();
+  }
+}
+
 export class OperatorStore {
   readonly sqlite: DatabaseSync;
   readonly path: string;
