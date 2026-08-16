@@ -95,6 +95,21 @@ async function main(): Promise<void> {
       "Operator login must be publicly reachable even when credentials are invalid"
     );
 
+    const publicPasskeyOptions = await app.inject({
+      method: "POST",
+      url: "/api/operator/passkeys/authentication/options",
+      headers: {
+        host: "chatcockpit.example.com",
+        "x-forwarded-proto": "https"
+      }
+    });
+    assert.equal(
+      publicPasskeyOptions.statusCode,
+      404,
+      "Passkey authentication ceremony must be anonymously reachable without exposing a configured credential"
+    );
+    assert.match(publicPasskeyOptions.body, /PASSKEY_NOT_CONFIGURED/);
+
     const registration = await app.inject({
       method: "POST",
       url: "/oauth/register",
@@ -123,6 +138,8 @@ async function main(): Promise<void> {
 
     const protectedCases: RequestCase[] = [
       { method: "GET", url: "/api/operator/session" },
+      { method: "GET", url: "/api/operator/passkeys" },
+      { method: "POST", url: "/api/operator/passkeys/registration/options" },
       { method: "GET", url: "/api/setup/status" },
       { method: "GET", url: "/api/gpt/config" },
       { method: "GET", url: "/api/integrations/status" },

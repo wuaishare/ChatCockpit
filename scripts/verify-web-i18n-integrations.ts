@@ -13,6 +13,8 @@ const dashboardPath = path.join(root, "web", "src", "components", "DashboardView
 const apiPath = path.join(root, "web", "src", "api.ts");
 const setupPath = path.join(root, "web", "src", "components", "SetupWizardView.tsx");
 const operatorSetupPath = path.join(root, "web", "src", "components", "OperatorSetupRequiredView.tsx");
+const operatorLoginPath = path.join(root, "web", "src", "components", "OperatorLoginView.tsx");
+const operatorPasskeysPath = path.join(root, "web", "src", "components", "OperatorPasskeyManager.tsx");
 
 const i18n = fs.readFileSync(i18nPath, "utf8");
 const resources = fs.readFileSync(resourcesPath, "utf8");
@@ -22,6 +24,8 @@ const dashboard = fs.readFileSync(dashboardPath, "utf8");
 const api = fs.readFileSync(apiPath, "utf8");
 const setup = fs.readFileSync(setupPath, "utf8");
 const operatorSetup = fs.readFileSync(operatorSetupPath, "utf8");
+const operatorLogin = fs.readFileSync(operatorLoginPath, "utf8");
+const operatorPasskeys = fs.readFileSync(operatorPasskeysPath, "utf8");
 
 assert.equal(detectBrowserLocale(["zh-CN", "en-US"]), "zh-CN");
 assert.equal(detectBrowserLocale(["zh-Hans-CN"]), "zh-CN");
@@ -62,5 +66,21 @@ assert.match(i18n, /localUnlockFailed: "本机免密登录链接已失效/);
 assert.match(app, /readAndClearLocalLoginGrant/);
 assert.match(app, /redeemLocalLoginGrant\(localLoginGrant\)/);
 assert.match(api, /"\/api\/operator\/local-login"/);
+assert.match(i18n, /usePasskey: "使用通用密钥"/);
+assert.match(i18n, /passwordFallback: "或使用密码备用登录"/);
+assert.match(operatorLogin, /passkeyOriginSupported\(\)/);
+assert.match(operatorLogin, /passkeyBrowserSupported\(\)/);
+assert.match(operatorLogin, /copy\.usePasskey/);
+assert.match(i18n, /passkeyOriginUnsupported: "通用密钥只支持公网 HTTPS 域名或 localhost/);
+assert.match(operatorLogin, /<Divider plain>\{copy\.passwordFallback\}<\/Divider>/);
+assert.match(app, /startAuthentication\(\{ optionsJSON: options \}\)/);
+assert.match(app, /verifyPasskeyAuthentication/);
+assert.match(app, /SafetyCertificateOutlined/);
+assert.match(operatorPasskeys, /startRegistration\(\{ optionsJSON: options \}\)/);
+assert.match(operatorPasskeys, /fetchOperatorPasskeys/);
+assert.match(operatorPasskeys, /deleteOperatorPasskey/);
+assert.match(api, /"\/api\/operator\/passkeys\/authentication\/options"/);
+assert.match(api, /"\/api\/operator\/passkeys\/registration\/options"/);
+assert.match(api, /method: "DELETE"/);
 
 process.stdout.write("WEB_I18N_INTEGRATIONS_OK\n");

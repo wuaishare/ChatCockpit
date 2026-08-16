@@ -145,7 +145,10 @@ export class OperatorService {
     owner: OperatorPrincipalRecord;
     source: string;
     userAgent?: string;
-    eventType: "operator.login.succeeded" | "operator.local_login.succeeded";
+    eventType:
+      | "operator.login.succeeded"
+      | "operator.local_login.succeeded"
+      | "operator.passkey.login.succeeded";
   }): OperatorSessionIssue {
     const now = this.now();
     const nowMs = now.getTime();
@@ -242,6 +245,27 @@ export class OperatorService {
       source: input.source,
       userAgent: input.userAgent,
       eventType: "operator.local_login.succeeded"
+    });
+  }
+
+  issuePasskeySession(input: {
+    principalId: string;
+    source: string;
+    userAgent?: string;
+  }): OperatorSessionIssue {
+    const owner = this.store.getOwner();
+    if (!owner || owner.id !== input.principalId) {
+      throw new OperatorAuthError(
+        "PASSKEY_PRINCIPAL_INVALID",
+        "Passkey principal is not the current console administrator",
+        401
+      );
+    }
+    return this.issueSession({
+      owner,
+      source: input.source,
+      userAgent: input.userAgent,
+      eventType: "operator.passkey.login.succeeded"
     });
   }
 
@@ -478,11 +502,19 @@ export class OperatorService {
       owner.id,
       nowIso
     );
+    const invalidatedWebAuthnChallengeCount = this.store.invalidateWebAuthnChallenges(
+      owner.id,
+      nowIso
+    );
     this.store.recordAuditEvent({
       eventType: "operator.sessions.revoked_all",
       principalId: owner.id,
       createdAt: nowIso,
-      details: { revokedSessionCount, invalidatedLocalLoginGrantCount }
+      details: {
+        revokedSessionCount,
+        invalidatedLocalLoginGrantCount,
+        invalidatedWebAuthnChallengeCount
+      }
     });
     return revokedSessionCount;
   }

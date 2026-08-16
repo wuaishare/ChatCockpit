@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
-const OPERATOR_SCHEMA_VERSION = 2;
+const OPERATOR_SCHEMA_VERSION = 3;
 const SENSITIVE_AUDIT_KEY = /(password|secret|token|cookie|authorization|csrf)/i;
 
 export interface OperatorPrincipalRecord {
@@ -40,6 +40,34 @@ export interface OperatorLocalLoginGrantRecord {
   id: string;
   principalId: string;
   secretHash: string;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+}
+
+export interface OperatorPasskeyRecord {
+  id: string;
+  principalId: string;
+  credentialId: string;
+  publicKey: Uint8Array;
+  counter: number;
+  transports: string[];
+  deviceType: string;
+  backedUp: boolean;
+  label: string;
+  rpId: string;
+  origin: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface OperatorWebAuthnChallengeRecord {
+  id: string;
+  principalId: string;
+  kind: "registration" | "authentication";
+  challenge: string;
+  rpId: string;
+  origin: string;
   createdAt: string;
   expiresAt: string;
   consumedAt: string | null;
@@ -89,6 +117,34 @@ interface OperatorLocalLoginGrantRow {
   id: string;
   principal_id: string;
   secret_hash: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+}
+
+interface OperatorPasskeyRow {
+  id: string;
+  principal_id: string;
+  credential_id: string;
+  public_key: Uint8Array;
+  counter: number;
+  transports_json: string;
+  device_type: string;
+  backed_up: number;
+  label: string;
+  rp_id: string;
+  origin: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+interface OperatorWebAuthnChallengeRow {
+  id: string;
+  principal_id: string;
+  kind: "registration" | "authentication";
+  challenge: string;
+  rp_id: string;
+  origin: string;
   created_at: string;
   expires_at: string;
   consumed_at: string | null;
@@ -150,6 +206,32 @@ export interface CreateOperatorLocalLoginGrantInput {
   expiresAt: string;
 }
 
+export interface CreateOperatorPasskeyInput {
+  id: string;
+  principalId: string;
+  credentialId: string;
+  publicKey: Uint8Array;
+  counter: number;
+  transports: string[];
+  deviceType: string;
+  backedUp: boolean;
+  label: string;
+  rpId: string;
+  origin: string;
+  createdAt: string;
+}
+
+export interface CreateOperatorWebAuthnChallengeInput {
+  id: string;
+  principalId: string;
+  kind: "registration" | "authentication";
+  challenge: string;
+  rpId: string;
+  origin: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface RecordOperatorAuditEventInput {
   id?: string;
   eventType: string;
@@ -203,6 +285,51 @@ function mapLocalLoginGrant(
     id: row.id,
     principalId: row.principal_id,
     secretHash: row.secret_hash,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at
+  };
+}
+
+function parseTransports(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) && parsed.every((entry) => typeof entry === "string")
+      ? parsed
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function mapPasskey(row: OperatorPasskeyRow): OperatorPasskeyRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    credentialId: row.credential_id,
+    publicKey: new Uint8Array(row.public_key),
+    counter: Number(row.counter),
+    transports: parseTransports(row.transports_json),
+    deviceType: row.device_type,
+    backedUp: row.backed_up === 1,
+    label: row.label,
+    rpId: row.rp_id,
+    origin: row.origin,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at
+  };
+}
+
+function mapWebAuthnChallenge(
+  row: OperatorWebAuthnChallengeRow
+): OperatorWebAuthnChallengeRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    kind: row.kind,
+    challenge: row.challenge,
+    rpId: row.rp_id,
+    origin: row.origin,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     consumedAt: row.consumed_at
@@ -364,6 +491,13 @@ export class OperatorStore {
         this.sqlite
           .prepare(`
             UPDATE operator_local_login_grants
+            SET consumed_at = ?
+            WHERE principal_id = ? AND consumed_at IS NULL
+          `)
+          .run(updatedAt, existing.id);
+        this.sqlite
+          .prepare(`
+            UPDATE operator_webauthn_challenges
             SET consumed_at = ?
             WHERE principal_id = ? AND consumed_at IS NULL
           `)
@@ -593,6 +727,171 @@ export class OperatorStore {
     });
   }
 
+  listPasskeys(principalId: string, rpId?: string): OperatorPasskeyRecord[] {
+    const rows = rpId
+      ? (this.sqlite
+          .prepare(`
+            SELECT * FROM operator_passkeys
+            WHERE principal_id = ? AND rp_id = ?
+            ORDER BY created_at ASC, id ASC
+          `)
+          .all(principalId, rpId) as unknown as OperatorPasskeyRow[])
+      : (this.sqlite
+          .prepare(`
+            SELECT * FROM operator_passkeys
+            WHERE principal_id = ?
+            ORDER BY created_at ASC, id ASC
+          `)
+          .all(principalId) as unknown as OperatorPasskeyRow[]);
+    return rows.map(mapPasskey);
+  }
+
+  getPasskeyByCredentialId(credentialId: string): OperatorPasskeyRecord | null {
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_passkeys WHERE credential_id = ?")
+      .get(credentialId) as OperatorPasskeyRow | undefined;
+    return row ? mapPasskey(row) : null;
+  }
+
+  createPasskey(input: CreateOperatorPasskeyInput): OperatorPasskeyRecord {
+    this.sqlite
+      .prepare(`
+        INSERT INTO operator_passkeys (
+          id, principal_id, credential_id, public_key, counter,
+          transports_json, device_type, backed_up, label, rp_id, origin,
+          created_at, last_used_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      `)
+      .run(
+        input.id,
+        input.principalId,
+        input.credentialId,
+        Buffer.from(input.publicKey),
+        input.counter,
+        JSON.stringify(input.transports),
+        input.deviceType,
+        input.backedUp ? 1 : 0,
+        input.label,
+        input.rpId,
+        input.origin,
+        input.createdAt
+      );
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_passkeys WHERE id = ?")
+      .get(input.id) as OperatorPasskeyRow | undefined;
+    if (!row) throw new Error("Operator Passkey persistence failed");
+    return mapPasskey(row);
+  }
+
+  updatePasskeyUsage(input: {
+    id: string;
+    counter: number;
+    backedUp: boolean;
+    lastUsedAt: string;
+  }): OperatorPasskeyRecord {
+    const result = this.sqlite
+      .prepare(`
+        UPDATE operator_passkeys
+        SET counter = ?, backed_up = ?, last_used_at = ?
+        WHERE id = ?
+      `)
+      .run(input.counter, input.backedUp ? 1 : 0, input.lastUsedAt, input.id);
+    if (result.changes !== 1) throw new Error("Operator Passkey update failed");
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_passkeys WHERE id = ?")
+      .get(input.id) as OperatorPasskeyRow | undefined;
+    if (!row) throw new Error("Operator Passkey disappeared after update");
+    return mapPasskey(row);
+  }
+
+  deletePasskey(id: string, principalId: string): boolean {
+    return (
+      this.sqlite
+        .prepare("DELETE FROM operator_passkeys WHERE id = ? AND principal_id = ?")
+        .run(id, principalId).changes === 1
+    );
+  }
+
+  createWebAuthnChallenge(
+    input: CreateOperatorWebAuthnChallengeInput
+  ): OperatorWebAuthnChallengeRecord {
+    this.sqlite
+      .prepare(`
+        DELETE FROM operator_webauthn_challenges
+        WHERE consumed_at IS NOT NULL OR expires_at <= ?
+      `)
+      .run(input.createdAt);
+    this.sqlite
+      .prepare(`
+        DELETE FROM operator_webauthn_challenges
+        WHERE principal_id = ? AND kind = ? AND rp_id = ? AND origin = ?
+      `)
+      .run(input.principalId, input.kind, input.rpId, input.origin);
+    this.sqlite
+      .prepare(`
+        INSERT INTO operator_webauthn_challenges (
+          id, principal_id, kind, challenge, rp_id, origin,
+          created_at, expires_at, consumed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      `)
+      .run(
+        input.id,
+        input.principalId,
+        input.kind,
+        input.challenge,
+        input.rpId,
+        input.origin,
+        input.createdAt,
+        input.expiresAt
+      );
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_webauthn_challenges WHERE id = ?")
+      .get(input.id) as OperatorWebAuthnChallengeRow | undefined;
+    if (!row) throw new Error("Operator WebAuthn challenge persistence failed");
+    return mapWebAuthnChallenge(row);
+  }
+
+  consumeWebAuthnChallenge(input: {
+    challenge: string;
+    kind: "registration" | "authentication";
+    consumedAt: string;
+  }): OperatorWebAuthnChallengeRecord | null {
+    return this.transaction(() => {
+      const row = this.sqlite
+        .prepare(`
+          SELECT * FROM operator_webauthn_challenges
+          WHERE challenge = ? AND kind = ?
+            AND consumed_at IS NULL AND expires_at > ?
+          LIMIT 1
+        `)
+        .get(input.challenge, input.kind, input.consumedAt) as
+        | OperatorWebAuthnChallengeRow
+        | undefined;
+      if (!row) return null;
+      const result = this.sqlite
+        .prepare(`
+          UPDATE operator_webauthn_challenges
+          SET consumed_at = ?
+          WHERE id = ? AND consumed_at IS NULL
+        `)
+        .run(input.consumedAt, row.id);
+      if (result.changes !== 1) return null;
+      return mapWebAuthnChallenge({ ...row, consumed_at: input.consumedAt });
+    });
+  }
+
+  invalidateWebAuthnChallenges(principalId: string, invalidatedAt: string): number {
+    return Number(
+      this.sqlite
+        .prepare(`
+          UPDATE operator_webauthn_challenges
+          SET consumed_at = ?
+          WHERE principal_id = ? AND consumed_at IS NULL
+        `)
+        .run(invalidatedAt, principalId).changes
+    );
+  }
+
   recordAuditEvent(input: RecordOperatorAuditEventInput): OperatorAuditEventRecord {
     const details = input.details ?? {};
     assertAuditDetailsSafe(details);
@@ -632,7 +931,7 @@ export class OperatorStore {
   }
 
   private initializeSchema(): void {
-    const currentVersion = this.schemaVersion();
+    let currentVersion = this.schemaVersion();
     if (currentVersion > OPERATOR_SCHEMA_VERSION) {
       throw new Error(
         `Operator auth database schema v${currentVersion} is newer than supported v${OPERATOR_SCHEMA_VERSION}`
@@ -655,11 +954,56 @@ export class OperatorStore {
           CREATE INDEX operator_local_login_grants_expiry_idx
             ON operator_local_login_grants(expires_at, consumed_at);
 
+          PRAGMA user_version = 2;
+        `);
+      });
+      currentVersion = 2;
+    }
+    if (currentVersion === 2) {
+      this.transaction(() => {
+        this.sqlite.exec(`
+          CREATE TABLE operator_passkeys (
+            id TEXT PRIMARY KEY,
+            principal_id TEXT NOT NULL,
+            credential_id TEXT NOT NULL UNIQUE,
+            public_key BLOB NOT NULL,
+            counter INTEGER NOT NULL CHECK(counter >= 0),
+            transports_json TEXT NOT NULL,
+            device_type TEXT NOT NULL,
+            backed_up INTEGER NOT NULL CHECK(backed_up IN (0, 1)),
+            label TEXT NOT NULL,
+            rp_id TEXT NOT NULL,
+            origin TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_used_at TEXT,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE INDEX operator_passkeys_principal_rp_idx
+            ON operator_passkeys(principal_id, rp_id, created_at);
+
+          CREATE TABLE operator_webauthn_challenges (
+            id TEXT PRIMARY KEY,
+            principal_id TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('registration', 'authentication')),
+            challenge TEXT NOT NULL UNIQUE,
+            rp_id TEXT NOT NULL,
+            origin TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE INDEX operator_webauthn_challenges_expiry_idx
+            ON operator_webauthn_challenges(expires_at, consumed_at);
+
           PRAGMA user_version = ${OPERATOR_SCHEMA_VERSION};
         `);
       });
       return;
     }
+    if (currentVersion === OPERATOR_SCHEMA_VERSION) return;
     if (currentVersion !== 0) {
       throw new Error(`Unsupported Operator auth database schema v${currentVersion}`);
     }
@@ -712,6 +1056,42 @@ export class OperatorStore {
 
         CREATE INDEX operator_local_login_grants_expiry_idx
           ON operator_local_login_grants(expires_at, consumed_at);
+
+        CREATE TABLE operator_passkeys (
+          id TEXT PRIMARY KEY,
+          principal_id TEXT NOT NULL,
+          credential_id TEXT NOT NULL UNIQUE,
+          public_key BLOB NOT NULL,
+          counter INTEGER NOT NULL CHECK(counter >= 0),
+          transports_json TEXT NOT NULL,
+          device_type TEXT NOT NULL,
+          backed_up INTEGER NOT NULL CHECK(backed_up IN (0, 1)),
+          label TEXT NOT NULL,
+          rp_id TEXT NOT NULL,
+          origin TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          last_used_at TEXT,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE INDEX operator_passkeys_principal_rp_idx
+          ON operator_passkeys(principal_id, rp_id, created_at);
+
+        CREATE TABLE operator_webauthn_challenges (
+          id TEXT PRIMARY KEY,
+          principal_id TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK(kind IN ('registration', 'authentication')),
+          challenge TEXT NOT NULL UNIQUE,
+          rp_id TEXT NOT NULL,
+          origin TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          consumed_at TEXT,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE INDEX operator_webauthn_challenges_expiry_idx
+          ON operator_webauthn_challenges(expires_at, consumed_at);
 
         CREATE TABLE operator_audit_events (
           id TEXT PRIMARY KEY,

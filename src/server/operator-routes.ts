@@ -1,7 +1,16 @@
 import { spawnSync } from "node:child_process";
+import { isIP } from "node:net";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON
+} from "@simplewebauthn/server";
 
+import {
+  type OperatorPasskeyContext,
+  type OperatorPasskeyService
+} from "../auth/operator-passkey-service.js";
 import {
   OperatorAuthError,
   type OperatorService,
@@ -87,6 +96,52 @@ function isLoopbackSetupRequest(request: FastifyRequest): boolean {
   return loopbackAddress && loopbackHost;
 }
 
+function validWebAuthnDomainHost(hostname: string): boolean {
+  return hostname === "localhost" || (hostname.length > 0 && isIP(hostname) === 0);
+}
+
+function passkeyContextForRequest(request: FastifyRequest): OperatorPasskeyContext {
+  const configuredPublicBase = readIdentityEnv("PUBLIC_BASE_URL");
+  if (configuredPublicBase) {
+    try {
+      const publicUrl = new URL(configuredPublicBase);
+      if (
+        publicUrl.protocol === "https:" &&
+        validWebAuthnDomainHost(publicUrl.hostname) &&
+        request.protocol === "https" &&
+        request.hostname.toLowerCase() === publicUrl.hostname.toLowerCase()
+      ) {
+        return { rpId: publicUrl.hostname, origin: publicUrl.origin };
+      }
+    } catch {
+      // Invalid public configuration is handled by the normal readiness paths.
+    }
+  }
+
+  if (isLoopbackSetupRequest(request)) {
+    const host = request.headers.host;
+    if (typeof host === "string") {
+      try {
+        const localUrl = new URL(`${request.protocol}://${host}`);
+        if (
+          localUrl.hostname === "localhost" &&
+          ["http:", "https:"].includes(localUrl.protocol)
+        ) {
+          return { rpId: "localhost", origin: localUrl.origin };
+        }
+      } catch {
+        // Fall through to the bounded unsupported-origin error.
+      }
+    }
+  }
+
+  throw new OperatorAuthError(
+    "PASSKEY_ORIGIN_UNSUPPORTED",
+    "Passkeys require the configured public HTTPS origin or a direct loopback origin",
+    400
+  );
+}
+
 function hasSameLoopbackOrigin(request: FastifyRequest): boolean {
   const origin = request.headers.origin;
   if (typeof origin !== "string") return false;
@@ -129,7 +184,11 @@ function userAgent(request: FastifyRequest): string | undefined {
 function requireSession(request: FastifyRequest): OperatorSessionContext {
   const session = operatorSessionFromRequest(request);
   if (!session) {
-    throw new Error("Operator route reached without an authenticated Operator session");
+    throw new OperatorAuthError(
+      "OPERATOR_SESSION_REQUIRED",
+      "An authenticated console administrator session is required",
+      401
+    );
   }
   return session;
 }
@@ -160,7 +219,8 @@ function sessionProjection(
 
 export function registerOperatorRoutes(
   app: FastifyInstance,
-  service: OperatorService
+  service: OperatorService,
+  passkeys: OperatorPasskeyService
 ): void {
   app.get("/api/operator/status", async (request, reply) => {
     noStore(reply);
@@ -242,6 +302,131 @@ export function registerOperatorRoutes(
         idleExpiresAt: issued.idleExpiresAt,
         absoluteExpiresAt: issued.absoluteExpiresAt
       };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/passkeys/authentication/options", async (request, reply) => {
+    noStore(reply);
+    try {
+      return await passkeys.createAuthenticationOptions(passkeyContextForRequest(request));
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/passkeys/authentication/verify", async (request, reply) => {
+    noStore(reply);
+    const body = record(request.body);
+    const challenge = typeof body.challenge === "string" ? body.challenge : "";
+    const response = body.response;
+    if (!challenge || !response || typeof response !== "object" || Array.isArray(response)) {
+      return sendApiError(
+        reply,
+        400,
+        "VALIDATION_ERROR",
+        "Passkey challenge and authentication response are required"
+      );
+    }
+    try {
+      const verified = await passkeys.verifyAuthentication({
+        context: passkeyContextForRequest(request),
+        challenge,
+        response: response as AuthenticationResponseJSON
+      });
+      const issued = service.issuePasskeySession({
+        principalId: verified.principalId,
+        source: sourceAddress(request),
+        userAgent: userAgent(request)
+      });
+      reply.header(
+        "set-cookie",
+        sessionCookie(issued.sessionSecret, isPublicHttpsRequest(request))
+      );
+      return {
+        ok: true,
+        sessionId: issued.sessionId,
+        username: issued.username,
+        role: issued.role,
+        csrfToken: issued.csrfToken,
+        createdAt: issued.createdAt,
+        lastSeenAt: issued.createdAt,
+        idleExpiresAt: issued.idleExpiresAt,
+        absoluteExpiresAt: issued.absoluteExpiresAt
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.get("/api/operator/passkeys", async (request, reply) => {
+    noStore(reply);
+    requireSession(request);
+    try {
+      return {
+        ok: true,
+        passkeys: passkeys.list(passkeyContextForRequest(request))
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/passkeys/registration/options", async (request, reply) => {
+    noStore(reply);
+    requireSession(request);
+    try {
+      return await passkeys.createRegistrationOptions(passkeyContextForRequest(request));
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/passkeys/registration/verify", async (request, reply) => {
+    noStore(reply);
+    requireSession(request);
+    const body = record(request.body);
+    const challenge = typeof body.challenge === "string" ? body.challenge : "";
+    const label = typeof body.label === "string" ? body.label : undefined;
+    const response = body.response;
+    if (!challenge || !response || typeof response !== "object" || Array.isArray(response)) {
+      return sendApiError(
+        reply,
+        400,
+        "VALIDATION_ERROR",
+        "Passkey challenge and registration response are required"
+      );
+    }
+    try {
+      return {
+        ok: true,
+        passkey: await passkeys.verifyRegistration({
+          context: passkeyContextForRequest(request),
+          challenge,
+          response: response as RegistrationResponseJSON,
+          label
+        })
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.delete("/api/operator/passkeys/:id", async (request, reply) => {
+    noStore(reply);
+    requireSession(request);
+    const params = record(request.params);
+    const id = typeof params.id === "string" ? params.id : "";
+    if (!id) {
+      return sendApiError(reply, 400, "VALIDATION_ERROR", "Passkey id is required");
+    }
+    try {
+      const deleted = passkeys.delete(id, passkeyContextForRequest(request));
+      if (!deleted) {
+        return sendApiError(reply, 404, "PASSKEY_NOT_FOUND", "Passkey not found");
+      }
+      return { ok: true };
     } catch (error) {
       return sendOperatorError(reply, error);
     }

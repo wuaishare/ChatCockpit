@@ -156,10 +156,31 @@ export interface UiCopy {
     loginDescription: string;
     username: string;
     password: string;
+    usePasskey: string;
+    usingPasskey: string;
+    passwordFallback: string;
+    passkeyUnavailable: string;
+    passkeyOriginUnsupported: string;
+    passkeyNotConfigured: string;
     signIn: string;
     signingIn: string;
     signOut: string;
     signedInAs: string;
+    security: string;
+    passkeysTitle: string;
+    passkeysDescription: string;
+    passkeysEmpty: string;
+    addPasskey: string;
+    addingPasskey: string;
+    removePasskey: string;
+    passkeyLabel: string;
+    passkeyDefaultLabel: string;
+    passkeyBackedUp: string;
+    passkeyDeviceOnly: string;
+    passkeyLastUsed: string;
+    passkeyNeverUsed: string;
+    passkeyAdded: string;
+    passkeyRemoved: string;
     sessionExpired: string;
     localUnlockFailed: string;
   };
@@ -385,10 +406,31 @@ const zhCN: UiCopy = {
     loginDescription: "使用控制台管理员账户进入控制台。机器 API Token 与 ChatGPT OAuth 凭据都不是网页登录密码。",
     username: "用户名",
     password: "密码",
-    signIn: "登录",
+    usePasskey: "使用通用密钥",
+    usingPasskey: "正在验证通用密钥…",
+    passwordFallback: "或使用密码备用登录",
+    passkeyUnavailable: "当前浏览器或系统不支持 WebAuthn 通用密钥，请使用密码登录。",
+    passkeyOriginUnsupported: "通用密钥只支持公网 HTTPS 域名或 localhost。本机 127.0.0.1 入口请直接使用 ChatCockpit App 的免密解锁。",
+    passkeyNotConfigured: "此访问地址尚未配置通用密钥，请先使用密码登录后添加。",
+    signIn: "密码登录",
     signingIn: "正在登录…",
     signOut: "退出登录",
     signedInAs: "已登录",
+    security: "安全",
+    passkeysTitle: "通用密钥",
+    passkeysDescription: "通用密钥通过 Touch ID、设备密码或安全密钥完成抗钓鱼登录。ChatCockpit 只保存公钥与验证元数据，私钥始终留在你的设备或密码管理器中。",
+    passkeysEmpty: "当前没有已注册的通用密钥。添加后，登录时可优先使用通用密钥而无需输入密码。",
+    addPasskey: "添加通用密钥",
+    addingPasskey: "正在添加…",
+    removePasskey: "移除",
+    passkeyLabel: "名称",
+    passkeyDefaultLabel: "我的通用密钥",
+    passkeyBackedUp: "已同步/备份",
+    passkeyDeviceOnly: "仅此设备",
+    passkeyLastUsed: "最近使用",
+    passkeyNeverUsed: "尚未使用",
+    passkeyAdded: "通用密钥已添加。",
+    passkeyRemoved: "通用密钥已移除。",
     sessionExpired: "会话已过期，请重新登录。",
     localUnlockFailed: "本机免密登录链接已失效，请从 ChatCockpit App 重新打开本机控制台。"
   },
@@ -673,10 +715,31 @@ const enUS: UiCopy = {
     loginDescription: "Use the Web Owner account. The machine API token and ChatGPT OAuth credentials are not Web login passwords.",
     username: "Username",
     password: "Password",
-    signIn: "Sign in",
+    usePasskey: "Use Passkey",
+    usingPasskey: "Verifying Passkey…",
+    passwordFallback: "Or use password as a fallback",
+    passkeyUnavailable: "This browser or operating system does not support WebAuthn Passkeys. Use the password fallback.",
+    passkeyOriginUnsupported: "Passkeys require a public HTTPS domain or localhost. For the 127.0.0.1 local entrypoint, use passwordless unlock from the ChatCockpit App.",
+    passkeyNotConfigured: "No Passkey is configured for this Web address yet. Sign in with the password fallback and add one first.",
+    signIn: "Sign in with password",
     signingIn: "Signing in…",
     signOut: "Sign out",
     signedInAs: "Signed in",
+    security: "Security",
+    passkeysTitle: "Passkeys",
+    passkeysDescription: "Passkeys use Touch ID, device unlock, or a security key for phishing-resistant sign-in. ChatCockpit stores only the public key and verification metadata; the private key stays on your device or password manager.",
+    passkeysEmpty: "No Passkeys are registered yet. Add one to make Passkey the preferred sign-in method without typing a password.",
+    addPasskey: "Add Passkey",
+    addingPasskey: "Adding…",
+    removePasskey: "Remove",
+    passkeyLabel: "Name",
+    passkeyDefaultLabel: "My Passkey",
+    passkeyBackedUp: "Synced / backed up",
+    passkeyDeviceOnly: "This device only",
+    passkeyLastUsed: "Last used",
+    passkeyNeverUsed: "Never used",
+    passkeyAdded: "Passkey added.",
+    passkeyRemoved: "Passkey removed.",
     sessionExpired: "Your session has expired. Sign in again.",
     localUnlockFailed: "The local passwordless sign-in link expired. Open Local Cockpit again from the ChatCockpit App."
   },

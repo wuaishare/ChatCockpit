@@ -23,7 +23,7 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-`operator set-password` creates the local Web Owner account. The password is entered through a hidden TTY prompt. When ChatCockpit.app is registered on the same Mac, the local first-run Web page can also launch the App directly into the Owner setup dialog. This human credential is separate from `CHATCOCKPIT_API_TOKEN`, which is an optional machine/API credential.
+`operator set-password` creates the local Web Owner account. The password is entered through a hidden TTY prompt. When ChatCockpit.app is registered on the same Mac, the local first-run Web page can also launch the App directly into the Owner setup dialog. This human credential is separate from `CHATCOCKPIT_API_TOKEN`, which is an optional machine/API credential. After the first sign-in, open **Security → Passkeys** to register a Passkey; supported HTTPS domains then prefer Passkey sign-in while password remains the fallback. On the same Mac, the App's Local Cockpit action remains the easiest passwordless path for the default `127.0.0.1` entrypoint.
 
 Open:
 
@@ -33,7 +33,7 @@ http://127.0.0.1:4318/ui
 
 The first successful result is:
 
-- `/ui` opens the Owner sign-in screen, then shows the setup state or dashboard after authentication
+- `/ui` opens the Owner sign-in screen; supported HTTPS/localhost origins prefer Passkey sign-in, with password as fallback, then show the setup state or dashboard after authentication
 - `/ui/continuity/projects` opens the Continuity Workbench
 - `npm run doctor:runtime` can reach local health
 - `/ui/integrations` shows Local/Public Cockpit entrypoints, ChatGPT App / MCP readiness, API/OpenAPI status, and the compatibility-only Custom GPT Actions surface

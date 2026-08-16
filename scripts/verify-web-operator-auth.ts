@@ -133,6 +133,121 @@ async function main(): Promise<void> {
     });
     assert.equal(csrfMutation.status, 200);
 
+    const ipPasskeyOptions = await fetch(
+      `${server.baseUrl}/api/operator/passkeys/authentication/options`,
+      { method: "POST" }
+    );
+    assert.equal(ipPasskeyOptions.status, 400);
+    assert.match(await ipPasskeyOptions.text(), /PASSKEY_ORIGIN_UNSUPPORTED/);
+
+    const passkeyBaseUrl = server.baseUrl.replace("127.0.0.1", "localhost");
+    const passkeyLogin = await fetch(`${passkeyBaseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "test-password-correct-horse-battery-staple"
+      })
+    });
+    assert.equal(passkeyLogin.status, 200);
+    const passkeyLoginBody = (await passkeyLogin.json()) as { csrfToken: string };
+    const passkeyCookie = cookiePair(passkeyLogin);
+
+    const localPasskeyStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+    const localOwner = localPasskeyStore.getOwner();
+    assert.ok(localOwner);
+    const localOrigin = new URL(passkeyBaseUrl);
+    localPasskeyStore.createPasskey({
+      id: "passkey-local-route-fixture",
+      principalId: localOwner.id,
+      credentialId: "credential-local-route-fixture",
+      publicKey: Uint8Array.from([1, 2, 3]),
+      counter: 0,
+      transports: ["internal"],
+      deviceType: "multiDevice",
+      backedUp: true,
+      label: "Local Route Passkey",
+      rpId: localOrigin.hostname,
+      origin: localOrigin.origin,
+      createdAt: "2026-08-16T10:30:00.000Z"
+    });
+    localPasskeyStore.close();
+
+    const anonymousPasskeyOptions = await fetch(
+      `${passkeyBaseUrl}/api/operator/passkeys/authentication/options`,
+      { method: "POST" }
+    );
+    assert.equal(anonymousPasskeyOptions.status, 200);
+    const anonymousPasskeyOptionsBody = (await anonymousPasskeyOptions.json()) as {
+      challenge: string;
+      rpId?: string;
+      userVerification?: string;
+      allowCredentials?: unknown;
+    };
+    assert.ok(anonymousPasskeyOptionsBody.challenge);
+    assert.equal(anonymousPasskeyOptionsBody.rpId, localOrigin.hostname);
+    assert.equal(anonymousPasskeyOptionsBody.userVerification, "required");
+    assert.equal("allowCredentials" in anonymousPasskeyOptionsBody, false);
+
+    const machinePasskeyList = await fetch(`${passkeyBaseUrl}/api/operator/passkeys`, {
+      headers: { authorization: "Bearer test-token-machine-owner" }
+    });
+    assert.equal(machinePasskeyList.status, 401);
+    assert.match(await machinePasskeyList.text(), /OPERATOR_SESSION_REQUIRED/);
+
+    const passkeyList = await fetch(`${passkeyBaseUrl}/api/operator/passkeys`, {
+      headers: { cookie: passkeyCookie }
+    });
+    assert.equal(passkeyList.status, 200);
+    const passkeyListBody = (await passkeyList.json()) as {
+      passkeys: Array<Record<string, unknown>>;
+    };
+    assert.equal(passkeyListBody.passkeys.length, 1);
+    assert.equal(passkeyListBody.passkeys[0]?.label, "Local Route Passkey");
+    assert.equal("credentialId" in (passkeyListBody.passkeys[0] ?? {}), false);
+    assert.equal("publicKey" in (passkeyListBody.passkeys[0] ?? {}), false);
+    assert.equal("counter" in (passkeyListBody.passkeys[0] ?? {}), false);
+
+    const noCsrfPasskeyRegistration = await fetch(
+      `${passkeyBaseUrl}/api/operator/passkeys/registration/options`,
+      {
+        method: "POST",
+        headers: { cookie: passkeyCookie }
+      }
+    );
+    assert.equal(noCsrfPasskeyRegistration.status, 403);
+
+    const passkeyRegistration = await fetch(
+      `${passkeyBaseUrl}/api/operator/passkeys/registration/options`,
+      {
+        method: "POST",
+        headers: {
+          cookie: passkeyCookie,
+          "x-chatcockpit-csrf": passkeyLoginBody.csrfToken
+        }
+      }
+    );
+    assert.equal(passkeyRegistration.status, 200);
+    const passkeyRegistrationBody = (await passkeyRegistration.json()) as {
+      challenge: string;
+      authenticatorSelection?: {
+        residentKey?: string;
+        userVerification?: string;
+      };
+    };
+    assert.ok(passkeyRegistrationBody.challenge);
+    assert.equal(passkeyRegistrationBody.authenticatorSelection?.residentKey, "required");
+    assert.equal(passkeyRegistrationBody.authenticatorSelection?.userVerification, "required");
+
+    const passkeyLogout = await fetch(`${passkeyBaseUrl}/api/operator/logout`, {
+      method: "POST",
+      headers: {
+        cookie: passkeyCookie,
+        "x-chatcockpit-csrf": passkeyLoginBody.csrfToken
+      }
+    });
+    assert.equal(passkeyLogout.status, 200);
+
     const secondLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -242,6 +357,19 @@ async function main(): Promise<void> {
     });
     assert.equal(crossOriginLogin.status, 403);
 
+    const lanApp = buildServer(paths);
+    try {
+      const lanPasskeyOptions = await lanApp.inject({
+        method: "POST",
+        url: "/api/operator/passkeys/authentication/options",
+        headers: { host: ["192", "168", "1", "25"].join(".") }
+      });
+      assert.equal(lanPasskeyOptions.statusCode, 400);
+      assert.match(lanPasskeyOptions.body, /PASSKEY_ORIGIN_UNSUPPORTED/);
+    } finally {
+      await lanApp.close();
+    }
+
     process.env.CHATCOCKPIT_EXPOSED = "true";
     process.env.CHATCOCKPIT_PUBLIC_BASE_URL = "https://chatcockpit.example.com";
     delete process.env.CHATCOCKPIT_API_TOKEN;
@@ -258,6 +386,21 @@ async function main(): Promise<void> {
         false,
         "Public-origin Operator status must not advertise a local Desktop setup launcher"
       );
+
+      const publicPasskeyOptions = await publicApp.inject({
+        method: "POST",
+        url: "/api/operator/passkeys/authentication/options",
+        headers: {
+          host: "chatcockpit.example.com",
+          "x-forwarded-proto": "https"
+        }
+      });
+      assert.equal(
+        publicPasskeyOptions.statusCode,
+        404,
+        "A loopback Passkey must not become usable on the public HTTPS origin"
+      );
+      assert.match(publicPasskeyOptions.body, /PASSKEY_NOT_CONFIGURED/);
 
       const publicLocalLogin = await publicApp.inject({
         method: "POST",

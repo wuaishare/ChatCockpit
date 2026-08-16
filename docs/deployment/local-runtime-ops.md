@@ -96,6 +96,21 @@ http://127.0.0.1:4318/ui
 
 The browser signs in as the Owner and receives an opaque HttpOnly session cookie. State-changing Web requests also require the session-bound CSRF token; neither the raw Web session secret nor the machine API token is stored in browser persistence. `localStorage` is used only for non-sensitive UI preferences such as the selected language.
 
+### Passkey-first Web sign-in
+
+After the first password-based Owner setup, sign in once and open **Security → Passkeys** to register a Passkey. ChatCockpit uses WebAuthn discoverable credentials with `userVerification=required` and no attestation trust requirement. Touch ID, Apple Passwords/iCloud Keychain, Google Password Manager/Chrome, compatible hardware security keys, and other browser/platform authenticators participate through the standard WebAuthn API. ChatCockpit stores only the credential public key, signature counter, transport/device metadata, RP/origin binding, label, and timestamps; authenticator private keys never enter ChatCockpit.
+
+Passkey authentication is the preferred Web login when the current origin supports WebAuthn. The password remains a fallback/recovery credential. A successful Passkey assertion issues exactly the same opaque HttpOnly Owner session and CSRF boundary as password login; it does not create a second session class or browser-persisted bearer token.
+
+Origin rules are intentionally strict:
+
+- configured public Cockpit: HTTPS domain only;
+- local WebAuthn testing: `http://localhost:<port>` is allowed;
+- direct IP hosts such as `127.0.0.1` are not valid WebAuthn RP IDs and therefore do not offer Passkey login;
+- the native App remains the preferred same-Mac convenience path for `127.0.0.1` through its one-time local unlock.
+
+Registration and credential removal require an authenticated Owner session plus CSRF. Machine API Bearer and ChatGPT OAuth authority cannot list, register, or remove Passkeys. WebAuthn challenges are short-lived and single-use; password changes and revoke-all operations invalidate outstanding challenges without deleting registered Passkeys.
+
 When the macOS App opens **Local Cockpit** and an Owner is already configured, Desktop creates a 45-second, single-use local login grant through the local CLI. The browser receives that grant only in the URL fragment, removes it immediately, and redeems it over the direct loopback-only `/api/operator/local-login` route for the same ordinary HttpOnly Owner session. This is a convenience unlock, not a blanket localhost authentication bypass: proxied/forwarded requests and non-loopback hosts cannot use the redemption route, and public Cockpit access continues to require its normal authentication.
 
 Current boundary:
@@ -104,7 +119,7 @@ Current boundary:
 - Continuity Workbench reads real Project/Workspace/Writer/Git/Task/Session/Handoff/Evidence/Approval state
 - ready Handoffs can be accepted, forked, or cancelled; new Handoffs can be prepared from an eligible source Session
 - `/ui/integrations` is the primary integration surface for ChatGPT App / MCP, Local/Public entrypoints, API/OpenAPI, and compatibility-only Custom GPT Actions; legacy `/ui/gpt-helper` redirects there
-- protected Web data requires an authenticated Owner session; the macOS App may bootstrap that same session with a short-lived single-use loopback grant, while machine Bearer credentials remain for API/automation compatibility clients, not human Web login
+- protected Web data requires an authenticated Owner session; the macOS App may bootstrap that same session with a short-lived single-use loopback grant, and supported HTTPS/localhost origins may issue it after a verified Passkey assertion; machine Bearer credentials remain for API/automation compatibility clients, not human Web login
 - the Web UI is a single-Owner operator console, not a public multi-tenant management service
 
 ## Local Artifact Retention

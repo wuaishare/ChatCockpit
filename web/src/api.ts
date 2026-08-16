@@ -1,4 +1,11 @@
 import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON
+} from "@simplewebauthn/browser";
+
+import type {
   ApiProblem,
   ContinuityDevelopmentDocumentDetailResponse,
   ContinuityDevelopmentDocumentKind,
@@ -102,6 +109,18 @@ export interface OperatorStatusResponse {
   desktopSetupAvailable: boolean;
 }
 
+export interface OperatorPasskeySummary {
+  id: string;
+  label: string;
+  rpId: string;
+  origin: string;
+  deviceType: string;
+  backedUp: boolean;
+  transports: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
 export interface OperatorSessionResponse {
   ok: true;
   sessionId: string;
@@ -122,6 +141,67 @@ export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
   const result = await requestJson<OperatorSessionResponse>("/api/operator/session");
   setOperatorCsrfToken(result.csrfToken);
   return result;
+}
+
+export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  return postBodyJson<PublicKeyCredentialRequestOptionsJSON>(
+    "/api/operator/passkeys/authentication/options",
+    {}
+  );
+}
+
+export async function verifyPasskeyAuthentication(input: {
+  challenge: string;
+  response: AuthenticationResponseJSON;
+}): Promise<OperatorSessionResponse> {
+  const response = await fetch("/api/operator/passkeys/authentication/verify", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw await parseProblem(response);
+  const result = (await response.json()) as OperatorSessionResponse;
+  setOperatorCsrfToken(result.csrfToken);
+  return result;
+}
+
+export async function fetchOperatorPasskeys(): Promise<OperatorPasskeySummary[]> {
+  const result = await requestJson<{ ok: true; passkeys: OperatorPasskeySummary[] }>(
+    "/api/operator/passkeys"
+  );
+  return result.passkeys;
+}
+
+export async function fetchPasskeyRegistrationOptions(): Promise<PublicKeyCredentialCreationOptionsJSON> {
+  return postBodyJson<PublicKeyCredentialCreationOptionsJSON>(
+    "/api/operator/passkeys/registration/options",
+    {}
+  );
+}
+
+export async function verifyPasskeyRegistration(input: {
+  challenge: string;
+  response: RegistrationResponseJSON;
+  label?: string;
+}): Promise<OperatorPasskeySummary> {
+  const result = await postBodyJson<{ ok: true; passkey: OperatorPasskeySummary }>(
+    "/api/operator/passkeys/registration/verify",
+    input
+  );
+  return result.passkey;
+}
+
+export async function deleteOperatorPasskey(id: string): Promise<void> {
+  const response = await fetch(`/api/operator/passkeys/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: buildHeaders(null, { mutation: true })
+  });
+  if (!response.ok) throw await parseProblem(response);
 }
 
 export async function redeemLocalLoginGrant(grant: string): Promise<OperatorSessionResponse> {
