@@ -66,7 +66,7 @@ struct StatusView: View {
                             }
                             valueRow(
                                 DesktopL10n.string("Endpoint"),
-                                value: "\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)"
+                                value: model.endpointText
                             )
                             valueRow(
                                 DesktopL10n.string("Mode"),
@@ -110,7 +110,9 @@ struct StatusView: View {
                 .disabled(model.isRefreshing)
 
                 Button(DesktopL10n.string("Settings…")) {
-                    openSettings()
+                    DesktopScenePresentation.present {
+                        openSettings()
+                    }
                 }
 
                 Spacer()

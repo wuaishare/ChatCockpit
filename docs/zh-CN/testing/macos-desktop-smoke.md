@@ -41,8 +41,10 @@ Intel Mac 使用 `--arch x64`。
 6. 确认 Runtime 状态为 **Ready**；
 7. 确认 Endpoint 为 `127.0.0.1:4318`（除非你明确配置了其他本地 endpoint）；
 8. 确认 State 显示全局 `~/.chatcockpit`，而不是 checkout-local state；
-9. Security 中 API token 只能显示 `Configured / Not configured`，不能显示 token 值；
-10. 点击 **Open ChatCockpit**，应使用默认浏览器打开 Web Cockpit。
+9. 在 **安全与访问** 中确认 Web Owner 状态与机器 API 令牌分开显示。机器令牌默认只能显示指纹（例如 `cc_local_…abc123`），不能直接暴露明文；
+10. 确认 **显示令牌** 只有在用户明确操作后才临时显示明文，并会自动再次隐藏；**复制令牌** 也只能由用户主动触发。普通 smoke test 不要轮换真实令牌；
+11. 确认 **设置 / 管理 Owner…** 可修改 Owner 用户名与密码，**撤销 Web 会话** 可独立撤销现有会话，且不会暴露密码或 Session Secret；
+12. 点击 **Open ChatCockpit**，应使用默认浏览器打开 Web Cockpit。
 
 Source/Developer Mode 的 canonical state root 是：
 
@@ -51,6 +53,16 @@ Source/Developer Mode 的 canonical state root 是：
 ```
 
 它与源码 checkout 分离。
+
+### 安全与访问边界
+
+Desktop App 是这台 Mac 上的人类 Web Owner 与机器 API 凭据管理入口，但仍复用 Runtime 的 canonical authority 真源，不建立第二套凭据数据库。
+
+- 修改 Web Owner 用户名/密码继续使用现有 Operator Service，并会撤销已有 Web Session；
+- 机器 API 令牌默认隐藏；只有明确执行“显示”时才进入内存，并会在 30 秒后自动清除；复制到系统剪贴板的令牌会在 60 秒后自动清除，但仅当剪贴板仍保持该令牌时才执行，避免覆盖用户之后复制的新内容；
+- 轮换令牌会在 canonical `server.env` 中生成新的强随机令牌，并保持文件仅当前用户可读写；不会改动 Web Owner 或 ChatGPT OAuth authority；
+- 如果服务正在运行，轮换后会重启当前 Runtime 使新令牌生效；如果服务已停止，则保持停止，并在下次启动时读取新令牌；
+- ChatGPT OAuth Client / Authorization 仍由 Web Integrations 管理，不把远端集成关系塞进 Desktop Secret 管理面。
 
 ## 2. Packaged Mode Conflict Guard
 
@@ -158,5 +170,6 @@ npm run mvp:start
 - Packaged Mode 不会越权接管现有 services；
 - 独立 Packaged Runtime 能在不依赖 system Node 的情况下启动；
 - Web Cockpit 可从 App 打开；
-- App 不显示 secret token 值；
+- 机器 API 令牌默认不显示明文，只有用户明确执行临时显示/复制时才允许读取；
+- Web Owner 与机器 API authority 保持独立管理；
 - Quit 不会偷偷 Stop Services。

@@ -144,7 +144,7 @@ struct SettingsView: View {
 
             Section(DesktopL10n.string("Local Runtime")) {
                 LabeledContent(DesktopL10n.string("Endpoint")) {
-                    Text("\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)")
+                    Text(verbatim: model.endpointText)
                         .textSelection(.enabled)
                 }
                 LabeledContent(DesktopL10n.string("Node")) {
@@ -170,7 +170,7 @@ struct SettingsView: View {
                 .disabled(model.snapshot.cockpitURL == nil)
             }
 
-            Section(DesktopL10n.string("Security")) {
+            Section(DesktopL10n.string("Security & Access")) {
                 LabeledContent(DesktopL10n.string("Runtime mode")) {
                     Text(
                         model.snapshot.configuration.exposed
@@ -178,16 +178,84 @@ struct SettingsView: View {
                             : DesktopL10n.string("Local only")
                     )
                 }
-                LabeledContent(DesktopL10n.string("API token")) {
-                    Text(
-                        model.snapshot.configuration.apiTokenConfigured
-                            ? DesktopL10n.string("Configured")
-                            : DesktopL10n.string("Not configured")
-                    )
+
+                LabeledContent(DesktopL10n.string("Web Owner")) {
+                    if let status = model.operatorSecurityStatus {
+                        Text(
+                            status.configured
+                                ? (status.username ?? DesktopL10n.string("Configured"))
+                                : DesktopL10n.string("Not configured")
+                        )
+                    } else {
+                        Text(DesktopL10n.string("Unavailable"))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
+                if let status = model.operatorSecurityStatus, status.configured {
+                    LabeledContent(DesktopL10n.string("Active Web sessions")) {
+                        Text(verbatim: String(status.activeSessionCount))
+                    }
+                }
+
+                HStack {
+                    Button(
+                        DesktopL10n.string(
+                            model.operatorSecurityStatus?.configured == true
+                                ? "Manage Owner…"
+                                : "Set Owner…"
+                        )
+                    ) {
+                        model.setOwnerPasswordFromPanel()
+                    }
+
+                    Button(DesktopL10n.string("Revoke Web Sessions"), role: .destructive) {
+                        Task { await model.revokeOwnerSessions() }
+                    }
+                    .disabled(model.operatorSecurityStatus?.configured != true)
+                }
+
+                Divider()
+
+                LabeledContent(DesktopL10n.string("Machine API token")) {
+                    if let token = model.revealedMachineApiToken {
+                        Text(verbatim: token)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                    } else if let status = model.machineApiTokenStatus, status.configured {
+                        Text(verbatim: status.fingerprint ?? DesktopL10n.string("Configured"))
+                            .font(.system(.body, design: .monospaced))
+                    } else {
+                        Text(DesktopL10n.string("Not configured"))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack {
+                    if model.revealedMachineApiToken == nil {
+                        Button(DesktopL10n.string("Reveal Token")) {
+                            Task { await model.revealMachineApiToken() }
+                        }
+                        .disabled(model.machineApiTokenStatus?.configured != true)
+                    } else {
+                        Button(DesktopL10n.string("Hide Token")) {
+                            model.hideMachineApiToken()
+                        }
+                    }
+
+                    Button(DesktopL10n.string("Copy Token")) {
+                        Task { await model.copyMachineApiToken() }
+                    }
+                    .disabled(model.machineApiTokenStatus?.configured != true)
+
+                    Button(DesktopL10n.string("Rotate Token…"), role: .destructive) {
+                        Task { await model.rotateMachineApiToken() }
+                    }
+                }
+
                 Text(
                     DesktopL10n.string(
-                        "Token values are never displayed by the desktop shell. Remote MCP, OAuth, approvals, and mutation policy remain owned by the existing ChatCockpit control plane."
+                        "Web Owner sessions, machine API credentials, and ChatGPT OAuth are separate authorities. Token reveal is temporary and stays in memory only. Rotating the machine token restarts services only when they are already running; stopped services stay stopped. Web Owner and ChatGPT OAuth sessions are not revoked."
                     )
                 )
                     .font(.caption)
@@ -221,5 +289,8 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 590, height: 650)
         .padding(.top, 6)
+        .task {
+            await model.refreshSecurity()
+        }
     }
 }

@@ -41,8 +41,10 @@ If the Source Runtime is already running through `npm run mvp:start` or `npm run
 6. Confirm Runtime state is **Ready**.
 7. Confirm the endpoint is `127.0.0.1:4318` unless a different local endpoint was intentionally configured.
 8. Confirm State shows the global `~/.chatcockpit` root instead of checkout-local state.
-9. In Security, API token must appear only as `Configured / Not configured`, never as the token value.
-10. Click **Open ChatCockpit** and confirm the Web Cockpit opens in the default browser.
+9. In **Security & Access**, confirm Web Owner status is shown independently from the machine API token. The machine token should be masked as a fingerprint by default (for example `cc_local_…abc123`), not exposed as plaintext.
+10. Confirm **Reveal Token** shows plaintext only on explicit action and automatically hides it again; **Copy Token** copies on explicit action only. Do not rotate the real token during an ordinary smoke test.
+11. Confirm **Set / Manage Owner…** can update the Owner username and password, while **Revoke Web Sessions** independently revokes current sessions without exposing the password or session secrets.
+12. Click **Open ChatCockpit** and confirm the Web Cockpit opens in the default browser.
 
 The canonical Source/Developer Mode state root is:
 
@@ -51,6 +53,16 @@ The canonical Source/Developer Mode state root is:
 ```
 
 It is independent from the source checkout.
+
+### Security & Access contract
+
+The Desktop app is the local-machine administration surface for human Web Owner access and the machine API credential. It reuses the runtime's canonical authority stores and does not create a second credential database.
+
+- Web Owner username/password updates use the existing Operator service and revoke existing Web sessions.
+- Machine API token plaintext is hidden by default; an explicit reveal is memory-only and automatically clears after 30 seconds. A copied token is cleared from the system pasteboard after 60 seconds only if the pasteboard still contains that same token, so later user clipboard content is never overwritten.
+- Token rotation generates a fresh strong token in the canonical `server.env`, keeps that file owner-only, and never changes Web Owner or ChatGPT OAuth authority.
+- If services are running, rotation restarts the current runtime so the new token takes effect. If services are stopped, they remain stopped and pick up the new token on the next start.
+- ChatGPT OAuth client/authorization management remains a Web Integrations responsibility rather than a Desktop secret-management surface.
 
 ## 2. Packaged Mode conflict guard
 
@@ -154,5 +166,6 @@ Use **Stop Services** only when you intentionally want to stop the service stack
 - Packaged Mode never takes over active services silently;
 - standalone Packaged Runtime can start without system Node;
 - Web Cockpit opens from the app;
-- token values are never displayed;
+- machine token plaintext is hidden by default and appears only after an explicit temporary reveal/copy action;
+- Web Owner and machine API authority remain separately managed;
 - Quit does not silently stop services.

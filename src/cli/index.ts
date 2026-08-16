@@ -24,6 +24,11 @@ import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-
 import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js";
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorService } from "../auth/operator-service.js";
+import {
+  machineApiTokenStatus,
+  readMachineApiToken,
+  rotateMachineApiToken
+} from "../auth/machine-api-token.js";
 import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
 
 function printUsage(): void {
@@ -44,6 +49,9 @@ Usage:
   ${identity.cliName} operator status [--json]
   ${identity.cliName} operator set-password [--username owner] [--password-stdin] [--json]
   ${identity.cliName} operator revoke-sessions [--json]
+  ${identity.cliName} machine-token status [--json]
+  ${identity.cliName} machine-token show [--json]
+  ${identity.cliName} machine-token rotate [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
@@ -271,6 +279,44 @@ async function main(): Promise<void> {
       }
       process.stdout.write(`${JSON.stringify(job.job, null, 2)}\n`);
       return;
+    }
+    case "machine-token": {
+      const subcommand = process.argv[3];
+      switch (subcommand) {
+        case "status": {
+          const status = machineApiTokenStatus(paths);
+          if (process.argv.includes("--json")) {
+            printJson(status);
+          } else {
+            process.stdout.write(`Machine API token: ${status.configured ? "configured" : "not configured"}\n`);
+            if (status.fingerprint) process.stdout.write(`Fingerprint: ${status.fingerprint}\n`);
+          }
+          return;
+        }
+        case "show": {
+          const token = readMachineApiToken(paths);
+          if (!token) throw new Error("Machine API token is not configured");
+          if (process.argv.includes("--json")) {
+            printJson({ token });
+          } else {
+            process.stdout.write(`${token}\n`);
+          }
+          return;
+        }
+        case "rotate": {
+          const result = rotateMachineApiToken(paths);
+          if (process.argv.includes("--json")) {
+            printJson(result);
+          } else {
+            process.stdout.write("Machine API token rotated\n");
+            process.stdout.write(`Fingerprint: ${result.fingerprint}\n`);
+            process.stdout.write("Restart ChatCockpit services to apply the new token.\n");
+          }
+          return;
+        }
+        default:
+          throw new Error("machine-token requires one of: status, show, rotate");
+      }
     }
     case "operator": {
       const subcommand = process.argv[3];
