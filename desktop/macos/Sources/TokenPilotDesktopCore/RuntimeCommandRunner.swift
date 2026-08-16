@@ -122,6 +122,16 @@ public struct DesktopMachineApiTokenValue: Decodable, Equatable, Sendable {
     }
 }
 
+public struct DesktopLocalLoginGrant: Decodable, Equatable, Sendable {
+    public let grantSecret: String
+    public let expiresAt: String
+
+    public init(grantSecret: String, expiresAt: String) {
+        self.grantSecret = grantSecret
+        self.expiresAt = expiresAt
+    }
+}
+
 public enum DesktopAuthorityClientError: Error, Equatable, Sendable {
     case runtimeEntryMissing
     case commandFailed
@@ -158,6 +168,15 @@ public struct DesktopAuthorityClient: Sendable {
             arguments: ["operator", "revoke-sessions", "--json"]
         )
         return try await operatorStatus(context: context)
+    }
+
+    public func createLocalLoginGrant(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopLocalLoginGrant {
+        try await decode(
+            DesktopLocalLoginGrant.self,
+            from: runCLI(context: context, arguments: ["operator", "local-login-grant", "--json"])
+        )
     }
 
     public func machineTokenStatus(

@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
-const OPERATOR_SCHEMA_VERSION = 1;
+const OPERATOR_SCHEMA_VERSION = 2;
 const SENSITIVE_AUDIT_KEY = /(password|secret|token|cookie|authorization|csrf)/i;
 
 export interface OperatorPrincipalRecord {
@@ -34,6 +34,15 @@ export interface OperatorLoginThrottleRecord {
   failedCount: number;
   blockedUntil: string | null;
   updatedAt: string;
+}
+
+export interface OperatorLocalLoginGrantRecord {
+  id: string;
+  principalId: string;
+  secretHash: string;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
 }
 
 export interface OperatorAuditEventRecord {
@@ -74,6 +83,15 @@ interface OperatorLoginThrottleRow {
   failed_count: number;
   blocked_until: string | null;
   updated_at: string;
+}
+
+interface OperatorLocalLoginGrantRow {
+  id: string;
+  principal_id: string;
+  secret_hash: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
 }
 
 interface OperatorAuditEventRow {
@@ -124,6 +142,14 @@ export interface SetLoginThrottleInput {
   updatedAt: string;
 }
 
+export interface CreateOperatorLocalLoginGrantInput {
+  id: string;
+  principalId: string;
+  secretHash: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface RecordOperatorAuditEventInput {
   id?: string;
   eventType: string;
@@ -170,6 +196,19 @@ function mapThrottle(row: OperatorLoginThrottleRow): OperatorLoginThrottleRecord
   };
 }
 
+function mapLocalLoginGrant(
+  row: OperatorLocalLoginGrantRow
+): OperatorLocalLoginGrantRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    secretHash: row.secret_hash,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at
+  };
+}
+
 function parseAuditDetails(value: string): Record<string, unknown> {
   const parsed = JSON.parse(value) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -206,6 +245,10 @@ function assertAuditDetailsSafe(value: unknown, pathParts: string[] = []): void 
 }
 
 export function hashOperatorSessionSecret(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function hashOperatorLocalLoginSecret(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
@@ -318,6 +361,13 @@ export class OperatorStore {
             `)
             .run(updatedAt, existing.id).changes
         );
+        this.sqlite
+          .prepare(`
+            UPDATE operator_local_login_grants
+            SET consumed_at = ?
+            WHERE principal_id = ? AND consumed_at IS NULL
+          `)
+          .run(updatedAt, existing.id);
       } else {
         principalId = randomUUID();
         this.sqlite
@@ -474,6 +524,75 @@ export class OperatorStore {
       .run(sourceHash);
   }
 
+  createLocalLoginGrant(
+    input: CreateOperatorLocalLoginGrantInput
+  ): OperatorLocalLoginGrantRecord {
+    this.sqlite
+      .prepare(`
+        DELETE FROM operator_local_login_grants
+        WHERE consumed_at IS NOT NULL OR expires_at <= ?
+      `)
+      .run(input.createdAt);
+    this.sqlite
+      .prepare(`
+        INSERT INTO operator_local_login_grants (
+          id, principal_id, secret_hash, created_at, expires_at, consumed_at
+        ) VALUES (?, ?, ?, ?, ?, NULL)
+      `)
+      .run(
+        input.id,
+        input.principalId,
+        input.secretHash,
+        input.createdAt,
+        input.expiresAt
+      );
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_local_login_grants WHERE id = ?")
+      .get(input.id) as OperatorLocalLoginGrantRow | undefined;
+    if (!row) throw new Error("Operator local login grant persistence failed");
+    return mapLocalLoginGrant(row);
+  }
+
+  invalidateLocalLoginGrants(principalId: string, invalidatedAt: string): number {
+    return Number(
+      this.sqlite
+        .prepare(`
+          UPDATE operator_local_login_grants
+          SET consumed_at = ?
+          WHERE principal_id = ? AND consumed_at IS NULL
+        `)
+        .run(invalidatedAt, principalId).changes
+    );
+  }
+
+  consumeLocalLoginGrant(
+    secretHash: string,
+    consumedAt: string
+  ): OperatorLocalLoginGrantRecord | null {
+    return this.transaction(() => {
+      const row = this.sqlite
+        .prepare(`
+          SELECT * FROM operator_local_login_grants
+          WHERE secret_hash = ?
+            AND consumed_at IS NULL
+            AND expires_at > ?
+          LIMIT 1
+        `)
+        .get(secretHash, consumedAt) as OperatorLocalLoginGrantRow | undefined;
+      if (!row) return null;
+
+      const result = this.sqlite
+        .prepare(`
+          UPDATE operator_local_login_grants
+          SET consumed_at = ?
+          WHERE id = ? AND consumed_at IS NULL
+        `)
+        .run(consumedAt, row.id);
+      if (result.changes !== 1) return null;
+      return mapLocalLoginGrant({ ...row, consumed_at: consumedAt });
+    });
+  }
+
   recordAuditEvent(input: RecordOperatorAuditEventInput): OperatorAuditEventRecord {
     const details = input.details ?? {};
     assertAuditDetailsSafe(details);
@@ -520,6 +639,27 @@ export class OperatorStore {
       );
     }
     if (currentVersion === OPERATOR_SCHEMA_VERSION) return;
+    if (currentVersion === 1) {
+      this.transaction(() => {
+        this.sqlite.exec(`
+          CREATE TABLE operator_local_login_grants (
+            id TEXT PRIMARY KEY,
+            principal_id TEXT NOT NULL,
+            secret_hash TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE INDEX operator_local_login_grants_expiry_idx
+            ON operator_local_login_grants(expires_at, consumed_at);
+
+          PRAGMA user_version = ${OPERATOR_SCHEMA_VERSION};
+        `);
+      });
+      return;
+    }
     if (currentVersion !== 0) {
       throw new Error(`Unsupported Operator auth database schema v${currentVersion}`);
     }
@@ -559,6 +699,19 @@ export class OperatorStore {
           blocked_until TEXT,
           updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE operator_local_login_grants (
+          id TEXT PRIMARY KEY,
+          principal_id TEXT NOT NULL,
+          secret_hash TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          consumed_at TEXT,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE INDEX operator_local_login_grants_expiry_idx
+          ON operator_local_login_grants(expires_at, consumed_at);
 
         CREATE TABLE operator_audit_events (
           id TEXT PRIMARY KEY,

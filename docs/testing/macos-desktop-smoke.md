@@ -34,17 +34,17 @@ The current development app is still unsigned / unnotarized and must not be desc
 If the Source Runtime is already running through `npm run mvp:start` or `npm run start:local`, test Developer Mode first. On first launch, ChatCockpit automatically selects Developer Mode when it discovers a valid source checkout; an explicit Developer/Packaged choice is remembered afterward.
 
 1. Launch `ChatCockpit.app`.
-2. Confirm the main window is not clipped and the bottom **Refresh / Settings… / Runtime actions / Open Local Cockpit** actions stay visible; **Open Public Cockpit** appears separately only when exposed mode has a valid public base URL.
+2. Confirm the main window is not clipped and the bottom **Refresh / Settings… / Runtime actions** stay visible. In the Runtime card, **Local Cockpit / Public Cockpit** are direct native links; hovering a link should show the pointing-hand cursor, keyboard focus should reach it, and VoiceOver should expose the destination label/hint. **Public Cockpit** appears only when exposed mode has a valid public base URL.
 3. If a source checkout was auto-discovered, confirm Distribution is **Developer**; otherwise open Settings, choose **Developer Mode**, and click **Choose Source…**.
 4. If manual selection is needed, select the current ChatCockpit source checkout.
 5. Click **Revalidate**.
 6. Confirm Runtime state is **Ready**.
 7. Confirm the endpoint is `127.0.0.1:4318` unless a different local endpoint was intentionally configured.
 8. Confirm State shows the global `~/.chatcockpit` root instead of checkout-local state.
-9. In **Security & Access**, confirm Web Owner status is shown independently from the machine API token. The machine token should be masked as a fingerprint by default (for example `cc_local_…abc123`), not exposed as plaintext.
+9. In **Security & Access**, confirm Web Owner status is shown independently from the machine API token. The machine token should be masked as a fingerprint by default (for example `cc_local_…abc123`), not exposed as plaintext. Confirm **Local API base** and **Local MCP endpoint** are shown with explicit copy controls; exposed deployments also show the Public API/MCP addresses.
 10. Confirm **Reveal Token** shows plaintext only on explicit action and automatically hides it again; **Copy Token** copies on explicit action only. Do not rotate the real token during an ordinary smoke test.
 11. Confirm **Set / Manage Owner…** can update the Owner username and password, while **Revoke Web Sessions** independently revokes current sessions without exposing the password or session secrets.
-12. Click **Open Local Cockpit** and confirm `http://127.0.0.1:<port>/ui` opens in the default browser. If **Open Public Cockpit** is present, confirm it opens the configured HTTPS `/ui` entrypoint instead of the loopback URL.
+12. When an Owner is configured, use the App's **Open Local Cockpit** action and confirm the browser becomes authenticated without a password prompt through the short-lived single-use loopback grant, the `#local-login=…` fragment disappears immediately, and the resulting session is the ordinary HttpOnly Owner session. Reusing the same grant must fail. If no Owner is configured, the normal local setup flow should open instead. If **Public Cockpit** is present, confirm it still opens the configured HTTPS `/ui` entrypoint and does not receive the local passwordless grant.
 
 The canonical Source/Developer Mode state root is:
 
@@ -59,7 +59,8 @@ It is independent from the source checkout.
 The Desktop app is the local-machine administration surface for human Web Owner access and the machine API credential. It reuses the runtime's canonical authority stores and does not create a second credential database.
 
 - Web Owner username/password updates use the existing Operator service and revoke existing Web sessions.
-- Machine API token plaintext is hidden by default; an explicit reveal is memory-only and automatically clears after 30 seconds. A copied token is cleared from the system pasteboard after 60 seconds only if the pasteboard still contains that same token, so later user clipboard content is never overwritten.
+- Machine API token plaintext is hidden by default; an explicit reveal is memory-only and automatically clears after 30 seconds. A copied token is cleared from the system pasteboard after 60 seconds only if the pasteboard still contains that same token, so later user clipboard content is never overwritten. API/MCP endpoint addresses are non-secret connection metadata and may be copied without secret-style clipboard clearing.
+- Local passwordless access is not a loopback-wide bypass: Desktop creates a 45-second single-use grant locally; direct loopback Web exchange consumes it for the normal Owner session, while proxied, forwarded, non-loopback-host, expired, reused, password-reset-invalidated, or revoke-all-invalidated grants fail closed.
 - Token rotation generates a fresh strong token in the canonical `server.env`, keeps that file owner-only, and never changes Web Owner or ChatGPT OAuth authority.
 - If services are running, rotation restarts the current runtime so the new token takes effect. If services are stopped, they remain stopped and pick up the new token on the next start.
 - ChatGPT OAuth client/authorization management remains a Web Integrations responsibility rather than a Desktop secret-management surface.

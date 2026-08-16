@@ -77,7 +77,9 @@ chatcockpit operator set-password
 http://127.0.0.1:4318/ui
 ```
 
-浏览器以 Owner 身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入浏览器持久化存储。`localStorage` 只用于保存非敏感的界面语言偏好。
+浏览器以控制台管理员身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入浏览器持久化存储。`localStorage` 只用于保存非敏感的界面语言偏好。
+
+当 macOS App 打开 **本机控制台** 且已配置控制台管理员时，Desktop 会通过本机 CLI 生成一个仅 45 秒有效、只能使用一次的本机登录凭据。浏览器只会在 URL fragment 中收到它，前端会立即清除 fragment，再通过仅允许直接 loopback 请求访问的 `/api/operator/local-login` 将它兑换成同一套普通 HttpOnly 管理员 Session。它只是便捷解锁，不是“localhost 全部免鉴权”：经过反向代理/Forwarded Header 的请求、非 loopback Host 都无法使用该兑换入口，公网控制台仍必须走正常认证。
 
 常用页面：
 
@@ -92,7 +94,7 @@ http://127.0.0.1:4318/ui
 - `/ui/gpt-helper`：0.2.x receive-only 兼容入口，会跳转到 `/ui/integrations`
 - `/ui/jobs`：Jobs、Artifacts、进程控制
 
-受保护的 Web 数据要求有效的控制台管理员会话；机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
+受保护的 Web 数据仍要求有效的控制台管理员会话；macOS App 可以用短时一次性 loopback 凭据引导生成同一套会话。机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
 
 ## 暴露到 HTTPS
 

@@ -95,7 +95,11 @@ struct RuntimeControllerTests {
             uiReachable: true
         )
 
+        #expect(snapshot.localApiBaseURL?.absoluteString == "http://127.0.0.1:5123")
+        #expect(snapshot.localMcpURL?.absoluteString == "http://127.0.0.1:5123/mcp")
         #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ui")
+        #expect(snapshot.publicApiBaseURL?.absoluteString == "https://chatcockpit.example.com")
+        #expect(snapshot.publicMcpURL?.absoluteString == "https://chatcockpit.example.com/mcp")
         #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ui")
     }
 

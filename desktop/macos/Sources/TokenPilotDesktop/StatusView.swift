@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import TokenPilotDesktopCore
 
@@ -194,6 +195,17 @@ struct StatusView: View {
                             .imageScale(.small)
                     }
                 }
+                .contentShape(Rectangle())
+                .focusable(true)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.pointingHand.set()
+                    } else {
+                        NSCursor.arrow.set()
+                    }
+                }
+                .accessibilityLabel("\(title): \(url.absoluteString)")
+                .accessibilityHint(DesktopL10n.string("Open in Browser"))
                 .help("\(DesktopL10n.string("Open in Browser")): \(url.absoluteString)")
             } else {
                 Text(fallback)

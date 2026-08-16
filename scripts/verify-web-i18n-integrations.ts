@@ -58,5 +58,9 @@ assert.doesNotMatch(setup, /GptHelper|GPT Helper/);
 assert.match(i18n, /setupAppAction: "在 ChatCockpit App 中设置"/);
 assert.match(operatorSetup, /chatcockpit:\/\/operator\/setup/);
 assert.match(operatorSetup, /desktopSetupAvailable/);
+assert.match(i18n, /localUnlockFailed: "本机免密登录链接已失效/);
+assert.match(app, /readAndClearLocalLoginGrant/);
+assert.match(app, /redeemLocalLoginGrant\(localLoginGrant\)/);
+assert.match(api, /"\/api\/operator\/local-login"/);
 
 process.stdout.write("WEB_I18N_INTEGRATIONS_OK\n");

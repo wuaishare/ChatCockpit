@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { hashOperatorPassword } from "../src/auth/operator-password.js";
 import {
   OperatorStore,
+  hashOperatorLocalLoginSecret,
   hashOperatorSessionSecret,
   operatorDatabasePath
 } from "../src/auth/operator-store.js";
@@ -18,6 +20,61 @@ function databaseBytes(databasePath: string): Buffer {
 }
 
 async function main(): Promise<void> {
+  const migrationRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-v1-"));
+  const legacyDatabasePath = path.join(migrationRoot, "operator-auth.sqlite");
+  const legacy = new DatabaseSync(legacyDatabasePath);
+  legacy.exec(`
+    CREATE TABLE operator_principals (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL CHECK(role = 'owner'),
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE operator_sessions (
+      id TEXT PRIMARY KEY,
+      principal_id TEXT NOT NULL,
+      secret_hash TEXT NOT NULL UNIQUE,
+      csrf_token TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      idle_expires_at TEXT NOT NULL,
+      absolute_expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      source_hash TEXT,
+      user_agent_hash TEXT,
+      FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+    );
+    CREATE TABLE operator_login_throttle (
+      source_hash TEXT PRIMARY KEY,
+      failed_count INTEGER NOT NULL CHECK(failed_count >= 0),
+      blocked_until TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE operator_audit_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      principal_id TEXT,
+      source_hash TEXT,
+      user_agent_hash TEXT,
+      created_at TEXT NOT NULL,
+      details_json TEXT NOT NULL,
+      FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+    );
+    PRAGMA user_version = 1;
+  `);
+  legacy.close();
+  const migrated = new OperatorStore({ path: legacyDatabasePath });
+  assert.equal(migrated.schemaVersion(), 2);
+  assert.equal(
+    migrated.sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operator_local_login_grants'")
+      .get() !== undefined,
+    true
+  );
+  migrated.close();
+
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-store-"));
   const runtimeDir = path.join(root, "runtime");
   const databasePath = operatorDatabasePath(runtimeDir);
@@ -30,7 +87,7 @@ async function main(): Promise<void> {
   const absoluteExpiresAt = "2026-08-23T02:00:00.000Z";
 
   let store = new OperatorStore({ path: databasePath });
-  assert.equal(store.schemaVersion(), 1);
+  assert.equal(store.schemaVersion(), 2);
   assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
 
   const owner = store.setOwner(
@@ -69,6 +126,31 @@ async function main(): Promise<void> {
     }
   }
 
+  const rawLocalLoginGrant = "cc_local_login_raw_secret_that_must_never_be_persisted";
+  const localGrant = store.createLocalLoginGrant({
+    id: "grant-1",
+    principalId: owner.principal.id,
+    secretHash: hashOperatorLocalLoginSecret(rawLocalLoginGrant),
+    createdAt: now,
+    expiresAt: "2026-08-16T02:00:45.000Z"
+  });
+  assert.equal(localGrant.consumedAt, null);
+  assert.equal(
+    store.consumeLocalLoginGrant(
+      hashOperatorLocalLoginSecret(rawLocalLoginGrant),
+      "2026-08-16T02:00:10.000Z"
+    )?.id,
+    "grant-1"
+  );
+  assert.equal(
+    store.consumeLocalLoginGrant(
+      hashOperatorLocalLoginSecret(rawLocalLoginGrant),
+      "2026-08-16T02:00:11.000Z"
+    ),
+    null,
+    "Local login grants must be single-use"
+  );
+
   store.setLoginThrottle({
     sourceHash: "source-digest",
     failedCount: 5,
@@ -98,11 +180,21 @@ async function main(): Promise<void> {
   const bytes = databaseBytes(databasePath);
   assert.equal(bytes.includes(Buffer.from(password, "utf8")), false);
   assert.equal(bytes.includes(Buffer.from(rawSessionSecret, "utf8")), false);
+  assert.equal(bytes.includes(Buffer.from(rawLocalLoginGrant, "utf8")), false);
 
   store = new OperatorStore({ path: databasePath });
   assert.equal(store.getLoginThrottle("source-digest")?.failedCount, 5);
   assert.equal(store.listAuditEvents(10)[0]?.eventType, "operator.login.failed");
   assert.equal(store.findActiveSessionBySecretHash(secretHash, now)?.id, "session-1");
+
+  const grantInvalidatedByPasswordChange = "cc_local_login_invalidated_by_password_change";
+  store.createLocalLoginGrant({
+    id: "grant-password-change",
+    principalId: owner.principal.id,
+    secretHash: hashOperatorLocalLoginSecret(grantInvalidatedByPasswordChange),
+    createdAt: "2026-08-16T02:09:00.000Z",
+    expiresAt: "2026-08-16T02:11:00.000Z"
+  });
 
   const nextPasswordHash = await hashOperatorPassword("test-password-another-correct-horse-battery-staple");
   const replaced = store.setOwner(
@@ -115,6 +207,14 @@ async function main(): Promise<void> {
   assert.equal(replaced.principal.id, owner.principal.id);
   assert.equal(replaced.revokedSessionCount, 1);
   assert.equal(store.findActiveSessionBySecretHash(secretHash, "2026-08-16T02:10:00.000Z"), null);
+  assert.equal(
+    store.consumeLocalLoginGrant(
+      hashOperatorLocalLoginSecret(grantInvalidatedByPasswordChange),
+      "2026-08-16T02:10:01.000Z"
+    ),
+    null,
+    "Password changes must invalidate outstanding local login grants"
+  );
 
   store.clearLoginThrottle("source-digest");
   assert.equal(store.getLoginThrottle("source-digest"), null);

@@ -288,6 +288,19 @@ struct SettingsView: View {
                     }
                 }
 
+                if let localApiBaseURL = model.snapshot.localApiBaseURL {
+                    apiAddressRow(DesktopL10n.string("Local API base"), url: localApiBaseURL)
+                }
+                if let localMcpURL = model.snapshot.localMcpURL {
+                    apiAddressRow(DesktopL10n.string("Local MCP endpoint"), url: localMcpURL)
+                }
+                if let publicApiBaseURL = model.snapshot.publicApiBaseURL {
+                    apiAddressRow(DesktopL10n.string("Public API base"), url: publicApiBaseURL)
+                }
+                if let publicMcpURL = model.snapshot.publicMcpURL {
+                    apiAddressRow(DesktopL10n.string("Public MCP endpoint"), url: publicMcpURL)
+                }
+
                 HStack {
                     if model.revealedMachineApiToken == nil {
                         Button(DesktopL10n.string("Reveal Token")) {
@@ -313,6 +326,15 @@ struct SettingsView: View {
                 Text(
                     DesktopL10n.string(
                         "Web Owner sessions, machine API credentials, and ChatGPT OAuth are separate authorities. Token reveal is temporary and stays in memory only. Rotating the machine token restarts services only when they are already running; stopped services stay stopped. Web Owner and ChatGPT OAuth sessions are not revoked."
+                    )
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(
+                    DesktopL10n.string(
+                        "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication."
                     )
                 )
                     .font(.caption)
@@ -348,6 +370,27 @@ struct SettingsView: View {
         .padding(.top, 6)
         .task {
             await model.refreshSecurity()
+        }
+    }
+
+    @ViewBuilder
+    private func apiAddressRow(_ title: String, url: URL) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 6) {
+                Text(verbatim: url.absoluteString)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                Button {
+                    model.copyMachineEndpoint(url)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help(DesktopL10n.string("Copy API address"))
+                .accessibilityLabel(DesktopL10n.string("Copy API address"))
+            }
         }
     }
 }

@@ -183,3 +183,11 @@
 "Secrets not imported:" = "Secrets not imported:";
 "The source checkout will not be modified." = "The source checkout will not be modified.";
 "+%d more" = "+%d more";
+"Local API base" = "Local API base";
+"Local MCP endpoint" = "Local MCP endpoint";
+"Public API base" = "Public API base";
+"Public MCP endpoint" = "Public MCP endpoint";
+"Copy API address" = "Copy API address";
+"API address copied to the clipboard." = "API address copied to the clipboard.";
+"Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead." = "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead.";
+"Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication." = "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication.";

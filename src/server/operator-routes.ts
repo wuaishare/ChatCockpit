@@ -71,12 +71,36 @@ function sourceAddress(request: FastifyRequest): string {
 }
 
 function isLoopbackSetupRequest(request: FastifyRequest): boolean {
+  const hasForwardingHeaders = [
+    "forwarded",
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto"
+  ].some((name) => request.headers[name] !== undefined);
+  if (hasForwardingHeaders) return false;
+
   const address = sourceAddress(request).toLowerCase();
   const host = request.hostname.toLowerCase();
   const loopbackAddress =
     address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
   const loopbackHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
   return loopbackAddress && loopbackHost;
+}
+
+function hasSameLoopbackOrigin(request: FastifyRequest): boolean {
+  const origin = request.headers.origin;
+  if (typeof origin !== "string") return false;
+  try {
+    const parsed = new URL(origin);
+    const requestHost = request.headers.host?.toLowerCase();
+    return (
+      parsed.protocol === "http:" &&
+      requestHost !== undefined &&
+      parsed.host.toLowerCase() === requestHost
+    );
+  } catch {
+    return false;
+  }
 }
 
 function desktopSetupAvailable(request: FastifyRequest): boolean {
@@ -171,6 +195,42 @@ export function registerOperatorRoutes(
         "set-cookie",
         sessionCookie(issued.sessionSecret, isPublicHttpsRequest(request))
       );
+      return {
+        ok: true,
+        sessionId: issued.sessionId,
+        username: issued.username,
+        role: issued.role,
+        csrfToken: issued.csrfToken,
+        createdAt: issued.createdAt,
+        lastSeenAt: issued.createdAt,
+        idleExpiresAt: issued.idleExpiresAt,
+        absoluteExpiresAt: issued.absoluteExpiresAt
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/local-login", async (request, reply) => {
+    noStore(reply);
+    if (!isLoopbackSetupRequest(request)) {
+      return sendApiError(reply, 404, "NOT_FOUND", "Route not found");
+    }
+    if (!hasSameLoopbackOrigin(request)) {
+      return sendApiError(reply, 403, "ORIGIN_INVALID", "Local login requires the same loopback origin");
+    }
+    const body = record(request.body);
+    const grantSecret = typeof body.grant === "string" ? body.grant : "";
+    if (!grantSecret) {
+      return sendApiError(reply, 400, "VALIDATION_ERROR", "Local login grant is required");
+    }
+    try {
+      const issued = service.redeemLocalLoginGrant({
+        grantSecret,
+        source: sourceAddress(request),
+        userAgent: userAgent(request)
+      });
+      reply.header("set-cookie", sessionCookie(issued.sessionSecret, false));
       return {
         ok: true,
         sessionId: issued.sessionId,

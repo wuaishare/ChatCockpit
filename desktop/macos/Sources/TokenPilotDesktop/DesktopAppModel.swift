@@ -522,13 +522,42 @@ final class DesktopAppModel: ObservableObject {
     }
 
     func openLocalCockpit() {
+        Task { [weak self] in
+            await self?.openLocalCockpitWithPasswordlessGrant()
+        }
+    }
+
+    private func openLocalCockpitWithPasswordlessGrant() async {
         guard let url = snapshot.localCockpitURL else {
             lastUserMessage = DesktopL10n.string(
                 "ChatCockpit Cockpit is not reachable. Start or repair the local services first."
             )
             return
         }
-        NSWorkspace.shared.open(url)
+
+        guard operatorSecurityStatus?.configured == true else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+
+        do {
+            guard let context = try await currentContext() else {
+                NSWorkspace.shared.open(url)
+                return
+            }
+            let grant = try await authorityClient.createLocalLoginGrant(context: context)
+            guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+                NSWorkspace.shared.open(url)
+                return
+            }
+            components.fragment = "local-login=\(grant.grantSecret)"
+            NSWorkspace.shared.open(components.url ?? url)
+        } catch {
+            NSWorkspace.shared.open(url)
+            lastUserMessage = DesktopL10n.string(
+                "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead."
+            )
+        }
     }
 
     func openPublicCockpit() {
@@ -646,6 +675,13 @@ final class DesktopAppModel: ObservableObject {
         } catch {
             lastUserMessage = DesktopL10n.string("Machine API token is not available.")
         }
+    }
+
+    func copyMachineEndpoint(_ url: URL) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(url.absoluteString, forType: .string)
+        lastUserMessage = DesktopL10n.string("API address copied to the clipboard.")
     }
 
     func copyMachineApiToken() async {

@@ -58,6 +58,16 @@ function main(): void {
   assert.equal(fs.existsSync(databasePath), true);
   assert.equal(fs.readFileSync(databasePath).includes(Buffer.from(password, "utf8")), false);
 
+  result = runCli(home, ["operator", "local-login-grant", "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  const localGrant = parseJsonOutput(result.stdout);
+  assert.match(String(localGrant.grantSecret), /^cc_local_login_[A-Za-z0-9_-]{43}$/);
+  assert.match(String(localGrant.expiresAt), /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(
+    fs.readFileSync(databasePath).includes(Buffer.from(String(localGrant.grantSecret), "utf8")),
+    false
+  );
+
   const store = new OperatorStore({ path: databasePath });
   const owner = store.getOwner();
   assert.ok(owner);
