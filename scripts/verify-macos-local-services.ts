@@ -35,6 +35,13 @@ assert.match(source, /PRODUCT_IDENTITY.*chatcockpit[\s\S]*STATE_ROOT="\$\{HOME\}
 assert.match(source, /STATE_ROOT="\$\{INSTALL_ROOT\}\/\$\{STATE_DIR_NAME\}"/);
 assert.match(source, /PRIMARY_WORKSPACE_ROOT="\$\(identity_env_value PRIMARY_WORKSPACE_ROOT\)"/);
 assert.match(source, /NODE_BIN="\$\(identity_env_value NODE_BIN\)"/);
+assert.match(source, /NODE_BIN_DIR="\$\(dirname "\$\{NODE_BIN\}"\)"/);
+assert.match(
+  source,
+  /RUNTIME_PATH="\$\{NODE_BIN_DIR\}:\/usr\/bin:\/bin:\/usr\/sbin:\/sbin"/
+);
+assert.equal((source.match(/<key>PATH<\/key>/g) ?? []).length, 3);
+assert.equal((source.match(/<string>\$\{RUNTIME_PATH\}<\/string>/g) ?? []).length, 3);
 assert.match(source, /DISTRIBUTION_MODE="\$\(identity_env_value DISTRIBUTION_MODE\)"/);
 assert.match(source, /DISTRIBUTION_MODE="\$\{DISTRIBUTION_MODE:-source\}"/);
 assert.match(source, /RUNTIME_DIR="\$\{STATE_ROOT\}\/runtime"/);

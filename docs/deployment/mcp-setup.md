@@ -171,7 +171,11 @@ chatcockpit probe-direct-executors --executor-id 'downstream-mcp:example'
 
 The probe performs MCP initialization and `tools/list`, validates responses against the official MCP schemas, and writes a local capability snapshot under `~/.chatcockpit/runtime/capabilities/downstream-mcp/`. Only explicitly mapped capabilities enter the Broker; tool names are not inferred from prefixes or exposed through the public executor descriptor.
 
-For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; ChatCockpit does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command. A Desktop Commander executor entry can explicitly map the normalized Host Files and bounded Host Command capabilities used by the current governed adapter:
+For Desktop Commander, keep the executor in the same local-only config with the fixed executor ID `downstream-mcp:desktop-commander`. The upstream standard stdio launch form is `npx -y @wonderwhy-er/desktop-commander@latest`; ChatCockpit does not proactively install the package. If the operator explicitly runs a probe with this `npx` transport and the package is not already cached, `npx` may download/cache it as part of that local command.
+
+On macOS, ChatCockpit's managed LaunchAgents use a deterministic runtime `PATH` that prepends the directory containing the configured `NODE_BIN` to the system defaults. This keeps sibling `npm`/`npx` commands resolvable in the background runtime without inheriting an arbitrary interactive-shell `PATH`. Executors installed somewhere else should use an absolute `transport.command` or an explicit `transport.env.PATH` in the local-only config.
+
+A Desktop Commander executor entry can explicitly map the normalized Host Files and bounded Host Command capabilities used by the current governed adapter:
 
 ```json
 {

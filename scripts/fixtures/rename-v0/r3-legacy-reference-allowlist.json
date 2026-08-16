@@ -274,6 +274,14 @@
       "removalGate": "Remove after the 0.2.x browser-state migration window."
     },
     {
+      "id": "web-legacy-locale-migration-verifier",
+      "class": "C2",
+      "pathRegex": "^scripts/verify-web-i18n-integrations\\.ts$",
+      "lineRegex": "tokenpilot:web:locale",
+      "reason": "The Web localization verifier explicitly asserts the bounded receive-only migration key so the legacy locale reader cannot disappear accidentally before the compatibility window closes.",
+      "removalGate": "Remove with the legacy browser-locale migration reader after the 0.2.x compatibility window."
+    },
+    {
       "id": "legacy-macos-lifecycle-selector",
       "class": "C1",
       "pathRegex": "^scripts/(?:macos-manage-local-server|build-macos-xcode-app)\\.sh$",

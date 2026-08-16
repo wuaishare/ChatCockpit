@@ -61,6 +61,8 @@ PRIMARY_WORKSPACE_ROOT="$(identity_env_value PRIMARY_WORKSPACE_ROOT)"
 PRIMARY_WORKSPACE_ROOT="${PRIMARY_WORKSPACE_ROOT:-${INSTALL_ROOT}}"
 NODE_BIN="$(identity_env_value NODE_BIN)"
 NODE_BIN="${NODE_BIN:-$(command -v node)}"
+NODE_BIN_DIR="$(dirname "${NODE_BIN}")"
+RUNTIME_PATH="${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
 RUNTIME_DIR="${STATE_ROOT}/runtime"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"
@@ -133,6 +135,8 @@ write_server_plist() {
   <string>${LOG_FILE}</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>PATH</key>
+    <string>${RUNTIME_PATH}</string>
     <key>${ENV_PREFIX}_API_TOKEN</key>
     <string>${API_TOKEN}</string>
     <key>${ENV_PREFIX}_EXPOSED</key>
@@ -191,6 +195,8 @@ write_runner_plist() {
   <string>${RUNNER_LOG_FILE}</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>PATH</key>
+    <string>${RUNTIME_PATH}</string>
     <key>${ENV_PREFIX}_API_TOKEN</key>
     <string>${API_TOKEN}</string>
     <key>${ENV_PREFIX}_EXPOSED</key>
@@ -252,6 +258,8 @@ write_process_supervisor_plist() {
   <string>${PROCESS_SUPERVISOR_LOG_FILE}</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>PATH</key>
+    <string>${RUNTIME_PATH}</string>
     <key>${ENV_PREFIX}_DIRECT_EXECUTORS_CONFIG_PATH</key>
     <string>${DIRECT_EXECUTORS_CONFIG_PATH}</string>
     <key>${ENV_PREFIX}_INSTALL_ROOT</key>
