@@ -16,7 +16,7 @@ Launch it with:
 open dist/macos/ChatCockpit.app
 ```
 
-A normal launch should immediately present the **ChatCockpit Status** window, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar.
+A normal launch should immediately present the single **ChatCockpit** main window with **Overview / Runtime / Workspaces / Access & Security / Integrations / Updates / Diagnostics** in the sidebar, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar. The system **Settings…** scene is reserved for app-only preferences and must not duplicate Runtime, Workspace, or Security administration.
 
 If the local app has not been built yet:
 
@@ -34,17 +34,17 @@ The current development app is still unsigned / unnotarized and must not be desc
 If the Source Runtime is already running through `npm run mvp:start` or `npm run start:local`, test Developer Mode first. On first launch, ChatCockpit automatically selects Developer Mode when it discovers a valid source checkout; an explicit Developer/Packaged choice is remembered afterward.
 
 1. Launch `ChatCockpit.app`.
-2. Confirm the main window is not clipped and the bottom **Refresh / Settings… / Runtime actions** stay visible. In the Runtime card, **Local Cockpit / Public Cockpit** are direct native links; hovering a link should show the pointing-hand cursor, keyboard focus should reach it, and VoiceOver should expose the destination label/hint. **Public Cockpit** appears only when exposed mode has a valid public base URL.
-3. If a source checkout was auto-discovered, confirm Distribution is **Developer**; otherwise open Settings, choose **Developer Mode**, and click **Choose Source…**.
+2. Confirm the main window is not clipped and all seven sidebar destinations are reachable by mouse and keyboard. In **Overview**, the bottom Refresh and Runtime actions stay visible. **Local Cockpit / Public Cockpit** are direct native links; hovering a link should show the pointing-hand cursor, keyboard focus should reach it, and VoiceOver should expose the destination label/hint. **Public Cockpit** appears only when exposed mode has a valid public base URL.
+3. If a source checkout was auto-discovered, confirm Distribution is **Developer** under **Runtime**; otherwise choose **Developer Mode** there and click **Choose Source…**.
 4. If manual selection is needed, select the current ChatCockpit source checkout.
 5. Click **Revalidate**.
 6. Confirm Runtime state is **Ready**.
 7. Confirm the endpoint is `127.0.0.1:4318` unless a different local endpoint was intentionally configured.
 8. Confirm State shows the global `~/.chatcockpit` root instead of checkout-local state.
 9. In **Security & Access**, confirm Web Owner status is shown independently from the machine API token. The machine token should be masked as a fingerprint by default (for example `cc_local_…abc123`), not exposed as plaintext. **Reveal / Copy / Rotate** must be icon actions on the same row as the token value, never a detached action row. **Local API base / Local MCP endpoint** and exposed Public API/MCP addresses each have an inline copy icon. Every icon action uses a pointing-hand hover cursor, remains keyboard focusable, and exposes its own VoiceOver action description.
-10. Confirm **Reveal Token** shows plaintext only on explicit action and automatically hides it again. Successful **Copy Token / Copy API address** feedback stays local to that icon, switches briefly to a copied state, automatically returns after about 2 seconds, and never enters the persistent Settings or main-status notice area. Do not rotate the real token during an ordinary smoke test.
-11. Confirm **Set / Manage Owner…** can update the Owner username and password, while **Revoke Web Sessions** independently revokes current sessions without exposing the password or session secrets.
-12. When an Owner is configured, use the App's **Open Local Cockpit** action and confirm the browser becomes authenticated without a password prompt through the short-lived single-use loopback grant, the `#local-login=…` fragment disappears immediately, and the resulting session is the ordinary HttpOnly Owner session. Reusing the same grant must fail. If no Owner is configured, the normal local setup flow should open instead. If **Public Cockpit** is present, confirm it still opens the configured HTTPS `/ui` entrypoint and does not receive the local passwordless grant.
+10. Confirm **Reveal Token** shows plaintext only on explicit action and automatically hides it again. Successful **Copy Token / Copy API address** feedback stays local to that icon, switches briefly to a copied state, automatically returns after about 2 seconds, and never enters the persistent main-window notice area. Do not rotate the real token during an ordinary smoke test.
+11. Under **Access & Security**, confirm **Set / Manage Owner…** can update the Owner username and password, while **Revoke Web Sessions** independently revokes current sessions without exposing the password or session secrets.
+12. When an Owner is configured, use the App's **Open Local Cockpit** action and confirm the browser becomes authenticated without a password prompt through the short-lived single-use loopback grant, the `#local-login=…` fragment disappears immediately, and the resulting session is the ordinary HttpOnly Owner session. Reusing the same grant must fail. If no Owner is configured, the normal local setup flow should open instead. If **Public Cockpit** is present, confirm it still opens the configured HTTPS console entry path and does not receive the local passwordless grant.
 
 The canonical Source/Developer Mode state root is:
 
@@ -71,7 +71,7 @@ The Desktop app is the local-machine administration surface for human Web Owner 
 When Developer Mode LaunchAgents are active, Packaged Mode must not silently take ownership.
 
 1. Keep Developer Mode services running.
-2. Switch Settings to **Packaged Mode**.
+2. Switch the main window **Runtime** page to **Packaged Mode**.
 3. Click **Choose Primary Workspace…** and select a real project directory.
 4. Refresh / Revalidate.
 5. Confirm **Runtime Conflict** reports that Developer Mode already owns the ChatCockpit service identity.
@@ -102,7 +102,7 @@ Verify the Source services are stopped before continuing.
 ### 3.2 Start Packaged Mode
 
 1. Launch `ChatCockpit.app`.
-2. Settings → **Packaged Mode**.
+2. Main window **Runtime** → **Packaged Mode**.
 3. **Choose Primary Workspace…** and select a test project.
 4. In **Workspaces**, add a second test project. Verify both directories have stable repo IDs and exactly one carries the **Primary** badge.
 5. Make the second project Primary and verify the app says Runtime lifecycle was not changed; then restore the intended Primary project.
@@ -127,7 +127,7 @@ The deployed Runtime is never treated as a user Workspace. The workspace set is 
 
 To import safe Source setup into Packaged Mode:
 
-1. Settings → Packaged Mode.
+1. Main window **Runtime** → Packaged Mode.
 2. Click **Import Existing Setup…**.
 3. Review the Preview.
 4. Apply only after the preview is correct.

@@ -125,20 +125,21 @@ for (const [name, source] of [
   assert.doesNotMatch(source, /Text\("TokenPilot"\)/, `${name} must not present TokenPilot as the active product`);
   assert.doesNotMatch(source, /Button\("(?:Open|Quit) TokenPilot"/, `${name} must not expose TokenPilot active actions`);
 }
-assert.match(desktopApp, /DesktopL10n\.string\("ChatCockpit Status"\)/);
+assert.match(desktopApp, /Window\(ProductIdentity\.current\.displayName, id: "main"\)/);
+assert.doesNotMatch(desktopApp, /Window\(DesktopL10n\.string\("ChatCockpit Status"\)/);
 assert.match(menuBar, /DesktopL10n\.string\("Open Local Cockpit"\)/);
 assert.match(menuBar, /snapshot\.publicCockpitURL != nil/);
 assert.match(menuBar, /DesktopL10n\.string\("Open Public Cockpit"\)/);
 assert.match(statusView, /DesktopL10n\.string/);
 assert.match(settingsView, /DesktopL10n\.string/);
 assert.match(appModel, /DesktopL10n\.string/);
-const statusWindowSceneIndex = desktopApp.indexOf('Window(DesktopL10n.string("ChatCockpit Status")');
+const mainWindowSceneIndex = desktopApp.indexOf('Window(ProductIdentity.current.displayName, id: "main")');
 const menuBarSceneIndex = desktopApp.indexOf("MenuBarExtra(ProductIdentity.current.displayName");
-assert.ok(statusWindowSceneIndex >= 0, "Desktop app must declare the Status Window");
+assert.ok(mainWindowSceneIndex >= 0, "Desktop app must declare the unified ChatCockpit main window");
 assert.ok(menuBarSceneIndex >= 0, "Desktop app must declare the MenuBarExtra");
 assert.ok(
-  statusWindowSceneIndex < menuBarSceneIndex,
-  "Status Window must remain the first desktop scene so launching ChatCockpit presents a visible window"
+  mainWindowSceneIndex < menuBarSceneIndex,
+  "Unified ChatCockpit main window must remain the first desktop scene so normal launch presents a visible operator surface"
 );
 
 // Normal lifecycle operations are ChatCockpit. Legacy identity is quiesce/inspection only.

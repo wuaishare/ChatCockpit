@@ -266,6 +266,14 @@
       "removalGate": "Permanent historical record unless the entire historical artifact is intentionally retired."
     },
     {
+      "id": "access-policy-legacy-route-rejection",
+      "class": "C2",
+      "pathRegex": "^src/security/access-policy\\.ts$",
+      "lineRegex": "tokenpilot",
+      "reason": "The canonical access-policy validator reserves the historical TokenPilot route root so operators cannot reintroduce it as a fresh custom Web console path. This is receive-only rejection policy, not emitted product identity.",
+      "removalGate": "Remove only after the legacy /tokenpilot transport compatibility surface is fully retired and the reserved-root rejection is no longer needed."
+    },
+    {
       "id": "web-legacy-session-storage-readers",
       "class": "C2",
       "pathRegex": "^web/src/(?:App|theme|i18n)\\.(?:tsx|ts)$",

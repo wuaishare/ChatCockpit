@@ -2,15 +2,29 @@ import AppKit
 import SwiftUI
 import TokenPilotDesktopCore
 
+enum OperationalSettingsScope: Equatable {
+    case runtime
+    case workspaces
+    case accessSecurity
+    case updates
+
+    var showsRuntime: Bool { self == .runtime }
+    var showsWorkspaces: Bool { self == .workspaces }
+    var showsAccessSecurity: Bool { self == .accessSecurity }
+    var showsUpdates: Bool { self == .updates }
+}
+
 struct SettingsView: View {
     @ObservedObject var model: DesktopAppModel
+    let scope: OperationalSettingsScope
     @State private var consolePathPrefix = "/ui"
     @State private var trustedLanEnabled = false
     @State private var trustedLanCidrsText = ""
 
     var body: some View {
         Form {
-            Section(DesktopL10n.string("Distribution")) {
+            if scope.showsRuntime {
+                Section(DesktopL10n.string("Distribution")) {
                 LabeledContent(DesktopL10n.string("Mode")) {
                     Text(model.distributionModeText)
                 }
@@ -36,8 +50,10 @@ struct SettingsView: View {
                     .disabled(model.distributionMode == .source)
                 }
             }
+            }
 
-            Section(DesktopL10n.string("Updates")) {
+            if scope.showsUpdates {
+                Section(DesktopL10n.string("Updates")) {
                 LabeledContent(DesktopL10n.string("App version")) {
                     Text(model.currentAppVersionText)
                 }
@@ -74,7 +90,9 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            }
 
+            if scope.showsWorkspaces {
             if model.distributionMode == .packaged {
                 Section(DesktopL10n.string("Workspaces")) {
                     if model.packagedWorkspaces.isEmpty {
@@ -194,8 +212,10 @@ struct SettingsView: View {
                     }
                 }
             }
+            }
 
-            Section(DesktopL10n.string("Local Runtime")) {
+            if scope.showsRuntime {
+                Section(DesktopL10n.string("Local Runtime")) {
                 LabeledContent(DesktopL10n.string("Endpoint")) {
                     Text(verbatim: model.endpointText)
                         .textSelection(.enabled)
@@ -230,8 +250,10 @@ struct SettingsView: View {
                     }
                 }
             }
+            }
 
-            Section(DesktopL10n.string("Security & Access")) {
+            if scope.showsAccessSecurity {
+                Section(DesktopL10n.string("Security & Access")) {
                 LabeledContent(DesktopL10n.string("Runtime mode")) {
                     Text(
                         model.snapshot.configuration.exposed
@@ -391,8 +413,9 @@ struct SettingsView: View {
                     }
                 }
             }
+            }
 
-            if let conflict = model.runtimeConflict {
+            if scope.showsRuntime, let conflict = model.runtimeConflict {
                 Section(DesktopL10n.string("Runtime Conflict")) {
                     Label(model.localizedConflictMessage(conflict), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.secondary)
@@ -408,7 +431,7 @@ struct SettingsView: View {
                 }
             }
 
-            if let message = model.lastUserMessage {
+            if scope.showsRuntime, let message = model.lastUserMessage {
                 Section(DesktopL10n.string("Attention")) {
                     Label(message, systemImage: "exclamationmark.circle")
                         .foregroundStyle(.secondary)
@@ -416,11 +439,13 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 590, height: 650)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 6)
-        .task {
-            await model.refreshSecurity()
-            syncAccessPolicyFields()
+        .task(id: scope) {
+            if scope.showsAccessSecurity {
+                await model.refreshSecurity()
+                syncAccessPolicyFields()
+            }
         }
     }
 
