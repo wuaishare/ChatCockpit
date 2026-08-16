@@ -16,7 +16,7 @@ Launch it with:
 open dist/macos/ChatCockpit.app
 ```
 
-A normal launch should immediately present the **ChatCockpit Status** window while keeping the ChatCockpit status item in the menu bar. Closing the main window does not stop the runtime; the app remains available from the menu bar.
+A normal launch should immediately present the **ChatCockpit Status** window, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar.
 
 If the local app has not been built yet:
 
@@ -31,16 +31,16 @@ The current development app is still unsigned / unnotarized and must not be desc
 
 ## 1. Developer Mode — recommended maintainer smoke path
 
-If the Source Runtime is already running through `npm run mvp:start` or `npm run start:local`, test Developer Mode first.
+If the Source Runtime is already running through `npm run mvp:start` or `npm run start:local`, test Developer Mode first. On first launch, ChatCockpit automatically selects Developer Mode when it discovers a valid source checkout; an explicit Developer/Packaged choice is remembered afterward.
 
 1. Launch `ChatCockpit.app`.
-2. Open Settings.
-3. Select **Developer Mode**.
-4. If no checkout is selected, click **Choose Source…**.
-5. Select the current ChatCockpit source checkout.
-6. Click **Revalidate**.
-7. Confirm Runtime state is **Ready**.
-8. Confirm the endpoint is `127.0.0.1:4318` unless a different local endpoint was intentionally configured.
+2. Confirm the main window is not clipped and the bottom **Refresh / Settings… / Runtime actions / Open ChatCockpit** bar stays visible.
+3. If a source checkout was auto-discovered, confirm Distribution is **Developer**; otherwise open Settings, choose **Developer Mode**, and click **Choose Source…**.
+4. If manual selection is needed, select the current ChatCockpit source checkout.
+5. Click **Revalidate**.
+6. Confirm Runtime state is **Ready**.
+7. Confirm the endpoint is `127.0.0.1:4318` unless a different local endpoint was intentionally configured.
+8. Confirm State shows the global `~/.chatcockpit` root instead of checkout-local state.
 9. In Security, API token must appear only as `Configured / Not configured`, never as the token value.
 10. Click **Open ChatCockpit** and confirm the Web Cockpit opens in the default browser.
 

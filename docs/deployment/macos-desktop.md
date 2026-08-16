@@ -33,6 +33,12 @@ Developer Mode preserves the source workflow:
 
 Developer Mode remains useful for contributors and maintainers. Phase 2 does not remove or silently migrate it.
 
+### App launch and initial mode selection
+
+ChatCockpit is a normal foreground macOS app: launch immediately presents the **ChatCockpit Status** window, keeps ChatCockpit visible in the Dock, and also retains the menu-bar status item as a quick-control surface. The main window uses a scrollable content area plus a fixed action bar so restored smaller window sizes do not clip the status header or primary controls.
+
+On first launch, Desktop prefers **Developer Mode** when it discovers a valid ChatCockpit source checkout; otherwise it uses **Packaged Mode** when a valid bundled runtime is available. An explicit Developer/Packaged choice is persisted locally and preferred on later launches; if that remembered mode is no longer usable, Desktop falls back to the currently available runtime safely.
+
 ## Architecture and state separation
 
 Packaged Mode keeps four concepts separate:

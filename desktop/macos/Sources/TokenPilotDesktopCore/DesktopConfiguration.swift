@@ -112,6 +112,55 @@ public protocol WorkspacePreferenceStoring: Sendable {
     func saveWorkspaceURL(_ url: URL?)
 }
 
+public protocol DistributionModePreferenceStoring: Sendable {
+    func loadMode() -> DistributionMode?
+    func saveMode(_ mode: DistributionMode)
+}
+
+public enum DesktopInitialDistributionMode {
+    public static func resolve(
+        remembered: DistributionMode?,
+        sourceAvailable: Bool,
+        packagedAvailable: Bool
+    ) -> DistributionMode {
+        if remembered == .source, sourceAvailable {
+            return .source
+        }
+        if remembered == .packaged, packagedAvailable {
+            return .packaged
+        }
+        if sourceAvailable {
+            return .source
+        }
+        if packagedAvailable {
+            return .packaged
+        }
+        return .source
+    }
+}
+
+public struct UserDefaultsDistributionModePreferenceStore: DistributionModePreferenceStoring, @unchecked Sendable {
+    private let defaults: UserDefaults
+    private let key: String
+
+    public init(
+        defaults: UserDefaults = .standard,
+        key: String = "chatcockpitDesktop.distributionMode"
+    ) {
+        self.defaults = defaults
+        self.key = key
+    }
+
+    public func loadMode() -> DistributionMode? {
+        guard let rawValue = defaults.string(forKey: key) else { return nil }
+        return DistributionMode(rawValue: rawValue)
+    }
+
+    public func saveMode(_ mode: DistributionMode) {
+        defaults.set(mode.rawValue, forKey: key)
+    }
+}
+
 public struct UserDefaultsWorkspacePreferenceStore: WorkspacePreferenceStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String

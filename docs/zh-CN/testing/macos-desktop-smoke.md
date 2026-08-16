@@ -16,7 +16,7 @@ dist/macos/ChatCockpit.app
 open dist/macos/ChatCockpit.app
 ```
 
-正常情况下会立即出现 **ChatCockpit Status** 主窗口，同时菜单栏保留 ChatCockpit 状态项。关闭主窗口不会停止 Runtime，App 仍可从菜单栏继续操作。
+正常情况下会立即出现 **ChatCockpit Status** 主窗口，Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。
 
 如果还没有本地 App，可构建当前架构：
 
@@ -31,16 +31,16 @@ Intel Mac 使用 `--arch x64`。
 
 ## 1. Developer Mode — 推荐的维护者首测路径
 
-如果当前 Source Runtime 已经通过 `npm run mvp:start` / `npm run start:local` 运行，优先使用 Developer Mode。
+如果当前 Source Runtime 已经通过 `npm run mvp:start` / `npm run start:local` 运行，优先使用 Developer Mode。首次启动时，只要 ChatCockpit 能发现合法 source checkout，就会自动选择 Developer Mode；用户之后手动选择的 Developer/Packaged Mode 会被记住。
 
 1. 启动 `ChatCockpit.app`；
-2. 打开 Settings；
-3. 选择 **Developer Mode**；
-4. 如果尚未选择源码，点击 **Choose Source…**；
-5. 选择当前 ChatCockpit source checkout；
-6. 点击 **Revalidate**；
-7. 确认 Runtime 状态为 **Ready**；
-8. 确认 Endpoint 为 `127.0.0.1:4318`（除非你明确配置了其他本地 endpoint）；
+2. 确认主窗口没有裁切，底部 **Refresh / Settings… / Runtime actions / Open ChatCockpit** 始终可见；
+3. 如果已自动发现 source checkout，确认 Distribution 为 **Developer**；否则打开 Settings，选择 **Developer Mode** 并点击 **Choose Source…**；
+4. 如需手动选择，选择当前 ChatCockpit source checkout；
+5. 点击 **Revalidate**；
+6. 确认 Runtime 状态为 **Ready**；
+7. 确认 Endpoint 为 `127.0.0.1:4318`（除非你明确配置了其他本地 endpoint）；
+8. 确认 State 显示全局 `~/.chatcockpit`，而不是 checkout-local state；
 9. Security 中 API token 只能显示 `Configured / Not configured`，不能显示 token 值；
 10. 点击 **Open ChatCockpit**，应使用默认浏览器打开 Web Cockpit。
 

@@ -33,6 +33,12 @@ Developer Mode 保留原有源码工作流：
 
 Developer Mode 仍面向贡献者和维护者。Phase 2 不会删除它，也不会静默把它迁移掉。
 
+### App 首次启动与模式选择
+
+ChatCockpit 是正常的前台 macOS App：启动后会直接显示 **ChatCockpit Status** 主窗口，Dock 中可见，同时保留菜单栏状态项作为快速控制入口。主窗口使用可滚动内容区与固定动作栏，窗口恢复到较小尺寸时也不应裁切状态头或底部操作。
+
+首次启动时，如果能发现合法 ChatCockpit source checkout，Desktop 优先进入 **Developer Mode**；否则在存在有效 bundled runtime 时进入 **Packaged Mode**。用户之后显式选择的 Developer/Packaged Mode 会写入本机偏好并在下次启动时优先恢复；若记忆模式不再可用，则按当前可用 Runtime 安全回退。
+
 ## Runtime 与 Workspace 分离
 
 Packaged Mode 明确区分四种根：
