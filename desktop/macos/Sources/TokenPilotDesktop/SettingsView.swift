@@ -6,119 +6,135 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Distribution") {
-                LabeledContent("Mode") {
+            Section(DesktopL10n.string("Distribution")) {
+                LabeledContent(DesktopL10n.string("Mode")) {
                     Text(model.distributionModeText)
                 }
-                LabeledContent("Runtime") {
+                LabeledContent(DesktopL10n.string("Runtime")) {
                     Text(model.runtimeVersionText)
                 }
-                LabeledContent("Architecture") {
+                LabeledContent(DesktopL10n.string("Architecture")) {
                     Text(model.runtimeArchitectureText)
                 }
-                LabeledContent("State") {
+                LabeledContent(DesktopL10n.string("State")) {
                     Text(model.stateLocationText)
                 }
 
                 HStack {
-                    Button("Packaged Mode") {
+                    Button(DesktopL10n.string("Packaged Mode")) {
                         Task { await model.usePackagedMode() }
                     }
                     .disabled(!model.packagedModeAvailable || model.distributionMode == .packaged)
 
-                    Button("Developer Mode") {
+                    Button(DesktopL10n.string("Developer Mode")) {
                         Task { await model.useDeveloperMode() }
                     }
                     .disabled(model.distributionMode == .source)
                 }
             }
 
-            Section("Updates") {
-                LabeledContent("App version") {
+            Section(DesktopL10n.string("Updates")) {
+                LabeledContent(DesktopL10n.string("App version")) {
                     Text(model.currentAppVersionText)
                 }
-                LabeledContent("Build") {
+                LabeledContent(DesktopL10n.string("Build")) {
                     Text(model.currentAppBuildText)
                 }
-                LabeledContent("Status") {
+                LabeledContent(DesktopL10n.string("Status")) {
                     Text(model.updateStatusText)
                 }
 
                 HStack {
-                    Button(model.isCheckingForUpdates ? "Checking…" : "Check for Updates") {
+                    Button(
+                        model.isCheckingForUpdates
+                            ? DesktopL10n.string("Checking…")
+                            : DesktopL10n.string("Check for Updates")
+                    ) {
                         Task { await model.checkForUpdates() }
                     }
                     .disabled(model.isCheckingForUpdates)
 
                     if model.updateAvailable {
-                        Button("Download Update") {
+                        Button(DesktopL10n.string("Download Update")) {
                             model.openAvailableUpdate()
                         }
                     }
                 }
 
-                Text("Update checks are explicit and read public release metadata only. \(ProductIdentity.current.displayName) never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution.")
+                Text(
+                    DesktopL10n.string(
+                        "Update checks are explicit and read public release metadata only. ChatCockpit never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution."
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if model.distributionMode == .packaged {
-                Section("Workspace") {
-                    LabeledContent("Current project") {
+                Section(DesktopL10n.string("Workspace")) {
+                    LabeledContent(DesktopL10n.string("Current project")) {
                         Text(model.selectedWorkspaceDisplayPath)
                             .textSelection(.enabled)
                             .foregroundStyle(model.selectedWorkspaceURL == nil ? .secondary : .primary)
                     }
 
                     HStack {
-                        Button("Choose Workspace…") {
+                        Button(DesktopL10n.string("Choose Workspace…")) {
                             model.chooseWorkspaceFromPanel()
                         }
-                        Button("Revalidate") {
+                        Button(DesktopL10n.string("Revalidate")) {
                             Task { await model.refresh() }
                         }
                         .disabled(model.selectedWorkspaceURL == nil || model.isRefreshing)
-                        Button("Forget", role: .destructive) {
+                        Button(DesktopL10n.string("Forget"), role: .destructive) {
                             model.clearWorkspace()
                         }
                         .disabled(model.selectedWorkspaceURL == nil)
                     }
 
-                    Text("The packaged \(ProductIdentity.current.displayName) runtime and Application Support state remain separate from the selected project workspace.")
+                    Text(
+                        DesktopL10n.string(
+                            "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace."
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Section("Existing Setup") {
-                    Button("Import Existing Setup…") {
+                Section(DesktopL10n.string("Existing Setup")) {
+                    Button(DesktopL10n.string("Import Existing Setup…")) {
                         model.importExistingSetupFromPanel()
                     }
                     .disabled(model.isRefreshing)
 
-                    Text("Import previews only workspace mappings and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only.")
+                    Text(
+                        DesktopL10n.string(
+                            "Import previews only workspace mappings and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only."
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Section("Developer Source") {
-                    LabeledContent("Current checkout") {
+                Section(DesktopL10n.string("Developer Source")) {
+                    LabeledContent(DesktopL10n.string("Current checkout")) {
                         Text(model.selectedRootDisplayPath)
                             .textSelection(.enabled)
                             .foregroundStyle(model.selectedRootURL == nil ? .secondary : .primary)
                     }
 
                     HStack {
-                        Button("Choose Source…") {
+                        Button(DesktopL10n.string("Choose Source…")) {
                             model.chooseRootFromPanel()
                         }
-                        Button("Revalidate") {
+                        Button(DesktopL10n.string("Revalidate")) {
                             Task { await model.refresh() }
                         }
                         .disabled(model.selectedRootURL == nil || model.isRefreshing)
-                        Button("Forget", role: .destructive) {
+                        Button(DesktopL10n.string("Forget"), role: .destructive) {
                             model.clearRoot()
                         }
                         .disabled(model.selectedRootURL == nil)
@@ -126,49 +142,69 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Local Runtime") {
-                LabeledContent("Endpoint") {
+            Section(DesktopL10n.string("Local Runtime")) {
+                LabeledContent(DesktopL10n.string("Endpoint")) {
                     Text("\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)")
                         .textSelection(.enabled)
                 }
-                LabeledContent("Node") {
+                LabeledContent(DesktopL10n.string("Node")) {
                     Text(model.nodeVersionText)
                 }
-                LabeledContent(model.distributionMode == .packaged ? "Bundled Node" : "Minimum Node") {
+                LabeledContent(
+                    model.distributionMode == .packaged
+                        ? DesktopL10n.string("Bundled Node")
+                        : DesktopL10n.string("Minimum Node")
+                ) {
                     Text(model.distributionMode == .packaged ? "v24.18.1 exact" : "v22.13.0")
                 }
-                LabeledContent("Status") {
+                LabeledContent(DesktopL10n.string("Status")) {
                     Label(
                         model.snapshot.overallState.displayName,
                         systemImage: model.snapshot.overallState.systemImage
                     )
                 }
 
-                Button("Open \(ProductIdentity.current.displayName)") {
+                Button(DesktopL10n.string("Open ChatCockpit")) {
                     model.openCockpit()
                 }
                 .disabled(model.snapshot.cockpitURL == nil)
             }
 
-            Section("Security") {
-                LabeledContent("Runtime mode") {
-                    Text(model.snapshot.configuration.exposed ? "Exposed" : "Local only")
+            Section(DesktopL10n.string("Security")) {
+                LabeledContent(DesktopL10n.string("Runtime mode")) {
+                    Text(
+                        model.snapshot.configuration.exposed
+                            ? DesktopL10n.string("Exposed")
+                            : DesktopL10n.string("Local only")
+                    )
                 }
-                LabeledContent("API token") {
-                    Text(model.snapshot.configuration.apiTokenConfigured ? "Configured" : "Not configured")
+                LabeledContent(DesktopL10n.string("API token")) {
+                    Text(
+                        model.snapshot.configuration.apiTokenConfigured
+                            ? DesktopL10n.string("Configured")
+                            : DesktopL10n.string("Not configured")
+                    )
                 }
-                Text("Token values are never displayed by the desktop shell. Remote MCP, OAuth, approvals, and mutation policy remain owned by the existing \(ProductIdentity.current.displayName) control plane.")
+                Text(
+                    DesktopL10n.string(
+                        "Token values are never displayed by the desktop shell. Remote MCP, OAuth, approvals, and mutation policy remain owned by the existing ChatCockpit control plane."
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if let conflict = model.runtimeConflict {
-                Section("Runtime Conflict") {
-                    Label(conflict.message, systemImage: "exclamationmark.triangle")
+                Section(DesktopL10n.string("Runtime Conflict")) {
+                    Label(model.localizedConflictMessage(conflict), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(ProductIdentity.current.displayName) will not stop, restart, replace, or take over the existing runtime automatically. Resolve it explicitly in its current mode, then refresh Packaged Mode.")
+                    Text(
+                        DesktopL10n.string(
+                            "ChatCockpit will not stop, restart, replace, or take over the existing runtime automatically. Resolve it explicitly in its current mode, then refresh Packaged Mode."
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -176,7 +212,7 @@ struct SettingsView: View {
             }
 
             if let message = model.lastUserMessage {
-                Section("Attention") {
+                Section(DesktopL10n.string("Attention")) {
                     Label(message, systemImage: "exclamationmark.circle")
                         .foregroundStyle(.secondary)
                 }

@@ -103,7 +103,9 @@ final class DesktopAppModel: ObservableObject {
         )
 
         if bundlePayloadURL != nil, decodedManifest == nil {
-            lastUserMessage = "The bundled \(ProductIdentity.current.displayName) runtime manifest is invalid for this Mac. Rebuild or replace the app before starting services."
+            lastUserMessage = DesktopL10n.string(
+                "The bundled ChatCockpit runtime manifest is invalid for this Mac. Rebuild or replace the app before starting services."
+            )
         }
 
         Task { [weak self] in
@@ -116,56 +118,60 @@ final class DesktopAppModel: ObservableObject {
     }
 
     var selectedRootDisplayPath: String {
-        guard let selectedRootURL else { return "Not selected" }
+        guard let selectedRootURL else { return DesktopL10n.string("Not selected") }
         return (selectedRootURL.path as NSString).abbreviatingWithTildeInPath
     }
 
     var selectedWorkspaceDisplayPath: String {
-        guard let selectedWorkspaceURL else { return "Not selected" }
+        guard let selectedWorkspaceURL else { return DesktopL10n.string("Not selected") }
         return (selectedWorkspaceURL.path as NSString).abbreviatingWithTildeInPath
     }
 
     var selectedWorkspaceName: String {
-        selectedWorkspaceURL?.lastPathComponent ?? "Not selected"
+        selectedWorkspaceURL?.lastPathComponent ?? DesktopL10n.string("Not selected")
     }
 
     var distributionModeText: String {
-        distributionMode == .packaged ? "Packaged" : "Developer"
+        distributionMode == .packaged
+            ? DesktopL10n.string("Packaged")
+            : DesktopL10n.string("Developer")
     }
 
     var nodeVersionText: String {
-        guard let version = snapshot.node.version else { return "Unavailable" }
+        guard let version = snapshot.node.version else { return DesktopL10n.string("Unavailable") }
         let versionText = "v\(version.major).\(version.minor).\(version.patch)"
         switch snapshot.node.source {
-        case .bundled: return "\(versionText) — Bundled"
-        case .system: return "\(versionText) — System"
+        case .bundled: return "\(versionText) — \(DesktopL10n.string("Bundled"))"
+        case .system: return "\(versionText) — \(DesktopL10n.string("System"))"
         case .unavailable: return versionText
         }
     }
 
     var runtimeVersionText: String {
-        guard distributionMode == .packaged else { return "Source checkout" }
-        return deployedRuntime?.manifest.tokenPilotVersion ?? bundleManifest?.tokenPilotVersion ?? "Unavailable"
+        guard distributionMode == .packaged else { return DesktopL10n.string("Source checkout") }
+        return deployedRuntime?.manifest.tokenPilotVersion
+            ?? bundleManifest?.tokenPilotVersion
+            ?? DesktopL10n.string("Unavailable")
     }
 
     var currentAppVersionText: String {
-        appVersion == "0.0.0" ? "Unavailable" : appVersion
+        appVersion == "0.0.0" ? DesktopL10n.string("Unavailable") : appVersion
     }
 
     var currentAppBuildText: String {
-        appBuildNumber == "0" ? "Unavailable" : appBuildNumber
+        appBuildNumber == "0" ? DesktopL10n.string("Unavailable") : appBuildNumber
     }
 
     var updateStatusText: String {
         switch updateCheckResult {
         case nil:
-            return "Not checked"
+            return DesktopL10n.string("Not checked")
         case let .upToDate(version):
-            return "Up to date — v\(version)"
+            return DesktopL10n.format("Up to date — v%@", version)
         case let .available(version, _, _):
-            return "Version \(version) available"
+            return DesktopL10n.format("Version %@ available", version)
         case .unableToCheck:
-            return "Unable to check"
+            return DesktopL10n.string("Unable to check")
         }
     }
 
@@ -185,7 +191,9 @@ final class DesktopAppModel: ObservableObject {
     }
 
     var setupActionTitle: String {
-        distributionMode == .packaged ? "Choose Workspace…" : "Choose \(ProductIdentity.current.displayName) Folder…"
+        distributionMode == .packaged
+            ? DesktopL10n.string("Choose Workspace…")
+            : DesktopL10n.string("Choose Source…")
     }
 
     var runtimeControlAllowed: Bool {
@@ -220,7 +228,9 @@ final class DesktopAppModel: ObservableObject {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
-            lastUserMessage = "Choose an existing project folder for the \(ProductIdentity.current.displayName) workspace."
+            lastUserMessage = DesktopL10n.string(
+                "Choose an existing project folder for the ChatCockpit workspace."
+            )
             return
         }
 
@@ -235,9 +245,11 @@ final class DesktopAppModel: ObservableObject {
 
     func chooseWorkspaceFromPanel() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Workspace"
-        panel.message = "Select the project folder \(ProductIdentity.current.displayName) should operate on. The packaged runtime remains separate from this workspace."
-        panel.prompt = "Choose Workspace"
+        panel.title = DesktopL10n.string("Choose Workspace")
+        panel.message = DesktopL10n.string(
+            "Select the project folder ChatCockpit should operate on. The packaged runtime remains separate from this workspace."
+        )
+        panel.prompt = DesktopL10n.string("Choose Workspace")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -260,15 +272,19 @@ final class DesktopAppModel: ObservableObject {
             lastUserMessage = nil
             snapshot = await runtimeController.snapshot(context: .source(root: root))
         } catch {
-            lastUserMessage = "The selected folder is not a valid \(ProductIdentity.current.displayName) source or built checkout."
+            lastUserMessage = DesktopL10n.string(
+                "The selected folder is not a valid ChatCockpit source or built checkout."
+            )
         }
     }
 
     func chooseRootFromPanel() {
         let panel = NSOpenPanel()
-        panel.title = "Choose \(ProductIdentity.current.displayName) Source Folder"
-        panel.message = "Developer Mode uses an existing \(ProductIdentity.current.displayName) source or built checkout with the system Node runtime."
-        panel.prompt = "Choose Source"
+        panel.title = DesktopL10n.string("Choose ChatCockpit Source Folder")
+        panel.message = DesktopL10n.string(
+            "Developer Mode uses an existing ChatCockpit source or built checkout with the system Node runtime."
+        )
+        panel.prompt = DesktopL10n.string("Choose Source")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -290,14 +306,18 @@ final class DesktopAppModel: ObservableObject {
 
     func importExistingSetupFromPanel() {
         guard distributionMode == .packaged, let bundleManifest else {
-            lastUserMessage = "Import Existing Setup is available only when a valid packaged runtime is present."
+            lastUserMessage = DesktopL10n.string(
+                "Import Existing Setup is available only when a valid packaged runtime is present."
+            )
             return
         }
 
         let panel = NSOpenPanel()
-        panel.title = "Import Existing TokenPilot Setup"
-        panel.message = "Select the existing TokenPilot source checkout. The source files will be read only and will not be modified."
-        panel.prompt = "Preview Import"
+        panel.title = DesktopL10n.string("Import Existing TokenPilot Setup")
+        panel.message = DesktopL10n.string(
+            "Select the existing TokenPilot source checkout. The source files will be read only and will not be modified."
+        )
+        panel.prompt = DesktopL10n.string("Preview Import")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -310,11 +330,11 @@ final class DesktopAppModel: ObservableObject {
             let source = existingSetupImporter.source(sourceRootURL: sourceRoot.url)
             let preview = try existingSetupImporter.preview(source: source)
             let alert = NSAlert()
-            alert.messageText = "Import Existing Setup?"
+            alert.messageText = DesktopL10n.string("Import Existing Setup?")
             alert.informativeText = importPreviewText(preview)
             alert.alertStyle = .informational
-            alert.addButton(withTitle: "Import Non-Secret Settings")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: DesktopL10n.string("Import Non-Secret Settings"))
+            alert.addButton(withTitle: DesktopL10n.string("Cancel"))
 
             guard alert.runModal() == .alertFirstButtonReturn else { return }
 
@@ -327,20 +347,28 @@ final class DesktopAppModel: ObservableObject {
             workspacePreferenceStore.saveWorkspaceURL(result.primaryWorkspaceURL)
             runtimeConflict = nil
             lastUserMessage = result.exposedModeResetToLocal
-                ? "Existing non-secret settings were imported. Source files were unchanged, secrets were skipped, and exposed mode was reset to local-only until new packaged credentials are configured."
-                : "Existing non-secret settings were imported. Source files were unchanged and secrets were skipped."
+                ? DesktopL10n.string(
+                    "Existing non-secret settings were imported. Source files were unchanged, secrets were skipped, and exposed mode was reset to local-only until new packaged credentials are configured."
+                )
+                : DesktopL10n.string(
+                    "Existing non-secret settings were imported. Source files were unchanged and secrets were skipped."
+                )
 
             Task { [weak self] in
                 await self?.refresh()
             }
         } catch {
-            lastUserMessage = "The existing TokenPilot setup could not be imported. No source files were changed."
+            lastUserMessage = DesktopL10n.string(
+                "The existing TokenPilot setup could not be imported. No source files were changed."
+            )
         }
     }
 
     func usePackagedMode() async {
         guard packagedModeAvailable else {
-            lastUserMessage = "This app build does not contain a valid packaged \(ProductIdentity.current.displayName) runtime."
+            lastUserMessage = DesktopL10n.string(
+                "This app build does not contain a valid packaged ChatCockpit runtime."
+            )
             return
         }
         distributionMode = .packaged
@@ -394,7 +422,9 @@ final class DesktopAppModel: ObservableObject {
 
     func openCockpit() {
         guard let url = snapshot.cockpitURL else {
-            lastUserMessage = "\(ProductIdentity.current.displayName) Cockpit is not reachable. Start or repair the local services first."
+            lastUserMessage = DesktopL10n.string(
+                "ChatCockpit Cockpit is not reachable. Start or repair the local services first."
+            )
             return
         }
         NSWorkspace.shared.open(url)
@@ -427,8 +457,12 @@ final class DesktopAppModel: ObservableObject {
                 snapshot = .setupRequired
                 runtimeConflict = nil
                 lastUserMessage = distributionMode == .packaged
-                    ? "Choose a workspace before controlling packaged \(ProductIdentity.current.displayName) services."
-                    : "Choose a valid \(ProductIdentity.current.displayName) source folder before controlling services."
+                    ? DesktopL10n.string(
+                        "Choose a workspace before controlling packaged ChatCockpit services."
+                    )
+                    : DesktopL10n.string(
+                        "Choose a valid ChatCockpit source folder before controlling services."
+                    )
                 return
             }
 
@@ -442,7 +476,7 @@ final class DesktopAppModel: ObservableObject {
                 if let conflict {
                     snapshot = currentSnapshot
                     runtimeConflict = conflict
-                    lastUserMessage = conflict.message
+                    lastUserMessage = localizedConflictMessage(conflict)
                     return
                 }
             }
@@ -460,7 +494,9 @@ final class DesktopAppModel: ObservableObject {
             } else {
                 snapshot = .setupRequired
             }
-            lastUserMessage = "The \(ProductIdentity.current.displayName) service action did not complete. Check local runtime diagnostics and retry."
+            lastUserMessage = DesktopL10n.string(
+                "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry."
+            )
         }
     }
 
@@ -503,7 +539,9 @@ final class DesktopAppModel: ObservableObject {
         ), isDirectory.boolValue else {
             workspacePreferenceStore.saveWorkspaceURL(nil)
             self.selectedWorkspaceURL = nil
-            lastUserMessage = "The saved workspace is no longer available. Choose it again."
+            lastUserMessage = DesktopL10n.string(
+                "The saved workspace is no longer available. Choose it again."
+            )
             return nil
         }
         return selectedWorkspaceURL
@@ -516,7 +554,9 @@ final class DesktopAppModel: ObservableObject {
         } catch {
             rootPreferenceStore.saveRootURL(nil)
             self.selectedRootURL = nil
-            lastUserMessage = "The saved \(ProductIdentity.current.displayName) source folder is no longer valid. Choose it again."
+            lastUserMessage = DesktopL10n.string(
+                "The saved ChatCockpit source folder is no longer valid. Choose it again."
+            )
             return nil
         }
     }
@@ -527,30 +567,60 @@ final class DesktopAppModel: ObservableObject {
         }
         let extraWorkspaceCount = max(preview.workspaces.count - workspaceLines.count, 0)
         let workspaceSummary = workspaceLines.joined(separator: "\n") +
-            (extraWorkspaceCount > 0 ? "\n• +\(extraWorkspaceCount) more" : "")
-        let publicBase = preview.publicBaseURL?.absoluteString ?? "Not configured"
+            (extraWorkspaceCount > 0
+                ? "\n• \(DesktopL10n.format("+%d more", extraWorkspaceCount))"
+                : "")
+        let publicBase = preview.publicBaseURL?.absoluteString ?? DesktopL10n.string("Not configured")
         let exposureNote = preview.exposed
-            ? "Source mode is exposed. Because bearer tokens are not migrated, Packaged Mode will be imported as Local only."
-            : "Source mode is Local only."
+            ? DesktopL10n.string(
+                "Source mode is exposed. Because bearer tokens are not migrated, Packaged Mode will be imported as Local only."
+            )
+            : DesktopL10n.string("Source mode is Local only.")
 
         return """
-        Workspaces:
+        \(DesktopL10n.string("Workspaces:"))
         \(workspaceSummary)
 
-        Endpoint: \(preview.host):\(preview.port)
-        Public base URL: \(publicBase)
+        \(DesktopL10n.string("Endpoint")): \(preview.host):\(preview.port)
+        \(DesktopL10n.string("Public base URL:")) \(publicBase)
         \(exposureNote)
 
-        Secrets not imported: \(preview.skippedSecretCategories.joined(separator: ", ")).
-        The source checkout will not be modified.
+        \(DesktopL10n.string("Secrets not imported:")) \(preview.skippedSecretCategories.joined(separator: ", ")).
+        \(DesktopL10n.string("The source checkout will not be modified."))
         """
+    }
+
+    func localizedConflictMessage(_ conflict: PackagedRuntimeConflict) -> String {
+        switch conflict.kind {
+        case .sourceRuntime:
+            return DesktopL10n.string(
+                "A Developer Mode ChatCockpit LaunchAgent already owns the local service labels. Stop it explicitly in Developer Mode before starting Packaged Mode."
+            )
+        case .otherPackagedRuntime:
+            return DesktopL10n.string(
+                "Another packaged ChatCockpit runtime owns the local service labels. Stop that runtime explicitly before switching versions."
+            )
+        case .unknownLaunchAgentOwnership:
+            return DesktopL10n.string(
+                "An existing ChatCockpit LaunchAgent has unknown ownership. Review the installed local service before changing it."
+            )
+        case .portOccupied:
+            return DesktopL10n.format(
+                "Port %d is already in use. Choose another port or stop the existing process explicitly; ChatCockpit will not terminate it automatically.",
+                conflict.port
+            )
+        }
     }
 
     private func userMessage(for error: Error) -> String {
         if error is PackagedRuntimeDeploymentError {
-            return "The packaged \(ProductIdentity.current.displayName) runtime could not be verified or deployed. The previous active runtime was kept unchanged."
+            return DesktopL10n.string(
+                "The packaged ChatCockpit runtime could not be verified or deployed. The previous active runtime was kept unchanged."
+            )
         }
-        return "\(ProductIdentity.current.displayName) setup could not be completed. Review the local runtime details and retry."
+        return DesktopL10n.string(
+            "ChatCockpit setup could not be completed. Review the local runtime details and retry."
+        )
     }
 }
 

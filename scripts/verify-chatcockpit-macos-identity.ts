@@ -114,7 +114,7 @@ assert.match(desktopConfiguration, /TOKENPILOT_/);
 assert.match(sourceRoot, /packageIdentity\.name == "chatcockpit"/);
 assert.doesNotMatch(sourceRoot, /packageIdentity\.name == "tokenpilot"/);
 
-// Target-sensitive desktop UI strings are derived from ProductIdentity.current.
+// Target-sensitive desktop UI uses canonical ChatCockpit identity plus the localization facade.
 for (const [name, source] of [
   ["desktop app", desktopApp],
   ["menu bar", menuBar],
@@ -122,12 +122,15 @@ for (const [name, source] of [
   ["settings view", settingsView],
   ["desktop app model", appModel]
 ] as const) {
-  assert.match(source, /ProductIdentity\.current/, `${name} must derive presentation from ProductIdentity.current`);
+  assert.doesNotMatch(source, /Text\("TokenPilot"\)/, `${name} must not present TokenPilot as the active product`);
+  assert.doesNotMatch(source, /Button\("(?:Open|Quit) TokenPilot"/, `${name} must not expose TokenPilot active actions`);
 }
-assert.doesNotMatch(statusView, /Text\("TokenPilot"\)/);
-assert.doesNotMatch(menuBar, /Button\("(?:Open|Quit) TokenPilot"/);
-assert.doesNotMatch(settingsView, /Button\("Open TokenPilot"/);
-const statusWindowSceneIndex = desktopApp.indexOf('Window("\\(ProductIdentity.current.displayName) Status"');
+assert.match(desktopApp, /DesktopL10n\.string\("ChatCockpit Status"\)/);
+assert.match(menuBar, /DesktopL10n\.string\("Open ChatCockpit"\)/);
+assert.match(statusView, /DesktopL10n\.string/);
+assert.match(settingsView, /DesktopL10n\.string/);
+assert.match(appModel, /DesktopL10n\.string/);
+const statusWindowSceneIndex = desktopApp.indexOf('Window(DesktopL10n.string("ChatCockpit Status")');
 const menuBarSceneIndex = desktopApp.indexOf("MenuBarExtra(ProductIdentity.current.displayName");
 assert.ok(statusWindowSceneIndex >= 0, "Desktop app must declare the Status Window");
 assert.ok(menuBarSceneIndex >= 0, "Desktop app must declare the MenuBarExtra");
