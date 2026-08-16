@@ -72,20 +72,38 @@ CHATCOCKPIT_PORT=4318
 
 ## Access The Web UI
 
+The Web Cockpit uses a dedicated human **Owner** account. It does not store or reuse `CHATCOCKPIT_API_TOKEN` as a browser credential.
+
+For a source checkout, create or rotate the Owner password locally before signing in:
+
+```bash
+node dist/cli/index.js operator set-password
+```
+
+An installed ChatCockpit CLI exposes the same command as:
+
+```bash
+chatcockpit operator set-password
+```
+
+Password entry is hidden on an interactive TTY. Changing the Owner password revokes existing Web sessions. For controlled automation and tests, `--password-stdin` is available; do not place passwords directly on the command line.
+
 After building the frontend and starting the server, open:
 
 ```text
 http://127.0.0.1:4318/ui
 ```
 
+The browser signs in as the Owner and receives an opaque HttpOnly session cookie. State-changing Web requests also require the session-bound CSRF token; neither the raw Web session secret nor the machine API token is stored in `localStorage` or `sessionStorage`.
+
 Current boundary:
 
 - Dashboard and Jobs inspect public-safe health, process, Job, and Artifact state
 - Continuity Workbench reads real Project/Workspace/Writer/Git/Task/Session/Handoff/Evidence/Approval state
 - ready Handoffs can be accepted, forked, or cancelled; new Handoffs can be prepared from an eligible source Session
-- GPT Helper exposes public configuration and instructions without revealing the Bearer token
-- in auth-required mode, protected data still requires the operator to provide a Bearer token in the browser session
-- the Web UI is a local/private operator console, not a public multi-tenant management service
+- GPT Helper remains a compatibility/advanced integration surface in this R5 slice; it does not reveal machine credentials
+- protected Web data requires an authenticated Owner session; machine Bearer credentials remain for API/automation compatibility clients, not human Web login
+- the Web UI is a single-Owner operator console, not a public multi-tenant management service
 
 ## Local Artifact Retention
 
@@ -102,9 +120,10 @@ Alpha retention is intentionally conservative: ChatCockpit does not delete job r
 
 ## Exposed Mode
 
-- `CHATCOCKPIT_EXPOSED=false` is the default local-development mode. If `CHATCOCKPIT_API_TOKEN` is omitted, private job APIs remain open for local-only testing.
-- `CHATCOCKPIT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, or Custom GPT Actions access. In this mode, `CHATCOCKPIT_API_TOKEN` is mandatory and the server will refuse to start without it.
-- even in exposed mode, the current Web UI MVP remains an operator console for an authenticated endpoint that you control
+- `CHATCOCKPIT_EXPOSED=false` is the default local-development mode. Machine API Bearer compatibility may remain open when no machine token is configured, but once an Owner account exists the Web Cockpit still requires that Owner session.
+- `CHATCOCKPIT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, Remote MCP, or Custom GPT Actions access. In this R5 slice, `CHATCOCKPIT_API_TOKEN` remains mandatory as the machine/API authority and the server refuses to start without it.
+- `CHATCOCKPIT_API_TOKEN` is not the Web password. Human operators sign in with the dedicated Owner account; ChatGPT Remote MCP uses its separate scoped OAuth authority.
+- even in exposed mode, the current Web UI remains a single-Owner console for an authenticated endpoint that you control
 
 Example:
 

@@ -38,12 +38,12 @@ The implementation targets the current MCP authorization requirements and the Ch
 4. ChatGPT can obtain a public client ID through Dynamic Client Registration for compatibility. Client ID Metadata Documents are intentionally not fetched in this phase because server-side fetching would add an SSRF surface; DCR remains a supported compatibility mechanism.
 5. Authorization Code flow requires PKCE S256.
 6. Authorization requests validate exact registered redirect URIs, permitted redirect hosts, the protected resource audience, response type, scope, and state handling.
-7. The owner authorizes the connection in a browser using the existing local operator secret. The secret is never returned to the MCP client or embedded in OAuth tokens.
+7. The current OAuth approval flow still verifies the existing local machine owner secret. This is a transitional R5 boundary: Web Cockpit login no longer uses that secret, while OAuth approval will move to the authenticated Owner session in the dedicated public-hardening slice. The machine secret is never returned to the MCP client or embedded in OAuth tokens.
 8. Authorization codes are short-lived and single-use.
 9. Access tokens are opaque, short-lived, audience-bound, and stored only as hashes at rest.
 10. Refresh tokens are opaque, longer-lived, audience-bound, stored only as hashes, and allow ChatGPT to remain connected after access-token expiry. `offline_access` is advertised by the authorization server but not by the protected resource metadata.
 11. Refresh, revoke, restart, and repeated MCP initialize/tool calls must not destroy Continuity state.
-12. Legacy static `TOKENPILOT_API_TOKEN` bearer input remains accepted for backward compatibility and local operator workflows; fresh configuration uses `CHATCOCKPIT_API_TOKEN`.
+12. Legacy static `TOKENPILOT_API_TOKEN` bearer input remains receive-only compatible; fresh machine/API configuration uses `CHATCOCKPIT_API_TOKEN`. Neither value is the human Web Cockpit password.
 
 ## OAuth persistence boundary
 
@@ -81,14 +81,22 @@ Additional redirect hosts require explicit local configuration. Redirect URIs wi
 
 ## Authentication boundary
 
-The Fastify authentication hook becomes a small policy boundary instead of owning token storage.
+R5 separates three authorities instead of treating one static Bearer as both machine and human identity:
 
-It accepts:
+- **Machine API authority** — `CHATCOCKPIT_API_TOKEN` remains available to supported CLI/API/automation compatibility clients and can authenticate REST or MCP where that compatibility path is explicitly allowed.
+- **Web Operator authority** — the single Owner account is password-authenticated with a versioned slow hash; successful sign-in creates an opaque server-side session represented in the browser only by a host-only HttpOnly `SameSite=Strict` cookie. State-changing Web REST requests additionally require a session-bound CSRF token. Changing the Owner password revokes existing Web sessions.
+- **ChatGPT MCP authority** — OAuth access/refresh tokens remain scoped to `chatcockpit:mcp` and authenticate MCP only.
 
-- the existing static operator bearer token; or
-- an OAuth access token verified by the OAuth store/service.
+The Fastify policy boundary enforces the separation:
 
-Public OAuth discovery, registration, authorization, token, revoke, health, privacy, OpenAPI, and UI bootstrap routes bypass bearer enforcement only as required for the protocol. The authorization approval action still requires the local owner secret.
+- ordinary protected REST accepts machine Bearer compatibility or a valid Web Operator session;
+- MCP accepts machine Bearer compatibility or a valid scoped OAuth access token;
+- a Web Operator cookie never authorizes MCP;
+- an OAuth access token never authorizes ordinary Web/REST administration routes.
+
+Initial Owner password setup is local-only through `chatcockpit operator set-password` (or the source checkout's built CLI). There is no anonymous public endpoint that creates an Owner account. Login throttling, expiry/revocation, and audit metadata are persisted in a separate private `operator-auth.sqlite`; plaintext passwords and raw session secrets are not persisted.
+
+Public OAuth discovery, registration, authorization transport, token, revoke, health, privacy, OpenAPI, static UI, and the minimal Operator status/login routes bypass protected REST enforcement only where required. The OAuth authorization approval action still requires the local machine owner secret in this F1 slice; migrating that approval to the authenticated Web Owner session is intentionally deferred to the next R5 public-hardening slice.
 
 The MCP handler itself remains transport/authentication agnostic. A validated principal may be attached to request context, but existing REST/MCP domain services remain unchanged.
 
