@@ -78,6 +78,66 @@ struct DesktopConfigurationTests {
         }
     }
 
+    @Test("reads canonical access policy alongside server environment")
+    func readsAccessPolicy() throws {
+        try withTemporaryDirectory { rootURL in
+            let stateRoot = rootURL.appendingPathComponent("state", isDirectory: true)
+            let runtimeDirectory = stateRoot.appendingPathComponent("runtime", isDirectory: true)
+            try FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
+            try "CHATCOCKPIT_HOST=127.0.0.1\nCHATCOCKPIT_PORT=4318\n".write(
+                to: runtimeDirectory.appendingPathComponent("server.env"),
+                atomically: true,
+                encoding: .utf8
+            )
+            let ipv4Cidr = [10, 77, 0, 0].map(String.init).joined(separator: ".") + "/16"
+            let policy = """
+            {
+              "schemaVersion": 1,
+              "consolePathPrefix": "/ops-desktop",
+              "trustedLan": {
+                "enabled": true,
+                "cidrs": ["\(ipv4Cidr)", "fd12:3456::/64"]
+              }
+            }
+            """
+            try policy.write(
+                to: runtimeDirectory.appendingPathComponent("access-policy.json"),
+                atomically: true,
+                encoding: .utf8
+            )
+
+            let configuration = DesktopRuntimeConfigurationReader().read(stateRootURL: stateRoot)
+            #expect(configuration.consolePathPrefix == "/ops-desktop")
+            #expect(configuration.trustedLanEnabled == true)
+            #expect(configuration.trustedLanCidrs == [ipv4Cidr, "fd12:3456::/64"])
+        }
+    }
+
+    @Test("invalid access policy falls back without losing server configuration")
+    func invalidAccessPolicyFallsBack() throws {
+        try withTemporaryDirectory { rootURL in
+            let stateRoot = rootURL.appendingPathComponent("state", isDirectory: true)
+            let runtimeDirectory = stateRoot.appendingPathComponent("runtime", isDirectory: true)
+            try FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
+            try "CHATCOCKPIT_HOST=localhost\nCHATCOCKPIT_PORT=6123\n".write(
+                to: runtimeDirectory.appendingPathComponent("server.env"),
+                atomically: true,
+                encoding: .utf8
+            )
+            try "{\"schemaVersion\":2}".write(
+                to: runtimeDirectory.appendingPathComponent("access-policy.json"),
+                atomically: true,
+                encoding: .utf8
+            )
+
+            let configuration = DesktopRuntimeConfigurationReader().read(stateRootURL: stateRoot)
+            #expect(configuration.host == "localhost")
+            #expect(configuration.port == 6123)
+            #expect(configuration.consolePathPrefix == "/ui")
+            #expect(configuration.trustedLanEnabled == false)
+        }
+    }
+
     @Test("canonical ChatCockpit values override legacy environment aliases")
     func canonicalValuesTakePrecedence() {
         let configuration = DesktopRuntimeConfigurationReader.parse(

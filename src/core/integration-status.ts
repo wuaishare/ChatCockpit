@@ -3,6 +3,7 @@ import { buildOAuthReadiness } from "../auth/oauth-readiness.js";
 import { readIdentityEnv } from "./identity-env.js";
 import { buildHealthStatusSnapshot } from "./gpt-config.js";
 import type { TokenPilotPaths } from "../types.js";
+import { loadAccessPolicy } from "../security/access-policy.js";
 
 export interface IntegrationStatusSnapshot {
   ok: true;
@@ -42,6 +43,7 @@ export function buildIntegrationStatusSnapshot(input: {
   toolCount: number;
 }): IntegrationStatusSnapshot {
   const health = buildHealthStatusSnapshot(input.paths.productIdentity);
+  const accessPolicy = loadAccessPolicy(input.paths);
   const oauthReadiness = buildOAuthReadiness(input.paths);
   const oauthSummary = input.oauthSummary ?? {
     authorizedClientCount: 0,
@@ -56,8 +58,10 @@ export function buildIntegrationStatusSnapshot(input: {
 
   return {
     ok: true,
-    localCockpitUrl: `${localApiBaseUrl}/ui`,
-    publicCockpitUrl: publicApiBaseUrl ? appendPath(publicApiBaseUrl, "/ui") : null,
+    localCockpitUrl: appendPath(localApiBaseUrl, accessPolicy.consolePathPrefix),
+    publicCockpitUrl: publicApiBaseUrl
+      ? appendPath(publicApiBaseUrl, accessPolicy.consolePathPrefix)
+      : null,
     localApiBaseUrl,
     publicApiBaseUrl,
     openapiUrl,

@@ -52,6 +52,24 @@ struct LocalHealthClientTests {
         #expect(urls.contains(URL(string: "http://localhost:5123/api/health")!))
         #expect(urls.contains(URL(string: "http://localhost:5123/ui")!))
     }
+
+    @Test("probes the configured console path instead of assuming ui")
+    func probesConfiguredConsolePath() async {
+        let transport = RecordingHTTPTransport()
+        let client = LocalHealthClient(transport: transport)
+        let configuration = DesktopRuntimeConfiguration(
+            host: "localhost",
+            port: 5123,
+            consolePathPrefix: "/ops-desktop"
+        )
+
+        _ = await client.probe(configuration: configuration)
+        let urls = await transport.urls()
+
+        #expect(urls.contains(URL(string: "http://localhost:5123/api/health")!))
+        #expect(urls.contains(URL(string: "http://localhost:5123/ops-desktop")!))
+        #expect(urls.contains(URL(string: "http://localhost:5123/ui")!) == false)
+    }
 }
 
 private actor FixtureHTTPTransport: LocalHTTPTransport {

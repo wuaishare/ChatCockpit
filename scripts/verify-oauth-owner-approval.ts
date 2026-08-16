@@ -7,6 +7,7 @@ import path from "node:path";
 import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import { updateAccessPolicy } from "../src/security/access-policy.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 import { listenTestServer } from "./test-support/server.ts";
@@ -43,7 +44,7 @@ function requestIdFromReturnTo(location: string): {
   requestId: string;
 } {
   const loginUrl = new URL(location, "http://localhost");
-  assert.equal(loginUrl.pathname, "/ui/login");
+  assert.equal(loginUrl.pathname, "/ops-oauth-approval/login");
   const returnTo = loginUrl.searchParams.get("returnTo");
   assert.ok(returnTo);
   const continuation = new URL(returnTo, "http://localhost");
@@ -93,6 +94,8 @@ async function main(): Promise<void> {
   const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
   const verifier = "v".repeat(64);
   const state = "oauth-owner-session-state";
+
+  updateAccessPolicy(paths, { consolePathPrefix: "/ops-oauth-approval" });
 
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-owner";

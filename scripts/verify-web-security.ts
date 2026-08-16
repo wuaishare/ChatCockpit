@@ -84,11 +84,14 @@ async function main(): Promise<void> {
         "x-forwarded-for": "203.0.113.8"
       }
     });
-    assert.equal(untrustedSpoof.statusCode, 200);
+    assert.equal(
+      untrustedSpoof.statusCode,
+      404,
+      "a direct non-loopback peer outside Trusted LAN must be denied before forwarded-header handling"
+    );
     assertBaselineHeaders(untrustedSpoof.headers);
     assert.equal(untrustedSpoof.headers["strict-transport-security"], undefined);
-    assert.match(untrustedSpoof.body, /http:\/\/chatcockpit\.example\.com/);
-    assert.doesNotMatch(untrustedSpoof.body, /https:\/\/chatcockpit\.example\.com/);
+    assert.equal(untrustedSpoof.body, "Not Found");
   } finally {
     await app.close();
     if (original.exposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;

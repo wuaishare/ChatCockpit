@@ -103,6 +103,28 @@ struct RuntimeControllerTests {
         #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ui")
     }
 
+    @Test("Cockpit URLs honor the configured console path")
+    func cockpitEntrypointsHonorAccessPolicy() throws {
+        let snapshot = DesktopRuntimeSnapshot(
+            overallState: .ready,
+            context: nil,
+            node: NodeRuntimeStatus(executableURL: nil, version: nil),
+            configuration: DesktopRuntimeConfiguration(
+                host: "0.0.0.0",
+                port: 5123,
+                exposed: true,
+                publicBaseURL: URL(string: "https://chatcockpit.example.com")!,
+                consolePathPrefix: "/ops-desktop"
+            ),
+            lifecycle: readyLifecycle,
+            healthReachable: true,
+            uiReachable: true
+        )
+
+        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ops-desktop")
+        #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ops-desktop")
+    }
+
     @Test("controller combines Node lifecycle and health truth")
     func controllerBuildsReadySnapshot() async {
         let controller = RuntimeController(

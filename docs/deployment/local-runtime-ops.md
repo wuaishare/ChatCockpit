@@ -135,9 +135,28 @@ Developer Mode directories:
 
 Alpha retention is intentionally conservative: ChatCockpit does not delete job records or Codex artifacts by default. Bundle XML pruning only runs when an operator explicitly sets `CHATCOCKPIT_BUNDLE_HISTORY_LIMIT` or `CHATCOCKPIT_REPOMIX_HISTORY_LIMIT` to a positive number. Leave those unset when you want a full local audit trail; set them only when you are comfortable pruning older generated bundle files.
 
+## Access policy: custom console path and Trusted LAN
+
+ChatCockpit stores non-secret access policy in `runtime/access-policy.json` under the active Runtime State root. In Developer Mode this is `~/.chatcockpit/runtime/access-policy.json`; Packaged Mode uses its own packaged state root. Prefer the macOS App **Access Policy** section, or use the CLI:
+
+```bash
+chatcockpit access-policy status --json
+chatcockpit access-policy set --console-path /my-console --json
+chatcockpit access-policy set --lan-enabled true --lan-cidr <your-lan-cidr> --json
+```
+
+The policy has deliberately narrow semantics:
+
+- `/ui` remains the default. When a custom console path is configured, the conventional `/ui` page is no longer registered and returns an ordinary 404. A custom path only reduces opportunistic scanning noise; it **never replaces** Owner authentication, Passkeys/password fallback, throttling, CSRF, or HTTPS.
+- Anonymous root status does not disclose a custom console path. The native App reads the canonical policy locally, while authenticated Integrations status can project the effective Local/Public Cockpit URLs to the signed-in administrator.
+- Trusted LAN is disabled by default and requires explicit IPv4/IPv6 CIDRs. A direct non-loopback peer outside the allowlist receives 404 before authentication. An allowlisted LAN peer only gains network admission and still must authenticate for protected APIs.
+- Enabling the LAN policy **does not widen the listener automatically**. If `CHATCOCKPIT_HOST` is still `127.0.0.1` or `::1`, other devices cannot connect. This is intentional: policy edits never silently expand the network bind surface.
+- Direct LAN peers and loopback reverse proxies are treated separately. Only the explicitly trusted local proxy chain can carry public HTTPS forwarding; a non-loopback peer cannot forge `X-Forwarded-*` headers to bypass the LAN gate.
+- Policy changes require an explicit Runtime restart to affect active routes/admission. The App restarts only a Runtime that was already running; stopped services remain stopped.
+
 ## Exposed Mode
 
-- `CHATCOCKPIT_EXPOSED=false` is the default local-development mode. Machine API Bearer compatibility may remain open when no machine token is configured, but once an Owner account exists the Web Cockpit still requires that Owner session.
+- `CHATCOCKPIT_EXPOSED=false` is the default local-development mode. When no machine token is configured, the legacy open machine-API compatibility applies only to a direct loopback peer; LAN/non-loopback clients never inherit that bypass. Once an Owner account exists, the Web Cockpit still requires that Owner session.
 - `CHATCOCKPIT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, Remote MCP, or Custom GPT Actions access. Exposed mode no longer requires a machine API token: human Web access is authorized by the dedicated Owner session, while ChatGPT Remote MCP uses scoped OAuth.
 - `CHATCOCKPIT_API_TOKEN` is an optional machine-to-machine credential for CLI, automation, and compatibility API clients. It is not the Web password and is not an OAuth prerequisite.
 - even in exposed mode, the current Web UI remains a single-Owner console for an authenticated endpoint that you control

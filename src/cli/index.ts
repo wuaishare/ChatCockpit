@@ -30,6 +30,10 @@ import {
   rotateMachineApiToken
 } from "../auth/machine-api-token.js";
 import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
+import {
+  loadAccessPolicy,
+  updateAccessPolicy
+} from "../security/access-policy.js";
 
 function printUsage(): void {
   const identity = DEFAULT_PRODUCT_IDENTITY;
@@ -53,6 +57,8 @@ Usage:
   ${identity.cliName} machine-token status [--json]
   ${identity.cliName} machine-token show [--json]
   ${identity.cliName} machine-token rotate [--json]
+  ${identity.cliName} access-policy status [--json]
+  ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
@@ -65,6 +71,23 @@ function getFlag(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   if (index === -1) return undefined;
   return process.argv[index + 1];
+}
+
+function getFlags(name: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] !== name) continue;
+    const value = process.argv[index + 1];
+    if (value !== undefined) values.push(value);
+  }
+  return values;
+}
+
+function parseBooleanFlag(name: string, value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (/^(1|true|yes|on)$/i.test(value)) return true;
+  if (/^(0|false|no|off)$/i.test(value)) return false;
+  throw new Error(`${name} must be true or false`);
 }
 
 function productIdentityFromArgs(): ProductIdentityKey {
@@ -317,6 +340,52 @@ async function main(): Promise<void> {
         }
         default:
           throw new Error("machine-token requires one of: status, show, rotate");
+      }
+    }
+    case "access-policy": {
+      const subcommand = process.argv[3];
+      switch (subcommand) {
+        case "status": {
+          const policy = loadAccessPolicy(paths);
+          if (process.argv.includes("--json")) {
+            printJson(policy);
+          } else {
+            process.stdout.write(`Console path: ${policy.consolePathPrefix}\n`);
+            process.stdout.write(`Trusted LAN: ${policy.trustedLan.enabled ? "enabled" : "disabled"}\n`);
+            for (const cidr of policy.trustedLan.cidrs) {
+              process.stdout.write(`LAN CIDR: ${cidr}\n`);
+            }
+          }
+          return;
+        }
+        case "set": {
+          const current = loadAccessPolicy(paths);
+          const consolePathPrefix = getFlag("--console-path");
+          const lanEnabled = parseBooleanFlag("--lan-enabled", getFlag("--lan-enabled"));
+          const lanCidrs = getFlags("--lan-cidr");
+          const policy = updateAccessPolicy(paths, {
+            ...(consolePathPrefix === undefined ? {} : { consolePathPrefix }),
+            ...(lanEnabled === undefined && lanCidrs.length === 0
+              ? {}
+              : {
+                  trustedLan: {
+                    enabled: lanEnabled ?? current.trustedLan.enabled,
+                    cidrs: lanCidrs.length > 0 ? lanCidrs : current.trustedLan.cidrs
+                  }
+                })
+          });
+          if (process.argv.includes("--json")) {
+            printJson(policy);
+          } else {
+            process.stdout.write("Access policy updated\n");
+            process.stdout.write(`Console path: ${policy.consolePathPrefix}\n`);
+            process.stdout.write(`Trusted LAN: ${policy.trustedLan.enabled ? "enabled" : "disabled"}\n`);
+            process.stdout.write("Restart ChatCockpit services to apply the policy.\n");
+          }
+          return;
+        }
+        default:
+          throw new Error("access-policy requires one of: status, set");
       }
     }
     case "operator": {

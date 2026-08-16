@@ -296,6 +296,10 @@ if (findings.length > 0) {
 }
 
 const appSource = fs.readFileSync(path.join(repoRoot, "web/src/App.tsx"), "utf8");
+const consolePathSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/console-path.ts"),
+  "utf8"
+);
 const continuitySource = fs.readFileSync(
   path.join(
     repoRoot,
@@ -398,8 +402,13 @@ for (const section of [
 ]) {
   assert.match(appSource, new RegExp(`\\"${section}\\"`));
 }
-assert.match(appSource, /\/ui\/continuity/);
-assert.match(appSource, /\/ui\/resources/);
+assert.match(appSource, /continuity:\s*consolePath\("continuity"\)/);
+assert.match(appSource, /resources:\s*consolePath\("resources"\)/);
+assert.match(appSource, /stripConsoleBasePath\(window\.location\.pathname\)/);
+assert.match(consolePathSource, /DEFAULT_CONSOLE_BASE_PATH\s*=\s*"\/ui"/);
+assert.match(consolePathSource, /chatcockpit-console-base/);
+assert.match(consolePathSource, /export function consolePath/);
+assert.match(consolePathSource, /export function stripConsoleBasePath/);
 assert.match(appSource, /ResourceCenterView/);
 assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);

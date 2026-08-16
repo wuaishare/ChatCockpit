@@ -132,6 +132,32 @@ public struct DesktopLocalLoginGrant: Decodable, Equatable, Sendable {
     }
 }
 
+public struct DesktopTrustedLanAccessPolicy: Decodable, Equatable, Sendable {
+    public let enabled: Bool
+    public let cidrs: [String]
+
+    public init(enabled: Bool, cidrs: [String]) {
+        self.enabled = enabled
+        self.cidrs = cidrs
+    }
+}
+
+public struct DesktopAccessPolicy: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let consolePathPrefix: String
+    public let trustedLan: DesktopTrustedLanAccessPolicy
+
+    public init(
+        schemaVersion: Int,
+        consolePathPrefix: String,
+        trustedLan: DesktopTrustedLanAccessPolicy
+    ) {
+        self.schemaVersion = schemaVersion
+        self.consolePathPrefix = consolePathPrefix
+        self.trustedLan = trustedLan
+    }
+}
+
 public enum DesktopAuthorityClientError: Error, Equatable, Sendable {
     case runtimeEntryMissing
     case commandFailed
@@ -176,6 +202,39 @@ public struct DesktopAuthorityClient: Sendable {
         try await decode(
             DesktopLocalLoginGrant.self,
             from: runCLI(context: context, arguments: ["operator", "local-login-grant", "--json"])
+        )
+    }
+
+    public func accessPolicyStatus(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopAccessPolicy {
+        try await decode(
+            DesktopAccessPolicy.self,
+            from: runCLI(context: context, arguments: ["access-policy", "status", "--json"])
+        )
+    }
+
+    public func setAccessPolicy(
+        consolePathPrefix: String,
+        trustedLanEnabled: Bool,
+        trustedLanCidrs: [String],
+        context: DesktopDistributionContext
+    ) async throws -> DesktopAccessPolicy {
+        var arguments = [
+            "access-policy",
+            "set",
+            "--console-path",
+            consolePathPrefix,
+            "--lan-enabled",
+            trustedLanEnabled ? "true" : "false"
+        ]
+        for cidr in trustedLanCidrs {
+            arguments.append(contentsOf: ["--lan-cidr", cidr])
+        }
+        arguments.append("--json")
+        return try await decode(
+            DesktopAccessPolicy.self,
+            from: runCLI(context: context, arguments: arguments)
         )
     }
 

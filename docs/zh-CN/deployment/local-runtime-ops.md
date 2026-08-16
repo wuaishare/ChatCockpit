@@ -111,6 +111,25 @@ http://127.0.0.1:4318/ui
 
 受保护的 Web 数据仍要求有效的控制台管理员会话；macOS App 可以用短时一次性 loopback 凭据引导生成同一套会话，支持的 HTTPS/localhost 地址也可以在通用密钥验证成功后签发同一套会话。机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
 
+## 访问策略：自定义控制台入口与可信局域网
+
+ChatCockpit 把非敏感的访问策略保存在 Runtime State 的 `runtime/access-policy.json`。Developer Mode 对应 `~/.chatcockpit/runtime/access-policy.json`；Packaged Mode 使用自己的 Packaged State Root。推荐优先通过 macOS App 的 **访问策略** 区域修改，也可以使用 CLI：
+
+```bash
+chatcockpit access-policy status --json
+chatcockpit access-policy set --console-path /my-console --json
+chatcockpit access-policy set --lan-enabled true --lan-cidr <your-lan-cidr> --json
+```
+
+访问策略遵循以下边界：
+
+- 默认控制台入口仍为 `/ui`；设置自定义入口后，传统 `/ui` 不再提供控制台页面并返回普通 404。自定义入口只用于降低自动扫描与探测噪音，**不能替代控制台管理员、Passkey、密码、限流、CSRF、HTTPS 等真实安全边界**。
+- 匿名根状态不会投影自定义控制台路径；App 可以直接从本机 canonical policy 读取真实入口，已登录管理员也可以通过受保护的 Integrations 状态看到有效 Local/Public Cockpit URL。
+- Trusted LAN 默认关闭，必须显式提供 IPv4/IPv6 CIDR allowlist。未命中的直接非 loopback 请求在身份认证之前返回 404；命中的 LAN 客户端只是获得网络准入，访问受保护 API 仍必须完成管理员认证。
+- 开启 LAN policy **不会自动修改 listener**。如果 `CHATCOCKPIT_HOST` 仍为 `127.0.0.1` / `::1`，其他设备仍无法连接；这是有意避免 App 静默扩大监听面。
+- loopback reverse proxy 与直接 LAN peer 分开处理：只有明确受信任的本机反代链可以承载公网 HTTPS；非 loopback peer 不能通过伪造 `X-Forwarded-*` 绕过 LAN gate。
+- 修改 policy 后，运行中的 Runtime 需要显式重启才能应用新的路由/准入规则；已停止 Runtime 保持停止。
+
 ## 暴露到 HTTPS
 
 `CHATCOCKPIT_EXPOSED=true` 用于你控制的 HTTPS 入口。此模式下：
