@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import net from "node:net";
 
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
 import { runGit } from "./test-support/git.ts";
@@ -354,6 +355,30 @@ async function runE2E(): Promise<void> {
       401,
       "exposed setup details must not remain anonymously readable"
     );
+
+    const setupStatusBeforeOwner = await fetch(
+      `http://127.0.0.1:${port}/api/setup/status`,
+      { headers: { Authorization: "Bearer test-token" } }
+    );
+    assert.equal(setupStatusBeforeOwner.status, 200);
+    const setupStatusBeforeOwnerBody = await setupStatusBeforeOwner.json();
+    assert.equal(setupStatusBeforeOwnerBody.oauthStatus, "needs-attention");
+    assert.match(
+      JSON.stringify(setupStatusBeforeOwnerBody),
+      /configured Web Owner account/
+    );
+
+    const operatorStore = new OperatorStore({
+      path: operatorDatabasePath(paths.runtimeDir)
+    });
+    operatorStore.setOwner(
+      {
+        username: "owner",
+        passwordHash: "test-readiness-hash-only"
+      },
+      "2026-08-16T00:00:00.000Z"
+    );
+    operatorStore.close();
 
     const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`, {
       headers: { Authorization: "Bearer test-token" }
