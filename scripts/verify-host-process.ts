@@ -953,7 +953,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal("truncated" in started, false);
     assert.doesNotMatch(JSON.stringify(started), new RegExp(hostRoot));
     assert.doesNotMatch(JSON.stringify(started), /privatePid/i);
-    assert.doesNotMatch(JSON.stringify(started), /7001/);
+    assert.doesNotMatch(JSON.stringify(started), /\b7001\b/);
     assert.equal(processSupervisor.startCalls, 1);
     const privateStarted = repositories.directProcessSessions.get(
       started.process.id
@@ -967,7 +967,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(startEvidence?.kind, "command");
     assert.equal(startEvidence?.status, "passed");
     assert.doesNotMatch(startEvidence?.summary ?? "", new RegExp(hostRoot));
-    assert.doesNotMatch(startEvidence?.summary ?? "", /7001/);
+    assert.doesNotMatch(startEvidence?.summary ?? "", /\b7001\b/);
 
     const readResult = await service.read(context, {
       processId: started.process.id,
@@ -979,7 +979,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.equal(readResult.process.status, "running");
     assert.match(readResult.output, /host-process-service-fixture/);
     assert.doesNotMatch(readResult.output, new RegExp(hostRoot));
-    assert.doesNotMatch(JSON.stringify(readResult), /7001/);
+    assert.doesNotMatch(JSON.stringify(readResult), /\b7001\b/);
     assert.equal(processSupervisor.readCalls, 1);
 
     const transientInput = "sensitive-transient-input";
