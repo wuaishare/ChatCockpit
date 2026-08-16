@@ -170,6 +170,14 @@
       "removalGate": "Retain through migration burn-in; remove only when historical desktop setup import and ownership inspection are retired."
     },
     {
+      "id": "macos-legacy-import-localization",
+      "class": "C2",
+      "pathRegex": "^desktop/macos/AppBundle/Resources/(?:en|zh-Hans)\\.lproj/Localizable\\.strings$",
+      "lineRegex": "TokenPilot",
+      "reason": "Localized Desktop copy names TokenPilot only inside the explicit read-only Existing Setup Import flow so a user can identify the historical product state being migrated.",
+      "removalGate": "Remove together with the historical TokenPilot setup import after R5 compatibility burn-in."
+    },
+    {
       "id": "macos-identity-regression-verifiers",
       "class": "C2",
       "pathRegex": "^scripts/(?:verify-chatcockpit-macos-identity|verify-macos-desktop|verify-macos-xcode-project|verify-packaged-doctor|verify-packaged-runtime|verify-macos-runtime-payload|verify-macos-entitlements|verify-macos-signing-contract|verify-macos-notarization)\\.(?:ts|sh)$",
