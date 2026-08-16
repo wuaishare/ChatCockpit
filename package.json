@@ -88,6 +88,7 @@
     "verify:continuity-restart": "tsx scripts/verify-continuity-restart.ts",
     "verify:oauth-store": "tsx scripts/verify-oauth-store.ts",
     "verify:oauth-flow": "tsx scripts/verify-oauth-flow.ts",
+    "verify:operator-password": "tsx scripts/verify-operator-password.ts",
     "verify:public-errors": "tsx scripts/verify-public-errors.ts",
     "verify:development-documents": "tsx scripts/verify-development-documents.ts",
     "verify:spec-plan-policy": "tsx scripts/verify-spec-plan-policy.ts",
