@@ -11,6 +11,11 @@ const lifecycleSourcePath = path.join(
   "TokenPilotDesktopCore",
   "LifecycleStatus.swift"
 );
+const runtimeCommandRunnerPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "RuntimeCommandRunner.swift"
+);
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
 const statusViewPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "StatusView.swift");
@@ -68,6 +73,7 @@ for (const required of [
   packageManifestPath,
   infoPlistPath,
   lifecycleSourcePath,
+  runtimeCommandRunnerPath,
   appModelPath,
   menuBarPath,
   statusViewPath,
@@ -88,6 +94,7 @@ for (const required of [
 const packageManifest = fs.readFileSync(packageManifestPath, "utf8");
 const infoPlist = fs.readFileSync(infoPlistPath, "utf8");
 const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
+const runtimeCommandRunner = fs.readFileSync(runtimeCommandRunnerPath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
 const statusView = fs.readFileSync(statusViewPath, "utf8");
@@ -133,14 +140,43 @@ assert.match(appModel, /sourceAvailable: discovered != nil/);
 assert.match(appModel, /modePreferenceStore\.saveMode\(\.packaged\)/);
 assert.match(appModel, /modePreferenceStore\.saveMode\(\.source\)/);
 assert.match(appModel, /"~\/\\\(ProductIdentity\.current\.stateDirectoryName\)"/);
+assert.match(appModel, /var endpointText: String/);
+assert.match(appModel, /String\(snapshot\.configuration\.port\)/);
+assert.match(appModel, /enum DesktopScenePresentation/);
+assert.match(appModel, /application\.activate\(ignoringOtherApps: true\)/);
 assert.match(statusView, /ScrollView/);
 assert.match(statusView, /Button\(DesktopL10n\.string\("Settings…"\)\)/);
+assert.match(statusView, /DesktopScenePresentation\.present/);
+assert.match(settings, /Text\(verbatim: model\.endpointText\)/);
+assert.doesNotMatch(settings, /Text\("\\\(model\.snapshot\.configuration\.host\):\\\(model\.snapshot\.configuration\.port\)"\)/);
+assert.match(menuBar, /DesktopScenePresentation\.present/);
 assert.match(menuBar, /NSApplication\.shared\.terminate/);
 assert.match(menuBar, /Stop Services/);
 assert.match(menuBar, /DesktopL10n\.string\("Quit ChatCockpit"\)/);
 assert.match(menuBar, /Runtime Conflict — Review Settings/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
+assert.match(settings, /DesktopL10n\.string\("Security & Access"\)/);
+assert.match(settings, /model\.setOwnerPasswordFromPanel\(\)/);
+assert.match(settings, /"Manage Owner…"/);
+assert.match(appModel, /Owner username/);
+assert.match(appModel, /\^\[a-z0-9\]\[a-z0-9\._-\]\{0,63\}\$/);
+assert.match(settings, /model\.revokeOwnerSessions\(\)/);
+assert.match(settings, /model\.revealMachineApiToken\(\)/);
+assert.match(settings, /model\.copyMachineApiToken\(\)/);
+assert.match(settings, /model\.rotateMachineApiToken\(\)/);
+assert.match(settings, /Text\(verbatim: token\)/);
+assert.match(appModel, /keepMachineApiTokenVisibleTemporarily/);
+assert.match(appModel, /Task\.sleep\(for: \.seconds\(30\)\)/);
+assert.match(appModel, /Task\.sleep\(for: \.seconds\(60\)\)/);
+assert.match(appModel, /pasteboard\.changeCount == changeCount/);
+assert.match(appModel, /pasteboard\.string\(forType: \.string\) == token/);
+assert.match(runtimeCommandRunner, /struct DesktopAuthorityClient/);
+assert.match(runtimeCommandRunner, /\["operator", "status", "--json"\]/);
+assert.match(runtimeCommandRunner, /"--username", username/);
+assert.match(runtimeCommandRunner, /standardInput: "\\\(password\)\\n"/);
+assert.match(runtimeCommandRunner, /\["machine-token", "show", "--json"\]/);
+assert.match(runtimeCommandRunner, /\["machine-token", "rotate", "--json"\]/);
 assert.match(desktopLocalization, /Bundle\.preferredLocalizations/);
 assert.match(desktopLocalization, /UserDefaults\.standard\.stringArray\(forKey: "AppleLanguages"\)/);
 assert.match(desktopLocalization, /Locale\.preferredLanguages/);

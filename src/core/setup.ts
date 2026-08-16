@@ -54,7 +54,8 @@ export function initLocalRuntime(paths: TokenPilotPaths, options: { force?: bool
   ].join("\n");
 
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
-  fs.writeFileSync(envPath, content, "utf8");
+  fs.writeFileSync(envPath, content, { encoding: "utf8", mode: 0o600 });
+  fs.chmodSync(envPath, 0o600);
   messages.push(`created ${envPath}`);
   messages.push("generated a local bearer token for this machine");
   messages.push(`keep ${identity.stateDirName}/runtime/server.env private`);

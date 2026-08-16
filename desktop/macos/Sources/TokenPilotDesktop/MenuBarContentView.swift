@@ -52,12 +52,16 @@ struct MenuBarContentView: View {
             .disabled(model.snapshot.cockpitURL == nil)
 
             Button(DesktopL10n.string("Open Status Window")) {
-                openWindow(id: "status")
+                DesktopScenePresentation.present {
+                    openWindow(id: "status")
+                }
             }
 
             if model.runtimeConflict != nil {
                 Button(DesktopL10n.string("Runtime Conflict — Review Settings")) {
-                    openSettings()
+                    DesktopScenePresentation.present {
+                        openSettings()
+                    }
                 }
             } else {
                 switch model.snapshot.overallState {
@@ -86,7 +90,9 @@ struct MenuBarContentView: View {
             Divider()
 
             Button(DesktopL10n.string("Settings…")) {
-                openSettings()
+                DesktopScenePresentation.present {
+                    openSettings()
+                }
             }
             .keyboardShortcut(",", modifiers: .command)
 

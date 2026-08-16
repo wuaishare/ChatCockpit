@@ -21,6 +21,10 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var isCheckingForUpdates = false
     @Published private(set) var updateCheckResult: MacOSUpdateCheckResult?
+    @Published private(set) var operatorSecurityStatus: DesktopOperatorStatus?
+    @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
+    @Published private(set) var revealedMachineApiToken: String?
+    @Published private(set) var isSecurityRefreshing = false
     @Published var lastUserMessage: String?
 
     private let rootValidator: TokenPilotRootValidator
@@ -36,6 +40,9 @@ final class DesktopAppModel: ObservableObject {
     private let bundlePayloadURL: URL?
     private let bundleManifest: RuntimeManifest?
     private let updateChecker: any MacOSUpdateChecking
+    private let authorityClient: DesktopAuthorityClient
+    private var tokenRevealTask: Task<Void, Never>?
+    private var tokenClipboardClearTask: Task<Void, Never>?
     private let appVersion: String
     private let appBuildNumber: String
 
@@ -52,6 +59,7 @@ final class DesktopAppModel: ObservableObject {
         applicationSupportRoot: URL = PackagedRuntimePaths.defaultApplicationSupportRoot,
         bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL(),
         updateChecker: any MacOSUpdateChecking = MacOSUpdateChecker(),
+        authorityClient: DesktopAuthorityClient = DesktopAuthorityClient(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
         appBuildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     ) {
@@ -67,6 +75,7 @@ final class DesktopAppModel: ObservableObject {
         self.applicationSupportRoot = applicationSupportRoot.standardizedFileURL
         self.bundlePayloadURL = bundlePayloadURL?.standardizedFileURL
         self.updateChecker = updateChecker
+        self.authorityClient = authorityClient
         self.appVersion = appVersion
         self.appBuildNumber = appBuildNumber
 
@@ -188,6 +197,10 @@ final class DesktopAppModel: ObservableObject {
         distributionMode == .packaged
             ? "Application Support / \(ProductIdentity.current.applicationSupportName)"
             : "~/\(ProductIdentity.current.stateDirectoryName)"
+    }
+
+    var endpointText: String {
+        "\(snapshot.configuration.host):" + String(snapshot.configuration.port)
     }
 
     var setupActionTitle: String {
@@ -430,6 +443,191 @@ final class DesktopAppModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    func refreshSecurity() async {
+        guard !isSecurityRefreshing else { return }
+        isSecurityRefreshing = true
+        defer { isSecurityRefreshing = false }
+
+        do {
+            guard let context = try await currentContext() else {
+                operatorSecurityStatus = nil
+                machineApiTokenStatus = nil
+                revealedMachineApiToken = nil
+                return
+            }
+            async let operatorStatus = authorityClient.operatorStatus(context: context)
+            async let tokenStatus = authorityClient.machineTokenStatus(context: context)
+            self.operatorSecurityStatus = try await operatorStatus
+            self.machineApiTokenStatus = try await tokenStatus
+        } catch {
+            operatorSecurityStatus = nil
+            machineApiTokenStatus = nil
+            lastUserMessage = DesktopL10n.string(
+                "Security settings could not be read from the local ChatCockpit runtime."
+            )
+        }
+    }
+
+    func setOwnerPasswordFromPanel() {
+        let username = NSTextField(frame: NSRect(x: 0, y: 60, width: 320, height: 24))
+        username.placeholderString = DesktopL10n.string("Owner username")
+        username.stringValue = operatorSecurityStatus?.username ?? "owner"
+        let first = NSSecureTextField(frame: NSRect(x: 0, y: 30, width: 320, height: 24))
+        first.placeholderString = DesktopL10n.string("New Owner password")
+        let second = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        second.placeholderString = DesktopL10n.string("Confirm Owner password")
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
+        container.addSubview(username)
+        container.addSubview(first)
+        container.addSubview(second)
+
+        let alert = NSAlert()
+        alert.messageText = DesktopL10n.string("Set Web Owner Account")
+        alert.informativeText = DesktopL10n.string(
+            "Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Use a password of at least 12 characters. Updating the Owner account revokes all existing Web sessions."
+        )
+        alert.accessoryView = container
+        alert.addButton(withTitle: DesktopL10n.string("Save Owner"))
+        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let ownerUsername = username.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard ownerUsername.range(of: "^[a-z0-9][a-z0-9._-]{0,63}$", options: .regularExpression) != nil else {
+            lastUserMessage = DesktopL10n.string("Owner username is invalid.")
+            return
+        }
+        let password = first.stringValue
+        guard password.count >= 12 else {
+            lastUserMessage = DesktopL10n.string("Owner password must be at least 12 characters.")
+            return
+        }
+        guard password == second.stringValue else {
+            lastUserMessage = DesktopL10n.string("Owner password confirmation does not match.")
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let context = try await self.currentContext() else { return }
+                self.operatorSecurityStatus = try await self.authorityClient.setOwnerPassword(
+                    username: ownerUsername,
+                    password: password,
+                    context: context
+                )
+                self.lastUserMessage = DesktopL10n.string(
+                    "Web Owner account updated and existing Web sessions revoked."
+                )
+            } catch {
+                self.lastUserMessage = DesktopL10n.string("Web Owner account could not be updated.")
+            }
+        }
+    }
+
+    func revokeOwnerSessions() async {
+        do {
+            guard let context = try await currentContext() else { return }
+            operatorSecurityStatus = try await authorityClient.revokeOwnerSessions(context: context)
+            lastUserMessage = DesktopL10n.string("All Web Owner sessions were revoked.")
+        } catch {
+            lastUserMessage = DesktopL10n.string("Web Owner sessions could not be revoked.")
+        }
+    }
+
+    func revealMachineApiToken() async {
+        do {
+            guard let context = try await currentContext() else { return }
+            let token = try await authorityClient.revealMachineToken(context: context)
+            keepMachineApiTokenVisibleTemporarily(token)
+        } catch {
+            lastUserMessage = DesktopL10n.string("Machine API token is not available.")
+        }
+    }
+
+    func copyMachineApiToken() async {
+        do {
+            guard let context = try await currentContext() else { return }
+            let token = try await authorityClient.revealMachineToken(context: context)
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(token, forType: .string)
+            scheduleClipboardClear(token: token, changeCount: pasteboard.changeCount)
+            lastUserMessage = DesktopL10n.string("Machine API token copied to the clipboard for 60 seconds.")
+        } catch {
+            lastUserMessage = DesktopL10n.string("Machine API token is not available.")
+        }
+    }
+
+    func hideMachineApiToken() {
+        tokenRevealTask?.cancel()
+        tokenRevealTask = nil
+        revealedMachineApiToken = nil
+    }
+
+    func rotateMachineApiToken() async {
+        let alert = NSAlert()
+        alert.messageText = DesktopL10n.string("Rotate Machine API Token?")
+        alert.informativeText = DesktopL10n.string(
+            "Existing machine API clients using the current token will stop authenticating after the new token takes effect. Running ChatCockpit services will restart; stopped services remain stopped and use the new token on their next start. Web Owner and ChatGPT OAuth sessions are separate and are not changed."
+        )
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: DesktopL10n.string("Rotate Token"))
+        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        do {
+            guard let context = try await currentContext() else { return }
+            let shouldRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            let rotated = try await authorityClient.rotateMachineToken(context: context)
+            keepMachineApiTokenVisibleTemporarily(rotated.token)
+            machineApiTokenStatus = DesktopMachineApiTokenStatus(
+                configured: true,
+                fingerprint: rotated.fingerprint
+            )
+
+            if shouldRestart {
+                await restart()
+                if lastUserMessage == nil {
+                    lastUserMessage = DesktopL10n.string(
+                        "Machine API token rotated and running services restarted. The new token is shown temporarily; update machine clients that use it."
+                    )
+                }
+            } else {
+                await refresh()
+                lastUserMessage = DesktopL10n.string(
+                    "Machine API token rotated. Stopped services remain stopped and will use the new token on their next start."
+                )
+            }
+            await refreshSecurity()
+        } catch {
+            lastUserMessage = DesktopL10n.string("Machine API token could not be rotated.")
+        }
+    }
+
+    private func scheduleClipboardClear(token: String, changeCount: Int) {
+        tokenClipboardClearTask?.cancel()
+        tokenClipboardClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(60))
+            guard !Task.isCancelled else { return }
+            let pasteboard = NSPasteboard.general
+            if pasteboard.changeCount == changeCount,
+               pasteboard.string(forType: .string) == token {
+                pasteboard.clearContents()
+            }
+            self?.tokenClipboardClearTask = nil
+        }
+    }
+
+    private func keepMachineApiTokenVisibleTemporarily(_ token: String) {
+        tokenRevealTask?.cancel()
+        revealedMachineApiToken = token
+        tokenRevealTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled else { return }
+            self?.revealedMachineApiToken = nil
+        }
+    }
+
     func checkForUpdates() async {
         guard !isCheckingForUpdates else { return }
         guard MacOSReleaseVersion.parse(appVersion) != nil else {
@@ -621,6 +819,18 @@ final class DesktopAppModel: ObservableObject {
         return DesktopL10n.string(
             "ChatCockpit setup could not be completed. Review the local runtime details and retry."
         )
+    }
+}
+
+@MainActor
+enum DesktopScenePresentation {
+    static func present(_ action: () -> Void) {
+        let application = NSApplication.shared
+        application.activate(ignoringOtherApps: true)
+        action()
+        DispatchQueue.main.async {
+            application.activate(ignoringOtherApps: true)
+        }
     }
 }
 
