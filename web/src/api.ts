@@ -99,6 +99,7 @@ async function requestJson<T>(path: string, token?: string | null): Promise<T> {
 
 export interface OperatorStatusResponse {
   configured: boolean;
+  desktopSetupAvailable: boolean;
 }
 
 export interface OperatorSessionResponse {

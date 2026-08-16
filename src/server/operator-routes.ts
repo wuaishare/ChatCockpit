@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import {
@@ -11,6 +13,9 @@ import {
   OPERATOR_SESSION_COOKIE,
   operatorSessionFromRequest
 } from "./operator-auth-context.js";
+
+let desktopSetupAvailabilityCache: { checkedAt: number; available: boolean } | null = null;
+const DESKTOP_SETUP_AVAILABILITY_TTL_MS = 5_000;
 
 interface UnknownRecord {
   [key: string]: unknown;
@@ -65,6 +70,33 @@ function sourceAddress(request: FastifyRequest): string {
   return request.ip || request.socket.remoteAddress || "unknown";
 }
 
+function isLoopbackSetupRequest(request: FastifyRequest): boolean {
+  const address = sourceAddress(request).toLowerCase();
+  const host = request.hostname.toLowerCase();
+  const loopbackAddress =
+    address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+  const loopbackHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
+  return loopbackAddress && loopbackHost;
+}
+
+function desktopSetupAvailable(request: FastifyRequest): boolean {
+  if (process.platform !== "darwin" || !isLoopbackSetupRequest(request)) return false;
+  const now = Date.now();
+  if (
+    desktopSetupAvailabilityCache &&
+    now - desktopSetupAvailabilityCache.checkedAt < DESKTOP_SETUP_AVAILABILITY_TTL_MS
+  ) {
+    return desktopSetupAvailabilityCache.available;
+  }
+  const result = spawnSync("/usr/bin/open", ["-Ra", "ChatCockpit"], {
+    stdio: "ignore",
+    timeout: 1_000
+  });
+  const available = result.status === 0;
+  desktopSetupAvailabilityCache = { checkedAt: now, available };
+  return available;
+}
+
 function userAgent(request: FastifyRequest): string | undefined {
   const value = request.headers["user-agent"];
   return typeof value === "string" ? value : undefined;
@@ -106,9 +138,12 @@ export function registerOperatorRoutes(
   app: FastifyInstance,
   service: OperatorService
 ): void {
-  app.get("/api/operator/status", async (_request, reply) => {
+  app.get("/api/operator/status", async (request, reply) => {
     noStore(reply);
-    return { configured: service.status().configured };
+    return {
+      configured: service.status().configured,
+      desktopSetupAvailable: desktopSetupAvailable(request)
+    };
   });
 
   app.post("/api/operator/login", async (request, reply) => {

@@ -72,8 +72,8 @@ struct SettingsView: View {
             }
 
             if model.distributionMode == .packaged {
-                Section(DesktopL10n.string("Workspace")) {
-                    LabeledContent(DesktopL10n.string("Current project")) {
+                Section(DesktopL10n.string("Primary Workspace")) {
+                    LabeledContent(DesktopL10n.string("Primary project")) {
                         Text(model.selectedWorkspaceDisplayPath)
                             .textSelection(.enabled)
                             .foregroundStyle(model.selectedWorkspaceURL == nil ? .secondary : .primary)
@@ -95,7 +95,7 @@ struct SettingsView: View {
 
                     Text(
                         DesktopL10n.string(
-                            "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace."
+                            "The primary workspace is the default project used to bootstrap Packaged Mode. ChatCockpit supports additional workspace mappings; the packaged runtime and Application Support state remain separate from every project workspace."
                         )
                     )
                         .font(.caption)

@@ -148,6 +148,7 @@ export interface UiCopy {
     loadingDescription: string;
     setupTitle: string;
     setupDescription: string;
+    setupAppAction: string;
     setupCommandLabel: string;
     setupCommand: string;
     setupRefresh: string;
@@ -374,12 +375,13 @@ const zhCN: UiCopy = {
     loadingTitle: "正在检查操作员会话",
     loadingDescription: "正在确认此浏览器是否已登录 ChatCockpit。",
     setupTitle: "请先创建 Web 操作员账户",
-    setupDescription: "为避免把机器 API 密钥暴露给浏览器，Web 控制台现在使用独立的 Owner 账户。首次密码只能在 ChatCockpit 所在机器本地设置。",
-    setupCommandLabel: "在本机终端执行",
+    setupDescription: "Web 控制台使用独立的控制台管理员账户，浏览器无需接触机器 API 密钥。首次凭据必须在 ChatCockpit 所在机器本地创建。",
+    setupAppAction: "在 ChatCockpit App 中设置",
+    setupCommandLabel: "也可以在本机终端执行",
     setupCommand: "chatcockpit operator set-password",
     setupRefresh: "我已设置，重新检查",
     loginTitle: "登录 ChatCockpit",
-    loginDescription: "使用 Web Owner 账户进入控制台。机器 API Token 与 ChatGPT OAuth 凭据不会作为网页登录密码。",
+    loginDescription: "使用控制台管理员账户进入控制台。机器 API Token 与 ChatGPT OAuth 凭据都不是网页登录密码。",
     username: "用户名",
     password: "密码",
     signIn: "登录",
@@ -409,7 +411,7 @@ const zhCN: UiCopy = {
     emptyStateTitle: "当前本地队列为空",
     emptyStateDescription: "可以先前往“集成”完成 ChatGPT App / MCP 接入，或在接入后刷新当前状态。",
     protectedStateTitle: "任务数据受保护",
-    protectedStateDescription: "当前接口需要 Web Owner 会话；请重新登录后读取真实队列状态。",
+    protectedStateDescription: "当前接口需要控制台管理员会话；请重新登录后读取真实队列状态。",
     queued: "排队",
     running: "运行中",
     failed: "失败",
@@ -459,16 +461,16 @@ const zhCN: UiCopy = {
         nextPending: "运行 npm run init"
       },
       auth: {
-        label: "鉴权令牌",
-        detailReady: "当前鉴权状态满足本地访问要求。",
-        detailPending: "机器 API 权限尚未配置；它仅用于 API 与自动化客户端，不作为网页登录凭据。",
-        nextReady: "继续下一步",
-        nextPending: "按部署文档配置机器 API 权限"
+        label: "机器 API（可选）",
+        detailReady: "机器 API 令牌仅用于 CLI、自动化或其他机器客户端；控制台管理员会话与 ChatGPT OAuth 都不依赖它。",
+        detailPending: "机器 API 令牌是可选能力，不会阻塞 Web 控制台或 ChatGPT OAuth。",
+        nextReady: "按需配置或继续下一步",
+        nextPending: "按需配置机器 API 权限"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
         detailReady: "OAuth 已就绪，或当前本地模式无需远程 OAuth。",
-        detailPending: "ChatGPT Remote MCP OAuth 尚未满足公网地址、机器 API authority、Web Owner 账户或持久化条件。",
+        detailPending: "ChatGPT Remote MCP OAuth 尚未满足公网地址、控制台管理员账户或持久化条件。",
         nextReady: "继续下一步",
         nextPending: "运行 npm run doctor 查看 OAuth readiness 原因"
       },
@@ -504,10 +506,10 @@ const zhCN: UiCopy = {
   },
   jobs: {
     sectionTitle: "任务",
-    authRequiredTitle: "需要 Web Owner 会话",
+    authRequiredTitle: "需要控制台管理员会话",
     authRequiredSectionDescription: "当前接口受保护。",
-    authRequiredDescription: "当前接口受保护。请登录 Web Owner 账户后查看任务队列与详情。",
-    authRequiredBody: "请重新登录 Web Owner 账户后查看任务队列与详情。",
+    authRequiredDescription: "当前接口受保护。请登录控制台管理员账户后查看任务队列与详情。",
+    authRequiredBody: "请重新登录控制台管理员账户后查看任务队列与详情。",
     authRequiredNextLabel: "下一步",
     authRequiredNextValue: "返回登录页并重新建立操作员会话",
     authRequiredScopeLabel: "访问范围",
@@ -563,7 +565,7 @@ const zhCN: UiCopy = {
     boundaryDescription:
       "这里只用于 OpenAPI 接入辅助与操作说明，完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
     protectedTitle: "GPT 配置接口受保护",
-    protectedDescription: "当前没有有效的 Web Owner 会话，界面只能显示公开回退摘要。",
+    protectedDescription: "当前没有有效的控制台管理员会话，界面只能显示公开回退摘要。",
     snapshotTitle: "GPT 接入概览",
     snapshotDescription: "当前机器侧接口面。",
     versionLabel: "显示版本",
@@ -589,16 +591,16 @@ const zhCN: UiCopy = {
     updateTitle: "版本更新提醒",
     fallbackNote: "当前回退到了本地拼装的说明文本，建议检查 GPT 配置接口是否可达。",
     protectedFallbackNote:
-      "当前没有有效的 Web Owner 会话，因此无法读取完整集成配置；重新登录后可查看指令、版本更新时间与机器侧备注。",
+      "当前没有有效的控制台管理员会话，因此无法读取完整集成配置；重新登录后可查看指令、版本更新时间与机器侧备注。",
     notesTitle: "操作员备注",
     notesDescription: "面向鉴权模式下的人类操作员。",
     tokenNote:
-      "机器 API Token 仅供 API/自动化客户端使用；Web 控制台使用独立 Owner 会话，浏览器不会读取或展示机器密钥。",
+      "机器 API Token 仅供 API/自动化客户端使用；Web 控制台使用独立的控制台管理员会话，浏览器不会读取或展示机器密钥。",
     checklist: [
       "操作员检查清单",
       "- 确认 /api/health 可访问。",
       "- 使用 /openapi.yaml 作为 schema 来源。",
-      "- Web 控制台使用 Owner 登录；不要把机器 API Token 当作网页登录凭据。",
+      "- Web 控制台使用控制台管理员账户登录；不要把机器 API Token 当作网页登录凭据。",
       "- 将预期控制在本地优先操作员 MVP 范围内。",
       "- 不要把当前状态当作完整 HTTPS / Custom GPT Actions 生产闭环。"
     ]
@@ -660,8 +662,9 @@ const enUS: UiCopy = {
     loadingTitle: "Checking Operator session",
     loadingDescription: "Confirming whether this browser is signed in to ChatCockpit.",
     setupTitle: "Create the Web Operator account first",
-    setupDescription: "The Web Cockpit now uses a dedicated Owner account so the machine API secret never needs to live in browser storage. The initial password must be set locally on the ChatCockpit host.",
-    setupCommandLabel: "Run locally in a terminal",
+    setupDescription: "The Web Cockpit uses a dedicated Owner account so the browser never needs the machine API secret. Initial credentials must be created locally on the ChatCockpit host.",
+    setupAppAction: "Set up in ChatCockpit App",
+    setupCommandLabel: "Or run locally in a terminal",
     setupCommand: "chatcockpit operator set-password",
     setupRefresh: "Password set — check again",
     loginTitle: "Sign in to ChatCockpit",
@@ -745,16 +748,16 @@ const enUS: UiCopy = {
         nextPending: "Run npm run init"
       },
       auth: {
-        label: "Bearer auth",
-        detailReady: "Current auth state is ready for local access.",
-        detailPending: "Machine API authority is not configured. It is for API/automation clients, not Web sign-in.",
-        nextReady: "Continue",
-        nextPending: "Configure machine API authority from the deployment guide"
+        label: "Machine API (optional)",
+        detailReady: "The machine API token is only for CLI, automation, or other machine clients; Web Owner sessions and ChatGPT OAuth do not depend on it.",
+        detailPending: "Machine API authority is optional and does not block the Web Cockpit or ChatGPT OAuth.",
+        nextReady: "Configure it if needed, or continue",
+        nextPending: "Configure machine API authority only if needed"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
         detailReady: "OAuth is ready, or remote OAuth is not required in local-only mode.",
-        detailPending: "Remote MCP OAuth is missing a valid public origin, machine API authority, Web Owner account, or writable runtime state.",
+        detailPending: "Remote MCP OAuth is missing a valid public origin, Web Owner account, or writable runtime state.",
         nextReady: "Continue",
         nextPending: "Run npm run doctor for the OAuth readiness reason"
       },

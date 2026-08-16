@@ -451,6 +451,14 @@ final class DesktopAppModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "chatcockpit" else { return }
+        guard url.host?.lowercased() == "operator", url.path == "/setup" else { return }
+        DesktopScenePresentation.present {
+            self.setOwnerPasswordFromPanel()
+        }
+    }
+
     func refreshSecurity() async {
         guard !isSecurityRefreshing else { return }
         isSecurityRefreshing = true
@@ -492,7 +500,7 @@ final class DesktopAppModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = DesktopL10n.string("Set Web Owner Account")
         alert.informativeText = DesktopL10n.string(
-            "Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Use a password of at least 12 characters. Updating the Owner account revokes all existing Web sessions."
+            "Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Passwords must be at least 12 characters; passphrases, spaces, and Unicode are allowed, and no uppercase/lowercase/number/symbol composition rule is required. Updating the Owner account revokes all existing Web sessions."
         )
         alert.accessoryView = container
         alert.addButton(withTitle: DesktopL10n.string("Save Owner"))

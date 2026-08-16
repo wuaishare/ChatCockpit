@@ -283,19 +283,6 @@ async function runE2E(): Promise<void> {
     "utf8"
   );
 
-  const failClosed = runCommand(projectRoot, ["run", "server"], {
-    ...fixtureRuntimeEnv,
-    CHATCOCKPIT_EXPOSED: "true",
-    CHATCOCKPIT_PORT: "43199",
-    CHATCOCKPIT_REPO_ROOT: fixtureRepoRoot,
-    CHATCOCKPIT_CONFIG_PATH: configPath
-  });
-  assert.notEqual(failClosed.code, 0);
-  assert.match(
-    `${failClosed.stdout}${failClosed.stderr}`,
-    /Exposed mode requires a configured API token/
-  );
-
   const noUiRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-e2e-no-ui-"));
   fs.mkdirSync(path.join(noUiRepoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(

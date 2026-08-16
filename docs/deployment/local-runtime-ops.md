@@ -121,15 +121,16 @@ Alpha retention is intentionally conservative: ChatCockpit does not delete job r
 ## Exposed Mode
 
 - `CHATCOCKPIT_EXPOSED=false` is the default local-development mode. Machine API Bearer compatibility may remain open when no machine token is configured, but once an Owner account exists the Web Cockpit still requires that Owner session.
-- `CHATCOCKPIT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, Remote MCP, or Custom GPT Actions access. In this R5 slice, `CHATCOCKPIT_API_TOKEN` remains mandatory as the machine/API authority and the server refuses to start without it.
-- `CHATCOCKPIT_API_TOKEN` is not the Web password. Human operators sign in with the dedicated Owner account; ChatGPT Remote MCP uses its separate scoped OAuth authority.
+- `CHATCOCKPIT_EXPOSED=true` is for HTTPS exposure, reverse-proxy publishing, Remote MCP, or Custom GPT Actions access. Exposed mode no longer requires a machine API token: human Web access is authorized by the dedicated Owner session, while ChatGPT Remote MCP uses scoped OAuth.
+- `CHATCOCKPIT_API_TOKEN` is an optional machine-to-machine credential for CLI, automation, and compatibility API clients. It is not the Web password and is not an OAuth prerequisite.
 - even in exposed mode, the current Web UI remains a single-Owner console for an authenticated endpoint that you control
 
 Example:
 
 ```bash
 CHATCOCKPIT_EXPOSED=true
-CHATCOCKPIT_API_TOKEN=replace-with-a-real-secret
+# Optional for CLI/automation machine clients:
+# CHATCOCKPIT_API_TOKEN=replace-with-a-real-secret
 CHATCOCKPIT_HOST=127.0.0.1
 CHATCOCKPIT_PORT=4318
 CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com

@@ -213,6 +213,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [operatorAuthState, setOperatorAuthState] = useState<OperatorAuthState>("loading");
   const [operatorSession, setOperatorSession] = useState<OperatorSessionResponse | null>(null);
   const [operatorAuthError, setOperatorAuthError] = useState<string | null>(null);
+  const [operatorDesktopSetupAvailable, setOperatorDesktopSetupAvailable] = useState(false);
   const [operatorLoginLoading, setOperatorLoginLoading] = useState(false);
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
   const [healthLoading, setHealthLoading] = useState(true);
@@ -303,6 +304,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorAuthError(null);
     try {
       const status = await fetchOperatorStatus();
+      setOperatorDesktopSetupAvailable(status.desktopSetupAvailable);
       if (!status.configured) {
         setOperatorSession(null);
         setOperatorCsrfToken(null);
@@ -327,6 +329,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     } catch (error) {
       setOperatorSession(null);
       setOperatorCsrfToken(null);
+      setOperatorDesktopSetupAvailable(false);
       setOperatorAuthState("login-required");
       setOperatorAuthError(getErrorMessage(error));
     }
@@ -662,6 +665,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         <OperatorSetupRequiredView
           locale={locale}
           checking={false}
+          desktopSetupAvailable={operatorDesktopSetupAvailable}
           onRefresh={() => void bootstrapOperatorAuth()}
         />
       </div>

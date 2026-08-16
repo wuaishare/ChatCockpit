@@ -10,6 +10,7 @@
 "Node" = "Node";
 "Local Setup" = "Local Setup";
 "Workspace" = "Workspace";
+"Primary Workspace" = "Primary Workspace";
 "Source Checkout" = "Source Checkout";
 "State" = "State";
 "Endpoint" = "Endpoint";
@@ -25,6 +26,7 @@
 "Open ChatCockpit" = "Open ChatCockpit";
 "Open Local Cockpit" = "Open Local Cockpit";
 "Open Public Cockpit" = "Open Public Cockpit";
+"Open in Browser" = "Open in Browser";
 "Public Cockpit is not configured." = "Public Cockpit is not configured.";
 "Open Status Window" = "Open Status Window";
 "Runtime Conflict — Review Settings" = "Runtime Conflict — Review Settings";
@@ -60,10 +62,12 @@
 "Download Update" = "Download Update";
 "Update checks are explicit and read public release metadata only. ChatCockpit never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution." = "Update checks are explicit and read public release metadata only. ChatCockpit never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution.";
 "Current project" = "Current project";
+"Primary project" = "Primary project";
 "Choose Workspace…" = "Choose Workspace…";
 "Revalidate" = "Revalidate";
 "Forget" = "Forget";
 "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace." = "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace.";
+"The primary workspace is the default project used to bootstrap Packaged Mode. ChatCockpit supports additional workspace mappings; the packaged runtime and Application Support state remain separate from every project workspace." = "The primary workspace is the default project used to bootstrap Packaged Mode. ChatCockpit supports additional workspace mappings; the packaged runtime and Application Support state remain separate from every project workspace.";
 "Existing Setup" = "Existing Setup";
 "Import Existing Setup…" = "Import Existing Setup…";
 "Import previews only workspace mappings and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only." = "Import previews only workspace mappings and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only.";
@@ -90,7 +94,7 @@
 "New Owner password" = "New Owner password";
 "Confirm Owner password" = "Confirm Owner password";
 "Set Web Owner Account" = "Set Web Owner Account";
-"Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Use a password of at least 12 characters. Updating the Owner account revokes all existing Web sessions." = "Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Use a password of at least 12 characters. Updating the Owner account revokes all existing Web sessions.";
+"Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Passwords must be at least 12 characters; passphrases, spaces, and Unicode are allowed, and no uppercase/lowercase/number/symbol composition rule is required. Updating the Owner account revokes all existing Web sessions." = "Username supports 1–64 lowercase letters, numbers, dots, dashes, or underscores. Passwords must be at least 12 characters; passphrases, spaces, and Unicode are allowed, and no uppercase/lowercase/number/symbol composition rule is required. Updating the Owner account revokes all existing Web sessions.";
 "Save Owner" = "Save Owner";
 "Owner username is invalid." = "Owner username is invalid.";
 "Owner password must be at least 12 characters." = "Owner password must be at least 12 characters.";

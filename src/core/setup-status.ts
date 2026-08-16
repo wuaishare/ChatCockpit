@@ -60,12 +60,12 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
     },
     {
       key: "auth",
-      ok: !health.authRequired || tokenConfigured,
-      label: "Bearer auth",
-      detail: health.authRequired
-        ? `Protected endpoints require ${apiTokenEnv}`
-        : "Local-only mode does not require a token",
-      nextAction: health.authRequired && !tokenConfigured ? `Set ${apiTokenEnv}` : "Continue"
+      ok: true,
+      label: "Machine API (optional)",
+      detail: tokenConfigured
+        ? `${apiTokenEnv} is configured for machine/API clients`
+        : "Machine API authority is optional; Web Operator sessions and ChatGPT OAuth do not depend on it",
+      nextAction: tokenConfigured ? "Continue" : `Optional: set ${apiTokenEnv} for CLI or automation clients`
     },
     {
       key: "oauth",

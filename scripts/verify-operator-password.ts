@@ -17,6 +17,11 @@ async function main(): Promise<void> {
   assert.equal(await verifyOperatorPassword(password, encoded), true);
   assert.equal(await verifyOperatorPassword("wrong password", encoded), false);
   assert.equal(await verifyOperatorPassword(password, "malformed"), false);
+
+  const unicodePassphrase = "本机 控制台 管理员 易记口令";
+  const unicodeEncoded = await hashOperatorPassword(unicodePassphrase);
+  assert.equal(await verifyOperatorPassword(unicodePassphrase, unicodeEncoded), true);
+  assert.equal(unicodeEncoded.includes(unicodePassphrase), false);
   assert.equal(
     await verifyOperatorPassword(
       password,

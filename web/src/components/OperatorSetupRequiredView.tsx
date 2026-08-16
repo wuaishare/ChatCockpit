@@ -1,17 +1,19 @@
-import { Button, Card, Typography } from "antd";
-import { SafetyCertificateOutlined } from "@ant-design/icons";
+import { Button, Card, Space, Typography } from "antd";
+import { DesktopOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import { getUiCopy, type LocaleCode } from "../i18n";
 
 interface OperatorSetupRequiredViewProps {
   locale: LocaleCode;
   checking: boolean;
+  desktopSetupAvailable: boolean;
   onRefresh: () => void | Promise<void>;
 }
 
 export function OperatorSetupRequiredView({
   locale,
   checking,
+  desktopSetupAvailable,
   onRefresh
 }: OperatorSetupRequiredViewProps) {
   const copy = getUiCopy(locale).operatorAuth;
@@ -26,17 +28,29 @@ export function OperatorSetupRequiredView({
         <Typography.Paragraph type="secondary">
           {copy.setupDescription}
         </Typography.Paragraph>
-        <Typography.Text type="secondary">{copy.setupCommandLabel}</Typography.Text>
-        <pre className="operator-auth-command"><code>{copy.setupCommand}</code></pre>
-        <Button
-          type="primary"
-          block
-          size="large"
-          loading={checking}
-          onClick={() => void onRefresh()}
-        >
-          {copy.setupRefresh}
-        </Button>
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          {desktopSetupAvailable ? (
+            <Button
+              type="primary"
+              block
+              size="large"
+              icon={<DesktopOutlined />}
+              href="chatcockpit://operator/setup"
+            >
+              {copy.setupAppAction}
+            </Button>
+          ) : null}
+          <Typography.Text type="secondary">{copy.setupCommandLabel}</Typography.Text>
+          <pre className="operator-auth-command"><code>{copy.setupCommand}</code></pre>
+          <Button
+            block
+            size="large"
+            loading={checking}
+            onClick={() => void onRefresh()}
+          >
+            {copy.setupRefresh}
+          </Button>
+        </Space>
       </Card>
     </div>
   );
