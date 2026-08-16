@@ -222,7 +222,32 @@ assert.match(settings, /model\.snapshot\.publicApiBaseURL/);
 assert.match(settings, /model\.snapshot\.publicMcpURL/);
 assert.match(settings, /model\.copyMachineEndpoint\(url\)/);
 assert.match(settings, /model\.rotateMachineApiToken\(\)/);
+assert.match(settings, /private var machineApiTokenRow/);
+assert.match(settings, /systemName: tokenRevealed \? "eye\.slash" : "eye"/);
+assert.match(settings, /systemName: tokenCopied \? "checkmark" : "doc\.on\.doc"/);
+assert.match(settings, /systemName: "arrow\.triangle\.2\.circlepath"/);
+assert.match(settings, /final class PointerButton: NSButton/);
+assert.match(settings, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHand : \.arrow\)/);
+assert.match(settings, /button\.refusesFirstResponder = false/);
+assert.match(settings, /button\.toolTip = title/);
+assert.match(settings, /button\.setAccessibilityLabel\(title\)/);
+assert.match(settings, /button\.setAccessibilityHelp\(title\)/);
+assert.match(settings, /button\.setAccessibilityRole\(\.button\)/);
+assert.match(settings, /private func securityActionRow<Content: View>/);
+assert.match(settings, /Text\(title\)[\s\S]*\.frame\(width: 150, alignment: \.leading\)/s);
+assert.doesNotMatch(settings, /LabeledContent\(DesktopL10n\.string\("Machine API token"\)\)/);
+assert.doesNotMatch(settings, /Button\(DesktopL10n\.string\("Copy Token"\)\)/);
+assert.doesNotMatch(settings, /Button\(DesktopL10n\.string\("Rotate Token…"\), role: \.destructive\)/);
 assert.match(settings, /Text\(verbatim: token\)/);
+assert.match(appModel, /@Published private\(set\) var securityFeedback: DesktopSecurityFeedback\?/);
+assert.match(appModel, /target: \.apiEndpoint\(url\.absoluteString\),[\s\S]*kind: \.copied/s);
+assert.match(appModel, /target: \.machineApiToken,[\s\S]*kind: \.copied/s);
+assert.match(appModel, /securityFeedback = DesktopSecurityFeedback\(target: target, kind: kind, message: message\)/);
+assert.match(appModel, /Task\.sleep\(for: \.seconds\(2\)\)/);
+assert.doesNotMatch(
+  appModel,
+  /func copyMachineEndpoint[\s\S]*?lastUserMessage[\s\S]*?func copyMachineApiToken/s
+);
 assert.match(appModel, /keepMachineApiTokenVisibleTemporarily/);
 assert.match(appModel, /Task\.sleep\(for: \.seconds\(30\)\)/);
 assert.match(appModel, /Task\.sleep\(for: \.seconds\(60\)\)/);
@@ -247,6 +272,7 @@ assert.match(simplifiedChineseLocalization, /"Primary Workspace" = "主工作区
 assert.match(simplifiedChineseLocalization, /"Open in Browser" = "在浏览器中打开";/);
 assert.match(simplifiedChineseLocalization, /"Local API base" = "本机 API 基址";/);
 assert.match(simplifiedChineseLocalization, /"Copy API address" = "复制 API 地址";/);
+assert.match(simplifiedChineseLocalization, /"Copied" = "已复制";/);
 assert.match(xcodeProject, /Localizable\.strings in Resources/);
 assert.match(xcodeProject, /name = "zh-Hans"/);
 assert.match(buildScript, /AppBundle\/Resources/);

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import TokenPilotDesktopCore
 
@@ -272,21 +273,15 @@ struct SettingsView: View {
                     .disabled(model.operatorSecurityStatus?.configured != true)
                 }
 
+                if let feedback = model.securityFeedback,
+                   feedback.target == .ownerAccount,
+                   feedback.kind == .updated {
+                    transientFeedbackLabel(feedback.message)
+                }
+
                 Divider()
 
-                LabeledContent(DesktopL10n.string("Machine API token")) {
-                    if let token = model.revealedMachineApiToken {
-                        Text(verbatim: token)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                    } else if let status = model.machineApiTokenStatus, status.configured {
-                        Text(verbatim: status.fingerprint ?? DesktopL10n.string("Configured"))
-                            .font(.system(.body, design: .monospaced))
-                    } else {
-                        Text(DesktopL10n.string("Not configured"))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                machineApiTokenRow
 
                 if let localApiBaseURL = model.snapshot.localApiBaseURL {
                     apiAddressRow(DesktopL10n.string("Local API base"), url: localApiBaseURL)
@@ -301,26 +296,10 @@ struct SettingsView: View {
                     apiAddressRow(DesktopL10n.string("Public MCP endpoint"), url: publicMcpURL)
                 }
 
-                HStack {
-                    if model.revealedMachineApiToken == nil {
-                        Button(DesktopL10n.string("Reveal Token")) {
-                            Task { await model.revealMachineApiToken() }
-                        }
-                        .disabled(model.machineApiTokenStatus?.configured != true)
-                    } else {
-                        Button(DesktopL10n.string("Hide Token")) {
-                            model.hideMachineApiToken()
-                        }
-                    }
-
-                    Button(DesktopL10n.string("Copy Token")) {
-                        Task { await model.copyMachineApiToken() }
-                    }
-                    .disabled(model.machineApiTokenStatus?.configured != true)
-
-                    Button(DesktopL10n.string("Rotate Token…"), role: .destructive) {
-                        Task { await model.rotateMachineApiToken() }
-                    }
+                if let feedback = model.securityFeedback,
+                   feedback.target == .machineApiToken,
+                   feedback.kind == .updated {
+                    transientFeedbackLabel(feedback.message)
                 }
 
                 Text(
@@ -374,23 +353,180 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
+    private var machineApiTokenRow: some View {
+        securityActionRow(DesktopL10n.string("Machine API token")) {
+            HStack(spacing: 6) {
+                Group {
+                    if let token = model.revealedMachineApiToken {
+                        Text(verbatim: token)
+                    } else if let status = model.machineApiTokenStatus, status.configured {
+                        Text(verbatim: status.fingerprint ?? DesktopL10n.string("Configured"))
+                    } else {
+                        Text(DesktopL10n.string("Not configured"))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+                let tokenConfigured = model.machineApiTokenStatus?.configured == true
+                let tokenRevealed = model.revealedMachineApiToken != nil
+                let tokenCopied = model.securityFeedback?.target == .machineApiToken
+                    && model.securityFeedback?.kind == .copied
+
+                iconActionButton(
+                    systemName: tokenRevealed ? "eye.slash" : "eye",
+                    title: DesktopL10n.string(tokenRevealed ? "Hide Token" : "Reveal Token"),
+                    disabled: !tokenConfigured
+                ) {
+                    if tokenRevealed {
+                        model.hideMachineApiToken()
+                    } else {
+                        Task { await model.revealMachineApiToken() }
+                    }
+                }
+
+                iconActionButton(
+                    systemName: tokenCopied ? "checkmark" : "doc.on.doc",
+                    title: DesktopL10n.string(tokenCopied ? "Copied" : "Copy Token"),
+                    disabled: !tokenConfigured
+                ) {
+                    Task { await model.copyMachineApiToken() }
+                }
+
+                iconActionButton(
+                    systemName: "arrow.triangle.2.circlepath",
+                    title: DesktopL10n.string("Rotate Token…"),
+                    role: .destructive
+                ) {
+                    Task { await model.rotateMachineApiToken() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private func apiAddressRow(_ title: String, url: URL) -> some View {
-        LabeledContent(title) {
+        let copied = model.securityFeedback?.target == .apiEndpoint(url.absoluteString)
+            && model.securityFeedback?.kind == .copied
+
+        securityActionRow(title) {
             HStack(spacing: 6) {
                 Text(verbatim: url.absoluteString)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
-                Button {
+
+                iconActionButton(
+                    systemName: copied ? "checkmark" : "doc.on.doc",
+                    title: DesktopL10n.string(copied ? "Copied" : "Copy API address")
+                ) {
                     model.copyMachineEndpoint(url)
-                } label: {
-                    Image(systemName: "doc.on.doc")
                 }
-                .buttonStyle(.borderless)
-                .help(DesktopL10n.string("Copy API address"))
-                .accessibilityLabel(DesktopL10n.string("Copy API address"))
             }
         }
+    }
+
+    private func securityActionRow<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .frame(width: 150, alignment: .leading)
+            Spacer(minLength: 8)
+            content()
+        }
+    }
+
+    private func transientFeedbackLabel(_ message: String) -> some View {
+        Label(message, systemImage: "checkmark.circle")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .transition(.opacity)
+            .accessibilityLabel(message)
+    }
+
+    private func iconActionButton(
+        systemName: String,
+        title: String,
+        role: ButtonRole? = nil,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        AccessibleIconButton(
+            systemName: systemName,
+            title: title,
+            disabled: disabled,
+            destructive: role == .destructive,
+            action: action
+        )
+        .frame(width: 20, height: 20)
+    }
+}
+
+private struct AccessibleIconButton: NSViewRepresentable {
+    let systemName: String
+    let title: String
+    let disabled: Bool
+    let destructive: Bool
+    let action: () -> Void
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func invoke() {
+            action()
+        }
+    }
+
+    final class PointerButton: NSButton {
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(bounds, cursor: isEnabled ? .pointingHand : .arrow)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = PointerButton()
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.focusRingType = .default
+        button.refusesFirstResponder = false
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.invoke)
+        configure(button, coordinator: context.coordinator)
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        configure(button, coordinator: context.coordinator)
+    }
+
+    private func configure(_ button: NSButton, coordinator: Coordinator) {
+        coordinator.action = action
+        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        button.image = NSImage(systemSymbolName: systemName, accessibilityDescription: title)?
+            .withSymbolConfiguration(configuration)
+        button.title = ""
+        button.toolTip = title
+        button.isEnabled = !disabled
+        button.contentTintColor = destructive ? .systemRed : .labelColor
+        button.setAccessibilityLabel(title)
+        button.setAccessibilityHelp(title)
+        button.setAccessibilityRole(.button)
+        button.window?.invalidateCursorRects(for: button)
     }
 }
