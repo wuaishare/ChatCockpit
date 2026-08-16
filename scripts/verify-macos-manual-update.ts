@@ -80,7 +80,7 @@ assert.match(openBody, /guard case let \.available\(_, _, downloadURL\) = update
 assert.doesNotMatch(openBody, /runtimeController|perform\(|FileManager|removeItem|moveItem|copyItem/);
 
 for (const required of [
-  "Section(\"Updates\")",
+  "Section(DesktopL10n.string(\"Updates\"))",
   "App version",
   "Build",
   "Check for Updates",
