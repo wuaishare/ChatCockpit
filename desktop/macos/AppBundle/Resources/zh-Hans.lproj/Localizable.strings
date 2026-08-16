@@ -188,6 +188,7 @@
 "Public API base" = "公网 API 基址";
 "Public MCP endpoint" = "公网 MCP 端点";
 "Copy API address" = "复制 API 地址";
+"Copied" = "已复制";
 "API address copied to the clipboard." = "API 地址已复制到剪贴板。";
 "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead." = "本机免密登录暂时不可用，ChatCockpit 已改为打开普通本机登录页。";
 "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication." = "已配置控制台管理员时，从此 App 打开本机控制台会使用一次性回环登录凭据。该凭据会快速过期，不会写入浏览器持久存储，也不会降低公网访问的认证强度。";

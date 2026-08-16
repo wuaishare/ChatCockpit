@@ -10,6 +10,23 @@ private func discoverDefaultBundlePayloadURL() -> URL? {
     return FileManager.default.fileExists(atPath: manifest.path) ? payload : nil
 }
 
+enum DesktopSecurityFeedbackTarget: Equatable {
+    case ownerAccount
+    case machineApiToken
+    case apiEndpoint(String)
+}
+
+enum DesktopSecurityFeedbackKind: Equatable {
+    case copied
+    case updated
+}
+
+struct DesktopSecurityFeedback: Equatable {
+    let target: DesktopSecurityFeedbackTarget
+    let kind: DesktopSecurityFeedbackKind
+    let message: String
+}
+
 @MainActor
 final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
@@ -25,6 +42,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var operatorSecurityStatus: DesktopOperatorStatus?
     @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
     @Published private(set) var revealedMachineApiToken: String?
+    @Published private(set) var securityFeedback: DesktopSecurityFeedback?
     @Published private(set) var isSecurityRefreshing = false
     @Published var lastUserMessage: String?
 
@@ -45,6 +63,7 @@ final class DesktopAppModel: ObservableObject {
     private let authorityClient: DesktopAuthorityClient
     private var tokenRevealTask: Task<Void, Never>?
     private var tokenClipboardClearTask: Task<Void, Never>?
+    private var securityFeedbackTask: Task<Void, Never>?
     private let appVersion: String
     private let appBuildNumber: String
 
@@ -648,8 +667,10 @@ final class DesktopAppModel: ObservableObject {
                     password: password,
                     context: context
                 )
-                self.lastUserMessage = DesktopL10n.string(
-                    "Web Owner account updated and existing Web sessions revoked."
+                self.presentSecurityFeedback(
+                    DesktopL10n.string("Web Owner account updated and existing Web sessions revoked."),
+                    target: .ownerAccount,
+                    kind: .updated
                 )
             } catch {
                 self.lastUserMessage = DesktopL10n.string("Web Owner account could not be updated.")
@@ -661,7 +682,11 @@ final class DesktopAppModel: ObservableObject {
         do {
             guard let context = try await currentContext() else { return }
             operatorSecurityStatus = try await authorityClient.revokeOwnerSessions(context: context)
-            lastUserMessage = DesktopL10n.string("All Web Owner sessions were revoked.")
+            presentSecurityFeedback(
+                DesktopL10n.string("All Web Owner sessions were revoked."),
+                target: .ownerAccount,
+                kind: .updated
+            )
         } catch {
             lastUserMessage = DesktopL10n.string("Web Owner sessions could not be revoked.")
         }
@@ -681,7 +706,11 @@ final class DesktopAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(url.absoluteString, forType: .string)
-        lastUserMessage = DesktopL10n.string("API address copied to the clipboard.")
+        presentSecurityFeedback(
+            DesktopL10n.string("API address copied to the clipboard."),
+            target: .apiEndpoint(url.absoluteString),
+            kind: .copied
+        )
     }
 
     func copyMachineApiToken() async {
@@ -692,7 +721,11 @@ final class DesktopAppModel: ObservableObject {
             pasteboard.clearContents()
             pasteboard.setString(token, forType: .string)
             scheduleClipboardClear(token: token, changeCount: pasteboard.changeCount)
-            lastUserMessage = DesktopL10n.string("Machine API token copied to the clipboard for 60 seconds.")
+            presentSecurityFeedback(
+                DesktopL10n.string("Machine API token copied to the clipboard for 60 seconds."),
+                target: .machineApiToken,
+                kind: .copied
+            )
         } catch {
             lastUserMessage = DesktopL10n.string("Machine API token is not available.")
         }
@@ -728,19 +761,43 @@ final class DesktopAppModel: ObservableObject {
             if shouldRestart {
                 await restart()
                 if lastUserMessage == nil {
-                    lastUserMessage = DesktopL10n.string(
-                        "Machine API token rotated and running services restarted. The new token is shown temporarily; update machine clients that use it."
+                    presentSecurityFeedback(
+                        DesktopL10n.string(
+                            "Machine API token rotated and running services restarted. The new token is shown temporarily; update machine clients that use it."
+                        ),
+                        target: .machineApiToken,
+                        kind: .updated
                     )
                 }
             } else {
                 await refresh()
-                lastUserMessage = DesktopL10n.string(
-                    "Machine API token rotated. Stopped services remain stopped and will use the new token on their next start."
+                presentSecurityFeedback(
+                    DesktopL10n.string(
+                        "Machine API token rotated. Stopped services remain stopped and will use the new token on their next start."
+                    ),
+                    target: .machineApiToken,
+                    kind: .updated
                 )
             }
             await refreshSecurity()
         } catch {
             lastUserMessage = DesktopL10n.string("Machine API token could not be rotated.")
+        }
+    }
+
+    private func presentSecurityFeedback(
+        _ message: String,
+        target: DesktopSecurityFeedbackTarget,
+        kind: DesktopSecurityFeedbackKind
+    ) {
+        securityFeedbackTask?.cancel()
+        securityFeedback = DesktopSecurityFeedback(target: target, kind: kind, message: message)
+        securityFeedbackTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            guard self?.securityFeedback?.target == target else { return }
+            self?.securityFeedback = nil
+            self?.securityFeedbackTask = nil
         }
     }
 
