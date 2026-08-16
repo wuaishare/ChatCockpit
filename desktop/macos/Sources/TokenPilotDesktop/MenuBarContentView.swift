@@ -30,24 +30,33 @@ struct MenuBarContentView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 7) {
-                compactStatus("Control Plane", model.snapshot.lifecycle.controlPlane)
-                compactStatus("Runner", model.snapshot.lifecycle.runner)
-                compactStatus("Process Supervisor", model.snapshot.lifecycle.processSupervisor)
+                compactStatus(
+                    DesktopL10n.string("Control Plane"),
+                    model.snapshot.lifecycle.controlPlane
+                )
+                compactStatus(
+                    DesktopL10n.string("Runner"),
+                    model.snapshot.lifecycle.runner
+                )
+                compactStatus(
+                    DesktopL10n.string("Process Supervisor"),
+                    model.snapshot.lifecycle.processSupervisor
+                )
             }
 
             Divider()
 
-            Button("Open \(ProductIdentity.current.displayName)") {
+            Button(DesktopL10n.string("Open ChatCockpit")) {
                 model.openCockpit()
             }
             .disabled(model.snapshot.cockpitURL == nil)
 
-            Button("Open Status Window") {
+            Button(DesktopL10n.string("Open Status Window")) {
                 openWindow(id: "status")
             }
 
             if model.runtimeConflict != nil {
-                Button("Runtime Conflict — Review Settings") {
+                Button(DesktopL10n.string("Runtime Conflict — Review Settings")) {
                     openSettings()
                 }
             } else {
@@ -57,17 +66,17 @@ struct MenuBarContentView: View {
                         model.chooseSetupLocationFromPanel()
                     }
                 case .stopped:
-                    Button("Start Services") {
+                    Button(DesktopL10n.string("Start Services")) {
                         Task { await model.start() }
                     }
                     .disabled(model.isRefreshing)
                 case .degraded, .ready:
-                    Button("Restart Services") {
+                    Button(DesktopL10n.string("Restart Services")) {
                         Task { await model.restart() }
                     }
                     .disabled(model.isRefreshing)
 
-                    Button("Stop Services") {
+                    Button(DesktopL10n.string("Stop Services")) {
                         Task { await model.stop() }
                     }
                     .disabled(model.isRefreshing)
@@ -76,12 +85,12 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button("Settings…") {
+            Button(DesktopL10n.string("Settings…")) {
                 openSettings()
             }
             .keyboardShortcut(",", modifiers: .command)
 
-            Button("Quit \(ProductIdentity.current.displayName)") {
+            Button(DesktopL10n.string("Quit ChatCockpit")) {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q", modifiers: .command)

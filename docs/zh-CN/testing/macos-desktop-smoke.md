@@ -16,7 +16,7 @@ dist/macos/ChatCockpit.app
 open dist/macos/ChatCockpit.app
 ```
 
-正常情况下会立即出现 **ChatCockpit Status** 主窗口，Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。
+正常情况下会立即出现 **ChatCockpit 状态** 主窗口，Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。
 
 如果还没有本地 App，可构建当前架构：
 

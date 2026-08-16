@@ -5,7 +5,7 @@ struct TokenPilotDesktopApp: App {
     @StateObject private var model = DesktopAppModel()
 
     var body: some Scene {
-        Window("\(ProductIdentity.current.displayName) Status", id: "status") {
+        Window(DesktopL10n.string("ChatCockpit Status"), id: "status") {
             StatusView(model: model)
         }
         .defaultSize(width: 720, height: 640)

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PACKAGE_DIR="${ROOT}/desktop/macos"
 APP_TEMPLATE="${PACKAGE_DIR}/AppBundle/Info.plist"
+APP_RESOURCES="${PACKAGE_DIR}/AppBundle/Resources"
 APP_DIR="${ROOT}/dist/macos/ChatCockpit.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
@@ -64,6 +65,7 @@ mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 cp "${SOURCE_BINARY}" "${MACOS_DIR}/ChatCockpit"
 chmod 755 "${MACOS_DIR}/ChatCockpit"
 cp "${APP_TEMPLATE}" "${CONTENTS_DIR}/Info.plist"
+cp -R "${APP_RESOURCES}/." "${RESOURCES_DIR}/"
 cp -R "${RUNTIME_PAYLOAD}" "${RESOURCES_DIR}/TokenPilotRuntime"
 
 plutil -lint "${CONTENTS_DIR}/Info.plist"
@@ -83,6 +85,7 @@ esac
 
 printf 'created unsigned local app: dist/macos/ChatCockpit.app\n'
 printf 'architecture: %s\n' "${ARCH}"
+printf 'localizations: Contents/Resources/{en,zh-Hans}.lproj\n'
 printf 'runtime payload: Contents/Resources/TokenPilotRuntime\n'
 printf 'signing: not performed\n'
 printf 'notarization: not performed\n'

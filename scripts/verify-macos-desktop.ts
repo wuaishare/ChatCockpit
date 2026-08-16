@@ -15,6 +15,29 @@ const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopA
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
 const statusViewPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "StatusView.swift");
 const settingsPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "SettingsView.swift");
+const desktopLocalizationPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktop",
+  "DesktopLocalization.swift"
+);
+const englishLocalizationPath = path.join(
+  root,
+  "desktop",
+  "macos",
+  "AppBundle",
+  "Resources",
+  "en.lproj",
+  "Localizable.strings"
+);
+const simplifiedChineseLocalizationPath = path.join(
+  root,
+  "desktop",
+  "macos",
+  "AppBundle",
+  "Resources",
+  "zh-Hans.lproj",
+  "Localizable.strings"
+);
 const existingSetupImportPath = path.join(
   desktopSourceRoot,
   "TokenPilotDesktopCore",
@@ -49,6 +72,9 @@ for (const required of [
   menuBarPath,
   statusViewPath,
   settingsPath,
+  desktopLocalizationPath,
+  englishLocalizationPath,
+  simplifiedChineseLocalizationPath,
   existingSetupImportPath,
   runtimeConflictPath,
   buildScriptPath,
@@ -66,6 +92,9 @@ const appModel = fs.readFileSync(appModelPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
 const statusView = fs.readFileSync(statusViewPath, "utf8");
 const settings = fs.readFileSync(settingsPath, "utf8");
+const desktopLocalization = fs.readFileSync(desktopLocalizationPath, "utf8");
+const englishLocalization = fs.readFileSync(englishLocalizationPath, "utf8");
+const simplifiedChineseLocalization = fs.readFileSync(simplifiedChineseLocalizationPath, "utf8");
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
@@ -86,6 +115,7 @@ assert.match(infoPlist, /<string>cn\.wuaishare\.ChatCockpit<\/string>/);
 assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>ChatCockpit<\/string>/s);
 assert.match(infoPlist, /<key>LSMinimumSystemVersion<\/key>\s*<string>14\.0<\/string>/s);
 assert.match(infoPlist, /<key>LSUIElement<\/key>\s*<false\/>/s);
+assert.match(infoPlist, /<key>CFBundleLocalizations<\/key>[\s\S]*<string>en<\/string>[\s\S]*<string>zh-Hans<\/string>/s);
 
 for (const action of ["status", "start", "stop", "restart"]) {
   assert.match(lifecycleSource, new RegExp(`case ${action}\\b`));
@@ -104,16 +134,24 @@ assert.match(appModel, /modePreferenceStore\.saveMode\(\.packaged\)/);
 assert.match(appModel, /modePreferenceStore\.saveMode\(\.source\)/);
 assert.match(appModel, /"~\/\\\(ProductIdentity\.current\.stateDirectoryName\)"/);
 assert.match(statusView, /ScrollView/);
-assert.match(statusView, /Button\("Settings…"\)/);
+assert.match(statusView, /Button\(DesktopL10n\.string\("Settings…"\)\)/);
 assert.match(menuBar, /NSApplication\.shared\.terminate/);
 assert.match(menuBar, /Stop Services/);
-assert.equal(
-  menuBar.includes('Button("Quit \\(ProductIdentity.current.displayName)")'),
-  true
-);
+assert.match(menuBar, /DesktopL10n\.string\("Quit ChatCockpit"\)/);
 assert.match(menuBar, /Runtime Conflict — Review Settings/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
+assert.match(desktopLocalization, /Bundle\.preferredLocalizations/);
+assert.match(desktopLocalization, /UserDefaults\.standard\.stringArray\(forKey: "AppleLanguages"\)/);
+assert.match(desktopLocalization, /Locale\.preferredLanguages/);
+assert.match(desktopLocalization, /localizedString\(forKey: key/);
+assert.match(englishLocalization, /"ChatCockpit Status" = "ChatCockpit Status";/);
+assert.match(simplifiedChineseLocalization, /"ChatCockpit Status" = "ChatCockpit 状态";/);
+assert.match(simplifiedChineseLocalization, /"Ready" = "就绪";/);
+assert.match(xcodeProject, /Localizable\.strings in Resources/);
+assert.match(xcodeProject, /name = "zh-Hans"/);
+assert.match(buildScript, /AppBundle\/Resources/);
+assert.match(buildScript, /Contents\/Resources\/\{en,zh-Hans\}\.lproj/);
 assert.match(appModel, /runtimeConflict/);
 assert.match(appModel, /importExistingSetupFromPanel/);
 assert.match(existingSetupImport, /skippedSecretCategories/);

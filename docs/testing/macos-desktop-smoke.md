@@ -16,7 +16,7 @@ Launch it with:
 open dist/macos/ChatCockpit.app
 ```
 
-A normal launch should immediately present the **ChatCockpit Status** window, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar.
+A normal launch should immediately present the **ChatCockpit Status** window, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar.
 
 If the local app has not been built yet:
 

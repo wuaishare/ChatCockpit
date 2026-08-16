@@ -26,40 +26,67 @@ struct StatusView: View {
                         }
                     }
 
-                    GroupBox("Runtime") {
+                    GroupBox(DesktopL10n.string("Runtime")) {
                         Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                            componentRow("Control Plane", state: model.snapshot.lifecycle.controlPlane)
-                            componentRow("Runner", state: model.snapshot.lifecycle.runner)
-                            componentRow("Process Supervisor", state: model.snapshot.lifecycle.processSupervisor)
-                            valueRow("Local Cockpit", value: model.snapshot.uiReachable ? "Reachable" : "Unavailable")
-                            valueRow("Distribution", value: model.distributionModeText)
-                            valueRow("Runtime", value: model.runtimeVersionText)
-                            valueRow("Architecture", value: model.runtimeArchitectureText)
-                            valueRow("Node", value: model.nodeVersionText)
+                            componentRow(
+                                DesktopL10n.string("Control Plane"),
+                                state: model.snapshot.lifecycle.controlPlane
+                            )
+                            componentRow(
+                                DesktopL10n.string("Runner"),
+                                state: model.snapshot.lifecycle.runner
+                            )
+                            componentRow(
+                                DesktopL10n.string("Process Supervisor"),
+                                state: model.snapshot.lifecycle.processSupervisor
+                            )
+                            valueRow(
+                                DesktopL10n.string("Local Cockpit"),
+                                value: model.snapshot.uiReachable
+                                    ? DesktopL10n.string("Reachable")
+                                    : DesktopL10n.string("Unavailable")
+                            )
+                            valueRow(DesktopL10n.string("Distribution"), value: model.distributionModeText)
+                            valueRow(DesktopL10n.string("Runtime"), value: model.runtimeVersionText)
+                            valueRow(DesktopL10n.string("Architecture"), value: model.runtimeArchitectureText)
+                            valueRow(DesktopL10n.string("Node"), value: model.nodeVersionText)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                     }
 
-                    GroupBox("Local Setup") {
+                    GroupBox(DesktopL10n.string("Local Setup")) {
                         Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
                             if model.distributionMode == .packaged {
-                                valueRow("Workspace", value: model.selectedWorkspaceDisplayPath)
-                                valueRow("State", value: model.stateLocationText)
+                                valueRow(DesktopL10n.string("Workspace"), value: model.selectedWorkspaceDisplayPath)
+                                valueRow(DesktopL10n.string("State"), value: model.stateLocationText)
                             } else {
-                                valueRow("Source Checkout", value: model.selectedRootDisplayPath)
-                                valueRow("State", value: model.stateLocationText)
+                                valueRow(DesktopL10n.string("Source Checkout"), value: model.selectedRootDisplayPath)
+                                valueRow(DesktopL10n.string("State"), value: model.stateLocationText)
                             }
-                            valueRow("Endpoint", value: "\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)")
-                            valueRow("Mode", value: model.snapshot.configuration.exposed ? "Exposed" : "Local only")
-                            valueRow("API Token", value: model.snapshot.configuration.apiTokenConfigured ? "Configured" : "Not configured")
+                            valueRow(
+                                DesktopL10n.string("Endpoint"),
+                                value: "\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)"
+                            )
+                            valueRow(
+                                DesktopL10n.string("Mode"),
+                                value: model.snapshot.configuration.exposed
+                                    ? DesktopL10n.string("Exposed")
+                                    : DesktopL10n.string("Local only")
+                            )
+                            valueRow(
+                                DesktopL10n.string("API Token"),
+                                value: model.snapshot.configuration.apiTokenConfigured
+                                    ? DesktopL10n.string("Configured")
+                                    : DesktopL10n.string("Not configured")
+                            )
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                     }
 
                     if let conflict = model.runtimeConflict {
-                        Label(conflict.message, systemImage: "exclamationmark.triangle")
+                        Label(model.localizedConflictMessage(conflict), systemImage: "exclamationmark.triangle")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -77,12 +104,12 @@ struct StatusView: View {
             Divider()
 
             HStack(spacing: 10) {
-                Button("Refresh") {
+                Button(DesktopL10n.string("Refresh")) {
                     Task { await model.refresh() }
                 }
                 .disabled(model.isRefreshing)
 
-                Button("Settings…") {
+                Button(DesktopL10n.string("Settings…")) {
                     openSettings()
                 }
 
@@ -90,7 +117,7 @@ struct StatusView: View {
 
                 runtimeActions
 
-                Button("Open \(ProductIdentity.current.displayName)") {
+                Button(DesktopL10n.string("Open ChatCockpit")) {
                     model.openCockpit()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -105,7 +132,7 @@ struct StatusView: View {
     @ViewBuilder
     private var runtimeActions: some View {
         if model.runtimeConflict != nil {
-            Button("Runtime Conflict") {}
+            Button(DesktopL10n.string("Runtime Conflict")) {}
                 .disabled(true)
         } else {
             switch model.snapshot.overallState {
@@ -114,17 +141,17 @@ struct StatusView: View {
                 model.chooseSetupLocationFromPanel()
             }
         case .stopped:
-            Button("Start Services") {
+            Button(DesktopL10n.string("Start Services")) {
                 Task { await model.start() }
             }
             .disabled(model.isRefreshing)
             case .degraded, .ready:
-                Button("Restart Services") {
+                Button(DesktopL10n.string("Restart Services")) {
                     Task { await model.restart() }
                 }
                 .disabled(model.isRefreshing)
 
-                Button("Stop Services") {
+                Button(DesktopL10n.string("Stop Services")) {
                     Task { await model.stop() }
                 }
                 .disabled(model.isRefreshing)
@@ -154,10 +181,10 @@ struct StatusView: View {
 extension DesktopOverallState {
     var displayName: String {
         switch self {
-        case .setupRequired: return "Setup Required"
-        case .stopped: return "Stopped"
-        case .degraded: return "Needs Attention"
-        case .ready: return "Ready"
+        case .setupRequired: return DesktopL10n.string("Setup Required")
+        case .stopped: return DesktopL10n.string("Stopped")
+        case .degraded: return DesktopL10n.string("Needs Attention")
+        case .ready: return DesktopL10n.string("Ready")
         }
     }
 
@@ -174,12 +201,12 @@ extension DesktopOverallState {
 extension RuntimeComponentState {
     var displayName: String {
         switch self {
-        case .unknown: return "Unknown"
-        case .unavailable: return "Unavailable"
-        case .stopped: return "Stopped"
-        case .running: return "Running"
-        case .ready: return "Ready"
-        case .degraded: return "Needs Attention"
+        case .unknown: return DesktopL10n.string("Unknown")
+        case .unavailable: return DesktopL10n.string("Unavailable")
+        case .stopped: return DesktopL10n.string("Stopped")
+        case .running: return DesktopL10n.string("Running")
+        case .ready: return DesktopL10n.string("Ready")
+        case .degraded: return DesktopL10n.string("Needs Attention")
         }
     }
 
