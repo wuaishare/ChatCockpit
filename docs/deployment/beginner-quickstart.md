@@ -11,7 +11,7 @@ Prerequisites:
 - npm
 - Git
 - a supported Codex binary for Codex Session and async Codex jobs
-- Chrome and a ChatGPT account when you wire GPT Actions
+- a browser and ChatGPT account when you connect ChatGPT App / MCP or compatibility-only Custom GPT Actions
 
 Run:
 
@@ -36,7 +36,7 @@ The first successful result is:
 - `/ui` opens the Owner sign-in screen, then shows the setup state or dashboard after authentication
 - `/ui/continuity/projects` opens the Continuity Workbench
 - `npm run doctor:runtime` can reach local health
-- GPT Helper can copy instructions and the OpenAPI URL
+- `/ui/integrations` shows Local/Public Cockpit entrypoints, ChatGPT App / MCP readiness, API/OpenAPI status, and the compatibility-only Custom GPT Actions surface
 - one safe read/status operation runs through Chat Direct without starting a Codex Turn
 - one explicit Codex Session can bind, resume, or fork a Thread before a separate Turn is started
 - one Codex async job can move out of `queued` when the Runner is active
@@ -47,10 +47,10 @@ Local-only mode keeps the API on `127.0.0.1` and is the default beginner path.
 
 Exposed HTTPS mode is only for an authenticated endpoint that you control. Set `CHATCOCKPIT_EXPOSED=true` only when `CHATCOCKPIT_API_TOKEN` is configured. Keep real domains, tunnel tokens, and machine-specific paths out of Git.
 
-For full setup, see:
+For full setup, prefer MCP first:
 
-- [`gpt-builder-setup.md`](./gpt-builder-setup.md)
-- [`mcp-setup.md`](./mcp-setup.md)
+- [`mcp-setup.md`](./mcp-setup.md) — primary ChatGPT integration path
+- [`gpt-builder-setup.md`](./gpt-builder-setup.md) — compatibility/advanced Custom GPT Actions path
 - [`public-https-tunnel.md`](./public-https-tunnel.md)
 
 ## Useful Commands
@@ -80,5 +80,6 @@ npm run reset:local
 | Handoff is not verified | Required Evidence is missing, incomplete, skipped, or failed | Record and finalize the required verification checks |
 | UI asks you to sign in | Web Owner authentication is enabled | Run `node dist/cli/index.js operator set-password` locally if needed, then sign in with the Owner account |
 | UI reports Owner setup required | No Web Owner password exists yet | Create it locally with `node dist/cli/index.js operator set-password`; do not paste the machine API token into the browser |
-| GPT schema import fails | Wrong public URL or no HTTPS path | Use GPT Helper and [`public-https-tunnel.md`](./public-https-tunnel.md) |
+| ChatGPT remote connection fails | Public HTTPS or OAuth readiness is incomplete | Open Integrations, inspect ChatGPT App / MCP status, then review [`public-https-tunnel.md`](./public-https-tunnel.md) |
+| Custom GPT schema import fails | Wrong public URL or no HTTPS path | Use the Custom GPT Actions section in Integrations and [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |

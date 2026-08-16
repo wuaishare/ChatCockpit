@@ -1,6 +1,6 @@
-# GPT Builder 配置指南
+# Custom GPT Actions 兼容配置指南
 
-本指南说明如何把 ChatCockpit 接入一个 Custom GPT，让 ChatGPT 通过 GPT Actions 调用你的本地控制面。GPT Actions 是建立在已实现 REST/OpenAPI 服务之上的实验性部署面；GPT Builder 缓存、代理、HTTPS 入口和客户端兼容性仍取决于实际环境。
+本指南说明如何把 ChatCockpit 接入一个 Custom GPT，让 ChatGPT 通过 GPT Actions 调用你的本地控制面。**这是 R5 保留的兼容/高级路径，不是新连接的首选方式；新接入优先使用 [`mcp-setup.md`](./mcp-setup.md) 的 ChatGPT App / MCP。** GPT Builder 缓存、代理、HTTPS 入口和客户端兼容性仍取决于实际环境。
 
 ## 前提
 
@@ -46,31 +46,29 @@ https://chatcockpit.example.com/openapi.yaml
 
 这里的域名是占位示例。实际配置时使用你自己的 HTTPS 地址。
 
-## 2. 打开 GPT Helper
+## 2. 打开 Integrations 的 Custom GPT Actions 区域
 
 访问：
 
 ```text
-http://127.0.0.1:4318/ui/gpt-helper
+http://127.0.0.1:4318/ui/integrations
 ```
 
-在页面中确认：
+进入 **Custom GPT Actions** 兼容区域，确认：
 
-- 产品版本
-- 指令与 Schema 修订
-- API 基址
+- 兼容说明
 - OpenAPI 地址
 - Schema 导入 URL
-- GPT Instructions
+- 本机 / 公网 API 基址
 
-如果你改了域名、token、产品版本或 OpenAPI schema，重新打开 GPT Helper，并重新复制说明。
+如果你改了域名、机器 API token、产品版本或 OpenAPI schema，重新打开 Integrations，并重新复制兼容说明。旧 `/ui/gpt-helper` 仅作为 0.2.x receive-only 浏览器兼容入口，会跳转到 `/ui/integrations`。
 
 ## 3. 创建 Custom GPT
 
 在 ChatGPT 中进入 GPT Builder：
 
 1. 创建一个新的 GPT，或打开已有 GPT。
-2. 在 Instructions 中粘贴 GPT Helper 生成的说明。
+2. 在 Instructions 中粘贴 Integrations → Custom GPT Actions 提供的兼容说明。
 3. 保存描述、能力开关和可见性设置。
 
 建议能力：
@@ -84,7 +82,7 @@ http://127.0.0.1:4318/ui/gpt-helper
 在 GPT Builder 的 Actions 区域：
 
 1. 新建 Action。
-2. 导入 GPT Helper 给出的 Schema 导入 URL，通常是：
+2. 导入 Integrations → Custom GPT Actions 给出的 Schema 导入 URL，通常是：
 
 ```text
 https://chatcockpit.example.com/openapi.yaml

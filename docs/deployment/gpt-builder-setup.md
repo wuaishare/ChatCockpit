@@ -1,6 +1,6 @@
-# GPT Builder Setup
+# Custom GPT Actions Compatibility Setup
 
-This guide shows how to connect ChatCockpit to a Custom GPT through GPT Actions. This is an experimental deployment surface over implemented REST/OpenAPI application services; client caching, proxy behavior, HTTPS ingress, and GPT Builder compatibility remain environment-dependent.
+This guide shows how to connect ChatCockpit to a Custom GPT through GPT Actions. **This is an R5 compatibility/advanced path, not the preferred path for new connections; use [`mcp-setup.md`](./mcp-setup.md) for ChatGPT App / MCP first.** GPT Builder caching, proxy behavior, HTTPS ingress, and client compatibility remain environment-dependent.
 
 ## Prerequisites
 
@@ -47,31 +47,29 @@ https://chatcockpit.example.com/openapi.yaml
 
 The domain is a placeholder. Use your own HTTPS URL.
 
-## 2. Open GPT Helper
+## 2. Open the Custom GPT Actions section in Integrations
 
 Open:
 
 ```text
-http://127.0.0.1:4318/ui/gpt-helper
+http://127.0.0.1:4318/ui/integrations
 ```
 
-Confirm:
+In **Custom GPT Actions**, confirm:
 
-- product version
-- instructions / schema revision
-- API base URL
+- compatibility instructions
 - OpenAPI URL
 - schema import URL
-- GPT Instructions
+- Local / Public API bases
 
-If the domain, token, product version, or OpenAPI schema changes, reopen GPT Helper and copy the latest instructions.
+If the domain, machine API token, product version, or OpenAPI schema changes, reopen Integrations and copy the latest compatibility instructions. The old `/ui/gpt-helper` route remains receive-only for 0.2.x browser compatibility and redirects to `/ui/integrations`.
 
 ## 3. Create A Custom GPT
 
 In GPT Builder:
 
 1. Create a new GPT, or open an existing GPT.
-2. Paste the GPT Helper instructions into Instructions.
+2. Paste the compatibility instructions from Integrations → Custom GPT Actions into Instructions.
 3. Configure name, description, capabilities, and visibility.
 
 Do not paste bearer tokens into Instructions.
@@ -81,7 +79,7 @@ Do not paste bearer tokens into Instructions.
 In the Actions area:
 
 1. Create an Action.
-2. Import the schema URL from GPT Helper, usually:
+2. Import the schema URL from Integrations → Custom GPT Actions, usually:
 
 ```text
 https://chatcockpit.example.com/openapi.yaml

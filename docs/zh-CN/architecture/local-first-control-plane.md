@@ -103,7 +103,7 @@ ChatGPT Conversation、Codex Thread、Process ID 或 Runner Job 都不是 ChatCo
 - Dashboard
 - Continuity Workbench
 - Jobs
-- GPT Helper
+- Integrations（ChatGPT App / MCP 为主，API/OpenAPI 为高级能力，Custom GPT Actions 为兼容入口）
 - Setup Wizard
 
 Continuity 深链：

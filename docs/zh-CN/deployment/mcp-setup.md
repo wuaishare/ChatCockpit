@@ -47,6 +47,8 @@ ChatGPT 连接：
 https://chatcockpit.example.com/mcp
 ```
 
+Web Owner 登录后可打开 `/ui/integrations`，核对明确的本机/公网控制台入口、MCP 地址、OAuth 就绪状态、聚合授权计数和当前 MCP 工具目录数量。该页面只投影状态，不会展示 OAuth Token、Client ID 或机器 API 凭据。
+
 ChatCockpit 会公开协议所需端点：
 
 ```text

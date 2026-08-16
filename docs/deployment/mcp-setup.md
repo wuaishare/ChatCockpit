@@ -49,6 +49,8 @@ When ChatGPT connects to:
 https://chatcockpit.example.com/mcp
 ```
 
+After Web Owner sign-in, `/ui/integrations` shows the exact Local/Public Cockpit entrypoints, MCP endpoint, OAuth readiness, aggregate authorization counts, and current MCP tool catalog count. It never reveals OAuth tokens, client identifiers, or the machine API credential.
+
 ChatCockpit exposes:
 
 ```text

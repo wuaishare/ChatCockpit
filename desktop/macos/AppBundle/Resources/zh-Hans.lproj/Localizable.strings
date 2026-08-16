@@ -4,6 +4,7 @@
 "Runner" = "任务运行器";
 "Process Supervisor" = "进程监控器";
 "Local Cockpit" = "本机控制台";
+"Public Cockpit" = "公网控制台";
 "Distribution" = "运行方式";
 "Architecture" = "架构";
 "Node" = "Node";
@@ -22,6 +23,9 @@
 "Restart Services" = "重启服务";
 "Stop Services" = "停止服务";
 "Open ChatCockpit" = "打开 ChatCockpit";
+"Open Local Cockpit" = "打开本机控制台";
+"Open Public Cockpit" = "打开公网控制台";
+"Public Cockpit is not configured." = "尚未配置公网控制台。";
 "Open Status Window" = "打开状态窗口";
 "Runtime Conflict — Review Settings" = "运行环境冲突 — 查看设置";
 "Quit ChatCockpit" = "退出 ChatCockpit";

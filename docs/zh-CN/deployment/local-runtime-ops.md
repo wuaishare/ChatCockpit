@@ -77,7 +77,7 @@ chatcockpit operator set-password
 http://127.0.0.1:4318/ui
 ```
 
-浏览器以 Owner 身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入 `localStorage` / `sessionStorage`。
+浏览器以 Owner 身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入浏览器持久化存储。`localStorage` 只用于保存非敏感的界面语言偏好。
 
 常用页面：
 
@@ -88,7 +88,8 @@ http://127.0.0.1:4318/ui
 - `/ui/continuity/handoffs`：Prepare、Accept、Fork、Cancel
 - `/ui/continuity/evidence`：Evidence Checklist 与保守验证状态
 - `/ui/continuity/approvals`：待处理 Runtime Approval
-- `/ui/gpt-helper`：GPT Instructions、OpenAPI URL、Schema 导入 URL
+- `/ui/integrations`：本机/公网入口、ChatGPT App / MCP、API/OpenAPI 与 Custom GPT Actions 兼容信息
+- `/ui/gpt-helper`：0.2.x receive-only 兼容入口，会跳转到 `/ui/integrations`
 - `/ui/jobs`：Jobs、Artifacts、进程控制
 
 受保护的 Web 数据要求有效的 Owner Session；机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。

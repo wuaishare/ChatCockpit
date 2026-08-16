@@ -4,6 +4,7 @@
 "Runner" = "Runner";
 "Process Supervisor" = "Process Supervisor";
 "Local Cockpit" = "Local Cockpit";
+"Public Cockpit" = "Public Cockpit";
 "Distribution" = "Distribution";
 "Architecture" = "Architecture";
 "Node" = "Node";
@@ -22,6 +23,9 @@
 "Restart Services" = "Restart Services";
 "Stop Services" = "Stop Services";
 "Open ChatCockpit" = "Open ChatCockpit";
+"Open Local Cockpit" = "Open Local Cockpit";
+"Open Public Cockpit" = "Open Public Cockpit";
+"Public Cockpit is not configured." = "Public Cockpit is not configured.";
 "Open Status Window" = "Open Status Window";
 "Runtime Conflict — Review Settings" = "Runtime Conflict — Review Settings";
 "Quit ChatCockpit" = "Quit ChatCockpit";

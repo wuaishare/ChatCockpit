@@ -5,20 +5,24 @@ public struct DesktopRuntimeConfiguration: Equatable, Sendable, CustomStringConv
     public var port: Int
     public var exposed: Bool
     public var apiTokenConfigured: Bool
-    public var publicBaseURLConfigured: Bool
+    public var publicBaseURL: URL?
 
     public init(
         host: String = "127.0.0.1",
         port: Int = 4318,
         exposed: Bool = false,
         apiTokenConfigured: Bool = false,
-        publicBaseURLConfigured: Bool = false
+        publicBaseURL: URL? = nil
     ) {
         self.host = host
         self.port = port
         self.exposed = exposed
         self.apiTokenConfigured = apiTokenConfigured
-        self.publicBaseURLConfigured = publicBaseURLConfigured
+        self.publicBaseURL = publicBaseURL
+    }
+
+    public var publicBaseURLConfigured: Bool {
+        publicBaseURL != nil
     }
 
     public var description: String {
@@ -80,8 +84,13 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
         if let apiToken = identityValue("API_TOKEN") {
             configuration.apiTokenConfigured = !apiToken.isEmpty
         }
-        if let publicBaseURL = identityValue("PUBLIC_BASE_URL") {
-            configuration.publicBaseURLConfigured = !publicBaseURL.isEmpty
+        if let publicBaseURL = identityValue("PUBLIC_BASE_URL"),
+           !publicBaseURL.isEmpty,
+           let parsedURL = URL(string: publicBaseURL),
+           let scheme = parsedURL.scheme?.lowercased(),
+           ["http", "https"].contains(scheme),
+           parsedURL.host != nil {
+            configuration.publicBaseURL = parsedURL
         }
         return configuration
     }
