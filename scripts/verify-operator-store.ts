@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-store-"));
   const runtimeDir = path.join(root, "runtime");
   const databasePath = operatorDatabasePath(runtimeDir);
-  const password = "correct horse battery staple";
+  const password = "test-password-correct-horse-battery-staple";
   const passwordHash = await hashOperatorPassword(password);
   const rawSessionSecret = "cc_session_raw_secret_that_must_never_be_persisted";
   const secretHash = hashOperatorSessionSecret(rawSessionSecret);
@@ -59,6 +59,15 @@ async function main(): Promise<void> {
   });
   assert.equal(session.secretHash, secretHash);
   assert.equal(store.findActiveSessionBySecretHash(secretHash, now)?.id, "session-1");
+  for (const candidate of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
+    if (fs.existsSync(candidate)) {
+      assert.equal(
+        fs.statSync(candidate).mode & 0o777,
+        0o600,
+        `Operator auth SQLite file must be owner-only: ${path.basename(candidate)}`
+      );
+    }
+  }
 
   store.setLoginThrottle({
     sourceHash: "source-digest",
@@ -95,7 +104,7 @@ async function main(): Promise<void> {
   assert.equal(store.listAuditEvents(10)[0]?.eventType, "operator.login.failed");
   assert.equal(store.findActiveSessionBySecretHash(secretHash, now)?.id, "session-1");
 
-  const nextPasswordHash = await hashOperatorPassword("another correct horse battery staple");
+  const nextPasswordHash = await hashOperatorPassword("test-password-another-correct-horse-battery-staple");
   const replaced = store.setOwner(
     {
       username: "owner",

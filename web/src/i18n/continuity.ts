@@ -180,8 +180,8 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   loadingTitle: "正在加载连续性数据",
   loadingDescription: "正在读取已配置项目与工作区状态。",
   requestFailedTitle: "连续性数据加载失败",
-  protectedTitle: "需要访问令牌",
-  protectedDescription: "此部署要求鉴权。请先在顶部设置 Bearer Token。",
+  protectedTitle: "需要 Web Owner 会话",
+  protectedDescription: "此部署要求鉴权。请重新登录 Web Owner 账户后继续。",
   sections: {
     projects: {
       label: "项目",
@@ -391,8 +391,8 @@ export const enUSContinuityCopy: ContinuityCopy = {
   loadingTitle: "Loading continuity data",
   loadingDescription: "Reading configured projects and workspace status.",
   requestFailedTitle: "Continuity data request failed",
-  protectedTitle: "Access token required",
-  protectedDescription: "This deployment requires authentication. Configure the Bearer Token in the header first.",
+  protectedTitle: "Web Owner session required",
+  protectedDescription: "This deployment requires authentication. Sign in with the Web Owner account to continue.",
   sections: {
     projects: {
       label: "Projects",

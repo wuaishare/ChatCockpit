@@ -37,13 +37,13 @@ async function main(): Promise<void> {
   assert.deepEqual(service.status(), { configured: false, username: null });
   await service.setOwnerPassword({
     username: "Owner",
-    password: "correct horse battery staple"
+    password: "test-password-correct-horse-battery-staple"
   });
   assert.deepEqual(service.status(), { configured: true, username: "owner" });
 
   const issued = await service.login({
     username: "owner",
-    password: "correct horse battery staple",
+    password: "test-password-correct-horse-battery-staple",
     source: "127.0.0.1",
     userAgent: "ChatCockpit Service Test"
   });
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     () =>
       service.login({
         username: "nobody",
-        password: "wrong password that is long enough",
+        password: "test-password-wrong-but-long-enough",
         source: "198.51.100.10"
       }),
     "INVALID_CREDENTIALS"
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     () =>
       service.login({
         username: "owner",
-        password: "wrong password that is long enough",
+        password: "test-password-wrong-but-long-enough",
         source: "198.51.100.11"
       }),
     "INVALID_CREDENTIALS"
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
       () =>
         service.login({
           username: "owner",
-          password: "wrong password that is long enough",
+          password: "test-password-wrong-but-long-enough",
           source: throttledSource
         }),
       "INVALID_CREDENTIALS"
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
     () =>
       service.login({
         username: "owner",
-        password: "wrong password that is long enough",
+        password: "test-password-wrong-but-long-enough",
         source: throttledSource
       }),
     "INVALID_CREDENTIALS"
@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     () =>
       service.login({
         username: "owner",
-        password: "correct horse battery staple",
+        password: "test-password-correct-horse-battery-staple",
         source: throttledSource
       }),
     "LOGIN_RATE_LIMITED"
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
   nowMs += 6_000;
   const recovered = await service.login({
     username: "owner",
-    password: "correct horse battery staple",
+    password: "test-password-correct-horse-battery-staple",
     source: throttledSource
   });
   assert.equal(store.getLoginThrottle(service.sourceHash(throttledSource)), null);
@@ -134,7 +134,7 @@ async function main(): Promise<void> {
 
   const second = await service.login({
     username: "owner",
-    password: "correct horse battery staple",
+    password: "test-password-correct-horse-battery-staple",
     source: "127.0.0.1"
   });
   const revokedOthers = service.revokeOtherSessions(second.sessionId);
@@ -144,13 +144,13 @@ async function main(): Promise<void> {
 
   await service.setOwnerPassword({
     username: "owner",
-    password: "another correct horse battery staple"
+    password: "test-password-another-correct-horse-battery-staple"
   });
   assert.equal(service.authenticate(second.sessionSecret), null);
 
   const idle = await service.login({
     username: "owner",
-    password: "another correct horse battery staple",
+    password: "test-password-another-correct-horse-battery-staple",
     source: "127.0.0.1"
   });
   nowMs = Date.parse(idle.idleExpiresAt) + 1;
@@ -159,14 +159,14 @@ async function main(): Promise<void> {
   nowMs = Date.parse("2026-08-16T04:00:00.000Z");
   const absolute = await service.login({
     username: "owner",
-    password: "another correct horse battery staple",
+    password: "test-password-another-correct-horse-battery-staple",
     source: "127.0.0.1"
   });
   nowMs = Date.parse(absolute.absoluteExpiresAt) + 1;
   assert.equal(service.authenticate(absolute.sessionSecret), null);
 
   const auditJson = JSON.stringify(store.listAuditEvents(100));
-  assert.equal(auditJson.includes("correct horse battery staple"), false);
+  assert.equal(auditJson.includes("test-password-correct-horse-battery-staple"), false);
   assert.equal(auditJson.includes(issued.sessionSecret), false);
 
   store.close();

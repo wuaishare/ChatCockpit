@@ -90,6 +90,15 @@ export interface OperatorStoreOptions {
   path: string;
 }
 
+function secureOperatorDatabaseFiles(databasePath: string): void {
+  if (databasePath === ":memory:") return;
+  for (const candidate of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
+    if (fs.existsSync(candidate)) {
+      fs.chmodSync(candidate, 0o600);
+    }
+  }
+}
+
 export interface SetOwnerInput {
   username: string;
   passwordHash: string;
@@ -214,6 +223,10 @@ export class OperatorStore {
     this.path = options.path;
     if (this.path !== ":memory:") {
       fs.mkdirSync(path.dirname(this.path), { recursive: true });
+      if (!fs.existsSync(this.path)) {
+        fs.closeSync(fs.openSync(this.path, "a", 0o600));
+      }
+      secureOperatorDatabaseFiles(this.path);
     }
     this.sqlite = new DatabaseSync(this.path);
     this.sqlite.exec("PRAGMA foreign_keys = ON");
@@ -222,9 +235,7 @@ export class OperatorStore {
       this.sqlite.exec("PRAGMA journal_mode = WAL");
     }
     this.initializeSchema();
-    if (this.path !== ":memory:") {
-      fs.chmodSync(this.path, 0o600);
-    }
+    secureOperatorDatabaseFiles(this.path);
   }
 
   close(): void {

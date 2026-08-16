@@ -35,15 +35,22 @@ import type {
   TerminateAllJobsResponse
 } from "./types";
 
-function buildHeaders(token?: string | null): HeadersInit {
-  const headers: HeadersInit = {
+let operatorCsrfToken: string | null = null;
+
+export function setOperatorCsrfToken(value: string | null): void {
+  operatorCsrfToken = value?.trim() || null;
+}
+
+function buildHeaders(
+  _legacyToken?: string | null,
+  options: { mutation?: boolean } = {}
+): HeadersInit {
+  const headers: Record<string, string> = {
     Accept: "application/json"
   };
-
-  if (token?.trim()) {
-    headers.Authorization = `Bearer ${token.trim()}`;
+  if (options.mutation && operatorCsrfToken) {
+    headers["X-ChatCockpit-CSRF"] = operatorCsrfToken;
   }
-
   return headers;
 }
 
@@ -78,6 +85,7 @@ async function parseProblem(response: Response): Promise<ApiProblem> {
 
 async function requestJson<T>(path: string, token?: string | null): Promise<T> {
   const response = await fetch(path, {
+    credentials: "same-origin",
     headers: buildHeaders(token)
   });
 
@@ -86,6 +94,56 @@ async function requestJson<T>(path: string, token?: string | null): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export interface OperatorStatusResponse {
+  configured: boolean;
+}
+
+export interface OperatorSessionResponse {
+  ok: true;
+  sessionId: string;
+  username: string;
+  role: "owner";
+  csrfToken: string;
+  createdAt: string;
+  lastSeenAt: string;
+  idleExpiresAt: string;
+  absoluteExpiresAt: string;
+}
+
+export async function fetchOperatorStatus(): Promise<OperatorStatusResponse> {
+  return requestJson<OperatorStatusResponse>("/api/operator/status");
+}
+
+export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
+  const result = await requestJson<OperatorSessionResponse>("/api/operator/session");
+  setOperatorCsrfToken(result.csrfToken);
+  return result;
+}
+
+export async function loginOperator(input: {
+  username: string;
+  password: string;
+}): Promise<OperatorSessionResponse> {
+  const response = await fetch("/api/operator/login", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw await parseProblem(response);
+  const result = (await response.json()) as OperatorSessionResponse;
+  setOperatorCsrfToken(result.csrfToken);
+  return result;
+}
+
+export async function logoutOperator(): Promise<void> {
+  await postJson<{ ok: true }>("/api/operator/logout");
+  setOperatorCsrfToken(null);
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
@@ -342,8 +400,9 @@ async function postBodyJson<T>(
 ): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
+    credentials: "same-origin",
     headers: {
-      ...buildHeaders(token),
+      ...buildHeaders(token, { mutation: true }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)
@@ -509,7 +568,8 @@ export async function forkContinuityHandoff(
 async function postJson<T>(path: string, token?: string | null): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
-    headers: buildHeaders(token)
+    credentials: "same-origin",
+    headers: buildHeaders(token, { mutation: true })
   });
 
   if (!response.ok) {

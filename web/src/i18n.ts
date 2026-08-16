@@ -88,16 +88,23 @@ export interface UiCopy {
     loadingConsoleDescription: string;
     bootstrapFailedTitle: string;
   };
-  tokenBar: {
-    title: string;
-    authRequiredDescription: string;
-    optionalDescription: string;
-    authRequiredShort: string;
-    optionalShort: string;
-    expand: string;
-    collapse: string;
-    manage: string;
-    placeholder: string;
+  operatorAuth: {
+    loadingTitle: string;
+    loadingDescription: string;
+    setupTitle: string;
+    setupDescription: string;
+    setupCommandLabel: string;
+    setupCommand: string;
+    setupRefresh: string;
+    loginTitle: string;
+    loginDescription: string;
+    username: string;
+    password: string;
+    signIn: string;
+    signingIn: string;
+    signOut: string;
+    signedInAs: string;
+    sessionExpired: string;
   };
   dashboard: {
     boundaryTitle: string;
@@ -308,16 +315,23 @@ const zhCN: UiCopy = {
     loadingConsoleDescription: "正在读取健康状态与 OpenAPI 元数据。",
     bootstrapFailedTitle: "控制台初始化失败"
   },
-  tokenBar: {
-    title: "浏览器会话令牌",
-    authRequiredDescription: "受保护接口需填写服务端 CHATCOCKPIT_API_TOKEN 的值。",
-    optionalDescription: "当前模式可选，仅保存在 sessionStorage 中。",
-    authRequiredShort: "填写 CHATCOCKPIT_API_TOKEN。",
-    optionalShort: "当前模式可选，仅保存在当前会话。",
-    expand: "设置令牌",
-    collapse: "收起",
-    manage: "管理令牌",
-    placeholder: "输入访问令牌"
+  operatorAuth: {
+    loadingTitle: "正在检查操作员会话",
+    loadingDescription: "正在确认此浏览器是否已登录 ChatCockpit。",
+    setupTitle: "请先创建 Web 操作员账户",
+    setupDescription: "为避免把机器 API 密钥暴露给浏览器，Web 控制台现在使用独立的 Owner 账户。首次密码只能在 ChatCockpit 所在机器本地设置。",
+    setupCommandLabel: "在本机终端执行",
+    setupCommand: "chatcockpit operator set-password",
+    setupRefresh: "我已设置，重新检查",
+    loginTitle: "登录 ChatCockpit",
+    loginDescription: "使用 Web Owner 账户进入控制台。机器 API Token 与 ChatGPT OAuth 凭据不会作为网页登录密码。",
+    username: "用户名",
+    password: "密码",
+    signIn: "登录",
+    signingIn: "正在登录…",
+    signOut: "退出登录",
+    signedInAs: "已登录",
+    sessionExpired: "会话已过期，请重新登录。"
   },
   dashboard: {
     boundaryTitle: "当前阶段边界",
@@ -340,7 +354,7 @@ const zhCN: UiCopy = {
     emptyStateTitle: "当前本地队列为空",
     emptyStateDescription: "可以先复制 GPT 接入指引，或在接入后刷新当前状态。",
     protectedStateTitle: "任务数据受保护",
-    protectedStateDescription: "当前接口需要浏览器会话令牌；输入 CHATCOCKPIT_API_TOKEN 后再读取真实队列状态。",
+    protectedStateDescription: "当前接口需要 Web Owner 会话；请重新登录后读取真实队列状态。",
     queued: "排队",
     running: "运行中",
     failed: "失败",
@@ -351,7 +365,7 @@ const zhCN: UiCopy = {
     recentJobsEmptyHint: "当前本地队列为空，可先前往 GPT 助手复制接入指引。",
     openGptHelper: "前往 GPT 助手",
     quickActionsTitle: "下一步",
-    quickActionToken: "配置会话令牌",
+    quickActionToken: "检查操作员会话",
     quickActionGpt: "查看 GPT 助手",
     quickActionRefresh: "刷新当前状态",
     recentJobUpdatedPrefix: "最近更新于",
@@ -392,9 +406,9 @@ const zhCN: UiCopy = {
       auth: {
         label: "鉴权令牌",
         detailReady: "当前鉴权状态满足本地访问要求。",
-        detailPending: "受保护接口需要配置 CHATCOCKPIT_API_TOKEN。",
+        detailPending: "机器 API 权限尚未配置；它仅用于 API 与自动化客户端，不作为网页登录凭据。",
         nextReady: "继续下一步",
-        nextPending: "在本地运行态中配置 CHATCOCKPIT_API_TOKEN"
+        nextPending: "按部署文档配置机器 API 权限"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
@@ -435,12 +449,12 @@ const zhCN: UiCopy = {
   },
   jobs: {
     sectionTitle: "任务",
-    authRequiredTitle: "需要浏览器会话令牌",
+    authRequiredTitle: "需要 Web Owner 会话",
     authRequiredSectionDescription: "当前接口受保护。",
-    authRequiredDescription: "当前接口受保护。请先在顶部输入 CHATCOCKPIT_API_TOKEN 的值，再查看任务队列与详情。",
-    authRequiredBody: "请先在顶部输入 CHATCOCKPIT_API_TOKEN 的值，再查看任务队列与详情。",
+    authRequiredDescription: "当前接口受保护。请登录 Web Owner 账户后查看任务队列与详情。",
+    authRequiredBody: "请重新登录 Web Owner 账户后查看任务队列与详情。",
     authRequiredNextLabel: "下一步",
-    authRequiredNextValue: "先在上方令牌区输入 CHATCOCKPIT_API_TOKEN",
+    authRequiredNextValue: "返回登录页并重新建立操作员会话",
     authRequiredScopeLabel: "访问范围",
     authRequiredScopeValue: "任务队列与详情",
     authRequiredSessionLabel: "令牌作用域",
@@ -494,7 +508,7 @@ const zhCN: UiCopy = {
     boundaryDescription:
       "这里只用于 OpenAPI 接入辅助与操作说明，完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
     protectedTitle: "GPT 配置接口受保护",
-    protectedDescription: "当前未提供浏览器会话令牌，界面只能显示本地回退摘要。",
+    protectedDescription: "当前没有有效的 Web Owner 会话，界面只能显示公开回退摘要。",
     snapshotTitle: "GPT 接入概览",
     snapshotDescription: "当前机器侧接口面。",
     versionLabel: "显示版本",
@@ -520,16 +534,16 @@ const zhCN: UiCopy = {
     updateTitle: "版本更新提醒",
     fallbackNote: "当前回退到了本地拼装的说明文本，建议检查 GPT 配置接口是否可达。",
     protectedFallbackNote:
-      "当前未提供 CHATCOCKPIT_API_TOKEN，因此无法读取真实 GPT 配置；输入令牌后可查看完整 GPT 指令、版本更新时间与机器侧备注。",
+      "当前没有有效的 Web Owner 会话，因此无法读取完整集成配置；重新登录后可查看指令、版本更新时间与机器侧备注。",
     notesTitle: "操作员备注",
     notesDescription: "面向鉴权模式下的人类操作员。",
     tokenNote:
-      "访问令牌来自服务端 CHATCOCKPIT_API_TOKEN，仅限当前浏览器会话输入，界面只做掩码展示。",
+      "机器 API Token 仅供 API/自动化客户端使用；Web 控制台使用独立 Owner 会话，浏览器不会读取或展示机器密钥。",
     checklist: [
       "操作员检查清单",
       "- 确认 /api/health 可访问。",
       "- 使用 /openapi.yaml 作为 schema 来源。",
-      "- 如果需要鉴权，只在当前本地浏览器会话中提供访问令牌。",
+      "- Web 控制台使用 Owner 登录；不要把机器 API Token 当作网页登录凭据。",
       "- 将预期控制在本地优先操作员 MVP 范围内。",
       "- 不要把当前状态当作完整 HTTPS / Custom GPT Actions 生产闭环。"
     ]
@@ -587,17 +601,23 @@ const enUS: UiCopy = {
     loadingConsoleDescription: "Reading health and OpenAPI metadata.",
     bootstrapFailedTitle: "Console bootstrap failed"
   },
-  tokenBar: {
-    title: "Browser Session Token",
-    authRequiredDescription:
-      "Protected endpoints require the value of CHATCOCKPIT_API_TOKEN.",
-    optionalDescription: "Optional for current mode. Saved only in sessionStorage.",
-    authRequiredShort: "Enter CHATCOCKPIT_API_TOKEN.",
-    optionalShort: "Optional for current mode. Session-only storage.",
-    expand: "Configure token",
-    collapse: "Collapse",
-    manage: "Manage token",
-    placeholder: "Enter access token"
+  operatorAuth: {
+    loadingTitle: "Checking Operator session",
+    loadingDescription: "Confirming whether this browser is signed in to ChatCockpit.",
+    setupTitle: "Create the Web Operator account first",
+    setupDescription: "The Web Cockpit now uses a dedicated Owner account so the machine API secret never needs to live in browser storage. The initial password must be set locally on the ChatCockpit host.",
+    setupCommandLabel: "Run locally in a terminal",
+    setupCommand: "chatcockpit operator set-password",
+    setupRefresh: "Password set — check again",
+    loginTitle: "Sign in to ChatCockpit",
+    loginDescription: "Use the Web Owner account. The machine API token and ChatGPT OAuth credentials are not Web login passwords.",
+    username: "Username",
+    password: "Password",
+    signIn: "Sign in",
+    signingIn: "Signing in…",
+    signOut: "Sign out",
+    signedInAs: "Signed in",
+    sessionExpired: "Your session has expired. Sign in again."
   },
   dashboard: {
     boundaryTitle: "Phase-2 boundary",
@@ -620,7 +640,7 @@ const enUS: UiCopy = {
     emptyStateTitle: "The local queue is currently empty",
     emptyStateDescription: "Open GPT Helper for the integration instructions, or refresh again after connecting a workflow.",
     protectedStateTitle: "Job data is protected",
-    protectedStateDescription: "Enter CHATCOCKPIT_API_TOKEN in the browser session before reading the real queue state.",
+    protectedStateDescription: "A Web Owner session is required. Sign in again before reading the live queue state.",
     queued: "Queued",
     running: "Running",
     failed: "Failed",
@@ -672,9 +692,9 @@ const enUS: UiCopy = {
       auth: {
         label: "Bearer auth",
         detailReady: "Current auth state is ready for local access.",
-        detailPending: "Protected endpoints need CHATCOCKPIT_API_TOKEN.",
+        detailPending: "Machine API authority is not configured. It is for API/automation clients, not Web sign-in.",
         nextReady: "Continue",
-        nextPending: "Configure CHATCOCKPIT_API_TOKEN locally"
+        nextPending: "Configure machine API authority from the deployment guide"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
@@ -715,12 +735,12 @@ const enUS: UiCopy = {
   },
   jobs: {
     sectionTitle: "Jobs",
-    authRequiredTitle: "Browser session token required",
+    authRequiredTitle: "Web Owner session required",
     authRequiredSectionDescription: "Protected endpoints are enabled.",
-    authRequiredDescription: "Protected endpoints are enabled. Enter CHATCOCKPIT_API_TOKEN above before viewing queue and detail data.",
-    authRequiredBody: "Enter CHATCOCKPIT_API_TOKEN above before viewing queue and detail data.",
+    authRequiredDescription: "Protected endpoints are enabled. Sign in with the Web Owner account before viewing queue and detail data.",
+    authRequiredBody: "Sign in with the Web Owner account before viewing queue and detail data.",
     authRequiredNextLabel: "Next step",
-    authRequiredNextValue: "Enter CHATCOCKPIT_API_TOKEN in the token bar above",
+    authRequiredNextValue: "Return to the sign-in screen and establish a new Operator session",
     authRequiredScopeLabel: "Access scope",
     authRequiredScopeValue: "Queue and job detail",
     authRequiredSessionLabel: "Token scope",
@@ -775,7 +795,7 @@ const enUS: UiCopy = {
     boundaryDescription:
       "This helper is only for OpenAPI wiring and operator guidance. Full HTTPS / Custom GPT Actions automation is still under validation.",
     protectedTitle: "GPT config is protected",
-    protectedDescription: "No browser session token is present, so the UI can only show the local fallback summary.",
+    protectedDescription: "There is no valid Web Owner session, so the UI can only show the public fallback summary.",
     snapshotTitle: "GPT Integration Snapshot",
     snapshotDescription: "Current machine-facing surface.",
     versionLabel: "Display Version",
@@ -801,16 +821,16 @@ const enUS: UiCopy = {
     updateTitle: "Version Update Reminder",
     fallbackNote: "The UI fell back to a locally assembled helper text. Check whether the GPT config endpoint is reachable.",
     protectedFallbackNote:
-      "CHATCOCKPIT_API_TOKEN is not present in this browser session, so the live GPT config is unavailable. Enter the token to load the full instructions, updated timestamp, and machine-side notes.",
+      "There is no valid Web Owner session, so the full integration configuration is unavailable. Sign in again to load instructions, update metadata, and machine-side notes.",
     notesTitle: "Operator Notes",
     notesDescription: "Compact reminders for human operators using auth-required mode.",
     tokenNote:
-      "Enter the CHATCOCKPIT_API_TOKEN value only in this browser session. The UI masks it for display.",
+      "The machine API token is only for API/automation clients. The Web Cockpit uses a separate Owner session and never reads or displays the machine secret.",
     checklist: [
       "Operator checklist",
       "- Confirm /api/health is reachable.",
       "- Use /openapi.yaml as the schema source.",
-      "- If auth is required, provide the access token only in this local browser session.",
+      "- Use the Web Owner account for Cockpit access; keep machine API credentials out of browser storage.",
       "- Keep expectations within the local-first operator MVP scope.",
       "- Do not treat current status as a complete HTTPS / Custom GPT Actions production loop."
     ]

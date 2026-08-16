@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   const setupService = new OperatorService({ store: setupStore });
   await setupService.setOwnerPassword({
     username: "owner",
-    password: "correct horse battery staple"
+    password: "test-password-correct-horse-battery-staple"
   });
   setupStore.close();
 
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
     exposed: process.env.CHATCOCKPIT_EXPOSED,
     configPath: process.env.CHATCOCKPIT_CONFIG_PATH
   };
-  process.env.CHATCOCKPIT_API_TOKEN = "machine-owner-token";
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-owner";
   process.env.CHATCOCKPIT_EXPOSED = "false";
   process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "missing-config.json");
 
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     assert.equal(anonymousJobs.status, 401);
 
     const machineJobs = await fetch(`${server.baseUrl}/api/jobs`, {
-      headers: { authorization: "Bearer machine-owner-token" }
+      headers: { authorization: "Bearer test-token-machine-owner" }
     });
     assert.equal(machineJobs.status, 200);
 
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         username: "owner",
-        password: "correct horse battery staple"
+        password: "test-password-correct-horse-battery-staple"
       })
     });
     assert.equal(login.status, 200);

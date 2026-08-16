@@ -138,9 +138,12 @@ export function registerOperatorRoutes(
       );
       return {
         ok: true,
+        sessionId: issued.sessionId,
         username: issued.username,
         role: issued.role,
         csrfToken: issued.csrfToken,
+        createdAt: issued.createdAt,
+        lastSeenAt: issued.createdAt,
         idleExpiresAt: issued.idleExpiresAt,
         absoluteExpiresAt: issued.absoluteExpiresAt
       };

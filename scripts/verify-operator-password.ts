@@ -6,7 +6,7 @@ import {
 } from "../src/auth/operator-password.js";
 
 async function main(): Promise<void> {
-  const password = "correct horse battery staple";
+  const password = "test-password-correct-horse-battery-staple";
   const encoded = await hashOperatorPassword(password);
 
   assert.match(

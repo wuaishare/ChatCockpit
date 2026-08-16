@@ -32,7 +32,7 @@ function parseJsonOutput(value: string): Record<string, unknown> {
 
 function main(): void {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-cli-"));
-  const password = "correct horse battery staple";
+  const password = "test-password-correct-horse-battery-staple";
 
   let result = runCli(home, ["operator", "status", "--json"]);
   assert.equal(result.status, 0, result.stderr);
