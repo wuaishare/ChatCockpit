@@ -38,7 +38,7 @@ The implementation targets the current MCP authorization requirements and the Ch
 4. ChatGPT can obtain a public client ID through Dynamic Client Registration for compatibility. Client ID Metadata Documents are intentionally not fetched in this phase because server-side fetching would add an SSRF surface; DCR remains a supported compatibility mechanism.
 5. Authorization Code flow requires PKCE S256.
 6. Authorization requests validate exact registered redirect URIs, permitted redirect hosts, the protected resource audience, response type, scope, and state handling.
-7. The current OAuth approval flow still verifies the existing local machine owner secret. This is a transitional R5 boundary: Web Cockpit login no longer uses that secret, while OAuth approval will move to the authenticated Owner session in the dedicated public-hardening slice. The machine secret is never returned to the MCP client or embedded in OAuth tokens.
+7. OAuth browser approval requires an authenticated Web Owner session and its session-bound CSRF token. If the browser is not signed in, ChatCockpit preserves a single pending OAuth `request_id`, redirects through `/ui/login`, and resumes that same request after sign-in. The machine API token is never used as the browser approval credential.
 8. Authorization codes are short-lived and single-use.
 9. Access tokens are opaque, short-lived, audience-bound, and stored only as hashes at rest.
 10. Refresh tokens are opaque, longer-lived, audience-bound, stored only as hashes, and allow ChatGPT to remain connected after access-token expiry. `offline_access` is advertised by the authorization server but not by the protected resource metadata.
@@ -65,7 +65,7 @@ Stored records:
 - hashed refresh tokens;
 - revocation and expiry timestamps.
 
-No plaintext access token, refresh token, owner secret, local path, or private prompt is persisted.
+No plaintext OAuth access/refresh token, Web Owner password/session secret, machine API token, local path, or private prompt is persisted.
 
 ## Redirect and proxy security
 
@@ -96,7 +96,7 @@ The Fastify policy boundary enforces the separation:
 
 Initial Owner password setup is local-only through `chatcockpit operator set-password` (or the source checkout's built CLI). There is no anonymous public endpoint that creates an Owner account. Login throttling, expiry/revocation, and audit metadata are persisted in a separate private `operator-auth.sqlite`; plaintext passwords and raw session secrets are not persisted.
 
-Public OAuth discovery, registration, authorization transport, token, revoke, health, privacy, OpenAPI, static UI, and the minimal Operator status/login routes bypass protected REST enforcement only where required. The OAuth authorization approval action still requires the local machine owner secret in this F1 slice; migrating that approval to the authenticated Web Owner session is intentionally deferred to the next R5 public-hardening slice.
+Public OAuth discovery, registration, authorization transport, token, revoke, health, privacy, OpenAPI, static UI, and the minimal Operator status/login routes bypass protected REST enforcement only where required. OAuth authorization approval itself requires a valid Web Owner session plus CSRF; anonymous approval POSTs fail closed, and the authorization page contains no machine-token or password input.
 
 The MCP handler itself remains transport/authentication agnostic. A validated principal may be attached to request context, but existing REST/MCP domain services remain unchanged.
 
@@ -143,7 +143,7 @@ The benchmark is mapped to ChatCockpit invariants instead of copied feature-for-
 | Concurrent workspace opens | One physical checkout must have one Writer identity | Existing Writer Lease conflict tests cover one Workspace; this hardening phase additionally canonicalizes real repository paths and rejects two repoIds that resolve to the same physical checkout, including symlink aliases. |
 | Workspace-root mismatch | Canonical repoId -> physical checkout relation | Existing Codex Runtime API rejects Workspace mismatch; config canonicalization now closes symlink/alias identity splits before Project/Workspace sync. |
 | Missing review checkpoint/ref | Handoff/Evidence relation integrity | Handoff preparation now has explicit regression coverage for missing Evidence IDs and Evidence belonging to a different Session; neither failed request may create a Ready Handoff. |
-| Internal lifecycle/diagnostics leaked to cards | Public-safe REST/MCP/Web projections | Existing privacy, snapshot, document, event and Web safety gates remain authoritative; OAuth readiness exposes status/metadata URL only, never owner secret, token/hash, local DB path, or raw auth state. |
+| Internal lifecycle/diagnostics leaked to cards | Public-safe REST/MCP/Web projections | Existing privacy, snapshot, document, event and Web safety gates remain authoritative; OAuth readiness exposes status/metadata URL only, never Web Owner password/session, machine token/hash, local DB path, or raw auth state. |
 | Conversation-aware checkout reuse | Not adopted | ChatCockpit deliberately treats ChatGPT conversation metadata as an adapter hint, not the durable system of record. Task/Session/Handoff state already provides explicit portable continuity, so hidden host conversation binding is not required for correctness. |
 | Compact model-facing workspace IDs | Already native | ChatCockpit Continuity IDs are compact opaque IDs and public projections hide private paths; no new ID system is added. |
 | Tool-card visual refresh / skills and provider cards | Out of scope | These are product/UI expansion rather than reliability prerequisites and remain frozen during hardening. |

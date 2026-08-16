@@ -1,7 +1,6 @@
 import {
   createHash,
-  randomBytes,
-  timingSafeEqual
+  randomBytes
 } from "node:crypto";
 import { randomUUID } from "node:crypto";
 
@@ -78,7 +77,6 @@ export interface OAuthTokenResult {
 export interface OAuthServiceOptions {
   store: OAuthStore;
   config: OAuthPublicConfig;
-  ownerSecret: () => string | null;
   now?: () => Date;
 }
 
@@ -98,12 +96,6 @@ function pkceChallenge(verifier: string): string {
   return createHash("sha256").update(verifier, "ascii").digest("base64url");
 }
 
-function secretsEqual(left: string, right: string): boolean {
-  const leftHash = createHash("sha256").update(left, "utf8").digest();
-  const rightHash = createHash("sha256").update(right, "utf8").digest();
-  return timingSafeEqual(leftHash, rightHash);
-}
-
 function requireNonEmpty(value: string, label: string, maximum: number): string {
   const normalized = value.trim();
   if (!normalized || normalized.length > maximum) {
@@ -115,13 +107,11 @@ function requireNonEmpty(value: string, label: string, maximum: number): string 
 export class OAuthService {
   readonly store: OAuthStore;
   readonly config: OAuthPublicConfig;
-  private readonly ownerSecret: () => string | null;
   private readonly now: () => Date;
 
   constructor(options: OAuthServiceOptions) {
     this.store = options.store;
     this.config = options.config;
-    this.ownerSecret = options.ownerSecret;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -234,15 +224,25 @@ export class OAuthService {
     });
   }
 
-  approveAuthorization(
-    requestId: string,
-    suppliedOwnerSecret: string
-  ): AuthorizationApprovalResult {
-    const configuredSecret = this.ownerSecret()?.trim();
-    if (!configuredSecret || !secretsEqual(configuredSecret, suppliedOwnerSecret)) {
-      throw new OAuthProtocolError("access_denied", "Owner approval was denied", 403);
+  getAuthorizationForApproval(requestId: string): OAuthAuthorizationRequestRecord {
+    const normalizedRequestId = requireNonEmpty(requestId, "request_id", 160);
+    const request = this.store.getAuthorizationRequest(normalizedRequestId);
+    const nowIso = iso(this.now());
+    if (
+      !request ||
+      request.consumedAt !== null ||
+      request.expiresAt <= nowIso
+    ) {
+      throw new OAuthProtocolError(
+        "invalid_request",
+        "Authorization request is expired, missing, or already consumed"
+      );
     }
+    return request;
+  }
 
+  approveAuthorizationForOwner(requestId: string): AuthorizationApprovalResult {
+    this.getAuthorizationForApproval(requestId);
     const code = opaqueToken(`${this.config.oauthOpaquePrefix}_code`);
     const now = this.now();
     const consumed = this.store.transaction(() => {
@@ -269,6 +269,27 @@ export class OAuthService {
     return {
       redirectUri: consumed.redirectUri,
       code,
+      state: consumed.state,
+      issuer: this.config.issuer
+    };
+  }
+
+  denyAuthorizationForOwner(requestId: string): {
+    redirectUri: string;
+    state: string | null;
+    issuer: string;
+  } {
+    this.getAuthorizationForApproval(requestId);
+    const now = this.now();
+    const consumed = this.store.consumeAuthorizationRequest(requestId, iso(now));
+    if (!consumed) {
+      throw new OAuthProtocolError(
+        "invalid_request",
+        "Authorization request is expired, missing, or already consumed"
+      );
+    }
+    return {
+      redirectUri: consumed.redirectUri,
       state: consumed.state,
       issuer: this.config.issuer
     };

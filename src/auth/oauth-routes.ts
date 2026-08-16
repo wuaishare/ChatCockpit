@@ -6,6 +6,7 @@ import type {
 
 import type { OAuthPublicConfig } from "./oauth-config.js";
 import { OAuthProtocolError, OAuthService } from "./oauth-service.js";
+import { operatorSessionFromRequest } from "../server/operator-auth-context.js";
 
 interface UnknownRecord {
   [key: string]: unknown;
@@ -82,6 +83,8 @@ function approvalPage(input: {
   scope: string;
   resource: string;
   displayName: string;
+  username: string;
+  csrfToken: string;
 }): string {
   return `<!doctype html>
 <html lang="en">
@@ -96,10 +99,11 @@ function approvalPage(input: {
     main { width: min(560px, calc(100vw - 32px)); border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 16px; padding: 24px; box-sizing: border-box; }
     h1 { margin: 0 0 12px; font-size: 24px; }
     p { line-height: 1.6; overflow-wrap: anywhere; }
-    label { display: grid; gap: 8px; font-weight: 600; margin-top: 20px; }
-    input { box-sizing: border-box; width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); font: inherit; }
-    button { margin-top: 16px; padding: 10px 16px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+    .actions { display: flex; gap: 10px; margin-top: 20px; }
+    button { padding: 10px 16px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+    button[value="deny"] { background: color-mix(in srgb, CanvasText 10%, transparent); color: CanvasText; }
     .meta { font-size: 13px; opacity: .72; }
+    .session { margin-top: 18px; padding-top: 16px; border-top: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
   </style>
 </head>
 <body>
@@ -107,12 +111,14 @@ function approvalPage(input: {
     <h1>Authorize ${escapeHtml(input.displayName)} MCP</h1>
     <p><strong>${escapeHtml(input.clientName)}</strong> is requesting access to your ${escapeHtml(input.displayName)} MCP endpoint.</p>
     <p class="meta">Scope: ${escapeHtml(input.scope)}<br>Resource: ${escapeHtml(input.resource)}</p>
+    <p class="session">Signed in as <strong>${escapeHtml(input.username)}</strong></p>
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="request_id" value="${escapeHtml(input.requestId)}">
-      <label>${escapeHtml(input.displayName)} owner secret
-        <input name="owner_secret" type="password" autocomplete="current-password" required maxlength="512">
-      </label>
-      <button type="submit">Authorize</button>
+      <input type="hidden" name="csrf_token" value="${escapeHtml(input.csrfToken)}">
+      <div class="actions">
+        <button type="submit" name="decision" value="approve">Authorize</button>
+        <button type="submit" name="decision" value="deny">Deny</button>
+      </div>
     </form>
   </main>
 </body>
@@ -207,28 +213,41 @@ export function registerOAuthRoutes(
   app.get("/oauth/authorize", async (request, reply) => {
     try {
       const query = readQuery(request);
-      const pending = service.beginAuthorization({
-        clientId: stringField(query, "client_id"),
-        redirectUri: stringField(query, "redirect_uri"),
-        responseType: stringField(query, "response_type"),
-        scope: stringField(query, "scope"),
-        resource: stringField(query, "resource"),
-        state: optionalStringField(query, "state"),
-        codeChallenge: stringField(query, "code_challenge"),
-        codeChallengeMethod: stringField(query, "code_challenge_method")
-      });
+      const existingRequestId = optionalStringField(query, "request_id")?.trim();
+      const pending = existingRequestId
+        ? service.getAuthorizationForApproval(existingRequestId)
+        : service.beginAuthorization({
+            clientId: stringField(query, "client_id"),
+            redirectUri: stringField(query, "redirect_uri"),
+            responseType: stringField(query, "response_type"),
+            scope: stringField(query, "scope"),
+            resource: stringField(query, "resource"),
+            state: optionalStringField(query, "state"),
+            codeChallenge: stringField(query, "code_challenge"),
+            codeChallengeMethod: stringField(query, "code_challenge_method")
+          });
       const client = service.store.getClient(pending.clientId);
       if (!client) {
         throw new OAuthProtocolError("invalid_client", "OAuth client disappeared", 401);
       }
+
+      const operatorSession = operatorSessionFromRequest(request);
       noStore(reply);
+      if (!operatorSession) {
+        const continuation = `/oauth/authorize?request_id=${encodeURIComponent(pending.requestId)}`;
+        const loginUrl = `/ui/login?returnTo=${encodeURIComponent(continuation)}`;
+        return reply.redirect(loginUrl, 302);
+      }
+
       reply.type("text/html; charset=utf-8");
       return approvalPage({
         requestId: pending.requestId,
         clientName: client.clientName,
         scope: pending.scope,
         resource: pending.resource,
-        displayName: config.displayName
+        displayName: config.displayName,
+        username: operatorSession.username,
+        csrfToken: operatorSession.csrfToken
       });
     } catch (error) {
       return sendOAuthError(reply, error);
@@ -237,11 +256,45 @@ export function registerOAuthRoutes(
 
   app.post("/oauth/authorize", async (request, reply) => {
     try {
+      const operatorSession = operatorSessionFromRequest(request);
+      if (!operatorSession) {
+        throw new OAuthProtocolError(
+          "access_denied",
+          "An authenticated Owner session is required",
+          401
+        );
+      }
+
       const body = parseFormBody(request.body);
-      const result = service.approveAuthorization(
-        stringField(body, "request_id"),
-        stringField(body, "owner_secret")
-      );
+      const suppliedCsrf = stringField(body, "csrf_token");
+      if (!suppliedCsrf || suppliedCsrf !== operatorSession.csrfToken) {
+        throw new OAuthProtocolError(
+          "access_denied",
+          "Owner session CSRF validation failed",
+          403
+        );
+      }
+
+      const requestId = stringField(body, "request_id");
+      const decision = stringField(body, "decision");
+      if (decision === "deny") {
+        const denied = service.denyAuthorizationForOwner(requestId);
+        const redirect = new URL(denied.redirectUri);
+        redirect.searchParams.set("error", "access_denied");
+        redirect.searchParams.set("error_description", "The owner denied this authorization request");
+        if (denied.state) redirect.searchParams.set("state", denied.state);
+        redirect.searchParams.set("iss", denied.issuer);
+        noStore(reply);
+        return reply.redirect(redirect.toString(), 302);
+      }
+      if (decision !== "approve") {
+        throw new OAuthProtocolError(
+          "invalid_request",
+          "Authorization decision must be approve or deny"
+        );
+      }
+
+      const result = service.approveAuthorizationForOwner(requestId);
       const redirect = new URL(result.redirectUri);
       redirect.searchParams.set("code", result.code);
       if (result.state) redirect.searchParams.set("state", result.state);

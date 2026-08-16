@@ -373,6 +373,12 @@ assert.match(appSource, /fetchOperatorStatus/);
 assert.match(appSource, /fetchOperatorSession/);
 assert.match(appSource, /loginOperator/);
 assert.match(appSource, /logoutOperator/);
+assert.match(appSource, /readOAuthApprovalReturnTo/);
+assert.match(appSource, /target\.origin\s*!==\s*window\.location\.origin/);
+assert.match(appSource, /target\.pathname\s*!==\s*"\/oauth\/authorize"/);
+assert.match(appSource, /target\.searchParams\.size\s*!==\s*1/);
+assert.match(appSource, /\^oauth_request_/);
+assert.match(appSource, /window\.location\.assign\(returnTo\)/);
 assert.match(operatorLoginSource, /autoComplete="username"/);
 assert.match(operatorLoginSource, /autoComplete="current-password"/);
 assert.doesNotMatch(

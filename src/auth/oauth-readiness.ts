@@ -8,6 +8,7 @@ import {
 } from "../core/identity-env.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { resolveOAuthPublicConfig } from "./oauth-config.js";
+import { hasConfiguredOperatorOwner } from "./operator-store.js";
 
 export type OAuthReadinessStatus = "disabled" | "ready" | "needs-attention";
 
@@ -61,7 +62,7 @@ export function buildOAuthReadiness(
       ready: false,
       required: true,
       protectedResourceMetadataUrl: null,
-      detail: `Remote MCP OAuth needs the existing ${identity.displayName} owner secret.`,
+      detail: "Remote MCP exposure still requires the machine API authority.",
       nextAction: `Set ${apiTokenEnv} before enabling exposed mode.`
     };
   }
@@ -99,6 +100,17 @@ export function buildOAuthReadiness(
       protectedResourceMetadataUrl: config.protectedResourceMetadataUrl,
       detail: `${identity.displayName} runtime state is not writable for OAuth persistence.`,
       nextAction: `Fix local runtime directory permissions, then restart ${identity.displayName}.`
+    };
+  }
+
+  if (!hasConfiguredOperatorOwner(paths.runtimeDir)) {
+    return {
+      status: "needs-attention",
+      ready: false,
+      required: true,
+      protectedResourceMetadataUrl: config.protectedResourceMetadataUrl,
+      detail: "Remote MCP OAuth needs a configured Web Owner account for browser approval.",
+      nextAction: `Run ${identity.cliName} operator set-password locally before connecting ChatGPT.`
     };
   }
 

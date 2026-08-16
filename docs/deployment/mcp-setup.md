@@ -37,7 +37,7 @@ For ChatGPT Remote MCP, OAuth is the preferred authentication path. Public expos
 
 ```bash
 CHATCOCKPIT_EXPOSED=true
-CHATCOCKPIT_API_TOKEN=replace-with-a-strong-owner-secret
+CHATCOCKPIT_API_TOKEN=replace-with-a-strong-machine-api-secret
 CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
@@ -61,11 +61,11 @@ ChatCockpit exposes:
 /oauth/revoke
 ```
 
-The authorization flow uses a public OAuth client, PKCE S256, the `chatcockpit:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. The browser approval page asks for the existing local `CHATCOCKPIT_API_TOKEN` as the owner secret; that secret is never returned to the MCP client or stored in OAuth token records.
+The authorization flow uses a public OAuth client, PKCE S256, the `chatcockpit:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. Browser approval now requires an authenticated Web Owner session plus session-bound CSRF; the approval page never asks for `CHATCOCKPIT_API_TOKEN`. If the browser is not signed in, ChatCockpit creates one pending OAuth request, redirects to `/ui/login`, and returns to that same `request_id` after Owner sign-in.
 
 Default redirect hosts are limited to HTTPS `chatgpt.com` and local test callbacks on `localhost` / `127.0.0.1`. Additional redirect hosts require explicit local `CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS` configuration. Registered redirect URIs still require exact matching.
 
-Static Bearer authentication remains supported for local operator workflows and compatibility clients:
+Static Bearer authentication remains supported for machine API/automation workflows and compatibility clients:
 
 ```text
 Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
@@ -73,7 +73,7 @@ Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 
 An OAuth access token is intentionally accepted on canonical `/mcp` and the compatibility-period receive-only `/tokenpilot/mcp`; it does not widen access to the REST control plane.
 
-Never put the real owner secret, domain, tunnel credential, OAuth database, or machine path in this repository.
+Never put the real Web Owner password/session, machine API token, domain, tunnel credential, OAuth/operator database, or machine path in this repository.
 
 If the ChatGPT custom MCP app is already connected, use [`../testing/chatgpt-connector-smoke.md`](../testing/chatgpt-connector-smoke.md) for a real user smoke test instead of stopping at the OAuth success page.
 

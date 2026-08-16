@@ -235,8 +235,7 @@ export function buildServer(
   const oauthService = oauthConfig && oauthStore
     ? new OAuthService({
         store: oauthStore,
-        config: oauthConfig,
-        ownerSecret: () => readIdentityEnv("API_TOKEN") ?? null
+        config: oauthConfig
       })
     : null;
   const operatorStore = new OperatorStore({

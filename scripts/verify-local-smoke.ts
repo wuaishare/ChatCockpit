@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 
 import { buildOAuthReadiness } from "../src/auth/oauth-readiness.ts";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { runPack } from "../src/core/pack.ts";
 import { runCodexRunJob } from "../src/core/codex-run.ts";
 import { createJob, getJob } from "../src/core/jobs.ts";
@@ -588,6 +589,26 @@ function verifyAuthConfig(): void {
   });
   assert.equal(invalidPublicOrigin.status, "needs-attention");
   assert.match(invalidPublicOrigin.detail, /origin without a path/);
+  const missingOwner = buildOAuthReadiness(paths, {
+    CHATCOCKPIT_EXPOSED: "true",
+    CHATCOCKPIT_API_TOKEN: "test-owner-token",
+    CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com"
+  });
+  assert.equal(missingOwner.status, "needs-attention");
+  assert.match(missingOwner.detail, /configured Web Owner account/);
+
+  const operatorStore = new OperatorStore({
+    path: operatorDatabasePath(paths.runtimeDir)
+  });
+  operatorStore.setOwner(
+    {
+      username: "owner",
+      passwordHash: "test-password-hash-readiness-only"
+    },
+    "2026-08-16T00:00:00.000Z"
+  );
+  operatorStore.close();
+
   const readyOAuth = buildOAuthReadiness(paths, {
     CHATCOCKPIT_EXPOSED: "true",
     CHATCOCKPIT_API_TOKEN: "test-owner-token",

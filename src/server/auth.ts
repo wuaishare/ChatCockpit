@@ -118,6 +118,17 @@ export function createTokenPilotAuthPlugin(
 
     app.addHook("preHandler", async (request, reply) => {
       request.chatCockpitAuth = { kind: "anonymous" };
+
+      const sessionSecret = operator ? readOperatorSessionCookie(request) : null;
+      const operatorSession =
+        operator && sessionSecret ? operator.authenticate(sessionSecret) : null;
+      if (operatorSession) {
+        request.chatCockpitAuth = {
+          kind: "operator-session",
+          session: operatorSession
+        };
+      }
+
       if (isPublicPath(request.url)) {
         return;
       }
@@ -156,16 +167,8 @@ export function createTokenPilotAuthPlugin(
         throw new ApiError(401, "UNAUTHORIZED", "Bearer token is missing or invalid");
       }
 
-      const sessionSecret = operator ? readOperatorSessionCookie(request) : null;
-      const operatorSession =
-        operator && sessionSecret ? operator.authenticate(sessionSecret) : null;
-      if (operatorSession) {
-        const context: Extract<RequestAuthContext, { kind: "operator-session" }> = {
-          kind: "operator-session",
-          session: operatorSession
-        };
-        request.chatCockpitAuth = context;
-        requireOperatorCsrf(request, context);
+      if (request.chatCockpitAuth.kind === "operator-session") {
+        requireOperatorCsrf(request, request.chatCockpitAuth);
         return;
       }
 

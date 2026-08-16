@@ -35,7 +35,7 @@ http://127.0.0.1:4318/mcp
 
 ```bash
 CHATCOCKPIT_EXPOSED=true
-CHATCOCKPIT_API_TOKEN=replace-with-a-strong-owner-secret
+CHATCOCKPIT_API_TOKEN=replace-with-a-strong-machine-api-secret
 CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 ```
 
@@ -59,11 +59,11 @@ ChatCockpit 会公开协议所需端点：
 /oauth/revoke
 ```
 
-授权使用 Public OAuth Client、PKCE S256、`chatcockpit:mcp` Resource Scope、短时 Access Token 与可跨重启继续使用的 Refresh Token。浏览器授权页要求输入现有 `CHATCOCKPIT_API_TOKEN` 作为本机 Owner Secret；它不会返回给 MCP 客户端，也不会作为 OAuth Token 明文落库。
+授权使用 Public OAuth Client、PKCE S256、`chatcockpit:mcp` Resource Scope、短时 Access Token 与可跨重启继续使用的 Refresh Token。浏览器批准现在要求已认证的 Web Owner Session，并使用与该 Session 绑定的 CSRF Token；授权页不再要求输入 `CHATCOCKPIT_API_TOKEN`。如果浏览器尚未登录，ChatCockpit 只创建一次 Pending OAuth Request，跳转到 `/ui/login`，Owner 登录后继续使用同一个 `request_id`。
 
 默认 Redirect Host 只允许 HTTPS `chatgpt.com`，以及测试用 `localhost` / `127.0.0.1`。额外 Host 必须通过本机 `CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS` 显式配置，而且实际 `redirect_uri` 仍必须与已注册 URI 完全一致。
 
-静态 Bearer 继续用于本地 Operator 和兼容客户端：
+静态 Bearer 继续用于机器 API / 自动化工作流和兼容客户端：
 
 ```text
 Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
@@ -71,7 +71,7 @@ Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 
 OAuth Access Token 刻意只授权 canonical `/mcp` 与兼容期 receive-only `/tokenpilot/mcp`，不会顺便获得 REST Control Plane 权限。
 
-不要把真实 Owner Secret、域名、Tunnel 凭据、OAuth 数据库或机器路径提交到 Git。
+不要把真实 Web Owner 密码/Session、机器 API Token、域名、Tunnel 凭据、OAuth/Operator 数据库或机器路径提交到 Git。
 
 如果 ChatGPT custom MCP app 已经连接，建议直接按 [`../testing/chatgpt-connector-smoke.md`](../testing/chatgpt-connector-smoke.md) 做真实用户 smoke，而不是只停在 OAuth 成功页。
 
