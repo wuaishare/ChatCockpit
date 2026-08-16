@@ -228,6 +228,7 @@ The native shell keeps the existing ChatCockpit security model authoritative:
 - the machine API token is masked by default; explicit reveal is memory-only and temporary, while copy is user-initiated and clipboard-cleared when safe;
 - Security & Access shows the current Local/Public API base and MCP endpoint separately from the token, with explicit copy controls;
 - opening **Local Cockpit** from the App can use a 45-second single-use loopback login grant to create the normal HttpOnly Owner session without typing the password; this route rejects proxied and non-loopback requests and does not weaken public authentication;
+- Passkeys are managed in the Web Cockpit and are preferred on public HTTPS domains; WebAuthn also supports `http://localhost` for local testing, while the default `127.0.0.1` App entrypoint intentionally uses the native one-time unlock because direct IP hosts are not valid WebAuthn RP IDs;
 - import does not copy secrets from a source setup;
 - the shell does not create a second OAuth implementation;
 - it does not bypass approval or mutation policy;

@@ -66,13 +66,20 @@ async function main(): Promise<void> {
   `);
   legacy.close();
   const migrated = new OperatorStore({ path: legacyDatabasePath });
-  assert.equal(migrated.schemaVersion(), 2);
-  assert.equal(
-    migrated.sqlite
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operator_local_login_grants'")
-      .get() !== undefined,
-    true
-  );
+  assert.equal(migrated.schemaVersion(), 3);
+  for (const tableName of [
+    "operator_local_login_grants",
+    "operator_passkeys",
+    "operator_webauthn_challenges"
+  ]) {
+    assert.equal(
+      migrated.sqlite
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+        .get(tableName) !== undefined,
+      true,
+      `v1 migration must create ${tableName}`
+    );
+  }
   migrated.close();
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-store-"));
@@ -87,7 +94,7 @@ async function main(): Promise<void> {
   const absoluteExpiresAt = "2026-08-23T02:00:00.000Z";
 
   let store = new OperatorStore({ path: databasePath });
-  assert.equal(store.schemaVersion(), 2);
+  assert.equal(store.schemaVersion(), 3);
   assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
 
   const owner = store.setOwner(
@@ -149,6 +156,62 @@ async function main(): Promise<void> {
     ),
     null,
     "Local login grants must be single-use"
+  );
+
+  const passkey = store.createPasskey({
+    id: "passkey-1",
+    principalId: owner.principal.id,
+    credentialId: "credential-one",
+    publicKey: Uint8Array.from([1, 2, 3, 4]),
+    counter: 0,
+    transports: ["internal", "hybrid"],
+    deviceType: "multiDevice",
+    backedUp: true,
+    label: "Mac Passkey",
+    rpId: "chatcockpit.example.com",
+    origin: "https://chatcockpit.example.com",
+    createdAt: now
+  });
+  assert.equal(passkey.label, "Mac Passkey");
+  assert.deepEqual(Array.from(passkey.publicKey), [1, 2, 3, 4]);
+  assert.equal(store.listPasskeys(owner.principal.id).length, 1);
+  assert.equal(store.getPasskeyByCredentialId("credential-one")?.id, "passkey-1");
+  const updatedPasskey = store.updatePasskeyUsage({
+    id: passkey.id,
+    counter: 7,
+    backedUp: true,
+    lastUsedAt: "2026-08-16T02:00:20.000Z"
+  });
+  assert.equal(updatedPasskey.counter, 7);
+  assert.equal(updatedPasskey.lastUsedAt, "2026-08-16T02:00:20.000Z");
+
+  const webAuthnChallenge = store.createWebAuthnChallenge({
+    id: "challenge-1",
+    principalId: owner.principal.id,
+    kind: "authentication",
+    challenge: "challenge-one",
+    rpId: "chatcockpit.example.com",
+    origin: "https://chatcockpit.example.com",
+    createdAt: now,
+    expiresAt: "2026-08-16T02:05:00.000Z"
+  });
+  assert.equal(webAuthnChallenge.consumedAt, null);
+  assert.equal(
+    store.consumeWebAuthnChallenge({
+      challenge: "challenge-one",
+      kind: "authentication",
+      consumedAt: "2026-08-16T02:00:30.000Z"
+    })?.id,
+    "challenge-1"
+  );
+  assert.equal(
+    store.consumeWebAuthnChallenge({
+      challenge: "challenge-one",
+      kind: "authentication",
+      consumedAt: "2026-08-16T02:00:31.000Z"
+    }),
+    null,
+    "WebAuthn challenges must be single-use"
   );
 
   store.setLoginThrottle({

@@ -23,7 +23,7 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-`operator set-password` 用于在本机创建控制台管理员账户，密码通过隐藏输入的终端提示录入。安装 ChatCockpit App 后，也可以从本机 Web 首次设置页直接唤起 App 完成设置。它与 `CHATCOCKPIT_API_TOKEN` 完全分离：前者是人类 Web 登录凭据，后者仅属于可选的机器/API authority。
+`operator set-password` 用于在本机创建控制台管理员账户，密码通过隐藏输入的终端提示录入。安装 ChatCockpit App 后，也可以从本机 Web 首次设置页直接唤起 App 完成设置。它与 `CHATCOCKPIT_API_TOKEN` 完全分离：前者是人类 Web 登录凭据，后者仅属于可选的机器/API authority。首次登录后建议进入 **安全 → 通用密钥** 添加 Passkey；公网 HTTPS 地址之后优先使用通用密钥，密码保留为备用。本机默认 `127.0.0.1` 入口则直接从 App 打开即可免密进入。
 
 打开本地控制台：
 
@@ -33,7 +33,7 @@ http://127.0.0.1:4318/ui
 
 成功状态：
 
-- `/ui` 可以打开控制台管理员登录界面，登录后显示 Setup Wizard 或 Dashboard。
+- `/ui` 可以打开控制台管理员登录界面；支持的 HTTPS/localhost 地址优先提供通用密钥登录，密码作为备用，认证后显示 Setup Wizard 或 Dashboard。
 - `/ui/continuity/projects` 可以打开 Continuity Workbench。
 - `npm run doctor:runtime` 能访问本地 Health。
 - `/ui/integrations` 能明确显示本机/公网控制台、ChatGPT App / MCP 状态、API/OpenAPI 与 Custom GPT Actions 兼容信息。

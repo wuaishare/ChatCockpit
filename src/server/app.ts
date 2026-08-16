@@ -29,8 +29,9 @@ import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
 import { registerOAuthRoutes } from "../auth/oauth-routes.js";
 import { OAuthService } from "../auth/oauth-service.js";
 import { OAuthStore, oauthDatabasePath } from "../auth/oauth-store.js";
+import { OperatorPasskeyService } from "../auth/operator-passkey-service.js";
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
-import { OperatorService } from "../auth/operator-service.js";
+import { OperatorAuthError, OperatorService } from "../auth/operator-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -246,6 +247,7 @@ export function buildServer(
     path: operatorDatabasePath(paths.runtimeDir)
   });
   const operatorService = new OperatorService({ store: operatorStore });
+  const operatorPasskeyService = new OperatorPasskeyService({ store: operatorStore });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(app, oauthService, oauthConfig);
   }
@@ -396,6 +398,9 @@ export function buildServer(
   );
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof OperatorAuthError) {
+      return sendApiError(reply, error.statusCode, error.code, error.message);
+    }
     if (error instanceof ApiError) {
       return sendUnknownApiError(reply, error);
     }
@@ -413,7 +418,7 @@ export function buildServer(
       operatorService
     )
   );
-  registerOperatorRoutes(app, operatorService);
+  registerOperatorRoutes(app, operatorService, operatorPasskeyService);
   app.addHook("onClose", async () => {
     runtimeEventService.detach();
     await hostProcess.close();

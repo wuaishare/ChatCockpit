@@ -55,7 +55,7 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 
 ## Web UI
 
-Web Cockpit 现在使用独立的人类 **Owner** 账户，不再把 `CHATCOCKPIT_API_TOKEN` 保存或复用成浏览器登录凭据。
+Web Cockpit 现在使用独立的人类**控制台管理员**账户，不再把 `CHATCOCKPIT_API_TOKEN` 保存或复用成浏览器登录凭据。内部权限角色仍使用协议值 `owner`，但中文用户界面与文档统一称为“控制台管理员”。
 
 Source Checkout 首次使用或需要改密码时，在 ChatCockpit 所在机器本地执行：
 
@@ -79,6 +79,21 @@ http://127.0.0.1:4318/ui
 
 浏览器以控制台管理员身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入浏览器持久化存储。`localStorage` 只用于保存非敏感的界面语言偏好。
 
+### 通用密钥优先登录
+
+首次通过密码创建并登录控制台管理员后，可进入 **安全 → 通用密钥** 注册 Passkey。ChatCockpit 使用标准 WebAuthn discoverable credential，强制 `userVerification=required`，默认不要求设备 attestation 信任。Touch ID、Apple 密码/iCloud 钥匙串、Chrome/Google Password Manager、兼容硬件安全密钥以及其他浏览器/系统认证器都通过标准 WebAuthn 接入。ChatCockpit 只保存凭据公钥、签名计数器、传输/设备元数据、RP/Origin 绑定、名称和时间戳；私钥始终留在认证器或密码管理器中。
+
+在支持 WebAuthn 的访问地址上，通用密钥是首选网页登录方式，密码保留为备用/恢复凭据。通用密钥校验成功后签发的仍然是同一套 opaque HttpOnly 控制台管理员 Session 与 CSRF 边界，不建立第二类长期浏览器令牌。
+
+访问地址规则刻意保持严格：
+
+- 公网控制台：必须是配置好的 HTTPS 域名；
+- 本机 WebAuthn 开发/测试：允许 `http://localhost:<端口>`；
+- `127.0.0.1` 等直接 IP Host 不是合法 WebAuthn RP ID，因此不提供通用密钥入口；
+- 同一台 Mac 上默认仍推荐从原生 App 打开 `127.0.0.1` 本机控制台，由一次性本机凭据免密解锁。
+
+注册、查看和移除通用密钥都要求真实控制台管理员 Session，写操作同时要求 CSRF。机器 API Bearer 与 ChatGPT OAuth 都不能越权管理通用密钥。WebAuthn challenge 短时有效且只能使用一次；管理员改密或执行“撤销全部会话”会废弃尚未完成的 challenge，但不会删除已经注册的通用密钥。
+
 当 macOS App 打开 **本机控制台** 且已配置控制台管理员时，Desktop 会通过本机 CLI 生成一个仅 45 秒有效、只能使用一次的本机登录凭据。浏览器只会在 URL fragment 中收到它，前端会立即清除 fragment，再通过仅允许直接 loopback 请求访问的 `/api/operator/local-login` 将它兑换成同一套普通 HttpOnly 管理员 Session。它只是便捷解锁，不是“localhost 全部免鉴权”：经过反向代理/Forwarded Header 的请求、非 loopback Host 都无法使用该兑换入口，公网控制台仍必须走正常认证。
 
 常用页面：
@@ -94,7 +109,7 @@ http://127.0.0.1:4318/ui
 - `/ui/gpt-helper`：0.2.x receive-only 兼容入口，会跳转到 `/ui/integrations`
 - `/ui/jobs`：Jobs、Artifacts、进程控制
 
-受保护的 Web 数据仍要求有效的控制台管理员会话；macOS App 可以用短时一次性 loopback 凭据引导生成同一套会话。机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
+受保护的 Web 数据仍要求有效的控制台管理员会话；macOS App 可以用短时一次性 loopback 凭据引导生成同一套会话，支持的 HTTPS/localhost 地址也可以在通用密钥验证成功后签发同一套会话。机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
 
 ## 暴露到 HTTPS
 

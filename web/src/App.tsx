@@ -1,4 +1,5 @@
 import { Button, Layout, Segmented } from "antd";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { Text, Tooltip } from "@lobehub/ui";
 import type { ThemeMode } from "antd-style";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -8,6 +9,7 @@ import {
   AppstoreOutlined,
   DashboardOutlined,
   ReloadOutlined,
+  SafetyCertificateOutlined,
   UnorderedListOutlined
 } from "@ant-design/icons";
 import {
@@ -17,6 +19,7 @@ import {
   fetchIntegrationStatus,
   fetchOperatorSession,
   fetchOperatorStatus,
+  fetchPasskeyAuthenticationOptions,
   fetchJob,
   fetchJobArtifactContent,
   fetchJobArtifacts,
@@ -26,6 +29,7 @@ import {
   logoutOperator,
   redeemLocalLoginGrant,
   setOperatorCsrfToken,
+  verifyPasskeyAuthentication,
   terminateAllJobs,
   type OperatorSessionResponse
 } from "./api";
@@ -34,6 +38,7 @@ import { DashboardView } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
 import { OperatorLoginView } from "./components/OperatorLoginView";
+import { OperatorPasskeyManager } from "./components/OperatorPasskeyManager";
 import { OperatorSetupRequiredView } from "./components/OperatorSetupRequiredView";
 import type {
   ArtifactPreviewState,
@@ -229,6 +234,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [operatorAuthError, setOperatorAuthError] = useState<string | null>(null);
   const [operatorDesktopSetupAvailable, setOperatorDesktopSetupAvailable] = useState(false);
   const [operatorLoginLoading, setOperatorLoginLoading] = useState(false);
+  const [operatorPasskeyLoading, setOperatorPasskeyLoading] = useState(false);
+  const [operatorSecurityOpen, setOperatorSecurityOpen] = useState(false);
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -359,6 +366,32 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setOperatorDesktopSetupAvailable(false);
       setOperatorAuthState("login-required");
       setOperatorAuthError(getErrorMessage(error));
+    }
+  }
+
+  async function signInWithPasskey() {
+    setOperatorPasskeyLoading(true);
+    setOperatorAuthError(null);
+    try {
+      const options = await fetchPasskeyAuthenticationOptions();
+      const response = await startAuthentication({ optionsJSON: options });
+      const session = await verifyPasskeyAuthentication({
+        challenge: options.challenge,
+        response
+      });
+      setOperatorSession(session);
+      if (!continueOAuthApprovalIfRequested()) {
+        setOperatorAuthState("authenticated");
+      }
+    } catch (error) {
+      const problem = error as ApiProblem;
+      setOperatorAuthError(
+        problem?.code === "PASSKEY_NOT_CONFIGURED"
+          ? copy.operatorAuth.passkeyNotConfigured
+          : getErrorMessage(error)
+      );
+    } finally {
+      setOperatorPasskeyLoading(false);
     }
   }
 
@@ -705,7 +738,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         <OperatorLoginView
           locale={locale}
           loading={operatorLoginLoading}
+          passkeyLoading={operatorPasskeyLoading}
           error={operatorAuthError}
+          onPasskey={signInWithPasskey}
           onSubmit={signInOperator}
         />
       </div>
@@ -812,6 +847,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 <Text type="secondary" className="operator-session-label">
                   {copy.operatorAuth.signedInAs}: {operatorSession?.username ?? "owner"}
                 </Text>
+                <Button
+                  icon={<SafetyCertificateOutlined />}
+                  onClick={() => setOperatorSecurityOpen(true)}
+                >
+                  {copy.operatorAuth.security}
+                </Button>
                 <Button onClick={() => void signOutOperator()}>
                   {copy.operatorAuth.signOut}
                 </Button>
@@ -975,6 +1016,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           </Suspense>
         ) : null}
       </Layout.Content>
+      <OperatorPasskeyManager
+        locale={locale}
+        open={operatorSecurityOpen}
+        onClose={() => setOperatorSecurityOpen(false)}
+      />
     </Layout>
   );
 }
