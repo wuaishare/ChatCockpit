@@ -92,6 +92,7 @@
     "verify:operator-store": "tsx scripts/verify-operator-store.ts",
     "verify:operator-service": "tsx scripts/verify-operator-service.ts",
     "verify:operator-cli": "tsx scripts/verify-operator-cli.ts",
+    "verify:web-operator-auth": "tsx scripts/verify-web-operator-auth.ts",
     "verify:public-errors": "tsx scripts/verify-public-errors.ts",
     "verify:development-documents": "tsx scripts/verify-development-documents.ts",
     "verify:spec-plan-policy": "tsx scripts/verify-spec-plan-policy.ts",
