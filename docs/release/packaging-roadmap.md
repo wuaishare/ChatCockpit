@@ -6,8 +6,8 @@ ChatCockpit remains source-friendly, while the macOS desktop path now has a self
 
 1. **Curated source archive with checksum — complete.**
 2. **macOS native operator shell — Phase 1 complete.**
-   - SwiftUI menu-bar surface;
-   - compact Status / Settings windows;
+   - normal foreground SwiftUI app with a primary Status window and Dock presence;
+   - retained menu-bar quick-control surface plus compact Status / Settings windows;
    - bounded source-root discovery for Developer Mode;
    - existing `scripts/macos-manage-local-server.sh` lifecycle contract;
    - local health aggregation and Open Cockpit;

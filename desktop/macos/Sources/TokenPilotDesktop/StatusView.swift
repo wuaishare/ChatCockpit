@@ -3,75 +3,88 @@ import TokenPilotDesktopCore
 
 struct StatusView: View {
     @ObservedObject var model: DesktopAppModel
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                Image(systemName: model.snapshot.overallState.systemImage)
-                    .font(.system(size: 30, weight: .semibold))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(ProductIdentity.current.displayName)
-                        .font(.title2.weight(.semibold))
-                    Text(model.snapshot.overallState.displayName)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if model.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-
-            GroupBox("Runtime") {
-                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                    componentRow("Control Plane", state: model.snapshot.lifecycle.controlPlane)
-                    componentRow("Runner", state: model.snapshot.lifecycle.runner)
-                    componentRow("Process Supervisor", state: model.snapshot.lifecycle.processSupervisor)
-                    valueRow("Local Cockpit", value: model.snapshot.uiReachable ? "Reachable" : "Unavailable")
-                    valueRow("Distribution", value: model.distributionModeText)
-                    valueRow("Runtime", value: model.runtimeVersionText)
-                    valueRow("Architecture", value: model.runtimeArchitectureText)
-                    valueRow("Node", value: model.nodeVersionText)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
-            }
-
-            GroupBox("Local Setup") {
-                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                    if model.distributionMode == .packaged {
-                        valueRow("Workspace", value: model.selectedWorkspaceDisplayPath)
-                        valueRow("State", value: model.stateLocationText)
-                    } else {
-                        valueRow("Source Checkout", value: model.selectedRootDisplayPath)
-                        valueRow("State", value: model.stateLocationText)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 12) {
+                        Image(systemName: model.snapshot.overallState.systemImage)
+                            .font(.system(size: 30, weight: .semibold))
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ProductIdentity.current.displayName)
+                                .font(.title2.weight(.semibold))
+                            Text(model.snapshot.overallState.displayName)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if model.isRefreshing {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
                     }
-                    valueRow("Endpoint", value: "\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)")
-                    valueRow("Mode", value: model.snapshot.configuration.exposed ? "Exposed" : "Local only")
-                    valueRow("API Token", value: model.snapshot.configuration.apiTokenConfigured ? "Configured" : "Not configured")
+
+                    GroupBox("Runtime") {
+                        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+                            componentRow("Control Plane", state: model.snapshot.lifecycle.controlPlane)
+                            componentRow("Runner", state: model.snapshot.lifecycle.runner)
+                            componentRow("Process Supervisor", state: model.snapshot.lifecycle.processSupervisor)
+                            valueRow("Local Cockpit", value: model.snapshot.uiReachable ? "Reachable" : "Unavailable")
+                            valueRow("Distribution", value: model.distributionModeText)
+                            valueRow("Runtime", value: model.runtimeVersionText)
+                            valueRow("Architecture", value: model.runtimeArchitectureText)
+                            valueRow("Node", value: model.nodeVersionText)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
+
+                    GroupBox("Local Setup") {
+                        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+                            if model.distributionMode == .packaged {
+                                valueRow("Workspace", value: model.selectedWorkspaceDisplayPath)
+                                valueRow("State", value: model.stateLocationText)
+                            } else {
+                                valueRow("Source Checkout", value: model.selectedRootDisplayPath)
+                                valueRow("State", value: model.stateLocationText)
+                            }
+                            valueRow("Endpoint", value: "\(model.snapshot.configuration.host):\(model.snapshot.configuration.port)")
+                            valueRow("Mode", value: model.snapshot.configuration.exposed ? "Exposed" : "Local only")
+                            valueRow("API Token", value: model.snapshot.configuration.apiTokenConfigured ? "Configured" : "Not configured")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
+
+                    if let conflict = model.runtimeConflict {
+                        Label(conflict.message, systemImage: "exclamationmark.triangle")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if let message = model.lastUserMessage {
+                        Label(message, systemImage: "exclamationmark.circle")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
             }
 
-            if let conflict = model.runtimeConflict {
-                Label(conflict.message, systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if let message = model.lastUserMessage {
-                Label(message, systemImage: "exclamationmark.circle")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Divider()
 
-            HStack {
+            HStack(spacing: 10) {
                 Button("Refresh") {
                     Task { await model.refresh() }
                 }
                 .disabled(model.isRefreshing)
+
+                Button("Settings…") {
+                    openSettings()
+                }
 
                 Spacer()
 
@@ -83,9 +96,10 @@ struct StatusView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(model.snapshot.cockpitURL == nil || model.isRefreshing)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
-        .padding(22)
-        .frame(minWidth: 520, minHeight: 360)
+        .frame(minWidth: 620, minHeight: 520)
     }
 
     @ViewBuilder

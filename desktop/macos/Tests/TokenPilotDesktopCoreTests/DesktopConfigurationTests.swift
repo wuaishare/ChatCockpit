@@ -120,6 +120,59 @@ struct DesktopConfigurationTests {
         #expect(defaults.object(forKey: legacyKey) == nil)
     }
 
+    @Test("selects an initial desktop mode from remembered choice and available runtimes")
+    func selectsInitialDistributionMode() {
+        #expect(DesktopInitialDistributionMode.resolve(
+            remembered: nil,
+            sourceAvailable: true,
+            packagedAvailable: true
+        ) == .source)
+        #expect(DesktopInitialDistributionMode.resolve(
+            remembered: nil,
+            sourceAvailable: false,
+            packagedAvailable: true
+        ) == .packaged)
+        #expect(DesktopInitialDistributionMode.resolve(
+            remembered: .packaged,
+            sourceAvailable: true,
+            packagedAvailable: true
+        ) == .packaged)
+        #expect(DesktopInitialDistributionMode.resolve(
+            remembered: .packaged,
+            sourceAvailable: true,
+            packagedAvailable: false
+        ) == .source)
+        #expect(DesktopInitialDistributionMode.resolve(
+            remembered: .source,
+            sourceAvailable: false,
+            packagedAvailable: true
+        ) == .packaged)
+        #expect(DesktopInitialDistributionMode.resolve(
+            remembered: nil,
+            sourceAvailable: false,
+            packagedAvailable: false
+        ) == .source)
+    }
+
+    @Test("persists the explicit desktop distribution mode")
+    func persistsDistributionModePreference() throws {
+        let suiteName = "ChatCockpitDesktopDistributionModeTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = UserDefaultsDistributionModePreferenceStore(
+            defaults: defaults,
+            key: "distributionMode"
+        )
+
+        #expect(store.loadMode() == nil)
+        store.saveMode(.source)
+        #expect(store.loadMode() == .source)
+        store.saveMode(.packaged)
+        #expect(store.loadMode() == .packaged)
+    }
+
     @Test("persists workspace independently from source root")
     func persistsWorkspacePreference() throws {
         let suiteName = "TokenPilotDesktopWorkspaceTests.\(UUID().uuidString)"

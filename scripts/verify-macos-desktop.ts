@@ -13,6 +13,7 @@ const lifecycleSourcePath = path.join(
 );
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
+const statusViewPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "StatusView.swift");
 const settingsPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "SettingsView.swift");
 const existingSetupImportPath = path.join(
   desktopSourceRoot,
@@ -46,6 +47,7 @@ for (const required of [
   lifecycleSourcePath,
   appModelPath,
   menuBarPath,
+  statusViewPath,
   settingsPath,
   existingSetupImportPath,
   runtimeConflictPath,
@@ -62,6 +64,7 @@ const infoPlist = fs.readFileSync(infoPlistPath, "utf8");
 const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
+const statusView = fs.readFileSync(statusViewPath, "utf8");
 const settings = fs.readFileSync(settingsPath, "utf8");
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
@@ -82,7 +85,7 @@ assert.match(packageManifest, /TokenPilotDesktop/);
 assert.match(infoPlist, /<string>cn\.wuaishare\.ChatCockpit<\/string>/);
 assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>ChatCockpit<\/string>/s);
 assert.match(infoPlist, /<key>LSMinimumSystemVersion<\/key>\s*<string>14\.0<\/string>/s);
-assert.match(infoPlist, /<key>LSUIElement<\/key>\s*<true\/>/s);
+assert.match(infoPlist, /<key>LSUIElement<\/key>\s*<false\/>/s);
 
 for (const action of ["status", "start", "stop", "restart"]) {
   assert.match(lifecycleSource, new RegExp(`case ${action}\\b`));
@@ -94,6 +97,14 @@ assert.match(appModel, /NSWorkspace\.shared\.open/);
 assert.match(appModel, /TokenPilotRuntime/);
 assert.match(appModel, /PackagedRuntimeDeployer/);
 assert.match(appModel, /Choose Workspace/);
+assert.match(appModel, /UserDefaultsDistributionModePreferenceStore/);
+assert.match(appModel, /DesktopInitialDistributionMode\.resolve/);
+assert.match(appModel, /sourceAvailable: discovered != nil/);
+assert.match(appModel, /modePreferenceStore\.saveMode\(\.packaged\)/);
+assert.match(appModel, /modePreferenceStore\.saveMode\(\.source\)/);
+assert.match(appModel, /"~\/\\\(ProductIdentity\.current\.stateDirectoryName\)"/);
+assert.match(statusView, /ScrollView/);
+assert.match(statusView, /Button\("Settings…"\)/);
 assert.match(menuBar, /NSApplication\.shared\.terminate/);
 assert.match(menuBar, /Stop Services/);
 assert.equal(

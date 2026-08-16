@@ -27,6 +27,7 @@ final class DesktopAppModel: ObservableObject {
     private let rootDiscovery: TokenPilotRootDiscovery
     private let rootPreferenceStore: any TokenPilotRootPreferenceStoring
     private let workspacePreferenceStore: any WorkspacePreferenceStoring
+    private let modePreferenceStore: any DistributionModePreferenceStoring
     private let runtimeController: any RuntimeControlling
     private let packagedRuntimeDeployer: any PackagedRuntimeDeploying
     private let existingSetupImporter: ExistingSetupImporter
@@ -43,6 +44,7 @@ final class DesktopAppModel: ObservableObject {
         rootDiscovery: TokenPilotRootDiscovery = TokenPilotRootDiscovery(),
         rootPreferenceStore: any TokenPilotRootPreferenceStoring = UserDefaultsTokenPilotRootPreferenceStore(),
         workspacePreferenceStore: any WorkspacePreferenceStoring = UserDefaultsWorkspacePreferenceStore(),
+        modePreferenceStore: any DistributionModePreferenceStoring = UserDefaultsDistributionModePreferenceStore(),
         runtimeController: any RuntimeControlling = RuntimeController(),
         packagedRuntimeDeployer: any PackagedRuntimeDeploying = PackagedRuntimeDeployer(),
         existingSetupImporter: ExistingSetupImporter = ExistingSetupImporter(),
@@ -57,6 +59,7 @@ final class DesktopAppModel: ObservableObject {
         self.rootDiscovery = rootDiscovery
         self.rootPreferenceStore = rootPreferenceStore
         self.workspacePreferenceStore = workspacePreferenceStore
+        self.modePreferenceStore = modePreferenceStore
         self.runtimeController = runtimeController
         self.packagedRuntimeDeployer = packagedRuntimeDeployer
         self.existingSetupImporter = existingSetupImporter
@@ -76,7 +79,6 @@ final class DesktopAppModel: ObservableObject {
             )
         }
         self.bundleManifest = decodedManifest
-        self.distributionMode = bundlePayloadURL == nil ? .source : .packaged
         self.selectedWorkspaceURL = workspacePreferenceStore.loadWorkspaceURL()
 
         let savedRoot = rootPreferenceStore.loadRootURL()
@@ -93,6 +95,12 @@ final class DesktopAppModel: ObservableObject {
         if let discovered {
             rootPreferenceStore.saveRootURL(discovered.url)
         }
+
+        self.distributionMode = DesktopInitialDistributionMode.resolve(
+            remembered: modePreferenceStore.loadMode(),
+            sourceAvailable: discovered != nil,
+            packagedAvailable: bundlePayloadURL != nil && decodedManifest != nil
+        )
 
         if bundlePayloadURL != nil, decodedManifest == nil {
             lastUserMessage = "The bundled \(ProductIdentity.current.displayName) runtime manifest is invalid for this Mac. Rebuild or replace the app before starting services."
@@ -173,7 +181,7 @@ final class DesktopAppModel: ObservableObject {
     var stateLocationText: String {
         distributionMode == .packaged
             ? "Application Support / \(ProductIdentity.current.applicationSupportName)"
-            : "Project \(ProductIdentity.current.stateDirectoryName)"
+            : "~/\(ProductIdentity.current.stateDirectoryName)"
     }
 
     var setupActionTitle: String {
@@ -217,6 +225,7 @@ final class DesktopAppModel: ObservableObject {
         }
 
         distributionMode = .packaged
+        modePreferenceStore.saveMode(.packaged)
         selectedWorkspaceURL = url.standardizedFileURL
         workspacePreferenceStore.saveWorkspaceURL(selectedWorkspaceURL)
         runtimeConflict = nil
@@ -244,6 +253,7 @@ final class DesktopAppModel: ObservableObject {
         do {
             let root = try rootValidator.validate(url)
             distributionMode = .source
+            modePreferenceStore.saveMode(.source)
             selectedRootURL = root.url
             rootPreferenceStore.saveRootURL(root.url)
             runtimeConflict = nil
@@ -334,6 +344,7 @@ final class DesktopAppModel: ObservableObject {
             return
         }
         distributionMode = .packaged
+        modePreferenceStore.saveMode(.packaged)
         snapshot = .setupRequired
         runtimeConflict = nil
         lastUserMessage = nil
@@ -342,6 +353,7 @@ final class DesktopAppModel: ObservableObject {
 
     func useDeveloperMode() async {
         distributionMode = .source
+        modePreferenceStore.saveMode(.source)
         snapshot = .setupRequired
         runtimeConflict = nil
         lastUserMessage = nil
