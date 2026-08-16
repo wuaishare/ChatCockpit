@@ -40,15 +40,15 @@ struct StatusView: View {
                                 DesktopL10n.string("Process Supervisor"),
                                 state: model.snapshot.lifecycle.processSupervisor
                             )
-                            valueRow(
+                            urlRow(
                                 DesktopL10n.string("Local Cockpit"),
-                                value: model.snapshot.localCockpitURL?.absoluteString
-                                    ?? DesktopL10n.string("Unavailable")
+                                url: model.snapshot.localCockpitURL,
+                                fallback: DesktopL10n.string("Unavailable")
                             )
-                            valueRow(
+                            urlRow(
                                 DesktopL10n.string("Public Cockpit"),
-                                value: model.snapshot.publicCockpitURL?.absoluteString
-                                    ?? DesktopL10n.string("Not configured")
+                                url: model.snapshot.publicCockpitURL,
+                                fallback: DesktopL10n.string("Not configured")
                             )
                             valueRow(DesktopL10n.string("Distribution"), value: model.distributionModeText)
                             valueRow(DesktopL10n.string("Runtime"), value: model.runtimeVersionText)
@@ -62,7 +62,7 @@ struct StatusView: View {
                     GroupBox(DesktopL10n.string("Local Setup")) {
                         Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
                             if model.distributionMode == .packaged {
-                                valueRow(DesktopL10n.string("Workspace"), value: model.selectedWorkspaceDisplayPath)
+                                valueRow(DesktopL10n.string("Primary Workspace"), value: model.selectedWorkspaceDisplayPath)
                                 valueRow(DesktopL10n.string("State"), value: model.stateLocationText)
                             } else {
                                 valueRow(DesktopL10n.string("Source Checkout"), value: model.selectedRootDisplayPath)
@@ -125,22 +125,6 @@ struct StatusView: View {
                     runtimeActions
                 }
 
-                HStack(spacing: 10) {
-                    Spacer()
-
-                    Button(DesktopL10n.string("Open Local Cockpit")) {
-                        model.openLocalCockpit()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(model.snapshot.localCockpitURL == nil || model.isRefreshing)
-
-                    if model.snapshot.publicCockpitURL != nil {
-                        Button(DesktopL10n.string("Open Public Cockpit")) {
-                            model.openPublicCockpit()
-                        }
-                        .disabled(model.isRefreshing)
-                    }
-                }
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
@@ -193,6 +177,28 @@ struct StatusView: View {
                 .foregroundStyle(.secondary)
             Text(value)
                 .textSelection(.enabled)
+        }
+    }
+
+    private func urlRow(_ title: String, url: URL?, fallback: String) -> some View {
+        GridRow {
+            Text(title)
+                .foregroundStyle(.secondary)
+            if let url {
+                Link(destination: url) {
+                    HStack(spacing: 5) {
+                        Text(verbatim: url.absoluteString)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Image(systemName: "arrow.up.right.square")
+                            .imageScale(.small)
+                    }
+                }
+                .help("\(DesktopL10n.string("Open in Browser")): \(url.absoluteString)")
+            } else {
+                Text(fallback)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

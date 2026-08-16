@@ -577,21 +577,18 @@ function verifyAuthConfig(): void {
     "disabled"
   );
   const missingPublicOrigin = buildOAuthReadiness(paths, {
-    CHATCOCKPIT_EXPOSED: "true",
-    CHATCOCKPIT_API_TOKEN: "test-owner-token"
+    CHATCOCKPIT_EXPOSED: "true"
   });
   assert.equal(missingPublicOrigin.status, "needs-attention");
   assert.match(missingPublicOrigin.detail, /canonical public origin/);
   const invalidPublicOrigin = buildOAuthReadiness(paths, {
     CHATCOCKPIT_EXPOSED: "true",
-    CHATCOCKPIT_API_TOKEN: "test-owner-token",
     CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com/mcp"
   });
   assert.equal(invalidPublicOrigin.status, "needs-attention");
   assert.match(invalidPublicOrigin.detail, /origin without a path/);
   const missingOwner = buildOAuthReadiness(paths, {
     CHATCOCKPIT_EXPOSED: "true",
-    CHATCOCKPIT_API_TOKEN: "test-owner-token",
     CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com"
   });
   assert.equal(missingOwner.status, "needs-attention");
@@ -611,7 +608,6 @@ function verifyAuthConfig(): void {
 
   const readyOAuth = buildOAuthReadiness(paths, {
     CHATCOCKPIT_EXPOSED: "true",
-    CHATCOCKPIT_API_TOKEN: "test-owner-token",
     CHATCOCKPIT_PUBLIC_BASE_URL: "https://chatcockpit.example.com"
   });
   assert.equal(readyOAuth.status, "ready");
@@ -630,13 +626,9 @@ function verifyAuthConfig(): void {
     false
   );
 
-  assert.throws(
-    () =>
-      validateServerAuthConfig({
-        CHATCOCKPIT_EXPOSED: "true"
-      }),
-    /Exposed mode requires a configured API token/
-  );
+  validateServerAuthConfig({
+    CHATCOCKPIT_EXPOSED: "true"
+  });
 
   validateServerAuthConfig({
     CHATCOCKPIT_EXPOSED: "true",

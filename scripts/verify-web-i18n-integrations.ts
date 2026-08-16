@@ -12,6 +12,7 @@ const appPath = path.join(root, "web", "src", "App.tsx");
 const dashboardPath = path.join(root, "web", "src", "components", "DashboardView.tsx");
 const apiPath = path.join(root, "web", "src", "api.ts");
 const setupPath = path.join(root, "web", "src", "components", "SetupWizardView.tsx");
+const operatorSetupPath = path.join(root, "web", "src", "components", "OperatorSetupRequiredView.tsx");
 
 const i18n = fs.readFileSync(i18nPath, "utf8");
 const resources = fs.readFileSync(resourcesPath, "utf8");
@@ -20,6 +21,7 @@ const app = fs.readFileSync(appPath, "utf8");
 const dashboard = fs.readFileSync(dashboardPath, "utf8");
 const api = fs.readFileSync(apiPath, "utf8");
 const setup = fs.readFileSync(setupPath, "utf8");
+const operatorSetup = fs.readFileSync(operatorSetupPath, "utf8");
 
 assert.equal(detectBrowserLocale(["zh-CN", "en-US"]), "zh-CN");
 assert.equal(detectBrowserLocale(["zh-Hans-CN"]), "zh-CN");
@@ -41,7 +43,8 @@ assert.match(resources, /fingerprint: "指纹"/);
 
 assert.match(integrations, /chatgptTitle: "ChatGPT App \/ MCP"/);
 assert.match(integrations, /customGptTitle: "Custom GPT Actions"/);
-assert.match(integrations, /apiBoundary: "机器 API 令牌与 Web Owner、ChatGPT OAuth 完全分离/);
+assert.match(integrations, /apiBoundary: "机器 API 令牌与控制台管理员、ChatGPT OAuth 完全分离/);
+assert.match(integrations, /机器 API 令牌不是 OAuth 前置条件/);
 
 assert.match(app, /integrations: "\/ui\/integrations"/);
 assert.match(app, /loadCompatibilityConfig\(nextLocale\)/);
@@ -52,5 +55,8 @@ assert.match(app, /window\.history\.replaceState\(null, "", VIEW_PATHS\.integrat
 assert.doesNotMatch(app, /value: "gpt-helper"/);
 assert.doesNotMatch(dashboard, /GptHelper|GPT Helper/);
 assert.doesNotMatch(setup, /GptHelper|GPT Helper/);
+assert.match(i18n, /setupAppAction: "在 ChatCockpit App 中设置"/);
+assert.match(operatorSetup, /chatcockpit:\/\/operator\/setup/);
+assert.match(operatorSetup, /desktopSetupAvailable/);
 
 process.stdout.write("WEB_I18N_INTEGRATIONS_OK\n");

@@ -454,6 +454,8 @@ async function main(): Promise<void> {
       })
     });
 
+    delete process.env.CHATCOCKPIT_API_TOKEN;
+
     const initialize = await postMcp(server.baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
       id: 10,
@@ -533,6 +535,7 @@ async function main(): Promise<void> {
       "OAuth continuity fixture"
     );
 
+    process.env.CHATCOCKPIT_API_TOKEN = ownerToken;
     const staticBearerStillWorks = await postMcp(server.baseUrl, ownerToken, {
       jsonrpc: "2.0",
       id: 14,

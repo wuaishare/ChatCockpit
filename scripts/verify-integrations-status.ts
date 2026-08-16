@@ -93,7 +93,7 @@ async function main(): Promise<void> {
     publicBaseUrl: process.env.CHATCOCKPIT_PUBLIC_BASE_URL
   };
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
-  process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-integrations";
+  delete process.env.CHATCOCKPIT_API_TOKEN;
   process.env.CHATCOCKPIT_HOST = "0.0.0.0";
   process.env.CHATCOCKPIT_PORT = "5123";
   process.env.CHATCOCKPIT_EXPOSED = "true";
@@ -104,10 +104,24 @@ async function main(): Promise<void> {
     const anonymous = await app.inject({ method: "GET", url: "/api/integrations/status" });
     assert.equal(anonymous.statusCode, 401, "Integrations status must not be anonymous");
 
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/operator/login",
+      payload: {
+        username: "owner",
+        password: "test-password-integrations-status"
+      }
+    });
+    assert.equal(login.statusCode, 200, login.body);
+    const setCookie = login.headers["set-cookie"];
+    const cookieHeader = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+    assert.ok(cookieHeader, "Operator login must set a session cookie");
+    const operatorCookie = cookieHeader.split(";", 1)[0];
+
     const response = await app.inject({
       method: "GET",
       url: "/api/integrations/status",
-      headers: { authorization: "Bearer test-token-machine-integrations" }
+      headers: { cookie: operatorCookie }
     });
     assert.equal(response.statusCode, 200, response.body);
     const body = response.json() as {
@@ -144,13 +158,26 @@ async function main(): Promise<void> {
     assert.equal(body.mcp.activeRefreshTokenCount, 1);
     assert.equal(body.mcp.toolCatalogStatus, "ready");
     assert.ok(body.mcp.toolCount > 0);
-    assert.equal(body.machineApi.configured, true);
+    assert.equal(body.machineApi.configured, false);
+    assert.equal(body.mcp.oauthReady, true, "OAuth readiness must not depend on a machine API token");
 
     const serialized = JSON.stringify(body);
     assert.equal(serialized.includes("test-token-access-must-never-project"), false);
     assert.equal(serialized.includes("test-token-refresh-must-never-project"), false);
-    assert.equal(serialized.includes("test-token-machine-integrations"), false);
     assert.equal(serialized.includes("client_integrations_fixture"), false);
+
+    process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-integrations";
+    const machineCompatibility = await app.inject({
+      method: "GET",
+      url: "/api/integrations/status",
+      headers: { authorization: "Bearer test-token-machine-integrations" }
+    });
+    assert.equal(machineCompatibility.statusCode, 200, machineCompatibility.body);
+    assert.equal(
+      (machineCompatibility.json() as { machineApi: { configured: boolean } }).machineApi.configured,
+      true
+    );
+    assert.equal(machineCompatibility.body.includes("test-token-machine-integrations"), false);
 
     const englishCompatibility = await app.inject({
       method: "GET",

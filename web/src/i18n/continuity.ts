@@ -180,8 +180,8 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   loadingTitle: "正在加载连续性数据",
   loadingDescription: "正在读取已配置项目与工作区状态。",
   requestFailedTitle: "连续性数据加载失败",
-  protectedTitle: "需要 Web Owner 会话",
-  protectedDescription: "此部署要求鉴权。请重新登录 Web Owner 账户后继续。",
+  protectedTitle: "需要控制台管理员会话",
+  protectedDescription: "此部署要求鉴权。请重新登录控制台管理员账户后继续。",
   sections: {
     projects: {
       label: "项目",

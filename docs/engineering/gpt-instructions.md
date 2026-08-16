@@ -124,7 +124,7 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 - 所有写操作复用现有 allowlist + repo mapping + 路径校验
 - `runShell` 为命令白名单模式，不是 raw shell；但它仍是高信任本地命令执行 API，只应在私有、受鉴权的 operator 环境中使用
 - `getGitDiff`、`gitCommit` 和 Codex diff artifacts 只处理 public-safe 路径；`.env`、`.chatcockpit`、legacy `.tokenpilot`、日志等本地私有路径不会进入公开 diff / commit 输出
-- 默认需要 bearer auth（`CHATCOCKPIT_EXPOSED=1` + `CHATCOCKPIT_API_TOKEN`）
+- 公网模式始终要求明确鉴权，但不同入口使用不同 authority：Web 使用控制台管理员会话，ChatGPT MCP 使用 scoped OAuth；`CHATCOCKPIT_API_TOKEN` 仅在 CLI、自动化或兼容 API 客户端需要机器 Bearer 时按需配置
 
 ### GPT 指令更新建议
 

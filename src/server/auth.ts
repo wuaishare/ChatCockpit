@@ -95,10 +95,10 @@ export function isAuthRequired(env: EnvLike = process.env): boolean {
   return isExposedMode(env) || Boolean(readIdentityEnv("API_TOKEN", env));
 }
 
-export function validateServerAuthConfig(env: EnvLike = process.env): void {
-  if (isExposedMode(env) && !readIdentityEnv("API_TOKEN", env)) {
-    throw new Error("Exposed mode requires a configured API token");
-  }
+export function validateServerAuthConfig(_env: EnvLike = process.env): void {
+  // Exposed mode no longer requires a machine API token. Human Web access is
+  // authorized by the Operator session, while Remote MCP uses scoped OAuth.
+  // CHATCOCKPIT_API_TOKEN remains an optional machine-to-machine credential.
 }
 
 export interface McpOAuthAccessVerifier {
@@ -134,14 +134,6 @@ export function createTokenPilotAuthPlugin(
       }
 
       const configured = readIdentityEnv("API_TOKEN");
-      if (isExposedMode() && !configured) {
-        throw new ApiError(
-          503,
-          "AUTH_CONFIG_MISSING",
-          "Exposed mode is missing the configured API token"
-        );
-      }
-
       const provided = readBearerToken(request);
       if (configured && provided === configured) {
         request.chatCockpitAuth = { kind: "machine-bearer" };

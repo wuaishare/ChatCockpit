@@ -44,7 +44,12 @@ async function main(): Promise<void> {
   try {
     const status = await fetch(`${server.baseUrl}/api/operator/status`);
     assert.equal(status.status, 200);
-    assert.deepEqual(await status.json(), { configured: true });
+    const statusBody = (await status.json()) as {
+      configured: boolean;
+      desktopSetupAvailable: boolean;
+    };
+    assert.equal(statusBody.configured, true);
+    assert.equal(typeof statusBody.desktopSetupAvailable, "boolean");
 
     const anonymousJobs = await fetch(`${server.baseUrl}/api/jobs`);
     assert.equal(anonymousJobs.status, 401);
@@ -194,9 +199,23 @@ async function main(): Promise<void> {
     });
     assert.equal(afterLogout.status, 401);
 
+    process.env.CHATCOCKPIT_EXPOSED = "true";
     process.env.CHATCOCKPIT_PUBLIC_BASE_URL = "https://chatcockpit.example.com";
+    delete process.env.CHATCOCKPIT_API_TOKEN;
     const publicApp = buildServer(paths);
     try {
+      const publicStatus = await publicApp.inject({
+        method: "GET",
+        url: "/api/operator/status",
+        headers: { host: "chatcockpit.example.com" }
+      });
+      assert.equal(publicStatus.statusCode, 200);
+      assert.equal(
+        (publicStatus.json() as { desktopSetupAvailable: boolean }).desktopSetupAvailable,
+        false,
+        "Public-origin Operator status must not advertise a local Desktop setup launcher"
+      );
+
       const publicLogin = await publicApp.inject({
         method: "POST",
         url: "/api/operator/login",
@@ -216,6 +235,21 @@ async function main(): Promise<void> {
       assert.match(String(publicCookie), /HttpOnly/i);
       assert.match(String(publicCookie), /SameSite=Strict/i);
       assert.doesNotMatch(String(publicCookie), /Domain=/i);
+
+      const publicCookiePair = String(publicCookie).split(";", 1)[0];
+      const publicProtected = await publicApp.inject({
+        method: "GET",
+        url: "/api/jobs",
+        headers: {
+          host: "chatcockpit.example.com",
+          cookie: publicCookiePair
+        }
+      });
+      assert.equal(
+        publicProtected.statusCode,
+        200,
+        "Exposed Web Owner sessions must work without a machine API token"
+      );
     } finally {
       await publicApp.close();
     }

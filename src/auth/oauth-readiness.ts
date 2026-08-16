@@ -39,7 +39,6 @@ export function buildOAuthReadiness(
   env: EnvLike = process.env
 ): OAuthReadiness {
   const identity = productIdentityForKey(paths.productIdentity);
-  const apiTokenEnv = runtimeIdentityEnvName("API_TOKEN", paths.productIdentity);
   const publicBaseEnv = runtimeIdentityEnvName(
     "PUBLIC_BASE_URL",
     paths.productIdentity
@@ -53,17 +52,6 @@ export function buildOAuthReadiness(
       protectedResourceMetadataUrl: null,
       detail: "Remote MCP OAuth is disabled in local-only mode.",
       nextAction: "No OAuth action is required for local-only operation."
-    };
-  }
-
-  if (!readIdentityEnv("API_TOKEN", env)) {
-    return {
-      status: "needs-attention",
-      ready: false,
-      required: true,
-      protectedResourceMetadataUrl: null,
-      detail: "Remote MCP exposure still requires the machine API authority.",
-      nextAction: `Set ${apiTokenEnv} before enabling exposed mode.`
     };
   }
 

@@ -23,7 +23,7 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-`operator set-password` creates the local Web Owner account. The password is entered through a hidden TTY prompt and is separate from `CHATCOCKPIT_API_TOKEN`, which remains a machine/API credential.
+`operator set-password` creates the local Web Owner account. The password is entered through a hidden TTY prompt. When ChatCockpit.app is registered on the same Mac, the local first-run Web page can also launch the App directly into the Owner setup dialog. This human credential is separate from `CHATCOCKPIT_API_TOKEN`, which is an optional machine/API credential.
 
 Open:
 
@@ -45,7 +45,7 @@ The first successful result is:
 
 Local-only mode keeps the API on `127.0.0.1` and is the default beginner path.
 
-Exposed HTTPS mode is only for an authenticated endpoint that you control. Set `CHATCOCKPIT_EXPOSED=true` only when `CHATCOCKPIT_API_TOKEN` is configured. Keep real domains, tunnel tokens, and machine-specific paths out of Git.
+Exposed HTTPS mode is only for an authenticated endpoint that you control. `CHATCOCKPIT_EXPOSED=true` requires a valid HTTPS/public-origin setup and a local Web Owner for browser approval, but it does not require `CHATCOCKPIT_API_TOKEN`. Configure the machine token only when CLI, automation, or compatibility API clients need machine-to-machine access. Keep real domains, tunnel tokens, secrets, and machine-specific paths out of Git.
 
 For full setup, prefer MCP first:
 
@@ -79,7 +79,7 @@ npm run reset:local
 | Workspace is read-only | Another Session holds the Writer Lease | Inspect the Writer banner and prepare or consume a Handoff instead of forcing a write |
 | Handoff is not verified | Required Evidence is missing, incomplete, skipped, or failed | Record and finalize the required verification checks |
 | UI asks you to sign in | Web Owner authentication is enabled | Run `node dist/cli/index.js operator set-password` locally if needed, then sign in with the Owner account |
-| UI reports Owner setup required | No Web Owner password exists yet | Create it locally with `node dist/cli/index.js operator set-password`; do not paste the machine API token into the browser |
+| UI reports Owner setup required | No Web Owner password exists yet | On the same Mac, use the App setup button when available; otherwise create it locally with `node dist/cli/index.js operator set-password`. Do not paste the machine API token into the browser |
 | ChatGPT remote connection fails | Public HTTPS or OAuth readiness is incomplete | Open Integrations, inspect ChatGPT App / MCP status, then review [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | Custom GPT schema import fails | Wrong public URL or no HTTPS path | Use the Custom GPT Actions section in Integrations and [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |

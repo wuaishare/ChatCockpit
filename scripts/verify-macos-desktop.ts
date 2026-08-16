@@ -17,6 +17,7 @@ const runtimeCommandRunnerPath = path.join(
   "RuntimeCommandRunner.swift"
 );
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
+const appEntryPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "TokenPilotDesktopApp.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
 const statusViewPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "StatusView.swift");
 const settingsPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "SettingsView.swift");
@@ -75,6 +76,7 @@ for (const required of [
   lifecycleSourcePath,
   runtimeCommandRunnerPath,
   appModelPath,
+  appEntryPath,
   menuBarPath,
   statusViewPath,
   settingsPath,
@@ -96,6 +98,7 @@ const infoPlist = fs.readFileSync(infoPlistPath, "utf8");
 const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
 const runtimeCommandRunner = fs.readFileSync(runtimeCommandRunnerPath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
+const appEntry = fs.readFileSync(appEntryPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
 const statusView = fs.readFileSync(statusViewPath, "utf8");
 const settings = fs.readFileSync(settingsPath, "utf8");
@@ -123,6 +126,7 @@ assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>ChatCockpit<\/
 assert.match(infoPlist, /<key>LSMinimumSystemVersion<\/key>\s*<string>14\.0<\/string>/s);
 assert.match(infoPlist, /<key>LSUIElement<\/key>\s*<false\/>/s);
 assert.match(infoPlist, /<key>CFBundleLocalizations<\/key>[\s\S]*<string>en<\/string>[\s\S]*<string>zh-Hans<\/string>/s);
+assert.match(infoPlist, /<key>CFBundleURLSchemes<\/key>[\s\S]*<string>chatcockpit<\/string>/s);
 
 for (const action of ["status", "start", "stop", "restart"]) {
   assert.match(lifecycleSource, new RegExp(`case ${action}\\b`));
@@ -145,6 +149,10 @@ assert.match(appModel, /"~\/\\\(ProductIdentity\.current\.stateDirectoryName\)"/
 assert.match(appModel, /var endpointText: String/);
 assert.match(appModel, /String\(snapshot\.configuration\.port\)/);
 assert.match(appModel, /enum DesktopScenePresentation/);
+assert.match(appModel, /func handleDeepLink\(_ url: URL\)/);
+assert.match(appModel, /url\.scheme\?\.lowercased\(\) == "chatcockpit"/);
+assert.match(appModel, /url\.host\?\.lowercased\(\) == "operator", url\.path == "\/setup"/);
+assert.match(appEntry, /\.onOpenURL \{ url in[\s\S]*model\.handleDeepLink\(url\)/s);
 assert.match(appModel, /application\.activate\(ignoringOtherApps: true\)/);
 assert.match(statusView, /ScrollView/);
 assert.match(statusView, /Button\(DesktopL10n\.string\("Settings…"\)\)/);
@@ -153,6 +161,10 @@ assert.match(statusView, /DesktopL10n\.string\("Local Cockpit"\)/);
 assert.match(statusView, /DesktopL10n\.string\("Public Cockpit"\)/);
 assert.match(statusView, /snapshot\.localCockpitURL/);
 assert.match(statusView, /snapshot\.publicCockpitURL/);
+assert.match(statusView, /Link\(destination: url\)/);
+assert.match(statusView, /arrow\.up\.right\.square/);
+assert.doesNotMatch(statusView, /Button\(DesktopL10n\.string\("Open Local Cockpit"\)\)/);
+assert.doesNotMatch(statusView, /Button\(DesktopL10n\.string\("Open Public Cockpit"\)\)/);
 assert.match(settings, /Text\(verbatim: model\.endpointText\)/);
 assert.doesNotMatch(settings, /Text\("\\\(model\.snapshot\.configuration\.host\):\\\(model\.snapshot\.configuration\.port\)"\)/);
 assert.match(menuBar, /DesktopScenePresentation\.present/);
@@ -165,6 +177,8 @@ assert.match(menuBar, /Runtime Conflict — Review Settings/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
 assert.match(settings, /DesktopL10n\.string\("Security & Access"\)/);
+assert.match(settings, /DesktopL10n\.string\("Primary Workspace"\)/);
+assert.match(settings, /DesktopL10n\.string\("Primary project"\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Local Cockpit"\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Public Cockpit"\)/);
 assert.match(settings, /model\.setOwnerPasswordFromPanel\(\)/);
@@ -194,6 +208,9 @@ assert.match(desktopLocalization, /localizedString\(forKey: key/);
 assert.match(englishLocalization, /"ChatCockpit Status" = "ChatCockpit Status";/);
 assert.match(simplifiedChineseLocalization, /"ChatCockpit Status" = "ChatCockpit 状态";/);
 assert.match(simplifiedChineseLocalization, /"Ready" = "就绪";/);
+assert.match(simplifiedChineseLocalization, /"Web Owner" = "控制台管理员";/);
+assert.match(simplifiedChineseLocalization, /"Primary Workspace" = "主工作区";/);
+assert.match(simplifiedChineseLocalization, /"Open in Browser" = "在浏览器中打开";/);
 assert.match(xcodeProject, /Localizable\.strings in Resources/);
 assert.match(xcodeProject, /name = "zh-Hans"/);
 assert.match(buildScript, /AppBundle\/Resources/);

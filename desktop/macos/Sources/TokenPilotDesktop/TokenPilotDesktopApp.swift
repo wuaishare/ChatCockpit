@@ -7,6 +7,9 @@ struct TokenPilotDesktopApp: App {
     var body: some Scene {
         Window(DesktopL10n.string("ChatCockpit Status"), id: "status") {
             StatusView(model: model)
+                .onOpenURL { url in
+                    model.handleDeepLink(url)
+                }
         }
         .defaultSize(width: 720, height: 640)
 

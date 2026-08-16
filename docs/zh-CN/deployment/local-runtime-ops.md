@@ -69,7 +69,7 @@ node dist/cli/index.js operator set-password
 chatcockpit operator set-password
 ```
 
-交互式终端会隐藏密码输入；修改 Owner 密码会撤销已有 Web Session。受控自动化和测试可使用 `--password-stdin`，不要把密码直接写进命令行参数。
+交互式终端会隐藏密码输入；修改控制台管理员密码会撤销已有 Web Session。受控自动化和测试可使用 `--password-stdin`，不要把密码直接写进命令行参数。
 
 启动后访问：
 
@@ -92,15 +92,15 @@ http://127.0.0.1:4318/ui
 - `/ui/gpt-helper`：0.2.x receive-only 兼容入口，会跳转到 `/ui/integrations`
 - `/ui/jobs`：Jobs、Artifacts、进程控制
 
-受保护的 Web 数据要求有效的 Owner Session；机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
+受保护的 Web 数据要求有效的控制台管理员会话；机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
 
 ## 暴露到 HTTPS
 
 `CHATCOCKPIT_EXPOSED=true` 用于你控制的 HTTPS 入口。此模式下：
 
-- 当前 R5 阶段仍必须设置 `CHATCOCKPIT_API_TOKEN`，它属于机器/API authority，不是 Web 密码
-- Custom GPT Actions 兼容路径的 GPT Builder Authentication 继续使用该机器 token
-- ChatGPT Remote MCP 使用独立的 `chatcockpit:mcp` OAuth authority，不与 Web Owner Session 或机器 token 混用
+- 公网模式不再强制要求 `CHATCOCKPIT_API_TOKEN`；Web 控制台使用控制台管理员会话，ChatGPT Remote MCP 使用独立的 `chatcockpit:mcp` OAuth authority
+- `CHATCOCKPIT_API_TOKEN` 仅在 CLI、自动化或 Custom GPT Actions 等兼容机器客户端需要 Bearer 访问时按需配置
+- 控制台管理员会话、ChatGPT OAuth 与机器 token 三套 authority 相互独立，不互相继承
 - `CHATCOCKPIT_PUBLIC_BASE_URL` 必须与远端客户端实际访问的公网地址一致
 
 完整说明见：
