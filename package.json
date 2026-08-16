@@ -93,6 +93,7 @@
     "verify:operator-service": "tsx scripts/verify-operator-service.ts",
     "verify:operator-cli": "tsx scripts/verify-operator-cli.ts",
     "verify:web-operator-auth": "tsx scripts/verify-web-operator-auth.ts",
+    "verify:web-security": "tsx scripts/verify-web-security.ts",
     "verify:operator-auth": "npm run verify:operator-password && npm run verify:operator-store && npm run verify:operator-service && npm run verify:operator-cli && npm run verify:web-operator-auth",
     "verify:public-errors": "tsx scripts/verify-public-errors.ts",
     "verify:development-documents": "tsx scripts/verify-development-documents.ts",
