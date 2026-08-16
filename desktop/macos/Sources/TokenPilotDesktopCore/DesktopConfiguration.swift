@@ -6,19 +6,28 @@ public struct DesktopRuntimeConfiguration: Equatable, Sendable, CustomStringConv
     public var exposed: Bool
     public var apiTokenConfigured: Bool
     public var publicBaseURL: URL?
+    public var consolePathPrefix: String
+    public var trustedLanEnabled: Bool
+    public var trustedLanCidrs: [String]
 
     public init(
         host: String = "127.0.0.1",
         port: Int = 4318,
         exposed: Bool = false,
         apiTokenConfigured: Bool = false,
-        publicBaseURL: URL? = nil
+        publicBaseURL: URL? = nil,
+        consolePathPrefix: String = "/ui",
+        trustedLanEnabled: Bool = false,
+        trustedLanCidrs: [String] = []
     ) {
         self.host = host
         self.port = port
         self.exposed = exposed
         self.apiTokenConfigured = apiTokenConfigured
         self.publicBaseURL = publicBaseURL
+        self.consolePathPrefix = consolePathPrefix
+        self.trustedLanEnabled = trustedLanEnabled
+        self.trustedLanCidrs = trustedLanCidrs
     }
 
     public var publicBaseURLConfigured: Bool {
@@ -26,7 +35,7 @@ public struct DesktopRuntimeConfiguration: Equatable, Sendable, CustomStringConv
     }
 
     public var description: String {
-        "DesktopRuntimeConfiguration(host: \(host), port: \(port), exposed: \(exposed), apiTokenConfigured: \(apiTokenConfigured), publicBaseURLConfigured: \(publicBaseURLConfigured))"
+        "DesktopRuntimeConfiguration(host: \(host), port: \(port), exposed: \(exposed), apiTokenConfigured: \(apiTokenConfigured), publicBaseURLConfigured: \(publicBaseURLConfigured), consolePathPrefix: \(consolePathPrefix), trustedLanEnabled: \(trustedLanEnabled), trustedLanCidrs: \(trustedLanCidrs.count))"
     }
 }
 
@@ -50,10 +59,25 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
             .appendingPathComponent("runtime", isDirectory: true)
             .appendingPathComponent("server.env", isDirectory: false)
 
-        guard let text = try? String(contentsOf: environmentURL, encoding: .utf8) else {
-            return DesktopRuntimeConfiguration()
+        var configuration: DesktopRuntimeConfiguration
+        if let text = try? String(contentsOf: environmentURL, encoding: .utf8) {
+            configuration = Self.parse(text)
+        } else {
+            configuration = DesktopRuntimeConfiguration()
         }
-        return Self.parse(text)
+
+        let policyURL = stateRootURL
+            .appendingPathComponent("runtime", isDirectory: true)
+            .appendingPathComponent("access-policy.json", isDirectory: false)
+        if let data = try? Data(contentsOf: policyURL),
+           let policy = try? JSONDecoder().decode(DesktopAccessPolicyFile.self, from: data),
+           policy.schemaVersion == 1 {
+            let consolePath = Self.normalizedConsolePath(policy.consolePathPrefix)
+            configuration.consolePathPrefix = consolePath
+            configuration.trustedLanEnabled = policy.trustedLan.enabled
+            configuration.trustedLanCidrs = policy.trustedLan.cidrs
+        }
+        return configuration
     }
 
     public static func parse(_ text: String) -> DesktopRuntimeConfiguration {
@@ -95,6 +119,15 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
         return configuration
     }
 
+    private static func normalizedConsolePath(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("/"), trimmed != "/" else { return "/ui" }
+        let withoutTrailingSlash = trimmed.count > 1 && trimmed.hasSuffix("/")
+            ? String(trimmed.dropLast())
+            : trimmed
+        return withoutTrailingSlash.isEmpty ? "/ui" : withoutTrailingSlash
+    }
+
     private static func enabled(_ value: String) -> Bool {
         ["1", "true", "yes", "on"].contains(value.lowercased())
     }
@@ -109,6 +142,17 @@ public struct DesktopRuntimeConfigurationReader: Sendable {
         }
         return trimmed
     }
+}
+
+private struct DesktopAccessPolicyFile: Decodable {
+    let schemaVersion: Int
+    let consolePathPrefix: String
+    let trustedLan: DesktopTrustedLanPolicyFile
+}
+
+private struct DesktopTrustedLanPolicyFile: Decodable {
+    let enabled: Bool
+    let cidrs: [String]
 }
 
 public protocol TokenPilotRootPreferenceStoring: Sendable {

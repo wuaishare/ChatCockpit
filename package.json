@@ -98,9 +98,10 @@
     "verify:machine-api-token": "tsx scripts/verify-machine-api-token.ts",
     "verify:web-operator-auth": "tsx scripts/verify-web-operator-auth.ts",
     "verify:web-security": "tsx scripts/verify-web-security.ts",
+    "verify:access-policy": "tsx scripts/verify-access-policy.ts && tsx scripts/verify-access-policy-cli.ts",
     "verify:public-web-surface": "tsx scripts/verify-public-web-surface.ts",
     "verify:integrations-status": "tsx scripts/verify-integrations-status.ts",
-    "verify:public-web-security": "npm run verify:web-security && npm run verify:oauth-owner-approval && npm run verify:public-web-surface && npm run verify:integrations-status",
+    "verify:public-web-security": "npm run verify:web-security && npm run verify:access-policy && npm run verify:oauth-owner-approval && npm run verify:public-web-surface && npm run verify:integrations-status",
     "verify:operator-auth": "npm run verify:operator-password && npm run verify:operator-store && npm run verify:operator-service && npm run verify:operator-passkeys && npm run verify:operator-cli && npm run verify:machine-api-token && npm run verify:web-operator-auth",
     "verify:public-errors": "tsx scripts/verify-public-errors.ts",
     "verify:development-documents": "tsx scripts/verify-development-documents.ts",
@@ -194,6 +195,7 @@
     "@simplewebauthn/server": "13.3.2",
     "fastify": "^5.6.1",
     "fastify-plugin": "^5.1.0",
+    "ipaddr.js": "2.4.0",
     "zod": "^4.2.0"
   },
   "devDependencies": {

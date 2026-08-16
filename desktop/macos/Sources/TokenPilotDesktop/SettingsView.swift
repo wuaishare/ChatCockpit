@@ -4,6 +4,9 @@ import TokenPilotDesktopCore
 
 struct SettingsView: View {
     @ObservedObject var model: DesktopAppModel
+    @State private var consolePathPrefix = "/ui"
+    @State private var trustedLanEnabled = false
+    @State private var trustedLanCidrsText = ""
 
     var body: some View {
         Form {
@@ -321,6 +324,74 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Section(DesktopL10n.string("Access Policy")) {
+                LabeledContent(DesktopL10n.string("Console path")) {
+                    TextField("/ui", text: $consolePathPrefix)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 300)
+                }
+
+                Toggle(DesktopL10n.string("Enable trusted LAN access"), isOn: $trustedLanEnabled)
+
+                LabeledContent(DesktopL10n.string("Allowed LAN CIDRs")) {
+                    TextEditor(text: $trustedLanCidrsText)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(width: 300, height: 58)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(.quaternary)
+                        )
+                }
+
+                if trustedLanEnabled,
+                   model.snapshot.configuration.host == "127.0.0.1" || model.snapshot.configuration.host == "::1" {
+                    Label(
+                        DesktopL10n.string(
+                            "Trusted LAN policy is enabled, but the runtime is still listening on loopback only. LAN devices cannot connect until the listener is explicitly bound to a LAN-capable address."
+                        ),
+                        systemImage: "info.circle"
+                    )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(
+                    DesktopL10n.string(
+                        "A custom console path only reduces opportunistic scanning; it never replaces authentication. Trusted LAN CIDRs are a network admission gate only. Allowed LAN devices must still sign in with a Passkey or password fallback, and public access remains HTTPS + authentication."
+                    )
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack {
+                    Button(DesktopL10n.string("Apply Access Policy")) {
+                        let cidrs = trustedLanCidrsText
+                            .split(whereSeparator: { $0.isNewline || $0 == "," })
+                            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                        Task {
+                            await model.applyAccessPolicy(
+                                consolePathPrefix: consolePathPrefix,
+                                trustedLanEnabled: trustedLanEnabled,
+                                trustedLanCidrs: cidrs
+                            )
+                        }
+                    }
+                    .disabled(trustedLanEnabled && trustedLanCidrsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help(DesktopL10n.string("Apply Access Policy"))
+                    .accessibilityLabel(DesktopL10n.string("Apply Access Policy"))
+
+                    if let feedback = model.securityFeedback,
+                       feedback.target == .accessPolicy,
+                       feedback.kind == .updated {
+                        transientFeedbackLabel(feedback.message)
+                    }
+                }
+            }
+
             if let conflict = model.runtimeConflict {
                 Section(DesktopL10n.string("Runtime Conflict")) {
                     Label(model.localizedConflictMessage(conflict), systemImage: "exclamationmark.triangle")
@@ -349,7 +420,15 @@ struct SettingsView: View {
         .padding(.top, 6)
         .task {
             await model.refreshSecurity()
+            syncAccessPolicyFields()
         }
+    }
+
+    private func syncAccessPolicyFields() {
+        guard let policy = model.accessPolicyStatus else { return }
+        consolePathPrefix = policy.consolePathPrefix
+        trustedLanEnabled = policy.trustedLan.enabled
+        trustedLanCidrsText = policy.trustedLan.cidrs.joined(separator: "\n")
     }
 
     @ViewBuilder

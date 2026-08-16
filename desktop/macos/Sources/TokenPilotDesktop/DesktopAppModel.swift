@@ -13,6 +13,7 @@ private func discoverDefaultBundlePayloadURL() -> URL? {
 enum DesktopSecurityFeedbackTarget: Equatable {
     case ownerAccount
     case machineApiToken
+    case accessPolicy
     case apiEndpoint(String)
 }
 
@@ -41,6 +42,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var updateCheckResult: MacOSUpdateCheckResult?
     @Published private(set) var operatorSecurityStatus: DesktopOperatorStatus?
     @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
+    @Published private(set) var accessPolicyStatus: DesktopAccessPolicy?
     @Published private(set) var revealedMachineApiToken: String?
     @Published private(set) var securityFeedback: DesktopSecurityFeedback?
     @Published private(set) var isSecurityRefreshing = false
@@ -604,16 +606,20 @@ final class DesktopAppModel: ObservableObject {
             guard let context = try await currentContext() else {
                 operatorSecurityStatus = nil
                 machineApiTokenStatus = nil
+                accessPolicyStatus = nil
                 revealedMachineApiToken = nil
                 return
             }
             async let operatorStatus = authorityClient.operatorStatus(context: context)
             async let tokenStatus = authorityClient.machineTokenStatus(context: context)
+            async let accessPolicy = authorityClient.accessPolicyStatus(context: context)
             self.operatorSecurityStatus = try await operatorStatus
             self.machineApiTokenStatus = try await tokenStatus
+            self.accessPolicyStatus = try await accessPolicy
         } catch {
             operatorSecurityStatus = nil
             machineApiTokenStatus = nil
+            accessPolicyStatus = nil
             lastUserMessage = DesktopL10n.string(
                 "Security settings could not be read from the local ChatCockpit runtime."
             )
@@ -735,6 +741,51 @@ final class DesktopAppModel: ObservableObject {
         tokenRevealTask?.cancel()
         tokenRevealTask = nil
         revealedMachineApiToken = nil
+    }
+
+    func applyAccessPolicy(
+        consolePathPrefix: String,
+        trustedLanEnabled: Bool,
+        trustedLanCidrs: [String]
+    ) async {
+        do {
+            guard let context = try await currentContext() else { return }
+            let shouldRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            if shouldRestart {
+                let alert = NSAlert()
+                alert.messageText = DesktopL10n.string("Apply Access Policy and Restart Services?")
+                alert.informativeText = DesktopL10n.string(
+                    "The new console path and network admission policy take effect after the Control Plane restarts. Running ChatCockpit services will restart now; stopped services are never started automatically."
+                )
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: DesktopL10n.string("Apply and Restart"))
+                alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+                guard alert.runModal() == .alertFirstButtonReturn else { return }
+            }
+            accessPolicyStatus = try await authorityClient.setAccessPolicy(
+                consolePathPrefix: consolePathPrefix,
+                trustedLanEnabled: trustedLanEnabled,
+                trustedLanCidrs: trustedLanCidrs,
+                context: context
+            )
+            if shouldRestart {
+                await restart()
+            } else {
+                await refresh()
+            }
+            await refreshSecurity()
+            presentSecurityFeedback(
+                DesktopL10n.string(
+                    shouldRestart
+                        ? "Access policy updated and running services restarted."
+                        : "Access policy updated. Stopped services remain stopped."
+                ),
+                target: .accessPolicy,
+                kind: .updated
+            )
+        } catch {
+            lastUserMessage = DesktopL10n.string("Access policy could not be updated. Check the console path and LAN CIDR values.")
+        }
     }
 
     func rotateMachineApiToken() async {

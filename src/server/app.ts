@@ -48,6 +48,7 @@ import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
 import { buildSetupStatus } from "../core/setup-status.js";
+import { loadAccessPolicy } from "../security/access-policy.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
 import {
@@ -108,6 +109,7 @@ import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
+import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import {
   registerWebSecurityHeaders,
   trustLoopbackProxy
@@ -210,6 +212,7 @@ export function buildServer(
   options: BuildServerOptions = {}
 ) {
   validateServerAuthConfig();
+  const accessPolicy = loadAccessPolicy(paths);
 
   const identity = productIdentityForKey(paths.productIdentity);
   const {
@@ -230,6 +233,7 @@ export function buildServer(
     logger: true,
     trustProxy: trustLoopbackProxy
   });
+  registerAccessPolicyGate(app, accessPolicy);
   registerWebSecurityHeaders(app);
   const oauthConfig = isExposedMode()
     ? resolveOAuthPublicConfig(process.env, paths.productIdentity)
@@ -249,7 +253,12 @@ export function buildServer(
   const operatorService = new OperatorService({ store: operatorStore });
   const operatorPasskeyService = new OperatorPasskeyService({ store: operatorStore });
   if (oauthService && oauthConfig) {
-    registerOAuthRoutes(app, oauthService, oauthConfig);
+    registerOAuthRoutes(
+      app,
+      oauthService,
+      oauthConfig,
+      accessPolicy.consolePathPrefix
+    );
   }
 
   const continuityDatabase = new ContinuityDatabase({
@@ -415,7 +424,8 @@ export function buildServer(
             verifyAccessToken: (token) => Boolean(oauthService.verifyMcpAccessToken(token))
           }
         : null,
-      operatorService
+      operatorService,
+      accessPolicy.consolePathPrefix
     )
   );
   registerOperatorRoutes(app, operatorService, operatorPasskeyService);
@@ -1110,7 +1120,7 @@ export function buildServer(
       ok: true,
       service: `${identity.packageName}-control-plane`,
       health: buildPublicHealthStatus(paths),
-      ui: "/ui",
+      ui: accessPolicy.consolePathPrefix === "/ui" ? "/ui" : null,
       openapi: "/openapi.yaml"
     };
   });
@@ -1238,7 +1248,7 @@ export function buildServer(
   app.post("/api/git/commit", gitCommitHandler);
   app.post("/tokenpilot/api/git/commit", gitCommitHandler);
 
-  registerStaticRoutes(app, paths);
+  registerStaticRoutes(app, paths, accessPolicy.consolePathPrefix);
 
   return app;
 }

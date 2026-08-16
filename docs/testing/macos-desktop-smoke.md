@@ -63,6 +63,7 @@ The Desktop app is the local-machine administration surface for human Web Owner 
 - Local passwordless access is not a loopback-wide bypass: Desktop creates a 45-second single-use grant locally; direct loopback Web exchange consumes it for the normal Owner session, while proxied, forwarded, non-loopback-host, expired, reused, password-reset-invalidated, or revoke-all-invalidated grants fail closed.
 - Token rotation generates a fresh strong token in the canonical `server.env`, keeps that file owner-only, and never changes Web Owner or ChatGPT OAuth authority.
 - If services are running, rotation restarts the current runtime so the new token takes effect. If services are stopped, they remain stopped and pick up the new token on the next start.
+- **Access Policy** must read the same canonical `access-policy.json` under Runtime State. After a custom console path is applied, the App's Local/Public Cockpit URLs and UI health probe must use that path, while the conventional `/ui` page disappears. Trusted LAN is network admission only and never bypasses Owner authentication; enabling LAN policy must not silently widen a loopback listener.
 - ChatGPT OAuth client/authorization management remains a Web Integrations responsibility rather than a Desktop secret-management surface.
 
 ## 2. Packaged Mode conflict guard

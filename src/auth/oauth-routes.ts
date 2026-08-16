@@ -144,7 +144,8 @@ function ensureUrlEncodedParser(app: FastifyInstance): void {
 export function registerOAuthRoutes(
   app: FastifyInstance,
   service: OAuthService,
-  config: OAuthPublicConfig
+  config: OAuthPublicConfig,
+  consolePathPrefix = "/ui"
 ): void {
   ensureUrlEncodedParser(app);
 
@@ -235,7 +236,7 @@ export function registerOAuthRoutes(
       noStore(reply);
       if (!operatorSession) {
         const continuation = `/oauth/authorize?request_id=${encodeURIComponent(pending.requestId)}`;
-        const loginUrl = `/ui/login?returnTo=${encodeURIComponent(continuation)}`;
+        const loginUrl = `${consolePathPrefix}/login?returnTo=${encodeURIComponent(continuation)}`;
         return reply.redirect(loginUrl, 302);
       }
 

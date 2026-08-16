@@ -166,7 +166,8 @@ function renderPrivacyPolicy(displayName: string): string {
 
 export function registerStaticRoutes(
   app: FastifyInstance,
-  paths: TokenPilotPaths
+  paths: TokenPilotPaths,
+  consolePathPrefix = "/ui"
 ): void {
   const identity = productIdentityForKey(paths.productIdentity);
   const uiDistDir = path.join(paths.installRoot, "web", "dist");
@@ -178,15 +179,24 @@ export function registerStaticRoutes(
     return renderOpenApiDocument(request, paths);
   });
 
-  app.get("/ui", async (_request, reply) => {
+  const renderUiIndex = (): string => {
+    const source = fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
+    const withAssetBase = source.replaceAll("/ui/", `${consolePathPrefix}/`);
+    return withAssetBase.replace(
+      "</head>",
+      `    <meta name="chatcockpit-console-base" content="${consolePathPrefix}">\n  </head>`
+    );
+  };
+
+  app.get(consolePathPrefix, async (_request, reply) => {
     reply.type("text/html; charset=utf-8");
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
       return renderUiNotBuiltPage(identity.displayName);
     }
-    return fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
+    return renderUiIndex();
   });
 
-  app.get("/ui/*", async (request, reply) => {
+  app.get(`${consolePathPrefix}/*`, async (request, reply) => {
     const indexPath = path.join(uiDistDir, "index.html");
     if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
       reply.type("text/html; charset=utf-8");
@@ -194,7 +204,9 @@ export function registerStaticRoutes(
     }
 
     const requestUrl = request.url;
-    const rawSuffix = requestUrl.split("?", 1)[0].slice("/ui/".length);
+    const rawSuffix = requestUrl
+      .split("?", 1)[0]
+      .slice(`${consolePathPrefix}/`.length);
     let suffix: string;
     try {
       suffix = decodeURIComponent(rawSuffix);
@@ -240,7 +252,7 @@ export function registerStaticRoutes(
     }
 
     reply.type("text/html; charset=utf-8");
-    return fs.readFileSync(indexPath, "utf8");
+    return renderUiIndex();
   });
 
   app.get("/privacy-policy", async (_request, reply) => {

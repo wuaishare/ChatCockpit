@@ -14,6 +14,7 @@ import {
 } from "@ant-design/icons";
 
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { consolePath } from "../../console-path";
 import type {
   ContinuityHandoffRecord,
   ContinuityWorkspaceSnapshot,
@@ -317,7 +318,7 @@ export function SessionsSection({
                         {runtime.job.artifacts.map((artifact) => (
                           <a
                             key={artifact.key}
-                            href={`/ui/jobs/${encodeURIComponent(runtime.job!.id)}`}
+                            href={consolePath(`jobs/${encodeURIComponent(runtime.job!.id)}`)}
                             target="_blank"
                             rel="noreferrer"
                           >

@@ -63,6 +63,7 @@ Desktop App 是这台 Mac 上的人类控制台管理员与机器 API 凭据管�
 - 本机免密不是“127.0.0.1 全部绕过登录”：Desktop 本地签发 45 秒有效、只能使用一次的凭据，只有直接 loopback Web 请求能兑换为正常管理员 Session；经过代理/Forwarded Header、非 loopback Host、过期、重复使用、管理员改密后遗留、执行“撤销全部会话”后遗留的凭据都必须 fail closed；
 - 轮换令牌会在 canonical `server.env` 中生成新的强随机令牌，并保持文件仅当前用户可读写；不会改动控制台管理员或 ChatGPT OAuth authority；
 - 如果服务正在运行，轮换后会重启当前 Runtime 使新令牌生效；如果服务已停止，则保持停止，并在下次启动时读取新令牌；
+- **访问策略**必须读取 Runtime State 中同一份 canonical `access-policy.json`：自定义控制台入口更新后，App 的本机/公网控制台 URL 与 UI 探活都必须同步使用新路径；传统 `/ui` 不再提供页面。Trusted LAN 只负责网络准入，不能绕过管理员认证；开启 LAN policy 也不能自动把 listener 从 loopback 扩大到局域网。
 - ChatGPT OAuth Client / Authorization 仍由 Web Integrations 管理，不把远端集成关系塞进 Desktop Secret 管理面。
 
 ## 2. Packaged Mode Conflict Guard

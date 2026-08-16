@@ -4,6 +4,7 @@ import type { FastifyRequest } from "fastify";
 import type { OperatorService } from "../auth/operator-service.js";
 import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
 import { ApiError } from "./errors.js";
+import { isLoopbackProxyAddress } from "./security-headers.js";
 import {
   OPERATOR_CSRF_HEADER,
   readOperatorSessionCookie,
@@ -35,7 +36,7 @@ function requestPath(url: string): string {
   return queryIndex >= 0 ? url.slice(0, queryIndex) : url;
 }
 
-function isPublicPath(url: string): boolean {
+function isPublicPath(url: string, consolePathPrefix: string): boolean {
   const pathname = requestPath(url);
   return (
     OAUTH_PUBLIC_PATHS.has(pathname) ||
@@ -48,8 +49,21 @@ function isPublicPath(url: string): boolean {
     pathname === "/privacy-policy" ||
     pathname === "/ui" ||
     pathname === "/ui/" ||
-    pathname.startsWith("/ui/")
+    pathname.startsWith("/ui/") ||
+    pathname === consolePathPrefix ||
+    pathname === `${consolePathPrefix}/` ||
+    pathname.startsWith(`${consolePathPrefix}/`)
   );
+}
+
+function isDirectLoopbackRequest(request: FastifyRequest): boolean {
+  const hostname = request.hostname.trim().replace(/^\[|\]$/g, "").toLowerCase();
+  const socketAddress = request.socket.remoteAddress?.trim() ?? "";
+  const loopbackHost =
+    hostname === "localhost" ||
+    hostname === "::1" ||
+    isLoopbackProxyAddress(hostname);
+  return loopbackHost && isLoopbackProxyAddress(socketAddress);
 }
 
 function isMcpPath(url: string): boolean {
@@ -112,7 +126,8 @@ export interface McpOAuthAccessVerifier {
 
 export function createTokenPilotAuthPlugin(
   oauth: McpOAuthAccessVerifier | null = null,
-  operator: OperatorService | null = null
+  operator: OperatorService | null = null,
+  consolePathPrefix = "/ui"
 ) {
   return fp(async (app) => {
     if (!app.hasRequestDecorator("chatCockpitAuth")) {
@@ -132,7 +147,7 @@ export function createTokenPilotAuthPlugin(
         };
       }
 
-      if (isPublicPath(request.url)) {
+      if (isPublicPath(request.url, consolePathPrefix)) {
         return;
       }
 
@@ -149,7 +164,7 @@ export function createTokenPilotAuthPlugin(
           return;
         }
 
-        if (!configured && !isExposedMode()) {
+        if (!configured && !isExposedMode() && isDirectLoopbackRequest(request)) {
           return;
         }
 
@@ -168,7 +183,12 @@ export function createTokenPilotAuthPlugin(
       }
 
       const operatorConfigured = operator?.status().configured ?? false;
-      if (!configured && !operatorConfigured && !isExposedMode()) {
+      if (
+        !configured &&
+        !operatorConfigured &&
+        !isExposedMode() &&
+        isDirectLoopbackRequest(request)
+      ) {
         return;
       }
 

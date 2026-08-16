@@ -115,7 +115,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
 
     public var localCockpitURL: URL? {
         guard uiReachable, let baseURL = localApiBaseURL else { return nil }
-        return baseURL.appendingPathComponent("ui", isDirectory: false)
+        return cockpitURL(baseURL: baseURL)
     }
 
     public var publicApiBaseURL: URL? {
@@ -129,7 +129,18 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
     }
 
     public var publicCockpitURL: URL? {
-        publicApiBaseURL?.appendingPathComponent("ui", isDirectory: false)
+        guard let baseURL = publicApiBaseURL else { return nil }
+        return cockpitURL(baseURL: baseURL)
+    }
+
+    private func cockpitURL(baseURL: URL) -> URL? {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.path = configuration.consolePathPrefix
+        components.query = nil
+        components.fragment = nil
+        return components.url
     }
 
     public var cockpitURL: URL? {

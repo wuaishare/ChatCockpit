@@ -69,7 +69,10 @@ public struct LocalHealthClient: LocalHealthChecking, Sendable {
     public func probe(configuration: DesktopRuntimeConfiguration) async -> LocalHealthStatus {
         guard let baseURL = baseURL(configuration: configuration),
               let healthURL = URL(string: "/api/health", relativeTo: baseURL)?.absoluteURL,
-              let uiURL = URL(string: "/ui", relativeTo: baseURL)?.absoluteURL else {
+              let uiURL = URL(
+                string: configuration.consolePathPrefix,
+                relativeTo: baseURL
+              )?.absoluteURL else {
             return .unreachable
         }
 

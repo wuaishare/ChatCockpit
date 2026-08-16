@@ -61,6 +61,7 @@ import { themeLabels } from "./theme";
 import { getResourceCenterCopy } from "./i18n/resources";
 import { getIntegrationsCopy } from "./i18n/integrations";
 import type { ApiProblem } from "./types";
+import { consolePath, stripConsoleBasePath } from "./console-path";
 
 type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
 
@@ -133,11 +134,11 @@ interface AppProps {
 }
 
 const VIEW_PATHS: Record<ViewKey, string> = {
-  dashboard: "/ui",
-  continuity: "/ui/continuity",
-  resources: "/ui/resources",
-  jobs: "/ui/jobs",
-  integrations: "/ui/integrations"
+  dashboard: consolePath(),
+  continuity: consolePath("continuity"),
+  resources: consolePath("resources"),
+  jobs: consolePath("jobs"),
+  integrations: consolePath("integrations")
 };
 
 const CONTINUITY_SECTIONS = new Set<ContinuitySectionKey>([
@@ -190,19 +191,19 @@ function parseRoute(): {
     return { view: "dashboard", jobId: null, continuitySection: "projects" };
   }
 
-  const pathname = window.location.pathname.replace(/\/+$/, "") || "/ui";
-  if (pathname === "/ui/jobs" || pathname.startsWith("/ui/jobs/")) {
-    const jobId = pathname.startsWith("/ui/jobs/")
-      ? decodeURIComponent(pathname.slice("/ui/jobs/".length))
+  const route = stripConsoleBasePath(window.location.pathname);
+  if (route === null) {
+    return { view: "dashboard", jobId: null, continuitySection: "projects" };
+  }
+  if (route === "jobs" || route.startsWith("jobs/")) {
+    const jobId = route.startsWith("jobs/")
+      ? decodeURIComponent(route.slice("jobs/".length))
       : null;
     return { view: "jobs", jobId: jobId || null, continuitySection: "projects" };
   }
-  if (
-    pathname === "/ui/continuity" ||
-    pathname.startsWith("/ui/continuity/")
-  ) {
-    const candidate = pathname.startsWith("/ui/continuity/")
-      ? decodeURIComponent(pathname.slice("/ui/continuity/".length))
+  if (route === "continuity" || route.startsWith("continuity/")) {
+    const candidate = route.startsWith("continuity/")
+      ? decodeURIComponent(route.slice("continuity/".length))
       : "projects";
     const continuitySection = CONTINUITY_SECTIONS.has(
       candidate as ContinuitySectionKey
@@ -211,13 +212,13 @@ function parseRoute(): {
       : "projects";
     return { view: "continuity", jobId: null, continuitySection };
   }
-  if (pathname === "/ui/resources") {
+  if (route === "resources") {
     return { view: "resources", jobId: null, continuitySection: "projects" };
   }
-  if (pathname === "/ui/integrations") {
+  if (route === "integrations") {
     return { view: "integrations", jobId: null, continuitySection: "projects" };
   }
-  if (pathname === "/ui/gpt-helper") {
+  if (route === "gpt-helper") {
     window.history.replaceState(null, "", VIEW_PATHS.integrations);
     return { view: "integrations", jobId: null, continuitySection: "projects" };
   }
