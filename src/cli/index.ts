@@ -22,6 +22,9 @@ import { buildServer } from "../server/app.js";
 import { runRunner } from "../runner/index.js";
 import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
 import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js";
+import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
+import { OperatorService } from "../auth/operator-service.js";
+import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
 
 function printUsage(): void {
   const identity = DEFAULT_PRODUCT_IDENTITY;
@@ -38,6 +41,9 @@ Usage:
   ${identity.cliName} queue-codex-run --title "..." --instructions "..." [--repo-id ${identity.defaultRepoId}]
   ${identity.cliName} jobs
   ${identity.cliName} job --id "<job-id>"
+  ${identity.cliName} operator status [--json]
+  ${identity.cliName} operator set-password [--username owner] [--password-stdin] [--json]
+  ${identity.cliName} operator revoke-sessions [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
@@ -265,6 +271,71 @@ async function main(): Promise<void> {
       }
       process.stdout.write(`${JSON.stringify(job.job, null, 2)}\n`);
       return;
+    }
+    case "operator": {
+      const subcommand = process.argv[3];
+      const store = new OperatorStore({
+        path: operatorDatabasePath(paths.runtimeDir)
+      });
+      const service = new OperatorService({ store });
+      try {
+        switch (subcommand) {
+          case "status": {
+            const status = service.status();
+            const result = {
+              ...status,
+              activeSessionCount: service.listActiveSessions().length
+            };
+            if (process.argv.includes("--json")) {
+              printJson(result);
+            } else {
+              process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} Web Operator\n`);
+              process.stdout.write(`Configured: ${result.configured ? "yes" : "no"}\n`);
+              process.stdout.write(`Username: ${result.username ?? "not configured"}\n`);
+              process.stdout.write(`Active Web sessions: ${result.activeSessionCount}\n`);
+            }
+            return;
+          }
+          case "set-password": {
+            const username = getFlag("--username") ?? "owner";
+            let password: string;
+            if (process.argv.includes("--password-stdin")) {
+              password = await readPasswordFromStdin();
+            } else {
+              password = await readHiddenLine("Owner password: ");
+              const confirmation = await readHiddenLine("Confirm owner password: ");
+              if (password !== confirmation) {
+                throw new Error("Owner password confirmation does not match");
+              }
+            }
+            const result = await service.setOwnerPassword({ username, password });
+            if (process.argv.includes("--json")) {
+              printJson(result);
+            } else {
+              process.stdout.write("Owner password updated\n");
+              process.stdout.write(`Username: ${result.username}\n`);
+              process.stdout.write(`Existing Web sessions revoked: ${result.revokedSessionCount}\n`);
+            }
+            return;
+          }
+          case "revoke-sessions": {
+            const revokedSessionCount = service.revokeAllSessions();
+            const result = { revokedSessionCount };
+            if (process.argv.includes("--json")) {
+              printJson(result);
+            } else {
+              process.stdout.write(`Revoked Web sessions: ${revokedSessionCount}\n`);
+            }
+            return;
+          }
+          default:
+            throw new Error(
+              "operator requires one of: status, set-password, revoke-sessions"
+            );
+        }
+      } finally {
+        store.close();
+      }
     }
     case "server": {
       const app = buildServer(paths);
