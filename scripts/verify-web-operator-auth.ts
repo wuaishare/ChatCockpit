@@ -33,7 +33,8 @@ async function main(): Promise<void> {
   const original = {
     token: process.env.CHATCOCKPIT_API_TOKEN,
     exposed: process.env.CHATCOCKPIT_EXPOSED,
-    configPath: process.env.CHATCOCKPIT_CONFIG_PATH
+    configPath: process.env.CHATCOCKPIT_CONFIG_PATH,
+    publicBaseUrl: process.env.CHATCOCKPIT_PUBLIC_BASE_URL
   };
   process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-owner";
   process.env.CHATCOCKPIT_EXPOSED = "false";
@@ -127,26 +128,97 @@ async function main(): Promise<void> {
     });
     assert.equal(csrfMutation.status, 200);
 
+    const secondLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "test-password-correct-horse-battery-staple"
+      })
+    });
+    assert.equal(secondLogin.status, 200);
+    const secondLoginBody = (await secondLogin.json()) as {
+      csrfToken: string;
+    };
+    const secondCookie = cookiePair(secondLogin);
+
+    const sessions = await fetch(`${server.baseUrl}/api/operator/sessions`, {
+      headers: { cookie: secondCookie }
+    });
+    assert.equal(sessions.status, 200);
+    const sessionsBody = (await sessions.json()) as {
+      sessions: Array<{ current: boolean }>;
+    };
+    assert.equal(sessionsBody.sessions.length, 2);
+    assert.equal(sessionsBody.sessions.filter((entry) => entry.current).length, 1);
+
+    const revokeOthers = await fetch(
+      `${server.baseUrl}/api/operator/sessions/revoke-others`,
+      {
+        method: "POST",
+        headers: {
+          cookie: secondCookie,
+          "x-chatcockpit-csrf": secondLoginBody.csrfToken
+        }
+      }
+    );
+    assert.equal(revokeOthers.status, 200);
+    assert.deepEqual(await revokeOthers.json(), {
+      ok: true,
+      revokedSessionCount: 1
+    });
+
+    const revokedFirstSession = await fetch(`${server.baseUrl}/api/jobs`, {
+      headers: { cookie }
+    });
+    assert.equal(revokedFirstSession.status, 401);
+
     const logoutWithoutCsrf = await fetch(`${server.baseUrl}/api/operator/logout`, {
       method: "POST",
-      headers: { cookie }
+      headers: { cookie: secondCookie }
     });
     assert.equal(logoutWithoutCsrf.status, 403);
 
     const logout = await fetch(`${server.baseUrl}/api/operator/logout`, {
       method: "POST",
       headers: {
-        cookie,
-        "x-chatcockpit-csrf": loginBody.csrfToken
+        cookie: secondCookie,
+        "x-chatcockpit-csrf": secondLoginBody.csrfToken
       }
     });
     assert.equal(logout.status, 200);
     assert.match(logout.headers.get("set-cookie") ?? "", /Max-Age=0/i);
 
     const afterLogout = await fetch(`${server.baseUrl}/api/jobs`, {
-      headers: { cookie }
+      headers: { cookie: secondCookie }
     });
     assert.equal(afterLogout.status, 401);
+
+    process.env.CHATCOCKPIT_PUBLIC_BASE_URL = "https://chatcockpit.example.com";
+    const publicApp = buildServer(paths);
+    try {
+      const publicLogin = await publicApp.inject({
+        method: "POST",
+        url: "/api/operator/login",
+        headers: {
+          host: "chatcockpit.example.com",
+          "content-type": "application/json"
+        },
+        payload: {
+          username: "owner",
+          password: "test-password-correct-horse-battery-staple"
+        }
+      });
+      assert.equal(publicLogin.statusCode, 200);
+      const publicCookie = publicLogin.headers["set-cookie"] ?? "";
+      assert.equal(typeof publicCookie, "string");
+      assert.match(String(publicCookie), /Secure/i);
+      assert.match(String(publicCookie), /HttpOnly/i);
+      assert.match(String(publicCookie), /SameSite=Strict/i);
+      assert.doesNotMatch(String(publicCookie), /Domain=/i);
+    } finally {
+      await publicApp.close();
+    }
   } finally {
     await server.close();
     if (original.token === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
@@ -155,6 +227,8 @@ async function main(): Promise<void> {
     else process.env.CHATCOCKPIT_EXPOSED = original.exposed;
     if (original.configPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
     else process.env.CHATCOCKPIT_CONFIG_PATH = original.configPath;
+    if (original.publicBaseUrl === undefined) delete process.env.CHATCOCKPIT_PUBLIC_BASE_URL;
+    else process.env.CHATCOCKPIT_PUBLIC_BASE_URL = original.publicBaseUrl;
   }
 
   process.stdout.write("WEB_OPERATOR_AUTH_OK\n");
