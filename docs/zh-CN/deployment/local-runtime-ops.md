@@ -55,11 +55,29 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 
 ## Web UI
 
+Web Cockpit 现在使用独立的人类 **Owner** 账户，不再把 `CHATCOCKPIT_API_TOKEN` 保存或复用成浏览器登录凭据。
+
+Source Checkout 首次使用或需要改密码时，在 ChatCockpit 所在机器本地执行：
+
+```bash
+node dist/cli/index.js operator set-password
+```
+
+已安装 `chatcockpit` CLI 的环境可以直接执行：
+
+```bash
+chatcockpit operator set-password
+```
+
+交互式终端会隐藏密码输入；修改 Owner 密码会撤销已有 Web Session。受控自动化和测试可使用 `--password-stdin`，不要把密码直接写进命令行参数。
+
 启动后访问：
 
 ```text
 http://127.0.0.1:4318/ui
 ```
+
+浏览器以 Owner 身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入 `localStorage` / `sessionStorage`。
 
 常用页面：
 
@@ -73,15 +91,16 @@ http://127.0.0.1:4318/ui
 - `/ui/gpt-helper`：GPT Instructions、OpenAPI URL、Schema 导入 URL
 - `/ui/jobs`：Jobs、Artifacts、进程控制
 
-在需要鉴权的模式下，浏览器会话提供 bearer token 前不会展示受保护数据。
+受保护的 Web 数据要求有效的 Owner Session；机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
 
 ## 暴露到 HTTPS
 
 `CHATCOCKPIT_EXPOSED=true` 用于你控制的 HTTPS 入口。此模式下：
 
-- 必须设置 `CHATCOCKPIT_API_TOKEN`
-- GPT Builder Authentication 必须使用同一个 token
-- `CHATCOCKPIT_PUBLIC_BASE_URL` 必须与 GPT Builder 导入的 OpenAPI server URL 一致
+- 当前 R5 阶段仍必须设置 `CHATCOCKPIT_API_TOKEN`，它属于机器/API authority，不是 Web 密码
+- Custom GPT Actions 兼容路径的 GPT Builder Authentication 继续使用该机器 token
+- ChatGPT Remote MCP 使用独立的 `chatcockpit:mcp` OAuth authority，不与 Web Owner Session 或机器 token 混用
+- `CHATCOCKPIT_PUBLIC_BASE_URL` 必须与远端客户端实际访问的公网地址一致
 
 完整说明见：
 

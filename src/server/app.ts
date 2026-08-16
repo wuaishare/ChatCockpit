@@ -29,6 +29,8 @@ import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
 import { registerOAuthRoutes } from "../auth/oauth-routes.js";
 import { OAuthService } from "../auth/oauth-service.js";
 import { OAuthStore, oauthDatabasePath } from "../auth/oauth-store.js";
+import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
+import { OperatorService } from "../auth/operator-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -100,6 +102,7 @@ import { isResourceMutationExposureEnabled } from "./runtime-resource-mutation-p
 import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
+import { registerOperatorRoutes } from "./operator-routes.js";
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -228,6 +231,10 @@ export function buildServer(
         ownerSecret: () => readIdentityEnv("API_TOKEN") ?? null
       })
     : null;
+  const operatorStore = new OperatorStore({
+    path: operatorDatabasePath(paths.runtimeDir)
+  });
+  const operatorService = new OperatorService({ store: operatorStore });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(app, oauthService, oauthConfig);
   }
@@ -391,15 +398,18 @@ export function buildServer(
             scope: oauthConfig.mcpScope,
             verifyAccessToken: (token) => Boolean(oauthService.verifyMcpAccessToken(token))
           }
-        : null
+        : null,
+      operatorService
     )
   );
+  registerOperatorRoutes(app, operatorService);
   app.addHook("onClose", async () => {
     runtimeEventService.detach();
     await hostProcess.close();
     await runtimeService.close();
     continuityDatabase.close();
     oauthStore?.close();
+    operatorStore.close();
   });
   const mcpHandler = buildTokenPilotMcpHandler(
     paths,

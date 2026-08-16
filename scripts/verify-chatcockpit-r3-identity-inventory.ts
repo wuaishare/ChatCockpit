@@ -218,7 +218,13 @@ function assertCanonicalCutover(): void {
     fs.readFileSync(path.join(root, "web", "src", "theme.ts"), "utf8"),
     fs.readFileSync(path.join(root, "web", "src", "i18n.ts"), "utf8")
   ].join("\n");
-  assert.match(webSource, /chatcockpit:web:bearer-token/);
+  assert.doesNotMatch(
+    webSource,
+    /(?:chatcockpit|tokenpilot):web:bearer-token/,
+    "R5 Web Operator auth must not restore browser-stored machine Bearer credentials"
+  );
+  assert.match(webSource, /fetchOperatorStatus/);
+  assert.match(webSource, /loginOperator/);
   assert.match(webSource, /chatcockpit:web:theme-mode/);
   assert.match(webSource, /chatcockpit:web:locale/);
 }

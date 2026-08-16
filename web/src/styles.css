@@ -3345,3 +3345,61 @@ button.continuity-workspace.is-selected {
 .continuity-markdown-editor {
   font-family: var(--tp-font-mono) !important;
 }
+
+.operator-auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--tp-cyan) 12%, transparent), transparent 42%),
+    var(--tp-bg);
+}
+
+.operator-auth-card {
+  width: min(440px, 100%);
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-xl);
+  box-shadow: var(--tp-shadow);
+  background: var(--tp-surface);
+}
+
+.operator-auth-card__heading {
+  margin-bottom: 18px;
+}
+
+.operator-auth-card__heading .ant-typography,
+.operator-auth-card > .ant-card-body > .ant-typography {
+  margin-top: 0;
+}
+
+.operator-auth-card__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--tp-cyan) 12%, transparent);
+  color: var(--tp-cyan);
+  font-size: 22px;
+}
+
+.operator-auth-command {
+  margin: 10px 0 18px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+  background: var(--tp-surface-soft);
+  color: var(--tp-text-strong);
+  font-family: var(--tp-font-mono);
+  font-size: 13px;
+}
+
+.operator-session-label {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

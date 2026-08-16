@@ -110,7 +110,7 @@ const safetyPatterns: Array<{ label: string; test: (content: string) => boolean 
   {
     label: "token-looking secret assignment",
     test: (content) =>
-      /\b(token|secret|password|api[_-]?key)\b\s*[:=]\s*["'`](?!test-token|demo-token|replace-with-|your-|chatcockpit\.example\.com|tokenpilot\.example\.com|chatcockpit-web-ui-fixture|tokenpilot-web-ui-fixture)[^"'`\n]{8,}["'`]/i.test(
+      /\b(token|secret|password|api[_-]?key)\b\s*[:=]\s*["'`](?!test-token|demo-token|test-password|demo-password|Password\b|replace-with-|your-|chatcockpit\.example\.com|tokenpilot\.example\.com|chatcockpit-web-ui-fixture|tokenpilot-web-ui-fixture)[^"'`\n]{8,}["'`]/i.test(
         content
       )
   }
@@ -352,6 +352,32 @@ const resourceTypesSource = fs.readFileSync(
 const resourceCopySource = fs.readFileSync(
   path.join(repoRoot, "web/src/i18n/resources.ts"),
   "utf8"
+);
+const uiCopySource = fs.readFileSync(path.join(repoRoot, "web/src/i18n.ts"), "utf8");
+const continuityCopySource = fs.readFileSync(
+  path.join(repoRoot, "web/src/i18n/continuity.ts"),
+  "utf8"
+);
+const operatorLoginSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/OperatorLoginView.tsx"),
+  "utf8"
+);
+
+assert.doesNotMatch(appSource, /chatcockpit:web:bearer-token|tokenpilot:web:bearer-token/);
+assert.doesNotMatch(appSource, /sessionStorage\.(?:getItem|setItem).*token/i);
+assert.doesNotMatch(appSource, /TokenBar/);
+assert.doesNotMatch(apiSource, /Authorization\s*[:=]|Bearer\s+\$\{/);
+assert.match(apiSource, /credentials:\s*"same-origin"/);
+assert.match(apiSource, /X-ChatCockpit-CSRF/);
+assert.match(appSource, /fetchOperatorStatus/);
+assert.match(appSource, /fetchOperatorSession/);
+assert.match(appSource, /loginOperator/);
+assert.match(appSource, /logoutOperator/);
+assert.match(operatorLoginSource, /autoComplete="username"/);
+assert.match(operatorLoginSource, /autoComplete="current-password"/);
+assert.doesNotMatch(
+  `${uiCopySource}\n${continuityCopySource}\n${resourceCopySource}`,
+  /CHATCOCKPIT_API_TOKEN|Browser session token|browser session token|Bearer Token|会话令牌|访问令牌/
 );
 
 for (const section of [

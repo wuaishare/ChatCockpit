@@ -17,10 +17,13 @@ Run:
 
 ```bash
 npm run setup
+node dist/cli/index.js operator set-password
 npm run start:local
 npm run mvp:status
 npm run doctor:runtime
 ```
+
+`operator set-password` creates the local Web Owner account. The password is entered through a hidden TTY prompt and is separate from `CHATCOCKPIT_API_TOKEN`, which remains a machine/API credential.
 
 Open:
 
@@ -30,7 +33,7 @@ http://127.0.0.1:4318/ui
 
 The first successful result is:
 
-- `/ui` opens and shows the setup state or dashboard
+- `/ui` opens the Owner sign-in screen, then shows the setup state or dashboard after authentication
 - `/ui/continuity/projects` opens the Continuity Workbench
 - `npm run doctor:runtime` can reach local health
 - GPT Helper can copy instructions and the OpenAPI URL
@@ -75,6 +78,7 @@ npm run reset:local
 | Continuity page has no project | No valid repository mapping is configured | Run setup/init and inspect the local ChatCockpit config |
 | Workspace is read-only | Another Session holds the Writer Lease | Inspect the Writer banner and prepare or consume a Handoff instead of forcing a write |
 | Handoff is not verified | Required Evidence is missing, incomplete, skipped, or failed | Record and finalize the required verification checks |
-| UI asks for token | Auth-required mode is enabled | Enter `CHATCOCKPIT_API_TOKEN` in the browser session |
+| UI asks you to sign in | Web Owner authentication is enabled | Run `node dist/cli/index.js operator set-password` locally if needed, then sign in with the Owner account |
+| UI reports Owner setup required | No Web Owner password exists yet | Create it locally with `node dist/cli/index.js operator set-password`; do not paste the machine API token into the browser |
 | GPT schema import fails | Wrong public URL or no HTTPS path | Use GPT Helper and [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |

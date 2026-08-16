@@ -346,7 +346,18 @@ async function runE2E(): Promise<void> {
     assert.equal(/\/api\/setup\/status:[\s\S]*SetupStatusResponse/.test(openapiText), true);
     assertOpenApiDescriptionLimit(openapiText);
 
-    const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`);
+    const anonymousSetupStatus = await fetch(
+      `http://127.0.0.1:${port}/api/setup/status`
+    );
+    assert.equal(
+      anonymousSetupStatus.status,
+      401,
+      "exposed setup details must not remain anonymously readable"
+    );
+
+    const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`, {
+      headers: { Authorization: "Bearer test-token" }
+    });
     assert.equal(setupStatus.status, 200);
     const setupStatusBody = await setupStatus.json();
     assert.equal(setupStatusBody.ok, true);

@@ -17,10 +17,13 @@
 
 ```bash
 npm run setup
+node dist/cli/index.js operator set-password
 npm run start:local
 npm run mvp:status
 npm run doctor:runtime
 ```
+
+`operator set-password` 用于在本机创建 Web Owner 账户，密码通过隐藏输入的终端提示录入。它与 `CHATCOCKPIT_API_TOKEN` 完全分离：前者是人类 Web 登录凭据，后者仍属于机器/API authority。
 
 打开本地控制台：
 
@@ -30,13 +33,15 @@ http://127.0.0.1:4318/ui
 
 成功状态：
 
-- `/ui` 可以打开，并显示 Setup Wizard 或 Dashboard。
+- `/ui` 可以打开 Owner 登录界面，登录后显示 Setup Wizard 或 Dashboard。
 - `/ui/continuity/projects` 可以打开 Continuity Workbench。
 - `npm run doctor:runtime` 能访问本地 Health。
 - GPT Helper 能显示 GPT 指令、OpenAPI URL、Schema 导入 URL。
 - Chat Direct 可以完成一次不启动 Codex Turn 的安全只读操作。
 - Codex Session 可以先 Bind/Resume/Fork Thread，再通过独立操作显式启动 Turn。
 - Jobs 页面可以查看异步任务状态。
+
+Web Cockpit 不会把 `CHATCOCKPIT_API_TOKEN` 写入浏览器存储。登录成功后由服务端签发 opaque HttpOnly Session Cookie，写操作还受 Session-bound CSRF 保护。
 
 ## 3. 本地模式与 GPT Actions 模式
 
@@ -108,7 +113,9 @@ Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.
 | --- | --- | --- |
 | UI 能打开，但 GPT Actions 访问失败 | GPT 不能访问 `127.0.0.1` | 配置 HTTPS 入口或内网穿透 |
 | GPT Builder 导入 schema 失败 | URL 不是公网 HTTPS，或 `/openapi.yaml` 不可达 | 先在浏览器访问 `https://你的域名/openapi.yaml` |
-| 调用 Actions 返回 401 | Bearer token 不一致 | 检查 GPT Builder Authentication 和 `CHATCOCKPIT_API_TOKEN` |
+| Web UI 提示需要登录 | Web Owner Session 不存在或已过期 | 使用 Owner 账户重新登录；不要把机器 API Token 填进网页登录框 |
+| Web UI 提示尚未创建 Owner | 尚未设置 Web Owner 密码 | 在本机运行 `node dist/cli/index.js operator set-password` 后再登录 |
+| 调用 Actions 返回 401 | Custom GPT Actions 兼容路径的 Bearer token 不一致 | 检查 GPT Builder Authentication 和 `CHATCOCKPIT_API_TOKEN` |
 | Codex job 一直 queued | Runner 未运行 | 执行 `npm run start:local` 和 `npm run doctor:runtime` |
 | Continuity 页面没有项目 | 尚未配置有效 Repo Mapping | 重新运行 Setup/Init，并检查本地 ChatCockpit 配置 |
 | Workspace 显示只读 | 另一个 Session 持有 Writer Lease | 查看 Writer Banner，通过 Handoff 接力，不要强行并发写入 |

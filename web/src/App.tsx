@@ -14,18 +14,25 @@ import {
   controlJob,
   fetchGptConfig,
   fetchHealth,
+  fetchOperatorSession,
+  fetchOperatorStatus,
   fetchJob,
   fetchJobArtifactContent,
   fetchJobArtifacts,
   fetchJobs,
   fetchSetupStatus,
-  terminateAllJobs
+  loginOperator,
+  logoutOperator,
+  setOperatorCsrfToken,
+  terminateAllJobs,
+  type OperatorSessionResponse
 } from "./api";
 import chatCockpitLogo from "./assets/chatcockpit-logo.svg";
 import { DashboardView } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
-import { TokenBar } from "./components/TokenBar";
+import { OperatorLoginView } from "./components/OperatorLoginView";
+import { OperatorSetupRequiredView } from "./components/OperatorSetupRequiredView";
 import type {
   ArtifactPreviewState,
   ContinuitySectionKey,
@@ -46,27 +53,8 @@ import { themeLabels } from "./theme";
 import { getResourceCenterCopy } from "./i18n/resources";
 import type { ApiProblem } from "./types";
 
-const SESSION_TOKEN_KEY = "chatcockpit:web:bearer-token";
-const LEGACY_SESSION_TOKEN_KEY = "tokenpilot:web:bearer-token";
+type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
 
-function readSessionToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const current = sessionStorage.getItem(SESSION_TOKEN_KEY);
-  if (current !== null) {
-    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
-    return current;
-  }
-
-  const legacy = sessionStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
-  if (legacy !== null) {
-    sessionStorage.setItem(SESSION_TOKEN_KEY, legacy);
-    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
-  }
-  return legacy;
-}
 const JobsView = lazy(() =>
   import("./components/JobsView").then((module) => ({ default: module.JobsView }))
 );
@@ -184,7 +172,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [activeView, setActiveView] = useState<ViewKey>(() => parseRoute().view);
   const [activeContinuitySection, setActiveContinuitySection] =
     useState<ContinuitySectionKey>(() => parseRoute().continuitySection);
-  const [token, setToken] = useState<string | null>(readSessionToken);
+  const [operatorAuthState, setOperatorAuthState] = useState<OperatorAuthState>("loading");
+  const [operatorSession, setOperatorSession] = useState<OperatorSessionResponse | null>(null);
+  const [operatorAuthError, setOperatorAuthError] = useState<string | null>(null);
+  const [operatorLoginLoading, setOperatorLoginLoading] = useState(false);
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -204,10 +195,18 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [controlMessage, setControlMessage] = useState<string | null>(null);
   const copy = getUiCopy(locale);
   const resourceCopy = getResourceCenterCopy(locale);
+  // Transitional non-secret marker for legacy view props. api.ts never transmits it.
+  const token = operatorSession ? "operator-session" : null;
 
   useEffect(() => {
-    void loadHealth();
+    void bootstrapOperatorAuth();
   }, []);
+
+  useEffect(() => {
+    if (operatorAuthState === "authenticated") {
+      void loadHealth();
+    }
+  }, [operatorAuthState]);
 
   useEffect(() => {
     function onPopState() {
@@ -222,10 +221,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   }, []);
 
   useEffect(() => {
-    if (!healthLoading) {
+    if (operatorAuthState === "authenticated" && !healthLoading) {
       void loadJobs(token, health.authRequired, activeView === "jobs");
     }
-  }, [healthLoading, token, locale, health.authRequired]);
+  }, [operatorAuthState, healthLoading, token, locale, health.authRequired]);
 
   useEffect(() => {
     if (activeView === "jobs" && selectedJobId) {
@@ -246,11 +245,76 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     }
     if (typeof error === "object" && error !== null && "message" in error) {
       const apiProblem = error as ApiProblem;
+      if (apiProblem.status === 401 && operatorAuthState === "authenticated") {
+        setOperatorSession(null);
+        setOperatorCsrfToken(null);
+        setOperatorAuthState("login-required");
+        setOperatorAuthError(copy.operatorAuth.sessionExpired);
+      }
       return typeof apiProblem.message === "string"
         ? apiProblem.message
         : String(apiProblem.message ?? error);
     }
     return String(error);
+  }
+
+  async function bootstrapOperatorAuth() {
+    setOperatorAuthError(null);
+    try {
+      const status = await fetchOperatorStatus();
+      if (!status.configured) {
+        setOperatorSession(null);
+        setOperatorCsrfToken(null);
+        setOperatorAuthState("setup-required");
+        return;
+      }
+      try {
+        const session = await fetchOperatorSession();
+        setOperatorSession(session);
+        setOperatorAuthState("authenticated");
+      } catch (error) {
+        const problem = error as ApiProblem;
+        setOperatorSession(null);
+        setOperatorCsrfToken(null);
+        setOperatorAuthState("login-required");
+        if (problem?.status !== 401) {
+          setOperatorAuthError(getErrorMessage(error));
+        }
+      }
+    } catch (error) {
+      setOperatorSession(null);
+      setOperatorCsrfToken(null);
+      setOperatorAuthState("login-required");
+      setOperatorAuthError(getErrorMessage(error));
+    }
+  }
+
+  async function signInOperator(input: { username: string; password: string }) {
+    setOperatorLoginLoading(true);
+    setOperatorAuthError(null);
+    try {
+      const session = await loginOperator(input);
+      setOperatorSession(session);
+      setOperatorAuthState("authenticated");
+    } catch (error) {
+      setOperatorAuthError(getErrorMessage(error));
+    } finally {
+      setOperatorLoginLoading(false);
+    }
+  }
+
+  async function signOutOperator() {
+    try {
+      await logoutOperator();
+      setOperatorSession(null);
+      setOperatorAuthState("login-required");
+      setHealth(INITIAL_HEALTH);
+      setJobs([]);
+      setGptConfig(null);
+      setSetupStatus(null);
+    } catch (error) {
+      setOperatorAuthError(getErrorMessage(error));
+    }
   }
 
   async function loadHealth() {
@@ -428,22 +492,6 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     }
   }
 
-  function saveToken(nextToken: string) {
-    const normalized = nextToken.trim();
-    if (!normalized) {
-      return;
-    }
-    sessionStorage.setItem(SESSION_TOKEN_KEY, normalized);
-    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
-    setToken(normalized);
-  }
-
-  function clearToken() {
-    sessionStorage.removeItem(SESSION_TOKEN_KEY);
-    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
-    setToken(null);
-  }
-
   function updateLocale(nextLocale: LocaleCode) {
     persistLocale(nextLocale);
     setLocale(nextLocale);
@@ -532,6 +580,44 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const headerVersionText = headerSchemaVersion
     ? `${headerProductVersion} (${headerSchemaVersion})`
     : headerProductVersion;
+
+  if (operatorAuthState === "loading") {
+    return (
+      <div className="app-shell">
+        <StateNotice
+          kind="loading"
+          title={copy.operatorAuth.loadingTitle}
+          description={copy.operatorAuth.loadingDescription}
+          retryLabel={copy.common.retry}
+        />
+      </div>
+    );
+  }
+
+  if (operatorAuthState === "setup-required") {
+    return (
+      <div className="app-shell">
+        <OperatorSetupRequiredView
+          locale={locale}
+          checking={false}
+          onRefresh={() => void bootstrapOperatorAuth()}
+        />
+      </div>
+    );
+  }
+
+  if (operatorAuthState === "login-required") {
+    return (
+      <div className="app-shell">
+        <OperatorLoginView
+          locale={locale}
+          loading={operatorLoginLoading}
+          error={operatorAuthError}
+          onSubmit={signInOperator}
+        />
+      </div>
+    );
+  }
 
   if (healthLoading) {
     return (
@@ -630,19 +716,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 />
               </div>
               <div className="app-toolbar__group app-toolbar__group--action">
-                <TokenBar
-                  locale={locale}
-                  authRequired={health.authRequired}
-                  token={token}
-                  onSave={(value) => {
-                    saveToken(value);
-                    void loadJobs(value, health.authRequired, activeView === "jobs");
-                  }}
-                  onClear={() => {
-                    clearToken();
-                    void loadJobs(null, health.authRequired, activeView === "jobs");
-                  }}
-                />
+                <Text type="secondary" className="operator-session-label">
+                  {copy.operatorAuth.signedInAs}: {operatorSession?.username ?? "owner"}
+                </Text>
+                <Button onClick={() => void signOutOperator()}>
+                  {copy.operatorAuth.signOut}
+                </Button>
                 <Tooltip title={copy.header.refreshTooltip}>
                   <Button
                     icon={<ReloadOutlined />}
