@@ -70,7 +70,7 @@ When Developer Mode LaunchAgents are active, Packaged Mode must not silently tak
 
 1. Keep Developer Mode services running.
 2. Switch Settings to **Packaged Mode**.
-3. Click **Choose Workspace…** and select a real project directory.
+3. Click **Choose Primary Workspace…** and select a real project directory.
 4. Refresh / Revalidate.
 5. Confirm **Runtime Conflict** reports that Developer Mode already owns the ChatCockpit service identity.
 
@@ -101,12 +101,15 @@ Verify the Source services are stopped before continuing.
 
 1. Launch `ChatCockpit.app`.
 2. Settings → **Packaged Mode**.
-3. **Choose Workspace…** and select a test project.
-4. Allow the app to validate/deploy the bundled Runtime Payload.
-5. Click **Start Services**.
-6. Wait for **Ready**.
-7. Click **Open Local Cockpit**. If a public origin is configured and exposed, test **Open Public Cockpit** separately.
-8. Verify Web UI, health, Workspace mapping, and basic read-only operations.
+3. **Choose Primary Workspace…** and select a test project.
+4. In **Workspaces**, add a second test project. Verify both directories have stable repo IDs and exactly one carries the **Primary** badge.
+5. Make the second project Primary and verify the app says Runtime lifecycle was not changed; then restore the intended Primary project.
+6. Remove the non-primary workspace and verify the confirmation explains that only the ChatCockpit mapping is removed, project files are not deleted, and Runtime is not restarted.
+7. Allow the app to validate/deploy the bundled Runtime Payload.
+8. Click **Start Services**.
+9. Wait for **Ready**.
+10. Click the **Local Cockpit** URL in the Runtime section. If a public origin is configured and exposed, test the **Public Cockpit** URL separately.
+11. Verify Web UI, health, multi-workspace mappings, and basic read-only operations.
 
 Packaged Mode uses separate roots:
 
@@ -116,7 +119,7 @@ Packaged Mode uses separate roots:
 ~/Library/Application Support/ChatCockpit/config/
 ```
 
-The deployed Runtime is never treated as the user Workspace.
+The deployed Runtime is never treated as a user Workspace. The workspace set is canonically stored in `config/config.json` through the existing `defaultRepoId + workspaceAllowlist + repoMappings` model; Desktop does not create a second workspace database, and macOS preferences only cache the current Primary selection.
 
 ## 4. Import Existing Setup
 
@@ -134,7 +137,7 @@ Import can carry safe Workspace mappings and non-secret local settings. It does 
 - Process Supervisor tokens;
 - provider credentials or cookies.
 
-If Source Setup is exposed, the imported Packaged Setup returns safely to Local only until credentials are explicitly configured again.
+If Source Setup is exposed, the imported Packaged Setup returns safely to Local only until the packaged public origin and local authority state are explicitly reviewed. A machine API token remains optional for CLI/automation clients and is not a prerequisite for the Web Cockpit or ChatGPT OAuth.
 
 ## 5. Stop / restore Developer Mode
 

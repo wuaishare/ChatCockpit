@@ -15,7 +15,7 @@ Packaged Mode is the normal self-contained desktop path:
 - first use deploys the embedded payload into a versioned runtime under `~/Library/Application Support/ChatCockpit/runtimes/`;
 - writable ChatCockpit state lives separately under `~/Library/Application Support/ChatCockpit/state/`;
 - local private configuration lives under `~/Library/Application Support/ChatCockpit/config/`;
-- the operator selects the real project workspace ChatCockpit should operate on;
+- the operator selects one **Primary Workspace** for Packaged Mode bootstrap and may authorize additional project workspaces with stable repository IDs;
 - the runtime directory is never treated as the user workspace;
 - starting ChatCockpit does not require a system `node` or `npm` executable;
 - running the packaged app does not require a ChatCockpit source checkout.
@@ -52,10 +52,11 @@ ChatCockpit.app
 ├── state/                                      writable local runtime state
 └── config/                                     local private configuration
 
-<operator-selected project>/                    real ChatCockpit workspace
+<primary project>/                              primary ChatCockpit workspace
+<additional authorized projects>/               optional additional workspaces
 ```
 
-The deployed runtime and Application Support state are not automatically added to the workspace allowlist.
+The deployed runtime and Application Support state are not automatically added to the workspace allowlist. Packaged workspace governance is persisted in the existing private `config/config.json` using `defaultRepoId`, `workspaceAllowlist`, and `repoMappings`; Desktop does not create a second workspace registry.
 
 ## Bundled Node supply-chain contract
 
@@ -118,11 +119,13 @@ Open the locally built app:
 open dist/macos/ChatCockpit.app
 ```
 
-When a valid embedded runtime payload is present, Packaged Mode is available. Choose the project directory ChatCockpit should operate on.
+When a valid embedded runtime payload is present, Packaged Mode is available. Choose the **Primary Workspace**, which is the default project used to bootstrap Packaged Mode. Settings then exposes a **Workspaces** manager where additional project directories can be authorized, promoted to Primary, or removed from ChatCockpit without deleting project files.
+
+Each authorized workspace has a stable local `repoId`. Exactly one mapping is primary at a time; additional mappings remain available to ChatCockpit operations. Adding/removing workspaces never starts, stops, or restarts Runtime automatically. Changing Primary updates canonical configuration immediately, while already-running services adopt the new bootstrap workspace only after an explicit restart.
 
 The app then verifies and atomically deploys the embedded runtime into Application Support. A failed or corrupt new deployment does not replace a previously valid deployed runtime.
 
-The selected workspace is stored only in local macOS preferences and private ChatCockpit configuration. Machine-specific paths are not committed to the public repository.
+Workspace mappings are stored in private ChatCockpit configuration; macOS preferences only remember the current Primary selection as a local UX cache. Machine-specific paths are not committed to the public repository.
 
 For a reproducible real-user launch, Developer Mode check, Packaged Mode conflict guard, and standalone Packaged Runtime test, see [`../testing/macos-desktop-smoke.md`](../testing/macos-desktop-smoke.md).
 
@@ -140,7 +143,7 @@ The import flow is deliberately non-destructive:
 - Process Supervisor tokens are not migrated;
 - provider credentials and cookies are not migrated.
 
-If the source setup was in exposed mode, the imported packaged setup is reset to **Local only** because its bearer credential is intentionally not copied. Configure new packaged credentials explicitly before enabling exposed mode again.
+If the source setup was in exposed mode, the imported packaged setup is reset to **Local only** so public exposure is re-enabled intentionally after reviewing the new packaged public origin and local authority state. Machine API bearer credentials remain optional and are not required for Web Operator sessions or ChatGPT OAuth.
 
 ## Runtime conflict protection
 

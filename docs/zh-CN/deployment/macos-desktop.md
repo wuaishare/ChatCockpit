@@ -15,7 +15,7 @@ Packaged Mode 是普通桌面使用场景的 Self-contained 路径：
 - 首次使用时把内嵌 Payload 部署到 `~/Library/Application Support/ChatCockpit/runtimes/` 下的版本化 Runtime；
 - 可写 ChatCockpit 状态独立放在 `~/Library/Application Support/ChatCockpit/state/`；
 - 本机私有配置独立放在 `~/Library/Application Support/ChatCockpit/config/`；
-- 用户选择 ChatCockpit 真正要操作的项目 Workspace；
+- 用户选择一个 **主工作区** 作为 Packaged Mode 默认启动项目，并可继续授权多个带稳定 repo ID 的项目工作区；
 - Runtime 目录不会冒充用户 Workspace；
 - 启动 ChatCockpit 不要求系统安装 `node` 或 `npm`；
 - Packaged App 运行时不要求存在 ChatCockpit 源码 checkout。
@@ -52,10 +52,11 @@ ChatCockpit.app
 ├── state/                                      可写本机 Runtime State
 └── config/                                     本机私有配置
 
-<用户选择的项目>/                               ChatCockpit 真正操作的 Workspace
+<主项目>/                                       ChatCockpit 主工作区
+<其他已授权项目>/                               可选的额外工作区
 ```
 
-部署后的 Runtime 与 Application Support State 不会自动加入 Workspace allowlist。
+部署后的 Runtime 与 Application Support State 不会自动加入 Workspace allowlist。Packaged 工作区治理继续使用私有 `config/config.json` 中现有的 `defaultRepoId + workspaceAllowlist + repoMappings`，Desktop 不会另建第二套工作区数据库。
 
 ## Bundled Node 供应链合同
 
@@ -118,11 +119,13 @@ notarization: not performed
 open dist/macos/ChatCockpit.app
 ```
 
-只要 App 中存在合法的 Runtime Payload，Packaged Mode 就可用。用户只需要选择 ChatCockpit 真正要操作的项目目录。
+只要 App 中存在合法的 Runtime Payload，Packaged Mode 就可用。首次先选择 **主工作区**，它是 Packaged Mode 默认启动的项目。随后 Settings 的 **工作区** 管理器可继续添加其他项目目录、将任一可用工作区设为主工作区，或移除非主工作区的 ChatCockpit 映射，而不会删除项目文件。
+
+每个已授权工作区都有稳定的本地 `repoId`，同时始终只有一个 mapping 是主工作区。添加/移除工作区绝不会自动启动、停止或重启 Runtime；切换主工作区会立即更新 canonical 配置，但当前已经运行的服务只会在用户下一次显式 Restart 后采用新的 bootstrap workspace。
 
 App 会校验内嵌 Runtime，并通过 staging → verify → atomic promote 的方式部署到 Application Support。新的 Payload 如果损坏或部署失败，不会覆盖此前已经有效的 Runtime。
 
-所选 Workspace 只存于本机 macOS 用户偏好与 ChatCockpit 私有配置中，不会把机器绝对路径提交到公共仓库。
+工作区集合以 ChatCockpit 私有配置为 canonical 真源；macOS 用户偏好只缓存当前主工作区选择。机器绝对路径不会提交到公共仓库。
 
 真实启动、Developer Mode、Packaged Mode conflict guard 与 standalone Packaged Runtime 的可重复验收步骤见 [`../testing/macos-desktop-smoke.md`](../testing/macos-desktop-smoke.md)。
 
@@ -140,7 +143,7 @@ Packaged Mode 提供显式 **Import Existing Setup…** 操作。
 - 不迁移 Process Supervisor token；
 - 不迁移 provider credential 或 cookie。
 
-如果原 Source Setup 开启了 exposed mode，由于 bearer credential 明确不复制，导入后的 Packaged Setup 会安全恢复为 **Local only**。只有重新显式配置 Packaged credential 后，才应该重新打开 exposed mode。
+如果原 Source Setup 开启了 exposed mode，导入后的 Packaged Setup 会安全恢复为 **Local only**，待用户重新显式确认公网地址与本机权限状态后再开启公网模式。机器 API bearer 仍然只是 CLI/自动化等机器客户端的可选凭据，并不是控制台管理员会话或 ChatGPT OAuth 的前置条件。
 
 ## Runtime 冲突保护
 

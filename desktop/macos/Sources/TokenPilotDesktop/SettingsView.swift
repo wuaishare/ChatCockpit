@@ -72,30 +72,79 @@ struct SettingsView: View {
             }
 
             if model.distributionMode == .packaged {
-                Section(DesktopL10n.string("Primary Workspace")) {
-                    LabeledContent(DesktopL10n.string("Primary project")) {
-                        Text(model.selectedWorkspaceDisplayPath)
-                            .textSelection(.enabled)
-                            .foregroundStyle(model.selectedWorkspaceURL == nil ? .secondary : .primary)
+                Section(DesktopL10n.string("Workspaces")) {
+                    if model.packagedWorkspaces.isEmpty {
+                        LabeledContent(DesktopL10n.string("Primary Workspace")) {
+                            Text(DesktopL10n.string("Not selected"))
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ForEach(model.packagedWorkspaces) { workspace in
+                            VStack(alignment: .leading, spacing: 7) {
+                                HStack(spacing: 8) {
+                                    Text(verbatim: workspace.repoID)
+                                        .font(.system(.body, design: .monospaced))
+                                    if workspace.isPrimary {
+                                        Text(DesktopL10n.string("Primary"))
+                                            .font(.caption2.weight(.semibold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary, in: Capsule())
+                                    }
+                                    if !workspace.isAvailable {
+                                        Label(DesktopL10n.string("Unavailable"), systemImage: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+
+                                Text((workspace.url.path as NSString).abbreviatingWithTildeInPath)
+                                    .font(.caption)
+                                    .foregroundStyle(workspace.isAvailable ? .secondary : .tertiary)
+                                    .textSelection(.enabled)
+                                    .lineLimit(2)
+
+                                if !workspace.isPrimary {
+                                    HStack(spacing: 8) {
+                                        Button(DesktopL10n.string("Make Primary")) {
+                                            Task { await model.makeWorkspacePrimary(workspace.repoID) }
+                                        }
+                                        .disabled(!workspace.isAvailable || model.isRefreshing)
+
+                                        Button(DesktopL10n.string("Remove"), role: .destructive) {
+                                            model.confirmAndRemoveWorkspace(workspace)
+                                        }
+                                        .disabled(model.isRefreshing)
+                                    }
+                                    .controlSize(.small)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
 
                     HStack {
-                        Button(DesktopL10n.string("Choose Workspace…")) {
-                            model.chooseWorkspaceFromPanel()
+                        Button(
+                            model.packagedWorkspaces.isEmpty
+                                ? DesktopL10n.string("Choose Primary Workspace…")
+                                : DesktopL10n.string("Add Workspace…")
+                        ) {
+                            if model.packagedWorkspaces.isEmpty {
+                                model.chooseWorkspaceFromPanel()
+                            } else {
+                                model.addWorkspaceFromPanel()
+                            }
                         }
-                        Button(DesktopL10n.string("Revalidate")) {
+                        Button(DesktopL10n.string("Refresh Workspaces")) {
                             Task { await model.refresh() }
                         }
-                        .disabled(model.selectedWorkspaceURL == nil || model.isRefreshing)
-                        Button(DesktopL10n.string("Forget"), role: .destructive) {
-                            model.clearWorkspace()
-                        }
-                        .disabled(model.selectedWorkspaceURL == nil)
+                        .disabled(model.isRefreshing)
                     }
 
                     Text(
                         DesktopL10n.string(
-                            "The primary workspace is the default project used to bootstrap Packaged Mode. ChatCockpit supports additional workspace mappings; the packaged runtime and Application Support state remain separate from every project workspace."
+                            "The primary workspace is the default project used to bootstrap Packaged Mode. Additional authorized workspaces keep stable repository IDs. Adding, removing, or changing the primary workspace never starts, stops, or restarts the Runtime automatically."
                         )
                     )
                         .font(.caption)
