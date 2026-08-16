@@ -219,13 +219,15 @@ The local default remains:
 http://127.0.0.1:4318/ui
 ```
 
-The desktop app does not embed or reimplement the full Cockpit.
+The desktop app does not embed or reimplement the full Cockpit. Runtime URLs in the Status view are native links with a pointing-hand hover cursor, keyboard focus, and VoiceOver labels/hints; Security & Access also exposes copyable Local/Public API and MCP addresses for machine clients.
 
 ## Security boundary
 
 The native shell keeps the existing ChatCockpit security model authoritative:
 
-- bearer-token values are never displayed;
+- the machine API token is masked by default; explicit reveal is memory-only and temporary, while copy is user-initiated and clipboard-cleared when safe;
+- Security & Access shows the current Local/Public API base and MCP endpoint separately from the token, with explicit copy controls;
+- opening **Local Cockpit** from the App can use a 45-second single-use loopback login grant to create the normal HttpOnly Owner session without typing the password; this route rejects proxied and non-loopback requests and does not weaken public authentication;
 - import does not copy secrets from a source setup;
 - the shell does not create a second OAuth implementation;
 - it does not bypass approval or mutation policy;

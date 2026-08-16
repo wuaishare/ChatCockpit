@@ -24,6 +24,7 @@ import {
   fetchSetupStatus,
   loginOperator,
   logoutOperator,
+  redeemLocalLoginGrant,
   setOperatorCsrfToken,
   terminateAllJobs,
   type OperatorSessionResponse
@@ -87,6 +88,19 @@ function continueOAuthApprovalIfRequested(): boolean {
   if (!returnTo || typeof window === "undefined") return false;
   window.location.assign(returnTo);
   return true;
+}
+
+function readAndClearLocalLoginGrant(): string | null {
+  if (typeof window === "undefined" || !window.location.hash) return null;
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const grant = params.get("local-login");
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}`
+  );
+  if (!grant || !/^cc_local_login_[A-Za-z0-9_-]{43}$/.test(grant)) return null;
+  return grant;
 }
 
 const JobsView = lazy(() =>
@@ -302,6 +316,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
   async function bootstrapOperatorAuth() {
     setOperatorAuthError(null);
+    const localLoginGrant = readAndClearLocalLoginGrant();
     try {
       const status = await fetchOperatorStatus();
       setOperatorDesktopSetupAvailable(status.desktopSetupAvailable);
@@ -310,6 +325,18 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setOperatorCsrfToken(null);
         setOperatorAuthState("setup-required");
         return;
+      }
+      if (localLoginGrant) {
+        try {
+          const session = await redeemLocalLoginGrant(localLoginGrant);
+          setOperatorSession(session);
+          if (!continueOAuthApprovalIfRequested()) {
+            setOperatorAuthState("authenticated");
+          }
+          return;
+        } catch {
+          setOperatorAuthError(copy.operatorAuth.localUnlockFailed);
+        }
       }
       try {
         const session = await fetchOperatorSession();
@@ -322,7 +349,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setOperatorSession(null);
         setOperatorCsrfToken(null);
         setOperatorAuthState("login-required");
-        if (problem?.status !== 401) {
+        if (problem?.status !== 401 && !localLoginGrant) {
           setOperatorAuthError(getErrorMessage(error));
         }
       }

@@ -22,7 +22,8 @@ const OAUTH_PUBLIC_PATHS = new Set([
 
 const OPERATOR_PUBLIC_PATHS = new Set([
   "/api/operator/status",
-  "/api/operator/login"
+  "/api/operator/login",
+  "/api/operator/local-login"
 ]);
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

@@ -100,20 +100,36 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
         context?.mode
     }
 
-    public var localCockpitURL: URL? {
-        guard uiReachable else { return nil }
+    public var localApiBaseURL: URL? {
+        guard healthReachable else { return nil }
         var components = URLComponents()
         components.scheme = "http"
         components.host = "127.0.0.1"
         components.port = configuration.port
-        components.path = "/ui"
         return components.url
     }
 
-    public var publicCockpitURL: URL? {
+    public var localMcpURL: URL? {
+        localApiBaseURL?.appendingPathComponent("mcp", isDirectory: false)
+    }
+
+    public var localCockpitURL: URL? {
+        guard uiReachable, let baseURL = localApiBaseURL else { return nil }
+        return baseURL.appendingPathComponent("ui", isDirectory: false)
+    }
+
+    public var publicApiBaseURL: URL? {
         guard configuration.exposed,
               let publicBaseURL = configuration.publicBaseURL else { return nil }
-        return publicBaseURL.appendingPathComponent("ui", isDirectory: false)
+        return publicBaseURL
+    }
+
+    public var publicMcpURL: URL? {
+        publicApiBaseURL?.appendingPathComponent("mcp", isDirectory: false)
+    }
+
+    public var publicCockpitURL: URL? {
+        publicApiBaseURL?.appendingPathComponent("ui", isDirectory: false)
     }
 
     public var cockpitURL: URL? {

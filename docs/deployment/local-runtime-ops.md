@@ -96,13 +96,15 @@ http://127.0.0.1:4318/ui
 
 The browser signs in as the Owner and receives an opaque HttpOnly session cookie. State-changing Web requests also require the session-bound CSRF token; neither the raw Web session secret nor the machine API token is stored in browser persistence. `localStorage` is used only for non-sensitive UI preferences such as the selected language.
 
+When the macOS App opens **Local Cockpit** and an Owner is already configured, Desktop creates a 45-second, single-use local login grant through the local CLI. The browser receives that grant only in the URL fragment, removes it immediately, and redeems it over the direct loopback-only `/api/operator/local-login` route for the same ordinary HttpOnly Owner session. This is a convenience unlock, not a blanket localhost authentication bypass: proxied/forwarded requests and non-loopback hosts cannot use the redemption route, and public Cockpit access continues to require its normal authentication.
+
 Current boundary:
 
 - Dashboard and Jobs inspect public-safe health, process, Job, and Artifact state
 - Continuity Workbench reads real Project/Workspace/Writer/Git/Task/Session/Handoff/Evidence/Approval state
 - ready Handoffs can be accepted, forked, or cancelled; new Handoffs can be prepared from an eligible source Session
 - `/ui/integrations` is the primary integration surface for ChatGPT App / MCP, Local/Public entrypoints, API/OpenAPI, and compatibility-only Custom GPT Actions; legacy `/ui/gpt-helper` redirects there
-- protected Web data requires an authenticated Owner session; machine Bearer credentials remain for API/automation compatibility clients, not human Web login
+- protected Web data requires an authenticated Owner session; the macOS App may bootstrap that same session with a short-lived single-use loopback grant, while machine Bearer credentials remain for API/automation compatibility clients, not human Web login
 - the Web UI is a single-Owner operator console, not a public multi-tenant management service
 
 ## Local Artifact Retention

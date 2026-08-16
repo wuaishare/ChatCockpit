@@ -6,6 +6,7 @@ import {
 } from "./operator-password.js";
 import {
   OperatorStore,
+  hashOperatorLocalLoginSecret,
   hashOperatorSessionSecret,
   type OperatorPrincipalRecord,
   type OperatorSessionRecord
@@ -14,6 +15,7 @@ import {
 const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
 const SESSION_ABSOLUTE_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
+const LOCAL_LOGIN_GRANT_TTL_MS = 45 * 1000;
 const LOGIN_FREE_FAILURES = 5;
 const LOGIN_BACKOFF_BASE_MS = 5 * 1000;
 const LOGIN_BACKOFF_MAX_MS = 15 * 60 * 1000;
@@ -137,6 +139,110 @@ export class OperatorService {
 
   sourceHash(source: string): string {
     return digestMetadata(source || "unknown");
+  }
+
+  private issueSession(input: {
+    owner: OperatorPrincipalRecord;
+    source: string;
+    userAgent?: string;
+    eventType: "operator.login.succeeded" | "operator.local_login.succeeded";
+  }): OperatorSessionIssue {
+    const now = this.now();
+    const nowMs = now.getTime();
+    const nowIso = now.toISOString();
+    const sourceHash = this.sourceHash(input.source);
+    const userAgentHash = input.userAgent ? digestMetadata(input.userAgent) : null;
+    const sessionSecret = `cc_web_${randomBytes(32).toString("base64url")}`;
+    const csrfToken = randomBytes(32).toString("base64url");
+    const sessionId = randomUUID();
+    const idleExpiresAt = toIso(nowMs + SESSION_IDLE_MS);
+    const absoluteExpiresAt = toIso(nowMs + SESSION_ABSOLUTE_MS);
+    this.store.createSession({
+      id: sessionId,
+      principalId: input.owner.id,
+      secretHash: hashOperatorSessionSecret(sessionSecret),
+      csrfToken,
+      createdAt: nowIso,
+      lastSeenAt: nowIso,
+      idleExpiresAt,
+      absoluteExpiresAt,
+      sourceHash,
+      userAgentHash
+    });
+    this.store.recordAuditEvent({
+      eventType: input.eventType,
+      principalId: input.owner.id,
+      sourceHash,
+      userAgentHash,
+      createdAt: nowIso,
+      details: { sessionId }
+    });
+    return {
+      sessionId,
+      sessionSecret,
+      csrfToken,
+      principalId: input.owner.id,
+      username: input.owner.username,
+      role: input.owner.role,
+      createdAt: nowIso,
+      idleExpiresAt,
+      absoluteExpiresAt
+    };
+  }
+
+  createLocalLoginGrant(): { grantSecret: string; expiresAt: string } {
+    const owner = this.store.getOwner();
+    if (!owner) {
+      throw new OperatorAuthError(
+        "OPERATOR_SETUP_REQUIRED",
+        "Web Operator account has not been configured",
+        503
+      );
+    }
+    const now = this.now();
+    const nowIso = now.toISOString();
+    const expiresAt = toIso(now.getTime() + LOCAL_LOGIN_GRANT_TTL_MS);
+    const grantSecret = `cc_local_login_${randomBytes(32).toString("base64url")}`;
+    this.store.createLocalLoginGrant({
+      id: randomUUID(),
+      principalId: owner.id,
+      secretHash: hashOperatorLocalLoginSecret(grantSecret),
+      createdAt: nowIso,
+      expiresAt
+    });
+    this.store.recordAuditEvent({
+      eventType: "operator.local_login_grant.created",
+      principalId: owner.id,
+      createdAt: nowIso,
+      details: { expiresAt }
+    });
+    return { grantSecret, expiresAt };
+  }
+
+  redeemLocalLoginGrant(input: {
+    grantSecret: string;
+    source: string;
+    userAgent?: string;
+  }): OperatorSessionIssue {
+    const nowIso = this.now().toISOString();
+    const grant = this.store.consumeLocalLoginGrant(
+      hashOperatorLocalLoginSecret(input.grantSecret),
+      nowIso
+    );
+    const owner = this.store.getOwner();
+    if (!grant || !owner || grant.principalId !== owner.id) {
+      throw new OperatorAuthError(
+        "LOCAL_LOGIN_GRANT_INVALID",
+        "Local login grant is invalid or expired",
+        401
+      );
+    }
+    return this.issueSession({
+      owner,
+      source: input.source,
+      userAgent: input.userAgent,
+      eventType: "operator.local_login.succeeded"
+    });
   }
 
   async setOwnerPassword(input: {
@@ -368,11 +474,15 @@ export class OperatorService {
     const owner = this.store.getOwner();
     if (!owner) return 0;
     const revokedSessionCount = this.store.revokeSessionsForPrincipal(owner.id, nowIso);
+    const invalidatedLocalLoginGrantCount = this.store.invalidateLocalLoginGrants(
+      owner.id,
+      nowIso
+    );
     this.store.recordAuditEvent({
       eventType: "operator.sessions.revoked_all",
       principalId: owner.id,
       createdAt: nowIso,
-      details: { revokedSessionCount }
+      details: { revokedSessionCount, invalidatedLocalLoginGrantCount }
     });
     return revokedSessionCount;
   }

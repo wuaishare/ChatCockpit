@@ -226,13 +226,15 @@ http://<configured-host>:<configured-port>/ui
 http://127.0.0.1:4318/ui
 ```
 
-Desktop 不内嵌，也不重写完整 Cockpit。
+Desktop 不内嵌，也不重写完整 Cockpit。状态页中的本机/公网控制台地址使用原生可点击链接，鼠标悬浮显示手型指针，并支持键盘焦点与 VoiceOver 标签/提示；**安全与访问** 还会显示可复制的本机/公网 API 与 MCP 地址，供机器客户端使用。
 
 ## 安全边界
 
 原生壳层继续让现有 ChatCockpit 安全模型保持权威：
 
-- 不显示 bearer token 值；
+- 机器 API 令牌默认只显示指纹；只有用户明确操作时才会在内存中短时显示明文，复制操作也必须由用户主动触发并在安全条件下自动清理剪贴板；
+- **安全与访问** 会把本机/公网 API 基址和 MCP 端点与令牌分开显示，并提供明确的复制按钮；
+- 从 App 打开 **本机控制台** 时，可使用仅 45 秒有效且只能使用一次的 loopback 登录凭据换取现有 HttpOnly 管理员 Session，无需再次输入密码；该入口拒绝反向代理和非 loopback 请求，不降低公网认证强度；
 - Existing Setup Import 不复制 secret；
 - 不创建第二套 OAuth；
 - 不绕过 Approval 或 Mutation Policy；

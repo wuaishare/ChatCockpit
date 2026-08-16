@@ -61,6 +61,36 @@ async function main(): Promise<void> {
   assert.equal(authenticated?.username, "owner");
   assert.equal(authenticated?.csrfToken, issued.csrfToken);
 
+  const localGrant = service.createLocalLoginGrant();
+  assert.match(localGrant.grantSecret, /^cc_local_login_[A-Za-z0-9_-]{43}$/);
+  const localSession = service.redeemLocalLoginGrant({
+    grantSecret: localGrant.grantSecret,
+    source: "127.0.0.1",
+    userAgent: "ChatCockpit Local Browser"
+  });
+  assert.equal(service.authenticate(localSession.sessionSecret)?.username, "owner");
+  assert.throws(
+    () =>
+      service.redeemLocalLoginGrant({
+        grantSecret: localGrant.grantSecret,
+        source: "127.0.0.1"
+      }),
+    (error: unknown) =>
+      error instanceof OperatorAuthError && error.code === "LOCAL_LOGIN_GRANT_INVALID"
+  );
+  const expiringGrant = service.createLocalLoginGrant();
+  nowMs = Date.parse(expiringGrant.expiresAt) + 1;
+  assert.throws(
+    () =>
+      service.redeemLocalLoginGrant({
+        grantSecret: expiringGrant.grantSecret,
+        source: "127.0.0.1"
+      }),
+    (error: unknown) =>
+      error instanceof OperatorAuthError && error.code === "LOCAL_LOGIN_GRANT_INVALID"
+  );
+  nowMs = Date.parse("2026-08-16T03:00:00.000Z");
+
   const wrongUsername = await expectAuthError(
     () =>
       service.login({
@@ -165,9 +195,23 @@ async function main(): Promise<void> {
   nowMs = Date.parse(absolute.absoluteExpiresAt) + 1;
   assert.equal(service.authenticate(absolute.sessionSecret), null);
 
+  nowMs = Date.parse("2026-08-24T04:00:00.000Z");
+  const revokedGrant = service.createLocalLoginGrant();
+  service.revokeAllSessions();
+  assert.throws(
+    () =>
+      service.redeemLocalLoginGrant({
+        grantSecret: revokedGrant.grantSecret,
+        source: "127.0.0.1"
+      }),
+    (error: unknown) =>
+      error instanceof OperatorAuthError && error.code === "LOCAL_LOGIN_GRANT_INVALID"
+  );
+
   const auditJson = JSON.stringify(store.listAuditEvents(100));
   assert.equal(auditJson.includes("test-password-correct-horse-battery-staple"), false);
   assert.equal(auditJson.includes(issued.sessionSecret), false);
+  assert.equal(auditJson.includes(localGrant.grantSecret), false);
 
   store.close();
   process.stdout.write("OPERATOR_SERVICE_OK\n");

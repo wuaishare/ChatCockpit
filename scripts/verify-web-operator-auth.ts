@@ -199,6 +199,49 @@ async function main(): Promise<void> {
     });
     assert.equal(afterLogout.status, 401);
 
+    const localGrantStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+    const localGrantService = new OperatorService({ store: localGrantStore });
+    const localGrant = localGrantService.createLocalLoginGrant();
+    localGrantStore.close();
+    const localLogin = await fetch(`${server.baseUrl}/api/operator/local-login`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: server.baseUrl
+      },
+      body: JSON.stringify({ grant: localGrant.grantSecret })
+    });
+    assert.equal(localLogin.status, 200);
+    const localLoginCookie = cookiePair(localLogin);
+    assert.match(localLoginCookie, /^chatcockpit_operator_session=/);
+    const localProtected = await fetch(`${server.baseUrl}/api/jobs`, {
+      headers: { cookie: localLoginCookie }
+    });
+    assert.equal(localProtected.status, 200);
+    const reusedLocalGrant = await fetch(`${server.baseUrl}/api/operator/local-login`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: server.baseUrl
+      },
+      body: JSON.stringify({ grant: localGrant.grantSecret })
+    });
+    assert.equal(reusedLocalGrant.status, 401);
+
+    const crossOriginGrantStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+    const crossOriginGrantService = new OperatorService({ store: crossOriginGrantStore });
+    const crossOriginGrant = crossOriginGrantService.createLocalLoginGrant();
+    crossOriginGrantStore.close();
+    const crossOriginLogin = await fetch(`${server.baseUrl}/api/operator/local-login`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://attacker.example"
+      },
+      body: JSON.stringify({ grant: crossOriginGrant.grantSecret })
+    });
+    assert.equal(crossOriginLogin.status, 403);
+
     process.env.CHATCOCKPIT_EXPOSED = "true";
     process.env.CHATCOCKPIT_PUBLIC_BASE_URL = "https://chatcockpit.example.com";
     delete process.env.CHATCOCKPIT_API_TOKEN;
@@ -214,6 +257,37 @@ async function main(): Promise<void> {
         (publicStatus.json() as { desktopSetupAvailable: boolean }).desktopSetupAvailable,
         false,
         "Public-origin Operator status must not advertise a local Desktop setup launcher"
+      );
+
+      const publicLocalLogin = await publicApp.inject({
+        method: "POST",
+        url: "/api/operator/local-login",
+        headers: {
+          host: "chatcockpit.example.com",
+          "content-type": "application/json"
+        },
+        payload: { grant: "cc_local_login_not_public" }
+      });
+      assert.equal(
+        publicLocalLogin.statusCode,
+        404,
+        "Local login redemption must not exist on a public-origin request"
+      );
+      const forwardedLoopbackLogin = await publicApp.inject({
+        method: "POST",
+        url: "/api/operator/local-login",
+        headers: {
+          host: "127.0.0.1",
+          "x-forwarded-for": "203.0.113.10",
+          "x-forwarded-proto": "https",
+          "content-type": "application/json"
+        },
+        payload: { grant: "cc_local_login_not_public" }
+      });
+      assert.equal(
+        forwardedLoopbackLogin.statusCode,
+        404,
+        "Proxied requests must never qualify for the loopback-only local login route"
       );
 
       const publicLogin = await publicApp.inject({

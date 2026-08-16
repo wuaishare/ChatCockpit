@@ -161,6 +161,7 @@ export interface UiCopy {
     signOut: string;
     signedInAs: string;
     sessionExpired: string;
+    localUnlockFailed: string;
   };
   dashboard: {
     boundaryTitle: string;
@@ -388,7 +389,8 @@ const zhCN: UiCopy = {
     signingIn: "正在登录…",
     signOut: "退出登录",
     signedInAs: "已登录",
-    sessionExpired: "会话已过期，请重新登录。"
+    sessionExpired: "会话已过期，请重新登录。",
+    localUnlockFailed: "本机免密登录链接已失效，请从 ChatCockpit App 重新打开本机控制台。"
   },
   dashboard: {
     boundaryTitle: "当前阶段边界",
@@ -675,7 +677,8 @@ const enUS: UiCopy = {
     signingIn: "Signing in…",
     signOut: "Sign out",
     signedInAs: "Signed in",
-    sessionExpired: "Your session has expired. Sign in again."
+    sessionExpired: "Your session has expired. Sign in again.",
+    localUnlockFailed: "The local passwordless sign-in link expired. Open Local Cockpit again from the ChatCockpit App."
   },
   dashboard: {
     boundaryTitle: "Phase-2 boundary",

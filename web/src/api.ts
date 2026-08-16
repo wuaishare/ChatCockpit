@@ -124,6 +124,22 @@ export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
   return result;
 }
 
+export async function redeemLocalLoginGrant(grant: string): Promise<OperatorSessionResponse> {
+  const response = await fetch("/api/operator/local-login", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ grant })
+  });
+  if (!response.ok) throw await parseProblem(response);
+  const result = (await response.json()) as OperatorSessionResponse;
+  setOperatorCsrfToken(result.csrfToken);
+  return result;
+}
+
 export async function loginOperator(input: {
   username: string;
   password: string;

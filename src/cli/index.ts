@@ -48,6 +48,7 @@ Usage:
   ${identity.cliName} job --id "<job-id>"
   ${identity.cliName} operator status [--json]
   ${identity.cliName} operator set-password [--username owner] [--password-stdin] [--json]
+  ${identity.cliName} operator local-login-grant [--json]
   ${identity.cliName} operator revoke-sessions [--json]
   ${identity.cliName} machine-token status [--json]
   ${identity.cliName} machine-token show [--json]
@@ -364,6 +365,16 @@ async function main(): Promise<void> {
             }
             return;
           }
+          case "local-login-grant": {
+            const result = service.createLocalLoginGrant();
+            if (process.argv.includes("--json")) {
+              printJson(result);
+            } else {
+              process.stdout.write("Local Web login grant created\n");
+              process.stdout.write(`Expires: ${result.expiresAt}\n`);
+            }
+            return;
+          }
           case "revoke-sessions": {
             const revokedSessionCount = service.revokeAllSessions();
             const result = { revokedSessionCount };
@@ -376,7 +387,7 @@ async function main(): Promise<void> {
           }
           default:
             throw new Error(
-              "operator requires one of: status, set-password, revoke-sessions"
+              "operator requires one of: status, set-password, local-login-grant, revoke-sessions"
             );
         }
       } finally {
