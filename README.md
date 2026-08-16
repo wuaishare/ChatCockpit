@@ -170,7 +170,7 @@ ChatGPT custom MCP app / Remote MCP 已完成真实 OAuth 与工具调用验证�
 
 Direct Drive 适合由 ChatGPT 保持模型循环的确定性本机操作；当前已实现 Workspace Direct，以及受 Host Root Alias / 路径策略约束的 Host Direct Files 与 bounded Host Command。文本 Write / Exact Edit 使用 Direct Mutation Approval；Host Command 使用独立 Direct Command Approval，Workspace write-effect Command 自动回流 Writer Lease / Git / Task Evidence。Raw unrestricted shell 不对 Remote MCP 开放。显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的交互式 Agent 工作；更长或适合隔离执行的任务可进入 Async Agent Job。
 
-`runShell` 不是 raw shell，Standalone `command/exec` 也不会绕过 ChatCockpit 的命令白名单、工作区 allowlist、exposed-mode 高信任开关、超时与输出上限。公网或隧道访问必须启用 Bearer Auth。
+`runShell` 不是 raw shell，Standalone `command/exec` 也不会绕过 ChatCockpit 的命令白名单、工作区 allowlist、exposed-mode 高信任开关、超时与输出上限。公网或隧道访问必须经过对应入口的明确鉴权：Web 使用控制台管理员会话，ChatGPT MCP 使用 scoped OAuth；只有 CLI、自动化或兼容 API 客户端需要机器 Bearer 时才按需配置机器 API 令牌。
 
 相关文档：
 

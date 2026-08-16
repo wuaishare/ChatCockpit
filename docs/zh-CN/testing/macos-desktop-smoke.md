@@ -72,7 +72,7 @@ Desktop App 是这台 Mac 上的人类控制台管理员与机器 API 凭据管�
 
 1. 保持 Developer Mode services 运行；
 2. 在 App Settings 切到 **Packaged Mode**；
-3. 点击 **Choose Workspace…**，选择一个真实项目目录；
+3. 点击 **选择主工作区…**，选择一个真实项目目录；
 4. Refresh / Revalidate；
 5. 应看到 **Runtime Conflict**，说明 Developer Mode 已拥有当前 ChatCockpit service identity。
 
@@ -103,12 +103,15 @@ npm run mvp:stop
 
 1. 打开 `ChatCockpit.app`；
 2. Settings → **Packaged Mode**；
-3. **Choose Workspace…** 选择测试项目；
-4. App 校验并部署内嵌 Runtime Payload；
-5. 点击 **Start Services**；
-6. 等待状态进入 **Ready**；
-7. 点击 **打开本机控制台**；如果当前已配置并启用公网入口，再单独测试 **打开公网控制台**；
-8. 验证 Web UI、health、Workspace mapping 与基础只读操作。
+3. **选择主工作区…** 选择测试项目；
+4. 在 **工作区** 区域添加第二个测试项目，确认两个目录分别显示稳定 repo ID，且只有一个带 **主工作区** 标记；
+5. 将第二个项目 **设为主工作区**，确认 App 明确提示不会自动启动/停止/重启 Runtime；再将预期项目恢复为主工作区；
+6. 移除非主工作区，确认弹窗明确说明只移除 ChatCockpit 映射、不删除项目文件；
+7. App 校验并部署内嵌 Runtime Payload；
+8. 点击 **Start Services**；
+9. 等待状态进入 **Ready**；
+10. 点击 Runtime 区域中的 **本机控制台** URL；如果当前已配置并启用公网入口，再单独测试 **公网控制台** URL；
+11. 验证 Web UI、health、多 Workspace mapping 与基础只读操作。
 
 Packaged Mode 使用独立路径：
 
@@ -118,7 +121,7 @@ Packaged Mode 使用独立路径：
 ~/Library/Application Support/ChatCockpit/config/
 ```
 
-它不会把 Runtime 目录当作用户 Workspace。
+它不会把 Runtime 目录当作用户 Workspace。工作区集合的 canonical 真源是 `config/config.json` 中现有的 `defaultRepoId + workspaceAllowlist + repoMappings`，不是 Desktop 自己另建一套数据库；macOS 偏好只缓存当前主工作区选择。
 
 ## 4. Import Existing Setup
 
@@ -138,7 +141,7 @@ Import 只迁移可安全复用的 Workspace mapping 和非秘密本地设置。
 - Process Supervisor token；
 - provider credential / cookie。
 
-如果 Source Setup 是 exposed mode，导入后 Packaged Mode 会安全回到 Local only，直到你重新显式配置凭据。
+如果 Source Setup 是 exposed mode，导入后 Packaged Mode 会安全回到 Local only，直到你重新显式确认公网地址与本机权限状态。机器 API 令牌仍是 CLI/自动化等机器客户端的可选凭据，不是 Web 控制台或 ChatGPT OAuth 的前置条件。
 
 ## 5. Stop / Restore Developer Mode
 

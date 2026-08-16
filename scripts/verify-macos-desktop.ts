@@ -49,6 +49,11 @@ const existingSetupImportPath = path.join(
   "TokenPilotDesktopCore",
   "ExistingSetupImport.swift"
 );
+const packagedWorkspaceConfigurationPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "PackagedWorkspaceConfiguration.swift"
+);
 const runtimeConflictPath = path.join(
   desktopSourceRoot,
   "TokenPilotDesktopCore",
@@ -84,6 +89,7 @@ for (const required of [
   englishLocalizationPath,
   simplifiedChineseLocalizationPath,
   existingSetupImportPath,
+  packagedWorkspaceConfigurationPath,
   runtimeConflictPath,
   buildScriptPath,
   xcodeProjectPath,
@@ -106,6 +112,7 @@ const desktopLocalization = fs.readFileSync(desktopLocalizationPath, "utf8");
 const englishLocalization = fs.readFileSync(englishLocalizationPath, "utf8");
 const simplifiedChineseLocalization = fs.readFileSync(simplifiedChineseLocalizationPath, "utf8");
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
+const packagedWorkspaceConfiguration = fs.readFileSync(packagedWorkspaceConfigurationPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
 const xcodeProject = fs.readFileSync(xcodeProjectPath, "utf8");
@@ -177,8 +184,26 @@ assert.match(menuBar, /Runtime Conflict — Review Settings/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
 assert.match(settings, /DesktopL10n\.string\("Security & Access"\)/);
-assert.match(settings, /DesktopL10n\.string\("Primary Workspace"\)/);
-assert.match(settings, /DesktopL10n\.string\("Primary project"\)/);
+assert.match(settings, /Section\(DesktopL10n\.string\("Workspaces"\)\)/);
+assert.match(settings, /ForEach\(model\.packagedWorkspaces\)/);
+assert.match(settings, /workspace\.repoID/);
+assert.match(settings, /DesktopL10n\.string\("Primary"\)/);
+assert.match(settings, /DesktopL10n\.string\("Make Primary"\)/);
+assert.match(settings, /DesktopL10n\.string\("Remove"\)/);
+assert.match(settings, /DesktopL10n\.string\("Add Workspace…"\)/);
+assert.match(settings, /model\.addWorkspaceFromPanel\(\)/);
+assert.match(settings, /model\.makeWorkspacePrimary\(workspace\.repoID\)/);
+assert.match(settings, /model\.confirmAndRemoveWorkspace\(workspace\)/);
+assert.match(appModel, /DesktopL10n\.string\("Remove Workspace\?"\)/);
+assert.match(appModel, /project files will not be deleted/);
+assert.doesNotMatch(settings, /model\.clearWorkspace\(\)/);
+assert.match(appModel, /packagedWorkspaces: \[PackagedWorkspaceEntry\]/);
+assert.match(appModel, /PackagedWorkspaceConfigurationManaging/);
+assert.match(appModel, /reloadPackagedWorkspaces\(\)/);
+assert.match(packagedWorkspaceConfiguration, /workspaceAllowlist/);
+assert.match(packagedWorkspaceConfiguration, /repoMappings/);
+assert.match(packagedWorkspaceConfiguration, /cannotRemovePrimary/);
+assert.match(packagedWorkspaceConfiguration, /data\.write\(to: configURL, options: \.atomic\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Local Cockpit"\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Public Cockpit"\)/);
 assert.match(settings, /model\.setOwnerPasswordFromPanel\(\)/);

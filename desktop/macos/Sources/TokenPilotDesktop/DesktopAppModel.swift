@@ -15,6 +15,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
     @Published private(set) var selectedRootURL: URL?
     @Published private(set) var selectedWorkspaceURL: URL?
+    @Published private(set) var packagedWorkspaces: [PackagedWorkspaceEntry] = []
     @Published private(set) var distributionMode: DistributionMode
     @Published private(set) var deployedRuntime: DeployedRuntime?
     @Published private(set) var runtimeConflict: PackagedRuntimeConflict?
@@ -35,6 +36,7 @@ final class DesktopAppModel: ObservableObject {
     private let runtimeController: any RuntimeControlling
     private let packagedRuntimeDeployer: any PackagedRuntimeDeploying
     private let existingSetupImporter: ExistingSetupImporter
+    private let packagedWorkspaceManager: any PackagedWorkspaceConfigurationManaging
     private let conflictDetector: any PackagedRuntimeConflictDetecting
     private let applicationSupportRoot: URL
     private let bundlePayloadURL: URL?
@@ -55,6 +57,7 @@ final class DesktopAppModel: ObservableObject {
         runtimeController: any RuntimeControlling = RuntimeController(),
         packagedRuntimeDeployer: any PackagedRuntimeDeploying = PackagedRuntimeDeployer(),
         existingSetupImporter: ExistingSetupImporter = ExistingSetupImporter(),
+        packagedWorkspaceManager: any PackagedWorkspaceConfigurationManaging = PackagedWorkspaceConfigurationStore(),
         conflictDetector: any PackagedRuntimeConflictDetecting = PackagedRuntimeConflictDetector(),
         applicationSupportRoot: URL = PackagedRuntimePaths.defaultApplicationSupportRoot,
         bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL(),
@@ -71,6 +74,7 @@ final class DesktopAppModel: ObservableObject {
         self.runtimeController = runtimeController
         self.packagedRuntimeDeployer = packagedRuntimeDeployer
         self.existingSetupImporter = existingSetupImporter
+        self.packagedWorkspaceManager = packagedWorkspaceManager
         self.conflictDetector = conflictDetector
         self.applicationSupportRoot = applicationSupportRoot.standardizedFileURL
         self.bundlePayloadURL = bundlePayloadURL?.standardizedFileURL
@@ -138,6 +142,12 @@ final class DesktopAppModel: ObservableObject {
 
     var selectedWorkspaceName: String {
         selectedWorkspaceURL?.lastPathComponent ?? DesktopL10n.string("Not selected")
+    }
+
+    var packagedWorkspaceConfigURL: URL {
+        applicationSupportRoot
+            .appendingPathComponent("config", isDirectory: true)
+            .appendingPathComponent("config.json", isDirectory: false)
     }
 
     var distributionModeText: String {
@@ -219,6 +229,9 @@ final class DesktopAppModel: ObservableObject {
         defer { isRefreshing = false }
 
         do {
+            if distributionMode == .packaged {
+                try reloadPackagedWorkspaces()
+            }
             guard let context = try await currentContext() else {
                 snapshot = .setupRequired
                 runtimeConflict = nil
@@ -238,31 +251,29 @@ final class DesktopAppModel: ObservableObject {
     }
 
     func chooseWorkspace(_ url: URL) async {
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            lastUserMessage = DesktopL10n.string(
-                "Choose an existing project folder for the ChatCockpit workspace."
+        do {
+            let configuration = try packagedWorkspaceManager.selectPrimary(
+                configURL: packagedWorkspaceConfigURL,
+                workspaceURL: url
             )
-            return
+            distributionMode = .packaged
+            modePreferenceStore.saveMode(.packaged)
+            syncPackagedWorkspaceState(configuration)
+            runtimeConflict = nil
+            lastUserMessage = nil
+            await refresh()
+        } catch {
+            lastUserMessage = workspaceMessage(for: error)
         }
-
-        distributionMode = .packaged
-        modePreferenceStore.saveMode(.packaged)
-        selectedWorkspaceURL = url.standardizedFileURL
-        workspacePreferenceStore.saveWorkspaceURL(selectedWorkspaceURL)
-        runtimeConflict = nil
-        lastUserMessage = nil
-        await refresh()
     }
 
     func chooseWorkspaceFromPanel() {
         let panel = NSOpenPanel()
-        panel.title = DesktopL10n.string("Choose Workspace")
+        panel.title = DesktopL10n.string("Choose Primary Workspace")
         panel.message = DesktopL10n.string(
-            "Select the project folder ChatCockpit should operate on. The packaged runtime remains separate from this workspace."
+            "Select the default project folder for Packaged Mode. Additional workspaces can be added later without changing the primary workspace."
         )
-        panel.prompt = DesktopL10n.string("Choose Workspace")
+        panel.prompt = DesktopL10n.string("Choose Primary")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -271,6 +282,92 @@ final class DesktopAppModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { [weak self] in
             await self?.chooseWorkspace(url)
+        }
+    }
+
+    func addWorkspaceFromPanel() {
+        let panel = NSOpenPanel()
+        panel.title = DesktopL10n.string("Add Workspace")
+        panel.message = DesktopL10n.string(
+            "Add another project folder ChatCockpit may operate on. This does not restart the Runtime or change the primary workspace."
+        )
+        panel.prompt = DesktopL10n.string("Add Workspace")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ensurePackagedWorkspaceConfigMaterialized()
+            let configuration = try packagedWorkspaceManager.add(
+                configURL: packagedWorkspaceConfigURL,
+                workspaceURL: url
+            )
+            syncPackagedWorkspaceState(configuration)
+            lastUserMessage = DesktopL10n.string(
+                "Workspace added. Runtime lifecycle was not changed."
+            )
+        } catch {
+            lastUserMessage = workspaceMessage(for: error)
+        }
+    }
+
+    func makeWorkspacePrimary(_ repoID: String) async {
+        do {
+            let configuration = try packagedWorkspaceManager.makePrimary(
+                configURL: packagedWorkspaceConfigURL,
+                repoID: repoID
+            )
+            let runtimeWasRunning = snapshot.lifecycle.controlPlane == .running
+            let conflictWasPresent = runtimeConflict != nil
+            syncPackagedWorkspaceState(configuration)
+            await refresh()
+            if conflictWasPresent {
+                lastUserMessage = DesktopL10n.string(
+                    "Primary workspace updated. Packaged services will use it the next time they are explicitly started after the current Runtime conflict is resolved."
+                )
+            } else if runtimeWasRunning {
+                lastUserMessage = DesktopL10n.string(
+                    "Primary workspace updated. Running services were not restarted; use Restart explicitly when you want them to adopt the new primary workspace."
+                )
+            } else {
+                lastUserMessage = DesktopL10n.string(
+                    "Primary workspace updated. Runtime lifecycle was not changed."
+                )
+            }
+        } catch {
+            lastUserMessage = workspaceMessage(for: error)
+        }
+    }
+
+    func confirmAndRemoveWorkspace(_ workspace: PackagedWorkspaceEntry) {
+        guard !workspace.isPrimary else { return }
+        let alert = NSAlert()
+        alert.messageText = DesktopL10n.string("Remove Workspace?")
+        alert.informativeText = DesktopL10n.format(
+            "Remove repository mapping '%@' from ChatCockpit? The project files will not be deleted and the Runtime will not be restarted.",
+            workspace.repoID
+        )
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: DesktopL10n.string("Remove Workspace"))
+        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        removeWorkspace(workspace.repoID)
+    }
+
+    func removeWorkspace(_ repoID: String) {
+        do {
+            let configuration = try packagedWorkspaceManager.remove(
+                configURL: packagedWorkspaceConfigURL,
+                repoID: repoID
+            )
+            syncPackagedWorkspaceState(configuration)
+            lastUserMessage = DesktopL10n.string(
+                "Workspace removed. Runtime lifecycle was not changed."
+            )
+        } catch {
+            lastUserMessage = workspaceMessage(for: error)
         }
     }
 
@@ -358,6 +455,7 @@ final class DesktopAppModel: ObservableObject {
             let result = try existingSetupImporter.apply(preview: preview, paths: paths)
             selectedWorkspaceURL = result.primaryWorkspaceURL
             workspacePreferenceStore.saveWorkspaceURL(result.primaryWorkspaceURL)
+            try reloadPackagedWorkspaces()
             runtimeConflict = nil
             lastUserMessage = result.exposedModeResetToLocal
                 ? DesktopL10n.string(
@@ -405,16 +503,6 @@ final class DesktopAppModel: ObservableObject {
         selectedRootURL = nil
         rootPreferenceStore.saveRootURL(nil)
         if distributionMode == .source {
-            snapshot = .setupRequired
-        }
-        runtimeConflict = nil
-        lastUserMessage = nil
-    }
-
-    func clearWorkspace() {
-        selectedWorkspaceURL = nil
-        workspacePreferenceStore.saveWorkspaceURL(nil)
-        if distributionMode == .packaged {
             snapshot = .setupRequired
         }
         runtimeConflict = nil
@@ -744,6 +832,34 @@ final class DesktopAppModel: ObservableObject {
         return .source(root: root)
     }
 
+    private func ensurePackagedWorkspaceConfigMaterialized() throws {
+        guard !FileManager.default.fileExists(atPath: packagedWorkspaceConfigURL.path),
+              let selectedWorkspaceURL else { return }
+        _ = try packagedWorkspaceManager.selectPrimary(
+            configURL: packagedWorkspaceConfigURL,
+            workspaceURL: selectedWorkspaceURL
+        )
+    }
+
+    private func reloadPackagedWorkspaces() throws {
+        let configuration = try packagedWorkspaceManager.load(
+            configURL: packagedWorkspaceConfigURL,
+            fallbackPrimaryURL: selectedWorkspaceURL
+        )
+        syncPackagedWorkspaceState(configuration)
+    }
+
+    private func syncPackagedWorkspaceState(_ configuration: PackagedWorkspaceConfiguration) {
+        packagedWorkspaces = configuration.entries
+        guard let primary = configuration.primary, primary.isAvailable else {
+            selectedWorkspaceURL = nil
+            workspacePreferenceStore.saveWorkspaceURL(nil)
+            return
+        }
+        selectedWorkspaceURL = primary.url
+        workspacePreferenceStore.saveWorkspaceURL(primary.url)
+    }
+
     private func validatedSelectedWorkspace() -> URL? {
         guard let selectedWorkspaceURL else { return nil }
         var isDirectory: ObjCBool = false
@@ -772,6 +888,27 @@ final class DesktopAppModel: ObservableObject {
                 "The saved ChatCockpit source folder is no longer valid. Choose it again."
             )
             return nil
+        }
+    }
+
+    private func workspaceMessage(for error: Error) -> String {
+        switch error {
+        case PackagedWorkspaceConfigurationError.workspaceDoesNotExist:
+            return DesktopL10n.string("Choose an existing project folder for the ChatCockpit workspace.")
+        case PackagedWorkspaceConfigurationError.duplicateWorkspace:
+            return DesktopL10n.string("That folder is already an authorized ChatCockpit workspace.")
+        case PackagedWorkspaceConfigurationError.cannotRemovePrimary:
+            return DesktopL10n.string("Choose another primary workspace before removing the current primary workspace.")
+        case PackagedWorkspaceConfigurationError.unavailableWorkspace:
+            return DesktopL10n.string("That workspace is no longer available on this Mac.")
+        case PackagedWorkspaceConfigurationError.unknownRepoID:
+            return DesktopL10n.string("That workspace mapping no longer exists. Refresh and try again.")
+        case PackagedWorkspaceConfigurationError.unsupportedSchema:
+            return DesktopL10n.string("The packaged workspace configuration uses an unsupported schema and was left unchanged.")
+        case PackagedWorkspaceConfigurationError.malformedConfig:
+            return DesktopL10n.string("The packaged workspace configuration is invalid and was left unchanged.")
+        default:
+            return DesktopL10n.string("The packaged workspace configuration could not be updated.")
         }
     }
 
@@ -827,6 +964,9 @@ final class DesktopAppModel: ObservableObject {
     }
 
     private func userMessage(for error: Error) -> String {
+        if error is PackagedWorkspaceConfigurationError {
+            return workspaceMessage(for: error)
+        }
         if error is PackagedRuntimeDeploymentError {
             return DesktopL10n.string(
                 "The packaged ChatCockpit runtime could not be verified or deployed. The previous active runtime was kept unchanged."
