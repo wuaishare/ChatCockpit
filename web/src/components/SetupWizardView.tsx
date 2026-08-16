@@ -8,14 +8,14 @@ import { getUiCopy } from "../i18n";
 interface SetupWizardViewProps {
   locale: LocaleCode;
   setupStatus: SetupStatusResponse | null;
-  onOpenGptHelper: () => void;
+  onOpenIntegrations: () => void;
   onRefresh: () => void;
 }
 
 export function SetupWizardView({
   locale,
   setupStatus,
-  onOpenGptHelper,
+  onOpenIntegrations,
   onRefresh
 }: SetupWizardViewProps) {
   const copy = getUiCopy(locale);
@@ -60,8 +60,8 @@ export function SetupWizardView({
         />
         <div className="setup-wizard__actions">
           <Button onClick={onRefresh}>{copy.setup.refresh}</Button>
-          <Button type="primary" onClick={onOpenGptHelper}>
-            {copy.setup.openGptHelper}
+          <Button type="primary" onClick={onOpenIntegrations}>
+            {copy.setup.openIntegrations}
           </Button>
         </div>
       </div>

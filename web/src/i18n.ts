@@ -10,30 +10,85 @@ export type LocaleCode = "zh-CN" | "en-US";
 export const LOCALE_STORAGE_KEY = "chatcockpit:web:locale";
 const LEGACY_LOCALE_STORAGE_KEY = "tokenpilot:web:locale";
 
+function isLocaleCode(value: string | null): value is LocaleCode {
+  return value === "zh-CN" || value === "en-US";
+}
+
+function safeStorageGet(storage: Storage, key: string): string | null {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(storage: Storage, key: string, value: string): void {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Browser privacy/storage policy may reject persistence; runtime locale still works.
+  }
+}
+
+function safeStorageRemove(storage: Storage, key: string): void {
+  try {
+    storage.removeItem(key);
+  } catch {
+    // Ignore unavailable storage during receive-only migration cleanup.
+  }
+}
+
+function isSimplifiedChineseLanguage(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/_/g, "-");
+  return normalized === "zh" ||
+    normalized === "zh-cn" ||
+    normalized === "zh-sg" ||
+    normalized.startsWith("zh-hans-") ||
+    normalized === "zh-hans";
+}
+
+export function detectBrowserLocale(languages: readonly string[]): LocaleCode {
+  return languages.some(isSimplifiedChineseLanguage) ? "zh-CN" : "en-US";
+}
+
 export function getStoredLocale(): LocaleCode {
   if (typeof window === "undefined") {
-    return "zh-CN";
+    return "en-US";
   }
 
-  const current = sessionStorage.getItem(LOCALE_STORAGE_KEY);
-  if (current === "zh-CN" || current === "en-US") {
-    sessionStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
-    return current;
+  const persistent = safeStorageGet(window.localStorage, LOCALE_STORAGE_KEY);
+  if (isLocaleCode(persistent)) {
+    safeStorageRemove(window.localStorage, LEGACY_LOCALE_STORAGE_KEY);
+    safeStorageRemove(window.sessionStorage, LEGACY_LOCALE_STORAGE_KEY);
+    safeStorageRemove(window.sessionStorage, LOCALE_STORAGE_KEY);
+    return persistent;
   }
 
-  const legacy = sessionStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
-  if (legacy === "zh-CN" || legacy === "en-US") {
-    sessionStorage.setItem(LOCALE_STORAGE_KEY, legacy);
-    sessionStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
-    return legacy;
+  const migrationCandidates = [
+    safeStorageGet(window.localStorage, LEGACY_LOCALE_STORAGE_KEY),
+    safeStorageGet(window.sessionStorage, LOCALE_STORAGE_KEY),
+    safeStorageGet(window.sessionStorage, LEGACY_LOCALE_STORAGE_KEY)
+  ];
+  const migrated = migrationCandidates.find(isLocaleCode);
+  if (migrated) {
+    safeStorageSet(window.localStorage, LOCALE_STORAGE_KEY, migrated);
+    safeStorageRemove(window.localStorage, LEGACY_LOCALE_STORAGE_KEY);
+    safeStorageRemove(window.sessionStorage, LOCALE_STORAGE_KEY);
+    safeStorageRemove(window.sessionStorage, LEGACY_LOCALE_STORAGE_KEY);
+    return migrated;
   }
 
-  return "zh-CN";
+  const browserLanguages = window.navigator.languages.length
+    ? window.navigator.languages
+    : [window.navigator.language];
+  return detectBrowserLocale(browserLanguages);
 }
 
 export function persistLocale(locale: LocaleCode): void {
-  sessionStorage.setItem(LOCALE_STORAGE_KEY, locale);
-  sessionStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
+  safeStorageSet(window.localStorage, LOCALE_STORAGE_KEY, locale);
+  safeStorageRemove(window.localStorage, LEGACY_LOCALE_STORAGE_KEY);
+  safeStorageRemove(window.sessionStorage, LOCALE_STORAGE_KEY);
+  safeStorageRemove(window.sessionStorage, LEGACY_LOCALE_STORAGE_KEY);
 }
 
 export const localeOptions: Array<{ label: string; value: LocaleCode }> = [
@@ -51,7 +106,7 @@ export interface UiCopy {
     continuity: string;
     resources: string;
     jobs: string;
-    gptHelper: string;
+    integrations: string;
     appearanceStatus: string;
     themeModeLabel: string;
     darkDeck: string;
@@ -135,10 +190,10 @@ export interface UiCopy {
     recentJobsTitle: string;
     recentJobsDescription: string;
     recentJobsEmptyHint: string;
-    openGptHelper: string;
+    openIntegrations: string;
     quickActionsTitle: string;
     quickActionToken: string;
-    quickActionGpt: string;
+    quickActionIntegrations: string;
     quickActionRefresh: string;
     recentJobUpdatedPrefix: string;
     gptPreviewTitle: string;
@@ -164,7 +219,7 @@ export interface UiCopy {
     description: string;
     readyTag: string;
     pendingTag: string;
-    openGptHelper: string;
+    openIntegrations: string;
     refresh: string;
     steps: Record<
       "runtime" | "auth" | "oauth" | "repo" | "runner" | "gpt" | "firstTask",
@@ -274,7 +329,7 @@ const zhCN: UiCopy = {
     continuity: "连续性",
     resources: "资源中心",
     jobs: "任务",
-    gptHelper: "GPT 助手",
+    integrations: "集成",
     appearanceStatus: "当前界面外观",
     themeModeLabel: "颜色模式",
     darkDeck: "深色驾驶舱",
@@ -352,7 +407,7 @@ const zhCN: UiCopy = {
     distributionDescription: "当前队列概览。",
     distributionEmptyHint: "当前没有排队、运行或失败任务。",
     emptyStateTitle: "当前本地队列为空",
-    emptyStateDescription: "可以先复制 GPT 接入指引，或在接入后刷新当前状态。",
+    emptyStateDescription: "可以先前往“集成”完成 ChatGPT App / MCP 接入，或在接入后刷新当前状态。",
     protectedStateTitle: "任务数据受保护",
     protectedStateDescription: "当前接口需要 Web Owner 会话；请重新登录后读取真实队列状态。",
     queued: "排队",
@@ -362,16 +417,16 @@ const zhCN: UiCopy = {
     completionRatio: "完成率",
     recentJobsTitle: "最近任务",
     recentJobsDescription: "最近的队列活动。",
-    recentJobsEmptyHint: "当前本地队列为空，可先前往 GPT 助手复制接入指引。",
-    openGptHelper: "前往 GPT 助手",
+    recentJobsEmptyHint: "当前本地队列为空，可先前往“集成”完成 ChatGPT App / MCP 接入。",
+    openIntegrations: "前往集成",
     quickActionsTitle: "下一步",
     quickActionToken: "检查操作员会话",
-    quickActionGpt: "查看 GPT 助手",
+    quickActionIntegrations: "查看集成",
     quickActionRefresh: "刷新当前状态",
     recentJobUpdatedPrefix: "最近更新于",
-    gptPreviewTitle: "GPT 助手预览",
-    gptPreviewDescription: "可复制的操作员指引。",
-    gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址，可一键复制完整文本。",
+    gptPreviewTitle: "Custom GPT Actions 兼容预览",
+    gptPreviewDescription: "仅用于兼容旧版 Actions 工作流的可复制指引。",
+    gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址；新连接优先使用 ChatGPT App / MCP。",
     repoGovernanceTitle: "Repo 治理",
     repoGovernanceDescription: "当前允许 GPT Actions 与本地 Codex 协同使用的公开 repoId；本机路径只在私有配置中解析。",
     repoGovernanceConfigScope:
@@ -393,7 +448,7 @@ const zhCN: UiCopy = {
     description: "按顺序确认本地运行态、鉴权、仓库、Runner、GPT 接入和首个安全任务。",
     readyTag: "已就绪",
     pendingTag: "待处理",
-    openGptHelper: "打开 GPT 助手",
+    openIntegrations: "打开集成",
     refresh: "刷新设置状态",
     steps: {
       runtime: {
@@ -432,11 +487,11 @@ const zhCN: UiCopy = {
         nextPending: "运行 npm run start:local"
       },
       gpt: {
-        label: "GPT 接入",
-        detailReady: "OpenAPI schema 与 GPT 辅助信息可用。",
-        detailPending: "GPT 辅助信息尚未准备好。",
-        nextReady: "打开 GPT 助手复制指令",
-        nextPending: "打开 GPT 助手检查接入信息"
+        label: "ChatGPT 集成",
+        detailReady: "ChatGPT App / MCP 与兼容集成信息可用。",
+        detailPending: "ChatGPT 集成信息尚未准备好。",
+        nextReady: "打开“集成”查看连接状态",
+        nextPending: "打开“集成”检查接入信息"
       },
       firstTask: {
         label: "首个安全任务",
@@ -560,7 +615,7 @@ const enUS: UiCopy = {
     continuity: "Continuity",
     resources: "Resources",
     jobs: "Jobs",
-    gptHelper: "GPT Helper",
+    integrations: "Integrations",
     appearanceStatus: "Current interface appearance",
     themeModeLabel: "Color mode",
     darkDeck: "Dark deck",
@@ -638,7 +693,7 @@ const enUS: UiCopy = {
     distributionDescription: "Current queue mix.",
     distributionEmptyHint: "There are no queued, running, or failed jobs right now.",
     emptyStateTitle: "The local queue is currently empty",
-    emptyStateDescription: "Open GPT Helper for the integration instructions, or refresh again after connecting a workflow.",
+    emptyStateDescription: "Open Integrations to connect ChatGPT App / MCP, or refresh again after connecting a workflow.",
     protectedStateTitle: "Job data is protected",
     protectedStateDescription: "A Web Owner session is required. Sign in again before reading the live queue state.",
     queued: "Queued",
@@ -648,16 +703,16 @@ const enUS: UiCopy = {
     completionRatio: "Completion ratio",
     recentJobsTitle: "Recent Jobs",
     recentJobsDescription: "Latest queue activity.",
-    recentJobsEmptyHint: "The local queue is empty. Open GPT Helper to copy the integration instructions first.",
-    openGptHelper: "Open GPT Helper",
+    recentJobsEmptyHint: "The local queue is empty. Open Integrations to connect ChatGPT App / MCP first.",
+    openIntegrations: "Open Integrations",
     quickActionsTitle: "Next steps",
     quickActionToken: "Configure session token",
-    quickActionGpt: "Open GPT Helper",
+    quickActionIntegrations: "Open Integrations",
     quickActionRefresh: "Refresh status",
     recentJobUpdatedPrefix: "updated",
-    gptPreviewTitle: "GPT Helper Preview",
-    gptPreviewDescription: "Copy-safe operator guidance.",
-    gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL with one-click copy for the full text.",
+    gptPreviewTitle: "Custom GPT Actions compatibility preview",
+    gptPreviewDescription: "Copy-safe guidance for legacy Actions workflows.",
+    gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL. Prefer ChatGPT App / MCP for new connections.",
     repoGovernanceTitle: "Repo Governance",
     repoGovernanceDescription: "Public repoIds currently available to GPT Actions and local Codex collaboration. Local paths resolve only inside private operator config.",
     repoGovernanceConfigScope:
@@ -679,7 +734,7 @@ const enUS: UiCopy = {
     description: "Check local runtime, auth, repo, runner, GPT handoff, and the first safe task.",
     readyTag: "Ready",
     pendingTag: "Pending",
-    openGptHelper: "Open GPT Helper",
+    openIntegrations: "Open Integrations",
     refresh: "Refresh setup",
     steps: {
       runtime: {
@@ -718,11 +773,11 @@ const enUS: UiCopy = {
         nextPending: "Run npm run start:local"
       },
       gpt: {
-        label: "GPT handoff",
-        detailReady: "OpenAPI schema and GPT helper data are available.",
-        detailPending: "GPT helper data is not ready.",
-        nextReady: "Open GPT Helper and copy instructions",
-        nextPending: "Open GPT Helper and inspect handoff data"
+        label: "ChatGPT integration",
+        detailReady: "ChatGPT App / MCP and compatibility integration metadata are available.",
+        detailPending: "ChatGPT integration metadata is not ready yet.",
+        nextReady: "Open Integrations to inspect connection status",
+        nextPending: "Open Integrations to inspect setup details"
       },
       firstTask: {
         label: "First safe task",

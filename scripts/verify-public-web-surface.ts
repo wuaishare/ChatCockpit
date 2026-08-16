@@ -125,6 +125,7 @@ async function main(): Promise<void> {
       { method: "GET", url: "/api/operator/session" },
       { method: "GET", url: "/api/setup/status" },
       { method: "GET", url: "/api/gpt/config" },
+      { method: "GET", url: "/api/integrations/status" },
       { method: "GET", url: "/api/jobs" },
       { method: "GET", url: "/api/jobs/test-job/artifacts" },
       { method: "POST", url: "/api/files/read", payload: {} },

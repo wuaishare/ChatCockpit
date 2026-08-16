@@ -91,17 +91,17 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
     {
       key: "gpt",
       ok: Boolean(health.openapiUrl) && (!publicBaseUrlConfigured || publicGptReady),
-      label: "GPT handoff",
+      label: "Integrations",
       detail: publicGptReady
-        ? "Public base URL is configured and exposed for GPT Actions"
+        ? "Public integration origin is configured for ChatGPT MCP and compatibility clients"
         : publicBaseUrlConfigured
-          ? "Public base URL is configured, but the local server is not running in exposed mode"
-          : "Local OpenAPI schema is available",
+          ? "Public integration origin is configured, but the local server is not running in exposed mode"
+          : "Local integration and OpenAPI surfaces are available",
       nextAction: publicGptReady
-        ? "Open GPT Helper and copy the instructions"
+        ? "Open Integrations and review the ChatGPT App / MCP connection"
         : publicBaseUrlConfigured
           ? "Enable exposed mode or fix the public ingress before re-importing GPT Actions"
-          : "Open GPT Helper and review the local integration details"
+          : "Open Integrations and review the local integration details"
     },
     {
       key: "firstTask",

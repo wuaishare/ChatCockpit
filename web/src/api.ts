@@ -15,6 +15,7 @@ import type {
   ContinuityWorkspaceSnapshotResponse,
   GptConfigResponse,
   HealthResponse,
+  IntegrationStatusResponse,
   JobControlResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
@@ -204,8 +205,18 @@ export async function fetchJobArtifactContent(
   );
 }
 
-export async function fetchGptConfig(token?: string | null): Promise<GptConfigResponse> {
-  return requestJson<GptConfigResponse>("/api/gpt/config", token);
+export async function fetchGptConfig(
+  locale: "zh-CN" | "en-US",
+  token?: string | null
+): Promise<GptConfigResponse> {
+  const query = new URLSearchParams({ locale });
+  return requestJson<GptConfigResponse>(`/api/gpt/config?${query.toString()}`, token);
+}
+
+export async function fetchIntegrationStatus(
+  token?: string | null
+): Promise<IntegrationStatusResponse> {
+  return requestJson<IntegrationStatusResponse>("/api/integrations/status", token);
 }
 
 export async function fetchContinuityProjects(

@@ -2,6 +2,7 @@ import { Button, List, Tag } from "antd";
 import { Text } from "@lobehub/ui";
 import type {
   HealthModel,
+  IntegrationStatusResponse,
   JobCounts,
   JobSummary,
   RepoGovernanceEntry,
@@ -11,32 +12,36 @@ import { formatDateTime } from "../utils";
 import { SectionCard } from "./SectionCard";
 import type { LocaleCode } from "../i18n";
 import { getStatusLabel, getTypeLabel, getUiCopy } from "../i18n";
+import { getIntegrationsCopy } from "../i18n/integrations";
 
 interface DashboardViewProps {
   locale: LocaleCode;
   health: HealthModel;
+  integrationStatus?: IntegrationStatusResponse;
   repoGovernance?: RepoGovernanceModel;
   counts: JobCounts;
   recentJobs: JobSummary[];
   jobsProtected: boolean;
   onSelectJob: (jobId: string) => void;
-  onOpenGptHelper: () => void;
+  onOpenIntegrations: () => void;
   onRefresh: () => void;
 }
 
 export function DashboardView({
   locale,
   health,
+  integrationStatus,
   repoGovernance,
   counts,
   recentJobs,
   jobsProtected,
   onSelectJob,
-  onOpenGptHelper,
+  onOpenIntegrations,
   onRefresh
 }: DashboardViewProps) {
   const throughput = counts.total ? Math.round((counts.completed / counts.total) * 100) : 0;
   const copy = getUiCopy(locale);
+  const integrationsCopy = getIntegrationsCopy(locale);
   const hasAnyJobs = counts.total > 0;
   const capabilityLabels = {
     pack: copy.dashboard.repoCapabilityPack,
@@ -101,12 +106,12 @@ export function DashboardView({
               </strong>
             </div>
             <div className="summary-line summary-line--wide">
-              <span>{copy.dashboard.openapiLabel}</span>
-              <strong>{health.openapiUrl}</strong>
+              <span>{integrationsCopy.localCockpit}</span>
+              <strong>{integrationStatus?.localCockpitUrl ?? copy.common.notAvailable}</strong>
             </div>
             <div className="summary-line summary-line--wide">
-              <span>{copy.dashboard.publicBaseUrlLabel}</span>
-              <strong>{health.publicBaseUrl ?? copy.common.notAvailable}</strong>
+              <span>{integrationsCopy.publicCockpit}</span>
+              <strong>{integrationStatus?.publicCockpitUrl ?? copy.common.notAvailable}</strong>
             </div>
           </div>
         </div>
@@ -208,8 +213,8 @@ export function DashboardView({
                   <Button type="link" onClick={onRefresh}>
                     {copy.dashboard.quickActionRefresh}
                   </Button>
-                  <Button onClick={onOpenGptHelper}>
-                    {copy.dashboard.quickActionGpt}
+                  <Button onClick={onOpenIntegrations}>
+                    {copy.dashboard.quickActionIntegrations}
                   </Button>
                 </div>
               </div>

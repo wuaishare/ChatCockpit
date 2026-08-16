@@ -14,6 +14,7 @@ import {
   controlJob,
   fetchGptConfig,
   fetchHealth,
+  fetchIntegrationStatus,
   fetchOperatorSession,
   fetchOperatorStatus,
   fetchJob,
@@ -38,6 +39,7 @@ import type {
   ContinuitySectionKey,
   GptConfigModel,
   HealthModel,
+  IntegrationStatusResponse,
   JobSummary,
   SetupStatusResponse
 } from "./types";
@@ -51,6 +53,7 @@ import {
 } from "./i18n";
 import { themeLabels } from "./theme";
 import { getResourceCenterCopy } from "./i18n/resources";
+import { getIntegrationsCopy } from "./i18n/integrations";
 import type { ApiProblem } from "./types";
 
 type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
@@ -89,8 +92,8 @@ function continueOAuthApprovalIfRequested(): boolean {
 const JobsView = lazy(() =>
   import("./components/JobsView").then((module) => ({ default: module.JobsView }))
 );
-const GptHelperView = lazy(() =>
-  import("./components/GptHelperView").then((module) => ({ default: module.GptHelperView }))
+const IntegrationsView = lazy(() =>
+  import("./components/IntegrationsView").then((module) => ({ default: module.IntegrationsView }))
 );
 const ContinuityWorkbenchView = lazy(() =>
   import("./components/continuity/ContinuityWorkbenchView").then((module) => ({
@@ -103,7 +106,7 @@ const ResourceCenterView = lazy(() =>
   }))
 );
 
-type ViewKey = "dashboard" | "continuity" | "resources" | "jobs" | "gpt-helper";
+type ViewKey = "dashboard" | "continuity" | "resources" | "jobs" | "integrations";
 
 interface AppProps {
   themeMode: ThemeMode;
@@ -115,7 +118,7 @@ const VIEW_PATHS: Record<ViewKey, string> = {
   continuity: "/ui/continuity",
   resources: "/ui/resources",
   jobs: "/ui/jobs",
-  "gpt-helper": "/ui/gpt-helper"
+  integrations: "/ui/integrations"
 };
 
 const CONTINUITY_SECTIONS = new Set<ContinuitySectionKey>([
@@ -192,8 +195,12 @@ function parseRoute(): {
   if (pathname === "/ui/resources") {
     return { view: "resources", jobId: null, continuitySection: "projects" };
   }
+  if (pathname === "/ui/integrations") {
+    return { view: "integrations", jobId: null, continuitySection: "projects" };
+  }
   if (pathname === "/ui/gpt-helper") {
-    return { view: "gpt-helper", jobId: null, continuitySection: "projects" };
+    window.history.replaceState(null, "", VIEW_PATHS.integrations);
+    return { view: "integrations", jobId: null, continuitySection: "projects" };
   }
   return { view: "dashboard", jobId: null, continuitySection: "projects" };
 }
@@ -212,6 +219,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [gptConfig, setGptConfig] = useState<GptConfigModel | null>(null);
   const [gptConfigError, setGptConfigError] = useState<string | null>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
+  const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -226,6 +235,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [controlMessage, setControlMessage] = useState<string | null>(null);
   const copy = getUiCopy(locale);
   const resourceCopy = getResourceCenterCopy(locale);
+  const integrationsCopy = getIntegrationsCopy(locale);
   // Transitional non-secret marker for legacy view props. api.ts never transmits it.
   const token = operatorSession ? "operator-session" : null;
 
@@ -346,9 +356,22 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setHealth(INITIAL_HEALTH);
       setJobs([]);
       setGptConfig(null);
+      setIntegrationStatus(null);
+      setIntegrationStatusError(null);
       setSetupStatus(null);
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
+    }
+  }
+
+  async function loadCompatibilityConfig(nextLocale: LocaleCode) {
+    try {
+      const gptConfigResponse = await fetchGptConfig(nextLocale, token);
+      setGptConfig(gptConfigResponse.config);
+      setGptConfigError(null);
+    } catch (error) {
+      setGptConfig(null);
+      setGptConfigError(getErrorMessage(error));
     }
   }
 
@@ -366,13 +389,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setSetupStatus(null);
       }
       try {
-        const gptConfigResponse = await fetchGptConfig(token);
-        setGptConfig(gptConfigResponse.config);
-        setGptConfigError(null);
+        const integrationResponse = await fetchIntegrationStatus(token);
+        setIntegrationStatus(integrationResponse);
+        setIntegrationStatusError(null);
       } catch (error) {
-        setGptConfig(null);
-        setGptConfigError(getErrorMessage(error));
+        setIntegrationStatus(null);
+        setIntegrationStatusError(getErrorMessage(error));
       }
+      await loadCompatibilityConfig(locale);
     } catch (error) {
       setHealthError(getErrorMessage(error));
     } finally {
@@ -530,6 +554,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   function updateLocale(nextLocale: LocaleCode) {
     persistLocale(nextLocale);
     setLocale(nextLocale);
+    if (operatorAuthState === "authenticated") {
+      void loadCompatibilityConfig(nextLocale);
+    }
   }
 
   function navigateView(
@@ -746,7 +773,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                     { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
                     { label: copy.header.resources, value: "resources", icon: <AppstoreOutlined /> },
                     { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
-                    { label: copy.header.gptHelper, value: "gpt-helper", icon: <ApiOutlined /> }
+                    { label: copy.header.integrations, value: "integrations", icon: <ApiOutlined /> }
                   ]}
                 />
               </div>
@@ -782,13 +809,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               <SetupWizardView
                 locale={locale}
                 setupStatus={setupStatus}
-                onOpenGptHelper={() => navigateView("gpt-helper")}
+                onOpenIntegrations={() => navigateView("integrations")}
                 onRefresh={() => void loadHealth()}
               />
             ) : null}
             <DashboardView
               locale={locale}
               health={health}
+              integrationStatus={integrationStatus ?? undefined}
               repoGovernance={gptConfig?.repoGovernance}
               counts={counts}
               recentJobs={jobs.slice(0, 5)}
@@ -797,7 +825,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 navigateView("jobs", jobId);
                 void loadJobDetail(jobId, token);
               }}
-              onOpenGptHelper={() => navigateView("gpt-helper")}
+              onOpenIntegrations={() => navigateView("integrations")}
               onRefresh={() => {
                 void loadHealth();
                 void loadJobs(token, health.authRequired, false);
@@ -887,22 +915,32 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           </Suspense>
         ) : null}
 
-        {activeView === "gpt-helper" ? (
+        {activeView === "integrations" ? (
           <Suspense
             fallback={
               <ViewLoadingState
-                title={copy.gpt.snapshotTitle}
-                description={copy.gpt.snapshotDescription}
+                title={integrationsCopy.loadingTitle}
+                description={integrationsCopy.loadingDescription}
                 retryLabel={copy.common.retry}
               />
             }
           >
-            <GptHelperView
-              locale={locale}
-              health={health}
-              config={gptConfig}
-              configError={gptConfigError}
-            />
+            {integrationStatus ? (
+              <IntegrationsView
+                locale={locale}
+                status={integrationStatus}
+                config={gptConfig}
+                configError={gptConfigError}
+              />
+            ) : (
+              <StateNotice
+                kind="error"
+                title={integrationsCopy.requestFailed}
+                description={integrationStatusError ?? copy.notices.bootstrapFailedTitle}
+                retryLabel={copy.common.retry}
+                onRetry={() => void loadHealth()}
+              />
+            )}
           </Suspense>
         ) : null}
       </Layout.Content>
