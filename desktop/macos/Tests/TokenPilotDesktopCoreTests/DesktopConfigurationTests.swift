@@ -23,6 +23,7 @@ struct DesktopConfigurationTests {
         #expect(configuration.exposed == true)
         #expect(configuration.apiTokenConfigured == true)
         #expect(configuration.publicBaseURLConfigured == true)
+        #expect(configuration.publicBaseURL?.absoluteString == "https://chatcockpit.example.com")
         #expect(String(describing: configuration).contains("test-token") == false)
         #expect(String(describing: configuration).contains("do-not-retain") == false)
     }

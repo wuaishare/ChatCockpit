@@ -141,7 +141,7 @@ Implemented top-level views:
 - Dashboard
 - Continuity Workbench
 - Jobs
-- GPT Helper
+- Integrations — ChatGPT App / MCP primary, API/OpenAPI advanced, Custom GPT Actions compatibility
 - Setup Wizard flows
 
 Continuity deep links:

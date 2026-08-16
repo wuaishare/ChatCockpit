@@ -34,7 +34,7 @@ Intel Mac 使用 `--arch x64`。
 如果当前 Source Runtime 已经通过 `npm run mvp:start` / `npm run start:local` 运行，优先使用 Developer Mode。首次启动时，只要 ChatCockpit 能发现合法 source checkout，就会自动选择 Developer Mode；用户之后手动选择的 Developer/Packaged Mode 会被记住。
 
 1. 启动 `ChatCockpit.app`；
-2. 确认主窗口没有裁切，底部 **Refresh / Settings… / Runtime actions / Open ChatCockpit** 始终可见；
+2. 确认主窗口没有裁切，底部 **刷新 / 设置… / Runtime 操作 / 打开本机控制台** 始终可用；只有 exposed 模式存在合法公网基址时才单独显示 **打开公网控制台**；
 3. 如果已自动发现 source checkout，确认 Distribution 为 **Developer**；否则打开 Settings，选择 **Developer Mode** 并点击 **Choose Source…**；
 4. 如需手动选择，选择当前 ChatCockpit source checkout；
 5. 点击 **Revalidate**；
@@ -44,7 +44,7 @@ Intel Mac 使用 `--arch x64`。
 9. 在 **安全与访问** 中确认 Web Owner 状态与机器 API 令牌分开显示。机器令牌默认只能显示指纹（例如 `cc_local_…abc123`），不能直接暴露明文；
 10. 确认 **显示令牌** 只有在用户明确操作后才临时显示明文，并会自动再次隐藏；**复制令牌** 也只能由用户主动触发。普通 smoke test 不要轮换真实令牌；
 11. 确认 **设置 / 管理 Owner…** 可修改 Owner 用户名与密码，**撤销 Web 会话** 可独立撤销现有会话，且不会暴露密码或 Session Secret；
-12. 点击 **Open ChatCockpit**，应使用默认浏览器打开 Web Cockpit。
+12. 点击 **打开本机控制台**，应使用默认浏览器打开 `http://127.0.0.1:<端口>/ui`；如显示 **打开公网控制台**，应单独验证它打开配置的 HTTPS `/ui`，而不是 loopback 地址。
 
 Source/Developer Mode 的 canonical state root 是：
 
@@ -107,7 +107,7 @@ npm run mvp:stop
 4. App 校验并部署内嵌 Runtime Payload；
 5. 点击 **Start Services**；
 6. 等待状态进入 **Ready**；
-7. 点击 **Open ChatCockpit**；
+7. 点击 **打开本机控制台**；如果当前已配置并启用公网入口，再单独测试 **打开公网控制台**；
 8. 验证 Web UI、health、Workspace mapping 与基础只读操作。
 
 Packaged Mode 使用独立路径：

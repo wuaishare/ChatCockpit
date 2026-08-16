@@ -126,7 +126,9 @@ for (const [name, source] of [
   assert.doesNotMatch(source, /Button\("(?:Open|Quit) TokenPilot"/, `${name} must not expose TokenPilot active actions`);
 }
 assert.match(desktopApp, /DesktopL10n\.string\("ChatCockpit Status"\)/);
-assert.match(menuBar, /DesktopL10n\.string\("Open ChatCockpit"\)/);
+assert.match(menuBar, /DesktopL10n\.string\("Open Local Cockpit"\)/);
+assert.match(menuBar, /snapshot\.publicCockpitURL != nil/);
+assert.match(menuBar, /DesktopL10n\.string\("Open Public Cockpit"\)/);
 assert.match(statusView, /DesktopL10n\.string/);
 assert.match(settingsView, /DesktopL10n\.string/);
 assert.match(appModel, /DesktopL10n\.string/);

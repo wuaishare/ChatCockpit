@@ -42,9 +42,13 @@ struct StatusView: View {
                             )
                             valueRow(
                                 DesktopL10n.string("Local Cockpit"),
-                                value: model.snapshot.uiReachable
-                                    ? DesktopL10n.string("Reachable")
-                                    : DesktopL10n.string("Unavailable")
+                                value: model.snapshot.localCockpitURL?.absoluteString
+                                    ?? DesktopL10n.string("Unavailable")
+                            )
+                            valueRow(
+                                DesktopL10n.string("Public Cockpit"),
+                                value: model.snapshot.publicCockpitURL?.absoluteString
+                                    ?? DesktopL10n.string("Not configured")
                             )
                             valueRow(DesktopL10n.string("Distribution"), value: model.distributionModeText)
                             valueRow(DesktopL10n.string("Runtime"), value: model.runtimeVersionText)
@@ -103,30 +107,43 @@ struct StatusView: View {
 
             Divider()
 
-            HStack(spacing: 10) {
-                Button(DesktopL10n.string("Refresh")) {
-                    Task { await model.refresh() }
-                }
-                .disabled(model.isRefreshing)
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    Button(DesktopL10n.string("Refresh")) {
+                        Task { await model.refresh() }
+                    }
+                    .disabled(model.isRefreshing)
 
-                Button(DesktopL10n.string("Settings…")) {
-                    DesktopScenePresentation.present {
-                        openSettings()
+                    Button(DesktopL10n.string("Settings…")) {
+                        DesktopScenePresentation.present {
+                            openSettings()
+                        }
+                    }
+
+                    Spacer()
+
+                    runtimeActions
+                }
+
+                HStack(spacing: 10) {
+                    Spacer()
+
+                    Button(DesktopL10n.string("Open Local Cockpit")) {
+                        model.openLocalCockpit()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(model.snapshot.localCockpitURL == nil || model.isRefreshing)
+
+                    if model.snapshot.publicCockpitURL != nil {
+                        Button(DesktopL10n.string("Open Public Cockpit")) {
+                            model.openPublicCockpit()
+                        }
+                        .disabled(model.isRefreshing)
                     }
                 }
-
-                Spacer()
-
-                runtimeActions
-
-                Button(DesktopL10n.string("Open ChatCockpit")) {
-                    model.openCockpit()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(model.snapshot.cockpitURL == nil || model.isRefreshing)
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.vertical, 14)
         }
         .frame(minWidth: 620, minHeight: 520)
     }

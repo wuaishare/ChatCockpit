@@ -60,9 +60,9 @@ LobeHub-aligned implementation notes:
 
 - Header: brand glyph, product title, current deck status, language switch, view switch, theme switch, refresh action.
 - Panel: translucent but readable control surface, one border, one shadow vocabulary, no nested glass stacks.
-- Summary block: single source of truth for health, mode, auth, OpenAPI URL, and public base URL.
+- Summary block: single source of truth for health, mode, auth, and explicit Local/Public Cockpit entrypoints. OpenAPI and machine-interface detail belongs in Integrations.
 - Secondary metrics: compact only, and only when they add new information.
-- Jobs and GPT Helper: compact operator surfaces. Job control affordances are limited to tracked-process pause, resume, and terminate actions.
+- Jobs and Integrations: compact operator surfaces. Integrations prioritizes ChatGPT App / MCP, keeps API & OpenAPI advanced, and marks Custom GPT Actions as compatibility-only. Job control affordances are limited to tracked-process pause, resume, and terminate actions.
 
 Decorative icons must not render as unnamed buttons. Use non-interactive icon wrappers for visual markers and reserve real buttons for actions.
 

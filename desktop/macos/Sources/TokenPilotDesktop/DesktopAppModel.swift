@@ -433,11 +433,19 @@ final class DesktopAppModel: ObservableObject {
         await perform(.restart)
     }
 
-    func openCockpit() {
-        guard let url = snapshot.cockpitURL else {
+    func openLocalCockpit() {
+        guard let url = snapshot.localCockpitURL else {
             lastUserMessage = DesktopL10n.string(
                 "ChatCockpit Cockpit is not reachable. Start or repair the local services first."
             )
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openPublicCockpit() {
+        guard let url = snapshot.publicCockpitURL else {
+            lastUserMessage = DesktopL10n.string("Public Cockpit is not configured.")
             return
         }
         NSWorkspace.shared.open(url)

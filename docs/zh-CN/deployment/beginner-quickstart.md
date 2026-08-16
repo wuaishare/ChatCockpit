@@ -1,6 +1,6 @@
 # ChatCockpit 新手快速开始
 
-这是一条从源码到本地控制台的最短路径。ChatCockpit 是本地优先的 AI 开发连续性与 Agent 能力路由平台；先跑通本地 Control Plane、Continuity Workbench 与运行模式，再配置 Custom GPT Actions 或 MCP。
+这是一条从源码到本地控制台的最短路径。ChatCockpit 是本地优先的 AI 开发连续性与 Agent 能力路由平台；先跑通本地 Control Plane、Continuity Workbench 与运行模式，再优先配置 ChatGPT App / MCP。Custom GPT Actions 仅作为兼容/高级路径保留。
 
 ## 1. 准备环境
 
@@ -11,7 +11,7 @@
 - npm
 - Git
 - 可用的 Codex Binary（使用 Codex Session 或 Codex 异步 Job 时需要）
-- ChatGPT 账号（只在配置 Custom GPT Actions 时需要）
+- ChatGPT 账号（连接 ChatGPT App / MCP 或兼容的 Custom GPT Actions 时需要）
 
 ## 2. 安装、初始化、启动
 
@@ -36,14 +36,14 @@ http://127.0.0.1:4318/ui
 - `/ui` 可以打开 Owner 登录界面，登录后显示 Setup Wizard 或 Dashboard。
 - `/ui/continuity/projects` 可以打开 Continuity Workbench。
 - `npm run doctor:runtime` 能访问本地 Health。
-- GPT Helper 能显示 GPT 指令、OpenAPI URL、Schema 导入 URL。
+- `/ui/integrations` 能明确显示本机/公网控制台、ChatGPT App / MCP 状态、API/OpenAPI 与 Custom GPT Actions 兼容信息。
 - Chat Direct 可以完成一次不启动 Codex Turn 的安全只读操作。
 - Codex Session 可以先 Bind/Resume/Fork Thread，再通过独立操作显式启动 Turn。
 - Jobs 页面可以查看异步任务状态。
 
 Web Cockpit 不会把 `CHATCOCKPIT_API_TOKEN` 写入浏览器存储。登录成功后由服务端签发 opaque HttpOnly Session Cookie，写操作还受 Session-bound CSRF 保护。
 
-## 3. 本地模式与 GPT Actions 模式
+## 3. 本地模式与远程集成
 
 本地模式是默认新手路径：
 
@@ -53,7 +53,7 @@ CHATCOCKPIT_HOST=127.0.0.1
 CHATCOCKPIT_PORT=4318
 ```
 
-Custom GPT Actions 需要 ChatGPT 访问一个 HTTPS 地址。你的电脑在家用网络或公司网络里时，通常需要一层公网入口把 HTTPS 请求转发到本机 `127.0.0.1:4318`，例如：
+ChatGPT App / MCP 与 Custom GPT Actions 都需要 ChatGPT 能访问一个 HTTPS 地址。你的电脑在家用网络或公司网络里时，通常需要一层公网入口把 HTTPS 请求转发到本机 `127.0.0.1:4318`，例如：
 
 - 自己已有的反向代理
 - Cloudflare Tunnel
@@ -63,7 +63,7 @@ Custom GPT Actions 需要 ChatGPT 访问一个 HTTPS 地址。你的电脑在家
 
 ChatCockpit 不绑定某个穿透供应商。你只需要保证最终有一个你控制的 HTTPS URL 指向本机控制面。
 
-暴露给 GPT Actions 时必须启用 token：
+开放远程接入时，机器 API authority 与公网基址仍必须配置；ChatGPT MCP 的浏览器授权则由独立 Web Owner 会话批准：
 
 ```bash
 CHATCOCKPIT_EXPOSED=true
@@ -75,21 +75,21 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 
 `https://chatcockpit.example.com` 是占位示例。实际使用时换成你的 HTTPS 地址，不要把真实域名、Bearer token、tunnel token 或机器路径提交到 Git。
 
-## 4. 创建并配置 Custom GPT
+## 4. 连接 ChatGPT
 
-Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.md)；MCP 客户端接入见 [`mcp-setup.md`](./mcp-setup.md)。
+首选 ChatGPT App / MCP，完整步骤见 [`mcp-setup.md`](./mcp-setup.md)。Custom GPT Actions 的兼容说明见 [`gpt-builder-setup.md`](./gpt-builder-setup.md)。
 
-最短流程：
+最短 MCP 流程：
 
-1. 启动 ChatCockpit 本地控制面和 runner。
-2. 配置你的 HTTPS 入口，让它转发到 `http://127.0.0.1:4318`。
+1. 启动 ChatCockpit 本地控制面和 runner，并在本机创建 Web Owner。
+2. 配置 HTTPS 入口，让它转发到 `http://127.0.0.1:4318`。
 3. 设置 `~/.chatcockpit/runtime/server.env` 里的 `CHATCOCKPIT_PUBLIC_BASE_URL` 和 `CHATCOCKPIT_API_TOKEN`。
-4. 打开 `http://127.0.0.1:4318/ui/gpt-helper`。
-5. 复制 GPT Instructions。
-6. 在 GPT Builder 里创建或编辑 GPT，把说明粘贴到 Instructions。
-7. 在 Actions 里导入 OpenAPI schema。
-8. 配置 Authentication，使用 Bearer token。
-9. 保存 GPT，用 `health` 或短只读任务测试。
+4. 登录 Web Cockpit，打开 `http://127.0.0.1:4318/ui/integrations`。
+5. 确认 ChatGPT App / MCP 显示 OAuth 就绪，并复制/使用公网 `/mcp` 地址。
+6. 从 ChatGPT 发起连接；浏览器授权页使用 Web Owner 会话批准，不粘贴机器 API Token。
+7. 授权完成后用短只读任务验证 MCP 工具目录。
+
+只有明确需要旧版 Actions 工作流时，才在 Integrations 页的 **Custom GPT Actions** 区域复制兼容说明与 Schema 地址。
 
 ## 5. 第一个安全测试
 
@@ -111,7 +111,7 @@ Custom GPT Actions 完整步骤见 [`gpt-builder-setup.md`](./gpt-builder-setup.
 
 | 现象 | 常见原因 | 处理方式 |
 | --- | --- | --- |
-| UI 能打开，但 GPT Actions 访问失败 | GPT 不能访问 `127.0.0.1` | 配置 HTTPS 入口或内网穿透 |
+| UI 能打开，但 ChatGPT 远程连接失败 | ChatGPT 不能访问 `127.0.0.1` 或公网 OAuth 未就绪 | 配置 HTTPS 入口，并在 Integrations 检查 OAuth 状态 |
 | GPT Builder 导入 schema 失败 | URL 不是公网 HTTPS，或 `/openapi.yaml` 不可达 | 先在浏览器访问 `https://你的域名/openapi.yaml` |
 | Web UI 提示需要登录 | Web Owner Session 不存在或已过期 | 使用 Owner 账户重新登录；不要把机器 API Token 填进网页登录框 |
 | Web UI 提示尚未创建 Owner | 尚未设置 Web Owner 密码 | 在本机运行 `node dist/cli/index.js operator set-password` 后再登录 |

@@ -164,10 +164,18 @@ struct SettingsView: View {
                     )
                 }
 
-                Button(DesktopL10n.string("Open ChatCockpit")) {
-                    model.openCockpit()
+                HStack {
+                    Button(DesktopL10n.string("Open Local Cockpit")) {
+                        model.openLocalCockpit()
+                    }
+                    .disabled(model.snapshot.localCockpitURL == nil)
+
+                    if model.snapshot.publicCockpitURL != nil {
+                        Button(DesktopL10n.string("Open Public Cockpit")) {
+                            model.openPublicCockpit()
+                        }
+                    }
                 }
-                .disabled(model.snapshot.cockpitURL == nil)
             }
 
             Section(DesktopL10n.string("Security & Access")) {

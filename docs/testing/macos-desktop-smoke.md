@@ -34,7 +34,7 @@ The current development app is still unsigned / unnotarized and must not be desc
 If the Source Runtime is already running through `npm run mvp:start` or `npm run start:local`, test Developer Mode first. On first launch, ChatCockpit automatically selects Developer Mode when it discovers a valid source checkout; an explicit Developer/Packaged choice is remembered afterward.
 
 1. Launch `ChatCockpit.app`.
-2. Confirm the main window is not clipped and the bottom **Refresh / Settings… / Runtime actions / Open ChatCockpit** bar stays visible.
+2. Confirm the main window is not clipped and the bottom **Refresh / Settings… / Runtime actions / Open Local Cockpit** actions stay visible; **Open Public Cockpit** appears separately only when exposed mode has a valid public base URL.
 3. If a source checkout was auto-discovered, confirm Distribution is **Developer**; otherwise open Settings, choose **Developer Mode**, and click **Choose Source…**.
 4. If manual selection is needed, select the current ChatCockpit source checkout.
 5. Click **Revalidate**.
@@ -44,7 +44,7 @@ If the Source Runtime is already running through `npm run mvp:start` or `npm run
 9. In **Security & Access**, confirm Web Owner status is shown independently from the machine API token. The machine token should be masked as a fingerprint by default (for example `cc_local_…abc123`), not exposed as plaintext.
 10. Confirm **Reveal Token** shows plaintext only on explicit action and automatically hides it again; **Copy Token** copies on explicit action only. Do not rotate the real token during an ordinary smoke test.
 11. Confirm **Set / Manage Owner…** can update the Owner username and password, while **Revoke Web Sessions** independently revokes current sessions without exposing the password or session secrets.
-12. Click **Open ChatCockpit** and confirm the Web Cockpit opens in the default browser.
+12. Click **Open Local Cockpit** and confirm `http://127.0.0.1:<port>/ui` opens in the default browser. If **Open Public Cockpit** is present, confirm it opens the configured HTTPS `/ui` entrypoint instead of the loopback URL.
 
 The canonical Source/Developer Mode state root is:
 
@@ -105,7 +105,7 @@ Verify the Source services are stopped before continuing.
 4. Allow the app to validate/deploy the bundled Runtime Payload.
 5. Click **Start Services**.
 6. Wait for **Ready**.
-7. Click **Open ChatCockpit**.
+7. Click **Open Local Cockpit**. If a public origin is configured and exposed, test **Open Public Cockpit** separately.
 8. Verify Web UI, health, Workspace mapping, and basic read-only operations.
 
 Packaged Mode uses separate roots:

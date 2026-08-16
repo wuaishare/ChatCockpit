@@ -78,6 +78,27 @@ struct RuntimeControllerTests {
         #expect(state == .ready)
     }
 
+    @Test("local and public Cockpit URLs stay explicit")
+    func cockpitEntrypointsStayExplicit() throws {
+        let snapshot = DesktopRuntimeSnapshot(
+            overallState: .ready,
+            context: nil,
+            node: NodeRuntimeStatus(executableURL: nil, version: nil),
+            configuration: DesktopRuntimeConfiguration(
+                host: "0.0.0.0",
+                port: 5123,
+                exposed: true,
+                publicBaseURL: URL(string: "https://chatcockpit.example.com")!
+            ),
+            lifecycle: readyLifecycle,
+            healthReachable: true,
+            uiReachable: true
+        )
+
+        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ui")
+        #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ui")
+    }
+
     @Test("controller combines Node lifecycle and health truth")
     func controllerBuildsReadySnapshot() async {
         let controller = RuntimeController(

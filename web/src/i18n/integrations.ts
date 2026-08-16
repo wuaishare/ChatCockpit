@@ -1,0 +1,146 @@
+import type { LocaleCode } from "../i18n";
+
+export interface IntegrationsCopy {
+  title: string;
+  description: string;
+  localCockpit: string;
+  publicCockpit: string;
+  openLocalCockpit: string;
+  openPublicCockpit: string;
+  notConfigured: string;
+  ready: string;
+  needsAttention: string;
+  disabled: string;
+  primaryTag: string;
+  advancedTag: string;
+  compatibilityTag: string;
+  chatgptTitle: string;
+  chatgptDescription: string;
+  mcpEndpoint: string;
+  oauthStatus: string;
+  oauthScope: string;
+  authorizedClients: string;
+  activeAccessTokens: string;
+  activeRefreshTokens: string;
+  toolCatalog: string;
+  tools: string;
+  reconnectGuidance: string;
+  reconnectReady: string;
+  reconnectNeedsAttention: string;
+  apiTitle: string;
+  apiDescription: string;
+  localApiBase: string;
+  publicApiBase: string;
+  openapiUrl: string;
+  machineAuth: string;
+  configured: string;
+  apiBoundary: string;
+  customGptTitle: string;
+  customGptDescription: string;
+  customGptBoundary: string;
+  instructions: string;
+  schemaImportUrl: string;
+  copyInstructions: string;
+  copyUrl: string;
+  loadingTitle: string;
+  loadingDescription: string;
+  requestFailed: string;
+}
+
+const zhCN: IntegrationsCopy = {
+  title: "集成",
+  description: "统一管理 ChatGPT App / MCP、API 与 OpenAPI，以及兼容用途的 Custom GPT Actions。三套权限边界保持独立。",
+  localCockpit: "本机控制台",
+  publicCockpit: "公网控制台",
+  openLocalCockpit: "打开本机控制台",
+  openPublicCockpit: "打开公网控制台",
+  notConfigured: "未配置",
+  ready: "就绪",
+  needsAttention: "需要处理",
+  disabled: "未启用",
+  primaryTag: "主要方式",
+  advancedTag: "高级",
+  compatibilityTag: "兼容方式",
+  chatgptTitle: "ChatGPT App / MCP",
+  chatgptDescription: "ChatGPT 连接 ChatCockpit 的首选方式。OAuth 只授予 chatcockpit:mcp，不继承 Web Owner 或机器 API 权限。",
+  mcpEndpoint: "MCP 地址",
+  oauthStatus: "OAuth 状态",
+  oauthScope: "OAuth Scope",
+  authorizedClients: "已授权客户端",
+  activeAccessTokens: "有效 Access Token",
+  activeRefreshTokens: "有效 Refresh Token",
+  toolCatalog: "工具目录",
+  tools: "个工具",
+  reconnectGuidance: "连接建议",
+  reconnectReady: "MCP 与 OAuth 已就绪。如需重新授权，请在 ChatGPT 中重新连接；撤销旧授权后不会影响 Web Owner 会话。",
+  reconnectNeedsAttention: "Remote MCP 尚未完整就绪。请先完成公网地址、机器权限和 Web Owner 配置，再从 ChatGPT 发起连接。",
+  apiTitle: "API 与 OpenAPI",
+  apiDescription: "面向自动化、CLI 与高级客户端的机器接口。浏览器 Web 登录不使用机器 API 令牌。",
+  localApiBase: "本机 API 基址",
+  publicApiBase: "公网 API 基址",
+  openapiUrl: "OpenAPI 地址",
+  machineAuth: "机器 API 认证",
+  configured: "已配置",
+  apiBoundary: "机器 API 令牌与 Web Owner、ChatGPT OAuth 完全分离。此页面只显示配置状态，不读取或展示令牌值。",
+  customGptTitle: "Custom GPT Actions",
+  customGptDescription: "保留给旧版 GPT Actions / OpenAPI Schema 工作流的兼容入口，不再作为 ChatGPT 集成的首选路径。",
+  customGptBoundary: "新连接优先使用上方 ChatGPT App / MCP。只有明确需要 Custom GPT Actions 时才使用这里的说明与 Schema。",
+  instructions: "兼容说明",
+  schemaImportUrl: "Schema 导入地址",
+  copyInstructions: "复制兼容说明",
+  copyUrl: "复制地址",
+  loadingTitle: "正在读取集成状态",
+  loadingDescription: "正在从当前 Web Owner 会话读取本机与公网入口、OAuth 状态及工具目录。",
+  requestFailed: "无法读取集成状态"
+};
+
+const enUS: IntegrationsCopy = {
+  title: "Integrations",
+  description: "Manage ChatGPT App / MCP, API & OpenAPI, and compatibility-only Custom GPT Actions while keeping all three authority domains separate.",
+  localCockpit: "Local Cockpit",
+  publicCockpit: "Public Cockpit",
+  openLocalCockpit: "Open Local Cockpit",
+  openPublicCockpit: "Open Public Cockpit",
+  notConfigured: "Not configured",
+  ready: "Ready",
+  needsAttention: "Needs attention",
+  disabled: "Disabled",
+  primaryTag: "Primary",
+  advancedTag: "Advanced",
+  compatibilityTag: "Compatibility",
+  chatgptTitle: "ChatGPT App / MCP",
+  chatgptDescription: "The preferred way to connect ChatGPT to ChatCockpit. OAuth grants only chatcockpit:mcp and never inherits Web Owner or machine API authority.",
+  mcpEndpoint: "MCP endpoint",
+  oauthStatus: "OAuth status",
+  oauthScope: "OAuth scope",
+  authorizedClients: "Authorized clients",
+  activeAccessTokens: "Active access tokens",
+  activeRefreshTokens: "Active refresh tokens",
+  toolCatalog: "Tool catalog",
+  tools: "tools",
+  reconnectGuidance: "Connection guidance",
+  reconnectReady: "MCP and OAuth are ready. Reconnect from ChatGPT when a fresh authorization is needed; revoking OAuth does not revoke Web Owner sessions.",
+  reconnectNeedsAttention: "Remote MCP is not fully ready. Configure the public origin, machine authority, and Web Owner before connecting from ChatGPT.",
+  apiTitle: "API & OpenAPI",
+  apiDescription: "Machine interfaces for automation, CLI, and advanced clients. Browser Web login does not use the machine API token.",
+  localApiBase: "Local API base",
+  publicApiBase: "Public API base",
+  openapiUrl: "OpenAPI URL",
+  machineAuth: "Machine API auth",
+  configured: "Configured",
+  apiBoundary: "Machine API authority is separate from Web Owner and ChatGPT OAuth. This page shows configuration state only and never reads or displays the token value.",
+  customGptTitle: "Custom GPT Actions",
+  customGptDescription: "Compatibility surface for legacy GPT Actions / OpenAPI Schema workflows. It is no longer the primary ChatGPT integration path.",
+  customGptBoundary: "Prefer ChatGPT App / MCP above for new connections. Use these instructions and Schema only when Custom GPT Actions are explicitly required.",
+  instructions: "Compatibility instructions",
+  schemaImportUrl: "Schema import URL",
+  copyInstructions: "Copy compatibility instructions",
+  copyUrl: "Copy URL",
+  loadingTitle: "Loading integrations",
+  loadingDescription: "Reading Local/Public entrypoints, OAuth status, and the tool catalog through the current Web Owner session.",
+  requestFailed: "Unable to load integrations"
+};
+
+export function getIntegrationsCopy(locale: LocaleCode): IntegrationsCopy {
+  return locale === "zh-CN" ? zhCN : enUS;
+}

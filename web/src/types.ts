@@ -185,6 +185,29 @@ export interface GptConfigResponse {
   config: GptConfigModel;
 }
 
+export interface IntegrationStatusResponse {
+  ok: true;
+  localCockpitUrl: string;
+  publicCockpitUrl: string | null;
+  localApiBaseUrl: string;
+  publicApiBaseUrl: string | null;
+  openapiUrl: string;
+  mcp: {
+    endpoint: string | null;
+    scope: "chatcockpit:mcp";
+    oauthStatus: "disabled" | "ready" | "needs-attention";
+    oauthReady: boolean;
+    authorizedClientCount: number;
+    activeAccessTokenCount: number;
+    activeRefreshTokenCount: number;
+    toolCatalogStatus: "ready";
+    toolCount: number;
+  };
+  machineApi: {
+    configured: boolean;
+  };
+}
+
 export interface JobCounts {
   total: number;
   queued: number;

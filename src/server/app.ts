@@ -42,6 +42,7 @@ import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
+import { buildIntegrationStatusSnapshot } from "../core/integration-status.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
@@ -53,7 +54,10 @@ import {
   continuityDatabasePath
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
-import { buildTokenPilotMcpHandler } from "../mcp/server.js";
+import {
+  buildTokenPilotMcpHandler,
+  buildTokenPilotMcpToolCatalog
+} from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
 import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
 import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
@@ -418,6 +422,26 @@ export function buildServer(
     oauthStore?.close();
     operatorStore.close();
   });
+  const exposedRuntimeResourceMutationService = isResourceMutationExposureEnabled()
+    ? runtimeResourceMutationService
+    : null;
+  const mcpToolCount = buildTokenPilotMcpToolCatalog(
+    paths,
+    continuityServices,
+    chatDirect,
+    hostDirect,
+    hostMutation,
+    hostCommand,
+    hostProcess,
+    runtimeService,
+    runtimeBindingService,
+    runtimeTurnService,
+    runtimeApprovalService,
+    runtimeEventService,
+    runtimeRecoveryServices,
+    runtimeResourceServices,
+    exposedRuntimeResourceMutationService
+  ).length;
   const mcpHandler = buildTokenPilotMcpHandler(
     paths,
     continuityServices,
@@ -433,7 +457,7 @@ export function buildServer(
     runtimeEventService,
     runtimeRecoveryServices,
     runtimeResourceServices,
-    isResourceMutationExposureEnabled() ? runtimeResourceMutationService : null,
+    exposedRuntimeResourceMutationService,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
     }
@@ -458,11 +482,13 @@ export function buildServer(
     return buildPublicHealthStatus(paths);
   };
 
-  const gptConfigHandler = async () => {
+  const gptConfigHandler = async (request: unknown) => {
+    const requestedLocale = (request as { query?: { locale?: unknown } }).query?.locale;
+    const locale = requestedLocale === "en-US" ? "en-US" : "zh-CN";
     return {
       ok: true,
       config: buildGptConfig(
-        "zh-CN",
+        locale,
         paths.repoRoot,
         buildDistributionContextFromPaths(paths)
       )
@@ -470,6 +496,13 @@ export function buildServer(
   };
 
   const setupStatusHandler = async () => buildSetupStatus(paths);
+
+  const integrationStatusHandler = async () =>
+    buildIntegrationStatusSnapshot({
+      paths,
+      oauthSummary: oauthStore?.integrationSummary(new Date().toISOString()) ?? null,
+      toolCount: mcpToolCount
+    });
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
@@ -1058,6 +1091,7 @@ export function buildServer(
 
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
+  app.get("/api/integrations/status", integrationStatusHandler);
 
   app.get("/api/setup/status", setupStatusHandler);
   app.get("/tokenpilot/api/setup/status", setupStatusHandler);

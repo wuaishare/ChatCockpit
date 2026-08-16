@@ -46,10 +46,16 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button(DesktopL10n.string("Open ChatCockpit")) {
-                model.openCockpit()
+            Button(DesktopL10n.string("Open Local Cockpit")) {
+                model.openLocalCockpit()
             }
-            .disabled(model.snapshot.cockpitURL == nil)
+            .disabled(model.snapshot.localCockpitURL == nil)
+
+            if model.snapshot.publicCockpitURL != nil {
+                Button(DesktopL10n.string("Open Public Cockpit")) {
+                    model.openPublicCockpit()
+                }
+            }
 
             Button(DesktopL10n.string("Open Status Window")) {
                 DesktopScenePresentation.present {

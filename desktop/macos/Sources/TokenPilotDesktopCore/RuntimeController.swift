@@ -100,14 +100,24 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
         context?.mode
     }
 
-    public var cockpitURL: URL? {
+    public var localCockpitURL: URL? {
         guard uiReachable else { return nil }
         var components = URLComponents()
         components.scheme = "http"
-        components.host = configuration.host
+        components.host = "127.0.0.1"
         components.port = configuration.port
         components.path = "/ui"
         return components.url
+    }
+
+    public var publicCockpitURL: URL? {
+        guard configuration.exposed,
+              let publicBaseURL = configuration.publicBaseURL else { return nil }
+        return publicBaseURL.appendingPathComponent("ui", isDirectory: false)
+    }
+
+    public var cockpitURL: URL? {
+        localCockpitURL
     }
 }
 

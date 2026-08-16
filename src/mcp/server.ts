@@ -65,7 +65,7 @@ function requestIdFromContext(
   return supplied || `mcp:${toolName}:${randomUUID()}`;
 }
 
-export function buildTokenPilotMcpHandler(
+export function buildTokenPilotMcpToolCatalog(
   paths: TokenPilotPaths,
   continuityServices: ContinuityServices,
   chatDirect: ChatDirectService,
@@ -80,11 +80,10 @@ export function buildTokenPilotMcpHandler(
   runtimeEventService: RuntimeEventService,
   runtimeRecoveryServices: RuntimeRecoveryServices,
   runtimeResourceServices: RuntimeResourceServices,
-  runtimeResourceMutationService: RuntimeResourceMutationService | null,
-  onerror?: (error: Error) => void
-): McpHttpHandler {
+  runtimeResourceMutationService: RuntimeResourceMutationService | null
+) {
   const identity = productIdentityForKey(paths.productIdentity);
-  const tools = projectMcpToolsForProduct([
+  return projectMcpToolsForProduct([
     ...buildReadOnlyMcpToolCatalog(
       { chatDirect, hostDirect },
       identity.defaultRepoId
@@ -116,6 +115,44 @@ export function buildTokenPilotMcpHandler(
         })
       : [])
   ], paths.productIdentity);
+}
+
+export function buildTokenPilotMcpHandler(
+  paths: TokenPilotPaths,
+  continuityServices: ContinuityServices,
+  chatDirect: ChatDirectService,
+  hostDirect: HostDirectService,
+  hostMutation: HostMutationService,
+  hostCommand: HostCommandService,
+  hostProcess: HostProcessService,
+  runtimeService: RuntimeService,
+  runtimeBindingService: RuntimeBindingService,
+  runtimeTurnService: RuntimeTurnService,
+  runtimeApprovalService: RuntimeApprovalService,
+  runtimeEventService: RuntimeEventService,
+  runtimeRecoveryServices: RuntimeRecoveryServices,
+  runtimeResourceServices: RuntimeResourceServices,
+  runtimeResourceMutationService: RuntimeResourceMutationService | null,
+  onerror?: (error: Error) => void
+): McpHttpHandler {
+  const identity = productIdentityForKey(paths.productIdentity);
+  const tools = buildTokenPilotMcpToolCatalog(
+    paths,
+    continuityServices,
+    chatDirect,
+    hostDirect,
+    hostMutation,
+    hostCommand,
+    hostProcess,
+    runtimeService,
+    runtimeBindingService,
+    runtimeTurnService,
+    runtimeApprovalService,
+    runtimeEventService,
+    runtimeRecoveryServices,
+    runtimeResourceServices,
+    runtimeResourceMutationService
+  );
 
   return createMcpHandler(
     (requestContext) => {

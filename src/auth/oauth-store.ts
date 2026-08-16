@@ -136,6 +136,12 @@ export interface OAuthStoreOptions {
   path: string;
 }
 
+export interface OAuthIntegrationSummary {
+  authorizedClientCount: number;
+  activeAccessTokenCount: number;
+  activeRefreshTokenCount: number;
+}
+
 export class OAuthStore {
   readonly sqlite: DatabaseSync;
   readonly path: string;
@@ -338,6 +344,48 @@ export class OAuthStore {
       `)
       .run(revokedAt, tokenHash);
     return access.changes > 0 || refresh.changes > 0;
+  }
+
+  integrationSummary(now: string): OAuthIntegrationSummary {
+    const activeAccessTokenCount = Number(
+      (this.sqlite
+        .prepare(`
+          SELECT COUNT(*) AS count
+          FROM oauth_access_tokens
+          WHERE revoked_at IS NULL AND expires_at > ?
+        `)
+        .get(now) as { count: number | bigint }).count
+    );
+    const activeRefreshTokenCount = Number(
+      (this.sqlite
+        .prepare(`
+          SELECT COUNT(*) AS count
+          FROM oauth_refresh_tokens
+          WHERE revoked_at IS NULL AND expires_at > ?
+        `)
+        .get(now) as { count: number | bigint }).count
+    );
+    const authorizedClientCount = Number(
+      (this.sqlite
+        .prepare(`
+          SELECT COUNT(DISTINCT client_id) AS count
+          FROM (
+            SELECT client_id
+            FROM oauth_access_tokens
+            WHERE revoked_at IS NULL AND expires_at > ?
+            UNION ALL
+            SELECT client_id
+            FROM oauth_refresh_tokens
+            WHERE revoked_at IS NULL AND expires_at > ?
+          )
+        `)
+        .get(now, now) as { count: number | bigint }).count
+    );
+    return {
+      authorizedClientCount,
+      activeAccessTokenCount,
+      activeRefreshTokenCount
+    };
   }
 
   cleanupExpired(now: string): void {
