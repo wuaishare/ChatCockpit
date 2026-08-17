@@ -434,22 +434,26 @@ struct SettingsView: View {
             Section(DesktopL10n.string("Connectivity Providers")) {
                 if let snapshot = model.connectivityProviderStatus {
                     ForEach(snapshot.providers) { provider in
-                        LabeledContent(provider.displayName) {
-                            HStack(spacing: 8) {
-                                Label(
-                                    connectivityProviderDetectionText(provider.detection),
-                                    systemImage: connectivityProviderDetectionIcon(provider.detection)
-                                )
-                                    .foregroundStyle(
-                                        provider.detection == .detected ? .primary : .secondary
+                        VStack(alignment: .leading, spacing: 8) {
+                            LabeledContent(provider.displayName) {
+                                HStack(spacing: 8) {
+                                    Label(
+                                        connectivityProviderDetectionText(provider.detection),
+                                        systemImage: connectivityProviderDetectionIcon(provider.detection)
                                     )
+                                        .foregroundStyle(
+                                            provider.detection == .detected ? .primary : .secondary
+                                        )
 
-                                if let version = provider.version {
-                                    Text(verbatim: version)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
+                                    if let version = provider.version {
+                                        Text(verbatim: version)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
+
+                            connectivityProviderManagementControls(provider)
                         }
                     }
                 } else {
@@ -532,6 +536,82 @@ struct SettingsView: View {
         consolePathPrefix = policy.consolePathPrefix
         trustedLanEnabled = policy.trustedLan.enabled
         trustedLanCidrsText = policy.trustedLan.cidrs.joined(separator: "\n")
+    }
+
+    @ViewBuilder
+    private func connectivityProviderManagementControls(
+        _ provider: DesktopConnectivityProviderStatus
+    ) -> some View {
+        if provider.id == "cloudflare-tunnel" {
+            if let capabilities = model.cloudflaredCapabilities {
+                HStack(spacing: 8) {
+                    if capabilities.availability(for: .install)?.available == true {
+                        Button(DesktopL10n.string("Install")) {
+                            Task {
+                                await model.runConnectivityProviderAction(
+                                    providerId: provider.id,
+                                    action: .install
+                                )
+                            }
+                        }
+                    }
+                    if capabilities.availability(for: .upgrade)?.available == true {
+                        Button(DesktopL10n.string("Upgrade")) {
+                            Task {
+                                await model.runConnectivityProviderAction(
+                                    providerId: provider.id,
+                                    action: .upgrade
+                                )
+                            }
+                        }
+                    }
+                    if capabilities.availability(for: .uninstall)?.available == true {
+                        Button(DesktopL10n.string("Uninstall"), role: .destructive) {
+                            Task {
+                                await model.runConnectivityProviderAction(
+                                    providerId: provider.id,
+                                    action: .uninstall
+                                )
+                            }
+                        }
+                    }
+                }
+                    .controlSize(.small)
+                    .disabled(model.isConnectivityMutationRunning || model.isSecurityRefreshing)
+
+                if capabilities.detection == .detected,
+                   capabilities.managedByChatCockpit == false {
+                    Text(
+                        DesktopL10n.string(
+                            "This cloudflared installation was detected outside ChatCockpit. It will be reused as-is and will not be upgraded or uninstalled by ChatCockpit."
+                        )
+                    )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if capabilities.detection == .notDetected,
+                          capabilities.availability(for: .install)?.reason == "homebrew-not-detected" {
+                    Text(
+                        DesktopL10n.string(
+                            "Managed Cloudflare Tunnel installation requires Homebrew on this Mac. ChatCockpit will not install Homebrew automatically."
+                        )
+                    )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let feedback = model.securityFeedback,
+                   feedback.target == .connectivityProvider(provider.id),
+                   feedback.kind == .updated {
+                    transientFeedbackLabel(feedback.message)
+                }
+            } else {
+                Text(DesktopL10n.string("Cloudflare Tunnel management status is not available."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func connectivityProviderDetectionText(

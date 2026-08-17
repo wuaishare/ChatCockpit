@@ -36,6 +36,19 @@ Provider Adapter 必须显式声明自己真正实现了哪些动作。没有实
 
 安装 Provider **不等于**创建或启动公网 Tunnel。Provider Binary 生命周期与 Public Route 生命周期是两类独立操作。
 
+## 当前已实现 Adapter
+
+首个已实现的机器侧 Adapter 是 **macOS 上通过 Homebrew 管理 Cloudflare Tunnel `cloudflared` 二进制生命周期**。它的范围被刻意限制为：
+
+- 通过固定版本探测确认 `cloudflared`；
+- Prepare 后由操作员显式确认 `install`、`upgrade` 或 `uninstall`；
+- Homebrew 执行只允许标准 macOS 绝对路径 `/opt/homebrew/bin/brew` 或 `/usr/local/bin/brew`；
+- Package Manager 命令结束后重新探测 `cloudflared`；
+- 只有安装或升级结果验证成功后，才记录 machine-local 的 ChatCockpit ownership；
+- 只有该 ChatCockpit ownership 仍适用时，才允许升级或卸载。
+
+外部已有的 `cloudflared` 可以继续复用，但保持 unmanaged；ChatCockpit 不会因为探测成功就自动接管。该 Adapter 不安装 Homebrew、不登录 Cloudflare、不创建 Tunnel、不安装或启动 Tunnel Service、不写入 Provider Credential，也不修改「公网接入」Route。
+
 ## 优先复用现有环境
 
 ChatCockpit 必须保护操作员已经存在的基础设施：

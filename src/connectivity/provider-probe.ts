@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 
+import { connectivityMachinePath } from "./machine-command-env.js";
+
 export const CONNECTIVITY_PROVIDER_SCHEMA_VERSION = 1 as const;
 
 export type ConnectivityProviderId =
@@ -73,7 +75,11 @@ function defaultCommandRunner(): ConnectivityProbeCommandRunner {
         encoding: "utf8",
         timeout: DEFAULT_PROBE_TIMEOUT_MS,
         maxBuffer: 64 * 1024,
-        windowsHide: true
+        windowsHide: true,
+        env: {
+          ...process.env,
+          PATH: connectivityMachinePath()
+        }
       });
       if (result.error) {
         const code = (result.error as NodeJS.ErrnoException).code;
@@ -106,21 +112,32 @@ function detectionFor(result: ConnectivityProbeCommandResult): ConnectivityProvi
   return publicVersion(result) ? "detected" : "probe-failed";
 }
 
+export function probeConnectivityProvider(
+  providerId: ConnectivityProviderId,
+  input: { runner?: ConnectivityProbeCommandRunner } = {}
+): ConnectivityProviderMachineStatus {
+  const runner = input.runner ?? defaultCommandRunner();
+  const provider = CONNECTIVITY_PROVIDER_CATALOG.find((candidate) => candidate.id === providerId);
+  if (!provider) {
+    throw new Error(`Unsupported connectivity provider: ${providerId}`);
+  }
+  const result = runner.run(provider.command, provider.versionArgs);
+  const detection = detectionFor(result);
+  return {
+    id: provider.id,
+    displayName: provider.displayName,
+    detection,
+    version: detection === "detected" ? publicVersion(result) : null
+  };
+}
+
 export function probeConnectivityProviders(input: {
   runner?: ConnectivityProbeCommandRunner;
 } = {}): ConnectivityProviderProbeSnapshot {
-  const runner = input.runner ?? defaultCommandRunner();
   return {
     schemaVersion: CONNECTIVITY_PROVIDER_SCHEMA_VERSION,
-    providers: CONNECTIVITY_PROVIDER_CATALOG.map((provider) => {
-      const result = runner.run(provider.command, provider.versionArgs);
-      const detection = detectionFor(result);
-      return {
-        id: provider.id,
-        displayName: provider.displayName,
-        detection,
-        version: detection === "detected" ? publicVersion(result) : null
-      };
-    })
+    providers: CONNECTIVITY_PROVIDER_CATALOG.map((provider) =>
+      probeConnectivityProvider(provider.id, input)
+    )
   };
 }

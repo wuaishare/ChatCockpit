@@ -16,6 +16,7 @@ enum DesktopSecurityFeedbackTarget: Equatable {
     case ownerPassword
     case machineApiToken
     case accessPolicy
+    case connectivityProvider(String)
     case apiEndpoint(String)
 }
 
@@ -46,6 +47,8 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
     @Published private(set) var accessPolicyStatus: DesktopAccessPolicy?
     @Published private(set) var connectivityProviderStatus: DesktopConnectivityProviderSnapshot?
+    @Published private(set) var cloudflaredCapabilities: DesktopConnectivityProviderCapabilities?
+    @Published private(set) var isConnectivityMutationRunning = false
     @Published private(set) var operationalSummary: DesktopOperationalSummary?
     @Published private(set) var revealedOwnerPassword: String?
     @Published private(set) var revealedMachineApiToken: String?
@@ -622,6 +625,7 @@ final class DesktopAppModel: ObservableObject {
                 machineApiTokenStatus = nil
                 accessPolicyStatus = nil
                 connectivityProviderStatus = nil
+                cloudflaredCapabilities = nil
                 revealedOwnerPassword = nil
                 revealedMachineApiToken = nil
                 return
@@ -637,12 +641,21 @@ final class DesktopAppModel: ObservableObject {
             } catch {
                 self.connectivityProviderStatus = nil
             }
+            do {
+                self.cloudflaredCapabilities = try await authorityClient.connectivityProviderCapabilities(
+                    providerId: "cloudflare-tunnel",
+                    context: context
+                )
+            } catch {
+                self.cloudflaredCapabilities = nil
+            }
         } catch {
             operatorSecurityStatus = nil
             revealedOwnerPassword = nil
             machineApiTokenStatus = nil
             accessPolicyStatus = nil
             connectivityProviderStatus = nil
+            cloudflaredCapabilities = nil
             lastUserMessage = DesktopL10n.string(
                 "Security settings could not be read from the local ChatCockpit runtime."
             )
@@ -855,6 +868,82 @@ final class DesktopAppModel: ObservableObject {
         } catch {
             lastUserMessage = DesktopL10n.string("A new random console path could not be generated.")
             return nil
+        }
+    }
+
+    func runConnectivityProviderAction(
+        providerId: String,
+        action: DesktopConnectivityProviderMachineAction
+    ) async {
+        guard !isConnectivityMutationRunning else { return }
+
+        do {
+            guard let context = try await currentContext() else { return }
+            let plan = try await authorityClient.prepareConnectivityProviderAction(
+                providerId: providerId,
+                action: action,
+                context: context
+            )
+
+            let alert = NSAlert()
+            switch action {
+            case .install:
+                alert.messageText = DesktopL10n.string("Install Cloudflare Tunnel?")
+                alert.addButton(withTitle: DesktopL10n.string("Install"))
+            case .upgrade:
+                alert.messageText = DesktopL10n.string("Upgrade Cloudflare Tunnel?")
+                alert.addButton(withTitle: DesktopL10n.string("Upgrade"))
+            case .uninstall:
+                alert.messageText = DesktopL10n.string("Uninstall Cloudflare Tunnel?")
+                alert.addButton(withTitle: DesktopL10n.string("Uninstall"))
+            }
+            alert.informativeText = DesktopL10n.string(
+                "This changes only the cloudflared binary managed by ChatCockpit through Homebrew. It does not sign in to Cloudflare, install or start a tunnel service, create a tunnel, or change the current Public Access route."
+            )
+            alert.alertStyle = action == .uninstall ? .warning : .informational
+            alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+            guard plan.requiresConfirmation,
+                  plan.changesPublicRoute == false,
+                  plan.startsTunnel == false,
+                  plan.startsRuntime == false else {
+                lastUserMessage = DesktopL10n.string("The prepared provider action did not satisfy the ChatCockpit machine safety contract.")
+                return
+            }
+
+            isConnectivityMutationRunning = true
+            defer { isConnectivityMutationRunning = false }
+            let result = try await authorityClient.executeConnectivityProviderPlan(
+                providerId: providerId,
+                planId: plan.planId,
+                context: context
+            )
+            await refreshSecurity()
+
+            guard result.outcome == .succeeded else {
+                lastUserMessage = DesktopL10n.string(
+                    result.outcome == .commandFailed
+                        ? "The Homebrew provider action failed. The current Public Access route was not changed."
+                        : "The provider action completed but the resulting cloudflared state could not be verified. The current Public Access route was not changed."
+                )
+                return
+            }
+
+            presentSecurityFeedback(
+                DesktopL10n.string(
+                    action == .install
+                        ? "Cloudflare Tunnel was installed and re-verified. No tunnel or public route was started."
+                        : action == .upgrade
+                            ? "Cloudflare Tunnel was upgraded and re-verified. No tunnel or public route was changed."
+                            : "The ChatCockpit-managed Cloudflare Tunnel binary was uninstalled and re-verified. The current Public Access route was not changed."
+                ),
+                target: .connectivityProvider(providerId),
+                kind: .updated
+            )
+        } catch {
+            await refreshSecurity()
+            lastUserMessage = DesktopL10n.string("The Cloudflare Tunnel machine action could not be completed.")
         }
     }
 

@@ -219,6 +219,80 @@ public struct DesktopConnectivityProviderSnapshot: Decodable, Equatable, Sendabl
     }
 }
 
+public enum DesktopConnectivityProviderMachineAction: String, Decodable, Equatable, Sendable {
+    case install
+    case upgrade
+    case uninstall
+}
+
+public struct DesktopConnectivityProviderActionAvailability: Decodable, Equatable, Sendable {
+    public let action: DesktopConnectivityProviderMachineAction
+    public let available: Bool
+    public let reason: String?
+}
+
+public struct DesktopConnectivityProviderCapabilities: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let providerId: String
+    public let displayName: String
+    public let packageManager: String
+    public let detection: DesktopConnectivityProviderDetection
+    public let version: String?
+    public let managedByChatCockpit: Bool
+    public let actions: [DesktopConnectivityProviderActionAvailability]
+
+    public func availability(
+        for action: DesktopConnectivityProviderMachineAction
+    ) -> DesktopConnectivityProviderActionAvailability? {
+        actions.first { $0.action == action }
+    }
+}
+
+public struct DesktopConnectivityProviderMutationPlan: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let planId: String
+    public let providerId: String
+    public let displayName: String
+    public let packageManager: String
+    public let action: DesktopConnectivityProviderMachineAction
+    public let requiresConfirmation: Bool
+    public let changesPublicRoute: Bool
+    public let startsTunnel: Bool
+    public let startsRuntime: Bool
+    public let expectedDetection: DesktopConnectivityProviderDetection
+    public let expectedVersion: String?
+    public let expectedManagedByChatCockpit: Bool
+    public let preparedAt: String
+    public let expiresAt: String
+}
+
+public enum DesktopConnectivityProviderMutationOutcome: String, Decodable, Equatable, Sendable {
+    case succeeded
+    case commandFailed = "command-failed"
+    case verificationFailed = "verification-failed"
+}
+
+public struct DesktopConnectivityProviderMutationObservedState: Decodable, Equatable, Sendable {
+    public let detection: DesktopConnectivityProviderDetection
+    public let version: String?
+    public let managedByChatCockpit: Bool
+}
+
+public struct DesktopConnectivityProviderMutationResult: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let planId: String
+    public let providerId: String
+    public let displayName: String
+    public let packageManager: String
+    public let action: DesktopConnectivityProviderMachineAction
+    public let outcome: DesktopConnectivityProviderMutationOutcome
+    public let before: DesktopConnectivityProviderMutationObservedState
+    public let after: DesktopConnectivityProviderMutationObservedState
+    public let changesPublicRoute: Bool
+    public let startsTunnel: Bool
+    public let startsRuntime: Bool
+}
+
 public struct DesktopGeneratedConsolePath: Decodable, Equatable, Sendable {
     public let consolePathPrefix: String
 
@@ -358,6 +432,58 @@ public struct DesktopAuthorityClient: Sendable {
         )
     }
 
+    public func connectivityProviderCapabilities(
+        providerId: String,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopConnectivityProviderCapabilities {
+        try await decode(
+            DesktopConnectivityProviderCapabilities.self,
+            from: runCLI(
+                context: context,
+                arguments: ["connectivity", "provider", "status", "--provider", providerId, "--json"]
+            )
+        )
+    }
+
+    public func prepareConnectivityProviderAction(
+        providerId: String,
+        action: DesktopConnectivityProviderMachineAction,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopConnectivityProviderMutationPlan {
+        try await decode(
+            DesktopConnectivityProviderMutationPlan.self,
+            from: runCLI(
+                context: context,
+                arguments: [
+                    "connectivity", "provider", "prepare",
+                    "--provider", providerId,
+                    "--action", action.rawValue,
+                    "--json"
+                ]
+            )
+        )
+    }
+
+    public func executeConnectivityProviderPlan(
+        providerId: String,
+        planId: String,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopConnectivityProviderMutationResult {
+        try await decode(
+            DesktopConnectivityProviderMutationResult.self,
+            from: runCLI(
+                context: context,
+                arguments: [
+                    "connectivity", "provider", "execute",
+                    "--provider", providerId,
+                    "--plan-id", planId,
+                    "--json"
+                ],
+                timeoutSeconds: 660
+            )
+        )
+    }
+
     public func generateConsolePath(
         context: DesktopDistributionContext
     ) async throws -> String {
@@ -431,12 +557,14 @@ public struct DesktopAuthorityClient: Sendable {
     private func runCLI(
         context: DesktopDistributionContext,
         arguments: [String],
-        standardInput: String? = nil
+        standardInput: String? = nil,
+        timeoutSeconds: TimeInterval = 20
     ) async throws -> RuntimeCommandResult {
         try await transport.run(
             context: context,
             arguments: arguments,
-            standardInput: standardInput
+            standardInput: standardInput,
+            timeoutSeconds: timeoutSeconds
         )
     }
 }
@@ -459,7 +587,8 @@ private struct DesktopCLITransport: Sendable {
     func run(
         context: DesktopDistributionContext,
         arguments: [String],
-        standardInput: String? = nil
+        standardInput: String? = nil,
+        timeoutSeconds: TimeInterval = 20
     ) async throws -> RuntimeCommandResult {
         let builtCLI = context.installRootURL.appendingPathComponent("dist/cli/index.js")
         let sourceCLI = context.installRootURL.appendingPathComponent("src/cli/index.ts")
@@ -521,7 +650,7 @@ private struct DesktopCLITransport: Sendable {
                     try? inputPipe.fileHandleForWriting.close()
                 }
 
-                let waitResult = termination.wait(timeout: .now() + 20)
+                let waitResult = termination.wait(timeout: .now() + max(timeoutSeconds, 0.01))
                 if waitResult == .timedOut {
                     process.terminate()
                     _ = termination.wait(timeout: .now() + 1)
