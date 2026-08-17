@@ -49,6 +49,11 @@ import {
   buildConnectivityProviderPublicSnapshot,
   type ConnectivityProviderPublicSnapshot
 } from "../connectivity/provider-public-projection.js";
+import {
+  PublicRouteCandidateStore,
+  PublicRouteCandidateValidationError,
+  type PublicRouteCandidateSource
+} from "../connectivity/public-route-candidate.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
@@ -119,6 +124,18 @@ import {
   registerWebSecurityHeaders,
   trustLoopbackProxy
 } from "./security-headers.js";
+
+const publicRouteCandidateSourceSchema = z.enum([
+  "existing-environment",
+  "cloudflare-tunnel",
+  "ngrok",
+  "frp-client"
+]);
+
+const publicRouteCandidateStageSchema = z.object({
+  origin: z.string().min(1),
+  source: publicRouteCandidateSourceSchema
+});
 
 const taskPackSchema = z.object({
   title: z.string().min(1),
@@ -211,6 +228,7 @@ export interface BuildServerOptions {
   directExecutorsConfigPath?: string;
   acpRegistryAdapter?: AcpRegistryAdapter | null;
   connectivityProviderPublicSnapshot?: () => ConnectivityProviderPublicSnapshot;
+  publicRouteCandidateStore?: PublicRouteCandidateStore;
 }
 
 export function buildServer(
@@ -262,6 +280,9 @@ export function buildServer(
     store: operatorStore,
     runtimeDir: paths.runtimeDir
   });
+  const publicRouteCandidateStore =
+    options.publicRouteCandidateStore ??
+    new PublicRouteCandidateStore({ runtimeDir: paths.runtimeDir });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(
       app,
@@ -537,6 +558,38 @@ export function buildServer(
   const connectivityProviderStatusHandler = async () =>
     options.connectivityProviderPublicSnapshot?.() ??
     buildConnectivityProviderPublicSnapshot({ runtimeDir: paths.runtimeDir });
+
+  const publicRouteCandidateStatusHandler = async () =>
+    publicRouteCandidateStore.snapshot();
+
+  const stagePublicRouteCandidateHandler = async (request: unknown, reply: unknown) => {
+    const parsed = publicRouteCandidateStageSchema.safeParse(
+      (request as { body?: unknown }).body ?? {}
+    );
+    const fastifyReply = replyFrom(reply);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return publicRouteCandidateStore.stage({
+        origin: parsed.data.origin,
+        source: parsed.data.source as PublicRouteCandidateSource
+      });
+    } catch (error) {
+      if (error instanceof PublicRouteCandidateValidationError) {
+        return sendApiError(
+          fastifyReply,
+          400,
+          error.code.toUpperCase().replaceAll("-", "_"),
+          error.message
+        );
+      }
+      throw error;
+    }
+  };
+
+  const discardPublicRouteCandidateHandler = async () =>
+    publicRouteCandidateStore.clear();
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
@@ -1127,6 +1180,9 @@ export function buildServer(
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
   app.get("/api/connectivity/providers", connectivityProviderStatusHandler);
+  app.get("/api/connectivity/routes", publicRouteCandidateStatusHandler);
+  app.post("/api/connectivity/routes/candidate", stagePublicRouteCandidateHandler);
+  app.delete("/api/connectivity/routes/candidate", discardPublicRouteCandidateHandler);
 
   app.get("/api/setup/status", setupStatusHandler);
   app.get("/tokenpilot/api/setup/status", setupStatusHandler);

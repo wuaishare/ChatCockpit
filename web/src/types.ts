@@ -216,6 +216,32 @@ export interface ConnectivityProviderPublicSnapshot {
   providers: ConnectivityProviderPublicStatus[];
 }
 
+export type PublicRouteCandidateSource =
+  | "existing-environment"
+  | "cloudflare-tunnel"
+  | "ngrok"
+  | "frp-client";
+
+export interface PublicRouteCandidate {
+  id: string;
+  origin: string;
+  source: PublicRouteCandidateSource;
+  status: "staged-unverified";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicRouteCandidateSnapshot {
+  ok: true;
+  schemaVersion: 1;
+  canonical: {
+    origin: string | null;
+    configured: boolean;
+    source: "runtime-config";
+  };
+  candidate: PublicRouteCandidate | null;
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

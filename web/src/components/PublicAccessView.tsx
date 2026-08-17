@@ -1,6 +1,7 @@
-import { Button, Tag } from "antd";
+import { Button, Input, Select, Tag } from "antd";
 import { CopyButton, Text } from "@lobehub/ui";
 import { ClipboardCopy } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { LocaleCode } from "../i18n";
 import { getPublicAccessCopy } from "../i18n/public-access";
 import type {
@@ -8,7 +9,9 @@ import type {
   ConnectivityProviderMachineAction,
   ConnectivityProviderPublicSnapshot,
   ConnectivityProviderPublicStatus,
-  IntegrationStatusResponse
+  IntegrationStatusResponse,
+  PublicRouteCandidateSnapshot,
+  PublicRouteCandidateSource
 } from "../types";
 import { SectionCard } from "./SectionCard";
 
@@ -18,6 +21,11 @@ interface PublicAccessViewProps {
   exposed: boolean;
   providerStatus: ConnectivityProviderPublicSnapshot | null;
   providerStatusError: string | null;
+  routeStatus: PublicRouteCandidateSnapshot | null;
+  routeStatusError: string | null;
+  routeMutating: boolean;
+  onStageCandidate: (origin: string, source: PublicRouteCandidateSource) => void;
+  onDiscardCandidate: () => void;
   onOpenIntegrations: () => void;
 }
 
@@ -70,6 +78,12 @@ function providerActionLabel(
   return copy.actionUninstall;
 }
 
+const ROUTE_CANDIDATE_PROVIDER_SOURCES = new Set<PublicRouteCandidateSource>([
+  "cloudflare-tunnel",
+  "ngrok",
+  "frp-client"
+]);
+
 function providerCapabilitySummary(
   provider: ConnectivityProviderPublicStatus,
   copy: ReturnType<typeof getPublicAccessCopy>
@@ -91,9 +105,39 @@ export function PublicAccessView({
   exposed,
   providerStatus,
   providerStatusError,
+  routeStatus,
+  routeStatusError,
+  routeMutating,
+  onStageCandidate,
+  onDiscardCandidate,
   onOpenIntegrations
 }: PublicAccessViewProps) {
   const copy = getPublicAccessCopy(locale);
+  const [candidateOrigin, setCandidateOrigin] = useState("");
+  const [candidateSource, setCandidateSource] =
+    useState<PublicRouteCandidateSource>("existing-environment");
+  const routeSourceOptions = useMemo(
+    () => [
+      { value: "existing-environment" as const, label: copy.existingEnvironment },
+      ...(providerStatus?.providers
+        .filter((provider) => ROUTE_CANDIDATE_PROVIDER_SOURCES.has(provider.id as PublicRouteCandidateSource))
+        .map((provider) => ({
+          value: provider.id as PublicRouteCandidateSource,
+          label: provider.displayName
+        })) ?? [])
+    ],
+    [copy.existingEnvironment, providerStatus]
+  );
+
+  useEffect(() => {
+    if (routeStatus?.candidate) {
+      setCandidateOrigin(routeStatus.candidate.origin);
+      setCandidateSource(routeStatus.candidate.source);
+      return;
+    }
+    setCandidateOrigin("");
+    setCandidateSource("existing-environment");
+  }, [routeStatus?.candidate?.id]);
   const publicEndpointReady = Boolean(status.publicCockpitUrl && status.publicApiBaseUrl);
   const hasPublicApi = Boolean(status.publicApiBaseUrl);
   const publicHttpsReady = status.publicApiBaseUrl?.startsWith("https://") === true;
@@ -209,6 +253,105 @@ export function PublicAccessView({
         </div>
         <div className="gpt-inline-note">
           <Text>{copy.machineBoundary}</Text>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title={copy.routeIntentTitle}
+        description={copy.routeIntentDescription}
+        extra={
+          routeStatus?.candidate ? (
+            <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+          ) : null
+        }
+      >
+        {routeStatus ? (
+          <>
+            <div className="gpt-facts">
+              <div className="gpt-fact">
+                <span>{copy.currentCanonicalRoute}</span>
+                <EndpointValue
+                  value={routeStatus.canonical.origin}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.currentCanonicalRoute}`}
+                />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.candidateRoute}</span>
+                {routeStatus.candidate ? (
+                  <strong className="public-access-route-candidate">
+                    <span>{routeStatus.candidate.origin}</span>
+                    <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+                  </strong>
+                ) : (
+                  <strong>{copy.noCandidateRoute}</strong>
+                )}
+              </div>
+              {routeStatus.candidate ? (
+                <div className="gpt-fact">
+                  <span>{copy.candidateSource}</span>
+                  <strong>
+                    {routeSourceOptions.find((option) => option.value === routeStatus.candidate?.source)?.label
+                      ?? routeStatus.candidate.source}
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="public-access-route-form">
+              <label>
+                <span>{copy.candidateSource}</span>
+                <Select
+                  value={candidateSource}
+                  options={routeSourceOptions}
+                  onChange={(value) => setCandidateSource(value as PublicRouteCandidateSource)}
+                  disabled={routeMutating}
+                />
+              </label>
+              <label className="public-access-route-origin-field">
+                <span>{copy.candidateOrigin}</span>
+                <Input
+                  value={candidateOrigin}
+                  placeholder={copy.candidateOriginPlaceholder}
+                  onChange={(event) => setCandidateOrigin(event.target.value)}
+                  disabled={routeMutating}
+                />
+              </label>
+              <div className="public-access-route-actions">
+                <Button
+                  type="primary"
+                  loading={routeMutating}
+                  disabled={!candidateOrigin.trim() || routeMutating}
+                  onClick={() => onStageCandidate(candidateOrigin.trim(), candidateSource)}
+                >
+                  {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
+                </Button>
+                {routeStatus.candidate ? (
+                  <Button
+                    disabled={routeMutating}
+                    onClick={onDiscardCandidate}
+                  >
+                    {copy.discardCandidateRoute}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.routeIntentTitle}</strong>
+            <span>{routeStatusError ?? copy.candidateStatusUnavailable}</span>
+          </div>
+        )}
+
+        {routeStatusError && routeStatus ? (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.routeIntentTitle}</strong>
+            <span>{routeStatusError}</span>
+          </div>
+        ) : null}
+        <div className="gpt-inline-note public-access-route-safety">
+          <Text>{copy.candidateSafetyNote}</Text>
         </div>
       </SectionCard>
 

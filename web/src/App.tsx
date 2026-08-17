@@ -15,7 +15,9 @@ import {
 } from "@ant-design/icons";
 import {
   controlJob,
+  discardPublicRouteCandidate,
   fetchConnectivityProviders,
+  fetchPublicRouteCandidate,
   fetchGptConfig,
   fetchHealth,
   fetchIntegrationStatus,
@@ -30,6 +32,7 @@ import {
   loginOperator,
   logoutOperator,
   redeemLocalLoginGrant,
+  stagePublicRouteCandidate,
   setOperatorCsrfToken,
   verifyPasskeyAuthentication,
   verifyOperatorTotpLogin,
@@ -48,6 +51,8 @@ import { OperatorSetupRequiredView } from "./components/OperatorSetupRequiredVie
 import type {
   ArtifactPreviewState,
   ConnectivityProviderPublicSnapshot,
+  PublicRouteCandidateSnapshot,
+  PublicRouteCandidateSource,
   ContinuitySectionKey,
   GptConfigModel,
   HealthModel,
@@ -266,6 +271,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [connectivityProviderStatus, setConnectivityProviderStatus] =
     useState<ConnectivityProviderPublicSnapshot | null>(null);
   const [connectivityProviderStatusError, setConnectivityProviderStatusError] = useState<string | null>(null);
+  const [publicRouteCandidateStatus, setPublicRouteCandidateStatus] =
+    useState<PublicRouteCandidateSnapshot | null>(null);
+  const [publicRouteCandidateError, setPublicRouteCandidateError] = useState<string | null>(null);
+  const [publicRouteCandidateMutating, setPublicRouteCandidateMutating] = useState(false);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -496,6 +505,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setIntegrationStatusError(null);
       setConnectivityProviderStatus(null);
       setConnectivityProviderStatusError(null);
+      setPublicRouteCandidateStatus(null);
+      setPublicRouteCandidateError(null);
+      setPublicRouteCandidateMutating(false);
       setSetupStatus(null);
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
@@ -542,11 +554,50 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setConnectivityProviderStatus(null);
         setConnectivityProviderStatusError(getErrorMessage(error));
       }
+      try {
+        const routeResponse = await fetchPublicRouteCandidate(token);
+        setPublicRouteCandidateStatus(routeResponse);
+        setPublicRouteCandidateError(null);
+      } catch (error) {
+        setPublicRouteCandidateStatus(null);
+        setPublicRouteCandidateError(getErrorMessage(error));
+      }
       await loadCompatibilityConfig(locale);
     } catch (error) {
       setHealthError(getErrorMessage(error));
     } finally {
       setHealthLoading(false);
+    }
+  }
+
+  async function stageCandidatePublicRoute(
+    origin: string,
+    source: PublicRouteCandidateSource
+  ) {
+    if (publicRouteCandidateMutating) return;
+    setPublicRouteCandidateMutating(true);
+    setPublicRouteCandidateError(null);
+    try {
+      const response = await stagePublicRouteCandidate({ origin, source }, token);
+      setPublicRouteCandidateStatus(response);
+    } catch (error) {
+      setPublicRouteCandidateError(getErrorMessage(error));
+    } finally {
+      setPublicRouteCandidateMutating(false);
+    }
+  }
+
+  async function discardCandidatePublicRoute() {
+    if (publicRouteCandidateMutating) return;
+    setPublicRouteCandidateMutating(true);
+    setPublicRouteCandidateError(null);
+    try {
+      const response = await discardPublicRouteCandidate(token);
+      setPublicRouteCandidateStatus(response);
+    } catch (error) {
+      setPublicRouteCandidateError(getErrorMessage(error));
+    } finally {
+      setPublicRouteCandidateMutating(false);
     }
   }
 
@@ -1103,6 +1154,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 exposed={health.exposed}
                 providerStatus={connectivityProviderStatus}
                 providerStatusError={connectivityProviderStatusError}
+                routeStatus={publicRouteCandidateStatus}
+                routeStatusError={publicRouteCandidateError}
+                routeMutating={publicRouteCandidateMutating}
+                onStageCandidate={(origin, source) => void stageCandidatePublicRoute(origin, source)}
+                onDiscardCandidate={() => void discardCandidatePublicRoute()}
                 onOpenIntegrations={() => navigateView("integrations")}
               />
             ) : (
