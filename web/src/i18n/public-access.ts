@@ -40,6 +40,8 @@ export interface PublicAccessCopy {
   providerHomebrewRequired: string;
   providerNoMachineAction: string;
   providerStatusUnavailable: string;
+  openConnectivityInApp: string;
+  connectivityBridgeDescription: string;
   actionInstall: string;
   actionUpgrade: string;
   actionUninstall: string;
@@ -100,6 +102,8 @@ const zhCN: PublicAccessCopy = {
   providerHomebrewRequired: "需要先在此 Mac 安装 Homebrew；ChatCockpit 不会自动安装 Homebrew",
   providerNoMachineAction: "当前没有可用的 ChatCockpit 机器操作",
   providerStatusUnavailable: "暂时无法读取本机接入组件状态；这不会改变当前 Runtime 公网接入结果。",
+  openConnectivityInApp: "在 ChatCockpit App 中打开",
+  connectivityBridgeDescription: "只导航到 App 的「访问与安全 → 接入组件」区域；不会自动执行安装、升级、卸载或启动 Tunnel。",
   actionInstall: "安装",
   actionUpgrade: "升级",
   actionUninstall: "卸载",
@@ -160,6 +164,8 @@ const enUS: PublicAccessCopy = {
   providerHomebrewRequired: "Homebrew must already be installed on this Mac; ChatCockpit does not install Homebrew automatically",
   providerNoMachineAction: "No ChatCockpit machine action is currently available",
   providerStatusUnavailable: "Machine connector status is temporarily unavailable. The current Runtime Public Access result is unchanged.",
+  openConnectivityInApp: "Open in ChatCockpit App",
+  connectivityBridgeDescription: "This only navigates to Access & Security → Connectivity Providers in the App. It never auto-runs install, upgrade, uninstall, or Tunnel startup.",
   actionInstall: "Install",
   actionUpgrade: "Upgrade",
   actionUninstall: "Uninstall",

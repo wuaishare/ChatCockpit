@@ -31,6 +31,11 @@ struct DesktopSecurityFeedback: Equatable {
     let message: String
 }
 
+enum DesktopDeepLinkDestination: Equatable {
+    case operatorSetup
+    case connectivity
+}
+
 @MainActor
 final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
@@ -606,12 +611,20 @@ final class DesktopAppModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    func handleDeepLink(_ url: URL) {
-        guard url.scheme?.lowercased() == "chatcockpit" else { return }
-        guard url.host?.lowercased() == "operator", url.path == "/setup" else { return }
-        DesktopScenePresentation.present {
-            self.setOwnerPasswordFromPanel()
+    @discardableResult
+    func handleDeepLink(_ url: URL) -> DesktopDeepLinkDestination? {
+        guard url.scheme?.lowercased() == "chatcockpit" else { return nil }
+        let host = url.host?.lowercased()
+        if host == "operator", url.path == "/setup" {
+            DesktopScenePresentation.present {
+                self.setOwnerPasswordFromPanel()
+            }
+            return .operatorSetup
         }
+        if host == "settings", url.path == "/connectivity" {
+            return .connectivity
+        }
+        return nil
     }
 
     func refreshSecurity() async {
@@ -1334,6 +1347,22 @@ enum DesktopScenePresentation {
         action()
         DispatchQueue.main.async {
             application.activate(ignoringOtherApps: true)
+        }
+    }
+
+    static func presentMainWindow() {
+        present {
+            let application = NSApplication.shared
+            let title = ProductIdentity.current.displayName
+            if let mainWindow = application.windows.first(where: { $0.title == title }) {
+                mainWindow.makeKeyAndOrderFront(nil)
+                return
+            }
+            guard let windowMenuItem = application.windowsMenu?.item(withTitle: title),
+                  let action = windowMenuItem.action else {
+                return
+            }
+            _ = application.sendAction(action, to: windowMenuItem.target, from: windowMenuItem)
         }
     }
 }

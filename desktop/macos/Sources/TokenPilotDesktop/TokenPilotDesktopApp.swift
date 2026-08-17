@@ -42,12 +42,22 @@ struct TokenPilotDesktopApp: App {
     @NSApplicationDelegateAdaptor(DesktopApplicationDelegate.self) private var applicationDelegate
     @StateObject private var model = DesktopAppModel()
     @State private var mainSection: MainAppSection? = .overview
+    @State private var operationalSettingsFocus: OperationalSettingsFocus?
 
     var body: some Scene {
         Window(ProductIdentity.current.displayName, id: "main") {
-            MainAppView(model: model, selection: $mainSection)
+            MainAppView(
+                model: model,
+                selection: $mainSection,
+                operationalSettingsFocus: $operationalSettingsFocus
+            )
                 .onOpenURL { url in
-                    model.handleDeepLink(url)
+                    guard let destination = model.handleDeepLink(url) else { return }
+                    if destination == .connectivity {
+                        mainSection = .accessSecurity
+                        operationalSettingsFocus = .connectivity
+                        DesktopScenePresentation.presentMainWindow()
+                    }
                 }
         }
         .defaultSize(width: 980, height: 700)
