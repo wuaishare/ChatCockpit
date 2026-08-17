@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { DeleteOutlined, KeyOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  KeyOutlined,
+  PlusOutlined,
+  SafetyCertificateOutlined
+} from "@ant-design/icons";
 import {
   Alert,
   Button,
+  Divider,
   Empty,
   Input,
   List,
@@ -27,6 +33,7 @@ import {
   passkeyBrowserSupported,
   passkeyOriginSupported
 } from "../passkey-support";
+import { OperatorTotpManager } from "./OperatorTotpManager";
 
 interface OperatorPasskeyManagerProps {
   locale: LocaleCode;
@@ -129,8 +136,8 @@ export function OperatorPasskeyManager({
     <Modal
       title={
         <Space>
-          <KeyOutlined />
-          {copy.passkeysTitle}
+          <SafetyCertificateOutlined />
+          {copy.security}
         </Space>
       }
       open={open}
@@ -139,6 +146,9 @@ export function OperatorPasskeyManager({
       width={620}
       destroyOnHidden
     >
+      <Typography.Title level={5} style={{ marginTop: 0 }}>
+        <KeyOutlined /> {copy.passkeysTitle}
+      </Typography.Title>
       <Typography.Paragraph type="secondary">
         {copy.passkeysDescription}
       </Typography.Paragraph>
@@ -211,6 +221,9 @@ export function OperatorPasskeyManager({
           </List.Item>
         )}
       />
+
+      <Divider />
+      <OperatorTotpManager locale={locale} open={open} />
     </Modal>
   );
 }

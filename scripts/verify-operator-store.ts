@@ -8,6 +8,8 @@ import { hashOperatorPassword } from "../src/auth/operator-password.js";
 import {
   OperatorStore,
   hashOperatorLocalLoginSecret,
+  hashOperatorMfaLoginSecret,
+  hashOperatorRecoveryCode,
   hashOperatorSessionSecret,
   operatorDatabasePath
 } from "../src/auth/operator-store.js";
@@ -66,11 +68,14 @@ async function main(): Promise<void> {
   `);
   legacy.close();
   const migrated = new OperatorStore({ path: legacyDatabasePath });
-  assert.equal(migrated.schemaVersion(), 3);
+  assert.equal(migrated.schemaVersion(), 4);
   for (const tableName of [
     "operator_local_login_grants",
     "operator_passkeys",
-    "operator_webauthn_challenges"
+    "operator_webauthn_challenges",
+    "operator_mfa_state",
+    "operator_mfa_login_challenges",
+    "operator_recovery_codes"
   ]) {
     assert.equal(
       migrated.sqlite
@@ -94,7 +99,7 @@ async function main(): Promise<void> {
   const absoluteExpiresAt = "2026-08-23T02:00:00.000Z";
 
   let store = new OperatorStore({ path: databasePath });
-  assert.equal(store.schemaVersion(), 3);
+  assert.equal(store.schemaVersion(), 4);
   assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
 
   const owner = store.setOwner(
@@ -214,6 +219,83 @@ async function main(): Promise<void> {
     "WebAuthn challenges must be single-use"
   );
 
+  const rawMfaChallenge = "cc_mfa_raw_challenge_that_must_never_be_persisted";
+  const mfaChallenge = store.createMfaLoginChallenge({
+    id: "mfa-challenge-1",
+    principalId: owner.principal.id,
+    challengeHash: hashOperatorMfaLoginSecret(rawMfaChallenge),
+    sourceHash: "source-digest",
+    userAgentHash: "ua-digest",
+    createdAt: now,
+    expiresAt: "2026-08-16T02:05:00.000Z"
+  });
+  assert.equal(mfaChallenge.failedCount, 0);
+  assert.equal(
+    store.findActiveMfaLoginChallengeByHash(
+      hashOperatorMfaLoginSecret(rawMfaChallenge),
+      now
+    )?.id,
+    "mfa-challenge-1"
+  );
+  assert.equal(
+    store.recordMfaLoginChallengeFailure(
+      "mfa-challenge-1",
+      "2026-08-16T02:00:10.000Z",
+      2
+    )?.failedCount,
+    1
+  );
+  assert.equal(
+    store.recordMfaLoginChallengeFailure(
+      "mfa-challenge-1",
+      "2026-08-16T02:00:11.000Z",
+      2
+    )?.consumedAt,
+    "2026-08-16T02:00:11.000Z"
+  );
+  assert.equal(
+    store.findActiveMfaLoginChallengeByHash(
+      hashOperatorMfaLoginSecret(rawMfaChallenge),
+      "2026-08-16T02:00:12.000Z"
+    ),
+    null
+  );
+
+  store.setMfaEnabled(owner.principal.id, true, now);
+  assert.equal(store.getMfaState(owner.principal.id)?.enabled, true);
+  assert.equal(store.acceptTotpStep(owner.principal.id, 100, now), true);
+  assert.equal(store.acceptTotpStep(owner.principal.id, 100, now), false);
+  assert.equal(store.acceptTotpStep(owner.principal.id, 101, now), true);
+
+  const rawRecoveryCode = "ABCD-EFGH-JKLM-NPQR";
+  store.replaceRecoveryCodes(owner.principal.id, [
+    {
+      id: "recovery-1",
+      principalId: owner.principal.id,
+      codeHash: hashOperatorRecoveryCode(rawRecoveryCode.replaceAll("-", "")),
+      createdAt: now
+    }
+  ]);
+  assert.equal(store.countAvailableRecoveryCodes(owner.principal.id), 1);
+  assert.equal(
+    store.consumeRecoveryCode(
+      owner.principal.id,
+      hashOperatorRecoveryCode(rawRecoveryCode.replaceAll("-", "")),
+      "2026-08-16T02:00:20.000Z"
+    ),
+    true
+  );
+  assert.equal(store.countAvailableRecoveryCodes(owner.principal.id), 0);
+  assert.equal(
+    store.consumeRecoveryCode(
+      owner.principal.id,
+      hashOperatorRecoveryCode(rawRecoveryCode.replaceAll("-", "")),
+      "2026-08-16T02:00:21.000Z"
+    ),
+    false,
+    "Recovery codes must be single-use"
+  );
+
   store.setLoginThrottle({
     sourceHash: "source-digest",
     failedCount: 5,
@@ -244,6 +326,8 @@ async function main(): Promise<void> {
   assert.equal(bytes.includes(Buffer.from(password, "utf8")), false);
   assert.equal(bytes.includes(Buffer.from(rawSessionSecret, "utf8")), false);
   assert.equal(bytes.includes(Buffer.from(rawLocalLoginGrant, "utf8")), false);
+  assert.equal(bytes.includes(Buffer.from(rawMfaChallenge, "utf8")), false);
+  assert.equal(bytes.includes(Buffer.from(rawRecoveryCode, "utf8")), false);
 
   store = new OperatorStore({ path: databasePath });
   assert.equal(store.getLoginThrottle("source-digest")?.failedCount, 5);

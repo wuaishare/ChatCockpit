@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
+import { generateTotpCode } from "../src/auth/operator-totp-service.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
@@ -333,6 +334,8 @@ async function main(): Promise<void> {
     assert.equal(localLogin.status, 200);
     const localLoginCookie = cookiePair(localLogin);
     assert.match(localLoginCookie, /^chatcockpit_operator_session=/);
+    const localLoginBody = (await localLogin.json()) as { csrfToken: string };
+    assert.match(localLoginBody.csrfToken, /^[A-Za-z0-9_-]{43}$/);
     const localProtected = await fetch(`${server.baseUrl}/api/jobs`, {
       headers: { cookie: localLoginCookie }
     });
@@ -346,6 +349,164 @@ async function main(): Promise<void> {
       body: JSON.stringify({ grant: localGrant.grantSecret })
     });
     assert.equal(reusedLocalGrant.status, 401);
+
+    const initialTotpStatus = await fetch(`${server.baseUrl}/api/operator/totp`, {
+      headers: { cookie: localLoginCookie }
+    });
+    assert.equal(initialTotpStatus.status, 200);
+    assert.deepEqual(await initialTotpStatus.json(), {
+      ok: true,
+      enabled: false,
+      recoveryCodesRemaining: 0,
+      pendingEnrollment: false
+    });
+
+    const noCsrfTotpEnrollment = await fetch(`${server.baseUrl}/api/operator/totp/enrollment`, {
+      method: "POST",
+      headers: { cookie: localLoginCookie }
+    });
+    assert.equal(noCsrfTotpEnrollment.status, 403);
+
+    const totpEnrollment = await fetch(`${server.baseUrl}/api/operator/totp/enrollment`, {
+      method: "POST",
+      headers: {
+        cookie: localLoginCookie,
+        "x-chatcockpit-csrf": localLoginBody.csrfToken
+      }
+    });
+    assert.equal(totpEnrollment.status, 200);
+    const totpEnrollmentBody = (await totpEnrollment.json()) as {
+      enrollmentId: string;
+      secret: string;
+      otpauthUri: string;
+    };
+    assert.match(totpEnrollmentBody.secret, /^[A-Z2-7]{32}$/);
+    assert.match(totpEnrollmentBody.otpauthUri, /^otpauth:\/\/totp\//);
+
+    const enableTotp = await fetch(`${server.baseUrl}/api/operator/totp/enrollment/verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: localLoginCookie,
+        "x-chatcockpit-csrf": localLoginBody.csrfToken
+      },
+      body: JSON.stringify({
+        enrollmentId: totpEnrollmentBody.enrollmentId,
+        code: generateTotpCode(totpEnrollmentBody.secret, Date.now())
+      })
+    });
+    assert.equal(enableTotp.status, 200);
+    const enableTotpBody = (await enableTotp.json()) as {
+      recoveryCodes: string[];
+      recoveryCodesRemaining: number;
+      revokedSessionCount: number;
+    };
+    assert.equal(enableTotpBody.recoveryCodes.length, 10);
+    assert.equal(enableTotpBody.recoveryCodesRemaining, 10);
+    assert.ok(enableTotpBody.revokedSessionCount >= 0);
+
+    const passwordWithTotp = await fetch(`${server.baseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "test-password-correct-horse-battery-staple"
+      })
+    });
+    assert.equal(passwordWithTotp.status, 200);
+    assert.equal(passwordWithTotp.headers.get("set-cookie"), null);
+    const passwordWithTotpBody = (await passwordWithTotp.json()) as {
+      requiresSecondFactor: boolean;
+      challenge: string;
+      expiresAt: string;
+    };
+    assert.equal(passwordWithTotpBody.requiresSecondFactor, true);
+    assert.match(passwordWithTotpBody.challenge, /^cc_mfa_[A-Za-z0-9_-]{43}$/);
+
+    const wrongSecondFactor = await fetch(`${server.baseUrl}/api/operator/totp/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        challenge: passwordWithTotpBody.challenge,
+        verification: "000000"
+      })
+    });
+    assert.equal(wrongSecondFactor.status, 401);
+
+    const totpLogin = await fetch(`${server.baseUrl}/api/operator/totp/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        challenge: passwordWithTotpBody.challenge,
+        verification: generateTotpCode(totpEnrollmentBody.secret, Date.now())
+      })
+    });
+    assert.equal(totpLogin.status, 200);
+    const totpLoginBody = (await totpLogin.json()) as { csrfToken: string };
+    const totpLoginCookie = cookiePair(totpLogin);
+    assert.match(totpLoginBody.csrfToken, /^[A-Za-z0-9_-]{43}$/);
+
+    const recoveryPasswordLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "test-password-correct-horse-battery-staple"
+      })
+    });
+    const recoveryPasswordLoginBody = (await recoveryPasswordLogin.json()) as {
+      requiresSecondFactor: boolean;
+      challenge: string;
+    };
+    assert.equal(recoveryPasswordLoginBody.requiresSecondFactor, true);
+    const recoveryLogin = await fetch(`${server.baseUrl}/api/operator/totp/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        challenge: recoveryPasswordLoginBody.challenge,
+        verification: enableTotpBody.recoveryCodes[0]
+      })
+    });
+    assert.equal(recoveryLogin.status, 200);
+
+    const mfaLocalGrantStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+    const mfaLocalGrantService = new OperatorService({ store: mfaLocalGrantStore });
+    const mfaLocalGrant = mfaLocalGrantService.createLocalLoginGrant();
+    mfaLocalGrantStore.close();
+    const mfaLocalLogin = await fetch(`${server.baseUrl}/api/operator/local-login`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: server.baseUrl
+      },
+      body: JSON.stringify({ grant: mfaLocalGrant.grantSecret })
+    });
+    assert.equal(
+      mfaLocalLogin.status,
+      200,
+      "Machine-local one-time unlock must remain a separate authority from password TOTP"
+    );
+
+    const disableTotp = await fetch(`${server.baseUrl}/api/operator/totp/disable`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: totpLoginCookie,
+        "x-chatcockpit-csrf": totpLoginBody.csrfToken
+      },
+      body: JSON.stringify({ verification: enableTotpBody.recoveryCodes[1] })
+    });
+    assert.equal(disableTotp.status, 200);
+    const disabledTotpStatus = await fetch(`${server.baseUrl}/api/operator/totp`, {
+      headers: { cookie: totpLoginCookie }
+    });
+    assert.equal(disabledTotpStatus.status, 200);
+    assert.deepEqual(await disabledTotpStatus.json(), {
+      ok: true,
+      enabled: false,
+      recoveryCodesRemaining: 0,
+      pendingEnrollment: false
+    });
 
     const crossOriginGrantStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
     const crossOriginGrantService = new OperatorService({ store: crossOriginGrantStore });

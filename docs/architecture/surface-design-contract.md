@@ -113,7 +113,7 @@ Interactive icon-only controls must expose an accessible name, keyboard focus, a
 | Listener / port / console path / Trusted LAN | Observe | Act | Observe | Machine |
 | Machine API token plaintext / rotation | None | Act | Observe configured-state only | Machine |
 | Local Web Owner bootstrap credential | None | Act | None | Machine |
-| Web Owner session / Passkey authentication | None | Bridge | Act | Operator |
+| Web Owner session / Passkey / password+TOTP authentication | None | Bridge | Act | Operator |
 | One-time local passwordless Cockpit entry | Act | Act | Consume only | Machine |
 | Local workspace authorization / Primary Workspace | None | Act | Observe authorized workspaces | Machine |
 | Governed workspace workflow usage | Observe summary | Bridge | Act | Operator |
@@ -151,6 +151,8 @@ User-visible product language should converge on the same concepts across surfac
 - Web Owner / 控制台管理员
 - Machine API Token / 机器 API 令牌
 - Passkey / 通用密钥
+- TOTP two-factor authentication / TOTP 双重认证
+- Recovery codes / 恢复码
 - ChatGPT OAuth
 
 Translations may adapt grammar for the locale, but must not invent a second product concept for the same authority or endpoint.

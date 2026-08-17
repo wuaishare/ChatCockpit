@@ -148,7 +148,8 @@ export class OperatorService {
     eventType:
       | "operator.login.succeeded"
       | "operator.local_login.succeeded"
-      | "operator.passkey.login.succeeded";
+      | "operator.passkey.login.succeeded"
+      | "operator.totp.login.succeeded";
   }): OperatorSessionIssue {
     const now = this.now();
     const nowMs = now.getTime();
@@ -240,6 +241,7 @@ export class OperatorService {
         401
       );
     }
+    this.store.clearLoginThrottle(digestMetadata(input.source));
     return this.issueSession({
       owner,
       source: input.source,
@@ -261,6 +263,7 @@ export class OperatorService {
         401
       );
     }
+    this.store.clearLoginThrottle(digestMetadata(input.source));
     return this.issueSession({
       owner,
       source: input.source,
@@ -289,12 +292,12 @@ export class OperatorService {
     };
   }
 
-  async login(input: {
+  async verifyPasswordCredentials(input: {
     username: string;
     password: string;
     source: string;
     userAgent?: string;
-  }): Promise<OperatorSessionIssue> {
+  }): Promise<{ principalId: string; username: string; role: "owner" }> {
     const now = this.now();
     const nowMs = now.getTime();
     const nowIso = now.toISOString();
@@ -372,44 +375,105 @@ export class OperatorService {
       );
     }
 
-    this.store.clearLoginThrottle(sourceHash);
-    const sessionSecret = `cc_web_${randomBytes(32).toString("base64url")}`;
-    const csrfToken = randomBytes(32).toString("base64url");
-    const sessionId = randomUUID();
-    const idleExpiresAt = toIso(nowMs + SESSION_IDLE_MS);
-    const absoluteExpiresAt = toIso(nowMs + SESSION_ABSOLUTE_MS);
-    this.store.createSession({
-      id: sessionId,
+    return {
       principalId: owner.id,
-      secretHash: hashOperatorSessionSecret(sessionSecret),
-      csrfToken,
-      createdAt: nowIso,
-      lastSeenAt: nowIso,
-      idleExpiresAt,
-      absoluteExpiresAt,
+      username: owner.username,
+      role: owner.role
+    };
+  }
+
+  async login(input: {
+    username: string;
+    password: string;
+    source: string;
+    userAgent?: string;
+  }): Promise<OperatorSessionIssue> {
+    const verified = await this.verifyPasswordCredentials(input);
+    return this.issuePasswordSession({
+      principalId: verified.principalId,
+      source: input.source,
+      userAgent: input.userAgent
+    });
+  }
+
+  issuePasswordSession(input: {
+    principalId: string;
+    source: string;
+    userAgent?: string;
+  }): OperatorSessionIssue {
+    const owner = this.store.getOwner();
+    if (!owner || owner.id !== input.principalId) {
+      throw new OperatorAuthError(
+        "OPERATOR_SESSION_INVALID",
+        "Console administrator account changed during sign-in",
+        401
+      );
+    }
+    this.store.clearLoginThrottle(digestMetadata(input.source));
+    return this.issueSession({
+      owner,
+      source: input.source,
+      userAgent: input.userAgent,
+      eventType: "operator.login.succeeded"
+    });
+  }
+
+  recordSecondFactorFailure(input: {
+    principalId: string;
+    source: string;
+    userAgent?: string;
+  }): void {
+    const now = this.now();
+    const nowMs = now.getTime();
+    const nowIso = now.toISOString();
+    const sourceHash = digestMetadata(input.source);
+    const userAgentHash = digestMetadata(input.userAgent ?? "unknown");
+    const throttle = this.store.getLoginThrottle(sourceHash);
+    const failedCount = (throttle?.failedCount ?? 0) + 1;
+    const blockDelayMs =
+      failedCount > LOGIN_FREE_FAILURES
+        ? Math.min(
+            LOGIN_BACKOFF_MAX_MS,
+            LOGIN_BACKOFF_BASE_MS * 2 ** (failedCount - LOGIN_FREE_FAILURES - 1)
+          )
+        : 0;
+    const blockedUntil = blockDelayMs > 0 ? toIso(nowMs + blockDelayMs) : null;
+    this.store.setLoginThrottle({
       sourceHash,
-      userAgentHash
+      failedCount,
+      blockedUntil,
+      updatedAt: nowIso
     });
     this.store.recordAuditEvent({
-      eventType: "operator.login.succeeded",
-      principalId: owner.id,
+      eventType: "operator.mfa.source_failure",
+      principalId: input.principalId,
       sourceHash,
       userAgentHash,
       createdAt: nowIso,
-      details: { sessionId }
+      details: { failedCount, blocked: Boolean(blockedUntil) }
     });
+  }
 
-    return {
-      sessionId,
-      sessionSecret,
-      csrfToken,
-      principalId: owner.id,
-      username: owner.username,
-      role: owner.role,
-      createdAt: nowIso,
-      idleExpiresAt,
-      absoluteExpiresAt
-    };
+  issueTotpSession(input: {
+    principalId: string;
+    source: string;
+    userAgent?: string;
+  }): OperatorSessionIssue {
+    const owner = this.store.getOwner();
+    if (!owner || owner.id !== input.principalId) {
+      throw new OperatorAuthError(
+        "OPERATOR_SESSION_INVALID",
+        "Console administrator account changed during second-factor sign-in",
+        401
+      );
+    }
+    this.store.clearLoginThrottle(digestMetadata(input.source));
+    return this.issueSession({
+      owner,
+      source: input.source,
+      userAgent: input.userAgent,
+      eventType: "operator.totp.login.succeeded"
+    });
   }
 
   authenticate(sessionSecret: string): OperatorSessionContext | null {
@@ -506,6 +570,10 @@ export class OperatorService {
       owner.id,
       nowIso
     );
+    const invalidatedMfaLoginChallengeCount = this.store.invalidateMfaLoginChallenges(
+      owner.id,
+      nowIso
+    );
     this.store.recordAuditEvent({
       eventType: "operator.sessions.revoked_all",
       principalId: owner.id,
@@ -513,7 +581,8 @@ export class OperatorService {
       details: {
         revokedSessionCount,
         invalidatedLocalLoginGrantCount,
-        invalidatedWebAuthnChallengeCount
+        invalidatedWebAuthnChallengeCount,
+        invalidatedMfaLoginChallengeCount
       }
     });
     return revokedSessionCount;

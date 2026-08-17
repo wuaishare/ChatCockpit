@@ -183,6 +183,36 @@ export interface UiCopy {
     passkeyNeverUsed: string;
     passkeyAdded: string;
     passkeyRemoved: string;
+    secondFactorTitle: string;
+    secondFactorDescription: string;
+    verificationCode: string;
+    verificationPlaceholder: string;
+    verifySecondFactor: string;
+    verifyingSecondFactor: string;
+    recoveryCodeHint: string;
+    backToPassword: string;
+    totpTitle: string;
+    totpDescription: string;
+    totpEnabled: string;
+    totpDisabled: string;
+    totpRecoveryRemaining: string;
+    totpSetup: string;
+    totpSetupDescription: string;
+    totpSecretLabel: string;
+    totpUriLabel: string;
+    totpCodeLabel: string;
+    totpConfirm: string;
+    totpConfirming: string;
+    totpEnabledSuccess: string;
+    recoveryCodesTitle: string;
+    recoveryCodesDescription: string;
+    recoveryCodesRegenerate: string;
+    recoveryCodesRegenerated: string;
+    totpDisable: string;
+    totpDisableWarning: string;
+    verificationForChange: string;
+    confirmSecurityChange: string;
+    totpDisabledSuccess: string;
     sessionExpired: string;
     localUnlockFailed: string;
   };
@@ -435,6 +465,36 @@ const zhCN: UiCopy = {
     passkeyNeverUsed: "尚未使用",
     passkeyAdded: "通用密钥已添加。",
     passkeyRemoved: "通用密钥已移除。",
+    secondFactorTitle: "验证双重认证",
+    secondFactorDescription: "密码已验证。请输入验证器中的 6 位动态验证码，或使用一枚未使用的恢复码完成登录。",
+    verificationCode: "验证码或恢复码",
+    verificationPlaceholder: "6 位动态验证码 / XXXX-XXXX-XXXX-XXXX",
+    verifySecondFactor: "继续登录",
+    verifyingSecondFactor: "正在验证…",
+    recoveryCodeHint: "恢复码只能使用一次；使用后会立即作废。",
+    backToPassword: "返回密码登录",
+    totpTitle: "双重认证（TOTP）",
+    totpDescription: "仅用于密码备用登录的第二因素。使用通用密钥或 ChatCockpit App 本机免密解锁时不会额外要求 TOTP。",
+    totpEnabled: "已启用",
+    totpDisabled: "未启用",
+    totpRecoveryRemaining: "剩余恢复码",
+    totpSetup: "设置验证器",
+    totpSetupDescription: "在 Apple 密码、Google Authenticator、1Password 等兼容验证器中手动添加下面的密钥，然后输入生成的 6 位验证码。",
+    totpSecretLabel: "设置密钥",
+    totpUriLabel: "OTP URI",
+    totpCodeLabel: "6 位验证码",
+    totpConfirm: "验证并启用",
+    totpConfirming: "正在验证…",
+    totpEnabledSuccess: "双重认证已启用。请立即保存下面的恢复码。",
+    recoveryCodesTitle: "恢复码",
+    recoveryCodesDescription: "恢复码只显示这一次，每枚只能使用一次。请保存到安全的密码管理器中，不要与登录密码存放在同一处。",
+    recoveryCodesRegenerate: "重新生成恢复码",
+    recoveryCodesRegenerated: "新的恢复码已生成，旧恢复码已全部失效。",
+    totpDisable: "停用 TOTP",
+    totpDisableWarning: "停用后，密码备用登录将不再要求第二因素。请输入当前动态验证码或未使用的恢复码确认。",
+    verificationForChange: "当前动态验证码或恢复码",
+    confirmSecurityChange: "确认",
+    totpDisabledSuccess: "TOTP 双重认证已停用。",
     sessionExpired: "会话已过期，请重新登录。",
     localUnlockFailed: "本机免密登录链接已失效，请从 ChatCockpit App 重新打开本机控制台。"
   },
@@ -746,6 +806,36 @@ const enUS: UiCopy = {
     passkeyNeverUsed: "Never used",
     passkeyAdded: "Passkey added.",
     passkeyRemoved: "Passkey removed.",
+    secondFactorTitle: "Verify two-factor authentication",
+    secondFactorDescription: "Your password is correct. Enter the 6-digit code from your authenticator, or use one unused recovery code to finish signing in.",
+    verificationCode: "Verification or recovery code",
+    verificationPlaceholder: "6-digit code / XXXX-XXXX-XXXX-XXXX",
+    verifySecondFactor: "Continue sign-in",
+    verifyingSecondFactor: "Verifying…",
+    recoveryCodeHint: "Each recovery code is single-use and is invalidated immediately after use.",
+    backToPassword: "Back to password sign-in",
+    totpTitle: "Two-factor authentication (TOTP)",
+    totpDescription: "Used only as the second factor for password fallback. Passkey sign-in and the ChatCockpit App's local passwordless unlock do not add a TOTP prompt.",
+    totpEnabled: "Enabled",
+    totpDisabled: "Not enabled",
+    totpRecoveryRemaining: "Recovery codes remaining",
+    totpSetup: "Set up authenticator",
+    totpSetupDescription: "Add the setup key below to Apple Passwords, Google Authenticator, 1Password, or another compatible authenticator, then enter the generated 6-digit code.",
+    totpSecretLabel: "Setup key",
+    totpUriLabel: "OTP URI",
+    totpCodeLabel: "6-digit code",
+    totpConfirm: "Verify and enable",
+    totpConfirming: "Verifying…",
+    totpEnabledSuccess: "Two-factor authentication is enabled. Save the recovery codes below now.",
+    recoveryCodesTitle: "Recovery codes",
+    recoveryCodesDescription: "Recovery codes are shown only this time and each code can be used once. Store them securely in a password manager, separately from the sign-in password.",
+    recoveryCodesRegenerate: "Regenerate recovery codes",
+    recoveryCodesRegenerated: "New recovery codes were generated and all previous recovery codes are now invalid.",
+    totpDisable: "Disable TOTP",
+    totpDisableWarning: "After disabling TOTP, password fallback will no longer require a second factor. Enter a current authenticator code or unused recovery code to confirm.",
+    verificationForChange: "Current authenticator or recovery code",
+    confirmSecurityChange: "Confirm",
+    totpDisabledSuccess: "TOTP two-factor authentication has been disabled.",
     sessionExpired: "Your session has expired. Sign in again.",
     localUnlockFailed: "The local passwordless sign-in link expired. Open Local Cockpit again from the ChatCockpit App."
   },

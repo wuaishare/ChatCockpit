@@ -32,6 +32,7 @@ import { OAuthStore, oauthDatabasePath } from "../auth/oauth-store.js";
 import { OperatorPasskeyService } from "../auth/operator-passkey-service.js";
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorAuthError, OperatorService } from "../auth/operator-service.js";
+import { OperatorTotpService } from "../auth/operator-totp-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -252,6 +253,10 @@ export function buildServer(
   });
   const operatorService = new OperatorService({ store: operatorStore });
   const operatorPasskeyService = new OperatorPasskeyService({ store: operatorStore });
+  const operatorTotpService = new OperatorTotpService({
+    store: operatorStore,
+    runtimeDir: paths.runtimeDir
+  });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(
       app,
@@ -428,7 +433,12 @@ export function buildServer(
       accessPolicy.consolePathPrefix
     )
   );
-  registerOperatorRoutes(app, operatorService, operatorPasskeyService);
+  registerOperatorRoutes(
+    app,
+    operatorService,
+    operatorPasskeyService,
+    operatorTotpService
+  );
   app.addHook("onClose", async () => {
     runtimeEventService.detach();
     await hostProcess.close();

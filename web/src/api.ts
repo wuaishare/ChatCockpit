@@ -142,6 +142,41 @@ export interface OperatorSessionResponse {
   absoluteExpiresAt: string;
 }
 
+export interface OperatorSecondFactorChallengeResponse {
+  ok: true;
+  requiresSecondFactor: true;
+  challenge: string;
+  expiresAt: string;
+  username: string;
+  role: "owner";
+}
+
+export type OperatorPasswordLoginResponse =
+  | OperatorSessionResponse
+  | OperatorSecondFactorChallengeResponse;
+
+export interface OperatorTotpStatusResponse {
+  ok: true;
+  enabled: boolean;
+  recoveryCodesRemaining: number;
+  pendingEnrollment: boolean;
+}
+
+export interface OperatorTotpEnrollmentResponse {
+  ok: true;
+  enrollmentId: string;
+  secret: string;
+  otpauthUri: string;
+  expiresAt: string;
+}
+
+export interface OperatorTotpRecoveryCodesResponse {
+  ok: true;
+  recoveryCodes: string[];
+  recoveryCodesRemaining: number;
+  revokedSessionCount: number;
+}
+
 export async function fetchOperatorStatus(): Promise<OperatorStatusResponse> {
   return requestJson<OperatorStatusResponse>(
     "/api/operator/status",
@@ -238,8 +273,29 @@ export async function redeemLocalLoginGrant(grant: string): Promise<OperatorSess
 export async function loginOperator(input: {
   username: string;
   password: string;
-}): Promise<OperatorSessionResponse> {
+}): Promise<OperatorPasswordLoginResponse> {
   const response = await fetch("/api/operator/login", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      ...buildHeaders(null, { consoleEntry: true }),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw await parseProblem(response);
+  const result = (await response.json()) as OperatorPasswordLoginResponse;
+  if ("csrfToken" in result) {
+    setOperatorCsrfToken(result.csrfToken);
+  }
+  return result;
+}
+
+export async function verifyOperatorTotpLogin(input: {
+  challenge: string;
+  verification: string;
+}): Promise<OperatorSessionResponse> {
+  const response = await fetch("/api/operator/totp/login", {
     method: "POST",
     credentials: "same-origin",
     headers: {
@@ -252,6 +308,40 @@ export async function loginOperator(input: {
   const result = (await response.json()) as OperatorSessionResponse;
   setOperatorCsrfToken(result.csrfToken);
   return result;
+}
+
+export async function fetchOperatorTotpStatus(): Promise<OperatorTotpStatusResponse> {
+  return requestJson<OperatorTotpStatusResponse>("/api/operator/totp");
+}
+
+export async function startOperatorTotpEnrollment(): Promise<OperatorTotpEnrollmentResponse> {
+  return postBodyJson<OperatorTotpEnrollmentResponse>("/api/operator/totp/enrollment", {});
+}
+
+export async function verifyOperatorTotpEnrollment(input: {
+  enrollmentId: string;
+  code: string;
+}): Promise<OperatorTotpRecoveryCodesResponse> {
+  return postBodyJson<OperatorTotpRecoveryCodesResponse>(
+    "/api/operator/totp/enrollment/verify",
+    input
+  );
+}
+
+export async function regenerateOperatorTotpRecoveryCodes(
+  verification: string
+): Promise<OperatorTotpRecoveryCodesResponse> {
+  return postBodyJson<OperatorTotpRecoveryCodesResponse>(
+    "/api/operator/totp/recovery-codes/regenerate",
+    { verification }
+  );
+}
+
+export async function disableOperatorTotp(verification: string): Promise<void> {
+  await postBodyJson<{ ok: true; revokedSessionCount: number }>(
+    "/api/operator/totp/disable",
+    { verification }
+  );
 }
 
 export async function logoutOperator(): Promise<void> {

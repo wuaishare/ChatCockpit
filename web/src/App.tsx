@@ -30,7 +30,9 @@ import {
   redeemLocalLoginGrant,
   setOperatorCsrfToken,
   verifyPasskeyAuthentication,
+  verifyOperatorTotpLogin,
   terminateAllJobs,
+  type OperatorSecondFactorChallengeResponse,
   type OperatorSessionResponse
 } from "./api";
 import chatCockpitLogo from "./assets/chatcockpit-logo.svg";
@@ -38,6 +40,7 @@ import { DashboardView } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
 import { OperatorLoginView } from "./components/OperatorLoginView";
+import { OperatorSecondFactorView } from "./components/OperatorSecondFactorView";
 import { OperatorPasskeyManager } from "./components/OperatorPasskeyManager";
 import { OperatorSetupRequiredView } from "./components/OperatorSetupRequiredView";
 import type {
@@ -238,6 +241,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [operatorSetupFeedback, setOperatorSetupFeedback] = useState<string | null>(null);
   const [operatorSetupFeedbackError, setOperatorSetupFeedbackError] = useState(false);
   const [operatorLoginLoading, setOperatorLoginLoading] = useState(false);
+  const [operatorSecondFactor, setOperatorSecondFactor] =
+    useState<OperatorSecondFactorChallengeResponse | null>(null);
   const [operatorPasskeyLoading, setOperatorPasskeyLoading] = useState(false);
   const [operatorSecurityOpen, setOperatorSecurityOpen] = useState(false);
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
@@ -394,6 +399,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
   async function signInWithPasskey() {
     setOperatorPasskeyLoading(true);
+    setOperatorSecondFactor(null);
     setOperatorAuthError(null);
     try {
       const options = await fetchPasskeyAuthenticationOptions();
@@ -422,7 +428,35 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorLoginLoading(true);
     setOperatorAuthError(null);
     try {
-      const session = await loginOperator(input);
+      const result = await loginOperator(input);
+      if ("requiresSecondFactor" in result) {
+        setOperatorSession(null);
+        setOperatorSecondFactor(result);
+        return;
+      }
+      setOperatorSecondFactor(null);
+      setOperatorSession(result);
+      if (!continueOAuthApprovalIfRequested()) {
+        setOperatorAuthState("authenticated");
+      }
+    } catch (error) {
+      setOperatorAuthError(getErrorMessage(error));
+    } finally {
+      setOperatorLoginLoading(false);
+    }
+  }
+
+  async function verifyOperatorSecondFactor(verification: string) {
+    const challenge = operatorSecondFactor;
+    if (!challenge) return;
+    setOperatorLoginLoading(true);
+    setOperatorAuthError(null);
+    try {
+      const session = await verifyOperatorTotpLogin({
+        challenge: challenge.challenge,
+        verification
+      });
+      setOperatorSecondFactor(null);
       setOperatorSession(session);
       if (!continueOAuthApprovalIfRequested()) {
         setOperatorAuthState("authenticated");
@@ -438,6 +472,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     try {
       await logoutOperator();
       setOperatorSession(null);
+      setOperatorSecondFactor(null);
       setOperatorAuthState("login-required");
       setHealth(INITIAL_HEALTH);
       setJobs([]);
@@ -760,14 +795,27 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   if (operatorAuthState === "login-required") {
     return (
       <div className="app-shell">
-        <OperatorLoginView
-          locale={locale}
-          loading={operatorLoginLoading}
-          passkeyLoading={operatorPasskeyLoading}
-          error={operatorAuthError}
-          onPasskey={signInWithPasskey}
-          onSubmit={signInOperator}
-        />
+        {operatorSecondFactor ? (
+          <OperatorSecondFactorView
+            locale={locale}
+            loading={operatorLoginLoading}
+            error={operatorAuthError}
+            onBack={() => {
+              setOperatorSecondFactor(null);
+              setOperatorAuthError(null);
+            }}
+            onSubmit={verifyOperatorSecondFactor}
+          />
+        ) : (
+          <OperatorLoginView
+            locale={locale}
+            loading={operatorLoginLoading}
+            passkeyLoading={operatorPasskeyLoading}
+            error={operatorAuthError}
+            onPasskey={signInWithPasskey}
+            onSubmit={signInOperator}
+          />
+        )}
       </div>
     );
   }

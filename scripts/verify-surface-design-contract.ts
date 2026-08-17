@@ -102,7 +102,7 @@ const requiredCapabilityRows = [
   "| Listener / port / console path / Trusted LAN | Observe | Act | Observe | Machine |",
   "| Machine API token plaintext / rotation | None | Act | Observe configured-state only | Machine |",
   "| Local Web Owner bootstrap credential | None | Act | None | Machine |",
-  "| Web Owner session / Passkey authentication | None | Bridge | Act | Operator |",
+  "| Web Owner session / Passkey / password+TOTP authentication | None | Bridge | Act | Operator |",
   "| Jobs / queue / failures | Observe summary | Observe summary + Bridge | Act | Operator |",
   "| Approvals | Observe summary | Observe summary + Bridge | Act | Operator |",
   "| Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |",

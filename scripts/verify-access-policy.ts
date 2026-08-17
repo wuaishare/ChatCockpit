@@ -151,6 +151,27 @@ async function main(): Promise<void> {
       400,
       "known console entry may reach normal login validation"
     );
+    const concealedTotpLogin = await app.inject({
+      method: "POST",
+      url: "/api/operator/totp/login",
+      payload: { challenge: "invalid", verification: "000000" }
+    });
+    assert.equal(
+      concealedTotpLogin.statusCode,
+      404,
+      "custom console path knowledge must also gate anonymous TOTP challenge verification"
+    );
+    const knownEntryTotpLogin = await app.inject({
+      method: "POST",
+      url: "/api/operator/totp/login",
+      headers: { "x-chatcockpit-console-path": "/ops-7a3f" },
+      payload: { challenge: "invalid", verification: "000000" }
+    });
+    assert.equal(
+      knownEntryTotpLogin.statusCode,
+      401,
+      "known console entry may reach the normal TOTP challenge validator"
+    );
 
     const customEntry = await app.inject({ method: "GET", url: "/ops-7a3f" });
     assert.equal(customEntry.statusCode, 200);
