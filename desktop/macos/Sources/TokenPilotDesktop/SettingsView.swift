@@ -430,6 +430,42 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section(DesktopL10n.string("Connectivity Providers")) {
+                if let snapshot = model.connectivityProviderStatus {
+                    ForEach(snapshot.providers) { provider in
+                        LabeledContent(provider.displayName) {
+                            HStack(spacing: 8) {
+                                Label(
+                                    connectivityProviderDetectionText(provider.detection),
+                                    systemImage: connectivityProviderDetectionIcon(provider.detection)
+                                )
+                                    .foregroundStyle(
+                                        provider.detection == .detected ? .primary : .secondary
+                                    )
+
+                                if let version = provider.version {
+                                    Text(verbatim: version)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(DesktopL10n.string("Provider detection is not available."))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(
+                    DesktopL10n.string(
+                        "ChatCockpit only reports connector binaries that it can confirm through fixed version probes. A detected binary does not mean a public route is configured or running. Public reachability remains authoritative in Web Cockpit Public Access and the Runtime projection."
+                    )
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             }
 
             if scope.showsRuntime, let conflict = model.runtimeConflict {
@@ -496,6 +532,32 @@ struct SettingsView: View {
         consolePathPrefix = policy.consolePathPrefix
         trustedLanEnabled = policy.trustedLan.enabled
         trustedLanCidrsText = policy.trustedLan.cidrs.joined(separator: "\n")
+    }
+
+    private func connectivityProviderDetectionText(
+        _ detection: DesktopConnectivityProviderDetection
+    ) -> String {
+        switch detection {
+        case .detected:
+            return DesktopL10n.string("Detected")
+        case .notDetected:
+            return DesktopL10n.string("Not detected")
+        case .probeFailed:
+            return DesktopL10n.string("Probe failed")
+        }
+    }
+
+    private func connectivityProviderDetectionIcon(
+        _ detection: DesktopConnectivityProviderDetection
+    ) -> String {
+        switch detection {
+        case .detected:
+            return "checkmark.circle"
+        case .notDetected:
+            return "minus.circle"
+        case .probeFailed:
+            return "exclamationmark.triangle"
+        }
     }
 
     @ViewBuilder

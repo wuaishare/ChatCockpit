@@ -256,3 +256,9 @@
 "%@ address copied" = "%@ address copied";
 "Open %@ in Browser" = "Open %@ in Browser";
 "Update status" = "Update status";
+"Connectivity Providers" = "Connectivity Providers";
+"Detected" = "Detected";
+"Not detected" = "Not detected";
+"Probe failed" = "Probe failed";
+"Provider detection is not available." = "Provider detection is not available.";
+"ChatCockpit only reports connector binaries that it can confirm through fixed version probes. A detected binary does not mean a public route is configured or running. Public reachability remains authoritative in Web Cockpit Public Access and the Runtime projection." = "ChatCockpit only reports connector binaries that it can confirm through fixed version probes. A detected binary does not mean a public route is configured or running. Public reachability remains authoritative in Web Cockpit Public Access and the Runtime projection.";

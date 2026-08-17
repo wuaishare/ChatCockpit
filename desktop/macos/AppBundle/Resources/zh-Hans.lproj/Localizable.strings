@@ -256,3 +256,9 @@
 "%@ address copied" = "%@地址已复制";
 "Open %@ in Browser" = "在浏览器中打开%@";
 "Update status" = "更新状态";
+"Connectivity Providers" = "接入组件";
+"Detected" = "已检测";
+"Not detected" = "未检测到";
+"Probe failed" = "探测失败";
+"Provider detection is not available." = "暂时无法读取接入组件探测状态。";
+"ChatCockpit only reports connector binaries that it can confirm through fixed version probes. A detected binary does not mean a public route is configured or running. Public reachability remains authoritative in Web Cockpit Public Access and the Runtime projection." = "这里只显示 ChatCockpit 能通过固定版本探测确认的本机接入组件。检测到二进制并不代表公网路由已经配置或正在运行；公网可达性仍以 Web Cockpit「公网接入」与 Runtime 投影为准。";

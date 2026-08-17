@@ -45,6 +45,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var operatorSecurityStatus: DesktopOperatorStatus?
     @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
     @Published private(set) var accessPolicyStatus: DesktopAccessPolicy?
+    @Published private(set) var connectivityProviderStatus: DesktopConnectivityProviderSnapshot?
     @Published private(set) var operationalSummary: DesktopOperationalSummary?
     @Published private(set) var revealedOwnerPassword: String?
     @Published private(set) var revealedMachineApiToken: String?
@@ -620,6 +621,7 @@ final class DesktopAppModel: ObservableObject {
                 operatorSecurityStatus = nil
                 machineApiTokenStatus = nil
                 accessPolicyStatus = nil
+                connectivityProviderStatus = nil
                 revealedOwnerPassword = nil
                 revealedMachineApiToken = nil
                 return
@@ -630,11 +632,17 @@ final class DesktopAppModel: ObservableObject {
             self.operatorSecurityStatus = try await operatorStatus
             self.machineApiTokenStatus = try await tokenStatus
             self.accessPolicyStatus = try await accessPolicy
+            do {
+                self.connectivityProviderStatus = try await authorityClient.connectivityProviders(context: context)
+            } catch {
+                self.connectivityProviderStatus = nil
+            }
         } catch {
             operatorSecurityStatus = nil
             revealedOwnerPassword = nil
             machineApiTokenStatus = nil
             accessPolicyStatus = nil
+            connectivityProviderStatus = nil
             lastUserMessage = DesktopL10n.string(
                 "Security settings could not be read from the local ChatCockpit runtime."
             )

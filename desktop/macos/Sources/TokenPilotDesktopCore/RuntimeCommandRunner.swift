@@ -184,6 +184,41 @@ public struct DesktopAccessPolicy: Decodable, Equatable, Sendable {
     }
 }
 
+public enum DesktopConnectivityProviderDetection: String, Decodable, Equatable, Sendable {
+    case detected
+    case notDetected = "not-detected"
+    case probeFailed = "probe-failed"
+}
+
+public struct DesktopConnectivityProviderStatus: Decodable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let displayName: String
+    public let detection: DesktopConnectivityProviderDetection
+    public let version: String?
+
+    public init(
+        id: String,
+        displayName: String,
+        detection: DesktopConnectivityProviderDetection,
+        version: String?
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.detection = detection
+        self.version = version
+    }
+}
+
+public struct DesktopConnectivityProviderSnapshot: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let providers: [DesktopConnectivityProviderStatus]
+
+    public init(schemaVersion: Int, providers: [DesktopConnectivityProviderStatus]) {
+        self.schemaVersion = schemaVersion
+        self.providers = providers
+    }
+}
+
 public struct DesktopGeneratedConsolePath: Decodable, Equatable, Sendable {
     public let consolePathPrefix: String
 
@@ -311,6 +346,15 @@ public struct DesktopAuthorityClient: Sendable {
         try await decode(
             DesktopAccessPolicy.self,
             from: runCLI(context: context, arguments: ["access-policy", "status", "--json"])
+        )
+    }
+
+    public func connectivityProviders(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopConnectivityProviderSnapshot {
+        try await decode(
+            DesktopConnectivityProviderSnapshot.self,
+            from: runCLI(context: context, arguments: ["connectivity", "providers", "--json"])
         )
     }
 
