@@ -44,6 +44,7 @@ import {
   setOperatorOwnerPasswordWithVault
 } from "../security/secure-bootstrap.js";
 import { readDesktopOperationalSummary } from "../application/desktop-operational-summary-service.js";
+import { probeConnectivityProviders } from "../connectivity/provider-probe.js";
 
 function printUsage(): void {
   const identity = DEFAULT_PRODUCT_IDENTITY;
@@ -72,6 +73,7 @@ Usage:
   ${identity.cliName} access-policy status [--json]
   ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
+  ${identity.cliName} connectivity providers [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
@@ -431,6 +433,24 @@ async function main(): Promise<void> {
         default:
           throw new Error("access-policy requires one of: status, generate-console-path, set");
       }
+    }
+    case "connectivity": {
+      const subcommand = process.argv[3];
+      if (subcommand !== "providers") {
+        throw new Error("connectivity requires: providers");
+      }
+      const snapshot = probeConnectivityProviders();
+      if (process.argv.includes("--json")) {
+        printJson(snapshot);
+      } else {
+        process.stdout.write("Connectivity providers\n");
+        for (const provider of snapshot.providers) {
+          process.stdout.write(
+            `${provider.displayName}: ${provider.detection}${provider.version ? ` (${provider.version})` : ""}\n`
+          );
+        }
+      }
+      return;
     }
     case "operator": {
       const subcommand = process.argv[3];
