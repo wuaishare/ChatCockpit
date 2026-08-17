@@ -52,7 +52,7 @@ Web Cockpit 持有 **Operator Authority（操作员权限）**，承担完整的
 
 Web Cockpit 可以显示 public-safe 的机器状态，但不能展示本机秘密，也不能成为第二套本机 Runtime 所有权实现。
 
-公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。当前已实现的工作台会消费受保护的 public-safe 机器 Provider 投影，将 Candidate Public Route 与 canonical Runtime origin 分离暂存，并允许对精确的 current candidate 执行受限的 public-unicast DNS + 固定 IP HTTPS 显式验证。Verification Artifact 只向 Web 投影受限状态与 reason；解析 IP、原始 TLS/网络错误、响应正文、机器执行、内部 Adapter identity、可执行文件路径、Provider 原始输出、Mutation Plan 与 Secret 继续严格留在 Web 之外。显式 cutover 目前仍未实现。
+公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。当前已实现的工作台会消费受保护的 public-safe 机器 Provider 投影，将 Candidate Public Route 与 canonical Runtime origin 分离暂存，对精确的 current candidate 执行受限的 public-unicast DNS + 固定 IP HTTPS 显式验证，并允许基于完全匹配的成功 Verification Artifact 准备或取消一个短期 Cutover Intent。Verification 与 Intent 只向 Web 投影受限的 public-safe 状态；解析 IP、原始 TLS/网络错误、响应正文、Runtime Service 执行、内部 Adapter identity、可执行文件路径、Provider 原始输出、Mutation 命令与 Secret 继续严格留在 Web 之外。真正的 Cutover Execution 仍属于 Machine Authority，目前尚未实现。
 
 ### Runtime — 唯一业务真源与执行层
 
@@ -185,4 +185,4 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 7. 保持真实 Console Path 路由与本地化。
 8. 当边界在实现层可被自动验证时，同步增加或更新门禁。
 
-本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)、[Connectivity Provider 机器变更合同](./connectivity-provider-machine-mutation.md)、[Connectivity 候选 Route 暂存合同](./connectivity-route-staging.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。
+本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)、[Connectivity Provider 机器变更合同](./connectivity-provider-machine-mutation.md)、[Connectivity 候选 Route 暂存合同](./connectivity-route-staging.md)、[Public Route Cutover Intent 合同](./connectivity-route-cutover.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。

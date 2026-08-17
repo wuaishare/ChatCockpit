@@ -309,7 +309,7 @@ assert.match(menuBar, /DesktopScenePresentation\.present/);
 assert.match(menuBar, /@Binding var mainSection: MainAppSection/);
 assert.match(menuBar, /openWindow\(id: "main"\)/);
 assert.doesNotMatch(menuBar, /openWindow\(id: "status"\)/);
-assert.match(menuBar, /@Environment\(\\\.openSettings\) private var openSettings/);
+assert.doesNotMatch(menuBar, /@Environment\(\\\.openSettings\)/);
 assert.match(menuBar, /\.frame\(width: 370\)/);
 assert.match(menuBar, /overallState\.nativeSemantic/);
 assert.match(menuBar, /DesktopL10n\.string\("Runtime Health"\)/);
@@ -339,7 +339,8 @@ assert.match(menuBar, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHan
 assert.match(menuBar, /button\.setAccessibilityLabel\(title\)/);
 assert.match(menuBar, /button\.setAccessibilityHelp\(title\)/);
 assert.match(menuBar, /DesktopL10n\.string\("Settings…"\)/);
-assert.match(menuBar, /openSettings\(\)/);
+assert.match(menuBar, /DesktopL10n\.string\("Settings…"\)[\s\S]*openMainWindow\(\.runtime\)/s);
+assert.doesNotMatch(menuBar, /openSettings\(\)/);
 assert.match(menuBar, /DesktopL10n\.string\("Open ChatCockpit"\)/);
 assert.match(menuBar, /case \.setupRequired:[\s\S]*chooseSetupLocationFromPanel/s);
 assert.match(menuBar, /case \.stopped:[\s\S]*Task \{ await model\.start\(\) \}/s);

@@ -49,7 +49,7 @@ Verification 只产出证据，不会晋升 candidate，也不会改变 canonica
 - `GET /api/connectivity/routes/verification` —— 读取当前 candidate 对应的 public-safe Verification Artifact（如果存在）；
 - `POST /api/connectivity/routes/candidate/verify` —— 对一个精确的 current candidate ID 执行显式验证。
 
-Operator Session 的写操作继续强制使用既有 CSRF 防护。当前仍然**不存在 cutover endpoint**。
+Operator Session 的写操作继续强制使用既有 CSRF 防护。成功 Verification 之后现在已经实现独立的短期 **Cutover Intent**，但仍然**不存在 Machine cutover execution endpoint**；详见 [Public Route Cutover Intent 合同](./connectivity-route-cutover.md)。
 
 ## 安全不变量
 
@@ -84,10 +84,12 @@ Verifier 消费一个精确的 current candidate ID，并在 Runtime state 目�
 
 Verification 失败必须保持 canonical origin 不变。重新暂存或丢弃 candidate 后，旧 Artifact 因 candidate ID 不再匹配而不会继续投影为当前验证结果。
 
-## 更后续阶段：显式 Cutover
+## 已实现 Cutover Intent / 后续仍需 Machine Execution
 
-Cutover 继续作为独立能力存在。它只能消费仍为 current 的 candidate 与完全匹配的成功 Verification Artifact，并要求显式 Operator Intent；随后通过权威 Machine/Runtime 配置路径更新 canonical Runtime 配置、执行 post-cutover Verification，并保留足够的旧状态证据以支持 rollback。
+Web/Operator 现在可以准备一个 15 分钟有效的 Cutover Intent，它会绑定 still-current candidate、exact successful Verification Artifact 与 expected existing canonical origin。candidate、verification、canonical 或 expiry 任一漂移都会让 Intent 失效。首次 local-only → public bootstrap 被明确拒绝，必须使用独立证明合同。
 
-完整生命周期保持为：
+真正的 Cutover Execution 仍属于后续 Machine Authority。它必须消费一个 exact 且仍适用的 Intent，通过事务方式更新 canonical Runtime 配置，保留旧 Runtime Service 状态，执行 post-cutover Verification，并在失败时同时 rollback 配置与服务状态。
 
-`candidate → verification → explicit cutover → post-cutover verification → rollback on failure`
+完整生命周期现在是：
+
+`candidate → verification → Cutover Intent → Machine execution → post-cutover verification → rollback on failure`

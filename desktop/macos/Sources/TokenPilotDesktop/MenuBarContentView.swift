@@ -6,7 +6,6 @@ struct MenuBarContentView: View {
     @ObservedObject var model: DesktopAppModel
     @Binding var mainSection: MainAppSection?
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
 
     private let metricColumns = [
         GridItem(.flexible(), spacing: 8),
@@ -310,7 +309,7 @@ struct MenuBarContentView: View {
                 title: DesktopL10n.string("Settings…"),
                 systemName: "gearshape"
             ) {
-                openSettings()
+                openMainWindow(.runtime)
             }
             .frame(height: 28)
 

@@ -14,10 +14,12 @@ import {
   UnorderedListOutlined
 } from "@ant-design/icons";
 import {
+  cancelPublicRouteCutoverIntent,
   controlJob,
   discardPublicRouteCandidate,
   fetchConnectivityProviders,
   fetchPublicRouteCandidate,
+  fetchPublicRouteCutoverIntent,
   fetchPublicRouteVerification,
   fetchGptConfig,
   fetchHealth,
@@ -32,6 +34,7 @@ import {
   fetchSetupStatus,
   loginOperator,
   logoutOperator,
+  preparePublicRouteCutoverIntent,
   redeemLocalLoginGrant,
   stagePublicRouteCandidate,
   setOperatorCsrfToken,
@@ -55,6 +58,7 @@ import type {
   ConnectivityProviderPublicSnapshot,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
+  PublicRouteCutoverIntentSnapshot,
   PublicRouteVerificationSnapshot,
   ContinuitySectionKey,
   GptConfigModel,
@@ -282,6 +286,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     useState<PublicRouteVerificationSnapshot | null>(null);
   const [publicRouteVerificationError, setPublicRouteVerificationError] = useState<string | null>(null);
   const [publicRouteVerifying, setPublicRouteVerifying] = useState(false);
+  const [publicRouteCutoverIntentStatus, setPublicRouteCutoverIntentStatus] =
+    useState<PublicRouteCutoverIntentSnapshot | null>(null);
+  const [publicRouteCutoverIntentError, setPublicRouteCutoverIntentError] = useState<string | null>(null);
+  const [publicRouteCutoverIntentMutating, setPublicRouteCutoverIntentMutating] = useState(false);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -518,6 +526,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteVerificationStatus(null);
       setPublicRouteVerificationError(null);
       setPublicRouteVerifying(false);
+      setPublicRouteCutoverIntentStatus(null);
+      setPublicRouteCutoverIntentError(null);
+      setPublicRouteCutoverIntentMutating(false);
       setSetupStatus(null);
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
@@ -580,6 +591,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setPublicRouteVerificationStatus(null);
         setPublicRouteVerificationError(getErrorMessage(error));
       }
+      try {
+        const cutoverIntentResponse = await fetchPublicRouteCutoverIntent(token);
+        setPublicRouteCutoverIntentStatus(cutoverIntentResponse);
+        setPublicRouteCutoverIntentError(null);
+      } catch (error) {
+        setPublicRouteCutoverIntentStatus(null);
+        setPublicRouteCutoverIntentError(getErrorMessage(error));
+      }
       await loadCompatibilityConfig(locale);
     } catch (error) {
       setHealthError(getErrorMessage(error));
@@ -600,6 +619,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteCandidateStatus(response);
       setPublicRouteVerificationStatus(null);
       setPublicRouteVerificationError(null);
+      setPublicRouteCutoverIntentStatus(null);
+      setPublicRouteCutoverIntentError(null);
     } catch (error) {
       setPublicRouteCandidateError(getErrorMessage(error));
     } finally {
@@ -616,6 +637,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteCandidateStatus(response);
       setPublicRouteVerificationStatus(null);
       setPublicRouteVerificationError(null);
+      setPublicRouteCutoverIntentStatus(null);
+      setPublicRouteCutoverIntentError(null);
     } catch (error) {
       setPublicRouteCandidateError(getErrorMessage(error));
     } finally {
@@ -630,10 +653,40 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     try {
       const response = await verifyPublicRouteCandidate(candidateId, token);
       setPublicRouteVerificationStatus(response);
+      setPublicRouteCutoverIntentStatus(null);
+      setPublicRouteCutoverIntentError(null);
     } catch (error) {
       setPublicRouteVerificationError(getErrorMessage(error));
     } finally {
       setPublicRouteVerifying(false);
+    }
+  }
+
+  async function prepareCandidateCutoverIntent(candidateId: string, verificationId: string) {
+    if (publicRouteCutoverIntentMutating || publicRouteVerifying || publicRouteCandidateMutating) return;
+    setPublicRouteCutoverIntentMutating(true);
+    setPublicRouteCutoverIntentError(null);
+    try {
+      const response = await preparePublicRouteCutoverIntent({ candidateId, verificationId }, token);
+      setPublicRouteCutoverIntentStatus(response);
+    } catch (error) {
+      setPublicRouteCutoverIntentError(getErrorMessage(error));
+    } finally {
+      setPublicRouteCutoverIntentMutating(false);
+    }
+  }
+
+  async function cancelCandidateCutoverIntent() {
+    if (publicRouteCutoverIntentMutating) return;
+    setPublicRouteCutoverIntentMutating(true);
+    setPublicRouteCutoverIntentError(null);
+    try {
+      const response = await cancelPublicRouteCutoverIntent(token);
+      setPublicRouteCutoverIntentStatus(response);
+    } catch (error) {
+      setPublicRouteCutoverIntentError(getErrorMessage(error));
+    } finally {
+      setPublicRouteCutoverIntentMutating(false);
     }
   }
 
@@ -1196,9 +1249,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 verificationStatus={publicRouteVerificationStatus}
                 verificationStatusError={publicRouteVerificationError}
                 routeVerifying={publicRouteVerifying}
+                cutoverIntentStatus={publicRouteCutoverIntentStatus}
+                cutoverIntentStatusError={publicRouteCutoverIntentError}
+                cutoverIntentMutating={publicRouteCutoverIntentMutating}
                 onStageCandidate={(origin, source) => void stageCandidatePublicRoute(origin, source)}
                 onDiscardCandidate={() => void discardCandidatePublicRoute()}
                 onVerifyCandidate={(candidateId) => void verifyCandidatePublicRoute(candidateId)}
+                onPrepareCutoverIntent={(candidateId, verificationId) => void prepareCandidateCutoverIntent(candidateId, verificationId)}
+                onCancelCutoverIntent={() => void cancelCandidateCutoverIntent()}
                 onOpenIntegrations={() => navigateView("integrations")}
               />
             ) : (

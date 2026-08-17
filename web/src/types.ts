@@ -283,6 +283,32 @@ export interface PublicRouteVerificationSnapshot extends PublicRouteCandidateSna
   verification: PublicRouteVerificationArtifact | null;
 }
 
+export interface PublicRouteCutoverIntent {
+  schemaVersion: 1;
+  id: string;
+  kind: "replacement";
+  status: "pending-machine-execution";
+  candidateId: string;
+  candidateOrigin: string;
+  candidateSource: PublicRouteCandidateSource;
+  verificationId: string;
+  expectedCanonicalOrigin: string;
+  requiresMachineAuthority: true;
+  changesCanonicalOrigin: true;
+  mayRestartRunningRuntime: true;
+  startsStoppedRuntime: false;
+  startsProviderTunnel: false;
+  writesProviderSecrets: false;
+  preparedAt: string;
+  expiresAt: string;
+}
+
+export interface PublicRouteCutoverIntentSnapshot {
+  ok: true;
+  schemaVersion: 1;
+  intent: PublicRouteCutoverIntent | null;
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

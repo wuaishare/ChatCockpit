@@ -49,7 +49,7 @@ The protected Web/Operator surface exposes:
 - `GET /api/connectivity/routes/verification` — read the current candidate's public-safe Verification Artifact, when one exists;
 - `POST /api/connectivity/routes/candidate/verify` — explicitly verify one exact current candidate ID.
 
-Operator-session mutations require the existing CSRF protection. There is still **no cutover endpoint**.
+Operator-session mutations require the existing CSRF protection. A separate short-lived **Cutover Intent** is now implemented after successful verification, but there is still **no Machine cutover execution endpoint**; see [Public Route Cutover Intent Contract](./connectivity-route-cutover.md).
 
 ## Safety Invariants
 
@@ -84,10 +84,12 @@ A mixed DNS answer containing even one non-public destination fails before any H
 
 Verification failure leaves the canonical origin untouched. Restaging or discarding a candidate makes older artifacts inapplicable because artifact projection requires the exact current candidate ID.
 
-## Required Later Stage: Explicit Cutover
+## Implemented Cutover Intent / Required Later Machine Execution
 
-Cutover remains a separate later capability. It may only consume a still-current candidate plus a matching successful verification artifact, require explicit Operator intent, update the canonical Runtime configuration through the authoritative machine/runtime configuration path, perform post-cutover verification, and preserve enough previous-state evidence for rollback.
+Web/Operator can now prepare a 15-minute Cutover Intent that binds the still-current candidate, its exact successful Verification Artifact, and the expected existing canonical origin. Candidate, verification, canonical, or expiry drift invalidates the intent. Initial local-only → public bootstrap is deliberately rejected and requires its own proof contract.
 
-The required lifecycle remains:
+Actual cutover execution remains a later Machine Authority capability. It must consume an exact still-applicable intent, update canonical Runtime configuration transactionally, preserve the prior Runtime service state, perform post-cutover verification, and rollback both config and service state on failure.
 
-`candidate → verification → explicit cutover → post-cutover verification → rollback on failure`
+The required lifecycle is now:
+
+`candidate → verification → Cutover Intent → Machine execution → post-cutover verification → rollback on failure`

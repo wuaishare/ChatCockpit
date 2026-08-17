@@ -59,6 +59,10 @@ import {
   PublicRouteVerificationStore,
   PublicRouteVerifier
 } from "../connectivity/public-route-verification.js";
+import {
+  PublicRouteCutoverIntentError,
+  PublicRouteCutoverIntentStore
+} from "../connectivity/public-route-cutover-intent.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
@@ -144,6 +148,11 @@ const publicRouteCandidateStageSchema = z.object({
 
 const publicRouteCandidateVerifySchema = z.object({
   candidateId: z.string().min(1).max(200)
+});
+
+const publicRouteCutoverIntentPrepareSchema = z.object({
+  candidateId: z.string().min(1).max(200),
+  verificationId: z.string().min(1).max(200)
 });
 
 const taskPackSchema = z.object({
@@ -239,6 +248,7 @@ export interface BuildServerOptions {
   connectivityProviderPublicSnapshot?: () => ConnectivityProviderPublicSnapshot;
   publicRouteCandidateStore?: PublicRouteCandidateStore;
   publicRouteVerifier?: PublicRouteVerifier;
+  publicRouteCutoverIntentStore?: PublicRouteCutoverIntentStore;
 }
 
 export function buildServer(
@@ -293,11 +303,19 @@ export function buildServer(
   const publicRouteCandidateStore =
     options.publicRouteCandidateStore ??
     new PublicRouteCandidateStore({ runtimeDir: paths.runtimeDir });
+  const publicRouteVerificationStore = new PublicRouteVerificationStore({ runtimeDir: paths.runtimeDir });
   const publicRouteVerifier =
     options.publicRouteVerifier ??
     new PublicRouteVerifier({
       candidateStore: publicRouteCandidateStore,
-      verificationStore: new PublicRouteVerificationStore({ runtimeDir: paths.runtimeDir })
+      verificationStore: publicRouteVerificationStore
+    });
+  const publicRouteCutoverIntentStore =
+    options.publicRouteCutoverIntentStore ??
+    new PublicRouteCutoverIntentStore({
+      runtimeDir: paths.runtimeDir,
+      candidateStore: publicRouteCandidateStore,
+      verificationStore: publicRouteVerificationStore
     });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(
@@ -632,6 +650,35 @@ export function buildServer(
       throw error;
     }
   };
+
+  const publicRouteCutoverIntentStatusHandler = async () =>
+    publicRouteCutoverIntentStore.snapshot();
+
+  const preparePublicRouteCutoverIntentHandler = async (request: unknown, reply: unknown) => {
+    const parsed = publicRouteCutoverIntentPrepareSchema.safeParse(
+      (request as { body?: unknown }).body ?? {}
+    );
+    const fastifyReply = replyFrom(reply);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return publicRouteCutoverIntentStore.prepare(parsed.data);
+    } catch (error) {
+      if (error instanceof PublicRouteCutoverIntentError && error.code !== "intent-state-invalid") {
+        return sendApiError(
+          fastifyReply,
+          409,
+          error.code.toUpperCase().replaceAll("-", "_"),
+          error.message
+        );
+      }
+      throw error;
+    }
+  };
+
+  const cancelPublicRouteCutoverIntentHandler = async () =>
+    publicRouteCutoverIntentStore.cancel();
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
@@ -1227,6 +1274,9 @@ export function buildServer(
   app.delete("/api/connectivity/routes/candidate", discardPublicRouteCandidateHandler);
   app.get("/api/connectivity/routes/verification", publicRouteVerificationStatusHandler);
   app.post("/api/connectivity/routes/candidate/verify", verifyPublicRouteCandidateHandler);
+  app.get("/api/connectivity/routes/cutover-intent", publicRouteCutoverIntentStatusHandler);
+  app.post("/api/connectivity/routes/cutover-intent", preparePublicRouteCutoverIntentHandler);
+  app.delete("/api/connectivity/routes/cutover-intent", cancelPublicRouteCutoverIntentHandler);
 
   app.get("/api/setup/status", setupStatusHandler);
   app.get("/tokenpilot/api/setup/status", setupStatusHandler);
