@@ -221,3 +221,14 @@
 "Apply and Restart" = "应用并重启";
 "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead." = "本机免密登录暂时不可用，ChatCockpit 已改为打开普通本机登录页。";
 "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication." = "已配置控制台管理员时，从此 App 打开本机控制台会使用一次性回环登录凭据。该凭据会快速过期，不会写入浏览器持久存储，也不会降低公网访问的认证强度。";
+"Runtime controls" = "运行控制";
+"Runtime Health" = "运行环境健康";
+"Access" = "访问";
+"Environment" = "环境";
+"Trusted LAN" = "可信局域网";
+"Disabled" = "已停用";
+"Enabled — %d CIDR" = "已启用 — %d 条 CIDR";
+"Copy %@ address" = "复制%@地址";
+"%@ address copied" = "%@地址已复制";
+"Open %@ in Browser" = "在浏览器中打开%@";
+"Update status" = "更新状态";

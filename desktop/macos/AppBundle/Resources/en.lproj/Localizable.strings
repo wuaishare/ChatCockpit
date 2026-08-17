@@ -221,3 +221,14 @@
 "Apply and Restart" = "Apply and Restart";
 "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead." = "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead.";
 "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication." = "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication.";
+"Runtime controls" = "Runtime controls";
+"Runtime Health" = "Runtime Health";
+"Access" = "Access";
+"Environment" = "Environment";
+"Trusted LAN" = "Trusted LAN";
+"Disabled" = "Disabled";
+"Enabled — %d CIDR" = "Enabled — %d CIDR";
+"Copy %@ address" = "Copy %@ address";
+"%@ address copied" = "%@ address copied";
+"Open %@ in Browser" = "Open %@ in Browser";
+"Update status" = "Update status";

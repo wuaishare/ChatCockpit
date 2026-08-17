@@ -16,7 +16,7 @@ dist/macos/ChatCockpit.app
 open dist/macos/ChatCockpit.app
 ```
 
-正常情况下会立即出现唯一的 **ChatCockpit** 主窗口，左侧导航包含 **概览 / 运行环境 / 工作区 / 访问与安全 / 集成 / 更新 / 诊断**；Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。系统 **设置…** 只保留 App 自身偏好入口，不再复制 Runtime、Workspace 或 Security 运维界面。
+正常情况下会立即出现唯一的 **ChatCockpit** 主窗口，左侧导航包含 **概览 / 运行环境 / 工作区 / 访问与安全 / 集成 / 更新 / 诊断**；Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。**概览**承担高密度本机摘要：整体状态、Control Plane / Runner / Process Supervisor 健康度、本机/公网控制台访问、访问与安全摘要、运行环境信息、App 版本与更新状态。在尚未存在 authoritative native-safe projection 之前，概览不得伪造 Jobs / Approvals 计数。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。系统 **设置…** 只保留 App 自身偏好入口，不再复制 Runtime、Workspace 或 Security 运维界面。
 
 如果还没有本地 App，可构建当前架构：
 
@@ -34,7 +34,7 @@ Intel Mac 使用 `--arch x64`。
 如果当前 Source Runtime 已经通过 `npm run mvp:start` / `npm run start:local` 运行，优先使用 Developer Mode。首次启动时，只要 ChatCockpit 能发现合法 source checkout，就会自动选择 Developer Mode；用户之后手动选择的 Developer/Packaged Mode 会被记住。
 
 1. 启动 `ChatCockpit.app`；
-2. 确认主窗口没有裁切，侧栏 7 个运维入口都可键盘/鼠标访问；**概览**底部的刷新与 Runtime 操作始终可用。Runtime 区域中的 **本机控制台 / 公网控制台** 地址应直接显示为原生可点击链接，鼠标悬浮时出现手型指针，键盘焦点能够到达，并且 VoiceOver 能读出目标地址与“在浏览器中打开”提示。只有 exposed 模式存在合法公网基址时才显示公网地址；
+2. 确认主窗口没有裁切，侧栏 7 个运维入口都可键盘/鼠标访问；**概览**顶部的“刷新”是一级操作，底部 Runtime 生命周期操作栏持续可见。“运行环境健康”卡片用**文字 + 图标 + 语义颜色**同时表达 Control Plane / Runner / Process Supervisor 状态，不能只靠颜色。**本机控制台 / 公网控制台**必须显示真实地址，并在地址同行提供 **复制 / 在浏览器中打开** 两枚图标动作；图标动作需要手型指针、键盘焦点、Tooltip/Help 与独立 VoiceOver 描述。复制成功只把当前图标短时切成“已复制”，约 2 秒后恢复，绝不能写入长期全局提示。只有 exposed 模式存在合法公网基址时才显示公网地址；在主窗口允许的最小宽度下，“访问”和“环境”两张卡片也不能横向溢出；
 3. 如果已自动发现 source checkout，确认 **运行环境** 中 Distribution 为 **Developer**；否则在 **运行环境** 中选择 **Developer Mode** 并点击 **Choose Source…**；
 4. 如需手动选择，选择当前 ChatCockpit source checkout；
 5. 点击 **Revalidate**；

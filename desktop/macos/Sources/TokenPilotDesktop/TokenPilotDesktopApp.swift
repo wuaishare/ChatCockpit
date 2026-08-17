@@ -98,10 +98,23 @@ private struct AppPreferencesView: View {
     }
 }
 
-private struct AccessibleTextActionButton: NSViewRepresentable {
+struct AccessibleTextActionButton: NSViewRepresentable {
     let title: String
     let defaultAction: Bool
+    let disabled: Bool
     let action: () -> Void
+
+    init(
+        title: String,
+        defaultAction: Bool = false,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.defaultAction = defaultAction
+        self.disabled = disabled
+        self.action = action
+    }
 
     final class Coordinator: NSObject {
         var action: () -> Void
@@ -140,6 +153,7 @@ private struct AccessibleTextActionButton: NSViewRepresentable {
         coordinator.action = action
         button.title = title
         button.toolTip = title
+        button.isEnabled = !disabled
         button.keyEquivalent = defaultAction ? "\r" : ""
         button.keyEquivalentModifierMask = []
         button.setAccessibilityLabel(title)
