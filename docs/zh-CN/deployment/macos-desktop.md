@@ -175,7 +175,7 @@ Desktop Shell 继续呈现四个整体状态：
 - **Setup Required**：缺少必要 Workspace/Runtime 输入，或选中的 Runtime 无效；
 - **Stopped**：设置合法，但 Control Plane 尚未运行；
 - **Needs Attention**：Runtime 只有部分组件正常；
-- **Ready**：当前 Node Runtime 合法、Control Plane running、Runner registered、Process Supervisor ready、`/api/health` 返回 `ok: true`，并且 `/ui` 可达。
+- **Ready**：当前 Node Runtime 合法、Control Plane running、Runner registered、Process Supervisor ready、`/api/health` 返回 `ok: true`，并且当前配置的控制台安全入口可达。
 
 Runtime Conflict 是独立于上述四态的保护信号：即使某个进程本身可达，只要 ownership 不属于当前 Packaged Runtime，Desktop 也不会因为“端口有人监听”就允许 mutation。
 
@@ -217,14 +217,10 @@ Packaged Mode 会显式向这条 lifecycle contract 传入 Install Root、State 
 Cockpit 可达时，**Open ChatCockpit** 仍通过系统默认浏览器打开现有 Web UI：
 
 ```text
-http://<configured-host>:<configured-port>/ui
+http://<configured-host>:<configured-port><console-path>
 ```
 
-本地默认仍为：
-
-```text
-http://127.0.0.1:4318/ui
-```
+全新初始化会随机生成 `<console-path>`。请优先使用 App 的 **打开本机控制台**，或读取 lifecycle status 输出中的 `UI:` 地址，不要再假定固定 `/ui`。
 
 Desktop 不内嵌，也不重写完整 Cockpit。状态页中的本机/公网控制台地址使用原生可点击链接，鼠标悬浮显示手型指针，并支持键盘焦点与 VoiceOver 标签/提示；**安全与访问** 还会显示可复制的本机/公网 API 与 MCP 地址，供机器客户端使用。
 

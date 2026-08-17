@@ -234,6 +234,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [operatorSession, setOperatorSession] = useState<OperatorSessionResponse | null>(null);
   const [operatorAuthError, setOperatorAuthError] = useState<string | null>(null);
   const [operatorDesktopSetupAvailable, setOperatorDesktopSetupAvailable] = useState(false);
+  const [operatorSetupChecking, setOperatorSetupChecking] = useState(false);
+  const [operatorSetupFeedback, setOperatorSetupFeedback] = useState<string | null>(null);
+  const [operatorSetupFeedbackError, setOperatorSetupFeedbackError] = useState(false);
   const [operatorLoginLoading, setOperatorLoginLoading] = useState(false);
   const [operatorPasskeyLoading, setOperatorPasskeyLoading] = useState(false);
   const [operatorSecurityOpen, setOperatorSecurityOpen] = useState(false);
@@ -322,8 +325,13 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     return String(error);
   }
 
-  async function bootstrapOperatorAuth() {
+  async function bootstrapOperatorAuth(manualCheck = false) {
     setOperatorAuthError(null);
+    if (manualCheck) {
+      setOperatorSetupChecking(true);
+      setOperatorSetupFeedback(null);
+      setOperatorSetupFeedbackError(false);
+    }
     const localLoginGrant = readAndClearLocalLoginGrant();
     try {
       const status = await fetchOperatorStatus();
@@ -332,6 +340,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setOperatorSession(null);
         setOperatorCsrfToken(null);
         setOperatorAuthState("setup-required");
+        if (manualCheck) {
+          setOperatorSetupFeedback(copy.operatorAuth.setupStillRequired);
+          setOperatorSetupFeedbackError(false);
+        }
         return;
       }
       if (localLoginGrant) {
@@ -364,9 +376,19 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     } catch (error) {
       setOperatorSession(null);
       setOperatorCsrfToken(null);
-      setOperatorDesktopSetupAvailable(false);
-      setOperatorAuthState("login-required");
-      setOperatorAuthError(getErrorMessage(error));
+      if (manualCheck) {
+        setOperatorAuthState("setup-required");
+        setOperatorSetupFeedback(copy.operatorAuth.setupCheckFailed);
+        setOperatorSetupFeedbackError(true);
+      } else {
+        setOperatorDesktopSetupAvailable(false);
+        setOperatorAuthState("login-required");
+        setOperatorAuthError(getErrorMessage(error));
+      }
+    } finally {
+      if (manualCheck) {
+        setOperatorSetupChecking(false);
+      }
     }
   }
 
@@ -725,9 +747,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       <div className="app-shell">
         <OperatorSetupRequiredView
           locale={locale}
-          checking={false}
+          checking={operatorSetupChecking}
           desktopSetupAvailable={operatorDesktopSetupAvailable}
-          onRefresh={() => void bootstrapOperatorAuth()}
+          feedback={operatorSetupFeedback}
+          feedbackError={operatorSetupFeedbackError}
+          onRefresh={() => void bootstrapOperatorAuth(true)}
         />
       </div>
     );

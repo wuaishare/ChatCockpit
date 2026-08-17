@@ -41,10 +41,10 @@ Intel Mac 使用 `--arch x64`。
 6. 确认 Runtime 状态为 **Ready**；
 7. 确认 Endpoint 为 `127.0.0.1:4318`（除非你明确配置了其他本地 endpoint）；
 8. 确认 State 显示全局 `~/.chatcockpit`，而不是 checkout-local state；
-9. 在 **安全与访问** 中确认控制台管理员状态与机器 API 令牌分开显示。机器令牌默认只能显示指纹（例如 `cc_local_…abc123`），不能直接暴露明文；**显示 / 复制 / 轮换** 必须作为令牌值同行的图标动作存在，不得另起一行。**本机 API 基址 / 本机 MCP 端点** 及公网 API/MCP 地址（如已开放）各自带同行复制图标；所有这些图标动作悬浮时使用手型指针、可通过键盘聚焦，并为 VoiceOver 提供独立动作说明；
+9. 在 **安全与访问** 中确认控制台管理员状态与机器 API 令牌分开显示。由 Secure Bootstrap 管理的管理员必须显示随机用户名与默认掩码密码行；**复制管理员用户名 / 显示管理员密码 / 复制管理员密码** 都应是同行图标动作，并具有唯一 VoiceOver 说明。管理员密码只有明确操作后才显示，约 30 秒后自动隐藏；复制密码后若剪贴板未被用户改动，应在约 60 秒后自动清除。若是旧版遗留管理员且本机可恢复凭据与当前 Owner 版本不匹配，必须显示 **不可读取**，绝不能展示旧密码或伪造密码。机器令牌默认仍只显示指纹（例如 `cc_local_…abc123`）；**显示 / 复制 / 轮换** 保持令牌值同行。**本机 API 基址 / 本机 MCP 端点** 及公网 API/MCP 地址（如已开放）各自带同行复制图标；所有图标动作悬浮时使用手型指针、可通过键盘聚焦，并为 VoiceOver 提供独立动作说明；
 10. 确认 **显示令牌** 只有在用户明确操作后才临时显示明文，并会自动再次隐藏；**复制令牌 / 复制 API 地址** 成功后只在当前图标位置短时切换为“已复制”，约 2 秒后自动恢复，不得写入主窗口的长期“提示”区域。普通 smoke test 不要轮换真实令牌；
-11. 在 **访问与安全** 中确认 **设置 / 管理管理员…** 可修改管理员用户名与密码，**撤销 Web 会话** 可独立撤销现有会话，且不会暴露密码或 Session Secret；
-12. 已配置管理员时，从 App 执行 **打开本机控制台**，应无需再次输入密码即可进入：App 生成短时一次性 loopback 登录凭据，浏览器中的 `#local-login=…` fragment 必须立即消失，最后得到的仍是普通 HttpOnly 管理员 Session；同一凭据再次兑换必须失败。若尚未配置管理员，则仍进入正常本机初始化流程。公网控制台必须继续使用配置的 HTTPS 控制台入口路径，且绝不能携带这枚本机免密凭据。
+11. 在 **访问与安全** 中确认 **设置 / 管理管理员…** 可修改管理员用户名与密码，并同步本机可恢复凭据；**撤销 Web 会话** 可独立撤销现有会话。Session Secret 始终不可恢复、不可展示；
+12. 正常新状态启动时，Secure Bootstrap 应已经自动创建管理员与随机控制台入口。从 App 执行 **打开本机控制台**，应无需再次输入密码即可进入：App 生成短时一次性 loopback 登录凭据，浏览器中的 `#local-login=…` fragment 必须立即消失，最后得到的仍是普通 HttpOnly 管理员 Session；同一凭据再次兑换必须失败。管理员缺失现在属于旧状态/恢复场景：直接 macOS loopback 打开的 Web 首次设置页必须提供 **前往 ChatCockpit App 设置** 入口，且 **我已设置，重新检查** 必须显示 loading，并明确给出“仍未配置”或“检查失败”的结果，不能静默无反应。公网控制台必须继续使用配置的 HTTPS 控制台入口路径，且绝不能携带这枚本机免密凭据。
 
 Source/Developer Mode 的 canonical state root 是：
 
@@ -56,14 +56,15 @@ Source/Developer Mode 的 canonical state root 是：
 
 ### 安全与访问边界
 
-Desktop App 是这台 Mac 上的人类控制台管理员与机器 API 凭据管理入口，但仍复用 Runtime 的 canonical authority 真源，不建立第二套凭据数据库。
+Desktop App 是这台 Mac 上的人类控制台管理员与机器 API 凭据管理入口。`operator-auth.sqlite` 继续作为管理员密码哈希、Session、限流与审计状态的 authority 真源；Secure Bootstrap 额外维护一份仅 owner 可读（`0600`）的本机 credential vault，只用于让原生 App 恢复/显示自动生成的管理员密码。它不是第二套认证 authority，并且必须被 Files API、Git/public bundle、源码归档、浏览器响应、日志与 public-safe projection 排除。
 
-- 修改控制台管理员用户名/密码继续使用现有 Operator Service，并会撤销已有 Web Session；
+- 全新初始化必须在 Control Plane 开始提供 Web 服务之前生成高熵随机控制台入口、随机管理员用户名与强密码；普通 init/start 输出不得打印这些私密值；
+- 修改控制台管理员用户名/密码继续使用现有 Operator Service，并会撤销已有 Web Session，同时把可恢复 vault 与当前 Owner 版本精确绑定；vault 过期或不匹配时只能降级为 **不可读取**，不得显示已经失效的旧密码；
 - 机器 API 令牌默认隐藏；只有明确执行“显示”时才进入内存，并会在 30 秒后自动清除；复制到系统剪贴板的令牌会在 60 秒后自动清除，但仅当剪贴板仍保持该令牌时才执行，避免覆盖用户之后复制的新内容；API/MCP 地址属于非敏感连接元数据，可直接复制，不需要按 secret 清理剪贴板；复制成功反馈属于局部瞬时 UI state，约 2 秒后自动清除，不能复用全局运行状态消息；
 - 本机免密不是“127.0.0.1 全部绕过登录”：Desktop 本地签发 45 秒有效、只能使用一次的凭据，只有直接 loopback Web 请求能兑换为正常管理员 Session；经过代理/Forwarded Header、非 loopback Host、过期、重复使用、管理员改密后遗留、执行“撤销全部会话”后遗留的凭据都必须 fail closed；
 - 轮换令牌会在 canonical `server.env` 中生成新的强随机令牌，并保持文件仅当前用户可读写；不会改动控制台管理员或 ChatGPT OAuth authority；
 - 如果服务正在运行，轮换后会重启当前 Runtime 使新令牌生效；如果服务已停止，则保持停止，并在下次启动时读取新令牌；
-- **访问策略**必须读取 Runtime State 中同一份 canonical `access-policy.json`：自定义控制台入口更新后，App 的本机/公网控制台 URL 与 UI 探活都必须同步使用新路径；传统 `/ui` 不再提供页面。Trusted LAN 只负责网络准入，不能绕过管理员认证；开启 LAN policy 也不能自动把 listener 从 loopback 扩大到局域网。
+- **访问策略**必须读取 Runtime State 中同一份 owner-only canonical `access-policy.json`：全新状态默认使用随机入口，而不是 `/ui`。随机/自定义入口生效后，App 的本机/公网控制台 URL 与 UI 探活都必须同步使用新路径；传统 `/ui` 返回 404；不知道当前安全入口的匿名管理员 status/login/Passkey 登录请求也必须返回 404。该机制属于 defense-in-depth，仍与管理员认证、登录限流、CSRF、公网 HTTPS 共同生效。Trusted LAN 只负责网络准入，不能绕过管理员认证；开启 LAN policy 也不能自动把 listener 从 loopback 扩大到局域网。
 - ChatGPT OAuth Client / Authorization 仍由 Web Integrations 管理，不把远端集成关系塞进 Desktop Secret 管理面。
 
 ## 2. Packaged Mode Conflict Guard

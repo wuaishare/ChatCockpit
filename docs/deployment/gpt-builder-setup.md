@@ -51,9 +51,7 @@ The domain is a placeholder. Use your own HTTPS URL.
 
 Open:
 
-```text
-http://127.0.0.1:4318/ui/integrations
-```
+Open **Integrations** from the App or current Web Cockpit. Fresh initialization uses a randomized console entry, so the route is `<console-path>/integrations` rather than a fixed `/ui/integrations`.
 
 In **Custom GPT Actions**, confirm:
 
@@ -62,7 +60,7 @@ In **Custom GPT Actions**, confirm:
 - schema import URL
 - Local / Public API bases
 
-If the domain, machine API token, product version, or OpenAPI schema changes, reopen Integrations and copy the latest compatibility instructions. The old `/ui/gpt-helper` route remains receive-only for 0.2.x browser compatibility and redirects to `/ui/integrations`.
+If the domain, machine API token, product version, or OpenAPI schema changes, reopen Integrations and copy the latest compatibility instructions. The legacy `gpt-helper` route segment remains receive-only for 0.2.x browser compatibility under the active console entry and redirects to `<console-path>/integrations`.
 
 ## 3. Create A Custom GPT
 

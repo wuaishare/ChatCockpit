@@ -57,25 +57,16 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 
 Web Cockpit 现在使用独立的人类**控制台管理员**账户，不再把 `CHATCOCKPIT_API_TOKEN` 保存或复用成浏览器登录凭据。内部权限角色仍使用协议值 `owner`，但中文用户界面与文档统一称为“控制台管理员”。
 
-Source Checkout 首次使用或需要改密码时，在 ChatCockpit 所在机器本地执行：
+首次 `init/setup` 会自动生成随机控制台管理员用户名、强随机密码和高熵随机控制台安全入口。普通初始化输出不会打印这些值。macOS App 的 **访问与安全** 是首选凭据管理面：可以查看/复制自动生成的用户名与密码，也可以重设密码。纯 CLI 恢复仍可使用：
 
 ```bash
-node dist/cli/index.js operator set-password
-```
-
-已安装 `chatcockpit` CLI 的环境可以直接执行：
-
-```bash
+chatcockpit operator credentials --json
 chatcockpit operator set-password
 ```
 
-交互式终端会隐藏密码输入；修改控制台管理员密码会撤销已有 Web Session。受控自动化和测试可使用 `--password-stdin`，不要把密码直接写进命令行参数。
+`operator credentials` 是显式本机 secret-read 操作；不要把输出转存到日志、工单或仓库。交互式 `set-password` 会隐藏密码输入，修改管理员密码会撤销已有 Web Session，并同步本机 owner-only credential vault。受控自动化和测试可使用 `--password-stdin`，不要把密码直接写进命令行参数。
 
-启动后访问：
-
-```text
-http://127.0.0.1:4318/ui
-```
+启动后不要假定固定 `/ui`，优先从 App 打开 **本机控制台**，或执行 `npm run mvp:status` 并使用其中 `UI:` 显示的当前安全入口。
 
 浏览器以控制台管理员身份登录后获得 opaque HttpOnly Session Cookie；Web 写操作还必须提供与该 Session 绑定的 CSRF Token。原始 Web Session Secret 和机器 API Token 都不会写入浏览器持久化存储。`localStorage` 只用于保存非敏感的界面语言偏好。
 
@@ -96,18 +87,18 @@ http://127.0.0.1:4318/ui
 
 当 macOS App 打开 **本机控制台** 且已配置控制台管理员时，Desktop 会通过本机 CLI 生成一个仅 45 秒有效、只能使用一次的本机登录凭据。浏览器只会在 URL fragment 中收到它，前端会立即清除 fragment，再通过仅允许直接 loopback 请求访问的 `/api/operator/local-login` 将它兑换成同一套普通 HttpOnly 管理员 Session。它只是便捷解锁，不是“localhost 全部免鉴权”：经过反向代理/Forwarded Header 的请求、非 loopback Host 都无法使用该兑换入口，公网控制台仍必须走正常认证。
 
-常用页面：
+以下用 `<安全入口>` 表示当前 `access-policy.json` 中的随机 `consolePathPrefix`：
 
-- `/ui`：Dashboard / Setup Wizard
-- `/ui/continuity/projects`：Project、Workspace、Writer Lease 与 Git
-- `/ui/continuity/tasks`：真实 Task 状态
-- `/ui/continuity/sessions`：Chat Direct、Codex Session、Async Agent Session
-- `/ui/continuity/handoffs`：Prepare、Accept、Fork、Cancel
-- `/ui/continuity/evidence`：Evidence Checklist 与保守验证状态
-- `/ui/continuity/approvals`：待处理 Runtime Approval
-- `/ui/integrations`：本机/公网入口、ChatGPT App / MCP、API/OpenAPI 与 Custom GPT Actions 兼容信息
-- `/ui/gpt-helper`：0.2.x receive-only 兼容入口，会跳转到 `/ui/integrations`
-- `/ui/jobs`：Jobs、Artifacts、进程控制
+- `<安全入口>`：Dashboard / Setup Wizard
+- `<安全入口>/continuity/projects`：Project、Workspace、Writer Lease 与 Git
+- `<安全入口>/continuity/tasks`：真实 Task 状态
+- `<安全入口>/continuity/sessions`：Chat Direct、Codex Session、Async Agent Session
+- `<安全入口>/continuity/handoffs`：Prepare、Accept、Fork、Cancel
+- `<安全入口>/continuity/evidence`：Evidence Checklist 与保守验证状态
+- `<安全入口>/continuity/approvals`：待处理 Runtime Approval
+- `<安全入口>/integrations`：本机/公网入口、ChatGPT App / MCP、API/OpenAPI 与 Custom GPT Actions 兼容信息
+- `<安全入口>/gpt-helper`：0.2.x receive-only 兼容路由，会跳转到 `<安全入口>/integrations`
+- `<安全入口>/jobs`：Jobs、Artifacts、进程控制
 
 受保护的 Web 数据仍要求有效的控制台管理员会话；macOS App 可以用短时一次性 loopback 凭据引导生成同一套会话，支持的 HTTPS/localhost 地址也可以在通用密钥验证成功后签发同一套会话。机器 Bearer 继续只服务 API / 自动化兼容客户端，不再作为人类网页登录凭据。
 
@@ -123,8 +114,9 @@ chatcockpit access-policy set --lan-enabled true --lan-cidr <your-lan-cidr> --js
 
 访问策略遵循以下边界：
 
-- 默认控制台入口仍为 `/ui`；设置自定义入口后，传统 `/ui` 不再提供控制台页面并返回普通 404。自定义入口只用于降低自动扫描与探测噪音，**不能替代控制台管理员、Passkey、密码、限流、CSRF、HTTPS 等真实安全边界**。
-- 匿名根状态不会投影自定义控制台路径；App 可以直接从本机 canonical policy 读取真实入口，已登录管理员也可以通过受保护的 Integrations 状态看到有效 Local/Public Cockpit URL。
+- **新初始化默认生成随机安全入口**；`/ui` 只作为旧状态/内部构建回退。随机入口启用后，传统 `/ui` 返回普通 404，而且匿名管理员 status/login/Passkey 登录接口也要求携带当前入口知识，否则同样返回 404。这样隐藏的是实际登录面，而不只是 HTML 页面。
+- 随机入口用于显著降低机会主义扫描与密码喷洒面，但仍是 defense-in-depth，**不能替代控制台管理员、Passkey、密码、登录限流、CSRF、HTTPS 等真实安全边界**。
+- 匿名根状态不会投影随机控制台路径；App 可以直接从本机 canonical policy 读取真实入口，已登录管理员也可以通过受保护的 Integrations 状态看到有效 Local/Public Cockpit URL。
 - Trusted LAN 默认关闭，必须显式提供 IPv4/IPv6 CIDR allowlist。未命中的直接非 loopback 请求在身份认证之前返回 404；命中的 LAN 客户端只是获得网络准入，访问受保护 API 仍必须完成管理员认证。
 - 开启 LAN policy **不会自动修改 listener**。如果 `CHATCOCKPIT_HOST` 仍为 `127.0.0.1` / `::1`，其他设备仍无法连接；这是有意避免 App 静默扩大监听面。
 - loopback reverse proxy 与直接 LAN peer 分开处理：只有明确受信任的本机反代链可以承载公网 HTTPS；非 loopback peer 不能通过伪造 `X-Forwarded-*` 绕过 LAN gate。
@@ -153,7 +145,7 @@ npm run doctor:runtime
 curl http://127.0.0.1:4318/api/health
 curl http://127.0.0.1:4318/api/continuity/projects
 curl http://127.0.0.1:4318/mcp
-curl http://127.0.0.1:4318/ui
+npm run mvp:status   # 使用 UI: 行中的随机安全入口检查 Web Cockpit
 ```
 
 `doctor:runtime` 会检查：
@@ -164,7 +156,7 @@ curl http://127.0.0.1:4318/ui
 - `127.0.0.1:4318` 监听状态
 - Runner heartbeat 和最近 job
 - 本地 `/api/health`
-- 本地 `/ui`
+- 本地当前安全入口（动态读取 `access-policy.json`）
 - 最近 server log
 
 Process Supervisor 的注册/ready 真源当前由 `npm run mvp:status` 直接报告；`doctor:runtime` 尚未把 Supervisor 诊断纳入统一输出。后者属于后续产品化加固任务，不在本文中提前宣称已经实现。

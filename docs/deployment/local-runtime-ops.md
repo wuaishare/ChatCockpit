@@ -74,25 +74,16 @@ CHATCOCKPIT_PORT=4318
 
 The Web Cockpit uses a dedicated human **Owner** account. It does not store or reuse `CHATCOCKPIT_API_TOKEN` as a browser credential.
 
-For a source checkout, create or rotate the Owner password locally before signing in:
+The first `init/setup` automatically generates a random Owner username, a strong random password, and a high-entropy randomized console entry path. Normal initialization output does not print those private values. **Access & Security** in the macOS App is the primary credential-management surface: reveal/copy the generated username and password there, or reset the password. Explicit local CLI recovery remains available:
 
 ```bash
-node dist/cli/index.js operator set-password
-```
-
-An installed ChatCockpit CLI exposes the same command as:
-
-```bash
+chatcockpit operator credentials --json
 chatcockpit operator set-password
 ```
 
-Password entry is hidden on an interactive TTY. Changing the Owner password revokes existing Web sessions. For controlled automation and tests, `--password-stdin` is available; do not place passwords directly on the command line.
+`operator credentials` is an explicit machine-local secret read; do not redirect its output into logs, tickets, or repositories. Interactive `set-password` hides password entry, revokes existing Web sessions, and synchronizes the owner-only local credential vault. Controlled automation/tests may use `--password-stdin`; do not place passwords directly on the command line.
 
-After building the frontend and starting the server, open:
-
-```text
-http://127.0.0.1:4318/ui
-```
+After starting the server, do not assume `/ui`. Open **Local Cockpit** from the App, or use the `UI:` entrypoint printed by `npm run mvp:status`.
 
 The browser signs in as the Owner and receives an opaque HttpOnly session cookie. State-changing Web requests also require the session-bound CSRF token; neither the raw Web session secret nor the machine API token is stored in browser persistence. `localStorage` is used only for non-sensitive UI preferences such as the selected language.
 
@@ -113,12 +104,12 @@ Registration and credential removal require an authenticated Owner session plus 
 
 When the macOS App opens **Local Cockpit** and an Owner is already configured, Desktop creates a 45-second, single-use local login grant through the local CLI. The browser receives that grant only in the URL fragment, removes it immediately, and redeems it over the direct loopback-only `/api/operator/local-login` route for the same ordinary HttpOnly Owner session. This is a convenience unlock, not a blanket localhost authentication bypass: proxied/forwarded requests and non-loopback hosts cannot use the redemption route, and public Cockpit access continues to require its normal authentication.
 
-Current boundary:
+Current boundary (use `<secure-entry>` for the active `consolePathPrefix`):
 
 - Dashboard and Jobs inspect public-safe health, process, Job, and Artifact state
 - Continuity Workbench reads real Project/Workspace/Writer/Git/Task/Session/Handoff/Evidence/Approval state
 - ready Handoffs can be accepted, forked, or cancelled; new Handoffs can be prepared from an eligible source Session
-- `/ui/integrations` is the primary integration surface for ChatGPT App / MCP, Local/Public entrypoints, API/OpenAPI, and compatibility-only Custom GPT Actions; legacy `/ui/gpt-helper` redirects there
+- `<secure-entry>/integrations` is the primary integration surface for ChatGPT App / MCP, Local/Public entrypoints, API/OpenAPI, and compatibility-only Custom GPT Actions; `<secure-entry>/gpt-helper` is the receive-only compatibility redirect
 - protected Web data requires an authenticated Owner session; the macOS App may bootstrap that same session with a short-lived single-use loopback grant, and supported HTTPS/localhost origins may issue it after a verified Passkey assertion; machine Bearer credentials remain for API/automation compatibility clients, not human Web login
 - the Web UI is a single-Owner operator console, not a public multi-tenant management service
 
@@ -147,8 +138,9 @@ chatcockpit access-policy set --lan-enabled true --lan-cidr <your-lan-cidr> --js
 
 The policy has deliberately narrow semantics:
 
-- `/ui` remains the default. When a custom console path is configured, the conventional `/ui` page is no longer registered and returns an ordinary 404. A custom path only reduces opportunistic scanning noise; it **never replaces** Owner authentication, Passkeys/password fallback, throttling, CSRF, or HTTPS.
-- Anonymous root status does not disclose a custom console path. The native App reads the canonical policy locally, while authenticated Integrations status can project the effective Local/Public Cockpit URLs to the signed-in administrator.
+- **New initialization generates a randomized console entry by default.** `/ui` is only a legacy/internal fallback. When a randomized/custom entry is active, conventional `/ui` returns an ordinary 404, and anonymous Owner status/login/Passkey-auth endpoints also require knowledge of the active entry path or return 404. This conceals the actual login surface rather than only the HTML route.
+- The randomized path materially reduces opportunistic scanning and password-spraying exposure, but it remains defense-in-depth and **never replaces** Owner authentication, Passkeys/password fallback, login throttling, CSRF, or HTTPS.
+- Anonymous root status does not disclose the randomized console path. The native App reads the canonical policy locally, while authenticated Integrations status can project the effective Local/Public Cockpit URLs to the signed-in administrator.
 - Trusted LAN is disabled by default and requires explicit IPv4/IPv6 CIDRs. A direct non-loopback peer outside the allowlist receives 404 before authentication. An allowlisted LAN peer only gains network admission and still must authenticate for protected APIs.
 - Enabling the LAN policy **does not widen the listener automatically**. If `CHATCOCKPIT_HOST` is still `127.0.0.1` or `::1`, other devices cannot connect. This is intentional: policy edits never silently expand the network bind surface.
 - Direct LAN peers and loopback reverse proxies are treated separately. Only the explicitly trusted local proxy chain can carry public HTTPS forwarding; a non-loopback peer cannot forge `X-Forwarded-*` headers to bypass the LAN gate.
@@ -185,7 +177,7 @@ For remote client setup, see:
 ```bash
 ./scripts/macos-manage-local-server.sh status
 curl http://127.0.0.1:4318/api/health
-curl http://127.0.0.1:4318/ui
+npm run mvp:status   # use the randomized UI: entrypoint for the Web Cockpit
 curl http://127.0.0.1:4318/api/continuity/projects
 curl http://127.0.0.1:4318/mcp
 npm run doctor:runtime
@@ -217,7 +209,7 @@ launchctl print gui/$(id -u)/com.wuaishare.chatcockpit.control-plane | sed -n '1
 - listener truth on `127.0.0.1:4318`
 - Runner status file truth, including heartbeat and last consumed job when available
 - direct local `/api/health`
-- local `/ui`
+- the current local secure entrypoint loaded dynamically from `access-policy.json`
 - recent server log tail
 
 `npm run mvp:status` is currently the direct local truth source for Process Supervisor registration/readiness; `doctor:runtime` still focuses on the Control Plane, Runner, listener, health/UI probes, and server log. Folding Supervisor diagnostics into Doctor is a separate product-hardening task rather than something this document pretends already exists.

@@ -49,7 +49,7 @@ When ChatGPT connects to:
 https://chatcockpit.example.com/mcp
 ```
 
-After Web Owner sign-in, `/ui/integrations` shows the exact Local/Public Cockpit entrypoints, MCP endpoint, OAuth readiness, aggregate authorization counts, and current MCP tool catalog count. It never reveals OAuth tokens, client identifiers, or the machine API credential.
+After Web Owner sign-in, `<console-path>/integrations` shows the exact Local/Public Cockpit entrypoints, MCP endpoint, OAuth readiness, aggregate authorization counts, and current MCP tool catalog count. Fresh initialization randomizes `<console-path>`; open Integrations from the App or from the active console rather than assuming `/ui`. It never reveals OAuth tokens, client identifiers, or the machine API credential.
 
 ChatCockpit exposes:
 
@@ -63,7 +63,7 @@ ChatCockpit exposes:
 /oauth/revoke
 ```
 
-The authorization flow uses a public OAuth client, PKCE S256, the `chatcockpit:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. Browser approval now requires an authenticated Web Owner session plus session-bound CSRF; the approval page never asks for `CHATCOCKPIT_API_TOKEN`. If the browser is not signed in, ChatCockpit creates one pending OAuth request, redirects to `/ui/login`, and returns to that same `request_id` after Owner sign-in.
+The authorization flow uses a public OAuth client, PKCE S256, the `chatcockpit:mcp` resource scope, short-lived access tokens, and restart-safe refresh tokens. Browser approval now requires an authenticated Web Owner session plus session-bound CSRF; the approval page never asks for `CHATCOCKPIT_API_TOKEN`. If the browser is not signed in, ChatCockpit creates one pending OAuth request, redirects through `<console-path>/login`, and returns to that same `request_id` after Owner sign-in.
 
 Default redirect hosts are limited to HTTPS `chatgpt.com` and local test callbacks on `localhost` / `127.0.0.1`. Additional redirect hosts require explicit local `CHATCOCKPIT_OAUTH_ALLOWED_REDIRECT_HOSTS` configuration. Registered redirect URIs still require exact matching.
 

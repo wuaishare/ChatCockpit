@@ -15,7 +15,8 @@ const BLOCKED_DIFF_FILENAMES = new Set([
   ".pypirc",
   "id_ed25519",
   "id_rsa",
-  "server.env"
+  "server.env",
+  "operator-credentials.json"
 ]);
 const BLOCKED_DIFF_SEGMENTS = new Set([
   ".aws",

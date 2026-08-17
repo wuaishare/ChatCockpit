@@ -168,7 +168,7 @@ The desktop shell presents four overall runtime states:
 - **Setup Required** — a required workspace/runtime input is missing or the selected runtime is invalid;
 - **Stopped** — setup is valid but the Control Plane is not running;
 - **Needs Attention** — only part of the runtime is healthy;
-- **Ready** — the selected Node runtime is valid, Control Plane is running, Runner is registered, Process Supervisor is ready, `/api/health` reports `ok: true`, and `/ui` is reachable.
+- **Ready** — the selected Node runtime is valid, Control Plane is running, Runner is registered, Process Supervisor is ready, `/api/health` reports `ok: true`, and the configured console entry path is reachable.
 
 A separate runtime-conflict notice can block mutations even when an existing process is otherwise reachable. The app does not infer ownership merely from a listening process.
 
@@ -210,14 +210,10 @@ It does not implicitly stop the Control Plane, Runner, or Process Supervisor. Us
 When the Cockpit is reachable, **Open ChatCockpit** opens the existing Web UI in the system browser:
 
 ```text
-http://<configured-host>:<configured-port>/ui
+http://<configured-host>:<configured-port><console-path>
 ```
 
-The local default remains:
-
-```text
-http://127.0.0.1:4318/ui
-```
+Fresh initialization generates `<console-path>` randomly. Use the App's **Open Local Cockpit** action or the `UI:` value reported by the lifecycle status command instead of assuming a fixed `/ui` path.
 
 The desktop app does not embed or reimplement the full Cockpit. Runtime URLs in the Status view are native links with a pointing-hand hover cursor, keyboard focus, and VoiceOver labels/hints; Security & Access also exposes copyable Local/Public API and MCP addresses for machine clients.
 

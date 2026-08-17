@@ -25,7 +25,7 @@ const BLOCKED_SEGMENTS = [
   "dist"
 ];
 
-const BLOCKED_FILENAMES = [".env", "server.env"];
+const BLOCKED_FILENAMES = [".env", "server.env", "operator-credentials.json"];
 
 const TEXT_EXTENSIONS = new Set([
   ".md",

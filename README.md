@@ -27,7 +27,7 @@ ChatCockpit 是一个 **local-first Development Continuity & Agent Routing Platf
 | --- | --- | --- |
 | **ChatGPT App / Remote MCP** | 日常对话中读取项目、查看 Git、管理 Continuity、发起受审批操作 | 在 ChatGPT 新聊天中选择已连接的 **ChatCockpit** App，或在提示词中提及它 |
 | **macOS Desktop** | 原生查看 Runtime 状态、Developer/Packaged Mode、Start/Stop/Restart、打开 Web Cockpit | `open dist/macos/ChatCockpit.app` |
-| **Web Cockpit / CLI** | 开发者、贡献者、本机运维与深度调试 | `npm run setup && npm run start:local`，然后打开 `http://127.0.0.1:4318/ui` |
+| **Web Cockpit / CLI** | 开发者、贡献者、本机运维与深度调试 | `npm run setup && npm run start:local`；从 App 打开 **本机控制台**，或使用 `npm run mvp:status` 输出的随机安全入口 |
 
 更完整的真实交互测试见：
 
@@ -86,7 +86,7 @@ flowchart TB
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
 - Continuity Engine：SQLite Schema v19、Project、Workspace、Task、Session、通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、受治理 Runtime Resource Mutation Approval/Execution/Provenance、Process Supervisor Runtime Ownership 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Runtime Recovery、Handoffs、Evidence、Approvals、Planning/Completion/Recovery Blockers、Runtime Binding 与 Runner Job；Recovery Center 由服务端 Assessment 驱动，支持显式 Codex Resume/Fork/Bind、Runner Reconcile、Chat Direct/Handoff 接续，不会自动启动 `turn/start` 或自动切换 Provider。
-- Runtime & Resource Center：`/ui/resources` 统一展示 public-safe Runtime Profiles 与 append-only Inventory Snapshot，已接入 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP Executor/Adapter 与 ACP Registry Agent Catalog；受治理 mutation 已开放到 Codex Skill enable/disable 与 Codex Plugin install/uninstall。Operator REST / Resource Center 支持 prepare → review/decide → execute；Remote MCP 只开放 prepare / inspect / execute，不能自行 decide，并且 exposed deployment 只有显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这些 mutation tools。
+- Runtime & Resource Center：`<安全入口>/resources` 统一展示 public-safe Runtime Profiles 与 append-only Inventory Snapshot，已接入 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP Executor/Adapter 与 ACP Registry Agent Catalog；受治理 mutation 已开放到 Codex Skill enable/disable 与 Codex Plugin install/uninstall。Operator REST / Resource Center 支持 prepare → review/decide → execute；Remote MCP 只开放 prepare / inspect / execute，不能自行 decide，并且 exposed deployment 只有显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这些 mutation tools。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
 - 默认 exposed-mode MCP catalog 为 62 个 tools，包含 Direct Drive Executor discovery、Host Root Alias discovery、Host Direct file read、`prepare → decide → execute` 的受审批 Host Write / Exact Edit、bounded Host Command、ChatCockpit-owned Managed Workspace Process、`chatcockpit.recovery.assess` / `chatcockpit.recovery.execute`，以及 `chatcockpit.resources.inventory` / `chatcockpit.resources.inspect`。本地非 exposed 模式或显式开启 Resource Mutation exposure 后，再注册 `chatcockpit.resources.mutation.prepare` / `inspect` / `execute` 3 个受约束工具（共 65 个），始终不注册 MCP `decide` / `reconcile`；同时提供 exposed-mode Bearer/OAuth 鉴权、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
 
@@ -103,7 +103,7 @@ flowchart TB
 
 ## 操作员 Web UI
 
-Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Recovery、Handoffs、Evidence、Approvals 八个稳定深链；独立 `/ui/resources` Resource Center 提供 Runtime Profile 选择、显式资源刷新、snapshot diff、Skills/MCP/Plugins/Adapters/ACP Agents 分类清单与详情检查，并对已获治理支持的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 提供 prepare → review/decide → execute 工作流。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
+Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Recovery、Handoffs、Evidence、Approvals 八个稳定深链；独立 `<安全入口>/resources` Resource Center 提供 Runtime Profile 选择、显式资源刷新、snapshot diff、Skills/MCP/Plugins/Adapters/ACP Agents 分类清单与详情检查，并对已获治理支持的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 提供 prepare → review/decide → execute 工作流。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
 
 ![ChatCockpit GPT Helper 配置界面](./docs/assets/chatcockpit-gpt-helper-config.webp)
 
@@ -125,13 +125,15 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-打开：
+首次初始化会自动生成随机控制台安全入口以及随机 Web Owner 用户名/强密码；这些值不会写入公开仓库，也不会在普通初始化日志中输出。优先从 ChatCockpit App 打开 **本机控制台**，或查看：
 
-```text
-http://127.0.0.1:4318/ui
+```bash
+npm run mvp:status
 ```
 
-Source/Developer Mode 的 canonical state 位于 `~/.chatcockpit/`，与源码 checkout 分离。
+其 `UI:` 行会显示当前机器的真实安全入口。默认 `/ui` 仅作为旧状态兼容回退；新初始化使用随机入口，而且不知道该入口时匿名 Owner 登录/状态接口同样返回 404。随机入口属于 defense-in-depth，仍与 Owner 认证、限速、CSRF 和公网 HTTPS 同时生效。
+
+Source/Developer Mode 的 canonical state 位于 `~/.chatcockpit/`，与源码 checkout 分离。自动生成的 Owner 凭据保存在 owner-only 的本机凭据 vault 中，可在 App 的 **访问与安全** 中查看、复制或重设。
 
 ### 2. macOS App
 

@@ -147,13 +147,15 @@ Implemented top-level views:
 Continuity deep links:
 
 ```text
-/ui/continuity/projects
-/ui/continuity/tasks
-/ui/continuity/sessions
-/ui/continuity/handoffs
-/ui/continuity/evidence
-/ui/continuity/approvals
+<console-path>/continuity/projects
+<console-path>/continuity/tasks
+<console-path>/continuity/sessions
+<console-path>/continuity/handoffs
+<console-path>/continuity/evidence
+<console-path>/continuity/approvals
 ```
+
+Fresh initialization randomizes `<console-path>`; the native App and lifecycle status expose the active local entrypoint.
 
 The Workbench reads a real Workspace Snapshot, displays the active Writer and Git state, and supports Prepare, Accept, Fork, and Cancel Handoff decisions. Missing Evidence is never displayed as verified.
 

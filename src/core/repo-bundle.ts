@@ -111,6 +111,7 @@ function isBlockedRelativePath(relativePath: string, customIgnorePrefixes: strin
     basename === ".env" ||
     basename.startsWith(".env.") ||
     basename === "server.env" ||
+    basename === "operator-credentials.json" ||
     basename === ".DS_Store" ||
     basename.endsWith(".log")
   ) {

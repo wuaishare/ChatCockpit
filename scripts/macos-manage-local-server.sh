@@ -106,6 +106,29 @@ PUBLIC_BASE_URL="$(identity_env_value PUBLIC_BASE_URL)"
 CODEX_BIN="$(identity_env_value CODEX_BIN)"
 CODEX_MODEL="$(identity_env_value CODEX_MODEL)"
 DIRECT_EXECUTORS_CONFIG_PATH="$(identity_env_value DIRECT_EXECUTORS_CONFIG_PATH)"
+ACCESS_POLICY_FILE="${RUNTIME_DIR}/access-policy.json"
+
+console_path_prefix() {
+  if [[ ! -f "${ACCESS_POLICY_FILE}" ]]; then
+    printf '%s' "/ui"
+    return
+  fi
+  "${NODE_BIN}" -e '
+    const fs = require("node:fs");
+    try {
+      const raw = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const value = typeof raw.consolePathPrefix === "string" ? raw.consolePathPrefix.trim() : "";
+      if (!/^\/[A-Za-z0-9][A-Za-z0-9._~\/-]*$/.test(value)) process.exit(2);
+      process.stdout.write(value.replace(/\/+$/, ""));
+    } catch {
+      process.exit(2);
+    }
+  ' "${ACCESS_POLICY_FILE}" 2>/dev/null || printf '%s' "/ui"
+}
+
+console_url() {
+  printf 'http://%s:%s%s' "${HOST}" "${PORT}" "$(console_path_prefix)"
+}
 
 usage() {
   echo "Usage: $0 {start|stop|restart|status|reset|uninstall} [--product-identity {tokenpilot|chatcockpit}]"
@@ -645,7 +668,7 @@ case "${ACTION}" in
     echo "control plane: running (pid $(cat "${PID_FILE}"))"
     echo "runner: registered"
     echo "process supervisor: ready (generation preserved across control-plane restart)"
-    echo "UI: http://${HOST}:${PORT}/ui"
+    echo "UI: $(console_url)"
     echo "next action: open the UI or run npm run doctor:runtime"
     ;;
   stop)
@@ -701,7 +724,7 @@ case "${ACTION}" in
       echo "control plane: running (pid $(cat "${PID_FILE}"))"
       echo "runner: registered"
       echo "process supervisor: ready (not restarted)"
-      echo "UI: http://${HOST}:${PORT}/ui"
+      echo "UI: $(console_url)"
       echo "next action: run npm run doctor:runtime"
       exit 0
     fi
@@ -731,7 +754,7 @@ case "${ACTION}" in
       fi
       echo "runner: ${runner_state}"
       echo "process supervisor: ${process_supervisor_state}"
-      echo "UI: http://${HOST}:${PORT}/ui"
+      echo "UI: $(console_url)"
       echo "next action: open UI or run npm run doctor:runtime"
       exit 0
     fi

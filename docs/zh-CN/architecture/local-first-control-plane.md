@@ -109,13 +109,15 @@ ChatGPT Conversation、Codex Thread、Process ID 或 Runner Job 都不是 ChatCo
 Continuity 深链：
 
 ```text
-/ui/continuity/projects
-/ui/continuity/tasks
-/ui/continuity/sessions
-/ui/continuity/handoffs
-/ui/continuity/evidence
-/ui/continuity/approvals
+<安全入口>/continuity/projects
+<安全入口>/continuity/tasks
+<安全入口>/continuity/sessions
+<安全入口>/continuity/handoffs
+<安全入口>/continuity/evidence
+<安全入口>/continuity/approvals
 ```
+
+全新初始化会随机生成 `<安全入口>`；原生 App 与 lifecycle status 会展示当前本机真实入口。
 
 Workbench 读取真实 Workspace Snapshot，显示 Writer、Git、Task、Session、Handoff、Evidence 与 Approval，并支持 Prepare、Accept、Fork、Cancel。缺失 Evidence 不会显示为已验证。
 

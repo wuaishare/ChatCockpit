@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { isIP } from "node:net";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -22,9 +21,6 @@ import {
   OPERATOR_SESSION_COOKIE,
   operatorSessionFromRequest
 } from "./operator-auth-context.js";
-
-let desktopSetupAvailabilityCache: { checkedAt: number; available: boolean } | null = null;
-const DESKTOP_SETUP_AVAILABILITY_TTL_MS = 5_000;
 
 interface UnknownRecord {
   [key: string]: unknown;
@@ -159,21 +155,10 @@ function hasSameLoopbackOrigin(request: FastifyRequest): boolean {
 }
 
 function desktopSetupAvailable(request: FastifyRequest): boolean {
-  if (process.platform !== "darwin" || !isLoopbackSetupRequest(request)) return false;
-  const now = Date.now();
-  if (
-    desktopSetupAvailabilityCache &&
-    now - desktopSetupAvailabilityCache.checkedAt < DESKTOP_SETUP_AVAILABILITY_TTL_MS
-  ) {
-    return desktopSetupAvailabilityCache.available;
-  }
-  const result = spawnSync("/usr/bin/open", ["-Ra", "ChatCockpit"], {
-    stdio: "ignore",
-    timeout: 1_000
-  });
-  const available = result.status === 0;
-  desktopSetupAvailabilityCache = { checkedAt: now, available };
-  return available;
+  // The custom URL handler is the capability boundary. LaunchServices app-name
+  // discovery is not reliable for unsigned/source builds, so do not hide the
+  // App handoff merely because LaunchServices cannot find a registered bundle.
+  return process.platform === "darwin" && isLoopbackSetupRequest(request);
 }
 
 function userAgent(request: FastifyRequest): string | undefined {

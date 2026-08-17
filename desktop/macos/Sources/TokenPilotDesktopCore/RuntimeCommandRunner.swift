@@ -93,12 +93,38 @@ public struct ProcessRuntimeCommandRunner: RuntimeCommandRunning, Sendable {
 public struct DesktopOperatorStatus: Decodable, Equatable, Sendable {
     public let configured: Bool
     public let username: String?
+    public let credentialAvailable: Bool?
     public let activeSessionCount: Int
 
-    public init(configured: Bool, username: String?, activeSessionCount: Int) {
+    public init(
+        configured: Bool,
+        username: String?,
+        credentialAvailable: Bool? = nil,
+        activeSessionCount: Int
+    ) {
         self.configured = configured
         self.username = username
+        self.credentialAvailable = credentialAvailable
         self.activeSessionCount = activeSessionCount
+    }
+}
+
+public struct DesktopOwnerCredential: Decodable, Equatable, Sendable {
+    public let available: Bool
+    public let username: String?
+    public let password: String?
+    public let updatedAt: String?
+
+    public init(
+        available: Bool,
+        username: String?,
+        password: String?,
+        updatedAt: String?
+    ) {
+        self.available = available
+        self.username = username
+        self.password = password
+        self.updatedAt = updatedAt
     }
 }
 
@@ -229,6 +255,15 @@ public struct DesktopAuthorityClient: Sendable {
         try await decode(
             DesktopOperatorStatus.self,
             from: runCLI(context: context, arguments: ["operator", "status", "--json"])
+        )
+    }
+
+    public func ownerCredential(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopOwnerCredential {
+        try await decode(
+            DesktopOwnerCredential.self,
+            from: runCLI(context: context, arguments: ["operator", "credentials", "--json"])
         )
     }
 

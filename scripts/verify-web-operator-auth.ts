@@ -49,7 +49,11 @@ async function main(): Promise<void> {
       desktopSetupAvailable: boolean;
     };
     assert.equal(statusBody.configured, true);
-    assert.equal(typeof statusBody.desktopSetupAvailable, "boolean");
+    assert.equal(
+      statusBody.desktopSetupAvailable,
+      process.platform === "darwin",
+      "direct loopback setup should offer the native App handoff on macOS without LaunchServices discovery"
+    );
 
     const anonymousJobs = await fetch(`${server.baseUrl}/api/jobs`);
     assert.equal(anonymousJobs.status, 401);

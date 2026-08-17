@@ -138,7 +138,10 @@ async function main(): Promise<void> {
 
     const login = await fetch(`${server.baseUrl}/api/operator/login`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-chatcockpit-console-path": "/ops-oauth-approval"
+      },
       body: JSON.stringify({
         username: "owner",
         password: "test-password-oauth-owner-approval"

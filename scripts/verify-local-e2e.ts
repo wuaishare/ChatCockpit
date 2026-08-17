@@ -5,8 +5,8 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import net from "node:net";
 
-import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { loadAccessPolicy } from "../src/security/access-policy.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
 import { runGit } from "./test-support/git.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
@@ -299,7 +299,11 @@ async function runE2E(): Promise<void> {
   });
 
   try {
-    const noUiResponse = await fetch(`http://127.0.0.1:${noUiPort}/ui`);
+    const noUiConsolePath = loadAccessPolicy(noUiPaths).consolePathPrefix;
+    assert.notEqual(noUiConsolePath, "/ui");
+    const concealedLegacyUi = await fetch(`http://127.0.0.1:${noUiPort}/ui`);
+    assert.equal(concealedLegacyUi.status, 404);
+    const noUiResponse = await fetch(`http://127.0.0.1:${noUiPort}${noUiConsolePath}`);
     assert.equal(noUiResponse.status, 200);
     assert.match(await noUiResponse.text(), /Web UI is not built yet/);
   } finally {
@@ -343,29 +347,15 @@ async function runE2E(): Promise<void> {
       "exposed setup details must not remain anonymously readable"
     );
 
-    const setupStatusBeforeOwner = await fetch(
-      `http://127.0.0.1:${port}/api/setup/status`,
-      { headers: { Authorization: "Bearer test-token" } }
+    const consolePathPrefix = loadAccessPolicy(paths).consolePathPrefix;
+    assert.notEqual(consolePathPrefix, "/ui");
+    const bootstrapOperatorStatus = await fetch(
+      `http://127.0.0.1:${port}/api/operator/status`,
+      { headers: { "X-ChatCockpit-Console-Path": consolePathPrefix } }
     );
-    assert.equal(setupStatusBeforeOwner.status, 200);
-    const setupStatusBeforeOwnerBody = await setupStatusBeforeOwner.json();
-    assert.equal(setupStatusBeforeOwnerBody.oauthStatus, "needs-attention");
-    assert.match(
-      JSON.stringify(setupStatusBeforeOwnerBody),
-      /configured Web Owner account/
-    );
-
-    const operatorStore = new OperatorStore({
-      path: operatorDatabasePath(paths.runtimeDir)
-    });
-    operatorStore.setOwner(
-      {
-        username: "owner",
-        passwordHash: "test-readiness-hash-only"
-      },
-      "2026-08-16T00:00:00.000Z"
-    );
-    operatorStore.close();
+    assert.equal(bootstrapOperatorStatus.status, 200);
+    const bootstrapOperatorStatusBody = await bootstrapOperatorStatus.json();
+    assert.equal(bootstrapOperatorStatusBody.configured, true);
 
     const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`, {
       headers: { Authorization: "Bearer test-token" }
@@ -445,11 +435,14 @@ async function runE2E(): Promise<void> {
     assert.equal(siblingRecentCommitsBody.repoId, "sourceflow-refactor");
     assert.equal(Array.isArray(siblingRecentCommitsBody.commits), true);
 
-    const ui = await fetch(`http://127.0.0.1:${port}/ui`);
+    const concealedLegacyUi = await fetch(`http://127.0.0.1:${port}/ui`);
+    assert.equal(concealedLegacyUi.status, 404);
+
+    const ui = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}`);
     assert.equal(ui.status, 200);
     assert.match(await ui.text(), /ChatCockpit Web UI Fixture/);
 
-    const uiDeepLink = await fetch(`http://127.0.0.1:${port}/ui/jobs/demo`);
+    const uiDeepLink = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}/jobs/demo`);
     assert.equal(uiDeepLink.status, 200);
     assert.match(await uiDeepLink.text(), /ChatCockpit Web UI Fixture/);
 
@@ -462,13 +455,13 @@ async function runE2E(): Promise<void> {
       "approvals"
     ]) {
       const continuityDeepLink = await fetch(
-        `http://127.0.0.1:${port}/ui/continuity/${section}`
+        `http://127.0.0.1:${port}${consolePathPrefix}/continuity/${section}`
       );
       assert.equal(continuityDeepLink.status, 200);
       assert.match(await continuityDeepLink.text(), /ChatCockpit Web UI Fixture/);
     }
 
-    const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
+    const uiAsset = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}/assets/app.js`);
     assert.equal(uiAsset.status, 200);
     assert.match(await uiAsset.text(), /chatcockpit-web-ui-fixture/);
 

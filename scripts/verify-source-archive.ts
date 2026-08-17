@@ -45,7 +45,7 @@ function shouldCopy(source: string): boolean {
   ) {
     return false;
   }
-  if (basename === "server.env") return false;
+  if (basename === "server.env" || basename === "operator-credentials.json") return false;
   return true;
 }
 
@@ -219,12 +219,14 @@ assert.equal(
   "Source archive contains a downloaded Node runtime archive"
 );
 
+const sourceArchiveMachineToken = "source-archive-fixture-machine-token";
 const isolatedEnv: NodeJS.ProcessEnv = {
   ...process.env,
   HOME: homeRoot,
   CHATCOCKPIT_REPO_ROOT: sourceRoot,
   CHATCOCKPIT_CONFIG_PATH: configPath,
-  CHATCOCKPIT_EXPOSED: "false"
+  CHATCOCKPIT_EXPOSED: "false",
+  CHATCOCKPIT_API_TOKEN: sourceArchiveMachineToken
 };
 
 run(
@@ -271,7 +273,9 @@ try {
   assert.equal(healthBody.ok, true);
   assert.equal(JSON.stringify(healthBody).includes(sourceRoot), false);
 
-  const projects = await fetch(`${baseUrl}/api/continuity/projects`);
+  const projects = await fetch(`${baseUrl}/api/continuity/projects`, {
+    headers: { authorization: `Bearer ${sourceArchiveMachineToken}` }
+  });
   assert.equal(projects.status, 200);
   const projectBody = (await projects.json()) as {
     ok: boolean;
@@ -285,7 +289,18 @@ try {
   assert.equal(projectBody.projects[0]?.workspaces[0]?.repoId, "primary");
   assert.equal(JSON.stringify(projectBody).includes(sourceRoot), false);
 
-  const continuityUi = await fetch(`${baseUrl}/ui/continuity/projects`);
+  const accessPolicy = JSON.parse(
+    fs.readFileSync(
+      path.join(homeRoot, ".chatcockpit", "runtime", "access-policy.json"),
+      "utf8"
+    )
+  ) as { consolePathPrefix: string };
+  assert.match(accessPolicy.consolePathPrefix, /^\/cc-[A-Za-z0-9_-]{24}$/);
+  const legacyUi = await fetch(`${baseUrl}/ui/continuity/projects`);
+  assert.equal(legacyUi.status, 404);
+  const continuityUi = await fetch(
+    `${baseUrl}${accessPolicy.consolePathPrefix}/continuity/projects`
+  );
   assert.equal(continuityUi.status, 200);
   assert.match(await continuityUi.text(), /<div id="root"><\/div>/);
 

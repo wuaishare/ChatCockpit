@@ -9,6 +9,10 @@ import type { TokenPilotPaths } from "../types.js";
 export const ACCESS_POLICY_SCHEMA_VERSION = 1 as const;
 export const DEFAULT_CONSOLE_PATH_PREFIX = "/ui";
 
+export function generateRandomConsolePathPrefix(): string {
+  return `/cc-${crypto.randomBytes(18).toString("base64url")}`;
+}
+
 const RESERVED_CONSOLE_ROOTS = new Set([
   "api",
   "favicon.ico",
