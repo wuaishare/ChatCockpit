@@ -39,7 +39,6 @@ function hasTokenConfigured(): boolean {
 export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
   const health = buildHealthStatusSnapshot();
   const apiTokenEnv = runtimeIdentityEnvName("API_TOKEN", paths.productIdentity);
-  const repoRootEnv = runtimeIdentityEnvName("REPO_ROOT", paths.productIdentity);
   const runtimeExists = fs.existsSync(paths.runtimeDir);
   const envExists = fs.existsSync(envFilePath(paths));
   const runnerReady = fs.existsSync(paths.runnerStatusPath);
@@ -56,7 +55,9 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
       ok: runtimeExists && envExists,
       label: "Local runtime",
       detail: envExists ? "server.env is present" : "server.env has not been created",
-      nextAction: envExists ? "Continue" : "Run npm run init"
+      nextAction: envExists
+        ? "Continue"
+        : "Initialize the local Runtime in ChatCockpit App → Runtime"
     },
     {
       key: "auth",
@@ -65,28 +66,36 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
       detail: tokenConfigured
         ? `${apiTokenEnv} is configured for machine/API clients`
         : "Machine API authority is optional; Web Operator sessions and ChatGPT OAuth do not depend on it",
-      nextAction: tokenConfigured ? "Continue" : `Optional: set ${apiTokenEnv} for CLI or automation clients`
+      nextAction: tokenConfigured
+        ? "Continue"
+        : "Optional: manage Machine API authority in ChatCockpit App → Access & Security"
     },
     {
       key: "oauth",
       ok: !oauth.required || oauth.ready,
       label: "ChatGPT MCP OAuth",
       detail: oauth.detail,
-      nextAction: oauth.nextAction
+      nextAction: !oauth.required || oauth.ready
+        ? "Continue"
+        : "Open Integrations to review OAuth readiness; use the ChatCockpit App for machine-side prerequisites"
     },
     {
       key: "repo",
       ok: repoReady,
       label: "Repository allowlist",
       detail: repoReady ? "Default repoId can resolve locally" : "Repository root is unavailable",
-      nextAction: repoReady ? "Continue" : `Check ${repoRootEnv}`
+      nextAction: repoReady
+        ? "Continue"
+        : "Authorize or repair the local Workspace in ChatCockpit App → Workspaces"
     },
     {
       key: "runner",
       ok: runnerReady,
       label: "Runner",
       detail: runnerReady ? "Runner status file is present" : "Runner has not reported status yet",
-      nextAction: runnerReady ? "Continue" : "Run npm run start:local"
+      nextAction: runnerReady
+        ? "Continue"
+        : "Start or diagnose Runtime services in ChatCockpit App → Runtime"
     },
     {
       key: "gpt",
@@ -100,7 +109,7 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
       nextAction: publicGptReady
         ? "Open Integrations and review the ChatGPT App / MCP connection"
         : publicBaseUrlConfigured
-          ? "Enable exposed mode or fix the public ingress before re-importing GPT Actions"
+          ? "Review public access in ChatCockpit App → Access & Security, then return to Integrations"
           : "Open Integrations and review the local integration details"
     },
     {

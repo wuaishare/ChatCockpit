@@ -1,5 +1,4 @@
 import { Button, List, Tag } from "antd";
-import { Text } from "@lobehub/ui";
 import type {
   HealthModel,
   IntegrationStatusResponse,
@@ -89,7 +88,7 @@ export function DashboardView({
           <span>{copy.dashboard.authRequiredLabel} · {health.authRequired ? copy.status.yes : copy.status.no}</span>
           <span>{copy.dashboard.exposedLabel} · {health.exposed ? copy.status.yes : copy.status.no}</span>
         </div>
-        <div className="section-note section-note--warning">
+        <div className="section-note">
           <strong>{copy.dashboard.boundaryTitle}</strong>
           <span>{copy.dashboard.boundaryDescription}</span>
         </div>
@@ -107,11 +106,33 @@ export function DashboardView({
             </div>
             <div className="summary-line summary-line--wide">
               <span>{integrationsCopy.localCockpit}</span>
-              <strong>{integrationStatus?.localCockpitUrl ?? copy.common.notAvailable}</strong>
+              <strong>
+                {integrationStatus?.localCockpitUrl ? (
+                  <a
+                    className="summary-entry-link"
+                    href={integrationStatus.localCockpitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {integrationStatus.localCockpitUrl}
+                  </a>
+                ) : copy.common.notAvailable}
+              </strong>
             </div>
             <div className="summary-line summary-line--wide">
               <span>{integrationsCopy.publicCockpit}</span>
-              <strong>{integrationStatus?.publicCockpitUrl ?? copy.common.notAvailable}</strong>
+              <strong>
+                {integrationStatus?.publicCockpitUrl ? (
+                  <a
+                    className="summary-entry-link"
+                    href={integrationStatus.publicCockpitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {integrationStatus.publicCockpitUrl}
+                  </a>
+                ) : copy.common.notAvailable}
+              </strong>
             </div>
           </div>
         </div>

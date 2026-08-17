@@ -605,6 +605,23 @@ button,
   word-break: break-word;
 }
 
+.summary-entry-link {
+  color: var(--tp-cyan);
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.summary-entry-link:hover,
+.summary-entry-link:focus-visible {
+  text-decoration: underline;
+}
+
+.summary-entry-link:focus-visible {
+  outline: 2px solid var(--tp-cyan);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 .summary-flags {
   display: flex;
   flex-wrap: wrap;

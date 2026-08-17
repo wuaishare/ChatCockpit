@@ -17,6 +17,8 @@ const operatorSetupPath = path.join(root, "web", "src", "components", "OperatorS
 const operatorLoginPath = path.join(root, "web", "src", "components", "OperatorLoginView.tsx");
 const operatorPasskeysPath = path.join(root, "web", "src", "components", "OperatorPasskeyManager.tsx");
 const operatorRoutesPath = path.join(root, "src", "server", "operator-routes.ts");
+const setupStatusPath = path.join(root, "src", "core", "setup-status.ts");
+const integrationsViewPath = path.join(root, "web", "src", "components", "IntegrationsView.tsx");
 
 const i18n = fs.readFileSync(i18nPath, "utf8");
 const resources = fs.readFileSync(resourcesPath, "utf8");
@@ -30,6 +32,8 @@ const operatorSetup = fs.readFileSync(operatorSetupPath, "utf8");
 const operatorLogin = fs.readFileSync(operatorLoginPath, "utf8");
 const operatorPasskeys = fs.readFileSync(operatorPasskeysPath, "utf8");
 const operatorRoutes = fs.readFileSync(operatorRoutesPath, "utf8");
+const setupStatus = fs.readFileSync(setupStatusPath, "utf8");
+const integrationsView = fs.readFileSync(integrationsViewPath, "utf8");
 
 assert.equal(detectBrowserLocale(["zh-CN", "en-US"]), "zh-CN");
 assert.equal(detectBrowserLocale(["zh-Hans-CN"]), "zh-CN");
@@ -53,6 +57,21 @@ assert.match(integrations, /chatgptTitle: "ChatGPT App \/ MCP"/);
 assert.match(integrations, /customGptTitle: "Custom GPT Actions"/);
 assert.match(integrations, /apiBoundary: "机器 API 令牌与控制台管理员、ChatGPT OAuth 完全分离/);
 assert.match(integrations, /机器 API 令牌不是 OAuth 前置条件/);
+assert.doesNotMatch(integrationsView, /status\.localCockpitUrl|status\.publicCockpitUrl/);
+assert.doesNotMatch(integrationsView, /openLocalCockpit|openPublicCockpit/);
+assert.match(dashboard, /integrationStatus\?\.localCockpitUrl/);
+assert.match(dashboard, /integrationStatus\?\.publicCockpitUrl/);
+assert.match(dashboard, /className="summary-entry-link"/);
+assert.match(dashboard, /target="_blank"/);
+assert.match(i18n, /Operator Workspace 边界/);
+assert.match(i18n, /Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理/);
+assert.match(i18n, /在 ChatCockpit App → 运行环境中启动或诊断 Runtime 服务/);
+assert.match(i18n, /在 ChatCockpit App → 工作区中授权或修复本机 Workspace/);
+assert.doesNotMatch(i18n, /Run npm run init|Run npm run start:local|运行 npm run init|运行 npm run start:local|CHATCOCKPIT_REPO_ROOT|~\/\.chatcockpit\/config\.json/);
+assert.doesNotMatch(setupStatus, /Run npm run init|Run npm run start:local|CHATCOCKPIT_REPO_ROOT/);
+assert.match(setupStatus, /ChatCockpit App → Runtime/);
+assert.match(setupStatus, /ChatCockpit App → Workspaces/);
+assert.match(setupStatus, /ChatCockpit App → Access & Security/);
 
 assert.match(app, /integrations:\s*consolePath\("integrations"\)/);
 assert.match(consolePath, /DEFAULT_CONSOLE_BASE_PATH\s*=\s*"\/ui"/);

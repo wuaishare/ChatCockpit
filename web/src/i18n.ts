@@ -439,15 +439,15 @@ const zhCN: UiCopy = {
     localUnlockFailed: "本机免密登录链接已失效，请从 ChatCockpit App 重新打开本机控制台。"
   },
   dashboard: {
-    boundaryTitle: "当前阶段边界",
+    boundaryTitle: "Operator Workspace 边界",
     boundaryDescription:
-      "当前为本地优先 Web UI MVP，支持状态查看与受控任务进程控制。完整 HTTPS / Custom GPT Actions 自动化闭环仍在验证中。",
+      "Web Cockpit 负责任务、连续性、资源、审批与集成工作流；Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理。",
     healthCard: "健康状态",
     modeCard: "运行模式",
     authCard: "鉴权状态",
     completedCard: "已完成任务",
-    summaryTitle: "控制面摘要",
-    summaryDescription: "当前运行态概览。",
+    summaryTitle: "Operator 工作台概览",
+    summaryDescription: "以只读方式投影机器运行态，并把 Operator 工作流留在 Web Cockpit。",
     healthLabel: "健康状态",
     authRequiredLabel: "需要鉴权",
     exposedLabel: "已暴露",
@@ -477,10 +477,10 @@ const zhCN: UiCopy = {
     gptPreviewTitle: "Custom GPT Actions 兼容预览",
     gptPreviewDescription: "仅用于兼容旧版 Actions 工作流的可复制指引。",
     gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址；新连接优先使用 ChatGPT App / MCP。",
-    repoGovernanceTitle: "Repo 治理",
-    repoGovernanceDescription: "当前允许 GPT Actions 与本地 Codex 协同使用的公开 repoId；本机路径只在私有配置中解析。",
+    repoGovernanceTitle: "工作区治理",
+    repoGovernanceDescription: "当前可供受治理工作流使用的公开 repoId。本机路径授权与 Primary Workspace 由 ChatCockpit App 管理。",
     repoGovernanceConfigScope:
-      "配置来源：本机私有 ChatCockpit 配置（默认 ~/.chatcockpit/config.json，可用 CHATCOCKPIT_CONFIG_PATH 覆盖）",
+      "授权来源：当前机器的 ChatCockpit Workspace 配置；Web Cockpit 仅使用已授权映射，不显示本机路径。",
     repoGovernancePathHidden: "路径已隐藏",
     repoGovernanceDefaultLabel: "默认",
     repoGovernanceMissingHint: "未发现对应仓库目录，当前不可执行。",
@@ -495,7 +495,7 @@ const zhCN: UiCopy = {
   continuity: zhCNContinuityCopy,
   setup: {
     title: "首次设置",
-    description: "按顺序确认本地运行态、鉴权、仓库、Runner、GPT 接入和首个安全任务。",
+    description: "检查 Machine 与 Operator 两侧的前置条件。机器侧配置在 ChatCockpit App 管理，工作流与集成在 Web Cockpit 完成。",
     readyTag: "已就绪",
     pendingTag: "待处理",
     openIntegrations: "打开集成",
@@ -506,35 +506,35 @@ const zhCN: UiCopy = {
         detailReady: "本地运行态配置已存在。",
         detailPending: "本地运行态配置尚未初始化。",
         nextReady: "继续下一步",
-        nextPending: "运行 npm run init"
+        nextPending: "在 ChatCockpit App → 运行环境中完成本机 Runtime 初始化"
       },
       auth: {
         label: "机器 API（可选）",
         detailReady: "机器 API 令牌仅用于 CLI、自动化或其他机器客户端；控制台管理员会话与 ChatGPT OAuth 都不依赖它。",
         detailPending: "机器 API 令牌是可选能力，不会阻塞 Web 控制台或 ChatGPT OAuth。",
         nextReady: "按需配置或继续下一步",
-        nextPending: "按需配置机器 API 权限"
+        nextPending: "如有 CLI 或自动化需求，请在 ChatCockpit App → 访问与安全中管理机器 API 权限"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
         detailReady: "OAuth 已就绪，或当前本地模式无需远程 OAuth。",
         detailPending: "ChatGPT Remote MCP OAuth 尚未满足公网地址、控制台管理员账户或持久化条件。",
         nextReady: "继续下一步",
-        nextPending: "运行 npm run doctor 查看 OAuth readiness 原因"
+        nextPending: "打开“集成”查看 OAuth 就绪状态；需要机器侧调整时回到 ChatCockpit App"
       },
       repo: {
         label: "仓库授权",
         detailReady: "默认 repoId 可以在本地解析。",
         detailPending: "默认仓库根目录不可用。",
         nextReady: "继续下一步",
-        nextPending: "检查 CHATCOCKPIT_REPO_ROOT"
+        nextPending: "在 ChatCockpit App → 工作区中授权或修复本机 Workspace"
       },
       runner: {
         label: "本地 Runner",
         detailReady: "Runner 已写入状态。",
         detailPending: "Runner 尚未上报状态。",
         nextReady: "继续下一步",
-        nextPending: "运行 npm run start:local"
+        nextPending: "在 ChatCockpit App → 运行环境中启动或诊断 Runtime 服务"
       },
       gpt: {
         label: "ChatGPT 集成",
@@ -750,15 +750,15 @@ const enUS: UiCopy = {
     localUnlockFailed: "The local passwordless sign-in link expired. Open Local Cockpit again from the ChatCockpit App."
   },
   dashboard: {
-    boundaryTitle: "Phase-2 boundary",
+    boundaryTitle: "Operator Workspace boundary",
     boundaryDescription:
-      "Local-first Web UI MVP. Full HTTPS / Custom GPT Actions automation loop is still under validation.",
+      "Web Cockpit owns jobs, continuity, resources, approvals, and integration workflows. Runtime lifecycle, access policy, and machine secrets are managed in the ChatCockpit App.",
     healthCard: "Health",
     modeCard: "Mode",
     authCard: "Auth",
     completedCard: "Jobs Completed",
-    summaryTitle: "Control Plane Summary",
-    summaryDescription: "Operator-safe runtime status.",
+    summaryTitle: "Operator Workspace Overview",
+    summaryDescription: "Read-only machine runtime projection with operator workflows kept in Web Cockpit.",
     healthLabel: "Health",
     authRequiredLabel: "Auth Required",
     exposedLabel: "Exposed",
@@ -788,10 +788,10 @@ const enUS: UiCopy = {
     gptPreviewTitle: "Custom GPT Actions compatibility preview",
     gptPreviewDescription: "Copy-safe guidance for legacy Actions workflows.",
     gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL. Prefer ChatGPT App / MCP for new connections.",
-    repoGovernanceTitle: "Repo Governance",
-    repoGovernanceDescription: "Public repoIds currently available to GPT Actions and local Codex collaboration. Local paths resolve only inside private operator config.",
+    repoGovernanceTitle: "Workspace Governance",
+    repoGovernanceDescription: "Public repoIds available to governed workflows. Local path authorization and the Primary Workspace are managed in the ChatCockpit App.",
     repoGovernanceConfigScope:
-      "Config source: local private ChatCockpit config (default ~/.chatcockpit/config.json, override with CHATCOCKPIT_CONFIG_PATH)",
+      "Authorization source: this machine's ChatCockpit Workspace configuration. Web Cockpit consumes authorized mappings without exposing local paths.",
     repoGovernancePathHidden: "Path hidden",
     repoGovernanceDefaultLabel: "Default",
     repoGovernanceMissingHint: "Repository directory was not found; execution is unavailable.",
@@ -806,7 +806,7 @@ const enUS: UiCopy = {
   continuity: enUSContinuityCopy,
   setup: {
     title: "First-run setup",
-    description: "Check local runtime, auth, repo, runner, GPT handoff, and the first safe task.",
+    description: "Check prerequisites across Machine and Operator surfaces. Machine configuration stays in the ChatCockpit App; workflows and integrations stay in Web Cockpit.",
     readyTag: "Ready",
     pendingTag: "Pending",
     openIntegrations: "Open Integrations",
@@ -817,35 +817,35 @@ const enUS: UiCopy = {
         detailReady: "Local runtime config is present.",
         detailPending: "Local runtime config has not been initialized.",
         nextReady: "Continue",
-        nextPending: "Run npm run init"
+        nextPending: "Initialize the local Runtime in ChatCockpit App → Runtime"
       },
       auth: {
         label: "Machine API (optional)",
         detailReady: "The machine API token is only for CLI, automation, or other machine clients; Web Owner sessions and ChatGPT OAuth do not depend on it.",
         detailPending: "Machine API authority is optional and does not block the Web Cockpit or ChatGPT OAuth.",
         nextReady: "Configure it if needed, or continue",
-        nextPending: "Configure machine API authority only if needed"
+        nextPending: "If CLI or automation needs it, manage Machine API authority in ChatCockpit App → Access & Security"
       },
       oauth: {
         label: "ChatGPT MCP OAuth",
         detailReady: "OAuth is ready, or remote OAuth is not required in local-only mode.",
         detailPending: "Remote MCP OAuth is missing a valid public origin, Web Owner account, or writable runtime state.",
         nextReady: "Continue",
-        nextPending: "Run npm run doctor for the OAuth readiness reason"
+        nextPending: "Open Integrations to inspect OAuth readiness; return to the ChatCockpit App when a machine-side prerequisite needs attention"
       },
       repo: {
         label: "Repository allowlist",
         detailReady: "The default repoId resolves locally.",
         detailPending: "The default repository root is unavailable.",
         nextReady: "Continue",
-        nextPending: "Check CHATCOCKPIT_REPO_ROOT"
+        nextPending: "Authorize or repair the local Workspace in ChatCockpit App → Workspaces"
       },
       runner: {
         label: "Runner",
         detailReady: "Runner status is present.",
         detailPending: "Runner has not reported status yet.",
         nextReady: "Continue",
-        nextPending: "Run npm run start:local"
+        nextPending: "Start or diagnose Runtime services in ChatCockpit App → Runtime"
       },
       gpt: {
         label: "ChatGPT integration",
