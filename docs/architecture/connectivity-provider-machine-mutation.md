@@ -36,6 +36,19 @@ A provider adapter must explicitly declare which actions it implements. An actio
 
 Installing a provider does **not** mean creating or starting a public tunnel. Provider binary lifecycle and public route lifecycle are separate operations.
 
+## Current Implemented Adapter
+
+The first implemented machine adapter is the **Cloudflare Tunnel `cloudflared` binary lifecycle on macOS through Homebrew**. Its scope is deliberately narrow:
+
+- detect `cloudflared` through a fixed version probe;
+- prepare and explicitly confirm `install`, `upgrade`, or `uninstall`;
+- execute Homebrew only through the allowlisted standard macOS executable locations `/opt/homebrew/bin/brew` or `/usr/local/bin/brew`;
+- re-probe `cloudflared` after the package-manager command;
+- record machine-local ChatCockpit ownership only after a verified install or upgrade;
+- allow upgrade or uninstall only while that ChatCockpit ownership is still applicable.
+
+An externally installed `cloudflared` remains reusable but unmanaged: ChatCockpit does not adopt it merely because detection succeeds. This adapter does not install Homebrew, authenticate to Cloudflare, create a Tunnel, install or start a Tunnel service, write provider credentials, or change the Public Access route.
+
 ## Existing Environment First
 
 ChatCockpit must preserve existing operator infrastructure:

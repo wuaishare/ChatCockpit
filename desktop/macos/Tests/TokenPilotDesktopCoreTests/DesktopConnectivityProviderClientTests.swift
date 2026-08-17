@@ -53,6 +53,112 @@ struct DesktopConnectivityProviderClientTests {
         #expect(snapshot.providers[2].detection == .probeFailed)
         #expect(snapshot.providers[2].version == nil)
     }
+
+    @Test("decodes cloudflared Homebrew capabilities, prepared plan, and mutation result")
+    func readsCloudflaredMutationContract() async throws {
+        let capabilitiesFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "provider", "status", "--provider", "cloudflare-tunnel", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              providerId: "cloudflare-tunnel",
+              displayName: "Cloudflare Tunnel",
+              packageManager: "homebrew",
+              detection: "not-detected",
+              version: null,
+              managedByChatCockpit: false,
+              actions: [
+                { action: "install", available: true, reason: null },
+                { action: "upgrade", available: false, reason: "provider-not-detected" },
+                { action: "uninstall", available: false, reason: "provider-not-detected" }
+              ]
+            }));
+            """
+        )
+        defer { capabilitiesFixture.remove() }
+        let capabilities = try await DesktopAuthorityClient().connectivityProviderCapabilities(
+            providerId: "cloudflare-tunnel",
+            context: capabilitiesFixture.context
+        )
+        #expect(capabilities.providerId == "cloudflare-tunnel")
+        #expect(capabilities.packageManager == "homebrew")
+        #expect(capabilities.managedByChatCockpit == false)
+        #expect(capabilities.availability(for: .install)?.available == true)
+        #expect(capabilities.availability(for: .upgrade)?.available == false)
+
+        let prepareFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "provider", "prepare", "--provider", "cloudflare-tunnel", "--action", "install", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              planId: "plan-proof",
+              providerId: "cloudflare-tunnel",
+              displayName: "Cloudflare Tunnel",
+              packageManager: "homebrew",
+              action: "install",
+              requiresConfirmation: true,
+              changesPublicRoute: false,
+              startsTunnel: false,
+              startsRuntime: false,
+              expectedDetection: "not-detected",
+              expectedVersion: null,
+              expectedManagedByChatCockpit: false,
+              preparedAt: "2026-08-17T12:30:00.000Z",
+              expiresAt: "2026-08-17T12:35:00.000Z"
+            }));
+            """
+        )
+        defer { prepareFixture.remove() }
+        let plan = try await DesktopAuthorityClient().prepareConnectivityProviderAction(
+            providerId: "cloudflare-tunnel",
+            action: .install,
+            context: prepareFixture.context
+        )
+        #expect(plan.planId == "plan-proof")
+        #expect(plan.requiresConfirmation == true)
+        #expect(plan.changesPublicRoute == false)
+        #expect(plan.startsTunnel == false)
+        #expect(plan.startsRuntime == false)
+
+        let executeFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "provider", "execute", "--provider", "cloudflare-tunnel", "--plan-id", "plan-proof", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              planId: "plan-proof",
+              providerId: "cloudflare-tunnel",
+              displayName: "Cloudflare Tunnel",
+              packageManager: "homebrew",
+              action: "install",
+              outcome: "succeeded",
+              before: { detection: "not-detected", version: null, managedByChatCockpit: false },
+              after: { detection: "detected", version: "2026.7.3", managedByChatCockpit: true },
+              changesPublicRoute: false,
+              startsTunnel: false,
+              startsRuntime: false
+            }));
+            """
+        )
+        defer { executeFixture.remove() }
+        let result = try await DesktopAuthorityClient().executeConnectivityProviderPlan(
+            providerId: "cloudflare-tunnel",
+            planId: "plan-proof",
+            context: executeFixture.context
+        )
+        #expect(result.outcome == .succeeded)
+        #expect(result.after.detection == .detected)
+        #expect(result.after.version == "2026.7.3")
+        #expect(result.after.managedByChatCockpit == true)
+        #expect(result.changesPublicRoute == false)
+        #expect(result.startsTunnel == false)
+        #expect(result.startsRuntime == false)
+    }
 }
 
 private struct ConnectivityProviderCLIFixture {

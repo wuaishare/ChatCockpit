@@ -45,6 +45,11 @@ import {
 } from "../security/secure-bootstrap.js";
 import { readDesktopOperationalSummary } from "../application/desktop-operational-summary-service.js";
 import { probeConnectivityProviders } from "../connectivity/provider-probe.js";
+import {
+  CLOUDFLARED_PROVIDER_ID,
+  CloudflaredHomebrewAdapter,
+  type ConnectivityProviderMachineAction
+} from "../connectivity/cloudflared-homebrew-adapter.js";
 
 function printUsage(): void {
   const identity = DEFAULT_PRODUCT_IDENTITY;
@@ -74,6 +79,9 @@ Usage:
   ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
   ${identity.cliName} connectivity providers [--json]
+  ${identity.cliName} connectivity provider status --provider cloudflare-tunnel [--json]
+  ${identity.cliName} connectivity provider prepare --provider cloudflare-tunnel --action install|upgrade|uninstall [--json]
+  ${identity.cliName} connectivity provider execute --provider cloudflare-tunnel --plan-id <plan-id> [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
@@ -436,21 +444,87 @@ async function main(): Promise<void> {
     }
     case "connectivity": {
       const subcommand = process.argv[3];
-      if (subcommand !== "providers") {
-        throw new Error("connectivity requires: providers");
+      if (subcommand === "providers") {
+        const snapshot = probeConnectivityProviders();
+        if (process.argv.includes("--json")) {
+          printJson(snapshot);
+        } else {
+          process.stdout.write("Connectivity providers\n");
+          for (const provider of snapshot.providers) {
+            process.stdout.write(
+              `${provider.displayName}: ${provider.detection}${provider.version ? ` (${provider.version})` : ""}\n`
+            );
+          }
+        }
+        return;
       }
-      const snapshot = probeConnectivityProviders();
-      if (process.argv.includes("--json")) {
-        printJson(snapshot);
-      } else {
-        process.stdout.write("Connectivity providers\n");
-        for (const provider of snapshot.providers) {
-          process.stdout.write(
-            `${provider.displayName}: ${provider.detection}${provider.version ? ` (${provider.version})` : ""}\n`
-          );
+      if (subcommand === "provider") {
+        const operation = process.argv[4];
+        const providerId = getFlag("--provider");
+        if (providerId !== CLOUDFLARED_PROVIDER_ID) {
+          throw new Error("connectivity provider currently supports only: cloudflare-tunnel");
+        }
+        const adapter = new CloudflaredHomebrewAdapter({ runtimeDir: paths.runtimeDir });
+        switch (operation) {
+          case "status": {
+            const status = adapter.capabilities();
+            if (process.argv.includes("--json")) {
+              printJson(status);
+            } else {
+              process.stdout.write(`${status.displayName} machine status\n`);
+              process.stdout.write(`Detection: ${status.detection}\n`);
+              process.stdout.write(`Version: ${status.version ?? "not detected"}\n`);
+              process.stdout.write(`Managed by ChatCockpit: ${status.managedByChatCockpit ? "yes" : "no"}\n`);
+              for (const action of status.actions) {
+                process.stdout.write(
+                  `${action.action}: ${action.available ? "available" : `unavailable (${action.reason})`}\n`
+                );
+              }
+            }
+            return;
+          }
+          case "prepare": {
+            const actionValue = getFlag("--action");
+            if (
+              actionValue !== "install" &&
+              actionValue !== "upgrade" &&
+              actionValue !== "uninstall"
+            ) {
+              throw new Error("connectivity provider prepare requires --action install|upgrade|uninstall");
+            }
+            const plan = adapter.prepare(actionValue as ConnectivityProviderMachineAction);
+            if (process.argv.includes("--json")) {
+              printJson(plan);
+            } else {
+              process.stdout.write(`${plan.displayName} ${plan.action} prepared\n`);
+              process.stdout.write(`Plan id: ${plan.planId}\n`);
+              process.stdout.write(`Expires: ${plan.expiresAt}\n`);
+              process.stdout.write("Explicit confirmation is required before execute.\n");
+              process.stdout.write("This action does not start a tunnel or change the public route.\n");
+            }
+            return;
+          }
+          case "execute": {
+            const planId = getFlag("--plan-id");
+            if (!planId) {
+              throw new Error("connectivity provider execute requires --plan-id");
+            }
+            const result = adapter.execute(planId);
+            if (process.argv.includes("--json")) {
+              printJson(result);
+            } else {
+              process.stdout.write(`${result.displayName} ${result.action}: ${result.outcome}\n`);
+              process.stdout.write(`Before: ${result.before.detection}${result.before.version ? ` (${result.before.version})` : ""}\n`);
+              process.stdout.write(`After: ${result.after.detection}${result.after.version ? ` (${result.after.version})` : ""}\n`);
+              process.stdout.write("Public route unchanged. Tunnel not started.\n");
+            }
+            return;
+          }
+          default:
+            throw new Error("connectivity provider requires one of: status, prepare, execute");
         }
       }
-      return;
+      throw new Error("connectivity requires one of: providers, provider");
     }
     case "operator": {
       const subcommand = process.argv[3];
