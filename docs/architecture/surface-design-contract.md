@@ -52,7 +52,7 @@ It is the canonical surface for:
 
 Web Cockpit may display public-safe machine state, but it must not reveal machine secrets or become a second implementation of native Runtime ownership.
 
-Public network exposure belongs to a dedicated **Public Access / Connectivity** workbench in Web Cockpit. Web owns provider selection, domain/route intent, canonical Public Endpoint selection, reachability/TLS/DNS inspection, and staged cutover workflows. It does not install local binaries, mutate OS services, or render provider credentials in plaintext.
+Public network exposure belongs to a dedicated **Public Access / Connectivity** workbench in Web Cockpit. Web owns provider selection, domain/route intent, canonical Public Endpoint selection, reachability/TLS/DNS inspection, and staged cutover workflows. It does not install local binaries, mutate OS services, or render provider credentials in plaintext. The implemented workbench also consumes a protected public-safe machine-provider projection containing only provider identity/display name, detection, version, ChatCockpit ownership, and action availability/reason; machine execution, internal adapter identity, executable paths, raw provider output, mutation plans, and secrets remain outside Web.
 
 ### Runtime — Single Source of Truth and Execution Layer
 

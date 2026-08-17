@@ -15,6 +15,7 @@ import {
 } from "@ant-design/icons";
 import {
   controlJob,
+  fetchConnectivityProviders,
   fetchGptConfig,
   fetchHealth,
   fetchIntegrationStatus,
@@ -46,6 +47,7 @@ import { OperatorPasskeyManager } from "./components/OperatorPasskeyManager";
 import { OperatorSetupRequiredView } from "./components/OperatorSetupRequiredView";
 import type {
   ArtifactPreviewState,
+  ConnectivityProviderPublicSnapshot,
   ContinuitySectionKey,
   GptConfigModel,
   HealthModel,
@@ -261,6 +263,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [gptConfigError, setGptConfigError] = useState<string | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
+  const [connectivityProviderStatus, setConnectivityProviderStatus] =
+    useState<ConnectivityProviderPublicSnapshot | null>(null);
+  const [connectivityProviderStatusError, setConnectivityProviderStatusError] = useState<string | null>(null);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -489,6 +494,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setGptConfig(null);
       setIntegrationStatus(null);
       setIntegrationStatusError(null);
+      setConnectivityProviderStatus(null);
+      setConnectivityProviderStatusError(null);
       setSetupStatus(null);
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
@@ -526,6 +533,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       } catch (error) {
         setIntegrationStatus(null);
         setIntegrationStatusError(getErrorMessage(error));
+      }
+      try {
+        const providerResponse = await fetchConnectivityProviders(token);
+        setConnectivityProviderStatus(providerResponse);
+        setConnectivityProviderStatusError(null);
+      } catch (error) {
+        setConnectivityProviderStatus(null);
+        setConnectivityProviderStatusError(getErrorMessage(error));
       }
       await loadCompatibilityConfig(locale);
     } catch (error) {
@@ -1086,6 +1101,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 locale={locale}
                 status={integrationStatus}
                 exposed={health.exposed}
+                providerStatus={connectivityProviderStatus}
+                providerStatusError={connectivityProviderStatusError}
                 onOpenIntegrations={() => navigateView("integrations")}
               />
             ) : (

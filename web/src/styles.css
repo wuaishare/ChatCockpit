@@ -1467,6 +1467,27 @@ button,
   margin-top: 10px;
 }
 
+.public-access-provider-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.public-access-provider-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.public-access-provider-status > span,
+.public-access-provider-primary > span {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
 .gpt-inline-note {
   margin-top: 8px;
   padding-top: 8px;

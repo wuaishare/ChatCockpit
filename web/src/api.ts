@@ -22,6 +22,7 @@ import type {
   ContinuityTaskDocumentBindResponse,
   ContinuityTaskReviewResponse,
   ContinuityWorkspaceSnapshotResponse,
+  ConnectivityProviderPublicSnapshot,
   GptConfigResponse,
   HealthResponse,
   IntegrationStatusResponse,
@@ -419,6 +420,12 @@ export async function fetchIntegrationStatus(
   token?: string | null
 ): Promise<IntegrationStatusResponse> {
   return requestJson<IntegrationStatusResponse>("/api/integrations/status", token);
+}
+
+export async function fetchConnectivityProviders(
+  token?: string | null
+): Promise<ConnectivityProviderPublicSnapshot> {
+  return requestJson<ConnectivityProviderPublicSnapshot>("/api/connectivity/providers", token);
 }
 
 export async function fetchContinuityProjects(

@@ -27,6 +27,22 @@ export interface PublicAccessCopy {
   manualSetup: string;
   manualSetupDescription: string;
   machineBoundary: string;
+  providersTitle: string;
+  providersDescription: string;
+  providerDetected: string;
+  providerNotDetected: string;
+  providerProbeFailed: string;
+  providerManaged: string;
+  providerExternalUnmanaged: string;
+  providerObserveOnly: string;
+  providerMachineActions: string;
+  providerUseAppCli: string;
+  providerHomebrewRequired: string;
+  providerNoMachineAction: string;
+  providerStatusUnavailable: string;
+  actionInstall: string;
+  actionUpgrade: string;
+  actionUninstall: string;
   diagnosticsTitle: string;
   diagnosticsDescription: string;
   publicEndpoint: string;
@@ -71,6 +87,22 @@ const zhCN: PublicAccessCopy = {
   manualSetup: "手动设置",
   manualSetupDescription: "需要调整监听器或本机接入组件时，请在 ChatCockpit App / CLI 完成本机配置，再回到这里验证公网地址、HTTPS、MCP 与 OAuth 状态。",
   machineBoundary: "本页不会安装接入组件、写入 Provider 密钥、启动隧道或替你切换公网路由。",
+  providersTitle: "本机接入组件",
+  providersDescription: "这里展示 Runtime 提供的 public-safe 机器能力投影：只包含探测状态、版本、ChatCockpit ownership 与动作可用性，不包含可执行路径、原始命令输出、Plan 或 Provider Secret。",
+  providerDetected: "已检测",
+  providerNotDetected: "未检测到",
+  providerProbeFailed: "探测失败",
+  providerManaged: "由 ChatCockpit 管理",
+  providerExternalUnmanaged: "外部环境 · 未接管",
+  providerObserveOnly: "仅观察 · 尚无机器 Adapter",
+  providerMachineActions: "可用机器操作",
+  providerUseAppCli: "请在 ChatCockpit App / CLI 执行",
+  providerHomebrewRequired: "需要先在此 Mac 安装 Homebrew；ChatCockpit 不会自动安装 Homebrew",
+  providerNoMachineAction: "当前没有可用的 ChatCockpit 机器操作",
+  providerStatusUnavailable: "暂时无法读取本机接入组件状态；这不会改变当前 Runtime 公网接入结果。",
+  actionInstall: "安装",
+  actionUpgrade: "升级",
+  actionUninstall: "卸载",
   diagnosticsTitle: "接入诊断",
   diagnosticsDescription: "基于当前 Runtime 投影检查公网地址、HTTPS、MCP 与 OAuth，帮助定位下一步应在公网接入还是集成设置中处理。",
   publicEndpoint: "公网端点",
@@ -115,6 +147,22 @@ const enUS: PublicAccessCopy = {
   manualSetup: "Manual setup",
   manualSetupDescription: "When the listener or a machine-side connector needs changes, configure it in ChatCockpit App / CLI, then return here to verify the public URL, HTTPS, MCP, and OAuth state.",
   machineBoundary: "This page does not install connectors, write provider secrets, start tunnels, or switch public routes for you.",
+  providersTitle: "Machine connectors",
+  providersDescription: "This is the Runtime's public-safe machine capability projection: detection, version, ChatCockpit ownership, and action availability only. Executable paths, raw command output, plans, and provider secrets are not exposed.",
+  providerDetected: "Detected",
+  providerNotDetected: "Not detected",
+  providerProbeFailed: "Probe failed",
+  providerManaged: "Managed by ChatCockpit",
+  providerExternalUnmanaged: "External environment · unmanaged",
+  providerObserveOnly: "Observe only · no machine adapter yet",
+  providerMachineActions: "Machine actions available",
+  providerUseAppCli: "Run them in the ChatCockpit App / CLI",
+  providerHomebrewRequired: "Homebrew must already be installed on this Mac; ChatCockpit does not install Homebrew automatically",
+  providerNoMachineAction: "No ChatCockpit machine action is currently available",
+  providerStatusUnavailable: "Machine connector status is temporarily unavailable. The current Runtime Public Access result is unchanged.",
+  actionInstall: "Install",
+  actionUpgrade: "Upgrade",
+  actionUninstall: "Uninstall",
   diagnosticsTitle: "Access diagnostics",
   diagnosticsDescription: "Check public addressing, HTTPS, MCP, and OAuth from the current Runtime projection to see whether the next action belongs in Public Access or Integrations.",
   publicEndpoint: "Public endpoint",
