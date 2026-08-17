@@ -41,6 +41,7 @@ enum MainAppSection: String, CaseIterable, Identifiable {
 struct MainAppView: View {
     @ObservedObject var model: DesktopAppModel
     @Binding var selection: MainAppSection?
+    @Binding var operationalSettingsFocus: OperationalSettingsFocus?
 
     private var activeSection: MainAppSection {
         selection ?? .overview
@@ -77,7 +78,11 @@ struct MainAppView: View {
                 case .workspaces:
                     SettingsView(model: model, scope: .workspaces)
                 case .accessSecurity:
-                    SettingsView(model: model, scope: .accessSecurity)
+                    SettingsView(
+                        model: model,
+                        scope: .accessSecurity,
+                        focus: $operationalSettingsFocus
+                    )
                 case .integrations:
                     NativeIntegrationsBridgeView(model: model)
                 case .updates:

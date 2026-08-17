@@ -61,6 +61,11 @@ assert.match(view, /action\.reason === "adapter-not-implemented"/);
 assert.match(view, /provider\.managedByChatCockpit/);
 assert.match(view, /provider\.actions[\s\S]*\.filter\(\(action\) => action\.available\)/s);
 assert.match(view, /providerUseAppCli/);
+assert.match(view, /href="chatcockpit:\/\/settings\/connectivity"/);
+assert.doesNotMatch(view, /chatcockpit:\/\/settings\/connectivity\?/);
+assert.doesNotMatch(view, /chatcockpit:\/\/settings\/connectivity[\s\S]*(provider|action|planId)=/i);
+assert.match(view, /openConnectivityInApp/);
+assert.match(view, /connectivityBridgeDescription/);
 assert.match(view, /onOpenIntegrations:\s*\(\) => void/);
 assert.doesNotMatch(view, /fetch\(|fetchIntegrationStatus|fetchConnectivityProviders|requestJson|setAccessPolicy|machine-token|prepareConnectivityProvider|executeConnectivityProvider/i);
 assert.doesNotMatch(view, /planId|stdout|stderr|\/opt\/homebrew|\/usr\/local\/bin|\bbrew\b/i);
@@ -80,12 +85,17 @@ assert.match(copy, /providerObserveOnly:\s*"仅观察 · 尚无机器 Adapter"/)
 assert.match(copy, /providersTitle:\s*"Machine connectors"/);
 assert.match(copy, /providerExternalUnmanaged:\s*"External environment · unmanaged"/);
 assert.match(copy, /providerObserveOnly:\s*"Observe only · no machine adapter yet"/);
+assert.match(copy, /openConnectivityInApp:\s*"在 ChatCockpit App 中打开"/);
+assert.match(copy, /openConnectivityInApp:\s*"Open in ChatCockpit App"/);
+assert.match(copy, /不会自动执行安装、升级、卸载或启动 Tunnel/);
+assert.match(copy, /never auto-runs install, upgrade, uninstall, or Tunnel startup/);
 
 const providerFiction = `${view}\n${copy}`;
 assert.doesNotMatch(providerFiction, /cloudflared|ngrok|\bfrpc\b|pinggy|binaryExists|providerInstalled/i);
 assert.doesNotMatch(providerFiction, /provider\s+(is\s+)?installed|provider\s+(is\s+)?ready/i);
 assert.match(styles, /\.public-access-provider-status\s*\{/);
 assert.match(styles, /\.public-access-provider-primary\s*\{/);
+assert.match(styles, /\.public-access-provider-bridge\s*\{/);
 assert.match(styles, /\.app-toolbar__group--views\s*\{[\s\S]*overflow-x:\s*auto/s);
 assert.match(styles, /\.app-toolbar__group--views \.ant-segmented\s*\{[\s\S]*width:\s*max-content/s);
 

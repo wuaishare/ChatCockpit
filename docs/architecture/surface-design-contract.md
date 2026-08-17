@@ -63,7 +63,7 @@ A surface may change presentation, density, or interaction style for its platfor
 ## Cross-Surface Rules
 
 1. **Read projections may cross surfaces; mutation authority does not.** A surface can summarize state owned elsewhere without inheriting that surface's privileged actions.
-2. **Bridge instead of duplicate.** When a task belongs to another surface, use a native navigation/deep-link action rather than recreating a smaller second implementation.
+2. **Bridge instead of duplicate.** When a task belongs to another surface, use a native navigation/deep-link action rather than recreating a smaller second implementation. The implemented Web → App connectivity bridge uses the fixed navigation-only URL `chatcockpit://settings/connectivity`; it carries no provider, action, mutation-plan, or secret parameters and must never execute a machine mutation merely by opening the link.
 3. **Secrets stay machine-local.** Plaintext machine API tokens and bootstrap Owner passwords are never rendered by Web Cockpit or the Menu Bar.
 4. **No Web lifecycle takeover.** Web Cockpit can report Runtime state but does not own native service start/stop/restart or LaunchAgent mutation.
 5. **No workflow clone in the App.** The native App can summarize jobs, approvals, integrations, or Continuity state, then open the canonical Web surface for detailed work.

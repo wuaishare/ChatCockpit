@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 import TokenPilotDesktopCore
 
+enum OperationalSettingsFocus: Hashable {
+    case connectivity
+}
+
 enum OperationalSettingsScope: Equatable {
     case runtime
     case workspaces
@@ -17,11 +21,23 @@ enum OperationalSettingsScope: Equatable {
 struct SettingsView: View {
     @ObservedObject var model: DesktopAppModel
     let scope: OperationalSettingsScope
+    @Binding var focus: OperationalSettingsFocus?
     @State private var consolePathPrefix = "/ui"
     @State private var trustedLanEnabled = false
     @State private var trustedLanCidrsText = ""
 
+    init(
+        model: DesktopAppModel,
+        scope: OperationalSettingsScope,
+        focus: Binding<OperationalSettingsFocus?> = .constant(nil)
+    ) {
+        self.model = model
+        self.scope = scope
+        self._focus = focus
+    }
+
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
             if scope.showsRuntime {
                 Section(DesktopL10n.string("Distribution")) {
@@ -470,6 +486,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .id(OperationalSettingsFocus.connectivity)
             }
 
             if scope.showsRuntime, let conflict = model.runtimeConflict {
@@ -504,6 +521,21 @@ struct SettingsView: View {
                 syncAccessPolicyFields()
             }
         }
+        .onAppear {
+            scrollToFocus(using: proxy)
+        }
+        .onChange(of: focus) { _, _ in
+            scrollToFocus(using: proxy)
+        }
+        }
+    }
+
+    private func scrollToFocus(using proxy: ScrollViewProxy) {
+        guard let requestedFocus = focus else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            proxy.scrollTo(requestedFocus, anchor: .top)
+        }
+        focus = nil
     }
 
     private var parsedTrustedLanCidrs: [String] {

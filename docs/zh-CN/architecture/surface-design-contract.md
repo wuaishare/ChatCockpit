@@ -63,7 +63,7 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 ## 跨 Surface 规则
 
 1. **只读投影可以跨 Surface，Mutation 权限不能跨。** 一个界面可以摘要展示别处拥有的状态，但不能因此继承对方的高权限动作。
-2. **优先 Bridge，不重复实现。** 任务明确属于另一 Surface 时，应通过原生导航或 Deep Link 前往主界面，而不是再做一套简化实现。
+2. **优先 Bridge，不重复实现。** 任务明确属于另一 Surface 时，应通过原生导航或 Deep Link 前往主界面，而不是再做一套简化实现。当前 Web → App 的 Connectivity Bridge 使用固定的纯导航 URL `chatcockpit://settings/connectivity`；它不携带 Provider、Action、Mutation Plan 或 Secret 参数，也绝不能因为打开链接本身就执行任何机器 Mutation。
 3. **秘密保持 machine-local。** 机器 API Token 明文和初始化 Owner 密码绝不能出现在 Web Cockpit 或 Menu Bar。
 4. **Web 不接管本机生命周期。** Web Cockpit 可以显示 Runtime 状态，但不负责原生服务 start / stop / restart 或 LaunchAgent Mutation。
 5. **App 不复制工作流工作台。** App 可以摘要 Jobs、Approvals、Integrations 或 Continuity 状态，再打开 Web Cockpit 处理详情。

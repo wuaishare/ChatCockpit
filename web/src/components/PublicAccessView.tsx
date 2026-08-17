@@ -249,6 +249,12 @@ export function PublicAccessView({
             <span>{providerStatusError ?? copy.providerStatusUnavailable}</span>
           </div>
         )}
+        <div className="public-access-provider-bridge">
+          <Button href="chatcockpit://settings/connectivity">
+            {copy.openConnectivityInApp}
+          </Button>
+          <Text type="secondary">{copy.connectivityBridgeDescription}</Text>
+        </div>
       </SectionCard>
 
       <SectionCard
