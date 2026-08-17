@@ -1,12 +1,8 @@
 import type { LocaleCode } from "../i18n";
 
 export interface IntegrationsCopy {
-  title: string;
-  description: string;
   localCockpit: string;
   publicCockpit: string;
-  openLocalCockpit: string;
-  openPublicCockpit: string;
   notConfigured: string;
   ready: string;
   needsAttention: string;
@@ -48,12 +44,8 @@ export interface IntegrationsCopy {
 }
 
 const zhCN: IntegrationsCopy = {
-  title: "集成",
-  description: "统一管理 ChatGPT App / MCP、API 与 OpenAPI，以及兼容用途的 Custom GPT Actions。三套权限边界保持独立。",
   localCockpit: "本机控制台",
   publicCockpit: "公网控制台",
-  openLocalCockpit: "打开本机控制台",
-  openPublicCockpit: "打开公网控制台",
   notConfigured: "未配置",
   ready: "就绪",
   needsAttention: "需要处理",
@@ -90,17 +82,13 @@ const zhCN: IntegrationsCopy = {
   copyInstructions: "复制兼容说明",
   copyUrl: "复制地址",
   loadingTitle: "正在读取集成状态",
-  loadingDescription: "正在从当前控制台管理员会话读取本机与公网入口、OAuth 状态及工具目录。",
+  loadingDescription: "正在从当前控制台管理员会话读取 OAuth、机器接口状态与工具目录。",
   requestFailed: "无法读取集成状态"
 };
 
 const enUS: IntegrationsCopy = {
-  title: "Integrations",
-  description: "Manage ChatGPT App / MCP, API & OpenAPI, and compatibility-only Custom GPT Actions while keeping all three authority domains separate.",
   localCockpit: "Local Cockpit",
   publicCockpit: "Public Cockpit",
-  openLocalCockpit: "Open Local Cockpit",
-  openPublicCockpit: "Open Public Cockpit",
   notConfigured: "Not configured",
   ready: "Ready",
   needsAttention: "Needs attention",
@@ -137,7 +125,7 @@ const enUS: IntegrationsCopy = {
   copyInstructions: "Copy compatibility instructions",
   copyUrl: "Copy URL",
   loadingTitle: "Loading integrations",
-  loadingDescription: "Reading Local/Public entrypoints, OAuth status, and the tool catalog through the current Web Owner session.",
+  loadingDescription: "Reading OAuth, machine-interface state, and the tool catalog through the current Web Owner session.",
   requestFailed: "Unable to load integrations"
 };
 

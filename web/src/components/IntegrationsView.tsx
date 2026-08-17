@@ -1,6 +1,6 @@
-import { Button, Tag } from "antd";
+import { Tag } from "antd";
 import { CopyButton, Text } from "@lobehub/ui";
-import { ClipboardCopy, ExternalLink } from "lucide-react";
+import { ClipboardCopy } from "lucide-react";
 import type { GptConfigModel, IntegrationStatusResponse } from "../types";
 import type { LocaleCode } from "../i18n";
 import { getIntegrationsCopy } from "../i18n/integrations";
@@ -11,10 +11,6 @@ interface IntegrationsViewProps {
   status: IntegrationStatusResponse;
   config: GptConfigModel | null;
   configError: string | null;
-}
-
-function openExternal(url: string): void {
-  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export function IntegrationsView({
@@ -39,32 +35,6 @@ export function IntegrationsView({
 
   return (
     <div className="view-stack">
-      <SectionCard title={copy.title} description={copy.description}>
-        <div className="gpt-facts">
-          <div className="gpt-fact">
-            <span>{copy.localCockpit}</span>
-            <strong>{status.localCockpitUrl}</strong>
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.publicCockpit}</span>
-            <strong>{status.publicCockpitUrl ?? copy.notConfigured}</strong>
-          </div>
-        </div>
-        <div className="gpt-overview-actions">
-          <Button icon={<ExternalLink size={15} />} onClick={() => openExternal(status.localCockpitUrl)}>
-            {copy.openLocalCockpit}
-          </Button>
-          {status.publicCockpitUrl ? (
-            <Button
-              icon={<ExternalLink size={15} />}
-              onClick={() => openExternal(status.publicCockpitUrl!)}
-            >
-              {copy.openPublicCockpit}
-            </Button>
-          ) : null}
-        </div>
-      </SectionCard>
-
       <SectionCard
         title={copy.chatgptTitle}
         description={copy.chatgptDescription}

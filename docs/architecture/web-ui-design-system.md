@@ -66,7 +66,8 @@ LobeHub-aligned implementation notes:
 
 - Header: brand glyph, product title, current deck status, language switch, view switch, theme switch, refresh action.
 - Panel: translucent but readable control surface, one border, one shadow vocabulary, no nested glass stacks.
-- Summary block: single source of truth for health, mode, auth, and explicit Local/Public Cockpit entrypoints. OpenAPI and machine-interface detail belongs in Integrations.
+- Summary block: single source of truth for health, mode, auth, and explicit Local/Public Cockpit entrypoints. Those entrypoints are actionable links and are not duplicated inside Integrations. OpenAPI and machine-interface detail belongs in Integrations.
+- First-run setup: machine prerequisites are described as ChatCockpit App responsibilities; the Web surface must not instruct normal Operators to run local lifecycle CLI commands or edit machine paths/env vars.
 - Secondary metrics: compact only, and only when they add new information.
 - Jobs and Integrations: compact operator surfaces. Integrations prioritizes ChatGPT App / MCP, keeps API & OpenAPI advanced, and marks Custom GPT Actions as compatibility-only. Job control affordances are limited to tracked-process pause, resume, and terminate actions.
 
