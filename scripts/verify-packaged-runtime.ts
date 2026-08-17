@@ -204,7 +204,26 @@ try {
   const healthBody = (await health.json()) as { ok?: boolean };
   assert.equal(healthBody.ok, true);
 
-  const ui = await fetch(`${baseURL}/ui`);
+  const accessPolicyPath = path.join(stateRoot, "runtime", "access-policy.json");
+  const credentialVaultPath = path.join(stateRoot, "runtime", "operator-credentials.json");
+  const accessPolicy = JSON.parse(fs.readFileSync(accessPolicyPath, "utf8")) as {
+    consolePathPrefix: string;
+  };
+  const credentials = JSON.parse(fs.readFileSync(credentialVaultPath, "utf8")) as {
+    username: string;
+    password: string;
+    ownerUpdatedAt: string | null;
+  };
+  assert.match(accessPolicy.consolePathPrefix, /^\/cc-[A-Za-z0-9_-]{24}$/);
+  assert.match(credentials.username, /^cc_owner_[a-f0-9]{12}$/);
+  assert.match(credentials.password, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal(typeof credentials.ownerUpdatedAt, "string");
+  assert.equal(fs.statSync(accessPolicyPath).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(credentialVaultPath).mode & 0o777, 0o600);
+
+  const concealedLegacyUi = await fetch(`${baseURL}/ui`);
+  assert.equal(concealedLegacyUi.status, 404);
+  const ui = await fetch(`${baseURL}${accessPolicy.consolePathPrefix}`);
   assert.equal(ui.status, 200);
   assert.match(await ui.text(), /<div id="root"><\/div>/);
 
@@ -212,9 +231,41 @@ try {
   assert.equal(openapi.status, 200);
   assert.match(await openapi.text(), /openapi:/);
 
-  const fileRead = await fetch(`${baseURL}/api/files/read`, {
+  const anonymousFileRead = await fetch(`${baseURL}/api/files/read`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      repoId: "primary",
+      path: "docs/packaged-runtime-fixture.md"
+    })
+  });
+  assert.equal(anonymousFileRead.status, 401);
+
+  const login = await fetch(`${baseURL}/api/operator/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-ChatCockpit-Console-Path": accessPolicy.consolePathPrefix
+    },
+    body: JSON.stringify({
+      username: credentials.username,
+      password: credentials.password
+    })
+  });
+  assert.equal(login.status, 200);
+  const loginBody = (await login.json()) as { csrfToken?: string };
+  assert.match(loginBody.csrfToken ?? "", /^[A-Za-z0-9_-]{43}$/);
+  const setCookie = login.headers.get("set-cookie");
+  assert.ok(setCookie);
+  const operatorCookie = setCookie.split(";", 1)[0];
+
+  const fileRead = await fetch(`${baseURL}/api/files/read`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: operatorCookie,
+      "X-ChatCockpit-CSRF": loginBody.csrfToken!
+    },
     body: JSON.stringify({
       repoId: "primary",
       path: "docs/packaged-runtime-fixture.md"
