@@ -185,4 +185,4 @@ Before adding or moving a UI capability:
 7. Preserve canonical console-path routing and localization.
 8. Add or update verification when a boundary becomes implementation-visible.
 
-This contract complements the [product principles](../governance/product-principles.md), the [macOS Desktop contract](../deployment/macos-desktop.md), the [Connectivity Provider Machine Mutation contract](./connectivity-provider-machine-mutation.md), and the [Web UI design system](./web-ui-design-system.md).
+This contract complements the [product principles](../governance/product-principles.md), the [macOS Desktop contract](../deployment/macos-desktop.md), the [Connectivity Provider Machine Mutation contract](./connectivity-provider-machine-mutation.md), the [Connectivity Candidate Route Staging contract](./connectivity-route-staging.md), and the [Web UI design system](./web-ui-design-system.md).

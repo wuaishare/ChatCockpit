@@ -23,6 +23,8 @@ import type {
   ContinuityTaskReviewResponse,
   ContinuityWorkspaceSnapshotResponse,
   ConnectivityProviderPublicSnapshot,
+  PublicRouteCandidateSnapshot,
+  PublicRouteCandidateSource,
   GptConfigResponse,
   HealthResponse,
   IntegrationStatusResponse,
@@ -426,6 +428,37 @@ export async function fetchConnectivityProviders(
   token?: string | null
 ): Promise<ConnectivityProviderPublicSnapshot> {
   return requestJson<ConnectivityProviderPublicSnapshot>("/api/connectivity/providers", token);
+}
+
+export async function fetchPublicRouteCandidate(
+  token?: string | null
+): Promise<PublicRouteCandidateSnapshot> {
+  return requestJson<PublicRouteCandidateSnapshot>("/api/connectivity/routes", token);
+}
+
+export async function stagePublicRouteCandidate(
+  payload: { origin: string; source: PublicRouteCandidateSource },
+  token?: string | null
+): Promise<PublicRouteCandidateSnapshot> {
+  return postBodyJson<PublicRouteCandidateSnapshot>(
+    "/api/connectivity/routes/candidate",
+    payload,
+    token
+  );
+}
+
+export async function discardPublicRouteCandidate(
+  token?: string | null
+): Promise<PublicRouteCandidateSnapshot> {
+  const response = await fetch("/api/connectivity/routes/candidate", {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: buildHeaders(token, { mutation: true })
+  });
+  if (!response.ok) {
+    throw await parseProblem(response);
+  }
+  return (await response.json()) as PublicRouteCandidateSnapshot;
 }
 
 export async function fetchContinuityProjects(

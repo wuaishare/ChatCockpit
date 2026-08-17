@@ -42,6 +42,20 @@ export interface PublicAccessCopy {
   providerStatusUnavailable: string;
   openConnectivityInApp: string;
   connectivityBridgeDescription: string;
+  routeIntentTitle: string;
+  routeIntentDescription: string;
+  currentCanonicalRoute: string;
+  candidateRoute: string;
+  candidateSource: string;
+  candidateOrigin: string;
+  noCandidateRoute: string;
+  candidateStagedUnverified: string;
+  candidateOriginPlaceholder: string;
+  stageCandidateRoute: string;
+  replaceCandidateRoute: string;
+  discardCandidateRoute: string;
+  candidateSafetyNote: string;
+  candidateStatusUnavailable: string;
   actionInstall: string;
   actionUpgrade: string;
   actionUninstall: string;
@@ -104,6 +118,20 @@ const zhCN: PublicAccessCopy = {
   providerStatusUnavailable: "暂时无法读取本机接入组件状态；这不会改变当前 Runtime 公网接入结果。",
   openConnectivityInApp: "在 ChatCockpit App 中打开",
   connectivityBridgeDescription: "只导航到 App 的「访问与安全 → 接入组件」区域；不会自动执行安装、升级、卸载或启动 Tunnel。",
+  routeIntentTitle: "候选公网 Route",
+  routeIntentDescription: "在不影响当前公网入口的前提下暂存下一条候选 HTTPS origin。候选只记录 Route Intent，当前阶段不会执行 DNS/HTTP/TLS 验证，也不会改写 Runtime 公网基址。",
+  currentCanonicalRoute: "当前 canonical",
+  candidateRoute: "候选 Route",
+  candidateSource: "候选来源",
+  candidateOrigin: "候选 HTTPS origin",
+  noCandidateRoute: "尚未暂存候选 Route",
+  candidateStagedUnverified: "已暂存 · 未验证",
+  candidateOriginPlaceholder: "https://candidate.example.com",
+  stageCandidateRoute: "暂存候选",
+  replaceCandidateRoute: "替换候选",
+  discardCandidateRoute: "丢弃候选",
+  candidateSafetyNote: "暂存或丢弃候选不会修改当前 canonical、OAuth issuer、OpenAPI/MCP 地址，也不会启动或切换任何 Tunnel。验证与显式 cutover 将作为后续独立阶段实现。",
+  candidateStatusUnavailable: "暂时无法读取候选 Route 状态；当前 Runtime 公网入口保持不变。",
   actionInstall: "安装",
   actionUpgrade: "升级",
   actionUninstall: "卸载",
@@ -166,6 +194,20 @@ const enUS: PublicAccessCopy = {
   providerStatusUnavailable: "Machine connector status is temporarily unavailable. The current Runtime Public Access result is unchanged.",
   openConnectivityInApp: "Open in ChatCockpit App",
   connectivityBridgeDescription: "This only navigates to Access & Security → Connectivity Providers in the App. It never auto-runs install, upgrade, uninstall, or Tunnel startup.",
+  routeIntentTitle: "Candidate Public Route",
+  routeIntentDescription: "Stage the next HTTPS origin without affecting the working public entry. A candidate records route intent only: this slice performs no DNS/HTTP/TLS verification and does not rewrite the Runtime public base URL.",
+  currentCanonicalRoute: "Current canonical",
+  candidateRoute: "Candidate Route",
+  candidateSource: "Candidate source",
+  candidateOrigin: "Candidate HTTPS origin",
+  noCandidateRoute: "No candidate Route is staged",
+  candidateStagedUnverified: "Staged · unverified",
+  candidateOriginPlaceholder: "https://candidate.example.com",
+  stageCandidateRoute: "Stage candidate",
+  replaceCandidateRoute: "Replace candidate",
+  discardCandidateRoute: "Discard candidate",
+  candidateSafetyNote: "Staging or discarding a candidate does not change the current canonical origin, OAuth issuer, OpenAPI/MCP addresses, or any Tunnel. Verification and explicit cutover remain separate later stages.",
+  candidateStatusUnavailable: "Candidate Route status is temporarily unavailable. The current Runtime public entry remains unchanged.",
   actionInstall: "Install",
   actionUpgrade: "Upgrade",
   actionUninstall: "Uninstall",
