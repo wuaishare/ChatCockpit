@@ -106,6 +106,7 @@ export interface UiCopy {
     continuity: string;
     resources: string;
     jobs: string;
+    publicAccess: string;
     integrations: string;
     appearanceStatus: string;
     themeModeLabel: string;
@@ -384,6 +385,7 @@ const zhCN: UiCopy = {
     continuity: "连续性",
     resources: "资源中心",
     jobs: "任务",
+    publicAccess: "公网接入",
     integrations: "集成",
     appearanceStatus: "当前界面外观",
     themeModeLabel: "颜色模式",
@@ -725,6 +727,7 @@ const enUS: UiCopy = {
     continuity: "Continuity",
     resources: "Resources",
     jobs: "Jobs",
+    publicAccess: "Public Access",
     integrations: "Integrations",
     appearanceStatus: "Current interface appearance",
     themeModeLabel: "Color mode",

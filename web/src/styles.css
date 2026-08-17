@@ -1452,6 +1452,21 @@ button,
   word-break: break-word;
 }
 
+.public-access-endpoint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.public-access-endpoint > button {
+  flex: 0 0 auto;
+}
+
+.public-access-note {
+  margin-top: 10px;
+}
+
 .gpt-inline-note {
   margin-top: 8px;
   padding-top: 8px;
@@ -1692,6 +1707,20 @@ button,
 
   .app-toolbar__group {
     flex: 1 1 100%;
+  }
+
+  .app-toolbar__group--views {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .app-toolbar__group--views::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-toolbar__group--views .ant-segmented {
+    width: max-content;
+    min-width: 100%;
   }
 
   .app-toolbar__group:first-child,

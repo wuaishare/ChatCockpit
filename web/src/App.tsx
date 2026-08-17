@@ -8,6 +8,7 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   DashboardOutlined,
+  GlobalOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   UnorderedListOutlined
@@ -63,6 +64,7 @@ import {
 import { themeLabels } from "./theme";
 import { getResourceCenterCopy } from "./i18n/resources";
 import { getIntegrationsCopy } from "./i18n/integrations";
+import { getPublicAccessCopy } from "./i18n/public-access";
 import type { ApiProblem } from "./types";
 import { consolePath, stripConsoleBasePath } from "./console-path";
 
@@ -118,6 +120,9 @@ const JobsView = lazy(() =>
 const IntegrationsView = lazy(() =>
   import("./components/IntegrationsView").then((module) => ({ default: module.IntegrationsView }))
 );
+const PublicAccessView = lazy(() =>
+  import("./components/PublicAccessView").then((module) => ({ default: module.PublicAccessView }))
+);
 const ContinuityWorkbenchView = lazy(() =>
   import("./components/continuity/ContinuityWorkbenchView").then((module) => ({
     default: module.ContinuityWorkbenchView
@@ -129,7 +134,7 @@ const ResourceCenterView = lazy(() =>
   }))
 );
 
-type ViewKey = "dashboard" | "continuity" | "resources" | "jobs" | "integrations";
+type ViewKey = "dashboard" | "continuity" | "resources" | "jobs" | "publicAccess" | "integrations";
 
 interface AppProps {
   themeMode: ThemeMode;
@@ -141,6 +146,7 @@ const VIEW_PATHS: Record<ViewKey, string> = {
   continuity: consolePath("continuity"),
   resources: consolePath("resources"),
   jobs: consolePath("jobs"),
+  publicAccess: consolePath("public-access"),
   integrations: consolePath("integrations")
 };
 
@@ -218,6 +224,9 @@ function parseRoute(): {
   if (route === "resources") {
     return { view: "resources", jobId: null, continuitySection: "projects" };
   }
+  if (route === "public-access") {
+    return { view: "publicAccess", jobId: null, continuitySection: "projects" };
+  }
   if (route === "integrations") {
     return { view: "integrations", jobId: null, continuitySection: "projects" };
   }
@@ -267,6 +276,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const copy = getUiCopy(locale);
   const resourceCopy = getResourceCenterCopy(locale);
   const integrationsCopy = getIntegrationsCopy(locale);
+  const publicAccessCopy = getPublicAccessCopy(locale);
   // Transitional non-secret marker for legacy view props. api.ts never transmits it.
   const token = operatorSession ? "operator-session" : null;
 
@@ -903,7 +913,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                   ]}
                 />
               </div>
-              <div className="app-toolbar__group">
+              <div className="app-toolbar__group app-toolbar__group--views">
                 <Segmented<ViewKey>
                   value={activeView}
                   onChange={(value) => navigateView(value)}
@@ -912,6 +922,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                     { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
                     { label: copy.header.resources, value: "resources", icon: <AppstoreOutlined /> },
                     { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
+                    { label: copy.header.publicAccess, value: "publicAccess", icon: <GlobalOutlined /> },
                     { label: copy.header.integrations, value: "integrations", icon: <ApiOutlined /> }
                   ]}
                 />
@@ -1057,6 +1068,35 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               onControlJob={(action) => void controlSelectedJob(action)}
               onTerminateAll={() => void terminateRunningJobs()}
             />
+          </Suspense>
+        ) : null}
+
+        {activeView === "publicAccess" ? (
+          <Suspense
+            fallback={
+              <ViewLoadingState
+                title={publicAccessCopy.loadingTitle}
+                description={publicAccessCopy.loadingDescription}
+                retryLabel={copy.common.retry}
+              />
+            }
+          >
+            {integrationStatus ? (
+              <PublicAccessView
+                locale={locale}
+                status={integrationStatus}
+                exposed={health.exposed}
+                onOpenIntegrations={() => navigateView("integrations")}
+              />
+            ) : (
+              <StateNotice
+                kind="error"
+                title={publicAccessCopy.requestFailed}
+                description={integrationStatusError ?? copy.notices.bootstrapFailedTitle}
+                retryLabel={copy.common.retry}
+                onRetry={() => void loadHealth()}
+              />
+            )}
           </Suspense>
         ) : null}
 
