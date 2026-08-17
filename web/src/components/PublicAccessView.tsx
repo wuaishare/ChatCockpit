@@ -12,6 +12,7 @@ import type {
   IntegrationStatusResponse,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
+  PublicRouteCutoverIntentSnapshot,
   PublicRouteVerificationReason,
   PublicRouteVerificationSnapshot
 } from "../types";
@@ -29,9 +30,14 @@ interface PublicAccessViewProps {
   verificationStatus: PublicRouteVerificationSnapshot | null;
   verificationStatusError: string | null;
   routeVerifying: boolean;
+  cutoverIntentStatus: PublicRouteCutoverIntentSnapshot | null;
+  cutoverIntentStatusError: string | null;
+  cutoverIntentMutating: boolean;
   onStageCandidate: (origin: string, source: PublicRouteCandidateSource) => void;
   onDiscardCandidate: () => void;
   onVerifyCandidate: (candidateId: string) => void;
+  onPrepareCutoverIntent: (candidateId: string, verificationId: string) => void;
+  onCancelCutoverIntent: () => void;
   onOpenIntegrations: () => void;
 }
 
@@ -124,9 +130,14 @@ export function PublicAccessView({
   verificationStatus,
   verificationStatusError,
   routeVerifying,
+  cutoverIntentStatus,
+  cutoverIntentStatusError,
+  cutoverIntentMutating,
   onStageCandidate,
   onDiscardCandidate,
   onVerifyCandidate,
+  onPrepareCutoverIntent,
+  onCancelCutoverIntent,
   onOpenIntegrations
 }: PublicAccessViewProps) {
   const copy = getPublicAccessCopy(locale);
@@ -166,6 +177,13 @@ export function PublicAccessView({
     { key: "identity", label: copy.verificationIdentity, check: verification.checks.identity },
     { key: "oauth", label: copy.verificationOauth, check: verification.checks.oauth }
   ] : [];
+  const rawCutoverIntent = cutoverIntentStatus?.intent ?? null;
+  const cutoverIntent = rawCutoverIntent &&
+    rawCutoverIntent.candidateId === routeStatus?.candidate?.id &&
+    rawCutoverIntent.verificationId === verification?.id
+    ? rawCutoverIntent
+    : null;
+  const routeWorkflowLocked = Boolean(cutoverIntent) || cutoverIntentMutating;
   const publicEndpointReady = Boolean(status.publicCockpitUrl && status.publicApiBaseUrl);
   const hasPublicApi = Boolean(status.publicApiBaseUrl);
   const publicHttpsReady = status.publicApiBaseUrl?.startsWith("https://") === true;
@@ -373,6 +391,58 @@ export function PublicAccessView({
               </div>
             ) : null}
 
+            {cutoverIntent ? (
+              <div className="public-access-cutover-intent">
+                <div className="public-access-cutover-intent__header">
+                  <div>
+                    <strong>{copy.cutoverIntentTitle}</strong>
+                    <Text type="secondary">{copy.cutoverIntentPendingDescription}</Text>
+                  </div>
+                  <Tag color="processing">{copy.cutoverIntentPending}</Tag>
+                </div>
+                <div className="gpt-facts">
+                  <div className="gpt-fact">
+                    <span>{copy.cutoverFrom}</span>
+                    <strong>{cutoverIntent.expectedCanonicalOrigin}</strong>
+                  </div>
+                  <div className="gpt-fact">
+                    <span>{copy.cutoverTo}</span>
+                    <strong>{cutoverIntent.candidateOrigin}</strong>
+                  </div>
+                  <div className="gpt-fact">
+                    <span>{copy.cutoverIntentExpires}</span>
+                    <strong>{new Date(cutoverIntent.expiresAt).toLocaleString(locale)}</strong>
+                  </div>
+                </div>
+                <div className="public-access-route-actions">
+                  <Button loading={cutoverIntentMutating} onClick={onCancelCutoverIntent}>
+                    {copy.cancelCutoverIntent}
+                  </Button>
+                </div>
+              </div>
+            ) : verification?.status === "verified" ? (
+              routeStatus.canonical.configured ? (
+                <div className="public-access-cutover-ready">
+                  <div>
+                    <strong>{copy.cutoverReadyTitle}</strong>
+                    <Text type="secondary">{copy.cutoverReadyDescription}</Text>
+                  </div>
+                  <Button
+                    loading={cutoverIntentMutating}
+                    disabled={routeMutating || routeVerifying || cutoverIntentMutating}
+                    onClick={() => onPrepareCutoverIntent(routeStatus.candidate!.id, verification.id)}
+                  >
+                    {copy.prepareCutoverIntent}
+                  </Button>
+                </div>
+              ) : (
+                <div className="section-note section-note--warning public-access-note">
+                  <strong>{copy.bootstrapCutoverTitle}</strong>
+                  <span>{copy.bootstrapCutoverDescription}</span>
+                </div>
+              )
+            ) : null}
+
             <div className="public-access-route-form">
               <label>
                 <span>{copy.candidateSource}</span>
@@ -380,7 +450,7 @@ export function PublicAccessView({
                   value={candidateSource}
                   options={routeSourceOptions}
                   onChange={(value) => setCandidateSource(value as PublicRouteCandidateSource)}
-                  disabled={routeMutating || routeVerifying}
+                  disabled={routeMutating || routeVerifying || routeWorkflowLocked}
                 />
               </label>
               <label className="public-access-route-origin-field">
@@ -389,14 +459,14 @@ export function PublicAccessView({
                   value={candidateOrigin}
                   placeholder={copy.candidateOriginPlaceholder}
                   onChange={(event) => setCandidateOrigin(event.target.value)}
-                  disabled={routeMutating || routeVerifying}
+                  disabled={routeMutating || routeVerifying || routeWorkflowLocked}
                 />
               </label>
               <div className="public-access-route-actions">
                 <Button
                   type="primary"
                   loading={routeMutating}
-                  disabled={!candidateOrigin.trim() || routeMutating || routeVerifying}
+                  disabled={!candidateOrigin.trim() || routeMutating || routeVerifying || routeWorkflowLocked}
                   onClick={() => onStageCandidate(candidateOrigin.trim(), candidateSource)}
                 >
                   {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
@@ -404,7 +474,7 @@ export function PublicAccessView({
                 {routeStatus.candidate ? (
                   <Button
                     loading={routeVerifying}
-                    disabled={routeMutating || routeVerifying}
+                    disabled={routeMutating || routeVerifying || routeWorkflowLocked}
                     onClick={() => onVerifyCandidate(routeStatus.candidate!.id)}
                   >
                     {copy.verifyCandidateRoute}
@@ -412,7 +482,7 @@ export function PublicAccessView({
                 ) : null}
                 {routeStatus.candidate ? (
                   <Button
-                    disabled={routeMutating || routeVerifying}
+                    disabled={routeMutating || routeVerifying || routeWorkflowLocked}
                     onClick={onDiscardCandidate}
                   >
                     {copy.discardCandidateRoute}
@@ -438,6 +508,12 @@ export function PublicAccessView({
           <div className="section-note section-note--warning public-access-note">
             <strong>{copy.verificationStatus}</strong>
             <span>{verificationStatusError}</span>
+          </div>
+        ) : null}
+        {cutoverIntentStatusError ? (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.cutoverIntentTitle}</strong>
+            <span>{cutoverIntentStatusError}</span>
           </div>
         ) : null}
         <div className="gpt-inline-note public-access-route-safety">

@@ -1548,6 +1548,44 @@ button,
   line-height: 1.4;
 }
 
+.public-access-cutover-intent,
+.public-access-cutover-ready {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--tp-line);
+  border-radius: 12px;
+  background: var(--tp-surface-subtle);
+}
+
+.public-access-cutover-intent__header,
+.public-access-cutover-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-access-cutover-intent__header > div,
+.public-access-cutover-ready > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.public-access-cutover-intent__header > div > span,
+.public-access-cutover-ready > div > span {
+  line-height: 1.45;
+}
+
+.public-access-cutover-intent .gpt-facts {
+  margin-top: 10px;
+}
+
+.public-access-cutover-intent .public-access-route-actions {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .public-access-route-form {
   display: grid;
   grid-template-columns: minmax(160px, 0.6fr) minmax(280px, 1.4fr) auto;

@@ -25,6 +25,7 @@ import type {
   ConnectivityProviderPublicSnapshot,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
+  PublicRouteCutoverIntentSnapshot,
   PublicRouteVerificationSnapshot,
   GptConfigResponse,
   HealthResponse,
@@ -480,6 +481,40 @@ export async function verifyPublicRouteCandidate(
     { candidateId },
     token
   );
+}
+
+export async function fetchPublicRouteCutoverIntent(
+  token?: string | null
+): Promise<PublicRouteCutoverIntentSnapshot> {
+  return requestJson<PublicRouteCutoverIntentSnapshot>(
+    "/api/connectivity/routes/cutover-intent",
+    token
+  );
+}
+
+export async function preparePublicRouteCutoverIntent(
+  payload: { candidateId: string; verificationId: string },
+  token?: string | null
+): Promise<PublicRouteCutoverIntentSnapshot> {
+  return postBodyJson<PublicRouteCutoverIntentSnapshot>(
+    "/api/connectivity/routes/cutover-intent",
+    payload,
+    token
+  );
+}
+
+export async function cancelPublicRouteCutoverIntent(
+  token?: string | null
+): Promise<PublicRouteCutoverIntentSnapshot> {
+  const response = await fetch("/api/connectivity/routes/cutover-intent", {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: buildHeaders(token, { mutation: true })
+  });
+  if (!response.ok) {
+    throw await parseProblem(response);
+  }
+  return (await response.json()) as PublicRouteCutoverIntentSnapshot;
 }
 
 export async function fetchContinuityProjects(

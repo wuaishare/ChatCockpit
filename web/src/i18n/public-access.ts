@@ -68,6 +68,18 @@ export interface PublicAccessCopy {
   verificationReasons: Record<PublicRouteVerificationReason, string>;
   candidateSafetyNote: string;
   candidateStatusUnavailable: string;
+  cutoverIntentTitle: string;
+  cutoverIntentPending: string;
+  cutoverIntentPendingDescription: string;
+  cutoverIntentExpires: string;
+  cutoverFrom: string;
+  cutoverTo: string;
+  cutoverReadyTitle: string;
+  cutoverReadyDescription: string;
+  prepareCutoverIntent: string;
+  cancelCutoverIntent: string;
+  bootstrapCutoverTitle: string;
+  bootstrapCutoverDescription: string;
   actionInstall: string;
   actionUpgrade: string;
   actionUninstall: string;
@@ -167,8 +179,20 @@ const zhCN: PublicAccessCopy = {
     "unexpected-health-contract": "不是预期的 ChatCockpit Health 响应",
     "unexpected-oauth-metadata": "OAuth Metadata 不符合预期"
   },
-  candidateSafetyNote: "暂存、验证或丢弃候选都不会修改当前 canonical、OAuth issuer、OpenAPI/MCP 地址，也不会启动或切换任何 Tunnel。验证仅使用 public-unicast DNS 与固定 IP HTTPS 探针；显式 cutover 仍是后续独立阶段。",
+  candidateSafetyNote: "暂存、验证、准备或取消 Cutover Intent 都不会修改当前 canonical、OAuth issuer、OpenAPI/MCP 地址，也不会启动、重启或切换任何 Tunnel/Runtime。验证仅使用 public-unicast DNS 与固定 IP HTTPS 探针；真正的切换执行仍属于后续 App/CLI Machine Authority 阶段。",
   candidateStatusUnavailable: "暂时无法读取候选 Route 状态；当前 Runtime 公网入口保持不变。",
+  cutoverIntentTitle: "Cutover Intent",
+  cutoverIntentPending: "待机器执行",
+  cutoverIntentPendingDescription: "已绑定当前 candidate 与成功 Verification Artifact，但尚未写入 Runtime 配置、重启服务或切换公网入口。",
+  cutoverIntentExpires: "意图过期时间",
+  cutoverFrom: "当前 canonical",
+  cutoverTo: "目标 candidate",
+  cutoverReadyTitle: "可准备切换",
+  cutoverReadyDescription: "当前 candidate 已通过验证。下一步只能先生成短期 Cutover Intent；真正执行必须由 App / CLI Machine Authority 完成。",
+  prepareCutoverIntent: "准备 Cutover Intent",
+  cancelCutoverIntent: "取消 Cutover Intent",
+  bootstrapCutoverTitle: "首次公网 Bootstrap 尚未支持",
+  bootstrapCutoverDescription: "当前流程只支持替换已有 canonical Route。首次从 local-only 建立公网入口需要单独的 Bootstrap 验证与 Machine Authority 合同，不能复用 replacement cutover。",
   actionInstall: "安装",
   actionUpgrade: "升级",
   actionUninstall: "卸载",
@@ -268,8 +292,20 @@ const enUS: PublicAccessCopy = {
     "unexpected-health-contract": "Response was not the expected ChatCockpit Health contract",
     "unexpected-oauth-metadata": "OAuth metadata did not match the expected contract"
   },
-  candidateSafetyNote: "Staging, verifying, or discarding a candidate never changes the current canonical origin, OAuth issuer, OpenAPI/MCP addresses, or any Tunnel. Verification uses public-unicast DNS and pinned-address HTTPS probes only; explicit cutover remains a separate later stage.",
+  candidateSafetyNote: "Staging, verifying, preparing, or cancelling a Cutover Intent never changes the current canonical origin, OAuth issuer, OpenAPI/MCP addresses, or starts/restarts/switches any Tunnel or Runtime. Verification uses public-unicast DNS and pinned-address HTTPS probes only; real cutover execution remains a later App/CLI Machine Authority stage.",
   candidateStatusUnavailable: "Candidate Route status is temporarily unavailable. The current Runtime public entry remains unchanged.",
+  cutoverIntentTitle: "Cutover Intent",
+  cutoverIntentPending: "Pending machine execution",
+  cutoverIntentPendingDescription: "The intent is bound to the current candidate and successful Verification Artifact, but no Runtime config has been written, no service restarted, and no public route switched.",
+  cutoverIntentExpires: "Intent expires",
+  cutoverFrom: "Current canonical",
+  cutoverTo: "Target candidate",
+  cutoverReadyTitle: "Ready to prepare cutover",
+  cutoverReadyDescription: "The current candidate is verified. The next step only creates a short-lived Cutover Intent; actual execution must remain under App / CLI Machine Authority.",
+  prepareCutoverIntent: "Prepare Cutover Intent",
+  cancelCutoverIntent: "Cancel Cutover Intent",
+  bootstrapCutoverTitle: "Initial public bootstrap is not supported yet",
+  bootstrapCutoverDescription: "This workflow only replaces an existing canonical Route. Moving from local-only to the first public entry requires a separate bootstrap verification and Machine Authority contract instead of reusing replacement cutover.",
   actionInstall: "Install",
   actionUpgrade: "Upgrade",
   actionUninstall: "Uninstall",
