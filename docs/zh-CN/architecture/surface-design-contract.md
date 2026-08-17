@@ -185,4 +185,4 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 7. 保持真实 Console Path 路由与本地化。
 8. 当边界在实现层可被自动验证时，同步增加或更新门禁。
 
-本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。
+本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)、[Connectivity Provider 机器变更合同](./connectivity-provider-machine-mutation.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。
