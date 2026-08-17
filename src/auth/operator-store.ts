@@ -3,8 +3,8 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
-const OPERATOR_SCHEMA_VERSION = 3;
-const SENSITIVE_AUDIT_KEY = /(password|secret|token|cookie|authorization|csrf)/i;
+const OPERATOR_SCHEMA_VERSION = 4;
+const SENSITIVE_AUDIT_KEY = /(password|secret|token|cookie|authorization|csrf|recovery.?code|totp)/i;
 
 export interface OperatorPrincipalRecord {
   id: string;
@@ -71,6 +71,33 @@ export interface OperatorWebAuthnChallengeRecord {
   createdAt: string;
   expiresAt: string;
   consumedAt: string | null;
+}
+
+export interface OperatorMfaStateRecord {
+  principalId: string;
+  enabled: boolean;
+  lastAcceptedTotpStep: number | null;
+  updatedAt: string;
+}
+
+export interface OperatorMfaLoginChallengeRecord {
+  id: string;
+  principalId: string;
+  challengeHash: string;
+  sourceHash: string;
+  userAgentHash: string | null;
+  createdAt: string;
+  expiresAt: string;
+  failedCount: number;
+  consumedAt: string | null;
+}
+
+export interface OperatorRecoveryCodeRecord {
+  id: string;
+  principalId: string;
+  codeHash: string;
+  createdAt: string;
+  usedAt: string | null;
 }
 
 export interface OperatorAuditEventRecord {
@@ -148,6 +175,33 @@ interface OperatorWebAuthnChallengeRow {
   created_at: string;
   expires_at: string;
   consumed_at: string | null;
+}
+
+interface OperatorMfaStateRow {
+  principal_id: string;
+  enabled: number;
+  last_accepted_totp_step: number | null;
+  updated_at: string;
+}
+
+interface OperatorMfaLoginChallengeRow {
+  id: string;
+  principal_id: string;
+  challenge_hash: string;
+  source_hash: string;
+  user_agent_hash: string | null;
+  created_at: string;
+  expires_at: string;
+  failed_count: number;
+  consumed_at: string | null;
+}
+
+interface OperatorRecoveryCodeRow {
+  id: string;
+  principal_id: string;
+  code_hash: string;
+  created_at: string;
+  used_at: string | null;
 }
 
 interface OperatorAuditEventRow {
@@ -230,6 +284,23 @@ export interface CreateOperatorWebAuthnChallengeInput {
   origin: string;
   createdAt: string;
   expiresAt: string;
+}
+
+export interface CreateOperatorMfaLoginChallengeInput {
+  id: string;
+  principalId: string;
+  challengeHash: string;
+  sourceHash: string;
+  userAgentHash?: string | null;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface CreateOperatorRecoveryCodeInput {
+  id: string;
+  principalId: string;
+  codeHash: string;
+  createdAt: string;
 }
 
 export interface RecordOperatorAuditEventInput {
@@ -336,6 +407,42 @@ function mapWebAuthnChallenge(
   };
 }
 
+function mapMfaState(row: OperatorMfaStateRow): OperatorMfaStateRecord {
+  return {
+    principalId: row.principal_id,
+    enabled: row.enabled === 1,
+    lastAcceptedTotpStep:
+      row.last_accepted_totp_step === null ? null : Number(row.last_accepted_totp_step),
+    updatedAt: row.updated_at
+  };
+}
+
+function mapMfaLoginChallenge(
+  row: OperatorMfaLoginChallengeRow
+): OperatorMfaLoginChallengeRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    challengeHash: row.challenge_hash,
+    sourceHash: row.source_hash,
+    userAgentHash: row.user_agent_hash,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    failedCount: Number(row.failed_count),
+    consumedAt: row.consumed_at
+  };
+}
+
+function mapRecoveryCode(row: OperatorRecoveryCodeRow): OperatorRecoveryCodeRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    codeHash: row.code_hash,
+    createdAt: row.created_at,
+    usedAt: row.used_at
+  };
+}
+
 function parseAuditDetails(value: string): Record<string, unknown> {
   const parsed = JSON.parse(value) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -376,6 +483,14 @@ export function hashOperatorSessionSecret(value: string): string {
 }
 
 export function hashOperatorLocalLoginSecret(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function hashOperatorMfaLoginSecret(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function hashOperatorRecoveryCode(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
@@ -498,6 +613,13 @@ export class OperatorStore {
         this.sqlite
           .prepare(`
             UPDATE operator_webauthn_challenges
+            SET consumed_at = ?
+            WHERE principal_id = ? AND consumed_at IS NULL
+          `)
+          .run(updatedAt, existing.id);
+        this.sqlite
+          .prepare(`
+            UPDATE operator_mfa_login_challenges
             SET consumed_at = ?
             WHERE principal_id = ? AND consumed_at IS NULL
           `)
@@ -892,6 +1014,212 @@ export class OperatorStore {
     );
   }
 
+  getMfaState(principalId: string): OperatorMfaStateRecord | null {
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_mfa_state WHERE principal_id = ?")
+      .get(principalId) as OperatorMfaStateRow | undefined;
+    return row ? mapMfaState(row) : null;
+  }
+
+  setMfaEnabled(principalId: string, enabled: boolean, updatedAt: string): OperatorMfaStateRecord {
+    this.sqlite
+      .prepare(`
+        INSERT INTO operator_mfa_state (
+          principal_id, enabled, last_accepted_totp_step, updated_at
+        ) VALUES (?, ?, NULL, ?)
+        ON CONFLICT(principal_id) DO UPDATE SET
+          enabled = excluded.enabled,
+          last_accepted_totp_step = NULL,
+          updated_at = excluded.updated_at
+      `)
+      .run(principalId, enabled ? 1 : 0, updatedAt);
+    const state = this.getMfaState(principalId);
+    if (!state) throw new Error("Operator MFA state persistence failed");
+    return state;
+  }
+
+  acceptTotpStep(principalId: string, step: number, updatedAt: string): boolean {
+    const result = this.sqlite
+      .prepare(`
+        UPDATE operator_mfa_state
+        SET last_accepted_totp_step = ?, updated_at = ?
+        WHERE principal_id = ?
+          AND enabled = 1
+          AND (last_accepted_totp_step IS NULL OR last_accepted_totp_step < ?)
+      `)
+      .run(step, updatedAt, principalId, step);
+    return result.changes === 1;
+  }
+
+  createMfaLoginChallenge(
+    input: CreateOperatorMfaLoginChallengeInput
+  ): OperatorMfaLoginChallengeRecord {
+    this.sqlite
+      .prepare(`
+        DELETE FROM operator_mfa_login_challenges
+        WHERE consumed_at IS NOT NULL OR expires_at <= ?
+      `)
+      .run(input.createdAt);
+    this.sqlite
+      .prepare(`
+        UPDATE operator_mfa_login_challenges
+        SET consumed_at = ?
+        WHERE principal_id = ? AND consumed_at IS NULL
+      `)
+      .run(input.createdAt, input.principalId);
+    this.sqlite
+      .prepare(`
+        INSERT INTO operator_mfa_login_challenges (
+          id, principal_id, challenge_hash, source_hash, user_agent_hash,
+          created_at, expires_at, failed_count, consumed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL)
+      `)
+      .run(
+        input.id,
+        input.principalId,
+        input.challengeHash,
+        input.sourceHash,
+        input.userAgentHash ?? null,
+        input.createdAt,
+        input.expiresAt
+      );
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_mfa_login_challenges WHERE id = ?")
+      .get(input.id) as OperatorMfaLoginChallengeRow | undefined;
+    if (!row) throw new Error("Operator MFA login challenge persistence failed");
+    return mapMfaLoginChallenge(row);
+  }
+
+  findActiveMfaLoginChallengeByHash(
+    challengeHash: string,
+    now: string
+  ): OperatorMfaLoginChallengeRecord | null {
+    const row = this.sqlite
+      .prepare(`
+        SELECT * FROM operator_mfa_login_challenges
+        WHERE challenge_hash = ?
+          AND consumed_at IS NULL
+          AND expires_at > ?
+        LIMIT 1
+      `)
+      .get(challengeHash, now) as OperatorMfaLoginChallengeRow | undefined;
+    return row ? mapMfaLoginChallenge(row) : null;
+  }
+
+  recordMfaLoginChallengeFailure(
+    id: string,
+    failedAt: string,
+    maxAttempts: number
+  ): OperatorMfaLoginChallengeRecord | null {
+    return this.transaction(() => {
+      const row = this.sqlite
+        .prepare("SELECT * FROM operator_mfa_login_challenges WHERE id = ?")
+        .get(id) as OperatorMfaLoginChallengeRow | undefined;
+      if (!row || row.consumed_at !== null || row.expires_at <= failedAt) return null;
+      const failedCount = Number(row.failed_count) + 1;
+      const consumedAt = failedCount >= maxAttempts ? failedAt : null;
+      this.sqlite
+        .prepare(`
+          UPDATE operator_mfa_login_challenges
+          SET failed_count = ?, consumed_at = ?
+          WHERE id = ? AND consumed_at IS NULL
+        `)
+        .run(failedCount, consumedAt, id);
+      return mapMfaLoginChallenge({
+        ...row,
+        failed_count: failedCount,
+        consumed_at: consumedAt
+      });
+    });
+  }
+
+  consumeMfaLoginChallenge(id: string, consumedAt: string): boolean {
+    return (
+      this.sqlite
+        .prepare(`
+          UPDATE operator_mfa_login_challenges
+          SET consumed_at = ?
+          WHERE id = ? AND consumed_at IS NULL AND expires_at > ?
+        `)
+        .run(consumedAt, id, consumedAt).changes === 1
+    );
+  }
+
+  invalidateMfaLoginChallenges(principalId: string, invalidatedAt: string): number {
+    return Number(
+      this.sqlite
+        .prepare(`
+          UPDATE operator_mfa_login_challenges
+          SET consumed_at = ?
+          WHERE principal_id = ? AND consumed_at IS NULL
+        `)
+        .run(invalidatedAt, principalId).changes
+    );
+  }
+
+  replaceRecoveryCodes(
+    principalId: string,
+    codes: CreateOperatorRecoveryCodeInput[]
+  ): void {
+    this.transaction(() => {
+      this.sqlite
+        .prepare("DELETE FROM operator_recovery_codes WHERE principal_id = ?")
+        .run(principalId);
+      const insert = this.sqlite.prepare(`
+        INSERT INTO operator_recovery_codes (
+          id, principal_id, code_hash, created_at, used_at
+        ) VALUES (?, ?, ?, ?, NULL)
+      `);
+      for (const code of codes) {
+        if (code.principalId !== principalId) {
+          throw new Error("Operator recovery code principal mismatch");
+        }
+        insert.run(code.id, code.principalId, code.codeHash, code.createdAt);
+      }
+    });
+  }
+
+  consumeRecoveryCode(principalId: string, codeHash: string, usedAt: string): boolean {
+    return (
+      this.sqlite
+        .prepare(`
+          UPDATE operator_recovery_codes
+          SET used_at = ?
+          WHERE principal_id = ? AND code_hash = ? AND used_at IS NULL
+        `)
+        .run(usedAt, principalId, codeHash).changes === 1
+    );
+  }
+
+  countAvailableRecoveryCodes(principalId: string): number {
+    const row = this.sqlite
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM operator_recovery_codes
+        WHERE principal_id = ? AND used_at IS NULL
+      `)
+      .get(principalId) as { count: number } | undefined;
+    return Number(row?.count ?? 0);
+  }
+
+  clearMfaForPrincipal(principalId: string, clearedAt: string): void {
+    this.transaction(() => {
+      this.sqlite
+        .prepare("DELETE FROM operator_recovery_codes WHERE principal_id = ?")
+        .run(principalId);
+      this.sqlite
+        .prepare(`
+          UPDATE operator_mfa_login_challenges
+          SET consumed_at = ?
+          WHERE principal_id = ? AND consumed_at IS NULL
+        `)
+        .run(clearedAt, principalId);
+      this.sqlite
+        .prepare("DELETE FROM operator_mfa_state WHERE principal_id = ?")
+        .run(principalId);
+    });
+  }
+
   recordAuditEvent(input: RecordOperatorAuditEventInput): OperatorAuditEventRecord {
     const details = input.details ?? {};
     assertAuditDetailsSafe(details);
@@ -998,10 +1326,54 @@ export class OperatorStore {
           CREATE INDEX operator_webauthn_challenges_expiry_idx
             ON operator_webauthn_challenges(expires_at, consumed_at);
 
+          PRAGMA user_version = 3;
+        `);
+      });
+      currentVersion = 3;
+    }
+    if (currentVersion === 3) {
+      this.transaction(() => {
+        this.sqlite.exec(`
+          CREATE TABLE operator_mfa_state (
+            principal_id TEXT PRIMARY KEY,
+            enabled INTEGER NOT NULL CHECK(enabled IN (0, 1)),
+            last_accepted_totp_step INTEGER,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE TABLE operator_mfa_login_challenges (
+            id TEXT PRIMARY KEY,
+            principal_id TEXT NOT NULL,
+            challenge_hash TEXT NOT NULL UNIQUE,
+            source_hash TEXT NOT NULL,
+            user_agent_hash TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            failed_count INTEGER NOT NULL CHECK(failed_count >= 0),
+            consumed_at TEXT,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE INDEX operator_mfa_login_challenges_expiry_idx
+            ON operator_mfa_login_challenges(expires_at, consumed_at);
+
+          CREATE TABLE operator_recovery_codes (
+            id TEXT PRIMARY KEY,
+            principal_id TEXT NOT NULL,
+            code_hash TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            used_at TEXT,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE INDEX operator_recovery_codes_principal_idx
+            ON operator_recovery_codes(principal_id, used_at, created_at);
+
           PRAGMA user_version = ${OPERATOR_SCHEMA_VERSION};
         `);
       });
-      return;
+      currentVersion = OPERATOR_SCHEMA_VERSION;
     }
     if (currentVersion === OPERATOR_SCHEMA_VERSION) return;
     if (currentVersion !== 0) {
@@ -1092,6 +1464,42 @@ export class OperatorStore {
 
         CREATE INDEX operator_webauthn_challenges_expiry_idx
           ON operator_webauthn_challenges(expires_at, consumed_at);
+
+        CREATE TABLE operator_mfa_state (
+          principal_id TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL CHECK(enabled IN (0, 1)),
+          last_accepted_totp_step INTEGER,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE TABLE operator_mfa_login_challenges (
+          id TEXT PRIMARY KEY,
+          principal_id TEXT NOT NULL,
+          challenge_hash TEXT NOT NULL UNIQUE,
+          source_hash TEXT NOT NULL,
+          user_agent_hash TEXT,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          failed_count INTEGER NOT NULL CHECK(failed_count >= 0),
+          consumed_at TEXT,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE INDEX operator_mfa_login_challenges_expiry_idx
+          ON operator_mfa_login_challenges(expires_at, consumed_at);
+
+        CREATE TABLE operator_recovery_codes (
+          id TEXT PRIMARY KEY,
+          principal_id TEXT NOT NULL,
+          code_hash TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL,
+          used_at TEXT,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE INDEX operator_recovery_codes_principal_idx
+          ON operator_recovery_codes(principal_id, used_at, created_at);
 
         CREATE TABLE operator_audit_events (
           id TEXT PRIMARY KEY,

@@ -45,7 +45,11 @@ function shouldCopy(source: string): boolean {
   ) {
     return false;
   }
-  if (basename === "server.env" || basename === "operator-credentials.json") return false;
+  if (
+    basename === "server.env" ||
+    basename === "operator-credentials.json" ||
+    basename === "operator-mfa.json"
+  ) return false;
   return true;
 }
 

@@ -113,7 +113,7 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 | Listener / 端口 / 控制台入口 / Trusted LAN | Observe | Act | Observe | Machine |
 | 机器 API Token 明文 / 轮换 | None | Act | 仅 Observe 已配置状态 | Machine |
 | 本机 Web Owner 初始化凭据 | None | Act | None | Machine |
-| Web Owner Session / Passkey 登录 | None | Bridge | Act | Operator |
+| Web Owner Session / Passkey / 密码+TOTP 登录 | None | Bridge | Act | Operator |
 | 一次性本机免密进入控制台 | Act | Act | 仅 Consume | Machine |
 | 本机 Workspace 授权 / Primary Workspace | None | Act | Observe 已授权 Workspace | Machine |
 | 受治理 Workspace 工作流使用 | Observe 摘要 | Bridge | Act | Operator |
@@ -151,6 +151,8 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 - Web Owner / 控制台管理员
 - Machine API Token / 机器 API 令牌
 - Passkey / 通用密钥
+- TOTP two-factor authentication / TOTP 双重认证
+- Recovery codes / 恢复码
 - ChatGPT OAuth
 
 不同语言可以调整语序与表达，但不能针对同一个 Authority 或 Endpoint 再造第二套产品概念。

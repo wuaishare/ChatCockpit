@@ -24,6 +24,7 @@ const OAUTH_PUBLIC_PATHS = new Set([
 const OPERATOR_PUBLIC_PATHS = new Set([
   "/api/operator/status",
   "/api/operator/login",
+  "/api/operator/totp/login",
   "/api/operator/local-login",
   "/api/operator/passkeys/authentication/options",
   "/api/operator/passkeys/authentication/verify"

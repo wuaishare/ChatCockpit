@@ -154,6 +154,50 @@ async function main(): Promise<void> {
   });
   assert.equal(store.getLoginThrottle(service.sourceHash(throttledSource)), null);
 
+  const mfaThrottledSource = "203.0.113.19";
+  const owner = store.getOwner();
+  assert.ok(owner);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    service.recordSecondFactorFailure({
+      principalId: owner.id,
+      source: mfaThrottledSource,
+      userAgent: "ChatCockpit MFA Throttle Test"
+    });
+  }
+  assert.ok(store.getLoginThrottle(service.sourceHash(mfaThrottledSource))?.blockedUntil);
+  await expectAuthError(
+    () =>
+      service.verifyPasswordCredentials({
+        username: "owner",
+        password: "test-password-correct-horse-battery-staple",
+        source: mfaThrottledSource,
+        userAgent: "ChatCockpit MFA Throttle Test"
+      }),
+    "LOGIN_RATE_LIMITED"
+  );
+  nowMs += 6_000;
+  const verifiedAfterMfaBackoff = await service.verifyPasswordCredentials({
+    username: "owner",
+    password: "test-password-correct-horse-battery-staple",
+    source: mfaThrottledSource,
+    userAgent: "ChatCockpit MFA Throttle Test"
+  });
+  assert.ok(
+    store.getLoginThrottle(service.sourceHash(mfaThrottledSource)),
+    "Password verification alone must not clear MFA source backoff history"
+  );
+  const mfaRecovered = service.issueTotpSession({
+    principalId: verifiedAfterMfaBackoff.principalId,
+    source: mfaThrottledSource,
+    userAgent: "ChatCockpit MFA Throttle Test"
+  });
+  assert.match(mfaRecovered.sessionSecret, /^cc_web_[A-Za-z0-9_-]{43}$/);
+  assert.equal(
+    store.getLoginThrottle(service.sourceHash(mfaThrottledSource)),
+    null,
+    "A fully verified second-factor session should clear source backoff state"
+  );
+
   const beforeTouch = store.getSession(recovered.sessionId)!;
   nowMs += 30_000;
   service.authenticate(recovered.sessionSecret);

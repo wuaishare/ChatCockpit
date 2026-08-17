@@ -15,6 +15,7 @@ import {
   type OperatorService,
   type OperatorSessionContext
 } from "../auth/operator-service.js";
+import type { OperatorTotpService } from "../auth/operator-totp-service.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { sendApiError } from "./errors.js";
 import {
@@ -205,7 +206,8 @@ function sessionProjection(
 export function registerOperatorRoutes(
   app: FastifyInstance,
   service: OperatorService,
-  passkeys: OperatorPasskeyService
+  passkeys: OperatorPasskeyService,
+  totp: OperatorTotpService
 ): void {
   app.get("/api/operator/status", async (request, reply) => {
     noStore(reply);
@@ -230,11 +232,33 @@ export function registerOperatorRoutes(
     }
 
     try {
-      const issued = await service.login({
+      const source = sourceAddress(request);
+      const agent = userAgent(request);
+      const verified = await service.verifyPasswordCredentials({
         username,
         password,
-        source: sourceAddress(request),
-        userAgent: userAgent(request)
+        source,
+        userAgent: agent
+      });
+      if (totp.requiresSecondFactor(verified.principalId)) {
+        const challenge = totp.beginLoginChallenge({
+          principalId: verified.principalId,
+          source,
+          userAgent: agent
+        });
+        return {
+          ok: true,
+          requiresSecondFactor: true,
+          challenge: challenge.challenge,
+          expiresAt: challenge.expiresAt,
+          username: verified.username,
+          role: verified.role
+        };
+      }
+      const issued = service.issuePasswordSession({
+        principalId: verified.principalId,
+        source,
+        userAgent: agent
       });
       reply.header(
         "set-cookie",
@@ -252,6 +276,61 @@ export function registerOperatorRoutes(
         absoluteExpiresAt: issued.absoluteExpiresAt
       };
     } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/totp/login", async (request, reply) => {
+    noStore(reply);
+    const body = record(request.body);
+    const challenge = typeof body.challenge === "string" ? body.challenge : "";
+    const verification = typeof body.verification === "string" ? body.verification : "";
+    if (!challenge || !verification) {
+      return sendApiError(
+        reply,
+        400,
+        "VALIDATION_ERROR",
+        "Second-factor challenge and verification are required"
+      );
+    }
+    const source = sourceAddress(request);
+    const agent = userAgent(request);
+    const principalId = totp.activeLoginChallengePrincipal(challenge);
+    try {
+      const verified = totp.verifyLoginChallenge({
+        challenge,
+        verification,
+        source,
+        userAgent: agent
+      });
+      const issued = service.issueTotpSession({
+        principalId: verified.principalId,
+        source,
+        userAgent: agent
+      });
+      reply.header(
+        "set-cookie",
+        sessionCookie(issued.sessionSecret, isPublicHttpsRequest(request))
+      );
+      return {
+        ok: true,
+        sessionId: issued.sessionId,
+        username: issued.username,
+        role: issued.role,
+        csrfToken: issued.csrfToken,
+        createdAt: issued.createdAt,
+        lastSeenAt: issued.createdAt,
+        idleExpiresAt: issued.idleExpiresAt,
+        absoluteExpiresAt: issued.absoluteExpiresAt
+      };
+    } catch (error) {
+      if (principalId) {
+        service.recordSecondFactorFailure({
+          principalId,
+          source,
+          userAgent: agent
+        });
+      }
       return sendOperatorError(reply, error);
     }
   });
@@ -412,6 +491,104 @@ export function registerOperatorRoutes(
         return sendApiError(reply, 404, "PASSKEY_NOT_FOUND", "Passkey not found");
       }
       return { ok: true };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.get("/api/operator/totp", async (request, reply) => {
+    noStore(reply);
+    const session = requireSession(request);
+    return {
+      ok: true,
+      ...totp.status(session.principalId)
+    };
+  });
+
+  app.post("/api/operator/totp/enrollment", async (request, reply) => {
+    noStore(reply);
+    const session = requireSession(request);
+    try {
+      return {
+        ok: true,
+        ...totp.startEnrollment(session.principalId)
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/totp/enrollment/verify", async (request, reply) => {
+    noStore(reply);
+    const session = requireSession(request);
+    const body = record(request.body);
+    const enrollmentId = typeof body.enrollmentId === "string" ? body.enrollmentId : "";
+    const code = typeof body.code === "string" ? body.code : "";
+    if (!enrollmentId || !code) {
+      return sendApiError(
+        reply,
+        400,
+        "VALIDATION_ERROR",
+        "Enrollment id and verification code are required"
+      );
+    }
+    try {
+      const result = totp.confirmEnrollment({
+        principalId: session.principalId,
+        enrollmentId,
+        code
+      });
+      const revokedSessionCount = service.revokeOtherSessions(session.sessionId);
+      return {
+        ok: true,
+        ...result,
+        revokedSessionCount
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/totp/recovery-codes/regenerate", async (request, reply) => {
+    noStore(reply);
+    const session = requireSession(request);
+    const body = record(request.body);
+    const verification = typeof body.verification === "string" ? body.verification : "";
+    if (!verification) {
+      return sendApiError(reply, 400, "VALIDATION_ERROR", "Verification is required");
+    }
+    try {
+      const result = totp.regenerateRecoveryCodes({
+        principalId: session.principalId,
+        verification
+      });
+      const revokedSessionCount = service.revokeOtherSessions(session.sessionId);
+      return {
+        ok: true,
+        ...result,
+        recoveryCodesRemaining: result.recoveryCodes.length,
+        revokedSessionCount
+      };
+    } catch (error) {
+      return sendOperatorError(reply, error);
+    }
+  });
+
+  app.post("/api/operator/totp/disable", async (request, reply) => {
+    noStore(reply);
+    const session = requireSession(request);
+    const body = record(request.body);
+    const verification = typeof body.verification === "string" ? body.verification : "";
+    if (!verification) {
+      return sendApiError(reply, 400, "VALIDATION_ERROR", "Verification is required");
+    }
+    try {
+      totp.disable({ principalId: session.principalId, verification });
+      const revokedSessionCount = service.revokeOtherSessions(session.sessionId);
+      return {
+        ok: true,
+        revokedSessionCount
+      };
     } catch (error) {
       return sendOperatorError(reply, error);
     }

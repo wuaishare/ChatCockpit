@@ -110,6 +110,18 @@ async function main(): Promise<void> {
     );
     assert.match(publicPasskeyOptions.body, /PASSKEY_NOT_CONFIGURED/);
 
+    const invalidTotpChallenge = await app.inject({
+      method: "POST",
+      url: "/api/operator/totp/login",
+      payload: { challenge: "invalid", verification: "000000" }
+    });
+    assert.equal(
+      invalidTotpChallenge.statusCode,
+      401,
+      "TOTP challenge verification must remain anonymously reachable before an Owner session exists"
+    );
+    assert.match(invalidTotpChallenge.body, /MFA_CHALLENGE_INVALID/);
+
     const registration = await app.inject({
       method: "POST",
       url: "/oauth/register",
@@ -140,6 +152,9 @@ async function main(): Promise<void> {
       { method: "GET", url: "/api/operator/session" },
       { method: "GET", url: "/api/operator/passkeys" },
       { method: "POST", url: "/api/operator/passkeys/registration/options" },
+      { method: "GET", url: "/api/operator/totp" },
+      { method: "POST", url: "/api/operator/totp/enrollment" },
+      { method: "POST", url: "/api/operator/totp/disable", payload: { verification: "000000" } },
       { method: "GET", url: "/api/setup/status" },
       { method: "GET", url: "/api/gpt/config" },
       { method: "GET", url: "/api/integrations/status" },

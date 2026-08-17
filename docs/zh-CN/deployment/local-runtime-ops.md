@@ -85,6 +85,16 @@ chatcockpit operator set-password
 
 注册、查看和移除通用密钥都要求真实控制台管理员 Session，写操作同时要求 CSRF。机器 API Bearer 与 ChatGPT OAuth 都不能越权管理通用密钥。WebAuthn challenge 短时有效且只能使用一次；管理员改密或执行“撤销全部会话”会废弃尚未完成的 challenge，但不会删除已经注册的通用密钥。
 
+### 密码备用登录的 TOTP 与恢复码
+
+**安全**面板还提供可选的 TOTP 双重认证，但它只作用于“密码备用登录”这一条路径。通用密钥继续作为首选的抗钓鱼登录方式，成功使用 Passkey 后**不会**再额外要求 TOTP；macOS App 的 direct-loopback 一次性免密解锁属于 Machine Authority，同样不叠加密码 TOTP。
+
+启用 TOTP 采用两阶段注册：ChatCockpit 先生成 machine-local 设置密钥，管理员把它加入兼容验证器，然后必须输入一次有效的 6 位动态验证码后才真正启用。TOTP 共享密钥只保存在 owner-only（`0600`）的 `operator-mfa.json`；Files 读写 API、公开 Repo Bundle、源码归档、Git public-safety 路径、浏览器状态投影以及 Audit Details 都明确禁止读取或携带该文件。`operator-auth.sqlite` 只保存 MFA 状态、短时哈希登录 challenge、最后已接受的 TOTP time-step，以及恢复码哈希。
+
+启用后，正确的用户名/密码**不会直接签发 Web Session**，只会产生一个 5 分钟有效并绑定客户端上下文的第二因素 Challenge。必须再提交当前 TOTP 或一枚未使用的恢复码，ChatCockpit 才会签发原本那套普通 HttpOnly 管理员 Session。TOTP 允许有限的时钟偏差，但同一个已经接受的 time-step 不能重放；Challenge 本身只能使用一次，并会在连续错误达到上限后失效。第二因素失败也会累计到现有 source-level 登录退避；仅通过密码第一阶段不会清除这份失败历史，只有完整 password+TOTP、未启用 TOTP 时的完整密码登录、Passkey 或本机一次性免密解锁真正成功后，才会清除对应 source 的退避状态。
+
+每次启用或重新生成时都会创建 10 枚高熵恢复码。明文只在当次已认证的“安全”界面返回一次，持久层只保存不可逆哈希；每枚恢复码首次使用后即原子作废。重新生成会让旧恢复码全部失效。停用 TOTP 或重新生成恢复码都必须用当前 TOTP / 未使用恢复码进行 step-up 校验，并撤销除当前安全管理 Session 之外的其他管理员 Session，从而既收紧已有会话，又保证新恢复码能够可靠交付给当前用户。
+
 当 macOS App 打开 **本机控制台** 且已配置控制台管理员时，Desktop 会通过本机 CLI 生成一个仅 45 秒有效、只能使用一次的本机登录凭据。浏览器只会在 URL fragment 中收到它，前端会立即清除 fragment，再通过仅允许直接 loopback 请求访问的 `/api/operator/local-login` 将它兑换成同一套普通 HttpOnly 管理员 Session。它只是便捷解锁，不是“localhost 全部免鉴权”：经过反向代理/Forwarded Header 的请求、非 loopback Host 都无法使用该兑换入口，公网控制台仍必须走正常认证。
 
 以下用 `<安全入口>` 表示当前 `access-policy.json` 中的随机 `consolePathPrefix`：

@@ -16,7 +16,8 @@ const BLOCKED_DIFF_FILENAMES = new Set([
   "id_ed25519",
   "id_rsa",
   "server.env",
-  "operator-credentials.json"
+  "operator-credentials.json",
+  "operator-mfa.json"
 ]);
 const BLOCKED_DIFF_SEGMENTS = new Set([
   ".aws",
