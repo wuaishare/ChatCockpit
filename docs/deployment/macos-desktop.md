@@ -2,6 +2,8 @@
 
 ChatCockpit Desktop is a native SwiftUI operator shell around the existing ChatCockpit Node control plane. Phase 2 adds a self-contained packaged runtime while keeping the Node/TypeScript Control Plane, Runner, Process Supervisor, Web Cockpit, MCP, OAuth, Continuity, Codex, approvals, and Resource Center as the single implementation of those product capabilities.
 
+The native App is the **Local Runtime Manager + Secure Machine Gateway** defined by the [Surface Design Contract](../architecture/surface-design-contract.md). It owns machine-local privilege and bridges data-heavy Operator work to Web Cockpit instead of duplicating the Web workbench.
+
 ## Current Phase 2 Boundary
 
 The desktop app supports two explicit runtime modes.

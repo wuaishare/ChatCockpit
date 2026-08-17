@@ -2,6 +2,8 @@
 
 ChatCockpit Desktop 是现有 ChatCockpit Node Control Plane 之上的原生 SwiftUI 操作壳层。Phase 2 在保持 Node/TypeScript Control Plane、Runner、Process Supervisor、Web Cockpit、MCP、OAuth、Continuity、Codex、Approval 与 Resource Center 单一业务真源的前提下，加入了 Self-contained Packaged Runtime。
 
+原生 App 的长期职责是 [Surface 设计合同](../architecture/surface-design-contract.md) 定义的 **Local Runtime Manager + Secure Machine Gateway**：它拥有本机 Machine Authority，并把数据密集型 Operator 工作桥接到 Web Cockpit，而不是复制一套 Web 工作台。
+
 ## Phase 2 当前边界
 
 Desktop App 现在明确支持两种运行模式。
