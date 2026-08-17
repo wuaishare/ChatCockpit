@@ -157,13 +157,32 @@ npm run mvp:start
 
 5. Confirm Developer Mode returns to Ready.
 
-## 6. Quit is not Stop
+## 6. Menu Bar Mini Console
+
+Open the ChatCockpit menu-bar item while Developer Mode is healthy. The compact window must consume the same `DesktopAppModel` projections as the main App rather than independently inferring state.
+
+Confirm:
+
+- overall state and current distribution mode are visible with text + semantic icon, not color alone;
+- Control Plane / Runner / Process Supervisor each show their real lifecycle state;
+- Running jobs / Queued jobs / Failed records / Pending approvals come from the read-only `desktop-summary` projection; unavailable stores render `—` / **Unavailable**, never fabricated zero;
+- Local/Public Cockpit rows use the current canonical console URL, including the randomized console path, with inline Copy/Open actions;
+- copy feedback remains local and transient; it must not create a persistent global notice;
+- update state and current Runtime conflict/attention are visible without opening the main window;
+- Ready/Degraded exposes Stop + Restart; Stopped exposes Start; Setup Required exposes the setup action; Refresh and Open ChatCockpit remain bounded actions;
+- **Diagnostics** opens the canonical main App diagnostics destination and **Settings…** opens only residual App Preferences, not a duplicate operational settings window.
+
+Do not execute Stop/Restart merely to prove the buttons exist during a normal smoke. Static verifier coverage locks all four lifecycle branches; real destructive actions are tested only when an isolated runtime is available.
+
+## 7. Quit is not Stop
+
+Record the Control Plane PID, choose **Quit ChatCockpit** from the Menu Bar Mini Console, then confirm the Control Plane PID is unchanged and Runner / Process Supervisor remain healthy. Relaunch the App and confirm the same Runtime is still available.
 
 **Quit ChatCockpit** exits only the SwiftUI GUI. It does not implicitly stop the Control Plane, Runner, or Process Supervisor.
 
 Use **Stop Services** only when you intentionally want to stop the service stack owned by the current mode.
 
-## 7. Pass criteria
+## 8. Pass criteria
 
 - the app launches normally;
 - Developer Mode recognizes the canonical Source runtime;

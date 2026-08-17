@@ -127,9 +127,12 @@ for (const [name, source] of [
 }
 assert.match(desktopApp, /Window\(ProductIdentity\.current\.displayName, id: "main"\)/);
 assert.doesNotMatch(desktopApp, /Window\(DesktopL10n\.string\("ChatCockpit Status"\)/);
+assert.match(menuBar, /snapshot\.localCockpitURL/);
+assert.match(menuBar, /snapshot\.publicCockpitURL/);
+assert.match(menuBar, /title: DesktopL10n\.string\("Local Cockpit"\)[\s\S]*openAction: model\.openLocalCockpit/s);
+assert.match(menuBar, /title: DesktopL10n\.string\("Public Cockpit"\)[\s\S]*fallback: DesktopL10n\.string\("Not configured"\)[\s\S]*openAction: model\.openPublicCockpit/s);
+assert.match(menuBar, /private func endpointRow[\s\S]*if let url[\s\S]*model\.copyMachineEndpoint\(url\)[\s\S]*openAction\(\)/s);
 assert.match(menuBar, /DesktopL10n\.string\("Open Local Cockpit"\)/);
-assert.match(menuBar, /snapshot\.publicCockpitURL != nil/);
-assert.match(menuBar, /DesktopL10n\.string\("Open Public Cockpit"\)/);
 assert.match(statusView, /DesktopL10n\.string/);
 assert.match(settingsView, /DesktopL10n\.string/);
 assert.match(appModel, /DesktopL10n\.string/);
