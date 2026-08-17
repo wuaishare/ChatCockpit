@@ -50,6 +50,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var revealedMachineApiToken: String?
     @Published private(set) var securityFeedback: DesktopSecurityFeedback?
     @Published private(set) var isSecurityRefreshing = false
+    @Published private(set) var isGeneratingConsolePath = false
     @Published var lastUserMessage: String?
 
     private let rootValidator: TokenPilotRootValidator
@@ -834,6 +835,19 @@ final class DesktopAppModel: ObservableObject {
         tokenRevealTask?.cancel()
         tokenRevealTask = nil
         revealedMachineApiToken = nil
+    }
+
+    func generateRandomConsolePathCandidate() async -> String? {
+        guard !isGeneratingConsolePath else { return nil }
+        isGeneratingConsolePath = true
+        defer { isGeneratingConsolePath = false }
+        do {
+            guard let context = try await currentContext() else { return nil }
+            return try await authorityClient.generateConsolePath(context: context)
+        } catch {
+            lastUserMessage = DesktopL10n.string("A new random console path could not be generated.")
+            return nil
+        }
     }
 
     func applyAccessPolicy(

@@ -223,6 +223,9 @@
 "API address copied to the clipboard." = "API address copied to the clipboard.";
 "Access Policy" = "Access Policy";
 "Console path" = "Console path";
+"Generate a new random console path" = "Generate a new random console path";
+"Changes not applied yet" = "Changes not applied yet";
+"A new random console path could not be generated." = "A new random console path could not be generated.";
 "Enable trusted LAN access" = "Enable trusted LAN access";
 "Allowed LAN CIDRs" = "Allowed LAN CIDRs";
 "Apply Access Policy" = "Apply Access Policy";

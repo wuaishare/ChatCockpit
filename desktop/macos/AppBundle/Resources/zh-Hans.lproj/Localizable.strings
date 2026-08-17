@@ -223,6 +223,9 @@
 "API address copied to the clipboard." = "API 地址已复制到剪贴板。";
 "Access Policy" = "访问策略";
 "Console path" = "控制台入口路径";
+"Generate a new random console path" = "重新生成随机入口";
+"Changes not applied yet" = "更改尚未应用";
+"A new random console path could not be generated." = "无法生成新的随机控制台入口。";
 "Enable trusted LAN access" = "启用可信局域网访问";
 "Allowed LAN CIDRs" = "允许的局域网 CIDR";
 "Apply Access Policy" = "应用访问策略";

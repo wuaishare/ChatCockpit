@@ -37,6 +37,12 @@ function main(): void {
       trustedLan: { enabled: false, cidrs: [] }
     });
 
+    result = runCli(home, ["access-policy", "generate-console-path", "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const generated = parseJson(result.stdout);
+    assert.match(String(generated.consolePathPrefix), /^\/cc-[A-Za-z0-9_-]{24}$/);
+    assert.equal(fs.existsSync(path.join(home, ".chatcockpit", "runtime", "access-policy.json")), false);
+
     result = runCli(home, [
       "access-policy",
       "set",
