@@ -34,6 +34,7 @@ import {
   loadAccessPolicy,
   updateAccessPolicy
 } from "../security/access-policy.js";
+import { readDesktopOperationalSummary } from "../application/desktop-operational-summary-service.js";
 
 function printUsage(): void {
   const identity = DEFAULT_PRODUCT_IDENTITY;
@@ -48,6 +49,7 @@ Usage:
   ${identity.cliName} queue-pack
   ${identity.cliName} queue-taskpack --title "..." --problem "..."
   ${identity.cliName} queue-codex-run --title "..." --instructions "..." [--repo-id ${identity.defaultRepoId}]
+  ${identity.cliName} desktop-summary [--json]
   ${identity.cliName} jobs
   ${identity.cliName} job --id "<job-id>"
   ${identity.cliName} operator status [--json]
@@ -181,7 +183,7 @@ async function main(): Promise<void> {
   const command = process.argv[2];
   const productIdentity = productIdentityFromArgs();
   const paths = buildPaths(buildDistributionContextForProduct(productIdentity));
-  if (command !== "doctor") {
+  if (command !== "doctor" && command !== "desktop-summary") {
     ensureWorkspaceDirs(paths);
   }
 
@@ -286,6 +288,21 @@ async function main(): Promise<void> {
         commitPolicy: commitPolicy as "none" | "propose" | "commit"
       });
       process.stdout.write(`${JSON.stringify(job, null, 2)}\n`);
+      return;
+    }
+    case "desktop-summary": {
+      const summary = readDesktopOperationalSummary(paths);
+      if (process.argv.includes("--json")) {
+        printJson(summary);
+      } else {
+        process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} desktop summary\n`);
+        process.stdout.write(
+          `Jobs: ${summary.jobs.available ? `running ${summary.jobs.running}, queued ${summary.jobs.queued}, failed ${summary.jobs.failed}` : "unavailable"}\n`
+        );
+        process.stdout.write(
+          `Pending approvals: ${summary.approvals.available ? summary.approvals.pending : "unavailable"}\n`
+        );
+      }
       return;
     }
     case "jobs": {

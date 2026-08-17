@@ -43,6 +43,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var operatorSecurityStatus: DesktopOperatorStatus?
     @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
     @Published private(set) var accessPolicyStatus: DesktopAccessPolicy?
+    @Published private(set) var operationalSummary: DesktopOperationalSummary?
     @Published private(set) var revealedMachineApiToken: String?
     @Published private(set) var securityFeedback: DesktopSecurityFeedback?
     @Published private(set) var isSecurityRefreshing = false
@@ -63,6 +64,7 @@ final class DesktopAppModel: ObservableObject {
     private let bundleManifest: RuntimeManifest?
     private let updateChecker: any MacOSUpdateChecking
     private let authorityClient: DesktopAuthorityClient
+    private let operationalSummaryClient: any DesktopOperationalSummaryReading
     private var tokenRevealTask: Task<Void, Never>?
     private var tokenClipboardClearTask: Task<Void, Never>?
     private var securityFeedbackTask: Task<Void, Never>?
@@ -84,6 +86,7 @@ final class DesktopAppModel: ObservableObject {
         bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL(),
         updateChecker: any MacOSUpdateChecking = MacOSUpdateChecker(),
         authorityClient: DesktopAuthorityClient = DesktopAuthorityClient(),
+        operationalSummaryClient: any DesktopOperationalSummaryReading = DesktopOperationalSummaryClient(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
         appBuildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     ) {
@@ -101,6 +104,7 @@ final class DesktopAppModel: ObservableObject {
         self.bundlePayloadURL = bundlePayloadURL?.standardizedFileURL
         self.updateChecker = updateChecker
         self.authorityClient = authorityClient
+        self.operationalSummaryClient = operationalSummaryClient
         self.appVersion = appVersion
         self.appBuildNumber = appBuildNumber
 
@@ -256,6 +260,7 @@ final class DesktopAppModel: ObservableObject {
             guard let context = try await currentContext() else {
                 snapshot = .setupRequired
                 runtimeConflict = nil
+                operationalSummary = nil
                 return
             }
             snapshot = await runtimeController.snapshot(context: context)
@@ -264,9 +269,11 @@ final class DesktopAppModel: ObservableObject {
                 configuration: snapshot.configuration,
                 lifecycle: snapshot.lifecycle
             )
+            operationalSummary = try? await operationalSummaryClient.summary(context: context)
         } catch {
             snapshot = .setupRequired
             runtimeConflict = nil
+            operationalSummary = nil
             lastUserMessage = userMessage(for: error)
         }
     }

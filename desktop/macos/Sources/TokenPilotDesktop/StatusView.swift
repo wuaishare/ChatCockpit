@@ -335,6 +335,7 @@ struct StatusView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     overviewHeader
                     runtimeHealthCard
+                    activityCard
 
                     LazyVGrid(columns: overviewColumns, alignment: .leading, spacing: 14) {
                         accessCard
@@ -419,6 +420,42 @@ struct StatusView: View {
                 ServiceHealthTile(
                     title: DesktopL10n.string("Process Supervisor"),
                     state: model.snapshot.lifecycle.processSupervisor
+                )
+            }
+        }
+    }
+
+    private var activityCard: some View {
+        let jobs = model.operationalSummary?.jobs
+        let approvals = model.operationalSummary?.approvals
+
+        return OverviewCard(
+            title: DesktopL10n.string("Activity"),
+            systemImage: "waveform.path"
+        ) {
+            HStack(spacing: 10) {
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Running jobs"),
+                    count: jobs?.available == true ? jobs?.running : nil,
+                    positiveSemantic: .active
+                )
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Queued jobs"),
+                    count: jobs?.available == true ? jobs?.queued : nil,
+                    positiveSemantic: .pending
+                )
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Failed records"),
+                    count: jobs?.available == true ? jobs?.failed : nil,
+                    positiveSemantic: .warning,
+                    help: DesktopL10n.string(
+                        "Stored failed job records are historical records, not active Runtime failures."
+                    )
+                )
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Pending approvals"),
+                    count: approvals?.available == true ? approvals?.pending : nil,
+                    positiveSemantic: .pending
                 )
             }
         }
@@ -762,6 +799,66 @@ private struct ServiceHealthTile: View {
             Color(nsColor: .textBackgroundColor),
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
         )
+    }
+}
+
+private struct OperationalMetricTile: View {
+    let title: String
+    let count: Int?
+    let positiveSemantic: NativeStatusSemantic
+    let help: String?
+
+    init(
+        title: String,
+        count: Int?,
+        positiveSemantic: NativeStatusSemantic,
+        help: String? = nil
+    ) {
+        self.title = title
+        self.count = count
+        self.positiveSemantic = positiveSemantic
+        self.help = help
+    }
+
+    private var semantic: NativeStatusSemantic {
+        guard let count else { return .unknown }
+        return count > 0 ? positiveSemantic : .healthy
+    }
+
+    private var valueText: String {
+        count.map(String.init) ?? "—"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            HStack(spacing: 7) {
+                Image(systemName: semantic.systemImage)
+                    .foregroundStyle(semantic.tint)
+                    .accessibilityHidden(true)
+                Text(valueText)
+                    .font(.title3.monospacedDigit().weight(.semibold))
+            }
+
+            if count == nil {
+                Text(DesktopL10n.string("Unavailable"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(nsColor: .textBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(count.map(String.init) ?? DesktopL10n.string("Unavailable"))")
+        .help(help ?? title)
     }
 }
 

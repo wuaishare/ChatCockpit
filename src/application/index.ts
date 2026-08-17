@@ -5,6 +5,11 @@ export {
   type ContinuityServices
 } from "./continuity-services.js";
 export { DevelopmentDocumentService } from "./development-document-service.js";
+export {
+  buildDesktopOperationalSummary,
+  readDesktopOperationalSummary,
+  type DesktopOperationalSummary
+} from "./desktop-operational-summary-service.js";
 export { EvidenceService } from "./evidence-service.js";
 export { FilesService } from "./files-service.js";
 export { GitService } from "./git-service.js";

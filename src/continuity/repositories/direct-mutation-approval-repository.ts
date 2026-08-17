@@ -133,6 +133,17 @@ export class DirectMutationApprovalRepository {
     );
   }
 
+  countPending(now: string): number {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM direct_mutation_approvals
+        WHERE status = 'pending' AND expires_at > ?
+      `)
+      .get(now) as { count: number };
+    return Number(row.count);
+  }
+
   expireIfNeeded(id: string, now: string): DirectMutationApprovalRecord {
     const current = this.get(id);
     if (

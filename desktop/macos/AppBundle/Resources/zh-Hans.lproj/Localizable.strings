@@ -223,6 +223,12 @@
 "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication." = "已配置控制台管理员时，从此 App 打开本机控制台会使用一次性回环登录凭据。该凭据会快速过期，不会写入浏览器持久存储，也不会降低公网访问的认证强度。";
 "Runtime controls" = "运行控制";
 "Runtime Health" = "运行环境健康";
+"Activity" = "活动";
+"Running jobs" = "运行任务";
+"Queued jobs" = "排队任务";
+"Failed records" = "失败记录";
+"Pending approvals" = "待审批";
+"Stored failed job records are historical records, not active Runtime failures." = "失败记录是当前保留的历史 failed Job 记录，不代表 Runtime 正在发生故障。";
 "Access" = "访问";
 "Environment" = "环境";
 "Trusted LAN" = "可信局域网";

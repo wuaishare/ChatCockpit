@@ -158,6 +158,61 @@ public struct DesktopAccessPolicy: Decodable, Equatable, Sendable {
     }
 }
 
+public enum DesktopSummaryUnavailableReason: String, Decodable, Equatable, Sendable {
+    case jobStoreUnavailable = "job-store-unavailable"
+    case continuityStoreUnavailable = "continuity-store-unavailable"
+}
+
+public struct DesktopOperationalJobSummary: Decodable, Equatable, Sendable {
+    public let available: Bool
+    public let running: Int?
+    public let queued: Int?
+    public let failed: Int?
+    public let unavailableReason: DesktopSummaryUnavailableReason?
+}
+
+public struct DesktopOperationalApprovalSummary: Decodable, Equatable, Sendable {
+    public let available: Bool
+    public let pending: Int?
+    public let runtime: Int?
+    public let hostMutation: Int?
+    public let hostCommand: Int?
+    public let hostProcess: Int?
+    public let runtimeResourceMutation: Int?
+    public let unavailableReason: DesktopSummaryUnavailableReason?
+}
+
+public struct DesktopOperationalSummary: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let generatedAt: String
+    public let jobs: DesktopOperationalJobSummary
+    public let approvals: DesktopOperationalApprovalSummary
+}
+
+public protocol DesktopOperationalSummaryReading: Sendable {
+    func summary(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopOperationalSummary
+}
+
+public struct DesktopOperationalSummaryClient: DesktopOperationalSummaryReading, Sendable {
+    private let transport = DesktopCLITransport()
+
+    public init() {}
+
+    public func summary(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopOperationalSummary {
+        try await transport.decode(
+            DesktopOperationalSummary.self,
+            from: transport.run(
+                context: context,
+                arguments: ["desktop-summary", "--json"]
+            )
+        )
+    }
+}
+
 public enum DesktopAuthorityClientError: Error, Equatable, Sendable {
     case runtimeEntryMissing
     case commandFailed
@@ -166,6 +221,8 @@ public enum DesktopAuthorityClientError: Error, Equatable, Sendable {
 }
 
 public struct DesktopAuthorityClient: Sendable {
+    private let transport = DesktopCLITransport()
+
     public init() {}
 
     public func operatorStatus(context: DesktopDistributionContext) async throws -> DesktopOperatorStatus {
@@ -264,8 +321,34 @@ public struct DesktopAuthorityClient: Sendable {
         )
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, from result: RuntimeCommandResult) async throws -> T {
-        guard result.exitCode == 0 else { throw DesktopAuthorityClientError.commandFailed }
+    private func decode<T: Decodable>(
+        _ type: T.Type,
+        from result: RuntimeCommandResult
+    ) async throws -> T {
+        try await transport.decode(type, from: result)
+    }
+
+    private func runCLI(
+        context: DesktopDistributionContext,
+        arguments: [String],
+        standardInput: String? = nil
+    ) async throws -> RuntimeCommandResult {
+        try await transport.run(
+            context: context,
+            arguments: arguments,
+            standardInput: standardInput
+        )
+    }
+}
+
+private struct DesktopCLITransport: Sendable {
+    func decode<T: Decodable>(
+        _ type: T.Type,
+        from result: RuntimeCommandResult
+    ) async throws -> T {
+        guard result.exitCode == 0 else {
+            throw DesktopAuthorityClientError.commandFailed
+        }
         guard let data = result.standardOutput.data(using: .utf8),
               let value = try? JSONDecoder().decode(type, from: data) else {
             throw DesktopAuthorityClientError.invalidResponse
@@ -273,7 +356,7 @@ public struct DesktopAuthorityClient: Sendable {
         return value
     }
 
-    private func runCLI(
+    func run(
         context: DesktopDistributionContext,
         arguments: [String],
         standardInput: String? = nil
