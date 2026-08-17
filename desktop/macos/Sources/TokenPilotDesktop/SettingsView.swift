@@ -569,11 +569,12 @@ struct SettingsView: View {
             destructive: role == .destructive,
             action: action
         )
+        .id("\(systemName)|\(title)")
         .frame(width: 20, height: 20)
     }
 }
 
-private struct AccessibleIconButton: NSViewRepresentable {
+struct AccessibleIconButton: NSViewRepresentable {
     let systemName: String
     let title: String
     let disabled: Bool

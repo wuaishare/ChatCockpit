@@ -324,205 +324,500 @@ private struct NativeDiagnosticsView: View {
 struct StatusView: View {
     @ObservedObject var model: DesktopAppModel
 
+    private let overviewColumns = [
+        GridItem(.flexible(minimum: 300), spacing: 14),
+        GridItem(.flexible(minimum: 300), spacing: 14)
+    ]
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack(spacing: 12) {
-                        Image(systemName: model.snapshot.overallState.systemImage)
-                            .font(.system(size: 30, weight: .semibold))
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(ProductIdentity.current.displayName)
-                                .font(.title2.weight(.semibold))
-                            Text(model.snapshot.overallState.displayName)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if model.isRefreshing {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 14) {
+                    overviewHeader
+                    runtimeHealthCard
 
-                    GroupBox(DesktopL10n.string("Runtime")) {
-                        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                            componentRow(
-                                DesktopL10n.string("Control Plane"),
-                                state: model.snapshot.lifecycle.controlPlane
-                            )
-                            componentRow(
-                                DesktopL10n.string("Runner"),
-                                state: model.snapshot.lifecycle.runner
-                            )
-                            componentRow(
-                                DesktopL10n.string("Process Supervisor"),
-                                state: model.snapshot.lifecycle.processSupervisor
-                            )
-                            urlRow(
-                                DesktopL10n.string("Local Cockpit"),
-                                url: model.snapshot.localCockpitURL,
-                                fallback: DesktopL10n.string("Unavailable")
-                            )
-                            urlRow(
-                                DesktopL10n.string("Public Cockpit"),
-                                url: model.snapshot.publicCockpitURL,
-                                fallback: DesktopL10n.string("Not configured")
-                            )
-                            valueRow(DesktopL10n.string("Distribution"), value: model.distributionModeText)
-                            valueRow(DesktopL10n.string("Runtime"), value: model.runtimeVersionText)
-                            valueRow(DesktopL10n.string("Architecture"), value: model.runtimeArchitectureText)
-                            valueRow(DesktopL10n.string("Node"), value: model.nodeVersionText)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 4)
-                    }
-
-                    GroupBox(DesktopL10n.string("Local Setup")) {
-                        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                            if model.distributionMode == .packaged {
-                                valueRow(DesktopL10n.string("Primary Workspace"), value: model.selectedWorkspaceDisplayPath)
-                                valueRow(DesktopL10n.string("State"), value: model.stateLocationText)
-                            } else {
-                                valueRow(DesktopL10n.string("Source Checkout"), value: model.selectedRootDisplayPath)
-                                valueRow(DesktopL10n.string("State"), value: model.stateLocationText)
-                            }
-                            valueRow(
-                                DesktopL10n.string("Endpoint"),
-                                value: model.endpointText
-                            )
-                            valueRow(
-                                DesktopL10n.string("Mode"),
-                                value: model.snapshot.configuration.exposed
-                                    ? DesktopL10n.string("Exposed")
-                                    : DesktopL10n.string("Local only")
-                            )
-                            valueRow(
-                                DesktopL10n.string("API Token"),
-                                value: model.snapshot.configuration.apiTokenConfigured
-                                    ? DesktopL10n.string("Configured")
-                                    : DesktopL10n.string("Not configured")
-                            )
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 4)
+                    LazyVGrid(columns: overviewColumns, alignment: .leading, spacing: 14) {
+                        accessCard
+                        environmentCard
                     }
 
                     if let conflict = model.runtimeConflict {
-                        Label(model.localizedConflictMessage(conflict), systemImage: "exclamationmark.triangle")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        attentionBanner(
+                            model.localizedConflictMessage(conflict),
+                            semantic: .danger
+                        )
                     } else if let message = model.lastUserMessage {
-                        Label(message, systemImage: "exclamationmark.circle")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        attentionBanner(message, semantic: .warning)
                     }
                 }
-                .padding(24)
+                .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Divider()
 
-            VStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Button(DesktopL10n.string("Refresh")) {
-                        Task { await model.refresh() }
-                    }
-                    .disabled(model.isRefreshing)
-
-                    Spacer()
-
-                    runtimeActions
-                }
-
+            HStack(spacing: 10) {
+                Text(DesktopL10n.string("Runtime controls"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                runtimeActions
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
         .frame(minWidth: 620, minHeight: 520)
+    }
+
+    private var overviewHeader: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(DesktopL10n.string("Overview"))
+                    .font(.title2.weight(.semibold))
+                HStack(spacing: 8) {
+                    SemanticStatusPill(
+                        semantic: model.snapshot.overallState.overviewSemantic,
+                        text: model.snapshot.overallState.displayName
+                    )
+                    Text(model.distributionModeText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if model.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            AccessibleTextActionButton(
+                title: DesktopL10n.string("Refresh"),
+                disabled: model.isRefreshing
+            ) {
+                Task { await model.refresh() }
+            }
+            .fixedSize()
+        }
+    }
+
+    private var runtimeHealthCard: some View {
+        OverviewCard(
+            title: DesktopL10n.string("Runtime Health"),
+            systemImage: "waveform.path.ecg"
+        ) {
+            HStack(spacing: 10) {
+                ServiceHealthTile(
+                    title: DesktopL10n.string("Control Plane"),
+                    state: model.snapshot.lifecycle.controlPlane
+                )
+                ServiceHealthTile(
+                    title: DesktopL10n.string("Runner"),
+                    state: model.snapshot.lifecycle.runner
+                )
+                ServiceHealthTile(
+                    title: DesktopL10n.string("Process Supervisor"),
+                    state: model.snapshot.lifecycle.processSupervisor
+                )
+            }
+        }
+    }
+
+    private var accessCard: some View {
+        OverviewCard(
+            title: DesktopL10n.string("Access"),
+            systemImage: "lock.shield"
+        ) {
+            VStack(spacing: 0) {
+                cockpitEndpointRow(
+                    DesktopL10n.string("Local Cockpit"),
+                    url: model.snapshot.localCockpitURL,
+                    fallback: DesktopL10n.string("Unavailable"),
+                    openAction: model.openLocalCockpit
+                )
+
+                Divider()
+                    .padding(.vertical, 9)
+
+                cockpitEndpointRow(
+                    DesktopL10n.string("Public Cockpit"),
+                    url: model.snapshot.publicCockpitURL,
+                    fallback: DesktopL10n.string("Not configured"),
+                    openAction: model.openPublicCockpit
+                )
+
+                Divider()
+                    .padding(.vertical, 9)
+
+                compactValueRow(
+                    DesktopL10n.string("Console path"),
+                    value: model.snapshot.configuration.consolePathPrefix,
+                    monospaced: true
+                )
+                compactValueRow(
+                    DesktopL10n.string("Trusted LAN"),
+                    value: trustedLanSummary
+                )
+                compactValueRow(
+                    DesktopL10n.string("Web Owner"),
+                    value: ownerSummary
+                )
+                compactValueRow(
+                    DesktopL10n.string("Machine API token"),
+                    value: machineTokenSummary
+                )
+            }
+        }
+    }
+
+    private var environmentCard: some View {
+        OverviewCard(
+            title: DesktopL10n.string("Environment"),
+            systemImage: "desktopcomputer"
+        ) {
+            VStack(spacing: 0) {
+                compactValueRow(
+                    model.distributionMode == .packaged
+                        ? DesktopL10n.string("Primary Workspace")
+                        : DesktopL10n.string("Source Checkout"),
+                    value: model.distributionMode == .packaged
+                        ? model.selectedWorkspaceDisplayPath
+                        : model.selectedRootDisplayPath,
+                    monospaced: true
+                )
+                compactValueRow(
+                    DesktopL10n.string("Endpoint"),
+                    value: model.endpointText,
+                    monospaced: true
+                )
+                compactValueRow(DesktopL10n.string("Node"), value: model.nodeVersionText)
+                compactValueRow(
+                    DesktopL10n.string("Architecture"),
+                    value: model.runtimeArchitectureText,
+                    monospaced: true
+                )
+                compactValueRow(DesktopL10n.string("Runtime"), value: model.runtimeVersionText)
+                compactValueRow(
+                    DesktopL10n.string("App version"),
+                    value: model.currentAppVersionText,
+                    monospaced: true
+                )
+                compactValueRow(DesktopL10n.string("Update status"), value: model.updateStatusText)
+            }
+        }
+    }
+
+    private var trustedLanSummary: String {
+        guard model.snapshot.configuration.trustedLanEnabled else {
+            return DesktopL10n.string("Disabled")
+        }
+        return DesktopL10n.format(
+            "Enabled — %d CIDR",
+            model.snapshot.configuration.trustedLanCidrs.count
+        )
+    }
+
+    private var ownerSummary: String {
+        guard let status = model.operatorSecurityStatus else {
+            return DesktopL10n.string("Unavailable")
+        }
+        guard status.configured else {
+            return DesktopL10n.string("Not configured")
+        }
+        return status.username ?? DesktopL10n.string("Configured")
+    }
+
+    private var machineTokenSummary: String {
+        if let status = model.machineApiTokenStatus {
+            return status.configured
+                ? DesktopL10n.string("Configured")
+                : DesktopL10n.string("Not configured")
+        }
+        return model.snapshot.configuration.apiTokenConfigured
+            ? DesktopL10n.string("Configured")
+            : DesktopL10n.string("Not configured")
     }
 
     @ViewBuilder
     private var runtimeActions: some View {
         if model.runtimeConflict != nil {
-            Button(DesktopL10n.string("Runtime Conflict")) {}
-                .disabled(true)
+            AccessibleTextActionButton(
+                title: DesktopL10n.string("Runtime Conflict"),
+                disabled: true
+            ) {}
+            .fixedSize()
         } else {
             switch model.snapshot.overallState {
-        case .setupRequired:
-            Button(model.setupActionTitle) {
-                model.chooseSetupLocationFromPanel()
-            }
-        case .stopped:
-            Button(DesktopL10n.string("Start Services")) {
-                Task { await model.start() }
-            }
-            .disabled(model.isRefreshing)
+            case .setupRequired:
+                AccessibleTextActionButton(title: model.setupActionTitle) {
+                    model.chooseSetupLocationFromPanel()
+                }
+                .fixedSize()
+            case .stopped:
+                AccessibleTextActionButton(
+                    title: DesktopL10n.string("Start Services"),
+                    disabled: model.isRefreshing
+                ) {
+                    Task { await model.start() }
+                }
+                .fixedSize()
             case .degraded, .ready:
-                Button(DesktopL10n.string("Restart Services")) {
+                AccessibleTextActionButton(
+                    title: DesktopL10n.string("Restart Services"),
+                    disabled: model.isRefreshing
+                ) {
                     Task { await model.restart() }
                 }
-                .disabled(model.isRefreshing)
+                .fixedSize()
 
-                Button(DesktopL10n.string("Stop Services")) {
+                AccessibleTextActionButton(
+                    title: DesktopL10n.string("Stop Services"),
+                    disabled: model.isRefreshing
+                ) {
                     Task { await model.stop() }
                 }
-                .disabled(model.isRefreshing)
+                .fixedSize()
             }
         }
     }
 
-    private func componentRow(_ title: String, state: RuntimeComponentState) -> some View {
-        GridRow {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Label(state.displayName, systemImage: state.systemImage)
-                .labelStyle(.titleAndIcon)
-        }
-    }
-
-    private func valueRow(_ title: String, value: String) -> some View {
-        GridRow {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .textSelection(.enabled)
-        }
-    }
-
-    private func urlRow(_ title: String, url: URL?, fallback: String) -> some View {
-        GridRow {
-            Text(title)
-                .foregroundStyle(.secondary)
-            if let url {
-                Link(destination: url) {
-                    HStack(spacing: 5) {
-                        Text(verbatim: url.absoluteString)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Image(systemName: "arrow.up.right.square")
-                            .imageScale(.small)
-                    }
-                }
-                .contentShape(Rectangle())
-                .focusable(true)
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.pointingHand.set()
-                    } else {
-                        NSCursor.arrow.set()
-                    }
-                }
-                .accessibilityLabel("\(title): \(url.absoluteString)")
-                .accessibilityHint(DesktopL10n.string("Open in Browser"))
-                .help("\(DesktopL10n.string("Open in Browser")): \(url.absoluteString)")
-            } else {
-                Text(fallback)
+    private func cockpitEndpointRow(
+        _ title: String,
+        url: URL?,
+        fallback: String,
+        openAction: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                if let url {
+                    Text(verbatim: url.absoluteString)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                } else {
+                    Text(fallback)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
+
+            Spacer(minLength: 8)
+
+            if let url {
+                let copied = model.securityFeedback?.target == .apiEndpoint(url.absoluteString)
+                    && model.securityFeedback?.kind == .copied
+
+                AccessibleIconButton(
+                    systemName: copied ? "checkmark" : "doc.on.doc",
+                    title: copied
+                        ? DesktopL10n.format("%@ address copied", title)
+                        : DesktopL10n.format("Copy %@ address", title),
+                    disabled: false,
+                    destructive: false
+                ) {
+                    model.copyMachineEndpoint(url)
+                }
+                .id("cockpit-copy-\(url.absoluteString)-\(copied)")
+                .frame(width: 20, height: 20)
+
+                AccessibleIconButton(
+                    systemName: "arrow.up.right.square",
+                    title: DesktopL10n.format("Open %@ in Browser", title),
+                    disabled: false,
+                    destructive: false,
+                    action: openAction
+                )
+                .frame(width: 20, height: 20)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func compactValueRow(
+        _ title: String,
+        value: String,
+        monospaced: Bool = false
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(monospaced ? .system(.caption, design: .monospaced) : .caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func attentionBanner(
+        _ message: String,
+        semantic: NativeStatusSemantic
+    ) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: semantic.systemImage)
+                .foregroundStyle(semantic.tint)
+            Text(message)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(nsColor: .controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        }
+    }
+}
+
+private enum NativeStatusSemantic {
+    case healthy
+    case active
+    case pending
+    case warning
+    case danger
+    case inactive
+    case unknown
+
+    var systemImage: String {
+        switch self {
+        case .healthy: return "checkmark.circle.fill"
+        case .active: return "bolt.circle.fill"
+        case .pending: return "clock.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .danger: return "xmark.octagon.fill"
+        case .inactive: return "pause.circle.fill"
+        case .unknown: return "questionmark.circle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .healthy: return Color(nsColor: .systemGreen)
+        case .active: return Color(nsColor: .systemBlue)
+        case .pending, .warning: return Color(nsColor: .systemOrange)
+        case .danger: return Color(nsColor: .systemRed)
+        case .inactive: return Color(nsColor: .secondaryLabelColor)
+        case .unknown: return Color(nsColor: .tertiaryLabelColor)
+        }
+    }
+}
+
+private struct SemanticStatusPill: View {
+    let semantic: NativeStatusSemantic
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: semantic.systemImage)
+                .foregroundStyle(semantic.tint)
+            Text(text)
+                .foregroundStyle(.primary)
+        }
+        .font(.caption.weight(.medium))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Color(nsColor: .controlBackgroundColor),
+            in: Capsule()
+        )
+        .overlay {
+            Capsule()
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ServiceHealthTile: View {
+    let title: String
+    let state: RuntimeComponentState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            SemanticStatusPill(
+                semantic: state.overviewSemantic,
+                text: state.displayName
+            )
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(nsColor: .textBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+    }
+}
+
+private struct OverviewCard<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let content: Content
+
+    init(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+            content
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            Color(nsColor: .controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        }
+    }
+}
+
+private extension DesktopOverallState {
+    var overviewSemantic: NativeStatusSemantic {
+        switch self {
+        case .setupRequired: return .warning
+        case .stopped: return .inactive
+        case .degraded: return .warning
+        case .ready: return .healthy
+        }
+    }
+}
+
+private extension RuntimeComponentState {
+    var overviewSemantic: NativeStatusSemantic {
+        switch self {
+        case .unknown, .unavailable: return .unknown
+        case .stopped: return .inactive
+        case .running: return .active
+        case .ready: return .healthy
+        case .degraded: return .warning
         }
     }
 }
