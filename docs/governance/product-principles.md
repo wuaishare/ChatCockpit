@@ -23,6 +23,17 @@ The durable continuity model includes:
 
 Chat history is useful context, but it is not the durable source of truth for development state.
 
+## Product Surfaces
+
+ChatCockpit deliberately separates its product surfaces instead of making the Menu Bar, native App, and Web Cockpit copies of one another:
+
+- **Menu Bar:** bounded Operational HUD for glanceable health, activity, and safe high-frequency local actions;
+- **macOS App:** Local Runtime Manager + Secure Machine Gateway with machine authority;
+- **Web Cockpit:** data-heavy Operator Workspace with operator authority;
+- **Runtime:** single source of truth and execution layer shared by every surface.
+
+Read-only projections may cross those boundaries, but privileged mutation authority does not. The canonical capability placement, status semantics, and bridge rules are defined in the [Surface Design Contract](../architecture/surface-design-contract.md).
+
 ## Runtime Ownership
 
 Runtime ownership must always be explicit.

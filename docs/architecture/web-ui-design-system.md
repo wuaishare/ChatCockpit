@@ -23,6 +23,12 @@ Current source-backed constraints taken from `@lobehub/ui`:
 
 The reference is not used as a license to add decorative gradients, oversized display copy, or oversized empty whitespace.
 
+## Cross-Surface Contract
+
+Web Cockpit is the data-heavy **Operator Workspace**. It shares product terminology, seven-state status semantics, and action intent with the native App and Menu Bar, but it does not inherit their Machine Authority. Local Runtime lifecycle, machine secret reveal/rotation, listener/access policy, and native filesystem authorization remain native responsibilities; Web Cockpit may show bounded public-safe state and bridge when appropriate.
+
+The canonical ownership and capability matrix lives in the [Surface Design Contract](./surface-design-contract.md). New Web UI features that overlap another product surface should resolve that matrix before introducing duplicate controls.
+
 ## Theme Modes
 
 The Web UI supports three modes:

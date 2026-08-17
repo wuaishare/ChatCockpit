@@ -23,6 +23,17 @@ ChatCockpit 负责不同开发 Runtime 之间的连续性。工作可以在 Chat
 
 聊天历史可以提供上下文，但不能成为开发状态的唯一持久真源。
 
+## 产品 Surface
+
+ChatCockpit 会明确区分不同产品 Surface，而不是把 Menu Bar、原生 App 与 Web Cockpit 做成彼此的复制品：
+
+- **Menu Bar：** 有明确边界的 Operational HUD，负责快速健康状态、活动摘要与安全高频本机操作；
+- **macOS App：** Local Runtime Manager + Secure Machine Gateway，持有 Machine Authority；
+- **Web Cockpit：** 数据密集型 Operator Workspace，持有 Operator Authority；
+- **Runtime：** 所有 Surface 共用的唯一业务真源与执行层。
+
+只读 Projection 可以跨越这些边界，但高权限 Mutation Authority 不能随之转移。能力归属、状态语义与 Bridge 规则以 [Surface 设计合同](../architecture/surface-design-contract.md) 为准。
+
 ## Runtime Ownership
 
 模型循环的所有权必须始终显式。
