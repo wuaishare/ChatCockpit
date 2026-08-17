@@ -52,6 +52,8 @@ It is the canonical surface for:
 
 Web Cockpit may display public-safe machine state, but it must not reveal machine secrets or become a second implementation of native Runtime ownership.
 
+Public network exposure belongs to a dedicated **Public Access / Connectivity** workbench in Web Cockpit. Web owns provider selection, domain/route intent, canonical Public Endpoint selection, reachability/TLS/DNS inspection, and staged cutover workflows. It does not install local binaries, mutate OS services, or render provider credentials in plaintext.
+
 ### Runtime — Single Source of Truth and Execution Layer
 
 The Runtime remains the authoritative implementation layer. Menu Bar, App, and Web Cockpit consume shared Runtime/application projections instead of re-deriving business truth independently.
@@ -68,6 +70,10 @@ A surface may change presentation, density, or interaction style for its platfor
 6. **No WKWebView shortcut.** Native and Web surfaces should share product semantics and visual language, not implementation technology.
 7. **Canonical console routing applies everywhere.** Any bridge to Web Cockpit uses the configured console path instead of assuming `/ui`.
 8. **Unavailable is not zero.** A missing operational projection is shown as unknown/unavailable, never fabricated as `0` or healthy.
+9. **Connectivity is provider-neutral.** Public Access models endpoint, route, provider, health, and diagnostics without making ServBay, FRP, Cloudflare Tunnel, ngrok, Pinggy, or any other provider part of the core product identity.
+10. **Nothing is installed by default.** Connectivity providers are optional. Existing environments may be detected and reused; installation, upgrade, removal, and machine service mutation require explicit Machine Authority.
+11. **Public endpoint changes use staged cutover.** A candidate route is configured and verified before it becomes the canonical Public Endpoint. Failed candidates must not destroy the currently working route.
+12. **Provider secrets remain machine-local.** Web may show configured/missing state and initiate a Machine bridge, but plaintext tunnel tokens, FRP credentials, provider auth tokens, and equivalent secrets never cross into Web rendering.
 
 ## Shared Status Semantics
 
@@ -121,6 +127,12 @@ Interactive icon-only controls must expose an accessible name, keyboard focus, a
 | Approvals | Observe summary | Observe summary + Bridge | Act | Operator |
 | Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |
 | Integrations / ChatGPT OAuth / Passkeys | None | Observe status + Bridge | Act | Operator |
+| Public Endpoint / reachability / TLS / DNS | Observe summary | Observe summary + Bridge | Act | Operator |
+| Connectivity provider selection / domain / route intent | None | Observe status + Bridge | Act | Operator |
+| Connectivity provider install / update / uninstall | None | Act | Bridge | Machine |
+| Connectivity provider machine service lifecycle | Observe summary | Act | Observe | Machine |
+| Connectivity provider credential plaintext | None | Act | None | Machine |
+| Tunnel route health / logs / diagnostics | Observe summary | Observe summary + Bridge | Act | Runtime |
 | App / Runtime update management | Observe status + Bridge | Act | None | Machine |
 | Native diagnostics / ownership conflicts | Observe summary + Bridge | Act | None | Machine |
 | Audit and workflow history | None | Bridge | Act | Operator |
@@ -154,6 +166,9 @@ User-visible product language should converge on the same concepts across surfac
 - TOTP two-factor authentication / TOTP 双重认证
 - Recovery codes / 恢复码
 - ChatGPT OAuth
+- Public Access / 公网接入
+- Connectivity Provider / 接入组件
+- Public Endpoint / 公网端点
 
 Translations may adapt grammar for the locale, but must not invent a second product concept for the same authority or endpoint.
 
