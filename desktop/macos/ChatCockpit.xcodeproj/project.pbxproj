@@ -26,6 +26,7 @@
 		20000000000000000000001A /* PackagedWorkspaceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001A /* PackagedWorkspaceConfiguration.swift */; };
 		20000000000000000000000E /* DesktopAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* DesktopAppModel.swift */; };
 		20000000000000000000000F /* MenuBarContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* MenuBarContentView.swift */; };
+		20000000000000000000001B /* NativeStatusComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001B /* NativeStatusComponents.swift */; };
 		200000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* SettingsView.swift */; };
 		200000000000000000000011 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* StatusView.swift */; };
 		200000000000000000000012 /* TokenPilotDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* TokenPilotDesktopApp.swift */; };
@@ -82,6 +83,7 @@
 		10000000000000000000001A /* PackagedWorkspaceConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/PackagedWorkspaceConfiguration.swift; sourceTree = "<group>"; };
 		10000000000000000000000E /* DesktopAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/DesktopAppModel.swift; sourceTree = "<group>"; };
 		10000000000000000000000F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/MenuBarContentView.swift; sourceTree = "<group>"; };
+		10000000000000000000001B /* NativeStatusComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/NativeStatusComponents.swift; sourceTree = "<group>"; };
 		100000000000000000000010 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/SettingsView.swift; sourceTree = "<group>"; };
 		100000000000000000000011 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/StatusView.swift; sourceTree = "<group>"; };
 		100000000000000000000012 /* TokenPilotDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/TokenPilotDesktopApp.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 				10000000000000000000001A /* PackagedWorkspaceConfiguration.swift */,
 				10000000000000000000000E /* DesktopAppModel.swift */,
 				10000000000000000000000F /* MenuBarContentView.swift */,
+				10000000000000000000001B /* NativeStatusComponents.swift */,
 				100000000000000000000010 /* SettingsView.swift */,
 				100000000000000000000011 /* StatusView.swift */,
 				100000000000000000000012 /* TokenPilotDesktopApp.swift */,
@@ -273,6 +276,7 @@
 			files = (
 				20000000000000000000000E /* DesktopAppModel.swift in Sources */,
 				20000000000000000000000F /* MenuBarContentView.swift in Sources */,
+				20000000000000000000001B /* NativeStatusComponents.swift in Sources */,
 				200000000000000000000010 /* SettingsView.swift in Sources */,
 				200000000000000000000011 /* StatusView.swift in Sources */,
 				200000000000000000000012 /* TokenPilotDesktopApp.swift in Sources */,

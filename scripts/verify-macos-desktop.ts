@@ -19,6 +19,11 @@ const runtimeCommandRunnerPath = path.join(
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const appEntryPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "TokenPilotDesktopApp.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
+const nativeStatusComponentsPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktop",
+  "NativeStatusComponents.swift"
+);
 const statusViewPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "StatusView.swift");
 const settingsPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "SettingsView.swift");
 const desktopLocalizationPath = path.join(
@@ -83,6 +88,7 @@ for (const required of [
   appModelPath,
   appEntryPath,
   menuBarPath,
+  nativeStatusComponentsPath,
   statusViewPath,
   settingsPath,
   desktopLocalizationPath,
@@ -106,6 +112,7 @@ const runtimeCommandRunner = fs.readFileSync(runtimeCommandRunnerPath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const appEntry = fs.readFileSync(appEntryPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
+const nativeStatusComponents = fs.readFileSync(nativeStatusComponentsPath, "utf8");
 const statusView = fs.readFileSync(statusViewPath, "utf8");
 const settings = fs.readFileSync(settingsPath, "utf8");
 const desktopLocalization = fs.readFileSync(desktopLocalizationPath, "utf8");
@@ -219,11 +226,16 @@ assert.match(statusView, /private let overviewColumns = \[/);
 assert.match(statusView, /LazyVGrid\(columns: overviewColumns/);
 assert.match(statusView, /OverviewCard\([\s\S]*DesktopL10n\.string\("Runtime Health"\)/s);
 assert.match(statusView, /ServiceHealthTile\([\s\S]*Control Plane[\s\S]*Runner[\s\S]*Process Supervisor/s);
-assert.match(statusView, /private enum NativeStatusSemantic/);
+assert.match(nativeStatusComponents, /enum NativeStatusSemantic/);
 for (const semantic of ["healthy", "active", "pending", "warning", "danger", "inactive", "unknown"]) {
-  assert.match(statusView, new RegExp(`case ${semantic}\\b`));
+  assert.match(nativeStatusComponents, new RegExp(`case ${semantic}\\b`));
 }
-assert.match(statusView, /SemanticStatusPill/);
+assert.match(nativeStatusComponents, /struct SemanticStatusPill: View/);
+assert.match(nativeStatusComponents, /extension DesktopOverallState[\s\S]*var nativeSemantic: NativeStatusSemantic/s);
+assert.match(nativeStatusComponents, /extension RuntimeComponentState[\s\S]*var nativeSemantic: NativeStatusSemantic/s);
+assert.match(statusView, /overallState\.nativeSemantic/);
+assert.match(statusView, /state\.nativeSemantic/);
+assert.doesNotMatch(statusView, /overviewSemantic/);
 assert.match(statusView, /AccessibleTextActionButton\([\s\S]*title: DesktopL10n\.string\("Refresh"\)/s);
 assert.match(statusView, /AccessibleTextActionButton\([\s\S]*title: DesktopL10n\.string\("Restart Services"\)/s);
 assert.match(statusView, /AccessibleTextActionButton\([\s\S]*title: DesktopL10n\.string\("Stop Services"\)/s);
@@ -279,17 +291,49 @@ assert.match(menuBar, /DesktopScenePresentation\.present/);
 assert.match(menuBar, /@Binding var mainSection: MainAppSection/);
 assert.match(menuBar, /openWindow\(id: "main"\)/);
 assert.doesNotMatch(menuBar, /openWindow\(id: "status"\)/);
-assert.doesNotMatch(menuBar, /@Environment\(\\\.openSettings\)/);
-assert.match(menuBar, /DesktopL10n\.string\("Open Local Cockpit"\)/);
-assert.match(menuBar, /DesktopL10n\.string\("Open Public Cockpit"\)/);
+assert.match(menuBar, /@Environment\(\\\.openSettings\) private var openSettings/);
+assert.match(menuBar, /\.frame\(width: 370\)/);
+assert.match(menuBar, /overallState\.nativeSemantic/);
+assert.match(menuBar, /DesktopL10n\.string\("Runtime Health"\)/);
+assert.match(menuBar, /Control Plane[\s\S]*Runner[\s\S]*Process Supervisor/s);
+assert.match(menuBar, /DesktopL10n\.string\("Activity"\)/);
+for (const metric of ["Running jobs", "Queued jobs", "Failed records", "Pending approvals"]) {
+  assert.match(menuBar, new RegExp(`DesktopL10n\\.string\\(\\"${metric}\\"\\)`));
+}
+assert.match(menuBar, /jobs\?\.available == true \? jobs\?\.running : nil/);
+assert.match(menuBar, /jobs\?\.available == true \? jobs\?\.queued : nil/);
+assert.match(menuBar, /jobs\?\.available == true \? jobs\?\.failed : nil/);
+assert.match(menuBar, /approvals\?\.available == true \? approvals\?\.pending : nil/);
+assert.doesNotMatch(menuBar, /operationalSummary[\s\S]*\?\?\s*0/s);
+assert.match(menuBar, /snapshot\.localCockpitURL/);
+assert.match(menuBar, /snapshot\.publicCockpitURL/);
+assert.match(menuBar, /model\.copyMachineEndpoint\(url\)/);
+assert.match(menuBar, /openAction: model\.openLocalCockpit/);
+assert.match(menuBar, /openAction: model\.openPublicCockpit/);
+assert.match(menuBar, /DesktopL10n\.format\("Copy %@ address", title\)/);
+assert.match(menuBar, /DesktopL10n\.format\("Open %@ in Browser", title\)/);
+assert.match(menuBar, /model\.updateStatusText/);
+assert.match(menuBar, /openMainWindow\(\.updates\)/);
+assert.match(menuBar, /openMainWindow\(\.diagnostics\)/);
+assert.match(menuBar, /AccessibleMenuBarNavigationButton/);
+assert.match(menuBar, /final class PointerButton: NSButton/);
+assert.match(menuBar, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHand : \.arrow\)/);
+assert.match(menuBar, /button\.setAccessibilityLabel\(title\)/);
+assert.match(menuBar, /button\.setAccessibilityHelp\(title\)/);
+assert.match(menuBar, /DesktopL10n\.string\("Settings…"\)/);
+assert.match(menuBar, /openSettings\(\)/);
 assert.match(menuBar, /DesktopL10n\.string\("Open ChatCockpit"\)/);
-assert.match(menuBar, /DesktopL10n\.string\("Access & Security…"\)/);
-assert.match(menuBar, /Runtime Conflict — Review Runtime/);
-assert.match(menuBar, /openMainWindow\(\.runtime\)/);
-assert.match(menuBar, /openMainWindow\(\.accessSecurity\)/);
-assert.match(menuBar, /NSApplication\.shared\.terminate/);
-assert.match(menuBar, /Stop Services/);
+assert.match(menuBar, /case \.setupRequired:[\s\S]*chooseSetupLocationFromPanel/s);
+assert.match(menuBar, /case \.stopped:[\s\S]*Task \{ await model\.start\(\) \}/s);
+assert.match(menuBar, /case \.degraded, \.ready:[\s\S]*Task \{ await model\.stop\(\) \}[\s\S]*Task \{ await model\.restart\(\) \}/s);
+assert.match(menuBar, /Task \{ await model\.refresh\(\) \}/);
+assert.match(menuBar, /systemName: "safari"[\s\S]*title: DesktopL10n\.string\("Open Local Cockpit"\)[\s\S]*model\.openLocalCockpit\(\)/s);
+assert.match(menuBar, /NSApplication\.shared\.terminate\(nil\)/);
 assert.match(menuBar, /DesktopL10n\.string\("Quit ChatCockpit"\)/);
+const quitBlockMatch = menuBar.match(/AccessibleMenuBarNavigationButton\([\s\S]*?DesktopL10n\.string\("Quit ChatCockpit"\)[\s\S]*?NSApplication\.shared\.terminate\(nil\)[\s\S]*?\.frame\(height: 28\)/);
+assert.ok(quitBlockMatch, "Menu Bar Quit action must terminate only the GUI App");
+assert.doesNotMatch(quitBlockMatch[0], /model\.(?:stop|restart|start)\(/);
+assert.doesNotMatch(menuBar, /Access & Security…/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
 assert.match(settings, /DesktopL10n\.string\("Security & Access"\)/);

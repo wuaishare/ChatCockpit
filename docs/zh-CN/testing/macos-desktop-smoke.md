@@ -161,13 +161,32 @@ npm run mvp:start
 
 5. 确认 Developer Mode 再次 Ready。
 
-## 6. Quit 与 Stop 的区别
+## 6. 菜单栏 Mini Console
+
+在 Developer Mode 健康运行时打开 ChatCockpit 菜单栏状态项。紧凑窗口必须直接消费主 App 同一份 `DesktopAppModel` projection，不能自己推断第二套状态真相。
+
+确认：
+
+- 整体状态与当前 Distribution Mode 同时可见，并使用“文字 + 语义图标”，不能只靠颜色；
+- Control Plane / Runner / Process Supervisor 分别展示真实 lifecycle 状态；
+- 运行任务 / 排队任务 / 失败记录 / 待审批来自只读 `desktop-summary`；store 不可读时显示 `—` / **不可用**，绝不能伪造 0；
+- 本机/公网控制台使用当前 canonical URL，包括随机安全入口，并在同行提供 Copy/Open；
+- 复制成功只产生局部短时反馈，不能写入长期全局提示；
+- 更新状态与当前 Runtime conflict/attention 无需打开主窗口即可看到；
+- Ready/Degraded 提供 Stop + Restart；Stopped 提供 Start；Setup Required 提供 setup action；Refresh 与 Open ChatCockpit 始终是 bounded action；
+- **诊断**打开 canonical 主 App 的诊断页面，**设置…**只打开残余 App Preferences，不得恢复第二套运维设置窗口。
+
+普通 smoke 不要为了证明按钮存在而实际执行 Stop/Restart。四种 lifecycle 分支由静态 verifier 锁定；破坏性真实动作只在隔离 Runtime 中验收。
+
+## 7. Quit 与 Stop 的区别
+
+先记录 Control Plane PID，再从菜单栏 Mini Console 选择 **Quit ChatCockpit**；确认 Control Plane PID 不变，Runner / Process Supervisor 仍健康。重新启动 App 后应继续连接同一 Runtime。
 
 **Quit ChatCockpit** 只退出 SwiftUI GUI，不会停止后台 Control Plane、Runner 或 Process Supervisor。
 
 只有明确希望停止当前模式拥有的服务栈时才使用 **Stop Services**。
 
-## 7. Smoke Test 通过标准
+## 8. Smoke Test 通过标准
 
 - App 可以正常启动；
 - Developer Mode 能识别 canonical Source runtime；
