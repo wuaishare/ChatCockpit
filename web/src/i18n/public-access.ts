@@ -1,4 +1,5 @@
 import type { LocaleCode } from "../i18n";
+import type { PublicRouteVerificationReason } from "../types";
 
 export interface PublicAccessCopy {
   active: string;
@@ -50,10 +51,21 @@ export interface PublicAccessCopy {
   candidateOrigin: string;
   noCandidateRoute: string;
   candidateStagedUnverified: string;
+  candidateVerified: string;
+  candidateVerificationFailed: string;
+  candidateNotVerified: string;
   candidateOriginPlaceholder: string;
   stageCandidateRoute: string;
   replaceCandidateRoute: string;
+  verifyCandidateRoute: string;
   discardCandidateRoute: string;
+  verificationStatus: string;
+  verificationDns: string;
+  verificationTls: string;
+  verificationReachability: string;
+  verificationIdentity: string;
+  verificationOauth: string;
+  verificationReasons: Record<PublicRouteVerificationReason, string>;
   candidateSafetyNote: string;
   candidateStatusUnavailable: string;
   actionInstall: string;
@@ -119,18 +131,43 @@ const zhCN: PublicAccessCopy = {
   openConnectivityInApp: "在 ChatCockpit App 中打开",
   connectivityBridgeDescription: "只导航到 App 的「访问与安全 → 接入组件」区域；不会自动执行安装、升级、卸载或启动 Tunnel。",
   routeIntentTitle: "候选公网 Route",
-  routeIntentDescription: "在不影响当前公网入口的前提下暂存下一条候选 HTTPS origin。候选只记录 Route Intent，当前阶段不会执行 DNS/HTTP/TLS 验证，也不会改写 Runtime 公网基址。",
+  routeIntentDescription: "在不影响当前公网入口的前提下暂存并验证下一条候选 HTTPS origin。验证只检查受限的公网 DNS、TLS、ChatCockpit Runtime 可达性与 OAuth 前置条件，不会改写 Runtime 公网基址。",
   currentCanonicalRoute: "当前 canonical",
   candidateRoute: "候选 Route",
   candidateSource: "候选来源",
   candidateOrigin: "候选 HTTPS origin",
   noCandidateRoute: "尚未暂存候选 Route",
   candidateStagedUnverified: "已暂存 · 未验证",
+  candidateVerified: "已验证",
+  candidateVerificationFailed: "验证失败",
+  candidateNotVerified: "尚未验证",
   candidateOriginPlaceholder: "https://candidate.example.com",
   stageCandidateRoute: "暂存候选",
   replaceCandidateRoute: "替换候选",
+  verifyCandidateRoute: "验证候选",
   discardCandidateRoute: "丢弃候选",
-  candidateSafetyNote: "暂存或丢弃候选不会修改当前 canonical、OAuth issuer、OpenAPI/MCP 地址，也不会启动或切换任何 Tunnel。验证与显式 cutover 将作为后续独立阶段实现。",
+  verificationStatus: "验证状态",
+  verificationDns: "公网 DNS",
+  verificationTls: "TLS",
+  verificationReachability: "Runtime 可达性",
+  verificationIdentity: "ChatCockpit 身份",
+  verificationOauth: "OAuth 前置条件",
+  verificationReasons: {
+    "not-attempted": "未执行",
+    "dns-failed": "DNS 解析失败",
+    "no-addresses": "未解析到地址",
+    "too-many-addresses": "解析地址数量超过安全上限",
+    "non-public-address": "解析结果包含非公网地址",
+    "tls-error": "TLS 证书或握手失败",
+    "network-error": "网络连接失败",
+    timeout: "验证请求超时",
+    "response-too-large": "响应超过安全大小上限",
+    "unexpected-status": "返回了非预期 HTTP 状态",
+    "invalid-json": "响应不是有效 JSON",
+    "unexpected-health-contract": "不是预期的 ChatCockpit Health 响应",
+    "unexpected-oauth-metadata": "OAuth Metadata 不符合预期"
+  },
+  candidateSafetyNote: "暂存、验证或丢弃候选都不会修改当前 canonical、OAuth issuer、OpenAPI/MCP 地址，也不会启动或切换任何 Tunnel。验证仅使用 public-unicast DNS 与固定 IP HTTPS 探针；显式 cutover 仍是后续独立阶段。",
   candidateStatusUnavailable: "暂时无法读取候选 Route 状态；当前 Runtime 公网入口保持不变。",
   actionInstall: "安装",
   actionUpgrade: "升级",
@@ -195,18 +232,43 @@ const enUS: PublicAccessCopy = {
   openConnectivityInApp: "Open in ChatCockpit App",
   connectivityBridgeDescription: "This only navigates to Access & Security → Connectivity Providers in the App. It never auto-runs install, upgrade, uninstall, or Tunnel startup.",
   routeIntentTitle: "Candidate Public Route",
-  routeIntentDescription: "Stage the next HTTPS origin without affecting the working public entry. A candidate records route intent only: this slice performs no DNS/HTTP/TLS verification and does not rewrite the Runtime public base URL.",
+  routeIntentDescription: "Stage and verify the next HTTPS origin without affecting the working public entry. Verification checks bounded public DNS, TLS, ChatCockpit Runtime reachability, and OAuth prerequisites without rewriting the Runtime public base URL.",
   currentCanonicalRoute: "Current canonical",
   candidateRoute: "Candidate Route",
   candidateSource: "Candidate source",
   candidateOrigin: "Candidate HTTPS origin",
   noCandidateRoute: "No candidate Route is staged",
   candidateStagedUnverified: "Staged · unverified",
+  candidateVerified: "Verified",
+  candidateVerificationFailed: "Verification failed",
+  candidateNotVerified: "Not verified yet",
   candidateOriginPlaceholder: "https://candidate.example.com",
   stageCandidateRoute: "Stage candidate",
   replaceCandidateRoute: "Replace candidate",
+  verifyCandidateRoute: "Verify candidate",
   discardCandidateRoute: "Discard candidate",
-  candidateSafetyNote: "Staging or discarding a candidate does not change the current canonical origin, OAuth issuer, OpenAPI/MCP addresses, or any Tunnel. Verification and explicit cutover remain separate later stages.",
+  verificationStatus: "Verification status",
+  verificationDns: "Public DNS",
+  verificationTls: "TLS",
+  verificationReachability: "Runtime reachability",
+  verificationIdentity: "ChatCockpit identity",
+  verificationOauth: "OAuth prerequisites",
+  verificationReasons: {
+    "not-attempted": "Not attempted",
+    "dns-failed": "DNS resolution failed",
+    "no-addresses": "No addresses were resolved",
+    "too-many-addresses": "Resolved address count exceeded the safety limit",
+    "non-public-address": "DNS included a non-public address",
+    "tls-error": "TLS certificate or handshake failed",
+    "network-error": "Network connection failed",
+    timeout: "Verification request timed out",
+    "response-too-large": "Response exceeded the safety size limit",
+    "unexpected-status": "Unexpected HTTP status",
+    "invalid-json": "Response was not valid JSON",
+    "unexpected-health-contract": "Response was not the expected ChatCockpit Health contract",
+    "unexpected-oauth-metadata": "OAuth metadata did not match the expected contract"
+  },
+  candidateSafetyNote: "Staging, verifying, or discarding a candidate never changes the current canonical origin, OAuth issuer, OpenAPI/MCP addresses, or any Tunnel. Verification uses public-unicast DNS and pinned-address HTTPS probes only; explicit cutover remains a separate later stage.",
   candidateStatusUnavailable: "Candidate Route status is temporarily unavailable. The current Runtime public entry remains unchanged.",
   actionInstall: "Install",
   actionUpgrade: "Upgrade",

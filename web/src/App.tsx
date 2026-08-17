@@ -18,6 +18,7 @@ import {
   discardPublicRouteCandidate,
   fetchConnectivityProviders,
   fetchPublicRouteCandidate,
+  fetchPublicRouteVerification,
   fetchGptConfig,
   fetchHealth,
   fetchIntegrationStatus,
@@ -34,6 +35,7 @@ import {
   redeemLocalLoginGrant,
   stagePublicRouteCandidate,
   setOperatorCsrfToken,
+  verifyPublicRouteCandidate,
   verifyPasskeyAuthentication,
   verifyOperatorTotpLogin,
   terminateAllJobs,
@@ -53,6 +55,7 @@ import type {
   ConnectivityProviderPublicSnapshot,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
+  PublicRouteVerificationSnapshot,
   ContinuitySectionKey,
   GptConfigModel,
   HealthModel,
@@ -275,6 +278,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     useState<PublicRouteCandidateSnapshot | null>(null);
   const [publicRouteCandidateError, setPublicRouteCandidateError] = useState<string | null>(null);
   const [publicRouteCandidateMutating, setPublicRouteCandidateMutating] = useState(false);
+  const [publicRouteVerificationStatus, setPublicRouteVerificationStatus] =
+    useState<PublicRouteVerificationSnapshot | null>(null);
+  const [publicRouteVerificationError, setPublicRouteVerificationError] = useState<string | null>(null);
+  const [publicRouteVerifying, setPublicRouteVerifying] = useState(false);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -508,6 +515,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteCandidateStatus(null);
       setPublicRouteCandidateError(null);
       setPublicRouteCandidateMutating(false);
+      setPublicRouteVerificationStatus(null);
+      setPublicRouteVerificationError(null);
+      setPublicRouteVerifying(false);
       setSetupStatus(null);
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
@@ -562,6 +572,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setPublicRouteCandidateStatus(null);
         setPublicRouteCandidateError(getErrorMessage(error));
       }
+      try {
+        const verificationResponse = await fetchPublicRouteVerification(token);
+        setPublicRouteVerificationStatus(verificationResponse);
+        setPublicRouteVerificationError(null);
+      } catch (error) {
+        setPublicRouteVerificationStatus(null);
+        setPublicRouteVerificationError(getErrorMessage(error));
+      }
       await loadCompatibilityConfig(locale);
     } catch (error) {
       setHealthError(getErrorMessage(error));
@@ -580,6 +598,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     try {
       const response = await stagePublicRouteCandidate({ origin, source }, token);
       setPublicRouteCandidateStatus(response);
+      setPublicRouteVerificationStatus(null);
+      setPublicRouteVerificationError(null);
     } catch (error) {
       setPublicRouteCandidateError(getErrorMessage(error));
     } finally {
@@ -594,10 +614,26 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     try {
       const response = await discardPublicRouteCandidate(token);
       setPublicRouteCandidateStatus(response);
+      setPublicRouteVerificationStatus(null);
+      setPublicRouteVerificationError(null);
     } catch (error) {
       setPublicRouteCandidateError(getErrorMessage(error));
     } finally {
       setPublicRouteCandidateMutating(false);
+    }
+  }
+
+  async function verifyCandidatePublicRoute(candidateId: string) {
+    if (publicRouteVerifying || publicRouteCandidateMutating) return;
+    setPublicRouteVerifying(true);
+    setPublicRouteVerificationError(null);
+    try {
+      const response = await verifyPublicRouteCandidate(candidateId, token);
+      setPublicRouteVerificationStatus(response);
+    } catch (error) {
+      setPublicRouteVerificationError(getErrorMessage(error));
+    } finally {
+      setPublicRouteVerifying(false);
     }
   }
 
@@ -1157,8 +1193,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 routeStatus={publicRouteCandidateStatus}
                 routeStatusError={publicRouteCandidateError}
                 routeMutating={publicRouteCandidateMutating}
+                verificationStatus={publicRouteVerificationStatus}
+                verificationStatusError={publicRouteVerificationError}
+                routeVerifying={publicRouteVerifying}
                 onStageCandidate={(origin, source) => void stageCandidatePublicRoute(origin, source)}
                 onDiscardCandidate={() => void discardCandidatePublicRoute()}
+                onVerifyCandidate={(candidateId) => void verifyCandidatePublicRoute(candidateId)}
                 onOpenIntegrations={() => navigateView("integrations")}
               />
             ) : (

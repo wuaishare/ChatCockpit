@@ -104,7 +104,8 @@ async function main(): Promise<void> {
   assert.equal(fs.existsSync(statePath), false);
   assert.equal(cleared.canonical.origin, "https://current-v2.example.com");
 
-  // There is intentionally no verifier or cutover method in this first slice.
+  // Candidate state remains a staging-only store. Verification is a separate
+  // service, and cutover is still intentionally absent.
   assert.equal("verify" in store, false);
   assert.equal("cutover" in store, false);
 

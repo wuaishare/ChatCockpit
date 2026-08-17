@@ -256,6 +256,15 @@ for (const [filePath, label] of scanFiles) {
 
   const content = scanContent(fs.readFileSync(filePath, "utf8"));
   for (const pattern of safetyPatterns) {
+    if (
+      filePath.endsWith("scripts/verify-connectivity-route-verification.ts") &&
+      pattern.label === "local/private IP literal"
+    ) {
+      // This single security-contract fixture intentionally contains blocked
+      // SSRF destinations so the verifier can prove they never reach HTTPS.
+      // All other safety patterns still apply to the file.
+      continue;
+    }
     if (pattern.test(content)) {
       findings.push({
         target: label,

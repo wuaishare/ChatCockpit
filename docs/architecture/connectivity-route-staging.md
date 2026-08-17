@@ -10,9 +10,11 @@ The candidate store persists only the candidate record in the Runtime state dire
 
 ## Implemented Candidate Lifecycle
 
-This slice intentionally implements only:
+The implemented lifecycle now separates staging from verification:
 
-`read current/candidate → stage candidate → replace candidate → discard candidate`
+`read current/candidate → stage or replace candidate → explicit verification → discard candidate`
+
+Verification produces evidence only. It does not promote the candidate or change the canonical Public Endpoint.
 
 A candidate has:
 
@@ -22,7 +24,7 @@ A candidate has:
 - status **`staged-unverified`**;
 - created/updated timestamps.
 
-Every replacement creates a new candidate ID. Future verification or cutover work must bind to that exact identity instead of fuzzy-matching an origin string.
+Every replacement creates a new candidate ID. Verification binds to that exact identity instead of fuzzy-matching an origin string; future cutover must bind to the same current candidate plus its matching successful Verification Artifact.
 
 ## Input Boundary
 
@@ -43,9 +45,11 @@ The protected Web/Operator surface exposes:
 
 - `GET /api/connectivity/routes` — read current canonical projection and candidate state;
 - `POST /api/connectivity/routes/candidate` — stage or replace candidate Route intent;
-- `DELETE /api/connectivity/routes/candidate` — discard the unverified candidate.
+- `DELETE /api/connectivity/routes/candidate` — discard the candidate;
+- `GET /api/connectivity/routes/verification` — read the current candidate's public-safe Verification Artifact, when one exists;
+- `POST /api/connectivity/routes/candidate/verify` — explicitly verify one exact current candidate ID.
 
-Operator-session mutations require the existing CSRF protection. This staging slice exposes **no verify or cutover endpoint**.
+Operator-session mutations require the existing CSRF protection. There is still **no cutover endpoint**.
 
 ## Safety Invariants
 
@@ -59,11 +63,26 @@ Staging or discarding a candidate must never:
 - perform an outbound network request;
 - destroy or replace the currently working route.
 
-## Required Next Stage: Verification
+Verification is the only operation in this phase that may perform bounded outbound requests, and it still must never mutate canonical Runtime or Provider state.
 
-A future verifier must consume one exact candidate ID and produce a public-safe verification result before cutover can exist. The verifier must defend against SSRF and DNS rebinding, including resolution to loopback, link-local, private, or other non-public destinations. It must separately evaluate HTTPS/TLS validity, expected ChatCockpit reachability, and the authentication/OAuth prerequisites required by the intended public use.
+## Implemented Verification
 
-Verification failure must leave the canonical origin untouched. Restaging a candidate invalidates any older verification result because the candidate identity changes.
+The verifier consumes one exact current candidate ID and produces a private `0600` Verification Artifact with only public-safe status, bounded reason codes, optional HTTP status, the candidate identity/origin, and timestamps. It does not persist resolved IP addresses, response bodies, raw TLS/network errors, credentials, or Provider output.
+
+The network boundary is fail-closed:
+
+- resolve the candidate hostname once and inspect **all** returned addresses;
+- reject zero addresses, more than 16 addresses, or any address that is not public unicast, including loopback, private, link-local, carrier-grade NAT, reserved, multicast, and unique-local ranges;
+- pin each HTTPS connection to an already-approved resolved IP while preserving the original candidate hostname for TLS hostname verification/SNI, preventing a second DNS lookup from changing the destination;
+- require normal CA/certificate verification (`rejectUnauthorized` remains enabled);
+- use fixed GET targets only: `/api/health` and `/.well-known/oauth-protected-resource/mcp`;
+- do not follow redirects;
+- cap each request at 5 seconds and each response body at 64 KiB;
+- require the expected ChatCockpit Health contract and OAuth protected-resource metadata before the artifact can be `verified`; both must still reference the live current canonical Runtime origin, so a generic look-alike response does not satisfy identity verification.
+
+A mixed DNS answer containing even one non-public destination fails before any HTTPS request. The verifier re-checks the candidate ID immediately before persistence; if the candidate was replaced while verification ran, the operation fails as stale and writes no artifact.
+
+Verification failure leaves the canonical origin untouched. Restaging or discarding a candidate makes older artifacts inapplicable because artifact projection requires the exact current candidate ID.
 
 ## Required Later Stage: Explicit Cutover
 

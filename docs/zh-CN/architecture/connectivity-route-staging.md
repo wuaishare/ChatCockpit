@@ -10,9 +10,11 @@ canonical 公网 origin 继续以 Runtime 配置 `CHATCOCKPIT_PUBLIC_BASE_URL` �
 
 ## 当前已实现的候选生命周期
 
-本阶段刻意只实现：
+当前实现已经把暂存与验证拆成独立阶段：
 
-`读取 current/candidate → 暂存 candidate → 替换 candidate → 丢弃 candidate`
+`读取 current/candidate → 暂存或替换 candidate → 显式 Verification → 丢弃 candidate`
+
+Verification 只产出证据，不会晋升 candidate，也不会改变 canonical Public Endpoint。
 
 一个候选包含：
 
@@ -22,7 +24,7 @@ canonical 公网 origin 继续以 Runtime 配置 `CHATCOCKPIT_PUBLIC_BASE_URL` �
 - 固定状态 **`staged-unverified`**；
 - created/updated 时间戳。
 
-每次替换都会产生新的 candidate ID。未来 Verification 或 Cutover 必须绑定这个精确 identity，而不能只按 origin 字符串模糊匹配。
+每次替换都会产生新的 candidate ID。Verification 必须绑定这个精确 identity，而不能只按 origin 字符串模糊匹配；未来 Cutover 还必须同时绑定仍为 current 的 candidate 与其完全匹配的成功 Verification Artifact。
 
 ## 输入边界
 
@@ -43,9 +45,11 @@ canonical 公网 origin 继续以 Runtime 配置 `CHATCOCKPIT_PUBLIC_BASE_URL` �
 
 - `GET /api/connectivity/routes` —— 读取当前 canonical 投影与候选状态；
 - `POST /api/connectivity/routes/candidate` —— 暂存或替换候选 Route Intent；
-- `DELETE /api/connectivity/routes/candidate` —— 丢弃尚未验证的候选。
+- `DELETE /api/connectivity/routes/candidate` —— 丢弃候选；
+- `GET /api/connectivity/routes/verification` —— 读取当前 candidate 对应的 public-safe Verification Artifact（如果存在）；
+- `POST /api/connectivity/routes/candidate/verify` —— 对一个精确的 current candidate ID 执行显式验证。
 
-Operator Session 的写操作继续强制使用既有 CSRF 防护。当前暂存阶段**不提供 verify 或 cutover endpoint**。
+Operator Session 的写操作继续强制使用既有 CSRF 防护。当前仍然**不存在 cutover endpoint**。
 
 ## 安全不变量
 
@@ -59,11 +63,26 @@ Operator Session 的写操作继续强制使用既有 CSRF 防护。当前暂存
 - 发起任何出站网络请求；
 - 销毁或替换当前仍在工作的 Route。
 
-## 必须后续独立实现：Verification
+Verification 是本阶段唯一允许执行受限出站请求的操作，但它仍然绝不能修改 canonical Runtime 或 Provider 状态。
 
-未来 Verifier 必须消费一个精确 candidate ID，并在 Cutover 能力存在之前产出 public-safe Verification Result。Verifier 必须防御 SSRF 与 DNS rebinding，包括解析结果指向 loopback、link-local、private 或其他非公网目标的情况；同时需要分别验证 HTTPS/TLS 有效性、预期 ChatCockpit 可达性，以及目标公网用途所需的认证/OAuth 前置条件。
+## 已实现：Verification
 
-Verification 失败必须保持 canonical origin 不变。只要重新暂存候选，candidate identity 就会变化，旧 Verification Result 必须失效。
+Verifier 消费一个精确的 current candidate ID，并在 Runtime state 目录以 `0600` 权限持久化 Verification Artifact。Artifact 只包含 public-safe 状态、受限 reason code、可选 HTTP status、candidate identity/origin 与时间戳；不会持久化解析到的 IP、响应正文、原始 TLS/网络错误、凭据或 Provider 输出。
+
+网络边界采用 fail-closed 策略：
+
+- 只解析一次 candidate hostname，并检查 DNS 返回的**全部**地址；
+- 未解析到地址、地址数量超过 16，或任一结果不是 public unicast 时直接失败；loopback、private、link-local、CGNAT、reserved、multicast、unique-local 等都被拒绝；
+- HTTPS 连接固定到已经通过检查的解析 IP，同时保留原始 candidate hostname 用于 TLS hostname verification/SNI，防止第二次 DNS 查询把请求改送到其他地址；
+- 保持正常 CA/证书验证（`rejectUnauthorized` 始终启用）；
+- 只允许固定 GET 目标：`/api/health` 与 `/.well-known/oauth-protected-resource/mcp`；
+- 不跟随 redirect；
+- 每个请求最多 5 秒、响应正文最多 64 KiB；
+- 只有同时满足预期 ChatCockpit Health contract 与 OAuth protected-resource metadata，Artifact 才能进入 `verified`；两者都必须继续指向实时的 current canonical Runtime origin，通用的“仿 ChatCockpit”响应不能通过 identity verification。
+
+只要 DNS 答案中混入一个非公网地址，就会在任何 HTTPS 请求前失败。Verifier 在持久化 Artifact 前还会重新检查 candidate ID；如果验证过程中 candidate 已被替换，则按 stale 失败且不写入 Artifact。
+
+Verification 失败必须保持 canonical origin 不变。重新暂存或丢弃 candidate 后，旧 Artifact 因 candidate ID 不再匹配而不会继续投影为当前验证结果。
 
 ## 更后续阶段：显式 Cutover
 

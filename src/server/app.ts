@@ -54,6 +54,11 @@ import {
   PublicRouteCandidateValidationError,
   type PublicRouteCandidateSource
 } from "../connectivity/public-route-candidate.js";
+import {
+  PublicRouteVerificationError,
+  PublicRouteVerificationStore,
+  PublicRouteVerifier
+} from "../connectivity/public-route-verification.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
@@ -135,6 +140,10 @@ const publicRouteCandidateSourceSchema = z.enum([
 const publicRouteCandidateStageSchema = z.object({
   origin: z.string().min(1),
   source: publicRouteCandidateSourceSchema
+});
+
+const publicRouteCandidateVerifySchema = z.object({
+  candidateId: z.string().min(1).max(200)
 });
 
 const taskPackSchema = z.object({
@@ -229,6 +238,7 @@ export interface BuildServerOptions {
   acpRegistryAdapter?: AcpRegistryAdapter | null;
   connectivityProviderPublicSnapshot?: () => ConnectivityProviderPublicSnapshot;
   publicRouteCandidateStore?: PublicRouteCandidateStore;
+  publicRouteVerifier?: PublicRouteVerifier;
 }
 
 export function buildServer(
@@ -283,6 +293,12 @@ export function buildServer(
   const publicRouteCandidateStore =
     options.publicRouteCandidateStore ??
     new PublicRouteCandidateStore({ runtimeDir: paths.runtimeDir });
+  const publicRouteVerifier =
+    options.publicRouteVerifier ??
+    new PublicRouteVerifier({
+      candidateStore: publicRouteCandidateStore,
+      verificationStore: new PublicRouteVerificationStore({ runtimeDir: paths.runtimeDir })
+    });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(
       app,
@@ -590,6 +606,32 @@ export function buildServer(
 
   const discardPublicRouteCandidateHandler = async () =>
     publicRouteCandidateStore.clear();
+
+  const publicRouteVerificationStatusHandler = async () =>
+    publicRouteVerifier.snapshot();
+
+  const verifyPublicRouteCandidateHandler = async (request: unknown, reply: unknown) => {
+    const parsed = publicRouteCandidateVerifySchema.safeParse(
+      (request as { body?: unknown }).body ?? {}
+    );
+    const fastifyReply = replyFrom(reply);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await publicRouteVerifier.verify(parsed.data.candidateId);
+    } catch (error) {
+      if (error instanceof PublicRouteVerificationError && error.code === "candidate-stale") {
+        return sendApiError(
+          fastifyReply,
+          409,
+          "CANDIDATE_STALE",
+          error.message
+        );
+      }
+      throw error;
+    }
+  };
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
@@ -1183,6 +1225,8 @@ export function buildServer(
   app.get("/api/connectivity/routes", publicRouteCandidateStatusHandler);
   app.post("/api/connectivity/routes/candidate", stagePublicRouteCandidateHandler);
   app.delete("/api/connectivity/routes/candidate", discardPublicRouteCandidateHandler);
+  app.get("/api/connectivity/routes/verification", publicRouteVerificationStatusHandler);
+  app.post("/api/connectivity/routes/candidate/verify", verifyPublicRouteCandidateHandler);
 
   app.get("/api/setup/status", setupStatusHandler);
   app.get("/tokenpilot/api/setup/status", setupStatusHandler);
