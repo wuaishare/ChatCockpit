@@ -242,6 +242,47 @@ export interface PublicRouteCandidateSnapshot {
   candidate: PublicRouteCandidate | null;
 }
 
+export type PublicRouteVerificationReason =
+  | "not-attempted"
+  | "dns-failed"
+  | "no-addresses"
+  | "too-many-addresses"
+  | "non-public-address"
+  | "tls-error"
+  | "network-error"
+  | "timeout"
+  | "response-too-large"
+  | "unexpected-status"
+  | "invalid-json"
+  | "unexpected-health-contract"
+  | "unexpected-oauth-metadata";
+
+export interface PublicRouteVerificationCheck {
+  ok: boolean;
+  reason: PublicRouteVerificationReason | null;
+  statusCode?: number | null;
+  publicAddressCount?: number;
+}
+
+export interface PublicRouteVerificationArtifact {
+  id: string;
+  candidateId: string;
+  candidateOrigin: string;
+  status: "verified" | "failed";
+  checkedAt: string;
+  checks: {
+    dns: PublicRouteVerificationCheck;
+    tls: PublicRouteVerificationCheck;
+    reachability: PublicRouteVerificationCheck;
+    identity: PublicRouteVerificationCheck;
+    oauth: PublicRouteVerificationCheck;
+  };
+}
+
+export interface PublicRouteVerificationSnapshot extends PublicRouteCandidateSnapshot {
+  verification: PublicRouteVerificationArtifact | null;
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

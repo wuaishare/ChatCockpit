@@ -25,6 +25,7 @@ import type {
   ConnectivityProviderPublicSnapshot,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
+  PublicRouteVerificationSnapshot,
   GptConfigResponse,
   HealthResponse,
   IntegrationStatusResponse,
@@ -459,6 +460,26 @@ export async function discardPublicRouteCandidate(
     throw await parseProblem(response);
   }
   return (await response.json()) as PublicRouteCandidateSnapshot;
+}
+
+export async function fetchPublicRouteVerification(
+  token?: string | null
+): Promise<PublicRouteVerificationSnapshot> {
+  return requestJson<PublicRouteVerificationSnapshot>(
+    "/api/connectivity/routes/verification",
+    token
+  );
+}
+
+export async function verifyPublicRouteCandidate(
+  candidateId: string,
+  token?: string | null
+): Promise<PublicRouteVerificationSnapshot> {
+  return postBodyJson<PublicRouteVerificationSnapshot>(
+    "/api/connectivity/routes/candidate/verify",
+    { candidateId },
+    token
+  );
 }
 
 export async function fetchContinuityProjects(

@@ -11,7 +11,9 @@ import type {
   ConnectivityProviderPublicStatus,
   IntegrationStatusResponse,
   PublicRouteCandidateSnapshot,
-  PublicRouteCandidateSource
+  PublicRouteCandidateSource,
+  PublicRouteVerificationReason,
+  PublicRouteVerificationSnapshot
 } from "../types";
 import { SectionCard } from "./SectionCard";
 
@@ -24,8 +26,12 @@ interface PublicAccessViewProps {
   routeStatus: PublicRouteCandidateSnapshot | null;
   routeStatusError: string | null;
   routeMutating: boolean;
+  verificationStatus: PublicRouteVerificationSnapshot | null;
+  verificationStatusError: string | null;
+  routeVerifying: boolean;
   onStageCandidate: (origin: string, source: PublicRouteCandidateSource) => void;
   onDiscardCandidate: () => void;
+  onVerifyCandidate: (candidateId: string) => void;
   onOpenIntegrations: () => void;
 }
 
@@ -84,6 +90,13 @@ const ROUTE_CANDIDATE_PROVIDER_SOURCES = new Set<PublicRouteCandidateSource>([
   "frp-client"
 ]);
 
+function verificationReasonLabel(
+  reason: PublicRouteVerificationReason | null,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  return reason ? copy.verificationReasons[reason] : copy.ready;
+}
+
 function providerCapabilitySummary(
   provider: ConnectivityProviderPublicStatus,
   copy: ReturnType<typeof getPublicAccessCopy>
@@ -108,8 +121,12 @@ export function PublicAccessView({
   routeStatus,
   routeStatusError,
   routeMutating,
+  verificationStatus,
+  verificationStatusError,
+  routeVerifying,
   onStageCandidate,
   onDiscardCandidate,
+  onVerifyCandidate,
   onOpenIntegrations
 }: PublicAccessViewProps) {
   const copy = getPublicAccessCopy(locale);
@@ -138,6 +155,17 @@ export function PublicAccessView({
     setCandidateOrigin("");
     setCandidateSource("existing-environment");
   }, [routeStatus?.candidate?.id]);
+  const currentVerification = verificationStatus?.verification ?? null;
+  const verification = currentVerification?.candidateId === routeStatus?.candidate?.id
+    ? currentVerification
+    : null;
+  const verificationChecks = verification ? [
+    { key: "dns", label: copy.verificationDns, check: verification.checks.dns },
+    { key: "tls", label: copy.verificationTls, check: verification.checks.tls },
+    { key: "reachability", label: copy.verificationReachability, check: verification.checks.reachability },
+    { key: "identity", label: copy.verificationIdentity, check: verification.checks.identity },
+    { key: "oauth", label: copy.verificationOauth, check: verification.checks.oauth }
+  ] : [];
   const publicEndpointReady = Boolean(status.publicCockpitUrl && status.publicApiBaseUrl);
   const hasPublicApi = Boolean(status.publicApiBaseUrl);
   const publicHttpsReady = status.publicApiBaseUrl?.startsWith("https://") === true;
@@ -261,7 +289,13 @@ export function PublicAccessView({
         description={copy.routeIntentDescription}
         extra={
           routeStatus?.candidate ? (
-            <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+            verification?.status === "verified" ? (
+              <Tag color="success">{copy.candidateVerified}</Tag>
+            ) : verification?.status === "failed" ? (
+              <Tag color="error">{copy.candidateVerificationFailed}</Tag>
+            ) : (
+              <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+            )
           ) : null
         }
       >
@@ -281,7 +315,13 @@ export function PublicAccessView({
                 {routeStatus.candidate ? (
                   <strong className="public-access-route-candidate">
                     <span>{routeStatus.candidate.origin}</span>
-                    <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+                    {verification?.status === "verified" ? (
+                      <Tag color="success">{copy.candidateVerified}</Tag>
+                    ) : verification?.status === "failed" ? (
+                      <Tag color="error">{copy.candidateVerificationFailed}</Tag>
+                    ) : (
+                      <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+                    )}
                   </strong>
                 ) : (
                   <strong>{copy.noCandidateRoute}</strong>
@@ -296,7 +336,42 @@ export function PublicAccessView({
                   </strong>
                 </div>
               ) : null}
+              {routeStatus.candidate ? (
+                <div className="gpt-fact">
+                  <span>{copy.verificationStatus}</span>
+                  <strong>
+                    {verification?.status === "verified" ? (
+                      <Tag color="success">{copy.candidateVerified}</Tag>
+                    ) : verification?.status === "failed" ? (
+                      <Tag color="error">{copy.candidateVerificationFailed}</Tag>
+                    ) : (
+                      <Tag>{copy.candidateNotVerified}</Tag>
+                    )}
+                  </strong>
+                </div>
+              ) : null}
             </div>
+
+            {verification ? (
+              <div className="public-access-verification-grid">
+                {verificationChecks.map((item) => (
+                  <div className="public-access-verification-check" key={item.key}>
+                    <span>{item.label}</span>
+                    <strong>
+                      <Tag color={item.check.ok ? "success" : "error"}>
+                        {item.check.ok ? copy.ready : copy.candidateVerificationFailed}
+                      </Tag>
+                      <Text type="secondary">
+                        {item.check.ok
+                          ? copy.ready
+                          : verificationReasonLabel(item.check.reason, copy)}
+                        {item.check.statusCode ? ` · HTTP ${item.check.statusCode}` : ""}
+                      </Text>
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div className="public-access-route-form">
               <label>
@@ -305,7 +380,7 @@ export function PublicAccessView({
                   value={candidateSource}
                   options={routeSourceOptions}
                   onChange={(value) => setCandidateSource(value as PublicRouteCandidateSource)}
-                  disabled={routeMutating}
+                  disabled={routeMutating || routeVerifying}
                 />
               </label>
               <label className="public-access-route-origin-field">
@@ -314,21 +389,30 @@ export function PublicAccessView({
                   value={candidateOrigin}
                   placeholder={copy.candidateOriginPlaceholder}
                   onChange={(event) => setCandidateOrigin(event.target.value)}
-                  disabled={routeMutating}
+                  disabled={routeMutating || routeVerifying}
                 />
               </label>
               <div className="public-access-route-actions">
                 <Button
                   type="primary"
                   loading={routeMutating}
-                  disabled={!candidateOrigin.trim() || routeMutating}
+                  disabled={!candidateOrigin.trim() || routeMutating || routeVerifying}
                   onClick={() => onStageCandidate(candidateOrigin.trim(), candidateSource)}
                 >
                   {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
                 </Button>
                 {routeStatus.candidate ? (
                   <Button
-                    disabled={routeMutating}
+                    loading={routeVerifying}
+                    disabled={routeMutating || routeVerifying}
+                    onClick={() => onVerifyCandidate(routeStatus.candidate!.id)}
+                  >
+                    {copy.verifyCandidateRoute}
+                  </Button>
+                ) : null}
+                {routeStatus.candidate ? (
+                  <Button
+                    disabled={routeMutating || routeVerifying}
                     onClick={onDiscardCandidate}
                   >
                     {copy.discardCandidateRoute}
@@ -348,6 +432,12 @@ export function PublicAccessView({
           <div className="section-note section-note--warning public-access-note">
             <strong>{copy.routeIntentTitle}</strong>
             <span>{routeStatusError}</span>
+          </div>
+        ) : null}
+        {verificationStatusError ? (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.verificationStatus}</strong>
+            <span>{verificationStatusError}</span>
           </div>
         ) : null}
         <div className="gpt-inline-note public-access-route-safety">
