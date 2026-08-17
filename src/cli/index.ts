@@ -35,6 +35,7 @@ import {
 } from "../auth/machine-api-token.js";
 import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
 import {
+  generateRandomConsolePathPrefix,
   loadAccessPolicy,
   updateAccessPolicy
 } from "../security/access-policy.js";
@@ -69,6 +70,7 @@ Usage:
   ${identity.cliName} machine-token show [--json]
   ${identity.cliName} machine-token rotate [--json]
   ${identity.cliName} access-policy status [--json]
+  ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
@@ -391,6 +393,15 @@ async function main(): Promise<void> {
           }
           return;
         }
+        case "generate-console-path": {
+          const consolePathPrefix = generateRandomConsolePathPrefix();
+          if (process.argv.includes("--json")) {
+            printJson({ consolePathPrefix });
+          } else {
+            process.stdout.write(`Generated console path: ${consolePathPrefix}\n`);
+          }
+          return;
+        }
         case "set": {
           const current = loadAccessPolicy(paths);
           const consolePathPrefix = getFlag("--console-path");
@@ -418,7 +429,7 @@ async function main(): Promise<void> {
           return;
         }
         default:
-          throw new Error("access-policy requires one of: status, set");
+          throw new Error("access-policy requires one of: status, generate-console-path, set");
       }
     }
     case "operator": {

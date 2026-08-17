@@ -348,10 +348,25 @@ struct SettingsView: View {
 
             Section(DesktopL10n.string("Access Policy")) {
                 LabeledContent(DesktopL10n.string("Console path")) {
-                    TextField("/cc-random-entry", text: $consolePathPrefix)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 300)
+                    HStack(spacing: 8) {
+                        TextField("", text: $consolePathPrefix)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 264)
+                            .disabled(model.accessPolicyStatus == nil || model.isSecurityRefreshing || model.isGeneratingConsolePath)
+
+                        iconActionButton(
+                            systemName: model.isGeneratingConsolePath ? "arrow.triangle.2.circlepath" : "arrow.clockwise",
+                            title: DesktopL10n.string("Generate a new random console path"),
+                            disabled: model.accessPolicyStatus == nil || model.isSecurityRefreshing || model.isGeneratingConsolePath
+                        ) {
+                            Task {
+                                if let candidate = await model.generateRandomConsolePathCandidate() {
+                                    consolePathPrefix = candidate
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Toggle(DesktopL10n.string("Enable trusted LAN access"), isOn: $trustedLanEnabled)
@@ -390,21 +405,23 @@ struct SettingsView: View {
 
                 HStack {
                     Button(DesktopL10n.string("Apply Access Policy")) {
-                        let cidrs = trustedLanCidrsText
-                            .split(whereSeparator: { $0.isNewline || $0 == "," })
-                            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                            .filter { !$0.isEmpty }
                         Task {
                             await model.applyAccessPolicy(
                                 consolePathPrefix: consolePathPrefix,
                                 trustedLanEnabled: trustedLanEnabled,
-                                trustedLanCidrs: cidrs
+                                trustedLanCidrs: parsedTrustedLanCidrs
                             )
                         }
                     }
-                    .disabled(trustedLanEnabled && trustedLanCidrsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!canApplyAccessPolicy)
                     .help(DesktopL10n.string("Apply Access Policy"))
                     .accessibilityLabel(DesktopL10n.string("Apply Access Policy"))
+
+                    if hasAccessPolicyChanges {
+                        Label(DesktopL10n.string("Changes not applied yet"), systemImage: "circle.dashed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     if let feedback = model.securityFeedback,
                        feedback.target == .accessPolicy,
@@ -447,6 +464,31 @@ struct SettingsView: View {
                 syncAccessPolicyFields()
             }
         }
+    }
+
+    private var parsedTrustedLanCidrs: [String] {
+        trustedLanCidrsText
+            .split(whereSeparator: { $0.isNewline || $0 == "," })
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var hasAccessPolicyChanges: Bool {
+        guard let policy = model.accessPolicyStatus else { return false }
+        return consolePathPrefix.trimmingCharacters(in: .whitespacesAndNewlines) != policy.consolePathPrefix
+            || trustedLanEnabled != policy.trustedLan.enabled
+            || Set(parsedTrustedLanCidrs) != Set(policy.trustedLan.cidrs)
+    }
+
+    private var canApplyAccessPolicy: Bool {
+        guard model.accessPolicyStatus != nil,
+              !model.isSecurityRefreshing,
+              !model.isGeneratingConsolePath,
+              !consolePathPrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              hasAccessPolicyChanges else {
+            return false
+        }
+        return !trustedLanEnabled || !parsedTrustedLanCidrs.isEmpty
     }
 
     private func syncAccessPolicyFields() {

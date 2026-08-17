@@ -184,6 +184,14 @@ public struct DesktopAccessPolicy: Decodable, Equatable, Sendable {
     }
 }
 
+public struct DesktopGeneratedConsolePath: Decodable, Equatable, Sendable {
+    public let consolePathPrefix: String
+
+    public init(consolePathPrefix: String) {
+        self.consolePathPrefix = consolePathPrefix
+    }
+}
+
 public enum DesktopSummaryUnavailableReason: String, Decodable, Equatable, Sendable {
     case jobStoreUnavailable = "job-store-unavailable"
     case continuityStoreUnavailable = "continuity-store-unavailable"
@@ -304,6 +312,19 @@ public struct DesktopAuthorityClient: Sendable {
             DesktopAccessPolicy.self,
             from: runCLI(context: context, arguments: ["access-policy", "status", "--json"])
         )
+    }
+
+    public func generateConsolePath(
+        context: DesktopDistributionContext
+    ) async throws -> String {
+        let generated = try await decode(
+            DesktopGeneratedConsolePath.self,
+            from: runCLI(
+                context: context,
+                arguments: ["access-policy", "generate-console-path", "--json"]
+            )
+        )
+        return generated.consolePathPrefix
     }
 
     public func setAccessPolicy(
