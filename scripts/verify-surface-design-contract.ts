@@ -44,6 +44,11 @@ assertIncludesAll(
     "No WKWebView shortcut.",
     "Canonical console routing applies everywhere.",
     "Unavailable is not zero.",
+    "Connectivity is provider-neutral.",
+    "Nothing is installed by default.",
+    "Public endpoint changes use staged cutover.",
+    "Provider secrets remain machine-local.",
+    "Public Access / Connectivity",
     "## Capability Placement Matrix"
   ],
   "English Surface Design Contract"
@@ -63,6 +68,11 @@ assertIncludesAll(
     "App 不复制工作流工作台。",
     "不使用 WKWebView 套壳解决一致性。",
     "Unavailable 不是 0。",
+    "Connectivity 必须 Provider-neutral。",
+    "默认不安装任何 Provider。",
+    "公网端点切换必须 staged cutover。",
+    "Provider Secret 必须保持 machine-local。",
+    "公网接入 / Public Access（Connectivity）",
     "## Capability Placement Matrix"
   ],
   "Chinese Surface Design Contract"
@@ -107,6 +117,12 @@ const requiredCapabilityRows = [
   "| Approvals | Observe summary | Observe summary + Bridge | Act | Operator |",
   "| Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |",
   "| Integrations / ChatGPT OAuth / Passkeys | None | Observe status + Bridge | Act | Operator |",
+  "| Public Endpoint / reachability / TLS / DNS | Observe summary | Observe summary + Bridge | Act | Operator |",
+  "| Connectivity provider selection / domain / route intent | None | Observe status + Bridge | Act | Operator |",
+  "| Connectivity provider install / update / uninstall | None | Act | Bridge | Machine |",
+  "| Connectivity provider machine service lifecycle | Observe summary | Act | Observe | Machine |",
+  "| Connectivity provider credential plaintext | None | Act | None | Machine |",
+  "| Tunnel route health / logs / diagnostics | Observe summary | Observe summary + Bridge | Act | Runtime |",
   "| App / Runtime update management | Observe status + Bridge | Act | None | Machine |"
 ];
 assertIncludesAll(contract, requiredCapabilityRows, "Capability Placement Matrix");

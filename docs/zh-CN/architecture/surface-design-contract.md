@@ -52,6 +52,8 @@ Web Cockpit 持有 **Operator Authority（操作员权限）**，承担完整的
 
 Web Cockpit 可以显示 public-safe 的机器状态，但不能展示本机秘密，也不能成为第二套本机 Runtime 所有权实现。
 
+公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。
+
 ### Runtime — 唯一业务真源与执行层
 
 Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同一套 Runtime / Application Projection，而不是各自重新推断业务真相。
@@ -68,6 +70,10 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 6. **不使用 WKWebView 套壳解决一致性。** Native 与 Web 共享的是产品语义和视觉语言，不是实现技术。
 7. **所有 Web 跳转都使用真实控制台入口。** 不得假设固定 `/ui`。
 8. **Unavailable 不是 0。** 读不到运维投影时必须显示 unknown / unavailable，不能伪造为 `0` 或健康。
+9. **Connectivity 必须 Provider-neutral。** 公网接入围绕 Endpoint、Route、Provider、Health 与 Diagnostics 建模，不能让 ServBay、FRP、Cloudflare Tunnel、ngrok、Pinggy 或任何其他 Provider 变成核心产品身份的一部分。
+10. **默认不安装任何 Provider。** Connectivity Provider 全部可选；已有环境可以检测并复用。安装、升级、卸载以及本机 Service Mutation 必须经过明确的 Machine Authority。
+11. **公网端点切换必须 staged cutover。** 先配置并验证候选 Route，再将其提升为 Canonical Public Endpoint；候选失败不能破坏当前仍然可用的公网入口。
+12. **Provider Secret 必须保持 machine-local。** Web 可以显示已配置/缺失状态并发起 Machine Bridge，但 Tunnel Token、FRP 凭据、Provider Auth Token 等明文绝不能进入 Web 渲染层。
 
 ## 统一状态语义
 
@@ -121,6 +127,12 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 | Approvals | Observe 摘要 | Observe 摘要 + Bridge | Act | Operator |
 | Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |
 | Integrations / ChatGPT OAuth / Passkeys | None | Observe 状态 + Bridge | Act | Operator |
+| Public Endpoint / 可达性 / TLS / DNS | Observe 摘要 | Observe 摘要 + Bridge | Act | Operator |
+| Connectivity Provider 选择 / 域名 / Route 意图 | None | Observe 状态 + Bridge | Act | Operator |
+| Connectivity Provider 安装 / 更新 / 卸载 | None | Act | Bridge | Machine |
+| Connectivity Provider 本机 Service 生命周期 | Observe 摘要 | Act | Observe | Machine |
+| Connectivity Provider 凭据明文 | None | Act | None | Machine |
+| Tunnel Route 健康 / 日志 / 诊断 | Observe 摘要 | Observe 摘要 + Bridge | Act | Runtime |
 | App / Runtime 更新管理 | Observe 状态 + Bridge | Act | None | Machine |
 | 本机诊断 / Ownership Conflict | Observe 摘要 + Bridge | Act | None | Machine |
 | Audit 与工作流历史 | None | Bridge | Act | Operator |
@@ -154,6 +166,9 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 - TOTP two-factor authentication / TOTP 双重认证
 - Recovery codes / 恢复码
 - ChatGPT OAuth
+- Public Access / 公网接入
+- Connectivity Provider / 接入组件
+- Public Endpoint / 公网端点
 
 不同语言可以调整语序与表达，但不能针对同一个 Authority 或 Endpoint 再造第二套产品概念。
 
