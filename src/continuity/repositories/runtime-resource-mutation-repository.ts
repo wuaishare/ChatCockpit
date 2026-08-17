@@ -287,6 +287,17 @@ export class RuntimeResourceMutationRepository {
     return approvalFromRow(requireRecord(row, "Runtime Resource mutation approval", id));
   }
 
+  countPending(now: string): number {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM runtime_resource_mutation_approvals
+        WHERE status = 'pending' AND expires_at > ?
+      `)
+      .get(now) as { count: number };
+    return Number(row.count);
+  }
+
   listApprovals(input: {
     workspaceId: string;
     resourceId?: string;

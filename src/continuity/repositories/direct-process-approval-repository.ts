@@ -140,6 +140,17 @@ export class DirectProcessApprovalRepository {
     return approvalFromRow(requireRecord(row, "Direct process approval", id));
   }
 
+  countPending(now: string): number {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM direct_process_approvals
+        WHERE status = 'pending' AND expires_at > ?
+      `)
+      .get(now) as { count: number };
+    return Number(row.count);
+  }
+
   expireIfNeeded(id: string, now: string): DirectProcessApprovalRecord {
     const current = this.get(id);
     if (["pending", "approved"].includes(current.status) && current.expiresAt <= now) {

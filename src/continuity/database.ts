@@ -56,6 +56,7 @@ export const LATEST_CONTINUITY_SCHEMA_VERSION =
 
 export interface ContinuityDatabaseOptions {
   path: string;
+  readOnly?: boolean;
 }
 
 export class ContinuityDatabase {
@@ -66,17 +67,31 @@ export class ContinuityDatabase {
 
   constructor(options: ContinuityDatabaseOptions) {
     this.path = options.path;
-    if (this.path !== ":memory:") {
+    const readOnly = options.readOnly === true;
+    if (this.path !== ":memory:" && !readOnly) {
       fs.mkdirSync(path.dirname(this.path), { recursive: true });
     }
 
-    this.sqlite = new DatabaseSync(this.path);
+    this.sqlite = new DatabaseSync(this.path, { readOnly });
     this.sqlite.exec("PRAGMA foreign_keys = ON");
     this.sqlite.exec("PRAGMA busy_timeout = 5000");
-    if (this.path !== ":memory:") {
+    if (this.path !== ":memory:" && !readOnly) {
       this.sqlite.exec("PRAGMA journal_mode = WAL");
     }
-    this.initializeSchema();
+    if (readOnly) {
+      const currentVersion = this.schemaVersion();
+      if (currentVersion > LATEST_CONTINUITY_SCHEMA_VERSION) {
+        throw new ServiceError(
+          "SCHEMA_VERSION_UNSUPPORTED",
+          `Continuity schema version ${currentVersion} is newer than supported version ${LATEST_CONTINUITY_SCHEMA_VERSION}`,
+          {
+            hint: "Upgrade ChatCockpit before reading this continuity database."
+          }
+        );
+      }
+    } else {
+      this.initializeSchema();
+    }
   }
 
   close(): void {

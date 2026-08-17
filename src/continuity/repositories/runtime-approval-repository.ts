@@ -150,6 +150,17 @@ export class RuntimeApprovalRepository {
     return row ? approvalFromRow(row) : null;
   }
 
+  countPending(): number {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM runtime_approvals
+        WHERE status = 'pending'
+      `)
+      .get() as { count: number };
+    return Number(row.count);
+  }
+
   listPendingByWorkspace(workspaceId: string): RuntimeApprovalRecord[] {
     const rows = this.database.sqlite
       .prepare(`

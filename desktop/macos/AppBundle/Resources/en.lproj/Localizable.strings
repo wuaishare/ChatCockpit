@@ -223,6 +223,12 @@
 "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication." = "Opening Local Cockpit from this App uses a single-use loopback login grant when the console administrator is configured. The grant expires quickly, is never persisted in browser storage, and does not weaken public authentication.";
 "Runtime controls" = "Runtime controls";
 "Runtime Health" = "Runtime Health";
+"Activity" = "Activity";
+"Running jobs" = "Running jobs";
+"Queued jobs" = "Queued jobs";
+"Failed records" = "Failed records";
+"Pending approvals" = "Pending approvals";
+"Stored failed job records are historical records, not active Runtime failures." = "Stored failed job records are historical records, not active Runtime failures.";
 "Access" = "Access";
 "Environment" = "Environment";
 "Trusted LAN" = "Trusted LAN";

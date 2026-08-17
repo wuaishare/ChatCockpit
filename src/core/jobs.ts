@@ -24,6 +24,13 @@ export interface ListJobsPage {
   totalVisible: number;
 }
 
+export interface JobStatusSummary {
+  queued: number;
+  running: number;
+  completed: number;
+  failed: number;
+}
+
 const JOB_STATUS_DIR_KEYS: Record<JobStatus, keyof TokenPilotPaths> = {
   queued: "queuedJobsDir",
   running: "runningJobsDir",
@@ -156,6 +163,40 @@ export function getJob(
   }
 
   return null;
+}
+
+export function summarizeJobsReadOnly(paths: TokenPilotPaths): JobStatusSummary {
+  const jobs = new Map<string, JobRecord<TokenPilotJobPayload>>();
+  for (const directory of [
+    paths.queuedJobsDir,
+    paths.runningJobsDir,
+    paths.completedJobsDir,
+    paths.failedJobsDir
+  ]) {
+    for (const { job } of listStatusJobs(directory)) {
+      jobs.set(job.id, job);
+    }
+  }
+
+  if (fs.existsSync(paths.jobsDir)) {
+    const reservedDirs = new Set(["queued", "running", "completed", "failed"]);
+    for (const name of fs.readdirSync(paths.jobsDir)) {
+      if (reservedDirs.has(name) || !name.endsWith(".json")) continue;
+      const job = readJobFile(path.join(paths.jobsDir, name));
+      if (!jobs.has(job.id)) jobs.set(job.id, job);
+    }
+  }
+
+  const summary: JobStatusSummary = {
+    queued: 0,
+    running: 0,
+    completed: 0,
+    failed: 0
+  };
+  for (const job of jobs.values()) {
+    summary[job.status] += 1;
+  }
+  return summary;
 }
 
 export function listJobs(paths: TokenPilotPaths): JobRecord<TokenPilotJobPayload>[] {
