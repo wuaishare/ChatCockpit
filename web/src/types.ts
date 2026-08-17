@@ -185,6 +185,37 @@ export interface GptConfigResponse {
   config: GptConfigModel;
 }
 
+export type ConnectivityProviderDetection = "detected" | "not-detected" | "probe-failed";
+export type ConnectivityProviderMachineAction = "install" | "upgrade" | "uninstall";
+export type ConnectivityProviderActionUnavailableReason =
+  | "homebrew-not-detected"
+  | "provider-already-detected"
+  | "provider-not-detected"
+  | "provider-not-managed"
+  | "provider-probe-failed"
+  | "adapter-not-implemented";
+
+export interface ConnectivityProviderPublicActionAvailability {
+  action: ConnectivityProviderMachineAction;
+  available: boolean;
+  reason: ConnectivityProviderActionUnavailableReason | null;
+}
+
+export interface ConnectivityProviderPublicStatus {
+  id: "cloudflare-tunnel" | "ngrok" | "frp-client";
+  displayName: string;
+  detection: ConnectivityProviderDetection;
+  version: string | null;
+  managedByChatCockpit: boolean;
+  actions: ConnectivityProviderPublicActionAvailability[];
+}
+
+export interface ConnectivityProviderPublicSnapshot {
+  ok: true;
+  schemaVersion: 1;
+  providers: ConnectivityProviderPublicStatus[];
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

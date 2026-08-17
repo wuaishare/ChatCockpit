@@ -45,6 +45,10 @@ import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildIntegrationStatusSnapshot } from "../core/integration-status.js";
+import {
+  buildConnectivityProviderPublicSnapshot,
+  type ConnectivityProviderPublicSnapshot
+} from "../connectivity/provider-public-projection.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
@@ -206,6 +210,7 @@ export interface BuildServerOptions {
   runtimeResourceMutationNow?: () => string;
   directExecutorsConfigPath?: string;
   acpRegistryAdapter?: AcpRegistryAdapter | null;
+  connectivityProviderPublicSnapshot?: () => ConnectivityProviderPublicSnapshot;
 }
 
 export function buildServer(
@@ -528,6 +533,10 @@ export function buildServer(
       oauthSummary: oauthStore?.integrationSummary(new Date().toISOString()) ?? null,
       toolCount: mcpToolCount
     });
+
+  const connectivityProviderStatusHandler = async () =>
+    options.connectivityProviderPublicSnapshot?.() ??
+    buildConnectivityProviderPublicSnapshot({ runtimeDir: paths.runtimeDir });
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
@@ -1117,6 +1126,7 @@ export function buildServer(
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
+  app.get("/api/connectivity/providers", connectivityProviderStatusHandler);
 
   app.get("/api/setup/status", setupStatusHandler);
   app.get("/tokenpilot/api/setup/status", setupStatusHandler);

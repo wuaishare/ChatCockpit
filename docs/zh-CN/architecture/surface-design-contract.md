@@ -52,7 +52,7 @@ Web Cockpit 持有 **Operator Authority（操作员权限）**，承担完整的
 
 Web Cockpit 可以显示 public-safe 的机器状态，但不能展示本机秘密，也不能成为第二套本机 Runtime 所有权实现。
 
-公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。
+公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。当前已实现的工作台还会消费受保护的 public-safe 机器 Provider 投影，其中只包含 Provider identity/display name、探测状态、版本、ChatCockpit ownership 以及动作可用性/原因；机器执行、内部 Adapter identity、可执行文件路径、Provider 原始输出、Mutation Plan 与 Secret 继续严格留在 Web 之外。
 
 ### Runtime — 唯一业务真源与执行层
 

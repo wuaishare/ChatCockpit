@@ -3,13 +3,21 @@ import { CopyButton, Text } from "@lobehub/ui";
 import { ClipboardCopy } from "lucide-react";
 import type { LocaleCode } from "../i18n";
 import { getPublicAccessCopy } from "../i18n/public-access";
-import type { IntegrationStatusResponse } from "../types";
+import type {
+  ConnectivityProviderDetection,
+  ConnectivityProviderMachineAction,
+  ConnectivityProviderPublicSnapshot,
+  ConnectivityProviderPublicStatus,
+  IntegrationStatusResponse
+} from "../types";
 import { SectionCard } from "./SectionCard";
 
 interface PublicAccessViewProps {
   locale: LocaleCode;
   status: IntegrationStatusResponse;
   exposed: boolean;
+  providerStatus: ConnectivityProviderPublicSnapshot | null;
+  providerStatusError: string | null;
   onOpenIntegrations: () => void;
 }
 
@@ -38,10 +46,51 @@ function EndpointValue({
   );
 }
 
+function providerDetectionLabel(
+  detection: ConnectivityProviderDetection,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  if (detection === "detected") return copy.providerDetected;
+  if (detection === "not-detected") return copy.providerNotDetected;
+  return copy.providerProbeFailed;
+}
+
+function providerDetectionColor(detection: ConnectivityProviderDetection): "success" | "default" | "warning" {
+  if (detection === "detected") return "success";
+  if (detection === "probe-failed") return "warning";
+  return "default";
+}
+
+function providerActionLabel(
+  action: ConnectivityProviderMachineAction,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  if (action === "install") return copy.actionInstall;
+  if (action === "upgrade") return copy.actionUpgrade;
+  return copy.actionUninstall;
+}
+
+function providerCapabilitySummary(
+  provider: ConnectivityProviderPublicStatus,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  if (provider.actions.every((action) => action.reason === "adapter-not-implemented")) {
+    return copy.providerObserveOnly;
+  }
+  if (provider.managedByChatCockpit) return copy.providerManaged;
+  if (provider.detection === "detected") return copy.providerExternalUnmanaged;
+  if (provider.actions.some((action) => action.reason === "homebrew-not-detected")) {
+    return copy.providerHomebrewRequired;
+  }
+  return copy.providerNoMachineAction;
+}
+
 export function PublicAccessView({
   locale,
   status,
   exposed,
+  providerStatus,
+  providerStatusError,
   onOpenIntegrations
 }: PublicAccessViewProps) {
   const copy = getPublicAccessCopy(locale);
@@ -161,6 +210,45 @@ export function PublicAccessView({
         <div className="gpt-inline-note">
           <Text>{copy.machineBoundary}</Text>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title={copy.providersTitle}
+        description={copy.providersDescription}
+      >
+        {providerStatus ? (
+          <div className="gpt-facts">
+            {providerStatus.providers.map((provider) => {
+              const availableActions = provider.actions
+                .filter((action) => action.available)
+                .map((action) => providerActionLabel(action.action, copy));
+              return (
+                <div className="gpt-fact" key={provider.id}>
+                  <span>{provider.displayName}</span>
+                  <strong className="public-access-provider-status">
+                    <span className="public-access-provider-primary">
+                      <Tag color={providerDetectionColor(provider.detection)}>
+                        {providerDetectionLabel(provider.detection, copy)}
+                      </Tag>
+                      {provider.version ? <span>{provider.version}</span> : null}
+                    </span>
+                    <Text type="secondary">{providerCapabilitySummary(provider, copy)}</Text>
+                    {availableActions.length > 0 ? (
+                      <Text type="secondary">
+                        {copy.providerMachineActions}: {availableActions.join(" / ")} · {copy.providerUseAppCli}
+                      </Text>
+                    ) : null}
+                  </strong>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.providersTitle}</strong>
+            <span>{providerStatusError ?? copy.providerStatusUnavailable}</span>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard
