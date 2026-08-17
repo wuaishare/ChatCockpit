@@ -9,6 +9,7 @@ import {
   hashOperatorSessionSecret,
   operatorDatabasePath
 } from "../src/auth/operator-store.js";
+import { operatorCredentialVaultPath } from "../src/auth/operator-credential-vault.js";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -39,6 +40,7 @@ function main(): void {
   assert.deepEqual(parseJsonOutput(result.stdout), {
     configured: false,
     username: null,
+    credentialAvailable: false,
     activeSessionCount: 0
   });
 
@@ -53,6 +55,19 @@ function main(): void {
   assert.equal(updated.revokedSessionCount, 0);
   assert.equal(result.stdout.includes(password), false);
   assert.equal(result.stderr.includes(password), false);
+
+  const credentialPath = operatorCredentialVaultPath({
+    runtimeDir: path.join(home, ".chatcockpit", "runtime")
+  });
+  assert.equal(fs.existsSync(credentialPath), true);
+  assert.equal(fs.statSync(credentialPath).mode & 0o777, 0o600);
+
+  result = runCli(home, ["operator", "credentials", "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  const credential = parseJsonOutput(result.stdout);
+  assert.equal(credential.available, true);
+  assert.equal(credential.username, "owner");
+  assert.equal(credential.password, password);
 
   const databasePath = operatorDatabasePath(path.join(home, ".chatcockpit", "runtime"));
   assert.equal(fs.existsSync(databasePath), true);
@@ -85,7 +100,10 @@ function main(): void {
 
   result = runCli(home, ["operator", "status", "--json"]);
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(parseJsonOutput(result.stdout).activeSessionCount, 1);
+  const statusWithSession = parseJsonOutput(result.stdout);
+  assert.equal(statusWithSession.activeSessionCount, 1);
+  assert.equal(statusWithSession.credentialAvailable, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(statusWithSession, "password"), false);
 
   result = runCli(home, ["operator", "revoke-sessions", "--json"]);
   assert.equal(result.status, 0, result.stderr);

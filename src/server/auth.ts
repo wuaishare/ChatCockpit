@@ -30,10 +30,15 @@ const OPERATOR_PUBLIC_PATHS = new Set([
 ]);
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const CONSOLE_ENTRY_HEADER = "x-chatcockpit-console-path";
 
 function requestPath(url: string): string {
   const queryIndex = url.indexOf("?");
   return queryIndex >= 0 ? url.slice(0, queryIndex) : url;
+}
+
+function isOperatorPublicPath(url: string): boolean {
+  return OPERATOR_PUBLIC_PATHS.has(requestPath(url));
 }
 
 function isPublicPath(url: string, consolePathPrefix: string): boolean {
@@ -47,9 +52,6 @@ function isPublicPath(url: string, consolePathPrefix: string): boolean {
     pathname === "/tokenpilot/api/health" ||
     pathname === "/openapi.yaml" ||
     pathname === "/privacy-policy" ||
-    pathname === "/ui" ||
-    pathname === "/ui/" ||
-    pathname.startsWith("/ui/") ||
     pathname === consolePathPrefix ||
     pathname === `${consolePathPrefix}/` ||
     pathname.startsWith(`${consolePathPrefix}/`)
@@ -64,6 +66,12 @@ function isDirectLoopbackRequest(request: FastifyRequest): boolean {
     hostname === "::1" ||
     isLoopbackProxyAddress(hostname);
   return loopbackHost && isLoopbackProxyAddress(socketAddress);
+}
+
+function isConcealedLegacyConsolePath(url: string, consolePathPrefix: string): boolean {
+  if (consolePathPrefix === "/ui") return false;
+  const pathname = requestPath(url);
+  return pathname === "/ui" || pathname === "/ui/" || pathname.startsWith("/ui/");
 }
 
 function isMcpPath(url: string): boolean {
@@ -136,6 +144,20 @@ export function createTokenPilotAuthPlugin(
 
     app.addHook("preHandler", async (request, reply) => {
       request.chatCockpitAuth = { kind: "anonymous" };
+
+      if (isConcealedLegacyConsolePath(request.url, consolePathPrefix)) {
+        reply.code(404).type("text/plain; charset=utf-8");
+        return reply.send("Not Found");
+      }
+
+      if (
+        consolePathPrefix !== "/ui" &&
+        isOperatorPublicPath(request.url) &&
+        request.headers[CONSOLE_ENTRY_HEADER] !== consolePathPrefix
+      ) {
+        reply.code(404).type("text/plain; charset=utf-8");
+        return reply.send("Not Found");
+      }
 
       const sessionSecret = operator ? readOperatorSessionCookie(request) : null;
       const operatorSession =

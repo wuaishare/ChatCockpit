@@ -113,6 +113,45 @@ async function main(): Promise<void> {
     assert.equal(rootStatus.json().ui, null, "anonymous root status must not disclose a custom console path");
     assert.doesNotMatch(rootStatus.body, /ops-7a3f/);
 
+    const concealedOperatorStatus = await app.inject({
+      method: "GET",
+      url: "/api/operator/status"
+    });
+    assert.equal(
+      concealedOperatorStatus.statusCode,
+      404,
+      "custom console path knowledge must gate the anonymous Owner auth surface"
+    );
+    const wrongEntryOperatorStatus = await app.inject({
+      method: "GET",
+      url: "/api/operator/status",
+      headers: { "x-chatcockpit-console-path": "/wrong-entry" }
+    });
+    assert.equal(wrongEntryOperatorStatus.statusCode, 404);
+    const knownEntryOperatorStatus = await app.inject({
+      method: "GET",
+      url: "/api/operator/status",
+      headers: { "x-chatcockpit-console-path": "/ops-7a3f" }
+    });
+    assert.equal(knownEntryOperatorStatus.statusCode, 200);
+    const concealedOperatorLogin = await app.inject({
+      method: "POST",
+      url: "/api/operator/login",
+      payload: {}
+    });
+    assert.equal(concealedOperatorLogin.statusCode, 404);
+    const knownEntryOperatorLogin = await app.inject({
+      method: "POST",
+      url: "/api/operator/login",
+      headers: { "x-chatcockpit-console-path": "/ops-7a3f" },
+      payload: {}
+    });
+    assert.equal(
+      knownEntryOperatorLogin.statusCode,
+      400,
+      "known console entry may reach normal login validation"
+    );
+
     const customEntry = await app.inject({ method: "GET", url: "/ops-7a3f" });
     assert.equal(customEntry.statusCode, 200);
     assert.match(customEntry.body, /chatcockpit-console-base/);

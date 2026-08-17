@@ -45,6 +45,11 @@ assert.equal((source.match(/<string>\$\{RUNTIME_PATH\}<\/string>/g) ?? []).lengt
 assert.match(source, /DISTRIBUTION_MODE="\$\(identity_env_value DISTRIBUTION_MODE\)"/);
 assert.match(source, /DISTRIBUTION_MODE="\$\{DISTRIBUTION_MODE:-source\}"/);
 assert.match(source, /RUNTIME_DIR="\$\{STATE_ROOT\}\/runtime"/);
+assert.match(source, /ACCESS_POLICY_FILE="\$\{RUNTIME_DIR\}\/access-policy\.json"/);
+assert.match(source, /console_path_prefix\(\)/);
+assert.match(source, /console_url\(\)/);
+assert.equal((source.match(/echo "UI: \$\(console_url\)"/g) ?? []).length, 3);
+assert.doesNotMatch(source, /echo "UI: http:\/\/\$\{HOST\}:\$\{PORT\}\/ui"/);
 assert.match(source, /<string>\$\{NODE_BIN\}<\/string>/);
 assert.match(source, /<key>\$\{ENV_PREFIX\}_STATE_ROOT<\/key>/);
 assert.match(source, /<string>\$\{STATE_ROOT\}<\/string>/);

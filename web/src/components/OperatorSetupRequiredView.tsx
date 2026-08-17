@@ -1,4 +1,4 @@
-import { Button, Card, Space, Typography } from "antd";
+import { Alert, Button, Card, Space, Typography } from "antd";
 import { DesktopOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import { getUiCopy, type LocaleCode } from "../i18n";
@@ -7,6 +7,8 @@ interface OperatorSetupRequiredViewProps {
   locale: LocaleCode;
   checking: boolean;
   desktopSetupAvailable: boolean;
+  feedback: string | null;
+  feedbackError: boolean;
   onRefresh: () => void | Promise<void>;
 }
 
@@ -14,6 +16,8 @@ export function OperatorSetupRequiredView({
   locale,
   checking,
   desktopSetupAvailable,
+  feedback,
+  feedbackError,
   onRefresh
 }: OperatorSetupRequiredViewProps) {
   const copy = getUiCopy(locale).operatorAuth;
@@ -46,10 +50,18 @@ export function OperatorSetupRequiredView({
             block
             size="large"
             loading={checking}
+            disabled={checking}
             onClick={() => void onRefresh()}
           >
             {copy.setupRefresh}
           </Button>
+          {feedback ? (
+            <Alert
+              showIcon
+              type={feedbackError ? "error" : "info"}
+              message={feedback}
+            />
+          ) : null}
         </Space>
       </Card>
     </div>

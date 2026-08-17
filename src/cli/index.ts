@@ -25,6 +25,10 @@ import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js"
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorService } from "../auth/operator-service.js";
 import {
+  operatorCredentialVaultMatchesOwner,
+  readOperatorCredentialVault
+} from "../auth/operator-credential-vault.js";
+import {
   machineApiTokenStatus,
   readMachineApiToken,
   rotateMachineApiToken
@@ -34,6 +38,10 @@ import {
   loadAccessPolicy,
   updateAccessPolicy
 } from "../security/access-policy.js";
+import {
+  ensureSecureBootstrap,
+  setOperatorOwnerPasswordWithVault
+} from "../security/secure-bootstrap.js";
 import { readDesktopOperationalSummary } from "../application/desktop-operational-summary-service.js";
 
 function printUsage(): void {
@@ -53,6 +61,7 @@ Usage:
   ${identity.cliName} jobs
   ${identity.cliName} job --id "<job-id>"
   ${identity.cliName} operator status [--json]
+  ${identity.cliName} operator credentials [--json]
   ${identity.cliName} operator set-password [--username owner] [--password-stdin] [--json]
   ${identity.cliName} operator local-login-grant [--json]
   ${identity.cliName} operator revoke-sessions [--json]
@@ -192,10 +201,17 @@ async function main(): Promise<void> {
       const result = initLocalRuntime(paths, {
         force: process.argv.includes("--force")
       });
+      const secureBootstrap = await ensureSecureBootstrap(paths);
       if (process.argv.includes("--json")) {
-        printJson(result);
+        printJson({ ...result, secureBootstrap });
       } else {
         printInitResult(result, paths.repoRoot);
+        if (secureBootstrap.ownerCreated) {
+          process.stdout.write("Web Owner: generated machine-local credentials; reveal them from the ChatCockpit App or the local operator credentials command.\n");
+        }
+        if (secureBootstrap.consolePathRandomized) {
+          process.stdout.write("Console path: generated a randomized machine-local entry path.\n");
+        }
       }
       return;
     }
@@ -415,8 +431,13 @@ async function main(): Promise<void> {
         switch (subcommand) {
           case "status": {
             const status = service.status();
+            const owner = service.store.getOwner();
             const result = {
               ...status,
+              credentialAvailable: operatorCredentialVaultMatchesOwner(
+                paths,
+                owner
+              ),
               activeSessionCount: service.listActiveSessions().length
             };
             if (process.argv.includes("--json")) {
@@ -425,7 +446,38 @@ async function main(): Promise<void> {
               process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} Web Operator\n`);
               process.stdout.write(`Configured: ${result.configured ? "yes" : "no"}\n`);
               process.stdout.write(`Username: ${result.username ?? "not configured"}\n`);
+              process.stdout.write(`Stored credential: ${result.credentialAvailable ? "available locally" : "not available"}\n`);
               process.stdout.write(`Active Web sessions: ${result.activeSessionCount}\n`);
+            }
+            return;
+          }
+          case "credentials": {
+            const status = service.status();
+            const owner = service.store.getOwner();
+            const credential = readOperatorCredentialVault(paths);
+            const result =
+              owner &&
+              credential &&
+              operatorCredentialVaultMatchesOwner(paths, owner)
+                ? {
+                    available: true,
+                    username: credential.username,
+                    password: credential.password,
+                    updatedAt: credential.updatedAt
+                  }
+                : {
+                    available: false,
+                    username: status.username,
+                    password: null,
+                    updatedAt: null
+                  };
+            if (process.argv.includes("--json")) {
+              printJson(result);
+            } else if (result.available) {
+              process.stdout.write(`Username: ${result.username}\n`);
+              process.stdout.write(`Password: ${result.password}\n`);
+            } else {
+              process.stdout.write("Stored Web Owner credential is not available. Reset the Owner password locally to create a recoverable machine-local credential.\n");
             }
             return;
           }
@@ -441,7 +493,11 @@ async function main(): Promise<void> {
                 throw new Error("Owner password confirmation does not match");
               }
             }
-            const result = await service.setOwnerPassword({ username, password });
+            const result = await setOperatorOwnerPasswordWithVault(
+              paths,
+              service,
+              { username, password }
+            );
             if (process.argv.includes("--json")) {
               printJson(result);
             } else {
@@ -473,7 +529,7 @@ async function main(): Promise<void> {
           }
           default:
             throw new Error(
-              "operator requires one of: status, set-password, local-login-grant, revoke-sessions"
+              "operator requires one of: status, credentials, set-password, local-login-grant, revoke-sessions"
             );
         }
       } finally {
@@ -481,6 +537,7 @@ async function main(): Promise<void> {
       }
     }
     case "server": {
+      await ensureSecureBootstrap(paths);
       const app = buildServer(paths);
       const port = Number(readIdentityEnv("PORT") ?? "4318");
       const host = readIdentityEnv("HOST") ?? "127.0.0.1";

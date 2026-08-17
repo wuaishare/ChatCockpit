@@ -11,6 +11,8 @@ PROCESS_SUPERVISOR_SERVICE_LABEL="com.wuaishare.chatcockpit.process-supervisor"
 USER_DOMAIN="gui/$(id -u)"
 RUNNER_STATUS_FILE="${RUNTIME_DIR}/runner-status.json"
 RUNNER_PID_FILE="${RUNTIME_DIR}/runner.pid"
+ACCESS_POLICY_FILE="${RUNTIME_DIR}/access-policy.json"
+NODE_BIN="${CHATCOCKPIT_NODE_BIN:-$(command -v node)}"
 failures=0
 
 HOST="127.0.0.1"
@@ -28,6 +30,21 @@ HOST="${CHATCOCKPIT_HOST:-$HOST}"
 PORT="${CHATCOCKPIT_PORT:-$PORT}"
 PUBLIC_BASE_URL="${CHATCOCKPIT_PUBLIC_BASE_URL:-}"
 PUBLIC_HOST=""
+CONSOLE_PATH_PREFIX="/ui"
+
+if [[ -f "${ACCESS_POLICY_FILE}" ]]; then
+  CONSOLE_PATH_PREFIX="$("${NODE_BIN}" -e '
+    const fs = require("node:fs");
+    try {
+      const raw = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const value = typeof raw.consolePathPrefix === "string" ? raw.consolePathPrefix.trim() : "";
+      if (!/^\/[A-Za-z0-9][A-Za-z0-9._~\/-]*$/.test(value)) process.exit(2);
+      process.stdout.write(value.replace(/\/+$/, ""));
+    } catch {
+      process.exit(2);
+    }
+  ' "${ACCESS_POLICY_FILE}" 2>/dev/null || printf '%s' "/ui")"
+fi
 
 if [[ -n "${PUBLIC_BASE_URL}" ]]; then
   PUBLIC_HOST="$(printf '%s' "${PUBLIC_BASE_URL}" | sed -E 's#^[a-zA-Z]+://([^/]+)/?.*$#\1#')"
@@ -137,7 +154,7 @@ else
 fi
 
 section "Local UI"
-if curl -sS -D - "http://${HOST}:${PORT}/ui" -o /tmp/chatcockpit-ui-body.out; then
+if curl -sS -D - "http://${HOST}:${PORT}${CONSOLE_PATH_PREFIX}" -o /tmp/chatcockpit-ui-body.out; then
   printf '\n'
   sed -n '1,8p' /tmp/chatcockpit-ui-body.out 2>/dev/null | redact_output || true
   printf '\n'

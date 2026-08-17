@@ -38,7 +38,7 @@ The implementation targets the current MCP authorization requirements and the Ch
 4. ChatGPT can obtain a public client ID through Dynamic Client Registration for compatibility. Client ID Metadata Documents are intentionally not fetched in this phase because server-side fetching would add an SSRF surface; DCR remains a supported compatibility mechanism.
 5. Authorization Code flow requires PKCE S256.
 6. Authorization requests validate exact registered redirect URIs, permitted redirect hosts, the protected resource audience, response type, scope, and state handling.
-7. OAuth browser approval requires an authenticated Web Owner session and its session-bound CSRF token. If the browser is not signed in, ChatCockpit preserves a single pending OAuth `request_id`, redirects through `/ui/login`, and resumes that same request after sign-in. The machine API token is never used as the browser approval credential.
+7. OAuth browser approval requires an authenticated Web Owner session and its session-bound CSRF token. If the browser is not signed in, ChatCockpit preserves a single pending OAuth `request_id`, redirects through `<console-path>/login`, and resumes that same request after sign-in. Fresh initialization randomizes `<console-path>`. The machine API token is never used as the browser approval credential.
 8. Authorization codes are short-lived and single-use.
 9. Access tokens are opaque, short-lived, audience-bound, and stored only as hashes at rest.
 10. Refresh tokens are opaque, longer-lived, audience-bound, stored only as hashes, and allow ChatGPT to remain connected after access-token expiry. `offline_access` is advertised by the authorization server but not by the protected resource metadata.
@@ -65,7 +65,7 @@ Stored records:
 - hashed refresh tokens;
 - revocation and expiry timestamps.
 
-No plaintext OAuth access/refresh token, Web Owner password/session secret, machine API token, local path, or private prompt is persisted.
+No plaintext OAuth access/refresh token, Web Owner **session** secret, machine API token, local path, or private prompt is persisted in the OAuth/Operator databases. The Web Owner password is still represented in `operator-auth.sqlite` only by its versioned slow hash; Secure Bootstrap additionally keeps one recoverable plaintext Owner credential in a separate owner-only (`0600`) machine-local credential vault so the native App can reveal/copy the generated password. That vault is excluded from Files APIs, Git/public bundles, source archives, browser responses, logs, and public-safe projections.
 
 ## Redirect and proxy security
 
@@ -94,9 +94,9 @@ The Fastify policy boundary enforces the separation:
 - a Web Operator cookie never authorizes MCP;
 - an OAuth access token never authorizes ordinary Web/REST administration routes.
 
-Initial Owner password setup is local-only through `chatcockpit operator set-password` (or the source checkout's built CLI). There is no anonymous public endpoint that creates an Owner account. Login throttling, expiry/revocation, and audit metadata are persisted in a separate private `operator-auth.sqlite`; plaintext passwords and raw session secrets are not persisted.
+Secure Bootstrap creates the first Owner locally during `init` or before the Control Plane starts, using a randomized username, strong random password, and randomized console entry path. There is no anonymous public endpoint that creates or reveals an Owner account. `chatcockpit operator set-password` remains the explicit local recovery/change path. Login throttling, expiry/revocation, and audit metadata live in the private `operator-auth.sqlite`; the password stored there is only the slow hash, while the separate owner-only credential vault described above exists solely for local App recovery/reveal.
 
-Public OAuth discovery, registration, authorization transport, token, revoke, health, privacy, OpenAPI, static UI, and the minimal Operator status/login routes bypass protected REST enforcement only where required. OAuth authorization approval itself requires a valid Web Owner session plus CSRF; anonymous approval POSTs fail closed, and the authorization page contains no machine-token or password input.
+Public OAuth discovery, registration, authorization transport, token, revoke, health, privacy, and OpenAPI remain independently reachable where required. The Web console and its anonymous Owner authentication surface are entry-path gated: with a randomized/custom console path, legacy `/ui` and Owner status/login/Passkey-auth requests that do not prove knowledge of the current console entry return ordinary 404 responses. This is defense-in-depth layered on top of password/Passkey authentication, throttling, CSRF, and HTTPS; it is not treated as an authentication substitute. OAuth authorization approval itself still requires a valid Web Owner session plus CSRF, anonymous approval POSTs fail closed, and the authorization page contains no machine-token or password input.
 
 The MCP handler itself remains transport/authentication agnostic. A validated principal may be attached to request context, but existing REST/MCP domain services remain unchanged.
 

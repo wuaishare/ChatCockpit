@@ -152,6 +152,8 @@ export interface UiCopy {
     setupCommandLabel: string;
     setupCommand: string;
     setupRefresh: string;
+    setupStillRequired: string;
+    setupCheckFailed: string;
     loginTitle: string;
     loginDescription: string;
     username: string;
@@ -402,6 +404,8 @@ const zhCN: UiCopy = {
     setupCommandLabel: "也可以在本机终端执行",
     setupCommand: "chatcockpit operator set-password",
     setupRefresh: "我已设置，重新检查",
+    setupStillRequired: "仍未检测到控制台管理员账户。请在 ChatCockpit App 中查看或重设自动生成的管理员凭据，然后再检查。",
+    setupCheckFailed: "重新检查失败，请确认本机 ChatCockpit 服务仍在运行后重试。",
     loginTitle: "登录 ChatCockpit",
     loginDescription: "使用控制台管理员账户进入控制台。机器 API Token 与 ChatGPT OAuth 凭据都不是网页登录密码。",
     username: "用户名",
@@ -711,6 +715,8 @@ const enUS: UiCopy = {
     setupCommandLabel: "Or run locally in a terminal",
     setupCommand: "chatcockpit operator set-password",
     setupRefresh: "Password set — check again",
+    setupStillRequired: "No console administrator account is visible yet. Open the ChatCockpit App to review or reset the generated Owner credential, then check again.",
+    setupCheckFailed: "The re-check failed. Confirm that the local ChatCockpit service is still running, then try again.",
     loginTitle: "Sign in to ChatCockpit",
     loginDescription: "Use the Web Owner account. The machine API token and ChatGPT OAuth credentials are not Web login passwords.",
     username: "Username",

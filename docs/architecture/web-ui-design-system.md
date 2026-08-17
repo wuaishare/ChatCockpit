@@ -99,7 +99,7 @@ Current verification targets:
 - `npm run typecheck:web`
 - `npm run build:web`
 - `npm run verify:web`
-- Browser render at `http://127.0.0.1:4318/ui`
+- Browser render at the active local `<console-path>` reported by the App or lifecycle status; fresh initialization randomizes this path rather than assuming `/ui`
 - Desktop dark, desktop light, and mobile dark screenshots
 - Secret/local-path scan for `web/src` and ignored `web/dist`
 

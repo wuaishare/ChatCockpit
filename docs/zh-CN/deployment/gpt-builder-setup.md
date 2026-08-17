@@ -50,9 +50,7 @@ https://chatcockpit.example.com/openapi.yaml
 
 访问：
 
-```text
-http://127.0.0.1:4318/ui/integrations
-```
+请从 App 或当前 Web Cockpit 进入 **Integrations**。全新初始化使用随机安全入口，因此实际路由是 `<安全入口>/integrations`，而不是固定 `/ui/integrations`。
 
 进入 **Custom GPT Actions** 兼容区域，确认：
 
@@ -61,7 +59,7 @@ http://127.0.0.1:4318/ui/integrations
 - Schema 导入 URL
 - 本机 / 公网 API 基址
 
-如果你改了域名、机器 API token、产品版本或 OpenAPI schema，重新打开 Integrations，并重新复制兼容说明。旧 `/ui/gpt-helper` 仅作为 0.2.x receive-only 浏览器兼容入口，会跳转到 `/ui/integrations`。
+如果你改了域名、机器 API token、产品版本或 OpenAPI schema，重新打开 Integrations，并重新复制兼容说明。旧 `gpt-helper` 路由段只作为 0.2.x receive-only 浏览器兼容入口保留在当前安全入口下，并跳转到 `<安全入口>/integrations`。
 
 ## 3. 创建 Custom GPT
 

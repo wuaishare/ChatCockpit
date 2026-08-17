@@ -27,7 +27,7 @@ It is not another chat UI, and it is not an unrestricted “computer-use” gate
 | --- | --- | --- |
 | **ChatGPT App / Remote MCP** | Read projects, inspect Git, manage Continuity, and invoke approval-gated actions from a conversation | Select the connected **ChatCockpit** app in a new ChatGPT conversation, or mention it in your prompt |
 | **macOS Desktop** | Native Runtime status, Developer/Packaged Mode, Start/Stop/Restart, and opening the Web Cockpit | `open dist/macos/ChatCockpit.app` |
-| **Web Cockpit / CLI** | Contributors, local operations, and deeper debugging | `npm run setup && npm run start:local`, then open `http://127.0.0.1:4318/ui` |
+| **Web Cockpit / CLI** | Contributors, local operations, and deeper debugging | `npm run setup && npm run start:local`; open **Local Cockpit** from the App or use the randomized entrypoint printed by `npm run mvp:status` |
 
 For reproducible interactive checks, see:
 
@@ -124,13 +124,15 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-Open:
+First initialization automatically generates a randomized console entry path plus a random Web Owner username and strong password. Those values are never committed to the public repository or printed by normal initialization logs. Prefer **Local Cockpit** in the ChatCockpit App, or inspect:
 
-```text
-http://127.0.0.1:4318/ui
+```bash
+npm run mvp:status
 ```
 
-The canonical Source/Developer Mode state lives in `~/.chatcockpit/`, independently from the source checkout.
+Its `UI:` line shows the actual entrypoint for this machine. `/ui` is only a legacy fallback for older state; new initialization uses a randomized path, and anonymous Owner status/login endpoints also return 404 unless the caller knows that entry path. The randomized path is defense-in-depth and remains layered with Owner authentication, throttling, CSRF, and HTTPS for public access.
+
+The canonical Source/Developer Mode state lives in `~/.chatcockpit/`, independently from the source checkout. Auto-generated Owner credentials live in an owner-only machine-local credential vault and can be revealed, copied, or reset from **Access & Security** in the App.
 
 ### 2. macOS App
 

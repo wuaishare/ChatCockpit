@@ -17,26 +17,27 @@ Run:
 
 ```bash
 npm run setup
-node dist/cli/index.js operator set-password
 npm run start:local
 npm run mvp:status
 npm run doctor:runtime
 ```
 
-`operator set-password` creates the local Web Owner account. The password is entered through a hidden TTY prompt. When ChatCockpit.app is registered on the same Mac, the local first-run Web page can also launch the App directly into the Owner setup dialog. This human credential is separate from `CHATCOCKPIT_API_TOKEN`, which is an optional machine/API credential. After the first sign-in, open **Security → Passkeys** to register a Passkey; supported HTTPS domains then prefer Passkey sign-in while password remains the fallback. On the same Mac, the App's Local Cockpit action remains the easiest passwordless path for the default `127.0.0.1` entrypoint.
+The first `init/setup` automatically creates a high-entropy randomized console entry path plus a random Web Owner username and strong password. Normal initialization logs do not print those private values. The Web Owner remains separate from `CHATCOCKPIT_API_TOKEN`, which is an optional machine/API credential. On macOS, use **Access & Security** in the ChatCockpit App to reveal, copy, or reset the generated Owner credential. For explicit local recovery, `chatcockpit operator credentials --json` and `chatcockpit operator set-password` remain available. After the first sign-in, open **Security → Passkeys** to register a Passkey.
 
-Open:
+Do not assume `/ui`. Open **Local Cockpit** from the App, or run:
 
-```text
-http://127.0.0.1:4318/ui
+```bash
+npm run mvp:status
 ```
+
+The `UI:` line contains the actual randomized entrypoint for this machine.
 
 The first successful result is:
 
-- `/ui` opens the Owner sign-in screen; supported HTTPS/localhost origins prefer Passkey sign-in, with password as fallback, then show the setup state or dashboard after authentication
-- `/ui/continuity/projects` opens the Continuity Workbench
+- `<secure-entry>` opens the Owner sign-in screen; without that randomized entry, legacy `/ui` and anonymous Owner status/login APIs return 404; supported HTTPS/localhost origins prefer Passkey sign-in with password as fallback
+- `<secure-entry>/continuity/projects` opens the Continuity Workbench
 - `npm run doctor:runtime` can reach local health
-- `/ui/integrations` shows Local/Public Cockpit entrypoints, ChatGPT App / MCP readiness, API/OpenAPI status, and the compatibility-only Custom GPT Actions surface
+- `<secure-entry>/integrations` shows Local/Public Cockpit entrypoints, ChatGPT App / MCP readiness, API/OpenAPI status, and the compatibility-only Custom GPT Actions surface
 - one safe read/status operation runs through Chat Direct without starting a Codex Turn
 - one explicit Codex Session can bind, resume, or fork a Thread before a separate Turn is started
 - one Codex async job can move out of `queued` when the Runner is active
@@ -78,8 +79,8 @@ npm run reset:local
 | Continuity page has no project | No valid repository mapping is configured | Run setup/init and inspect the local ChatCockpit config |
 | Workspace is read-only | Another Session holds the Writer Lease | Inspect the Writer banner and prepare or consume a Handoff instead of forcing a write |
 | Handoff is not verified | Required Evidence is missing, incomplete, skipped, or failed | Record and finalize the required verification checks |
-| UI asks you to sign in | Web Owner authentication is enabled | Run `node dist/cli/index.js operator set-password` locally if needed, then sign in with the Owner account |
-| UI reports Owner setup required | No Web Owner password exists yet | On the same Mac, use the App setup button when available; otherwise create it locally with `node dist/cli/index.js operator set-password`. Do not paste the machine API token into the browser |
+| UI asks you to sign in | Web Owner authentication is enabled | Use the generated Owner credential from **Access & Security** in the App, or reset it locally if needed. Do not use the machine API token as a Web password |
+| UI reports Owner setup required | Legacy state, damaged credentials, or Secure Bootstrap has not completed | On the same Mac, use the App handoff and review/reset the Owner credential. **Password set — check again** now reports whether setup is still missing or the re-check failed. `chatcockpit operator set-password` remains the local recovery path |
 | ChatGPT remote connection fails | Public HTTPS or OAuth readiness is incomplete | Open Integrations, inspect ChatGPT App / MCP status, then review [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | Custom GPT schema import fails | Wrong public URL or no HTTPS path | Use the Custom GPT Actions section in Integrations and [`public-https-tunnel.md`](./public-https-tunnel.md) |
 | `runShell` high-trust command blocked | Exposed mode safety gate | Use local-only mode or explicitly set `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` only in a private operator environment |

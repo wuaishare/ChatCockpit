@@ -262,22 +262,22 @@ struct SettingsView: View {
                     )
                 }
 
-                LabeledContent(DesktopL10n.string("Web Owner")) {
-                    if let status = model.operatorSecurityStatus {
-                        Text(
-                            status.configured
-                                ? (status.username ?? DesktopL10n.string("Configured"))
-                                : DesktopL10n.string("Not configured")
-                        )
-                    } else {
-                        Text(DesktopL10n.string("Unavailable"))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                ownerCredentialRows
 
                 if let status = model.operatorSecurityStatus, status.configured {
                     LabeledContent(DesktopL10n.string("Active Web sessions")) {
                         Text(verbatim: String(status.activeSessionCount))
+                    }
+
+                    if status.credentialAvailable != true {
+                        Text(
+                            DesktopL10n.string(
+                                "This Owner account predates recoverable machine-local credentials. Its current password cannot be revealed. Reset the Owner password here to create a new locally stored credential."
+                            )
+                        )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
@@ -348,7 +348,7 @@ struct SettingsView: View {
 
             Section(DesktopL10n.string("Access Policy")) {
                 LabeledContent(DesktopL10n.string("Console path")) {
-                    TextField("/ui", text: $consolePathPrefix)
+                    TextField("/cc-random-entry", text: $consolePathPrefix)
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 300)
@@ -454,6 +454,91 @@ struct SettingsView: View {
         consolePathPrefix = policy.consolePathPrefix
         trustedLanEnabled = policy.trustedLan.enabled
         trustedLanCidrsText = policy.trustedLan.cidrs.joined(separator: "\n")
+    }
+
+    @ViewBuilder
+    private var ownerCredentialRows: some View {
+        let configured = model.operatorSecurityStatus?.configured == true
+        let credentialAvailable = model.operatorSecurityStatus?.credentialAvailable == true
+        let usernameCopied = model.securityFeedback?.target == .ownerUsername
+            && model.securityFeedback?.kind == .copied
+        let passwordCopied = model.securityFeedback?.target == .ownerPassword
+            && model.securityFeedback?.kind == .copied
+        let passwordRevealed = model.revealedOwnerPassword != nil
+
+        securityActionRow(DesktopL10n.string("Web Owner username")) {
+            HStack(spacing: 6) {
+                Group {
+                    if let username = model.operatorSecurityStatus?.username, configured {
+                        Text(verbatim: username)
+                    } else if configured {
+                        Text(DesktopL10n.string("Configured"))
+                    } else {
+                        Text(DesktopL10n.string("Not configured"))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .textSelection(.enabled)
+
+                iconActionButton(
+                    systemName: usernameCopied ? "checkmark" : "doc.on.doc",
+                    title: DesktopL10n.string(
+                        usernameCopied ? "Owner Username Copied" : "Copy Owner Username"
+                    ),
+                    disabled: !configured || model.operatorSecurityStatus?.username == nil
+                ) {
+                    model.copyOwnerUsername()
+                }
+            }
+        }
+
+        securityActionRow(DesktopL10n.string("Web Owner password")) {
+            HStack(spacing: 6) {
+                Group {
+                    if let password = model.revealedOwnerPassword {
+                        Text(verbatim: password)
+                    } else if configured && credentialAvailable {
+                        Text(verbatim: "••••••••••••••••")
+                    } else if configured {
+                        Text(DesktopL10n.string("Not recoverable"))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(DesktopL10n.string("Not configured"))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.disabled)
+
+                iconActionButton(
+                    systemName: passwordRevealed ? "eye.slash" : "eye",
+                    title: DesktopL10n.string(
+                        passwordRevealed ? "Hide Owner Password" : "Reveal Owner Password"
+                    ),
+                    disabled: !credentialAvailable
+                ) {
+                    if passwordRevealed {
+                        model.hideOwnerPassword()
+                    } else {
+                        Task { await model.revealOwnerPassword() }
+                    }
+                }
+
+                iconActionButton(
+                    systemName: passwordCopied ? "checkmark" : "doc.on.doc",
+                    title: DesktopL10n.string(
+                        passwordCopied ? "Owner Password Copied" : "Copy Owner Password"
+                    ),
+                    disabled: !credentialAvailable
+                ) {
+                    Task { await model.copyOwnerPassword() }
+                }
+            }
+        }
     }
 
     @ViewBuilder

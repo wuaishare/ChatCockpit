@@ -17,26 +17,27 @@
 
 ```bash
 npm run setup
-node dist/cli/index.js operator set-password
 npm run start:local
 npm run mvp:status
 npm run doctor:runtime
 ```
 
-`operator set-password` 用于在本机创建控制台管理员账户，密码通过隐藏输入的终端提示录入。安装 ChatCockpit App 后，也可以从本机 Web 首次设置页直接唤起 App 完成设置。它与 `CHATCOCKPIT_API_TOKEN` 完全分离：前者是人类 Web 登录凭据，后者仅属于可选的机器/API authority。首次登录后建议进入 **安全 → 通用密钥** 添加 Passkey；公网 HTTPS 地址之后优先使用通用密钥，密码保留为备用。本机默认 `127.0.0.1` 入口则直接从 App 打开即可免密进入。
+首次 `init/setup` 会自动生成一条高熵随机控制台安全入口，以及随机控制台管理员用户名和强密码；正常初始化日志不会打印这些私密值。管理员凭据与 `CHATCOCKPIT_API_TOKEN` 完全分离：前者属于人类 Web 登录，后者仅属于可选的机器/API authority。macOS 上优先在 ChatCockpit App 的 **访问与安全** 中查看、复制或重设管理员凭据；需要纯 CLI 恢复时，可在本机显式运行 `chatcockpit operator credentials --json` 或 `chatcockpit operator set-password`。首次登录后建议进入 **安全 → 通用密钥** 添加 Passkey。
 
-打开本地控制台：
+打开本地控制台时不要假定 `/ui`。优先从 App 点击 **打开本机控制台**，或读取：
 
-```text
-http://127.0.0.1:4318/ui
+```bash
+npm run mvp:status
 ```
+
+其中 `UI:` 会给出当前机器的真实随机安全入口。
 
 成功状态：
 
-- `/ui` 可以打开控制台管理员登录界面；支持的 HTTPS/localhost 地址优先提供通用密钥登录，密码作为备用，认证后显示 Setup Wizard 或 Dashboard。
-- `/ui/continuity/projects` 可以打开 Continuity Workbench。
+- `<安全入口>` 可以打开控制台管理员登录界面；不知道该随机入口时，传统 `/ui` 以及匿名管理员状态/登录 API 都返回 404。支持的 HTTPS/localhost 地址优先提供通用密钥登录，密码作为备用。
+- `<安全入口>/continuity/projects` 可以打开 Continuity Workbench。
 - `npm run doctor:runtime` 能访问本地 Health。
-- `/ui/integrations` 能明确显示本机/公网控制台、ChatGPT App / MCP 状态、API/OpenAPI 与 Custom GPT Actions 兼容信息。
+- `<安全入口>/integrations` 能明确显示本机/公网控制台、ChatGPT App / MCP 状态、API/OpenAPI 与 Custom GPT Actions 兼容信息。
 - Chat Direct 可以完成一次不启动 Codex Turn 的安全只读操作。
 - Codex Session 可以先 Bind/Resume/Fork Thread，再通过独立操作显式启动 Turn。
 - Jobs 页面可以查看异步任务状态。
@@ -82,10 +83,10 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 
 最短 MCP 流程：
 
-1. 启动 ChatCockpit 本地控制面和 runner，并在本机创建控制台管理员。
+1. 启动 ChatCockpit 本地控制面和 runner；首次初始化已自动创建随机安全入口与控制台管理员。
 2. 配置 HTTPS 入口，让它转发到 `http://127.0.0.1:4318`。
 3. 设置 `~/.chatcockpit/runtime/server.env` 里的 `CHATCOCKPIT_PUBLIC_BASE_URL`；只有 CLI、自动化或兼容 API 客户端需要机器访问时才另外设置 `CHATCOCKPIT_API_TOKEN`。
-4. 登录 Web Cockpit，打开 `http://127.0.0.1:4318/ui/integrations`。
+4. 从 ChatCockpit App 打开本机控制台，或使用 `npm run mvp:status` 给出的 `<安全入口>/integrations` 登录 Web Cockpit。
 5. 确认 ChatGPT App / MCP 显示 OAuth 就绪，并复制/使用公网 `/mcp` 地址。
 6. 从 ChatGPT 发起连接；浏览器授权页使用控制台管理员会话批准，不粘贴机器 API Token。
 7. 授权完成后用短只读任务验证 MCP 工具目录。
@@ -115,7 +116,7 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 | UI 能打开，但 ChatGPT 远程连接失败 | ChatGPT 不能访问 `127.0.0.1` 或公网 OAuth 未就绪 | 配置 HTTPS 入口，并在 Integrations 检查 OAuth 状态 |
 | GPT Builder 导入 schema 失败 | URL 不是公网 HTTPS，或 `/openapi.yaml` 不可达 | 先在浏览器访问 `https://你的域名/openapi.yaml` |
 | Web UI 提示需要登录 | 控制台管理员会话不存在或已过期 | 使用控制台管理员账户重新登录；不要把机器 API Token 填进网页登录框 |
-| Web UI 提示尚未创建管理员 | 尚未设置控制台管理员密码 | 本机使用 ChatCockpit App 设置，或运行 `node dist/cli/index.js operator set-password` 后再登录 |
+| Web UI 提示尚未创建管理员 | 旧状态、凭据损坏或 Secure Bootstrap 尚未完成 | 本机打开 ChatCockpit App 的 **访问与安全** 查看/重设管理员；“我已设置，重新检查”会明确显示仍未配置或检查失败的结果。也可使用本机 `chatcockpit operator set-password` 恢复 |
 | 调用 Actions 返回 401 | Custom GPT Actions 兼容路径的 Bearer token 不一致 | 检查 GPT Builder Authentication 和 `CHATCOCKPIT_API_TOKEN` |
 | Codex job 一直 queued | Runner 未运行 | 执行 `npm run start:local` 和 `npm run doctor:runtime` |
 | Continuity 页面没有项目 | 尚未配置有效 Repo Mapping | 重新运行 Setup/Init，并检查本地 ChatCockpit 配置 |

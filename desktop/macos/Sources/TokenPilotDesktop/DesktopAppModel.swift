@@ -12,6 +12,8 @@ private func discoverDefaultBundlePayloadURL() -> URL? {
 
 enum DesktopSecurityFeedbackTarget: Equatable {
     case ownerAccount
+    case ownerUsername
+    case ownerPassword
     case machineApiToken
     case accessPolicy
     case apiEndpoint(String)
@@ -44,6 +46,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var machineApiTokenStatus: DesktopMachineApiTokenStatus?
     @Published private(set) var accessPolicyStatus: DesktopAccessPolicy?
     @Published private(set) var operationalSummary: DesktopOperationalSummary?
+    @Published private(set) var revealedOwnerPassword: String?
     @Published private(set) var revealedMachineApiToken: String?
     @Published private(set) var securityFeedback: DesktopSecurityFeedback?
     @Published private(set) var isSecurityRefreshing = false
@@ -65,6 +68,8 @@ final class DesktopAppModel: ObservableObject {
     private let updateChecker: any MacOSUpdateChecking
     private let authorityClient: DesktopAuthorityClient
     private let operationalSummaryClient: any DesktopOperationalSummaryReading
+    private var ownerPasswordRevealTask: Task<Void, Never>?
+    private var ownerClipboardClearTask: Task<Void, Never>?
     private var tokenRevealTask: Task<Void, Never>?
     private var tokenClipboardClearTask: Task<Void, Never>?
     private var securityFeedbackTask: Task<Void, Never>?
@@ -614,6 +619,7 @@ final class DesktopAppModel: ObservableObject {
                 operatorSecurityStatus = nil
                 machineApiTokenStatus = nil
                 accessPolicyStatus = nil
+                revealedOwnerPassword = nil
                 revealedMachineApiToken = nil
                 return
             }
@@ -625,11 +631,90 @@ final class DesktopAppModel: ObservableObject {
             self.accessPolicyStatus = try await accessPolicy
         } catch {
             operatorSecurityStatus = nil
+            revealedOwnerPassword = nil
             machineApiTokenStatus = nil
             accessPolicyStatus = nil
             lastUserMessage = DesktopL10n.string(
                 "Security settings could not be read from the local ChatCockpit runtime."
             )
+        }
+    }
+
+    func revealOwnerPassword() async {
+        do {
+            guard let context = try await currentContext() else { return }
+            let credential = try await authorityClient.ownerCredential(context: context)
+            guard credential.available, let password = credential.password else {
+                revealedOwnerPassword = nil
+                lastUserMessage = DesktopL10n.string(
+                    "The current Web Owner password was created before recoverable local credentials were enabled. Reset the Owner password to make it available in this App."
+                )
+                return
+            }
+            ownerPasswordRevealTask?.cancel()
+            revealedOwnerPassword = password
+            ownerPasswordRevealTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.revealedOwnerPassword = nil
+                }
+            }
+        } catch {
+            revealedOwnerPassword = nil
+            lastUserMessage = DesktopL10n.string("Web Owner password is not available.")
+        }
+    }
+
+    func hideOwnerPassword() {
+        ownerPasswordRevealTask?.cancel()
+        ownerPasswordRevealTask = nil
+        revealedOwnerPassword = nil
+    }
+
+    func copyOwnerUsername() {
+        guard let username = operatorSecurityStatus?.username else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(username, forType: .string)
+        presentSecurityFeedback(
+            DesktopL10n.string("Web Owner username copied to the clipboard."),
+            target: .ownerUsername,
+            kind: .copied
+        )
+    }
+
+    func copyOwnerPassword() async {
+        do {
+            guard let context = try await currentContext() else { return }
+            let credential = try await authorityClient.ownerCredential(context: context)
+            guard credential.available, let password = credential.password else {
+                lastUserMessage = DesktopL10n.string(
+                    "The current Web Owner password is not recoverable. Reset the Owner password to create a new locally stored credential."
+                )
+                return
+            }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(password, forType: .string)
+            ownerClipboardClearTask?.cancel()
+            let expectedChangeCount = pasteboard.changeCount
+            ownerClipboardClearTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard NSPasteboard.general.changeCount == expectedChangeCount else { return }
+                    NSPasteboard.general.clearContents()
+                    self?.ownerClipboardClearTask = nil
+                }
+            }
+            presentSecurityFeedback(
+                DesktopL10n.string("Web Owner password copied to the clipboard for 60 seconds."),
+                target: .ownerPassword,
+                kind: .copied
+            )
+        } catch {
+            lastUserMessage = DesktopL10n.string("Web Owner password is not available.")
         }
     }
 
@@ -680,6 +765,7 @@ final class DesktopAppModel: ObservableObject {
                     password: password,
                     context: context
                 )
+                self.hideOwnerPassword()
                 self.presentSecurityFeedback(
                     DesktopL10n.string("Web Owner account updated and existing Web sessions revoked."),
                     target: .ownerAccount,

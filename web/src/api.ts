@@ -5,6 +5,8 @@ import type {
   RegistrationResponseJSON
 } from "@simplewebauthn/browser";
 
+import { CONSOLE_BASE_PATH } from "./console-path";
+
 import type {
   ApiProblem,
   ContinuityDevelopmentDocumentDetailResponse,
@@ -51,13 +53,16 @@ export function setOperatorCsrfToken(value: string | null): void {
 
 function buildHeaders(
   _legacyToken?: string | null,
-  options: { mutation?: boolean } = {}
+  options: { mutation?: boolean; consoleEntry?: boolean } = {}
 ): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json"
   };
   if (options.mutation && operatorCsrfToken) {
     headers["X-ChatCockpit-CSRF"] = operatorCsrfToken;
+  }
+  if (options.consoleEntry) {
+    headers["X-ChatCockpit-Console-Path"] = CONSOLE_BASE_PATH;
   }
   return headers;
 }
@@ -91,10 +96,14 @@ async function parseProblem(response: Response): Promise<ApiProblem> {
   return { status: response.status, code, message, details };
 }
 
-async function requestJson<T>(path: string, token?: string | null): Promise<T> {
+async function requestJson<T>(
+  path: string,
+  token?: string | null,
+  options: { consoleEntry?: boolean } = {}
+): Promise<T> {
   const response = await fetch(path, {
     credentials: "same-origin",
-    headers: buildHeaders(token)
+    headers: buildHeaders(token, options)
   });
 
   if (!response.ok) {
@@ -134,7 +143,11 @@ export interface OperatorSessionResponse {
 }
 
 export async function fetchOperatorStatus(): Promise<OperatorStatusResponse> {
-  return requestJson<OperatorStatusResponse>("/api/operator/status");
+  return requestJson<OperatorStatusResponse>(
+    "/api/operator/status",
+    null,
+    { consoleEntry: true }
+  );
 }
 
 export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
@@ -146,7 +159,9 @@ export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
 export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
   return postBodyJson<PublicKeyCredentialRequestOptionsJSON>(
     "/api/operator/passkeys/authentication/options",
-    {}
+    {},
+    null,
+    { consoleEntry: true }
   );
 }
 
@@ -158,7 +173,7 @@ export async function verifyPasskeyAuthentication(input: {
     method: "POST",
     credentials: "same-origin",
     headers: {
-      Accept: "application/json",
+      ...buildHeaders(null, { consoleEntry: true }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
@@ -209,7 +224,7 @@ export async function redeemLocalLoginGrant(grant: string): Promise<OperatorSess
     method: "POST",
     credentials: "same-origin",
     headers: {
-      Accept: "application/json",
+      ...buildHeaders(null, { consoleEntry: true }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ grant })
@@ -228,7 +243,7 @@ export async function loginOperator(input: {
     method: "POST",
     credentials: "same-origin",
     headers: {
-      Accept: "application/json",
+      ...buildHeaders(null, { consoleEntry: true }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
@@ -504,13 +519,14 @@ export async function fetchRuntimeResourceMutationActivity(
 async function postBodyJson<T>(
   path: string,
   body: unknown,
-  token?: string | null
+  token?: string | null,
+  options: { consoleEntry?: boolean } = {}
 ): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: {
-      ...buildHeaders(token, { mutation: true }),
+      ...buildHeaders(token, { mutation: true, ...options }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)
