@@ -2,6 +2,9 @@ import fs from "node:fs";
 import readline from "node:readline";
 
 const mode = process.argv[2] ?? "normal";
+if (mode === "stderr-flood") {
+  process.stderr.write("x".repeat(32 * 1024));
+}
 if (mode === "ignore-sigterm") {
   process.on("SIGTERM", () => {});
 }
