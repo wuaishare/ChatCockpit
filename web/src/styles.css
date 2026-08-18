@@ -1599,6 +1599,22 @@ button,
   word-break: break-word;
 }
 
+.public-access-workflow-steps {
+  margin-bottom: 14px;
+  padding: 6px 2px 14px;
+  border-bottom: 1px solid var(--tp-line);
+}
+
+.public-access-workflow-steps .ant-steps-item-title {
+  color: var(--tp-text) !important;
+  font-size: var(--tp-text-sm) !important;
+  font-weight: 650;
+}
+
+.public-access-workflow-entry {
+  margin-top: 4px;
+}
+
 .public-access-endpoint {
   display: inline-flex;
   align-items: center;

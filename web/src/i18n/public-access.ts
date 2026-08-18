@@ -24,8 +24,14 @@ export interface PublicAccessCopy {
   mcpEndpoint: string;
   oauthStatus: string;
   localProtocolNote: string;
-  connectionPathTitle: string;
-  connectionPathDescription: string;
+  workflowTitle: string;
+  workflowDescription: string;
+  workflowSetup: string;
+  workflowVerify: string;
+  workflowCutover: string;
+  workflowLive: string;
+  workflowBootstrapMode: string;
+  workflowReplacementMode: string;
   existingEnvironment: string;
   existingEnvironmentDescription: string;
   manualSetup: string;
@@ -137,8 +143,14 @@ const zhCN: PublicAccessCopy = {
   mcpEndpoint: "MCP 端点",
   oauthStatus: "OAuth 状态",
   localProtocolNote: "当前尚无公网 API 基址，因此 OpenAPI 地址仍是本机端点；不会把它标记成公网可用。",
-  connectionPathTitle: "接入路径",
-  connectionPathDescription: "公网接入工作台负责观察与验证接入结果；本机组件安装、系统服务和明文密钥仍由 ChatCockpit App / CLI 的机器权限边界负责。",
+  workflowTitle: "公网接入流程",
+  workflowDescription: "按准备、验证、切换、在线四个阶段推进。Web 负责接入意图与公网验证，真正的机器执行仍由 ChatCockpit App / CLI 完成。",
+  workflowSetup: "准备",
+  workflowVerify: "验证",
+  workflowCutover: "切换",
+  workflowLive: "在线",
+  workflowBootstrapMode: "首次公网",
+  workflowReplacementMode: "替换现有公网",
   existingEnvironment: "现有环境",
   existingEnvironmentDescription: "如果你已经通过反向代理、隧道或其他基础设施提供公网入口，继续沿用现有环境；配置 Runtime 的公网基址后回到这里核对真实结果。",
   manualSetup: "手动设置",
@@ -276,8 +288,14 @@ const enUS: PublicAccessCopy = {
   mcpEndpoint: "MCP endpoint",
   oauthStatus: "OAuth status",
   localProtocolNote: "No public API base is configured yet, so the OpenAPI URL is still local. It is not presented as publicly reachable.",
-  connectionPathTitle: "Connection path",
-  connectionPathDescription: "Public Access observes and validates the resulting route. Machine-side connector installation, OS services, and plaintext secrets remain under ChatCockpit App / CLI machine authority.",
+  workflowTitle: "Public Access workflow",
+  workflowDescription: "Move through Setup, Verify, Cutover, and Live. Web owns route intent and public verification; machine execution stays in the ChatCockpit App / CLI.",
+  workflowSetup: "Setup",
+  workflowVerify: "Verify",
+  workflowCutover: "Cutover",
+  workflowLive: "Live",
+  workflowBootstrapMode: "First public route",
+  workflowReplacementMode: "Replace current route",
   existingEnvironment: "Existing environment",
   existingEnvironmentDescription: "If a reverse proxy, tunnel, or other infrastructure already provides your public entry, keep that environment. Configure the Runtime public base URL and return here to verify the resulting projection.",
   manualSetup: "Manual setup",
