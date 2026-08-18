@@ -39,6 +39,7 @@ export interface PublicAccessCopy {
   machineBoundary: string;
   providersTitle: string;
   providersDescription: string;
+  providerDetailsTitle: string;
   providerDetected: string;
   providerNotDetected: string;
   providerProbeFailed: string;
@@ -152,7 +153,8 @@ const zhCN: PublicAccessCopy = {
   manualSetupDescription: "需要调整监听器或本机接入组件时，请在 ChatCockpit App / CLI 完成本机配置，再回到这里验证公网地址、HTTPS、MCP 与 OAuth 状态。",
   machineBoundary: "本页不会安装接入组件、写入 Provider 密钥、启动隧道或替你切换公网路由。",
   providersTitle: "本机接入组件",
-  providersDescription: "这里展示 Runtime 提供的 public-safe 机器能力投影：只包含探测状态、版本、ChatCockpit ownership 与动作可用性，不包含可执行路径、原始命令输出、Plan 或 Provider Secret。",
+  providersDescription: "接入组件属于机器侧辅助设置。日常只需关注上面的公网工作流；需要安装、升级或排查 Tunnel 组件时再展开详情或前往 ChatCockpit App。",
+  providerDetailsTitle: "查看组件状态",
   providerDetected: "已检测",
   providerNotDetected: "未检测到",
   providerProbeFailed: "探测失败",
@@ -292,7 +294,8 @@ const enUS: PublicAccessCopy = {
   manualSetupDescription: "When the listener or a machine-side connector needs changes, configure it in ChatCockpit App / CLI, then return here to verify the public URL, HTTPS, MCP, and OAuth state.",
   machineBoundary: "This page does not install connectors, write provider secrets, start tunnels, or switch public routes for you.",
   providersTitle: "Machine connectors",
-  providersDescription: "This is the Runtime's public-safe machine capability projection: detection, version, ChatCockpit ownership, and action availability only. Executable paths, raw command output, plans, and provider secrets are not exposed.",
+  providersDescription: "Connectors are auxiliary machine-side settings. Focus on the public route workflow above during normal use; expand details or open the ChatCockpit App only when installing, upgrading, or diagnosing a Tunnel component.",
+  providerDetailsTitle: "View connector status",
   providerDetected: "Detected",
   providerNotDetected: "Not detected",
   providerProbeFailed: "Probe failed",

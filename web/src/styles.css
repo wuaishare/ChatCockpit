@@ -1683,13 +1683,30 @@ button,
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--tp-line);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--tp-line);
 }
 
 .public-access-provider-bridge > span {
   line-height: 1.45;
+}
+
+.public-access-provider-details .ant-collapse-header {
+  padding-inline: 0 !important;
+}
+
+.public-access-provider-details .ant-collapse-content-box {
+  padding: 4px 0 0 !important;
+}
+
+.public-access-provider-details__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  color: var(--tp-text-strong);
+  font-weight: 620;
 }
 
 .public-access-route-candidate {
