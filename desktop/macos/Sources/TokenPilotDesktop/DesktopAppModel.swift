@@ -18,6 +18,7 @@ enum DesktopSecurityFeedbackTarget: Equatable {
     case accessPolicy
     case connectivityProvider(String)
     case publicRouteCutover
+    case publicRouteBootstrap
     case apiEndpoint(String)
 }
 
@@ -55,8 +56,10 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var connectivityProviderStatus: DesktopConnectivityProviderSnapshot?
     @Published private(set) var cloudflaredCapabilities: DesktopConnectivityProviderCapabilities?
     @Published private(set) var publicRouteCutoverIntent: DesktopPublicRouteCutoverIntent?
+    @Published private(set) var publicRouteBootstrapProof: DesktopPublicRouteBootstrapProof?
     @Published private(set) var isConnectivityMutationRunning = false
     @Published private(set) var isPublicRouteCutoverRunning = false
+    @Published private(set) var isPublicRouteBootstrapRunning = false
     @Published private(set) var operationalSummary: DesktopOperationalSummary?
     @Published private(set) var revealedOwnerPassword: String?
     @Published private(set) var revealedMachineApiToken: String?
@@ -643,6 +646,7 @@ final class DesktopAppModel: ObservableObject {
                 connectivityProviderStatus = nil
                 cloudflaredCapabilities = nil
                 publicRouteCutoverIntent = nil
+                publicRouteBootstrapProof = nil
                 revealedOwnerPassword = nil
                 revealedMachineApiToken = nil
                 return
@@ -673,6 +677,13 @@ final class DesktopAppModel: ObservableObject {
             } catch {
                 self.publicRouteCutoverIntent = nil
             }
+            do {
+                self.publicRouteBootstrapProof = try await authorityClient.publicRouteBootstrapProof(
+                    context: context
+                ).proof
+            } catch {
+                self.publicRouteBootstrapProof = nil
+            }
         } catch {
             operatorSecurityStatus = nil
             revealedOwnerPassword = nil
@@ -681,6 +692,7 @@ final class DesktopAppModel: ObservableObject {
             connectivityProviderStatus = nil
             cloudflaredCapabilities = nil
             publicRouteCutoverIntent = nil
+            publicRouteBootstrapProof = nil
             lastUserMessage = DesktopL10n.string(
                 "Security settings could not be read from the local ChatCockpit runtime."
             )
@@ -1045,6 +1057,84 @@ final class DesktopAppModel: ObservableObject {
             await refreshSecurity()
             lastUserMessage = DesktopL10n.string(
                 "The Public Route Cutover could not be executed by the local ChatCockpit Machine Authority."
+            )
+        }
+    }
+
+    func runPublicRouteBootstrap() async {
+        guard !isPublicRouteBootstrapRunning,
+              let proof = publicRouteBootstrapProof,
+              let verification = proof.verification else {
+            return
+        }
+        guard proof.status == "verified",
+              verification.status == "verified",
+              verification.checks.dns.ok,
+              verification.checks.tls.ok,
+              verification.checks.reachability.ok,
+              verification.checks.identity.ok else {
+            lastUserMessage = DesktopL10n.string(
+                "The pending Public Route Bootstrap Proof did not satisfy the ChatCockpit machine safety contract."
+            )
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = DesktopL10n.string("Establish verified Public Route?")
+        alert.informativeText = DesktopL10n.format(
+            "ChatCockpit will establish %@ as the first canonical Public Route. If the Runtime is running, it may restart and must pass post-bootstrap verification. If restart or verification fails, ChatCockpit restores local-only mode. A stopped Runtime is never started automatically.",
+            proof.candidateOrigin
+        )
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: DesktopL10n.string("Establish Public Route"))
+        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        isPublicRouteBootstrapRunning = true
+        defer { isPublicRouteBootstrapRunning = false }
+        do {
+            guard let context = try await currentContext() else { return }
+            let result = try await authorityClient.executePublicRouteBootstrap(
+                proofId: proof.id,
+                context: context
+            )
+            await refresh()
+            await refreshSecurity()
+
+            switch result.outcome {
+            case .succeeded:
+                presentSecurityFeedback(
+                    DesktopL10n.string(
+                        "First Public Route was established, the running Runtime restarted, and the canonical route passed post-bootstrap verification."
+                    ),
+                    target: .publicRouteBootstrap,
+                    kind: .updated
+                )
+            case .succeededPendingRuntimeVerification:
+                presentSecurityFeedback(
+                    DesktopL10n.string(
+                        "First Public Route configuration was established while the Runtime remained stopped. Start ChatCockpit explicitly to complete post-bootstrap verification."
+                    ),
+                    target: .publicRouteBootstrap,
+                    kind: .updated
+                )
+            case .restartFailedRolledBack:
+                lastUserMessage = DesktopL10n.string(
+                    "The Runtime could not restart with the first Public Route, so ChatCockpit restored local-only mode."
+                )
+            case .postVerificationFailedRolledBack:
+                lastUserMessage = DesktopL10n.string(
+                    "The first Public Route failed post-bootstrap verification, so ChatCockpit restored local-only mode."
+                )
+            case .rollbackFailed:
+                lastUserMessage = DesktopL10n.string(
+                    "Public Route bootstrap rollback could not be completed automatically. Review Runtime and Public Access status before making another change."
+                )
+            }
+        } catch {
+            await refreshSecurity()
+            lastUserMessage = DesktopL10n.string(
+                "The Public Route Bootstrap could not be executed by the local ChatCockpit Machine Authority."
             )
         }
     }

@@ -69,6 +69,7 @@ assert.equal(scripts.verify, "npm run verify:ci-core && npm run doctor");
 assert.doesNotMatch(scripts["verify:ci-core"] ?? "", /npm run doctor/);
 assert.doesNotMatch(scripts["verify:ci-core"] ?? "", /npm run verify:macos-/);
 assert.doesNotMatch(scripts["verify:ci-core"] ?? "", /npm run verify:distribution-context/);
+assert.match(scripts["verify:ci-core"] ?? "", /npm run verify:connectivity-machine-bootstrap/);
 assert.match(scripts["verify:ci-node22"] ?? "", /npm run verify:oauth-flow/);
 assert.match(scripts["verify:ci-node22"] ?? "", /npm run verify:operator-auth/);
 

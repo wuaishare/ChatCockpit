@@ -316,6 +316,43 @@ public struct DesktopPublicRouteCutoverIntentSnapshot: Decodable, Equatable, Sen
     public let intent: DesktopPublicRouteCutoverIntent?
 }
 
+public struct DesktopPublicRouteBootstrapVerificationCheck: Decodable, Equatable, Sendable {
+    public let ok: Bool
+    public let reason: String?
+    public let statusCode: Int?
+    public let publicAddressCount: Int?
+}
+
+public struct DesktopPublicRouteBootstrapVerificationChecks: Decodable, Equatable, Sendable {
+    public let dns: DesktopPublicRouteBootstrapVerificationCheck
+    public let tls: DesktopPublicRouteBootstrapVerificationCheck
+    public let reachability: DesktopPublicRouteBootstrapVerificationCheck
+    public let identity: DesktopPublicRouteBootstrapVerificationCheck
+}
+
+public struct DesktopPublicRouteBootstrapVerification: Decodable, Equatable, Sendable {
+    public let id: String
+    public let status: String
+    public let checkedAt: String
+    public let checks: DesktopPublicRouteBootstrapVerificationChecks
+}
+
+public struct DesktopPublicRouteBootstrapProof: Decodable, Equatable, Sendable {
+    public let id: String
+    public let candidateId: String
+    public let candidateOrigin: String
+    public let status: String
+    public let preparedAt: String
+    public let expiresAt: String
+    public let verifiedAt: String?
+    public let verification: DesktopPublicRouteBootstrapVerification?
+}
+
+public struct DesktopPublicRouteBootstrapProofSnapshot: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let proof: DesktopPublicRouteBootstrapProof?
+}
+
 public enum DesktopPublicRouteMachineCutoverOutcome: String, Decodable, Equatable, Sendable {
     case succeeded
     case succeededPendingRuntimeVerification = "succeeded-pending-runtime-verification"
@@ -333,6 +370,35 @@ public struct DesktopPublicRouteMachineCutoverResult: Decodable, Equatable, Send
     public let previousCanonicalOrigin: String
     public let canonicalOrigin: String
     public let outcome: DesktopPublicRouteMachineCutoverOutcome
+    public let runtimeWasRunning: Bool
+    public let runtimeRestarted: Bool
+    public let postVerificationStatus: String
+    public let postVerificationId: String?
+    public let rollbackAttempted: Bool
+    public let rollbackSucceeded: Bool
+    public let startsStoppedRuntime: Bool
+    public let startsProviderTunnel: Bool
+    public let writesProviderSecrets: Bool
+    public let completedAt: String
+}
+
+public enum DesktopPublicRouteMachineBootstrapOutcome: String, Decodable, Equatable, Sendable {
+    case succeeded
+    case succeededPendingRuntimeVerification = "succeeded-pending-runtime-verification"
+    case restartFailedRolledBack = "restart-failed-rolled-back"
+    case postVerificationFailedRolledBack = "post-verification-failed-rolled-back"
+    case rollbackFailed = "rollback-failed"
+}
+
+public struct DesktopPublicRouteMachineBootstrapResult: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let executionId: String
+    public let proofId: String
+    public let candidateId: String
+    public let bootstrapVerificationId: String
+    public let previousCanonicalOrigin: String?
+    public let canonicalOrigin: String?
+    public let outcome: DesktopPublicRouteMachineBootstrapOutcome
     public let runtimeWasRunning: Bool
     public let runtimeRestarted: Bool
     public let postVerificationStatus: String
@@ -559,6 +625,36 @@ public struct DesktopAuthorityClient: Sendable {
                 arguments: [
                     "connectivity", "route", "cutover", "execute",
                     "--intent-id", intentId,
+                    "--json"
+                ],
+                timeoutSeconds: 240
+            )
+        )
+    }
+
+    public func publicRouteBootstrapProof(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopPublicRouteBootstrapProofSnapshot {
+        try await decode(
+            DesktopPublicRouteBootstrapProofSnapshot.self,
+            from: runCLI(
+                context: context,
+                arguments: ["connectivity", "route", "bootstrap", "status", "--json"]
+            )
+        )
+    }
+
+    public func executePublicRouteBootstrap(
+        proofId: String,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopPublicRouteMachineBootstrapResult {
+        try await decode(
+            DesktopPublicRouteMachineBootstrapResult.self,
+            from: runCLI(
+                context: context,
+                arguments: [
+                    "connectivity", "route", "bootstrap", "execute",
+                    "--proof-id", proofId,
                     "--json"
                 ],
                 timeoutSeconds: 240

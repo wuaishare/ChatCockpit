@@ -212,6 +212,38 @@ class FakeProbe implements PublicRouteBootstrapProofHttpProbe {
     origin: "https://candidate.example.com",
     source: "existing-environment"
   }).candidate!;
+  const prepared = f.proofStore.prepare(candidate.id).proof!;
+  assert.throws(
+    () => f.proofStore.consumeVerified(prepared.id),
+    (error: unknown) => error instanceof PublicRouteBootstrapProofError && error.code === "proof-not-verified"
+  );
+  const challenge = f.proofStore.challengeForRequest(prepared.id)!;
+  const verifier = new PublicRouteBootstrapVerifier({
+    candidateStore: f.candidateStore,
+    proofStore: f.proofStore,
+    resolver: new FakeResolver([{ address: "93.184.216.34", family: 4 }]),
+    probe: new FakeProbe(() => ({ statusCode: 200, body: challenge })),
+    now: () => "2026-08-18T02:01:00.000Z",
+    createVerificationId: () => "bootstrap-verification-consume"
+  });
+  await verifier.verify({ proofId: prepared.id, candidateId: candidate.id });
+  const consumed = f.proofStore.consumeVerified(prepared.id);
+  assert.equal(consumed.id, prepared.id);
+  assert.equal(consumed.status, "verified");
+  assert.equal(consumed.verification?.status, "verified");
+  assert.equal(f.proofStore.snapshot().proof, null, "verified bootstrap proof is single-consume");
+  assert.throws(
+    () => f.proofStore.consumeVerified(prepared.id),
+    (error: unknown) => error instanceof PublicRouteBootstrapProofError && error.code === "proof-stale"
+  );
+}
+
+{
+  const f = fixture();
+  const candidate = f.candidateStore.stage({
+    origin: "https://candidate.example.com",
+    source: "existing-environment"
+  }).candidate!;
   const proof = f.proofStore.prepare(candidate.id).proof!;
   const challenge = f.proofStore.challengeForRequest(proof.id)!;
   const resolver = new FakeResolver([{ address: "93.184.216.34", family: 4 }]);

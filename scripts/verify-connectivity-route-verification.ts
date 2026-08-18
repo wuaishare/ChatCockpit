@@ -424,6 +424,51 @@ function successResponses(): PublicRouteHttpResponse[] {
 }
 
 {
+  const runtimeDir = tempRuntimeDir();
+  let canonicalOrigin: string | null = null;
+  const candidateStore = new PublicRouteCandidateStore({
+    runtimeDir,
+    canonicalOrigin: () => canonicalOrigin,
+    now: () => "2026-08-18T00:09:00.000Z",
+    createId: () => "candidate-pending-bootstrap"
+  });
+  const verificationStore = new PublicRouteVerificationStore({ runtimeDir });
+  const staged = candidateStore.stage({
+    origin: "https://candidate.example.com",
+    source: "existing-environment"
+  }).candidate!;
+  canonicalOrigin = staged.origin;
+  const verifier = new PublicRouteVerifier({
+    candidateStore,
+    verificationStore,
+    resolver: new FakeResolver([{ address: "93.184.216.34", family: 4 }]),
+    probe: new FakeProbe([
+      jsonResponse({
+        ok: true,
+        mode: "phase2-dual-mode",
+        authRequired: true,
+        exposed: true,
+        publicBaseUrl: staged.origin,
+        openapiUrl: `${staged.origin}/openapi.yaml`
+      }),
+      jsonResponse({
+        resource: `${staged.origin}/mcp`,
+        authorization_servers: [staged.origin],
+        scopes_supported: ["chatcockpit:mcp"]
+      })
+    ]),
+    now: () => "2026-08-18T00:09:30.000Z",
+    createId: () => "verification-pending-bootstrap"
+  });
+
+  const result = await verifier.verify(staged.id);
+  assert.equal(result.verification.status, "verified");
+  assert.equal(result.canonical.origin, staged.origin);
+  assert.equal(result.candidate, null, "verified canonical candidate completes pending Bootstrap promotion");
+  assert.equal(candidateStore.snapshot().candidate, null);
+}
+
+{
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-route-verification-api-"));
   const paths = buildFixturePaths(root);
   ensureWorkspaceDirs(paths);

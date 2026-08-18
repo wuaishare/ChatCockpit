@@ -8,7 +8,7 @@
 
 - **Web Cockpit / Operator**：可以针对 exact staged Candidate Public Route 准备、验证、查看或取消 Bootstrap Identity Proof。
 - **Runtime**：只有在 proof 处于 active prepared 状态时，才暴露一个短期 proof endpoint。
-- **macOS App / CLI Machine Authority**：当前这一片尚不执行首次公网 Bootstrap。Bootstrap Proof 不会修改 `server.env`、restart Runtime、操作 Provider/Tunnel，也不会建立 canonical cutover。
+- **macOS App / CLI Machine Authority**：这是当前唯一实现的首次公网 Bootstrap 执行面。它只消费 exact verified proof、修改 canonical Runtime 公网 origin，并负责必要的 Runtime restart、Bootstrap 后验证与 rollback；不会启动 Provider/Tunnel Service，也不会写 Provider Secret。
 
 当前已实现的受保护 Operator API：
 
@@ -69,8 +69,21 @@ Verifier 会通过 Candidate HTTPS origin 请求 exact proof path。只有响应
 
 candidate 被替换、canonical origin 出现或 proof 过期，都会使 proof 失效并被移除。verification 执行期间如果 candidate 发生漂移，也绝不会落下成功 Artifact。
 
-## 后续 Machine Boundary
+## Machine Bootstrap 执行
 
-verified Bootstrap Proof **不等于**首次公网 cutover。后续 Machine Bootstrap Executor 仍必须绑定 exact verified proof 与 exact current candidate，确认 canonical 仍为空，只在 Machine Authority 下更新 canonical Runtime 配置，保持 stopped Runtime 不被自动启动，在必要 restart 后执行 post-bootstrap verification，并在事务失败时 rollback 回 local-only。
+verified Bootstrap Proof **本身不等于**首次公网 cutover。当前已实现的 App / CLI Machine Bootstrap Executor 只允许在 canonical 仍为空时，消费 exact verified proof 与 exact current candidate。
 
-在 Machine Executor 实现之前，Web Cockpit 会刻意停在 `verified` Bootstrap Proof，不提供任何 execute 控件。
+执行遵循单一受限事务：
+
+1. 在消费 proof 前确认 Runtime lifecycle 状态；
+2. 单次消费仍然有效的 exact verified proof；
+3. 通过 compare-and-set 将 canonical Runtime public origin 从 `null` 写为 verified candidate；
+4. 如果 Runtime 已在运行，则通过固定 lifecycle bridge restart，并针对新的 canonical origin 执行 Bootstrap 后验证；
+5. restart 或 Bootstrap 后验证失败时，通过 compare-and-set 将 canonical origin 恢复为 `null`，并恢复正在运行的 local-only Runtime；
+6. Bootstrap 后验证成功后，清理已经晋升的 candidate 状态。
+
+已停止的 Runtime 绝不会被自动启动。Machine Authority 可以更新其 canonical 配置，但结果会保持 `succeeded-pending-runtime-verification`，直到用户显式启动 Runtime 并完成后续验证。
+
+Machine Result 只包含受限 public-safe 状态，不包含 lifecycle 原始输出、可执行文件路径、Provider 凭据或可变命令参数。Executor 不会启动 Provider Tunnel，也不会写 Provider Secret。
+
+Web Cockpit 仍然刻意停在 `verified` Bootstrap Proof，不存在 Web execute endpoint；真正执行只属于显式的 App / CLI Machine Authority 操作。

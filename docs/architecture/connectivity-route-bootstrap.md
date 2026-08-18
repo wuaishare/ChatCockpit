@@ -8,7 +8,7 @@ ChatCockpit therefore uses a separate **Bootstrap Identity Proof** before any fi
 
 - **Web Cockpit / Operator** may prepare, verify, inspect, or cancel Bootstrap Identity Proof state for the exact staged Candidate Public Route.
 - **Runtime** exposes one short-lived proof endpoint only while a proof is actively prepared.
-- **macOS App / CLI Machine Authority** does not execute first-public Bootstrap in this slice. No `server.env` mutation, Runtime restart, Provider/Tunnel mutation, or canonical cutover is performed by Bootstrap Proof.
+- **macOS App / CLI Machine Authority** is the only implemented execution surface for first-public Bootstrap. It consumes the exact verified proof, changes only the canonical Runtime public origin, and owns any required Runtime restart, post-bootstrap verification, and rollback. It does not start Provider/Tunnel services or write Provider secrets.
 
 The implemented protected Operator endpoints are:
 
@@ -69,8 +69,21 @@ A successful verification:
 
 Candidate replacement, canonical-origin appearance, or expiry invalidates and removes the proof. A candidate that changes while verification is running cannot receive a successful artifact.
 
-## Next Machine Boundary
+## Machine Bootstrap Execution
 
-A verified Bootstrap Proof is **not** a first-public cutover. The future Machine Bootstrap executor must still bind the exact verified proof and exact current candidate, confirm canonical is still absent, update only the canonical Runtime configuration under Machine Authority, preserve stopped Runtime state, perform post-bootstrap verification after any required restart, and roll back to local-only if that transaction fails.
+A verified Bootstrap Proof is **not itself** a first-public cutover. The implemented App / CLI Machine Bootstrap executor must consume the exact verified proof and exact current candidate while canonical is still absent.
 
-Until that Machine executor exists, Web Cockpit intentionally stops at `verified` Bootstrap Proof and exposes no execution control.
+Execution follows one bounded transaction:
+
+1. confirm the Runtime lifecycle state before consuming the proof;
+2. consume the exact still-valid verified proof once;
+3. compare-and-set the canonical Runtime public origin from `null` to the verified candidate;
+4. if Runtime is already running, restart it through the fixed lifecycle bridge and perform post-bootstrap verification against the new canonical origin;
+5. if restart or post-bootstrap verification fails, compare-and-set the canonical origin back to `null` and restore the running local-only Runtime;
+6. after successful post-bootstrap verification, clear the promoted candidate state.
+
+A stopped Runtime is never started automatically. Its canonical configuration may be updated, but the result remains `succeeded-pending-runtime-verification` until the user explicitly starts Runtime and completes verification.
+
+The Machine result is bounded public-safe state only. It never contains raw lifecycle output, executable paths, Provider credentials, or mutable command arguments. The executor does not start a Provider Tunnel and does not write Provider secrets.
+
+Web Cockpit still intentionally stops at `verified` Bootstrap Proof. There is no Web execute endpoint; execution remains an explicit App / CLI Machine Authority action.

@@ -49,11 +49,12 @@ assertIncludesAll(
     "Public endpoint changes use staged cutover.",
     "Provider secrets remain machine-local.",
     "Public Access / Connectivity",
-    "Replacement cutover execution is implemented only in macOS App / CLI Machine Authority",
+    "Replacement cutover and first-public Machine Bootstrap execution are implemented only in macOS App / CLI Machine Authority",
     "Web has no execution endpoint",
     "Bootstrap Identity Proof",
     "random challenge stays machine-local",
-    "First-public Machine Bootstrap execution remains separate and is not implemented yet",
+    "never auto-starts a stopped Runtime",
+    "rolls failed running-Runtime transactions back to local-only",
     "## Capability Placement Matrix"
   ],
   "English Surface Design Contract"
@@ -78,11 +79,12 @@ assertIncludesAll(
     "公网端点切换必须 staged cutover。",
     "Provider Secret 必须保持 machine-local。",
     "公网接入 / Public Access（Connectivity）",
-    "Replacement Cutover Execution 只在 macOS App / CLI Machine Authority 中实现",
+    "Replacement Cutover 与首次公网 Machine Bootstrap Execution 都只在 macOS App / CLI Machine Authority 中实现",
     "Web 不存在执行 endpoint",
     "Bootstrap Identity Proof",
     "随机 challenge 只保存在本机",
-    "首次公网 Machine Bootstrap Execution 继续保持独立，目前尚未实现",
+    "绝不自动启动已停止的 Runtime",
+    "rollback 回 local-only",
     "## Capability Placement Matrix"
   ],
   "Chinese Surface Design Contract"
