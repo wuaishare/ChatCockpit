@@ -46,9 +46,7 @@ function client(mode = "normal", timeoutMs = 1_000): DownstreamMcpStdioClient {
 }
 
 function clientPid(value: DownstreamMcpStdioClient): number | null {
-  return (
-    value as unknown as { child: { pid?: number } | null }
-  ).child?.pid ?? null;
+  return value.pid;
 }
 
 function processExists(pid: number): boolean {
@@ -60,7 +58,7 @@ function processExists(pid: number): boolean {
   }
 }
 
-async function waitForProcessExit(pid: number, timeoutMs = 750): Promise<boolean> {
+async function waitForProcessExit(pid: number, timeoutMs = 5_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!processExists(pid)) {
@@ -83,6 +81,17 @@ async function assertClientError(
 }
 
 async function verifyDownstreamMcp(): Promise<void> {
+  const stdioClientSource = fs.readFileSync(
+    path.resolve("src/direct/downstream-mcp-stdio-client.ts"),
+    "utf8"
+  );
+  assert.match(stdioClientSource, /@modelcontextprotocol\/client/);
+  assert.match(stdioClientSource, /@modelcontextprotocol\/client\/stdio/);
+  assert.doesNotMatch(stdioClientSource, /node:child_process/);
+  assert.doesNotMatch(stdioClientSource, /JSONRPCMessageSchema/);
+  assert.doesNotMatch(stdioClientSource, /ReadBuffer/);
+  assert.doesNotMatch(stdioClientSource, /serializeMessage/);
+
   const desktopCommanderConfig = buildDesktopCommanderExecutorConfig({
     packageSpec: "@wonderwhy-er/desktop-commander@1.2.3-test"
   });
@@ -241,6 +250,23 @@ async function verifyDownstreamMcp(): Promise<void> {
     const timeoutClient = client("timeout", 100);
     await assertClientError(timeoutClient.listTools(), "DOWNSTREAM_MCP_TIMEOUT");
     await timeoutClient.close();
+
+    const stderrFloodClient = client("stderr-flood", 500);
+    await assertClientError(
+      stderrFloodClient.initialize(),
+      "DOWNSTREAM_MCP_PROTOCOL_ERROR"
+    );
+    await stderrFloodClient.close();
+
+    const missingExecutableClient = new DownstreamMcpStdioClient({
+      command: path.join(storeRoot, "missing-downstream-mcp-executable"),
+      timeoutMs: 500
+    });
+    await assertClientError(
+      missingExecutableClient.initialize(),
+      "DOWNSTREAM_MCP_START_FAILED"
+    );
+    await missingExecutableClient.close();
 
     const exitClient = client("exit", 500);
     await assertClientError(
