@@ -44,8 +44,10 @@ function isOperatorPublicPath(url: string): boolean {
 
 function isPublicPath(url: string, consolePathPrefix: string): boolean {
   const pathname = requestPath(url);
+  const isBootstrapProofPath = pathname.startsWith("/.well-known/chatcockpit-bootstrap-proof/");
   return (
     OAUTH_PUBLIC_PATHS.has(pathname) ||
+    isBootstrapProofPath ||
     OPERATOR_PUBLIC_PATHS.has(pathname) ||
     pathname === "/" ||
     pathname === "/favicon.ico" ||

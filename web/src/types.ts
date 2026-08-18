@@ -309,6 +309,53 @@ export interface PublicRouteCutoverIntentSnapshot {
   intent: PublicRouteCutoverIntent | null;
 }
 
+export type PublicRouteBootstrapVerificationReason =
+  | "not-attempted"
+  | "dns-failed"
+  | "no-addresses"
+  | "too-many-addresses"
+  | "non-public-address"
+  | "tls-error"
+  | "network-error"
+  | "timeout"
+  | "response-too-large"
+  | "unexpected-status"
+  | "proof-mismatch";
+
+export interface PublicRouteBootstrapVerificationCheck {
+  ok: boolean;
+  reason: PublicRouteBootstrapVerificationReason | null;
+  statusCode?: number | null;
+  publicAddressCount?: number;
+}
+
+export interface PublicRouteBootstrapVerificationArtifact {
+  id: string;
+  status: "verified" | "failed";
+  checkedAt: string;
+  checks: {
+    dns: PublicRouteBootstrapVerificationCheck;
+    tls: PublicRouteBootstrapVerificationCheck;
+    reachability: PublicRouteBootstrapVerificationCheck;
+    identity: PublicRouteBootstrapVerificationCheck;
+  };
+}
+
+export interface PublicRouteBootstrapProof {
+  id: string;
+  candidateId: string;
+  candidateOrigin: string;
+  status: "prepared" | "verified";
+  preparedAt: string;
+  expiresAt: string;
+  verifiedAt: string | null;
+  verification: PublicRouteBootstrapVerificationArtifact | null;
+}
+
+export interface PublicRouteBootstrapProofSnapshot extends PublicRouteCandidateSnapshot {
+  proof: PublicRouteBootstrapProof | null;
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

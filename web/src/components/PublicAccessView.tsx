@@ -10,6 +10,8 @@ import type {
   ConnectivityProviderPublicSnapshot,
   ConnectivityProviderPublicStatus,
   IntegrationStatusResponse,
+  PublicRouteBootstrapProofSnapshot,
+  PublicRouteBootstrapVerificationReason,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
   PublicRouteCutoverIntentSnapshot,
@@ -33,11 +35,17 @@ interface PublicAccessViewProps {
   cutoverIntentStatus: PublicRouteCutoverIntentSnapshot | null;
   cutoverIntentStatusError: string | null;
   cutoverIntentMutating: boolean;
+  bootstrapProofStatus: PublicRouteBootstrapProofSnapshot | null;
+  bootstrapProofStatusError: string | null;
+  bootstrapProofMutating: boolean;
   onStageCandidate: (origin: string, source: PublicRouteCandidateSource) => void;
   onDiscardCandidate: () => void;
   onVerifyCandidate: (candidateId: string) => void;
   onPrepareCutoverIntent: (candidateId: string, verificationId: string) => void;
   onCancelCutoverIntent: () => void;
+  onPrepareBootstrapProof: (candidateId: string) => void;
+  onVerifyBootstrapProof: (candidateId: string, proofId: string) => void;
+  onCancelBootstrapProof: () => void;
   onOpenIntegrations: () => void;
 }
 
@@ -103,6 +111,13 @@ function verificationReasonLabel(
   return reason ? copy.verificationReasons[reason] : copy.ready;
 }
 
+function bootstrapVerificationReasonLabel(
+  reason: PublicRouteBootstrapVerificationReason | null,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  return reason ? copy.bootstrapVerificationReasons[reason] : copy.ready;
+}
+
 function providerCapabilitySummary(
   provider: ConnectivityProviderPublicStatus,
   copy: ReturnType<typeof getPublicAccessCopy>
@@ -133,11 +148,17 @@ export function PublicAccessView({
   cutoverIntentStatus,
   cutoverIntentStatusError,
   cutoverIntentMutating,
+  bootstrapProofStatus,
+  bootstrapProofStatusError,
+  bootstrapProofMutating,
   onStageCandidate,
   onDiscardCandidate,
   onVerifyCandidate,
   onPrepareCutoverIntent,
   onCancelCutoverIntent,
+  onPrepareBootstrapProof,
+  onVerifyBootstrapProof,
+  onCancelBootstrapProof,
   onOpenIntegrations
 }: PublicAccessViewProps) {
   const copy = getPublicAccessCopy(locale);
@@ -183,7 +204,39 @@ export function PublicAccessView({
     rawCutoverIntent.verificationId === verification?.id
     ? rawCutoverIntent
     : null;
-  const routeWorkflowLocked = Boolean(cutoverIntent) || cutoverIntentMutating;
+  const rawBootstrapProof = bootstrapProofStatus?.proof ?? null;
+  const bootstrapProof = rawBootstrapProof &&
+    rawBootstrapProof.candidateId === routeStatus?.candidate?.id &&
+    rawBootstrapProof.candidateOrigin === routeStatus?.candidate?.origin
+    ? rawBootstrapProof
+    : null;
+  const bootstrapVerification = bootstrapProof?.verification ?? null;
+  const bootstrapChecks = bootstrapVerification ? [
+    { key: "dns", label: copy.verificationDns, check: bootstrapVerification.checks.dns },
+    { key: "tls", label: copy.verificationTls, check: bootstrapVerification.checks.tls },
+    { key: "reachability", label: copy.verificationReachability, check: bootstrapVerification.checks.reachability },
+    { key: "identity", label: copy.bootstrapIdentityCheck, check: bootstrapVerification.checks.identity }
+  ] : [];
+  const bootstrapMode = routeStatus?.canonical.configured === false;
+  const routeWorkflowLocked = Boolean(cutoverIntent || bootstrapProof) ||
+    cutoverIntentMutating || bootstrapProofMutating;
+  const candidateStatusTag = bootstrapMode ? (
+    bootstrapProof?.status === "verified" ? (
+      <Tag color="success">{copy.bootstrapVerified}</Tag>
+    ) : bootstrapVerification?.status === "failed" ? (
+      <Tag color="error">{copy.bootstrapVerificationFailed}</Tag>
+    ) : bootstrapProof?.status === "prepared" ? (
+      <Tag color="processing">{copy.bootstrapPrepared}</Tag>
+    ) : (
+      <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+    )
+  ) : verification?.status === "verified" ? (
+    <Tag color="success">{copy.candidateVerified}</Tag>
+  ) : verification?.status === "failed" ? (
+    <Tag color="error">{copy.candidateVerificationFailed}</Tag>
+  ) : (
+    <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
+  );
   const publicEndpointReady = Boolean(status.publicCockpitUrl && status.publicApiBaseUrl);
   const hasPublicApi = Boolean(status.publicApiBaseUrl);
   const publicHttpsReady = status.publicApiBaseUrl?.startsWith("https://") === true;
@@ -306,15 +359,7 @@ export function PublicAccessView({
         title={copy.routeIntentTitle}
         description={copy.routeIntentDescription}
         extra={
-          routeStatus?.candidate ? (
-            verification?.status === "verified" ? (
-              <Tag color="success">{copy.candidateVerified}</Tag>
-            ) : verification?.status === "failed" ? (
-              <Tag color="error">{copy.candidateVerificationFailed}</Tag>
-            ) : (
-              <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
-            )
-          ) : null
+          routeStatus?.candidate ? candidateStatusTag : null
         }
       >
         {routeStatus ? (
@@ -333,13 +378,7 @@ export function PublicAccessView({
                 {routeStatus.candidate ? (
                   <strong className="public-access-route-candidate">
                     <span>{routeStatus.candidate.origin}</span>
-                    {verification?.status === "verified" ? (
-                      <Tag color="success">{copy.candidateVerified}</Tag>
-                    ) : verification?.status === "failed" ? (
-                      <Tag color="error">{copy.candidateVerificationFailed}</Tag>
-                    ) : (
-                      <Tag color="warning">{copy.candidateStagedUnverified}</Tag>
-                    )}
+                    {candidateStatusTag}
                   </strong>
                 ) : (
                   <strong>{copy.noCandidateRoute}</strong>
@@ -358,7 +397,7 @@ export function PublicAccessView({
                 <div className="gpt-fact">
                   <span>{copy.verificationStatus}</span>
                   <strong>
-                    {verification?.status === "verified" ? (
+                    {bootstrapMode ? candidateStatusTag : verification?.status === "verified" ? (
                       <Tag color="success">{copy.candidateVerified}</Tag>
                     ) : verification?.status === "failed" ? (
                       <Tag color="error">{copy.candidateVerificationFailed}</Tag>
@@ -370,7 +409,7 @@ export function PublicAccessView({
               ) : null}
             </div>
 
-            {verification ? (
+            {!bootstrapMode && verification ? (
               <div className="public-access-verification-grid">
                 {verificationChecks.map((item) => (
                   <div className="public-access-verification-check" key={item.key}>
@@ -391,7 +430,98 @@ export function PublicAccessView({
               </div>
             ) : null}
 
-            {cutoverIntent ? (
+            {bootstrapMode && routeStatus.candidate ? (
+              <div className="public-access-cutover-intent">
+                <div className="public-access-cutover-intent__header">
+                  <div>
+                    <strong>{copy.bootstrapProofTitle}</strong>
+                    <Text type="secondary">
+                      {bootstrapProof?.status === "verified"
+                        ? copy.bootstrapProofVerifiedDescription
+                        : bootstrapProof
+                          ? copy.bootstrapProofPreparedDescription
+                          : copy.bootstrapProofDescription}
+                    </Text>
+                  </div>
+                  {bootstrapProof?.status === "verified" ? (
+                    <Tag color="success">{copy.bootstrapVerified}</Tag>
+                  ) : bootstrapProof ? (
+                    <Tag color="processing">{copy.bootstrapPrepared}</Tag>
+                  ) : (
+                    <Tag>{copy.bootstrapNotPrepared}</Tag>
+                  )}
+                </div>
+
+                {bootstrapVerification ? (
+                  <div className="public-access-verification-grid">
+                    {bootstrapChecks.map((item) => (
+                      <div className="public-access-verification-check" key={item.key}>
+                        <span>{item.label}</span>
+                        <strong>
+                          <Tag color={item.check.ok ? "success" : "error"}>
+                            {item.check.ok ? copy.ready : copy.bootstrapVerificationFailed}
+                          </Tag>
+                          <Text type="secondary">
+                            {item.check.ok
+                              ? copy.ready
+                              : bootstrapVerificationReasonLabel(item.check.reason, copy)}
+                            {item.check.statusCode ? ` · HTTP ${item.check.statusCode}` : ""}
+                          </Text>
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {bootstrapProof ? (
+                  <div className="gpt-facts">
+                    <div className="gpt-fact">
+                      <span>{copy.bootstrapProofExpires}</span>
+                      <strong>{new Date(bootstrapProof.expiresAt).toLocaleString(locale)}</strong>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="public-access-route-actions">
+                  {!bootstrapProof ? (
+                    <Button
+                      type="primary"
+                      loading={bootstrapProofMutating}
+                      disabled={routeMutating || bootstrapProofMutating}
+                      onClick={() => onPrepareBootstrapProof(routeStatus.candidate!.id)}
+                    >
+                      {copy.prepareBootstrapProof}
+                    </Button>
+                  ) : bootstrapProof.status === "prepared" ? (
+                    <Button
+                      type="primary"
+                      loading={bootstrapProofMutating}
+                      disabled={routeMutating || bootstrapProofMutating}
+                      onClick={() => onVerifyBootstrapProof(routeStatus.candidate!.id, bootstrapProof.id)}
+                    >
+                      {copy.verifyBootstrapProof}
+                    </Button>
+                  ) : null}
+                  {bootstrapProof ? (
+                    <Button
+                      disabled={bootstrapProofMutating}
+                      onClick={onCancelBootstrapProof}
+                    >
+                      {copy.cancelBootstrapProof}
+                    </Button>
+                  ) : null}
+                </div>
+
+                {bootstrapProof?.status === "verified" ? (
+                  <div className="section-note section-note--warning public-access-note">
+                    <strong>{copy.bootstrapMachinePendingTitle}</strong>
+                    <span>{copy.bootstrapMachinePendingDescription}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {!bootstrapMode && cutoverIntent ? (
               <div className="public-access-cutover-intent">
                 <div className="public-access-cutover-intent__header">
                   <div>
@@ -420,27 +550,20 @@ export function PublicAccessView({
                   </Button>
                 </div>
               </div>
-            ) : verification?.status === "verified" ? (
-              routeStatus.canonical.configured ? (
-                <div className="public-access-cutover-ready">
-                  <div>
-                    <strong>{copy.cutoverReadyTitle}</strong>
-                    <Text type="secondary">{copy.cutoverReadyDescription}</Text>
-                  </div>
-                  <Button
-                    loading={cutoverIntentMutating}
-                    disabled={routeMutating || routeVerifying || cutoverIntentMutating}
-                    onClick={() => onPrepareCutoverIntent(routeStatus.candidate!.id, verification.id)}
-                  >
-                    {copy.prepareCutoverIntent}
-                  </Button>
+            ) : !bootstrapMode && verification?.status === "verified" ? (
+              <div className="public-access-cutover-ready">
+                <div>
+                  <strong>{copy.cutoverReadyTitle}</strong>
+                  <Text type="secondary">{copy.cutoverReadyDescription}</Text>
                 </div>
-              ) : (
-                <div className="section-note section-note--warning public-access-note">
-                  <strong>{copy.bootstrapCutoverTitle}</strong>
-                  <span>{copy.bootstrapCutoverDescription}</span>
-                </div>
-              )
+                <Button
+                  loading={cutoverIntentMutating}
+                  disabled={routeMutating || routeVerifying || cutoverIntentMutating}
+                  onClick={() => onPrepareCutoverIntent(routeStatus.candidate!.id, verification.id)}
+                >
+                  {copy.prepareCutoverIntent}
+                </Button>
+              </div>
             ) : null}
 
             <div className="public-access-route-form">
@@ -471,7 +594,7 @@ export function PublicAccessView({
                 >
                   {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
                 </Button>
-                {routeStatus.candidate ? (
+                {routeStatus.candidate && !bootstrapMode ? (
                   <Button
                     loading={routeVerifying}
                     disabled={routeMutating || routeVerifying || routeWorkflowLocked}
@@ -514,6 +637,12 @@ export function PublicAccessView({
           <div className="section-note section-note--warning public-access-note">
             <strong>{copy.cutoverIntentTitle}</strong>
             <span>{cutoverIntentStatusError}</span>
+          </div>
+        ) : null}
+        {bootstrapProofStatusError ? (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.bootstrapProofTitle}</strong>
+            <span>{bootstrapProofStatusError}</span>
           </div>
         ) : null}
         <div className="gpt-inline-note public-access-route-safety">

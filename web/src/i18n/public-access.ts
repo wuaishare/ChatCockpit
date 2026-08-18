@@ -1,5 +1,8 @@
 import type { LocaleCode } from "../i18n";
-import type { PublicRouteVerificationReason } from "../types";
+import type {
+  PublicRouteBootstrapVerificationReason,
+  PublicRouteVerificationReason
+} from "../types";
 
 export interface PublicAccessCopy {
   active: string;
@@ -66,6 +69,22 @@ export interface PublicAccessCopy {
   verificationIdentity: string;
   verificationOauth: string;
   verificationReasons: Record<PublicRouteVerificationReason, string>;
+  bootstrapVerificationReasons: Record<PublicRouteBootstrapVerificationReason, string>;
+  bootstrapProofTitle: string;
+  bootstrapProofDescription: string;
+  bootstrapProofPreparedDescription: string;
+  bootstrapProofVerifiedDescription: string;
+  bootstrapNotPrepared: string;
+  bootstrapPrepared: string;
+  bootstrapVerified: string;
+  bootstrapVerificationFailed: string;
+  bootstrapIdentityCheck: string;
+  bootstrapProofExpires: string;
+  prepareBootstrapProof: string;
+  verifyBootstrapProof: string;
+  cancelBootstrapProof: string;
+  bootstrapMachinePendingTitle: string;
+  bootstrapMachinePendingDescription: string;
   candidateSafetyNote: string;
   candidateStatusUnavailable: string;
   cutoverIntentTitle: string;
@@ -78,8 +97,6 @@ export interface PublicAccessCopy {
   cutoverReadyDescription: string;
   prepareCutoverIntent: string;
   cancelCutoverIntent: string;
-  bootstrapCutoverTitle: string;
-  bootstrapCutoverDescription: string;
   actionInstall: string;
   actionUpgrade: string;
   actionUninstall: string;
@@ -143,7 +160,7 @@ const zhCN: PublicAccessCopy = {
   openConnectivityInApp: "在 ChatCockpit App 中打开",
   connectivityBridgeDescription: "只导航到 App 的「访问与安全 → 接入组件」区域；不会自动执行安装、升级、卸载或启动 Tunnel。",
   routeIntentTitle: "候选公网 Route",
-  routeIntentDescription: "在不影响当前公网入口的前提下暂存并验证下一条候选 HTTPS origin。验证只检查受限的公网 DNS、TLS、ChatCockpit Runtime 可达性与 OAuth 前置条件，不会改写 Runtime 公网基址。",
+  routeIntentDescription: "暂存候选 HTTPS origin 时不会改写 Runtime 公网基址。已有 canonical 时使用公网 DNS、TLS、Runtime Health 与 OAuth identity 验证 replacement Route；首次公网接入时改用 machine-local challenge 的 Bootstrap Identity Proof。",
   currentCanonicalRoute: "当前 canonical",
   candidateRoute: "候选 Route",
   candidateSource: "候选来源",
@@ -179,7 +196,35 @@ const zhCN: PublicAccessCopy = {
     "unexpected-health-contract": "不是预期的 ChatCockpit Health 响应",
     "unexpected-oauth-metadata": "OAuth Metadata 不符合预期"
   },
-  candidateSafetyNote: "暂存、验证、准备或取消 Cutover Intent 都不会修改当前 canonical、OAuth issuer、OpenAPI/MCP 地址，也不会启动、重启或切换任何 Tunnel/Runtime。验证仅使用 public-unicast DNS 与固定 IP HTTPS 探针；真正的切换执行仍属于后续 App/CLI Machine Authority 阶段。",
+  bootstrapVerificationReasons: {
+    "not-attempted": "未执行",
+    "dns-failed": "DNS 解析失败",
+    "no-addresses": "未解析到地址",
+    "too-many-addresses": "解析地址数量超过安全上限",
+    "non-public-address": "解析结果包含非公网地址",
+    "tls-error": "TLS 证书或握手失败",
+    "network-error": "网络连接失败",
+    timeout: "身份验证请求超时",
+    "response-too-large": "Proof 响应超过安全大小上限",
+    "unexpected-status": "Proof endpoint 返回了非预期 HTTP 状态",
+    "proof-mismatch": "公网 Route 未返回当前机器的精确身份 challenge"
+  },
+  bootstrapProofTitle: "首次公网身份验证",
+  bootstrapProofDescription: "当前 Runtime 还没有 canonical 公网 origin。先创建一个 5 分钟有效、仅保存在本机的随机 challenge，再从候选 HTTPS Route 反向访问同一 Runtime，证明这个公网地址确实指向当前 ChatCockpit。",
+  bootstrapProofPreparedDescription: "身份 challenge 已在本机准备好，可通过候选公网 Route 发起验证。challenge 不会进入 Web 状态、Provider 配置或验证结果。",
+  bootstrapProofVerifiedDescription: "候选 Route 已通过首次公网身份验证。随机 challenge 已立即销毁；当前只保留 15 分钟有效的 public-safe 验证结果。",
+  bootstrapNotPrepared: "尚未准备",
+  bootstrapPrepared: "Challenge 已准备",
+  bootstrapVerified: "身份已验证",
+  bootstrapVerificationFailed: "身份验证失败",
+  bootstrapIdentityCheck: "机器身份 Proof",
+  bootstrapProofExpires: "Proof 过期时间",
+  prepareBootstrapProof: "准备身份 Proof",
+  verifyBootstrapProof: "验证公网身份",
+  cancelBootstrapProof: "取消身份 Proof",
+  bootstrapMachinePendingTitle: "等待 Machine Bootstrap",
+  bootstrapMachinePendingDescription: "身份 Proof 已通过，但这一片不会写 server.env、restart Runtime 或建立首个 canonical。真正的首次公网 Bootstrap 仍必须由 App / CLI Machine Authority 显式执行。",
+  candidateSafetyNote: "候选暂存与 Web 验证本身不会修改 canonical、OAuth issuer 或启动 Tunnel/Runtime。已有 canonical 的 replacement cutover 只能在 App / CLI Machine Authority 中执行；首次公网 Bootstrap 的机器执行仍保持独立。所有公网验证都使用 public-unicast DNS 与固定 IP HTTPS 探针。",
   candidateStatusUnavailable: "暂时无法读取候选 Route 状态；当前 Runtime 公网入口保持不变。",
   cutoverIntentTitle: "Cutover Intent",
   cutoverIntentPending: "待机器执行",
@@ -191,8 +236,6 @@ const zhCN: PublicAccessCopy = {
   cutoverReadyDescription: "当前 candidate 已通过验证。下一步只能先生成短期 Cutover Intent；真正执行必须由 App / CLI Machine Authority 完成。",
   prepareCutoverIntent: "准备 Cutover Intent",
   cancelCutoverIntent: "取消 Cutover Intent",
-  bootstrapCutoverTitle: "首次公网 Bootstrap 尚未支持",
-  bootstrapCutoverDescription: "当前流程只支持替换已有 canonical Route。首次从 local-only 建立公网入口需要单独的 Bootstrap 验证与 Machine Authority 合同，不能复用 replacement cutover。",
   actionInstall: "安装",
   actionUpgrade: "升级",
   actionUninstall: "卸载",
@@ -256,7 +299,7 @@ const enUS: PublicAccessCopy = {
   openConnectivityInApp: "Open in ChatCockpit App",
   connectivityBridgeDescription: "This only navigates to Access & Security → Connectivity Providers in the App. It never auto-runs install, upgrade, uninstall, or Tunnel startup.",
   routeIntentTitle: "Candidate Public Route",
-  routeIntentDescription: "Stage and verify the next HTTPS origin without affecting the working public entry. Verification checks bounded public DNS, TLS, ChatCockpit Runtime reachability, and OAuth prerequisites without rewriting the Runtime public base URL.",
+  routeIntentDescription: "Staging a candidate HTTPS origin never rewrites the Runtime public base URL. With an existing canonical, replacement verification checks public DNS, TLS, Runtime Health, and OAuth identity; first-public setup instead uses a machine-local challenge Bootstrap Identity Proof.",
   currentCanonicalRoute: "Current canonical",
   candidateRoute: "Candidate Route",
   candidateSource: "Candidate source",
@@ -292,7 +335,35 @@ const enUS: PublicAccessCopy = {
     "unexpected-health-contract": "Response was not the expected ChatCockpit Health contract",
     "unexpected-oauth-metadata": "OAuth metadata did not match the expected contract"
   },
-  candidateSafetyNote: "Staging, verifying, preparing, or cancelling a Cutover Intent never changes the current canonical origin, OAuth issuer, OpenAPI/MCP addresses, or starts/restarts/switches any Tunnel or Runtime. Verification uses public-unicast DNS and pinned-address HTTPS probes only; real cutover execution remains a later App/CLI Machine Authority stage.",
+  bootstrapVerificationReasons: {
+    "not-attempted": "Not attempted",
+    "dns-failed": "DNS resolution failed",
+    "no-addresses": "No addresses were resolved",
+    "too-many-addresses": "Resolved address count exceeded the safety limit",
+    "non-public-address": "DNS included a non-public address",
+    "tls-error": "TLS certificate or handshake failed",
+    "network-error": "Network connection failed",
+    timeout: "Identity proof request timed out",
+    "response-too-large": "Proof response exceeded the safety size limit",
+    "unexpected-status": "Proof endpoint returned an unexpected HTTP status",
+    "proof-mismatch": "The public Route did not return this machine's exact identity challenge"
+  },
+  bootstrapProofTitle: "Initial public identity proof",
+  bootstrapProofDescription: "This Runtime has no canonical public origin yet. Prepare a five-minute random challenge stored only on this machine, then reach the same Runtime through the candidate HTTPS Route to prove that the public address really points to this ChatCockpit instance.",
+  bootstrapProofPreparedDescription: "The machine-local identity challenge is ready for a probe through the candidate public Route. The challenge is never projected into Web state, provider configuration, or the verification artifact.",
+  bootstrapProofVerifiedDescription: "The candidate Route passed initial public identity proof. The random challenge was destroyed immediately; only a public-safe verification result remains for 15 minutes.",
+  bootstrapNotPrepared: "Not prepared",
+  bootstrapPrepared: "Challenge prepared",
+  bootstrapVerified: "Identity verified",
+  bootstrapVerificationFailed: "Identity verification failed",
+  bootstrapIdentityCheck: "Machine identity proof",
+  bootstrapProofExpires: "Proof expires",
+  prepareBootstrapProof: "Prepare identity proof",
+  verifyBootstrapProof: "Verify public identity",
+  cancelBootstrapProof: "Cancel identity proof",
+  bootstrapMachinePendingTitle: "Waiting for Machine Bootstrap",
+  bootstrapMachinePendingDescription: "Identity proof has passed, but this slice does not write server.env, restart Runtime, or create the first canonical origin. Initial public Bootstrap still requires explicit App / CLI Machine Authority execution.",
+  candidateSafetyNote: "Candidate staging and Web verification do not change the canonical origin, OAuth issuer, or start any Tunnel/Runtime. Replacement cutover for an existing canonical runs only under App / CLI Machine Authority; first-public Bootstrap machine execution remains separate. All public verification uses public-unicast DNS and pinned-address HTTPS probes.",
   candidateStatusUnavailable: "Candidate Route status is temporarily unavailable. The current Runtime public entry remains unchanged.",
   cutoverIntentTitle: "Cutover Intent",
   cutoverIntentPending: "Pending machine execution",
@@ -304,8 +375,6 @@ const enUS: PublicAccessCopy = {
   cutoverReadyDescription: "The current candidate is verified. The next step only creates a short-lived Cutover Intent; actual execution must remain under App / CLI Machine Authority.",
   prepareCutoverIntent: "Prepare Cutover Intent",
   cancelCutoverIntent: "Cancel Cutover Intent",
-  bootstrapCutoverTitle: "Initial public bootstrap is not supported yet",
-  bootstrapCutoverDescription: "This workflow only replaces an existing canonical Route. Moving from local-only to the first public entry requires a separate bootstrap verification and Machine Authority contract instead of reusing replacement cutover.",
   actionInstall: "Install",
   actionUpgrade: "Upgrade",
   actionUninstall: "Uninstall",
