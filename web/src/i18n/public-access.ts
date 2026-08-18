@@ -11,15 +11,15 @@ export interface PublicAccessCopy {
   needsAttention: string;
   disabled: string;
   notConfigured: string;
-  reachabilityTitle: string;
-  reachabilityDescription: string;
+  statusOverviewTitle: string;
+  statusOverviewDescription: string;
+  addressesTitle: string;
+  protocolHealthTitle: string;
   exposureStatus: string;
   localCockpit: string;
   publicCockpit: string;
   localApiBase: string;
   publicApiBase: string;
-  protocolsTitle: string;
-  protocolsDescription: string;
   openapiUrl: string;
   mcpEndpoint: string;
   oauthStatus: string;
@@ -106,16 +106,11 @@ export interface PublicAccessCopy {
   actionInstall: string;
   actionUpgrade: string;
   actionUninstall: string;
-  diagnosticsTitle: string;
-  diagnosticsDescription: string;
   publicEndpoint: string;
   httpsRequired: string;
   httpsReady: string;
   httpsMissing: string;
-  mcpReady: string;
-  mcpMissing: string;
   oauthGuidance: string;
-  oauthReadyGuidance: string;
   openIntegrations: string;
   copyUrl: string;
   loadingTitle: string;
@@ -130,15 +125,15 @@ const zhCN: PublicAccessCopy = {
   needsAttention: "需要处理",
   disabled: "未启用",
   notConfigured: "未配置",
-  reachabilityTitle: "可达性概览",
-  reachabilityDescription: "这些地址直接来自 Runtime 当前投影；缺失值会明确显示为未配置，不会补出一个看似可用的地址。",
+  statusOverviewTitle: "当前公网状态",
+  statusOverviewDescription: "地址与协议状态都直接来自 Runtime 当前投影；未知或未配置的值保持原样，不会补出一个看似可用的结果。",
+  addressesTitle: "访问地址",
+  protocolHealthTitle: "协议健康",
   exposureStatus: "公网暴露",
   localCockpit: "本机控制台",
   publicCockpit: "公网控制台",
   localApiBase: "本机 API",
   publicApiBase: "公网 API",
-  protocolsTitle: "公开协议端点",
-  protocolsDescription: "OpenAPI 与 MCP 复用 Runtime 的现有端点真相；OAuth 状态由 Runtime 的集成状态提供。",
   openapiUrl: "OpenAPI 地址",
   mcpEndpoint: "MCP 端点",
   oauthStatus: "OAuth 状态",
@@ -251,16 +246,11 @@ const zhCN: PublicAccessCopy = {
   actionInstall: "安装",
   actionUpgrade: "升级",
   actionUninstall: "卸载",
-  diagnosticsTitle: "接入诊断",
-  diagnosticsDescription: "基于当前 Runtime 投影检查公网地址、HTTPS、MCP 与 OAuth，帮助定位下一步应在公网接入还是集成设置中处理。",
   publicEndpoint: "公网端点",
   httpsRequired: "HTTPS",
   httpsReady: "公网 API 使用 HTTPS",
   httpsMissing: "当前公网 API 不是 HTTPS，不能作为安全的公网接入地址",
-  mcpReady: "MCP 公网端点可用",
-  mcpMissing: "尚未提供 MCP 公网端点",
   oauthGuidance: "OAuth 尚未就绪，请前往「集成」检查授权配置；不要在公网接入页复制一套 OAuth 管理。",
-  oauthReadyGuidance: "OAuth 已就绪；详细客户端与令牌状态继续由「集成」工作台管理。",
   openIntegrations: "前往集成",
   copyUrl: "复制地址",
   loadingTitle: "正在加载公网接入状态",
@@ -275,15 +265,15 @@ const enUS: PublicAccessCopy = {
   needsAttention: "Needs attention",
   disabled: "Disabled",
   notConfigured: "Not configured",
-  reachabilityTitle: "Reachability overview",
-  reachabilityDescription: "These addresses come directly from the current Runtime projection. Missing values stay explicitly unconfigured instead of being replaced with plausible-looking URLs.",
+  statusOverviewTitle: "Current public status",
+  statusOverviewDescription: "Address and protocol state come directly from the current Runtime projection. Unknown or unconfigured values stay explicit instead of being replaced with plausible-looking results.",
+  addressesTitle: "Addresses",
+  protocolHealthTitle: "Protocol health",
   exposureStatus: "Public exposure",
   localCockpit: "Local Cockpit",
   publicCockpit: "Public Cockpit",
   localApiBase: "Local API",
   publicApiBase: "Public API",
-  protocolsTitle: "Public protocol endpoints",
-  protocolsDescription: "OpenAPI and MCP reuse the Runtime's existing endpoint truth, while OAuth readiness comes from the Runtime integration status.",
   openapiUrl: "OpenAPI URL",
   mcpEndpoint: "MCP endpoint",
   oauthStatus: "OAuth status",
@@ -396,16 +386,11 @@ const enUS: PublicAccessCopy = {
   actionInstall: "Install",
   actionUpgrade: "Upgrade",
   actionUninstall: "Uninstall",
-  diagnosticsTitle: "Access diagnostics",
-  diagnosticsDescription: "Check public addressing, HTTPS, MCP, and OAuth from the current Runtime projection to see whether the next action belongs in Public Access or Integrations.",
   publicEndpoint: "Public endpoint",
   httpsRequired: "HTTPS",
   httpsReady: "Public API uses HTTPS",
   httpsMissing: "The configured public API is not HTTPS and cannot be treated as a secure public endpoint",
-  mcpReady: "Public MCP endpoint is available",
-  mcpMissing: "No public MCP endpoint is available yet",
   oauthGuidance: "OAuth is not ready. Open Integrations to inspect authorization instead of duplicating OAuth management in Public Access.",
-  oauthReadyGuidance: "OAuth is ready. Detailed client and token state remains in the Integrations workspace.",
   openIntegrations: "Open Integrations",
   copyUrl: "Copy URL",
   loadingTitle: "Loading Public Access",

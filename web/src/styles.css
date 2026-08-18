@@ -1615,6 +1615,34 @@ button,
   margin-top: 4px;
 }
 
+.public-access-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.public-access-status-block {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-lg);
+  background: var(--tp-surface-subtle);
+}
+
+.public-access-status-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.public-access-status-block__header > strong {
+  color: var(--tp-text-strong);
+  font-size: var(--tp-text-sm);
+  font-weight: 680;
+}
+
 .public-access-endpoint {
   display: inline-flex;
   align-items: center;
@@ -1977,6 +2005,7 @@ button,
     grid-template-columns: 92px minmax(0, 1fr);
   }
 
+  .public-access-status-grid,
   .public-access-verification-grid,
   .public-access-route-form {
     grid-template-columns: 1fr;
