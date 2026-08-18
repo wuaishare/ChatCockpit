@@ -6,6 +6,11 @@ import type {
   RuntimeResourceSourceKind,
   RuntimeResourceUpdateStatus
 } from "../continuity/types.js";
+import type {
+  CapabilityProviderAuthStatus,
+  CapabilityProviderCompatibilityStatus,
+  CapabilityProviderDescriptor
+} from "../capabilities/provider.js";
 
 export type RuntimeProfileExecutableSource =
   | "bundled"
@@ -15,30 +20,15 @@ export type RuntimeProfileExecutableSource =
   | null;
 
 export type RuntimeProfileCompatibilityStatus =
-  | "ready"
-  | "degraded"
-  | "unsupported"
-  | "unavailable";
+  CapabilityProviderCompatibilityStatus;
 
-export type RuntimeProfileAuthStatus =
-  | "ready"
-  | "required"
-  | "unknown"
-  | "not-applicable";
+export type RuntimeProfileAuthStatus = CapabilityProviderAuthStatus;
 
-export interface RuntimeProfileDescriptor {
-  id: string;
-  providerKind: string;
-  protocolKind: string;
-  displayName: string;
+export interface RuntimeProfileDescriptor extends CapabilityProviderDescriptor {
   executableSource: RuntimeProfileExecutableSource;
   executableVersion: string | null;
   protocolVersion: string | null;
-  compatibilityStatus: RuntimeProfileCompatibilityStatus;
   homeIdentityHash: string | null;
-  authStatus: RuntimeProfileAuthStatus;
-  capabilities: string[];
-  publicReason: string | null;
 }
 
 export interface RuntimeResourceDescriptor {
