@@ -706,6 +706,7 @@ async function verifyUiServing(): Promise<void> {
   });
   assert.equal(uiResponse.statusCode, 200);
   assert.match(uiResponse.body, /ChatCockpit UI/);
+  assert.equal(uiResponse.headers["cache-control"], "no-store");
 
   const assetResponse = await app.inject({
     method: "GET",
@@ -715,6 +716,23 @@ async function verifyUiServing(): Promise<void> {
   assert.match(assetResponse.body, /console\.log/);
   assert.match(assetResponse.headers["content-type"] ?? "", /text\/javascript/);
   assert.equal(assetResponse.headers["x-content-type-options"], "nosniff");
+  assert.equal(
+    assetResponse.headers["cache-control"],
+    "public, max-age=31536000, immutable"
+  );
+
+  const missingAssetResponse = await app.inject({
+    method: "GET",
+    url: "/ui/assets/old-build-chunk.js"
+  });
+  assert.equal(missingAssetResponse.statusCode, 404);
+  assert.match(missingAssetResponse.headers["content-type"] ?? "", /application\/json/);
+  assert.doesNotMatch(missingAssetResponse.body, /ChatCockpit UI/);
+  assert.equal(
+    missingAssetResponse.json().error.code,
+    "UI_ASSET_NOT_FOUND",
+    missingAssetResponse.body
+  );
 
   const escapedAssetResponse = await app.inject({
     method: "GET",
@@ -741,6 +759,7 @@ async function verifyUiServing(): Promise<void> {
   });
   assert.equal(fallbackResponse.statusCode, 200);
   assert.match(fallbackResponse.body, /ChatCockpit UI/);
+  assert.equal(fallbackResponse.headers["cache-control"], "no-store");
 
   const continuityDocumentsResponse = await app.inject({
     method: "GET",
