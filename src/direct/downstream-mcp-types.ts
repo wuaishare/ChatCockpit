@@ -7,6 +7,18 @@ import type {
 export interface DownstreamMcpToolSummary {
   name: string;
   description?: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+}
+
+export interface DownstreamMcpToolCatalogEntry {
+  name: string;
+  description: string | null;
+  inputSchema: Record<string, unknown> | null;
+  outputSchema: Record<string, unknown> | null;
+  annotations: Record<string, unknown> | null;
+  metadataStatus: "ready" | "bounded" | "legacy-summary-only";
 }
 
 export interface DownstreamMcpServerIdentity {
@@ -62,5 +74,6 @@ export interface DownstreamMcpCapabilitySnapshot {
   probedAt: string;
   health: "ready" | "degraded" | "unavailable";
   toolsObserved: string[];
+  toolCatalog: DownstreamMcpToolCatalogEntry[];
   mappings: DownstreamMcpCapabilitySnapshotMapping[];
 }

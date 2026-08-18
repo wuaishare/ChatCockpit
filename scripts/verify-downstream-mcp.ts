@@ -28,6 +28,7 @@ import {
 } from "../src/direct/downstream-mcp-stdio-client.ts";
 import { probeDownstreamMcpExecutor } from "../src/direct/downstream-mcp-probe.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
+import { projectDownstreamMcpToolCatalog } from "../src/direct/downstream-mcp-tool-catalog.ts";
 import { createDownstreamMcpExecutorSource } from "../src/direct/executor-sources.ts";
 import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
 
@@ -165,6 +166,20 @@ async function verifyDownstreamMcp(): Promise<void> {
     assert.equal(snapshot.serverName, "fake-downstream");
     assert.equal(snapshot.serverVersion, "1.0.0");
     assert.ok(snapshot.toolsObserved.includes("unmapped_private_tool"));
+    const readFileCatalog = snapshot.toolCatalog.find(
+      (tool) => tool.name === "read_file"
+    );
+    assert.ok(readFileCatalog);
+    assert.equal(readFileCatalog.metadataStatus, "ready");
+    assert.equal(
+      (
+        readFileCatalog.inputSchema?.properties as
+          | Record<string, { type?: string }>
+          | undefined
+      )?.path?.type,
+      "string"
+    );
+    assert.equal(readFileCatalog.description, "Read a file fixture");
     assert.equal(
       snapshot.mappings.find((mapping) => mapping.capability === "files.read")?.status,
       "verified"
@@ -176,6 +191,45 @@ async function verifyDownstreamMcp(): Promise<void> {
 
     const persisted = store.read("downstream-mcp:desktop-commander-fixture");
     assert.deepEqual(persisted, snapshot);
+    assert.equal(
+      persisted?.toolCatalog.find((tool) => tool.name === "read_file")
+        ?.metadataStatus,
+      "ready"
+    );
+
+    const boundedCatalog = projectDownstreamMcpToolCatalog([
+      {
+        name: "oversized_schema",
+        inputSchema: {
+          type: "object",
+          description: "x".repeat(70 * 1024)
+        }
+      }
+    ]);
+    assert.equal(boundedCatalog[0]?.metadataStatus, "bounded");
+    assert.equal(boundedCatalog[0]?.inputSchema, null);
+
+    const legacyExecutorId = "downstream-mcp:legacy-summary-fixture";
+    const legacySnapshot = {
+      ...snapshot,
+      executorId: legacyExecutorId,
+      displayName: "Legacy Summary Fixture",
+      toolsObserved: ["legacy_tool"]
+    } as Record<string, unknown>;
+    delete legacySnapshot.toolCatalog;
+    const legacyPath = path.join(storeRoot, store.publicPath(legacyExecutorId));
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(legacyPath, `${JSON.stringify(legacySnapshot, null, 2)}\n`, "utf8");
+    const normalizedLegacy = store.read(legacyExecutorId);
+    assert.equal(normalizedLegacy?.toolCatalog.length, 1);
+    assert.deepEqual(normalizedLegacy?.toolCatalog[0], {
+      name: "legacy_tool",
+      description: null,
+      inputSchema: null,
+      outputSchema: null,
+      annotations: null,
+      metadataStatus: "legacy-summary-only"
+    });
     assert.match(
       store.publicPath("downstream-mcp:desktop-commander-fixture"),
       /^\.chatcockpit\/runtime\/capabilities\/downstream-mcp\//

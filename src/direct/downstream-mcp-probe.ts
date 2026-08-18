@@ -6,6 +6,7 @@ import type {
   DownstreamMcpProbeConfig
 } from "./downstream-mcp-types.js";
 import { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
+import { projectDownstreamMcpToolCatalog } from "./downstream-mcp-tool-catalog.js";
 
 function normalizeMapping(
   mapping: DownstreamMcpCapabilityMapping,
@@ -78,6 +79,7 @@ export async function probeDownstreamMcpExecutor(options: {
       probedAt: options.now ?? new Date().toISOString(),
       health: deriveHealth(mappings),
       toolsObserved: Array.from(observedTools).sort(),
+      toolCatalog: projectDownstreamMcpToolCatalog(listed.tools),
       mappings
     };
     store.write(snapshot);
