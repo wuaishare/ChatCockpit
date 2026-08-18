@@ -1072,19 +1072,30 @@ export interface RuntimeResourceMutationExecution {
   finishedAt: string | null;
 }
 
-export interface RuntimeProfileDescriptor {
+export interface DeviceTargetDescriptor {
+  id: "local-device";
+  kind: "device";
+  locality: "local";
+  platform: string;
+  architecture: string;
+}
+
+export interface CapabilityProviderDescriptor {
   id: string;
   providerKind: string;
   protocolKind: string;
   displayName: string;
-  executableSource: "bundled" | "path" | "custom" | "registry" | null;
-  executableVersion: string | null;
-  protocolVersion: string | null;
   compatibilityStatus: "ready" | "degraded" | "unsupported" | "unavailable";
-  homeIdentityHash: string | null;
   authStatus: "ready" | "required" | "unknown" | "not-applicable";
   capabilities: string[];
   publicReason: string | null;
+}
+
+export interface RuntimeProfileDescriptor extends CapabilityProviderDescriptor {
+  executableSource: "bundled" | "path" | "custom" | "registry" | null;
+  executableVersion: string | null;
+  protocolVersion: string | null;
+  homeIdentityHash: string | null;
 }
 
 export interface RuntimeResourceDescriptor {
@@ -1161,6 +1172,8 @@ export interface RuntimeResourceDiff {
 
 export interface RuntimeResourceProfilesResponse {
   ok: true;
+  target: DeviceTargetDescriptor;
+  providers: CapabilityProviderDescriptor[];
   profiles: RuntimeProfileDescriptor[];
 }
 

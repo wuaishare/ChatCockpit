@@ -261,8 +261,33 @@ async function run(): Promise<void> {
 
     const profiles = await rest<{
       ok: true;
+      target: {
+        id: string;
+        kind: string;
+        locality: string;
+        platform: string;
+        architecture: string;
+      };
+      providers: Array<{
+        id: string;
+        providerKind: string;
+        protocolKind: string;
+        capabilities: string[];
+      }>;
       profiles: Array<{ id: string; providerKind: string; executableVersion: string | null }>;
     }>("GET", "/api/resources/runtime-profiles");
+    assert.deepEqual(profiles.target, {
+      id: "local-device",
+      kind: "device",
+      locality: "local",
+      platform: process.platform,
+      architecture: process.arch
+    });
+    assert.equal(JSON.stringify(profiles.target).includes("hostname"), false);
+    assert.equal(profiles.providers.length, 1);
+    assert.equal(profiles.providers[0]?.providerKind, "codex");
+    assert.equal(profiles.providers[0]?.id, profiles.profiles[0]?.id);
+    assert.equal("executableVersion" in profiles.providers[0]!, false);
     assert.equal(profiles.profiles.length, 1);
     const profile = profiles.profiles[0]!;
     assert.equal(profile.providerKind, "codex");
