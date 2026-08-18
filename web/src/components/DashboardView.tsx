@@ -13,6 +13,8 @@ import type { LocaleCode } from "../i18n";
 import { getStatusLabel, getTypeLabel, getUiCopy } from "../i18n";
 import { getIntegrationsCopy } from "../i18n/integrations";
 
+export type DashboardJobsDataState = "loading" | "protected" | "unavailable" | "empty" | "ready";
+
 interface DashboardViewProps {
   locale: LocaleCode;
   health: HealthModel;
@@ -20,7 +22,7 @@ interface DashboardViewProps {
   repoGovernance?: RepoGovernanceModel;
   counts: JobCounts;
   recentJobs: JobSummary[];
-  jobsProtected: boolean;
+  jobsDataState: DashboardJobsDataState;
   onSelectJob: (jobId: string) => void;
   onOpenIntegrations: () => void;
   onRefresh: () => void;
@@ -33,7 +35,7 @@ export function DashboardView({
   repoGovernance,
   counts,
   recentJobs,
-  jobsProtected,
+  jobsDataState,
   onSelectJob,
   onOpenIntegrations,
   onRefresh
@@ -41,7 +43,7 @@ export function DashboardView({
   const throughput = counts.total ? Math.round((counts.completed / counts.total) * 100) : 0;
   const copy = getUiCopy(locale);
   const integrationsCopy = getIntegrationsCopy(locale);
-  const hasAnyJobs = counts.total > 0;
+  const hasAnyJobs = jobsDataState === "ready";
   const runtimeBuildText = [
     health.build.version,
     health.build.buildId ? `build ${health.build.buildId}` : null,
@@ -199,7 +201,7 @@ export function DashboardView({
 
       <SectionCard title={copy.dashboard.distributionTitle} description={copy.dashboard.distributionDescription}>
         <div className="distribution-stack">
-          {jobsProtected ? (
+          {jobsDataState === "loading" || jobsDataState === "protected" || jobsDataState === "unavailable" ? (
             <div className="distribution-empty-card">
               <div className="metric-inline metric-inline--compact metric-inline--muted">
                 <div className="metric-inline__item"><span>{copy.dashboard.queued}</span><strong>--</strong></div>
@@ -208,15 +210,29 @@ export function DashboardView({
                 <div className="metric-inline__item"><span>{copy.dashboard.total}</span><strong>--</strong></div>
               </div>
 
-              <div className="empty-console empty-console--protected">
+              <div className={`empty-console${jobsDataState === "protected" ? " empty-console--protected" : ""}`}>
                 <div className="empty-console__copy">
-                  <strong>{copy.dashboard.protectedStateTitle}</strong>
-                  <span>{copy.dashboard.protectedStateDescription}</span>
+                  <strong>
+                    {jobsDataState === "loading"
+                      ? copy.dashboard.loadingStateTitle
+                      : jobsDataState === "protected"
+                        ? copy.dashboard.protectedStateTitle
+                        : copy.dashboard.unavailableStateTitle}
+                  </strong>
+                  <span>
+                    {jobsDataState === "loading"
+                      ? copy.dashboard.loadingStateDescription
+                      : jobsDataState === "protected"
+                        ? copy.dashboard.protectedStateDescription
+                        : copy.dashboard.unavailableStateDescription}
+                  </span>
                 </div>
                 <div className="empty-console__actions">
-                  <Button type="link" onClick={onRefresh}>
-                    {copy.dashboard.quickActionRefresh}
-                  </Button>
+                  {jobsDataState === "loading" ? null : (
+                    <Button type="link" onClick={onRefresh}>
+                      {copy.dashboard.quickActionRefresh}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

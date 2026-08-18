@@ -305,6 +305,10 @@ if (findings.length > 0) {
 }
 
 const appSource = fs.readFileSync(path.join(repoRoot, "web/src/App.tsx"), "utf8");
+const dashboardSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/DashboardView.tsx"),
+  "utf8"
+);
 const consolePathSource = fs.readFileSync(
   path.join(repoRoot, "web/src/console-path.ts"),
   "utf8"
@@ -419,6 +423,17 @@ assert.match(consolePathSource, /chatcockpit-console-base/);
 assert.match(consolePathSource, /export function consolePath/);
 assert.match(consolePathSource, /export function stripConsoleBasePath/);
 assert.match(appSource, /ResourceCenterView/);
+assert.match(appSource, /useState<DashboardJobsDataState>\("loading"\)/);
+for (const state of ["protected", "loading", "ready", "empty", "unavailable"]) {
+  assert.match(appSource, new RegExp(`setJobsDataState\\("${state}"\\)`));
+}
+assert.match(dashboardSource, /DashboardJobsDataState = "loading" \| "protected" \| "unavailable" \| "empty" \| "ready"/);
+assert.match(dashboardSource, /const hasAnyJobs = jobsDataState === "ready"/);
+assert.match(dashboardSource, /jobsDataState === "unavailable"/);
+assert.match(dashboardSource, /copy\.dashboard\.unavailableStateTitle/);
+assert.match(dashboardSource, /<strong>--<\/strong>/);
+assert.doesNotMatch(dashboardSource, /jobsProtected/);
+assert.doesNotMatch(dashboardSource, /const hasAnyJobs = counts\.total > 0/);
 assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
 assert.match(apiSource, /\/api\/recovery\/assess/);
