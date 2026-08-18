@@ -263,6 +263,9 @@ export function PublicAccessView({
       : workflowCandidateVerified
         ? 2
         : 1;
+  const showVerificationDetails = workflowStage === 1 || workflowVerificationFailed;
+  const showCandidateEditor = workflowStage === 0 || (workflowStage === 1 && !routeWorkflowLocked);
+  const showCutoverDetails = workflowStage === 2;
 
   return (
     <div className="view-stack">
@@ -475,7 +478,7 @@ export function PublicAccessView({
               ) : null}
             </div>
 
-            {!bootstrapMode && verification ? (
+            {!bootstrapMode && verification && showVerificationDetails ? (
               <div className="public-access-verification-grid">
                 {verificationChecks.map((item) => (
                   <div className="public-access-verification-check" key={item.key}>
@@ -518,7 +521,7 @@ export function PublicAccessView({
                   )}
                 </div>
 
-                {bootstrapVerification ? (
+                {bootstrapVerification && showVerificationDetails ? (
                   <div className="public-access-verification-grid">
                     {bootstrapChecks.map((item) => (
                       <div className="public-access-verification-check" key={item.key}>
@@ -587,7 +590,7 @@ export function PublicAccessView({
               </div>
             ) : null}
 
-            {!bootstrapMode && cutoverIntent ? (
+            {!bootstrapMode && showCutoverDetails && cutoverIntent ? (
               <div className="public-access-cutover-intent">
                 <div className="public-access-cutover-intent__header">
                   <div>
@@ -616,69 +619,80 @@ export function PublicAccessView({
                   </Button>
                 </div>
               </div>
-            ) : !bootstrapMode && verification?.status === "verified" ? (
+            ) : !bootstrapMode && showCutoverDetails && verification?.status === "verified" ? (
               <div className="public-access-cutover-ready">
                 <div>
                   <strong>{copy.cutoverReadyTitle}</strong>
                   <Text type="secondary">{copy.cutoverReadyDescription}</Text>
                 </div>
-                <Button
-                  loading={cutoverIntentMutating}
-                  disabled={routeMutating || routeVerifying || cutoverIntentMutating}
-                  onClick={() => onPrepareCutoverIntent(routeStatus.candidate!.id, verification.id)}
-                >
-                  {copy.prepareCutoverIntent}
-                </Button>
-              </div>
-            ) : null}
-
-            <div className="public-access-route-form">
-              <label>
-                <span>{copy.candidateSource}</span>
-                <Select
-                  value={candidateSource}
-                  options={routeSourceOptions}
-                  onChange={(value) => setCandidateSource(value as PublicRouteCandidateSource)}
-                  disabled={routeMutating || routeVerifying || routeWorkflowLocked}
-                />
-              </label>
-              <label className="public-access-route-origin-field">
-                <span>{copy.candidateOrigin}</span>
-                <Input
-                  value={candidateOrigin}
-                  placeholder={copy.candidateOriginPlaceholder}
-                  onChange={(event) => setCandidateOrigin(event.target.value)}
-                  disabled={routeMutating || routeVerifying || routeWorkflowLocked}
-                />
-              </label>
-              <div className="public-access-route-actions">
-                <Button
-                  type="primary"
-                  loading={routeMutating}
-                  disabled={!candidateOrigin.trim() || routeMutating || routeVerifying || routeWorkflowLocked}
-                  onClick={() => onStageCandidate(candidateOrigin.trim(), candidateSource)}
-                >
-                  {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
-                </Button>
-                {routeStatus.candidate && !bootstrapMode ? (
+                <div className="public-access-route-actions">
                   <Button
-                    loading={routeVerifying}
-                    disabled={routeMutating || routeVerifying || routeWorkflowLocked}
-                    onClick={() => onVerifyCandidate(routeStatus.candidate!.id)}
+                    type="primary"
+                    loading={cutoverIntentMutating}
+                    disabled={routeMutating || routeVerifying || cutoverIntentMutating}
+                    onClick={() => onPrepareCutoverIntent(routeStatus.candidate!.id, verification.id)}
                   >
-                    {copy.verifyCandidateRoute}
+                    {copy.prepareCutoverIntent}
                   </Button>
-                ) : null}
-                {routeStatus.candidate ? (
                   <Button
-                    disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                    disabled={routeMutating || routeVerifying || cutoverIntentMutating}
                     onClick={onDiscardCandidate}
                   >
                     {copy.discardCandidateRoute}
                   </Button>
-                ) : null}
+                </div>
               </div>
-            </div>
+            ) : null}
+
+            {showCandidateEditor ? (
+              <div className="public-access-route-form">
+                <label>
+                  <span>{copy.candidateSource}</span>
+                  <Select
+                    value={candidateSource}
+                    options={routeSourceOptions}
+                    onChange={(value) => setCandidateSource(value as PublicRouteCandidateSource)}
+                    disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                  />
+                </label>
+                <label className="public-access-route-origin-field">
+                  <span>{copy.candidateOrigin}</span>
+                  <Input
+                    value={candidateOrigin}
+                    placeholder={copy.candidateOriginPlaceholder}
+                    onChange={(event) => setCandidateOrigin(event.target.value)}
+                    disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                  />
+                </label>
+                <div className="public-access-route-actions">
+                  <Button
+                    type="primary"
+                    loading={routeMutating}
+                    disabled={!candidateOrigin.trim() || routeMutating || routeVerifying || routeWorkflowLocked}
+                    onClick={() => onStageCandidate(candidateOrigin.trim(), candidateSource)}
+                  >
+                    {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
+                  </Button>
+                  {routeStatus.candidate && !bootstrapMode ? (
+                    <Button
+                      loading={routeVerifying}
+                      disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                      onClick={() => onVerifyCandidate(routeStatus.candidate!.id)}
+                    >
+                      {copy.verifyCandidateRoute}
+                    </Button>
+                  ) : null}
+                  {routeStatus.candidate ? (
+                    <Button
+                      disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                      onClick={onDiscardCandidate}
+                    >
+                      {copy.discardCandidateRoute}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="section-note section-note--warning public-access-note">
