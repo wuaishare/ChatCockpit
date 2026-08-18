@@ -165,6 +165,7 @@ export function PublicAccessView({
   const [candidateOrigin, setCandidateOrigin] = useState("");
   const [candidateSource, setCandidateSource] =
     useState<PublicRouteCandidateSource>("existing-environment");
+  const [onlineMaintenanceExpanded, setOnlineMaintenanceExpanded] = useState(false);
   const routeSourceOptions = useMemo(
     () => [
       { value: "existing-environment" as const, label: copy.existingEnvironment },
@@ -182,6 +183,7 @@ export function PublicAccessView({
     if (routeStatus?.candidate) {
       setCandidateOrigin(routeStatus.candidate.origin);
       setCandidateSource(routeStatus.candidate.source);
+      setOnlineMaintenanceExpanded(false);
       return;
     }
     setCandidateOrigin("");
@@ -263,71 +265,96 @@ export function PublicAccessView({
       : workflowCandidateVerified
         ? 2
         : 1;
-  const showVerificationDetails = workflowStage === 1 || workflowVerificationFailed;
-  const showCandidateEditor = workflowStage === 0 || (workflowStage === 1 && !routeWorkflowLocked);
-  const showCutoverDetails = workflowStage === 2;
-  const showRouteWorkspace = workflowStage !== 3 || !routeStatus || Boolean(
+  const workflowStatusError = Boolean(
     routeStatusError || verificationStatusError || cutoverIntentStatusError || bootstrapProofStatusError
   );
+  const isOnlineSteadyState = workflowStage === 3 && Boolean(routeStatus) && !workflowStatusError;
+  const displayWorkflowStage = isOnlineSteadyState && onlineMaintenanceExpanded ? 0 : workflowStage;
+  const showWorkflowCard = !isOnlineSteadyState || onlineMaintenanceExpanded;
+  const showVerificationDetails = displayWorkflowStage === 1 || workflowVerificationFailed;
+  const showCandidateEditor = displayWorkflowStage === 0 ||
+    (displayWorkflowStage === 1 && !routeWorkflowLocked);
+  const showCutoverDetails = displayWorkflowStage === 2;
+  const showRouteWorkspace = displayWorkflowStage !== 3 || !routeStatus || workflowStatusError;
   const detectedProviderCount = providerStatus?.providers.filter(
     (provider) => provider.detection === "detected"
   ).length ?? 0;
 
   return (
     <div className="view-stack">
-      <SectionCard
-        title={copy.workflowTitle}
-        description={copy.workflowDescription}
-        extra={
-          routeStatus ? (
-            workflowStage === 3 ? (
-              <Tag color="success">{copy.workflowLive}</Tag>
-            ) : (
-              <Tag color={bootstrapMode ? "blue" : "purple"}>
-                {bootstrapMode ? copy.workflowBootstrapMode : copy.workflowReplacementMode}
-              </Tag>
-            )
-          ) : null
-        }
-      >
-        <Steps
-          className="public-access-workflow-steps"
-          size="small"
-          current={workflowStage}
-          status={workflowVerificationFailed ? "error" : workflowStage === 3 ? "finish" : "process"}
-          items={[
-            { title: copy.workflowSetup },
-            { title: copy.workflowVerify },
-            { title: copy.workflowCutover },
-            { title: copy.workflowLive }
-          ]}
-        />
-        {workflowStage === 0 ? (
-          <>
-            <div className="gpt-facts public-access-workflow-entry">
-              <div className="gpt-fact">
-                <span>{copy.existingEnvironment}</span>
-                <strong>{copy.existingEnvironmentDescription}</strong>
+      {showWorkflowCard ? (
+        <SectionCard
+          title={copy.workflowTitle}
+          description={copy.workflowDescription}
+          extra={
+            routeStatus ? (
+              displayWorkflowStage === 3 ? (
+                <Tag color="success">{copy.workflowLive}</Tag>
+              ) : (
+                <Tag color={bootstrapMode ? "blue" : "purple"}>
+                  {bootstrapMode ? copy.workflowBootstrapMode : copy.workflowReplacementMode}
+                </Tag>
+              )
+            ) : null
+          }
+        >
+          <Steps
+            className="public-access-workflow-steps"
+            size="small"
+            current={displayWorkflowStage}
+            status={
+              workflowVerificationFailed
+                ? "error"
+                : displayWorkflowStage === 3
+                  ? "finish"
+                  : "process"
+            }
+            items={[
+              { title: copy.workflowSetup },
+              { title: copy.workflowVerify },
+              { title: copy.workflowCutover },
+              { title: copy.workflowLive }
+            ]}
+          />
+          {displayWorkflowStage === 0 ? (
+            <>
+              <div className="gpt-facts public-access-workflow-entry">
+                <div className="gpt-fact">
+                  <span>{copy.existingEnvironment}</span>
+                  <strong>{copy.existingEnvironmentDescription}</strong>
+                </div>
+                <div className="gpt-fact">
+                  <span>{copy.manualSetup}</span>
+                  <strong>{copy.manualSetupDescription}</strong>
+                </div>
               </div>
-              <div className="gpt-fact">
-                <span>{copy.manualSetup}</span>
-                <strong>{copy.manualSetupDescription}</strong>
+              <div className="gpt-inline-note">
+                <Text>{copy.machineBoundary}</Text>
               </div>
-            </div>
-            <div className="gpt-inline-note">
-              <Text>{copy.machineBoundary}</Text>
-            </div>
-          </>
-        ) : null}
-      </SectionCard>
+            </>
+          ) : null}
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title={copy.statusOverviewTitle}
         description={copy.statusOverviewDescription}
         extra={
-          <Tag color={publicEndpointReady ? "success" : "default"}>
-            {copy.publicEndpoint} · {publicEndpointReady ? copy.ready : copy.notConfigured}
-          </Tag>
+          <div className="public-access-status-actions">
+            <Tag color={publicEndpointReady ? "success" : "default"}>
+              {copy.publicEndpoint} · {publicEndpointReady ? copy.ready : copy.notConfigured}
+            </Tag>
+            {isOnlineSteadyState ? (
+              <Button
+                size="small"
+                onClick={() => setOnlineMaintenanceExpanded((expanded) => !expanded)}
+              >
+                {onlineMaintenanceExpanded
+                  ? copy.closePublicAccessMaintenance
+                  : copy.changePublicAccess}
+              </Button>
+            ) : null}
+          </div>
         }
       >
         <div className="public-access-status-grid">
