@@ -56,6 +56,8 @@ Direct Drive 已确认采用 **ChatCockpit Capability Broker + Pluggable Downstr
 
 **Resource Center Provider Projection — 已实现：** 现有 Runtime Profile Endpoint 现在会在保持 `profiles` 兼容字段不变的同时，额外返回 public-safe 的 `local-device` Target 与标准化 Provider Descriptor。当前 Resource Inventory 与 Mutation 流程仍以 Runtime Profile 为 Authority，因此这层 Projection 只建立通用管理平面 Seam，不改变现有资源中心行为。
 
+**Platform Governance 存储边界 — 已实现：** `GovernanceLedger` 现在承担平台治理的逻辑依赖边界，但在 Strategic Reset 迁移期内，物理持久化仍刻意复用现有 machine-local Continuity SQLite。Provider-neutral Governed External Action 表通过同一 SQLite Migration Chain 增量加入，因此当前只拆依赖方向，不提前拆物理数据库。Governed External Action Approval 只持久化 Target/Provider/Tool 身份、Arguments Hash、Public Summary、Actor/Request Identity Hash、Lifecycle Timestamp/Status 与 Execution Outcome Status；原始调用参数和 Provider Result 正文都不会持久化。
+
 **Capability Router Catalog — 已内部实现：** machine-local 的下游 MCP 配置现在可以显式将某个 Provider 及选定 Tool 纳入 Router Catalog。Catalog List 只投影 public-safe 的 Provider/Tool 摘要；详细 Inspect 才能返回成功 Probe 时已经保存的 bounded Tool Catalog 元数据。缺失、Protocol 已过期、尚未 Probe 或 Metadata 不完整的条目会保持明确状态，绝不会被隐式提升为 Ready。当前 Catalog 只是内部发现/检查 Seam：尚不会新增公开 Remote MCP Tool。
 
 **Capability Router Read Invocation — 已内部实现：** 只有显式标记为 `read`、当前 Catalog 状态 Ready、bounded Input Schema 可用、参数通过官方 MCP SDK JSON Schema Validator，并且下游 Safety Annotation 不与只读分类冲突时，Provider-native Tool 才允许调用。`mutation` 条目会直接拒绝，直到建立独立的 Governed Approval Lifecycle。Provider Result 只投影为有界 Text/Structured Output；非文本内容不会被隐式代理，下游原始异常也只通过稳定的 ChatCockpit Error Code 对外表达。当前这层 Invocation Seam 尚未发布成 Remote MCP Tool。

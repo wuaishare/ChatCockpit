@@ -44,6 +44,7 @@ import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import { buildGovernanceLedger } from "../governance/governance-ledger.js";
+import { GovernedExternalActionRepository } from "../governance/governed-external-action-repository.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildIntegrationStatusSnapshot } from "../core/integration-status.js";
 import {
@@ -358,6 +359,9 @@ export function buildServer(
   const continuityDatabase = new ContinuityDatabase({
     path: continuityDatabasePath(paths.runtimeDir)
   });
+  const governedExternalActions = new GovernedExternalActionRepository(
+    continuityDatabase
+  );
   const continuityServices = buildContinuityServices(paths, continuityDatabase);
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
     paths.runtimeDir
@@ -491,7 +495,10 @@ export function buildServer(
     new CodexPluginMutationAdapter({
       workspaces: continuityServices.repositories.workspaces
     });
-  const governanceLedger = buildGovernanceLedger(continuityServices.repositories);
+  const governanceLedger = buildGovernanceLedger(
+    continuityServices.repositories,
+    governedExternalActions
+  );
   const runtimeResourceServices = buildRuntimeResourceServices({
     repositories: governanceLedger,
     profiles: runtimeProfileRegistry,

@@ -4,6 +4,7 @@ import type {
   RuntimeResourceMutationRepository,
   RuntimeResourceSnapshotRepository
 } from "../continuity/repositories/index.js";
+import type { GovernedExternalActionRepository } from "./governed-external-action-repository.js";
 
 /**
  * Platform governance storage boundary.
@@ -17,17 +18,20 @@ export interface GovernanceLedger {
   idempotency: IdempotencyRepository;
   runtimeResourceMutations: RuntimeResourceMutationRepository;
   runtimeResourceSnapshots: RuntimeResourceSnapshotRepository;
+  externalActions: GovernedExternalActionRepository;
 }
 
 export function buildGovernanceLedger(
   repositories: Pick<
     ContinuityRepositories,
     "idempotency" | "runtimeResourceMutations" | "runtimeResourceSnapshots"
-  >
+  >,
+  externalActions: GovernedExternalActionRepository
 ): GovernanceLedger {
   return {
     idempotency: repositories.idempotency,
     runtimeResourceMutations: repositories.runtimeResourceMutations,
-    runtimeResourceSnapshots: repositories.runtimeResourceSnapshots
+    runtimeResourceSnapshots: repositories.runtimeResourceSnapshots,
+    externalActions
   };
 }
