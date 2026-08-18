@@ -182,12 +182,12 @@ export class GovernanceDatabase {
   schemaVersion(): number {
     const table = this.sqlite
       .prepare(
-        "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'"
+        "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'governance_schema_migrations'"
       )
       .get() as { present: number } | undefined;
     if (!table) return 0;
     const row = this.sqlite
-      .prepare("SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations")
+      .prepare("SELECT COALESCE(MAX(version), 0) AS version FROM governance_schema_migrations")
       .get() as { version: number };
     return Number(row.version);
   }
@@ -205,7 +205,7 @@ export class GovernanceDatabase {
 
   private initializeSchema(): void {
     this.sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
+      CREATE TABLE IF NOT EXISTS governance_schema_migrations (
         version INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         applied_at TEXT NOT NULL
@@ -219,7 +219,7 @@ export class GovernanceDatabase {
         migration.up(this.sqlite);
         this.sqlite
           .prepare(
-            "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)"
+            "INSERT INTO governance_schema_migrations (version, name, applied_at) VALUES (?, ?, ?)"
           )
           .run(migration.version, migration.name, new Date().toISOString());
       });
@@ -228,5 +228,8 @@ export class GovernanceDatabase {
 }
 
 export function governanceDatabasePath(runtimeDir: string): string {
-  return path.join(runtimeDir, "governance.sqlite");
+  // Strategic Reset migration phase: platform governance has an independent
+  // logical schema chain but intentionally shares the existing machine-local
+  // SQLite file until the storage boundary is proven safe to split.
+  return path.join(runtimeDir, "continuity.sqlite");
 }

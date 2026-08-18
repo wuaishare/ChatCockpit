@@ -556,8 +556,8 @@ export function buildServer(
     runtimeEventService.detach();
     await hostProcess.close();
     await runtimeService.close();
-    continuityDatabase.close();
     governanceDatabase.close();
+    continuityDatabase.close();
     oauthStore?.close();
     operatorStore.close();
   });

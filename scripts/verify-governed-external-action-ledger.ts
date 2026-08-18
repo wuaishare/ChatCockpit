@@ -26,7 +26,7 @@ function assertServiceCode(error: unknown, code: string): boolean {
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-governed-action-"));
 const continuityPath = path.join(root, "continuity.sqlite");
-const governancePath = path.join(root, "governance.sqlite");
+const governancePath = continuityPath;
 const continuityDatabase = new ContinuityDatabase({ path: continuityPath });
 const database = new GovernanceDatabase({ path: governancePath });
 const repository = new GovernedExternalActionRepository(database);
@@ -49,9 +49,9 @@ try {
     )
     .all() as Array<{ name: string }>;
   assert.deepEqual(
-    continuityTables,
-    [],
-    "Core governed external actions must not be stored in Continuity SQLite"
+    continuityTables.map((entry) => entry.name).sort(),
+    ["governed_external_action_approvals", "governed_external_action_executions"],
+    "Governed external actions must share the current physical SQLite during reset migration"
   );
   const columns = database.sqlite
     .prepare("PRAGMA table_info(governed_external_action_approvals)")
