@@ -318,6 +318,10 @@ const sidebarSource = fs.readFileSync(
   "utf8"
 );
 const stylesSource = fs.readFileSync(path.join(repoRoot, "web/src/styles.css"), "utf8");
+const statusLanguageSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/status-language.ts"),
+  "utf8"
+);
 const consolePathSource = fs.readFileSync(
   path.join(repoRoot, "web/src/console-path.ts"),
   "utf8"
@@ -531,6 +535,11 @@ assert.match(resourceCenterSource, /selectedWorkspaceId/);
 assert.match(resourceMutationWorkflowSource, /workspaceId: selectedWorkspaceId/);
 assert.match(resourceCenterSource, /resource-center__metrics/);
 assert.match(resourceCenterSource, /resource-center__drawer/);
+assert.match(resourceCenterSource, /getOperationalStatusLabel\(locale, workspace\.status\)/);
+assert.match(resourceCenterSource, /getOperationalStatusLabel\(locale, inventory\.snapshot\.status\)/);
+assert.match(resourceCenterSource, /getOperationalStatusLabel\(locale, diagnostic\.status\)/);
+assert.doesNotMatch(resourceCenterSource, />\{inventory\.snapshot\.status\}</);
+assert.doesNotMatch(resourceCenterSource, />\{diagnostic\.status\}</);
 assert.doesNotMatch(
   `${resourceCenterSource}\n${resourceMutationWorkflowSource}`,
   /installRuntimeResource|updateRuntimeResource|removeRuntimeResource|enableRuntimeResource|disableRuntimeResource|turn\/start|startCodexRuntimeTurn/
@@ -582,6 +591,13 @@ assert.match(developmentDocumentsSource, /executionPolicy/);
 assert.match(developmentDocumentsSource, /currentContent\.contentMarkdown/);
 assert.match(developmentDocumentsSource, /currentVersion\.contentHash/);
 assert.match(developmentDocumentsSource, /assessment\.blockers/);
+assert.match(developmentDocumentsSource, /getOperationalStatusLabel\(locale, document\.status\)/);
+assert.match(developmentDocumentsSource, /getOperationalStatusLabel\(locale, detail\.document\.status\)/);
+assert.doesNotMatch(developmentDocumentsSource, />\{document\.status\}</);
+assert.doesNotMatch(developmentDocumentsSource, />\{detail\.document\.status\}</);
+assert.match(statusLanguageSource, /partial: \{ "zh-CN": "部分可用", "en-US": "Partial" \}/);
+assert.match(statusLanguageSource, /superseded: \{ "zh-CN": "已取代", "en-US": "Superseded" \}/);
+assert.match(statusLanguageSource, /getOperationalStatusTone/);
 assert.doesNotMatch(
   `${continuitySource}\n${workspaceContinuityRuntimeSource}\n${developmentDocumentsSource}\n${runtimeRecoverySource}`,
   /mock(?:Projects|Snapshot|Tasks|Sessions|Recovery)|sample(?:Projects|Snapshot|Recovery)|demo(?:Projects|Snapshot|Tasks|Recovery)|fixture(?:Projects|Snapshot|Recovery)|fake(?:Projects|Snapshot|Recovery)/i

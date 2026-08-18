@@ -18,6 +18,7 @@ import {
   updateDevelopmentDocumentStatus
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
   ContinuityDevelopmentDocumentDetail,
@@ -71,13 +72,6 @@ function shortHash(hash: string): string {
   return hash.slice(0, 12);
 }
 
-function statusColor(status: ContinuityDevelopmentDocumentStatus): string | undefined {
-  if (status === "approved") return "green";
-  if (status === "ready") return "blue";
-  if (status === "superseded" || status === "archived") return "default";
-  return undefined;
-}
-
 export function DevelopmentDocumentsSection({
   locale,
   token,
@@ -120,10 +114,10 @@ export function DevelopmentDocumentsSection({
             !["superseded", "archived"].includes(document.status)
         )
         .map(({ document }) => ({
-          label: `${document.title} · v${document.currentVersion} · ${document.status}`,
+          label: `${document.title} · v${document.currentVersion} · ${getOperationalStatusLabel(locale, document.status)}`,
           value: document.id
         })),
-    [documents]
+    [documents, locale]
   );
   const planOptions = useMemo(
     () =>
@@ -134,10 +128,10 @@ export function DevelopmentDocumentsSection({
             !["superseded", "archived"].includes(document.status)
         )
         .map(({ document }) => ({
-          label: `${document.title} · v${document.currentVersion} · ${document.status}`,
+          label: `${document.title} · v${document.currentVersion} · ${getOperationalStatusLabel(locale, document.status)}`,
           value: document.id
         })),
-    [documents]
+    [documents, locale]
   );
 
   const loadDocuments = useCallback(async () => {
@@ -381,7 +375,9 @@ export function DevelopmentDocumentsSection({
                 </span>
                 <span className="continuity-document-index__meta">
                   <Tag>{document.kind}</Tag>
-                  <Tag color={statusColor(document.status)}>{document.status}</Tag>
+                  <Tag color={getOperationalStatusTone(document.status)}>
+                    {getOperationalStatusLabel(locale, document.status)}
+                  </Tag>
                   <code>v{document.currentVersion}</code>
                   <code>{shortHash(currentVersion.contentHash)}</code>
                 </span>
@@ -403,8 +399,8 @@ export function DevelopmentDocumentsSection({
                   <div>
                     <div className="continuity-document-detail__eyebrow">
                       <Tag>{detail.document.kind}</Tag>
-                      <Tag color={statusColor(detail.document.status)}>
-                        {detail.document.status}
+                      <Tag color={getOperationalStatusTone(detail.document.status)}>
+                        {getOperationalStatusLabel(locale, detail.document.status)}
                       </Tag>
                     </div>
                     <Text as="h3">{detail.document.title}</Text>
