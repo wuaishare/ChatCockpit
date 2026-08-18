@@ -1127,20 +1127,45 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               </div>
             </div>
             <div className="app-toolbar panel">
-              <div className="app-toolbar__group app-toolbar__group--views">
-                <Segmented<ViewKey>
-                  value={activeView}
-                  onChange={(value) => navigateView(value)}
-                  options={[
-                    { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
-                    { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
-                    { label: copy.header.resources, value: "resources", icon: <AppstoreOutlined /> },
-                    { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
-                    { label: copy.header.publicAccess, value: "publicAccess", icon: <GlobalOutlined /> },
-                    { label: copy.header.integrations, value: "integrations", icon: <ApiOutlined /> }
-                  ]}
-                />
-              </div>
+              <nav className="app-toolbar__group app-toolbar__group--views" aria-label={copy.header.title}>
+                <div className="app-nav-cluster">
+                  <span className="app-nav-cluster__label">{copy.header.workspaceNavigation}</span>
+                  <Segmented<ViewKey>
+                    aria-label={copy.header.workspaceNavigation}
+                    value={
+                      activeView === "dashboard" ||
+                      activeView === "continuity" ||
+                      activeView === "resources" ||
+                      activeView === "jobs"
+                        ? activeView
+                        : undefined
+                    }
+                    onChange={(value) => navigateView(value)}
+                    options={[
+                      { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
+                      { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
+                      { label: copy.header.resources, value: "resources", icon: <AppstoreOutlined /> },
+                      { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> }
+                    ]}
+                  />
+                </div>
+                <div className="app-nav-cluster app-nav-cluster--system">
+                  <span className="app-nav-cluster__label">{copy.header.systemNavigation}</span>
+                  <Segmented<ViewKey>
+                    aria-label={copy.header.systemNavigation}
+                    value={
+                      activeView === "publicAccess" || activeView === "integrations"
+                        ? activeView
+                        : undefined
+                    }
+                    onChange={(value) => navigateView(value)}
+                    options={[
+                      { label: copy.header.publicAccess, value: "publicAccess", icon: <GlobalOutlined /> },
+                      { label: copy.header.integrations, value: "integrations", icon: <ApiOutlined /> }
+                    ]}
+                  />
+                </div>
+              </nav>
               <div className="app-toolbar__group app-toolbar__group--action">
                 <Tooltip title={copy.header.refreshTooltip}>
                   <Button

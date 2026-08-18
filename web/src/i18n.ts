@@ -108,6 +108,8 @@ export interface UiCopy {
     jobs: string;
     publicAccess: string;
     integrations: string;
+    workspaceNavigation: string;
+    systemNavigation: string;
     appearanceStatus: string;
     languageLabel: string;
     accountAndAppearance: string;
@@ -394,6 +396,8 @@ const zhCN: UiCopy = {
     jobs: "任务",
     publicAccess: "公网接入",
     integrations: "集成",
+    workspaceNavigation: "工作区",
+    systemNavigation: "系统能力",
     appearanceStatus: "当前界面外观",
     languageLabel: "语言",
     accountAndAppearance: "账户与外观",
@@ -743,6 +747,8 @@ const enUS: UiCopy = {
     jobs: "Jobs",
     publicAccess: "Public Access",
     integrations: "Integrations",
+    workspaceNavigation: "Workspace",
+    systemNavigation: "System",
     appearanceStatus: "Current interface appearance",
     languageLabel: "Language",
     accountAndAppearance: "Account & appearance",

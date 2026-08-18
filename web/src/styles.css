@@ -249,6 +249,8 @@ button,
 
 .app-toolbar__group--views {
   flex: 1 1 auto;
+  align-items: stretch;
+  gap: 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -257,9 +259,30 @@ button,
   display: none;
 }
 
+.app-nav-cluster {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-nav-cluster--system {
+  padding-left: 10px;
+  border-left: 1px solid var(--tp-line);
+}
+
+.app-nav-cluster__label {
+  padding-inline: 4px;
+  color: var(--tp-text-soft);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
 .app-toolbar__group--views .ant-segmented {
   width: max-content;
-  min-width: 100%;
+  min-width: 0;
 }
 
 .app-toolbar__group--action {
@@ -1940,6 +1963,21 @@ button,
 
   .app-toolbar__group--views {
     flex: 1 1 0;
+    gap: 6px;
+  }
+
+  .app-nav-cluster {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .app-nav-cluster--system {
+    padding-left: 6px;
+  }
+
+  .app-nav-cluster__label {
+    display: none;
   }
 
   .app-toolbar__group--action {
