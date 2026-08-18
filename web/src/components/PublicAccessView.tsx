@@ -1,4 +1,4 @@
-import { Button, Input, Select, Tag } from "antd";
+import { Button, Input, Select, Steps, Tag } from "antd";
 import { CopyButton, Text } from "@lobehub/ui";
 import { ClipboardCopy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -251,9 +251,64 @@ export function PublicAccessView({
     : status.mcp.oauthStatus === "disabled"
       ? "default"
       : "warning";
+  const workflowVerificationFailed = bootstrapMode
+    ? bootstrapVerification?.status === "failed"
+    : verification?.status === "failed";
+  const workflowCandidateVerified = bootstrapMode
+    ? bootstrapProof?.status === "verified"
+    : verification?.status === "verified";
+  const workflowStage = publicEndpointReady && !routeStatus?.candidate
+    ? 3
+    : !routeStatus?.candidate
+      ? 0
+      : workflowCandidateVerified
+        ? 2
+        : 1;
 
   return (
     <div className="view-stack">
+      <SectionCard
+        title={copy.workflowTitle}
+        description={copy.workflowDescription}
+        extra={
+          routeStatus ? (
+            <Tag color={bootstrapMode ? "blue" : "purple"}>
+              {bootstrapMode ? copy.workflowBootstrapMode : copy.workflowReplacementMode}
+            </Tag>
+          ) : null
+        }
+      >
+        <Steps
+          className="public-access-workflow-steps"
+          size="small"
+          current={workflowStage}
+          status={workflowVerificationFailed ? "error" : workflowStage === 3 ? "finish" : "process"}
+          items={[
+            { title: copy.workflowSetup },
+            { title: copy.workflowVerify },
+            { title: copy.workflowCutover },
+            { title: copy.workflowLive }
+          ]}
+        />
+        {workflowStage === 0 ? (
+          <>
+            <div className="gpt-facts public-access-workflow-entry">
+              <div className="gpt-fact">
+                <span>{copy.existingEnvironment}</span>
+                <strong>{copy.existingEnvironmentDescription}</strong>
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.manualSetup}</span>
+                <strong>{copy.manualSetupDescription}</strong>
+              </div>
+            </div>
+            <div className="gpt-inline-note">
+              <Text>{copy.machineBoundary}</Text>
+            </div>
+          </>
+        ) : null}
+      </SectionCard>
+
       <SectionCard
         title={copy.reachabilityTitle}
         description={copy.reachabilityDescription}
@@ -334,25 +389,6 @@ export function PublicAccessView({
             <span>{copy.localProtocolNote}</span>
           </div>
         ) : null}
-      </SectionCard>
-
-      <SectionCard
-        title={copy.connectionPathTitle}
-        description={copy.connectionPathDescription}
-      >
-        <div className="gpt-facts">
-          <div className="gpt-fact">
-            <span>{copy.existingEnvironment}</span>
-            <strong>{copy.existingEnvironmentDescription}</strong>
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.manualSetup}</span>
-            <strong>{copy.manualSetupDescription}</strong>
-          </div>
-        </div>
-        <div className="gpt-inline-note">
-          <Text>{copy.machineBoundary}</Text>
-        </div>
       </SectionCard>
 
       <SectionCard
