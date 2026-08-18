@@ -31,6 +31,7 @@ import {
 } from "../../api";
 import { getResourceCenterCopy } from "../../i18n/resources";
 import type { LocaleCode } from "../../i18n";
+import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
   ContinuityProjectProjection,
@@ -304,11 +305,11 @@ export function ResourceCenterView({
       projects.flatMap((project) =>
         project.workspaces.map((workspace) => ({
           value: workspace.id,
-          label: `${project.project.displayName} · ${workspace.branch ?? workspace.repoId} · ${workspace.status}`,
+          label: `${project.project.displayName} · ${workspace.branch ?? workspace.repoId} · ${getOperationalStatusLabel(locale, workspace.status)}`,
           disabled: workspace.status !== "ready"
         }))
       ),
-    [projects]
+    [locale, projects]
   );
 
   const kindCounts = useMemo(() => {
@@ -588,8 +589,8 @@ export function ResourceCenterView({
                   {copy.snapshotDescription}
                 </Text>
               </div>
-              <Tag color={inventory.snapshot.status === "ready" ? "success" : inventory.snapshot.status === "partial" ? "warning" : "error"}>
-                {inventory.snapshot.status}
+              <Tag color={getOperationalStatusTone(inventory.snapshot.status)}>
+                {getOperationalStatusLabel(locale, inventory.snapshot.status)}
               </Tag>
             </div>
 
@@ -611,8 +612,8 @@ export function ResourceCenterView({
               <div className="resource-center__diagnostics">
                 {inventory.diagnostics.map((diagnostic) => (
                   <div key={`${diagnostic.source}:${diagnostic.code ?? diagnostic.status}`} className="resource-center__diagnostic">
-                    <Tag color={diagnostic.status === "ready" ? "success" : diagnostic.status === "degraded" ? "warning" : "error"}>
-                      {diagnostic.status}
+                    <Tag color={getOperationalStatusTone(diagnostic.status)}>
+                      {getOperationalStatusLabel(locale, diagnostic.status)}
                     </Tag>
                     <Text as="span" strong>{diagnostic.source}</Text>
                     <Text as="span" type="secondary">{diagnostic.message ?? diagnostic.code ?? copy.none}</Text>
