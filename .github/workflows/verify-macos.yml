@@ -1,0 +1,167 @@
+name: macOS Verify
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "desktop/macos/**"
+      - "src/cli/**"
+      - "src/connectivity/**"
+      - "src/core/**"
+      - "scripts/*macos*"
+      - "scripts/runtime/**"
+      - "scripts/doctor-local-runtime.sh"
+      - "scripts/verify-distribution-context.ts"
+      - "scripts/verify-runtime-manifest.ts"
+      - "scripts/verify-packaged-doctor.ts"
+      - "scripts/verify-packaged-runtime.ts"
+      - ".github/workflows/verify-macos.yml"
+      - ".github/workflows/macos-release.yml"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    paths:
+      - "desktop/macos/**"
+      - "src/cli/**"
+      - "src/connectivity/**"
+      - "src/core/**"
+      - "scripts/*macos*"
+      - "scripts/runtime/**"
+      - "scripts/doctor-local-runtime.sh"
+      - "scripts/verify-distribution-context.ts"
+      - "scripts/verify-runtime-manifest.ts"
+      - "scripts/verify-packaged-doctor.ts"
+      - "scripts/verify-packaged-runtime.ts"
+      - ".github/workflows/verify-macos.yml"
+      - ".github/workflows/macos-release.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  desktop:
+    name: macOS desktop verification
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Xcode distribution project
+        run: npm run verify:macos-xcode-project
+
+      - name: Verify Hardened Runtime entitlement policy
+        run: npm run verify:macos-entitlements
+
+      - name: Verify signing and archive contract
+        run: npm run verify:macos-signing-contract
+
+      - name: Verify notarization contract
+        run: npm run verify:macos-notarization
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: List ChatCockpit Xcode project
+        run: xcodebuild -project desktop/macos/ChatCockpit.xcodeproj -list
+
+      - name: Resolve native and static package architectures
+        shell: bash
+        run: |
+          case "$(uname -m)" in
+            arm64)
+              echo "NATIVE_RUNTIME_ARCH=arm64" >> "$GITHUB_ENV"
+              echo "STATIC_RUNTIME_ARCH=x64" >> "$GITHUB_ENV"
+              ;;
+            x86_64)
+              echo "NATIVE_RUNTIME_ARCH=x64" >> "$GITHUB_ENV"
+              echo "STATIC_RUNTIME_ARCH=arm64" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Unsupported macOS runner architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Verify runtime manifest
+        run: npm run verify:runtime-manifest
+
+      - name: Verify distribution context
+        run: npm run verify:distribution-context
+
+      - name: Verify packaged Doctor contract
+        run: npm run verify:packaged-doctor
+
+      - name: Test Swift package
+        run: swift test --package-path desktop/macos
+
+      - name: Build native packaged runtime
+        run: npm run build:macos-runtime -- --arch "$NATIVE_RUNTIME_ARCH"
+
+      - name: Verify native packaged runtime payload
+        run: CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$NATIVE_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:macos-runtime-payload
+
+      - name: Run no-system-Node packaged runtime live proof
+        run: CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$NATIVE_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:packaged-runtime
+
+      - name: Build unsigned native desktop app
+        run: npm run build:macos-desktop -- --arch "$NATIVE_RUNTIME_ARCH"
+
+      - name: Verify ChatCockpit macOS target identity contract
+        run: npm run verify:chatcockpit-macos-identity
+
+      - name: Build canonical ChatCockpit Xcode app
+        run: npm run build:macos-xcode -- --arch "$NATIVE_RUNTIME_ARCH"
+
+      - name: Verify built canonical ChatCockpit app
+        run: CHATCOCKPIT_MACOS_APP_DIR="dist/macos-xcode/$NATIVE_RUNTIME_ARCH/ChatCockpit.app" npm run verify:chatcockpit-macos-identity
+
+      - name: Build other-architecture runtime for static verification
+        if: github.event_name != 'pull_request'
+        run: npm run build:macos-runtime -- --arch "$STATIC_RUNTIME_ARCH"
+
+      - name: Verify other-architecture runtime payload statically
+        if: github.event_name != 'pull_request'
+        run: CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$STATIC_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:macos-runtime-payload
+
+      - name: Build unsigned native distribution archive
+        if: github.event_name != 'pull_request'
+        run: npm run build:macos-distribution -- --arch "$NATIVE_RUNTIME_ARCH" --version 0.2.0-alpha --build "$GITHUB_RUN_NUMBER"
+
+      - name: Build and verify development DMG
+        if: github.event_name != 'pull_request'
+        run: npm run build:macos-dmg -- --mode development --arch "$NATIVE_RUNTIME_ARCH" --version 0.2.0-alpha --app "dist/macos-distribution/$NATIVE_RUNTIME_ARCH/ChatCockpit.app"
+
+      - name: Generate and verify development release manifest
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          DMG_DIR="dist/macos-dmg/development/$NATIVE_RUNTIME_ARCH"
+          DMG_PATH="$DMG_DIR/ChatCockpit-0.2.0-alpha-macos-$NATIVE_RUNTIME_ARCH.dmg"
+          MANIFEST_PATH="$DMG_DIR/release-manifest.json"
+          npm run generate:macos-release-manifest -- --version 0.2.0-alpha --build "$GITHUB_RUN_NUMBER" --commit "$(git rev-parse HEAD)" --trust development --output "$MANIFEST_PATH" --artifact "$NATIVE_RUNTIME_ARCH:dmg:$DMG_PATH"
+          CHATCOCKPIT_MACOS_RELEASE_MANIFEST="$MANIFEST_PATH" npm run verify:macos-release-manifest
+
+      - name: Verify desktop contract
+        run: npm run verify:macos-desktop

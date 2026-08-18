@@ -7,20 +7,21 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  verify:
-    name: Full verification (Node ${{ matrix.node-version }})
-    runs-on: macos-latest
+  core:
+    name: Core verification (Node 24)
+    runs-on: ubuntu-latest
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version:
-          - "22.13.0"
-          - "24"
 
     steps:
       - name: Checkout
@@ -31,7 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies
@@ -41,13 +42,17 @@ jobs:
         run: npm audit --audit-level=moderate
 
       - name: Check whitespace
-        run: git diff --check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.sha }}"
+          else
+            git diff --check "${{ github.sha }}^" "${{ github.sha }}"
+          fi
 
-      - name: Verify current tree
-        run: npm run verify
-
-      - name: Verify ChatGPT MCP OAuth lifecycle
-        run: npm run verify:oauth-flow
+      - name: Verify cross-platform current tree
+        run: npm run verify:ci-core
 
       - name: Verify source archive
         run: npm run verify:source-archive
@@ -55,10 +60,10 @@ jobs:
       - name: Scan Git history for privacy leaks
         run: npm run privacy:scan:history
 
-  macos-desktop:
-    name: macOS desktop package
-    runs-on: macos-latest
-    timeout-minutes: 25
+  node22-compatibility:
+    name: Compatibility smoke (Node 22.13.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -67,123 +72,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "22.13.0"
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify Xcode distribution project
-        run: npm run verify:macos-xcode-project
-
-      - name: Verify Hardened Runtime entitlement policy
-        run: npm run verify:macos-entitlements
-
-      - name: Verify signing and archive contract
-        run: npm run verify:macos-signing-contract
-
-      - name: Verify notarization contract
-        run: npm run verify:macos-notarization
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: List ChatCockpit Xcode project
-        run: xcodebuild -project desktop/macos/ChatCockpit.xcodeproj -list
-
-      - name: Resolve native and static package architectures
-        run: |
-          case "$(uname -m)" in
-            arm64)
-              echo "NATIVE_RUNTIME_ARCH=arm64" >> "$GITHUB_ENV"
-              echo "STATIC_RUNTIME_ARCH=x64" >> "$GITHUB_ENV"
-              ;;
-            x86_64)
-              echo "NATIVE_RUNTIME_ARCH=x64" >> "$GITHUB_ENV"
-              echo "STATIC_RUNTIME_ARCH=arm64" >> "$GITHUB_ENV"
-              ;;
-            *)
-              echo "Unsupported macOS runner architecture: $(uname -m)" >&2
-              exit 1
-              ;;
-          esac
-
-      - name: Verify runtime manifest
-        run: npm run verify:runtime-manifest
-
-      - name: Verify distribution context
-        run: npm run verify:distribution-context
-
-      - name: Verify packaged Doctor contract
-        run: npm run verify:packaged-doctor
-
-      - name: Test Swift package
-        run: swift test --package-path desktop/macos
-
-      - name: Build native packaged runtime
-        run: npm run build:macos-runtime -- --arch "$NATIVE_RUNTIME_ARCH"
-
-      - name: Verify native packaged runtime payload
-        run: CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$NATIVE_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:macos-runtime-payload
-
-      - name: Run no-system-Node packaged runtime live proof
-        run: CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$NATIVE_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:packaged-runtime
-
-      - name: Build other-architecture runtime for static verification
-        run: npm run build:macos-runtime -- --arch "$STATIC_RUNTIME_ARCH"
-
-      - name: Verify other-architecture runtime payload statically
-        run: CHATCOCKPIT_RUNTIME_PAYLOAD_DIR="dist/macos-runtime/$STATIC_RUNTIME_ARCH/TokenPilotRuntime" npm run verify:macos-runtime-payload
-
-      - name: Build unsigned native desktop app
-        run: npm run build:macos-desktop -- --arch "$NATIVE_RUNTIME_ARCH"
-
-      - name: Verify ChatCockpit macOS target identity contract
-        run: npm run verify:chatcockpit-macos-identity
-
-      - name: Build canonical ChatCockpit Xcode app
-        run: npm run build:macos-xcode -- --arch "$NATIVE_RUNTIME_ARCH"
-
-      - name: Verify built canonical ChatCockpit app
-        run: CHATCOCKPIT_MACOS_APP_DIR="dist/macos-xcode/$NATIVE_RUNTIME_ARCH/ChatCockpit.app" npm run verify:chatcockpit-macos-identity
-
-      - name: Build unsigned native distribution archive
-        run: npm run build:macos-distribution -- --arch "$NATIVE_RUNTIME_ARCH" --version 0.2.0-alpha --build "$GITHUB_RUN_NUMBER"
-
-      - name: Build and verify development DMG
-        run: npm run build:macos-dmg -- --mode development --arch "$NATIVE_RUNTIME_ARCH" --version 0.2.0-alpha --app "dist/macos-distribution/$NATIVE_RUNTIME_ARCH/ChatCockpit.app"
-
-      - name: Generate and verify development release manifest
-        run: |
-          DMG_DIR="dist/macos-dmg/development/$NATIVE_RUNTIME_ARCH"
-          DMG_PATH="$DMG_DIR/ChatCockpit-0.2.0-alpha-macos-$NATIVE_RUNTIME_ARCH.dmg"
-          MANIFEST_PATH="$DMG_DIR/release-manifest.json"
-          npm run generate:macos-release-manifest -- --version 0.2.0-alpha --build "$GITHUB_RUN_NUMBER" --commit "$(git rev-parse HEAD)" --trust development --output "$MANIFEST_PATH" --artifact "$NATIVE_RUNTIME_ARCH:dmg:$DMG_PATH"
-          CHATCOCKPIT_MACOS_RELEASE_MANIFEST="$MANIFEST_PATH" npm run verify:macos-release-manifest
-
-      - name: Verify desktop contract
-        run: npm run verify:macos-desktop
-
-  release-dry-run:
-    name: Release dry-run
-    runs-on: macos-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify source release package
-        run: npm run verify:release
-
-      - name: Build curated source package
-        run: npm run release:source
+      - name: Verify minimum supported Node compatibility
+        run: npm run verify:ci-node22
