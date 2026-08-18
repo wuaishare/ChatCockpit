@@ -23,6 +23,7 @@ import {
   executeRuntimeRecovery
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
   ContinuitySessionMode,
@@ -120,8 +121,26 @@ function actionLabel(action: RuntimeRecoveryAction, locale: LocaleCode): string 
   return labels[action];
 }
 
-function statusLabel(value: string | null): string {
-  return value || "—";
+function classificationLabel(value: RuntimeRecoveryClassification, locale: LocaleCode): string {
+  const zh = locale === "zh-CN";
+  const labels: Record<RuntimeRecoveryClassification, [string, string]> = {
+    healthy: ["健康", "Healthy"],
+    recoverable: ["可恢复", "Recoverable"],
+    "binding-missing": ["绑定缺失", "Binding missing"],
+    "provider-unavailable": ["Provider 不可用", "Provider unavailable"],
+    "provider-auth-required": ["Provider 需要认证", "Provider authentication required"],
+    "provider-version-unsupported": ["Provider 版本不受支持", "Provider version unsupported"],
+    "provider-protocol-incompatible": ["Provider 协议不兼容", "Provider protocol incompatible"],
+    "external-runtime-missing": ["外部 Runtime 缺失", "External Runtime missing"],
+    "external-runtime-busy": ["外部 Runtime 忙碌", "External Runtime busy"],
+    "external-runtime-identity-mismatch": ["外部 Runtime 身份不匹配", "External Runtime identity mismatch"],
+    "writer-conflict": ["Writer 冲突", "Writer conflict"],
+    "pending-approval": ["等待批准", "Pending approval"],
+    "active-run": ["存在活跃运行", "Active run"],
+    "handoff-required": ["需要 Handoff", "Handoff required"],
+    blocked: ["受阻", "Blocked"]
+  };
+  return labels[value][zh ? 0 : 1];
 }
 
 export function RuntimeRecoverySection({
@@ -136,9 +155,9 @@ export function RuntimeRecoverySection({
     () =>
       snapshot.tasks.map((projection) => ({
         value: projection.task.id,
-        label: `${projection.task.title} · ${projection.task.status}`
+        label: `${projection.task.title} · ${getOperationalStatusLabel(locale, projection.task.status)}`
       })),
-    [snapshot.tasks]
+    [locale, snapshot.tasks]
   );
   const initialTask =
     snapshot.tasks.find((projection) =>
@@ -190,9 +209,9 @@ export function RuntimeRecoverySection({
     () =>
       (selectedTask?.sessions ?? []).map((session) => ({
         value: session.id,
-        label: `${session.title} · ${session.mode} · ${session.status}`
+        label: `${session.title} · ${session.mode} · ${getOperationalStatusLabel(locale, session.status)}`
       })),
-    [selectedTask]
+    [locale, selectedTask]
   );
   const selectedSession =
     selectedTask?.sessions.find((session) => session.id === sessionId) ?? null;
@@ -359,7 +378,7 @@ export function RuntimeRecoverySection({
       <section className="continuity-recovery__context">
         <div>
           <span>{copy.taskStatus}</span>
-          <strong>{selectedTask?.task.status ?? "—"}</strong>
+          <strong>{selectedTask ? getOperationalStatusLabel(locale, selectedTask.task.status) : "—"}</strong>
         </div>
         <div>
           <span>{copy.activeSession}</span>
@@ -375,11 +394,11 @@ export function RuntimeRecoverySection({
         </div>
         <div>
           <span>Handoff</span>
-          <strong>{selectedTask?.latestHandoff?.status ?? "—"}</strong>
+          <strong>{selectedTask?.latestHandoff ? getOperationalStatusLabel(locale, selectedTask.latestHandoff.status) : "—"}</strong>
         </div>
         <div>
           <span>{copy.verificationVerified}</span>
-          <strong>{selectedTask?.evidence?.verificationState ?? "—"}</strong>
+          <strong>{selectedTask?.evidence ? getOperationalStatusLabel(locale, selectedTask.evidence.verificationState) : "—"}</strong>
         </div>
       </section>
 
@@ -399,9 +418,11 @@ export function RuntimeRecoverySection({
                 <Text as="h3">{copy.recoveryClassification}</Text>
                 <div className="continuity-recovery__status-row">
                   <Tag color={classificationTone(assessment.assessment.classification)}>
-                    {assessment.assessment.classification}
+                    {classificationLabel(assessment.assessment.classification, locale)}
                   </Tag>
-                  <Tag>{assessment.attempt.status}</Tag>
+                  <Tag color={getOperationalStatusTone(assessment.attempt.status)}>
+                    {getOperationalStatusLabel(locale, assessment.attempt.status)}
+                  </Tag>
                 </div>
               </div>
               <div className="continuity-recovery__attempt-id">
@@ -413,7 +434,7 @@ export function RuntimeRecoverySection({
             <div className="continuity-recovery__facts">
               <div>
                 <span>{copy.recoveryCompatibility}</span>
-                <strong>{compatibility?.compatibilityStatus ?? "—"}</strong>
+                <strong>{compatibility ? getOperationalStatusLabel(locale, compatibility.compatibilityStatus) : "—"}</strong>
               </div>
               <div>
                 <span>{copy.recoveryVersion}</span>
@@ -447,15 +468,17 @@ export function RuntimeRecoverySection({
                 <div className="continuity-recovery__external">
                   <code>{assessment.assessment.externalSession.externalSessionId}</code>
                   <div>
-                    <Tag>{statusLabel(assessment.assessment.externalSession.status)}</Tag>
+                    <Tag color={getOperationalStatusTone(assessment.assessment.externalSession.status)}>
+                      {getOperationalStatusLabel(locale, assessment.assessment.externalSession.status)}
+                    </Tag>
                     {assessment.assessment.externalSession.authoritative ? (
-                      <Tag color="success">authoritative</Tag>
+                      <Tag color="success">{locale === "zh-CN" ? "权威来源" : "Authoritative"}</Tag>
                     ) : null}
                     {assessment.assessment.externalSession.busy ? (
-                      <Tag color="warning">busy</Tag>
+                      <Tag color="warning">{locale === "zh-CN" ? "忙碌" : "Busy"}</Tag>
                     ) : null}
                     {!assessment.assessment.externalSession.identityMatched ? (
-                      <Tag color="error">identity mismatch</Tag>
+                      <Tag color="error">{locale === "zh-CN" ? "身份不匹配" : "Identity mismatch"}</Tag>
                     ) : null}
                   </div>
                   {assessment.assessment.externalSession.preview ? (
@@ -486,8 +509,10 @@ export function RuntimeRecoverySection({
                       onClick={() => setTargetThreadId(candidate.externalSessionId)}
                     >
                       <code>{candidate.externalSessionId}</code>
-                      <span>{candidate.preview || candidate.status}</span>
-                      <Tag>{candidate.status}</Tag>
+                      <span>{candidate.preview || getOperationalStatusLabel(locale, candidate.status)}</span>
+                      <Tag color={getOperationalStatusTone(candidate.status)}>
+                        {getOperationalStatusLabel(locale, candidate.status)}
+                      </Tag>
                     </button>
                   ))}
                 </div>
@@ -537,7 +562,7 @@ export function RuntimeRecoverySection({
                         value={targetThreadId ?? undefined}
                         options={assessment.assessment.candidates.map((candidate) => ({
                           value: candidate.externalSessionId,
-                          label: `${candidate.externalSessionId} · ${candidate.status}`
+                          label: `${candidate.externalSessionId} · ${getOperationalStatusLabel(locale, candidate.status)}`
                         }))}
                         placeholder={copy.recoveryTargetThread}
                         onChange={setTargetThreadId}

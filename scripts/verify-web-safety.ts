@@ -477,6 +477,14 @@ assert.match(runtimeRecoverySource, /assessRuntimeRecovery/);
 assert.match(runtimeRecoverySource, /executeRuntimeRecovery/);
 assert.match(runtimeRecoverySource, /assessment\.assessment\.availableActions/);
 assert.match(runtimeRecoverySource, /assessment\.assessment\.blockers/);
+assert.match(runtimeRecoverySource, /classificationLabel\(assessment\.assessment\.classification, locale\)/);
+assert.match(runtimeRecoverySource, /getOperationalStatusLabel\(locale, assessment\.attempt\.status\)/);
+assert.match(runtimeRecoverySource, /getOperationalStatusLabel\(locale, compatibility\.compatibilityStatus\)/);
+assert.match(runtimeRecoverySource, /getOperationalStatusLabel\(locale, candidate\.status\)/);
+assert.match(runtimeRecoverySource, /getOperationalStatusLabel\(locale, selectedTask\.task\.status\)/);
+assert.doesNotMatch(runtimeRecoverySource, />\{assessment\.attempt\.status\}</);
+assert.doesNotMatch(runtimeRecoverySource, />\{candidate\.status\}</);
+assert.doesNotMatch(runtimeRecoverySource, /statusLabel\(/);
 assert.match(runtimeRecoverySource, /assessment\?\.assessment\.compatibility|assessment\.assessment\.compatibility/);
 assert.match(runtimeRecoverySource, /assessment\?\.attempt\.status === "prepared"|assessment\.attempt\.status === "prepared"/);
 assert.doesNotMatch(runtimeRecoverySource, /turn\/start|startCodexRuntimeTurn/);
@@ -608,6 +616,8 @@ assert.doesNotMatch(developmentDocumentsSource, />\{detail\.document\.status\}</
 assert.match(statusLanguageSource, /partial: \{ "zh-CN": "部分可用", "en-US": "Partial" \}/);
 assert.match(statusLanguageSource, /superseded: \{ "zh-CN": "已取代", "en-US": "Superseded" \}/);
 assert.match(statusLanguageSource, /queued: \{ "zh-CN": "排队中", "en-US": "Queued" \}/);
+assert.match(statusLanguageSource, /"auth-required": \{ "zh-CN": "需要认证", "en-US": "Authentication required" \}/);
+assert.match(statusLanguageSource, /"protocol-incompatible": \{ "zh-CN": "协议不兼容", "en-US": "Protocol incompatible" \}/);
 assert.match(statusLanguageSource, /getOperationalStatusTone/);
 assert.doesNotMatch(
   `${continuitySource}\n${workspaceContinuityRuntimeSource}\n${developmentDocumentsSource}\n${runtimeRecoverySource}`,
