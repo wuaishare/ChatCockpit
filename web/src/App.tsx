@@ -50,7 +50,7 @@ import {
   type OperatorSessionResponse
 } from "./api";
 import chatCockpitLogo from "./assets/chatcockpit-logo.svg";
-import { DashboardView } from "./components/DashboardView";
+import { DashboardView, type DashboardJobsDataState } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
 import { OperatorLoginView } from "./components/OperatorLoginView";
@@ -309,6 +309,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [jobsDataState, setJobsDataState] = useState<DashboardJobsDataState>("loading");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(() => parseRoute().jobId);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
@@ -530,6 +531,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setOperatorAuthState("login-required");
       setHealth(INITIAL_HEALTH);
       setJobs([]);
+      setJobsDataState("protected");
       setGptConfig(null);
       setIntegrationStatus(null);
       setIntegrationStatusError(null);
@@ -774,6 +776,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setJobs([]);
       setJobsError(null);
       setJobsLoading(false);
+      setJobsDataState("protected");
       setSelectedJobId(null);
       setSelectedArtifactKey(null);
       setArtifactPreview(null);
@@ -783,11 +786,17 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
     setJobsLoading(true);
     setJobsError(null);
+    setJobsDataState("loading");
 
     try {
       const response = await fetchJobs(currentToken, { limit: 20, includeResult: false });
       const summarized = response.jobs.map((job) => summarizeJob(job, locale));
       setJobs(summarized);
+      if (summarized.length > 0) {
+        setJobsDataState("ready");
+      } else {
+        setJobsDataState("empty");
+      }
 
       const hasSelectedJob = Boolean(
         selectedJobId && summarized.some((job) => job.id === selectedJobId)
@@ -820,6 +829,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       const message = getErrorMessage(error);
       setJobsError(message);
       setJobs([]);
+      setJobsDataState("unavailable");
     } finally {
       setJobsLoading(false);
     }
@@ -996,7 +1006,6 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
   const counts = countJobs(jobs);
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? null;
-  const jobsProtected = health.authRequired && !token?.trim();
   const headerProductVersion = gptConfig?.productVersion ?? __CHATCOCKPIT_VERSION__.productVersion;
   const headerSchemaVersion = gptConfig?.schemaVersion ?? __CHATCOCKPIT_VERSION__.schemaVersion;
   const headerBuildVersion = gptConfig?.buildVersion ?? __CHATCOCKPIT_VERSION__.buildVersion;
@@ -1206,7 +1215,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               repoGovernance={gptConfig?.repoGovernance}
               counts={counts}
               recentJobs={jobs.slice(0, 5)}
-              jobsProtected={jobsProtected}
+              jobsDataState={jobsDataState}
               onSelectJob={(jobId) => {
                 navigateView("jobs", jobId);
                 void loadJobDetail(jobId, token);

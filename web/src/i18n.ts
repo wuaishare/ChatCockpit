@@ -235,6 +235,10 @@ export interface UiCopy {
     distributionTitle: string;
     distributionDescription: string;
     distributionEmptyHint: string;
+    loadingStateTitle: string;
+    loadingStateDescription: string;
+    unavailableStateTitle: string;
+    unavailableStateDescription: string;
     emptyStateTitle: string;
     emptyStateDescription: string;
     protectedStateTitle: string;
@@ -520,6 +524,10 @@ const zhCN: UiCopy = {
     distributionTitle: "任务分布",
     distributionDescription: "当前队列概览。",
     distributionEmptyHint: "当前没有排队、运行或失败任务。",
+    loadingStateTitle: "正在读取实时任务状态",
+    loadingStateDescription: "等待 Runtime 返回当前队列真值；加载完成前不会把未知状态显示成 0。",
+    unavailableStateTitle: "暂时无法读取任务状态",
+    unavailableStateDescription: "当前队列真值不可用，因此统计保持为“--”。请刷新后重试。",
     emptyStateTitle: "当前本地队列为空",
     emptyStateDescription: "可以先前往“集成”完成 ChatGPT App / MCP 接入，或在接入后刷新当前状态。",
     protectedStateTitle: "任务数据受保护",
@@ -863,6 +871,10 @@ const enUS: UiCopy = {
     distributionTitle: "Job Distribution",
     distributionDescription: "Current queue mix.",
     distributionEmptyHint: "There are no queued, running, or failed jobs right now.",
+    loadingStateTitle: "Reading live job state",
+    loadingStateDescription: "Waiting for Runtime queue truth. Unknown state is not shown as zero while loading.",
+    unavailableStateTitle: "Job state is temporarily unavailable",
+    unavailableStateDescription: "Live queue truth could not be read, so metrics remain “--”. Refresh to retry.",
     emptyStateTitle: "The local queue is currently empty",
     emptyStateDescription: "Open Integrations to connect ChatGPT App / MCP, or refresh again after connecting a workflow.",
     protectedStateTitle: "Job data is protected",
