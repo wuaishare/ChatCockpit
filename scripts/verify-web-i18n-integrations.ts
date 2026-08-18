@@ -11,6 +11,7 @@ const integrationsPath = path.join(root, "web", "src", "i18n", "integrations.ts"
 const appPath = path.join(root, "web", "src", "App.tsx");
 const consolePathPath = path.join(root, "web", "src", "console-path.ts");
 const dashboardPath = path.join(root, "web", "src", "components", "DashboardView.tsx");
+const utilityPopoverPath = path.join(root, "web", "src", "components", "AppUtilityPopover.tsx");
 const apiPath = path.join(root, "web", "src", "api.ts");
 const setupPath = path.join(root, "web", "src", "components", "SetupWizardView.tsx");
 const operatorSetupPath = path.join(root, "web", "src", "components", "OperatorSetupRequiredView.tsx");
@@ -28,6 +29,7 @@ const integrations = fs.readFileSync(integrationsPath, "utf8");
 const app = fs.readFileSync(appPath, "utf8");
 const consolePath = fs.readFileSync(consolePathPath, "utf8");
 const dashboard = fs.readFileSync(dashboardPath, "utf8");
+const utilityPopover = fs.readFileSync(utilityPopoverPath, "utf8");
 const api = fs.readFileSync(apiPath, "utf8");
 const setup = fs.readFileSync(setupPath, "utf8");
 const operatorSetup = fs.readFileSync(operatorSetupPath, "utf8");
@@ -116,7 +118,9 @@ assert.match(i18n, /passkeyOriginUnsupported: "通用密钥只支持公网 HTTPS
 assert.match(operatorLogin, /<Divider plain>\{copy\.passwordFallback\}<\/Divider>/);
 assert.match(app, /startAuthentication\(\{ optionsJSON: options \}\)/);
 assert.match(app, /verifyPasskeyAuthentication/);
-assert.match(app, /SafetyCertificateOutlined/);
+assert.match(app, /<AppUtilityPopover/);
+assert.match(utilityPopover, /SafetyCertificateOutlined/);
+assert.match(utilityPopover, /copy\.operatorAuth\.security/);
 assert.match(operatorPasskeys, /startRegistration\(\{ optionsJSON: options \}\)/);
 assert.match(operatorPasskeys, /fetchOperatorPasskeys/);
 assert.match(operatorPasskeys, /deleteOperatorPasskey/);

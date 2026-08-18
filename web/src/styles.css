@@ -234,7 +234,7 @@ button,
 .app-toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   padding: 8px;
   border-radius: var(--tp-radius-lg);
@@ -247,9 +247,25 @@ button,
   min-width: 0;
 }
 
+.app-toolbar__group--views {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-toolbar__group--views::-webkit-scrollbar {
+  display: none;
+}
+
+.app-toolbar__group--views .ant-segmented {
+  width: max-content;
+  min-width: 100%;
+}
+
 .app-toolbar__group--action {
-  margin-left: 2px;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  margin-left: auto;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
@@ -279,8 +295,57 @@ button,
   padding-inline: 12px;
 }
 
-.theme-switch {
-  min-width: 152px;
+.app-utility-trigger {
+  max-width: 168px;
+}
+
+.app-utility-trigger > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-utility-popover {
+  display: grid;
+  width: min(300px, calc(100vw - 40px));
+  gap: 14px;
+  padding: 4px;
+}
+
+.app-utility-popover__identity {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--tp-text-soft);
+  font-size: var(--tp-text-sm);
+}
+
+.app-utility-popover__identity strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tp-text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-utility-popover__section {
+  display: grid;
+  gap: 7px;
+}
+
+.app-utility-popover__label {
+  color: var(--tp-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-utility-popover .ant-divider {
+  margin: 0;
+}
+
+.app-utility-popover__actions {
+  display: grid;
+  gap: 8px;
 }
 
 .sr-only {
@@ -1780,7 +1845,7 @@ button,
   }
 
   .app-toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-start;
   }
 }
@@ -1873,42 +1938,22 @@ button,
     padding: 6px;
   }
 
-  .app-toolbar__group {
-    flex: 1 1 100%;
-  }
-
   .app-toolbar__group--views {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .app-toolbar__group--views::-webkit-scrollbar {
-    display: none;
-  }
-
-  .app-toolbar__group--views .ant-segmented {
-    width: max-content;
-    min-width: 100%;
-  }
-
-  .app-toolbar__group:first-child,
-  .app-toolbar__group:nth-child(2) {
-    flex: 1 1 calc(50% - 4px);
+    flex: 1 1 0;
   }
 
   .app-toolbar__group--action {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     justify-content: flex-end;
     margin-left: 0;
   }
 
-  .app-toolbar .ant-segmented,
-  .theme-switch {
-    width: 100%;
-  }
-
   .app-toolbar__group--action > .ant-btn {
     width: auto;
+  }
+
+  .app-utility-trigger {
+    max-width: 116px;
   }
 
   .app-toolbar .ant-segmented {
@@ -3609,11 +3654,4 @@ button.continuity-workspace.is-selected {
   color: var(--tp-text-strong);
   font-family: var(--tp-font-mono);
   font-size: 13px;
-}
-
-.operator-session-label {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

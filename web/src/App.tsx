@@ -10,7 +10,6 @@ import {
   DashboardOutlined,
   GlobalOutlined,
   ReloadOutlined,
-  SafetyCertificateOutlined,
   UnorderedListOutlined
 } from "@ant-design/icons";
 import {
@@ -50,6 +49,7 @@ import {
   type OperatorSessionResponse
 } from "./api";
 import chatCockpitLogo from "./assets/chatcockpit-logo.svg";
+import { AppUtilityPopover } from "./components/AppUtilityPopover";
 import { DashboardView, type DashboardJobsDataState } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
 import { StateNotice } from "./components/StateNotice";
@@ -76,11 +76,9 @@ import { countJobs, summarizeJob } from "./utils";
 import {
   getStoredLocale,
   getUiCopy,
-  localeOptions,
   persistLocale,
   type LocaleCode
 } from "./i18n";
-import { themeLabels } from "./theme";
 import { getResourceCenterCopy } from "./i18n/resources";
 import { getIntegrationsCopy } from "./i18n/integrations";
 import { getPublicAccessCopy } from "./i18n/public-access";
@@ -1129,29 +1127,6 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               </div>
             </div>
             <div className="app-toolbar panel">
-              <div className="app-toolbar__group">
-                <Segmented<LocaleCode>
-                  value={locale}
-                  onChange={(value) => updateLocale(value)}
-                  options={localeOptions}
-                />
-              </div>
-              <div className="app-toolbar__group">
-                <span className="sr-only" id="chatcockpit-theme-mode-label">
-                  {copy.header.themeModeLabel}
-                </span>
-                <Segmented<ThemeMode>
-                  aria-labelledby="chatcockpit-theme-mode-label"
-                  className="theme-switch"
-                  value={themeMode}
-                  onChange={(value) => onThemeModeChange(value)}
-                  options={[
-                    { label: themeLabels[locale].auto, value: "auto" },
-                    { label: themeLabels[locale].dark, value: "dark" },
-                    { label: themeLabels[locale].light, value: "light" }
-                  ]}
-                />
-              </div>
               <div className="app-toolbar__group app-toolbar__group--views">
                 <Segmented<ViewKey>
                   value={activeView}
@@ -1167,30 +1142,26 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 />
               </div>
               <div className="app-toolbar__group app-toolbar__group--action">
-                <Text type="secondary" className="operator-session-label">
-                  {copy.operatorAuth.signedInAs}: {operatorSession?.username ?? "owner"}
-                </Text>
-                <Button
-                  icon={<SafetyCertificateOutlined />}
-                  onClick={() => setOperatorSecurityOpen(true)}
-                >
-                  {copy.operatorAuth.security}
-                </Button>
-                <Button onClick={() => void signOutOperator()}>
-                  {copy.operatorAuth.signOut}
-                </Button>
                 <Tooltip title={copy.header.refreshTooltip}>
                   <Button
+                    aria-label={copy.header.refresh}
                     icon={<ReloadOutlined />}
                     onClick={() => {
                       void loadHealth();
                       void loadJobs(token, health.authRequired, activeView === "jobs");
                     }}
                     loading={jobsLoading || healthLoading}
-                  >
-                    {copy.header.refresh}
-                  </Button>
+                  />
                 </Tooltip>
+                <AppUtilityPopover
+                  locale={locale}
+                  themeMode={themeMode}
+                  username={operatorSession?.username ?? "owner"}
+                  onLocaleChange={updateLocale}
+                  onThemeModeChange={onThemeModeChange}
+                  onOpenSecurity={() => setOperatorSecurityOpen(true)}
+                  onSignOut={() => void signOutOperator()}
+                />
               </div>
             </div>
           </div>
