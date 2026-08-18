@@ -134,7 +134,24 @@ export class DownstreamMcpStdioClient implements DownstreamMcpClient {
       for (const tool of parsed.data.tools) {
         tools.push({
           name: tool.name,
-          ...(tool.description ? { description: tool.description } : {})
+          ...(tool.description ? { description: tool.description } : {}),
+          inputSchema: structuredClone(tool.inputSchema) as Record<string, unknown>,
+          ...(tool.outputSchema
+            ? {
+                outputSchema: structuredClone(tool.outputSchema) as Record<
+                  string,
+                  unknown
+                >
+              }
+            : {}),
+          ...(tool.annotations
+            ? {
+                annotations: structuredClone(tool.annotations) as Record<
+                  string,
+                  unknown
+                >
+              }
+            : {})
         });
       }
       cursor = parsed.data.nextCursor;
