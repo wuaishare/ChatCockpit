@@ -1097,7 +1097,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   }
 
   return (
-    <Layout className="app-shell">
+    <Layout hasSider className="app-shell">
       <AppSidebar
         activeView={activeView}
         mobileOpen={mobileNavigationOpen}
