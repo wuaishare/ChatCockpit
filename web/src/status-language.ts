@@ -9,6 +9,7 @@ const STATUS_LABELS: Record<string, Record<LocaleCode, string>> = {
   missing: { "zh-CN": "缺失", "en-US": "Missing" },
   blocked: { "zh-CN": "受阻", "en-US": "Blocked" },
   backlog: { "zh-CN": "待规划", "en-US": "Backlog" },
+  queued: { "zh-CN": "排队中", "en-US": "Queued" },
   "in-progress": { "zh-CN": "进行中", "en-US": "In progress" },
   review: { "zh-CN": "待审查", "en-US": "In review" },
   completed: { "zh-CN": "已完成", "en-US": "Completed" },

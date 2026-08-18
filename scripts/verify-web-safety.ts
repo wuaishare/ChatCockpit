@@ -587,6 +587,16 @@ assert.match(workspaceContinuityRuntimeSource, /runtime\.job/);
 assert.match(workspaceContinuityRuntimeSource, /externalRunId/);
 assert.match(workspaceContinuityRuntimeSource, /job\.artifacts/);
 assert.match(workspaceContinuityRuntimeSource, /PlanningStatus/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, task\.status\)/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, latestHandoff\.status\)/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, session\.status\)/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, runtime\.binding\.status\)/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, runtime\.job\.status\)/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, handoff\.status\)/);
+assert.match(workspaceContinuitySectionsSource, /getOperationalStatusLabel\(locale, approval\.status\)/);
+assert.doesNotMatch(workspaceContinuitySectionsSource, />\{session\.status\}</);
+assert.doesNotMatch(workspaceContinuitySectionsSource, />\{handoff\.status\}</);
+assert.doesNotMatch(workspaceContinuitySectionsSource, />\{approval\.status\}</);
 assert.match(developmentDocumentsSource, /executionPolicy/);
 assert.match(developmentDocumentsSource, /currentContent\.contentMarkdown/);
 assert.match(developmentDocumentsSource, /currentVersion\.contentHash/);
@@ -597,6 +607,7 @@ assert.doesNotMatch(developmentDocumentsSource, />\{document\.status\}</);
 assert.doesNotMatch(developmentDocumentsSource, />\{detail\.document\.status\}</);
 assert.match(statusLanguageSource, /partial: \{ "zh-CN": "部分可用", "en-US": "Partial" \}/);
 assert.match(statusLanguageSource, /superseded: \{ "zh-CN": "已取代", "en-US": "Superseded" \}/);
+assert.match(statusLanguageSource, /queued: \{ "zh-CN": "排队中", "en-US": "Queued" \}/);
 assert.match(statusLanguageSource, /getOperationalStatusTone/);
 assert.doesNotMatch(
   `${continuitySource}\n${workspaceContinuityRuntimeSource}\n${developmentDocumentsSource}\n${runtimeRecoverySource}`,

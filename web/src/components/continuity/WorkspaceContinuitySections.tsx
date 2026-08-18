@@ -14,6 +14,7 @@ import {
 } from "@ant-design/icons";
 
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
 import { consolePath } from "../../console-path";
 import type {
   ContinuityHandoffRecord,
@@ -170,7 +171,7 @@ export function TasksSection({
               />
             </header>
             <div className="continuity-entity-card__facts">
-              <span>{copy.taskStatus}: <strong>{task.status}</strong></span>
+              <span>{copy.taskStatus}: <strong>{getOperationalStatusLabel(locale, task.status)}</strong></span>
               <span>{copy.priority}: <strong>{task.priority}</strong></span>
               <span>{copy.planningPolicy}: <strong>{task.executionPolicy}</strong></span>
               <span>{copy.activeSession}: <code>{task.activeSessionId || "—"}</code></span>
@@ -207,7 +208,7 @@ export function TasksSection({
               <span>{sessions.length} {copy.sections.sessions.label}</span>
               <span>
                 {latestHandoff
-                  ? `${copy.sections.handoffs.label}: ${latestHandoff.status}`
+                  ? `${copy.sections.handoffs.label}: ${getOperationalStatusLabel(locale, latestHandoff.status)}`
                   : copy.noHandoffsTitle}
               </span>
             </div>
@@ -280,7 +281,9 @@ export function SessionsSection({
               <Text as="h3">{session.title}</Text>
               <Text as="p" type="secondary">{task.title}</Text>
             </div>
-            <Tag>{session.status}</Tag>
+            <Tag color={getOperationalStatusTone(session.status)}>
+              {getOperationalStatusLabel(locale, session.status)}
+            </Tag>
           </header>
           <div className="continuity-entity-card__facts">
             <span>{copy.writerMode}: <strong>{session.mode}</strong></span>
@@ -296,7 +299,7 @@ export function SessionsSection({
               </div>
               <div className="continuity-entity-card__facts">
                 <span>
-                  {copy.bindingStatus}: <strong>{runtime.binding.status}</strong>
+                  {copy.bindingStatus}: <strong>{getOperationalStatusLabel(locale, runtime.binding.status)}</strong>
                 </span>
                 <span>
                   {copy.externalRun}: <code>{runtime.binding.externalRunId || "—"}</code>
@@ -306,8 +309,8 @@ export function SessionsSection({
                 <div className="continuity-runtime-job">
                   <div className="continuity-runtime-job__heading">
                     <strong>{copy.asyncJob}</strong>
-                    <Tag color={runtime.job.status === "completed" ? "green" : undefined}>
-                      {copy.jobStatus}: {runtime.job.status}
+                    <Tag color={getOperationalStatusTone(runtime.job.status)}>
+                      {copy.jobStatus}: {getOperationalStatusLabel(locale, runtime.job.status)}
                     </Tag>
                   </div>
                   <code>{runtime.job.id}</code>
@@ -382,7 +385,9 @@ export function HandoffsSection({
               <Text as="p" type="secondary">{handoff.goal}</Text>
             </div>
             <div className="continuity-handoff-card__status">
-              <Tag color={handoff.status === "ready" ? "blue" : "default"}>{handoff.status}</Tag>
+              <Tag color={getOperationalStatusTone(handoff.status)}>
+                {getOperationalStatusLabel(locale, handoff.status)}
+              </Tag>
               <VerificationTag state={evidence?.verificationState ?? "missing"} locale={locale} />
             </div>
           </header>
@@ -527,11 +532,13 @@ export function ApprovalsSection({
                 {formatDate(approval.receivedAt, locale)}
               </Text>
             </div>
-            <Tag color="orange">{approval.status}</Tag>
+            <Tag color={getOperationalStatusTone(approval.status)}>
+              {getOperationalStatusLabel(locale, approval.status)}
+            </Tag>
           </header>
           <div className="continuity-entity-card__facts">
             <span>{copy.approvalKind}: <strong>{approval.kind}</strong></span>
-            <span>{copy.approvalStatus}: <strong>{approval.status}</strong></span>
+            <span>{copy.approvalStatus}: <strong>{getOperationalStatusLabel(locale, approval.status)}</strong></span>
             <span>{copy.writerSession}: <code>{approval.sessionId}</code></span>
           </div>
           <pre className="continuity-approval-summary">
