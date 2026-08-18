@@ -8,6 +8,7 @@ import type {
   TokenPilotHealthStatus,
   TokenPilotRepoGovernanceRecord
 } from "../types.js";
+import { readRuntimeBuildProvenance } from "./build-provenance.js";
 import { buildRepoGovernance } from "./config.js";
 import { buildSourceDistributionContext } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
@@ -121,7 +122,8 @@ export function buildHealthStatusSnapshot(
     publicBaseUrl,
     openapiUrl: publicBaseUrl
       ? `${publicBaseUrl.replace(/\/+$/, "")}/openapi.yaml`
-      : "/openapi.yaml"
+      : "/openapi.yaml",
+    build: readRuntimeBuildProvenance()
   };
 }
 

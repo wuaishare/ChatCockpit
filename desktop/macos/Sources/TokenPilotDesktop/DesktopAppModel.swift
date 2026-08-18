@@ -91,6 +91,9 @@ final class DesktopAppModel: ObservableObject {
     private var securityFeedbackTask: Task<Void, Never>?
     private let appVersion: String
     private let appBuildNumber: String
+    private let appBuildIdentifier: String
+    private let appBuildRevision: String
+    private let appBuildTimestamp: String
 
     init(
         rootValidator: TokenPilotRootValidator = TokenPilotRootValidator(),
@@ -109,7 +112,10 @@ final class DesktopAppModel: ObservableObject {
         authorityClient: DesktopAuthorityClient = DesktopAuthorityClient(),
         operationalSummaryClient: any DesktopOperationalSummaryReading = DesktopOperationalSummaryClient(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
-        appBuildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        appBuildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
+        appBuildIdentifier: String = Bundle.main.object(forInfoDictionaryKey: "ChatCockpitBuildIdentifier") as? String ?? "",
+        appBuildRevision: String = Bundle.main.object(forInfoDictionaryKey: "ChatCockpitBuildRevision") as? String ?? "",
+        appBuildTimestamp: String = Bundle.main.object(forInfoDictionaryKey: "ChatCockpitBuildTimestamp") as? String ?? ""
     ) {
         self.rootValidator = rootValidator
         self.rootDiscovery = rootDiscovery
@@ -128,6 +134,9 @@ final class DesktopAppModel: ObservableObject {
         self.operationalSummaryClient = operationalSummaryClient
         self.appVersion = appVersion
         self.appBuildNumber = appBuildNumber
+        self.appBuildIdentifier = appBuildIdentifier
+        self.appBuildRevision = appBuildRevision
+        self.appBuildTimestamp = appBuildTimestamp
 
         var decodedManifest: RuntimeManifest?
         if let bundlePayloadURL,
@@ -225,6 +234,24 @@ final class DesktopAppModel: ObservableObject {
 
     var currentAppBuildText: String {
         appBuildNumber == "0" ? DesktopL10n.string("Unavailable") : appBuildNumber
+    }
+
+    var currentAppBuildIdentifierText: String {
+        appBuildIdentifier.isEmpty ? DesktopL10n.string("Unavailable") : appBuildIdentifier
+    }
+
+    var currentAppRevisionText: String {
+        appBuildRevision.isEmpty ? DesktopL10n.string("Unavailable") : appBuildRevision
+    }
+
+    var currentAppBuildTimestampText: String {
+        appBuildTimestamp.isEmpty ? DesktopL10n.string("Unavailable") : appBuildTimestamp
+    }
+
+    var currentAppProvenanceText: String {
+        let parts = [currentAppVersionText, currentAppBuildIdentifierText, currentAppRevisionText]
+            .filter { $0 != DesktopL10n.string("Unavailable") }
+        return parts.isEmpty ? DesktopL10n.string("Unavailable") : parts.joined(separator: " · ")
     }
 
     var updateStatusText: String {

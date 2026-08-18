@@ -76,6 +76,18 @@ struct SettingsView: View {
                 LabeledContent(DesktopL10n.string("Build")) {
                     Text(model.currentAppBuildText)
                 }
+                LabeledContent(DesktopL10n.string("Build ID")) {
+                    Text(model.currentAppBuildIdentifierText)
+                        .monospacedDigit()
+                }
+                LabeledContent(DesktopL10n.string("Revision")) {
+                    Text(model.currentAppRevisionText)
+                        .monospaced()
+                }
+                LabeledContent(DesktopL10n.string("Built at")) {
+                    Text(model.currentAppBuildTimestampText)
+                        .monospacedDigit()
+                }
                 LabeledContent(DesktopL10n.string("Status")) {
                     Text(model.updateStatusText)
                 }

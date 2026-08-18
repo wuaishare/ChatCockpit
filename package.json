@@ -8,7 +8,7 @@
     "chatcockpit": "./dist/cli/index.js"
   },
   "scripts": {
-    "build": "npm run build:web && tsc -p tsconfig.json",
+    "build": "npm run build:web && tsc -p tsconfig.json && tsx scripts/generate-build-provenance.ts",
     "build:web": "vite build --config web/vite.config.ts",
     "build:macos-desktop": "bash ./scripts/build-macos-desktop-app.sh",
     "build:macos-xcode": "bash ./scripts/build-macos-xcode-app.sh",
@@ -57,6 +57,8 @@
     "verify:chatcockpit-r3-identity-inventory": "tsx scripts/verify-chatcockpit-r3-identity-inventory.ts",
     "verify:chatcockpit-r3-cutover": "tsx scripts/verify-chatcockpit-r3-cutover.ts",
     "verify:packaged-doctor": "tsx scripts/verify-packaged-doctor.ts",
+    "verify:runtime-doctor-listener": "tsx scripts/verify-runtime-doctor-listener.ts",
+    "verify:build-provenance": "tsx scripts/verify-build-provenance.ts",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
     "verify:runtime-manifest": "tsx scripts/verify-runtime-manifest.ts",
     "verify:macos-runtime-payload": "tsx scripts/verify-macos-runtime-payload.ts",
@@ -201,7 +203,7 @@
     "reset:local": "./scripts/macos-manage-local-server.sh reset",
     "verify:ci-workflows": "tsx scripts/verify-ci-workflows.ts",
     "verify:ci-node22": "npm run typecheck && npm run typecheck:web && npm run build:web && npm run verify:smoke && npm run verify:mcp && npm run verify:oauth-flow && npm run verify:operator-auth",
-    "verify:ci-core": "npm run verify:ci-workflows && npm run typecheck && npm run verify:connectivity-provider-probe && npm run verify:connectivity-provider-machine-contract && npm run verify:cloudflared-homebrew-adapter && npm run verify:connectivity-provider-public-projection && npm run verify:connectivity-route-candidate && npm run verify:connectivity-route-verification && npm run verify:connectivity-cutover-intent && npm run verify:connectivity-machine-cutover && npm run verify:connectivity-bootstrap-proof && npm run verify:connectivity-machine-bootstrap && npm run verify:desktop-summary && npm run verify:surface-design-contract && npm run verify:path-guards && npm run verify:rename-foundation && npm run verify:r4-migration && npm run verify:chatcockpit-identity-generation && npm run verify:chatcockpit-r3-cutover && npm run verify:runtime-manifest && npm run verify:packaged-doctor && npm run verify:docs && npm run verify:knowledge-boundary && npm run verify:web && npm run verify:smoke && npm run verify:protocol-core && npm run verify:e2e",
+    "verify:ci-core": "npm run verify:ci-workflows && npm run typecheck && npm run verify:connectivity-provider-probe && npm run verify:connectivity-provider-machine-contract && npm run verify:cloudflared-homebrew-adapter && npm run verify:connectivity-provider-public-projection && npm run verify:connectivity-route-candidate && npm run verify:connectivity-route-verification && npm run verify:connectivity-cutover-intent && npm run verify:connectivity-machine-cutover && npm run verify:connectivity-bootstrap-proof && npm run verify:connectivity-machine-bootstrap && npm run verify:desktop-summary && npm run verify:surface-design-contract && npm run verify:path-guards && npm run verify:rename-foundation && npm run verify:r4-migration && npm run verify:chatcockpit-identity-generation && npm run verify:chatcockpit-r3-cutover && npm run verify:runtime-manifest && npm run verify:packaged-doctor && npm run verify:runtime-doctor-listener && npm run verify:build-provenance && npm run verify:docs && npm run verify:knowledge-boundary && npm run verify:web && npm run verify:smoke && npm run verify:protocol-core && npm run verify:e2e",
     "verify": "npm run verify:ci-core && npm run doctor",
     "verify:path-guards": "tsx scripts/verify-path-guards.ts",
     "verify:knowledge-boundary": "tsx scripts/verify-knowledge-boundary.ts"

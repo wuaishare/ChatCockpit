@@ -216,13 +216,14 @@ launchctl print gui/$(id -u)/com.wuaishare.chatcockpit.control-plane | sed -n '1
 - current local control-plane host/port/public base URL
 - Control Plane LaunchAgent registration truth
 - Runner LaunchAgent registration truth
-- listener truth on `127.0.0.1:4318`
+- Process Supervisor LaunchAgent registration/readiness truth
+- listener reachability on `127.0.0.1:4318`; when `lsof` is unavailable, Doctor falls back to a bounded TCP probe instead of reporting a false negative
 - Runner status file truth, including heartbeat and last consumed job when available
 - direct local `/api/health`
 - the current local secure entrypoint loaded dynamically from `access-policy.json`
 - recent server log tail
 
-`npm run mvp:status` is currently the direct local truth source for Process Supervisor registration/readiness; `doctor:runtime` still focuses on the Control Plane, Runner, listener, health/UI probes, and server log. Folding Supervisor diagnostics into Doctor is a separate product-hardening task rather than something this document pretends already exists.
+`npm run mvp:status` remains the concise lifecycle summary, while `doctor:runtime` now includes Process Supervisor registration/readiness alongside Control Plane, Runner, listener, health/UI probes, and the server log.
 
 Important operational boundary:
 

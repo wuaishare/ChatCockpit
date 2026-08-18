@@ -42,6 +42,11 @@ export function DashboardView({
   const copy = getUiCopy(locale);
   const integrationsCopy = getIntegrationsCopy(locale);
   const hasAnyJobs = counts.total > 0;
+  const runtimeBuildText = [
+    health.build.version,
+    health.build.buildId ? `build ${health.build.buildId}` : null,
+    health.build.revision
+  ].filter(Boolean).join(" · ");
   const capabilityLabels = {
     pack: copy.dashboard.repoCapabilityPack,
     "files-read": copy.dashboard.repoCapabilityFilesRead,
@@ -97,6 +102,12 @@ export function DashboardView({
             <div className="summary-line">
               <span>{copy.dashboard.modeCard}</span>
               <strong>{health.mode}</strong>
+            </div>
+            <div className="summary-line">
+              <span>{copy.dashboard.runtimeBuildCard}</span>
+              <strong className="summary-build-provenance" title={health.build.builtAt ?? undefined}>
+                {runtimeBuildText}
+              </strong>
             </div>
             <div className="summary-line">
               <span>{copy.dashboard.authCard}</span>

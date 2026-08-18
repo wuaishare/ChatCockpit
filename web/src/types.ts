@@ -15,6 +15,14 @@ export interface HealthResponse {
   exposed: boolean;
   publicBaseUrl: string | null;
   openapiUrl: string;
+  build?: RuntimeBuildProvenance;
+}
+
+export interface RuntimeBuildProvenance {
+  version: string;
+  buildId: string | null;
+  revision: string | null;
+  builtAt: string | null;
 }
 
 export interface SetupStatusStep {
@@ -141,6 +149,7 @@ export interface HealthModel {
   exposed: boolean;
   openapiUrl: string;
   publicBaseUrl: string | null;
+  build: RuntimeBuildProvenance;
 }
 
 export type RepoGovernanceStatus = "enabled" | "missing" | "blocked";

@@ -222,6 +222,7 @@ export interface UiCopy {
     boundaryDescription: string;
     healthCard: string;
     modeCard: string;
+    runtimeBuildCard: string;
     authCard: string;
     completedCard: string;
     summaryTitle: string;
@@ -506,6 +507,7 @@ const zhCN: UiCopy = {
       "Web Cockpit 负责任务、连续性、资源、审批与集成工作流；Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理。",
     healthCard: "健康状态",
     modeCard: "运行模式",
+    runtimeBuildCard: "Runtime 构建",
     authCard: "鉴权状态",
     completedCard: "已完成任务",
     summaryTitle: "Operator 工作台概览",
@@ -848,6 +850,7 @@ const enUS: UiCopy = {
       "Web Cockpit owns jobs, continuity, resources, approvals, and integration workflows. Runtime lifecycle, access policy, and machine secrets are managed in the ChatCockpit App.",
     healthCard: "Health",
     modeCard: "Mode",
+    runtimeBuildCard: "Runtime build",
     authCard: "Auth",
     completedCard: "Jobs Completed",
     summaryTitle: "Operator Workspace Overview",

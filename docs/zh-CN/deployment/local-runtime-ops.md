@@ -163,13 +163,14 @@ npm run mvp:status   # 使用 UI: 行中的随机安全入口检查 Web Cockpit
 - control plane host/port/public base URL
 - Control Plane LaunchAgent 注册状态
 - Runner LaunchAgent 注册状态
-- `127.0.0.1:4318` 监听状态
+- Process Supervisor LaunchAgent 注册与 ready 状态
+- `127.0.0.1:4318` 监听可达性；当本机没有 `lsof` 时，Doctor 会降级使用受限 TCP 探测，不再误报“没有 Listener”
 - Runner heartbeat 和最近 job
 - 本地 `/api/health`
 - 本地当前安全入口（动态读取 `access-policy.json`）
 - 最近 server log
 
-Process Supervisor 的注册/ready 真源当前由 `npm run mvp:status` 直接报告；`doctor:runtime` 尚未把 Supervisor 诊断纳入统一输出。后者属于后续产品化加固任务，不在本文中提前宣称已经实现。
+`npm run mvp:status` 仍然提供简洁的生命周期摘要；`doctor:runtime` 现在也会统一输出 Process Supervisor 注册/ready 状态，并和 Control Plane、Runner、Listener、Health/UI probe、server log 一起作为实机诊断真源。
 
 ## 停止、重启、重置
 
