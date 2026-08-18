@@ -309,6 +309,11 @@ const dashboardSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/DashboardView.tsx"),
   "utf8"
 );
+const utilityPopoverSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/AppUtilityPopover.tsx"),
+  "utf8"
+);
+const stylesSource = fs.readFileSync(path.join(repoRoot, "web/src/styles.css"), "utf8");
 const consolePathSource = fs.readFileSync(
   path.join(repoRoot, "web/src/console-path.ts"),
   "utf8"
@@ -434,6 +439,16 @@ assert.match(dashboardSource, /copy\.dashboard\.unavailableStateTitle/);
 assert.match(dashboardSource, /<strong>--<\/strong>/);
 assert.doesNotMatch(dashboardSource, /jobsProtected/);
 assert.doesNotMatch(dashboardSource, /const hasAnyJobs = counts\.total > 0/);
+assert.match(appSource, /<AppUtilityPopover/);
+assert.doesNotMatch(appSource, /operator-session-label|Segmented<LocaleCode>|themeLabels\[locale\]/);
+assert.match(utilityPopoverSource, /<Popover/);
+assert.match(utilityPopoverSource, /localeOptions/);
+assert.match(utilityPopoverSource, /themeLabels\[locale\]/);
+assert.match(utilityPopoverSource, /copy\.operatorAuth\.security/);
+assert.match(utilityPopoverSource, /copy\.operatorAuth\.signOut/);
+assert.match(stylesSource, /\.app-utility-popover/);
+assert.match(stylesSource, /\.app-toolbar__group--views\s*\{[^}]*overflow-x:\s*auto/s);
+assert.doesNotMatch(stylesSource, /\.operator-session-label/);
 assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
 assert.match(apiSource, /\/api\/recovery\/assess/);

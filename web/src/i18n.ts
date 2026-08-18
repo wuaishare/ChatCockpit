@@ -109,6 +109,8 @@ export interface UiCopy {
     publicAccess: string;
     integrations: string;
     appearanceStatus: string;
+    languageLabel: string;
+    accountAndAppearance: string;
     themeModeLabel: string;
     darkDeck: string;
     lightDeck: string;
@@ -393,6 +395,8 @@ const zhCN: UiCopy = {
     publicAccess: "公网接入",
     integrations: "集成",
     appearanceStatus: "当前界面外观",
+    languageLabel: "语言",
+    accountAndAppearance: "账户与外观",
     themeModeLabel: "颜色模式",
     darkDeck: "深色驾驶舱",
     lightDeck: "浅色驾驶舱"
@@ -740,6 +744,8 @@ const enUS: UiCopy = {
     publicAccess: "Public Access",
     integrations: "Integrations",
     appearanceStatus: "Current interface appearance",
+    languageLabel: "Language",
+    accountAndAppearance: "Account & appearance",
     themeModeLabel: "Color mode",
     darkDeck: "Dark deck",
     lightDeck: "Light deck"
