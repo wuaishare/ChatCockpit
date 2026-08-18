@@ -1,10 +1,16 @@
 import type { GovernanceLedger } from "../governance/governance-ledger.js";
 import type { RuntimeProfileRegistry } from "../runtime/resources/runtime-profile-registry.js";
 import type { RuntimeResourceInventoryAdapterRegistry } from "../runtime/resources/runtime-resource-inventory-adapter-registry.js";
+import {
+  buildLocalDeviceTarget,
+  type DeviceTargetDescriptor
+} from "../devices/local-device.js";
+import { CapabilityProviderProjectionService } from "./capability-provider-projection-service.js";
 import { RuntimeResourceInventoryService } from "./runtime-resource-inventory-service.js";
 import { RuntimeResourceMutationPublicService } from "./runtime-resource-mutation-public-service.js";
 
 export interface RuntimeResourceServices {
+  providers: CapabilityProviderProjectionService;
   inventory: RuntimeResourceInventoryService;
   mutations: RuntimeResourceMutationPublicService;
 }
@@ -14,6 +20,7 @@ export function buildRuntimeResourceServices(options: {
   profiles: RuntimeProfileRegistry;
   adapters: RuntimeResourceInventoryAdapterRegistry;
   now?: () => string;
+  deviceTarget?: DeviceTargetDescriptor;
   pluginMutationAvailable?: boolean;
 }): RuntimeResourceServices {
   const inventory = new RuntimeResourceInventoryService(
@@ -23,6 +30,10 @@ export function buildRuntimeResourceServices(options: {
     options.now ? { now: options.now } : {}
   );
   return {
+    providers: new CapabilityProviderProjectionService(
+      options.profiles,
+      options.deviceTarget ?? buildLocalDeviceTarget()
+    ),
     inventory,
     mutations: new RuntimeResourceMutationPublicService(
       options.repositories,

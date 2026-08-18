@@ -76,9 +76,12 @@ export function registerRuntimeResourceRoutes(
 ): void {
   registerAliases(app, "GET", "/api/resources/runtime-profiles", async (_request, reply) => {
     try {
+      const projection = await services.providers.snapshot();
       return {
         ok: true,
-        profiles: await services.inventory.listProfiles()
+        target: projection.target,
+        providers: projection.providers,
+        profiles: projection.profiles
       };
     } catch (error) {
       return sendUnknownApiError(reply, error);
