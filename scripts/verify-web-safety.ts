@@ -455,6 +455,7 @@ assert.match(utilityPopoverSource, /themeLabels\[locale\]/);
 assert.match(utilityPopoverSource, /copy\.operatorAuth\.security/);
 assert.match(utilityPopoverSource, /copy\.operatorAuth\.signOut/);
 assert.match(stylesSource, /\.app-utility-popover/);
+assert.match(appSource, /<Layout hasSider className="app-shell">/);
 assert.match(appSource, /<AppSidebar/);
 assert.match(appSource, /className="app-sidebar-mobile-trigger"/);
 assert.match(appSource, /activeViewTitle\[activeView\]/);
