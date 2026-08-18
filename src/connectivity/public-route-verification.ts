@@ -377,6 +377,14 @@ export class PublicRouteVerificationStore {
     return parseArtifact(envelope.verification);
   }
 
+  clear(): void {
+    try {
+      fs.unlinkSync(this.statePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+
   write(verification: PublicRouteVerificationArtifact): void {
     fs.mkdirSync(this.runtimeDir, { recursive: true, mode: 0o700 });
     const temporaryPath = `${this.statePath}.${process.pid}.${Date.now()}.tmp`;
@@ -664,11 +672,16 @@ export class PublicRouteVerifier {
       checks
     };
     this.verificationStore.write(verification);
+    const completesPendingCutover =
+      status === "verified" && current.canonical.origin === candidate.origin;
+    if (completesPendingCutover) {
+      this.candidateStore.clear();
+    }
     return {
       ok: true,
       schemaVersion: PUBLIC_ROUTE_VERIFICATION_SCHEMA_VERSION,
       canonical: current.canonical,
-      candidate: current.candidate,
+      candidate: completesPendingCutover ? null : current.candidate,
       verification
     };
   }

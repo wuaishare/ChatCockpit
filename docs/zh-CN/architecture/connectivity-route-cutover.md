@@ -5,7 +5,7 @@ Public Route 切换必须拆成 **Operator Intent** 与 **Machine Execution** �
 ## 权限边界
 
 - **Web Cockpit / Operator**：只有在 exact Candidate Public Route 已经拥有完全匹配且成功的 Verification Artifact 后，才允许准备或取消短期 Cutover Intent。
-- **macOS App / CLI Machine Authority**：后续负责真正的 canonical 配置变更、必要的 Runtime 生命周期动作、post-cutover verification 与 rollback。当前这一片刻意不实现 Machine Executor。
+- **macOS App / CLI Machine Authority**：已经负责 replacement cutover 的 canonical 配置变更、必要的 Runtime 生命周期动作、post-cutover verification 与 rollback。
 - **Runtime**：执行完成后继续作为 canonical Public Endpoint 的权威投影。
 
 准备 Intent **不等于切换**。它不会写 `server.env`、不会 restart Runtime、不会操作 Provider/Tunnel，也不会修改任何凭据。
@@ -64,16 +64,20 @@ Web 可以显示当前 canonical、目标 candidate、Intent 过期时间与“�
 
 首次公网 Bootstrap 必须先设计独立的 identity proof 与 Machine Authority 合同，不能偷用 replacement cutover。
 
-## 后续 Machine Execution 合同
+## 已实现的 Machine Execution 合同
 
-下一片 Machine Authority 必须消费一个 exact 且仍适用的 Cutover Intent，并继续 fail-closed。真正变更前必须重新检查 Intent、candidate、Verification Artifact、expiry 与 expected current canonical origin。
+macOS App / CLI Machine Authority 会消费一个 exact 且仍适用的 Cutover Intent，并继续 fail-closed。真正变更前会重新检查 Intent 与 expected current canonical origin，读取 Runtime lifecycle 状态，并且只有 preflight 成功后才消费 Intent。
 
-执行过程至少必须具备事务结构：
+如果 Runtime 原本正在运行，replacement execution 采用：
 
-`捕获旧配置/服务状态 → 原子写入 canonical 配置 → 只有 Runtime 原本 running/degraded 才 restart → post-cutover verification → 成功后清理`
+`捕获旧 canonical/服务状态 → CAS + 0600 原子更新 server.env canonical → 通过固定 ChatCockpit lifecycle 脚本 restart → 绑定新 canonical 的 post-cutover verification → 清理已晋升 candidate`
 
-如果配置已修改后出现失败：
+如果配置修改后 restart 或 post-cutover verification 失败：
 
-`恢复旧配置 → 恢复原服务状态 → 验证 rollback → 只返回 bounded failure`
+`CAS 恢复旧 canonical → restart 原本运行的 Runtime → 返回 bounded rollback 结果`
 
-如果 Runtime 执行前处于 stopped，执行后仍必须保持 stopped，不允许 Cutover 顺带启动它。Provider Tunnel 生命周期和 Provider Secret 仍属于独立 Machine Workflow，不能因为存在 Cutover Intent 就自动创建、启动或修改。
+公开结果不会返回原始 lifecycle 输出、响应正文、解析地址、可执行路径、Provider credential 或 Secret。CLI 只接受 exact Intent ID，不接受任意 origin、环境变量键、命令、可执行文件或 lifecycle action。
+
+如果 Runtime 执行前处于 stopped，执行后仍保持 stopped。此时 Machine Authority 会在 `server.env` 中原子晋升 candidate origin、消费 Intent、清除旧的 pre-cutover Verification Artifact，并保留 Candidate，返回 `succeeded-pending-runtime-verification`；**不会**启动或 restart Runtime。之后由用户显式启动 Runtime，再对同一个 Candidate 进行验证；只有全部 verification checks 成功后，才完成这次 pending cutover 并清除 Candidate。
+
+Provider Tunnel 生命周期和 Provider Secret 仍属于独立 Machine Workflow，不能因为存在 Cutover Intent 就自动创建、启动或修改。

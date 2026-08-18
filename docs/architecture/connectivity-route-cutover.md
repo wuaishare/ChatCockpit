@@ -5,7 +5,7 @@ Public Route cutover is split across **Operator intent** and **Machine execution
 ## Authority Split
 
 - **Web Cockpit / Operator** may prepare or cancel a short-lived Cutover Intent after an exact Candidate Public Route has a matching successful Verification Artifact.
-- **macOS App / CLI Machine Authority** will own actual canonical config mutation, any required Runtime lifecycle action, post-cutover verification, and rollback. That executor is intentionally not implemented in this slice.
+- **macOS App / CLI Machine Authority** owns actual canonical config mutation, any required Runtime lifecycle action, post-cutover verification, and rollback for replacement cutovers.
 - **Runtime** remains the authoritative projection for the canonical Public Endpoint after execution.
 
 Preparing an intent is not a cutover. It performs no `server.env` write, no Runtime restart, no Provider/Tunnel operation, and no credential mutation.
@@ -64,16 +64,20 @@ The reason is structural: replacement Verification proves that a candidate route
 
 Initial Public Route bootstrap needs a separate identity-proof and Machine Authority contract before it can be implemented.
 
-## Required Machine Execution Contract
+## Implemented Machine Execution Contract
 
-The next Machine Authority slice must consume one exact, still-applicable Cutover Intent and remain fail-closed. Before mutation it must re-check the intent, candidate, verification artifact, expiry, and expected current canonical origin.
+The macOS App / CLI Machine Authority consumes one exact, still-applicable Cutover Intent and remains fail-closed. Before mutation it re-checks the intent and expected current canonical origin, reads the Runtime lifecycle state, and consumes the intent only after that preflight succeeds.
 
-Execution must then provide a transactional shape:
+For a Runtime that is already running, replacement execution follows:
 
-`capture previous config/service state → atomic canonical config write → restart only if Runtime was already running/degraded → post-cutover verification → commit cleanup`
+`capture previous canonical/service state → CAS + atomic 0600 server.env canonical write → restart through the fixed ChatCockpit lifecycle script → post-cutover verification bound to the new canonical → clear promoted candidate`
 
-On failure after config mutation:
+If restart or post-cutover verification fails after config mutation:
 
-`restore previous config → restore previous service state → verify rollback → report bounded failure`
+`restore previous canonical with CAS → restart the previously running Runtime → report bounded rollback result`
 
-A Runtime that was stopped before execution must remain stopped; cutover must not implicitly start it. Provider Tunnel lifecycle and Provider secrets remain separate Machine workflows and must not be created, started, or modified merely because a Cutover Intent exists.
+The public result never includes raw lifecycle output, response bodies, resolved addresses, executable paths, Provider credentials, or secrets. The CLI accepts only the exact Intent ID; it does not accept an arbitrary origin, environment key, command, executable, or lifecycle action.
+
+A Runtime that was stopped before execution remains stopped. In that case Machine Authority atomically promotes the candidate origin in `server.env`, consumes the Intent, clears the old pre-cutover Verification Artifact, keeps the Candidate, and returns `succeeded-pending-runtime-verification`. It does **not** start or restart Runtime. After the operator explicitly starts Runtime, verifying that same Candidate against the now-current canonical origin completes the pending cutover and clears the Candidate only when all verification checks pass.
+
+Provider Tunnel lifecycle and Provider secrets remain separate Machine workflows and are not created, started, or modified merely because a Cutover Intent exists.

@@ -477,6 +477,71 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let intent = model.publicRouteCutoverIntent {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Label(
+                                DesktopL10n.string("Verified Public Route Cutover"),
+                                systemImage: "arrow.triangle.swap"
+                            )
+                                .font(.subheadline.weight(.semibold))
+                            Spacer(minLength: 8)
+                            Text(DesktopL10n.string("Pending Machine execution"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        LabeledContent(DesktopL10n.string("Current canonical")) {
+                            Text(verbatim: intent.expectedCanonicalOrigin)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        LabeledContent(DesktopL10n.string("Verified candidate")) {
+                            Text(verbatim: intent.candidateOrigin)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        LabeledContent(DesktopL10n.string("Intent expires")) {
+                            Text(verbatim: intent.expiresAt)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button(DesktopL10n.string("Apply Public Route")) {
+                                Task { await model.runPublicRouteCutover() }
+                            }
+                                .disabled(
+                                    model.isPublicRouteCutoverRunning
+                                        || model.isConnectivityMutationRunning
+                                        || model.isSecurityRefreshing
+                                )
+
+                            if model.isPublicRouteCutoverRunning {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+
+                            if let feedback = model.securityFeedback,
+                               feedback.target == .publicRouteCutover,
+                               feedback.kind == .updated {
+                                transientFeedbackLabel(feedback.message)
+                            }
+                        }
+
+                        Text(
+                            DesktopL10n.string(
+                                "This executes only the exact verified Cutover Intent prepared in Web Cockpit. Running Runtime services may restart; stopped services are never started automatically. Failed restart or post-cutover verification triggers rollback to the previous canonical route."
+                            )
+                        )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
                 Text(
                     DesktopL10n.string(
                         "ChatCockpit only reports connector binaries that it can confirm through fixed version probes. A detected binary does not mean a public route is configured or running. Public reachability remains authoritative in Web Cockpit Public Access and the Runtime projection."

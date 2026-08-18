@@ -127,6 +127,21 @@ function fixture(options: { canonical?: string | null } = {}) {
   const f = fixture();
   const candidate = f.candidateStore.stage({
     origin: "https://candidate.example.com",
+    source: "existing-environment"
+  }).candidate!;
+  const verification = verifiedArtifact(candidate.id, candidate.origin);
+  f.verificationStore.write(verification);
+  f.setCanonical(candidate.origin);
+  assert.throws(
+    () => f.intentStore.prepare({ candidateId: candidate.id, verificationId: verification.id }),
+    (error: unknown) => error instanceof PublicRouteCutoverIntentError && error.code === "candidate-already-canonical"
+  );
+}
+
+{
+  const f = fixture();
+  const candidate = f.candidateStore.stage({
+    origin: "https://candidate.example.com",
     source: "ngrok"
   }).candidate!;
   const failed = verifiedArtifact(candidate.id, candidate.origin);

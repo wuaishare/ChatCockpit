@@ -208,6 +208,48 @@ function successResponses(): PublicRouteHttpResponse[] {
 
 {
   const runtimeDir = tempRuntimeDir();
+  let canonical = "https://current.example.com";
+  const candidateStore = new PublicRouteCandidateStore({
+    runtimeDir,
+    canonicalOrigin: () => canonical,
+    now: () => "2026-08-18T00:06:00.000Z",
+    createId: () => "candidate-post-cutover"
+  });
+  const staged = candidateStore.stage({
+    origin: "https://candidate.example.com",
+    source: "existing-environment"
+  }).candidate!;
+  canonical = staged.origin;
+  const verifier = new PublicRouteVerifier({
+    candidateStore,
+    verificationStore: new PublicRouteVerificationStore({ runtimeDir }),
+    resolver: new FakeResolver([{ address: "93.184.216.34", family: 4 }]),
+    probe: new FakeProbe([
+      jsonResponse({
+        ok: true,
+        mode: "phase2-dual-mode",
+        authRequired: true,
+        exposed: true,
+        publicBaseUrl: staged.origin,
+        openapiUrl: `${staged.origin}/openapi.yaml`
+      }),
+      jsonResponse({
+        resource: `${staged.origin}/mcp`,
+        authorization_servers: [staged.origin],
+        scopes_supported: ["chatcockpit:mcp"]
+      })
+    ]),
+    now: () => "2026-08-18T00:07:00.000Z",
+    createId: () => "verification-post-cutover"
+  });
+  const result = await verifier.verify(staged.id);
+  assert.equal(result.verification.status, "verified");
+  assert.equal(result.candidate, null, "successful post-cutover verification completes the pending candidate");
+  assert.equal(candidateStore.snapshot().candidate, null);
+}
+
+{
+  const runtimeDir = tempRuntimeDir();
   const candidateStore = fixtureCandidateStore(runtimeDir);
   const verificationStore = new PublicRouteVerificationStore({ runtimeDir });
   const staged = candidateStore.stage({

@@ -159,6 +159,88 @@ struct DesktopConnectivityProviderClientTests {
         #expect(result.startsTunnel == false)
         #expect(result.startsRuntime == false)
     }
+
+    @Test("decodes bounded Public Route Cutover intent and machine result")
+    func readsPublicRouteCutoverContract() async throws {
+        let statusFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "route", "cutover", "status", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              intent: {
+                schemaVersion: 1,
+                id: "intent-proof",
+                kind: "replacement",
+                status: "pending-machine-execution",
+                candidateId: "candidate-proof",
+                candidateOrigin: "https://candidate.example.com",
+                candidateSource: "existing-environment",
+                verificationId: "verification-proof",
+                expectedCanonicalOrigin: "https://current.example.com",
+                requiresMachineAuthority: true,
+                changesCanonicalOrigin: true,
+                mayRestartRunningRuntime: true,
+                startsStoppedRuntime: false,
+                startsProviderTunnel: false,
+                writesProviderSecrets: false,
+                preparedAt: "2026-08-18T02:00:00.000Z",
+                expiresAt: "2026-08-18T02:15:00.000Z"
+              }
+            }));
+            """
+        )
+        defer { statusFixture.remove() }
+        let snapshot = try await DesktopAuthorityClient().publicRouteCutoverIntent(
+            context: statusFixture.context
+        )
+        #expect(snapshot.intent?.id == "intent-proof")
+        #expect(snapshot.intent?.candidateOrigin == "https://candidate.example.com")
+        #expect(snapshot.intent?.requiresMachineAuthority == true)
+        #expect(snapshot.intent?.startsStoppedRuntime == false)
+        #expect(snapshot.intent?.writesProviderSecrets == false)
+
+        let executeFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "route", "cutover", "execute", "--intent-id", "intent-proof", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              executionId: "execution-proof",
+              intentId: "intent-proof",
+              candidateId: "candidate-proof",
+              verificationId: "verification-proof",
+              previousCanonicalOrigin: "https://current.example.com",
+              canonicalOrigin: "https://candidate.example.com",
+              outcome: "succeeded",
+              runtimeWasRunning: true,
+              runtimeRestarted: true,
+              postVerificationStatus: "verified",
+              postVerificationId: "verification-post",
+              rollbackAttempted: false,
+              rollbackSucceeded: false,
+              startsStoppedRuntime: false,
+              startsProviderTunnel: false,
+              writesProviderSecrets: false,
+              completedAt: "2026-08-18T02:03:00.000Z"
+            }));
+            """
+        )
+        defer { executeFixture.remove() }
+        let result = try await DesktopAuthorityClient().executePublicRouteCutover(
+            intentId: "intent-proof",
+            context: executeFixture.context
+        )
+        #expect(result.outcome == .succeeded)
+        #expect(result.runtimeRestarted == true)
+        #expect(result.postVerificationStatus == "verified")
+        #expect(result.rollbackAttempted == false)
+        #expect(result.startsStoppedRuntime == false)
+        #expect(result.startsProviderTunnel == false)
+        #expect(result.writesProviderSecrets == false)
+    }
 }
 
 private struct ConnectivityProviderCLIFixture {
