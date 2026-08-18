@@ -33,6 +33,19 @@ const mappingSchema = z.object({
   access: z.array(accessSchema).min(1)
 });
 
+const routerExposureSchema = z.object({
+  enabled: z.boolean().default(false),
+  tools: z
+    .array(
+      z.object({
+        toolName: z.string().min(1).max(200),
+        mode: z.enum(["read", "mutation"])
+      })
+    )
+    .max(200)
+    .default([])
+});
+
 const stdioTransportSchema = z.object({
   kind: z.literal("stdio"),
   command: z.string().min(1),
@@ -75,7 +88,8 @@ const executorSchema = z.object({
     stdioTransportSchema,
     streamableHttpTransportSchema
   ]),
-  mappings: z.array(mappingSchema).min(1)
+  mappings: z.array(mappingSchema).min(1),
+  router: routerExposureSchema.optional()
 });
 
 const hostRootSchema = z.object({
@@ -93,10 +107,21 @@ const configSchema = z.object({
   executors: z.array(executorSchema).default([])
 });
 
+export interface DownstreamMcpRouterToolExposure {
+  toolName: string;
+  mode: "read" | "mutation";
+}
+
+export interface DownstreamMcpRouterExposureConfig {
+  enabled: boolean;
+  tools: DownstreamMcpRouterToolExposure[];
+}
+
 interface DownstreamMcpExecutorBaseConfig {
   id: string;
   displayName: string;
   mappings: DownstreamMcpCapabilityMapping[];
+  router?: DownstreamMcpRouterExposureConfig;
 }
 
 export interface DownstreamMcpStdioExecutorConfig
@@ -184,6 +209,15 @@ export function loadDownstreamMcpExecutorsConfig(
       );
     }
     ids.add(executor.id);
+    const exposedToolNames = new Set<string>();
+    for (const tool of executor.router?.tools ?? []) {
+      if (exposedToolNames.has(tool.toolName)) {
+        throw new Error(
+          `Duplicate routed tool exposure for ${executor.id}: ${tool.toolName}`
+        );
+      }
+      exposedToolNames.add(tool.toolName);
+    }
   }
 
   return parsed.data as DownstreamMcpExecutorsConfig;
