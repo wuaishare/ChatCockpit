@@ -198,10 +198,14 @@ assert.doesNotMatch(view, /Button[^\n]*(Install|Upgrade|Uninstall)|Start Tunnel|
 
 assert.match(headerI18n, /publicAccess:\s*"公网接入"/);
 assert.match(headerI18n, /publicAccess:\s*"Public Access"/);
-assert.match(copy, /reachabilityTitle:\s*"可达性概览"/);
+assert.match(copy, /statusOverviewTitle:\s*"当前公网状态"/);
+assert.match(copy, /addressesTitle:\s*"访问地址"/);
+assert.match(copy, /protocolHealthTitle:\s*"协议健康"/);
 assert.match(copy, /publicCockpit:\s*"公网控制台"/);
 assert.match(copy, /existingEnvironment:\s*"现有环境"/);
-assert.match(copy, /reachabilityTitle:\s*"Reachability overview"/);
+assert.match(copy, /statusOverviewTitle:\s*"Current public status"/);
+assert.match(copy, /addressesTitle:\s*"Addresses"/);
+assert.match(copy, /protocolHealthTitle:\s*"Protocol health"/);
 assert.match(copy, /publicCockpit:\s*"Public Cockpit"/);
 assert.match(copy, /existingEnvironment:\s*"Existing environment"/);
 assert.match(copy, /providersTitle:\s*"本机接入组件"/);
@@ -256,10 +260,15 @@ assert.match(copy, /failure rollback to local-only/);
 assert.match(copy, /a stopped Runtime is never started automatically/);
 
 assert.match(view, /<Steps/);
+assert.match(view, /copy\.statusOverviewTitle/);
+assert.match(view, /public-access-status-grid/);
+assert.doesNotMatch(view, /copy\.reachabilityTitle|copy\.protocolsTitle|copy\.diagnosticsTitle/);
 assert.match(view, /const workflowStage =/);
 assert.match(view, /workflowStage === 0/);
 assert.doesNotMatch(view, /copy\.connectionPathTitle|copy\.connectionPathDescription/);
 assert.match(styles, /\.public-access-workflow-steps\s*\{/);
+assert.match(styles, /\.public-access-status-grid\s*\{/);
+assert.match(styles, /\.public-access-status-block\s*\{/);
 assert.doesNotMatch(copy, /cloudflared|ngrok|\bfrpc\b|pinggy|binaryExists|providerInstalled/i);
 assert.doesNotMatch(view, /cloudflared|\bfrpc\b|pinggy|binaryExists|providerInstalled/i);
 assert.equal((view.match(/"cloudflare-tunnel"/g) ?? []).length, 1);

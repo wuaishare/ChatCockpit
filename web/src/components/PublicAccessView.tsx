@@ -240,7 +240,6 @@ export function PublicAccessView({
   const publicEndpointReady = Boolean(status.publicCockpitUrl && status.publicApiBaseUrl);
   const hasPublicApi = Boolean(status.publicApiBaseUrl);
   const publicHttpsReady = status.publicApiBaseUrl?.startsWith("https://") === true;
-  const mcpReady = Boolean(status.mcp.endpoint);
   const oauthLabel = status.mcp.oauthStatus === "ready"
     ? copy.ready
     : status.mcp.oauthStatus === "disabled"
@@ -310,84 +309,115 @@ export function PublicAccessView({
       </SectionCard>
 
       <SectionCard
-        title={copy.reachabilityTitle}
-        description={copy.reachabilityDescription}
+        title={copy.statusOverviewTitle}
+        description={copy.statusOverviewDescription}
         extra={
-          <Tag color={exposed ? "processing" : "default"}>
-            {copy.exposureStatus} · {exposed ? copy.active : copy.inactive}
+          <Tag color={publicEndpointReady ? "success" : "default"}>
+            {copy.publicEndpoint} · {publicEndpointReady ? copy.ready : copy.notConfigured}
           </Tag>
         }
       >
-        <div className="gpt-facts">
-          <div className="gpt-fact">
-            <span>{copy.localCockpit}</span>
-            <EndpointValue
-              value={status.localCockpitUrl}
-              fallback={copy.notConfigured}
-              copyLabel={`${copy.copyUrl}: ${copy.localCockpit}`}
-              openable
-            />
+        <div className="public-access-status-grid">
+          <div className="public-access-status-block">
+            <div className="public-access-status-block__header">
+              <strong>{copy.addressesTitle}</strong>
+              <Tag color={exposed ? "processing" : "default"}>
+                {copy.exposureStatus} · {exposed ? copy.active : copy.inactive}
+              </Tag>
+            </div>
+            <div className="gpt-facts">
+              <div className="gpt-fact">
+                <span>{copy.localCockpit}</span>
+                <EndpointValue
+                  value={status.localCockpitUrl}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.localCockpit}`}
+                  openable
+                />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.publicCockpit}</span>
+                <EndpointValue
+                  value={status.publicCockpitUrl}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.publicCockpit}`}
+                  openable
+                />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.localApiBase}</span>
+                <EndpointValue
+                  value={status.localApiBaseUrl}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.localApiBase}`}
+                />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.publicApiBase}</span>
+                <EndpointValue
+                  value={status.publicApiBaseUrl}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.publicApiBase}`}
+                />
+              </div>
+            </div>
           </div>
-          <div className="gpt-fact">
-            <span>{copy.publicCockpit}</span>
-            <EndpointValue
-              value={status.publicCockpitUrl}
-              fallback={copy.notConfigured}
-              copyLabel={`${copy.copyUrl}: ${copy.publicCockpit}`}
-              openable
-            />
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.localApiBase}</span>
-            <EndpointValue
-              value={status.localApiBaseUrl}
-              fallback={copy.notConfigured}
-              copyLabel={`${copy.copyUrl}: ${copy.localApiBase}`}
-            />
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.publicApiBase}</span>
-            <EndpointValue
-              value={status.publicApiBaseUrl}
-              fallback={copy.notConfigured}
-              copyLabel={`${copy.copyUrl}: ${copy.publicApiBase}`}
-            />
-          </div>
-        </div>
-      </SectionCard>
 
-      <SectionCard
-        title={copy.protocolsTitle}
-        description={copy.protocolsDescription}
-        extra={<Tag color={oauthTagColor}>{copy.oauthStatus} · {oauthLabel}</Tag>}
-      >
-        <div className="gpt-facts">
-          <div className="gpt-fact">
-            <span>{copy.openapiUrl}</span>
-            <EndpointValue
-              value={status.openapiUrl}
-              fallback={copy.notConfigured}
-              copyLabel={`${copy.copyUrl}: ${copy.openapiUrl}`}
-            />
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.mcpEndpoint}</span>
-            <EndpointValue
-              value={status.mcp.endpoint}
-              fallback={copy.notConfigured}
-              copyLabel={`${copy.copyUrl}: ${copy.mcpEndpoint}`}
-            />
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.oauthStatus}</span>
-            <strong><Tag color={oauthTagColor}>{oauthLabel}</Tag></strong>
+          <div className="public-access-status-block">
+            <div className="public-access-status-block__header">
+              <strong>{copy.protocolHealthTitle}</strong>
+              <Tag color={oauthTagColor}>{copy.oauthStatus} · {oauthLabel}</Tag>
+            </div>
+            <div className="gpt-facts">
+              <div className="gpt-fact">
+                <span>{copy.httpsRequired}</span>
+                <strong>
+                  <Tag color={!hasPublicApi ? "default" : publicHttpsReady ? "success" : "warning"}>
+                    {!hasPublicApi ? copy.notConfigured : publicHttpsReady ? copy.httpsReady : copy.httpsMissing}
+                  </Tag>
+                </strong>
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.openapiUrl}</span>
+                <EndpointValue
+                  value={status.openapiUrl}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.openapiUrl}`}
+                />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.mcpEndpoint}</span>
+                <EndpointValue
+                  value={status.mcp.endpoint}
+                  fallback={copy.notConfigured}
+                  copyLabel={`${copy.copyUrl}: ${copy.mcpEndpoint}`}
+                />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.oauthStatus}</span>
+                <strong><Tag color={oauthTagColor}>{oauthLabel}</Tag></strong>
+              </div>
+            </div>
           </div>
         </div>
+
         {!status.publicApiBaseUrl ? (
           <div className="section-note section-note--warning public-access-note">
             <strong>{copy.publicApiBase}</strong>
             <span>{copy.localProtocolNote}</span>
           </div>
+        ) : null}
+
+        {!status.mcp.oauthReady ? (
+          <>
+            <div className="section-note section-note--warning public-access-note">
+              <strong>{copy.oauthStatus}</strong>
+              <span>{copy.oauthGuidance}</span>
+            </div>
+            <div className="gpt-overview-actions">
+              <Button onClick={onOpenIntegrations}>{copy.openIntegrations}</Button>
+            </div>
+          </>
         ) : null}
       </SectionCard>
 
@@ -731,52 +761,6 @@ export function PublicAccessView({
         </div>
       </SectionCard>
 
-      <SectionCard
-        title={copy.diagnosticsTitle}
-        description={copy.diagnosticsDescription}
-      >
-        <div className="gpt-facts">
-          <div className="gpt-fact">
-            <span>{copy.publicEndpoint}</span>
-            <strong>
-              <Tag color={publicEndpointReady ? "success" : "default"}>
-                {publicEndpointReady ? copy.ready : copy.notConfigured}
-              </Tag>
-            </strong>
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.httpsRequired}</span>
-            <strong>
-              <Tag color={!hasPublicApi ? "default" : publicHttpsReady ? "success" : "warning"}>
-                {!hasPublicApi ? copy.notConfigured : publicHttpsReady ? copy.httpsReady : copy.httpsMissing}
-              </Tag>
-            </strong>
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.mcpEndpoint}</span>
-            <strong>
-              <Tag color={mcpReady ? "success" : "default"}>
-                {mcpReady ? copy.mcpReady : copy.mcpMissing}
-              </Tag>
-            </strong>
-          </div>
-          <div className="gpt-fact">
-            <span>{copy.oauthStatus}</span>
-            <strong><Tag color={oauthTagColor}>{oauthLabel}</Tag></strong>
-          </div>
-        </div>
-
-        <div className={`section-note public-access-note ${status.mcp.oauthReady ? "" : "section-note--warning"}`}>
-          <strong>{copy.oauthStatus}</strong>
-          <span>{status.mcp.oauthReady ? copy.oauthReadyGuidance : copy.oauthGuidance}</span>
-        </div>
-
-        {status.mcp.oauthReady ? null : (
-          <div className="gpt-overview-actions">
-            <Button onClick={onOpenIntegrations}>{copy.openIntegrations}</Button>
-          </div>
-        )}
-      </SectionCard>
     </div>
   );
 }
