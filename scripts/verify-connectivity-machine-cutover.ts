@@ -220,7 +220,7 @@ assert.match(machineSource, /succeeded-pending-runtime-verification/);
 assert.match(machineSource, /verificationStore\.clear\(\)/);
 assert.match(cliSource, /connectivity route cutover execute --intent-id <intent-id>/);
 assert.match(cliSource, /if \(subcommand === "route"\)/);
-assert.match(cliSource, /routeOperation !== "cutover"/);
+assert.match(cliSource, /if \(routeOperation === "cutover"\)/);
 assert.match(cliSource, /case "execute":/);
 assert.match(cliSource, /getFlag\("--intent-id"\)/);
 assert.match(cliSource, /new PublicRouteMachineCutoverExecutor\(/);

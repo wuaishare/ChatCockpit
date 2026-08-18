@@ -241,6 +241,93 @@ struct DesktopConnectivityProviderClientTests {
         #expect(result.startsProviderTunnel == false)
         #expect(result.writesProviderSecrets == false)
     }
+
+    @Test("decodes bounded Public Route Bootstrap proof and machine result")
+    func readsPublicRouteBootstrapContract() async throws {
+        let statusFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "route", "bootstrap", "status", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              proof: {
+                id: "bootstrap-proof",
+                candidateId: "candidate-proof",
+                candidateOrigin: "https://candidate.example.com",
+                status: "verified",
+                preparedAt: "2026-08-18T03:00:00.000Z",
+                expiresAt: "2026-08-18T03:15:00.000Z",
+                verifiedAt: "2026-08-18T03:01:00.000Z",
+                verification: {
+                  id: "bootstrap-verification",
+                  status: "verified",
+                  checkedAt: "2026-08-18T03:01:00.000Z",
+                  checks: {
+                    dns: { ok: true, reason: null, publicAddressCount: 1 },
+                    tls: { ok: true, reason: null },
+                    reachability: { ok: true, reason: null, statusCode: 200 },
+                    identity: { ok: true, reason: null, statusCode: 200 }
+                  }
+                }
+              }
+            }));
+            """
+        )
+        defer { statusFixture.remove() }
+        let snapshot = try await DesktopAuthorityClient().publicRouteBootstrapProof(
+            context: statusFixture.context
+        )
+        #expect(snapshot.proof?.id == "bootstrap-proof")
+        #expect(snapshot.proof?.status == "verified")
+        #expect(snapshot.proof?.verification?.status == "verified")
+        #expect(snapshot.proof?.verification?.checks.dns.ok == true)
+        #expect(snapshot.proof?.verification?.checks.tls.ok == true)
+        #expect(snapshot.proof?.verification?.checks.reachability.ok == true)
+        #expect(snapshot.proof?.verification?.checks.identity.ok == true)
+
+        let executeFixture = try ConnectivityProviderCLIFixture(
+            script: """
+            const args = process.argv.slice(2);
+            const expected = ["connectivity", "route", "bootstrap", "execute", "--proof-id", "bootstrap-proof", "--json"];
+            if (JSON.stringify(args) !== JSON.stringify(expected)) process.exit(9);
+            process.stdout.write(JSON.stringify({
+              schemaVersion: 1,
+              executionId: "bootstrap-execution",
+              proofId: "bootstrap-proof",
+              candidateId: "candidate-proof",
+              bootstrapVerificationId: "bootstrap-verification",
+              previousCanonicalOrigin: null,
+              canonicalOrigin: "https://candidate.example.com",
+              outcome: "succeeded",
+              runtimeWasRunning: true,
+              runtimeRestarted: true,
+              postVerificationStatus: "verified",
+              postVerificationId: "verification-post",
+              rollbackAttempted: false,
+              rollbackSucceeded: false,
+              startsStoppedRuntime: false,
+              startsProviderTunnel: false,
+              writesProviderSecrets: false,
+              completedAt: "2026-08-18T03:03:00.000Z"
+            }));
+            """
+        )
+        defer { executeFixture.remove() }
+        let result = try await DesktopAuthorityClient().executePublicRouteBootstrap(
+            proofId: "bootstrap-proof",
+            context: executeFixture.context
+        )
+        #expect(result.outcome == .succeeded)
+        #expect(result.previousCanonicalOrigin == nil)
+        #expect(result.canonicalOrigin == "https://candidate.example.com")
+        #expect(result.runtimeRestarted == true)
+        #expect(result.postVerificationStatus == "verified")
+        #expect(result.rollbackAttempted == false)
+        #expect(result.startsStoppedRuntime == false)
+        #expect(result.startsProviderTunnel == false)
+        #expect(result.writesProviderSecrets == false)
+    }
 }
 
 private struct ConnectivityProviderCLIFixture {

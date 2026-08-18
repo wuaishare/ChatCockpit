@@ -47,7 +47,7 @@ export interface PublicRouteMachineCutoverResult {
 
 export interface PublicRouteEnvironmentStore {
   readPublicBaseUrl(): string | null;
-  updatePublicBaseUrl(expectedCurrentOrigin: string, nextOrigin: string): void;
+  updatePublicBaseUrl(expectedCurrentOrigin: string | null, nextOrigin: string | null): void;
 }
 
 export interface PublicRouteMachineLifecycleStatus {
@@ -136,7 +136,7 @@ export class FilePublicRouteEnvironmentStore implements PublicRouteEnvironmentSt
     return value || null;
   }
 
-  updatePublicBaseUrl(expectedCurrentOrigin: string, nextOrigin: string): void {
+  updatePublicBaseUrl(expectedCurrentOrigin: string | null, nextOrigin: string | null): void {
     const source = fs.readFileSync(this.envPath, "utf8");
     const matches = matchingEnvLines(source, this.envName);
     if (matches.length > 1) {
@@ -155,7 +155,7 @@ export class FilePublicRouteEnvironmentStore implements PublicRouteEnvironmentSt
       );
     }
 
-    const replacement = `${this.envName}=${nextOrigin}`;
+    const replacement = `${this.envName}=${nextOrigin ?? ""}`;
     let content: string;
     if (matches.length === 1) {
       content = source

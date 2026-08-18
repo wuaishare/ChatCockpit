@@ -477,6 +477,73 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let proof = model.publicRouteBootstrapProof,
+                   proof.status == "verified" {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Label(
+                                DesktopL10n.string("Verified Public Route Bootstrap"),
+                                systemImage: "network.badge.shield.half.filled"
+                            )
+                                .font(.subheadline.weight(.semibold))
+                            Spacer(minLength: 8)
+                            Text(DesktopL10n.string("Pending Machine execution"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        LabeledContent(DesktopL10n.string("Current canonical")) {
+                            Text(DesktopL10n.string("Local-only"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        LabeledContent(DesktopL10n.string("Verified candidate")) {
+                            Text(verbatim: proof.candidateOrigin)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        LabeledContent(DesktopL10n.string("Proof expires")) {
+                            Text(verbatim: proof.expiresAt)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button(DesktopL10n.string("Establish Public Route")) {
+                                Task { await model.runPublicRouteBootstrap() }
+                            }
+                                .disabled(
+                                    model.isPublicRouteBootstrapRunning
+                                        || model.isPublicRouteCutoverRunning
+                                        || model.isConnectivityMutationRunning
+                                        || model.isSecurityRefreshing
+                                )
+
+                            if model.isPublicRouteBootstrapRunning {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+
+                            if let feedback = model.securityFeedback,
+                               feedback.target == .publicRouteBootstrap,
+                               feedback.kind == .updated {
+                                transientFeedbackLabel(feedback.message)
+                            }
+                        }
+
+                        Text(
+                            DesktopL10n.string(
+                                "This executes only the exact verified Bootstrap Proof prepared in Web Cockpit. Running Runtime services may restart; stopped services are never started automatically. Failed restart or post-bootstrap verification triggers rollback to local-only mode."
+                            )
+                        )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
                 if let intent = model.publicRouteCutoverIntent {
                     Divider()
 

@@ -53,6 +53,8 @@ import {
 import { PublicRouteCandidateStore } from "../connectivity/public-route-candidate.js";
 import { PublicRouteVerificationStore } from "../connectivity/public-route-verification.js";
 import { PublicRouteCutoverIntentStore } from "../connectivity/public-route-cutover-intent.js";
+import { PublicRouteBootstrapProofStore } from "../connectivity/public-route-bootstrap-proof.js";
+import { PublicRouteMachineBootstrapExecutor } from "../connectivity/public-route-machine-bootstrap.js";
 import {
   FilePublicRouteEnvironmentStore,
   MacOSPublicRouteMachineLifecycle,
@@ -93,6 +95,8 @@ Usage:
   ${identity.cliName} connectivity provider execute --provider cloudflare-tunnel --plan-id <plan-id> [--json]
   ${identity.cliName} connectivity route cutover status [--json]
   ${identity.cliName} connectivity route cutover execute --intent-id <intent-id> [--json]
+  ${identity.cliName} connectivity route bootstrap status [--json]
+  ${identity.cliName} connectivity route bootstrap execute --proof-id <proof-id> [--json]
   ${identity.cliName} server
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
@@ -537,9 +541,6 @@ async function main(): Promise<void> {
       }
       if (subcommand === "route") {
         const routeOperation = process.argv[4];
-        if (routeOperation !== "cutover") {
-          throw new Error("connectivity route currently supports only: cutover");
-        }
         const operation = process.argv[5];
         const environmentStore = new FilePublicRouteEnvironmentStore({
           envPath: path.join(paths.runtimeDir, "server.env"),
@@ -550,62 +551,125 @@ async function main(): Promise<void> {
           canonicalOrigin: () => environmentStore.readPublicBaseUrl()
         });
         const verificationStore = new PublicRouteVerificationStore({ runtimeDir: paths.runtimeDir });
-        const intentStore = new PublicRouteCutoverIntentStore({
-          runtimeDir: paths.runtimeDir,
-          candidateStore,
-          verificationStore
-        });
-        switch (operation) {
-          case "status": {
-            const status = intentStore.snapshot();
-            if (process.argv.includes("--json")) {
-              printJson(status);
-            } else if (!status.intent) {
-              process.stdout.write("No Public Route Cutover Intent is pending.\n");
-            } else {
-              process.stdout.write("Public Route Cutover Intent pending Machine execution\n");
-              process.stdout.write(`Intent id: ${status.intent.id}\n`);
-              process.stdout.write(`From: ${status.intent.expectedCanonicalOrigin}\n`);
-              process.stdout.write(`To: ${status.intent.candidateOrigin}\n`);
-              process.stdout.write(`Expires: ${status.intent.expiresAt}\n`);
-            }
-            return;
-          }
-          case "execute": {
-            const intentId = getFlag("--intent-id");
-            if (!intentId) {
-              throw new Error("connectivity route cutover execute requires --intent-id");
-            }
-            const executor = new PublicRouteMachineCutoverExecutor({
-              runtimeDir: paths.runtimeDir,
-              intentStore,
-              candidateStore,
-              verificationStore,
-              environmentStore,
-              lifecycle: new MacOSPublicRouteMachineLifecycle(paths),
-              postVerifier: new RuntimePublicRoutePostCutoverVerifier({
-                runtimeDir: paths.runtimeDir,
-                environmentStore
-              })
-            });
-            const result = await executor.execute(intentId);
-            if (process.argv.includes("--json")) {
-              printJson(result);
-            } else {
-              process.stdout.write(`Public Route Cutover: ${result.outcome}\n`);
-              process.stdout.write(`From: ${result.previousCanonicalOrigin}\n`);
-              process.stdout.write(`Current canonical: ${result.canonicalOrigin}\n`);
-              process.stdout.write(`Runtime was running: ${result.runtimeWasRunning ? "yes" : "no"}\n`);
-              process.stdout.write(`Post verification: ${result.postVerificationStatus}\n`);
-              if (result.outcome === "succeeded-pending-runtime-verification") {
-                process.stdout.write("Runtime remains stopped. Start it explicitly, then verify the new canonical route.\n");
+
+        if (routeOperation === "cutover") {
+          const intentStore = new PublicRouteCutoverIntentStore({
+            runtimeDir: paths.runtimeDir,
+            candidateStore,
+            verificationStore
+          });
+          switch (operation) {
+            case "status": {
+              const status = intentStore.snapshot();
+              if (process.argv.includes("--json")) {
+                printJson(status);
+              } else if (!status.intent) {
+                process.stdout.write("No Public Route Cutover Intent is pending.\n");
+              } else {
+                process.stdout.write("Public Route Cutover Intent pending Machine execution\n");
+                process.stdout.write(`Intent id: ${status.intent.id}\n`);
+                process.stdout.write(`From: ${status.intent.expectedCanonicalOrigin}\n`);
+                process.stdout.write(`To: ${status.intent.candidateOrigin}\n`);
+                process.stdout.write(`Expires: ${status.intent.expiresAt}\n`);
               }
+              return;
             }
-            return;
+            case "execute": {
+              const intentId = getFlag("--intent-id");
+              if (!intentId) {
+                throw new Error("connectivity route cutover execute requires --intent-id");
+              }
+              const executor = new PublicRouteMachineCutoverExecutor({
+                runtimeDir: paths.runtimeDir,
+                intentStore,
+                candidateStore,
+                verificationStore,
+                environmentStore,
+                lifecycle: new MacOSPublicRouteMachineLifecycle(paths),
+                postVerifier: new RuntimePublicRoutePostCutoverVerifier({
+                  runtimeDir: paths.runtimeDir,
+                  environmentStore
+                })
+              });
+              const result = await executor.execute(intentId);
+              if (process.argv.includes("--json")) {
+                printJson(result);
+              } else {
+                process.stdout.write(`Public Route Cutover: ${result.outcome}\n`);
+                process.stdout.write(`From: ${result.previousCanonicalOrigin}\n`);
+                process.stdout.write(`Current canonical: ${result.canonicalOrigin}\n`);
+                process.stdout.write(`Runtime was running: ${result.runtimeWasRunning ? "yes" : "no"}\n`);
+                process.stdout.write(`Post verification: ${result.postVerificationStatus}\n`);
+                if (result.outcome === "succeeded-pending-runtime-verification") {
+                  process.stdout.write("Runtime remains stopped. Start it explicitly, then verify the new canonical route.\n");
+                }
+              }
+              return;
+            }
+            default:
+              throw new Error("connectivity route cutover requires one of: status, execute");
           }
-          default:
-            throw new Error("connectivity route cutover requires one of: status, execute");
         }
+
+        if (routeOperation === "bootstrap") {
+          const proofStore = new PublicRouteBootstrapProofStore({
+            runtimeDir: paths.runtimeDir,
+            candidateStore
+          });
+          switch (operation) {
+            case "status": {
+              const status = proofStore.snapshot();
+              if (process.argv.includes("--json")) {
+                printJson(status);
+              } else if (!status.proof) {
+                process.stdout.write("No Public Route Bootstrap Proof is pending.\n");
+              } else {
+                process.stdout.write(`Public Route Bootstrap Proof: ${status.proof.status}\n`);
+                process.stdout.write(`Proof id: ${status.proof.id}\n`);
+                process.stdout.write(`Candidate: ${status.proof.candidateOrigin}\n`);
+                process.stdout.write(`Expires: ${status.proof.expiresAt}\n`);
+                if (status.proof.status === "verified") {
+                  process.stdout.write("Verified proof is ready for Machine bootstrap execution.\n");
+                }
+              }
+              return;
+            }
+            case "execute": {
+              const proofId = getFlag("--proof-id");
+              if (!proofId) {
+                throw new Error("connectivity route bootstrap execute requires --proof-id");
+              }
+              const executor = new PublicRouteMachineBootstrapExecutor({
+                proofStore,
+                candidateStore,
+                verificationStore,
+                environmentStore,
+                lifecycle: new MacOSPublicRouteMachineLifecycle(paths),
+                postVerifier: new RuntimePublicRoutePostCutoverVerifier({
+                  runtimeDir: paths.runtimeDir,
+                  environmentStore
+                })
+              });
+              const result = await executor.execute(proofId);
+              if (process.argv.includes("--json")) {
+                printJson(result);
+              } else {
+                process.stdout.write(`Public Route Bootstrap: ${result.outcome}\n`);
+                process.stdout.write(`Current canonical: ${result.canonicalOrigin ?? "local-only"}\n`);
+                process.stdout.write(`Runtime was running: ${result.runtimeWasRunning ? "yes" : "no"}\n`);
+                process.stdout.write(`Post verification: ${result.postVerificationStatus}\n`);
+                if (result.outcome === "succeeded-pending-runtime-verification") {
+                  process.stdout.write("Runtime remains stopped. Start it explicitly, then verify the new canonical route.\n");
+                }
+              }
+              return;
+            }
+            default:
+              throw new Error("connectivity route bootstrap requires one of: status, execute");
+          }
+        }
+
+        throw new Error("connectivity route requires one of: cutover, bootstrap");
       }
       throw new Error("connectivity requires one of: providers, provider, route");
     }

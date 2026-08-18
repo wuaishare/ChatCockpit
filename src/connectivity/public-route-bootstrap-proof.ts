@@ -110,6 +110,7 @@ export type PublicRouteBootstrapProofErrorCode =
   | "canonical-already-configured"
   | "candidate-stale"
   | "proof-stale"
+  | "proof-not-verified"
   | "proof-state-invalid";
 
 export class PublicRouteBootstrapProofError extends Error {
@@ -280,6 +281,19 @@ function parsePersistedProof(value: unknown): PersistedBootstrapProof {
   };
 }
 
+function bootstrapVerificationFullyPassed(
+  verification: PublicRouteBootstrapVerificationArtifact | null
+): verification is PublicRouteBootstrapVerificationArtifact {
+  return Boolean(
+    verification &&
+    verification.status === "verified" &&
+    verification.checks.dns.ok &&
+    verification.checks.tls.ok &&
+    verification.checks.reachability.ok &&
+    verification.checks.identity.ok
+  );
+}
+
 function publicProof(record: PersistedBootstrapProof): PublicRouteBootstrapProof {
   return {
     id: record.id,
@@ -368,6 +382,26 @@ export class PublicRouteBootstrapProofStore {
   cancel(): PublicRouteBootstrapProofSnapshot {
     this.clear();
     return this.snapshot();
+  }
+
+  consumeVerified(proofId: string): PublicRouteBootstrapProof {
+    const route = this.candidateStore.snapshot();
+    const record = this.readCurrentRecord(route);
+    if (!record || record.id !== proofId) {
+      throw new PublicRouteBootstrapProofError(
+        "proof-stale",
+        "Verified Public Route Bootstrap Proof is no longer available for Machine execution"
+      );
+    }
+    if (record.status !== "verified" || !bootstrapVerificationFullyPassed(record.verification)) {
+      throw new PublicRouteBootstrapProofError(
+        "proof-not-verified",
+        "Public Route Bootstrap Proof must be fully verified before Machine execution"
+      );
+    }
+    const proof = publicProof(record);
+    this.clear();
+    return proof;
   }
 
   challengeForRequest(proofId: string): string | null {
