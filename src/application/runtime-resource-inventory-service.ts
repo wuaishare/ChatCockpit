@@ -15,7 +15,7 @@ import type {
   RuntimeResourceSnapshotRecord,
   RuntimeResourceSnapshotStatus
 } from "../continuity/types.js";
-import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type { GovernanceLedger } from "../governance/governance-ledger.js";
 import type { RuntimeProfileRegistry } from "../runtime/resources/runtime-profile-registry.js";
 import type { RuntimeResourceInventoryAdapterRegistry } from "../runtime/resources/runtime-resource-inventory-adapter-registry.js";
 
@@ -234,7 +234,7 @@ export class RuntimeResourceInventoryService {
   private readonly now: () => string;
 
   constructor(
-    private readonly repositories: ContinuityRepositories,
+    private readonly repositories: GovernanceLedger,
     private readonly profiles: RuntimeProfileRegistry,
     private readonly adapters: RuntimeResourceInventoryAdapterRegistry,
     options: { now?: () => string } = {}

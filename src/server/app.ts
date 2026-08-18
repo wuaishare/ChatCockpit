@@ -43,6 +43,7 @@ import { RuntimeEventService } from "../application/runtime-event-service.js";
 import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
+import { buildGovernanceLedger } from "../governance/governance-ledger.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildIntegrationStatusSnapshot } from "../core/integration-status.js";
 import {
@@ -481,14 +482,15 @@ export function buildServer(
     new CodexPluginMutationAdapter({
       workspaces: continuityServices.repositories.workspaces
     });
+  const governanceLedger = buildGovernanceLedger(continuityServices.repositories);
   const runtimeResourceServices = buildRuntimeResourceServices({
-    repositories: continuityServices.repositories,
+    repositories: governanceLedger,
     profiles: runtimeProfileRegistry,
     adapters: runtimeResourceAdapterRegistry,
     pluginMutationAvailable: true
   });
   const runtimeResourceMutationService = new RuntimeResourceMutationService(
-    continuityServices.repositories,
+    governanceLedger,
     runtimeResourceServices.inventory,
     codexSkillMutationAdapter,
     {
