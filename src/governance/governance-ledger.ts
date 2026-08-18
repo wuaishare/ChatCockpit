@@ -9,10 +9,10 @@ import type { GovernedExternalActionRepository } from "./governed-external-actio
 /**
  * Platform governance storage boundary.
  *
- * The first migration slice deliberately reuses the existing Continuity SQLite
- * repositories so persisted data and behavior remain unchanged. Platform
- * services depend on this narrower contract instead of the Development
- * Continuity repository aggregate while preserving the current storage truth.
+ * Existing compatibility-backed governance repositories can still come from
+ * Continuity SQLite, while new provider-neutral external actions live in the
+ * Core governance database. Platform services depend on this logical boundary
+ * rather than either physical store or the Development Continuity aggregate.
  */
 export interface GovernanceLedger {
   idempotency: IdempotencyRepository;
