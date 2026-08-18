@@ -240,10 +240,28 @@ async function main(): Promise<void> {
         assert.equal(builtEntry.statusCode, 200);
         assert.match(builtEntry.body, /chatcockpit-console-base/);
         assert.doesNotMatch(builtEntry.body, /(?:src|href)="\/ui\/assets\//);
-        const assetPath = builtEntry.body.match(/(?:src|href)="(\/ops-built-proof\/assets\/[^"]+)"/)?.[1];
-        assert.ok(assetPath, "real Vite build must expose at least one rewritten hashed asset URL");
+        const assetReference = builtEntry.body.match(/(?:src|href)="([^\"]*assets\/[^\"]+)"/)?.[1];
+        assert.ok(assetReference, "real Vite build must expose at least one hashed asset URL");
+        const assetPath = assetReference.startsWith("/")
+          ? assetReference
+          : `/ops-built-proof/${assetReference.replace(/^\.\//, "")}`;
         const builtAsset = await builtApp.inject({ method: "GET", url: assetPath });
         assert.equal(builtAsset.statusCode, 200);
+        const builtJsFiles = fs
+          .readdirSync(path.join(builtRoot, "web", "dist", "assets"))
+          .filter((entry) => entry.endsWith(".js"));
+        assert.ok(builtJsFiles.length > 0, "real Vite build must contain JavaScript assets");
+        for (const jsFile of builtJsFiles) {
+          const jsSource = fs.readFileSync(
+            path.join(builtRoot, "web", "dist", "assets", jsFile),
+            "utf8"
+          );
+          assert.doesNotMatch(
+            jsSource,
+            /["'`]\/ui\//,
+            `built JavaScript must not hard-code the legacy /ui base: ${jsFile}`
+          );
+        }
         const builtDeepLink = await builtApp.inject({
           method: "GET",
           url: "/ops-built-proof/continuity/tasks"
