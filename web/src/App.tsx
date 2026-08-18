@@ -1,17 +1,9 @@
-import { Button, Layout, Segmented } from "antd";
+import { Button, Layout } from "antd";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { Text, Tooltip } from "@lobehub/ui";
 import type { ThemeMode } from "antd-style";
 import { lazy, Suspense, useEffect, useState } from "react";
-import {
-  ApiOutlined,
-  ApartmentOutlined,
-  AppstoreOutlined,
-  DashboardOutlined,
-  GlobalOutlined,
-  ReloadOutlined,
-  UnorderedListOutlined
-} from "@ant-design/icons";
+import { MenuOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   cancelPublicRouteBootstrapProof,
   cancelPublicRouteCutoverIntent,
@@ -48,7 +40,7 @@ import {
   type OperatorSecondFactorChallengeResponse,
   type OperatorSessionResponse
 } from "./api";
-import chatCockpitLogo from "./assets/chatcockpit-logo.svg";
+import { AppSidebar } from "./components/AppSidebar";
 import { AppUtilityPopover } from "./components/AppUtilityPopover";
 import { DashboardView, type DashboardJobsDataState } from "./components/DashboardView";
 import { SetupWizardView } from "./components/SetupWizardView";
@@ -84,6 +76,7 @@ import { getIntegrationsCopy } from "./i18n/integrations";
 import { getPublicAccessCopy } from "./i18n/public-access";
 import type { ApiProblem } from "./types";
 import { consolePath, stripConsoleBasePath } from "./console-path";
+import type { AppViewKey } from "./navigation";
 
 type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
 
@@ -151,7 +144,7 @@ const ResourceCenterView = lazy(() =>
   }))
 );
 
-type ViewKey = "dashboard" | "continuity" | "resources" | "jobs" | "publicAccess" | "integrations";
+type ViewKey = AppViewKey;
 
 interface AppProps {
   themeMode: ThemeMode;
@@ -277,6 +270,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     useState<OperatorSecondFactorChallengeResponse | null>(null);
   const [operatorPasskeyLoading, setOperatorPasskeyLoading] = useState(false);
   const [operatorSecurityOpen, setOperatorSecurityOpen] = useState(false);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [health, setHealth] = useState<HealthModel>(INITIAL_HEALTH);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -1010,6 +1004,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const headerVersionText = headerSchemaVersion
     ? `${headerProductVersion} (${headerSchemaVersion})`
     : headerProductVersion;
+  const activeViewTitle = {
+    dashboard: copy.header.dashboard,
+    continuity: copy.header.continuity,
+    resources: copy.header.resources,
+    jobs: copy.header.jobs,
+    publicAccess: copy.header.publicAccess,
+    integrations: copy.header.integrations
+  } satisfies Record<ViewKey, string>;
 
   if (operatorAuthState === "loading") {
     return (
@@ -1096,15 +1098,41 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
   return (
     <Layout className="app-shell">
-      <Layout.Header className="app-header">
-        <div className="app-header__inner">
-          <div className="app-header__top">
-            <div className="app-header__masthead">
-              <div className="app-header__brand">
-                <img className="app-header__logo" src={chatCockpitLogo} alt="" aria-hidden="true" />
+      <AppSidebar
+        activeView={activeView}
+        mobileOpen={mobileNavigationOpen}
+        onMobileClose={() => setMobileNavigationOpen(false)}
+        onNavigate={(view) => navigateView(view)}
+        labels={{
+          title: copy.header.title,
+          workspaceNavigation: copy.header.workspaceNavigation,
+          systemNavigation: copy.header.systemNavigation,
+          dashboard: copy.header.dashboard,
+          continuity: copy.header.continuity,
+          resources: copy.header.resources,
+          jobs: copy.header.jobs,
+          publicAccess: copy.header.publicAccess,
+          integrations: copy.header.integrations,
+          collapseNavigation: copy.header.collapseNavigation,
+          expandNavigation: copy.header.expandNavigation,
+          closeNavigation: copy.header.closeNavigation
+        }}
+      />
+      <Layout className="app-main-shell">
+        <Layout.Header className="app-header">
+          <div className="app-header__inner">
+            <div className="app-header__top">
+              <div className="app-page-heading">
+                <Button
+                  type="text"
+                  className="app-sidebar-mobile-trigger"
+                  aria-label={copy.header.workspaceNavigation}
+                  icon={<MenuOutlined />}
+                  onClick={() => setMobileNavigationOpen(true)}
+                />
                 <div className="app-header__copy">
                   <Text as="div" className="app-header__title">
-                    {copy.header.title}
+                    {activeViewTitle[activeView]}
                   </Text>
                   <Text as="div" type="secondary" className="app-header__subtitle">
                     {headerSchemaVersion ? (
@@ -1125,50 +1153,35 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                   </Text>
                 </div>
               </div>
-            </div>
-            <div className="app-toolbar panel">
-              <div className="app-toolbar__group app-toolbar__group--views">
-                <Segmented<ViewKey>
-                  value={activeView}
-                  onChange={(value) => navigateView(value)}
-                  options={[
-                    { label: copy.header.dashboard, value: "dashboard", icon: <DashboardOutlined /> },
-                    { label: copy.header.continuity, value: "continuity", icon: <ApartmentOutlined /> },
-                    { label: copy.header.resources, value: "resources", icon: <AppstoreOutlined /> },
-                    { label: copy.header.jobs, value: "jobs", icon: <UnorderedListOutlined /> },
-                    { label: copy.header.publicAccess, value: "publicAccess", icon: <GlobalOutlined /> },
-                    { label: copy.header.integrations, value: "integrations", icon: <ApiOutlined /> }
-                  ]}
-                />
-              </div>
-              <div className="app-toolbar__group app-toolbar__group--action">
-                <Tooltip title={copy.header.refreshTooltip}>
-                  <Button
-                    aria-label={copy.header.refresh}
-                    icon={<ReloadOutlined />}
-                    onClick={() => {
-                      void loadHealth();
-                      void loadJobs(token, health.authRequired, activeView === "jobs");
-                    }}
-                    loading={jobsLoading || healthLoading}
+              <div className="app-toolbar app-toolbar--compact">
+                <div className="app-toolbar__group app-toolbar__group--action">
+                  <Tooltip title={copy.header.refreshTooltip}>
+                    <Button
+                      aria-label={copy.header.refresh}
+                      icon={<ReloadOutlined />}
+                      onClick={() => {
+                        void loadHealth();
+                        void loadJobs(token, health.authRequired, activeView === "jobs");
+                      }}
+                      loading={jobsLoading || healthLoading}
+                    />
+                  </Tooltip>
+                  <AppUtilityPopover
+                    locale={locale}
+                    themeMode={themeMode}
+                    username={operatorSession?.username ?? "owner"}
+                    onLocaleChange={updateLocale}
+                    onThemeModeChange={onThemeModeChange}
+                    onOpenSecurity={() => setOperatorSecurityOpen(true)}
+                    onSignOut={() => void signOutOperator()}
                   />
-                </Tooltip>
-                <AppUtilityPopover
-                  locale={locale}
-                  themeMode={themeMode}
-                  username={operatorSession?.username ?? "owner"}
-                  onLocaleChange={updateLocale}
-                  onThemeModeChange={onThemeModeChange}
-                  onOpenSecurity={() => setOperatorSecurityOpen(true)}
-                  onSignOut={() => void signOutOperator()}
-                />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </Layout.Header>
+        </Layout.Header>
 
-      <Layout.Content className="app-content">
+        <Layout.Content className="app-content">
         {activeView === "dashboard" ? (
           <div className="view-stack">
             {setupStatus && !setupStatus.ready ? (
@@ -1361,11 +1374,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           </Suspense>
         ) : null}
       </Layout.Content>
-      <OperatorPasskeyManager
-        locale={locale}
-        open={operatorSecurityOpen}
-        onClose={() => setOperatorSecurityOpen(false)}
-      />
+        <OperatorPasskeyManager
+          locale={locale}
+          open={operatorSecurityOpen}
+          onClose={() => setOperatorSecurityOpen(false)}
+        />
+      </Layout>
     </Layout>
   );
 }

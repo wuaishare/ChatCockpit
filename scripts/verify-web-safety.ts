@@ -313,6 +313,10 @@ const utilityPopoverSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/AppUtilityPopover.tsx"),
   "utf8"
 );
+const sidebarSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/AppSidebar.tsx"),
+  "utf8"
+);
 const stylesSource = fs.readFileSync(path.join(repoRoot, "web/src/styles.css"), "utf8");
 const consolePathSource = fs.readFileSync(
   path.join(repoRoot, "web/src/console-path.ts"),
@@ -447,8 +451,20 @@ assert.match(utilityPopoverSource, /themeLabels\[locale\]/);
 assert.match(utilityPopoverSource, /copy\.operatorAuth\.security/);
 assert.match(utilityPopoverSource, /copy\.operatorAuth\.signOut/);
 assert.match(stylesSource, /\.app-utility-popover/);
-assert.match(stylesSource, /\.app-toolbar__group--views\s*\{[^}]*overflow-x:\s*auto/s);
-assert.doesNotMatch(stylesSource, /\.operator-session-label/);
+assert.match(appSource, /<AppSidebar/);
+assert.match(appSource, /className="app-sidebar-mobile-trigger"/);
+assert.match(appSource, /activeViewTitle\[activeView\]/);
+assert.doesNotMatch(appSource, /Segmented<ViewKey>|app-toolbar__group--views/);
+assert.match(sidebarSource, /SIDEBAR_COLLAPSED_STORAGE_KEY/);
+assert.match(sidebarSource, /type: "group"[\s\S]*labels\.workspaceNavigation/s);
+assert.match(sidebarSource, /type: "group"[\s\S]*labels\.systemNavigation/s);
+assert.match(sidebarSource, /inlineCollapsed=\{compact\}/);
+assert.match(sidebarSource, /<Drawer/);
+assert.match(sidebarSource, /selectedKeys=\{\[activeView\]\}/);
+assert.match(stylesSource, /\.app-sidebar\s*\{[^}]*flex:\s*0 0 232px/s);
+assert.match(stylesSource, /\.app-sidebar--collapsed\s*\{[^}]*width:\s*72px/s);
+assert.match(stylesSource, /@media \(max-width: 820px\)[\s\S]*\.app-sidebar:not\(\.app-sidebar--mobile\)[\s\S]*display:\s*none/s);
+assert.doesNotMatch(stylesSource, /\.app-toolbar__group--views|\.operator-session-label/);
 assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
 assert.match(apiSource, /\/api\/recovery\/assess/);

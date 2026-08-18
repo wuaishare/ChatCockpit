@@ -11,6 +11,8 @@ function read(relativePath: string): string {
 }
 
 const app = read("web/src/App.tsx");
+const navigation = read("web/src/navigation.ts");
+const sidebar = read("web/src/components/AppSidebar.tsx");
 const api = read("web/src/api.ts");
 const types = read("web/src/types.ts");
 const headerI18n = read("web/src/i18n.ts");
@@ -18,12 +20,13 @@ const view = read("web/src/components/PublicAccessView.tsx");
 const copy = read("web/src/i18n/public-access.ts");
 const styles = read("web/src/styles.css");
 
-assert.match(app, /type ViewKey = [^;]*"publicAccess"/s);
+assert.match(app, /type ViewKey = AppViewKey/);
+assert.match(navigation, /"publicAccess"/);
 assert.match(app, /publicAccess:\s*consolePath\("public-access"\)/);
 assert.match(app, /route === "public-access"/);
 assert.match(app, /import\("\.\/components\/PublicAccessView"\)/);
-assert.match(app, /value:\s*"publicAccess"/);
-assert.match(app, /app-toolbar__group app-toolbar__group--views/);
+assert.match(app, /<AppSidebar/);
+assert.match(sidebar, /key:\s*"publicAccess"/);
 assert.match(app, /<PublicAccessView[\s\S]*status=\{integrationStatus\}/s);
 assert.match(app, /exposed=\{health\.exposed\}/);
 assert.match(app, /providerStatus=\{connectivityProviderStatus\}/);
@@ -257,7 +260,9 @@ assert.match(styles, /\.public-access-verification-grid\s*\{/);
 assert.match(styles, /\.public-access-verification-check\s*\{/);
 assert.match(styles, /\.public-access-route-form\s*\{/);
 assert.match(styles, /\.public-access-route-actions\s*\{/);
-assert.match(styles, /\.app-toolbar__group--views\s*\{[\s\S]*overflow-x:\s*auto/s);
-assert.match(styles, /\.app-toolbar__group--views \.ant-segmented\s*\{[\s\S]*width:\s*max-content/s);
+assert.match(styles, /\.app-sidebar\s*\{[\s\S]*flex:\s*0 0 232px/s);
+assert.match(styles, /\.app-sidebar--collapsed\s*\{[\s\S]*width:\s*72px/s);
+assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.app-sidebar:not\(\.app-sidebar--mobile\)[\s\S]*display:\s*none/s);
+assert.match(sidebar, /<Drawer/);
 
 process.stdout.write("VERIFY_WEB_PUBLIC_ACCESS_OK\n");
