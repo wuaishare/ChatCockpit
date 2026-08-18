@@ -1615,6 +1615,14 @@ button,
   margin-top: 4px;
 }
 
+.public-access-status-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .public-access-status-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

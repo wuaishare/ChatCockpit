@@ -32,6 +32,8 @@ export interface PublicAccessCopy {
   workflowLive: string;
   workflowBootstrapMode: string;
   workflowReplacementMode: string;
+  changePublicAccess: string;
+  closePublicAccessMaintenance: string;
   existingEnvironment: string;
   existingEnvironmentDescription: string;
   manualSetup: string;
@@ -147,6 +149,8 @@ const zhCN: PublicAccessCopy = {
   workflowLive: "在线",
   workflowBootstrapMode: "首次公网",
   workflowReplacementMode: "替换现有公网",
+  changePublicAccess: "更换公网接入",
+  closePublicAccessMaintenance: "收起维护流程",
   existingEnvironment: "现有环境",
   existingEnvironmentDescription: "如果你已经通过反向代理、隧道或其他基础设施提供公网入口，继续沿用现有环境；配置 Runtime 的公网基址后回到这里核对真实结果。",
   manualSetup: "手动设置",
@@ -288,6 +292,8 @@ const enUS: PublicAccessCopy = {
   workflowLive: "Live",
   workflowBootstrapMode: "First public route",
   workflowReplacementMode: "Replace current route",
+  changePublicAccess: "Change Public Access",
+  closePublicAccessMaintenance: "Collapse maintenance workflow",
   existingEnvironment: "Existing environment",
   existingEnvironmentDescription: "If a reverse proxy, tunnel, or other infrastructure already provides your public entry, keep that environment. Configure the Runtime public base URL and return here to verify the resulting projection.",
   manualSetup: "Manual setup",
