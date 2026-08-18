@@ -40,6 +40,7 @@ The Control Plane currently provides:
 - Workspace Continuity Snapshot for the Web UI and remote clients;
 - file-backed asynchronous Job Queue and local Runner;
 - public-safe Artifacts, Git projections, structured errors, and idempotent mutations;
+- a stable non-persistent `local-device` target projection containing only platform and architecture, without hostname, machine UUID, or Fleet state;
 - release, privacy, protocol, restart, and source-archive gates.
 
 ## Runtime Lanes
