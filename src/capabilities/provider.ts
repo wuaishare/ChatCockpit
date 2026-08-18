@@ -1,3 +1,5 @@
+import type { DeviceTargetDescriptor } from "../devices/local-device.js";
+
 export type CapabilityProviderCompatibilityStatus =
   | "ready"
   | "degraded"
@@ -19,6 +21,11 @@ export interface CapabilityProviderDescriptor {
   authStatus: CapabilityProviderAuthStatus;
   capabilities: string[];
   publicReason: string | null;
+}
+
+export interface CapabilityProviderSnapshot {
+  target: DeviceTargetDescriptor;
+  providers: CapabilityProviderDescriptor[];
 }
 
 export interface CapabilityProviderSource {
@@ -113,6 +120,15 @@ export class CapabilityProviderRegistry {
         left.displayName.localeCompare(right.displayName) ||
         left.id.localeCompare(right.id)
     );
+  }
+
+  async snapshot(
+    target: DeviceTargetDescriptor
+  ): Promise<CapabilityProviderSnapshot> {
+    return {
+      target: { ...target },
+      providers: await this.listProviders()
+    };
   }
 
   async getProvider(providerId: string): Promise<CapabilityProviderDescriptor> {

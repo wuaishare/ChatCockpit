@@ -36,6 +36,7 @@ ChatGPT 负责对话、意图、规划与审查。在 Direct Drive 中，ChatGPT
 - Workspace Continuity Snapshot；
 - File-backed Job Queue 与本地 Runner；
 - Public-safe Artifact、Git、Handoff、Evidence、Approval 与 Runtime Event Projection；
+- 稳定且不持久化的 `local-device` Target Projection，只包含 Platform 与 Architecture，不包含 hostname、机器 UUID 或 Fleet 状态；
 - 协议、隐私、重启恢复和无 `.git` 源包门禁。
 
 ## 运行模式
