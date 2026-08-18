@@ -9,6 +9,9 @@ import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
 import { sendApiError } from "./errors.js";
 
+const UI_DOCUMENT_CACHE_CONTROL = "no-store";
+const UI_HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 const uiAssetContentTypes: Readonly<Record<string, string>> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -189,6 +192,7 @@ export function registerStaticRoutes(
   };
 
   app.get(consolePathPrefix, async (_request, reply) => {
+    reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
     reply.type("text/html; charset=utf-8");
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
       return renderUiNotBuiltPage(identity.displayName);
@@ -199,6 +203,7 @@ export function registerStaticRoutes(
   app.get(`${consolePathPrefix}/*`, async (request, reply) => {
     const indexPath = path.join(uiDistDir, "index.html");
     if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
+      reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
       reply.type("text/html; charset=utf-8");
       return renderUiNotBuiltPage(identity.displayName);
     }
@@ -238,6 +243,11 @@ export function registerStaticRoutes(
           }
 
           reply.header("X-Content-Type-Options", "nosniff");
+          if (suffix.startsWith("assets/")) {
+            reply.header("Cache-Control", UI_HASHED_ASSET_CACHE_CONTROL);
+          } else if (path.extname(realAssetPath).toLowerCase() === ".html") {
+            reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
+          }
           reply.type(uiAssetContentType(realAssetPath));
           return fs.readFileSync(realAssetPath);
         }
@@ -251,6 +261,16 @@ export function registerStaticRoutes(
       }
     }
 
+    if (suffix.startsWith("assets/")) {
+      return sendApiError(
+        reply,
+        404,
+        "UI_ASSET_NOT_FOUND",
+        "Requested Web UI asset is not present in the current build"
+      );
+    }
+
+    reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
     reply.type("text/html; charset=utf-8");
     return renderUiIndex();
   });
