@@ -13,7 +13,7 @@ import type {
 } from "./runtime-resource-types.js";
 import type { RuntimeResourceInventoryService } from "./runtime-resource-inventory-service.js";
 import { ServiceError } from "./service-error.js";
-import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type { GovernanceLedger } from "../governance/governance-ledger.js";
 import type {
   RuntimeResourceMutationApprovalRecord,
   RuntimeResourceMutationExecutionRecord,
@@ -112,7 +112,7 @@ export class RuntimeResourceMutationService {
   private readonly pluginPostflightDelayMs: number;
 
   constructor(
-    private readonly repositories: ContinuityRepositories,
+    private readonly repositories: GovernanceLedger,
     private readonly inventory: RuntimeResourceInventoryService,
     private readonly codexSkills: CodexSkillMutationAdapter,
     options: {

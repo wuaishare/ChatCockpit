@@ -1,4 +1,4 @@
-import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type { GovernanceLedger } from "../governance/governance-ledger.js";
 import type { RuntimeProfileRegistry } from "../runtime/resources/runtime-profile-registry.js";
 import type { RuntimeResourceInventoryAdapterRegistry } from "../runtime/resources/runtime-resource-inventory-adapter-registry.js";
 import { RuntimeResourceInventoryService } from "./runtime-resource-inventory-service.js";
@@ -10,7 +10,7 @@ export interface RuntimeResourceServices {
 }
 
 export function buildRuntimeResourceServices(options: {
-  repositories: ContinuityRepositories;
+  repositories: GovernanceLedger;
   profiles: RuntimeProfileRegistry;
   adapters: RuntimeResourceInventoryAdapterRegistry;
   now?: () => string;

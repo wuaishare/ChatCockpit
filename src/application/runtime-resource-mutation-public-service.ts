@@ -7,7 +7,7 @@ import {
 import type { RuntimeResourceInventoryService } from "./runtime-resource-inventory-service.js";
 import { ServiceError } from "./service-error.js";
 import { runtimeProfileDescriptorSchema } from "../contracts/runtime-resources.js";
-import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type { GovernanceLedger } from "../governance/governance-ledger.js";
 import type {
   RuntimeResourceMutationApprovalRecord,
   RuntimeResourceMutationApprovalStatus,
@@ -211,7 +211,7 @@ export class RuntimeResourceMutationPublicService {
   private readonly pluginMutationAvailable: boolean;
 
   constructor(
-    private readonly repositories: ContinuityRepositories,
+    private readonly repositories: GovernanceLedger,
     private readonly inventory: RuntimeResourceInventoryService,
     options: { pluginMutationAvailable?: boolean } = {}
   ) {
