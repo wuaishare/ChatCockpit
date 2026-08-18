@@ -1,4 +1,4 @@
-import { Button, Input, Select, Steps, Tag } from "antd";
+import { Button, Collapse, Input, Select, Steps, Tag } from "antd";
 import { CopyButton, Text } from "@lobehub/ui";
 import { ClipboardCopy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -266,6 +266,12 @@ export function PublicAccessView({
   const showVerificationDetails = workflowStage === 1 || workflowVerificationFailed;
   const showCandidateEditor = workflowStage === 0 || (workflowStage === 1 && !routeWorkflowLocked);
   const showCutoverDetails = workflowStage === 2;
+  const showRouteWorkspace = workflowStage !== 3 || !routeStatus || Boolean(
+    routeStatusError || verificationStatusError || cutoverIntentStatusError || bootstrapProofStatusError
+  );
+  const detectedProviderCount = providerStatus?.providers.filter(
+    (provider) => provider.detection === "detected"
+  ).length ?? 0;
 
   return (
     <div className="view-stack">
@@ -274,9 +280,13 @@ export function PublicAccessView({
         description={copy.workflowDescription}
         extra={
           routeStatus ? (
-            <Tag color={bootstrapMode ? "blue" : "purple"}>
-              {bootstrapMode ? copy.workflowBootstrapMode : copy.workflowReplacementMode}
-            </Tag>
+            workflowStage === 3 ? (
+              <Tag color="success">{copy.workflowLive}</Tag>
+            ) : (
+              <Tag color={bootstrapMode ? "blue" : "purple"}>
+                {bootstrapMode ? copy.workflowBootstrapMode : copy.workflowReplacementMode}
+              </Tag>
+            )
           ) : null
         }
       >
@@ -424,7 +434,8 @@ export function PublicAccessView({
         ) : null}
       </SectionCard>
 
-      <SectionCard
+      {showRouteWorkspace ? (
+        <SectionCard
         title={copy.routeIntentTitle}
         description={copy.routeIntentDescription}
         extra={
@@ -728,51 +739,69 @@ export function PublicAccessView({
         <div className="gpt-inline-note public-access-route-safety">
           <Text>{copy.candidateSafetyNote}</Text>
         </div>
-      </SectionCard>
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title={copy.providersTitle}
         description={copy.providersDescription}
       >
-        {providerStatus ? (
-          <div className="gpt-facts">
-            {providerStatus.providers.map((provider) => {
-              const availableActions = provider.actions
-                .filter((action) => action.available)
-                .map((action) => providerActionLabel(action.action, copy));
-              return (
-                <div className="gpt-fact" key={provider.id}>
-                  <span>{provider.displayName}</span>
-                  <strong className="public-access-provider-status">
-                    <span className="public-access-provider-primary">
-                      <Tag color={providerDetectionColor(provider.detection)}>
-                        {providerDetectionLabel(provider.detection, copy)}
-                      </Tag>
-                      {provider.version ? <span>{provider.version}</span> : null}
-                    </span>
-                    <Text type="secondary">{providerCapabilitySummary(provider, copy)}</Text>
-                    {availableActions.length > 0 ? (
-                      <Text type="secondary">
-                        {copy.providerMachineActions}: {availableActions.join(" / ")} · {copy.providerUseAppCli}
-                      </Text>
-                    ) : null}
-                  </strong>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="section-note section-note--warning public-access-note">
-            <strong>{copy.providersTitle}</strong>
-            <span>{providerStatusError ?? copy.providerStatusUnavailable}</span>
-          </div>
-        )}
         <div className="public-access-provider-bridge">
           <Button href="chatcockpit://settings/connectivity">
             {copy.openConnectivityInApp}
           </Button>
           <Text type="secondary">{copy.connectivityBridgeDescription}</Text>
         </div>
+        {providerStatus ? (
+          <Collapse
+            className="public-access-provider-details"
+            ghost
+            items={[
+              {
+                key: "provider-status",
+                label: (
+                  <span className="public-access-provider-details__label">
+                    <span>{copy.providerDetailsTitle}</span>
+                    <Tag>{copy.providerDetected} · {detectedProviderCount}/{providerStatus.providers.length}</Tag>
+                  </span>
+                ),
+                children: (
+                  <div className="gpt-facts">
+                    {providerStatus.providers.map((provider) => {
+                      const availableActions = provider.actions
+                        .filter((action) => action.available)
+                        .map((action) => providerActionLabel(action.action, copy));
+                      return (
+                        <div className="gpt-fact" key={provider.id}>
+                          <span>{provider.displayName}</span>
+                          <strong className="public-access-provider-status">
+                            <span className="public-access-provider-primary">
+                              <Tag color={providerDetectionColor(provider.detection)}>
+                                {providerDetectionLabel(provider.detection, copy)}
+                              </Tag>
+                              {provider.version ? <span>{provider.version}</span> : null}
+                            </span>
+                            <Text type="secondary">{providerCapabilitySummary(provider, copy)}</Text>
+                            {availableActions.length > 0 ? (
+                              <Text type="secondary">
+                                {copy.providerMachineActions}: {availableActions.join(" / ")} · {copy.providerUseAppCli}
+                              </Text>
+                            ) : null}
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              }
+            ]}
+          />
+        ) : (
+          <div className="section-note section-note--warning public-access-note">
+            <strong>{copy.providersTitle}</strong>
+            <span>{providerStatusError ?? copy.providerStatusUnavailable}</span>
+          </div>
+        )}
       </SectionCard>
 
     </div>
