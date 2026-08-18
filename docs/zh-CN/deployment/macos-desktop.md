@@ -104,6 +104,8 @@ Contents/MacOS/ChatCockpit
 Contents/Resources/TokenPilotRuntime/
 ```
 
+本地 Swift、Xcode 与 Distribution 三条构建链都会向 App Bundle 写入 public-safe 的构建来源信息：基于时间的 Build ID、源码 Git revision 与构建时间。原生 App 的概览/更新界面会直接显示这些信息，因此即使两个包的营销版本都叫 `0.2.0`，也能立即判断是不是同一构建。Runtime 的 `/api/health` 也会独立投影 Runtime package version、Build ID、revision 与 build timestamp，用于直接识别 App/Runtime 版本漂移。
+
 当前构建仍然明确是 **unsigned / unnotarized**。构建命令会直接输出：
 
 ```text

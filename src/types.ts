@@ -235,6 +235,12 @@ export interface TokenPilotHealthStatus {
   exposed: boolean;
   publicBaseUrl: string | null;
   openapiUrl: string;
+  build: {
+    version: string;
+    buildId: string | null;
+    revision: string | null;
+    builtAt: string | null;
+  };
 }
 
 export interface TokenPilotSetupStatusStep {

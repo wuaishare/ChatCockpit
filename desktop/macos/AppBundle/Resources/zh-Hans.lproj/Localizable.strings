@@ -79,6 +79,9 @@
 "Updates" = "更新";
 "App version" = "应用版本";
 "Build" = "构建版本";
+"Build ID" = "构建 ID";
+"Revision" = "源码版本";
+"Built at" = "构建时间";
 "Status" = "状态";
 "Checking…" = "正在检查…";
 "Check for Updates" = "检查更新";

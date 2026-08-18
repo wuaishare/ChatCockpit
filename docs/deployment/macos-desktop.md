@@ -104,6 +104,8 @@ Contents/MacOS/ChatCockpit
 Contents/Resources/TokenPilotRuntime/
 ```
 
+Every local, Xcode, and distribution build stamps public-safe provenance into the app bundle: a time-based Build ID, the source Git revision, and the build timestamp. The native Overview/Updates surfaces display that provenance so operators can distinguish two builds that share the same marketing version. The Runtime `/api/health` projection separately exposes the Runtime package version, Build ID, revision, and build timestamp, which makes App/Runtime version drift directly diagnosable.
+
 The current build is intentionally **unsigned and unnotarized**. The build command prints:
 
 ```text

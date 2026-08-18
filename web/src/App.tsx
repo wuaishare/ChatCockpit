@@ -186,7 +186,13 @@ const INITIAL_HEALTH: HealthModel = {
   authRequired: false,
   exposed: false,
   openapiUrl: "",
-  publicBaseUrl: null
+  publicBaseUrl: null,
+  build: {
+    version: "unknown",
+    buildId: null,
+    revision: null,
+    builtAt: null
+  }
 };
 
 function ViewLoadingState({
@@ -564,7 +570,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
     try {
       const healthResponse = await fetchHealth();
-      setHealth(healthResponse);
+      setHealth({
+        ...healthResponse,
+        build: healthResponse.build ?? INITIAL_HEALTH.build
+      });
       try {
         const setupResponse = await fetchSetupStatus(token);
         setSetupStatus(setupResponse);

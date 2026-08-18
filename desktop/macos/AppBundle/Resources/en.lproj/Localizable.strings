@@ -79,6 +79,9 @@
 "Updates" = "Updates";
 "App version" = "App version";
 "Build" = "Build";
+"Build ID" = "Build ID";
+"Revision" = "Revision";
+"Built at" = "Built at";
 "Status" = "Status";
 "Checking…" = "Checking…";
 "Check for Updates" = "Check for Updates";

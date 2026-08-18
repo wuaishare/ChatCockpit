@@ -65,6 +65,7 @@ mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 cp "${SOURCE_BINARY}" "${MACOS_DIR}/ChatCockpit"
 chmod 755 "${MACOS_DIR}/ChatCockpit"
 cp "${APP_TEMPLATE}" "${CONTENTS_DIR}/Info.plist"
+bash "${ROOT}/scripts/stamp-macos-build-provenance.sh" "${CONTENTS_DIR}/Info.plist"
 cp -R "${APP_RESOURCES}/." "${RESOURCES_DIR}/"
 cp -R "${RUNTIME_PAYLOAD}" "${RESOURCES_DIR}/TokenPilotRuntime"
 

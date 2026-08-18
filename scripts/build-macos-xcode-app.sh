@@ -123,6 +123,7 @@ if [[ ! -d "${BUILT_APP}" ]] || [[ ! -x "${BUILT_APP}/Contents/MacOS/${FINAL_EXE
 fi
 
 cp -R "${BUILT_APP}" "${OUTPUT_APP}"
+bash "${ROOT}/scripts/stamp-macos-build-provenance.sh" "${OUTPUT_APP}/Contents/Info.plist"
 
 mkdir -p "${OUTPUT_APP}/Contents/Resources"
 rm -rf "${EMBEDDED_RUNTIME}"

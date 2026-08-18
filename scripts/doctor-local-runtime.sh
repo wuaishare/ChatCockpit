@@ -122,10 +122,12 @@ section "Process Supervisor LaunchAgent"
 launchagent_summary "process supervisor" "${PROCESS_SUPERVISOR_SERVICE_LABEL}" /tmp/chatcockpit-process-supervisor-launchctl.out
 
 section "Listener"
-if lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN >/tmp/chatcockpit-listener.out 2>&1; then
+if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN >/tmp/chatcockpit-listener.out 2>&1; then
   cat /tmp/chatcockpit-listener.out | redact_output
+elif command -v nc >/dev/null 2>&1 && nc -z -w 1 "${HOST}" "${PORT}" >/dev/null 2>&1; then
+  echo "TCP listener is reachable on ${HOST}:${PORT}; process attribution is unavailable in this shell."
 else
-  echo "No process is listening on ${HOST}:${PORT}"
+  echo "No reachable TCP listener on ${HOST}:${PORT}"
   failures=$((failures + 1))
 fi
 

@@ -65,6 +65,8 @@ const runtimeConflictPath = path.join(
   "PackagedRuntimeConflict.swift"
 );
 const buildScriptPath = path.join(root, "scripts", "build-macos-desktop-app.sh");
+const buildProvenanceStampPath = path.join(root, "scripts", "stamp-macos-build-provenance.sh");
+const distributionBuildScriptPath = path.join(root, "scripts", "build-macos-distribution-app.sh");
 const xcodeProjectPath = path.join(
   root,
   "desktop",
@@ -98,6 +100,8 @@ for (const required of [
   packagedWorkspaceConfigurationPath,
   runtimeConflictPath,
   buildScriptPath,
+  buildProvenanceStampPath,
+  distributionBuildScriptPath,
   xcodeProjectPath,
   xcodeEntitlementsPath,
   xcodeBuildScriptPath
@@ -122,6 +126,8 @@ const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
 const packagedWorkspaceConfiguration = fs.readFileSync(packagedWorkspaceConfigurationPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
+const buildProvenanceStamp = fs.readFileSync(buildProvenanceStampPath, "utf8");
+const distributionBuildScript = fs.readFileSync(distributionBuildScriptPath, "utf8");
 const xcodeProject = fs.readFileSync(xcodeProjectPath, "utf8");
 const xcodeEntitlements = fs.readFileSync(xcodeEntitlementsPath, "utf8");
 const xcodeBuildScript = fs.readFileSync(xcodeBuildScriptPath, "utf8");
@@ -161,6 +167,10 @@ assert.match(appModel, /modePreferenceStore\.saveMode\(\.packaged\)/);
 assert.match(appModel, /modePreferenceStore\.saveMode\(\.source\)/);
 assert.match(appModel, /"~\/\\\(ProductIdentity\.current\.stateDirectoryName\)"/);
 assert.match(appModel, /var endpointText: String/);
+assert.match(appModel, /ChatCockpitBuildIdentifier/);
+assert.match(appModel, /ChatCockpitBuildRevision/);
+assert.match(appModel, /ChatCockpitBuildTimestamp/);
+assert.match(appModel, /var currentAppProvenanceText: String/);
 assert.match(appModel, /String\(snapshot\.configuration\.port\)/);
 assert.match(appModel, /enum DesktopScenePresentation/);
 assert.match(appModel, /enum DesktopDeepLinkDestination: Equatable/);
@@ -255,6 +265,20 @@ assert.match(statusView, /DesktopL10n\.string\("Local Cockpit"\)/);
 assert.match(statusView, /DesktopL10n\.string\("Public Cockpit"\)/);
 assert.match(statusView, /snapshot\.localCockpitURL/);
 assert.match(statusView, /snapshot\.publicCockpitURL/);
+assert.match(statusView, /value: model\.currentAppProvenanceText/);
+assert.match(settings, /DesktopL10n\.string\("Build ID"\)/);
+assert.match(settings, /DesktopL10n\.string\("Revision"\)/);
+assert.match(settings, /DesktopL10n\.string\("Built at"\)/);
+assert.match(englishLocalization, /"Build ID" = "Build ID";/);
+assert.match(simplifiedChineseLocalization, /"Build ID" = "构建 ID";/);
+assert.match(simplifiedChineseLocalization, /"Revision" = "源码版本";/);
+assert.match(simplifiedChineseLocalization, /"Built at" = "构建时间";/);
+assert.match(buildProvenanceStamp, /ChatCockpitBuildIdentifier/);
+assert.match(buildProvenanceStamp, /ChatCockpitBuildRevision/);
+assert.match(buildProvenanceStamp, /ChatCockpitBuildTimestamp/);
+assert.match(buildScript, /stamp-macos-build-provenance\.sh/);
+assert.match(xcodeBuildScript, /stamp-macos-build-provenance\.sh/);
+assert.match(distributionBuildScript, /stamp-macos-build-provenance\.sh/);
 assert.match(statusView, /cockpitEndpointRow\([\s\S]*openAction: model\.openLocalCockpit/s);
 assert.match(statusView, /cockpitEndpointRow\([\s\S]*openAction: model\.openPublicCockpit/s);
 assert.match(statusView, /AccessibleIconButton\([\s\S]*doc\.on\.doc[\s\S]*model\.copyMachineEndpoint\(url\)/s);
@@ -272,7 +296,7 @@ assert.match(statusView, /DesktopL10n\.string\("Environment"\)/);
 assert.match(statusView, /model\.nodeVersionText/);
 assert.match(statusView, /model\.runtimeArchitectureText/);
 assert.match(statusView, /model\.runtimeVersionText/);
-assert.match(statusView, /model\.currentAppVersionText/);
+assert.match(statusView, /model\.currentAppProvenanceText/);
 assert.match(statusView, /model\.updateStatusText/);
 assert.match(statusView, /DesktopL10n\.string\("Activity"\)/);
 assert.match(statusView, /private var activityCard: some View/);

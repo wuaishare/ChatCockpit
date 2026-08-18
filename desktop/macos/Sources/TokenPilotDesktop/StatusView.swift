@@ -542,7 +542,7 @@ struct StatusView: View {
                 compactValueRow(DesktopL10n.string("Runtime"), value: model.runtimeVersionText)
                 compactValueRow(
                     DesktopL10n.string("App version"),
-                    value: model.currentAppVersionText,
+                    value: model.currentAppProvenanceText,
                     monospaced: true
                 )
                 compactValueRow(DesktopL10n.string("Update status"), value: model.updateStatusText)
