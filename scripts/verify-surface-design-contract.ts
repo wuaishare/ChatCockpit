@@ -49,6 +49,8 @@ assertIncludesAll(
     "Public endpoint changes use staged cutover.",
     "Provider secrets remain machine-local.",
     "Public Access / Connectivity",
+    "Replacement cutover execution is implemented only in macOS App / CLI Machine Authority",
+    "Web has no execution endpoint",
     "## Capability Placement Matrix"
   ],
   "English Surface Design Contract"
@@ -73,6 +75,8 @@ assertIncludesAll(
     "公网端点切换必须 staged cutover。",
     "Provider Secret 必须保持 machine-local。",
     "公网接入 / Public Access（Connectivity）",
+    "Replacement Cutover Execution 只在 macOS App / CLI Machine Authority 中实现",
+    "Web 不存在执行 endpoint",
     "## Capability Placement Matrix"
   ],
   "Chinese Surface Design Contract"

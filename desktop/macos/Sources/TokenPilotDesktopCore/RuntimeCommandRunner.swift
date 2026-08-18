@@ -293,6 +293,58 @@ public struct DesktopConnectivityProviderMutationResult: Decodable, Equatable, S
     public let startsRuntime: Bool
 }
 
+public struct DesktopPublicRouteCutoverIntent: Decodable, Equatable, Sendable {
+    public let id: String
+    public let kind: String
+    public let status: String
+    public let candidateId: String
+    public let candidateOrigin: String
+    public let verificationId: String
+    public let expectedCanonicalOrigin: String
+    public let requiresMachineAuthority: Bool
+    public let changesCanonicalOrigin: Bool
+    public let mayRestartRunningRuntime: Bool
+    public let startsStoppedRuntime: Bool
+    public let startsProviderTunnel: Bool
+    public let writesProviderSecrets: Bool
+    public let preparedAt: String
+    public let expiresAt: String
+}
+
+public struct DesktopPublicRouteCutoverIntentSnapshot: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let intent: DesktopPublicRouteCutoverIntent?
+}
+
+public enum DesktopPublicRouteMachineCutoverOutcome: String, Decodable, Equatable, Sendable {
+    case succeeded
+    case succeededPendingRuntimeVerification = "succeeded-pending-runtime-verification"
+    case restartFailedRolledBack = "restart-failed-rolled-back"
+    case postVerificationFailedRolledBack = "post-verification-failed-rolled-back"
+    case rollbackFailed = "rollback-failed"
+}
+
+public struct DesktopPublicRouteMachineCutoverResult: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let executionId: String
+    public let intentId: String
+    public let candidateId: String
+    public let verificationId: String
+    public let previousCanonicalOrigin: String
+    public let canonicalOrigin: String
+    public let outcome: DesktopPublicRouteMachineCutoverOutcome
+    public let runtimeWasRunning: Bool
+    public let runtimeRestarted: Bool
+    public let postVerificationStatus: String
+    public let postVerificationId: String?
+    public let rollbackAttempted: Bool
+    public let rollbackSucceeded: Bool
+    public let startsStoppedRuntime: Bool
+    public let startsProviderTunnel: Bool
+    public let writesProviderSecrets: Bool
+    public let completedAt: String
+}
+
 public struct DesktopGeneratedConsolePath: Decodable, Equatable, Sendable {
     public let consolePathPrefix: String
 
@@ -480,6 +532,36 @@ public struct DesktopAuthorityClient: Sendable {
                     "--json"
                 ],
                 timeoutSeconds: 660
+            )
+        )
+    }
+
+    public func publicRouteCutoverIntent(
+        context: DesktopDistributionContext
+    ) async throws -> DesktopPublicRouteCutoverIntentSnapshot {
+        try await decode(
+            DesktopPublicRouteCutoverIntentSnapshot.self,
+            from: runCLI(
+                context: context,
+                arguments: ["connectivity", "route", "cutover", "status", "--json"]
+            )
+        )
+    }
+
+    public func executePublicRouteCutover(
+        intentId: String,
+        context: DesktopDistributionContext
+    ) async throws -> DesktopPublicRouteMachineCutoverResult {
+        try await decode(
+            DesktopPublicRouteMachineCutoverResult.self,
+            from: runCLI(
+                context: context,
+                arguments: [
+                    "connectivity", "route", "cutover", "execute",
+                    "--intent-id", intentId,
+                    "--json"
+                ],
+                timeoutSeconds: 240
             )
         )
     }

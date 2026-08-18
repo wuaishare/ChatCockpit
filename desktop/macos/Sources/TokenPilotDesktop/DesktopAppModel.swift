@@ -17,6 +17,7 @@ enum DesktopSecurityFeedbackTarget: Equatable {
     case machineApiToken
     case accessPolicy
     case connectivityProvider(String)
+    case publicRouteCutover
     case apiEndpoint(String)
 }
 
@@ -53,7 +54,9 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var accessPolicyStatus: DesktopAccessPolicy?
     @Published private(set) var connectivityProviderStatus: DesktopConnectivityProviderSnapshot?
     @Published private(set) var cloudflaredCapabilities: DesktopConnectivityProviderCapabilities?
+    @Published private(set) var publicRouteCutoverIntent: DesktopPublicRouteCutoverIntent?
     @Published private(set) var isConnectivityMutationRunning = false
+    @Published private(set) var isPublicRouteCutoverRunning = false
     @Published private(set) var operationalSummary: DesktopOperationalSummary?
     @Published private(set) var revealedOwnerPassword: String?
     @Published private(set) var revealedMachineApiToken: String?
@@ -639,6 +642,7 @@ final class DesktopAppModel: ObservableObject {
                 accessPolicyStatus = nil
                 connectivityProviderStatus = nil
                 cloudflaredCapabilities = nil
+                publicRouteCutoverIntent = nil
                 revealedOwnerPassword = nil
                 revealedMachineApiToken = nil
                 return
@@ -662,6 +666,13 @@ final class DesktopAppModel: ObservableObject {
             } catch {
                 self.cloudflaredCapabilities = nil
             }
+            do {
+                self.publicRouteCutoverIntent = try await authorityClient.publicRouteCutoverIntent(
+                    context: context
+                ).intent
+            } catch {
+                self.publicRouteCutoverIntent = nil
+            }
         } catch {
             operatorSecurityStatus = nil
             revealedOwnerPassword = nil
@@ -669,6 +680,7 @@ final class DesktopAppModel: ObservableObject {
             accessPolicyStatus = nil
             connectivityProviderStatus = nil
             cloudflaredCapabilities = nil
+            publicRouteCutoverIntent = nil
             lastUserMessage = DesktopL10n.string(
                 "Security settings could not be read from the local ChatCockpit runtime."
             )
@@ -957,6 +969,83 @@ final class DesktopAppModel: ObservableObject {
         } catch {
             await refreshSecurity()
             lastUserMessage = DesktopL10n.string("The Cloudflare Tunnel machine action could not be completed.")
+        }
+    }
+
+    func runPublicRouteCutover() async {
+        guard !isPublicRouteCutoverRunning,
+              let intent = publicRouteCutoverIntent else {
+            return
+        }
+        guard intent.requiresMachineAuthority,
+              intent.changesCanonicalOrigin,
+              intent.startsStoppedRuntime == false,
+              intent.startsProviderTunnel == false,
+              intent.writesProviderSecrets == false else {
+            lastUserMessage = DesktopL10n.string(
+                "The pending Public Route Cutover Intent did not satisfy the ChatCockpit machine safety contract."
+            )
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = DesktopL10n.string("Apply verified Public Route?")
+        alert.informativeText = DesktopL10n.format(
+            "ChatCockpit will change the canonical Public Route from %@ to %@. If the Runtime is running, it may restart and must pass post-cutover verification. If verification or restart fails, ChatCockpit restores the previous route. A stopped Runtime is never started automatically.",
+            intent.expectedCanonicalOrigin,
+            intent.candidateOrigin
+        )
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: DesktopL10n.string("Apply Public Route"))
+        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        isPublicRouteCutoverRunning = true
+        defer { isPublicRouteCutoverRunning = false }
+        do {
+            guard let context = try await currentContext() else { return }
+            let result = try await authorityClient.executePublicRouteCutover(
+                intentId: intent.id,
+                context: context
+            )
+            await refresh()
+            await refreshSecurity()
+
+            switch result.outcome {
+            case .succeeded:
+                presentSecurityFeedback(
+                    DesktopL10n.string(
+                        "Public Route was updated, the running Runtime restarted, and the new canonical route passed post-cutover verification."
+                    ),
+                    target: .publicRouteCutover,
+                    kind: .updated
+                )
+            case .succeededPendingRuntimeVerification:
+                presentSecurityFeedback(
+                    DesktopL10n.string(
+                        "Public Route configuration was updated while the Runtime remained stopped. Start ChatCockpit explicitly to complete post-cutover verification."
+                    ),
+                    target: .publicRouteCutover,
+                    kind: .updated
+                )
+            case .restartFailedRolledBack:
+                lastUserMessage = DesktopL10n.string(
+                    "The Runtime could not restart with the candidate Public Route, so ChatCockpit restored the previous canonical route."
+                )
+            case .postVerificationFailedRolledBack:
+                lastUserMessage = DesktopL10n.string(
+                    "The candidate Public Route failed post-cutover verification, so ChatCockpit restored the previous canonical route."
+                )
+            case .rollbackFailed:
+                lastUserMessage = DesktopL10n.string(
+                    "Public Route rollback could not be completed automatically. Review Runtime and Public Access status before making another change."
+                )
+            }
+        } catch {
+            await refreshSecurity()
+            lastUserMessage = DesktopL10n.string(
+                "The Public Route Cutover could not be executed by the local ChatCockpit Machine Authority."
+            )
         }
     }
 

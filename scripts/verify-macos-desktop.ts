@@ -481,6 +481,15 @@ assert.match(settings, /detected outside ChatCockpit/);
 assert.match(settings, /will not install Homebrew automatically/);
 assert.match(settings, /\.disabled\(model\.isConnectivityMutationRunning \|\| model\.isSecurityRefreshing\)/);
 assert.doesNotMatch(settings, /Install ngrok|Install FRP|Uninstall Provider|Start Tunnel|Tunnel Token|Cloudflare Login/);
+assert.match(settings, /model\.publicRouteCutoverIntent/);
+assert.match(settings, /Verified Public Route Cutover/);
+assert.match(settings, /intent\.expectedCanonicalOrigin/);
+assert.match(settings, /intent\.candidateOrigin/);
+assert.match(settings, /Intent expires/);
+assert.match(settings, /Task \{ await model\.runPublicRouteCutover\(\) \}/);
+assert.match(settings, /model\.isPublicRouteCutoverRunning/);
+assert.match(settings, /failed restart or post-cutover verification triggers rollback|Failed restart or post-cutover verification triggers rollback/);
+assert.doesNotMatch(settings, /server\.env|launchctl|Process\(|spawnSync|--intent-id/);
 assert.match(appModel, /@Published private\(set\) var accessPolicyStatus: DesktopAccessPolicy\?/);
 assert.match(appModel, /@Published private\(set\) var connectivityProviderStatus: DesktopConnectivityProviderSnapshot\?/);
 assert.match(appModel, /@Published private\(set\) var cloudflaredCapabilities: DesktopConnectivityProviderCapabilities\?/);
@@ -494,10 +503,42 @@ assert.match(appModel, /plan\.startsTunnel == false/);
 assert.match(appModel, /plan\.startsRuntime == false/);
 assert.match(appModel, /authorityClient\.executeConnectivityProviderPlan/);
 assert.match(appModel, /does not sign in to Cloudflare, install or start a tunnel service, create a tunnel, or change the current Public Access route/);
+assert.match(appModel, /@Published private\(set\) var publicRouteCutoverIntent: DesktopPublicRouteCutoverIntent\?/);
+assert.match(appModel, /@Published private\(set\) var isPublicRouteCutoverRunning = false/);
+assert.match(appModel, /authorityClient\.publicRouteCutoverIntent\([\s\S]*context: context[\s\S]*\)\.intent/s);
+assert.match(appModel, /func runPublicRouteCutover\(\) async/);
+assert.match(appModel, /intent\.requiresMachineAuthority/);
+assert.match(appModel, /intent\.changesCanonicalOrigin/);
+assert.match(appModel, /intent\.startsStoppedRuntime == false/);
+assert.match(appModel, /intent\.startsProviderTunnel == false/);
+assert.match(appModel, /intent\.writesProviderSecrets == false/);
+assert.match(appModel, /Apply verified Public Route\?/);
+assert.match(appModel, /intent\.expectedCanonicalOrigin[\s\S]*intent\.candidateOrigin/s);
+assert.match(appModel, /executePublicRouteCutover\([\s\S]*intentId: intent\.id/s);
+for (const outcome of [
+  "succeeded",
+  "succeededPendingRuntimeVerification",
+  "restartFailedRolledBack",
+  "postVerificationFailedRolledBack",
+  "rollbackFailed"
+]) {
+  assert.match(appModel, new RegExp(`case \\.${outcome}`));
+}
+assert.doesNotMatch(appModel, /server\.env|spawnSync|launchctl/);
 assert.match(runtimeCommandRunner, /\["connectivity", "provider", "status", "--provider", providerId, "--json"\]/);
 assert.match(runtimeCommandRunner, /"connectivity", "provider", "prepare"/);
 assert.match(runtimeCommandRunner, /"connectivity", "provider", "execute"/);
 assert.match(runtimeCommandRunner, /timeoutSeconds: 660/);
+assert.match(runtimeCommandRunner, /struct DesktopPublicRouteCutoverIntent/);
+assert.match(runtimeCommandRunner, /struct DesktopPublicRouteCutoverIntentSnapshot/);
+assert.match(runtimeCommandRunner, /enum DesktopPublicRouteMachineCutoverOutcome/);
+assert.match(runtimeCommandRunner, /struct DesktopPublicRouteMachineCutoverResult/);
+assert.match(runtimeCommandRunner, /func publicRouteCutoverIntent/);
+assert.match(runtimeCommandRunner, /\["connectivity", "route", "cutover", "status", "--json"\]/);
+assert.match(runtimeCommandRunner, /func executePublicRouteCutover/);
+assert.match(runtimeCommandRunner, /"connectivity", "route", "cutover", "execute"/);
+assert.match(runtimeCommandRunner, /"--intent-id", intentId/);
+assert.match(runtimeCommandRunner, /timeoutSeconds: 240/);
 assert.match(appModel, /@Published private\(set\) var isGeneratingConsolePath = false/);
 assert.match(appModel, /func generateRandomConsolePathCandidate\(\) async -> String\?/);
 assert.match(appModel, /authorityClient\.generateConsolePath\(context: context\)/);
@@ -540,6 +581,13 @@ assert.match(simplifiedChineseLocalization, /"Uninstall" = "卸载";/);
 assert.match(simplifiedChineseLocalization, /"Install Cloudflare Tunnel\?" = "安装 Cloudflare Tunnel？";/);
 assert.match(simplifiedChineseLocalization, /不会自动安装 Homebrew/);
 assert.match(simplifiedChineseLocalization, /不会接管其升级或卸载/);
+assert.match(englishLocalization, /"Verified Public Route Cutover" = "Verified Public Route Cutover";/);
+assert.match(englishLocalization, /"Apply Public Route" = "Apply Public Route";/);
+assert.match(simplifiedChineseLocalization, /"Verified Public Route Cutover" = "已验证公网 Route 切换";/);
+assert.match(simplifiedChineseLocalization, /"Pending Machine execution" = "等待本机执行";/);
+assert.match(simplifiedChineseLocalization, /"Apply Public Route" = "应用公网 Route";/);
+assert.match(simplifiedChineseLocalization, /已停止的 Runtime 绝不会被自动启动/);
+assert.match(simplifiedChineseLocalization, /回滚到之前的 Canonical Route/);
 assert.match(simplifiedChineseLocalization, /"Overview" = "概览";/);
 assert.match(simplifiedChineseLocalization, /"Access & Security" = "访问与安全";/);
 assert.match(simplifiedChineseLocalization, /"Integrations" = "集成";/);

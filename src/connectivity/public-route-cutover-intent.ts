@@ -47,10 +47,12 @@ export interface PublicRouteCutoverIntentSnapshot {
 
 export type PublicRouteCutoverIntentErrorCode =
   | "bootstrap-not-supported"
+  | "candidate-already-canonical"
   | "candidate-stale"
   | "verification-missing"
   | "verification-stale"
   | "verification-not-verified"
+  | "intent-stale"
   | "intent-state-invalid";
 
 export class PublicRouteCutoverIntentError extends Error {
@@ -234,6 +236,12 @@ export class PublicRouteCutoverIntentStore {
         "Candidate Public Route identity no longer matches the current staged candidate"
       );
     }
+    if (candidate.origin === route.canonical.origin) {
+      throw new PublicRouteCutoverIntentError(
+        "candidate-already-canonical",
+        "Candidate Public Route already matches the canonical Runtime origin"
+      );
+    }
 
     const verification = this.verificationStore.read();
     if (!verification) {
@@ -282,6 +290,18 @@ export class PublicRouteCutoverIntentStore {
     };
     atomicPrivateWrite(this.statePath, intent);
     return this.snapshot();
+  }
+
+  consume(intentId: string): PublicRouteCutoverIntent {
+    const current = this.snapshot().intent;
+    if (!current || current.id !== intentId) {
+      throw new PublicRouteCutoverIntentError(
+        "intent-stale",
+        "Public Route Cutover Intent is no longer available for Machine execution"
+      );
+    }
+    this.removeState();
+    return current;
   }
 
   cancel(): PublicRouteCutoverIntentSnapshot {
