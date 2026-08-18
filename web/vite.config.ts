@@ -35,7 +35,7 @@ export default defineConfig(() => {
 
   return {
     root: webRoot,
-    base: "/ui/",
+    base: "./",
     plugins: [react()],
     define: {
       __CHATCOCKPIT_VERSION__: JSON.stringify({
