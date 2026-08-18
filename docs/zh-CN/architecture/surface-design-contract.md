@@ -52,7 +52,7 @@ Web Cockpit 持有 **Operator Authority（操作员权限）**，承担完整的
 
 Web Cockpit 可以显示 public-safe 的机器状态，但不能展示本机秘密，也不能成为第二套本机 Runtime 所有权实现。
 
-公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。当前已实现的工作台会消费受保护的 public-safe 机器 Provider 投影，将 Candidate Public Route 与 canonical Runtime origin 分离暂存，对精确的 current candidate 执行受限的 public-unicast DNS + 固定 IP HTTPS 显式验证，并允许基于完全匹配的成功 Verification Artifact 准备或取消一个短期 Cutover Intent。Verification 与 Intent 只向 Web 投影受限的 public-safe 状态；解析 IP、原始 TLS/网络错误、响应正文、Runtime Service 执行、内部 Adapter identity、可执行文件路径、Provider 原始输出、Mutation 命令与 Secret 继续严格留在 Web 之外。Replacement Cutover Execution 只在 macOS App / CLI Machine Authority 中实现；Web 不存在执行 endpoint，也不能写 Runtime 配置或 restart 服务。
+公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。当前已实现的工作台会消费受保护的 public-safe 机器 Provider 投影，并将 Candidate Public Route 与 canonical Runtime origin 分离暂存。当 canonical 已存在时，Web 会对 exact candidate 执行受限的 public-unicast DNS + 固定 IP HTTPS 显式验证，并允许基于成功 Verification Artifact 准备或取消短期 replacement Cutover Intent；当 Runtime 仍是 local-only 时，Web 改用短期 Bootstrap Identity Proof，其中随机 challenge 只保存在本机，并在 same-Runtime 身份验证成功后立即销毁。Verification、Bootstrap Proof 与 Intent 只向 Web 投影受限 public-safe 状态；challenge 值、解析 IP、原始 TLS/网络错误、响应正文、Runtime Service 执行、内部 Adapter identity、可执行文件路径、Provider 原始输出、Mutation 命令与 Secret 继续严格留在 Web 之外。Replacement Cutover Execution 只在 macOS App / CLI Machine Authority 中实现；Web 不存在执行 endpoint，也不能写 Runtime 配置或 restart 服务。首次公网 Machine Bootstrap Execution 继续保持独立，目前尚未实现。
 
 ### Runtime — 唯一业务真源与执行层
 
@@ -185,4 +185,4 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 7. 保持真实 Console Path 路由与本地化。
 8. 当边界在实现层可被自动验证时，同步增加或更新门禁。
 
-本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)、[Connectivity Provider 机器变更合同](./connectivity-provider-machine-mutation.md)、[Connectivity 候选 Route 暂存合同](./connectivity-route-staging.md)、[Public Route Cutover Intent 合同](./connectivity-route-cutover.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。
+本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)、[Connectivity Provider 机器变更合同](./connectivity-provider-machine-mutation.md)、[Connectivity 候选 Route 暂存合同](./connectivity-route-staging.md)、[Public Route Cutover Intent 合同](./connectivity-route-cutover.md)、[首次公网 Route Bootstrap Identity Proof 合同](./connectivity-route-bootstrap.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。

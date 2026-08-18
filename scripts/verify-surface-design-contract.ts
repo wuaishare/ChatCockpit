@@ -51,6 +51,9 @@ assertIncludesAll(
     "Public Access / Connectivity",
     "Replacement cutover execution is implemented only in macOS App / CLI Machine Authority",
     "Web has no execution endpoint",
+    "Bootstrap Identity Proof",
+    "random challenge stays machine-local",
+    "First-public Machine Bootstrap execution remains separate and is not implemented yet",
     "## Capability Placement Matrix"
   ],
   "English Surface Design Contract"
@@ -77,6 +80,9 @@ assertIncludesAll(
     "公网接入 / Public Access（Connectivity）",
     "Replacement Cutover Execution 只在 macOS App / CLI Machine Authority 中实现",
     "Web 不存在执行 endpoint",
+    "Bootstrap Identity Proof",
+    "随机 challenge 只保存在本机",
+    "首次公网 Machine Bootstrap Execution 继续保持独立，目前尚未实现",
     "## Capability Placement Matrix"
   ],
   "Chinese Surface Design Contract"

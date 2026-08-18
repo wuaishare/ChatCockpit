@@ -14,10 +14,12 @@ import {
   UnorderedListOutlined
 } from "@ant-design/icons";
 import {
+  cancelPublicRouteBootstrapProof,
   cancelPublicRouteCutoverIntent,
   controlJob,
   discardPublicRouteCandidate,
   fetchConnectivityProviders,
+  fetchPublicRouteBootstrapProof,
   fetchPublicRouteCandidate,
   fetchPublicRouteCutoverIntent,
   fetchPublicRouteVerification,
@@ -34,10 +36,12 @@ import {
   fetchSetupStatus,
   loginOperator,
   logoutOperator,
+  preparePublicRouteBootstrapProof,
   preparePublicRouteCutoverIntent,
   redeemLocalLoginGrant,
   stagePublicRouteCandidate,
   setOperatorCsrfToken,
+  verifyPublicRouteBootstrapProof,
   verifyPublicRouteCandidate,
   verifyPasskeyAuthentication,
   verifyOperatorTotpLogin,
@@ -56,6 +60,7 @@ import { OperatorSetupRequiredView } from "./components/OperatorSetupRequiredVie
 import type {
   ArtifactPreviewState,
   ConnectivityProviderPublicSnapshot,
+  PublicRouteBootstrapProofSnapshot,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
   PublicRouteCutoverIntentSnapshot,
@@ -290,6 +295,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     useState<PublicRouteCutoverIntentSnapshot | null>(null);
   const [publicRouteCutoverIntentError, setPublicRouteCutoverIntentError] = useState<string | null>(null);
   const [publicRouteCutoverIntentMutating, setPublicRouteCutoverIntentMutating] = useState(false);
+  const [publicRouteBootstrapProofStatus, setPublicRouteBootstrapProofStatus] =
+    useState<PublicRouteBootstrapProofSnapshot | null>(null);
+  const [publicRouteBootstrapProofError, setPublicRouteBootstrapProofError] = useState<string | null>(null);
+  const [publicRouteBootstrapProofMutating, setPublicRouteBootstrapProofMutating] = useState(false);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -529,6 +538,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteCutoverIntentStatus(null);
       setPublicRouteCutoverIntentError(null);
       setPublicRouteCutoverIntentMutating(false);
+      setPublicRouteBootstrapProofStatus(null);
+      setPublicRouteBootstrapProofError(null);
+      setPublicRouteBootstrapProofMutating(false);
       setSetupStatus(null);
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
@@ -599,6 +611,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setPublicRouteCutoverIntentStatus(null);
         setPublicRouteCutoverIntentError(getErrorMessage(error));
       }
+      try {
+        const bootstrapProofResponse = await fetchPublicRouteBootstrapProof(token);
+        setPublicRouteBootstrapProofStatus(bootstrapProofResponse);
+        setPublicRouteBootstrapProofError(null);
+      } catch (error) {
+        setPublicRouteBootstrapProofStatus(null);
+        setPublicRouteBootstrapProofError(getErrorMessage(error));
+      }
       await loadCompatibilityConfig(locale);
     } catch (error) {
       setHealthError(getErrorMessage(error));
@@ -621,6 +641,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteVerificationError(null);
       setPublicRouteCutoverIntentStatus(null);
       setPublicRouteCutoverIntentError(null);
+      setPublicRouteBootstrapProofStatus(null);
+      setPublicRouteBootstrapProofError(null);
     } catch (error) {
       setPublicRouteCandidateError(getErrorMessage(error));
     } finally {
@@ -639,6 +661,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteVerificationError(null);
       setPublicRouteCutoverIntentStatus(null);
       setPublicRouteCutoverIntentError(null);
+      setPublicRouteBootstrapProofStatus(null);
+      setPublicRouteBootstrapProofError(null);
     } catch (error) {
       setPublicRouteCandidateError(getErrorMessage(error));
     } finally {
@@ -687,6 +711,48 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteCutoverIntentError(getErrorMessage(error));
     } finally {
       setPublicRouteCutoverIntentMutating(false);
+    }
+  }
+
+  async function prepareBootstrapProof(candidateId: string) {
+    if (publicRouteBootstrapProofMutating || publicRouteCandidateMutating) return;
+    setPublicRouteBootstrapProofMutating(true);
+    setPublicRouteBootstrapProofError(null);
+    try {
+      const response = await preparePublicRouteBootstrapProof(candidateId, token);
+      setPublicRouteBootstrapProofStatus(response);
+    } catch (error) {
+      setPublicRouteBootstrapProofError(getErrorMessage(error));
+    } finally {
+      setPublicRouteBootstrapProofMutating(false);
+    }
+  }
+
+  async function verifyBootstrapProof(candidateId: string, proofId: string) {
+    if (publicRouteBootstrapProofMutating || publicRouteCandidateMutating) return;
+    setPublicRouteBootstrapProofMutating(true);
+    setPublicRouteBootstrapProofError(null);
+    try {
+      const response = await verifyPublicRouteBootstrapProof({ candidateId, proofId }, token);
+      setPublicRouteBootstrapProofStatus(response);
+    } catch (error) {
+      setPublicRouteBootstrapProofError(getErrorMessage(error));
+    } finally {
+      setPublicRouteBootstrapProofMutating(false);
+    }
+  }
+
+  async function cancelBootstrapProof() {
+    if (publicRouteBootstrapProofMutating) return;
+    setPublicRouteBootstrapProofMutating(true);
+    setPublicRouteBootstrapProofError(null);
+    try {
+      const response = await cancelPublicRouteBootstrapProof(token);
+      setPublicRouteBootstrapProofStatus(response);
+    } catch (error) {
+      setPublicRouteBootstrapProofError(getErrorMessage(error));
+    } finally {
+      setPublicRouteBootstrapProofMutating(false);
     }
   }
 
@@ -1252,11 +1318,17 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 cutoverIntentStatus={publicRouteCutoverIntentStatus}
                 cutoverIntentStatusError={publicRouteCutoverIntentError}
                 cutoverIntentMutating={publicRouteCutoverIntentMutating}
+                bootstrapProofStatus={publicRouteBootstrapProofStatus}
+                bootstrapProofStatusError={publicRouteBootstrapProofError}
+                bootstrapProofMutating={publicRouteBootstrapProofMutating}
                 onStageCandidate={(origin, source) => void stageCandidatePublicRoute(origin, source)}
                 onDiscardCandidate={() => void discardCandidatePublicRoute()}
                 onVerifyCandidate={(candidateId) => void verifyCandidatePublicRoute(candidateId)}
                 onPrepareCutoverIntent={(candidateId, verificationId) => void prepareCandidateCutoverIntent(candidateId, verificationId)}
                 onCancelCutoverIntent={() => void cancelCandidateCutoverIntent()}
+                onPrepareBootstrapProof={(candidateId) => void prepareBootstrapProof(candidateId)}
+                onVerifyBootstrapProof={(candidateId, proofId) => void verifyBootstrapProof(candidateId, proofId)}
+                onCancelBootstrapProof={() => void cancelBootstrapProof()}
                 onOpenIntegrations={() => navigateView("integrations")}
               />
             ) : (

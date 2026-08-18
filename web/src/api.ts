@@ -23,6 +23,7 @@ import type {
   ContinuityTaskReviewResponse,
   ContinuityWorkspaceSnapshotResponse,
   ConnectivityProviderPublicSnapshot,
+  PublicRouteBootstrapProofSnapshot,
   PublicRouteCandidateSnapshot,
   PublicRouteCandidateSource,
   PublicRouteCutoverIntentSnapshot,
@@ -515,6 +516,51 @@ export async function cancelPublicRouteCutoverIntent(
     throw await parseProblem(response);
   }
   return (await response.json()) as PublicRouteCutoverIntentSnapshot;
+}
+
+export async function fetchPublicRouteBootstrapProof(
+  token?: string | null
+): Promise<PublicRouteBootstrapProofSnapshot> {
+  return requestJson<PublicRouteBootstrapProofSnapshot>(
+    "/api/connectivity/routes/bootstrap-proof",
+    token
+  );
+}
+
+export async function preparePublicRouteBootstrapProof(
+  candidateId: string,
+  token?: string | null
+): Promise<PublicRouteBootstrapProofSnapshot> {
+  return postBodyJson<PublicRouteBootstrapProofSnapshot>(
+    "/api/connectivity/routes/bootstrap-proof",
+    { candidateId },
+    token
+  );
+}
+
+export async function verifyPublicRouteBootstrapProof(
+  payload: { candidateId: string; proofId: string },
+  token?: string | null
+): Promise<PublicRouteBootstrapProofSnapshot> {
+  return postBodyJson<PublicRouteBootstrapProofSnapshot>(
+    "/api/connectivity/routes/bootstrap-proof/verify",
+    payload,
+    token
+  );
+}
+
+export async function cancelPublicRouteBootstrapProof(
+  token?: string | null
+): Promise<PublicRouteBootstrapProofSnapshot> {
+  const response = await fetch("/api/connectivity/routes/bootstrap-proof", {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: buildHeaders(token, { mutation: true })
+  });
+  if (!response.ok) {
+    throw await parseProblem(response);
+  }
+  return (await response.json()) as PublicRouteBootstrapProofSnapshot;
 }
 
 export async function fetchContinuityProjects(

@@ -63,6 +63,11 @@ import {
   PublicRouteCutoverIntentError,
   PublicRouteCutoverIntentStore
 } from "../connectivity/public-route-cutover-intent.js";
+import {
+  PublicRouteBootstrapProofError,
+  PublicRouteBootstrapProofStore,
+  PublicRouteBootstrapVerifier
+} from "../connectivity/public-route-bootstrap-proof.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
@@ -153,6 +158,15 @@ const publicRouteCandidateVerifySchema = z.object({
 const publicRouteCutoverIntentPrepareSchema = z.object({
   candidateId: z.string().min(1).max(200),
   verificationId: z.string().min(1).max(200)
+});
+
+const publicRouteBootstrapProofPrepareSchema = z.object({
+  candidateId: z.string().min(1).max(200)
+});
+
+const publicRouteBootstrapProofVerifySchema = z.object({
+  candidateId: z.string().min(1).max(200),
+  proofId: z.string().min(1).max(200)
 });
 
 const taskPackSchema = z.object({
@@ -249,6 +263,8 @@ export interface BuildServerOptions {
   publicRouteCandidateStore?: PublicRouteCandidateStore;
   publicRouteVerifier?: PublicRouteVerifier;
   publicRouteCutoverIntentStore?: PublicRouteCutoverIntentStore;
+  publicRouteBootstrapProofStore?: PublicRouteBootstrapProofStore;
+  publicRouteBootstrapVerifier?: PublicRouteBootstrapVerifier;
 }
 
 export function buildServer(
@@ -316,6 +332,18 @@ export function buildServer(
       runtimeDir: paths.runtimeDir,
       candidateStore: publicRouteCandidateStore,
       verificationStore: publicRouteVerificationStore
+    });
+  const publicRouteBootstrapProofStore =
+    options.publicRouteBootstrapProofStore ??
+    new PublicRouteBootstrapProofStore({
+      runtimeDir: paths.runtimeDir,
+      candidateStore: publicRouteCandidateStore
+    });
+  const publicRouteBootstrapVerifier =
+    options.publicRouteBootstrapVerifier ??
+    new PublicRouteBootstrapVerifier({
+      candidateStore: publicRouteCandidateStore,
+      proofStore: publicRouteBootstrapProofStore
     });
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(
@@ -679,6 +707,58 @@ export function buildServer(
 
   const cancelPublicRouteCutoverIntentHandler = async () =>
     publicRouteCutoverIntentStore.cancel();
+
+  const publicRouteBootstrapProofStatusHandler = async () =>
+    publicRouteBootstrapProofStore.snapshot();
+
+  const preparePublicRouteBootstrapProofHandler = async (request: unknown, reply: unknown) => {
+    const parsed = publicRouteBootstrapProofPrepareSchema.safeParse(
+      (request as { body?: unknown }).body ?? {}
+    );
+    const fastifyReply = replyFrom(reply);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return publicRouteBootstrapProofStore.prepare(parsed.data.candidateId);
+    } catch (error) {
+      if (error instanceof PublicRouteBootstrapProofError && error.code !== "proof-state-invalid") {
+        return sendApiError(
+          fastifyReply,
+          409,
+          error.code.toUpperCase().replaceAll("-", "_"),
+          error.message
+        );
+      }
+      throw error;
+    }
+  };
+
+  const verifyPublicRouteBootstrapProofHandler = async (request: unknown, reply: unknown) => {
+    const parsed = publicRouteBootstrapProofVerifySchema.safeParse(
+      (request as { body?: unknown }).body ?? {}
+    );
+    const fastifyReply = replyFrom(reply);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await publicRouteBootstrapVerifier.verify(parsed.data);
+    } catch (error) {
+      if (error instanceof PublicRouteBootstrapProofError && error.code !== "proof-state-invalid") {
+        return sendApiError(
+          fastifyReply,
+          409,
+          error.code.toUpperCase().replaceAll("-", "_"),
+          error.message
+        );
+      }
+      throw error;
+    }
+  };
+
+  const cancelPublicRouteBootstrapProofHandler = async () =>
+    publicRouteBootstrapProofStore.cancel();
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
@@ -1277,6 +1357,19 @@ export function buildServer(
   app.get("/api/connectivity/routes/cutover-intent", publicRouteCutoverIntentStatusHandler);
   app.post("/api/connectivity/routes/cutover-intent", preparePublicRouteCutoverIntentHandler);
   app.delete("/api/connectivity/routes/cutover-intent", cancelPublicRouteCutoverIntentHandler);
+  app.get("/api/connectivity/routes/bootstrap-proof", publicRouteBootstrapProofStatusHandler);
+  app.post("/api/connectivity/routes/bootstrap-proof", preparePublicRouteBootstrapProofHandler);
+  app.post("/api/connectivity/routes/bootstrap-proof/verify", verifyPublicRouteBootstrapProofHandler);
+  app.delete("/api/connectivity/routes/bootstrap-proof", cancelPublicRouteBootstrapProofHandler);
+  app.get("/.well-known/chatcockpit-bootstrap-proof/:proofId", async (request, reply) => {
+    const proofId = (request.params as { proofId?: string }).proofId?.trim() ?? "";
+    const challenge = proofId ? publicRouteBootstrapProofStore.challengeForRequest(proofId) : null;
+    if (!challenge) {
+      return reply.code(404).type("text/plain; charset=utf-8").send("Not Found");
+    }
+    reply.header("cache-control", "no-store");
+    return reply.type("text/plain; charset=utf-8").send(challenge);
+  });
 
   app.get("/api/setup/status", setupStatusHandler);
   app.get("/tokenpilot/api/setup/status", setupStatusHandler);
