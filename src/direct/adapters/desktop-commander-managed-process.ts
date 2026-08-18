@@ -15,6 +15,7 @@ import {
   projectDesktopCommanderToolResult
 } from "./desktop-commander-process.js";
 import {
+  isDownstreamMcpStdioExecutor,
   loadDownstreamMcpExecutorsConfig,
   type DownstreamMcpStdioExecutorConfig
 } from "../downstream-mcp-config.js";
@@ -144,6 +145,12 @@ export class DesktopCommanderManagedProcessSupervisor {
       throw new DesktopCommanderManagedProcessError(
         "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE",
         "Desktop Commander executor is not configured"
+      );
+    }
+    if (!isDownstreamMcpStdioExecutor(executor)) {
+      throw new DesktopCommanderManagedProcessError(
+        "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE",
+        "Desktop Commander managed-process lifecycle requires a local stdio executor"
       );
     }
 

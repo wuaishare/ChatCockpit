@@ -72,7 +72,7 @@ export async function probeDownstreamMcpExecutor(options: {
       schemaVersion: 1,
       executorId: config.executorId,
       displayName: config.displayName,
-      protocolFamily: "mcp-legacy-stdio",
+      protocolFamily: config.protocolFamily ?? "mcp-legacy-stdio",
       protocolVersion: listed.server.protocolVersion,
       serverName: listed.server.name,
       serverVersion: listed.server.version,

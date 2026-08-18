@@ -7,6 +7,7 @@ import {
   DESKTOP_COMMANDER_START_PROCESS_TOOL
 } from "./desktop-commander.js";
 import {
+  isDownstreamMcpStdioExecutor,
   loadDownstreamMcpExecutorsConfig,
   type DownstreamMcpStdioExecutorConfig
 } from "../downstream-mcp-config.js";
@@ -224,6 +225,12 @@ export class DesktopCommanderProcessAdapter {
       throw new DesktopCommanderProcessError(
         "DESKTOP_COMMANDER_PROCESS_UNAVAILABLE",
         "Desktop Commander executor is not configured"
+      );
+    }
+    if (!isDownstreamMcpStdioExecutor(executor)) {
+      throw new DesktopCommanderProcessError(
+        "DESKTOP_COMMANDER_PROCESS_UNAVAILABLE",
+        "Desktop Commander process lifecycle requires a local stdio executor"
       );
     }
     const configuredMapping = executor.mappings.find(

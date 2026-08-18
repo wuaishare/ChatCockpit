@@ -1,37 +1,22 @@
 import type { TokenPilotPaths } from "../types.js";
+import { loadDownstreamMcpExecutorsConfig } from "./downstream-mcp-config.js";
 import {
-  loadDownstreamMcpExecutorsConfig,
-  type DownstreamMcpStdioExecutorConfig
-} from "./downstream-mcp-config.js";
+  createDownstreamMcpClient,
+  downstreamMcpProtocolFamily
+} from "./downstream-mcp-client-factory.js";
 import { probeDownstreamMcpExecutor } from "./downstream-mcp-probe.js";
 import { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
-import { DownstreamMcpStdioClient } from "./downstream-mcp-stdio-client.js";
 
 export interface DownstreamMcpProbeSummary {
   executorId: string;
   displayName: string;
   health: "ready" | "degraded" | "unavailable";
-  protocolFamily: "mcp-legacy-stdio";
+  protocolFamily: "mcp-legacy-stdio" | "mcp-streamable-http";
   protocolVersion: string;
   serverName: string;
   serverVersion: string;
   verifiedCapabilities: string[];
   snapshotPath: string;
-}
-
-function buildClient(executor: DownstreamMcpStdioExecutorConfig) {
-  return new DownstreamMcpStdioClient({
-    command: executor.transport.command,
-    args: executor.transport.args,
-    ...(executor.transport.cwd ? { cwd: executor.transport.cwd } : {}),
-    env: {
-      ...process.env,
-      ...(executor.transport.env ?? {})
-    },
-    timeoutMs: executor.transport.timeoutMs,
-    maxBufferBytes: executor.transport.maxBufferBytes,
-    maxStderrBytes: executor.transport.maxStderrBytes
-  });
 }
 
 export async function probeConfiguredDownstreamMcpExecutors(options: {
@@ -55,11 +40,12 @@ export async function probeConfiguredDownstreamMcpExecutors(options: {
   const summaries: DownstreamMcpProbeSummary[] = [];
   for (const executor of executors) {
     const snapshot = await probeDownstreamMcpExecutor({
-      client: buildClient(executor),
+      client: createDownstreamMcpClient(executor),
       store,
       config: {
         executorId: executor.id,
         displayName: executor.displayName,
+        protocolFamily: downstreamMcpProtocolFamily(executor),
         mappings: executor.mappings
       }
     });

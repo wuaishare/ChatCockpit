@@ -5,9 +5,9 @@ import type {
 } from "./capability-broker.js";
 import {
   loadDownstreamMcpExecutorsConfig,
-  type DownstreamMcpStdioExecutorConfig
+  type DownstreamMcpExecutorConfig
 } from "./downstream-mcp-config.js";
-import { DownstreamMcpStdioClient } from "./downstream-mcp-stdio-client.js";
+import { createDownstreamMcpClient } from "./downstream-mcp-client-factory.js";
 import { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
 import type { DownstreamMcpClient } from "./downstream-mcp-types.js";
 
@@ -44,25 +44,10 @@ export interface DownstreamMcpExecutionResult {
 }
 
 export type DownstreamMcpClientFactory = (
-  executor: DownstreamMcpStdioExecutorConfig
+  executor: DownstreamMcpExecutorConfig
 ) => DownstreamMcpClient;
 
-function defaultClientFactory(
-  executor: DownstreamMcpStdioExecutorConfig
-): DownstreamMcpClient {
-  return new DownstreamMcpStdioClient({
-    command: executor.transport.command,
-    args: executor.transport.args,
-    ...(executor.transport.cwd ? { cwd: executor.transport.cwd } : {}),
-    env: {
-      ...process.env,
-      ...(executor.transport.env ?? {})
-    },
-    timeoutMs: executor.transport.timeoutMs,
-    maxBufferBytes: executor.transport.maxBufferBytes,
-    maxStderrBytes: executor.transport.maxStderrBytes
-  });
-}
+const defaultClientFactory: DownstreamMcpClientFactory = createDownstreamMcpClient;
 
 function supportsRequest(
   mapping: {
