@@ -469,7 +469,16 @@ export function buildServer(
   const runtimeResourceAdapterRegistry =
     new RuntimeResourceInventoryAdapterRegistry([
       new CodexResourceInventoryAdapter(runtimeRouter),
-      new DownstreamResourceInventoryAdapter(downstreamResourceSource, identity),
+      new DownstreamResourceInventoryAdapter(
+        downstreamResourceSource,
+        identity,
+        "mcp-legacy-stdio"
+      ),
+      new DownstreamResourceInventoryAdapter(
+        downstreamResourceSource,
+        identity,
+        "mcp-streamable-http"
+      ),
       ...(acpRegistryAdapter ? [acpRegistryAdapter] : [])
     ]);
   const codexSkillMutationAdapter =

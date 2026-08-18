@@ -44,10 +44,37 @@ const stdioTransportSchema = z.object({
   maxStderrBytes: z.number().int().positive().max(1024 * 1024).default(64 * 1024)
 });
 
+function isAllowedStreamableHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || url.hash) return false;
+    if (url.protocol === "https:") return true;
+    if (url.protocol !== "http:") return false;
+    return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+const streamableHttpTransportSchema = z.object({
+  kind: z.literal("streamable-http"),
+  url: z
+    .string()
+    .min(1)
+    .max(2048)
+    .refine(isAllowedStreamableHttpUrl, {
+      message: "Streamable HTTP MCP URL must use HTTPS or loopback HTTP without embedded credentials or fragments"
+    }),
+  timeoutMs: z.number().int().positive().max(120_000).default(10_000)
+});
+
 const executorSchema = z.object({
   id: executorIdSchema,
   displayName: z.string().min(1).max(160),
-  transport: stdioTransportSchema,
+  transport: z.discriminatedUnion("kind", [
+    stdioTransportSchema,
+    streamableHttpTransportSchema
+  ]),
   mappings: z.array(mappingSchema).min(1)
 });
 
@@ -66,9 +93,14 @@ const configSchema = z.object({
   executors: z.array(executorSchema).default([])
 });
 
-export interface DownstreamMcpStdioExecutorConfig {
+interface DownstreamMcpExecutorBaseConfig {
   id: string;
   displayName: string;
+  mappings: DownstreamMcpCapabilityMapping[];
+}
+
+export interface DownstreamMcpStdioExecutorConfig
+  extends DownstreamMcpExecutorBaseConfig {
   transport: {
     kind: "stdio";
     command: string;
@@ -79,7 +111,25 @@ export interface DownstreamMcpStdioExecutorConfig {
     maxBufferBytes: number;
     maxStderrBytes: number;
   };
-  mappings: DownstreamMcpCapabilityMapping[];
+}
+
+export interface DownstreamMcpStreamableHttpExecutorConfig
+  extends DownstreamMcpExecutorBaseConfig {
+  transport: {
+    kind: "streamable-http";
+    url: string;
+    timeoutMs: number;
+  };
+}
+
+export type DownstreamMcpExecutorConfig =
+  | DownstreamMcpStdioExecutorConfig
+  | DownstreamMcpStreamableHttpExecutorConfig;
+
+export function isDownstreamMcpStdioExecutor(
+  executor: DownstreamMcpExecutorConfig
+): executor is DownstreamMcpStdioExecutorConfig {
+  return executor.transport.kind === "stdio";
 }
 
 export interface DirectHostRootConfig {
@@ -92,7 +142,7 @@ export interface DirectHostRootConfig {
 export interface DownstreamMcpExecutorsConfig {
   schemaVersion: 1;
   hostRoots: DirectHostRootConfig[];
-  executors: DownstreamMcpStdioExecutorConfig[];
+  executors: DownstreamMcpExecutorConfig[];
 }
 
 export function getDownstreamMcpExecutorsConfigPath(): string {

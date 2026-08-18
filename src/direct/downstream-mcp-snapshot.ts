@@ -60,7 +60,9 @@ function normalizeSnapshot(value: unknown): DownstreamMcpCapabilitySnapshot | nu
     typeof record.executorId !== "string" ||
     !EXECUTOR_ID_PATTERN.test(record.executorId) ||
     typeof record.displayName !== "string" ||
-    record.protocolFamily !== "mcp-legacy-stdio" ||
+    !["mcp-legacy-stdio", "mcp-streamable-http"].includes(
+      String(record.protocolFamily)
+    ) ||
     typeof record.protocolVersion !== "string" ||
     typeof record.serverName !== "string" ||
     typeof record.serverVersion !== "string" ||

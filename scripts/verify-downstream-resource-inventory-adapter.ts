@@ -185,6 +185,76 @@ assert.equal(
   true
 );
 
+const httpExecutorId = "downstream-mcp:http-fixture";
+const httpProfile: RuntimeProfileDescriptor = {
+  ...profile,
+  id: buildRuntimeProfileId({
+    providerKind: "downstream-mcp",
+    protocolKind: "mcp-streamable-http",
+    instanceIdentity: httpExecutorId
+  }),
+  protocolKind: "mcp-streamable-http",
+  displayName: "HTTP Fixture MCP"
+};
+const httpAdapter = new DownstreamResourceInventoryAdapter(
+  {
+    loadConfig: () => ({
+      schemaVersion: 1 as const,
+      hostRoots: [],
+      executors: [
+        {
+          id: httpExecutorId,
+          displayName: "HTTP Fixture MCP",
+          transport: {
+            kind: "streamable-http" as const,
+            url: "https://mcp.example.invalid/mcp",
+            timeoutMs: 1000
+          },
+          mappings: [
+            {
+              capability: "files.read" as const,
+              toolName: "read_file",
+              scopes: ["host" as const],
+              access: ["read" as const]
+            }
+          ]
+        }
+      ]
+    }),
+    probe: async () => [
+      {
+        executorId: httpExecutorId,
+        displayName: "HTTP Fixture MCP",
+        health: "ready" as const,
+        protocolFamily: "mcp-streamable-http" as const,
+        protocolVersion: "2025-03-26",
+        serverName: "http-fixture-server",
+        serverVersion: "1.0.0",
+        verifiedCapabilities: ["files.read"],
+        snapshotPath: "/private/http-snapshot"
+      }
+    ]
+  },
+  undefined,
+  "mcp-streamable-http"
+);
+const httpInventory = await httpAdapter.inventory({ profile: httpProfile });
+assert.equal(httpInventory.profile.protocolKind, "mcp-streamable-http");
+assert.equal(
+  httpInventory.resources.find((resource) => resource.kind === "mcp-server")
+    ?.displayName,
+  "http-fixture-server"
+);
+assert.doesNotMatch(JSON.stringify(httpInventory), /mcp\.example\.invalid/);
+
+await assert.rejects(
+  () => httpAdapter.inventory({ profile }),
+  (error: unknown) =>
+    error instanceof Error &&
+    "code" in error &&
+    (error as { code?: string }).code === "RUNTIME_PROFILE_MISMATCH"
+);
+
 await assert.rejects(
   () => adapter.inventory({ profile: { ...profile, providerKind: "codex" } }),
   (error: unknown) =>

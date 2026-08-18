@@ -11,7 +11,9 @@ import type {
   RuntimeResourceInventoryRequest
 } from "../../application/runtime-resource-types.js";
 import type { DownstreamMcpExecutorsConfig } from "../../direct/downstream-mcp-config.js";
+import { downstreamMcpProtocolFamily } from "../../direct/downstream-mcp-client-factory.js";
 import type { DownstreamMcpProbeSummary } from "../../direct/downstream-mcp-operator.js";
+import type { DownstreamMcpProtocolFamily } from "../../direct/downstream-mcp-types.js";
 import {
   DEFAULT_PRODUCT_IDENTITY,
   type ProductIdentity
@@ -49,11 +51,11 @@ export class DownstreamResourceInventoryAdapter
   implements RuntimeResourceInventoryAdapter
 {
   readonly providerKind = "downstream-mcp";
-  readonly protocolKind = "mcp-legacy-stdio";
 
   constructor(
     private readonly source: DownstreamResourceInventorySource,
-    private readonly identity: ProductIdentity = DEFAULT_PRODUCT_IDENTITY
+    private readonly identity: ProductIdentity = DEFAULT_PRODUCT_IDENTITY,
+    readonly protocolKind: DownstreamMcpProtocolFamily = "mcp-legacy-stdio"
   ) {}
 
   async inventory(
@@ -61,7 +63,7 @@ export class DownstreamResourceInventoryAdapter
   ): Promise<RuntimeResourceInventoryProjection> {
     if (
       input.profile.providerKind !== "downstream-mcp" ||
-      input.profile.protocolKind !== "mcp-legacy-stdio"
+      input.profile.protocolKind !== this.protocolKind
     ) {
       throw new ServiceError(
         "RUNTIME_PROFILE_MISMATCH",
@@ -72,9 +74,10 @@ export class DownstreamResourceInventoryAdapter
     const config = this.source.loadConfig();
     const executor = config.executors.find(
       (candidate) =>
+        downstreamMcpProtocolFamily(candidate) === this.protocolKind &&
         buildRuntimeProfileId({
           providerKind: "downstream-mcp",
-          protocolKind: "mcp-legacy-stdio",
+          protocolKind: this.protocolKind,
           instanceIdentity: candidate.id
         }) === input.profile.id
     );

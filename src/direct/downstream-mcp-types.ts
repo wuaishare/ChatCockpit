@@ -4,6 +4,10 @@ import type {
   DirectExecutionScope
 } from "./capability-broker.js";
 
+export type DownstreamMcpProtocolFamily =
+  | "mcp-legacy-stdio"
+  | "mcp-streamable-http";
+
 export interface DownstreamMcpToolSummary {
   name: string;
   description?: string;
@@ -52,6 +56,7 @@ export interface DownstreamMcpCapabilityMapping {
 export interface DownstreamMcpProbeConfig {
   executorId: string;
   displayName: string;
+  protocolFamily?: DownstreamMcpProtocolFamily;
   mappings: DownstreamMcpCapabilityMapping[];
 }
 
@@ -67,7 +72,7 @@ export interface DownstreamMcpCapabilitySnapshot {
   schemaVersion: 1;
   executorId: string;
   displayName: string;
-  protocolFamily: "mcp-legacy-stdio";
+  protocolFamily: DownstreamMcpProtocolFamily;
   protocolVersion: string;
   serverName: string;
   serverVersion: string;
