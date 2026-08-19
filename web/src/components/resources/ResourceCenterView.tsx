@@ -491,16 +491,30 @@ export function ResourceCenterView({
         ) : (
           <div className="resource-center__provider-grid">
             {managedProviders.map((provider) => {
+              const supportTierLabel =
+                provider.supportTier === "managed"
+                  ? copy.managedTier
+                  : provider.supportTier === "observed"
+                    ? copy.observedTier
+                    : provider.supportTier === "connected"
+                      ? copy.connectedTier
+                      : copy.catalogOnlyTier;
               const detectionLabel =
                 provider.detectionStatus === "detected"
                   ? copy.detected
-                  : provider.detectionStatus === "stale"
-                    ? copy.stale
-                    : copy.unverified;
+                  : provider.detectionStatus === "not-observed"
+                    ? copy.notObserved
+                    : provider.detectionStatus === "not-detected"
+                      ? copy.notDetected
+                      : provider.detectionStatus === "stale"
+                        ? copy.stale
+                        : copy.unverified;
               const configurationLabel =
                 provider.configurationStatus === "configured"
                   ? copy.configured
-                  : copy.providerNative;
+                  : provider.configurationStatus === "not-configured"
+                    ? copy.notConfigured
+                    : copy.providerNative;
               const exposureLabel =
                 provider.exposureStatus === "enabled"
                   ? copy.exposureEnabled
@@ -530,6 +544,7 @@ export function ResourceCenterView({
                   </div>
 
                   <div className="resource-center__profile-status">
+                    <Tag color={managementTone(provider.supportTier)}>{copy.supportTier}: {supportTierLabel}</Tag>
                     <Tag color={managementTone(provider.detectionStatus)}>{copy.detection}: {detectionLabel}</Tag>
                     <Tag color={managementTone(provider.exposureStatus)}>{copy.exposure}: {exposureLabel}</Tag>
                     <Tag color={managementTone(provider.verification.status)}>{copy.verification}: {verificationLabel}</Tag>

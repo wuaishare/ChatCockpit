@@ -8,9 +8,17 @@ import {
 import { DownstreamMcpCapabilityStore } from "../direct/downstream-mcp-snapshot.js";
 import type { DownstreamMcpCapabilitySnapshot } from "../direct/downstream-mcp-types.js";
 import type { DeviceTargetDescriptor } from "../devices/local-device.js";
+import {
+  CAPABILITY_PROVIDER_SUPPORT_CATALOG,
+  findCapabilityProviderSupportByExecutorId,
+  type CapabilityProviderSupportCatalogEntry,
+  type CapabilityProviderSupportTier
+} from "../capabilities/provider-support-catalog.js";
 
 export type CapabilityProviderManagementDetectionStatus =
   | "detected"
+  | "not-observed"
+  | "not-detected"
   | "unverified"
   | "stale";
 
@@ -22,7 +30,8 @@ export type CapabilityProviderManagementHealth =
 
 export type CapabilityProviderManagementConfigurationStatus =
   | "configured"
-  | "provider-native";
+  | "provider-native"
+  | "not-configured";
 
 export type CapabilityProviderManagementExposureStatus =
   | "enabled"
@@ -53,6 +62,8 @@ export interface CapabilityProviderManagementDescriptor {
   providerKind: string;
   protocolKind: string;
   displayName: string;
+  catalogId: string | null;
+  supportTier: CapabilityProviderSupportTier;
   executorId: string | null;
   detectionStatus: CapabilityProviderManagementDetectionStatus;
   version: string | null;
@@ -67,7 +78,7 @@ export interface CapabilityProviderManagementDescriptor {
     routerExposure: "enabled" | "disabled" | "not-applicable";
   };
   observedState: {
-    detected: boolean;
+    detected: boolean | null;
     health: CapabilityProviderManagementHealth;
     version: string | null;
     capabilities: string[];
@@ -75,7 +86,7 @@ export interface CapabilityProviderManagementDescriptor {
   verification: {
     status: CapabilityProviderManagementVerificationStatus;
     observedAt: string | null;
-    source: "downstream-mcp-probe" | "runtime-profile";
+    source: "downstream-mcp-probe" | "runtime-profile" | "provider-catalog";
   };
   publicReason: string | null;
 }
@@ -105,6 +116,8 @@ function profileManagementDescriptor(
     providerKind: profile.providerKind,
     protocolKind: profile.protocolKind,
     displayName: profile.displayName,
+    catalogId: null,
+    supportTier: "observed",
     executorId: null,
     detectionStatus: "detected",
     version: profile.executableVersion,
@@ -151,9 +164,10 @@ function downstreamManagementDescriptor(options: {
   target: DeviceTargetDescriptor;
   executor: DownstreamMcpExecutorConfig;
   store: DownstreamMcpCapabilityStore;
+  catalog?: CapabilityProviderSupportCatalogEntry;
   profile?: RuntimeProfileDescriptor;
 }): CapabilityProviderManagementDescriptor {
-  const { target, executor, store, profile } = options;
+  const { target, executor, store, catalog, profile } = options;
   const protocolKind = downstreamMcpProtocolFamily(executor);
   const snapshotState = currentSnapshot(store, executor);
   const snapshot = snapshotState.snapshot;
@@ -198,6 +212,8 @@ function downstreamManagementDescriptor(options: {
     providerKind: "downstream-mcp",
     protocolKind,
     displayName: executor.displayName,
+    catalogId: catalog?.id ?? null,
+    supportTier: "connected",
     executorId: executor.id,
     detectionStatus,
     version,
@@ -212,7 +228,7 @@ function downstreamManagementDescriptor(options: {
       routerExposure: routerEnabled ? "enabled" : "disabled"
     },
     observedState: {
-      detected: snapshot !== null,
+      detected: snapshot ? true : null,
       health,
       version,
       capabilities: [...capabilities]
@@ -223,6 +239,44 @@ function downstreamManagementDescriptor(options: {
       source: "downstream-mcp-probe"
     },
     publicReason
+  };
+}
+
+function catalogManagementDescriptor(
+  target: DeviceTargetDescriptor,
+  entry: CapabilityProviderSupportCatalogEntry
+): CapabilityProviderManagementDescriptor {
+  return {
+    id: `catalog:${entry.id}`,
+    targetId: target.id,
+    providerKind: entry.providerKind,
+    protocolKind: entry.protocolKind,
+    displayName: entry.displayName,
+    catalogId: entry.id,
+    supportTier: "catalog-only",
+    executorId: null,
+    detectionStatus: "not-observed",
+    version: null,
+    protocolVersion: null,
+    health: "unknown",
+    capabilities: [],
+    configurationStatus: "not-configured",
+    exposureStatus: "not-applicable",
+    exposedTools: [],
+    allowedLifecycleOperations: [],
+    desiredState: { routerExposure: "not-applicable" },
+    observedState: {
+      detected: null,
+      health: "unknown",
+      version: null,
+      capabilities: []
+    },
+    verification: {
+      status: "unverified",
+      observedAt: null,
+      source: "provider-catalog"
+    },
+    publicReason: "Provider integration is cataloged; local installation has not been observed"
   };
 }
 
@@ -241,6 +295,10 @@ export class CapabilityProviderManagementService {
     profiles: RuntimeProfileDescriptor[]
   ): CapabilityProviderManagementProjection {
     const records = new Map<string, CapabilityProviderManagementDescriptor>();
+    for (const entry of CAPABILITY_PROVIDER_SUPPORT_CATALOG) {
+      const descriptor = catalogManagementDescriptor(this.target, entry);
+      records.set(descriptor.id, descriptor);
+    }
     for (const profile of profiles) {
       records.set(profile.id, profileManagementDescriptor(this.target, profile));
     }
@@ -261,6 +319,10 @@ export class CapabilityProviderManagementService {
       };
     }
     for (const executor of config.executors) {
+      const catalog = findCapabilityProviderSupportByExecutorId(executor.id);
+      if (catalog) {
+        records.delete(`catalog:${catalog.id}`);
+      }
       const protocolKind = downstreamMcpProtocolFamily(executor);
       const profileId = buildRuntimeProfileId({
         providerKind: "downstream-mcp",
@@ -274,6 +336,7 @@ export class CapabilityProviderManagementService {
           target: this.target,
           executor,
           store: this.store,
+          ...(catalog ? { catalog } : {}),
           ...(profile ? { profile } : {})
         })
       );
