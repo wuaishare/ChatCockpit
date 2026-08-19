@@ -363,11 +363,12 @@ export function buildServer(
   const continuityDatabase = new ContinuityDatabase({
     path: continuityDatabasePath(paths.runtimeDir)
   });
-  const governanceDatabase = new GovernanceDatabase({
+  const governanceSchemaDatabase = new GovernanceDatabase({
     path: governanceDatabasePath(paths.runtimeDir)
   });
+  governanceSchemaDatabase.close();
   const governedExternalActions = new GovernedExternalActionRepository(
-    governanceDatabase
+    continuityDatabase
   );
   const continuityServices = buildContinuityServices(paths, continuityDatabase);
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
@@ -556,7 +557,6 @@ export function buildServer(
     runtimeEventService.detach();
     await hostProcess.close();
     await runtimeService.close();
-    governanceDatabase.close();
     continuityDatabase.close();
     oauthStore?.close();
     operatorStore.close();
