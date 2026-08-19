@@ -9,6 +9,37 @@ export interface ResourceCenterCopy {
   protectedTitle: string;
   protectedDescription: string;
   requestFailedTitle: string;
+  activityTitle: string;
+  activityDescription: string;
+  activityLive: string;
+  activityConnecting: string;
+  activityReconnecting: string;
+  activityOffline: string;
+  activityRefresh: string;
+  activityActive: string;
+  activityRunning: string;
+  activityWaitingApproval: string;
+  activityPaused: string;
+  activityTotal: string;
+  activityNoActiveTitle: string;
+  activityNoActiveDescription: string;
+  activityRecentTitle: string;
+  activityRecentDescription: string;
+  activityKindAgent: string;
+  activityKindJob: string;
+  activityScopeWorkspace: string;
+  activityScopeRepo: string;
+  activityScopeHost: string;
+  activityRuntime: string;
+  activityJob: string;
+  activityGrant: string;
+  activityTrace: string;
+  activityWorker: string;
+  activityProcesses: string;
+  activityLastEvent: string;
+  activityUpdated: string;
+  activityUnknownAuthority: string;
+  activityLoadFailed: string;
   providerManagementTitle: string;
   providerManagementDescription: string;
   noManagedProvidersTitle: string;
@@ -146,6 +177,37 @@ const zhCN: ResourceCenterCopy = {
   protectedTitle: "资源中心需要控制台管理员会话",
   protectedDescription: "当前接口受保护。请重新登录控制台管理员账户后读取 Runtime 与资源状态。",
   requestFailedTitle: "资源中心请求失败",
+  activityTitle: "运行活动",
+  activityDescription: "实时观察当前设备上正在执行、等待批准或排队的 Agent Session 与独立任务；Project/Workspace 不是 Host 级任务的前置条件。",
+  activityLive: "实时",
+  activityConnecting: "连接中",
+  activityReconnecting: "正在重连",
+  activityOffline: "未连接",
+  activityRefresh: "刷新",
+  activityActive: "活跃",
+  activityRunning: "运行中",
+  activityWaitingApproval: "等待批准",
+  activityPaused: "已暂停",
+  activityTotal: "全部",
+  activityNoActiveTitle: "当前没有活跃任务",
+  activityNoActiveDescription: "新的 Agent Session 或 Host 任务开始后会自动出现在这里，无需手动刷新。",
+  activityRecentTitle: "最近活动",
+  activityRecentDescription: "仅保留最近完成、失败或终止的条目，避免历史任务淹没当前运行态。",
+  activityKindAgent: "Agent Session",
+  activityKindJob: "独立任务",
+  activityScopeWorkspace: "Workspace",
+  activityScopeRepo: "Repository",
+  activityScopeHost: "Host",
+  activityRuntime: "Runtime",
+  activityJob: "任务",
+  activityGrant: "授权关系",
+  activityTrace: "Trace",
+  activityWorker: "Worker",
+  activityProcesses: "受管进程",
+  activityLastEvent: "最近事件",
+  activityUpdated: "更新",
+  activityUnknownAuthority: "未绑定授权",
+  activityLoadFailed: "运行活动暂时无法读取。Provider 与资源清单仍可继续使用。",
   providerManagementTitle: "Provider 管理",
   providerManagementDescription: "统一的 Provider 管理视图：检测、版本、健康、配置来源、Chat 暴露与 Provider-native verification 都从同一 public-safe 合同读取。",
   noManagedProvidersTitle: "暂无可管理 Provider",
@@ -283,6 +345,37 @@ const enUS: ResourceCenterCopy = {
   protectedTitle: "Resource Center requires a Web Owner session",
   protectedDescription: "This API is protected. Sign in with the Web Owner account before reading Runtime and resource state.",
   requestFailedTitle: "Resource Center request failed",
+  activityTitle: "Operational Activity",
+  activityDescription: "Observe Agent Sessions and standalone work that are running, waiting for approval, or queued on this device. Project and Workspace context is optional for host-scoped work.",
+  activityLive: "Live",
+  activityConnecting: "Connecting",
+  activityReconnecting: "Reconnecting",
+  activityOffline: "Offline",
+  activityRefresh: "Refresh",
+  activityActive: "Active",
+  activityRunning: "Running",
+  activityWaitingApproval: "Waiting approval",
+  activityPaused: "Paused",
+  activityTotal: "Total",
+  activityNoActiveTitle: "No active work right now",
+  activityNoActiveDescription: "New Agent Sessions and host-scoped jobs appear here automatically without a manual refresh.",
+  activityRecentTitle: "Recent activity",
+  activityRecentDescription: "Only the latest terminal items are kept visible so historical work does not obscure current execution.",
+  activityKindAgent: "Agent Session",
+  activityKindJob: "Standalone job",
+  activityScopeWorkspace: "Workspace",
+  activityScopeRepo: "Repository",
+  activityScopeHost: "Host",
+  activityRuntime: "Runtime",
+  activityJob: "Job",
+  activityGrant: "Authorization grant",
+  activityTrace: "Trace",
+  activityWorker: "Worker",
+  activityProcesses: "Managed processes",
+  activityLastEvent: "Latest event",
+  activityUpdated: "Updated",
+  activityUnknownAuthority: "No grant bound",
+  activityLoadFailed: "Operational Activity is temporarily unavailable. Provider and inventory management remain usable.",
   providerManagementTitle: "Provider Management",
   providerManagementDescription: "The Provider Management view projects detection, version, health, configuration source, Chat exposure, and provider-native verification through one public-safe contract.",
   noManagedProvidersTitle: "No managed providers",

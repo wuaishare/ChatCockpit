@@ -1096,6 +1096,84 @@ export interface RuntimeResourceMutationExecution {
   finishedAt: string | null;
 }
 
+export type OperationalActivityKind = "agent-session" | "job";
+export type OperationalActivityScope = "workspace" | "repo" | "host";
+export type OperationalActivityStatus =
+  | "queued"
+  | "idle"
+  | "running"
+  | "waiting-approval"
+  | "paused"
+  | "handoff-ready"
+  | "completed"
+  | "failed"
+  | "interrupted"
+  | "terminated"
+  | "stale";
+
+export interface OperationalActivityRuntimeProjection {
+  bindingId: string;
+  runtimeKind: "codex-app-server" | "async-runner";
+  bindingStatus: "active" | "superseded" | "released" | "stale";
+  externalSessionId: string | null;
+  externalRunId: string | null;
+  externalThreadId: string | null;
+  runId: string | null;
+  turnId: string | null;
+  runStatus:
+    | "starting"
+    | "running"
+    | "waiting-approval"
+    | "completed"
+    | "failed"
+    | "interrupted"
+    | "stale"
+    | null;
+}
+
+export interface OperationalActivityProjection {
+  id: string;
+  kind: OperationalActivityKind;
+  scope: OperationalActivityScope;
+  status: OperationalActivityStatus;
+  title: string;
+  targetDeviceId: "local-device";
+  projectId: string | null;
+  workspaceId: string | null;
+  taskId: string | null;
+  repoId: string | null;
+  agentSessionId: string | null;
+  authorizationGrantId: string | null;
+  traceId: string | null;
+  workerInstanceId: string | null;
+  runtime: OperationalActivityRuntimeProjection | null;
+  job: {
+    id: string;
+    type: "pack" | "taskpack" | "codex-run";
+    status: "queued" | "running" | "completed" | "failed";
+    processState: "running" | "paused" | "terminated" | "completed" | "failed" | null;
+    processLabel: string | null;
+  } | null;
+  directProcessSummary: { total: number; active: number; running: number };
+  latestEvent: { sequence: number; method: string; category: string; createdAt: string } | null;
+  controls: { pause: boolean; resume: boolean; terminate: boolean; interrupt: boolean; hold: false };
+  startedAt: string;
+  updatedAt: string;
+  endedAt: string | null;
+}
+
+export interface OperationalActivityListResponse {
+  ok: true;
+  activities: OperationalActivityProjection[];
+  counts: {
+    total: number;
+    active: number;
+    running: number;
+    waitingApproval: number;
+    paused: number;
+  };
+}
+
 export interface DeviceTargetDescriptor {
   id: "local-device";
   kind: "device";
