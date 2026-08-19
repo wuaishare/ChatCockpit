@@ -41,8 +41,8 @@ const actor = {
 try {
   assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 19);
   assert.equal(continuityDatabase.schemaVersion(), 19);
-  assert.equal(LATEST_GOVERNANCE_SCHEMA_VERSION, 1);
-  assert.equal(database.schemaVersion(), 1);
+  assert.equal(LATEST_GOVERNANCE_SCHEMA_VERSION, 2);
+  assert.equal(database.schemaVersion(), 2);
   const continuityTables = continuityDatabase.sqlite
     .prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'governed_external_action_%'"
@@ -58,6 +58,14 @@ try {
     .all() as Array<{ name: string }>;
   assert.equal(columns.some((column) => column.name === "arguments_json"), false);
   assert.equal(columns.some((column) => column.name === "arguments_hash"), true);
+  const provenanceTable = database.sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operational_activity_provenance'")
+    .get() as { name: string } | undefined;
+  assert.equal(provenanceTable?.name, "operational_activity_provenance");
+  const governanceVersions = database.sqlite
+    .prepare("SELECT version FROM governance_schema_migrations ORDER BY version ASC")
+    .all() as Array<{ version: number }>;
+  assert.deepEqual(governanceVersions.map((entry) => Number(entry.version)), [1, 2]);
 
   const pending = repository.createApproval({
     id: "external_action_approval_fixture",
@@ -209,6 +217,39 @@ try {
   database.close();
   continuityDatabase.close();
   fs.rmSync(root, { recursive: true, force: true });
+}
+
+const upgradePath = path.join(root, "governance-v1-upgrade.sqlite");
+const upgradeContinuity = new ContinuityDatabase({ path: upgradePath });
+let upgradeGovernance = new GovernanceDatabase({ path: upgradePath });
+try {
+  const upgradeRepository = new GovernedExternalActionRepository(upgradeContinuity);
+  upgradeRepository.createApproval({
+    id: "external_action_v1_preserved",
+    targetId: "local-device",
+    providerId: "downstream-mcp:upgrade-fixture",
+    toolName: "write_file",
+    argumentsHash: "1".repeat(64),
+    publicSummary: { providerDisplayName: "Upgrade Fixture" },
+    expiresAt: "2026-08-19T04:05:00.000Z",
+    now: "2026-08-19T04:00:00.000Z"
+  });
+  upgradeGovernance.sqlite.exec("DROP TABLE operational_activity_provenance");
+  upgradeGovernance.sqlite
+    .prepare("DELETE FROM governance_schema_migrations WHERE version = 2")
+    .run();
+  assert.equal(upgradeGovernance.schemaVersion(), 1);
+  upgradeGovernance.close();
+  upgradeGovernance = new GovernanceDatabase({ path: upgradePath });
+  assert.equal(upgradeGovernance.schemaVersion(), 2);
+  assert.equal(upgradeRepository.getApproval("external_action_v1_preserved").providerId, "downstream-mcp:upgrade-fixture");
+  const upgradedTable = upgradeGovernance.sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operational_activity_provenance'")
+    .get() as { name: string } | undefined;
+  assert.equal(upgradedTable?.name, "operational_activity_provenance");
+} finally {
+  upgradeGovernance.close();
+  upgradeContinuity.close();
 }
 
 process.stdout.write("VERIFY_GOVERNED_EXTERNAL_ACTION_LEDGER_OK\n");

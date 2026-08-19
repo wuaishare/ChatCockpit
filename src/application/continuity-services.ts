@@ -4,6 +4,7 @@ import {
   buildContinuityRepositories,
   type ContinuityRepositories
 } from "../continuity/repositories/index.js";
+import type { ActivityProvenanceRecorder } from "./activity-provenance-port.js";
 import { AsyncJobService } from "./async-job-service.js";
 import { DevelopmentDocumentService } from "./development-document-service.js";
 import { EvidenceService } from "./evidence-service.js";
@@ -34,7 +35,8 @@ export interface ContinuityServices {
 
 export function buildContinuityServices(
   paths: TokenPilotPaths,
-  database: ContinuityDatabase
+  database: ContinuityDatabase,
+  options: { activityProvenance?: ActivityProvenanceRecorder } = {}
 ): ContinuityServices {
   const identity = productIdentityForKey(paths.productIdentity);
   const repositories = buildContinuityRepositories(database, {
@@ -43,7 +45,9 @@ export function buildContinuityServices(
   const taskExecutionPolicy = new TaskExecutionPolicyService(repositories);
   return {
     repositories,
-    asyncJobs: new AsyncJobService(paths, repositories, taskExecutionPolicy),
+    asyncJobs: new AsyncJobService(
+      paths, repositories, taskExecutionPolicy, options.activityProvenance
+    ),
     developmentDocuments: new DevelopmentDocumentService(repositories),
     projects: new ProjectService(paths, database, repositories),
     workspaces: new WorkspaceContinuityService(
@@ -54,7 +58,9 @@ export function buildContinuityServices(
     tasks: new TaskService(repositories),
     taskCompletion: new TaskCompletionService(repositories),
     taskExecutionPolicy,
-    sessions: new SessionService(repositories, taskExecutionPolicy),
+    sessions: new SessionService(
+      repositories, taskExecutionPolicy, options.activityProvenance
+    ),
     leases: new LeaseService(repositories),
     handoffs: new HandoffService(repositories),
     evidence: new EvidenceService(repositories)

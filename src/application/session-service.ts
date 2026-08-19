@@ -4,6 +4,7 @@ import type {
   DevelopmentSessionRecord,
   TaskRecord
 } from "../continuity/types.js";
+import type { ActivityProvenanceRecorder } from "./activity-provenance-port.js";
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
 import {
@@ -23,12 +24,13 @@ export class SessionService {
 
   constructor(
     private readonly repositories: ContinuityRepositories,
-    executionPolicy?: TaskExecutionPolicyService
+    executionPolicy?: TaskExecutionPolicyService,
+    private readonly activityProvenance?: ActivityProvenanceRecorder
   ) {
     this.executionPolicy = executionPolicy ?? new TaskExecutionPolicyService(repositories);
   }
 
-  start(_context: OperationContext, input: SessionStartInput): SessionStartResult {
+  start(context: OperationContext, input: SessionStartInput): SessionStartResult {
     const { idempotencyKey, expectedTaskRevision, ...payload } = input;
     const execution = this.repositories.idempotency.execute(
       "session.start",
@@ -57,6 +59,10 @@ export class SessionService {
           title: payload.title,
           mode: payload.mode,
           status: "running"
+        });
+        this.activityProvenance?.recordFromContext(context, {
+          activityId: session.id,
+          activityKind: "agent-session"
         });
         let updatedTask = this.repositories.tasks.bindSession(
           task.id,

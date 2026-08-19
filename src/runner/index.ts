@@ -8,6 +8,7 @@ import { completeJob, claimNextQueuedJob, failJob, listJobs } from "../core/jobs
 import { runCodexRunJob } from "../core/codex-run.js";
 import { getTrackedJobProcess } from "../core/job-processes.js";
 import { productIdentityForKey } from "../core/product-identity.js";
+import { OperationalActivityProvenanceRepository } from "../governance/operational-activity-provenance-repository.js";
 import { LEGACY_DEFAULT_REPO_ID } from "../core/user-config-schema.js";
 import { runPackForRepo } from "../core/pack.js";
 import { createTaskPack } from "../core/taskpack.js";
@@ -144,7 +145,9 @@ function reconcilePersistedTerminalJobs(
 
 async function runNextJob(
   paths: TokenPilotPaths,
-  reconciliation: AsyncJobReconciliationService
+  reconciliation: AsyncJobReconciliationService,
+  activityProvenance: OperationalActivityProvenanceRepository,
+  workerInstanceId: string
 ): Promise<boolean> {
   const identity = productIdentityForKey(paths.productIdentity);
   const startedAt = new Date().toISOString();
@@ -158,6 +161,13 @@ async function runNextJob(
   }
 
   markRunnerClaimed(paths, job.id, job.type);
+  if (activityProvenance.get(job.id)) {
+    activityProvenance.assignWorker(
+      job.id,
+      workerInstanceId,
+      new Date().toISOString()
+    );
+  }
   try {
     reconciliation.claim(
       buildRunnerOperationContext(paths, job.id, job.updatedAt),
@@ -257,7 +267,7 @@ export async function runRunner(
 ): Promise<void> {
   const identity = productIdentityForKey(paths.productIdentity);
   const intervalSeconds = options.intervalSeconds ?? 3;
-  markRunnerStarted(paths, options.watch ? "watch" : "once");
+  const runnerStatus = markRunnerStarted(paths, options.watch ? "watch" : "once");
   const continuityDatabase = new ContinuityDatabase({
     path: continuityDatabasePath(paths.runtimeDir)
   });
@@ -266,10 +276,16 @@ export async function runRunner(
       asyncRunnerRuntimeKind: productIdentityForKey(paths.productIdentity).asyncRunnerRuntimeKind
     })
   );
+  const activityProvenance = new OperationalActivityProvenanceRepository(continuityDatabase);
 
   if (!options.watch) {
     try {
-      const didProcessJob = await runNextJob(paths, reconciliation);
+      const didProcessJob = await runNextJob(
+        paths,
+        reconciliation,
+        activityProvenance,
+        runnerStatus.workerInstanceId
+      );
       markRunnerHeartbeat(paths);
       if (!didProcessJob) {
         process.stdout.write(
@@ -315,7 +331,12 @@ export async function runRunner(
   try {
     while (!stopRequested) {
       markRunnerHeartbeat(paths);
-      const didProcessJob = await runNextJob(paths, reconciliation);
+      const didProcessJob = await runNextJob(
+        paths,
+        reconciliation,
+        activityProvenance,
+        runnerStatus.workerInstanceId
+      );
 
       if (didProcessJob) {
         isIdle = false;

@@ -17,6 +17,7 @@ import type {
   JobStatus,
   TokenPilotPaths
 } from "../types.js";
+import type { ActivityProvenanceRecorder } from "./activity-provenance-port.js";
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
 import {
@@ -96,7 +97,8 @@ export class AsyncJobService {
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly repositories: ContinuityRepositories,
-    executionPolicy?: TaskExecutionPolicyService
+    executionPolicy?: TaskExecutionPolicyService,
+    private readonly activityProvenance?: ActivityProvenanceRecorder
   ) {
     this.executionPolicy = executionPolicy ?? new TaskExecutionPolicyService(repositories);
   }
@@ -217,6 +219,11 @@ export class AsyncJobService {
           };
           const job = createJob(this.paths, "codex-run", payload);
           createdJobId = job.id;
+
+          this.activityProvenance?.recordFromContext(context, {
+            activityId: job.id,
+            activityKind: "job"
+          });
 
           const binding = this.repositories.runtimeBindings.replaceActiveRunner({
             id: bindingId,

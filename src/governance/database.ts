@@ -119,7 +119,46 @@ const initialGovernanceMigration: GovernanceMigration = {
   }
 };
 
-const migrations: readonly GovernanceMigration[] = [initialGovernanceMigration];
+const operationalActivityProvenanceMigration: GovernanceMigration = {
+  version: 2,
+  name: "operational-activity-provenance",
+  up(database) {
+    database.exec(`
+      CREATE TABLE operational_activity_provenance (
+        activity_id TEXT PRIMARY KEY CHECK (length(activity_id) > 0),
+        activity_kind TEXT NOT NULL CHECK (activity_kind IN ('agent-session', 'job')),
+        authorization_grant_id TEXT,
+        actor_type TEXT NOT NULL CHECK (
+          actor_type IN ('local-cli', 'local-ui', 'rest-api', 'gpt-actions', 'remote-mcp', 'runner')
+        ),
+        actor_identity_hash TEXT CHECK (
+          actor_identity_hash IS NULL OR (
+            length(actor_identity_hash) = 64
+            AND actor_identity_hash NOT GLOB '*[^0-9a-f]*'
+          )
+        ),
+        request_identity_hash TEXT NOT NULL CHECK (
+          length(request_identity_hash) = 64
+          AND request_identity_hash NOT GLOB '*[^0-9a-f]*'
+        ),
+        trace_id TEXT NOT NULL CHECK (length(trace_id) > 8),
+        worker_instance_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+
+      CREATE INDEX operational_activity_provenance_grant_index
+        ON operational_activity_provenance(authorization_grant_id, updated_at DESC);
+      CREATE INDEX operational_activity_provenance_trace_index
+        ON operational_activity_provenance(trace_id);
+    `);
+  }
+};
+
+const migrations: readonly GovernanceMigration[] = [
+  initialGovernanceMigration,
+  operationalActivityProvenanceMigration
+];
 export const LATEST_GOVERNANCE_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;
 

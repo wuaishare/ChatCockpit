@@ -159,6 +159,8 @@ async function main(): Promise<void> {
       { method: "GET", url: "/api/gpt/config" },
       { method: "GET", url: "/api/integrations/status" },
       { method: "GET", url: "/api/jobs" },
+      { method: "GET", url: "/api/activities" },
+      { method: "GET", url: "/api/activities/stream" },
       { method: "GET", url: "/api/jobs/test-job/artifacts" },
       { method: "POST", url: "/api/files/read", payload: {} },
       { method: "GET", url: "/api/host/roots" },

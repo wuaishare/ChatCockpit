@@ -54,6 +54,7 @@ import {
   governanceDatabasePath
 } from "../governance/database.js";
 import { GovernedExternalActionRepository } from "../governance/governed-external-action-repository.js";
+import { OperationalActivityProvenanceRepository } from "../governance/operational-activity-provenance-repository.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildIntegrationStatusSnapshot } from "../core/integration-status.js";
 import {
@@ -85,7 +86,7 @@ import { buildDistributionContextFromPaths } from "../core/distribution-context.
 import { buildSetupStatus } from "../core/setup-status.js";
 import { loadAccessPolicy } from "../security/access-policy.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
-import { createJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
+import { createJob, deleteJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
 import {
   ContinuityDatabase,
   continuityDatabasePath
@@ -279,6 +280,8 @@ export interface BuildServerOptions {
   publicRouteCutoverIntentStore?: PublicRouteCutoverIntentStore;
   publicRouteBootstrapProofStore?: PublicRouteBootstrapProofStore;
   publicRouteBootstrapVerifier?: PublicRouteBootstrapVerifier;
+  activityStreamPollIntervalMs?: number;
+  activityStreamHeartbeatIntervalMs?: number;
 }
 
 export function buildServer(
@@ -378,10 +381,16 @@ export function buildServer(
   const governedExternalActions = new GovernedExternalActionRepository(
     continuityDatabase
   );
-  const continuityServices = buildContinuityServices(paths, continuityDatabase);
+  const operationalActivityProvenance = new OperationalActivityProvenanceRepository(
+    continuityDatabase
+  );
+  const continuityServices = buildContinuityServices(paths, continuityDatabase, {
+    activityProvenance: operationalActivityProvenance
+  });
   const operationalActivityService = new OperationalActivityService(
     paths,
-    continuityServices.repositories
+    continuityServices.repositories,
+    operationalActivityProvenance
   );
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
     paths.runtimeDir
@@ -517,7 +526,8 @@ export function buildServer(
     });
   const governanceLedger = buildGovernanceLedger(
     continuityServices.repositories,
-    governedExternalActions
+    governedExternalActions,
+    operationalActivityProvenance
   );
   const capabilityRouterMutations = new CapabilityRouterMutationService(
     paths.runtimeDir,
@@ -654,7 +664,10 @@ export function buildServer(
   );
   registerMcpHttpRoutes(app, mcpHandler);
   registerContinuityRoutes(app, continuityServices);
-  registerOperationalActivityRoutes(app, operationalActivityService);
+  registerOperationalActivityRoutes(app, operationalActivityService, {
+    pollIntervalMs: options.activityStreamPollIntervalMs,
+    heartbeatIntervalMs: options.activityStreamHeartbeatIntervalMs
+  });
   registerRuntimeRoutes(
     app,
     runtimeService,
@@ -963,6 +976,15 @@ export function buildServer(
     }
 
     const job = createJob(paths, "pack", parsed.data);
+    try {
+      operationalActivityProvenance.recordFromContext(
+        operationContextFromRequest(request),
+        { activityId: job.id, activityKind: "job" }
+      );
+    } catch (error) {
+      deleteJob(paths, job.id);
+      throw error;
+    }
     return {
       ok: true,
       job: sanitizeForApi(job, paths.repoRoot)
@@ -977,6 +999,15 @@ export function buildServer(
     }
 
     const job = createJob(paths, "taskpack", parsed.data as TaskPackInput);
+    try {
+      operationalActivityProvenance.recordFromContext(
+        operationContextFromRequest(request),
+        { activityId: job.id, activityKind: "job" }
+      );
+    } catch (error) {
+      deleteJob(paths, job.id);
+      throw error;
+    }
     return {
       ok: true,
       job: sanitizeForApi(job, paths.repoRoot)
@@ -991,6 +1022,15 @@ export function buildServer(
     }
 
     const job = createJob(paths, "codex-run", parsed.data as CodexRunJobPayload);
+    try {
+      operationalActivityProvenance.recordFromContext(
+        operationContextFromRequest(request),
+        { activityId: job.id, activityKind: "job" }
+      );
+    } catch (error) {
+      deleteJob(paths, job.id);
+      throw error;
+    }
     return {
       ok: true,
       job: sanitizeForApi(job, paths.repoRoot)

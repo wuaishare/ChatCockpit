@@ -32,7 +32,7 @@ ChatGPT / Desktop / Web / CLI / API
 
 ChatCockpit 负责稳定公共 Capability Surface、Policy/Authority Boundary、Public-safe Projection 与跨 Provider 的管理语义；真实 Runtime、MCP、CLI 与应用仍对自己实现的能力保持 Provider-native Authority。
 
-Provider-native Tool Name 只是 Catalog 数据，不会动态注册成 ChatGPT Tool。Read 与受治理 Mutation 都会在调用前重新验证下游 Metadata；重要 Provider Mutation 必须由本地 Operator Decide，Remote MCP 不能自我批准。OAuth Client Registration 与 Owner 批准的 Authorization 是不同身份：每次批准都会生成独立、持久的 Authorization Grant，Authorization Code 与 Access/Refresh Token 继承该 Grant，完成验证的 MCP 请求使用 Grant 作为 Remote Actor Identity。旧 OAuth 记录会确定性迁移到 Legacy Grant，不改写已有 Token Hash。Owner-only Operational Activity Read Model 会统一投影有项目的 Development Session 与独立 Job；Project/Workspace/Task Context 明确允许为空，因此 Host Scope 工作不需要伪造 Workspace 也能进入观测面。
+Provider-native Tool Name 只是 Catalog 数据，不会动态注册成 ChatGPT Tool。Read 与受治理 Mutation 都会在调用前重新验证下游 Metadata；重要 Provider Mutation 必须由本地 Operator Decide，Remote MCP 不能自我批准。OAuth Client Registration 与 Owner 批准的 Authorization 是不同身份：每次批准都会生成独立、持久的 Authorization Grant，Authorization Code 与 Access/Refresh Token 继承该 Grant，完成验证的 MCP 请求使用 Grant 作为 Remote Actor Identity。旧 OAuth 记录会确定性迁移到 Legacy Grant，不改写已有 Token Hash。Owner-only Operational Activity Read Model 会统一投影有项目的 Development Session 与独立 Job；Project/Workspace/Task Context 明确允许为空，因此 Host Scope 工作不需要伪造 Workspace 也能进入观测面。Activity Provenance 持久化在 Governance 逻辑 Schema 中：存在 OAuth Authorization Grant 时绑定对应 Grant，同时记录不透明 Trace ID 与可选 Worker Instance，且不保存原始 Request ID。Owner-only SSE 只在 public-safe Activity Snapshot 变化时推送 `activity.snapshot`，另发 Heartbeat 保活；不会流式暴露原始命令、日志、私有路径、Job Instructions 或 Provider Payload。
 
 Development Continuity 仍然是已经实现的重要解决方案层。Chat Direct、Codex Session、Async Agent Job、Task、Handoff、Evidence、Recovery 与 Writer Lease 合同继续有效，但不再承担顶层产品类别。
 
