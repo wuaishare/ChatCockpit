@@ -1,7 +1,14 @@
-import { Tag } from "antd";
+import { useEffect, useState } from "react";
+import { Button, Popconfirm, Spin, Tag } from "antd";
 import { CopyButton, Text } from "@lobehub/ui";
 import { ClipboardCopy } from "lucide-react";
-import type { GptConfigModel, IntegrationStatusResponse } from "../types";
+import { fetchOAuthAuthorizationGrants, revokeOAuthAuthorizationGrant } from "../api";
+import type {
+  GptConfigModel,
+  IntegrationStatusResponse,
+  OAuthAuthorizationGrantStatus,
+  OAuthAuthorizationGrantSummary
+} from "../types";
 import type { LocaleCode } from "../i18n";
 import { getIntegrationsCopy } from "../i18n/integrations";
 import { SectionCard } from "./SectionCard";
@@ -11,13 +18,15 @@ interface IntegrationsViewProps {
   status: IntegrationStatusResponse;
   config: GptConfigModel | null;
   configError: string | null;
+  onRefresh?: () => Promise<void> | void;
 }
 
 export function IntegrationsView({
   locale,
   status,
   config,
-  configError
+  configError,
+  onRefresh
 }: IntegrationsViewProps) {
   const copy = getIntegrationsCopy(locale);
   const oauthLabel = status.mcp.oauthStatus === "ready"
@@ -32,6 +41,65 @@ export function IntegrationsView({
       : "warning";
   const compatibilityInstructions = config?.instructions ?? "";
   const schemaImportUrl = config?.schemaImportUrl ?? status.openapiUrl;
+  const [grants, setGrants] = useState<OAuthAuthorizationGrantSummary[]>([]);
+  const [grantsEnabled, setGrantsEnabled] = useState(true);
+  const [grantsLoading, setGrantsLoading] = useState(true);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
+
+  const loadGrants = async () => {
+    setGrantsLoading(true);
+    setGrantError(null);
+    try {
+      const response = await fetchOAuthAuthorizationGrants();
+      setGrantsEnabled(response.enabled);
+      setGrants(response.grants);
+    } catch (error) {
+      setGrantError(
+        typeof error === "object" && error && "message" in error && typeof error.message === "string"
+          ? error.message
+          : copy.grantLoadFailed
+      );
+    } finally {
+      setGrantsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadGrants();
+  }, []);
+
+  const revokeGrant = async (grantId: string) => {
+    if (revokingGrantId) return;
+    setRevokingGrantId(grantId);
+    setGrantError(null);
+    try {
+      const updated = await revokeOAuthAuthorizationGrant(grantId);
+      setGrants((current) => current.map((grant) => grant.id === updated.id ? updated : grant));
+      await onRefresh?.();
+    } catch (error) {
+      setGrantError(
+        typeof error === "object" && error && "message" in error && typeof error.message === "string"
+          ? error.message
+          : copy.grantRevokeFailed
+      );
+    } finally {
+      setRevokingGrantId(null);
+    }
+  };
+
+  const grantStatus = (value: OAuthAuthorizationGrantStatus) => {
+    switch (value) {
+      case "active": return { label: copy.grantStatusActive, color: "success" };
+      case "pending": return { label: copy.grantStatusPending, color: "processing" };
+      case "revoked": return { label: copy.grantStatusRevoked, color: "default" };
+      default: return { label: copy.grantStatusInactive, color: "warning" };
+    }
+  };
+
+  const formatTime = (value: string | null) => value
+    ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "medium" }).format(new Date(value))
+    : "—";
 
   return (
     <div className="view-stack">
@@ -78,6 +146,62 @@ export function IntegrationsView({
           <strong>{copy.reconnectGuidance}</strong>
           <span>{status.mcp.oauthReady ? copy.reconnectReady : copy.reconnectNeedsAttention}</span>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title={copy.authorizationGrantsTitle}
+        description={copy.authorizationGrantsDescription}
+        extra={<Tag>{grants.length}</Tag>}
+      >
+        {grantError ? <div className="section-note section-note--warning">{grantError}</div> : null}
+        {grantsLoading ? (
+          <div className="oauth-grants__loading"><Spin size="small" /> <span>{copy.loadingTitle}</span></div>
+        ) : !grantsEnabled || grants.length === 0 ? (
+          <div className="notes-block">{copy.authorizationGrantsEmpty}</div>
+        ) : (
+          <div className="oauth-grants">
+            {grants.map((grant) => {
+              const meta = grantStatus(grant.status);
+              return (
+                <div className="oauth-grant-card" key={grant.id}>
+                  <div className="oauth-grant-card__header">
+                    <div className="oauth-grant-card__title">
+                      <strong>{grant.displayLabel}</strong>
+                      <Tag color={meta.color}>{meta.label}</Tag>
+                      {grant.legacy ? <Tag>{copy.grantLegacy}</Tag> : null}
+                    </div>
+                    <Popconfirm
+                      title={copy.revokeGrantTitle}
+                      description={copy.revokeGrantDescription}
+                      okText={copy.revokeGrantConfirm}
+                      cancelText={copy.revokeGrantCancel}
+                      okButtonProps={{ danger: true }}
+                      disabled={grant.status === "revoked"}
+                      onConfirm={() => revokeGrant(grant.id)}
+                    >
+                      <Button
+                        danger
+                        size="small"
+                        disabled={grant.status === "revoked"}
+                        loading={revokingGrantId === grant.id}
+                      >
+                        {copy.revokeGrant}
+                      </Button>
+                    </Popconfirm>
+                  </div>
+                  <div className="oauth-grant-card__facts">
+                    <div><span>{copy.grantId}</span><code>{grant.id}</code></div>
+                    <div><span>{copy.grantClient}</span><code>{grant.clientRegistrationId}</code></div>
+                    <div><span>{copy.grantScope}</span><code>{grant.scope}</code></div>
+                    <div><span>{copy.grantCreatedAt}</span><strong>{formatTime(grant.createdAt)}</strong></div>
+                    <div><span>{copy.grantLastTokenIssuedAt}</span><strong>{formatTime(grant.lastTokenIssuedAt)}</strong></div>
+                    <div><span>{copy.grantActiveTokens}</span><strong>{grant.activeAccessTokenCount} / {grant.activeRefreshTokenCount}</strong></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard

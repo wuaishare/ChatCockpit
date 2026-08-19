@@ -189,6 +189,13 @@ export interface OAuthIntegrationSummary {
   activeRefreshTokenCount: number;
 }
 
+export interface OAuthAuthorizationGrantSummary extends OAuthAuthorizationGrantRecord {
+  activeAuthorizationCodeCount: number;
+  activeAccessTokenCount: number;
+  activeRefreshTokenCount: number;
+  lastTokenIssuedAt: string | null;
+}
+
 export class OAuthStore {
   readonly sqlite: DatabaseSync;
   readonly path: string;
@@ -346,6 +353,37 @@ export class OAuthStore {
         ORDER BY created_at DESC, grant_id ASC
       `)
       .all() as unknown as OAuthAuthorizationGrantRow[]).map(mapAuthorizationGrant);
+  }
+
+  listAuthorizationGrantSummaries(now: string): OAuthAuthorizationGrantSummary[] {
+    return this.listAuthorizationGrants().map((grant) => {
+      const activeAuthorizationCodeCount = Number((this.sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM oauth_authorization_codes
+        WHERE grant_id = ? AND consumed_at IS NULL AND expires_at > ?
+      `).get(grant.grantId, now) as { count: number | bigint }).count);
+      const activeAccessTokenCount = Number((this.sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM oauth_access_tokens
+        WHERE grant_id = ? AND revoked_at IS NULL AND expires_at > ?
+      `).get(grant.grantId, now) as { count: number | bigint }).count);
+      const activeRefreshTokenCount = Number((this.sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM oauth_refresh_tokens
+        WHERE grant_id = ? AND revoked_at IS NULL AND expires_at > ?
+      `).get(grant.grantId, now) as { count: number | bigint }).count);
+      const lastTokenIssuedAt = (this.sqlite.prepare(`
+        SELECT MAX(issued_at) AS issued_at FROM (
+          SELECT issued_at FROM oauth_access_tokens WHERE grant_id = ?
+          UNION ALL
+          SELECT issued_at FROM oauth_refresh_tokens WHERE grant_id = ?
+        )
+      `).get(grant.grantId, grant.grantId) as { issued_at: string | null }).issued_at;
+      return {
+        ...grant,
+        activeAuthorizationCodeCount,
+        activeAccessTokenCount,
+        activeRefreshTokenCount,
+        lastTokenIssuedAt
+      };
+    });
   }
 
   revokeAuthorizationGrant(grantId: string, revokedAt: string): boolean {

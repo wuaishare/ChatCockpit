@@ -137,6 +137,7 @@ import { registerContinuityRoutes } from "./continuity-routes.js";
 import { registerCapabilityRouterMutationRoutes } from "./capability-router-mutation-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
+import { registerOAuthGrantManagementRoutes } from "./oauth-grant-management-routes.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
 import { registerRecoveryRoutes } from "./recovery-routes.js";
 import { isResourceMutationExposureEnabled } from "./runtime-resource-mutation-policy.js";
@@ -1418,6 +1419,7 @@ export function buildServer(
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
+  registerOAuthGrantManagementRoutes(app, oauthStore);
   app.get("/api/connectivity/providers", connectivityProviderStatusHandler);
   app.get("/api/connectivity/routes", publicRouteCandidateStatusHandler);
   app.post("/api/connectivity/routes/candidate", stagePublicRouteCandidateHandler);

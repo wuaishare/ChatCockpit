@@ -3794,3 +3794,70 @@ button.continuity-workspace.is-selected {
   font-family: var(--tp-font-mono);
   font-size: 13px;
 }
+
+.oauth-grants {
+  display: grid;
+  gap: 12px;
+}
+
+.oauth-grants__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  color: var(--tp-text-muted);
+}
+
+.oauth-grant-card {
+  border: 1px solid var(--tp-line);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--tp-surface-soft);
+}
+
+.oauth-grant-card__header,
+.oauth-grant-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oauth-grant-card__header {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.oauth-grant-card__title {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.oauth-grant-card__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 18px;
+}
+
+.oauth-grant-card__facts > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.oauth-grant-card__facts span {
+  color: var(--tp-text-muted);
+  font-size: 12px;
+}
+
+.oauth-grant-card__facts strong,
+.oauth-grant-card__facts code {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .oauth-grant-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

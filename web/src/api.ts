@@ -31,6 +31,8 @@ import type {
   GptConfigResponse,
   HealthResponse,
   IntegrationStatusResponse,
+  OAuthAuthorizationGrantsResponse,
+  OAuthAuthorizationGrantSummary,
   JobControlResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
@@ -425,6 +427,20 @@ export async function fetchIntegrationStatus(
   token?: string | null
 ): Promise<IntegrationStatusResponse> {
   return requestJson<IntegrationStatusResponse>("/api/integrations/status", token);
+}
+
+export async function fetchOAuthAuthorizationGrants(): Promise<OAuthAuthorizationGrantsResponse> {
+  return requestJson<OAuthAuthorizationGrantsResponse>("/api/integrations/oauth/grants");
+}
+
+export async function revokeOAuthAuthorizationGrant(
+  grantId: string
+): Promise<OAuthAuthorizationGrantSummary> {
+  const result = await postBodyJson<{ ok: true; grant: OAuthAuthorizationGrantSummary }>(
+    `/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/revoke`,
+    {}
+  );
+  return result.grant;
 }
 
 export async function fetchConnectivityProviders(
