@@ -205,6 +205,9 @@ async function runMcpSmoke(): Promise<void> {
       tools.map((tool) => tool.name.replace(/^chatcockpit\./, "")).sort(),
       [
         "asyncJob.queue",
+        "capabilities.inspect",
+        "capabilities.list",
+        "capabilities.read.invoke",
         "direct.executors.list",
         "document.appendVersion",
         "document.create",
@@ -294,6 +297,9 @@ async function runMcpSmoke(): Promise<void> {
       assert.equal(toolByName.has(rawDownstreamName), false);
     }
     for (const name of [
+      "chatcockpit.capabilities.inspect",
+      "chatcockpit.capabilities.list",
+      "chatcockpit.capabilities.read.invoke",
       "chatcockpit.direct.executors.list",
       "chatcockpit.document.get",
       "chatcockpit.document.list",
@@ -365,11 +371,21 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.host.process.list",
       "chatcockpit.recovery.assess",
       "chatcockpit.recovery.execute",
-      "chatcockpit.resources.inspect"
+      "chatcockpit.resources.inspect",
+      "chatcockpit.capabilities.inspect",
+      "chatcockpit.capabilities.list"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
       assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
     }
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.read.invoke")?.annotations.idempotentHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.read.invoke")?.annotations.openWorldHint,
+      true
+    );
     assert.equal(toolByName.get("chatcockpit.git.commit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [

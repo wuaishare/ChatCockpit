@@ -27,6 +27,7 @@ import type { TokenPilotPaths } from "../types.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
 import { projectMcpToolsForProduct } from "./product-tool-identity.js";
+import { buildCapabilityRouterMcpTools, type CapabilityRouterMcpServices } from "./tools/capability-router.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
@@ -80,6 +81,7 @@ export function buildTokenPilotMcpToolCatalog(
   runtimeEventService: RuntimeEventService,
   runtimeRecoveryServices: RuntimeRecoveryServices,
   runtimeResourceServices: RuntimeResourceServices,
+  capabilityRouterServices: CapabilityRouterMcpServices,
   runtimeResourceMutationService: RuntimeResourceMutationService | null
 ) {
   const identity = productIdentityForKey(paths.productIdentity);
@@ -88,6 +90,7 @@ export function buildTokenPilotMcpToolCatalog(
       { chatDirect, hostDirect },
       identity.defaultRepoId
     ),
+    ...buildCapabilityRouterMcpTools(capabilityRouterServices),
     ...buildHostMutationTools(hostMutation),
     ...buildHostCommandTools(hostCommand),
     ...buildHostProcessTools(hostProcess),
@@ -132,6 +135,7 @@ export function buildTokenPilotMcpHandler(
   runtimeEventService: RuntimeEventService,
   runtimeRecoveryServices: RuntimeRecoveryServices,
   runtimeResourceServices: RuntimeResourceServices,
+  capabilityRouterServices: CapabilityRouterMcpServices,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   onerror?: (error: Error) => void
 ): McpHttpHandler {
@@ -151,6 +155,7 @@ export function buildTokenPilotMcpHandler(
     runtimeEventService,
     runtimeRecoveryServices,
     runtimeResourceServices,
+    capabilityRouterServices,
     runtimeResourceMutationService
   );
 

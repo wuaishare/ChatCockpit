@@ -132,7 +132,22 @@ const client: DownstreamMcpClient = {
     };
   },
   async listTools() {
-    return { server: await this.initialize(), tools: [] };
+    return {
+      server: await this.initialize(),
+      tools: [
+        {
+          name: "read_file",
+          description: "Read a fixture",
+          inputSchema: {
+            type: "object",
+            properties: { path: { type: "string" } },
+            required: ["path"],
+            additionalProperties: false
+          },
+          annotations: { readOnlyHint: true, destructiveHint: false }
+        }
+      ]
+    };
   },
   async callTool(name, args) {
     calls += 1;
@@ -248,6 +263,85 @@ try {
     }
   );
   assert.equal(failedCloses, 1);
+
+  let driftCalls = 0;
+  let driftCloses = 0;
+  const driftService = new CapabilityRouterReadInvocationService(
+    runtimeDir,
+    configPath,
+    () => ({
+      ...client,
+      async listTools() {
+        return {
+          server: await this.initialize(),
+          tools: [
+            {
+              name: "read_file",
+              inputSchema: {
+                type: "object",
+                properties: { path: { type: "number" } },
+                required: ["path"],
+                additionalProperties: false
+              },
+              annotations: { readOnlyHint: true, destructiveHint: false }
+            }
+          ]
+        };
+      },
+      async callTool() {
+        driftCalls += 1;
+        return { content: [{ type: "text", text: "must-not-run" }] };
+      },
+      async close() {
+        driftCloses += 1;
+      }
+    })
+  );
+  await assert.rejects(
+    driftService.invoke({
+      executorId,
+      toolName: "read_file",
+      arguments: { path: "fixture.txt" }
+    }),
+    (error) =>
+      assertServiceCode(error, "CAPABILITY_ROUTER_PROVIDER_METADATA_CHANGED")
+  );
+  assert.equal(driftCalls, 0);
+  assert.equal(driftCloses, 1);
+
+  let providerErrorCloses = 0;
+  const providerErrorService = new CapabilityRouterReadInvocationService(
+    runtimeDir,
+    configPath,
+    () => ({
+      ...client,
+      async callTool() {
+        return {
+          content: [{ type: "text", text: "provider-private-error-detail" }],
+          isError: true
+        };
+      },
+      async close() {
+        providerErrorCloses += 1;
+      }
+    })
+  );
+  await assert.rejects(
+    providerErrorService.invoke({
+      executorId,
+      toolName: "read_file",
+      arguments: { path: "fixture.txt" }
+    }),
+    (error) => {
+      assertServiceCode(error, "CAPABILITY_ROUTER_PROVIDER_TOOL_ERROR");
+      assert.equal(
+        error instanceof Error && error.message.includes("provider-private-error-detail"),
+        false
+      );
+      return true;
+    }
+  );
+  assert.equal(providerErrorCloses, 1);
 
   const large = projectCapabilityRouterReadResult({
     content: [{ type: "text", text: "x".repeat(80 * 1024) }],

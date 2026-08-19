@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import type { JsonSchemaType } from "@modelcontextprotocol/client";
 
@@ -13,6 +15,7 @@ import {
 } from "../direct/downstream-mcp-config.js";
 import { createDownstreamMcpClient } from "../direct/downstream-mcp-client-factory.js";
 import type { DownstreamMcpClient } from "../direct/downstream-mcp-types.js";
+import { projectDownstreamMcpToolCatalog } from "../direct/downstream-mcp-tool-catalog.js";
 
 export interface CapabilityRouterReadInvocationRequest {
   executorId: string;
@@ -112,15 +115,52 @@ export class CapabilityRouterReadInvocationService {
     const client = this.clientFactory(executor);
     let rawResult: unknown;
     try {
-      rawResult = await client.callTool(input.toolName, input.arguments);
-    } catch (error) {
-      throw new ServiceError(
-        "CAPABILITY_ROUTER_PROVIDER_CALL_FAILED",
-        "Capability Router downstream provider call failed",
-        { cause: error }
+      let liveTools;
+      try {
+        liveTools = await client.listTools();
+      } catch (error) {
+        throw new ServiceError(
+          "CAPABILITY_ROUTER_PROVIDER_ATTESTATION_FAILED",
+          "Capability Router downstream provider metadata could not be attested",
+          { cause: error }
+        );
+      }
+      const liveTool = projectDownstreamMcpToolCatalog(liveTools.tools).find(
+        (entry) => entry.name === input.toolName
       );
+      if (
+        !liveTool ||
+        liveTool.metadataStatus !== "ready" ||
+        !liveTool.inputSchema ||
+        !isDeepStrictEqual(liveTool.inputSchema, inspection.inputSchema) ||
+        !isDeepStrictEqual(liveTool.annotations, inspection.annotations)
+      ) {
+        throw new ServiceError(
+          "CAPABILITY_ROUTER_PROVIDER_METADATA_CHANGED",
+          "Capability Router downstream provider metadata changed after probe"
+        );
+      }
+      assertReadAnnotations(liveTool.annotations);
+
+      try {
+        rawResult = await client.callTool(input.toolName, input.arguments);
+      } catch (error) {
+        throw new ServiceError(
+          "CAPABILITY_ROUTER_PROVIDER_CALL_FAILED",
+          "Capability Router downstream provider call failed",
+          { cause: error }
+        );
+      }
     } finally {
       await client.close().catch(() => undefined);
+    }
+
+    const projected = projectCapabilityRouterReadResult(rawResult);
+    if (projected.isError) {
+      throw new ServiceError(
+        "CAPABILITY_ROUTER_PROVIDER_TOOL_ERROR",
+        "Capability Router downstream provider reported a read error"
+      );
     }
 
     return {
@@ -128,7 +168,7 @@ export class CapabilityRouterReadInvocationService {
       providerDisplayName: inspection.providerDisplayName,
       protocolFamily: inspection.protocolFamily,
       toolName: inspection.toolName,
-      ...projectCapabilityRouterReadResult(rawResult)
+      ...projected
     };
   }
 }
