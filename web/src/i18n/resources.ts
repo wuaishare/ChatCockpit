@@ -9,6 +9,23 @@ export interface ResourceCenterCopy {
   protectedTitle: string;
   protectedDescription: string;
   requestFailedTitle: string;
+  providerManagementTitle: string;
+  providerManagementDescription: string;
+  noManagedProvidersTitle: string;
+  noManagedProvidersDescription: string;
+  detection: string;
+  configuration: string;
+  exposure: string;
+  verification: string;
+  lifecycleActions: string;
+  noLifecycleActions: string;
+  detected: string;
+  unverified: string;
+  stale: string;
+  configured: string;
+  providerNative: string;
+  exposureEnabled: string;
+  exposureDisabled: string;
   profilesTitle: string;
   profilesDescription: string;
   noProfilesTitle: string;
@@ -113,14 +130,31 @@ export interface ResourceCenterCopy {
 }
 
 const zhCN: ResourceCenterCopy = {
-  title: "运行环境与资源中心",
-  description: "统一查看运行时配置及其 Skills、MCP、Plugins、Adapters 与 ACP Agents，并对服务端判定可变更的资源执行受治理操作。",
-  truthNotice: "资源配置真源仍由各 Runtime / Registry 持有。ChatCockpit 只允许服务端明确判定可用的 Skill 启停与安全 Plugin 安装/卸载进入变更流程；每次变更都必须先审批，并以 authoritative refresh 验证后的真实状态为准。",
-  loadingTitle: "正在加载运行时配置",
-  loadingDescription: "正在读取可用 Runtime 与兼容状态。",
+  title: "资源中心",
+  description: "统一管理 ChatCockpit 当前设备上的 Provider、Capability、暴露状态与运行资源；底层工具继续持有自己的真实配置与运行状态。",
+  truthNotice: "Provider-native truth 始终优先。ChatCockpit 只投影已验证的检测、版本、健康、能力与暴露状态；没有正式生命周期合同的 Provider 不会伪造安装、更新、启动或重启按钮。",
+  loadingTitle: "正在加载 Provider 管理状态",
+  loadingDescription: "正在读取 Provider、Runtime Profile 与已验证能力状态。",
   protectedTitle: "资源中心需要控制台管理员会话",
   protectedDescription: "当前接口受保护。请重新登录控制台管理员账户后读取 Runtime 与资源状态。",
   requestFailedTitle: "资源中心请求失败",
+  providerManagementTitle: "Provider 管理",
+  providerManagementDescription: "统一的 Provider 管理视图：检测、版本、健康、配置来源、Chat 暴露与 Provider-native verification 都从同一 public-safe 合同读取。",
+  noManagedProvidersTitle: "暂无可管理 Provider",
+  noManagedProvidersDescription: "当前没有已配置或可安全投影的 Provider。",
+  detection: "检测",
+  configuration: "配置",
+  exposure: "Chat 暴露",
+  verification: "验证",
+  lifecycleActions: "生命周期动作",
+  noLifecycleActions: "暂无受管生命周期动作",
+  detected: "已检测",
+  unverified: "未验证",
+  stale: "已过期",
+  configured: "ChatCockpit 配置",
+  providerNative: "Provider Native",
+  exposureEnabled: "已暴露",
+  exposureDisabled: "未暴露",
   profilesTitle: "运行时配置",
   profilesDescription: "选择一个明确的运行时配置，再按需刷新它的 authoritative inventory。",
   noProfilesTitle: "暂无可用运行时配置",
@@ -225,14 +259,31 @@ const zhCN: ResourceCenterCopy = {
 };
 
 const enUS: ResourceCenterCopy = {
-  title: "Runtime & Resource Center",
-  description: "Inspect Runtime Profiles and their Skills, MCP servers, Plugins, Adapters, and ACP Agents, with governed actions only where the server explicitly marks a Resource eligible.",
-  truthNotice: "Each Runtime or Registry remains the configuration authority. ChatCockpit permits only server-approved Skill enable/disable and safe Plugin install/uninstall flows; every mutation requires explicit approval and is considered successful only after authoritative refresh verifies the requested state.",
-  loadingTitle: "Loading Runtime Profiles",
-  loadingDescription: "Reading available runtimes and compatibility state.",
+  title: "Resource Center",
+  description: "Manage providers, capabilities, exposure state, and runtime resources on the current ChatCockpit device while each underlying tool remains authoritative for its own real configuration and runtime state.",
+  truthNotice: "Provider-native truth remains authoritative. ChatCockpit projects only verified detection, version, health, capability, and exposure state; providers without a reviewed lifecycle contract do not get invented install, update, start, or restart actions.",
+  loadingTitle: "Loading provider management state",
+  loadingDescription: "Reading providers, Runtime Profiles, and verified capability state.",
   protectedTitle: "Resource Center requires a Web Owner session",
   protectedDescription: "This API is protected. Sign in with the Web Owner account before reading Runtime and resource state.",
   requestFailedTitle: "Resource Center request failed",
+  providerManagementTitle: "Provider Management",
+  providerManagementDescription: "The Provider Management view projects detection, version, health, configuration source, Chat exposure, and provider-native verification through one public-safe contract.",
+  noManagedProvidersTitle: "No managed providers",
+  noManagedProvidersDescription: "No configured or safely projected provider is currently available.",
+  detection: "Detection",
+  configuration: "Configuration",
+  exposure: "Chat exposure",
+  verification: "Verification",
+  lifecycleActions: "Lifecycle actions",
+  noLifecycleActions: "No managed lifecycle actions",
+  detected: "Detected",
+  unverified: "Unverified",
+  stale: "Stale",
+  configured: "ChatCockpit config",
+  providerNative: "Provider native",
+  exposureEnabled: "Exposed",
+  exposureDisabled: "Not exposed",
   profilesTitle: "Runtime Profiles",
   profilesDescription: "Choose one explicit Runtime Profile, then refresh its authoritative inventory when needed.",
   noProfilesTitle: "No Runtime Profiles available",

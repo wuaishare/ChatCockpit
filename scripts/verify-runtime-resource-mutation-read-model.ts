@@ -558,7 +558,8 @@ try {
     repositories,
     profiles: new RuntimeProfileRegistry([]),
     adapters: new RuntimeResourceInventoryAdapterRegistry([]),
-    pluginMutationAvailable: true
+    pluginMutationAvailable: true,
+    runtimeDir: "runtime-resource-mutation-read-model-fixture"
   });
   assert.ok(builtServices.mutations instanceof RuntimeResourceMutationPublicService);
   assert.equal(

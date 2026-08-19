@@ -68,7 +68,7 @@ Direct Drive 已确认采用 **ChatCockpit Capability Broker + Pluggable Downstr
 
 **Capability Provider Kernel — 已实现：** ChatCockpit 现在定义了 Provider-neutral 的公共 Descriptor，用于表达 Provider 身份、Protocol Family、Compatibility/Auth 状态、public-safe reason 与标准化 Capability ID。现有 Runtime Profile 直接继承该公共 Descriptor，公开字段形态不变；Direct Executor 则通过兼容 Projection 进入同一 Provider 模型。通用 Provider Registry 负责 Source 隔离、确定性排序、标准化与重复 Identity 拒绝。当前 Direct Broker 与 Runtime Profile Registry 仍分别保持执行与 Inventory Authority；新 Kernel 当前只提供标准化组合能力。
 
-**Resource Center Provider Projection — 已实现：** 现有 Runtime Profile Endpoint 现在会在保持 `profiles` 兼容字段不变的同时，额外返回 public-safe 的 `local-device` Target 与标准化 Provider Descriptor。当前 Resource Inventory 与 Mutation 流程仍以 Runtime Profile 为 Authority，因此这层 Projection 只建立通用管理平面 Seam，不改变现有资源中心行为。
+**Resource Center Provider Management Read Model — 已实现：** 现有 Runtime Profile Endpoint 现在会同时返回 public-safe 的 `local-device` Target、标准化 Provider Descriptor、原有 `profiles` 兼容字段，以及新增的 `management` 投影。Management Projection 统一表达检测、版本、健康、Capabilities、配置来源、Chat Exposure、Desired/Observed State、允许的 Lifecycle Operations 与 Provider-native Verification，同时不暴露下游 Command、Args、Env、Transport Endpoint、Credential 或 Raw Provider Config。已配置但没有有效 Probe 的 Downstream MCP Provider 明确保持 `unverified`；Protocol 变化会让旧 Observation 变为 `stale`，不会继续伪装成当前真相。Web Resource Center 已把 Provider Management 放在 Runtime Profiles 之前。现有 Resource Inventory 与 Mutation 流程仍以 Runtime Profile 为 Authority。
 
 **Platform Governance 存储边界 — 已实现：** `GovernanceLedger` 是平台治理的逻辑依赖边界。现有 Governance 兼容仓储与新增 Provider-neutral Governed External Action 刻意共用同一个 machine-local `continuity.sqlite` 物理文件，但使用彼此独立的逻辑 Migration Table。这样只拆依赖方向，不提前拆物理存储，也不改变既有 Continuity Schema Version 合同。Governed External Action Approval 只持久化 Target/Provider/Tool 身份、Arguments Hash、Public Summary、Actor/Request Identity Hash、Lifecycle Timestamp/Status 与 Execution Outcome Status；原始调用参数和 Provider Result 正文都不会持久化。
 
@@ -171,7 +171,7 @@ npm run verify:source-archive
 ## 当前限制
 
 - 公网 HTTPS 与不同 ChatGPT/MCP 客户端兼容性仍依赖环境并处于验证中；
-- Downstream MCP 的 local config、stdio probe、snapshot、显式 mapping、Broker descriptor projection 与 normalized internal execution registry 已实现；
+- Provider Management 只暴露已有正式 Provider Contract 支撑的 Lifecycle Operation。Desktop Commander 等 Downstream MCP Provider 在 install/update/start/stop Ownership 尚未明确实现前会返回空 Lifecycle Action，UI 不会伪造操作按钮；Downstream MCP 的 local config、probe、snapshot、显式 mapping、Broker descriptor projection 与 normalized internal execution registry 已实现；
 - Host Direct 已通过 public-safe Host Root Alias 开放受治理 Files 与 bounded Host Command。Pure Host Command 仍只读；Workspace write effect 必须经过 Direct Command Approval 与 Writer Lease/Git/Evidence 回流。Raw shell source、交互式终端和后台 Process Management 仍未开放；
 - 目前的 Restart Gate 覆盖 Lease、Handoff 与 Idempotency，尚未自动恢复所有 Provider-specific Running Session；
 - 未实现公共 SaaS 与分布式 Multi-runner Coordination。

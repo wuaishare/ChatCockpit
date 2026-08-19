@@ -86,7 +86,7 @@ ChatCockpit 仍保留已经成熟的开发连续性系统：Project、Workspace�
 - **Remote MCP / OAuth**：ChatGPT 通过一个 ChatCockpit 入口访问固定、受治理的产品工具面。
 - **Capability Router**：Catalog、Inspect、只读 Invoke、受治理 Provider-native Mutation；调用前执行 live `tools/list` attestation。
 - **Downstream MCP**：官方 MCP Client，支持本机 stdio 与受约束的 Streamable HTTP；Provider schema/annotations 以 bounded catalog 保存。
-- **Resource Center**：本机 `local-device`、Runtime Profiles、Provider projection、append-only inventory 与受治理资源操作。
+- **Resource Center**：本机 `local-device`、Provider Management 读模型、Runtime Profiles、append-only inventory 与受治理资源操作；管理读模型统一投影检测、版本、健康、配置来源、Chat 暴露、Desired/Observed State 与 Provider-native Verification。
 - **Governance**：Approval、Idempotency、Evidence、Public-safe Projection、Actor provenance；原始 mutation arguments 与 Provider result body 不写入 Governance 记录。
 - **Host / Workspace 能力**：allowlisted 文件、受控命令、Git 与受治理 Managed Workspace Process；不暴露任意 raw shell 或系统级 PID 管理。
 - **Development Continuity**：Task / Session / Handoff / Evidence / Recovery、显式 Codex Session、异步 Agent Job 与 Writer Lease。

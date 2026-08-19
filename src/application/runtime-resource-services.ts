@@ -6,11 +6,13 @@ import {
   type DeviceTargetDescriptor
 } from "../devices/local-device.js";
 import { CapabilityProviderProjectionService } from "./capability-provider-projection-service.js";
+import { CapabilityProviderManagementService } from "./capability-provider-management-service.js";
 import { RuntimeResourceInventoryService } from "./runtime-resource-inventory-service.js";
 import { RuntimeResourceMutationPublicService } from "./runtime-resource-mutation-public-service.js";
 
 export interface RuntimeResourceServices {
   providers: CapabilityProviderProjectionService;
+  management: CapabilityProviderManagementService;
   inventory: RuntimeResourceInventoryService;
   mutations: RuntimeResourceMutationPublicService;
 }
@@ -22,7 +24,10 @@ export function buildRuntimeResourceServices(options: {
   now?: () => string;
   deviceTarget?: DeviceTargetDescriptor;
   pluginMutationAvailable?: boolean;
+  runtimeDir: string;
+  downstreamConfigPath?: string;
 }): RuntimeResourceServices {
+  const target = options.deviceTarget ?? buildLocalDeviceTarget();
   const inventory = new RuntimeResourceInventoryService(
     options.repositories,
     options.profiles,
@@ -30,9 +35,11 @@ export function buildRuntimeResourceServices(options: {
     options.now ? { now: options.now } : {}
   );
   return {
-    providers: new CapabilityProviderProjectionService(
-      options.profiles,
-      options.deviceTarget ?? buildLocalDeviceTarget()
+    providers: new CapabilityProviderProjectionService(options.profiles, target),
+    management: new CapabilityProviderManagementService(
+      options.runtimeDir,
+      target,
+      options.downstreamConfigPath
     ),
     inventory,
     mutations: new RuntimeResourceMutationPublicService(

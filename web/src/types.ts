@@ -1098,6 +1098,51 @@ export interface RuntimeProfileDescriptor extends CapabilityProviderDescriptor {
   homeIdentityHash: string | null;
 }
 
+export interface CapabilityProviderManagementExposureTool {
+  toolName: string;
+  mode: "read" | "mutation";
+}
+
+export interface CapabilityProviderManagementDescriptor {
+  id: string;
+  targetId: "local-device";
+  providerKind: string;
+  protocolKind: string;
+  displayName: string;
+  executorId: string | null;
+  detectionStatus: "detected" | "unverified" | "stale";
+  version: string | null;
+  protocolVersion: string | null;
+  health: "ready" | "degraded" | "unavailable" | "unknown";
+  capabilities: string[];
+  configurationStatus: "configured" | "provider-native";
+  exposureStatus: "enabled" | "disabled" | "not-applicable";
+  exposedTools: CapabilityProviderManagementExposureTool[];
+  allowedLifecycleOperations: Array<
+    "install" | "update" | "configure" | "start" | "stop" | "restart"
+  >;
+  desiredState: {
+    routerExposure: "enabled" | "disabled" | "not-applicable";
+  };
+  observedState: {
+    detected: boolean;
+    health: "ready" | "degraded" | "unavailable" | "unknown";
+    version: string | null;
+    capabilities: string[];
+  };
+  verification: {
+    status: "verified" | "unverified" | "stale";
+    observedAt: string | null;
+    source: "downstream-mcp-probe" | "runtime-profile";
+  };
+  publicReason: string | null;
+}
+
+export interface CapabilityProviderManagementProjection {
+  target: DeviceTargetDescriptor;
+  providers: CapabilityProviderManagementDescriptor[];
+}
+
 export interface RuntimeResourceDescriptor {
   id: string;
   runtimeProfileId: string;
@@ -1175,6 +1220,7 @@ export interface RuntimeResourceProfilesResponse {
   target: DeviceTargetDescriptor;
   providers: CapabilityProviderDescriptor[];
   profiles: RuntimeProfileDescriptor[];
+  management: CapabilityProviderManagementProjection;
 }
 
 export interface RuntimeResourceInventoryResponse {

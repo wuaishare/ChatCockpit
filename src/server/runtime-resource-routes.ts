@@ -81,7 +81,20 @@ export function registerRuntimeResourceRoutes(
         ok: true,
         target: projection.target,
         providers: projection.providers,
-        profiles: projection.profiles
+        profiles: projection.profiles,
+        management: services.management.snapshot(projection.profiles)
+      };
+    } catch (error) {
+      return sendUnknownApiError(reply, error);
+    }
+  });
+
+  registerAliases(app, "GET", "/api/resources/providers", async (_request, reply) => {
+    try {
+      const projection = await services.providers.snapshot();
+      return {
+        ok: true,
+        ...services.management.snapshot(projection.profiles)
       };
     } catch (error) {
       return sendUnknownApiError(reply, error);

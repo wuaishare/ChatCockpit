@@ -3983,6 +3983,182 @@ components:
         attempt:
           $ref: '#/components/schemas/RuntimeRecoveryAttempt'
       required: [ok, attempt]
+    DeviceTargetDescriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          const: local-device
+        kind:
+          type: string
+          const: device
+        locality:
+          type: string
+          const: local
+        platform: { type: string }
+        architecture: { type: string }
+      required: [id, kind, locality, platform, architecture]
+    CapabilityProviderDescriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        providerKind: { type: string }
+        protocolKind: { type: string }
+        displayName: { type: string }
+        compatibilityStatus:
+          type: string
+          enum: [ready, degraded, unsupported, unavailable]
+        authStatus:
+          type: string
+          enum: [ready, required, unknown, not-applicable]
+        capabilities:
+          type: array
+          items: { type: string }
+        publicReason:
+          oneOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - providerKind
+        - protocolKind
+        - displayName
+        - compatibilityStatus
+        - authStatus
+        - capabilities
+        - publicReason
+    CapabilityProviderManagementExposureTool:
+      type: object
+      additionalProperties: false
+      properties:
+        toolName: { type: string }
+        mode:
+          type: string
+          enum: [read, mutation]
+      required: [toolName, mode]
+    CapabilityProviderManagementDescriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        targetId:
+          type: string
+          const: local-device
+        providerKind: { type: string }
+        protocolKind: { type: string }
+        displayName: { type: string }
+        executorId:
+          oneOf:
+            - type: string
+            - type: "null"
+        detectionStatus:
+          type: string
+          enum: [detected, unverified, stale]
+        version:
+          oneOf:
+            - type: string
+            - type: "null"
+        protocolVersion:
+          oneOf:
+            - type: string
+            - type: "null"
+        health:
+          type: string
+          enum: [ready, degraded, unavailable, unknown]
+        capabilities:
+          type: array
+          items: { type: string }
+        configurationStatus:
+          type: string
+          enum: [configured, provider-native]
+        exposureStatus:
+          type: string
+          enum: [enabled, disabled, not-applicable]
+        exposedTools:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityProviderManagementExposureTool'
+        allowedLifecycleOperations:
+          type: array
+          items:
+            type: string
+            enum: [install, update, configure, start, stop, restart]
+        desiredState:
+          type: object
+          additionalProperties: false
+          properties:
+            routerExposure:
+              type: string
+              enum: [enabled, disabled, not-applicable]
+          required: [routerExposure]
+        observedState:
+          type: object
+          additionalProperties: false
+          properties:
+            detected: { type: boolean }
+            health:
+              type: string
+              enum: [ready, degraded, unavailable, unknown]
+            version:
+              oneOf:
+                - type: string
+                - type: "null"
+            capabilities:
+              type: array
+              items: { type: string }
+          required: [detected, health, version, capabilities]
+        verification:
+          type: object
+          additionalProperties: false
+          properties:
+            status:
+              type: string
+              enum: [verified, unverified, stale]
+            observedAt:
+              oneOf:
+                - type: string
+                - type: "null"
+            source:
+              type: string
+              enum: [downstream-mcp-probe, runtime-profile]
+          required: [status, observedAt, source]
+        publicReason:
+          oneOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - targetId
+        - providerKind
+        - protocolKind
+        - displayName
+        - executorId
+        - detectionStatus
+        - version
+        - protocolVersion
+        - health
+        - capabilities
+        - configurationStatus
+        - exposureStatus
+        - exposedTools
+        - allowedLifecycleOperations
+        - desiredState
+        - observedState
+        - verification
+        - publicReason
+    CapabilityProviderManagementProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        target:
+          $ref: '#/components/schemas/DeviceTargetDescriptor'
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityProviderManagementDescriptor'
+      required: [target, providers]
     RuntimeProfileDescriptor:
       type: object
       additionalProperties: false
@@ -4281,11 +4457,19 @@ components:
         ok:
           type: boolean
           const: true
+        target:
+          $ref: '#/components/schemas/DeviceTargetDescriptor'
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityProviderDescriptor'
         profiles:
           type: array
           items:
             $ref: '#/components/schemas/RuntimeProfileDescriptor'
-      required: [ok, profiles]
+        management:
+          $ref: '#/components/schemas/CapabilityProviderManagementProjection'
+      required: [ok, target, providers, profiles, management]
     RuntimeResourceMutationOperation:
       type: string
       enum: [skill.enable, skill.disable, plugin.install, plugin.uninstall]
@@ -7078,11 +7262,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/resources/providers:
+    get:
+      operationId: listCapabilityProviders
+      summary: List managed capability providers
+      description: Returns the public-safe Resource Center management view for the local device, including detection, version, health, capabilities, configuration, exposure, desired/observed state, lifecycle actions, and verification.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Provider management projection
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  target:
+                    $ref: '#/components/schemas/DeviceTargetDescriptor'
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CapabilityProviderManagementDescriptor'
+                required: [ok, target, providers]
   /api/resources/runtime-profiles:
     get:
       operationId: listRuntimeResourceProfiles
-      summary: List runtime resource profiles
-      description: Lists public-safe Runtime Profiles. Private home paths, executable paths, commands, environment values, and raw provider configuration are omitted.
+      summary: List resource providers and runtime profiles
+      description: Lists public-safe Runtime Profiles and the provider-management read model for detection, version, health, capabilities, configuration, exposure, desired/observed state, lifecycle actions, and verification. Private execution configuration and credentials are omitted.
       security:
         - bearerAuth: []
       responses:

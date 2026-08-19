@@ -34,6 +34,7 @@ import type { LocaleCode } from "../../i18n";
 import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
+  CapabilityProviderManagementDescriptor,
   ContinuityProjectProjection,
   RuntimeProfileDescriptor,
   RuntimeResourceAuthStatus,
@@ -121,6 +122,13 @@ function updateTone(value: RuntimeResourceUpdateStatus): string {
   return "default";
 }
 
+function managementTone(value: string): string {
+  if (["ready", "detected", "verified", "enabled"].includes(value)) return "success";
+  if (["degraded", "unverified", "stale"].includes(value)) return "warning";
+  if (value === "unavailable") return "error";
+  return "default";
+}
+
 export function ResourceCenterView({
   locale,
   token,
@@ -128,6 +136,7 @@ export function ResourceCenterView({
 }: ResourceCenterViewProps) {
   const copy = getResourceCenterCopy(locale);
   const [profiles, setProfiles] = useState<RuntimeProfileDescriptor[]>([]);
+  const [managedProviders, setManagedProviders] = useState<CapabilityProviderManagementDescriptor[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ContinuityProjectProjection[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
@@ -169,6 +178,7 @@ export function ResourceCenterView({
   useEffect(() => {
     if (protectedWithoutToken) {
       setProfiles([]);
+      setManagedProviders([]);
       setSelectedProfileId(null);
       setInventory(null);
       resetMutationWorkflow();
@@ -185,6 +195,7 @@ export function ResourceCenterView({
     try {
       const result = await fetchRuntimeResourceProfiles(token);
       setProfiles(result.profiles);
+      setManagedProviders(result.management.providers);
       setSelectedProfileId((current) =>
         result.profiles.some((profile) => profile.id === current)
           ? current
@@ -192,6 +203,7 @@ export function ResourceCenterView({
       );
     } catch (loadError) {
       setProfiles([]);
+      setManagedProviders([]);
       setSelectedProfileId(null);
       setInventory(null);
       setError(problemMessage(loadError, copy.requestFailedTitle));
@@ -453,6 +465,111 @@ export function ResourceCenterView({
           onRetry={() => void loadProfiles()}
         />
       ) : null}
+
+      <section className="resource-center__management panel" aria-labelledby="provider-management-title">
+        <div className="resource-center__section-header">
+          <div>
+            <Text as="h2" id="provider-management-title" className="resource-center__section-title">
+              {copy.providerManagementTitle}
+            </Text>
+            <Text as="p" type="secondary" className="resource-center__section-description">
+              {copy.providerManagementDescription}
+            </Text>
+          </div>
+        </div>
+
+        {managedProviders.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <div>
+                <Text as="div" strong>{copy.noManagedProvidersTitle}</Text>
+                <Text as="div" type="secondary">{copy.noManagedProvidersDescription}</Text>
+              </div>
+            }
+          />
+        ) : (
+          <div className="resource-center__provider-grid">
+            {managedProviders.map((provider) => {
+              const detectionLabel =
+                provider.detectionStatus === "detected"
+                  ? copy.detected
+                  : provider.detectionStatus === "stale"
+                    ? copy.stale
+                    : copy.unverified;
+              const configurationLabel =
+                provider.configurationStatus === "configured"
+                  ? copy.configured
+                  : copy.providerNative;
+              const exposureLabel =
+                provider.exposureStatus === "enabled"
+                  ? copy.exposureEnabled
+                  : provider.exposureStatus === "disabled"
+                    ? copy.exposureDisabled
+                    : copy.notApplicable;
+              const verificationLabel =
+                provider.verification.status === "verified"
+                  ? copy.verifiedMutation
+                  : provider.verification.status === "stale"
+                    ? copy.stale
+                    : copy.unverified;
+              return (
+                <article key={provider.id} className="resource-center__provider-card">
+                  <div className="resource-center__profile-heading">
+                    <div>
+                      <Text as="div" strong className="resource-center__profile-name">
+                        {provider.displayName}
+                      </Text>
+                      <Text as="div" type="secondary" className="resource-center__profile-provider">
+                        {provider.providerKind} · {provider.protocolKind}
+                      </Text>
+                    </div>
+                    <Tag color={managementTone(provider.health)}>
+                      {getOperationalStatusLabel(locale, provider.health)}
+                    </Tag>
+                  </div>
+
+                  <div className="resource-center__profile-status">
+                    <Tag color={managementTone(provider.detectionStatus)}>{copy.detection}: {detectionLabel}</Tag>
+                    <Tag color={managementTone(provider.exposureStatus)}>{copy.exposure}: {exposureLabel}</Tag>
+                    <Tag color={managementTone(provider.verification.status)}>{copy.verification}: {verificationLabel}</Tag>
+                  </div>
+
+                  <dl className="resource-center__profile-facts">
+                    <div><dt>{copy.version}</dt><dd>{provider.version ?? copy.unknown}</dd></div>
+                    <div><dt>{copy.configuration}</dt><dd>{configurationLabel}</dd></div>
+                    <div><dt>{copy.capabilities}</dt><dd>{provider.capabilities.length}</dd></div>
+                    <div>
+                      <dt>{copy.lifecycleActions}</dt>
+                      <dd>
+                        {provider.allowedLifecycleOperations.length > 0
+                          ? provider.allowedLifecycleOperations.join(", ")
+                          : copy.noLifecycleActions}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {provider.exposedTools.length > 0 ? (
+                    <div className="resource-center__provider-tools">
+                      {provider.exposedTools.slice(0, 6).map((tool) => (
+                        <Tag key={`${provider.id}:${tool.toolName}:${tool.mode}`}>
+                          {tool.toolName} · {tool.mode}
+                        </Tag>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {provider.publicReason ? (
+                    <Text as="div" type="secondary" className="resource-center__profile-reason">
+                      {provider.publicReason}
+                    </Text>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="resource-center__profiles panel" aria-labelledby="runtime-profiles-title">
         <div className="resource-center__section-header">

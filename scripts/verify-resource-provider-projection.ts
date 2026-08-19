@@ -65,11 +65,16 @@ assert.match(routes, /services\.providers\.snapshot\(\)/);
 assert.match(routes, /target:\s*projection\.target/);
 assert.match(routes, /providers:\s*projection\.providers/);
 assert.match(routes, /profiles:\s*projection\.profiles/);
+assert.match(routes, /management:\s*services\.management\.snapshot\(projection\.profiles\)/);
+assert.match(routes, /\/api\/resources\/providers/);
+assert.match(routes, /\.\.\.services\.management\.snapshot\(projection\.profiles\)/);
 
 const webTypes = fs.readFileSync(path.resolve("web/src/types.ts"), "utf8");
 assert.match(webTypes, /interface DeviceTargetDescriptor/);
 assert.match(webTypes, /interface CapabilityProviderDescriptor/);
 assert.match(webTypes, /target: DeviceTargetDescriptor/);
 assert.match(webTypes, /providers: CapabilityProviderDescriptor\[\]/);
+assert.match(webTypes, /interface CapabilityProviderManagementDescriptor/);
+assert.match(webTypes, /management: CapabilityProviderManagementProjection/);
 
 process.stdout.write("VERIFY_RESOURCE_PROVIDER_PROJECTION_OK\n");
