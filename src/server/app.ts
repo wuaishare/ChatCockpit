@@ -20,6 +20,8 @@ import {
   fileReadBatchSchema,
   fileReadSchema
 } from "../contracts/direct-tools.js";
+import { CapabilityRouterCatalogService } from "../application/capability-router-catalog-service.js";
+import { CapabilityRouterReadInvocationService } from "../application/capability-router-read-invocation-service.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
 import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
@@ -393,6 +395,16 @@ export function buildServer(
     paths.runtimeDir,
     options.directExecutorsConfigPath
   );
+  const capabilityRouterServices = {
+    catalog: new CapabilityRouterCatalogService(
+      paths.runtimeDir,
+      options.directExecutorsConfigPath
+    ),
+    reads: new CapabilityRouterReadInvocationService(
+      paths.runtimeDir,
+      options.directExecutorsConfigPath
+    )
+  };
   const hostDirect = new HostDirectService(
     directCapabilityBroker,
     downstreamMcpExecutionRegistry,
@@ -579,6 +591,7 @@ export function buildServer(
     runtimeEventService,
     runtimeRecoveryServices,
     runtimeResourceServices,
+    capabilityRouterServices,
     exposedRuntimeResourceMutationService
   ).length;
   const mcpHandler = buildTokenPilotMcpHandler(
@@ -596,6 +609,7 @@ export function buildServer(
     runtimeEventService,
     runtimeRecoveryServices,
     runtimeResourceServices,
+    capabilityRouterServices,
     exposedRuntimeResourceMutationService,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
