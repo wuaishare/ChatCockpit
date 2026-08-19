@@ -4049,13 +4049,20 @@ components:
         providerKind: { type: string }
         protocolKind: { type: string }
         displayName: { type: string }
+        catalogId:
+          oneOf:
+            - type: string
+            - type: "null"
+        supportTier:
+          type: string
+          enum: [managed, observed, connected, catalog-only]
         executorId:
           oneOf:
             - type: string
             - type: "null"
         detectionStatus:
           type: string
-          enum: [detected, unverified, stale]
+          enum: [detected, not-observed, not-detected, unverified, stale]
         version:
           oneOf:
             - type: string
@@ -4072,7 +4079,7 @@ components:
           items: { type: string }
         configurationStatus:
           type: string
-          enum: [configured, provider-native]
+          enum: [configured, provider-native, not-configured]
         exposureStatus:
           type: string
           enum: [enabled, disabled, not-applicable]
@@ -4097,7 +4104,10 @@ components:
           type: object
           additionalProperties: false
           properties:
-            detected: { type: boolean }
+            detected:
+              oneOf:
+                - type: boolean
+                - type: "null"
             health:
               type: string
               enum: [ready, degraded, unavailable, unknown]
@@ -4122,7 +4132,7 @@ components:
                 - type: "null"
             source:
               type: string
-              enum: [downstream-mcp-probe, runtime-profile]
+              enum: [downstream-mcp-probe, runtime-profile, provider-catalog]
           required: [status, observedAt, source]
         publicReason:
           oneOf:
@@ -4134,6 +4144,8 @@ components:
         - providerKind
         - protocolKind
         - displayName
+        - catalogId
+        - supportTier
         - executorId
         - detectionStatus
         - version

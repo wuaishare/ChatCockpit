@@ -13,6 +13,11 @@ export interface ResourceCenterCopy {
   providerManagementDescription: string;
   noManagedProvidersTitle: string;
   noManagedProvidersDescription: string;
+  supportTier: string;
+  managedTier: string;
+  observedTier: string;
+  connectedTier: string;
+  catalogOnlyTier: string;
   detection: string;
   configuration: string;
   exposure: string;
@@ -20,9 +25,12 @@ export interface ResourceCenterCopy {
   lifecycleActions: string;
   noLifecycleActions: string;
   detected: string;
+  notObserved: string;
+  notDetected: string;
   unverified: string;
   stale: string;
   configured: string;
+  notConfigured: string;
   providerNative: string;
   exposureEnabled: string;
   exposureDisabled: string;
@@ -141,7 +149,12 @@ const zhCN: ResourceCenterCopy = {
   providerManagementTitle: "Provider 管理",
   providerManagementDescription: "统一的 Provider 管理视图：检测、版本、健康、配置来源、Chat 暴露与 Provider-native verification 都从同一 public-safe 合同读取。",
   noManagedProvidersTitle: "暂无可管理 Provider",
-  noManagedProvidersDescription: "当前没有已配置或可安全投影的 Provider。",
+  noManagedProvidersDescription: "当前没有可安全投影的 Provider 条目。",
+  supportTier: "支持级别",
+  managedTier: "Managed",
+  observedTier: "Observed",
+  connectedTier: "Connected",
+  catalogOnlyTier: "Catalog-only",
   detection: "检测",
   configuration: "配置",
   exposure: "Chat 暴露",
@@ -149,9 +162,12 @@ const zhCN: ResourceCenterCopy = {
   lifecycleActions: "生命周期动作",
   noLifecycleActions: "暂无受管生命周期动作",
   detected: "已检测",
+  notObserved: "未观测",
+  notDetected: "未检测到",
   unverified: "未验证",
   stale: "已过期",
   configured: "ChatCockpit 配置",
+  notConfigured: "未配置",
   providerNative: "Provider Native",
   exposureEnabled: "已暴露",
   exposureDisabled: "未暴露",
@@ -270,7 +286,12 @@ const enUS: ResourceCenterCopy = {
   providerManagementTitle: "Provider Management",
   providerManagementDescription: "The Provider Management view projects detection, version, health, configuration source, Chat exposure, and provider-native verification through one public-safe contract.",
   noManagedProvidersTitle: "No managed providers",
-  noManagedProvidersDescription: "No configured or safely projected provider is currently available.",
+  noManagedProvidersDescription: "No safely projected provider entry is currently available.",
+  supportTier: "Support tier",
+  managedTier: "Managed",
+  observedTier: "Observed",
+  connectedTier: "Connected",
+  catalogOnlyTier: "Catalog-only",
   detection: "Detection",
   configuration: "Configuration",
   exposure: "Chat exposure",
@@ -278,9 +299,12 @@ const enUS: ResourceCenterCopy = {
   lifecycleActions: "Lifecycle actions",
   noLifecycleActions: "No managed lifecycle actions",
   detected: "Detected",
+  notObserved: "Not observed",
+  notDetected: "Not detected",
   unverified: "Unverified",
   stale: "Stale",
   configured: "ChatCockpit config",
+  notConfigured: "Not configured",
   providerNative: "Provider native",
   exposureEnabled: "Exposed",
   exposureDisabled: "Not exposed",

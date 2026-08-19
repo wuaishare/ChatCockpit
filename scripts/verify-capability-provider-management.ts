@@ -93,6 +93,8 @@ assert.deepEqual(unverified.providers[0], {
   providerKind: "downstream-mcp",
   protocolKind: "mcp-legacy-stdio",
   displayName: "Desktop Commander",
+  catalogId: "desktop-commander",
+  supportTier: "connected",
   executorId,
   detectionStatus: "unverified",
   version: null,
@@ -108,7 +110,7 @@ assert.deepEqual(unverified.providers[0], {
   allowedLifecycleOperations: [],
   desiredState: { routerExposure: "enabled" },
   observedState: {
-    detected: false,
+    detected: null,
     health: "unknown",
     version: null,
     capabilities: []
@@ -161,6 +163,8 @@ assert.deepEqual(verified.providers[0]?.capabilities, ["files.read", "shell.exec
 assert.equal(verified.providers[0]?.detectionStatus, "detected");
 assert.equal(verified.providers[0]?.health, "ready");
 assert.equal(verified.providers[0]?.version, "1.2.3");
+assert.equal(verified.providers[0]?.supportTier, "connected");
+assert.equal(verified.providers[0]?.catalogId, "desktop-commander");
 assert.equal(verified.providers[0]?.verification.status, "verified");
 assert.equal(
   verified.providers[0]?.verification.observedAt,
@@ -185,6 +189,8 @@ const providerNative: RuntimeProfileDescriptor = {
 const mixed = service.snapshot([profile, providerNative]);
 assert.equal(mixed.providers.length, 2);
 const codex = mixed.providers.find((entry) => entry.id === "codex-profile");
+assert.equal(codex?.catalogId, null);
+assert.equal(codex?.supportTier, "observed");
 assert.equal(codex?.configurationStatus, "provider-native");
 assert.equal(codex?.exposureStatus, "not-applicable");
 assert.equal(codex?.verification.source, "runtime-profile");
@@ -202,18 +208,69 @@ const stale = service.snapshot([]);
 assert.equal(stale.providers[0]?.protocolKind, "mcp-streamable-http");
 assert.equal(stale.providers[0]?.detectionStatus, "stale");
 assert.equal(stale.providers[0]?.verification.status, "stale");
-assert.equal(stale.providers[0]?.observedState.detected, false);
+assert.equal(stale.providers[0]?.observedState.detected, null);
 assert.match(stale.providers[0]?.publicReason ?? "", /verification is stale/);
+
+const catalogOnlyRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "chatcockpit-provider-catalog-only-")
+);
+const catalogOnlyService = new CapabilityProviderManagementService(
+  path.join(catalogOnlyRoot, "runtime"),
+  target,
+  path.join(catalogOnlyRoot, "missing-direct-executors.json")
+);
+const catalogOnly = catalogOnlyService.snapshot([]);
+assert.equal(catalogOnly.providers.length, 1);
+assert.deepEqual(catalogOnly.providers[0], {
+  id: "catalog:desktop-commander",
+  targetId: "local-device",
+  providerKind: "downstream-mcp",
+  protocolKind: "mcp-legacy-stdio",
+  displayName: "Desktop Commander",
+  catalogId: "desktop-commander",
+  supportTier: "catalog-only",
+  executorId: null,
+  detectionStatus: "not-observed",
+  version: null,
+  protocolVersion: null,
+  health: "unknown",
+  capabilities: [],
+  configurationStatus: "not-configured",
+  exposureStatus: "not-applicable",
+  exposedTools: [],
+  allowedLifecycleOperations: [],
+  desiredState: { routerExposure: "not-applicable" },
+  observedState: {
+    detected: null,
+    health: "unknown",
+    version: null,
+    capabilities: []
+  },
+  verification: {
+    status: "unverified",
+    observedAt: null,
+    source: "provider-catalog"
+  },
+  publicReason: "Provider integration is cataloged; local installation has not been observed"
+});
+fs.rmSync(catalogOnlyRoot, { recursive: true, force: true });
 
 fs.writeFileSync(configPath, "{ broken downstream config", "utf8");
 const isolatedFailure = service.snapshot([providerNative]);
 assert.equal(
   isolatedFailure.providers.length,
-  1,
-  "A broken downstream configuration must not suppress unrelated provider-native profiles"
+  2,
+  "A broken downstream configuration must not suppress unrelated provider-native profiles or the support catalog"
 );
-assert.equal(isolatedFailure.providers[0]?.id, providerNative.id);
-assert.equal(isolatedFailure.providers[0]?.displayName, "Codex");
+const isolatedCodex = isolatedFailure.providers.find((entry) => entry.id === providerNative.id);
+assert.equal(isolatedCodex?.displayName, "Codex");
+assert.equal(isolatedCodex?.supportTier, "observed");
+const isolatedCatalog = isolatedFailure.providers.find(
+  (entry) => entry.catalogId === "desktop-commander"
+);
+assert.equal(isolatedCatalog?.supportTier, "catalog-only");
+assert.equal(isolatedCatalog?.detectionStatus, "not-observed");
+assert.equal(isolatedCatalog?.configurationStatus, "not-configured");
 
 fs.rmSync(root, { recursive: true, force: true });
 process.stdout.write("VERIFY_CAPABILITY_PROVIDER_MANAGEMENT_OK\n");

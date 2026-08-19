@@ -281,6 +281,8 @@ async function run(): Promise<void> {
           id: string;
           targetId: string;
           providerKind: string;
+          catalogId: string | null;
+          supportTier: "managed" | "observed" | "connected" | "catalog-only";
           detectionStatus: string;
           version: string | null;
           health: string;
@@ -310,11 +312,15 @@ async function run(): Promise<void> {
     assert.equal(profile.providerKind, "codex");
     assert.equal(profile.executableVersion, "codex-cli resource-api-fixture");
     assert.equal(profiles.management.target.id, "local-device");
-    assert.equal(profiles.management.providers.length, 1);
-    const managedProvider = profiles.management.providers[0]!;
-    assert.equal(managedProvider.id, profile.id);
+    assert.equal(profiles.management.providers.length, 2);
+    const managedProvider = profiles.management.providers.find(
+      (entry) => entry.id === profile.id
+    );
+    assert.ok(managedProvider);
     assert.equal(managedProvider.targetId, "local-device");
     assert.equal(managedProvider.providerKind, "codex");
+    assert.equal(managedProvider.catalogId, null);
+    assert.equal(managedProvider.supportTier, "observed");
     assert.equal(managedProvider.detectionStatus, "detected");
     assert.equal(managedProvider.version, "codex-cli resource-api-fixture");
     assert.equal(managedProvider.health, "ready");
@@ -323,10 +329,19 @@ async function run(): Promise<void> {
     assert.deepEqual(managedProvider.allowedLifecycleOperations, []);
     assert.equal(managedProvider.verification.status, "verified");
     assert.equal(managedProvider.verification.source, "runtime-profile");
+    const desktopCatalog = profiles.management.providers.find(
+      (entry) => entry.catalogId === "desktop-commander"
+    );
+    assert.ok(desktopCatalog);
+    assert.equal(desktopCatalog.supportTier, "catalog-only");
+    assert.equal(desktopCatalog.detectionStatus, "not-observed");
+    assert.equal(desktopCatalog.configurationStatus, "not-configured");
+    assert.equal(desktopCatalog.version, null);
+    assert.deepEqual(desktopCatalog.allowedLifecycleOperations, []);
     assert.doesNotMatch(
       JSON.stringify(profiles.management),
-      /command|args|environment|transport|endpoint|credential/i,
-      "Provider management REST projection must not expose private execution configuration"
+      /"(?:command|args|environment|env|transport|endpoint|credential|url)"\s*:/i,
+      "Provider management REST projection must not expose private execution configuration fields"
     );
 
     const providerManagement = await rest<{
@@ -335,6 +350,8 @@ async function run(): Promise<void> {
       providers: Array<{
         id: string;
         providerKind: string;
+        catalogId: string | null;
+        supportTier: "managed" | "observed" | "connected" | "catalog-only";
         version: string | null;
         exposureStatus: string;
         allowedLifecycleOperations: Array<
@@ -343,15 +360,26 @@ async function run(): Promise<void> {
       }>;
     }>("GET", "/api/resources/providers");
     assert.equal(providerManagement.target.id, "local-device");
-    assert.equal(providerManagement.providers.length, 1);
-    assert.equal(providerManagement.providers[0]?.id, profile.id);
-    assert.equal(providerManagement.providers[0]?.providerKind, "codex");
+    assert.equal(providerManagement.providers.length, 2);
+    const providerManagementCodex = providerManagement.providers.find(
+      (entry) => entry.id === profile.id
+    );
+    assert.ok(providerManagementCodex);
+    assert.equal(providerManagementCodex.providerKind, "codex");
+    assert.equal(providerManagementCodex.supportTier, "observed");
     assert.equal(
-      providerManagement.providers[0]?.version,
+      providerManagementCodex.version,
       "codex-cli resource-api-fixture"
     );
-    assert.equal(providerManagement.providers[0]?.exposureStatus, "not-applicable");
-    assert.deepEqual(providerManagement.providers[0]?.allowedLifecycleOperations, []);
+    assert.equal(providerManagementCodex.exposureStatus, "not-applicable");
+    assert.deepEqual(providerManagementCodex.allowedLifecycleOperations, []);
+    const providerManagementDesktop = providerManagement.providers.find(
+      (entry) => entry.catalogId === "desktop-commander"
+    );
+    assert.ok(providerManagementDesktop);
+    assert.equal(providerManagementDesktop.supportTier, "catalog-only");
+    assert.equal(providerManagementDesktop.version, null);
+    assert.deepEqual(providerManagementDesktop.allowedLifecycleOperations, []);
 
     const inventoryInput = {
       runtimeProfileId: profile.id,
@@ -713,6 +741,9 @@ async function run(): Promise<void> {
     }
     assert.match(openapiText, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true/);
     assert.match(openapiText, /CapabilityProviderManagementProjection/);
+    assert.match(openapiText, /supportTier/);
+    assert.match(openapiText, /catalog-only/);
+    assert.match(openapiText, /provider-catalog/);
     assert.match(openapiText, /allowedLifecycleOperations/);
     assert.match(openapiText, /desiredState/);
     assert.match(openapiText, /observedState/);

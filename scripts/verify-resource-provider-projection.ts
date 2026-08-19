@@ -69,12 +69,21 @@ assert.match(routes, /management:\s*services\.management\.snapshot\(projection\.
 assert.match(routes, /\/api\/resources\/providers/);
 assert.match(routes, /\.\.\.services\.management\.snapshot\(projection\.profiles\)/);
 
+const supportCatalog = fs.readFileSync(
+  path.resolve("src/capabilities/provider-support-catalog.ts"),
+  "utf8"
+);
+assert.match(supportCatalog, /desktop-commander/);
+assert.match(supportCatalog, /DESKTOP_COMMANDER_EXECUTOR_ID/);
+assert.match(supportCatalog, /does not[\s\S]*imply[\s\S]*installed/i);
+
 const webTypes = fs.readFileSync(path.resolve("web/src/types.ts"), "utf8");
 assert.match(webTypes, /interface DeviceTargetDescriptor/);
 assert.match(webTypes, /interface CapabilityProviderDescriptor/);
 assert.match(webTypes, /target: DeviceTargetDescriptor/);
 assert.match(webTypes, /providers: CapabilityProviderDescriptor\[\]/);
 assert.match(webTypes, /interface CapabilityProviderManagementDescriptor/);
+assert.match(webTypes, /supportTier: "managed" \| "observed" \| "connected" \| "catalog-only"/);
 assert.match(webTypes, /management: CapabilityProviderManagementProjection/);
 
 process.stdout.write("VERIFY_RESOURCE_PROVIDER_PROJECTION_OK\n");

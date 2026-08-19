@@ -56,6 +56,10 @@ assert.doesNotMatch(i18n, /GPT 助手/);
 
 assert.match(resources, /title: "资源中心"/);
 assert.match(resources, /providerManagementTitle: "Provider 管理"/);
+assert.match(resources, /supportTier: "支持级别"/);
+assert.match(resources, /catalogOnlyTier: "Catalog-only"/);
+assert.match(resources, /notConfigured: "未配置"/);
+assert.match(resources, /notObserved: "未观测"/);
 assert.match(resources, /noLifecycleActions: "暂无受管生命周期动作"/);
 assert.match(resources, /profilesTitle: "运行时配置"/);
 assert.match(resources, /snapshotTitle: "资源清单快照"/);

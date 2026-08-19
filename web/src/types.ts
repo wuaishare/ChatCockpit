@@ -1109,13 +1109,20 @@ export interface CapabilityProviderManagementDescriptor {
   providerKind: string;
   protocolKind: string;
   displayName: string;
+  catalogId: string | null;
+  supportTier: "managed" | "observed" | "connected" | "catalog-only";
   executorId: string | null;
-  detectionStatus: "detected" | "unverified" | "stale";
+  detectionStatus:
+    | "detected"
+    | "not-observed"
+    | "not-detected"
+    | "unverified"
+    | "stale";
   version: string | null;
   protocolVersion: string | null;
   health: "ready" | "degraded" | "unavailable" | "unknown";
   capabilities: string[];
-  configurationStatus: "configured" | "provider-native";
+  configurationStatus: "configured" | "provider-native" | "not-configured";
   exposureStatus: "enabled" | "disabled" | "not-applicable";
   exposedTools: CapabilityProviderManagementExposureTool[];
   allowedLifecycleOperations: Array<
@@ -1125,7 +1132,7 @@ export interface CapabilityProviderManagementDescriptor {
     routerExposure: "enabled" | "disabled" | "not-applicable";
   };
   observedState: {
-    detected: boolean;
+    detected: boolean | null;
     health: "ready" | "degraded" | "unavailable" | "unknown";
     version: string | null;
     capabilities: string[];
@@ -1133,7 +1140,7 @@ export interface CapabilityProviderManagementDescriptor {
   verification: {
     status: "verified" | "unverified" | "stale";
     observedAt: string | null;
-    source: "downstream-mcp-probe" | "runtime-profile";
+    source: "downstream-mcp-probe" | "runtime-profile" | "provider-catalog";
   };
   publicReason: string | null;
 }
