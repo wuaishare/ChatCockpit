@@ -2,25 +2,39 @@
 
 ## 能力状态
 
-- 已实现：CLI、Fastify Control Plane、REST/MCP/OpenAPI、Chat Direct、Codex Session Adapter、Continuity Engine、Queue/Runner 与 Web UI
-- 实验性：Custom GPT Actions、Remote MCP、公网 HTTPS、Codex App Server Standalone
-- 近期方向：Remote MCP 稳定性、Direct Drive 硬化、Codex Session 生命周期可靠性、Async Agent Job 可靠性，以及受治理的 Host Direct Scope
+- 已实现：本地 Control Plane、REST/MCP/OpenAPI、Remote MCP/OAuth、Provider-neutral Capability/Governance Kernel、Resource Center Projection、稳定 Capability Router、Development Continuity、Queue/Runner、Web UI 与 macOS Operator Surface
+- 实验/验证中：更完整的 Provider Lifecycle Management、不同客户端的公网 HTTPS 兼容，以及部分 Provider-specific Integration
+- 产品边界：本文只描述当前实现事实、公开接口以及安全与兼容合同
 
-ChatCockpit 是一个以 ChatGPT 为主要对话入口、本地优先的 **AI 开发连续性与 Agent 能力路由平台**。
+## 产品角色
 
-ChatGPT Native 是入口与模型循环宿主，不再与本地执行模式排成一条线性“升级链”。当任务需要本机执行时，由 ChatCockpit 进入三种显式执行模式之一：
+ChatCockpit 是一个本地优先的 **AI 能力控制面板**。
+
+> **Chat is the interface. Cockpit is the control plane.**
+> **聊天是入口，驾驶舱才是系统。**
+
+顶层架构以 Capability 为中心，而不是以 Runtime 为中心：
 
 ```text
-ChatGPT Native
-  -> ChatCockpit Remote MCP / Control Plane
-       -> Direct Drive
-            -> Workspace Direct（已实现）
-            -> Host Direct（Files + 审批式 bounded Command 已实现）
-       -> Codex Session
-       -> Async Agent Job
+ChatGPT / Desktop / Web / CLI / API
+             |
+             v
+      ChatCockpit Control Plane
+        |       |        |
+        v       v        v
+  Capability  Resource  Governance
+    Router     Center
+        \       |       /
+          local-device
+              |
+       Providers / Adapters
 ```
 
-ChatGPT 负责对话、意图、规划与审查。在 Direct Drive 中，ChatGPT 同时保持唯一模型循环，ChatCockpit 只负责确定性执行；进入 Codex Session 后，模型循环被显式委托给 Codex；进入 Async Agent Job 后，由被委托的 Agent Runtime 在后台持有模型循环，而 ChatCockpit 管理 Job 生命周期。ChatCockpit 始终负责持久身份、执行策略、连续性状态、Public-safe Projection 与跨运行模式 Handoff。
+ChatCockpit 负责稳定公共 Capability Surface、Policy/Authority Boundary、Public-safe Projection 与跨 Provider 的管理语义；真实 Runtime、MCP、CLI 与应用仍对自己实现的能力保持 Provider-native Authority。
+
+Provider-native Tool Name 只是 Catalog 数据，不会动态注册成 ChatGPT Tool。Read 与受治理 Mutation 都会在调用前重新验证下游 Metadata；重要 Provider Mutation 必须由本地 Operator Decide，Remote MCP 不能自我批准。
+
+Development Continuity 仍然是已经实现的重要解决方案层。Chat Direct、Codex Session、Async Agent Job、Task、Handoff、Evidence、Recovery 与 Writer Lease 合同继续有效，但不再承担顶层产品类别。
 
 ## 控制面职责
 
@@ -39,7 +53,7 @@ ChatGPT 负责对话、意图、规划与审查。在 Direct Drive 中，ChatGPT
 - 稳定且不持久化的 `local-device` Target Projection，只包含 Platform 与 Architecture，不包含 hostname、机器 UUID 或 Fleet 状态；
 - 协议、隐私、重启恢复和无 `.git` 源包门禁。
 
-## 运行模式
+## Development Continuity 执行通道
 
 ### Direct Drive — Workspace Direct 与受治理 Host Files / bounded Command 已实现
 

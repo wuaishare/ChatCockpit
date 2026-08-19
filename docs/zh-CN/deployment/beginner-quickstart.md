@@ -1,6 +1,6 @@
 # ChatCockpit 新手快速开始
 
-这是一条从源码到本地控制台的最短路径。ChatCockpit 是本地优先的 AI 开发连续性与 Agent 能力路由平台；先跑通本地 Control Plane、Continuity Workbench 与运行模式，再优先配置 ChatGPT App / MCP。Custom GPT Actions 仅作为兼容/高级路径保留。
+这是一条从源码到本地控制台的最短路径。ChatCockpit 是本地优先的 AI 能力控制面板；先跑通本地 Control Plane 与 Resource Center，再优先配置 ChatGPT App / MCP。Development Continuity、Codex 与异步 Job 是当前已实现的解决方案能力；Custom GPT Actions 仅作为兼容/高级路径保留。
 
 ## 1. 准备环境
 

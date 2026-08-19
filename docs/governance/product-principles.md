@@ -1,88 +1,102 @@
 # ChatCockpit Product Principles
 
-ChatCockpit is a local-first **Development Continuity & Agent Routing Platform**.
+ChatCockpit is a local-first **AI capability control plane**.
 
-> **One repo. Multiple AI runtimes. Seamless handoff.**
+> **Chat is the interface. Cockpit is the control plane.**
 
-This document is the public, contributor-facing product contract. It describes the invariants that implementation and public documentation must preserve without publishing maintainer-only decision history, competitive analysis, commercial strategy, or internal execution plans.
+This is the public contributor-facing product contract. It describes current product invariants, security boundaries, and compatibility expectations.
 
 ## Product Responsibility
 
-ChatCockpit owns continuity across development runtimes. ChatGPT Native is the primary conversational entry surface; when local execution is required, work can move between Direct Drive, Codex Session, and asynchronous agent execution while Project and Task identity remain stable.
+ChatCockpit owns the cross-tool control layer for AI-accessible capabilities. It discovers and normalizes capabilities, exposes a stable product-owned interface, applies authority and safety policy, records bounded evidence, and preserves local-first truth boundaries.
 
-The durable continuity model includes:
+A provider can be a local runtime, MCP server, CLI, application, or other reviewed integration. Provider-native tool names and provider-specific state remain subordinate to ChatCockpit's stable capability contract rather than becoming the public product surface directly.
 
-- Project and Workspace identity
-- versioned Spec and Plan documents
-- Task and Session state
-- Runtime Binding
-- Writer Lease
-- Handoff checkpoints
-- Evidence and verification state
-- Approval and idempotency state
+## Product hierarchy
 
-Chat history is useful context, but it is not the durable source of truth for development state.
+The public hierarchy is:
 
-## Product Surfaces
+```text
+Entry surfaces: ChatGPT / Desktop / Web / CLI / API
+        -> ChatCockpit Control Plane
+             -> Capability Router
+             -> Resource Center
+             -> Governance
+             -> local-device
+                  -> providers / adapters
 
-ChatCockpit deliberately separates its product surfaces instead of making the Menu Bar, native App, and Web Cockpit copies of one another:
+Development Continuity = current solution layer on top of the same control plane
+```
 
-- **Menu Bar:** bounded Operational HUD for glanceable health, activity, and safe high-frequency local actions;
-- **macOS App:** Local Runtime Manager + Secure Machine Gateway with machine authority;
-- **Web Cockpit:** data-heavy Operator Workspace with operator authority;
-- **Runtime:** single source of truth and execution layer shared by every surface.
+Development Continuity remains a major implemented capability, but it does not define the complete product category.
 
-Read-only projections may cross those boundaries, but privileged mutation authority does not. The canonical capability placement, status semantics, and bridge rules are defined in the [Surface Design Contract](../architecture/surface-design-contract.md).
+## Capability invariants
 
-## Runtime Ownership
+1. Provider-native tool names are catalog data, not dynamically registered public ChatGPT tools.
+2. A stable ChatCockpit tool surface must survive provider installation, removal, upgrade, and catalog drift.
+3. Provider metadata required for execution is re-attested before side effects.
+4. Unsupported or stale capabilities fail explicitly or degrade safely; they are never simulated as success.
+5. Provider-native state remains authoritative unless ChatCockpit explicitly owns a reviewed managed field.
 
-Runtime ownership must always be explicit.
+## Authority and mutation
 
-- **Direct Drive:** ChatGPT owns the model loop. The existing persisted lane remains `chat-direct`; ChatCockpit may use deterministic local executors or verified standalone runtime capabilities, but must not start a Codex turn implicitly. Workspace Direct is implemented. Host Direct is a target scope and must not weaken governance when operating outside one Workspace.
-- **Codex Session:** Codex owns the delegated model loop only through explicit session and turn operations.
-- **Async Agent Job:** the external or local agent runtime owns its delegated background model loop, while ChatCockpit explicitly owns queueing, Runtime Binding, lifecycle, Evidence, and handoff back to review.
+- Authentication does not imply mutation authority.
+- Remote MCP cannot self-approve meaningful governed mutations.
+- Provider-native mutation uses `prepare -> local operator decide -> execute` when the capability requires explicit approval.
+- Approval binding, idempotency, actor provenance, and bounded evidence are server-side contracts, not client UI conventions.
+- A broader execution scope never weakens Workspace, path, Git, Writer Lease, or Evidence rules when the target resolves into a governed Workspace.
 
-A low-level operation must never silently change the model-loop owner, billing/usage lane, approval semantics, or runtime identity.
+## Local-first and public-safe boundaries
 
-## Continuity Invariants
+- Machine paths, credentials, transport configuration, provider raw errors, process IDs, and private runtime state remain local unless a dedicated public-safe projection exists.
+- Public HTTP, MCP, OpenAPI, Git, runtime, and artifact output must remain bounded and public-safe.
+- `local-device` is a stable target projection, not a promise of multi-device Fleet infrastructure.
+- Secrets and private deployment details do not belong in the public repository.
 
-1. A physical checkout has at most one active writer. Parallel writers require separate worktrees.
-2. Runtime session IDs are replaceable bindings, not ChatCockpit Task identity.
-3. Handoff transfers durable state and evidence, not an opaque chat transcript.
-4. Spec and Plan versions bound to a Task are explicit and immutable for that execution decision.
-5. Mutating operations must preserve revision, idempotency, writer-ownership, and evidence rules.
-6. Recovery must prefer high-confidence repository/workspace identity over guess-based automatic rebinding.
-7. Public projections expose stable IDs and bounded evidence, never private filesystem identity as an API contract.
-8. A broader execution scope never weakens governance: if a Host-scoped operation targets a registered Workspace, that Workspace's Writer Lease, path-safety, Git, Evidence, and approval rules still apply.
+## Adapter strategy
 
-## Security And Privacy Boundary
+Reuse authoritative tools and protocols instead of cloning mature provider capabilities.
 
-- Repositories and workspaces must be explicitly allowlisted.
-- Path checks must remain inside the canonical repository root after symlink resolution.
-- Exposed-mode operations use explicit authentication and stricter high-trust command policy.
-- Public HTTP, MCP, OpenAPI, Git, runtime, and artifact surfaces must remain public-safe.
-- Secrets, private deployment truth, machine-specific runtime state, and maintainer-only knowledge do not belong in the public repository.
+- Official upstreams define protocol truth.
+- Adapters isolate provider lifecycle and transport differences.
+- REST, MCP, and Web UI share application services rather than reimplementing policy per surface.
+- ChatCockpit should own cross-provider routing, governance, lifecycle visibility, evidence, and operator experience—not another generic runtime, package manager, process manager, or IDE.
 
-## Adapter Strategy
+## Development Continuity invariants
 
-ChatCockpit should reuse authoritative runtime and protocol capabilities when they already exist rather than rebuild another general-purpose coding agent runtime.
+The current Development solution layer continues to preserve:
 
-- Official upstream specifications define protocol truth.
-- Runtime adapters isolate external lifecycle differences from ChatCockpit continuity state.
-- REST, MCP, and Web UI should share application services instead of reimplementing business rules per transport.
-- Unsupported capabilities fail explicitly or degrade safely; they must not be simulated as successful behavior.
+- Project / Workspace / Task identity;
+- versioned Spec and Plan bindings;
+- Session and Runtime Binding;
+- Writer Lease;
+- Handoff and Evidence;
+- Recovery;
+- explicit model-loop ownership across Chat Direct, Codex Session, and async Agent execution.
 
-## Non-Goals
+These remain implementation contracts even though they are no longer the top-level product positioning.
 
-ChatCockpit is not intended to:
+## Product surfaces
 
-- become another general-purpose coding agent or IDE;
-- fork or reimplement Codex as its own model runtime;
-- expose arbitrary unauthenticated shell access;
-- start or continue Codex inference implicitly from Chat Direct;
-- bypass platform usage, quota, billing, or safety limits;
-- make private deployment operations, competitive research, commercial planning, or internal execution plans part of the OSS product contract.
+- **Menu Bar:** bounded operational HUD.
+- **macOS App:** local runtime manager and secure machine gateway.
+- **Web Cockpit:** operator workspace and Resource Center.
+- **Runtime / Control Plane:** shared source of truth and execution authority.
 
-## Contributor Rule
+Read-only projections may cross those boundaries. Privileged mutation authority does not move merely because the same state is visible on another surface. Capability placement, status semantics, and bridge rules remain governed by the [Surface Design Contract](../architecture/surface-design-contract.md).
 
-Public documentation should explain **what the current product guarantees and how contributors can preserve those guarantees**. Maintainer reasoning about future branches, commercial choices, reference-project assessments, rejected routes, or internal execution sequencing belongs in private maintainer governance.
+## Explicit non-goals
+
+ChatCockpit is not intended to become:
+
+- a general multi-model chat client;
+- an IDE replacement;
+- a universal package manager or app store;
+- an unrestricted remote shell;
+- a generic system process manager;
+- a fork of Codex or another provider runtime;
+- a way to bypass provider usage, billing, quota, or safety limits.
+
+## Contributor rule
+
+Public documentation explains **what the released product currently guarantees and how contributors preserve those guarantees**.

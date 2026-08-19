@@ -1,6 +1,6 @@
 # ChatCockpit Beginner Quickstart
 
-ChatCockpit is a ChatGPT-first Development Continuity & Agent Routing Platform. ChatGPT owns conversation, planning, and review; ChatCockpit owns local continuity, execution policy, and public-safe state across Chat Direct, Codex Session, and Async Agent Job modes.
+ChatCockpit is a local-first AI capability control plane. ChatGPT can use one stable ChatCockpit boundary to discover and invoke governed local capabilities, while Development Continuity remains an implemented solution layer for Tasks, Sessions, Handoffs, Evidence, Codex, and async Jobs.
 
 ## 5 Minute Local Preview
 

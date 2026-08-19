@@ -11,112 +11,108 @@
 
 ![ChatCockpit 项目海报](./docs/assets/chatcockpit-hero-zh-CN.webp)
 
-**让 ChatGPT、Codex、本地工具和异步 Agent 在同一个开发连续性控制面中协作。**
+> **Chat is the interface. Cockpit is the control plane.**
+> **聊天是入口，驾驶舱才是系统。**
 
-ChatCockpit 是一个 **local-first Development Continuity & Agent Routing Platform**。它把 ChatGPT 作为主要对话入口，把本机文件、Git、受控命令、Codex Session、异步 Agent Job、Approval、Handoff、Evidence 与恢复状态统一到一个可审计的控制面中。
+ChatCockpit 是一个 **local-first AI capability control plane**：把本机设备、MCP、CLI、Runtime 与 AI 工具整理成可发现、可治理、可路由的能力，并通过一个稳定的 ChatCockpit 接口提供给 ChatGPT 等客户端。
 
-**One repo. Multiple AI runtimes. Seamless handoff.** 一个项目，多种 AI 执行模式，无缝接力开发。
+它的目标不是再造一个 AI 聊天客户端、IDE、通用 Runtime 或软件商店，而是把成熟工具接入同一个安全控制面，让复杂的软件环境更容易被 Chat 使用和管理。
 
-它不是另一个聊天 UI，也不是让模型获得无限制本机权限的“万能代理”。ChatCockpit 的核心目标是：**让 AI 能够持续工作，同时让 Workspace、权限、写入、审批和证据边界始终明确。**
+> **当前状态：v0.2.0-alpha。** Capability / Governance Kernel、稳定 Capability Router、Remote MCP/OAuth、Resource Center 基础、macOS/Web Operator Surface 与 Development Continuity 能力都已存在；部分 Provider 生命周期管理与更完整的软件/能力管理体验仍在持续验证。
 
-> **v0.2.0-alpha**：真实 ChatGPT Remote MCP/OAuth、macOS Desktop、Web Cockpit、CLI 与全局 Source state 已完成端到端迁移验证；当前处于 alpha 稳定化阶段。正式 macOS 生产签名/公证仍未完成。
-
-## 立即体验
-
-| 入口 | 适合场景 | 怎么开始 |
-| ---------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| **ChatGPT App / Remote MCP** | 日常对话中读取项目、查看 Git、管理 Continuity、发起受审批操作 | 在 ChatGPT 新聊天中选择已连接的 **ChatCockpit** App，或在提示词中提及它 |
-| **macOS Desktop** | 原生查看 Runtime 状态、Developer/Packaged Mode、Start/Stop/Restart、打开 Web Cockpit | `open dist/macos/ChatCockpit.app` |
-| **Web Cockpit / CLI** | 开发者、贡献者、本机运维与深度调试 | `npm run setup && npm run start:local`；从 App 打开 **本机控制台**，或使用 `npm run mvp:status` 输出的随机安全入口 |
-
-更完整的真实交互测试见：
-
-- [ChatGPT Connector Smoke Test](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
-- [macOS Desktop Smoke Test](./docs/zh-CN/testing/macos-desktop-smoke.md)
-- [新手快速开始](./docs/zh-CN/deployment/beginner-quickstart.md)
-
-## 为什么是 ChatCockpit
-
-- **ChatGPT-first**：对话、意图、规划和审查留在 ChatGPT；需要本地执行时再调用受治理的 MCP 能力。
-- **Local-first**：运行状态、Workspace 映射、Approval 与 Continuity 默认留在本机；公开仓库不保存真实 token、域名或机器路径。
-- **Durable continuity**：Task、Session、Writer Lease、Handoff、Evidence 和 Runtime Binding 独立于某个聊天窗口、Codex Thread 或 Runner Job。
-- **Explicit execution lanes**：Direct Drive、Codex Session、Async Agent Job 明确区分谁持有模型循环、执行发生在哪里，以及何时需要审批。
-- **Fail-closed mutation**：文件写入、Host Command、Managed Workspace Process 与资源 mutation 都经过显式边界和审计，不提供无限制 raw shell 通道。
-
-## 它做什么
-
-ChatGPT Native 是主要对话入口，不是一个需要逐级“升级”的 Runtime Lane。需要操作本机时，ChatCockpit 提供三种显式执行方式：
+## 核心模型
 
 ```mermaid
 flowchart TB
-    Chat["ChatGPT Native<br/>对话 · 推理 · 规划 · 审查"] --> MCP["ChatCockpit Remote MCP / Control Plane"]
+    Chat["ChatGPT / Other clients<br/>Chat is the interface"] --> MCP["ChatCockpit Remote MCP / API"]
 
-    MCP --> Direct["Direct Drive<br/>ChatGPT 持有模型循环"]
-    MCP --> Codex["Codex Session<br/>Codex 持有模型循环"]
-    MCP --> Async["Async Agent Job<br/>后台 Agent 持有模型循环"]
+    MCP --> Router["Capability Router<br/>稳定产品工具面"]
+    MCP --> Center["Resource Center<br/>能力 / Provider 管理视图"]
+    MCP --> Gov["Governance<br/>Approval · Evidence · Public-safe Projection"]
 
-    Direct --> Workspace["Workspace Direct<br/>已实现 · Project / Workspace"]
-    Direct --> Host["Host Direct<br/>Files + bounded Command 已实现"]
+    Router --> Device["local-device"]
+    Center --> Device
+    Gov -. policy .-> Router
 
-    Workspace --> Broker["Capability Broker"]
-    Host --> Broker
-    Broker --> BuiltIn["ChatCockpit Built-in Executor"]
-    Broker --> Standalone["Codex App Server Standalone"]
-    Broker --> Downstream["Pluggable Downstream MCP Executor"]
+    Device --> P1["Built-in / Standalone capabilities"]
+    Device --> P2["Downstream MCP Providers"]
+    Device --> P3["External tools / runtimes"]
 
-    Codex --> AppServer["Codex App Server<br/>Thread · Turn · Approval"]
-    Async --> Runner["Queue / Runner<br/>Isolated Worktree · Artifacts · Evidence"]
-
-    Governance["Continuity & Governance<br/>Task · Session · Runtime Binding · Writer Lease · Handoff · Approval · Evidence"] -.-> Direct
-    Governance -.-> Codex
-    Governance -.-> Async
+    Dev["Development Continuity<br/>Task · Session · Handoff · Evidence · Recovery"] -. solution layer .-> MCP
 ```
 
-底层现有 `chat-direct` Runtime Lane 保持兼容；Direct Drive 是其产品级总称。Workspace / Host / isolated Worktree 描述“执行发生在哪里”，而 Direct Drive / Codex Session / Async Agent Job 描述“谁持有模型循环以及任务如何执行”。Direct Drive 已确认采用 **ChatCockpit Capability Broker + Pluggable Downstream MCP Executor** 架构。当前 Built-in / App Server Standalone 通过统一 capability contract 发现与选择，支持 `automatic | explicit` Provider Selection，并通过 `chatcockpit.direct.executors.list` 暴露 public-safe discovery。Downstream MCP 的 local-only 配置、stdio Probe、Capability Snapshot、显式 Tool Mapping、Broker Descriptor 与内部 Execution Registry 也已实现；Host Direct 现已通过 Host Root Alias 接入受治理的 `files.read`、需要短期 single-use Approval 的文本 `files.write` / Exact `files.edit`，以及同样经过 `prepare → decide → execute` 审批的 bounded Host Command。Pure Host Command 仅允许显式只读 policy；Workspace write-effect Command 自动回流 Session / Writer Lease / Git / Task Evidence。Raw shell source、交互式/后台 Process API 和下游 Process Tool 仍不对 Remote MCP 开放。
+### 1. Capability，而不是 Provider 数量
 
-同一个 Task 可以通过 Writer Lease、Handoff Checkpoint 与 Evidence Bundle 在不同执行方式之间接力，而不是把某个 ChatGPT 对话、Codex Thread 或 Runner Job 当成唯一系统记录。
+ChatCockpit 对外暴露的是稳定的产品能力，而不是把每个下游工具动态变成一个新的 ChatGPT Tool。
 
-## 能力状态
+当前 Capability Router 固定提供：
 
-### 已实现
+- `chatcockpit.capabilities.list`
+- `chatcockpit.capabilities.inspect`
+- `chatcockpit.capabilities.read.invoke`
+- `chatcockpit.capabilities.mutation.prepare`
+- `chatcockpit.capabilities.mutation.inspect`
+- `chatcockpit.capabilities.mutation.execute`
 
-- 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
-- Direct Drive / Workspace Direct：底层继续使用 `chat-direct` Lane，提供文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；Capability Broker 已统一 Built-in / App Server Standalone 的 capability discovery、健康状态与显式/自动 Provider Selection，并已证明不会隐式调用 `turn/start`。Downstream MCP 已具备 local config → probe → snapshot → descriptor → normalized execution 的完整链路，并已用于 Host Direct Files 与 bounded Host Command。
-- Capability Router：使用固定的 ChatCockpit-owned Remote MCP Surface 暴露显式选入的下游能力；`chatcockpit.capabilities.list` / `inspect` / `read.invoke` 提供 catalog、bounded metadata 与受校验只读调用，`chatcockpit.capabilities.mutation.prepare` / `inspect` / `execute` 提供受治理 Provider-native mutation。Provider-native Tool Name 永远只是数据，不会动态注册为 ChatGPT Tool。Mutation 只能由已认证本地 Operator Session 通过 REST + CSRF 作出 approve/deny；MCP 不注册 `decide`。Read 与 Mutation 都会在发送参数/产生副作用前用同一条下游连接执行 live `tools/list` attestation；Mutation Approval 还绑定 exact argument hash、Provider/Tool、Executor config 与 policy，并且不持久化原始参数或 Provider result 正文。
-- Durable Host Managed Workspace Process：通过 ChatCockpit `host_process_*` 公共身份提供受审批的 Start / Input / Stop 与只读 Read / List；独立 Process Supervisor sidecar 持有 Desktop Commander runtime/PID namespace，使合法进程可跨普通 Control Plane restart 延续，同时继续由 Writer Lease watchdog、runtime generation/ownership、Audit/Evidence 和 process-group guardian 治理。Process Output 与 raw interactive input 不进入持久 Mutation 结果，PID 始终保持私有；系统级任意 PID attach/list/kill 不开放。
-- Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
-- Continuity Engine：SQLite Schema v19、Project、Workspace、Task、Session、通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、受治理 Runtime Resource Mutation Approval/Execution/Provenance、Process Supervisor Runtime Ownership 与 Runtime Event。
-- Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Runtime Recovery、Handoffs、Evidence、Approvals、Planning/Completion/Recovery Blockers、Runtime Binding 与 Runner Job；Recovery Center 由服务端 Assessment 驱动，支持显式 Codex Resume/Fork/Bind、Runner Reconcile、Chat Direct/Handoff 接续，不会自动启动 `turn/start` 或自动切换 Provider。
-- Runtime & Resource Center：`<安全入口>/resources` 统一展示 public-safe Runtime Profiles 与 append-only Inventory Snapshot，已接入 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP Executor/Adapter 与 ACP Registry Agent Catalog；受治理 mutation 已开放到 Codex Skill enable/disable 与 Codex Plugin install/uninstall。Operator REST / Resource Center 支持 prepare → review/decide → execute；Remote MCP 只开放 prepare / inspect / execute，不能自行 decide，并且 exposed deployment 只有显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这些 mutation tools。
-- Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
-- Remote MCP catalog 采用静态产品工具合同而不是易漂移的总数合同：Capability Router 固定暴露 `list` / `inspect` / `read.invoke` 与 governed mutation `prepare` / `inspect` / `execute`；Runtime Resource mutation 仍只在本地非 exposed 模式或显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 时注册其 `prepare` / `inspect` / `execute`。MCP 始终不注册 Capability Router / Resource mutation `decide`，也不注册 `reconcile`；发布门禁按 capability presence/absence、OAuth/Bearer、public-safe projection、历史隐私和 source-archive 合同验收，而不依赖硬编码工具总数。
+Provider-native Tool Name 只作为 Catalog 数据存在。下游 MCP 增减或升级不会让 ChatGPT 的上游工具快照失控。
 
-### 实验性
+### 2. Resource Center 是管理平面
 
-- ChatGPT custom MCP app / Remote MCP 的跨客户端、refresh/reconnect 与长期运行稳定性。
-- Codex App Server standalone 文件与命令执行；能力由本机 Probe 验证后才启用。
-- Continuity Workbench 的交互式运行时治理。
+Resource Center 用统一 public-safe 模型展示本机 target、Runtime Profile、Provider、Capabilities、健康与 Inventory Snapshot，并承载受治理的资源变更入口。
 
-### 验证中
+ChatCockpit 不把自己的缓存或数据库伪装成 Provider 的最终真相；执行前会重新检查当前配置、Catalog 与 live metadata，必要时直接 fail closed。
 
-- 不同 ChatGPT 客户端、网络代理和公网 HTTPS 入口的长期兼容性。
-- 更多真实项目中的跨模式 Handoff 恢复与长时间运行行为。
+### 3. 变更必须有明确 Authority
 
-## 操作员 Web UI
+有副作用的操作遵循受治理生命周期。Capability Router mutation 使用：
 
-Web UI 是本地操作员控制台。除 Dashboard、Jobs、Setup Wizard 与 GPT Helper 外，Continuity Workbench 还提供 Projects、Specs & Plans、Tasks、Sessions、Recovery、Handoffs、Evidence、Approvals 八个稳定深链；独立 `<安全入口>/resources` Resource Center 提供 Runtime Profile 选择、显式资源刷新、snapshot diff、Skills/MCP/Plugins/Adapters/ACP Agents 分类清单与详情检查，并对已获治理支持的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 提供 prepare → review/decide → execute 工作流。Specs & Plans 可管理真实文档版本、哈希、生命周期、审批和 Task 绑定；Task 视图直接消费服务端 Planning Assessment，不在浏览器端推断执行资格。
+```text
+prepare
+→ local operator approve / deny
+→ execute
+→ evidence / result projection
+```
 
-![ChatCockpit GPT Helper 配置界面](./docs/assets/chatcockpit-gpt-helper-config.webp)
+Remote MCP **没有 `decide` 权限**。Approval 只能由已认证本地 Operator Session 通过 REST + CSRF 作出；machine bearer、MCP OAuth 和 Remote MCP 都不能自行批准写操作。
 
-![ChatCockpit GPT Actions 写入文件实测](./docs/assets/chatcockpit-gpt-actions-writefile.webp)
+### 4. Development Continuity 是重要能力，但不是整个产品类别
 
-在需要鉴权的模式下，浏览器会话提供 bearer token 前，受保护数据不会展示。
+ChatCockpit 仍保留已经成熟的开发连续性系统：Project、Workspace、Task、Spec/Plan、Session、Runtime Binding、Writer Lease、Handoff、Evidence、Recovery、Codex 与异步 Job。
 
-## 开始使用
+这些能力解决“同一个目标如何跨 ChatGPT、Codex 与异步执行继续工作”的问题，但它们现在属于 ChatCockpit 更大控制面中的 **Development solution layer**，不再定义整个产品。
 
-### 1. Source / Web Cockpit
+## 当前已经能做什么
 
-适合贡献者和本地开发：
+- **Remote MCP / OAuth**：ChatGPT 通过一个 ChatCockpit 入口访问固定、受治理的产品工具面。
+- **Capability Router**：Catalog、Inspect、只读 Invoke、受治理 Provider-native Mutation；调用前执行 live `tools/list` attestation。
+- **Downstream MCP**：官方 MCP Client，支持本机 stdio 与受约束的 Streamable HTTP；Provider schema/annotations 以 bounded catalog 保存。
+- **Resource Center**：本机 `local-device`、Runtime Profiles、Provider projection、append-only inventory 与受治理资源操作。
+- **Governance**：Approval、Idempotency、Evidence、Public-safe Projection、Actor provenance；原始 mutation arguments 与 Provider result body 不写入 Governance 记录。
+- **Host / Workspace 能力**：allowlisted 文件、受控命令、Git 与受治理 Managed Workspace Process；不暴露任意 raw shell 或系统级 PID 管理。
+- **Development Continuity**：Task / Session / Handoff / Evidence / Recovery、显式 Codex Session、异步 Agent Job 与 Writer Lease。
+- **Operator Surfaces**：macOS App、Menu Bar、Web Cockpit、CLI；Surface 之间共享同一个本机控制面与 Authority 规则。
+
+## 为什么需要 ChatCockpit
+
+很多 AI 工具已经分别拥有文件、Shell、Coding、MCP、Agent 或自动化能力。ChatCockpit 不要求把这些能力重新实现一遍，而是解决它们之间更难统一的部分：
+
+- **一个入口**：ChatGPT 不必为每个本机工具维护一组独立 Connector。
+- **稳定能力面**：下游工具变化不会动态污染上游 ChatGPT Tool Surface。
+- **可治理变更**：读、写、审批、执行与证据边界明确。
+- **Provider-native truth**：运行时状态与元数据变了就重新校验，而不是依赖旧快照继续执行。
+- **本地优先**：真实机器状态、凭据、绝对路径和私有运行信息默认留在本机。
+- **跨工具连续性**：需要开发接力时，Task、Handoff 与 Evidence 不依赖某个聊天窗口长期存活。
+
+## 立即体验
+
+| 入口 | 用途 |
+|---|---|
+| **ChatGPT App / Remote MCP** | 在聊天中发现和调用 ChatCockpit 能力 |
+| **macOS App / Menu Bar** | 管理本机 Runtime、入口、安全与运行状态 |
+| **Web Cockpit** | Resource Center、Continuity、Jobs、Integrations 与 Operator 工作流 |
+| **CLI** | 本地开发、诊断、验证与自动化 |
+
+源码模式：
 
 ```bash
 npm ci
@@ -126,191 +122,36 @@ npm run mvp:status
 npm run doctor:runtime
 ```
 
-首次初始化会自动生成随机控制台安全入口以及随机 Web Owner 用户名/强密码；这些值不会写入公开仓库，也不会在普通初始化日志中输出。优先从 ChatCockpit App 打开 **本机控制台**，或查看：
+不要假定 Web UI 固定为 `/ui`。全新初始化会生成随机安全入口；优先从 ChatCockpit App 打开 **本机控制台**，或查看 `npm run mvp:status` 的 `UI:` 输出。
 
-```bash
-npm run mvp:status
-```
+更完整的指南：
 
-其 `UI:` 行会显示当前机器的真实安全入口。默认 `/ui` 仅作为旧状态兼容回退；新初始化使用随机入口，而且不知道该入口时匿名 Owner 登录/状态接口同样返回 404。随机入口属于 defense-in-depth，仍与 Owner 认证、限速、CSRF 和公网 HTTPS 同时生效。
+- [新手快速开始](./docs/zh-CN/deployment/beginner-quickstart.md)
+- [ChatGPT / MCP 接入](./docs/zh-CN/deployment/mcp-setup.md)
+- [macOS Desktop](./docs/zh-CN/deployment/macos-desktop.md)
+- [本机运行维护](./docs/zh-CN/deployment/local-runtime-ops.md)
+- [本地优先控制面架构](./docs/zh-CN/architecture/local-first-control-plane.md)
+- [产品原则](./docs/zh-CN/governance/product-principles.md)
+- [公开 / 私有资料边界](./docs/zh-CN/governance/public-vs-private-artifacts.md)
+- [ChatGPT Connector Smoke](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
 
-Source/Developer Mode 的 canonical state 位于 `~/.chatcockpit/`，与源码 checkout 分离。自动生成的 Owner 凭据保存在 owner-only 的本机凭据 vault 中，可在 App 的 **访问与安全** 中查看、复制或重设。
+## 安全边界
 
-### 2. macOS App
+ChatCockpit 的目标不是“让 AI 获得无限本机权限”。核心约束包括：
 
-如果已经构建过当前 App：
+- 显式 allowlist 与 canonical path containment；
+- 只发布有界、脱敏的 public-safe projection；
+- 高风险 mutation 需要 server-side policy 与本地 Operator Authority；
+- Remote MCP 不能自我批准受治理变更；
+- raw downstream tool、raw shell、私有 transport config、Secret、PID 与真实本机路径不会因为本机可见就自动进入公开接口；
+- Provider metadata/schema 漂移会在副作用前阻断执行。
 
-```bash
-open dist/macos/ChatCockpit.app
-```
+## 项目与贡献
 
-当前 Source services 正在运行时，优先在 App Settings 中使用 **Developer Mode**；切换到 Packaged Mode 时，ChatCockpit 会显式检测 ownership conflict，而不是自动抢占现有 LaunchAgents。
+ChatCockpit 目前仍是 alpha。欢迎围绕当前公开合同提交 Issue / PR，尤其是：协议兼容性、安全边界、Provider 互操作、Resource Center 可靠性、macOS 打包、文档与可重复验证。
 
-完整测试步骤：[`docs/zh-CN/testing/macos-desktop-smoke.md`](./docs/zh-CN/testing/macos-desktop-smoke.md)。
+公开仓库只描述当前已实现产品行为、公开接口与贡献者需要维护的架构不变量。
 
-macOS Desktop 还提供 Self-contained Packaged Mode：App 内含固定 Node `24.18.1` 与 production runtime payload，不要求目标机器另装 Node/npm。当前 development App/DMG 仍是 development trust，尚未完成 Developer ID / Apple notarization。更多边界见 [`docs/zh-CN/deployment/macos-desktop.md`](./docs/zh-CN/deployment/macos-desktop.md) 与 [`docs/zh-CN/deployment/macos-release.md`](./docs/zh-CN/deployment/macos-release.md)。
+## License
 
-### 3. ChatGPT App / Remote MCP
-
-ChatCockpit 可作为自定义 MCP App 连接到 ChatGPT。连接完成后，在新的 ChatGPT 对话中从工具菜单选择 **ChatCockpit**，或者在提示词中明确要求使用 ChatCockpit。
-
-推荐从只读路径开始：
-
-```text
-使用 ChatCockpit 列出当前 Projects，然后查看 primary Workspace snapshot 和 git status。
-不要修改任何内容，并告诉我实际调用了哪些 ChatCockpit tools。
-```
-
-再逐步测试 Continuity、Approval、Codex Session 与 Async Agent Job。完整 smoke matrix：[`docs/zh-CN/testing/chatgpt-connector-smoke.md`](./docs/zh-CN/testing/chatgpt-connector-smoke.md)。
-
-本地可重复配置位于 `~/.chatcockpit/runtime/server.env`。只有在已经配置好 HTTPS 与访问凭据时才使用 `CHATCOCKPIT_EXPOSED=true`；真实域名、token、隧道凭据和机器路径不要提交到 Git。
-
-## ChatGPT App / Remote MCP
-
-ChatGPT custom MCP app / Remote MCP 已完成真实 OAuth 与工具调用验证；它仍属于 alpha 产品面，需要继续验证不同 ChatGPT 客户端、网络代理、refresh/reconnect 和长时间运行行为。ChatGPT 端应使用 `chatcockpit:mcp` authority；0.2.x 不会把 legacy MCP scope 静默升级为新权限。
-
-公开 OpenAPI 合约仍位于 [`openapi/chatcockpit.openapi.yaml`](./openapi/chatcockpit.openapi.yaml)，主要用于 REST / Actions 兼容与调试；Remote MCP 使用 `/mcp`。仓库中的 `https://chatcockpit.example.com` 是占位域名，真实 endpoint 和 bearer/OAuth authority 不应提交到 Git。
-
-Direct Drive 适合由 ChatGPT 保持模型循环的确定性本机操作；当前已实现 Workspace Direct，以及受 Host Root Alias / 路径策略约束的 Host Direct Files 与 bounded Host Command。文本 Write / Exact Edit 使用 Direct Mutation Approval；Host Command 使用独立 Direct Command Approval，Workspace write-effect Command 自动回流 Writer Lease / Git / Task Evidence。Raw unrestricted shell 不对 Remote MCP 开放。显式 Codex Session 适合需要 Codex Thread、Turn 与 Approval 的交互式 Agent 工作；更长或适合隔离执行的任务可进入 Async Agent Job。
-
-`runShell` 不是 raw shell，Standalone `command/exec` 也不会绕过 ChatCockpit 的命令白名单、工作区 allowlist、exposed-mode 高信任开关、超时与输出上限。公网或隧道访问必须经过对应入口的明确鉴权：Web 使用控制台管理员会话，ChatGPT MCP 使用 scoped OAuth；只有 CLI、自动化或兼容 API 客户端需要机器 Bearer 时才按需配置机器 API 令牌。
-
-相关文档：
-
-- ChatGPT Connector Smoke：[`docs/zh-CN/testing/chatgpt-connector-smoke.md`](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
-- MCP 接入：[`docs/zh-CN/deployment/mcp-setup.md`](./docs/zh-CN/deployment/mcp-setup.md)
-- GPT Builder / Actions 兼容路径：[`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
-- 公网 HTTPS / tunnel：[`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
-
-## Codex Task Pack 最小模板
-
-把下面结构交给 ChatGPT，再让它为 Codex 生成明确任务包：
-
-````md
-# Codex Task Pack
-
-## 1. 目标
-
-用一句话说明要解决的问题。
-
-## 2. 上下文
-
-只保留当前任务必要背景。
-
-## 3. 范围
-
-必须检查：
-
-- path/to/file-a
-- path/to/directory-b
-
-必要时可以检查：
-
-- path/to/related-module
-
-禁止修改：
-
-- path/to/unrelated-module
-- package manager config
-- global theme tokens
-
-## 4. 执行要求
-
-1. 先确认真实根因。
-2. 做最小可验证改动。
-3. 不引入无关依赖。
-4. 保持现有风格。
-
-## 5. 验证
-
-```bash
-npm run lint
-npm run build
-npm run test
-```
-
-## 6. 验收标准
-
-- 原问题消失。
-- 验证命令通过。
-- diff 没有超出范围。
-- 既有行为没有被破坏。
-````
-
-## 公开文档
-
-- 新手快速开始：[`docs/zh-CN/deployment/beginner-quickstart.md`](./docs/zh-CN/deployment/beginner-quickstart.md)
-- ChatGPT Connector Smoke：[`docs/zh-CN/testing/chatgpt-connector-smoke.md`](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
-- macOS Desktop Smoke：[`docs/zh-CN/testing/macos-desktop-smoke.md`](./docs/zh-CN/testing/macos-desktop-smoke.md)
-- GPT Builder 配置：[`docs/zh-CN/deployment/gpt-builder-setup.md`](./docs/zh-CN/deployment/gpt-builder-setup.md)
-- MCP 接入：[`docs/zh-CN/deployment/mcp-setup.md`](./docs/zh-CN/deployment/mcp-setup.md)
-- 公网 HTTPS / 内网穿透：[`docs/zh-CN/deployment/public-https-tunnel.md`](./docs/zh-CN/deployment/public-https-tunnel.md)
-- 本地运行参考：[`docs/zh-CN/deployment/local-runtime-ops.md`](./docs/zh-CN/deployment/local-runtime-ops.md)
-- 架构说明：[`docs/zh-CN/architecture/local-first-control-plane.md`](./docs/zh-CN/architecture/local-first-control-plane.md)
-- Continuity Engine：[`docs/zh-CN/architecture/continuity-engine.md`](./docs/zh-CN/architecture/continuity-engine.md)
-- Chat Direct / Codex Session ADR：[`docs/zh-CN/architecture/adr-001-chat-direct-and-codex-session-lanes.md`](./docs/zh-CN/architecture/adr-001-chat-direct-and-codex-session-lanes.md)
-- GPT Actions runner loop：[`docs/zh-CN/architecture/gpt-actions-runner-loop.md`](./docs/zh-CN/architecture/gpt-actions-runner-loop.md)
-- Files Read API：[`docs/zh-CN/engineering/files-read-api.md`](./docs/zh-CN/engineering/files-read-api.md)
-- 产品原则：[`docs/zh-CN/governance/product-principles.md`](./docs/zh-CN/governance/product-principles.md)
-- 公共 / 私有产物治理：[`docs/zh-CN/governance/public-vs-private-artifacts.md`](./docs/zh-CN/governance/public-vs-private-artifacts.md)
-- RTK 工程说明：[`docs/zh-CN/engineering/rtk.md`](./docs/zh-CN/engineering/rtk.md)
-
-真实域名、反向代理、tunnel、Bearer token 和 GPT Builder 操作记录属于本地配置，不应提交到 Git。
-
-## 当前能力状态
-
-- [x] 本地 CLI、pack、manifest、taskpack
-- [x] 本地 control plane、runner 与异步 job queue
-- [x] OpenAPI、REST/MCP Parity 与 exposed-mode 鉴权
-- [x] Chat Direct 文件、搜索、受控命令、Git 与 No-Turn 门禁
-- [x] Codex App Server Thread Bind/Resume/Fork 与显式 Turn/Approval/Interrupt
-- [x] SQLite Continuity Engine、Writer Lease、Handoff、Evidence 与 Runtime Event
-- [x] Continuity Workbench 与真实 Workspace Snapshot
-- [x] Schema v7 版本化 Spec/Plan、Task 版本固定与 planning-required/planning-optional 门禁
-- [x] OAuth 持久化、恢复、撤销与公共错误边界
-- [x] 无 Git 源码包、隐私、路径安全与发布验证门禁
-- [x] First-run Setup Wizard、首任务模板与新手文档
-
-未发布的产品分支不再作为内部路线图直接写入 README；对外计划以公开 Issues、Discussions 和 Release 记录为准。
-
-## 安全与隐私
-
-ChatCockpit 明确区分公开产品代码和私有 operator 事实。
-
-不要提交：
-
-- API keys、bearer tokens、cookies、local session files。
-- 真实部署域名、tunnel tokens、private IP、internal hostnames。
-- 个人绝对路径或机器相关运行态。
-- `.codex/`、全局 `~/.chatcockpit/runtime/`、兼容期历史 `.tokenpilot/runtime/`、`.servbay/`、生成调试记录或私有规划材料。
-
-提交前至少运行：
-
-```bash
-npm run verify:knowledge-boundary
-npm run verify:web:safety
-npm run privacy:scan:history
-```
-
-`npm run privacy:scan:history` 是只读扫描。历史泄露需要经过审查的 history rewrite 和协调后的 force-push；普通清理提交只能保护未来快照。
-
-## 讨论
-
-ChatCockpit 是一个实验性开源的 AI 开发连续性与 Agent 能力路由平台，面向 ChatGPT Native、Chat Direct、Codex Session、Async Agent Job 之间的可审计接力，以及 Token-conscious Planner / Coder / Reviewer 工作流。
-
-- GitHub Discussions: <https://github.com/wuaishare/ChatCockpit/discussions>
-- GitHub Issues: <https://github.com/wuaishare/ChatCockpit/issues>
-- Pull Requests: 欢迎提交模板、文档、示例和工具改进。
-
-## 免责声明
-
-ChatCockpit 与 OpenAI、ChatGPT、Codex 或 GitHub 没有关联。它不会绕过任何平台限制，只是用更清晰的任务边界、更少的重复上下文、更安全的本地执行和更好的复盘审查，把现有工具串成可控工作流。
-
-## 参考
-
-- OpenAI Codex Web: <https://developers.openai.com/codex/cloud>
-- OpenAI Codex Models: <https://developers.openai.com/codex/models>
-
-## 许可证
-
-[MIT License](./LICENSE)
+[MIT](./LICENSE)

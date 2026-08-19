@@ -5,7 +5,7 @@ This checklist defines the minimum bar for a GitHub prerelease source package.
 ## Release Shape
 
 - Current target: `0.2.0-alpha`
-- Intended audience: developers evaluating a local-first Development Continuity & Agent Routing Platform across Chat Direct, Codex Session, and Async Agent Job modes
+- Intended audience: developers evaluating a local-first AI capability control plane with governed Remote MCP, Resource Center, provider routing, and Development Continuity capabilities
 - Release type: GitHub prerelease source preview
 - Not included yet: npm publish, native installer, public SaaS mode, production-grade multi-runner service
 
@@ -76,8 +76,8 @@ The prerelease package must not include:
 
 ## Release Notes Must Include
 
-- Product positioning: Development Continuity & Agent Routing Platform
-- Runtime ladder: ChatGPT Native -> Chat Direct -> Codex Session -> Async Agent Job
+- Product positioning: Local-first AI capability control plane
+- Public product hierarchy: Entry surfaces -> ChatCockpit Control Plane -> Capability Router / Resource Center / Governance -> Providers; Development Continuity remains a solution layer
 - Implemented capabilities: Continuity Engine through Schema v19, Writer Lease, Handoff/Evidence, governed Task Review/Completion, explicit Codex Turn/Approval, Runtime Recovery Assessment/Attempt/Execution, Native Codex Recovery with compatibility gating, Runner and Chat Direct recovery projections, append-only Runtime Resource Inventory Snapshot truth, durable Resource mutation approval/execution/actor provenance, Native Codex Skills/MCP/Plugins/config inventory, Downstream MCP resource inventory, ACP Registry Agent catalog, governed Codex Skill enable/disable and Codex Plugin install/uninstall, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Workspace Snapshot, Continuity-bound Async Job Queue, Runner lifecycle/restart reconciliation, versioned Spec/Plan truth with immutable Task version pins, explicit planning-required/planning-optional execution policy, server-derived Planning Assessment, a static product-owned MCP capability catalog with fixed Capability Router read/governed-mutation surfaces plus conditional Resource mutation tools, Direct Drive executor discovery, Host Root Alias discovery, Host Direct file read, approval-gated Write/Exact Edit, approval-gated bounded Host Command lifecycle, and Durable ChatCockpit-owned Managed Workspace Process lifecycle with separate Process Supervisor generation/ownership, offline Writer Lease watchdog, terminal-event reconciliation, and downstream process-group crash containment, plus Spec/Plan/Completion/Runtime Recovery Workbench UX, `/ui/resources` Resource Center, Queue/Runner, and public-safe artifacts
 - Experimental surfaces: Custom GPT Actions, Remote MCP, public HTTPS, and Codex App Server standalone execution
 - Security model: Bearer/OAuth MCP Auth, allowlisted Workspace/commands, optimistic revisions, idempotency, Writer Lease, public-safe projections, Resource mutation actor provenance and operator-decision separation, privacy/history gates, and no-Git source archive validation

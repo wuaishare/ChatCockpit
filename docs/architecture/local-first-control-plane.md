@@ -2,29 +2,38 @@
 
 ## Status
 
-- Implemented foundation: CLI, Fastify Control Plane, REST/MCP/OpenAPI, local Queue/Runner, Web UI, Chat Direct, Codex Session adapter, and Continuity Engine
-- Experimental deployment surfaces: Custom GPT Actions, Remote MCP, public HTTPS exposure, and Codex App Server standalone execution
-- Near-term direction: Remote MCP stability, Direct Drive hardening, explicit Codex Session lifecycle reliability, Async Agent Job reliability, and a governed Host Direct scope
-
-This document describes the current architecture. Earlier “Phase 1” language referred to the original queue-and-files scaffold and should not be read as the current product boundary.
+- Implemented foundation: local Control Plane, REST/MCP/OpenAPI, Remote MCP/OAuth, provider-neutral Capability/Governance kernel, Resource Center projection, stable Capability Router, Development Continuity, Queue/Runner, Web UI, and macOS operator surfaces
+- Experimental/validation surfaces: broader provider lifecycle management, public HTTPS compatibility across clients, and some provider-specific integrations
+- Product boundary: this document covers current implementation truth, public interfaces, and security/compatibility contracts
 
 ## Product Role
 
-ChatCockpit is a local-first Development Continuity & Agent Routing Platform with ChatGPT as the primary conversational entry surface.
+ChatCockpit is a local-first **AI capability control plane**.
 
-ChatGPT Native is the entry and model-loop host, not a fourth runtime lane. When local execution is required, ChatCockpit selects one of three explicit execution modes:
+> **Chat is the interface. Cockpit is the control plane.**
+
+The top-level architecture is capability-first rather than runtime-first:
 
 ```text
-ChatGPT Native
-  -> ChatCockpit Remote MCP / Control Plane
-       -> Direct Drive
-            -> Workspace Direct (implemented)
-            -> Host Direct (Files + approval-gated bounded Command implemented)
-       -> Codex Session
-       -> Async Agent Job
+ChatGPT / Desktop / Web / CLI / API
+             |
+             v
+      ChatCockpit Control Plane
+        |       |        |
+        v       v        v
+  Capability  Resource  Governance
+    Router     Center
+        \       |       /
+          local-device
+              |
+       providers / adapters
 ```
 
-ChatGPT owns conversation, intent, planning, and review. In Direct Drive it also remains the only model-loop owner while ChatCockpit executes deterministic tools. In Codex Session, ownership is explicitly delegated to Codex. In Async Agent Job, a delegated agent runtime owns the background model loop while ChatCockpit owns the Job lifecycle. ChatCockpit always owns durable local identity, execution policy, continuity state, public-safe projections, and cross-runtime handoff.
+ChatCockpit owns the stable public capability surface, policy/authority boundary, public-safe projection, and cross-provider management semantics. Provider-native runtimes, MCP servers, CLIs, and applications remain authoritative for the capabilities they actually implement.
+
+Provider-native tool names are catalog data. They do not become dynamic ChatGPT tools. Read and governed mutation paths re-attest downstream metadata before invocation; meaningful provider mutation requires a local Operator decision rather than Remote MCP self-approval.
+
+Development Continuity remains a major implemented solution layer above this control plane. Its Chat Direct, Codex Session, Async Agent Job, Task, Handoff, Evidence, Recovery, and Writer Lease contracts remain valid, but they are not the top-level product category.
 
 ## Control-Plane Responsibilities
 
@@ -43,7 +52,7 @@ The Control Plane currently provides:
 - a stable non-persistent `local-device` target projection containing only platform and architecture, without hostname, machine UUID, or Fleet state;
 - release, privacy, protocol, restart, and source-archive gates.
 
-## Runtime Lanes
+## Development Continuity execution lanes
 
 ### Direct Drive — Workspace Direct and governed Host Files / bounded Command implemented
 
