@@ -38,6 +38,7 @@ function main(): void {
   const databasePath = oauthDatabasePath(runtimeDir);
   const clientId = "client_test_public";
   const requestId = "oauth_request_1";
+  const grantId = "oauth_grant_test_1";
   const authorizationCode = "tp_code_sensitive_value";
   const accessToken = "tp_access_sensitive_value";
   const refreshToken = "tp_refresh_sensitive_value";
@@ -55,6 +56,17 @@ function main(): void {
   assert.equal(client.clientId, clientId);
   assert.equal(client.tokenEndpointAuthMethod, "none");
   assert.deepEqual(client.grantTypes, ["authorization_code", "refresh_token"]);
+
+  const grant = store.createAuthorizationGrant({
+    grantId,
+    clientId,
+    displayLabel: "ChatGPT test authorization",
+    scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
+    resource: "https://tokenpilot.example.com/mcp",
+    createdAt: now
+  });
+  assert.equal(grant.grantId, grantId);
+  assert.equal(grant.legacy, false);
 
   store.createAuthorizationRequest({
     requestId,
@@ -75,9 +87,10 @@ function main(): void {
 
   store.createAuthorizationCode({
     code: authorizationCode,
+    grantId,
     clientId,
     redirectUri: client.redirectUris[0],
-    scope: TOKENPILOT_MCP_SCOPE,
+    scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
     resource: "https://tokenpilot.example.com/mcp",
     codeChallenge: "challenge-value",
     issuedAt: now,
@@ -90,14 +103,16 @@ function main(): void {
 
   store.storeAccessToken({
     token: accessToken,
+    grantId,
     clientId,
-    scope: TOKENPILOT_MCP_SCOPE,
+    scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
     resource: "https://tokenpilot.example.com/mcp",
     issuedAt: now,
     expiresAt: future
   });
   store.storeRefreshToken({
     token: refreshToken,
+    grantId,
     clientId,
     scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
     resource: "https://tokenpilot.example.com/mcp",
@@ -106,14 +121,16 @@ function main(): void {
   });
   store.storeAccessToken({
     token: expiredAccessToken,
+    grantId,
     clientId,
-    scope: TOKENPILOT_MCP_SCOPE,
+    scope: `${TOKENPILOT_MCP_SCOPE} ${OAUTH_OFFLINE_SCOPE}`,
     resource: "https://tokenpilot.example.com/mcp",
     issuedAt: expired,
     expiresAt: now
   });
 
   assert.equal(store.findActiveAccessToken(accessToken, now)?.clientId, clientId);
+  assert.equal(store.findActiveAccessToken(accessToken, now)?.grantId, grantId);
   assert.equal(store.findActiveAccessToken(expiredAccessToken, now), null);
   assert.equal(store.findActiveRefreshToken(refreshToken, now)?.clientId, clientId);
 
@@ -124,8 +141,10 @@ function main(): void {
 
   store = new OAuthStore({ path: databasePath });
   assert.equal(store.getClient(clientId)?.clientName, "ChatGPT test client");
+  assert.equal(store.getAuthorizationGrant(grantId)?.displayLabel, "ChatGPT test authorization");
   assert.equal(store.findActiveRefreshToken(refreshToken, now)?.clientId, clientId);
   assert.equal(store.findActiveAccessToken(accessToken, now)?.clientId, clientId);
+  assert.equal(store.findActiveAccessToken(accessToken, now)?.grantId, grantId);
 
   assert.equal(store.revokeToken(accessToken, now), true);
   assert.equal(store.findActiveAccessToken(accessToken, now), null);

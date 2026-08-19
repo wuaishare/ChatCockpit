@@ -378,6 +378,7 @@ export interface IntegrationStatusResponse {
     oauthStatus: "disabled" | "ready" | "needs-attention";
     oauthReady: boolean;
     authorizedClientCount: number;
+    activeAuthorizationGrantCount: number;
     activeAccessTokenCount: number;
     activeRefreshTokenCount: number;
     toolCatalogStatus: "ready";

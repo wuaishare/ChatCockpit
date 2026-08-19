@@ -9,7 +9,11 @@ export type RequestAuthContext =
   | { kind: "anonymous" }
   | { kind: "machine-bearer" }
   | { kind: "operator-session"; session: OperatorSessionContext }
-  | { kind: "mcp-oauth" };
+  | {
+      kind: "mcp-oauth";
+      authorizationGrantId: string;
+      clientRegistrationId: string;
+    };
 
 declare module "fastify" {
   interface FastifyRequest {

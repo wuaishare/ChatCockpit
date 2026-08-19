@@ -8,6 +8,11 @@ import type {
 } from "fastify";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 
+import {
+  MCP_AUTHORIZATION_GRANT_HEADER,
+  MCP_CLIENT_REGISTRATION_HEADER
+} from "../auth/oauth-request-identity.js";
+
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 
 function firstHeaderValue(value: string | string[] | undefined): string | undefined {
@@ -32,6 +37,9 @@ function buildRequestUrl(request: FastifyRequest): string {
 function buildHeaders(request: FastifyRequest): Headers {
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers)) {
+    if (name === MCP_AUTHORIZATION_GRANT_HEADER || name === MCP_CLIENT_REGISTRATION_HEADER) {
+      continue;
+    }
     if (value === undefined) {
       continue;
     }
@@ -42,6 +50,16 @@ function buildHeaders(request: FastifyRequest): Headers {
       continue;
     }
     headers.set(name, value);
+  }
+  if (request.chatCockpitAuth.kind === "mcp-oauth") {
+    headers.set(
+      MCP_AUTHORIZATION_GRANT_HEADER,
+      request.chatCockpitAuth.authorizationGrantId
+    );
+    headers.set(
+      MCP_CLIENT_REGISTRATION_HEADER,
+      request.chatCockpitAuth.clientRegistrationId
+    );
   }
   return headers;
 }

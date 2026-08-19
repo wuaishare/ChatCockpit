@@ -32,7 +32,7 @@ ChatGPT / Desktop / Web / CLI / API
 
 ChatCockpit 负责稳定公共 Capability Surface、Policy/Authority Boundary、Public-safe Projection 与跨 Provider 的管理语义；真实 Runtime、MCP、CLI 与应用仍对自己实现的能力保持 Provider-native Authority。
 
-Provider-native Tool Name 只是 Catalog 数据，不会动态注册成 ChatGPT Tool。Read 与受治理 Mutation 都会在调用前重新验证下游 Metadata；重要 Provider Mutation 必须由本地 Operator Decide，Remote MCP 不能自我批准。
+Provider-native Tool Name 只是 Catalog 数据，不会动态注册成 ChatGPT Tool。Read 与受治理 Mutation 都会在调用前重新验证下游 Metadata；重要 Provider Mutation 必须由本地 Operator Decide，Remote MCP 不能自我批准。OAuth Client Registration 与 Owner 批准的 Authorization 是不同身份：每次批准都会生成独立、持久的 Authorization Grant，Authorization Code 与 Access/Refresh Token 继承该 Grant，完成验证的 MCP 请求使用 Grant 作为 Remote Actor Identity。旧 OAuth 记录会确定性迁移到 Legacy Grant，不改写已有 Token Hash。
 
 Development Continuity 仍然是已经实现的重要解决方案层。Chat Direct、Codex Session、Async Agent Job、Task、Handoff、Evidence、Recovery 与 Writer Lease 合同继续有效，但不再承担顶层产品类别。
 

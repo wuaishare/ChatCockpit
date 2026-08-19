@@ -569,7 +569,15 @@ export function buildServer(
         ? {
             protectedResourceMetadataUrl: oauthConfig.protectedResourceMetadataUrl,
             scope: oauthConfig.mcpScope,
-            verifyAccessToken: (token) => Boolean(oauthService.verifyMcpAccessToken(token))
+            verifyAccessToken: (token) => {
+              const record = oauthService.verifyMcpAccessToken(token);
+              return record
+                ? {
+                    authorizationGrantId: record.grantId,
+                    clientRegistrationId: record.clientId
+                  }
+                : null;
+            }
           }
         : null,
       operatorService,

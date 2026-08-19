@@ -7,6 +7,7 @@ import {
   type McpRequestContext
 } from "@modelcontextprotocol/server";
 
+import { MCP_AUTHORIZATION_GRANT_HEADER } from "../auth/oauth-request-identity.js";
 import type { ChatDirectService } from "../application/chat-direct-service.js";
 import type { HostCommandService } from "../application/host-command-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
@@ -42,7 +43,12 @@ import {
   type McpToolRegistrar
 } from "./register-tools.js";
 
-function actorIdFromRequestContext(context: McpRequestContext): string | null {
+export function actorIdFromRequestContext(context: McpRequestContext): string | null {
+  const grantId = context.requestInfo?.headers.get(MCP_AUTHORIZATION_GRANT_HEADER)?.trim();
+  if (grantId) {
+    return grantId;
+  }
+
   const authInfo = context.authInfo as Record<string, unknown> | undefined;
   if (!authInfo) {
     return null;

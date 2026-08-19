@@ -16,6 +16,7 @@ export interface IntegrationsCopy {
   oauthStatus: string;
   oauthScope: string;
   authorizedClients: string;
+  activeAuthorizationGrants: string;
   activeAccessTokens: string;
   activeRefreshTokens: string;
   toolCatalog: string;
@@ -59,6 +60,7 @@ const zhCN: IntegrationsCopy = {
   oauthStatus: "OAuth 状态",
   oauthScope: "OAuth Scope",
   authorizedClients: "已授权客户端",
+  activeAuthorizationGrants: "有效授权关系",
   activeAccessTokens: "有效 Access Token",
   activeRefreshTokens: "有效 Refresh Token",
   toolCatalog: "工具目录",
@@ -102,6 +104,7 @@ const enUS: IntegrationsCopy = {
   oauthStatus: "OAuth status",
   oauthScope: "OAuth scope",
   authorizedClients: "Authorized clients",
+  activeAuthorizationGrants: "Active authorization grants",
   activeAccessTokens: "Active access tokens",
   activeRefreshTokens: "Active refresh tokens",
   toolCatalog: "Tool catalog",

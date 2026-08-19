@@ -82,7 +82,7 @@ Those capabilities solve continuity across ChatGPT, Codex, and delegated executi
 
 ## What works today
 
-- **Remote MCP / OAuth** — ChatGPT reaches a fixed governed ChatCockpit tool surface through one product boundary.
+- **Remote MCP / OAuth** — ChatGPT reaches a fixed governed ChatCockpit tool surface through one product boundary. Each Owner approval creates an independent Authorization Grant; access/refresh tokens bind to that grant, while legacy OAuth state migrates without invalidating existing refresh tokens.
 - **Capability Router** — catalog, inspect, read invocation, and governed provider-native mutation with live `tools/list` attestation.
 - **Downstream MCP** — official MCP client with local stdio and constrained Streamable HTTP, plus bounded schema/annotation catalogs.
 - **Resource Center** — `local-device`, a provider-management read model, Runtime Profiles, append-only inventory, and governed resource operations. The management view unifies detection, version, health, configuration source, Chat exposure, desired/observed state, and provider-native verification.

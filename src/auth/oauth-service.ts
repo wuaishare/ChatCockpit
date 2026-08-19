@@ -253,8 +253,18 @@ export class OAuthService {
           "Authorization request is expired, missing, or already consumed"
         );
       }
+      const client = this.requireClient(request.clientId);
+      const grant = this.store.createAuthorizationGrant({
+        grantId: `${this.config.oauthOpaquePrefix}_grant_${randomBytes(18).toString("base64url")}`,
+        clientId: request.clientId,
+        displayLabel: client.clientName,
+        scope: request.scope,
+        resource: request.resource,
+        createdAt: iso(now)
+      });
       this.store.createAuthorizationCode({
         code,
+        grantId: grant.grantId,
         clientId: request.clientId,
         redirectUri: request.redirectUri,
         scope: request.scope,
@@ -329,6 +339,7 @@ export class OAuthService {
       }
       this.store.storeAccessToken({
         token: accessToken,
+        grantId: consumed.grantId,
         clientId: consumed.clientId,
         scope: consumed.scope,
         resource: consumed.resource,
@@ -337,6 +348,7 @@ export class OAuthService {
       });
       this.store.storeRefreshToken({
         token: refreshToken,
+        grantId: consumed.grantId,
         clientId: consumed.clientId,
         scope: consumed.scope,
         resource: consumed.resource,
@@ -371,6 +383,7 @@ export class OAuthService {
     const accessToken = opaqueToken(`${this.config.oauthOpaquePrefix}_access`);
     this.store.storeAccessToken({
       token: accessToken,
+      grantId: stored.grantId,
       clientId: stored.clientId,
       scope: stored.scope,
       resource: stored.resource,

@@ -220,6 +220,9 @@ components:
         authorizedClientCount:
           type: integer
           minimum: 0
+        activeAuthorizationGrantCount:
+          type: integer
+          minimum: 0
         activeAccessTokenCount:
           type: integer
           minimum: 0
@@ -232,7 +235,7 @@ components:
         toolCount:
           type: integer
           minimum: 0
-      required: [endpoint, scope, oauthStatus, oauthReady, authorizedClientCount, activeAccessTokenCount, activeRefreshTokenCount, toolCatalogStatus, toolCount]
+      required: [endpoint, scope, oauthStatus, oauthReady, authorizedClientCount, activeAuthorizationGrantCount, activeAccessTokenCount, activeRefreshTokenCount, toolCatalogStatus, toolCount]
     IntegrationStatusResponse:
       type: object
       additionalProperties: false
