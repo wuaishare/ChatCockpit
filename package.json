@@ -2,7 +2,7 @@
   "name": "chatcockpit",
   "version": "0.2.0-alpha",
   "private": true,
-  "description": "Local-first development continuity and agent routing platform for ChatGPT, Codex, and async agent workflows",
+  "description": "Local-first control plane for AI-accessible devices, capabilities, MCP providers, and runtimes",
   "type": "module",
   "bin": {
     "chatcockpit": "./dist/cli/index.js"
