@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import type { JsonSchemaType } from "@modelcontextprotocol/client";
 
@@ -14,6 +16,7 @@ import {
 } from "../direct/downstream-mcp-config.js";
 import { createDownstreamMcpClient } from "../direct/downstream-mcp-client-factory.js";
 import type { DownstreamMcpClient } from "../direct/downstream-mcp-types.js";
+import { projectDownstreamMcpToolCatalog } from "../direct/downstream-mcp-tool-catalog.js";
 import type { GovernanceLedger } from "../governance/governance-ledger.js";
 import {
   buildGovernanceActorProvenance,
@@ -243,10 +246,10 @@ export class CapabilityRouterMutationService {
     context: OperationContext,
     input: CapabilityRouterMutationDecisionInput,
   ): CapabilityRouterMutationDecisionResult {
-    if (context.actorType === "remote-mcp") {
+    if (context.actorType !== "local-ui") {
       throw new ServiceError(
         "CAPABILITY_ROUTER_MUTATION_DECISION_FORBIDDEN",
-        "Remote MCP callers cannot decide Capability Router mutation approvals",
+        "Only an authenticated local operator can decide Capability Router mutation approvals",
       );
     }
     const decidedActor = buildGovernanceActorProvenance(context);
@@ -327,6 +330,25 @@ export class CapabilityRouterMutationService {
       );
     }
 
+    let client: DownstreamMcpClient;
+    try {
+      client = this.clientFactory(preflight.executor);
+    } catch (error) {
+      throw new ServiceError(
+        "CAPABILITY_ROUTER_PROVIDER_START_FAILED",
+        "Capability Router downstream provider could not be started",
+        { cause: error },
+      );
+    }
+
+    try {
+      await this.attestMutationProvider(
+        client,
+        approval,
+        preflight,
+        context.now,
+      );
+
     const executed =
       await this.governance.idempotency.executePreparedExternalMutation<
         PreparedMutationExecution,
@@ -371,6 +393,7 @@ export class CapabilityRouterMutationService {
         },
         async (prepared) =>
           this.invokePreparedMutation(
+              client,
             prepared,
             input.toolName,
             input.arguments,
@@ -390,31 +413,18 @@ export class CapabilityRouterMutationService {
         context.now,
       );
     return { ...executed.value, replayed: executed.replayed };
+    } finally {
+      await client.close().catch(() => undefined);
+    }
   }
 
   private async invokePreparedMutation(
+    client: DownstreamMcpClient,
     prepared: PreparedMutationExecution,
     toolName: string,
     args: Record<string, unknown>,
     now: string,
   ): Promise<CapabilityRouterResultProjection> {
-    let client: DownstreamMcpClient;
-    try {
-      client = this.clientFactory(prepared.executor);
-    } catch (error) {
-      this.finishExecutionBestEffort(
-        prepared.execution.id,
-        "failed-external",
-        "CAPABILITY_ROUTER_PROVIDER_START_FAILED",
-        now,
-      );
-      throw new ServiceError(
-        "CAPABILITY_ROUTER_PROVIDER_START_FAILED",
-        "Capability Router downstream provider could not be started",
-        { cause: error },
-      );
-    }
-
     let rawResult: unknown;
     try {
       rawResult = await client.callTool(toolName, args);
@@ -430,8 +440,6 @@ export class CapabilityRouterMutationService {
         "Capability Router downstream provider mutation failed",
         { cause: error },
       );
-    } finally {
-      await client.close().catch(() => undefined);
     }
 
     let result: CapabilityRouterResultProjection;
@@ -463,6 +471,48 @@ export class CapabilityRouterMutationService {
       );
     }
     return result;
+  }
+
+  private async attestMutationProvider(
+    client: DownstreamMcpClient,
+    approval: GovernedExternalActionApprovalRecord,
+    preflight: MutationPreflight,
+    now: string,
+  ): Promise<void> {
+    let liveTools;
+    try {
+      liveTools = await client.listTools();
+    } catch (error) {
+      throw new ServiceError(
+        "CAPABILITY_ROUTER_PROVIDER_ATTESTATION_FAILED",
+        "Capability Router downstream provider metadata could not be attested",
+        { cause: error },
+      );
+    }
+
+    const liveTool = projectDownstreamMcpToolCatalog(liveTools.tools).find(
+      (entry) => entry.name === preflight.toolName,
+    );
+    if (
+      !liveTool ||
+      liveTool.metadataStatus !== "ready" ||
+      !liveTool.inputSchema ||
+      !isDeepStrictEqual(liveTool.inputSchema, preflight.inputSchema) ||
+      !isDeepStrictEqual(liveTool.annotations, preflight.annotations)
+    ) {
+      this.markStaleBestEffort(approval, now);
+      throw new ServiceError(
+        "CAPABILITY_ROUTER_MUTATION_PROVIDER_METADATA_CHANGED",
+        "Capability Router downstream provider metadata changed after approval",
+      );
+    }
+
+    try {
+      assertMutationAnnotations(liveTool.annotations);
+    } catch (error) {
+      this.markStaleBestEffort(approval, now);
+      throw error;
+    }
   }
 
   private requireMutationPreflight(
@@ -580,12 +630,11 @@ export class CapabilityRouterMutationService {
       );
     }
     if (
-      approval.decidedActor.actorType === null ||
-      approval.decidedActor.actorType === "remote-mcp"
+      approval.decidedActor.actorType !== "local-ui"
     ) {
       throw new ServiceError(
         "CAPABILITY_ROUTER_MUTATION_LOCAL_APPROVAL_REQUIRED",
-        "Capability Router mutation requires a non-Remote-MCP operator decision",
+        "Capability Router mutation requires an authenticated local operator decision",
       );
     }
     if (approval.argumentsHash !== argumentsHash) {

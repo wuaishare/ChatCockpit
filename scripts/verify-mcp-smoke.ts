@@ -207,6 +207,9 @@ async function runMcpSmoke(): Promise<void> {
         "asyncJob.queue",
         "capabilities.inspect",
         "capabilities.list",
+        "capabilities.mutation.execute",
+        "capabilities.mutation.inspect",
+        "capabilities.mutation.prepare",
         "capabilities.read.invoke",
         "direct.executors.list",
         "document.appendVersion",
@@ -272,6 +275,7 @@ async function runMcpSmoke(): Promise<void> {
       ].sort()
     );
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
+    assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
       "chatcockpit.resources.mutation.prepare",
       "chatcockpit.resources.mutation.inspect",
@@ -299,6 +303,7 @@ async function runMcpSmoke(): Promise<void> {
     for (const name of [
       "chatcockpit.capabilities.inspect",
       "chatcockpit.capabilities.list",
+      "chatcockpit.capabilities.mutation.inspect",
       "chatcockpit.capabilities.read.invoke",
       "chatcockpit.direct.executors.list",
       "chatcockpit.document.get",
@@ -373,7 +378,9 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.recovery.execute",
       "chatcockpit.resources.inspect",
       "chatcockpit.capabilities.inspect",
-      "chatcockpit.capabilities.list"
+      "chatcockpit.capabilities.list",
+      "chatcockpit.capabilities.mutation.inspect",
+      "chatcockpit.capabilities.mutation.prepare"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.idempotentHint, true);
       assert.equal(toolByName.get(name)?.annotations.openWorldHint, false);
@@ -384,6 +391,30 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       toolByName.get("chatcockpit.capabilities.read.invoke")?.annotations.openWorldHint,
+      true
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.mutation.prepare")?.annotations.readOnlyHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.mutation.prepare")?.annotations.destructiveHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.mutation.execute")?.annotations.readOnlyHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.mutation.execute")?.annotations.destructiveHint,
+      true
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.mutation.execute")?.annotations.idempotentHint,
+      true
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.capabilities.mutation.execute")?.annotations.openWorldHint,
       true
     );
     assert.equal(toolByName.get("chatcockpit.git.commit")?.annotations.destructiveHint, false);

@@ -24,7 +24,7 @@ ChatCockpit 是一个 **local-first Development Continuity & Agent Routing Platf
 ## 立即体验
 
 | 入口 | 适合场景 | 怎么开始 |
-| --- | --- | --- |
+| ---------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | **ChatGPT App / Remote MCP** | 日常对话中读取项目、查看 Git、管理 Continuity、发起受审批操作 | 在 ChatGPT 新聊天中选择已连接的 **ChatCockpit** App，或在提示词中提及它 |
 | **macOS Desktop** | 原生查看 Runtime 状态、Developer/Packaged Mode、Start/Stop/Restart、打开 Web Cockpit | `open dist/macos/ChatCockpit.app` |
 | **Web Cockpit / CLI** | 开发者、贡献者、本机运维与深度调试 | `npm run setup && npm run start:local`；从 App 打开 **本机控制台**，或使用 `npm run mvp:status` 输出的随机安全入口 |
@@ -82,13 +82,14 @@ flowchart TB
 
 - 本地 CLI、Fastify Control Plane、REST、MCP 与 OpenAPI。
 - Direct Drive / Workspace Direct：底层继续使用 `chat-direct` Lane，提供文件读写、目录、内容搜索、受控 Shell、Git 与统一执行审计；Capability Broker 已统一 Built-in / App Server Standalone 的 capability discovery、健康状态与显式/自动 Provider Selection，并已证明不会隐式调用 `turn/start`。Downstream MCP 已具备 local config → probe → snapshot → descriptor → normalized execution 的完整链路，并已用于 Host Direct Files 与 bounded Host Command。
+- Capability Router：使用固定的 ChatCockpit-owned Remote MCP Surface 暴露显式选入的下游能力；`chatcockpit.capabilities.list` / `inspect` / `read.invoke` 提供 catalog、bounded metadata 与受校验只读调用，`chatcockpit.capabilities.mutation.prepare` / `inspect` / `execute` 提供受治理 Provider-native mutation。Provider-native Tool Name 永远只是数据，不会动态注册为 ChatGPT Tool。Mutation 只能由已认证本地 Operator Session 通过 REST + CSRF 作出 approve/deny；MCP 不注册 `decide`。Read 与 Mutation 都会在发送参数/产生副作用前用同一条下游连接执行 live `tools/list` attestation；Mutation Approval 还绑定 exact argument hash、Provider/Tool、Executor config 与 policy，并且不持久化原始参数或 Provider result 正文。
 - Durable Host Managed Workspace Process：通过 ChatCockpit `host_process_*` 公共身份提供受审批的 Start / Input / Stop 与只读 Read / List；独立 Process Supervisor sidecar 持有 Desktop Commander runtime/PID namespace，使合法进程可跨普通 Control Plane restart 延续，同时继续由 Writer Lease watchdog、runtime generation/ownership、Audit/Evidence 和 process-group guardian 治理。Process Output 与 raw interactive input 不进入持久 Mutation 结果，PID 始终保持私有；系统级任意 PID attach/list/kill 不开放。
 - Codex Session：Thread List/Read/Bind/Resume/Fork，以及显式 Turn、Interrupt、命令/文件审批和事件读取。
 - Continuity Engine：SQLite Schema v19、Project、Workspace、Task、Session、通用 Runtime Binding、Runtime Recovery Attempt、append-only Runtime Resource Snapshot、append-only Spec/Plan 文档版本、Task 文档外键与不可变版本固定、显式 Task Execution Policy、Writer Lease、Handoff、Evidence、Runtime Approval、Direct Mutation Approval/Audit、Direct Command Approval/Audit、Direct Process Session/Approval/Audit、受治理 Runtime Resource Mutation Approval/Execution/Provenance、Process Supervisor Runtime Ownership 与 Runtime Event。
 - Workspace Continuity Snapshot 与 Web UI：真实 Writer、Git、Specs & Plans、Tasks、Sessions、Runtime Recovery、Handoffs、Evidence、Approvals、Planning/Completion/Recovery Blockers、Runtime Binding 与 Runner Job；Recovery Center 由服务端 Assessment 驱动，支持显式 Codex Resume/Fork/Bind、Runner Reconcile、Chat Direct/Handoff 接续，不会自动启动 `turn/start` 或自动切换 Provider。
 - Runtime & Resource Center：`<安全入口>/resources` 统一展示 public-safe Runtime Profiles 与 append-only Inventory Snapshot，已接入 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP Executor/Adapter 与 ACP Registry Agent Catalog；受治理 mutation 已开放到 Codex Skill enable/disable 与 Codex Plugin install/uninstall。Operator REST / Resource Center 支持 prepare → review/decide → execute；Remote MCP 只开放 prepare / inspect / execute，不能自行 decide，并且 exposed deployment 只有显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这些 mutation tools。
 - Async Agent Job：file-backed Queue、Runner、`createCodexRun`、Artifacts、可选 Worktree，以及 Task/Session/Binding 身份、Claim、终态 Evidence 和重启恢复对账。
-- 默认 exposed-mode MCP catalog 为 62 个 tools，包含 Direct Drive Executor discovery、Host Root Alias discovery、Host Direct file read、`prepare → decide → execute` 的受审批 Host Write / Exact Edit、bounded Host Command、ChatCockpit-owned Managed Workspace Process、`chatcockpit.recovery.assess` / `chatcockpit.recovery.execute`，以及 `chatcockpit.resources.inventory` / `chatcockpit.resources.inspect`。本地非 exposed 模式或显式开启 Resource Mutation exposure 后，再注册 `chatcockpit.resources.mutation.prepare` / `inspect` / `execute` 3 个受约束工具（共 65 个），始终不注册 MCP `decide` / `reconcile`；同时提供 exposed-mode Bearer/OAuth 鉴权、public-safe 投影、历史隐私扫描与无 `.git` 源包门禁。
+- Remote MCP catalog 采用静态产品工具合同而不是易漂移的总数合同：Capability Router 固定暴露 `list` / `inspect` / `read.invoke` 与 governed mutation `prepare` / `inspect` / `execute`；Runtime Resource mutation 仍只在本地非 exposed 模式或显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 时注册其 `prepare` / `inspect` / `execute`。MCP 始终不注册 Capability Router / Resource mutation `decide`，也不注册 `reconcile`；发布门禁按 capability presence/absence、OAuth/Bearer、public-safe projection、历史隐私和 source-archive 合同验收，而不依赖硬编码工具总数。
 
 ### 实验性
 
@@ -199,13 +200,16 @@ Direct Drive 适合由 ChatGPT 保持模型循环的确定性本机操作；当�
 ## 3. 范围
 
 必须检查：
+
 - path/to/file-a
 - path/to/directory-b
 
 必要时可以检查：
+
 - path/to/related-module
 
 禁止修改：
+
 - path/to/unrelated-module
 - package manager config
 - global theme tokens
