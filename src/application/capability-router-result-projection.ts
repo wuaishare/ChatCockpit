@@ -1,7 +1,7 @@
 const MAX_ROUTER_TEXT_BYTES = 64 * 1024;
 const MAX_ROUTER_STRUCTURED_BYTES = 64 * 1024;
 
-export interface CapabilityRouterReadResultProjection {
+export interface CapabilityRouterResultProjection {
   isError: boolean;
   text: string;
   structuredContent: Record<string, unknown> | null;
@@ -41,9 +41,9 @@ function boundedStructuredContent(
   }
 }
 
-export function projectCapabilityRouterReadResult(
+export function projectCapabilityRouterResult(
   result: unknown
-): CapabilityRouterReadResultProjection {
+): CapabilityRouterResultProjection {
   const record =
     result && typeof result === "object" && !Array.isArray(result)
       ? (result as Record<string, unknown>)
@@ -87,3 +87,6 @@ export function projectCapabilityRouterReadResult(
     omittedContentBlocks
   };
 }
+
+export type CapabilityRouterReadResultProjection = CapabilityRouterResultProjection;
+export const projectCapabilityRouterReadResult = projectCapabilityRouterResult;
