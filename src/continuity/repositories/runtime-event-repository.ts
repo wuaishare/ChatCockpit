@@ -98,6 +98,18 @@ export class RuntimeEventRepository {
     return eventFromRow(row);
   }
 
+  latestForSession(sessionId: string): RuntimeEventRecord | null {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_events
+        WHERE session_id = ?
+        ORDER BY sequence DESC
+        LIMIT 1
+      `)
+      .get(sessionId) as unknown as RuntimeEventRow | undefined;
+    return row ? eventFromRow(row) : null;
+  }
+
   list(input: ListRuntimeEventsInput = {}): RuntimeEventPage {
     const conditions = ["sequence > ?"];
     const values: Array<string | number> = [input.afterSequence ?? 0];

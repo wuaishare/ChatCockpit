@@ -61,6 +61,7 @@ export interface IntegrationsCopy {
   revokeGrantConfirm: string;
   revokeGrantCancel: string;
   grantLoadFailed: string;
+  grantApiVersionMismatch: string;
   grantRevokeFailed: string;
   requestFailed: string;
 }
@@ -126,6 +127,7 @@ const zhCN: IntegrationsCopy = {
   revokeGrantConfirm: "确认撤销",
   revokeGrantCancel: "取消",
   grantLoadFailed: "无法读取 OAuth 授权关系",
+  grantApiVersionMismatch: "OAuth 授权管理接口暂不可用。当前 Web 与 Control Plane 版本可能未同步，请更新或重启 ChatCockpit 服务。",
   grantRevokeFailed: "撤销 OAuth 授权失败",
   requestFailed: "无法读取集成状态"
 };
@@ -191,6 +193,7 @@ const enUS: IntegrationsCopy = {
   revokeGrantConfirm: "Revoke",
   revokeGrantCancel: "Cancel",
   grantLoadFailed: "Unable to load OAuth authorizations",
+  grantApiVersionMismatch: "The OAuth authorization management API is unavailable. The Web UI and Control Plane may be on different versions; update or restart ChatCockpit.",
   grantRevokeFailed: "Unable to revoke OAuth authorization",
   requestFailed: "Unable to load integrations"
 };

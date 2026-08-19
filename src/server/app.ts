@@ -38,6 +38,7 @@ import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorAuthError, OperatorService } from "../auth/operator-service.js";
 import { OperatorTotpService } from "../auth/operator-totp-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
+import { OperationalActivityService } from "../application/operational-activity-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -138,6 +139,7 @@ import { registerCapabilityRouterMutationRoutes } from "./capability-router-muta
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
 import { registerOAuthGrantManagementRoutes } from "./oauth-grant-management-routes.js";
+import { registerOperationalActivityRoutes } from "./operational-activity-routes.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
 import { registerRecoveryRoutes } from "./recovery-routes.js";
 import { isResourceMutationExposureEnabled } from "./runtime-resource-mutation-policy.js";
@@ -377,6 +379,10 @@ export function buildServer(
     continuityDatabase
   );
   const continuityServices = buildContinuityServices(paths, continuityDatabase);
+  const operationalActivityService = new OperationalActivityService(
+    paths,
+    continuityServices.repositories
+  );
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
     paths.runtimeDir
   );
@@ -648,6 +654,7 @@ export function buildServer(
   );
   registerMcpHttpRoutes(app, mcpHandler);
   registerContinuityRoutes(app, continuityServices);
+  registerOperationalActivityRoutes(app, operationalActivityService);
   registerRuntimeRoutes(
     app,
     runtimeService,

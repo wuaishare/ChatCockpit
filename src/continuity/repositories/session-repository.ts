@@ -97,6 +97,15 @@ export class SessionRepository {
     return rows.map(sessionFromRow);
   }
 
+  listAll(): DevelopmentSessionRecord[] {
+    const rows = this.database.sqlite
+      .prepare(
+        "SELECT * FROM development_sessions ORDER BY updated_at DESC, started_at DESC, id ASC"
+      )
+      .all() as unknown as SessionRow[];
+    return rows.map(sessionFromRow);
+  }
+
   updateStatus(
     id: string,
     status: SessionStatus,
