@@ -172,8 +172,15 @@ try {
   assert.deepEqual(tools.map((tool) => tool.name).sort(), [
     "chatcockpit.capabilities.inspect",
     "chatcockpit.capabilities.list",
+    "chatcockpit.capabilities.mutation.execute",
+    "chatcockpit.capabilities.mutation.inspect",
+    "chatcockpit.capabilities.mutation.prepare",
     "chatcockpit.capabilities.read.invoke",
   ]);
+  assert.equal(
+    tools.some((tool) => tool.name.includes("mutation.decide")),
+    false,
+  );
   assert.equal(
     tools.some((tool) => tool.name === "read_file"),
     false,

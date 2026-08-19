@@ -24,7 +24,7 @@ It is not another chat UI, and it is not an unrestricted “computer-use” gate
 ## Try ChatCockpit
 
 | Surface | Best for | Start here |
-| --- | --- | --- |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **ChatGPT App / Remote MCP** | Read projects, inspect Git, manage Continuity, and invoke approval-gated actions from a conversation | Select the connected **ChatCockpit** app in a new ChatGPT conversation, or mention it in your prompt |
 | **macOS Desktop** | Native Runtime status, Developer/Packaged Mode, Start/Stop/Restart, and opening the Web Cockpit | `open dist/macos/ChatCockpit.app` |
 | **Web Cockpit / CLI** | Contributors, local operations, and deeper debugging | `npm run setup && npm run start:local`; open **Local Cockpit** from the App or use the randomized entrypoint printed by `npm run mvp:status` |
@@ -82,12 +82,14 @@ A ChatCockpit Task can move between those modes through Writer Lease, Handoff Ch
 
 - Local CLI, Fastify Control Plane, REST, MCP, and OpenAPI.
 - Direct Drive / Workspace Direct, persisted through the existing `chat-direct` lane, provides file, directory, content-search, controlled command, and Git operations. The Capability Broker normalizes Built-in / App Server Standalone discovery, health, and explicit/automatic provider selection, with a proven no-`turn/start` invariant. Downstream MCP now has a local config → probe → snapshot → descriptor → normalized execution path and is used by governed Host Direct Files and bounded Host Command.
+- Capability Router exposes explicitly opted-in downstream capabilities through a fixed ChatCockpit-owned Remote MCP surface. `chatcockpit.capabilities.list` / `inspect` / `read.invoke` provide catalog, bounded metadata, and validated read invocation; `chatcockpit.capabilities.mutation.prepare` / `inspect` / `execute` provide governed provider-native mutation. Provider-native tool names remain data and never become dynamically registered ChatGPT tools. Mutation approve/deny is available only to an authenticated local Operator session through REST + CSRF; MCP never registers `decide`. Read and mutation invocation perform live `tools/list` attestation on the same downstream connection before arguments or side effects cross the provider boundary; mutation approvals additionally bind the exact argument hash, provider/tool, executor config, and policy without persisting raw arguments or provider result bodies.
 - Durable Host Managed Workspace Process uses a public ChatCockpit `host_process_*` identity for approval-gated Start / Input / Stop plus read-only Read / List. A separate Process Supervisor sidecar owns the Desktop Commander runtime/PID namespace so an authorized process can survive a normal Control Plane restart while Writer Lease watchdog, runtime generation/ownership, Audit/Evidence, and a process-group guardian continue to govern it. Process output and raw interactive input are excluded from persisted mutation results, PID stays private, and system-wide arbitrary PID attach/list/kill remains unexposed.
 - Codex Session Thread List/Read/Bind/Resume/Fork plus explicit Turn, Interrupt, command/file Approval, and Event reads.
 - SQLite Schema v19 Continuity Engine for Project, Workspace, Task, Session, generic Runtime Binding, Runtime Recovery Attempt, append-only Spec/Plan document versions, Task document foreign keys and immutable version pins, explicit Task Execution Policy, Writer Lease, Handoff, Evidence, Runtime Approval, Direct Mutation Approval/Audit, Direct Command Approval/Audit, Direct Process Session/Approval/Audit, governed Runtime Resource Mutation Approval/Execution/Provenance, Process Supervisor Runtime Ownership, and Runtime Event state.
 - Workspace Continuity Snapshot and Web UI for real Writer, Git, Specs & Plans, Task, Session, Handoff, Evidence, Approval, Planning/Completion Blocker, Runtime Binding, and Runner Job state, including document create/version/Ready/Approve/bind plus Prepare/Accept/Fork/Cancel, Submit Review, and Complete Task actions.
+- Runtime & Resource Center exposes public-safe Runtime Profiles and append-only Inventory Snapshots for Native Codex Skills/MCP/Plugins/config summaries, Downstream MCP providers, and ACP Registry Agents. Governed Codex Skill enable/disable and Plugin install/uninstall use prepare → operator decide → execute; Remote MCP exposes only prepare/inspect/execute and cannot self-approve.
 - File-backed Queue/Runner, `createCodexRun`, optional Worktree, Artifacts, and durable Task/Session/Binding identity with claim, terminal Evidence, and restart reconciliation.
-- 62 exposed-mode MCP tools, including Direct Drive executor discovery, Host Root Alias discovery, Host Direct file read, approval-gated Host Write / Exact Edit, bounded Host Command, ChatCockpit-owned Managed Workspace Process, and `chatcockpit.recovery.assess` / `chatcockpit.recovery.execute`, plus Spec/Plan create/read/version/lifecycle/Task-binding operations, exposed-mode Bearer/OAuth Auth, public-safe projections, history privacy scanning, and source-archive operation without `.git` metadata.
+- The Remote MCP catalog is governed by static product-owned capability presence rather than a brittle hard-coded total. Capability Router always exposes its fixed `list` / `inspect` / `read.invoke` and governed mutation `prepare` / `inspect` / `execute` tools; Runtime Resource mutation `prepare` / `inspect` / `execute` remains conditional on local non-exposed mode or `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`. MCP never registers Capability Router/Resource mutation `decide` or `reconcile`. Release gates verify capability presence/absence, OAuth/Bearer authority, public-safe projection, history privacy, and source-archive contracts.
 
 ### Experimental
 
@@ -196,13 +198,16 @@ Keep only the context needed for this task.
 ## 3. Scope
 
 Must inspect:
+
 - path/to/file-a
 - path/to/directory-b
 
 May inspect if needed:
+
 - path/to/related-module
 
 Do not modify:
+
 - path/to/unrelated-module
 - package manager config
 - global theme tokens

@@ -151,6 +151,7 @@ function assertCode(error: unknown, code: string): boolean {
 let calls = 0;
 let closes = 0;
 let providerMode: "success" | "throw" | "tool-error" = "success";
+let liveMetadataMode: "match" | "schema-drift" | "throw" = "match";
 const client: DownstreamMcpClient = {
   async initialize() {
     return {
@@ -160,7 +161,30 @@ const client: DownstreamMcpClient = {
     };
   },
   async listTools() {
-    return { server: await this.initialize(), tools: [] };
+    if (liveMetadataMode === "throw") {
+      throw new Error("raw attestation failure must remain private");
+    }
+    return {
+      server: await this.initialize(),
+      tools: [
+        {
+          name: "write_file",
+          description: "Write fixture content",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              content: {
+                type: liveMetadataMode === "schema-drift" ? "number" : "string",
+              },
+            },
+            required: ["path", "content"],
+            additionalProperties: false,
+          },
+          annotations: { destructiveHint: true, readOnlyHint: false },
+        },
+      ],
+    };
   },
   async callTool(name, args) {
     calls += 1;
@@ -457,6 +481,99 @@ try {
   assert.equal(calls, 1);
   writeConfig();
 
+  const liveDriftPrepared = prepare(
+    remote("2026-08-19T03:20:00.000Z", "prepare-live-drift"),
+    {
+      executorId,
+      toolName: "write_file",
+      arguments: { path: "live-drift.txt", content: "bound" },
+    },
+  );
+  const liveDriftApproved = decide(
+    local("2026-08-19T03:20:30.000Z", "decide-live-drift"),
+    {
+      approvalId: liveDriftPrepared.approval.id,
+      expectedRevision: liveDriftPrepared.approval.revision,
+      decision: "approved",
+    },
+  );
+  liveMetadataMode = "schema-drift";
+  await assert.rejects(
+    execute(remote("2026-08-19T03:21:00.000Z", "execute-live-drift"), {
+      approvalId: liveDriftApproved.approval.id,
+      expectedApprovalRevision: liveDriftApproved.approval.revision,
+      executorId,
+      toolName: "write_file",
+      arguments: { path: "live-drift.txt", content: "bound" },
+    }),
+    (error) =>
+      assertCode(error, "CAPABILITY_ROUTER_MUTATION_PROVIDER_METADATA_CHANGED"),
+  );
+  assert.equal(calls, 1);
+  assert.equal(
+    externalActions.getApproval(liveDriftPrepared.approval.id).status,
+    "stale",
+  );
+  const liveDriftExecutions = continuityDatabase.sqlite
+    .prepare(
+      "SELECT COUNT(*) AS count FROM governed_external_action_executions WHERE approval_id = ?",
+    )
+    .get(liveDriftPrepared.approval.id) as { count: number };
+  assert.equal(Number(liveDriftExecutions.count), 0);
+
+  liveMetadataMode = "match";
+  const attestationPrepared = prepare(
+    remote("2026-08-19T03:30:00.000Z", "prepare-attestation-failure"),
+    {
+      executorId,
+      toolName: "write_file",
+      arguments: { path: "attestation.txt", content: "retryable" },
+    },
+  );
+  const attestationApproved = decide(
+    local("2026-08-19T03:30:30.000Z", "decide-attestation-failure"),
+    {
+      approvalId: attestationPrepared.approval.id,
+      expectedRevision: attestationPrepared.approval.revision,
+      decision: "approved",
+    },
+  );
+  liveMetadataMode = "throw";
+  await assert.rejects(
+    execute(
+      remote("2026-08-19T03:31:00.000Z", "execute-attestation-failure"),
+      {
+        approvalId: attestationApproved.approval.id,
+        expectedApprovalRevision: attestationApproved.approval.revision,
+        executorId,
+        toolName: "write_file",
+        arguments: { path: "attestation.txt", content: "retryable" },
+      },
+      "execute-attestation-failure",
+    ),
+    (error) => {
+      assertCode(error, "CAPABILITY_ROUTER_PROVIDER_ATTESTATION_FAILED");
+      assert.equal(
+        error instanceof Error &&
+          error.message.includes("raw attestation failure"),
+        false,
+      );
+      return true;
+    },
+  );
+  assert.equal(calls, 1);
+  assert.equal(
+    externalActions.getApproval(attestationPrepared.approval.id).status,
+    "approved",
+  );
+  const attestationExecutions = continuityDatabase.sqlite
+    .prepare(
+      "SELECT COUNT(*) AS count FROM governed_external_action_executions WHERE approval_id = ?",
+    )
+    .get(attestationPrepared.approval.id) as { count: number };
+  assert.equal(Number(attestationExecutions.count), 0);
+  liveMetadataMode = "match";
+
   const failurePrepared = prepare(
     remote("2026-08-19T04:00:00.000Z", "prepare-failure"),
     {
@@ -575,19 +692,16 @@ try {
       return true;
     },
   );
-  const startFailureExecution = continuityDatabase.sqlite
-    .prepare(
-      "SELECT verification_status, error_code FROM governed_external_action_executions WHERE approval_id = ?",
-    )
-    .get(startFailurePrepared.approval.id) as {
-    verification_status: string;
-    error_code: string | null;
-  };
-  assert.equal(startFailureExecution.verification_status, "failed-external");
   assert.equal(
-    startFailureExecution.error_code,
-    "CAPABILITY_ROUTER_PROVIDER_START_FAILED",
+    externalActions.getApproval(startFailurePrepared.approval.id).status,
+    "approved",
   );
+  const startFailureExecutions = continuityDatabase.sqlite
+    .prepare(
+      "SELECT COUNT(*) AS count FROM governed_external_action_executions WHERE approval_id = ?",
+    )
+    .get(startFailurePrepared.approval.id) as { count: number };
+  assert.equal(Number(startFailureExecutions.count), 0);
 
   providerMode = "tool-error";
   const toolErrorPrepared = prepare(

@@ -22,6 +22,8 @@ import {
 } from "../contracts/direct-tools.js";
 import { CapabilityRouterCatalogService } from "../application/capability-router-catalog-service.js";
 import { CapabilityRouterReadInvocationService } from "../application/capability-router-read-invocation-service.js";
+import { CapabilityRouterMutationService } from "../application/capability-router-mutation-service.js";
+import { CapabilityRouterMutationPublicService } from "../application/capability-router-mutation-public-service.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
 import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
@@ -132,6 +134,7 @@ import {
   validateServerAuthConfig
 } from "./auth.js";
 import { registerContinuityRoutes } from "./continuity-routes.js";
+import { registerCapabilityRouterMutationRoutes } from "./capability-router-mutation-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
@@ -395,16 +398,6 @@ export function buildServer(
     paths.runtimeDir,
     options.directExecutorsConfigPath
   );
-  const capabilityRouterServices = {
-    catalog: new CapabilityRouterCatalogService(
-      paths.runtimeDir,
-      options.directExecutorsConfigPath
-    ),
-    reads: new CapabilityRouterReadInvocationService(
-      paths.runtimeDir,
-      options.directExecutorsConfigPath
-    )
-  };
   const hostDirect = new HostDirectService(
     directCapabilityBroker,
     downstreamMcpExecutionRegistry,
@@ -519,6 +512,26 @@ export function buildServer(
     continuityServices.repositories,
     governedExternalActions
   );
+  const capabilityRouterMutations = new CapabilityRouterMutationService(
+    paths.runtimeDir,
+    governanceLedger,
+    options.directExecutorsConfigPath
+  );
+  const capabilityRouterPublicMutations = new CapabilityRouterMutationPublicService(
+    governanceLedger
+  );
+  const capabilityRouterServices = {
+    catalog: new CapabilityRouterCatalogService(
+      paths.runtimeDir,
+      options.directExecutorsConfigPath
+    ),
+    reads: new CapabilityRouterReadInvocationService(
+      paths.runtimeDir,
+      options.directExecutorsConfigPath
+    ),
+    mutations: capabilityRouterMutations,
+    publicMutations: capabilityRouterPublicMutations
+  };
   const runtimeResourceServices = buildRuntimeResourceServices({
     repositories: governanceLedger,
     profiles: runtimeProfileRegistry,
@@ -564,6 +577,11 @@ export function buildServer(
     operatorService,
     operatorPasskeyService,
     operatorTotpService
+  );
+  registerCapabilityRouterMutationRoutes(
+    app,
+    capabilityRouterMutations,
+    capabilityRouterPublicMutations
   );
   app.addHook("onClose", async () => {
     runtimeEventService.detach();
