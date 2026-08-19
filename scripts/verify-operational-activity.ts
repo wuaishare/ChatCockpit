@@ -5,12 +5,41 @@ import path from "node:path";
 
 import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
+import { buildOperationContext } from "../src/application/operation-context.js";
 import { ContinuityDatabase, continuityDatabasePath } from "../src/continuity/database.js";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import { GovernanceDatabase, governanceDatabasePath } from "../src/governance/database.js";
+import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
 import { createJob } from "../src/core/jobs.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+
+type SseEvent = { event: string; data: unknown };
+
+async function readSseEvent(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  state: { buffer: string }
+): Promise<SseEvent> {
+  const decoder = new TextDecoder();
+  for (;;) {
+    const boundary = state.buffer.indexOf("\n\n");
+    if (boundary >= 0) {
+      const frame = state.buffer.slice(0, boundary);
+      state.buffer = state.buffer.slice(boundary + 2);
+      let event = "message";
+      const data: string[] = [];
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+      }
+      return { event, data: data.length ? JSON.parse(data.join("\n")) : null };
+    }
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error("SSE stream closed before the expected event");
+    state.buffer += decoder.decode(chunk.value, { stream: true });
+  }
+}
 
 async function main(): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operational-activity-"));
@@ -37,6 +66,10 @@ async function main(): Promise<void> {
 
   const continuity = new ContinuityDatabase({ path: continuityDatabasePath(paths.runtimeDir) });
   const repositories = buildContinuityRepositories(continuity);
+  const governance = new GovernanceDatabase({ path: governanceDatabasePath(paths.runtimeDir) });
+  assert.equal(governance.schemaVersion(), 2);
+  governance.close();
+  const activityProvenance = new OperationalActivityProvenanceRepository(continuity);
   const project = repositories.projects.create({
     id: "project_activity_fixture",
     slug: "activity-fixture",
@@ -69,6 +102,15 @@ async function main(): Promise<void> {
     status: "running",
     startedAt: "2026-08-19T10:02:00.000Z"
   });
+  activityProvenance.recordFromContext(
+    buildOperationContext({
+      actorType: "remote-mcp",
+      actorId: "grant_session_fixture",
+      requestId: "raw-session-request-must-not-persist",
+      now: "2026-08-19T10:02:30.000Z"
+    }),
+    { activityId: session.id, activityKind: "agent-session" }
+  );
   const binding = repositories.runtimeBindings.replaceActive({
     id: "runtime_binding_activity_fixture",
     sessionId: session.id,
@@ -88,8 +130,6 @@ async function main(): Promise<void> {
     publicPayload: { safe: true },
     now: "2026-08-19T10:04:00.000Z"
   });
-  continuity.close();
-
   const linkedJob = createJob(paths, "codex-run", {
     repoId: "primary",
     title: "Codex project activity",
@@ -103,6 +143,31 @@ async function main(): Promise<void> {
     problem: "private host cleanup detail must not project"
   });
 
+  activityProvenance.recordFromContext(
+    buildOperationContext({
+      actorType: "remote-mcp",
+      actorId: "grant_job_fixture",
+      requestId: "raw-job-request-must-not-persist",
+      now: "2026-08-19T10:05:00.000Z"
+    }),
+    { activityId: linkedJob.id, activityKind: "job" }
+  );
+  activityProvenance.recordFromContext(
+    buildOperationContext({
+      actorType: "remote-mcp",
+      actorId: "grant_host_fixture",
+      requestId: "raw-host-request-must-not-persist",
+      now: "2026-08-19T10:06:00.000Z"
+    }),
+    { activityId: hostJob.id, activityKind: "job" }
+  );
+  activityProvenance.assignWorker(
+    hostJob.id,
+    "worker_fixture_01",
+    "2026-08-19T10:07:00.000Z"
+  );
+  continuity.close();
+
   const original = { ...process.env };
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-activities";
@@ -111,7 +176,10 @@ async function main(): Promise<void> {
   process.env.CHATCOCKPIT_EXPOSED = "true";
   process.env.CHATCOCKPIT_PUBLIC_BASE_URL = "https://chatcockpit.example.com";
 
-  const app = buildServer(paths);
+  const app = buildServer(paths, {
+    activityStreamPollIntervalMs: 25,
+    activityStreamHeartbeatIntervalMs: 50
+  });
   try {
     const anonymous = await app.inject({ method: "GET", url: "/api/activities" });
     assert.equal(anonymous.statusCode, 401);
@@ -150,7 +218,9 @@ async function main(): Promise<void> {
     assert.equal(projectActivity.workspaceId, workspace.id);
     assert.equal(projectActivity.taskId, task.id);
     assert.equal(projectActivity.agentSessionId, session.id);
-    assert.equal(projectActivity.authorizationGrantId, null);
+    assert.equal(projectActivity.authorizationGrantId, "grant_job_fixture");
+    assert.match(String(projectActivity.traceId), /^trace_[0-9a-f]{32}$/);
+    assert.equal(projectActivity.workerInstanceId, null);
     assert.equal((projectActivity.runtime as { runtimeKind: string }).runtimeKind, "codex-app-server");
     assert.equal((projectActivity.runtime as { externalSessionId: string }).externalSessionId, "thread_activity_fixture");
     assert.equal((projectActivity.latestEvent as { method: string }).method, "turn/started");
@@ -163,12 +233,70 @@ async function main(): Promise<void> {
     assert.equal(hostActivity.workspaceId, null);
     assert.equal(hostActivity.taskId, null);
     assert.equal(hostActivity.agentSessionId, null);
+    assert.equal(hostActivity.authorizationGrantId, "grant_host_fixture");
+    assert.match(String(hostActivity.traceId), /^trace_[0-9a-f]{32}$/);
+    assert.equal(hostActivity.workerInstanceId, "worker_fixture_01");
     assert.equal(hostActivity.title, "Host cleanup activity");
 
     assert.equal(response.body.includes("private fixture instructions"), false);
     assert.equal(response.body.includes("private host cleanup detail"), false);
     assert.equal(response.body.includes(root), false);
     assert.equal(body.activities.filter((item) => item.id === session.id).length, 1);
+
+    const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
+    const anonymousStream = await fetch(`${baseUrl}/api/activities/stream`);
+    assert.equal(anonymousStream.status, 401);
+    const machineStream = await fetch(`${baseUrl}/api/activities/stream`, {
+      headers: { authorization: "Bearer test-token-machine-activities" }
+    });
+    assert.equal(machineStream.status, 401);
+
+    const abortStream = new AbortController();
+    const streamTimeout = setTimeout(() => abortStream.abort(), 3_000);
+    const streamResponse = await fetch(`${baseUrl}/api/activities/stream`, {
+      headers: { cookie },
+      signal: abortStream.signal
+    });
+    assert.equal(streamResponse.status, 200);
+    assert.match(streamResponse.headers.get("content-type") ?? "", /^text\/event-stream/);
+    assert.equal(streamResponse.headers.get("cache-control"), "no-cache, no-transform");
+    const reader = streamResponse.body!.getReader();
+    const streamState = { buffer: "" };
+    const initialEvent = await readSseEvent(reader, streamState);
+    assert.equal(initialEvent.event, "activity.snapshot");
+    const initialSnapshot = initialEvent.data as { activities: Array<Record<string, unknown>> };
+    const initialHost = initialSnapshot.activities.find((item) => item.id === hostJob.id)!;
+    assert.equal(initialHost.workerInstanceId, "worker_fixture_01");
+
+    const streamDatabase = new ContinuityDatabase({
+      path: continuityDatabasePath(paths.runtimeDir)
+    });
+    const streamProvenance = new OperationalActivityProvenanceRepository(streamDatabase);
+    streamProvenance.assignWorker(
+      hostJob.id,
+      "worker_fixture_02",
+      "2026-08-19T10:08:00.000Z"
+    );
+    streamDatabase.close();
+
+    let changedSnapshotSeen = false;
+    let heartbeatSeen = false;
+    for (let index = 0; index < 6 && (!changedSnapshotSeen || !heartbeatSeen); index += 1) {
+      const event = await readSseEvent(reader, streamState);
+      if (event.event === "heartbeat") heartbeatSeen = true;
+      if (event.event === "activity.snapshot") {
+        const snapshot = event.data as { activities: Array<Record<string, unknown>> };
+        const host = snapshot.activities.find((item) => item.id === hostJob.id)!;
+        if (host.workerInstanceId === "worker_fixture_02") changedSnapshotSeen = true;
+        assert.equal(JSON.stringify(event.data).includes("private host cleanup detail"), false);
+        assert.equal(JSON.stringify(event.data).includes(root), false);
+      }
+    }
+    assert.equal(changedSnapshotSeen, true, "SSE must emit a changed Activity snapshot");
+    assert.equal(heartbeatSeen, true, "SSE must emit heartbeat frames");
+    clearTimeout(streamTimeout);
+    abortStream.abort();
+    await reader.cancel().catch(() => undefined);
   } finally {
     await app.close();
     for (const [key, value] of Object.entries(original)) {
@@ -176,6 +304,11 @@ async function main(): Promise<void> {
       else process.env[key] = value;
     }
   }
+
+  const sqliteBytes = fs.readFileSync(continuityDatabasePath(paths.runtimeDir));
+  assert.equal(sqliteBytes.includes(Buffer.from("raw-session-request-must-not-persist")), false);
+  assert.equal(sqliteBytes.includes(Buffer.from("raw-job-request-must-not-persist")), false);
+  assert.equal(sqliteBytes.includes(Buffer.from("raw-host-request-must-not-persist")), false);
 
   fs.rmSync(root, { recursive: true, force: true });
   console.log("VERIFY_OPERATIONAL_ACTIVITY_OK");

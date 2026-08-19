@@ -5944,6 +5944,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/activities/stream:
+    get:
+      operationId: streamOperationalActivities
+      summary: Stream Owner-visible operational activity snapshots
+      description: Opens an Owner-only SSE stream. It emits public-safe activity.snapshot frames only when the unified Activity projection changes, plus heartbeat frames for connection liveness. Raw commands, logs, private paths, job instructions and provider payloads are never streamed.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Server-sent Operational Activity snapshots and heartbeats
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/git/recent-commits:
     get:
       operationId: getRecentCommits

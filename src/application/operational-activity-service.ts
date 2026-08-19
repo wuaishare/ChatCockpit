@@ -1,3 +1,4 @@
+import type { ActivityProvenanceReader } from "./activity-provenance-port.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type {
   DevelopmentSessionRecord,
@@ -169,7 +170,8 @@ function isActive(status: OperationalActivityStatus): boolean {
 export class OperationalActivityService {
   constructor(
     private readonly paths: TokenPilotPaths,
-    private readonly repositories: ContinuityRepositories
+    private readonly repositories: ContinuityRepositories,
+    private readonly activityProvenance?: ActivityProvenanceReader
   ) {}
 
   list(): OperationalActivityListResult {
@@ -215,6 +217,9 @@ export class OperationalActivityService {
     const event = this.repositories.runtimeEvents.latestForSession(session.id);
     const directProcesses = this.repositories.directProcessSessions.list({ sessionId: session.id });
     const tracked = linkedJob ? getTrackedJobProcess(this.paths, linkedJob.id) : null;
+    const provenance = linkedJob
+      ? this.activityProvenance?.get(linkedJob.id) ?? this.activityProvenance?.get(session.id) ?? null
+      : this.activityProvenance?.get(session.id) ?? null;
     const status = runtimeStatus(session, run, linkedJob, tracked?.state ?? null);
     return {
       id: session.id,
@@ -228,9 +233,9 @@ export class OperationalActivityService {
       taskId: session.taskId,
       repoId: linkedJob ? repoId(linkedJob) : null,
       agentSessionId: session.id,
-      authorizationGrantId: null,
-      traceId: null,
-      workerInstanceId: null,
+      authorizationGrantId: provenance?.authorizationGrantId ?? null,
+      traceId: provenance?.traceId ?? null,
+      workerInstanceId: provenance?.workerInstanceId ?? null,
       runtime: binding ? {
         bindingId: binding.id,
         runtimeKind: publicRuntimeKind(binding),
@@ -284,6 +289,7 @@ export class OperationalActivityService {
   private projectJob(job: JobRecord<TokenPilotJobPayload>): OperationalActivityProjection {
     const tracked = getTrackedJobProcess(this.paths, job.id);
     const repository = repoId(job);
+    const provenance = this.activityProvenance?.get(job.id) ?? null;
     const status = statusFromJob(job, tracked?.state ?? null);
     return {
       id: job.id,
@@ -297,9 +303,9 @@ export class OperationalActivityService {
       taskId: null,
       repoId: repository,
       agentSessionId: null,
-      authorizationGrantId: null,
-      traceId: null,
-      workerInstanceId: null,
+      authorizationGrantId: provenance?.authorizationGrantId ?? null,
+      traceId: provenance?.traceId ?? null,
+      workerInstanceId: provenance?.workerInstanceId ?? null,
       runtime: null,
       job: {
         id: job.id,

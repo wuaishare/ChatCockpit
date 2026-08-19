@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 
 import { writeJson } from "../core/files.js";
 import type { TokenPilotPaths } from "../types.js";
@@ -17,6 +18,7 @@ export interface RunnerStatusRecord {
   lastError?: string;
   mode: RunnerMode;
   pid: number;
+  workerInstanceId: string;
   state: "idle" | "processing" | "stopped";
 }
 
@@ -45,6 +47,7 @@ export function markRunnerStarted(
     heartbeatAt: now,
     mode,
     pid: process.pid,
+    workerInstanceId: `worker_${randomUUID()}`,
     state: "idle",
     stoppedAt: undefined,
     lastError: undefined
@@ -75,6 +78,7 @@ export function markRunnerClaimed(
     ...(current ?? {
       mode: "once",
       pid: process.pid,
+      workerInstanceId: `worker_${randomUUID()}`,
       state: "idle"
     }),
     heartbeatAt: now,
@@ -108,6 +112,7 @@ export function markRunnerFailed(paths: TokenPilotPaths, error: string): void {
     ...(current ?? {
       mode: "once",
       pid: process.pid,
+      workerInstanceId: `worker_${randomUUID()}`,
       state: "idle"
     }),
     heartbeatAt: now,
