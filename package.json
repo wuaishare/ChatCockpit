@@ -200,7 +200,7 @@
     "verify:release": "npm run verify:protocol-release && ./scripts/verify-release-dry-run.sh",
     "release:source": "./scripts/create-release-source-package.sh",
     "privacy:scan:history": "./scripts/scan-history-privacy.sh",
-    "verify:web": "npm run typecheck:web && npm run build:web && npm run verify:web:safety && npm run verify:web:i18n-integrations && npm run verify:web:public-access && npm run verify:resource-center-mutation-ui && npm run verify:public-web-security",
+    "verify:web": "npm run typecheck:web && npm run build:web && npm run verify:web:safety && npm run verify:web:i18n-integrations && npm run verify:web:public-access && npm run verify:resource-center-activity-ui && npm run verify:resource-center-mutation-ui && npm run verify:public-web-security",
     "mvp:start": "./scripts/macos-manage-local-server.sh start",
     "start:local": "./scripts/macos-manage-local-server.sh start",
     "mvp:stop": "./scripts/macos-manage-local-server.sh stop",
@@ -219,7 +219,8 @@
     "verify:capability-provider-management": "tsx scripts/verify-capability-provider-management.ts",
     "verify:oauth-authorization-grants": "tsx scripts/verify-oauth-authorization-grants.ts",
     "verify:oauth-grant-management": "tsx scripts/verify-oauth-grant-management.ts",
-    "verify:operational-activity": "tsx scripts/verify-operational-activity.ts && tsx scripts/verify-runner-activity-provenance.ts"
+    "verify:operational-activity": "tsx scripts/verify-operational-activity.ts && tsx scripts/verify-runner-activity-provenance.ts",
+    "verify:resource-center-activity-ui": "tsx scripts/verify-resource-center-activity-ui.ts"
   },
   "engines": {
     "node": ">=22.13.0"

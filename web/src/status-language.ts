@@ -19,9 +19,11 @@ const STATUS_LABELS: Record<string, Record<LocaleCode, string>> = {
   superseded: { "zh-CN": "已取代", "en-US": "Superseded" },
   idle: { "zh-CN": "空闲", "en-US": "Idle" },
   running: { "zh-CN": "运行中", "en-US": "Running" },
+  paused: { "zh-CN": "已暂停", "en-US": "Paused" },
   "waiting-approval": { "zh-CN": "等待批准", "en-US": "Waiting approval" },
   "handoff-ready": { "zh-CN": "可交接", "en-US": "Handoff ready" },
   failed: { "zh-CN": "失败", "en-US": "Failed" },
+  interrupted: { "zh-CN": "已中断", "en-US": "Interrupted" },
   accepted: { "zh-CN": "已接受", "en-US": "Accepted" },
   passed: { "zh-CN": "通过", "en-US": "Passed" },
   skipped: { "zh-CN": "已跳过", "en-US": "Skipped" },
@@ -64,10 +66,10 @@ export function getOperationalStatusTone(status: string): OperationalStatusTone 
   if (["active", "running", "in-progress", "prepared", "collecting", "starting"].includes(status)) {
     return "processing";
   }
-  if (["partial", "degraded", "blocked", "missing", "incomplete", "waiting-approval", "review", "pending", "stale"].includes(status)) {
+  if (["partial", "degraded", "blocked", "missing", "incomplete", "waiting-approval", "review", "pending", "stale", "paused"].includes(status)) {
     return "warning";
   }
-  if (["failed", "rejected", "revoked", "expired", "terminated"].includes(status)) {
+  if (["failed", "rejected", "revoked", "expired", "terminated", "interrupted"].includes(status)) {
     return "error";
   }
   return "default";

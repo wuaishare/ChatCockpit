@@ -33,6 +33,7 @@ import type {
   IntegrationStatusResponse,
   OAuthAuthorizationGrantsResponse,
   OAuthAuthorizationGrantSummary,
+  OperationalActivityListResponse,
   JobControlResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
@@ -645,6 +646,12 @@ export async function executeRuntimeRecovery(
   token?: string | null
 ): Promise<RuntimeRecoveryExecuteResponse> {
   return postBodyJson("/api/recovery/execute", payload, token);
+}
+
+export async function fetchOperationalActivities(
+  token?: string | null
+): Promise<OperationalActivityListResponse> {
+  return requestJson<OperationalActivityListResponse>("/api/activities", token);
 }
 
 export async function fetchRuntimeResourceProfiles(

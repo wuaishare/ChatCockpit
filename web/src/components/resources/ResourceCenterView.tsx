@@ -49,6 +49,7 @@ import type {
   RuntimeResourceUpdateStatus
 } from "../../types";
 import { StateNotice } from "../StateNotice";
+import { OperationalActivityPanel } from "./OperationalActivityPanel";
 import {
   ResourceMutationActivity,
   ResourceMutationReviewModal
@@ -585,6 +586,13 @@ export function ResourceCenterView({
           </div>
         )}
       </section>
+
+      <OperationalActivityPanel
+        locale={locale}
+        token={token}
+        copy={copy}
+        projects={projects}
+      />
 
       <section className="resource-center__profiles panel" aria-labelledby="runtime-profiles-title">
         <div className="resource-center__section-header">
