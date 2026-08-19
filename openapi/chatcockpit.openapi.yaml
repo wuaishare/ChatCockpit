@@ -13,6 +13,11 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+    operatorSession:
+      type: apiKey
+      in: cookie
+      name: chatcockpit_operator_session
+      description: Authenticated local Web operator session. Mutation decisions also require the x-chatcockpit-csrf header.
   schemas:
     ApiError:
       type: object
@@ -4310,6 +4315,95 @@ components:
           items:
             $ref: '#/components/schemas/RuntimeResourceMutationEligibility'
       required: [resourceId, snapshotId, operations]
+    CapabilityRouterMutationActor:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [local-cli, local-ui, rest-api, gpt-actions, remote-mcp, runner]
+        identityHash:
+          oneOf:
+            - type: string
+              pattern: '^[a-f0-9]{64}$'
+            - type: "null"
+      required: [type, identityHash]
+    CapabilityRouterMutationApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        targetId:
+          type: string
+          const: local-device
+        providerId: { type: string }
+        providerDisplayName:
+          oneOf:
+            - type: string
+              maxLength: 160
+            - type: "null"
+        protocolFamily:
+          oneOf:
+            - type: string
+              enum: [mcp-legacy-stdio, mcp-streamable-http]
+            - type: "null"
+        toolName: { type: string }
+        requestedActor:
+          oneOf:
+            - $ref: '#/components/schemas/CapabilityRouterMutationActor'
+            - type: "null"
+        decidedActor:
+          oneOf:
+            - $ref: '#/components/schemas/CapabilityRouterMutationActor'
+            - type: "null"
+        status:
+          type: string
+          enum: [pending, approved, denied, expired, stale, consumed]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        decidedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        consumedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision:
+          type: integer
+          minimum: 1
+      required: [id, targetId, providerId, providerDisplayName, protocolFamily, toolName, requestedActor, decidedActor, status, createdAt, updatedAt, expiresAt, decidedAt, consumedAt, revision]
+    CapabilityRouterMutationDecisionPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+        approvalId: { type: string }
+        expectedRevision:
+          type: integer
+          minimum: 1
+        decision:
+          type: string
+          enum: [approved, denied]
+      required: [idempotencyKey, approvalId, expectedRevision, decision]
+    CapabilityRouterMutationApprovalResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/CapabilityRouterMutationApproval'
+        replayed: { type: boolean }
+      required: [ok, approval, replayed]
     RuntimeResourceMutationActor:
       type: object
       additionalProperties: false
@@ -7084,6 +7178,64 @@ paths:
                 $ref: '#/components/schemas/RuntimeResourceInspectResponse'
         "404":
           description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/capabilities/mutations/decision:
+    post:
+      operationId: decideCapabilityRouterMutation
+      summary: Decide a governed Capability Router mutation approval
+      description: Approves or denies one pending provider-native mutation. Requires an authenticated local operator session plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Public responses omit raw arguments, hashes, transport configuration, and provider results.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          description: CSRF token issued with the authenticated operator session.
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapabilityRouterMutationDecisionPayload'
+      responses:
+        "200":
+          description: Decided public-safe approval or idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilityRouterMutationApprovalResponse'
+        "400":
+          description: Invalid strict decision input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Authenticated operator session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: Caller is not an operator session or CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Capability Router mutation approval not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Approval expired, stale, already decided, revision-conflicted, or idempotency-conflicted
           content:
             application/json:
               schema:

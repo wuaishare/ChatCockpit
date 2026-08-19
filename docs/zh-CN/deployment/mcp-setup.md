@@ -104,9 +104,10 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具分类
 
-默认 exposed-mode 目录包含 62 个工具。本地非 exposed 模式，或 exposed deployment 显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 后，会额外注册 3 个受治理 Resource mutation 工具，总数为 65：
+Remote MCP 目录使用静态产品能力合同，不再把“总工具数”当作发布真源。Capability Router 的 6 个 ChatCockpit-owned 工具固定存在；Runtime Resource mutation 的 3 个工具仅在本地非 exposed 模式，或 exposed deployment 显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 时注册：
 
 - Direct Drive Executor / Capability Discovery、public-safe Host Root Alias Discovery、受治理的 Host Direct 文件读取、审批式 Host Write / Exact Edit、审批式 bounded Host Command、ChatCockpit-owned Managed Workspace Process `prepare/decide/execute/read/list`，以及 Workspace Files、Search、Shell、Git；
+- Capability Router 固定注册 `chatcockpit.capabilities.list`、`inspect`、`read.invoke` 与 `mutation.prepare`、`mutation.inspect`、`mutation.execute`。Provider-native Tool Name 只作为 Catalog 数据返回；MCP 不注册 Router `decide`。Mutation approve/deny 只能由已认证本地 Operator Session 通过 `/api/capabilities/mutations/decision` + CSRF 完成；
 - Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
 - Spec/Plan 创建、列表、读取、不可变历史版本读取、追加版本、生命周期与 Task 绑定；
 - Codex Runtime Capability 与 Thread Metadata；

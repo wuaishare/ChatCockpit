@@ -187,6 +187,22 @@ async function main(): Promise<void> {
   assertPublicBodySafe(recoveryBody, [sensitiveMessage, sensitivePath]);
   assert.equal(recoveryLogs.some((entry) => entry.level === "warn"), true);
 
+  for (const [code, expectedStatus] of [
+    ["CAPABILITY_ROUTER_MUTATION_NOT_FOUND", 404],
+    ["CAPABILITY_ROUTER_MUTATION_DECISION_FORBIDDEN", 403],
+    ["CAPABILITY_ROUTER_PROVIDER_ATTESTATION_FAILED", 503]
+  ] as const) {
+    const logs: CapturedLog[] = [];
+    const mappedReply = fakeReply(`req-${code.toLowerCase()}`, logs);
+    const mappedBody = sendUnknownApiError(
+      mappedReply.reply,
+      new ServiceError(code, "Bounded Capability Router error", { cause: rawError })
+    );
+    assert.equal(mappedReply.statusCode(), expectedStatus);
+    assert.equal(mappedBody.error.code, code);
+    assertPublicBodySafe(mappedBody, [sensitiveMessage, sensitivePath]);
+  }
+
   const serviceLoggedError = (serviceLogs.find((entry) => entry.level === "warn")?.payload as {
     err?: unknown;
   } | undefined)?.err;

@@ -106,9 +106,10 @@ The release gate verifies static Bearer compatibility plus OAuth discovery, regi
 
 ## Tool Families
 
-The default exposed-mode catalog contains 62 tools. Local non-exposed mode, or an exposed deployment with `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`, registers three additional governed Resource mutation tools for a total of 65:
+The Remote MCP catalog uses a static product-owned capability contract rather than a hard-coded total. The six ChatCockpit-owned Capability Router tools are always present; the three governed Runtime Resource mutation tools are registered only in local non-exposed mode or when an exposed deployment sets `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`:
 
 - Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read, approval-gated Host Write / Exact Edit, approval-gated bounded Host Command, ChatCockpit-owned Managed Workspace Process `prepare/decide/execute/read/list`, and Workspace Files, Search, Shell, and Git operations;
+- Capability Router always registers `chatcockpit.capabilities.list`, `inspect`, `read.invoke`, plus `mutation.prepare`, `mutation.inspect`, and `mutation.execute`. Provider-native tool names are returned only as catalog data; MCP does not register Router `decide`. Mutation approve/deny requires an authenticated local Operator session through `/api/capabilities/mutations/decision` plus CSRF;
 - Project, Workspace Snapshot, Task, Session, Writer Lease, Handoff, Evidence, Submit Review, governed Completion, and Continuity-bound Async Job Queue operations;
 - Spec/Plan create, list, read, immutable-version read, append-version, lifecycle, and Task-binding operations;
 - Codex Runtime capabilities and Thread metadata;
