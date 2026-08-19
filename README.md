@@ -83,7 +83,7 @@ ChatCockpit 仍保留已经成熟的开发连续性系统：Project、Workspace�
 
 ## 当前已经能做什么
 
-- **Remote MCP / OAuth**：ChatGPT 通过一个 ChatCockpit 入口访问固定、受治理的产品工具面。
+- **Remote MCP / OAuth**：ChatGPT 通过一个 ChatCockpit 入口访问固定、受治理的产品工具面；每次 Owner 批准形成独立 Authorization Grant，Access/Refresh Token 绑定该 Grant，旧 OAuth 数据可无感迁移并继续使用现有 Refresh Token。
 - **Capability Router**：Catalog、Inspect、只读 Invoke、受治理 Provider-native Mutation；调用前执行 live `tools/list` attestation。
 - **Downstream MCP**：官方 MCP Client，支持本机 stdio 与受约束的 Streamable HTTP；Provider schema/annotations 以 bounded catalog 保存。
 - **Resource Center**：本机 `local-device`、Provider Management 读模型、Runtime Profiles、append-only inventory 与受治理资源操作；管理读模型统一投影检测、版本、健康、配置来源、Chat 暴露、Desired/Observed State 与 Provider-native Verification。

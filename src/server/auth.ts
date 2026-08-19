@@ -129,10 +129,15 @@ export function validateServerAuthConfig(_env: EnvLike = process.env): void {
   // CHATCOCKPIT_API_TOKEN remains an optional machine-to-machine credential.
 }
 
+export interface McpOAuthAccessIdentity {
+  authorizationGrantId: string;
+  clientRegistrationId: string;
+}
+
 export interface McpOAuthAccessVerifier {
   protectedResourceMetadataUrl: string;
   scope: string;
-  verifyAccessToken(token: string): boolean;
+  verifyAccessToken(token: string): McpOAuthAccessIdentity | null;
 }
 
 export function createTokenPilotAuthPlugin(
@@ -184,8 +189,13 @@ export function createTokenPilotAuthPlugin(
       }
 
       if (isMcpPath(request.url)) {
-        if (provided && oauth && oauth.verifyAccessToken(provided)) {
-          request.chatCockpitAuth = { kind: "mcp-oauth" };
+        const oauthIdentity = provided && oauth ? oauth.verifyAccessToken(provided) : null;
+        if (oauthIdentity) {
+          request.chatCockpitAuth = {
+            kind: "mcp-oauth",
+            authorizationGrantId: oauthIdentity.authorizationGrantId,
+            clientRegistrationId: oauthIdentity.clientRegistrationId
+          };
           return;
         }
 

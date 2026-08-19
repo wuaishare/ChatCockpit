@@ -18,6 +18,7 @@ export interface IntegrationStatusSnapshot {
     oauthStatus: "disabled" | "ready" | "needs-attention";
     oauthReady: boolean;
     authorizedClientCount: number;
+    activeAuthorizationGrantCount: number;
     activeAccessTokenCount: number;
     activeRefreshTokenCount: number;
     toolCatalogStatus: "ready";
@@ -47,6 +48,7 @@ export function buildIntegrationStatusSnapshot(input: {
   const oauthReadiness = buildOAuthReadiness(input.paths);
   const oauthSummary = input.oauthSummary ?? {
     authorizedClientCount: 0,
+    activeAuthorizationGrantCount: 0,
     activeAccessTokenCount: 0,
     activeRefreshTokenCount: 0
   };
@@ -71,6 +73,7 @@ export function buildIntegrationStatusSnapshot(input: {
       oauthStatus: oauthReadiness.status,
       oauthReady: oauthReadiness.ready,
       authorizedClientCount: oauthSummary.authorizedClientCount,
+      activeAuthorizationGrantCount: oauthSummary.activeAuthorizationGrantCount,
       activeAccessTokenCount: oauthSummary.activeAccessTokenCount,
       activeRefreshTokenCount: oauthSummary.activeRefreshTokenCount,
       toolCatalogStatus: "ready",

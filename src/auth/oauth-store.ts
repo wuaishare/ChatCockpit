@@ -5,10 +5,12 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   CreateAuthorizationCodeInput,
+  CreateAuthorizationGrantInput,
   CreateAuthorizationRequestInput,
   CreateOAuthClientInput,
   CreateOAuthTokenInput,
   OAuthAuthorizationCodeRecord,
+  OAuthAuthorizationGrantRecord,
   OAuthAuthorizationRequestRecord,
   OAuthClientRecord,
   OAuthTokenRecord
@@ -38,8 +40,21 @@ interface OAuthAuthorizationRequestRow {
   consumed_at: string | null;
 }
 
+interface OAuthAuthorizationGrantRow {
+  grant_id: string;
+  client_id: string;
+  display_label: string;
+  scope: string;
+  resource: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  legacy: number;
+}
+
 interface OAuthAuthorizationCodeRow {
   code_hash: string;
+  grant_id: string;
   client_id: string;
   redirect_uri: string;
   scope: string;
@@ -53,6 +68,7 @@ interface OAuthAuthorizationCodeRow {
 
 interface OAuthTokenRow {
   token_hash: string;
+  grant_id: string;
   client_id: string;
   scope: string;
   resource: string;
@@ -99,11 +115,28 @@ function mapAuthorizationRequest(
   };
 }
 
+function mapAuthorizationGrant(
+  row: OAuthAuthorizationGrantRow
+): OAuthAuthorizationGrantRecord {
+  return {
+    grantId: row.grant_id,
+    clientId: row.client_id,
+    displayLabel: row.display_label,
+    scope: row.scope,
+    resource: row.resource,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at,
+    revokedAt: row.revoked_at,
+    legacy: row.legacy === 1
+  };
+}
+
 function mapAuthorizationCode(
   row: OAuthAuthorizationCodeRow
 ): OAuthAuthorizationCodeRecord {
   return {
     codeHash: row.code_hash,
+    grantId: row.grant_id,
     clientId: row.client_id,
     redirectUri: row.redirect_uri,
     scope: row.scope,
@@ -119,6 +152,7 @@ function mapAuthorizationCode(
 function mapToken(row: OAuthTokenRow): OAuthTokenRecord {
   return {
     tokenHash: row.token_hash,
+    grantId: row.grant_id,
     clientId: row.client_id,
     scope: row.scope,
     resource: row.resource,
@@ -132,12 +166,25 @@ export function hashOAuthSecret(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+export function legacyAuthorizationGrantId(
+  clientId: string,
+  scope: string,
+  resource: string
+): string {
+  const digest = createHash("sha256")
+    .update(`${clientId}\0${scope}\0${resource}`, "utf8")
+    .digest("hex")
+    .slice(0, 32);
+  return `oauth_grant_legacy_${digest}`;
+}
+
 export interface OAuthStoreOptions {
   path: string;
 }
 
 export interface OAuthIntegrationSummary {
   authorizedClientCount: number;
+  activeAuthorizationGrantCount: number;
   activeAccessTokenCount: number;
   activeRefreshTokenCount: number;
 }
@@ -263,17 +310,80 @@ export class OAuthStore {
     return this.getAuthorizationRequest(requestId);
   }
 
+  createAuthorizationGrant(
+    input: CreateAuthorizationGrantInput
+  ): OAuthAuthorizationGrantRecord {
+    this.sqlite
+      .prepare(`
+        INSERT INTO oauth_authorization_grants (
+          grant_id, client_id, display_label, scope, resource, created_at,
+          last_used_at, revoked_at, legacy
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+      `)
+      .run(
+        input.grantId,
+        input.clientId,
+        input.displayLabel,
+        input.scope,
+        input.resource,
+        input.createdAt,
+        input.legacy ? 1 : 0
+      );
+    return this.getAuthorizationGrant(input.grantId)!;
+  }
+
+  getAuthorizationGrant(grantId: string): OAuthAuthorizationGrantRecord | null {
+    const row = this.sqlite
+      .prepare("SELECT * FROM oauth_authorization_grants WHERE grant_id = ?")
+      .get(grantId) as OAuthAuthorizationGrantRow | undefined;
+    return row ? mapAuthorizationGrant(row) : null;
+  }
+
+  listAuthorizationGrants(): OAuthAuthorizationGrantRecord[] {
+    return (this.sqlite
+      .prepare(`
+        SELECT * FROM oauth_authorization_grants
+        ORDER BY created_at DESC, grant_id ASC
+      `)
+      .all() as unknown as OAuthAuthorizationGrantRow[]).map(mapAuthorizationGrant);
+  }
+
+  revokeAuthorizationGrant(grantId: string, revokedAt: string): boolean {
+    return this.transaction(() => {
+      const grant = this.sqlite
+        .prepare(`
+          UPDATE oauth_authorization_grants
+          SET revoked_at = COALESCE(revoked_at, ?)
+          WHERE grant_id = ?
+        `)
+        .run(revokedAt, grantId);
+      if (grant.changes === 0) return false;
+      for (const table of ["oauth_access_tokens", "oauth_refresh_tokens"] as const) {
+        this.sqlite
+          .prepare(`
+            UPDATE ${table}
+            SET revoked_at = COALESCE(revoked_at, ?)
+            WHERE grant_id = ?
+          `)
+          .run(revokedAt, grantId);
+      }
+      return true;
+    });
+  }
+
   createAuthorizationCode(input: CreateAuthorizationCodeInput): OAuthAuthorizationCodeRecord {
+    this.requireGrantBinding(input.grantId, input.clientId, input.scope, input.resource);
     const codeHash = hashOAuthSecret(input.code);
     this.sqlite
       .prepare(`
         INSERT INTO oauth_authorization_codes (
-          code_hash, client_id, redirect_uri, scope, resource,
+          code_hash, grant_id, client_id, redirect_uri, scope, resource,
           code_challenge, code_challenge_method, issued_at, expires_at, consumed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 'S256', ?, ?, NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'S256', ?, ?, NULL)
       `)
       .run(
         codeHash,
+        input.grantId,
         input.clientId,
         input.redirectUri,
         input.scope,
@@ -291,8 +401,10 @@ export class OAuthStore {
   ): OAuthAuthorizationCodeRecord | null {
     const row = this.sqlite
       .prepare(`
-        SELECT * FROM oauth_authorization_codes
-        WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
+        SELECT c.* FROM oauth_authorization_codes AS c
+        JOIN oauth_authorization_grants AS g ON g.grant_id = c.grant_id
+        WHERE c.code_hash = ? AND c.consumed_at IS NULL AND c.expires_at > ?
+          AND g.revoked_at IS NULL
       `)
       .get(hashOAuthSecret(code), now) as OAuthAuthorizationCodeRow | undefined;
     return row ? mapAuthorizationCode(row) : null;
@@ -305,6 +417,11 @@ export class OAuthStore {
         UPDATE oauth_authorization_codes
         SET consumed_at = ?
         WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
+          AND EXISTS (
+            SELECT 1 FROM oauth_authorization_grants AS g
+            WHERE g.grant_id = oauth_authorization_codes.grant_id
+              AND g.revoked_at IS NULL
+          )
       `)
       .run(consumedAt, codeHash, consumedAt);
     if (result.changes !== 1) return null;
@@ -381,8 +498,28 @@ export class OAuthStore {
         `)
         .get(now, now) as { count: number | bigint }).count
     );
+    const activeAuthorizationGrantCount = Number(
+      (this.sqlite
+        .prepare(`
+          SELECT COUNT(*) AS count
+          FROM oauth_authorization_grants AS g
+          WHERE g.revoked_at IS NULL AND (
+            EXISTS (
+              SELECT 1 FROM oauth_access_tokens AS a
+              WHERE a.grant_id = g.grant_id
+                AND a.revoked_at IS NULL AND a.expires_at > ?
+            ) OR EXISTS (
+              SELECT 1 FROM oauth_refresh_tokens AS r
+              WHERE r.grant_id = g.grant_id
+                AND r.revoked_at IS NULL AND r.expires_at > ?
+            )
+          )
+        `)
+        .get(now, now) as { count: number | bigint }).count
+    );
     return {
       authorizedClientCount,
+      activeAuthorizationGrantCount,
       activeAccessTokenCount,
       activeRefreshTokenCount
     };
@@ -414,15 +551,17 @@ export class OAuthStore {
     table: "oauth_access_tokens" | "oauth_refresh_tokens",
     input: CreateOAuthTokenInput
   ): OAuthTokenRecord {
+    this.requireGrantBinding(input.grantId, input.clientId, input.scope, input.resource);
     const tokenHash = hashOAuthSecret(input.token);
     this.sqlite
       .prepare(`
         INSERT INTO ${table} (
-          token_hash, client_id, scope, resource, issued_at, expires_at, revoked_at
-        ) VALUES (?, ?, ?, ?, ?, ?, NULL)
+          token_hash, grant_id, client_id, scope, resource, issued_at, expires_at, revoked_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
       `)
       .run(
         tokenHash,
+        input.grantId,
         input.clientId,
         input.scope,
         input.resource,
@@ -445,11 +584,30 @@ export class OAuthStore {
   ): OAuthTokenRecord | null {
     const row = this.sqlite
       .prepare(`
-        SELECT * FROM ${table}
-        WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?
+        SELECT t.* FROM ${table} AS t
+        JOIN oauth_authorization_grants AS g ON g.grant_id = t.grant_id
+        WHERE t.token_hash = ? AND t.revoked_at IS NULL AND t.expires_at > ?
+          AND g.revoked_at IS NULL
       `)
       .get(hashOAuthSecret(token), now) as OAuthTokenRow | undefined;
     return row ? mapToken(row) : null;
+  }
+
+  private requireGrantBinding(
+    grantId: string,
+    clientId: string,
+    scope: string,
+    resource: string
+  ): void {
+    const row = this.sqlite.prepare(`
+      SELECT 1 AS present
+      FROM oauth_authorization_grants
+      WHERE grant_id = ? AND client_id = ? AND scope = ? AND resource = ?
+        AND revoked_at IS NULL
+    `).get(grantId, clientId, scope, resource) as { present: number } | undefined;
+    if (!row) {
+      throw new Error("OAuth authorization grant binding is invalid or revoked");
+    }
   }
 
   private initializeSchema(): void {
@@ -519,7 +677,107 @@ export class OAuthStore {
         ON oauth_access_tokens(client_id);
       CREATE INDEX IF NOT EXISTS oauth_refresh_tokens_client_idx
         ON oauth_refresh_tokens(client_id);
+
+      CREATE TABLE IF NOT EXISTS oauth_schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      ) STRICT;
     `);
+    this.migrateAuthorizationGrants();
+  }
+
+  private hasColumn(table: string, column: string): boolean {
+    const rows = this.sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    return rows.some((row) => row.name === column);
+  }
+
+  private migrateAuthorizationGrants(): void {
+    const migrated = this.sqlite
+      .prepare("SELECT 1 AS present FROM oauth_schema_migrations WHERE version = 2")
+      .get() as { present: number } | undefined;
+    if (migrated) return;
+
+    this.transaction(() => {
+      this.sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS oauth_authorization_grants (
+          grant_id TEXT PRIMARY KEY,
+          client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+          display_label TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          resource TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          last_used_at TEXT,
+          revoked_at TEXT,
+          legacy INTEGER NOT NULL CHECK (legacy IN (0, 1))
+        ) STRICT;
+      `);
+      for (const table of [
+        "oauth_authorization_codes",
+        "oauth_access_tokens",
+        "oauth_refresh_tokens"
+      ]) {
+        if (!this.hasColumn(table, "grant_id")) {
+          this.sqlite.exec(`ALTER TABLE ${table} ADD COLUMN grant_id TEXT REFERENCES oauth_authorization_grants(grant_id)`);
+        }
+      }
+
+      const legacyRows = this.sqlite.prepare(`
+        SELECT client_id, scope, resource, MIN(event_at) AS created_at
+        FROM (
+          SELECT client_id, scope, resource, issued_at AS event_at FROM oauth_authorization_codes
+          UNION ALL
+          SELECT client_id, scope, resource, issued_at AS event_at FROM oauth_access_tokens
+          UNION ALL
+          SELECT client_id, scope, resource, issued_at AS event_at FROM oauth_refresh_tokens
+        )
+        GROUP BY client_id, scope, resource
+      `).all() as Array<{ client_id: string; scope: string; resource: string; created_at: string }>;
+
+      for (const row of legacyRows) {
+        const grantId = legacyAuthorizationGrantId(row.client_id, row.scope, row.resource);
+        const client = this.getClient(row.client_id);
+        this.sqlite.prepare(`
+          INSERT OR IGNORE INTO oauth_authorization_grants (
+            grant_id, client_id, display_label, scope, resource, created_at,
+            last_used_at, revoked_at, legacy
+          ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, 1)
+        `).run(
+          grantId,
+          row.client_id,
+          client?.clientName ?? "Legacy OAuth authorization",
+          row.scope,
+          row.resource,
+          row.created_at
+        );
+        for (const table of [
+          "oauth_authorization_codes",
+          "oauth_access_tokens",
+          "oauth_refresh_tokens"
+        ]) {
+          this.sqlite.prepare(`
+            UPDATE ${table}
+            SET grant_id = ?
+            WHERE grant_id IS NULL AND client_id = ? AND scope = ? AND resource = ?
+          `).run(grantId, row.client_id, row.scope, row.resource);
+        }
+      }
+
+      for (const table of [
+        "oauth_authorization_codes",
+        "oauth_access_tokens",
+        "oauth_refresh_tokens"
+      ]) {
+        const missing = this.sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE grant_id IS NULL`).get() as { count: number | bigint };
+        if (Number(missing.count) !== 0) {
+          throw new Error(`OAuth grant migration left ${table} rows without grant identity`);
+        }
+        this.sqlite.exec(`CREATE INDEX IF NOT EXISTS ${table}_grant_idx ON ${table}(grant_id)`);
+      }
+
+      this.sqlite.prepare(`
+        INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (2, ?)
+      `).run(new Date().toISOString());
+    });
   }
 }
 

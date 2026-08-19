@@ -33,8 +33,21 @@ export interface OAuthAuthorizationRequestRecord {
   consumedAt: string | null;
 }
 
+export interface OAuthAuthorizationGrantRecord {
+  grantId: string;
+  clientId: string;
+  displayLabel: string;
+  scope: string;
+  resource: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  legacy: boolean;
+}
+
 export interface OAuthAuthorizationCodeRecord {
   codeHash: string;
+  grantId: string;
   clientId: string;
   redirectUri: string;
   scope: string;
@@ -48,6 +61,7 @@ export interface OAuthAuthorizationCodeRecord {
 
 export interface OAuthTokenRecord {
   tokenHash: string;
+  grantId: string;
   clientId: string;
   scope: string;
   resource: string;
@@ -76,8 +90,19 @@ export interface CreateAuthorizationRequestInput {
   expiresAt: string;
 }
 
+export interface CreateAuthorizationGrantInput {
+  grantId: string;
+  clientId: string;
+  displayLabel: string;
+  scope: string;
+  resource: string;
+  createdAt: string;
+  legacy?: boolean;
+}
+
 export interface CreateAuthorizationCodeInput {
   code: string;
+  grantId: string;
   clientId: string;
   redirectUri: string;
   scope: string;
@@ -89,6 +114,7 @@ export interface CreateAuthorizationCodeInput {
 
 export interface CreateOAuthTokenInput {
   token: string;
+  grantId: string;
   clientId: string;
   scope: string;
   resource: string;

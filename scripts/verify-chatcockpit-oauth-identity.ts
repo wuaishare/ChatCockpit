@@ -305,8 +305,25 @@ try {
       },
       "2026-08-14T00:00:00.000Z"
     );
+    isolatedStore.createAuthorizationGrant({
+      grantId: "cc_grant_scope_legacy",
+      clientId: "cc_client_scope_isolation",
+      displayLabel: "Legacy scope fixture",
+      scope: "tokenpilot:mcp",
+      resource,
+      createdAt: "2026-08-14T00:00:00.000Z"
+    });
+    isolatedStore.createAuthorizationGrant({
+      grantId: "cc_grant_scope_target",
+      clientId: "cc_client_scope_isolation",
+      displayLabel: "Target scope fixture",
+      scope: "chatcockpit:mcp",
+      resource,
+      createdAt: "2026-08-14T00:00:00.000Z"
+    });
     isolatedStore.storeAccessToken({
       token: legacyScopeCredential,
+      grantId: "cc_grant_scope_legacy",
       clientId: "cc_client_scope_isolation",
       scope: "tokenpilot:mcp",
       resource,
@@ -317,6 +334,7 @@ try {
 
     isolatedStore.storeAccessToken({
       token: targetScopeCredential,
+      grantId: "cc_grant_scope_target",
       clientId: "cc_client_scope_isolation",
       scope: "chatcockpit:mcp",
       resource,

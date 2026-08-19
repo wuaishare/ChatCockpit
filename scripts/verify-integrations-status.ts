@@ -50,16 +50,26 @@ async function main(): Promise<void> {
     },
     "2026-08-16T00:00:00.000Z"
   );
+  oauthStore.createAuthorizationGrant({
+    grantId: "grant_integrations_fixture",
+    clientId: "client_integrations_fixture",
+    displayLabel: "ChatGPT Fixture",
+    scope: "chatcockpit:mcp offline_access",
+    resource: "https://chatcockpit.example.com/mcp",
+    createdAt: "2026-08-16T00:00:00.000Z"
+  });
   oauthStore.storeAccessToken({
     token: "test-token-access-must-never-project",
+    grantId: "grant_integrations_fixture",
     clientId: "client_integrations_fixture",
-    scope: "chatcockpit:mcp",
+    scope: "chatcockpit:mcp offline_access",
     resource: "https://chatcockpit.example.com/mcp",
     issuedAt: "2026-08-16T00:00:00.000Z",
     expiresAt: "2099-08-16T00:00:00.000Z"
   });
   oauthStore.storeRefreshToken({
     token: "test-token-refresh-must-never-project",
+    grantId: "grant_integrations_fixture",
     clientId: "client_integrations_fixture",
     scope: "chatcockpit:mcp offline_access",
     resource: "https://chatcockpit.example.com/mcp",
@@ -74,8 +84,17 @@ async function main(): Promise<void> {
     },
     "2020-01-01T00:00:00.000Z"
   );
+  oauthStore.createAuthorizationGrant({
+    grantId: "grant_integrations_expired_fixture",
+    clientId: "client_registered_but_not_authorized",
+    displayLabel: "Expired Fixture",
+    scope: "chatcockpit:mcp",
+    resource: "https://chatcockpit.example.com/mcp",
+    createdAt: "2020-01-01T00:00:00.000Z"
+  });
   oauthStore.storeAccessToken({
     token: "test-token-expired-must-not-count",
+    grantId: "grant_integrations_expired_fixture",
     clientId: "client_registered_but_not_authorized",
     scope: "chatcockpit:mcp",
     resource: "https://chatcockpit.example.com/mcp",
@@ -136,6 +155,7 @@ async function main(): Promise<void> {
         oauthStatus: string;
         oauthReady: boolean;
         authorizedClientCount: number;
+        activeAuthorizationGrantCount: number;
         activeAccessTokenCount: number;
         activeRefreshTokenCount: number;
         toolCatalogStatus: string;
@@ -154,6 +174,7 @@ async function main(): Promise<void> {
     assert.equal(body.mcp.oauthStatus, "ready");
     assert.equal(body.mcp.oauthReady, true);
     assert.equal(body.mcp.authorizedClientCount, 1);
+    assert.equal(body.mcp.activeAuthorizationGrantCount, 1);
     assert.equal(body.mcp.activeAccessTokenCount, 1);
     assert.equal(body.mcp.activeRefreshTokenCount, 1);
     assert.equal(body.mcp.toolCatalogStatus, "ready");

@@ -58,6 +58,10 @@ export function IntegrationsView({
             <strong>{status.mcp.authorizedClientCount}</strong>
           </div>
           <div className="gpt-fact">
+            <span>{copy.activeAuthorizationGrants}</span>
+            <strong>{status.mcp.activeAuthorizationGrantCount}</strong>
+          </div>
+          <div className="gpt-fact">
             <span>{copy.activeAccessTokens}</span>
             <strong>{status.mcp.activeAccessTokenCount}</strong>
           </div>

@@ -31,7 +31,7 @@ ChatGPT / Desktop / Web / CLI / API
 
 ChatCockpit owns the stable public capability surface, policy/authority boundary, public-safe projection, and cross-provider management semantics. Provider-native runtimes, MCP servers, CLIs, and applications remain authoritative for the capabilities they actually implement.
 
-Provider-native tool names are catalog data. They do not become dynamic ChatGPT tools. Read and governed mutation paths re-attest downstream metadata before invocation; meaningful provider mutation requires a local Operator decision rather than Remote MCP self-approval.
+Provider-native tool names are catalog data. They do not become dynamic ChatGPT tools. Read and governed mutation paths re-attest downstream metadata before invocation; meaningful provider mutation requires a local Operator decision rather than Remote MCP self-approval. OAuth client registration and Owner-approved authorization are separate identities: each approval mints a durable Authorization Grant, authorization codes and access/refresh tokens inherit that grant, and verified MCP requests use the Grant as their remote actor identity. Legacy OAuth rows are migrated into deterministic legacy grants without rewriting token hashes.
 
 Development Continuity remains a major implemented solution layer above this control plane. Its Chat Direct, Codex Session, Async Agent Job, Task, Handoff, Evidence, Recovery, and Writer Lease contracts remain valid, but they are not the top-level product category.
 
