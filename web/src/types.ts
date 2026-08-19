@@ -365,6 +365,29 @@ export interface PublicRouteBootstrapProofSnapshot extends PublicRouteCandidateS
   proof: PublicRouteBootstrapProof | null;
 }
 
+export type OAuthAuthorizationGrantStatus = "pending" | "active" | "inactive" | "revoked";
+
+export interface OAuthAuthorizationGrantSummary {
+  id: string;
+  clientRegistrationId: string;
+  displayLabel: string;
+  scope: string;
+  resource: string;
+  status: OAuthAuthorizationGrantStatus;
+  legacy: boolean;
+  createdAt: string;
+  lastTokenIssuedAt: string | null;
+  revokedAt: string | null;
+  activeAccessTokenCount: number;
+  activeRefreshTokenCount: number;
+}
+
+export interface OAuthAuthorizationGrantsResponse {
+  ok: true;
+  enabled: boolean;
+  grants: OAuthAuthorizationGrantSummary[];
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

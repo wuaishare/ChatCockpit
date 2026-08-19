@@ -41,6 +41,27 @@ export interface IntegrationsCopy {
   copyUrl: string;
   loadingTitle: string;
   loadingDescription: string;
+  authorizationGrantsTitle: string;
+  authorizationGrantsDescription: string;
+  authorizationGrantsEmpty: string;
+  grantStatusPending: string;
+  grantStatusActive: string;
+  grantStatusInactive: string;
+  grantStatusRevoked: string;
+  grantLegacy: string;
+  grantId: string;
+  grantClient: string;
+  grantScope: string;
+  grantCreatedAt: string;
+  grantLastTokenIssuedAt: string;
+  grantActiveTokens: string;
+  revokeGrant: string;
+  revokeGrantTitle: string;
+  revokeGrantDescription: string;
+  revokeGrantConfirm: string;
+  revokeGrantCancel: string;
+  grantLoadFailed: string;
+  grantRevokeFailed: string;
   requestFailed: string;
 }
 
@@ -85,6 +106,27 @@ const zhCN: IntegrationsCopy = {
   copyUrl: "复制地址",
   loadingTitle: "正在读取集成状态",
   loadingDescription: "正在从当前控制台管理员会话读取 OAuth、机器接口状态与工具目录。",
+  authorizationGrantsTitle: "OAuth 授权关系",
+  authorizationGrantsDescription: "每次控制台管理员批准都会形成独立授权关系。这里可查看当前状态并单独撤销对应的令牌族，不影响其他授权或控制台会话。",
+  authorizationGrantsEmpty: "当前没有 OAuth 授权关系。",
+  grantStatusPending: "等待客户端兑换",
+  grantStatusActive: "有效",
+  grantStatusInactive: "无有效令牌",
+  grantStatusRevoked: "已撤销",
+  grantLegacy: "历史迁移",
+  grantId: "授权 ID",
+  grantClient: "客户端注册",
+  grantScope: "Scope",
+  grantCreatedAt: "授权时间",
+  grantLastTokenIssuedAt: "最近签发",
+  grantActiveTokens: "有效令牌",
+  revokeGrant: "撤销授权",
+  revokeGrantTitle: "撤销这条 OAuth 授权？",
+  revokeGrantDescription: "该授权下仍有效的 Access / Refresh Token 会立即失效。其他授权关系与控制台管理员会话不受影响。",
+  revokeGrantConfirm: "确认撤销",
+  revokeGrantCancel: "取消",
+  grantLoadFailed: "无法读取 OAuth 授权关系",
+  grantRevokeFailed: "撤销 OAuth 授权失败",
   requestFailed: "无法读取集成状态"
 };
 
@@ -129,6 +171,27 @@ const enUS: IntegrationsCopy = {
   copyUrl: "Copy URL",
   loadingTitle: "Loading integrations",
   loadingDescription: "Reading OAuth, machine-interface state, and the tool catalog through the current Web Owner session.",
+  authorizationGrantsTitle: "OAuth authorizations",
+  authorizationGrantsDescription: "Each Web Owner approval creates an independent authorization. Review its current state here and revoke one token family without affecting other authorizations or Web Owner sessions.",
+  authorizationGrantsEmpty: "There are no OAuth authorizations yet.",
+  grantStatusPending: "Awaiting token exchange",
+  grantStatusActive: "Active",
+  grantStatusInactive: "No active tokens",
+  grantStatusRevoked: "Revoked",
+  grantLegacy: "Migrated legacy",
+  grantId: "Authorization ID",
+  grantClient: "Client registration",
+  grantScope: "Scope",
+  grantCreatedAt: "Authorized",
+  grantLastTokenIssuedAt: "Last token issued",
+  grantActiveTokens: "Active tokens",
+  revokeGrant: "Revoke authorization",
+  revokeGrantTitle: "Revoke this OAuth authorization?",
+  revokeGrantDescription: "All still-active access and refresh tokens in this authorization will stop working immediately. Other authorizations and Web Owner sessions are unaffected.",
+  revokeGrantConfirm: "Revoke",
+  revokeGrantCancel: "Cancel",
+  grantLoadFailed: "Unable to load OAuth authorizations",
+  grantRevokeFailed: "Unable to revoke OAuth authorization",
   requestFailed: "Unable to load integrations"
 };
 
