@@ -275,6 +275,23 @@ async function run(): Promise<void> {
         capabilities: string[];
       }>;
       profiles: Array<{ id: string; providerKind: string; executableVersion: string | null }>;
+      management: {
+        target: { id: string };
+        providers: Array<{
+          id: string;
+          targetId: string;
+          providerKind: string;
+          detectionStatus: string;
+          version: string | null;
+          health: string;
+          configurationStatus: string;
+          exposureStatus: string;
+          allowedLifecycleOperations: Array<
+            "install" | "update" | "configure" | "start" | "stop" | "restart"
+          >;
+          verification: { status: string; source: string };
+        }>;
+      };
     }>("GET", "/api/resources/runtime-profiles");
     assert.deepEqual(profiles.target, {
       id: "local-device",
@@ -292,6 +309,49 @@ async function run(): Promise<void> {
     const profile = profiles.profiles[0]!;
     assert.equal(profile.providerKind, "codex");
     assert.equal(profile.executableVersion, "codex-cli resource-api-fixture");
+    assert.equal(profiles.management.target.id, "local-device");
+    assert.equal(profiles.management.providers.length, 1);
+    const managedProvider = profiles.management.providers[0]!;
+    assert.equal(managedProvider.id, profile.id);
+    assert.equal(managedProvider.targetId, "local-device");
+    assert.equal(managedProvider.providerKind, "codex");
+    assert.equal(managedProvider.detectionStatus, "detected");
+    assert.equal(managedProvider.version, "codex-cli resource-api-fixture");
+    assert.equal(managedProvider.health, "ready");
+    assert.equal(managedProvider.configurationStatus, "provider-native");
+    assert.equal(managedProvider.exposureStatus, "not-applicable");
+    assert.deepEqual(managedProvider.allowedLifecycleOperations, []);
+    assert.equal(managedProvider.verification.status, "verified");
+    assert.equal(managedProvider.verification.source, "runtime-profile");
+    assert.doesNotMatch(
+      JSON.stringify(profiles.management),
+      /command|args|environment|transport|endpoint|credential/i,
+      "Provider management REST projection must not expose private execution configuration"
+    );
+
+    const providerManagement = await rest<{
+      ok: true;
+      target: { id: string };
+      providers: Array<{
+        id: string;
+        providerKind: string;
+        version: string | null;
+        exposureStatus: string;
+        allowedLifecycleOperations: Array<
+          "install" | "update" | "configure" | "start" | "stop" | "restart"
+        >;
+      }>;
+    }>("GET", "/api/resources/providers");
+    assert.equal(providerManagement.target.id, "local-device");
+    assert.equal(providerManagement.providers.length, 1);
+    assert.equal(providerManagement.providers[0]?.id, profile.id);
+    assert.equal(providerManagement.providers[0]?.providerKind, "codex");
+    assert.equal(
+      providerManagement.providers[0]?.version,
+      "codex-cli resource-api-fixture"
+    );
+    assert.equal(providerManagement.providers[0]?.exposureStatus, "not-applicable");
+    assert.deepEqual(providerManagement.providers[0]?.allowedLifecycleOperations, []);
 
     const inventoryInput = {
       runtimeProfileId: profile.id,
@@ -640,6 +700,8 @@ async function run(): Promise<void> {
     assert.equal(openapiResponse.status, 200);
     const openapiText = await openapiResponse.text();
     for (const operationId of [
+      "listRuntimeResourceProfiles",
+      "listCapabilityProviders",
       "prepareRuntimeResourceMutation",
       "decideRuntimeResourceMutation",
       "executeRuntimeResourceMutation",
@@ -650,6 +712,10 @@ async function run(): Promise<void> {
       assert.match(openapiText, new RegExp(`operationId: ${operationId}`));
     }
     assert.match(openapiText, /CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true/);
+    assert.match(openapiText, /CapabilityProviderManagementProjection/);
+    assert.match(openapiText, /allowedLifecycleOperations/);
+    assert.match(openapiText, /desiredState/);
+    assert.match(openapiText, /observedState/);
     for (const forbidden of [
       "remotePluginId",
       "remoteMarketplaceName",

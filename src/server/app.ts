@@ -536,7 +536,11 @@ export function buildServer(
     repositories: governanceLedger,
     profiles: runtimeProfileRegistry,
     adapters: runtimeResourceAdapterRegistry,
-    pluginMutationAvailable: true
+    pluginMutationAvailable: true,
+    runtimeDir: paths.runtimeDir,
+    ...(options.directExecutorsConfigPath
+      ? { downstreamConfigPath: options.directExecutorsConfigPath }
+      : {})
   });
   const runtimeResourceMutationService = new RuntimeResourceMutationService(
     governanceLedger,

@@ -54,7 +54,9 @@ assert.match(i18n, /window\.sessionStorage, LOCALE_STORAGE_KEY/);
 assert.doesNotMatch(i18n, /sessionStorage\.setItem\(LOCALE_STORAGE_KEY/);
 assert.doesNotMatch(i18n, /GPT 助手/);
 
-assert.match(resources, /title: "运行环境与资源中心"/);
+assert.match(resources, /title: "资源中心"/);
+assert.match(resources, /providerManagementTitle: "Provider 管理"/);
+assert.match(resources, /noLifecycleActions: "暂无受管生命周期动作"/);
 assert.match(resources, /profilesTitle: "运行时配置"/);
 assert.match(resources, /snapshotTitle: "资源清单快照"/);
 assert.match(resources, /fingerprint: "指纹"/);

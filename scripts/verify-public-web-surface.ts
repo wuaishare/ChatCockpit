@@ -164,6 +164,7 @@ async function main(): Promise<void> {
       { method: "GET", url: "/api/host/roots" },
       { method: "GET", url: "/api/git/status" },
       { method: "GET", url: "/api/continuity/projects" },
+      { method: "GET", url: "/api/resources/providers" },
       { method: "GET", url: "/api/resources/runtime-profiles" },
       { method: "GET", url: "/api/runtime/codex/capabilities" },
       { method: "GET", url: "/api/recovery/attempts" }
