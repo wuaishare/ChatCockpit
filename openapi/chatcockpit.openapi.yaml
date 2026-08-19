@@ -327,6 +327,103 @@ components:
         grant:
           $ref: '#/components/schemas/OAuthAuthorizationGrantSummary'
       required: [ok, grant]
+    OperationalActivityRuntime:
+      type: object
+      additionalProperties: false
+      properties:
+        bindingId: { type: string }
+        runtimeKind: { type: string, enum: [codex-app-server, async-runner] }
+        bindingStatus: { type: string, enum: [active, superseded, released, stale] }
+        externalSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        externalRunId: { oneOf: [{ type: string }, { type: "null" }] }
+        externalThreadId: { oneOf: [{ type: string }, { type: "null" }] }
+        runId: { oneOf: [{ type: string }, { type: "null" }] }
+        turnId: { oneOf: [{ type: string }, { type: "null" }] }
+        runStatus: { oneOf: [{ type: string, enum: [starting, running, waiting-approval, completed, failed, interrupted, stale] }, { type: "null" }] }
+      required: [bindingId, runtimeKind, bindingStatus, externalSessionId, externalRunId, externalThreadId, runId, turnId, runStatus]
+    OperationalActivity:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [agent-session, job] }
+        scope: { type: string, enum: [workspace, repo, host] }
+        status: { type: string, enum: [queued, idle, running, waiting-approval, paused, handoff-ready, completed, failed, interrupted, terminated, stale] }
+        title: { type: string }
+        targetDeviceId: { type: string, const: local-device }
+        projectId: { oneOf: [{ type: string }, { type: "null" }] }
+        workspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        taskId: { oneOf: [{ type: string }, { type: "null" }] }
+        repoId: { oneOf: [{ type: string }, { type: "null" }] }
+        agentSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        authorizationGrantId: { oneOf: [{ type: string }, { type: "null" }] }
+        traceId: { oneOf: [{ type: string }, { type: "null" }] }
+        workerInstanceId: { oneOf: [{ type: string }, { type: "null" }] }
+        runtime: { oneOf: [{ $ref: '#/components/schemas/OperationalActivityRuntime' }, { type: "null" }] }
+        job:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              properties:
+                id: { type: string }
+                type: { type: string, enum: [pack, taskpack, codex-run] }
+                status: { type: string, enum: [queued, running, completed, failed] }
+                processState: { oneOf: [{ type: string, enum: [running, paused, terminated, completed, failed] }, { type: "null" }] }
+                processLabel: { oneOf: [{ type: string }, { type: "null" }] }
+              required: [id, type, status, processState, processLabel]
+            - type: "null"
+        directProcessSummary:
+          type: object
+          additionalProperties: false
+          properties:
+            total: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+            running: { type: integer, minimum: 0 }
+          required: [total, active, running]
+        latestEvent:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              properties:
+                sequence: { type: integer, minimum: 1 }
+                method: { type: string }
+                category: { type: string }
+                createdAt: { type: string }
+              required: [sequence, method, category, createdAt]
+            - type: "null"
+        controls:
+          type: object
+          additionalProperties: false
+          properties:
+            pause: { type: boolean }
+            resume: { type: boolean }
+            terminate: { type: boolean }
+            interrupt: { type: boolean }
+            hold: { type: boolean, const: false }
+          required: [pause, resume, terminate, interrupt, hold]
+        startedAt: { type: string }
+        updatedAt: { type: string }
+        endedAt: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [id, kind, scope, status, title, targetDeviceId, projectId, workspaceId, taskId, repoId, agentSessionId, authorizationGrantId, traceId, workerInstanceId, runtime, job, directProcessSummary, latestEvent, controls, startedAt, updatedAt, endedAt]
+    OperationalActivityListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, enum: [true] }
+        activities:
+          type: array
+          items: { $ref: '#/components/schemas/OperationalActivity' }
+        counts:
+          type: object
+          additionalProperties: false
+          properties:
+            total: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+            running: { type: integer, minimum: 0 }
+            waitingApproval: { type: integer, minimum: 0 }
+            paused: { type: integer, minimum: 0 }
+          required: [total, active, running, waitingApproval, paused]
+      required: [ok, activities, counts]
     GitCommitSummary:
       type: object
       additionalProperties: false
@@ -5823,6 +5920,26 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "404":
           description: Authorization grant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/activities:
+    get:
+      operationId: listOperationalActivities
+      summary: List Owner-visible operational activities
+      description: Returns an Owner-only unified read model for agent sessions and standalone jobs. Project/workspace/task context is optional, so host-scoped work remains observable. Raw commands, private paths, job instructions and provider payloads are excluded; this endpoint does not execute controls.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Operational activity snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalActivityListResponse'
+        "401":
+          description: Web Owner session required
           content:
             application/json:
               schema:

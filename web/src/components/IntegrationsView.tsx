@@ -55,10 +55,15 @@ export function IntegrationsView({
       setGrantsEnabled(response.enabled);
       setGrants(response.grants);
     } catch (error) {
+      const status = typeof error === "object" && error && "status" in error
+        ? Number(error.status)
+        : null;
       setGrantError(
-        typeof error === "object" && error && "message" in error && typeof error.message === "string"
-          ? error.message
-          : copy.grantLoadFailed
+        status === 404
+          ? copy.grantApiVersionMismatch
+          : typeof error === "object" && error && "message" in error && typeof error.message === "string"
+            ? error.message
+            : copy.grantLoadFailed
       );
     } finally {
       setGrantsLoading(false);
@@ -151,10 +156,11 @@ export function IntegrationsView({
       <SectionCard
         title={copy.authorizationGrantsTitle}
         description={copy.authorizationGrantsDescription}
-        extra={<Tag>{grants.length}</Tag>}
+        extra={<Tag color={grantError ? "warning" : undefined}>{grantError ? copy.needsAttention : grants.length}</Tag>}
       >
-        {grantError ? <div className="section-note section-note--warning">{grantError}</div> : null}
-        {grantsLoading ? (
+        {grantError ? (
+          <div className="section-note section-note--warning">{grantError}</div>
+        ) : grantsLoading ? (
           <div className="oauth-grants__loading"><Spin size="small" /> <span>{copy.loadingTitle}</span></div>
         ) : !grantsEnabled || grants.length === 0 ? (
           <div className="notes-block">{copy.authorizationGrantsEmpty}</div>
