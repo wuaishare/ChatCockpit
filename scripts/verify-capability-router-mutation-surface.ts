@@ -32,7 +32,7 @@ import { listenTestServer } from "./test-support/server.ts";
 const executorId = "downstream-mcp:mutation-surface-fixture";
 const privateEndpoint = "https://private-mutation-surface.example.invalid/mcp";
 const secretContent = "mutation-secret-must-not-persist";
-const apiToken = "router-mutation-surface-machine-token";
+const apiToken = "test-token-router-mutation-surface-machine";
 
 function writeConfig(configPath: string): void {
   fs.writeFileSync(
@@ -360,7 +360,7 @@ async function verifyOperatorDecisionRoute(): Promise<void> {
   const setupService = new OperatorService({ store: setupStore });
   await setupService.setOwnerPassword({
     username: "owner",
-    password: "router-mutation-owner-correct-horse-battery-staple",
+    password: "test-password-router-mutation-owner-correct-horse-battery-staple",
   });
   setupStore.close();
 
@@ -494,7 +494,7 @@ async function verifyOperatorDecisionRoute(): Promise<void> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         username: "owner",
-        password: "router-mutation-owner-correct-horse-battery-staple",
+        password: "test-password-router-mutation-owner-correct-horse-battery-staple",
       }),
     });
     assert.equal(login.status, 200);
