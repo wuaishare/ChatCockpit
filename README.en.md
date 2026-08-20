@@ -13,7 +13,9 @@
 
 > **Chat is the interface. Cockpit is the control plane.**
 
-ChatCockpit is a **local-first AI capability control plane**. It turns local devices, MCP servers, CLIs, runtimes, and AI tools into discoverable, governable, routable capabilities exposed through one stable ChatCockpit boundary to clients such as ChatGPT.
+ChatCockpit is a **local-first control panel for AI work**. It gives ChatGPT, Claude Web, and other MCP-compatible AI clients one governed entry point to projects, local devices, commands, resources, and runtimes.
+
+Identity and access, the MCP server, live activity, governance, and the visual console stay in one place so AI can act while people can still observe, govern, and revoke access when needed.
 
 It is not trying to become another AI chat client, IDE, universal runtime, or app store. The goal is to connect mature tools behind one safe control plane so complex software environments become easier to use and manage from Chat.
 
@@ -21,65 +23,15 @@ It is not trying to become another AI chat client, IDE, universal runtime, or ap
 
 ## Core model
 
-```mermaid
-flowchart TB
-    Chat["ChatGPT / Other clients<br/>Chat is the interface"] --> MCP["ChatCockpit Remote MCP / API"]
+![ChatCockpit core model](./docs/assets/chatcockpit-core-model-en.webp)
 
-    MCP --> Router["Capability Router<br/>stable product-owned tools"]
-    MCP --> Center["Resource Center<br/>capability / provider management"]
-    MCP --> Gov["Governance<br/>Approval · Evidence · Public-safe Projection"]
+Think of ChatCockpit as a **secure control panel between AI clients and the environment where work happens**:
 
-    Router --> Device["local-device"]
-    Center --> Device
-    Gov -. policy .-> Router
+- **AI clients on top**: ChatGPT, Claude Web, and other MCP-compatible clients.
+- **ChatCockpit in the middle**: identity and access, the MCP server, live activity, governance, and the visual console.
+- **Work targets below**: projects and workspaces, local devices and commands, resources and runtimes.
 
-    Device --> P1["Built-in / Standalone capabilities"]
-    Device --> P2["Downstream MCP Providers"]
-    Device --> P3["External tools / runtimes"]
-
-    Dev["Development Continuity<br/>Task · Session · Handoff · Evidence · Recovery"] -. solution layer .-> MCP
-```
-
-### 1. Capabilities, not provider count
-
-ChatCockpit exposes a stable product surface instead of dynamically turning every downstream tool into a new ChatGPT tool.
-
-The current Capability Router has fixed product-owned tools:
-
-- `chatcockpit.capabilities.list`
-- `chatcockpit.capabilities.inspect`
-- `chatcockpit.capabilities.read.invoke`
-- `chatcockpit.capabilities.mutation.prepare`
-- `chatcockpit.capabilities.mutation.inspect`
-- `chatcockpit.capabilities.mutation.execute`
-
-Provider-native tool names remain catalog data. Downstream MCP changes do not silently mutate the approved upstream ChatGPT tool snapshot.
-
-### 2. Resource Center is the management plane
-
-Resource Center projects the local target, Runtime Profiles, providers, capabilities, health, and inventory snapshots through one public-safe model and hosts governed resource operations.
-
-ChatCockpit does not treat its own cache as provider truth. Before execution it re-checks current configuration, catalog state, and live metadata, failing closed when the provider has drifted.
-
-### 3. Mutation requires explicit authority
-
-Side-effecting provider operations use a governed lifecycle:
-
-```text
-prepare
--> local operator approve / deny
--> execute
--> evidence / result projection
-```
-
-Remote MCP has **no `decide` authority**. Approval is accepted only from an authenticated local Operator Session over REST + CSRF; machine bearer, MCP OAuth, and Remote MCP cannot self-approve governed writes.
-
-### 4. Development Continuity is important, but no longer the whole product category
-
-ChatCockpit still includes the mature development continuity system: Project, Workspace, Task, Spec/Plan, Session, Runtime Binding, Writer Lease, Handoff, Evidence, Recovery, Codex, and async Jobs.
-
-Those capabilities solve continuity across ChatGPT, Codex, and delegated execution, but they now sit as a **Development solution layer** inside a broader control plane rather than defining the entire product.
-
+AI clients do not need to understand every local tool directly; ChatCockpit turns those capabilities into a stable, observable, governable work surface.
 ## What works today
 
 - **Remote MCP / OAuth** — ChatGPT reaches a fixed governed ChatCockpit tool surface through one product boundary. Each Owner approval creates an independent Authorization Grant; access/refresh tokens bind to that grant, legacy OAuth state migrates without invalidating existing refresh tokens, and the Web Owner can inspect or revoke one grant/token family independently.
