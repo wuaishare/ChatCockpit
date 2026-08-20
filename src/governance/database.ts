@@ -155,9 +155,46 @@ const operationalActivityProvenanceMigration: GovernanceMigration = {
   }
 };
 
+const operationalActivityControlEventsMigration: GovernanceMigration = {
+  version: 3,
+  name: "operational-activity-control-events",
+  up(database) {
+    database.exec(`
+      CREATE TABLE operational_activity_control_events (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE CHECK (length(id) > 0),
+        job_id TEXT NOT NULL CHECK (length(job_id) > 0),
+        action TEXT NOT NULL CHECK (action IN ('pause', 'resume', 'terminate')),
+        resulting_state TEXT NOT NULL CHECK (
+          resulting_state IN ('running', 'paused', 'terminated', 'completed', 'failed')
+        ),
+        process_revision INTEGER NOT NULL CHECK (process_revision > 0),
+        actor_type TEXT NOT NULL CHECK (
+          actor_type IN ('local-cli', 'local-ui', 'rest-api', 'gpt-actions', 'remote-mcp', 'runner')
+        ),
+        actor_identity_hash TEXT CHECK (
+          actor_identity_hash IS NULL OR (
+            length(actor_identity_hash) = 64
+            AND actor_identity_hash NOT GLOB '*[^0-9a-f]*'
+          )
+        ),
+        request_identity_hash TEXT NOT NULL CHECK (
+          length(request_identity_hash) = 64
+          AND request_identity_hash NOT GLOB '*[^0-9a-f]*'
+        ),
+        created_at TEXT NOT NULL
+      ) STRICT;
+
+      CREATE INDEX operational_activity_control_job_sequence_index
+        ON operational_activity_control_events(job_id, sequence DESC);
+    `);
+  }
+};
+
 const migrations: readonly GovernanceMigration[] = [
   initialGovernanceMigration,
-  operationalActivityProvenanceMigration
+  operationalActivityProvenanceMigration,
+  operationalActivityControlEventsMigration
 ];
 export const LATEST_GOVERNANCE_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

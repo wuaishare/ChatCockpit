@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   const continuity = new ContinuityDatabase({ path: continuityDatabasePath(paths.runtimeDir) });
   const repositories = buildContinuityRepositories(continuity);
   const governance = new GovernanceDatabase({ path: governanceDatabasePath(paths.runtimeDir) });
-  assert.equal(governance.schemaVersion(), 2);
+  assert.equal(governance.schemaVersion(), 3);
   governance.close();
   const activityProvenance = new OperationalActivityProvenanceRepository(continuity);
   const project = repositories.projects.create({

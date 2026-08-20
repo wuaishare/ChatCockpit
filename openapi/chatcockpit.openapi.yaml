@@ -2289,7 +2289,10 @@ components:
           type: string
         label:
           type: string
-      required: [state, updatedAt, label]
+        revision:
+          type: integer
+          minimum: 1
+      required: [state, updatedAt, label, revision]
     CreatePackResponse:
       type: object
       additionalProperties: false
@@ -2317,7 +2320,48 @@ components:
         job:
           $ref: '#/components/schemas/CodexRunJobRecord'
       required: [ok, job]
+    JobProcessControlPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          enum: [pause, resume, terminate]
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [action, expectedRevision, idempotencyKey]
     JobControlResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        jobId:
+          type: string
+        action:
+          type: string
+          enum: [pause, resume, terminate]
+        state:
+          type: string
+          enum: [running, paused, terminated, completed, failed]
+        revision:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+        message:
+          type: string
+        replayed:
+          type: boolean
+      required: [ok, jobId, action, state, revision, updatedAt, message, replayed]
+    LegacyJobControlResponse:
       type: object
       additionalProperties: false
       properties:
@@ -2327,8 +2371,10 @@ components:
           type: string
         action:
           type: string
+          enum: [pause, resume, terminate]
         state:
           type: string
+          enum: [running, paused, terminated, completed, failed]
         message:
           type: string
       required: [ok, jobId, action, state, message]
@@ -6229,11 +6275,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/jobs/{id}/control:
+    post:
+      operationId: controlJobProcess
+      summary: Control a tracked local job process
+      description: Applies one revision-bound, idempotent pause, resume, or terminate action and records a public-safe append-only control event. PID, command, paths, job instructions, and process output are never returned.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobProcessControlPayload'
+      responses:
+        "200":
+          description: Applied or replayed control result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobControlResponse'
+        "409":
+          description: Revision, state, or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/jobs/{id}/control/{action}:
     post:
-      operationId: controlJob
-      summary: Pause, resume, or terminate a tracked local job process
-      description: Sends process-control signals to the local runner's tracked Codex process. Supported actions are pause, resume, and terminate.
+      operationId: controlJobLegacy
+      deprecated: true
+      summary: Legacy tracked Job process control compatibility route
+      description: Compatibility route for older clients. New clients use POST /api/jobs/{id}/control with expectedRevision and idempotencyKey. The server still routes this call through the formal Job process control service.
       security:
         - bearerAuth: []
       parameters:
@@ -6250,11 +6329,11 @@ paths:
             enum: [pause, resume, terminate]
       responses:
         "200":
-          description: Control result
+          description: Compatibility control result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobControlResponse'
+                $ref: '#/components/schemas/LegacyJobControlResponse'
   /api/jobs/control/terminate-all:
     post:
       operationId: terminateAllJobs

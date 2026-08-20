@@ -83,7 +83,8 @@ function canSafelyClearExternalFailure(error: unknown): boolean {
     "CONTINUITY_RELATION_INVALID",
     "WRITER_LEASE_REQUIRED",
     "WRITER_LEASE_CONFLICT",
-    "REVISION_CONFLICT"
+    "REVISION_CONFLICT",
+    "JOB_PROCESS_SIGNAL_FAILED"
   ].includes(error.code);
 }
 

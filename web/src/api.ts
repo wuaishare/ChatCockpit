@@ -971,11 +971,16 @@ export async function interruptCodexRuntimeTurn(
 
 export async function controlJob(
   id: string,
-  action: "pause" | "resume" | "terminate",
+  payload: {
+    action: "pause" | "resume" | "terminate";
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
   token?: string | null
 ): Promise<JobControlResponse> {
-  return postJson<JobControlResponse>(
-    `/api/jobs/${encodeURIComponent(id)}/control/${encodeURIComponent(action)}`,
+  return postBodyJson<JobControlResponse>(
+    `/api/jobs/${encodeURIComponent(id)}/control`,
+    payload,
     token
   );
 }
