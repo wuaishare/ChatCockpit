@@ -82,7 +82,7 @@ npm run doctor:runtime
 - [ChatGPT / MCP 接入](./docs/zh-CN/deployment/mcp-setup.md)
 - [macOS Desktop](./docs/zh-CN/deployment/macos-desktop.md)
 - [本机运行维护](./docs/zh-CN/deployment/local-runtime-ops.md)
-- [本地优先控制面架构](./docs/zh-CN/architecture/本地优先-control-plane.md)
+- [本地优先控制面架构](./docs/zh-CN/architecture/local-first-control-plane.md)
 - [产品原则](./docs/zh-CN/governance/product-principles.md)
 - [公开 / 私有资料边界](./docs/zh-CN/governance/public-vs-private-artifacts.md)
 - [ChatGPT Connector Smoke](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
