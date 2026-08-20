@@ -44,6 +44,7 @@ export interface OperationalActivityRuntimeProjection {
   externalRunId: string | null;
   externalThreadId: string | null;
   runId: string | null;
+  runRevision: number | null;
   turnId: string | null;
   runStatus: RuntimeRunRecord["status"] | null;
 }
@@ -269,6 +270,7 @@ export class OperationalActivityService {
         externalRunId: binding.externalRunId,
         externalThreadId: binding.externalThreadId,
         runId: run?.id ?? null,
+        runRevision: run?.revision ?? null,
         turnId: run?.externalTurnId ?? null,
         runStatus: run?.status ?? null
       } : null,

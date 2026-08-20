@@ -4,13 +4,14 @@ import {
   CloudServerOutlined,
   DesktopOutlined,
   ReloadOutlined,
+  StopOutlined,
   ThunderboltOutlined
 } from "@ant-design/icons";
-import { Button, Empty, Tag, Tooltip } from "antd";
+import { Button, Empty, Popconfirm, Tag, Tooltip } from "antd";
 import { Text } from "@lobehub/ui";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchOperationalActivities } from "../../api";
+import { fetchOperationalActivities, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import type { ResourceCenterCopy } from "../../i18n/resources";
 import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
@@ -134,13 +135,17 @@ const ActivityCard = memo(function ActivityCard({
   locale,
   copy,
   projectName,
-  workspaceLabel
+  workspaceLabel,
+  interrupting,
+  onInterrupt
 }: {
   activity: OperationalActivityProjection;
   locale: LocaleCode;
   copy: ResourceCenterCopy;
   projectName: string | null;
   workspaceLabel: string | null;
+  interrupting: boolean;
+  onInterrupt: (activity: OperationalActivityProjection) => void;
 }) {
   const runtime = runtimeLabel(activity);
   const context =
@@ -164,9 +169,31 @@ const ActivityCard = memo(function ActivityCard({
             </div>
           </div>
         </div>
-        <Tag color={getOperationalStatusTone(activity.status)}>
-          {getOperationalStatusLabel(locale, activity.status)}
-        </Tag>
+        <div className="resource-center__activity-card-actions">
+          {activity.controls.interrupt && activity.runtime?.runId && activity.runtime.runRevision ? (
+            <Popconfirm
+              title={copy.activityInterruptConfirmTitle}
+              description={copy.activityInterruptConfirmDescription}
+              okText={copy.activityInterruptConfirm}
+              cancelText={copy.activityInterruptCancel}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => onInterrupt(activity)}
+            >
+              <Button
+                size="small"
+                danger
+                icon={<StopOutlined />}
+                loading={interrupting}
+                disabled={interrupting}
+              >
+                {copy.activityInterrupt}
+              </Button>
+            </Popconfirm>
+          ) : null}
+          <Tag color={getOperationalStatusTone(activity.status)}>
+            {getOperationalStatusLabel(locale, activity.status)}
+          </Tag>
+        </div>
       </div>
 
       <div className="resource-center__activity-facts">
@@ -206,6 +233,9 @@ export function OperationalActivityPanel({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [streamState, setStreamState] = useState<StreamState>("connecting");
+  const [interruptingActivityId, setInterruptingActivityId] = useState<string | null>(null);
+  const [interruptError, setInterruptError] = useState<string | null>(null);
+  const interruptKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -270,6 +300,41 @@ export function OperationalActivityPanel({
     };
   }, [load]);
 
+  const interruptActivity = useCallback(async (activity: OperationalActivityProjection) => {
+    const runtime = activity.runtime;
+    if (!activity.controls.interrupt || !runtime?.runId || !runtime.runRevision) return;
+
+    let idempotencyKey = interruptKeys.current.get(runtime.runId);
+    if (!idempotencyKey) {
+      idempotencyKey = `activity.interrupt.web:${crypto.randomUUID()}`;
+      interruptKeys.current.set(runtime.runId, idempotencyKey);
+    }
+
+    setInterruptingActivityId(activity.id);
+    setInterruptError(null);
+    try {
+      await interruptCodexRuntimeTurn(
+        {
+          runId: runtime.runId,
+          expectedRunRevision: runtime.runRevision,
+          idempotencyKey
+        },
+        token
+      );
+      interruptKeys.current.delete(runtime.runId);
+      void load();
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : null;
+      if (code) interruptKeys.current.delete(runtime.runId);
+      setInterruptError(code ? `${copy.activityInterruptFailed} (${code})` : copy.activityInterruptFailed);
+    } finally {
+      setInterruptingActivityId((current) => current === activity.id ? null : current);
+    }
+  }, [copy.activityInterruptFailed, load, token]);
+
   const projectNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of projects) map.set(entry.project.id, entry.project.displayName);
@@ -330,6 +395,13 @@ export function OperationalActivityPanel({
         <div role="listitem"><span>{copy.activityTotal}</span><strong>{snapshot?.counts.total ?? "—"}</strong></div>
       </div>
 
+      {interruptError ? (
+        <div className="resource-center__activity-inline-error">
+          <ThunderboltOutlined />
+          <span>{interruptError}</span>
+        </div>
+      ) : null}
+
       {loadError && !snapshot ? (
         <div className="resource-center__activity-inline-error">
           <ThunderboltOutlined />
@@ -357,6 +429,8 @@ export function OperationalActivityPanel({
               copy={copy}
               projectName={activity.projectId ? projectNames.get(activity.projectId) ?? null : null}
               workspaceLabel={activity.workspaceId ? workspaceNames.get(activity.workspaceId) ?? null : null}
+              interrupting={interruptingActivityId === activity.id}
+              onInterrupt={interruptActivity}
             />
           ))}
         </div>

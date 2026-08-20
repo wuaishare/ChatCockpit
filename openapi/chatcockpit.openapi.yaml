@@ -338,9 +338,10 @@ components:
         externalRunId: { oneOf: [{ type: string }, { type: "null" }] }
         externalThreadId: { oneOf: [{ type: string }, { type: "null" }] }
         runId: { oneOf: [{ type: string }, { type: "null" }] }
+        runRevision: { oneOf: [{ type: integer, minimum: 1 }, { type: "null" }] }
         turnId: { oneOf: [{ type: string }, { type: "null" }] }
         runStatus: { oneOf: [{ type: string, enum: [starting, running, waiting-approval, completed, failed, interrupted, stale] }, { type: "null" }] }
-      required: [bindingId, runtimeKind, bindingStatus, externalSessionId, externalRunId, externalThreadId, runId, turnId, runStatus]
+      required: [bindingId, runtimeKind, bindingStatus, externalSessionId, externalRunId, externalThreadId, runId, runRevision, turnId, runStatus]
     OperationalActivityEvent:
       type: object
       additionalProperties: false
