@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import type {
@@ -12,8 +12,9 @@ import type {
   JobType
 } from "../types.js";
 import {
-  controlJobProcess,
-  terminateAllJobProcesses
+  getTrackedJobProcess,
+  listTrackedJobProcesses,
+  type JobProcessSignalAdapter
 } from "../core/job-processes.js";
 import {
   buildDirectToolSchemas,
@@ -24,7 +25,10 @@ import { CapabilityRouterCatalogService } from "../application/capability-router
 import { CapabilityRouterReadInvocationService } from "../application/capability-router-read-invocation-service.js";
 import { CapabilityRouterMutationService } from "../application/capability-router-mutation-service.js";
 import { CapabilityRouterMutationPublicService } from "../application/capability-router-mutation-public-service.js";
+import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
+import { JobProcessControlService } from "../application/job-process-control-service.js";
+import { buildOperationContext } from "../application/operation-context.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
 import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
 import { HostDirectService } from "../application/host-direct-service.js";
@@ -55,6 +59,7 @@ import {
 } from "../governance/database.js";
 import { GovernedExternalActionRepository } from "../governance/governed-external-action-repository.js";
 import { OperationalActivityProvenanceRepository } from "../governance/operational-activity-provenance-repository.js";
+import { OperationalActivityControlEventRepository } from "../governance/operational-activity-control-event-repository.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
 import { buildIntegrationStatusSnapshot } from "../core/integration-status.js";
 import {
@@ -259,6 +264,23 @@ function replyFrom(value: unknown): ReplyLike {
   return value as ReplyLike;
 }
 
+function jobProcessControlContextFromRequest(request: FastifyRequest) {
+  const auth = request.chatCockpitAuth;
+  if (auth.kind === "operator-session") {
+    return buildOperationContext({
+      requestId: request.id,
+      actorType: "local-ui",
+      actorId: auth.session.principalId,
+      publicProjection: true
+    });
+  }
+  return buildOperationContext({
+    requestId: request.id,
+    actorType: auth.kind === "machine-bearer" ? "rest-api" : "local-ui",
+    publicProjection: true
+  });
+}
+
 function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
   return buildHealthStatusSnapshot(paths.productIdentity);
 }
@@ -282,6 +304,7 @@ export interface BuildServerOptions {
   publicRouteBootstrapVerifier?: PublicRouteBootstrapVerifier;
   activityStreamPollIntervalMs?: number;
   activityStreamHeartbeatIntervalMs?: number;
+  jobProcessSignalAdapter?: JobProcessSignalAdapter;
 }
 
 export function buildServer(
@@ -391,6 +414,15 @@ export function buildServer(
     paths,
     continuityServices.repositories,
     operationalActivityProvenance
+  );
+  const operationalActivityControlEvents = new OperationalActivityControlEventRepository(
+    continuityDatabase
+  );
+  const jobProcessControl = new JobProcessControlService(
+    paths,
+    continuityServices.repositories,
+    operationalActivityControlEvents,
+    options.jobProcessSignalAdapter
   );
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
     paths.runtimeDir
@@ -1037,16 +1069,91 @@ export function buildServer(
     };
   };
 
-  const controlJobHandler = async (request: unknown, reply: unknown) => {
-    const params = (request as { params: { id: string; action: string } }).params;
+  const stableControlJobHandler = async (request: FastifyRequest, reply: unknown) => {
+    const fastifyReply = replyFrom(reply);
+    const params = request.params as { id: string };
+    const parsed = jobProcessControlSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await jobProcessControl.control(
+        jobProcessControlContextFromRequest(request),
+        { jobId: params.id, ...parsed.data }
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
+  const legacyControlJobHandler = async (request: FastifyRequest, reply: unknown) => {
+    const params = request.params as { id: string; action: string };
     const fastifyReply = replyFrom(reply);
     if (!["pause", "resume", "terminate"].includes(params.action)) {
       return sendApiError(fastifyReply, 400, "VALIDATION_ERROR", "Unsupported control action");
     }
-    return controlJobProcess(paths, params.id, params.action as "pause" | "resume" | "terminate");
+    const tracked = getTrackedJobProcess(paths, params.id);
+    if (!tracked) {
+      return {
+        ok: false,
+        jobId: params.id,
+        action: params.action as "pause" | "resume" | "terminate",
+        state: "completed" as const,
+        message: "No tracked process for job"
+      };
+    }
+    try {
+      const result = await jobProcessControl.control(
+        jobProcessControlContextFromRequest(request),
+        {
+          jobId: params.id,
+          action: params.action as "pause" | "resume" | "terminate",
+          expectedRevision: tracked.revision,
+          idempotencyKey: `job.process.legacy:${request.id}`
+        }
+      );
+      return {
+        ok: result.ok,
+        jobId: result.jobId,
+        action: result.action,
+        state: result.state,
+        message: result.message
+      };
+    } catch (error) {
+      const latest = getTrackedJobProcess(paths, params.id) ?? tracked;
+      return {
+        ok: false,
+        jobId: params.id,
+        action: params.action as "pause" | "resume" | "terminate",
+        state: latest.state,
+        message: error instanceof Error ? error.message : `Failed to ${params.action} job process`
+      };
+    }
   };
 
-  const terminateAllJobsHandler = async () => terminateAllJobProcesses(paths);
+  const terminateAllJobsHandler = async (request: FastifyRequest) => {
+    const context = jobProcessControlContextFromRequest(request);
+    const terminated = [];
+    for (const tracked of listTrackedJobProcesses(paths)) {
+      if (tracked.state !== "running" && tracked.state !== "paused") continue;
+      try {
+        const result = await jobProcessControl.control(context, {
+          jobId: tracked.jobId,
+          action: "terminate",
+          expectedRevision: tracked.revision,
+          idempotencyKey: `job.process.terminate-all:${request.id}:${tracked.jobId}`
+        });
+        terminated.push({ jobId: result.jobId, state: result.state, message: result.message });
+      } catch (error) {
+        terminated.push({
+          jobId: tracked.jobId,
+          state: getTrackedJobProcess(paths, tracked.jobId)?.state ?? tracked.state,
+          message: error instanceof Error ? error.message : "Failed to terminate job process"
+        });
+      }
+    }
+    return { ok: true as const, terminated };
+  };
 
   const readFileHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
@@ -1533,8 +1640,11 @@ export function buildServer(
   app.post("/api/jobs/codex-run", createCodexRunHandler);
   app.post("/tokenpilot/api/jobs/codex-run", createCodexRunHandler);
 
-  app.post("/api/jobs/:id/control/:action", controlJobHandler);
-  app.post("/tokenpilot/api/jobs/:id/control/:action", controlJobHandler);
+  app.post("/api/jobs/:id/control", stableControlJobHandler);
+  app.post("/tokenpilot/api/jobs/:id/control", stableControlJobHandler);
+
+  app.post("/api/jobs/:id/control/:action", legacyControlJobHandler);
+  app.post("/tokenpilot/api/jobs/:id/control/:action", legacyControlJobHandler);
 
   app.post("/api/jobs/control/terminate-all", terminateAllJobsHandler);
   app.post("/tokenpilot/api/jobs/control/terminate-all", terminateAllJobsHandler);

@@ -6,6 +6,7 @@ export interface JobProcessInfo {
   state: JobProcessState;
   updatedAt: string;
   label: string;
+  revision: number;
 }
 
 export interface HealthResponse {
@@ -119,11 +120,14 @@ export interface JobArtifactReadResponse {
 }
 
 export interface JobControlResponse {
-  ok: boolean;
+  ok: true;
   jobId: string;
   action: "pause" | "resume" | "terminate";
-  state: string;
+  state: JobProcessState;
+  revision: number;
+  updatedAt: string;
   message: string;
+  replayed: boolean;
 }
 
 export interface TerminateAllJobsResponse {

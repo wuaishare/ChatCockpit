@@ -2,7 +2,7 @@ import { Button, Layout } from "antd";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { Text, Tooltip } from "@lobehub/ui";
 import type { ThemeMode } from "antd-style";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { MenuOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   cancelPublicRouteBootstrapProof,
@@ -310,6 +310,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [controlLoading, setControlLoading] = useState(false);
   const [controlMessage, setControlMessage] = useState<string | null>(null);
+  const jobControlKeys = useRef(new Map<string, string>());
   const copy = getUiCopy(locale);
   const resourceCopy = getResourceCenterCopy(locale);
   const integrationsCopy = getIntegrationsCopy(locale);
@@ -959,21 +960,39 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   }
 
   async function controlSelectedJob(action: "pause" | "resume" | "terminate") {
-    if (!selectedJobId) {
-      return;
+    if (!selectedJobId) return;
+    const targetJob = jobs.find((job) => job.id === selectedJobId);
+    if (!targetJob?.process) return;
+
+    const targetJobId = targetJob.id;
+    const expectedRevision = targetJob.process.revision;
+    const operationKey = `${targetJobId}:${action}:${expectedRevision}`;
+    let idempotencyKey = jobControlKeys.current.get(operationKey);
+    if (!idempotencyKey) {
+      idempotencyKey = `job.process.control.web:${crypto.randomUUID()}`;
+      jobControlKeys.current.set(operationKey, idempotencyKey);
     }
 
-    const targetJobId = selectedJobId;
     setControlLoading(true);
     setControlMessage(null);
     setJobsError(null);
 
     try {
-      const response = await controlJob(targetJobId, action, token);
+      const response = await controlJob(
+        targetJobId,
+        { action, expectedRevision, idempotencyKey },
+        token
+      );
+      jobControlKeys.current.delete(operationKey);
       setControlMessage(response.message);
       await loadJobDetail(targetJobId, token);
       await loadJobs(token, health.authRequired, false);
     } catch (error) {
+      const explicitCode =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : null;
+      if (explicitCode) jobControlKeys.current.delete(operationKey);
       setJobsError(getErrorMessage(error));
     } finally {
       setControlLoading(false);

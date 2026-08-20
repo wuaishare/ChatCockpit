@@ -301,6 +301,7 @@ export interface TokenPilotPublicJobRecord {
     state: TokenPilotTrackedProcessState;
     updatedAt: string;
     label: string;
+    revision: number;
   };
   artifacts?: TokenPilotJobArtifactSummary[];
   result?: Record<string, unknown>;
