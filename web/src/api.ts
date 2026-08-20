@@ -958,6 +958,17 @@ async function postJson<T>(path: string, token?: string | null): Promise<T> {
   return (await response.json()) as T;
 }
 
+export async function interruptCodexRuntimeTurn(
+  payload: { runId: string; expectedRunRevision: number; idempotencyKey: string },
+  token?: string | null
+): Promise<{ ok: true; replayed: boolean }> {
+  return postBodyJson<{ ok: true; replayed: boolean }>(
+    "/api/runtime/codex/turns/interrupt",
+    payload,
+    token
+  );
+}
+
 export async function controlJob(
   id: string,
   action: "pause" | "resume" | "terminate",

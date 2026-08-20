@@ -22,6 +22,11 @@ for (const required of [
   "activity.traceId",
   "activity.workerInstanceId",
   "activity.directProcessSummary",
+  "activity.controls.interrupt",
+  "activity.runtime.runRevision",
+  "interruptCodexRuntimeTurn",
+  "crypto.randomUUID()",
+  "Popconfirm",
   "slice(0, 6)"
 ]) {
   assert.equal(panel.includes(required), true, `Operational Activity UI must retain ${required}`);
@@ -36,9 +41,14 @@ for (const metric of ["active", "running", "waitingApproval", "paused", "total"]
   );
 }
 assert.equal(
-  panel.includes("/api/jobs/") || panel.includes("/api/runtime/") || panel.includes("/control/"),
+  panel.includes("controlJob(") || panel.includes("/api/jobs/") || panel.includes("activity.controls.pause") || panel.includes("activity.controls.resume") || panel.includes("activity.controls.terminate"),
   false,
-  "The first live Activity UI slice must remain read-only"
+  "Operational Activity must not promote legacy Job process controls into the cockpit surface"
+);
+assert.match(
+  api,
+  /interruptCodexRuntimeTurn[\s\S]*?"\/api\/runtime\/codex\/turns\/interrupt"/,
+  "Operational Activity must reuse the governed Codex interrupt contract"
 );
 assert.equal(
   panel.includes("stdout") || panel.includes("privatePath") || panel.includes("instructions"),
@@ -60,6 +70,7 @@ for (const requiredCss of [
   "resource-center__activity-grid",
   "resource-center__activity-card--running",
   "resource-center__activity-metrics",
+  "resource-center__activity-card-actions",
   "resource-center__activity-recent-list",
   "@media (max-width: 650px)",
   "@media (prefers-reduced-motion: reduce)"
@@ -84,11 +95,15 @@ for (const requiredCopy of [
   'activityUnknownAuthority: "未绑定授权"',
   'activityEventApprovalRequired: "等待操作员批准"',
   'activityEventRunCompleted: "运行已完成"',
+  'activityInterrupt: "中断运行"',
+  'activityInterruptFailed: "中断运行失败，可安全重试。"',
   'activityTitle: "Operational Activity"',
   'activityLive: "Live"',
   'activityUnknownAuthority: "No grant bound"',
   'activityEventApprovalRequired: "Waiting for operator approval"',
-  'activityEventRunCompleted: "Run completed"'
+  'activityEventRunCompleted: "Run completed"',
+  'activityInterrupt: "Interrupt run"',
+  'activityInterruptFailed: "Interrupt failed. It is safe to retry."'
 ]) {
   assert.equal(copy.includes(requiredCopy), true, `Activity UI i18n must retain ${requiredCopy}`);
 }

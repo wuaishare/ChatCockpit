@@ -1146,6 +1146,7 @@ export interface OperationalActivityRuntimeProjection {
   externalRunId: string | null;
   externalThreadId: string | null;
   runId: string | null;
+  runRevision: number | null;
   turnId: string | null;
   runStatus:
     | "starting"

@@ -625,6 +625,19 @@
   gap: 12px;
 }
 
+.resource-center__activity-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resource-center__activity-card-actions .ant-tag {
+  margin-inline-end: 0;
+}
+
 .resource-center__activity-title-wrap {
   min-width: 0;
   align-items: flex-start;
@@ -806,6 +819,15 @@
   .resource-center__activity-facts,
   .resource-center__activity-grid {
     grid-template-columns: 1fr;
+  }
+
+  .resource-center__activity-card-head {
+    flex-direction: column;
+  }
+
+  .resource-center__activity-card-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .resource-center__activity-recent-item,

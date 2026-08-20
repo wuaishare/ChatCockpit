@@ -16,6 +16,12 @@ export interface ResourceCenterCopy {
   activityReconnecting: string;
   activityOffline: string;
   activityRefresh: string;
+  activityInterrupt: string;
+  activityInterruptConfirmTitle: string;
+  activityInterruptConfirmDescription: string;
+  activityInterruptConfirm: string;
+  activityInterruptCancel: string;
+  activityInterruptFailed: string;
   activityActive: string;
   activityRunning: string;
   activityWaitingApproval: string;
@@ -196,6 +202,12 @@ const zhCN: ResourceCenterCopy = {
   activityReconnecting: "正在重连",
   activityOffline: "未连接",
   activityRefresh: "刷新",
+  activityInterrupt: "中断运行",
+  activityInterruptConfirmTitle: "中断当前 Codex 运行？",
+  activityInterruptConfirmDescription: "这会停止当前 Turn、释放写入租约，并将会话转入可接力状态。",
+  activityInterruptConfirm: "确认中断",
+  activityInterruptCancel: "取消",
+  activityInterruptFailed: "中断运行失败，可安全重试。",
   activityActive: "活跃",
   activityRunning: "运行中",
   activityWaitingApproval: "等待批准",
@@ -376,6 +388,12 @@ const enUS: ResourceCenterCopy = {
   activityReconnecting: "Reconnecting",
   activityOffline: "Offline",
   activityRefresh: "Refresh",
+  activityInterrupt: "Interrupt run",
+  activityInterruptConfirmTitle: "Interrupt this Codex run?",
+  activityInterruptConfirmDescription: "This stops the active turn, releases its writer lease, and moves the session to handoff-ready.",
+  activityInterruptConfirm: "Interrupt",
+  activityInterruptCancel: "Cancel",
+  activityInterruptFailed: "Interrupt failed. It is safe to retry.",
   activityActive: "Active",
   activityRunning: "Running",
   activityWaitingApproval: "Waiting approval",

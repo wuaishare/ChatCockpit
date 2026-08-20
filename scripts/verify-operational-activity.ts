@@ -120,11 +120,58 @@ async function main(): Promise<void> {
     modelProvider: "openai",
     now: "2026-08-19T10:03:00.000Z"
   });
+  const evidenceBundle = repositories.evidence.createBundle({
+    id: "evidence_activity_fixture",
+    taskId: task.id,
+    sessionId: session.id,
+    now: "2026-08-19T10:03:10.000Z"
+  });
+  const handoff = repositories.handoffs.create({
+    id: "handoff_activity_fixture",
+    taskId: task.id,
+    sessionId: session.id,
+    workspaceId: workspace.id,
+    fromMode: "codex-session",
+    goal: "Preserve the activity fixture handoff boundary",
+    nextAction: "Continue the fixture run",
+    evidenceBundleId: evidenceBundle.id,
+    now: "2026-08-19T10:03:15.000Z"
+  });
+  const lease = repositories.leases.acquire({
+    id: "lease_activity_fixture",
+    workspaceId: workspace.id,
+    sessionId: session.id,
+    holderType: "codex-session",
+    holderId: "runtime_activity_fixture",
+    expiresAt: "2026-08-19T10:30:00.000Z",
+    now: "2026-08-19T10:03:20.000Z"
+  });
+  const startingRun = repositories.runtimeRuns.create({
+    id: "runtime_run_activity_fixture",
+    sessionId: session.id,
+    workspaceId: workspace.id,
+    runtimeBindingId: binding.id,
+    threadId: "thread_activity_fixture",
+    inputHash: "activity-fixture-input-hash",
+    inputLength: 32,
+    handoffId: handoff.id,
+    evidenceBundleId: evidenceBundle.id,
+    writerLeaseId: lease.id,
+    now: "2026-08-19T10:03:30.000Z"
+  });
+  const runtimeRun = repositories.runtimeRuns.attachTurn(
+    startingRun.id,
+    "turn_activity_fixture",
+    startingRun.revision,
+    "2026-08-19T10:03:45.000Z"
+  );
   repositories.runtimeEvents.append({
     id: "runtime_event_activity_fixture",
+    runId: runtimeRun.id,
     sessionId: session.id,
     workspaceId: workspace.id,
     threadId: "thread_activity_fixture",
+    turnId: "turn_activity_fixture",
     method: "turn/started",
     category: "lifecycle",
     publicPayload: { safe: true },
@@ -223,6 +270,10 @@ async function main(): Promise<void> {
     assert.equal(projectActivity.workerInstanceId, null);
     assert.equal((projectActivity.runtime as { runtimeKind: string }).runtimeKind, "codex-app-server");
     assert.equal((projectActivity.runtime as { externalSessionId: string }).externalSessionId, "thread_activity_fixture");
+    assert.equal((projectActivity.runtime as { runId: string }).runId, runtimeRun.id);
+    assert.equal((projectActivity.runtime as { runRevision: number }).runRevision, runtimeRun.revision);
+    assert.equal((projectActivity.runtime as { turnId: string }).turnId, "turn_activity_fixture");
+    assert.equal(projectActivity.controls.interrupt, true);
     assert.equal((projectActivity.latestEvent as { kind: string }).kind, "run-started");
     assert.equal("method" in (projectActivity.latestEvent as Record<string, unknown>), false);
     assert.equal((projectActivity.job as { id: string }).id, linkedJob.id);
