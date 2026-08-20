@@ -23,7 +23,7 @@ function writeMinimalWebDist(root: string): void {
   fs.mkdirSync(path.join(dist, "assets"), { recursive: true });
   fs.writeFileSync(
     path.join(dist, "index.html"),
-    '<!doctype html><html><head><script src="/ui/assets/app.js"></script></head><body>console</body></html>',
+    '<!doctype html><html><head><script src="./assets/app.js"></script></head><body>console</body></html>',
     "utf8"
   );
   fs.writeFileSync(path.join(dist, "assets", "app.js"), "window.__console = true;\n", "utf8");
@@ -179,6 +179,7 @@ async function main(): Promise<void> {
     assert.match(customEntry.body, /content="\/ops-7a3f"/);
     assert.match(customEntry.body, /\/ops-7a3f\/assets\/app\.js/);
     assert.doesNotMatch(customEntry.body, /src="\/ui\/assets/);
+    assert.doesNotMatch(customEntry.body, /src="\.\/assets/);
 
     const customDeepLink = await app.inject({
       method: "GET",
@@ -242,11 +243,22 @@ async function main(): Promise<void> {
         assert.doesNotMatch(builtEntry.body, /(?:src|href)="\/ui\/assets\//);
         const assetReference = builtEntry.body.match(/(?:src|href)="([^\"]*assets\/[^\"]+)"/)?.[1];
         assert.ok(assetReference, "real Vite build must expose at least one hashed asset URL");
-        const assetPath = assetReference.startsWith("/")
-          ? assetReference
-          : `/ops-built-proof/${assetReference.replace(/^\.\//, "")}`;
-        const builtAsset = await builtApp.inject({ method: "GET", url: assetPath });
+        assert.match(
+          assetReference,
+          /^\/ops-built-proof\/assets\//,
+          "bare randomized console entry must rewrite relative Vite assets under the concealed console path"
+        );
+        const builtAsset = await builtApp.inject({ method: "GET", url: assetReference });
         assert.equal(builtAsset.statusCode, 200);
+        const rootAsset = await builtApp.inject({
+          method: "GET",
+          url: assetReference.replace("/ops-built-proof", "")
+        });
+        assert.notEqual(
+          rootAsset.statusCode,
+          200,
+          "randomized console bootstrap must not make the root /assets surface anonymously readable"
+        );
         const builtJsFiles = fs
           .readdirSync(path.join(builtRoot, "web", "dist", "assets"))
           .filter((entry) => entry.endsWith(".js"));
