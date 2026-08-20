@@ -348,15 +348,18 @@ components:
       properties:
         id: { type: string }
         activityId: { type: string }
-        source: { type: string, enum: [runtime] }
+        source: { type: string, enum: [runtime, job-control] }
         sequence: { type: integer, minimum: 1 }
-        kind: { type: string, enum: [run-started, run-completed, run-failed, run-interrupted, step-started, step-completed, approval-required, approval-resolved, approval-rejected, warning, error, activity] }
-        category: { type: string, enum: [lifecycle, approval, item, warning, error, other] }
+        kind: { type: string, enum: [run-started, run-completed, run-failed, run-interrupted, job-paused, job-resumed, job-terminated, step-started, step-completed, approval-required, approval-resolved, approval-rejected, warning, error, activity] }
+        category: { type: string, enum: [lifecycle, approval, item, warning, error, other, control] }
         approvalKind: { oneOf: [{ type: string, enum: [command-execution, file-change, permissions, unsupported] }, { type: "null" }] }
         itemType: { oneOf: [{ type: string, maxLength: 80 }, { type: "null" }] }
         code: { oneOf: [{ type: string, maxLength: 80 }, { type: "null" }] }
+        controlAction: { oneOf: [{ type: string, enum: [pause, resume, terminate] }, { type: "null" }] }
+        resultingState: { oneOf: [{ type: string, enum: [running, paused, terminated, completed, failed] }, { type: "null" }] }
+        processRevision: { oneOf: [{ type: integer, minimum: 1 }, { type: "null" }] }
         createdAt: { type: string }
-      required: [id, activityId, source, sequence, kind, category, approvalKind, itemType, code, createdAt]
+      required: [id, activityId, source, sequence, kind, category, approvalKind, itemType, code, controlAction, resultingState, processRevision, createdAt]
     OperationalActivity:
       type: object
       additionalProperties: false
@@ -386,7 +389,8 @@ components:
                 status: { type: string, enum: [queued, running, completed, failed] }
                 processState: { oneOf: [{ type: string, enum: [running, paused, terminated, completed, failed] }, { type: "null" }] }
                 processLabel: { oneOf: [{ type: string }, { type: "null" }] }
-              required: [id, type, status, processState, processLabel]
+                processRevision: { oneOf: [{ type: integer, minimum: 1 }, { type: "null" }] }
+              required: [id, type, status, processState, processLabel, processRevision]
             - type: "null"
         directProcessSummary:
           type: object

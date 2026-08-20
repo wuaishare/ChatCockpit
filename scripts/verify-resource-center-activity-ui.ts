@@ -23,8 +23,13 @@ for (const required of [
   "activity.workerInstanceId",
   "activity.directProcessSummary",
   "activity.controls.interrupt",
+  "activity.controls.pause",
+  "activity.controls.resume",
+  "activity.controls.terminate",
   "activity.runtime.runRevision",
+  "activity.job?.processRevision",
   "interruptCodexRuntimeTurn",
+  "controlJob(",
   "crypto.randomUUID()",
   "Popconfirm",
   "slice(0, 6)"
@@ -40,11 +45,26 @@ for (const metric of ["active", "running", "waitingApproval", "paused", "total"]
     `Unavailable Activity snapshots must never masquerade as a real zero for ${metric}`
   );
 }
-assert.equal(
-  panel.includes("controlJob(") || panel.includes("/api/jobs/") || panel.includes("activity.controls.pause") || panel.includes("activity.controls.resume") || panel.includes("activity.controls.terminate"),
-  false,
-  "Operational Activity must not promote legacy Job process controls into the cockpit surface"
+assert.match(
+  api,
+  /controlJob[\s\S]*?`\/api\/jobs\/\$\{encodeURIComponent\(id\)\}\/control`/,
+  "Operational Activity must reuse the stable revision-bound Job control contract"
 );
+assert.equal(
+  panel.includes("control/${action}") || panel.includes("/api/jobs/${encodeURIComponent(id)}/${action}"),
+  false,
+  "Operational Activity must never fall back to the deprecated legacy Job control path"
+);
+for (const requiredControl of [
+  "expectedRevision: job.processRevision",
+  "idempotencyKey",
+  "activityTerminateConfirmTitle",
+  "onJobControl(activity, \"pause\")",
+  "onJobControl(activity, \"resume\")",
+  "onJobControl(activity, \"terminate\")"
+]) {
+  assert.equal(panel.includes(requiredControl), true, `Activity Job controls must retain ${requiredControl}`);
+}
 assert.match(
   api,
   /interruptCodexRuntimeTurn[\s\S]*?"\/api\/runtime\/codex\/turns\/interrupt"/,
@@ -95,6 +115,12 @@ for (const requiredCopy of [
   'activityUnknownAuthority: "未绑定授权"',
   'activityEventApprovalRequired: "等待操作员批准"',
   'activityEventRunCompleted: "运行已完成"',
+  'activityEventJobPaused: "任务已暂停"',
+  'activityEventJobResumed: "任务已继续"',
+  'activityEventJobTerminated: "任务已终止"',
+  'activityPause: "暂停任务"',
+  'activityResume: "继续任务"',
+  'activityTerminate: "终止任务"',
   'activityInterrupt: "中断运行"',
   'activityInterruptFailed: "中断运行失败，可安全重试。"',
   'activityTitle: "Operational Activity"',
@@ -102,6 +128,12 @@ for (const requiredCopy of [
   'activityUnknownAuthority: "No grant bound"',
   'activityEventApprovalRequired: "Waiting for operator approval"',
   'activityEventRunCompleted: "Run completed"',
+  'activityEventJobPaused: "Task paused"',
+  'activityEventJobResumed: "Task resumed"',
+  'activityEventJobTerminated: "Task terminated"',
+  'activityPause: "Pause task"',
+  'activityResume: "Resume task"',
+  'activityTerminate: "Terminate task"',
   'activityInterrupt: "Interrupt run"',
   'activityInterruptFailed: "Interrupt failed. It is safe to retry."'
 ]) {

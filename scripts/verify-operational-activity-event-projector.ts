@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { projectOperationalActivityEvent } from "../src/application/operational-activity-event-projector.js";
+import { projectOperationalActivityControlEvent, projectOperationalActivityEvent } from "../src/application/operational-activity-event-projector.js";
 import type { RuntimeEventRecord } from "../src/continuity/types.js";
 
 function event(
@@ -56,5 +56,25 @@ assert.equal(unsafe.code, null);
 assert.equal(JSON.stringify(unsafe).includes("privateMethod"), false);
 assert.equal(JSON.stringify(unsafe).includes("private/workspace"), false);
 assert.equal(JSON.stringify(unsafe).includes("must never project"), false);
+
+
+const control = projectOperationalActivityControlEvent({
+  sequence: 11,
+  id: "activity_control_fixture",
+  jobId: "job_fixture",
+  action: "pause",
+  resultingState: "paused",
+  processRevision: 2,
+  createdAt: "2026-08-20T03:01:00.000Z"
+}, "job_fixture");
+assert.equal(control.source, "job-control");
+assert.equal(control.kind, "job-paused");
+assert.equal(control.category, "control");
+assert.equal(control.controlAction, "pause");
+assert.equal(control.resultingState, "paused");
+assert.equal(control.processRevision, 2);
+assert.equal(control.approvalKind, null);
+assert.equal(control.itemType, null);
+assert.equal(control.code, null);
 
 process.stdout.write("VERIFY_OPERATIONAL_ACTIVITY_EVENT_PROJECTOR_OK\n");

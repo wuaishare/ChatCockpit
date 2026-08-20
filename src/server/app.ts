@@ -410,13 +410,14 @@ export function buildServer(
   const continuityServices = buildContinuityServices(paths, continuityDatabase, {
     activityProvenance: operationalActivityProvenance
   });
+  const operationalActivityControlEvents = new OperationalActivityControlEventRepository(
+    continuityDatabase
+  );
   const operationalActivityService = new OperationalActivityService(
     paths,
     continuityServices.repositories,
-    operationalActivityProvenance
-  );
-  const operationalActivityControlEvents = new OperationalActivityControlEventRepository(
-    continuityDatabase
+    operationalActivityProvenance,
+    operationalActivityControlEvents
   );
   const jobProcessControl = new JobProcessControlService(
     paths,

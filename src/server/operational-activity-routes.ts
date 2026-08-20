@@ -47,8 +47,10 @@ export function registerOperationalActivityRoutes(
     const pollIntervalMs = positiveInterval(options.pollIntervalMs, 1_000);
     const heartbeatIntervalMs = positiveInterval(options.heartbeatIntervalMs, 15_000);
     let eventCursor = activities.currentEventCursor();
+    let controlEventCursor = activities.currentControlEventCursor();
     const initialSnapshot = { ok: true, ...activities.list() };
     eventCursor = Math.max(eventCursor, activities.currentEventCursor());
+    controlEventCursor = Math.max(controlEventCursor, activities.currentControlEventCursor());
     reply.hijack();
     reply.raw.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
@@ -69,10 +71,15 @@ export function registerOperationalActivityRoutes(
         for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
           const page = activities.listEventsAfter(eventCursor, 200);
           if (page.events.length === 0 || page.cursor <= eventCursor) break;
-          for (const event of page.events) {
-            write("activity.event", { ok: true, event });
-          }
+          for (const event of page.events) write("activity.event", { ok: true, event });
           eventCursor = page.cursor;
+          if (!page.hasMore) break;
+        }
+        for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
+          const page = activities.listControlEventsAfter(controlEventCursor, 200);
+          if (page.events.length === 0 || page.cursor <= controlEventCursor) break;
+          for (const event of page.events) write("activity.event", { ok: true, event });
+          controlEventCursor = page.cursor;
           if (!page.hasMore) break;
         }
       } catch (error) {

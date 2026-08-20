@@ -22,6 +22,14 @@ export interface ResourceCenterCopy {
   activityInterruptConfirm: string;
   activityInterruptCancel: string;
   activityInterruptFailed: string;
+  activityPause: string;
+  activityResume: string;
+  activityTerminate: string;
+  activityTerminateConfirmTitle: string;
+  activityTerminateConfirmDescription: string;
+  activityTerminateConfirm: string;
+  activityTerminateCancel: string;
+  activityJobControlFailed: string;
   activityActive: string;
   activityRunning: string;
   activityWaitingApproval: string;
@@ -47,6 +55,9 @@ export interface ResourceCenterCopy {
   activityEventRunCompleted: string;
   activityEventRunFailed: string;
   activityEventRunInterrupted: string;
+  activityEventJobPaused: string;
+  activityEventJobResumed: string;
+  activityEventJobTerminated: string;
   activityEventStepStarted: string;
   activityEventStepCompleted: string;
   activityEventApprovalRequired: string;
@@ -208,6 +219,14 @@ const zhCN: ResourceCenterCopy = {
   activityInterruptConfirm: "确认中断",
   activityInterruptCancel: "取消",
   activityInterruptFailed: "中断运行失败，可安全重试。",
+  activityPause: "暂停任务",
+  activityResume: "继续任务",
+  activityTerminate: "终止任务",
+  activityTerminateConfirmTitle: "终止这个任务进程？",
+  activityTerminateConfirmDescription: "这会停止当前受管任务进程。该操作不会终止其他 Activity，也不会撤销 OAuth 授权。",
+  activityTerminateConfirm: "确认终止",
+  activityTerminateCancel: "取消",
+  activityJobControlFailed: "任务控制失败，可安全重试。",
   activityActive: "活跃",
   activityRunning: "运行中",
   activityWaitingApproval: "等待批准",
@@ -233,6 +252,9 @@ const zhCN: ResourceCenterCopy = {
   activityEventRunCompleted: "运行已完成",
   activityEventRunFailed: "运行失败",
   activityEventRunInterrupted: "运行已中断",
+  activityEventJobPaused: "任务已暂停",
+  activityEventJobResumed: "任务已继续",
+  activityEventJobTerminated: "任务已终止",
   activityEventStepStarted: "工作步骤已开始",
   activityEventStepCompleted: "工作步骤已完成",
   activityEventApprovalRequired: "等待操作员批准",
@@ -394,6 +416,14 @@ const enUS: ResourceCenterCopy = {
   activityInterruptConfirm: "Interrupt",
   activityInterruptCancel: "Cancel",
   activityInterruptFailed: "Interrupt failed. It is safe to retry.",
+  activityPause: "Pause task",
+  activityResume: "Resume task",
+  activityTerminate: "Terminate task",
+  activityTerminateConfirmTitle: "Terminate this task process?",
+  activityTerminateConfirmDescription: "This stops the current managed task process. Other activities and OAuth authorizations are not affected.",
+  activityTerminateConfirm: "Terminate",
+  activityTerminateCancel: "Cancel",
+  activityJobControlFailed: "Task control failed. It is safe to retry.",
   activityActive: "Active",
   activityRunning: "Running",
   activityWaitingApproval: "Waiting approval",
@@ -419,6 +449,9 @@ const enUS: ResourceCenterCopy = {
   activityEventRunCompleted: "Run completed",
   activityEventRunFailed: "Run failed",
   activityEventRunInterrupted: "Run interrupted",
+  activityEventJobPaused: "Task paused",
+  activityEventJobResumed: "Task resumed",
+  activityEventJobTerminated: "Task terminated",
   activityEventStepStarted: "Work step started",
   activityEventStepCompleted: "Work step completed",
   activityEventApprovalRequired: "Waiting for operator approval",

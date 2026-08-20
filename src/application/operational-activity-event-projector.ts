@@ -3,12 +3,17 @@ import type {
   RuntimeEventCategory,
   RuntimeEventRecord
 } from "../continuity/types.js";
+import type { ActivityControlEventRecord } from "./activity-control-event-port.js";
+import type { JobControlAction, JobProcessState } from "../core/job-processes.js";
 
 export type OperationalActivityEventKind =
   | "run-started"
   | "run-completed"
   | "run-failed"
   | "run-interrupted"
+  | "job-paused"
+  | "job-resumed"
+  | "job-terminated"
   | "step-started"
   | "step-completed"
   | "approval-required"
@@ -21,13 +26,16 @@ export type OperationalActivityEventKind =
 export interface OperationalActivityEventProjection {
   id: string;
   activityId: string;
-  source: "runtime";
+  source: "runtime" | "job-control";
   sequence: number;
   kind: OperationalActivityEventKind;
-  category: RuntimeEventCategory;
+  category: RuntimeEventCategory | "control";
   approvalKind: RuntimeApprovalKind | null;
   itemType: string | null;
   code: string | null;
+  controlAction: JobControlAction | null;
+  resultingState: JobProcessState | null;
+  processRevision: number | null;
   createdAt: string;
 }
 
@@ -88,6 +96,34 @@ export function projectOperationalActivityEvent(
       event.category === "error" || event.category === "warning" || event.method === "turn/completed"
         ? safeToken(event.publicPayload.code) ?? safeToken(event.publicPayload.errorCode)
         : null,
+    controlAction: null,
+    resultingState: null,
+    processRevision: null,
+    createdAt: event.createdAt
+  };
+}
+
+export function projectOperationalActivityControlEvent(
+  event: ActivityControlEventRecord,
+  activityId: string
+): OperationalActivityEventProjection {
+  const kind: OperationalActivityEventKind =
+    event.action === "pause" ? "job-paused" :
+      event.action === "resume" ? "job-resumed" :
+        "job-terminated";
+  return {
+    id: event.id,
+    activityId,
+    source: "job-control",
+    sequence: event.sequence,
+    kind,
+    category: "control",
+    approvalKind: null,
+    itemType: null,
+    code: null,
+    controlAction: event.action,
+    resultingState: event.resultingState,
+    processRevision: event.processRevision,
     createdAt: event.createdAt
   };
 }

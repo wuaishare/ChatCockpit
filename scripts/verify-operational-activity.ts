@@ -11,7 +11,9 @@ import { buildContinuityRepositories } from "../src/continuity/repositories/inde
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
 import { GovernanceDatabase, governanceDatabasePath } from "../src/governance/database.js";
 import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
+import { OperationalActivityControlEventRepository } from "../src/governance/operational-activity-control-event-repository.js";
 import { createJob } from "../src/core/jobs.js";
+import { trackJobProcess } from "../src/core/job-processes.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
@@ -189,6 +191,7 @@ async function main(): Promise<void> {
     title: "Host cleanup activity",
     problem: "private host cleanup detail must not project"
   });
+  trackJobProcess(paths, { jobId: hostJob.id, pid: process.pid, label: "Host cleanup worker" });
 
   activityProvenance.recordFromContext(
     buildOperationContext({
@@ -289,6 +292,10 @@ async function main(): Promise<void> {
     assert.match(String(hostActivity.traceId), /^trace_[0-9a-f]{32}$/);
     assert.equal(hostActivity.workerInstanceId, "worker_fixture_01");
     assert.equal(hostActivity.title, "Host cleanup activity");
+    assert.equal((hostActivity.job as { processRevision: number }).processRevision, 1);
+    assert.equal(hostActivity.controls.pause, true);
+    assert.equal(hostActivity.controls.resume, false);
+    assert.equal(hostActivity.controls.terminate, true);
 
     assert.equal(response.body.includes("private fixture instructions"), false);
     assert.equal(response.body.includes("private host cleanup detail"), false);
@@ -341,23 +348,52 @@ async function main(): Promise<void> {
       publicPayload: { itemType: "commandExecution", privatePath: root },
       now: "2026-08-19T10:09:00.000Z"
     });
+    const streamControlEvents = new OperationalActivityControlEventRepository(streamDatabase);
+    streamControlEvents.append(
+      buildOperationContext({
+        actorType: "local-ui",
+        actorId: "operator_fixture",
+        requestId: "raw-control-request-must-not-project",
+        now: "2026-08-19T10:09:30.000Z"
+      }),
+      {
+        jobId: hostJob.id,
+        action: "pause",
+        resultingState: "paused",
+        processRevision: 2
+      }
+    );
     streamDatabase.close();
 
     let changedSnapshotSeen = false;
     let activityEventSeen = false;
+    let controlEventSeen = false;
     let heartbeatSeen = false;
-    for (let index = 0; index < 10 && (!changedSnapshotSeen || !activityEventSeen || !heartbeatSeen); index += 1) {
+    for (let index = 0; index < 14 && (!changedSnapshotSeen || !activityEventSeen || !controlEventSeen || !heartbeatSeen); index += 1) {
       const event = await readSseEvent(reader, streamState);
       if (event.event === "heartbeat") heartbeatSeen = true;
       if (event.event === "activity.event") {
         const payload = event.data as { event: Record<string, unknown> };
-        assert.equal(payload.event.activityId, session.id);
-        assert.equal(payload.event.kind, "step-completed");
-        assert.equal(payload.event.itemType, "commandExecution");
         assert.equal("method" in payload.event, false);
         assert.equal(JSON.stringify(payload).includes("privatePath"), false);
         assert.equal(JSON.stringify(payload).includes(root), false);
-        activityEventSeen = true;
+        assert.equal(JSON.stringify(payload).includes("actorIdentityHash"), false);
+        assert.equal(JSON.stringify(payload).includes("requestIdentityHash"), false);
+        assert.equal(JSON.stringify(payload).includes("raw-control-request-must-not-project"), false);
+        if (payload.event.source === "runtime") {
+          assert.equal(payload.event.activityId, session.id);
+          assert.equal(payload.event.kind, "step-completed");
+          assert.equal(payload.event.itemType, "commandExecution");
+          activityEventSeen = true;
+        }
+        if (payload.event.source === "job-control") {
+          assert.equal(payload.event.activityId, hostJob.id);
+          assert.equal(payload.event.kind, "job-paused");
+          assert.equal(payload.event.controlAction, "pause");
+          assert.equal(payload.event.resultingState, "paused");
+          assert.equal(payload.event.processRevision, 2);
+          controlEventSeen = true;
+        }
       }
       if (event.event === "activity.snapshot") {
         const snapshot = event.data as { activities: Array<Record<string, unknown>> };
@@ -368,7 +404,8 @@ async function main(): Promise<void> {
       }
     }
     assert.equal(changedSnapshotSeen, true, "SSE must emit a changed Activity snapshot");
-    assert.equal(activityEventSeen, true, "SSE must emit normalized Activity event frames");
+    assert.equal(activityEventSeen, true, "SSE must emit normalized Runtime Activity event frames");
+    assert.equal(controlEventSeen, true, "SSE must emit normalized Job control Activity event frames");
     assert.equal(heartbeatSeen, true, "SSE must emit heartbeat frames");
     clearTimeout(streamTimeout);
     abortStream.abort();
