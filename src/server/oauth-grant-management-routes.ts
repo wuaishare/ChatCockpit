@@ -27,15 +27,17 @@ export interface OAuthAuthorizationGrantPublicProjection {
   activeRefreshTokenCount: number;
 }
 
-function requireOperatorSession(request: FastifyRequest, reply: FastifyReply): boolean {
-  if (request.chatCockpitAuth.kind === "operator-session") return true;
-  sendApiError(
+function operatorSessionError(
+  request: FastifyRequest,
+  reply: FastifyReply
+): ReturnType<typeof sendApiError> | null {
+  if (request.chatCockpitAuth.kind === "operator-session") return null;
+  return sendApiError(
     reply,
     401,
     "OPERATOR_SESSION_REQUIRED",
     "An authenticated console administrator session is required"
   );
-  return false;
 }
 
 function publicStatus(grant: OAuthAuthorizationGrantSummary): OAuthAuthorizationGrantPublicStatus {
@@ -67,7 +69,8 @@ export function registerOAuthGrantManagementRoutes(
   store: OAuthStore | null
 ): void {
   app.get("/api/integrations/oauth/grants", async (request, reply) => {
-    if (!requireOperatorSession(request, reply)) return reply;
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
     if (!store) return { ok: true, enabled: false, grants: [] };
     const now = new Date().toISOString();
     return {
@@ -78,7 +81,8 @@ export function registerOAuthGrantManagementRoutes(
   });
 
   app.post("/api/integrations/oauth/grants/:grantId/revoke", async (request, reply) => {
-    if (!requireOperatorSession(request, reply)) return reply;
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
     if (!store) {
       return sendApiError(reply, 409, "OAUTH_DISABLED", "OAuth is not enabled for this deployment");
     }

@@ -1,4 +1,8 @@
 import type { ActivityProvenanceReader } from "./activity-provenance-port.js";
+import {
+  projectOperationalActivityEvent,
+  type OperationalActivityEventProjection
+} from "./operational-activity-event-projector.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type {
   DevelopmentSessionRecord,
@@ -72,12 +76,7 @@ export interface OperationalActivityProjection {
     active: number;
     running: number;
   };
-  latestEvent: {
-    sequence: number;
-    method: string;
-    category: string;
-    createdAt: string;
-  } | null;
+  latestEvent: OperationalActivityEventProjection | null;
   controls: {
     pause: boolean;
     resume: boolean;
@@ -88,6 +87,12 @@ export interface OperationalActivityProjection {
   startedAt: string;
   updatedAt: string;
   endedAt: string | null;
+}
+
+export interface OperationalActivityEventPageResult {
+  events: OperationalActivityEventProjection[];
+  cursor: number;
+  hasMore: boolean;
 }
 
 export interface OperationalActivityListResult {
@@ -208,6 +213,26 @@ export class OperationalActivityService {
     };
   }
 
+  currentEventCursor(): number {
+    return this.repositories.runtimeEvents.latestSequence();
+  }
+
+  listEventsAfter(afterSequence: number, limit = 200): OperationalActivityEventPageResult {
+    const cursor = Number.isFinite(afterSequence) && afterSequence > 0
+      ? Math.floor(afterSequence)
+      : 0;
+    const page = this.repositories.runtimeEvents.list({
+      afterSequence: cursor,
+      limit
+    });
+    const events = page.events.map(projectOperationalActivityEvent);
+    return {
+      events,
+      cursor: events.at(-1)?.sequence ?? cursor,
+      hasMore: page.nextSequence !== null
+    };
+  }
+
   private projectSession(
     session: DevelopmentSessionRecord,
     linkedJob: JobRecord<TokenPilotJobPayload> | null
@@ -259,12 +284,7 @@ export class OperationalActivityService {
         active: directProcesses.filter((item) => item.status === "starting" || item.status === "running").length,
         running: directProcesses.filter((item) => item.status === "running").length
       },
-      latestEvent: event ? {
-        sequence: event.sequence,
-        method: event.method,
-        category: event.category,
-        createdAt: event.createdAt
-      } : null,
+      latestEvent: event ? projectOperationalActivityEvent(event) : null,
       controls: {
         pause: tracked?.state === "running",
         resume: tracked?.state === "paused",

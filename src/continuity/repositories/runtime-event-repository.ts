@@ -98,6 +98,13 @@ export class RuntimeEventRepository {
     return eventFromRow(row);
   }
 
+  latestSequence(): number {
+    const row = this.database.sqlite
+      .prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM runtime_events")
+      .get() as { sequence: number };
+    return Number(row.sequence);
+  }
+
   latestForSession(sessionId: string): RuntimeEventRecord | null {
     const row = this.database.sqlite
       .prepare(`

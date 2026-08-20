@@ -16,6 +16,7 @@ for (const required of [
   "fetchOperationalActivities",
   'new EventSource("/api/activities/stream", { withCredentials: true })',
   'source.addEventListener("activity.snapshot"',
+  'source.addEventListener("activity.event"',
   "source.close()",
   "activity.authorizationGrantId",
   "activity.traceId",
@@ -43,6 +44,11 @@ assert.equal(
   panel.includes("stdout") || panel.includes("privatePath") || panel.includes("instructions"),
   false,
   "Activity cards must not depend on private execution payloads"
+);
+assert.equal(
+  panel.includes("latestEvent.method"),
+  false,
+  "Activity cards must render normalized product event kinds instead of runtime-native methods"
 );
 
 const activityIndex = view.indexOf("<OperationalActivityPanel");
@@ -76,9 +82,13 @@ for (const requiredCopy of [
   'activityTitle: "运行活动"',
   'activityLive: "实时"',
   'activityUnknownAuthority: "未绑定授权"',
+  'activityEventApprovalRequired: "等待操作员批准"',
+  'activityEventRunCompleted: "运行已完成"',
   'activityTitle: "Operational Activity"',
   'activityLive: "Live"',
-  'activityUnknownAuthority: "No grant bound"'
+  'activityUnknownAuthority: "No grant bound"',
+  'activityEventApprovalRequired: "Waiting for operator approval"',
+  'activityEventRunCompleted: "Run completed"'
 ]) {
   assert.equal(copy.includes(requiredCopy), true, `Activity UI i18n must retain ${requiredCopy}`);
 }
