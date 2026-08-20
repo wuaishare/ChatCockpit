@@ -184,7 +184,9 @@ export function registerStaticRoutes(
 
   const renderUiIndex = (): string => {
     const source = fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
-    const withAssetBase = source.replaceAll("/ui/", `${consolePathPrefix}/`);
+    const withAssetBase = source
+      .replaceAll("/ui/", `${consolePathPrefix}/`)
+      .replaceAll("./assets/", `${consolePathPrefix}/assets/`);
     return withAssetBase.replace(
       "</head>",
       `    <meta name="chatcockpit-console-base" content="${consolePathPrefix}">\n  </head>`
