@@ -14,83 +14,35 @@
 > **Chat is the interface. Cockpit is the control plane.**
 > **聊天是入口，驾驶舱才是系统。**
 
-ChatCockpit 是一个 **local-first AI capability control plane**：把本机设备、MCP、CLI、Runtime 与 AI 工具整理成可发现、可治理、可路由的能力，并通过一个稳定的 ChatCockpit 接口提供给 ChatGPT 等客户端。
+ChatCockpit 是一个 **本地优先的 AI 工作中控台**：让 ChatGPT、Claude Web 和其他支持 MCP 的 AI 客户端，通过一个统一入口安全地连接项目、本机设备、命令、资源与运行时。
+
+它把身份授权、MCP 服务端、实时运行活动、治理审批和可视化管理集中到一起，让 AI 能做事，也让人始终看得见、管得住，并能在需要时撤销授权。
 
 它的目标不是再造一个 AI 聊天客户端、IDE、通用 Runtime 或软件商店，而是把成熟工具接入同一个安全控制面，让复杂的软件环境更容易被 Chat 使用和管理。
 
-> **当前状态：v0.2.0-alpha。** Capability / Governance Kernel、稳定 Capability Router、Remote MCP/OAuth、Resource Center 基础、macOS/Web Operator Surface 与 Development Continuity 能力都已存在；部分 Provider 生命周期管理与更完整的软件/能力管理体验仍在持续验证。
+> **当前状态：v0.2.0-alpha。** Capability / Governance Kernel、稳定 能力路由、Remote MCP/OAuth、资源中心 基础、macOS/Web 管理界面 与 开发连续性 能力都已存在；部分 Provider 生命周期管理与更完整的软件/能力管理体验仍在持续验证。
 
 ## 核心模型
 
-```mermaid
-flowchart TB
-    Chat["ChatGPT / Other clients<br/>Chat is the interface"] --> MCP["ChatCockpit Remote MCP / API"]
+![ChatCockpit 核心模型](./docs/assets/chatcockpit-core-model-zh-CN.webp)
 
-    MCP --> Router["Capability Router<br/>稳定产品工具面"]
-    MCP --> Center["Resource Center<br/>能力 / Provider 管理视图"]
-    MCP --> Gov["Governance<br/>Approval · Evidence · Public-safe Projection"]
+可以把 ChatCockpit 理解成 **AI 客户端与本机工作环境之间的一层安全控制面板**：
 
-    Router --> Device["local-device"]
-    Center --> Device
-    Gov -. policy .-> Router
+- **上面连接 AI 客户端**：ChatGPT、Claude Web，以及其他支持 MCP 的客户端。
+- **中间由 ChatCockpit 统一管理**：身份授权、MCP 服务端、实时运行活动、治理审批与可视化操作。
+- **下面连接真正的工作对象**：项目与工作区、本机设备与命令、资源与运行时。
 
-    Device --> P1["Built-in / Standalone capabilities"]
-    Device --> P2["Downstream MCP Providers"]
-    Device --> P3["External tools / runtimes"]
-
-    Dev["Development Continuity<br/>Task · Session · Handoff · Evidence · Recovery"] -. solution layer .-> MCP
-```
-
-### 1. Capability，而不是 Provider 数量
-
-ChatCockpit 对外暴露的是稳定的产品能力，而不是把每个下游工具动态变成一个新的 ChatGPT Tool。
-
-当前 Capability Router 固定提供：
-
-- `chatcockpit.capabilities.list`
-- `chatcockpit.capabilities.inspect`
-- `chatcockpit.capabilities.read.invoke`
-- `chatcockpit.capabilities.mutation.prepare`
-- `chatcockpit.capabilities.mutation.inspect`
-- `chatcockpit.capabilities.mutation.execute`
-
-Provider-native Tool Name 只作为 Catalog 数据存在。下游 MCP 增减或升级不会让 ChatGPT 的上游工具快照失控。
-
-### 2. Resource Center 是管理平面
-
-Resource Center 用统一 public-safe 模型展示本机 target、Runtime Profile、Provider、Capabilities、健康与 Inventory Snapshot，并承载受治理的资源变更入口。
-
-ChatCockpit 不把自己的缓存或数据库伪装成 Provider 的最终真相；执行前会重新检查当前配置、Catalog 与 live metadata，必要时直接 fail closed。
-
-### 3. 变更必须有明确 Authority
-
-有副作用的操作遵循受治理生命周期。Capability Router mutation 使用：
-
-```text
-prepare
-→ local operator approve / deny
-→ execute
-→ evidence / result projection
-```
-
-Remote MCP **没有 `decide` 权限**。Approval 只能由已认证本地 Operator Session 通过 REST + CSRF 作出；machine bearer、MCP OAuth 和 Remote MCP 都不能自行批准写操作。
-
-### 4. Development Continuity 是重要能力，但不是整个产品类别
-
-ChatCockpit 仍保留已经成熟的开发连续性系统：Project、Workspace、Task、Spec/Plan、Session、Runtime Binding、Writer Lease、Handoff、Evidence、Recovery、Codex 与异步 Job。
-
-这些能力解决“同一个目标如何跨 ChatGPT、Codex 与异步执行继续工作”的问题，但它们现在属于 ChatCockpit 更大控制面中的 **Development solution layer**，不再定义整个产品。
-
+AI 客户端不必直接理解每一种本机工具；ChatCockpit 负责把这些能力整理成稳定、可观察、可治理的工作入口。
 ## 当前已经能做什么
 
 - **Remote MCP / OAuth**：ChatGPT 通过一个 ChatCockpit 入口访问固定、受治理的产品工具面；每次 Owner 批准形成独立 Authorization Grant，Access/Refresh Token 绑定该 Grant，旧 OAuth 数据可无感迁移并继续使用现有 Refresh Token；Web Owner 可查看授权关系并单独撤销其中一条 Token Family。
-- **Capability Router**：Catalog、Inspect、只读 Invoke、受治理 Provider-native Mutation；调用前执行 live `tools/list` attestation。
+- **能力路由**：Catalog、Inspect、只读 Invoke、受治理 Provider-native Mutation；调用前执行 live `tools/list` attestation。
 - **Downstream MCP**：官方 MCP Client，支持本机 stdio 与受约束的 Streamable HTTP；Provider schema/annotations 以 bounded catalog 保存。
-- **Resource Center**：本机 `local-device`、Provider Management 读模型、Runtime Profiles、append-only inventory 与受治理资源操作；管理读模型统一投影检测、版本、健康、配置来源、Chat 暴露、Desired/Observed State 与 Provider-native Verification。
+- **资源中心**：本机 `local-device`、提供方管理 读模型、运行时配置、append-only inventory 与受治理资源操作；管理读模型统一投影检测、版本、健康、配置来源、Chat 暴露、Desired/实际状态 与 Provider-native Verification。
 - **Governance**：Approval、Idempotency、Evidence、Public-safe Projection、Actor provenance；原始 mutation arguments 与 Provider result body 不写入 Governance 记录。
 - **Host / Workspace 能力**：allowlisted 文件、受控命令、Git 与受治理 Managed Workspace Process；不暴露任意 raw shell 或系统级 PID 管理。
-- **Development Continuity**：Task / Session / Handoff / Evidence / Recovery、显式 Codex Session、异步 Agent Job 与 Writer Lease。
-- **Operator Surfaces**：macOS App、Menu Bar、Web Cockpit、CLI；Surface 之间共享同一个本机控制面与 Authority 规则。
+- **开发连续性**：Task / Session / Handoff / Evidence / Recovery、显式 Codex Session、异步 Agent Job 与 Writer Lease。
+- **管理界面s**：macOS App、Menu Bar、Web Cockpit、CLI；Surface 之间共享同一个本机控制面与 Authority 规则。
 
 ## 为什么需要 ChatCockpit
 
@@ -109,7 +61,7 @@ ChatCockpit 仍保留已经成熟的开发连续性系统：Project、Workspace�
 |---|---|
 | **ChatGPT App / Remote MCP** | 在聊天中发现和调用 ChatCockpit 能力 |
 | **macOS App / Menu Bar** | 管理本机 Runtime、入口、安全与运行状态 |
-| **Web Cockpit** | Resource Center、Continuity、Jobs、Integrations 与 Operator 工作流 |
+| **Web Cockpit** | 资源中心、Continuity、Jobs、Integrations 与 Operator 工作流 |
 | **CLI** | 本地开发、诊断、验证与自动化 |
 
 源码模式：
@@ -130,7 +82,7 @@ npm run doctor:runtime
 - [ChatGPT / MCP 接入](./docs/zh-CN/deployment/mcp-setup.md)
 - [macOS Desktop](./docs/zh-CN/deployment/macos-desktop.md)
 - [本机运行维护](./docs/zh-CN/deployment/local-runtime-ops.md)
-- [本地优先控制面架构](./docs/zh-CN/architecture/local-first-control-plane.md)
+- [本地优先控制面架构](./docs/zh-CN/architecture/本地优先-control-plane.md)
 - [产品原则](./docs/zh-CN/governance/product-principles.md)
 - [公开 / 私有资料边界](./docs/zh-CN/governance/public-vs-private-artifacts.md)
 - [ChatGPT Connector Smoke](./docs/zh-CN/testing/chatgpt-connector-smoke.md)
@@ -140,7 +92,7 @@ npm run doctor:runtime
 ChatCockpit 的目标不是“让 AI 获得无限本机权限”。核心约束包括：
 
 - 显式 allowlist 与 canonical path containment；
-- 只发布有界、脱敏的 public-safe projection；
+- 只发布有界、脱敏的 安全投影 projection；
 - 高风险 mutation 需要 server-side policy 与本地 Operator Authority；
 - Remote MCP 不能自我批准受治理变更；
 - raw downstream tool、raw shell、私有 transport config、Secret、PID 与真实本机路径不会因为本机可见就自动进入公开接口；
@@ -148,7 +100,7 @@ ChatCockpit 的目标不是“让 AI 获得无限本机权限”。核心约束�
 
 ## 项目与贡献
 
-ChatCockpit 目前仍是 alpha。欢迎围绕当前公开合同提交 Issue / PR，尤其是：协议兼容性、安全边界、Provider 互操作、Resource Center 可靠性、macOS 打包、文档与可重复验证。
+ChatCockpit 目前仍是 alpha。欢迎围绕当前公开合同提交 Issue / PR，尤其是：协议兼容性、安全边界、Provider 互操作、资源中心 可靠性、macOS 打包、文档与可重复验证。
 
 公开仓库只描述当前已实现产品行为、公开接口与贡献者需要维护的架构不变量。
 
