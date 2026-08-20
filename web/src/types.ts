@@ -1111,6 +1111,33 @@ export type OperationalActivityStatus =
   | "terminated"
   | "stale";
 
+export type OperationalActivityEventKind =
+  | "run-started"
+  | "run-completed"
+  | "run-failed"
+  | "run-interrupted"
+  | "step-started"
+  | "step-completed"
+  | "approval-required"
+  | "approval-resolved"
+  | "approval-rejected"
+  | "warning"
+  | "error"
+  | "activity";
+
+export interface OperationalActivityEventProjection {
+  id: string;
+  activityId: string;
+  source: "runtime";
+  sequence: number;
+  kind: OperationalActivityEventKind;
+  category: "lifecycle" | "approval" | "item" | "warning" | "error" | "other";
+  approvalKind: "command-execution" | "file-change" | "permissions" | "unsupported" | null;
+  itemType: string | null;
+  code: string | null;
+  createdAt: string;
+}
+
 export interface OperationalActivityRuntimeProjection {
   bindingId: string;
   runtimeKind: "codex-app-server" | "async-runner";
@@ -1155,11 +1182,16 @@ export interface OperationalActivityProjection {
     processLabel: string | null;
   } | null;
   directProcessSummary: { total: number; active: number; running: number };
-  latestEvent: { sequence: number; method: string; category: string; createdAt: string } | null;
+  latestEvent: OperationalActivityEventProjection | null;
   controls: { pause: boolean; resume: boolean; terminate: boolean; interrupt: boolean; hold: false };
   startedAt: string;
   updatedAt: string;
   endedAt: string | null;
+}
+
+export interface OperationalActivityEventResponse {
+  ok: true;
+  event: OperationalActivityEventProjection;
 }
 
 export interface OperationalActivityListResponse {

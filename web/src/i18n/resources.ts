@@ -37,6 +37,18 @@ export interface ResourceCenterCopy {
   activityWorker: string;
   activityProcesses: string;
   activityLastEvent: string;
+  activityEventRunStarted: string;
+  activityEventRunCompleted: string;
+  activityEventRunFailed: string;
+  activityEventRunInterrupted: string;
+  activityEventStepStarted: string;
+  activityEventStepCompleted: string;
+  activityEventApprovalRequired: string;
+  activityEventApprovalResolved: string;
+  activityEventApprovalRejected: string;
+  activityEventWarning: string;
+  activityEventError: string;
+  activityEventActivity: string;
   activityUpdated: string;
   activityUnknownAuthority: string;
   activityLoadFailed: string;
@@ -204,7 +216,19 @@ const zhCN: ResourceCenterCopy = {
   activityTrace: "Trace",
   activityWorker: "Worker",
   activityProcesses: "受管进程",
-  activityLastEvent: "最近事件",
+  activityLastEvent: "最近动态",
+  activityEventRunStarted: "运行已开始",
+  activityEventRunCompleted: "运行已完成",
+  activityEventRunFailed: "运行失败",
+  activityEventRunInterrupted: "运行已中断",
+  activityEventStepStarted: "工作步骤已开始",
+  activityEventStepCompleted: "工作步骤已完成",
+  activityEventApprovalRequired: "等待操作员批准",
+  activityEventApprovalResolved: "批准流程已处理",
+  activityEventApprovalRejected: "批准请求已拒绝",
+  activityEventWarning: "运行警告",
+  activityEventError: "运行错误",
+  activityEventActivity: "运行状态已更新",
   activityUpdated: "更新",
   activityUnknownAuthority: "未绑定授权",
   activityLoadFailed: "运行活动暂时无法读取。Provider 与资源清单仍可继续使用。",
@@ -372,7 +396,19 @@ const enUS: ResourceCenterCopy = {
   activityTrace: "Trace",
   activityWorker: "Worker",
   activityProcesses: "Managed processes",
-  activityLastEvent: "Latest event",
+  activityLastEvent: "Latest update",
+  activityEventRunStarted: "Run started",
+  activityEventRunCompleted: "Run completed",
+  activityEventRunFailed: "Run failed",
+  activityEventRunInterrupted: "Run interrupted",
+  activityEventStepStarted: "Work step started",
+  activityEventStepCompleted: "Work step completed",
+  activityEventApprovalRequired: "Waiting for operator approval",
+  activityEventApprovalResolved: "Approval flow resolved",
+  activityEventApprovalRejected: "Approval request rejected",
+  activityEventWarning: "Runtime warning",
+  activityEventError: "Runtime error",
+  activityEventActivity: "Runtime state updated",
   activityUpdated: "Updated",
   activityUnknownAuthority: "No grant bound",
   activityLoadFailed: "Operational Activity is temporarily unavailable. Provider and inventory management remain usable.",

@@ -16,6 +16,8 @@ import type { ResourceCenterCopy } from "../../i18n/resources";
 import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
 import type {
   ContinuityProjectProjection,
+  OperationalActivityEventProjection,
+  OperationalActivityEventResponse,
   OperationalActivityListResponse,
   OperationalActivityProjection,
   OperationalActivityStatus
@@ -80,6 +82,27 @@ function runtimeLabel(activity: OperationalActivityProjection): string | null {
   if (activity.runtime) return activity.runtime.runtimeKind;
   if (activity.job) return activity.job.type;
   return null;
+}
+
+function activityEventLabel(copy: ResourceCenterCopy, event: OperationalActivityEventProjection): string {
+  switch (event.kind) {
+    case "run-started": return copy.activityEventRunStarted;
+    case "run-completed": return copy.activityEventRunCompleted;
+    case "run-failed": return copy.activityEventRunFailed;
+    case "run-interrupted": return copy.activityEventRunInterrupted;
+    case "step-started": return copy.activityEventStepStarted;
+    case "step-completed": return copy.activityEventStepCompleted;
+    case "approval-required": return copy.activityEventApprovalRequired;
+    case "approval-resolved": return copy.activityEventApprovalResolved;
+    case "approval-rejected": return copy.activityEventApprovalRejected;
+    case "warning": return copy.activityEventWarning;
+    case "error": return copy.activityEventError;
+    default: return copy.activityEventActivity;
+  }
+}
+
+function activityEventDetail(event: OperationalActivityEventProjection): string | null {
+  return event.approvalKind ?? event.itemType ?? event.code;
 }
 
 function ActivityIdentity({
@@ -161,7 +184,10 @@ const ActivityCard = memo(function ActivityCard({
       {activity.latestEvent || activity.job?.processLabel ? (
         <div className="resource-center__activity-foot">
           {activity.latestEvent ? (
-            <span><ClockCircleOutlined /> {copy.activityLastEvent}: <code>{activity.latestEvent.method}</code></span>
+            <span>
+              <ClockCircleOutlined /> {copy.activityLastEvent}: {activityEventLabel(copy, activity.latestEvent)}
+              {activityEventDetail(activity.latestEvent) ? <code>{activityEventDetail(activity.latestEvent)}</code> : null}
+            </span>
           ) : null}
           {activity.job?.processLabel ? <span>{copy.activityJob}: {activity.job.processLabel}</span> : null}
         </div>
@@ -209,11 +235,37 @@ export function OperationalActivityPanel({
         setStreamState("reconnecting");
       }
     };
+    const onActivityEvent = (message: MessageEvent<string>) => {
+      try {
+        const next = JSON.parse(message.data) as OperationalActivityEventResponse;
+        if (next?.ok !== true || !next.event) return;
+        setSnapshot((current) => {
+          if (!current) return current;
+          let changed = false;
+          const activities = current.activities.map((activity) => {
+            if (activity.id !== next.event.activityId) return activity;
+            if ((activity.latestEvent?.sequence ?? 0) >= next.event.sequence) return activity;
+            changed = true;
+            return {
+              ...activity,
+              latestEvent: next.event,
+              updatedAt: activity.updatedAt > next.event.createdAt ? activity.updatedAt : next.event.createdAt
+            };
+          });
+          return changed ? { ...current, activities } : current;
+        });
+        setStreamState("live");
+      } catch {
+        setStreamState("reconnecting");
+      }
+    };
     source.addEventListener("activity.snapshot", onSnapshot as EventListener);
+    source.addEventListener("activity.event", onActivityEvent as EventListener);
     source.onopen = () => setStreamState("live");
     source.onerror = () => setStreamState(source.readyState === EventSource.CLOSED ? "offline" : "reconnecting");
     return () => {
       source.removeEventListener("activity.snapshot", onSnapshot as EventListener);
+      source.removeEventListener("activity.event", onActivityEvent as EventListener);
       source.close();
     };
   }, [load]);

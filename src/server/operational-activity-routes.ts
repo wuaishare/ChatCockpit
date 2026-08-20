@@ -3,15 +3,17 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { OperationalActivityService } from "../application/operational-activity-service.js";
 import { sendApiError } from "./errors.js";
 
-function requireOperatorSession(request: FastifyRequest, reply: FastifyReply): boolean {
-  if (request.chatCockpitAuth.kind === "operator-session") return true;
-  sendApiError(
+function operatorSessionError(
+  request: FastifyRequest,
+  reply: FastifyReply
+): ReturnType<typeof sendApiError> | null {
+  if (request.chatCockpitAuth.kind === "operator-session") return null;
+  return sendApiError(
     reply,
     401,
     "OPERATOR_SESSION_REQUIRED",
     "An authenticated console administrator session is required"
   );
-  return false;
 }
 
 export interface OperationalActivityStreamOptions {
@@ -33,16 +35,20 @@ export function registerOperationalActivityRoutes(
   options: OperationalActivityStreamOptions = {}
 ): void {
   app.get("/api/activities", async (request, reply) => {
-    if (!requireOperatorSession(request, reply)) return reply;
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
     return { ok: true, ...activities.list() };
   });
 
   app.get("/api/activities/stream", async (request, reply) => {
-    if (!requireOperatorSession(request, reply)) return reply;
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
 
     const pollIntervalMs = positiveInterval(options.pollIntervalMs, 1_000);
     const heartbeatIntervalMs = positiveInterval(options.heartbeatIntervalMs, 15_000);
+    let eventCursor = activities.currentEventCursor();
     const initialSnapshot = { ok: true, ...activities.list() };
+    eventCursor = Math.max(eventCursor, activities.currentEventCursor());
     reply.hijack();
     reply.raw.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
@@ -57,6 +63,22 @@ export function registerOperationalActivityRoutes(
       if (closed || reply.raw.destroyed || reply.raw.writableEnded) return;
       reply.raw.write(eventFrame(event, data));
     };
+    const emitActivityEvents = (): void => {
+      if (closed) return;
+      try {
+        for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
+          const page = activities.listEventsAfter(eventCursor, 200);
+          if (page.events.length === 0 || page.cursor <= eventCursor) break;
+          for (const event of page.events) {
+            write("activity.event", { ok: true, event });
+          }
+          eventCursor = page.cursor;
+          if (!page.hasMore) break;
+        }
+      } catch (error) {
+        app.log.warn({ err: error }, "Operational Activity event refresh failed");
+      }
+    };
     const emitSnapshot = (): void => {
       if (closed) return;
       try {
@@ -69,9 +91,13 @@ export function registerOperationalActivityRoutes(
         app.log.warn({ err: error }, "Operational Activity snapshot refresh failed");
       }
     };
+    const emitUpdates = (): void => {
+      emitActivityEvents();
+      emitSnapshot();
+    };
 
     write("activity.snapshot", initialSnapshot);
-    const snapshotTimer = setInterval(emitSnapshot, pollIntervalMs);
+    const snapshotTimer = setInterval(emitUpdates, pollIntervalMs);
     const heartbeatTimer = setInterval(() => {
       write("heartbeat", { at: new Date().toISOString() });
     }, heartbeatIntervalMs);

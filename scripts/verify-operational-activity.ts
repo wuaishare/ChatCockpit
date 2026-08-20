@@ -223,7 +223,8 @@ async function main(): Promise<void> {
     assert.equal(projectActivity.workerInstanceId, null);
     assert.equal((projectActivity.runtime as { runtimeKind: string }).runtimeKind, "codex-app-server");
     assert.equal((projectActivity.runtime as { externalSessionId: string }).externalSessionId, "thread_activity_fixture");
-    assert.equal((projectActivity.latestEvent as { method: string }).method, "turn/started");
+    assert.equal((projectActivity.latestEvent as { kind: string }).kind, "run-started");
+    assert.equal("method" in (projectActivity.latestEvent as Record<string, unknown>), false);
     assert.equal((projectActivity.job as { id: string }).id, linkedJob.id);
 
     const hostActivity = body.activities.find((item) => item.id === hostJob.id)!;
@@ -241,6 +242,7 @@ async function main(): Promise<void> {
     assert.equal(response.body.includes("private fixture instructions"), false);
     assert.equal(response.body.includes("private host cleanup detail"), false);
     assert.equal(response.body.includes(root), false);
+    assert.equal(response.body.includes("turn/started"), false);
     assert.equal(body.activities.filter((item) => item.id === session.id).length, 1);
 
     const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
@@ -277,13 +279,35 @@ async function main(): Promise<void> {
       "worker_fixture_02",
       "2026-08-19T10:08:00.000Z"
     );
+    const streamRepositories = buildContinuityRepositories(streamDatabase);
+    streamRepositories.runtimeEvents.append({
+      id: "runtime_event_activity_stream_fixture",
+      sessionId: session.id,
+      workspaceId: workspace.id,
+      threadId: "thread_activity_fixture",
+      method: "item/completed",
+      category: "item",
+      publicPayload: { itemType: "commandExecution", privatePath: root },
+      now: "2026-08-19T10:09:00.000Z"
+    });
     streamDatabase.close();
 
     let changedSnapshotSeen = false;
+    let activityEventSeen = false;
     let heartbeatSeen = false;
-    for (let index = 0; index < 6 && (!changedSnapshotSeen || !heartbeatSeen); index += 1) {
+    for (let index = 0; index < 10 && (!changedSnapshotSeen || !activityEventSeen || !heartbeatSeen); index += 1) {
       const event = await readSseEvent(reader, streamState);
       if (event.event === "heartbeat") heartbeatSeen = true;
+      if (event.event === "activity.event") {
+        const payload = event.data as { event: Record<string, unknown> };
+        assert.equal(payload.event.activityId, session.id);
+        assert.equal(payload.event.kind, "step-completed");
+        assert.equal(payload.event.itemType, "commandExecution");
+        assert.equal("method" in payload.event, false);
+        assert.equal(JSON.stringify(payload).includes("privatePath"), false);
+        assert.equal(JSON.stringify(payload).includes(root), false);
+        activityEventSeen = true;
+      }
       if (event.event === "activity.snapshot") {
         const snapshot = event.data as { activities: Array<Record<string, unknown>> };
         const host = snapshot.activities.find((item) => item.id === hostJob.id)!;
@@ -293,6 +317,7 @@ async function main(): Promise<void> {
       }
     }
     assert.equal(changedSnapshotSeen, true, "SSE must emit a changed Activity snapshot");
+    assert.equal(activityEventSeen, true, "SSE must emit normalized Activity event frames");
     assert.equal(heartbeatSeen, true, "SSE must emit heartbeat frames");
     clearTimeout(streamTimeout);
     abortStream.abort();

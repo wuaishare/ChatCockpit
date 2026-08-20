@@ -341,6 +341,21 @@ components:
         turnId: { oneOf: [{ type: string }, { type: "null" }] }
         runStatus: { oneOf: [{ type: string, enum: [starting, running, waiting-approval, completed, failed, interrupted, stale] }, { type: "null" }] }
       required: [bindingId, runtimeKind, bindingStatus, externalSessionId, externalRunId, externalThreadId, runId, turnId, runStatus]
+    OperationalActivityEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        activityId: { type: string }
+        source: { type: string, enum: [runtime] }
+        sequence: { type: integer, minimum: 1 }
+        kind: { type: string, enum: [run-started, run-completed, run-failed, run-interrupted, step-started, step-completed, approval-required, approval-resolved, approval-rejected, warning, error, activity] }
+        category: { type: string, enum: [lifecycle, approval, item, warning, error, other] }
+        approvalKind: { oneOf: [{ type: string, enum: [command-execution, file-change, permissions, unsupported] }, { type: "null" }] }
+        itemType: { oneOf: [{ type: string, maxLength: 80 }, { type: "null" }] }
+        code: { oneOf: [{ type: string, maxLength: 80 }, { type: "null" }] }
+        createdAt: { type: string }
+      required: [id, activityId, source, sequence, kind, category, approvalKind, itemType, code, createdAt]
     OperationalActivity:
       type: object
       additionalProperties: false
@@ -382,14 +397,7 @@ components:
           required: [total, active, running]
         latestEvent:
           oneOf:
-            - type: object
-              additionalProperties: false
-              properties:
-                sequence: { type: integer, minimum: 1 }
-                method: { type: string }
-                category: { type: string }
-                createdAt: { type: string }
-              required: [sequence, method, category, createdAt]
+            - $ref: '#/components/schemas/OperationalActivityEvent'
             - type: "null"
         controls:
           type: object
@@ -5947,13 +5955,13 @@ paths:
   /api/activities/stream:
     get:
       operationId: streamOperationalActivities
-      summary: Stream Owner-visible operational activity snapshots
-      description: Opens an Owner-only SSE stream. It emits public-safe activity.snapshot frames only when the unified Activity projection changes, plus heartbeat frames for connection liveness. Raw commands, logs, private paths, job instructions and provider payloads are never streamed.
+      summary: Stream Owner-visible operational activity updates
+      description: Owner-only SSE for public-safe Activity updates. Emits activity.snapshot, normalized activity.event, and heartbeat frames. Events use product-owned kinds with bounded metadata; runtime methods, raw commands, logs, private paths, job instructions, and provider payloads are excluded.
       security:
         - operatorSession: []
       responses:
         "200":
-          description: Server-sent Operational Activity snapshots and heartbeats
+          description: Server-sent Operational Activity snapshots, normalized events, and heartbeats
           content:
             text/event-stream:
               schema:

@@ -219,7 +219,7 @@
     "verify:capability-provider-management": "tsx scripts/verify-capability-provider-management.ts",
     "verify:oauth-authorization-grants": "tsx scripts/verify-oauth-authorization-grants.ts",
     "verify:oauth-grant-management": "tsx scripts/verify-oauth-grant-management.ts",
-    "verify:operational-activity": "tsx scripts/verify-operational-activity.ts && tsx scripts/verify-runner-activity-provenance.ts",
+    "verify:operational-activity": "tsx scripts/verify-operational-activity-event-projector.ts && tsx scripts/verify-operational-activity.ts && tsx scripts/verify-runner-activity-provenance.ts",
     "verify:resource-center-activity-ui": "tsx scripts/verify-resource-center-activity-ui.ts"
   },
   "engines": {
