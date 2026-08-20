@@ -75,6 +75,44 @@ export class OperationalActivityControlEventRepository {
     return this.get(id)!;
   }
 
+
+  latestSequence(): number {
+    const row = this.database.sqlite.prepare(
+      "SELECT COALESCE(MAX(sequence), 0) AS sequence FROM operational_activity_control_events"
+    ).get() as { sequence: number };
+    return Number(row.sequence);
+  }
+
+  latestForJob(jobId: string): OperationalActivityControlEventRecord | null {
+    const row = this.database.sqlite.prepare(`
+      SELECT * FROM operational_activity_control_events
+      WHERE job_id = ?
+      ORDER BY sequence DESC
+      LIMIT 1
+    `).get(jobId) as Row | undefined;
+    return row ? fromRow(row) : null;
+  }
+
+  list(
+    input: { afterSequence?: number; limit?: number } = {}
+  ): { events: OperationalActivityControlEventRecord[]; nextSequence: number | null } {
+    const afterSequence = Math.max(0, Math.floor(input.afterSequence ?? 0));
+    const limit = Math.min(200, Math.max(1, Math.floor(input.limit ?? 100)));
+    const rows = this.database.sqlite.prepare(`
+      SELECT * FROM operational_activity_control_events
+      WHERE sequence > ?
+      ORDER BY sequence ASC
+      LIMIT ?
+    `).all(afterSequence, limit + 1) as unknown as Row[];
+    const hasMore = rows.length > limit;
+    const visible = hasMore ? rows.slice(0, limit) : rows;
+    const events = visible.map(fromRow);
+    return {
+      events,
+      nextSequence: hasMore && events.length ? events[events.length - 1].sequence : null
+    };
+  }
+
   get(id: string): OperationalActivityControlEventRecord | null {
     const row = this.database.sqlite.prepare(`
       SELECT * FROM operational_activity_control_events WHERE id = ?

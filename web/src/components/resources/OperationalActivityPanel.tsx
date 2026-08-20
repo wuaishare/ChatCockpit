@@ -11,7 +11,7 @@ import { Button, Empty, Popconfirm, Tag, Tooltip } from "antd";
 import { Text } from "@lobehub/ui";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchOperationalActivities, interruptCodexRuntimeTurn } from "../../api";
+import { controlJob, fetchOperationalActivities, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import type { ResourceCenterCopy } from "../../i18n/resources";
 import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
@@ -91,6 +91,9 @@ function activityEventLabel(copy: ResourceCenterCopy, event: OperationalActivity
     case "run-completed": return copy.activityEventRunCompleted;
     case "run-failed": return copy.activityEventRunFailed;
     case "run-interrupted": return copy.activityEventRunInterrupted;
+    case "job-paused": return copy.activityEventJobPaused;
+    case "job-resumed": return copy.activityEventJobResumed;
+    case "job-terminated": return copy.activityEventJobTerminated;
     case "step-started": return copy.activityEventStepStarted;
     case "step-completed": return copy.activityEventStepCompleted;
     case "approval-required": return copy.activityEventApprovalRequired;
@@ -103,6 +106,7 @@ function activityEventLabel(copy: ResourceCenterCopy, event: OperationalActivity
 }
 
 function activityEventDetail(event: OperationalActivityEventProjection): string | null {
+  if (event.source === "job-control") return null;
   return event.approvalKind ?? event.itemType ?? event.code;
 }
 
@@ -137,7 +141,9 @@ const ActivityCard = memo(function ActivityCard({
   projectName,
   workspaceLabel,
   interrupting,
-  onInterrupt
+  controllingAction,
+  onInterrupt,
+  onJobControl
 }: {
   activity: OperationalActivityProjection;
   locale: LocaleCode;
@@ -145,7 +151,9 @@ const ActivityCard = memo(function ActivityCard({
   projectName: string | null;
   workspaceLabel: string | null;
   interrupting: boolean;
+  controllingAction: "pause" | "resume" | "terminate" | null;
   onInterrupt: (activity: OperationalActivityProjection) => void;
+  onJobControl: (activity: OperationalActivityProjection, action: "pause" | "resume" | "terminate") => void;
 }) {
   const runtime = runtimeLabel(activity);
   const context =
@@ -170,6 +178,45 @@ const ActivityCard = memo(function ActivityCard({
           </div>
         </div>
         <div className="resource-center__activity-card-actions">
+          {activity.controls.pause && activity.job?.processRevision ? (
+            <Button
+              size="small"
+              loading={controllingAction === "pause"}
+              disabled={Boolean(controllingAction)}
+              onClick={() => onJobControl(activity, "pause")}
+            >
+              {copy.activityPause}
+            </Button>
+          ) : null}
+          {activity.controls.resume && activity.job?.processRevision ? (
+            <Button
+              size="small"
+              loading={controllingAction === "resume"}
+              disabled={Boolean(controllingAction)}
+              onClick={() => onJobControl(activity, "resume")}
+            >
+              {copy.activityResume}
+            </Button>
+          ) : null}
+          {activity.controls.terminate && activity.job?.processRevision ? (
+            <Popconfirm
+              title={copy.activityTerminateConfirmTitle}
+              description={copy.activityTerminateConfirmDescription}
+              okText={copy.activityTerminateConfirm}
+              cancelText={copy.activityTerminateCancel}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => onJobControl(activity, "terminate")}
+            >
+              <Button
+                size="small"
+                danger
+                loading={controllingAction === "terminate"}
+                disabled={Boolean(controllingAction)}
+              >
+                {copy.activityTerminate}
+              </Button>
+            </Popconfirm>
+          ) : null}
           {activity.controls.interrupt && activity.runtime?.runId && activity.runtime.runRevision ? (
             <Popconfirm
               title={copy.activityInterruptConfirmTitle}
@@ -235,7 +282,10 @@ export function OperationalActivityPanel({
   const [streamState, setStreamState] = useState<StreamState>("connecting");
   const [interruptingActivityId, setInterruptingActivityId] = useState<string | null>(null);
   const [interruptError, setInterruptError] = useState<string | null>(null);
+  const [controllingJob, setControllingJob] = useState<{ activityId: string; action: "pause" | "resume" | "terminate" } | null>(null);
+  const [jobControlError, setJobControlError] = useState<string | null>(null);
   const interruptKeys = useRef(new Map<string, string>());
+  const jobControlKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -335,6 +385,40 @@ export function OperationalActivityPanel({
     }
   }, [copy.activityInterruptFailed, load, token]);
 
+  const controlActivityJob = useCallback(async (
+    activity: OperationalActivityProjection,
+    action: "pause" | "resume" | "terminate"
+  ) => {
+    const job = activity.job;
+    if (!job?.processRevision || !activity.controls[action]) return;
+    const fingerprint = `${job.id}:${action}:${job.processRevision}`;
+    let idempotencyKey = jobControlKeys.current.get(fingerprint);
+    if (!idempotencyKey) {
+      idempotencyKey = `activity.job-control.web:${crypto.randomUUID()}`;
+      jobControlKeys.current.set(fingerprint, idempotencyKey);
+    }
+    setControllingJob({ activityId: activity.id, action });
+    setJobControlError(null);
+    try {
+      await controlJob(job.id, {
+        action,
+        expectedRevision: job.processRevision,
+        idempotencyKey
+      }, token);
+      jobControlKeys.current.delete(fingerprint);
+      void load();
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : null;
+      if (code) jobControlKeys.current.delete(fingerprint);
+      setJobControlError(code ? `${copy.activityJobControlFailed} (${code})` : copy.activityJobControlFailed);
+    } finally {
+      setControllingJob((current) => current?.activityId === activity.id && current.action === action ? null : current);
+    }
+  }, [copy.activityJobControlFailed, load, token]);
+
   const projectNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of projects) map.set(entry.project.id, entry.project.displayName);
@@ -430,7 +514,9 @@ export function OperationalActivityPanel({
               projectName={activity.projectId ? projectNames.get(activity.projectId) ?? null : null}
               workspaceLabel={activity.workspaceId ? workspaceNames.get(activity.workspaceId) ?? null : null}
               interrupting={interruptingActivityId === activity.id}
+              controllingAction={controllingJob?.activityId === activity.id ? controllingJob.action : null}
               onInterrupt={interruptActivity}
+              onJobControl={controlActivityJob}
             />
           ))}
         </div>

@@ -1120,6 +1120,9 @@ export type OperationalActivityEventKind =
   | "run-completed"
   | "run-failed"
   | "run-interrupted"
+  | "job-paused"
+  | "job-resumed"
+  | "job-terminated"
   | "step-started"
   | "step-completed"
   | "approval-required"
@@ -1132,13 +1135,16 @@ export type OperationalActivityEventKind =
 export interface OperationalActivityEventProjection {
   id: string;
   activityId: string;
-  source: "runtime";
+  source: "runtime" | "job-control";
   sequence: number;
   kind: OperationalActivityEventKind;
-  category: "lifecycle" | "approval" | "item" | "warning" | "error" | "other";
+  category: "lifecycle" | "approval" | "item" | "warning" | "error" | "other" | "control";
   approvalKind: "command-execution" | "file-change" | "permissions" | "unsupported" | null;
   itemType: string | null;
   code: string | null;
+  controlAction: "pause" | "resume" | "terminate" | null;
+  resultingState: "running" | "paused" | "terminated" | "completed" | "failed" | null;
+  processRevision: number | null;
   createdAt: string;
 }
 
@@ -1185,6 +1191,7 @@ export interface OperationalActivityProjection {
     status: "queued" | "running" | "completed" | "failed";
     processState: "running" | "paused" | "terminated" | "completed" | "failed" | null;
     processLabel: string | null;
+    processRevision: number | null;
   } | null;
   directProcessSummary: { total: number; active: number; running: number };
   latestEvent: OperationalActivityEventProjection | null;
