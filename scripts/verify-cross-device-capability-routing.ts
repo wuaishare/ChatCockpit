@@ -36,6 +36,8 @@ function record(id: string, displayName: string, revokedAt: string | null = null
     pairedAt: "2026-08-21T22:00:00.000Z",
     lastSeenAt: "2026-08-22T02:19:55.000Z",
     revokedAt,
+    pausedAt: null,
+    executionPolicyRevision: 1,
     lastSequence: 9,
     revision: revokedAt ? 2 : 1
   };
@@ -65,13 +67,14 @@ class FakeRegistry {
       pairedAt: device.pairedAt,
       lastSeenAt: device.lastSeenAt,
       revokedAt: device.revokedAt,
+      pausedAt: device.pausedAt,
+      executionPolicyRevision: device.executionPolicyRevision,
       revision: device.revision,
       trust: device.revokedAt ? "revoked" as const : "paired" as const,
-      presence: device.revokedAt
-        ? "revoked" as const
-        : device.id === remoteId
-          ? "online" as const
-          : "offline" as const,
+      presence: !device.revokedAt && device.id === remoteId
+        ? "online" as const
+        : "offline" as const,
+      executionPolicy: "active" as const,
       management: { heartbeat: true as const, remoteControl: false as const }
     }));
   }

@@ -12,6 +12,15 @@ import { DeviceChannelHub } from "../devices/device-channel.js";
 import { buildLocalDeviceTarget } from "../devices/local-device.js";
 import { sendApiError } from "./errors.js";
 
+export interface DeviceExecutionPolicyAuditRecorder {
+  record(input: {
+    action: "pause" | "resume";
+    deviceId: string;
+    principalId: string;
+    createdAt: string;
+  }): void;
+}
+
 function operatorSessionError(
   request: FastifyRequest,
   reply: FastifyReply
@@ -23,6 +32,13 @@ function operatorSessionError(
     "OPERATOR_SESSION_REQUIRED",
     "An authenticated console administrator session is required"
   );
+}
+
+function operatorPrincipalId(request: FastifyRequest): string {
+  if (request.chatCockpitAuth.kind !== "operator-session") {
+    throw new Error("Device execution policy audit requires an authenticated Owner session");
+  }
+  return request.chatCockpitAuth.session.principalId;
 }
 
 function deviceError(
@@ -49,6 +65,30 @@ function requiredString(
     throw new DeviceRegistryError(400, code, message);
   }
   return normalized;
+}
+
+function requiredManagedDeviceId(value: unknown): string {
+  const id = requiredString(
+    value,
+    "DEVICE_ID_INVALID",
+    "Managed device ID is invalid",
+    180
+  );
+  if (!/^cc_device_[A-Za-z0-9_-]{20,80}$/.test(id)) {
+    throw new DeviceRegistryError(400, "DEVICE_ID_INVALID", "Managed device ID is invalid");
+  }
+  return id;
+}
+
+function requiredExecutionPolicyRevision(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 1) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_EXECUTION_POLICY_REVISION_INVALID",
+      "Device expected execution policy revision must be a positive integer"
+    );
+  }
+  return value as number;
 }
 
 function requiredEnrollmentId(value: unknown): string {
@@ -81,9 +121,12 @@ function projectLocalDevice(now: string) {
     pairedAt: null,
     lastSeenAt: now,
     revokedAt: null,
+    pausedAt: null,
+    executionPolicyRevision: 1,
     revision: 1,
     trust: "local" as const,
     presence: "online" as const,
+    executionPolicy: "active" as const,
     management: {
       heartbeat: false as const,
       remoteRead: false as const,
@@ -117,6 +160,9 @@ function projectManagedDevice(record: ManagedDeviceRecord) {
     pairedAt: record.pairedAt,
     lastSeenAt: record.lastSeenAt,
     revokedAt: record.revokedAt,
+    pausedAt: record.pausedAt,
+    executionPolicyRevision: record.executionPolicyRevision,
+    executionPolicy: record.pausedAt ? "paused" as const : "active" as const,
     revision: record.revision
   };
 }
@@ -177,6 +223,7 @@ export function registerDeviceRoutes(
   options: {
     now?: () => string;
     channelHub?: DeviceChannelHub;
+    executionPolicyAudit?: DeviceExecutionPolicyAuditRecorder;
   } = {}
 ): void {
   const now = options.now ?? (() => new Date().toISOString());
@@ -190,6 +237,7 @@ export function registerDeviceRoutes(
         device.trust === "paired" && options.channelHub?.isActive(device.id) === true;
       const remoteRead =
         device.trust === "paired" &&
+        device.executionPolicy === "active" &&
         options.channelHub?.isCapabilityRpcAvailable(device.id) === true;
       return {
         ...device,
@@ -330,6 +378,42 @@ export function registerDeviceRoutes(
   });
 
   registerDeviceHeartbeatRoute(app, store, { now });
+
+  for (const action of ["pause", "resume"] as const) {
+    app.post(`/api/devices/:deviceId/${action}`, async (request, reply) => {
+      const authError = operatorSessionError(request, reply);
+      if (authError) return authError;
+      try {
+        const deviceId = requiredManagedDeviceId(
+          (request.params as { deviceId?: unknown }).deviceId
+        );
+        const body = (request.body ?? {}) as Record<string, unknown>;
+        const expectedExecutionPolicyRevision = requiredExecutionPolicyRevision(
+          body.expectedExecutionPolicyRevision
+        );
+        const createdAt = now();
+        const device = action === "pause"
+          ? store.pauseDevice(deviceId, createdAt, expectedExecutionPolicyRevision)
+          : store.resumeDevice(deviceId, createdAt, expectedExecutionPolicyRevision);
+        options.executionPolicyAudit?.record({
+          action,
+          deviceId,
+          principalId: operatorPrincipalId(request),
+          createdAt
+        });
+        return {
+          ok: true,
+          device: {
+            ...projectManagedDevice(device),
+            trust: "paired" as const,
+            executionPolicy: device.pausedAt ? "paused" as const : "active" as const
+          }
+        };
+      } catch (error) {
+        return deviceError(reply, error);
+      }
+    });
+  }
 
   app.delete("/api/devices/:deviceId", async (request, reply) => {
     const authError = operatorSessionError(request, reply);

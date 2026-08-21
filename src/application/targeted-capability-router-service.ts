@@ -58,7 +58,7 @@ export class TargetedCapabilityRouterService {
   ): Promise<unknown> {
     const explicitTarget = input.targetDevice !== undefined;
     const targetId = input.targetDevice ?? LOCAL_DEVICE_TARGET_ID;
-    const target = this.targets.resolve(targetId, context.now);
+    const target = this.targets.resolveForExecution(targetId, context.now);
     const payload = withoutTarget(input);
 
     if (target.locality === "local") {
@@ -78,7 +78,7 @@ export class TargetedCapabilityRouterService {
   ): Promise<unknown> {
     const explicitTarget = input.targetDevice !== undefined;
     const targetId = input.targetDevice ?? LOCAL_DEVICE_TARGET_ID;
-    const target = this.targets.resolve(targetId, context.now);
+    const target = this.targets.resolveForExecution(targetId, context.now);
     const payload = withoutTarget(input);
 
     if (target.locality === "local") {
@@ -98,7 +98,7 @@ export class TargetedCapabilityRouterService {
   ): Promise<unknown> {
     const explicitTarget = input.targetDevice !== undefined;
     const targetId = input.targetDevice ?? LOCAL_DEVICE_TARGET_ID;
-    const target = this.targets.resolve(targetId, context.now);
+    const target = this.targets.resolveForExecution(targetId, context.now);
     const payload = withoutTarget(input);
 
     if (target.locality === "local") {

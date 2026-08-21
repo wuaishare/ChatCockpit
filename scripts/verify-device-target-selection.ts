@@ -14,6 +14,7 @@ import { LOCAL_DEVICE_TARGET_ID } from "../src/devices/local-device.js";
 const now = "2026-08-22T01:30:00.000Z";
 const allowedRemoteId = `cc_device_${"A".repeat(24)}`;
 const blockedRemoteId = `cc_device_${"B".repeat(24)}`;
+const pausedRemoteId = `cc_device_${"P".repeat(24)}`;
 const revokedRemoteId = `cc_device_${"C".repeat(24)}`;
 const missingRemoteId = `cc_device_${"D".repeat(24)}`;
 const localAndRemoteGrant = "cc_grant_target_selection_local_remote_123456";
@@ -22,7 +23,8 @@ const remoteOnlyGrant = "cc_grant_target_selection_remote_only_123456";
 function record(
   id: string,
   displayName: string,
-  revokedAt: string | null = null
+  revokedAt: string | null = null,
+  pausedAt: string | null = null
 ): ManagedDeviceRecord {
   return {
     id,
@@ -34,6 +36,8 @@ function record(
     pairedAt: "2026-08-21T22:00:00.000Z",
     lastSeenAt: "2026-08-22T01:29:30.000Z",
     revokedAt,
+    pausedAt,
+    executionPolicyRevision: 1,
     lastSequence: 8,
     revision: revokedAt ? 2 : 1
   };
@@ -43,6 +47,7 @@ class FakeRegistry {
   private readonly records = new Map<string, ManagedDeviceRecord>([
     [allowedRemoteId, record(allowedRemoteId, "Remote Mac")],
     [blockedRemoteId, record(blockedRemoteId, "Build Mac")],
+    [pausedRemoteId, record(pausedRemoteId, "Paused Mac", null, "2026-08-22T01:00:00.000Z")],
     [revokedRemoteId, record(revokedRemoteId, "Revoked Mac", "2026-08-22T00:00:00.000Z")]
   ]);
 
@@ -65,9 +70,12 @@ class FakeRegistry {
         pairedAt: device.pairedAt,
         lastSeenAt: device.lastSeenAt,
         revokedAt: device.revokedAt,
+        pausedAt: device.pausedAt,
+        executionPolicyRevision: device.executionPolicyRevision,
         revision: device.revision,
         trust: revoked ? "revoked" as const : "paired" as const,
-        presence: revoked ? "revoked" as const : "offline" as const,
+        presence: "offline" as const,
+        executionPolicy: device.pausedAt ? "paused" as const : "active" as const,
         management: { heartbeat: true as const, remoteControl: false as const }
       };
     });
@@ -76,7 +84,11 @@ class FakeRegistry {
 
 class FakeChannels {
   isActive(deviceId: string): boolean {
-    return deviceId === allowedRemoteId;
+    return deviceId === allowedRemoteId || deviceId === pausedRemoteId;
+  }
+
+  isCapabilityRpcAvailable(deviceId: string): boolean {
+    return deviceId === allowedRemoteId || deviceId === pausedRemoteId;
   }
 }
 
@@ -109,15 +121,22 @@ const remote = service.resolve(allowedRemoteId, now);
 assert.equal(remote.id, allowedRemoteId);
 assert.equal(remote.displayName, "Remote Mac");
 assert.equal(remote.presence, "online", "active channel should upgrade bounded presence");
-assert.equal(
-  remote.executionAvailable,
-  false,
-  "v1 presence channel must not imply Phase 8 capability RPC readiness"
-);
+assert.equal(remote.executionPolicy, "active");
+assert.equal(remote.executionAvailable, true);
 assert.equal("publicKeyFingerprint" in remote, false);
 assert.equal("publicKeySpki" in remote, false);
 assert.equal("address" in remote, false);
 assert.equal("route" in remote, false);
+
+const paused = service.resolve(pausedRemoteId, now);
+assert.equal(paused.presence, "online", "Pause must not hide an active management channel");
+assert.equal(paused.executionPolicy, "paused");
+assert.equal(paused.executionAvailable, false, "paused target must not advertise AI execution readiness");
+assert.throws(
+  () => service.resolveForExecution(pausedRemoteId, now),
+  (error: unknown) => error instanceof ServiceError && error.code === "DEVICE_EXECUTION_PAUSED",
+  "paused target must fail before remote transport"
+);
 
 assert.throws(
   () => service.resolve(missingRemoteId, now),
@@ -141,7 +160,7 @@ assert.deepEqual(
   [LOCAL_DEVICE_TARGET_ID, allowedRemoteId],
   "OAuth target projection must exclude unauthorized and revoked devices"
 );
-assert.equal(visible[1]?.executionAvailable, false);
+assert.equal(visible[1]?.executionAvailable, true);
 
 const remoteOnly = service.listTargets(remoteOnlyGrant, now);
 assert.deepEqual(remoteOnly.map((target) => target.id), [allowedRemoteId]);
@@ -154,10 +173,12 @@ assert.equal(
 const unrestricted = service.listTargets(null, now);
 assert.deepEqual(
   unrestricted.map((target) => target.id),
-  [LOCAL_DEVICE_TARGET_ID, allowedRemoteId, blockedRemoteId],
+  [LOCAL_DEVICE_TARGET_ID, allowedRemoteId, blockedRemoteId, pausedRemoteId],
   "non-OAuth local callers may inspect all non-revoked public-safe targets"
 );
 assert.equal(unrestricted.find((target) => target.id === blockedRemoteId)?.presence, "offline");
+assert.equal(unrestricted.find((target) => target.id === pausedRemoteId)?.executionPolicy, "paused");
+assert.equal(unrestricted.find((target) => target.id === pausedRemoteId)?.executionAvailable, false);
 
 const failClosedService = new DeviceTargetService(
   new FakeRegistry(),

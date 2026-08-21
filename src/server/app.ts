@@ -799,7 +799,17 @@ export function buildServer(
   });
   registerDeviceRoutes(app, deviceRegistryStore, {
     ...(options.deviceNow ? { now: options.deviceNow } : {}),
-    channelHub: deviceChannelHub
+    channelHub: deviceChannelHub,
+    executionPolicyAudit: {
+      record: ({ action, deviceId, principalId, createdAt }) => {
+        operatorStore.recordAuditEvent({
+          eventType: `device.execution_policy.${action}.requested`,
+          principalId,
+          createdAt,
+          details: { action, deviceId }
+        });
+      }
+    }
   });
   registerDeviceChannelRoutes(
     app,

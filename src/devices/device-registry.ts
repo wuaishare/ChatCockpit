@@ -10,7 +10,7 @@ export const DEVICE_ENROLLMENT_MAX_PENDING = 64;
 
 const VERIFICATION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-export type DevicePresence = "online" | "offline" | "revoked";
+export type DevicePresence = "online" | "offline";
 export type DeviceEnrollmentDecision = "approve" | "deny";
 export type DeviceEnrollmentStatus = "pending" | "approved" | "denied" | "expired";
 
@@ -24,6 +24,8 @@ export interface ManagedDeviceRecord {
   pairedAt: string;
   lastSeenAt: string | null;
   revokedAt: string | null;
+  pausedAt: string | null;
+  executionPolicyRevision: number;
   lastSequence: number;
   revision: number;
 }
@@ -39,9 +41,12 @@ export interface ManagedDeviceProjection {
   pairedAt: string;
   lastSeenAt: string | null;
   revokedAt: string | null;
+  pausedAt: string | null;
+  executionPolicyRevision: number;
   revision: number;
   trust: "paired" | "revoked";
   presence: DevicePresence;
+  executionPolicy: "active" | "paused";
   management: {
     heartbeat: true;
     remoteControl: false;
@@ -111,6 +116,8 @@ interface DeviceRow {
   paired_at: string;
   last_seen_at: string | null;
   revoked_at: string | null;
+  paused_at: string | null;
+  execution_policy_revision: number;
   last_sequence: number;
   revision: number;
 }
@@ -143,6 +150,8 @@ function mapDevice(row: DeviceRow): ManagedDeviceRecord {
     pairedAt: row.paired_at,
     lastSeenAt: row.last_seen_at,
     revokedAt: row.revoked_at,
+    pausedAt: row.paused_at,
+    executionPolicyRevision: Number(row.execution_policy_revision),
     lastSequence: Number(row.last_sequence),
     revision: Number(row.revision)
   };
@@ -853,6 +862,56 @@ export class DeviceRegistryStore {
     return this.getDevice(input.deviceId)!;
   }
 
+  pauseDevice(
+    deviceId: string,
+    now: string,
+    expectedExecutionPolicyRevision: number
+  ): ManagedDeviceRecord {
+    const current = this.getDevice(deviceId);
+    if (!current || current.revokedAt) {
+      throw new DeviceRegistryError(401, "DEVICE_NOT_TRUSTED", "Device is unknown or revoked");
+    }
+    const updated = this.sqlite.prepare(`
+      UPDATE managed_devices
+      SET paused_at = ?, execution_policy_revision = execution_policy_revision + 1,
+          revision = revision + 1
+      WHERE device_id = ? AND revoked_at IS NULL AND execution_policy_revision = ?
+    `).run(now, deviceId, expectedExecutionPolicyRevision);
+    if (Number(updated.changes) !== 1) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_EXECUTION_POLICY_REVISION_CONFLICT",
+        "Device execution policy changed before it could be updated"
+      );
+    }
+    return this.getDevice(deviceId)!;
+  }
+
+  resumeDevice(
+    deviceId: string,
+    _now: string,
+    expectedExecutionPolicyRevision: number
+  ): ManagedDeviceRecord {
+    const current = this.getDevice(deviceId);
+    if (!current || current.revokedAt) {
+      throw new DeviceRegistryError(401, "DEVICE_NOT_TRUSTED", "Device is unknown or revoked");
+    }
+    const updated = this.sqlite.prepare(`
+      UPDATE managed_devices
+      SET paused_at = NULL, execution_policy_revision = execution_policy_revision + 1,
+          revision = revision + 1
+      WHERE device_id = ? AND revoked_at IS NULL AND execution_policy_revision = ?
+    `).run(deviceId, expectedExecutionPolicyRevision);
+    if (Number(updated.changes) !== 1) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_EXECUTION_POLICY_REVISION_CONFLICT",
+        "Device execution policy changed before it could be updated"
+      );
+    }
+    return this.getDevice(deviceId)!;
+  }
+
   revokeDevice(deviceId: string, now: string): ManagedDeviceRecord | null {
     const updated = this.sqlite.prepare(`
       UPDATE managed_devices
@@ -898,13 +957,12 @@ export class DeviceRegistryStore {
         pairedAt: record.pairedAt,
         lastSeenAt: record.lastSeenAt,
         revokedAt: record.revokedAt,
+        pausedAt: record.pausedAt,
+        executionPolicyRevision: record.executionPolicyRevision,
         revision: record.revision,
         trust: record.revokedAt ? "revoked" as const : "paired" as const,
-        presence: record.revokedAt
-          ? "revoked" as const
-          : online
-            ? "online" as const
-            : "offline" as const,
+        presence: !record.revokedAt && online ? "online" as const : "offline" as const,
+        executionPolicy: record.pausedAt ? "paused" as const : "active" as const,
         management: {
           heartbeat: true as const,
           remoteControl: false as const
@@ -930,6 +988,8 @@ export class DeviceRegistryStore {
         paired_at TEXT NOT NULL,
         last_seen_at TEXT,
         revoked_at TEXT,
+        paused_at TEXT,
+        execution_policy_revision INTEGER NOT NULL DEFAULT 1 CHECK (execution_policy_revision >= 1),
         last_sequence INTEGER NOT NULL DEFAULT 0 CHECK (last_sequence >= 0),
         revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1)
       ) STRICT;
@@ -958,6 +1018,19 @@ export class DeviceRegistryStore {
       CREATE INDEX IF NOT EXISTS device_enrollment_created_idx
         ON device_enrollment_requests(created_at, enrollment_id);
     `);
+    this.ensureExecutionPolicySchema();
+  }
+
+  private ensureExecutionPolicySchema(): void {
+    const columns = this.sqlite.prepare("PRAGMA table_info(managed_devices)").all() as unknown as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "paused_at")) {
+      this.sqlite.exec("ALTER TABLE managed_devices ADD COLUMN paused_at TEXT");
+    }
+    if (!columns.some((column) => column.name === "execution_policy_revision")) {
+      this.sqlite.exec(
+        "ALTER TABLE managed_devices ADD COLUMN execution_policy_revision INTEGER NOT NULL DEFAULT 1 CHECK (execution_policy_revision >= 1)"
+      );
+    }
   }
 }
 

@@ -566,6 +566,181 @@ async function main(): Promise<void> {
     assert.equal(readProjection?.target?.id, deviceId);
     assert.equal(readProjection?.text, "phase8-cross-device-smoke\n");
 
+    const ownerDevicesBeforePause = await ownerJson<{
+      devices: Array<{
+        id: string;
+        presence: string;
+        executionPolicy: "active" | "paused";
+        executionPolicyRevision: number;
+        management: { remoteRead?: boolean };
+      }>;
+    }>(baseUrl, ownerCookie, "/api/devices");
+    const ownerRemoteBeforePause = ownerDevicesBeforePause.devices.find((item) => item.id === deviceId);
+    assert.ok(ownerRemoteBeforePause);
+    assert.equal(ownerRemoteBeforePause.presence, "online");
+    assert.equal(ownerRemoteBeforePause.executionPolicy, "active");
+    assert.equal(ownerRemoteBeforePause.management.remoteRead, true);
+
+    const pauseRemote = await fetch(
+      `${baseUrl}/api/devices/${encodeURIComponent(deviceId)}/pause`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerCsrf
+        },
+        body: JSON.stringify({
+          expectedExecutionPolicyRevision: ownerRemoteBeforePause.executionPolicyRevision
+        })
+      }
+    );
+    assert.equal(pauseRemote.status, 200, await pauseRemote.clone().text().catch(() => ""));
+    const pausedOwnerMutation = (await pauseRemote.json()) as {
+      device: {
+        id: string;
+        executionPolicy: "active" | "paused";
+        executionPolicyRevision: number;
+      };
+    };
+    assert.equal(pausedOwnerMutation.device.id, deviceId);
+    assert.equal(pausedOwnerMutation.device.executionPolicy, "paused");
+
+    const pausedOwnerDevices = await ownerJson<{
+      devices: Array<{
+        id: string;
+        presence: string;
+        executionPolicy: "active" | "paused";
+        management: { remoteRead?: boolean };
+      }>;
+    }>(baseUrl, ownerCookie, "/api/devices");
+    const pausedOwnerRemote = pausedOwnerDevices.devices.find((item) => item.id === deviceId);
+    assert.ok(pausedOwnerRemote);
+    assert.equal(pausedOwnerRemote.presence, "online", "Pause must not falsify Device Presence");
+    assert.equal(pausedOwnerRemote.executionPolicy, "paused");
+    assert.equal(pausedOwnerRemote.management.remoteRead, false);
+
+    const pausedTargets = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.targets.list",
+        arguments: {}
+      }
+    });
+    assert.equal(pausedTargets.response.status, 200);
+    const pausedTargetProjection = pausedTargets.message.result?.structuredContent as
+      | {
+          targets?: Array<{
+            id?: string;
+            executionPolicy?: "active" | "paused";
+            executionAvailable?: boolean;
+          }>;
+        }
+      | undefined;
+    const pausedTarget = pausedTargetProjection?.targets?.find((item) => item.id === deviceId);
+    assert.equal(pausedTarget?.executionPolicy, "paused");
+    assert.equal(pausedTarget?.executionAvailable, false);
+
+    const pausedSameTokenRead = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.capabilities.read.invoke",
+        arguments: {
+          targetDevice: deviceId,
+          executorId,
+          toolName: "read_file",
+          arguments: { path: readFixture }
+        }
+      }
+    });
+    assert.equal(pausedSameTokenRead.response.status, 200);
+    const pausedReadProjection = pausedSameTokenRead.message.result?.structuredContent as
+      | { error?: { code?: string } }
+      | undefined;
+    assert.equal(pausedSameTokenRead.message.result?.isError, true);
+    assert.equal(pausedReadProjection?.error?.code, "DEVICE_EXECUTION_PAUSED");
+
+    const grantAccessWhilePaused = await ownerJson<{
+      access: {
+        devices: Array<{ deviceId: string; granted: boolean }>;
+      };
+    }>(
+      baseUrl,
+      ownerCookie,
+      `/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices`
+    );
+    const pausedGrantRelation = grantAccessWhilePaused.access.devices.find(
+      (item) => item.deviceId === deviceId
+    );
+    assert.equal(pausedGrantRelation?.granted, true, "Pause must preserve OAuth grant-device membership");
+
+    const resumeRemote = await fetch(
+      `${baseUrl}/api/devices/${encodeURIComponent(deviceId)}/resume`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerCsrf
+        },
+        body: JSON.stringify({
+          expectedExecutionPolicyRevision: pausedOwnerMutation.device.executionPolicyRevision
+        })
+      }
+    );
+    assert.equal(resumeRemote.status, 200, await resumeRemote.clone().text().catch(() => ""));
+    const resumedOwnerMutation = (await resumeRemote.json()) as {
+      device: { executionPolicy: "active" | "paused"; executionPolicyRevision: number };
+    };
+    assert.equal(resumedOwnerMutation.device.executionPolicy, "active");
+
+    const resumedTargets = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.targets.list",
+        arguments: {}
+      }
+    });
+    const resumedTargetProjection = resumedTargets.message.result?.structuredContent as
+      | {
+          targets?: Array<{
+            id?: string;
+            executionPolicy?: "active" | "paused";
+            executionAvailable?: boolean;
+          }>;
+        }
+      | undefined;
+    const resumedTarget = resumedTargetProjection?.targets?.find((item) => item.id === deviceId);
+    assert.equal(resumedTarget?.executionPolicy, "active");
+    assert.equal(resumedTarget?.executionAvailable, true);
+
+    const resumedSameTokenRead = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.capabilities.read.invoke",
+        arguments: {
+          targetDevice: deviceId,
+          executorId,
+          toolName: "read_file",
+          arguments: { path: readFixture }
+        }
+      }
+    });
+    assert.equal(resumedSameTokenRead.response.status, 200);
+    const resumedReadProjection = resumedSameTokenRead.message.result?.structuredContent as
+      | { target?: { id?: string }; text?: string }
+      | undefined;
+    assert.equal(resumedReadProjection?.target?.id, deviceId);
+    assert.equal(resumedReadProjection?.text, "phase8-cross-device-smoke\n");
+
     const revokeRemote = await fetch(
       `${baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices/${encodeURIComponent(deviceId)}/revoke`,
       {
@@ -582,7 +757,7 @@ async function main(): Promise<void> {
 
     const deniedSameToken = await postMcp(baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
-      id: 5,
+      id: 9,
       method: "tools/call",
       params: {
         name: "chatcockpit.capabilities.list",
@@ -599,7 +774,7 @@ async function main(): Promise<void> {
 
     const targetsAfterRevoke = await postMcp(baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
-      id: 6,
+      id: 10,
       method: "tools/call",
       params: {
         name: "chatcockpit.devices.targets.list",

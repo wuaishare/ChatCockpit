@@ -6,7 +6,8 @@ import {
   decideDeviceEnrollment,
   fetchDeviceEnrollmentRequests,
   fetchDevices,
-  revokeDevice
+  revokeDevice,
+  setDeviceExecutionPolicy
 } from "../api";
 import type {
   DeviceEnrollmentRequestSummary,
@@ -36,6 +37,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [decisionKey, setDecisionKey] = useState<string | null>(null);
+  const [policyActionKey, setPolicyActionKey] = useState<string | null>(null);
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
 
   const remoteDevices = useMemo(
@@ -87,6 +89,27 @@ export function DevicesView({ locale }: DevicesViewProps) {
     }
   };
 
+  const updateExecutionPolicy = async (
+    device: ManagedDeviceSummary,
+    action: "pause" | "resume"
+  ) => {
+    if (policyActionKey) return;
+    setPolicyActionKey(`${device.id}:${action}`);
+    setError(null);
+    try {
+      await setDeviceExecutionPolicy(
+        device.id,
+        action,
+        device.executionPolicyRevision
+      );
+      await load(false);
+    } catch (policyError) {
+      setError(errorMessage(policyError, copy.executionPolicyFailed, copy.apiVersionMismatch));
+    } finally {
+      setPolicyActionKey(null);
+    }
+  };
+
   const revoke = async (deviceId: string) => {
     if (revokingDeviceId) return;
     setRevokingDeviceId(deviceId);
@@ -102,12 +125,13 @@ export function DevicesView({ locale }: DevicesViewProps) {
   };
 
   const presenceMeta = (device: ManagedDeviceSummary) => {
+    if (device.trust === "revoked") return { label: copy.revoked, color: "default" as const };
     if (device.presence === "online") return { label: copy.online, color: "success" as const };
-    if (device.presence === "revoked") return { label: copy.revoked, color: "default" as const };
     return { label: copy.offline, color: "warning" as const };
   };
 
   const remoteReadLabel = (device: ManagedDeviceSummary) => {
+    if (device.executionPolicy === "paused") return copy.aiPaused;
     if (device.management.remoteRead) return copy.remoteReadReady;
     return device.presence === "online"
       ? copy.remoteReadAgentUpdate
@@ -179,6 +203,10 @@ export function DevicesView({ locale }: DevicesViewProps) {
                       </div>
                     ) : null}
                     <div className="gpt-fact">
+                      <span>{copy.executionPolicy}</span>
+                      <strong>{device.executionPolicy === "paused" ? copy.aiPaused : copy.aiActive}</strong>
+                    </div>
+                    <div className="gpt-fact">
                       <span>{copy.management}</span>
                       <strong>
                         {device.management.heartbeat ? copy.presenceReady : copy.localPresence}
@@ -191,6 +219,27 @@ export function DevicesView({ locale }: DevicesViewProps) {
 
                   {device.locality === "remote" && device.trust !== "revoked" ? (
                     <div className="device-card__actions">
+                      {device.executionPolicy === "paused" ? (
+                        <Button
+                          size="small"
+                          loading={policyActionKey === `${device.id}:resume`}
+                          onClick={() => void updateExecutionPolicy(device, "resume")}
+                        >
+                          {policyActionKey === `${device.id}:resume` ? copy.resuming : copy.resume}
+                        </Button>
+                      ) : (
+                        <Popconfirm
+                          title={copy.pauseTitle}
+                          description={copy.pauseDescription}
+                          okText={copy.confirm}
+                          cancelText={copy.cancel}
+                          onConfirm={() => void updateExecutionPolicy(device, "pause")}
+                        >
+                          <Button size="small" loading={policyActionKey === `${device.id}:pause`}>
+                            {policyActionKey === `${device.id}:pause` ? copy.pausing : copy.pause}
+                          </Button>
+                        </Popconfirm>
+                      )}
                       <Popconfirm
                         title={copy.revokeTitle}
                         description={copy.revokeDescription}
