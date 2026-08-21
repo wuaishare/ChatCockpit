@@ -193,6 +193,16 @@ async function main(): Promise<void> {
   });
   trackJobProcess(paths, { jobId: hostJob.id, pid: process.pid, label: "Host cleanup worker" });
 
+  const controlEvents = new OperationalActivityControlEventRepository(continuity);
+  controlEvents.append(
+    buildOperationContext({ actorType: "local-ui", actorId: "owner_activity_fixture", requestId: "timeline-linked-job-control-request", now: "2026-08-19T10:04:30.000Z" }),
+    { jobId: linkedJob.id, action: "pause", resultingState: "paused", processRevision: 2 }
+  );
+  controlEvents.append(
+    buildOperationContext({ actorType: "local-ui", actorId: "owner_activity_fixture", requestId: "timeline-host-job-control-request", now: "2026-08-19T10:06:30.000Z" }),
+    { jobId: hostJob.id, action: "resume", resultingState: "running", processRevision: 2 }
+  );
+
   activityProvenance.recordFromContext(
     buildOperationContext({
       actorType: "remote-mcp",
@@ -277,7 +287,7 @@ async function main(): Promise<void> {
     assert.equal((projectActivity.runtime as { runRevision: number }).runRevision, runtimeRun.revision);
     assert.equal((projectActivity.runtime as { turnId: string }).turnId, "turn_activity_fixture");
     assert.equal(projectActivity.controls.interrupt, true);
-    assert.equal((projectActivity.latestEvent as { kind: string }).kind, "run-started");
+    assert.equal((projectActivity.latestEvent as { kind: string }).kind, "job-paused");
     assert.equal("method" in (projectActivity.latestEvent as Record<string, unknown>), false);
     assert.equal((projectActivity.job as { id: string }).id, linkedJob.id);
 
@@ -302,6 +312,25 @@ async function main(): Promise<void> {
     assert.equal(response.body.includes(root), false);
     assert.equal(response.body.includes("turn/started"), false);
     assert.equal(body.activities.filter((item) => item.id === session.id).length, 1);
+
+    const machineTimeline = await app.inject({ method: "GET", url: `/api/activities/${session.id}/events`, headers: { authorization: "Bearer test-token-machine-activities" } });
+    assert.equal(machineTimeline.statusCode, 401, machineTimeline.body);
+    const missingTimeline = await app.inject({ method: "GET", url: "/api/activities/missing-activity/events", headers: { cookie } });
+    assert.equal(missingTimeline.statusCode, 404, missingTimeline.body);
+    const projectTimelineResponse = await app.inject({ method: "GET", url: `/api/activities/${session.id}/events?limit=50`, headers: { cookie } });
+    assert.equal(projectTimelineResponse.statusCode, 200, projectTimelineResponse.body);
+    const projectTimeline = projectTimelineResponse.json() as { activityId: string; events: Array<Record<string, unknown>> };
+    assert.equal(projectTimeline.activityId, session.id);
+    assert.deepEqual(projectTimeline.events.map((event) => event.kind), ["run-started", "job-paused"]);
+    assert.deepEqual(projectTimeline.events.map((event) => event.source), ["runtime", "job-control"]);
+    assert.equal(projectTimelineResponse.body.includes("turn/started"), false);
+    assert.equal(projectTimelineResponse.body.includes("timeline-linked-job-control-request"), false);
+    assert.equal(projectTimelineResponse.body.includes("owner_activity_fixture"), false);
+    const hostTimelineResponse = await app.inject({ method: "GET", url: `/api/activities/${hostJob.id}/events`, headers: { cookie } });
+    assert.equal(hostTimelineResponse.statusCode, 200, hostTimelineResponse.body);
+    const hostTimeline = hostTimelineResponse.json() as { events: Array<Record<string, unknown>> };
+    assert.deepEqual(hostTimeline.events.map((event) => event.kind), ["job-resumed"]);
+    assert.equal(hostTimeline.events[0]?.activityId, hostJob.id);
 
     const baseUrl = await app.listen({ host: "127.0.0.1", port: 0 });
     const anonymousStream = await fetch(`${baseUrl}/api/activities/stream`);

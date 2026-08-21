@@ -34,6 +34,7 @@ import type {
   OAuthAuthorizationGrantsResponse,
   OAuthAuthorizationGrantSummary,
   OperationalActivityListResponse,
+  OperationalActivityTimelineResponse,
   JobControlResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
@@ -652,6 +653,16 @@ export async function fetchOperationalActivities(
   token?: string | null
 ): Promise<OperationalActivityListResponse> {
   return requestJson<OperationalActivityListResponse>("/api/activities", token);
+}
+
+export async function fetchOperationalActivityTimeline(
+  activityId: string,
+  token?: string | null
+): Promise<OperationalActivityTimelineResponse> {
+  return requestJson<OperationalActivityTimelineResponse>(
+    `/api/activities/${encodeURIComponent(activityId)}/events?limit=50`,
+    token
+  );
 }
 
 export async function fetchRuntimeResourceProfiles(

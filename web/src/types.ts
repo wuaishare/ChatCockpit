@@ -1206,6 +1206,12 @@ export interface OperationalActivityEventResponse {
   event: OperationalActivityEventProjection;
 }
 
+export interface OperationalActivityTimelineResponse {
+  ok: true;
+  activityId: string;
+  events: OperationalActivityEventProjection[];
+}
+
 export interface OperationalActivityListResponse {
   ok: true;
   activities: OperationalActivityProjection[];

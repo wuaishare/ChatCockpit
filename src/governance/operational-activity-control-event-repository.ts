@@ -93,6 +93,17 @@ export class OperationalActivityControlEventRepository {
     return row ? fromRow(row) : null;
   }
 
+  listRecentForJob(jobId: string, limit = 50): OperationalActivityControlEventRecord[] {
+    const boundedLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const rows = this.database.sqlite.prepare(`
+      SELECT * FROM operational_activity_control_events
+      WHERE job_id = ?
+      ORDER BY sequence DESC
+      LIMIT ?
+    `).all(jobId, boundedLimit) as unknown as Row[];
+    return rows.reverse().map(fromRow);
+  }
+
   list(
     input: { afterSequence?: number; limit?: number } = {}
   ): { events: OperationalActivityControlEventRecord[]; nextSequence: number | null } {
