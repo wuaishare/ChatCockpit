@@ -37,9 +37,17 @@ import {
 import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
 import {
   DEVICE_AGENT_DEFAULT_INTERVAL_MS,
+  DeviceAgentProtocolError,
   DeviceAgentService,
   type DeviceAgentStatus
 } from "../devices/device-agent.js";
+import { BonjourLanDiscoveryProvider } from "../devices/bonjour-lan-discovery-provider.js";
+import {
+  discoverLanHubs,
+  LAN_DISCOVERY_DEFAULT_DURATION_MS,
+  LAN_DISCOVERY_MAX_DURATION_MS,
+  LAN_DISCOVERY_MIN_DURATION_MS
+} from "../devices/lan-discovery-service.js";
 import {
   generateRandomConsolePathPrefix,
   loadAccessPolicy,
@@ -96,8 +104,10 @@ Usage:
   ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
   ${identity.cliName} device status [--json]
+  ${identity.cliName} device discover [--timeout 3] [--verify] [--json]
   ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
   ${identity.cliName} device heartbeat [--json]
+  ${identity.cliName} device route status [--json]
   ${identity.cliName} device route verify <hub-url> [--json]
   ${identity.cliName} device agent [--json]
   ${identity.cliName} device agent --heartbeat-only [--interval 30] [--json]
@@ -498,6 +508,146 @@ async function main(): Promise<void> {
           else printDeviceStatus(status);
           return;
         }
+        case "discover": {
+          const timeoutValue = getFlag("--timeout");
+          const verifyCandidates = process.argv.includes("--verify");
+          const timeoutSeconds = timeoutValue === undefined
+            ? LAN_DISCOVERY_DEFAULT_DURATION_MS / 1_000
+            : Number(timeoutValue);
+          const durationMs = Math.round(timeoutSeconds * 1_000);
+          if (
+            !Number.isFinite(timeoutSeconds) ||
+            !Number.isInteger(durationMs) ||
+            durationMs < LAN_DISCOVERY_MIN_DURATION_MS ||
+            durationMs > LAN_DISCOVERY_MAX_DURATION_MS
+          ) {
+            throw new Error(
+              `device discover --timeout must be between ${LAN_DISCOVERY_MIN_DURATION_MS / 1_000} and ${LAN_DISCOVERY_MAX_DURATION_MS / 1_000} seconds`
+            );
+          }
+          const controller = new AbortController();
+          const stop = () => controller.abort();
+          const warnings = new Set<string>();
+          process.once("SIGINT", stop);
+          process.once("SIGTERM", stop);
+          try {
+            const snapshot = await discoverLanHubs({
+              provider: new BonjourLanDiscoveryProvider(),
+              durationMs,
+              signal: controller.signal,
+              onWarning: (code) => warnings.add(code)
+            });
+            const verification = new Map<number, {
+              verified: boolean;
+              controlTransportEligible: boolean;
+              transportSecurity: "plaintext-http" | "pinned-tls" | null;
+              origin: string | null;
+              secureOrigin: string | null;
+              code: string | null;
+            }>();
+            if (verifyCandidates) {
+              const status = service.status();
+              if (!status.configured || status.state !== "connected" || !status.hubId) {
+                throw new Error(
+                  "device discover --verify requires a connected Device Agent with a pinned Hub identity"
+                );
+              }
+              let attempted = 0;
+              for (let index = 0; index < snapshot.candidates.length; index += 1) {
+                const candidate = snapshot.candidates[index]!;
+                if (candidate.hubIdHint !== status.hubId) {
+                  verification.set(index, {
+                    verified: false,
+                    controlTransportEligible: false,
+                    transportSecurity: null,
+                    origin: null,
+                    secureOrigin: null,
+                    code: "DEVICE_AGENT_HUB_IDENTITY_MISMATCH"
+                  });
+                  continue;
+                }
+                if (attempted >= 8) {
+                  verification.set(index, {
+                    verified: false,
+                    controlTransportEligible: false,
+                    transportSecurity: null,
+                    origin: null,
+                    secureOrigin: null,
+                    code: "DEVICE_AGENT_LAN_VERIFY_LIMIT_REACHED"
+                  });
+                  continue;
+                }
+                attempted += 1;
+                try {
+                  const result = await service.verifyLanDiscoveryCandidate(candidate, {
+                    signal: controller.signal
+                  });
+                  verification.set(index, {
+                    verified: true,
+                    controlTransportEligible: result.controlTransportEligible,
+                    transportSecurity: result.transportSecurity,
+                    origin: result.origin,
+                    secureOrigin: result.secureOrigin,
+                    code: null
+                  });
+                } catch (error) {
+                  verification.set(index, {
+                    verified: false,
+                    controlTransportEligible: false,
+                    transportSecurity: null,
+                    origin: null,
+                    secureOrigin: null,
+                    code: error instanceof DeviceAgentProtocolError
+                      ? error.code
+                      : "DEVICE_AGENT_LAN_VERIFY_FAILED"
+                  });
+                }
+              }
+            }
+            if (json) {
+              printJson({
+                ...snapshot,
+                durationMs,
+                warnings: [...warnings].sort(),
+                verification: verifyCandidates
+                  ? snapshot.candidates.map((_candidate, index) => verification.get(index) ?? null)
+                  : null
+              });
+            } else if (snapshot.candidates.length === 0) {
+              process.stdout.write("No ChatCockpit Hubs discovered on the LAN.\n");
+            } else {
+              process.stdout.write("Discovered ChatCockpit Hubs (untrusted candidates)\n");
+              for (let index = 0; index < snapshot.candidates.length; index += 1) {
+                const candidate = snapshot.candidates[index]!;
+                const result = verification.get(index);
+                process.stdout.write(`\n${candidate.instanceName}\n`);
+                process.stdout.write(`  Host: ${candidate.host}:${candidate.port}\n`);
+                process.stdout.write(`  Addresses: ${candidate.addresses.join(", ")}\n`);
+                process.stdout.write(`  Hub hint: ${candidate.hubIdHint}\n`);
+                if (result?.verified) {
+                  process.stdout.write("  Trust: pinned Hub identity verified\n");
+                  if (result.controlTransportEligible && result.transportSecurity === "pinned-tls") {
+                    process.stdout.write(`  Transport: pinned LAN TLS (${result.secureOrigin})\n`);
+                    process.stdout.write("  Control route: eligible\n");
+                  } else {
+                    process.stdout.write("  Transport: plaintext LAN HTTP (control transport not eligible)\n");
+                  }
+                } else if (verifyCandidates) {
+                  process.stdout.write(`  Trust: not verified (${result?.code ?? "not attempted"})\n`);
+                } else {
+                  process.stdout.write("  Trust: verification required\n");
+                }
+              }
+              if (warnings.size > 0) {
+                process.stderr.write("LAN discovery completed with provider warnings.\n");
+              }
+            }
+          } finally {
+            process.removeListener("SIGINT", stop);
+            process.removeListener("SIGTERM", stop);
+          }
+          return;
+        }
         case "connect": {
           const hubUrl = process.argv[4];
           if (!hubUrl || hubUrl.startsWith("--")) {
@@ -545,8 +695,21 @@ async function main(): Promise<void> {
         }
         case "route": {
           const action = process.argv[4];
+          if (action === "status") {
+            const routeStatus = service.routeStatus();
+            if (json) printJson(routeStatus);
+            else {
+              process.stdout.write(`Route preference: ${routeStatus.preference === "lan" ? "LAN pinned TLS" : "Public"}\n`);
+              process.stdout.write(`LAN route: ${routeStatus.lan.configured ? "verified" : "not configured"}\n`);
+              if (routeStatus.lan.lastSuccessfulAt) {
+                process.stdout.write(`LAN last successful: ${routeStatus.lan.lastSuccessfulAt}\n`);
+              }
+              process.stdout.write(`Public route: ${routeStatus.public.configured ? "configured" : "not configured"}\n`);
+            }
+            return;
+          }
           if (action !== "verify") {
-            throw new Error("device route requires: verify <hub-url>");
+            throw new Error("device route requires one of: status, verify <hub-url>");
           }
           const hubUrl = process.argv[5];
           if (!hubUrl || hubUrl.startsWith("--")) {
@@ -637,7 +800,7 @@ async function main(): Promise<void> {
           return;
         }
         default:
-          throw new Error("device requires one of: status, connect, heartbeat, route, agent");
+          throw new Error("device requires one of: status, discover, connect, heartbeat, route, agent");
       }
     }
     case "connectivity": {
@@ -973,9 +1136,17 @@ async function main(): Promise<void> {
     }
     case "server": {
       await ensureSecureBootstrap(paths);
-      const app = buildServer(paths);
       const port = Number(readIdentityEnv("PORT") ?? "4318");
       const host = readIdentityEnv("HOST") ?? "127.0.0.1";
+      const defaultLanTlsPort = port < 65535 ? port + 1 : 4319;
+      const lanTlsPort = Number(readIdentityEnv("LAN_TLS_PORT") ?? String(defaultLanTlsPort));
+      if (!Number.isInteger(lanTlsPort) || lanTlsPort < 1 || lanTlsPort > 65535 || lanTlsPort === port) {
+        throw new Error("LAN TLS port must be a valid TCP port different from the primary Control Plane port");
+      }
+      const app = buildServer(paths, {
+        lanDiscovery: { host, port },
+        deviceLanTls: { host, port: lanTlsPort }
+      });
       await app.listen({ host, port });
       return;
     }

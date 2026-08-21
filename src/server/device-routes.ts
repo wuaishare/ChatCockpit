@@ -120,6 +120,56 @@ function projectManagedDevice(record: ManagedDeviceRecord) {
   };
 }
 
+export function registerDeviceHeartbeatRoute(
+  app: FastifyInstance,
+  store: DeviceRegistryStore,
+  options: { now?: () => string } = {}
+): void {
+  const now = options.now ?? (() => new Date().toISOString());
+  app.post("/api/devices/heartbeat", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const deviceId = requiredString(
+        body.deviceId,
+        "DEVICE_NOT_TRUSTED",
+        "Device ID is invalid",
+        180
+      );
+      if (!/^cc_device_[A-Za-z0-9_-]{20,80}$/.test(deviceId)) {
+        throw new DeviceRegistryError(400, "DEVICE_NOT_TRUSTED", "Device ID is invalid");
+      }
+      if (typeof body.sequence !== "number") {
+        throw new DeviceRegistryError(
+          400,
+          "DEVICE_SEQUENCE_INVALID",
+          "Device heartbeat sequence must be a positive integer"
+        );
+      }
+      const device = store.recordHeartbeat(
+        {
+          deviceId,
+          sequence: body.sequence,
+          signature: requiredString(
+            body.signature,
+            "DEVICE_SIGNATURE_INVALID",
+            "Device heartbeat signature is invalid",
+            256
+          )
+        },
+        now()
+      );
+      return {
+        ok: true,
+        deviceId: device.id,
+        acceptedSequence: device.lastSequence,
+        revision: device.revision
+      };
+    } catch (error) {
+      return deviceError(reply, error);
+    }
+  });
+}
+
 export function registerDeviceRoutes(
   app: FastifyInstance,
   store: DeviceRegistryStore,
@@ -268,48 +318,7 @@ export function registerDeviceRoutes(
     }
   });
 
-  app.post("/api/devices/heartbeat", async (request, reply) => {
-    try {
-      const body = (request.body ?? {}) as Record<string, unknown>;
-      const deviceId = requiredString(
-        body.deviceId,
-        "DEVICE_NOT_TRUSTED",
-        "Device ID is invalid",
-        180
-      );
-      if (!/^cc_device_[A-Za-z0-9_-]{20,80}$/.test(deviceId)) {
-        throw new DeviceRegistryError(400, "DEVICE_NOT_TRUSTED", "Device ID is invalid");
-      }
-      if (typeof body.sequence !== "number") {
-        throw new DeviceRegistryError(
-          400,
-          "DEVICE_SEQUENCE_INVALID",
-          "Device heartbeat sequence must be a positive integer"
-        );
-      }
-      const device = store.recordHeartbeat(
-        {
-          deviceId,
-          sequence: body.sequence,
-          signature: requiredString(
-            body.signature,
-            "DEVICE_SIGNATURE_INVALID",
-            "Device heartbeat signature is invalid",
-            256
-          )
-        },
-        now()
-      );
-      return {
-        ok: true,
-        deviceId: device.id,
-        acceptedSequence: device.lastSequence,
-        revision: device.revision
-      };
-    } catch (error) {
-      return deviceError(reply, error);
-    }
-  });
+  registerDeviceHeartbeatRoute(app, store, { now });
 
   app.delete("/api/devices/:deviceId", async (request, reply) => {
     const authError = operatorSessionError(request, reply);

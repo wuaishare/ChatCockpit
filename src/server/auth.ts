@@ -78,6 +78,8 @@ function isPublicPath(url: string, secureEntryPath: string): boolean {
     pathname === "/api/health" ||
     pathname === "/api/hub/identity" ||
     pathname === "/api/hub/identity/proof" ||
+    pathname === "/api/hub/lan-tls" ||
+    pathname === "/api/hub/lan-tls/proof" ||
     pathname === "/tokenpilot/api/health" ||
     pathname === "/openapi.yaml" ||
     pathname === "/privacy-policy"

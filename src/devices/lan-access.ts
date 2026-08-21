@@ -26,6 +26,12 @@ export interface LanAccessSnapshotInput {
   addresses?: readonly string[];
 }
 
+export interface TrustedLanListenerAddressInput {
+  policy: AccessPolicy;
+  host: string;
+  addresses?: readonly string[];
+}
+
 function systemLanAddresses(): string[] {
   const addresses: string[] = [];
   for (const entries of Object.values(networkInterfaces())) {
@@ -63,6 +69,19 @@ function formatUrlHost(address: string): string {
   return isIpv6(address) ? `[${address}]` : address;
 }
 
+export function trustedLanListenerAddresses(
+  input: TrustedLanListenerAddressInput
+): string[] {
+  if (!input.policy.trustedLan.enabled || isLoopbackHost(input.host)) return [];
+  const addresses = input.addresses ? [...input.addresses] : systemLanAddresses();
+  const trustedAddresses = [...new Set(addresses)]
+    .map((address) => address.trim())
+    .filter(Boolean)
+    .filter((address) => isTrustedLanAddress(address, input.policy))
+    .sort();
+  return listenerAddresses(input.host, trustedAddresses);
+}
+
 export function buildLanAccessSnapshot(input: LanAccessSnapshotInput): LanAccessSnapshot {
   const trustedCidrs = [...input.policy.trustedLan.cidrs];
   if (!input.policy.trustedLan.enabled) {
@@ -85,13 +104,7 @@ export function buildLanAccessSnapshot(input: LanAccessSnapshotInput): LanAccess
     };
   }
 
-  const addresses = input.addresses ? [...input.addresses] : systemLanAddresses();
-  const trustedAddresses = [...new Set(addresses)]
-    .map((address) => address.trim())
-    .filter(Boolean)
-    .filter((address) => isTrustedLanAddress(address, input.policy))
-    .sort();
-  const reachableAddresses = listenerAddresses(input.host, trustedAddresses);
+  const reachableAddresses = trustedLanListenerAddresses(input);
 
   if (reachableAddresses.length === 0) {
     return {

@@ -51,6 +51,10 @@ export const RUNTIME_IDENTITY_ENV = {
     legacy: "TOKENPILOT_INSTALL_ROOT",
     target: "CHATCOCKPIT_INSTALL_ROOT"
   },
+  LAN_TLS_PORT: {
+    legacy: "TOKENPILOT_LAN_TLS_PORT",
+    target: "CHATCOCKPIT_LAN_TLS_PORT"
+  },
   NODE_BIN: {
     legacy: "TOKENPILOT_NODE_BIN",
     target: "CHATCOCKPIT_NODE_BIN"

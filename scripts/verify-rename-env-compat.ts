@@ -53,6 +53,9 @@ assert.doesNotMatch(conflict.message, /target-do-not-print/);
 
 assert.equal(RUNTIME_IDENTITY_ENV.CONFIG_PATH.legacy, "TOKENPILOT_CONFIG_PATH");
 assert.equal(RUNTIME_IDENTITY_ENV.CONFIG_PATH.target, "CHATCOCKPIT_CONFIG_PATH");
+assert.equal(RUNTIME_IDENTITY_ENV.LAN_TLS_PORT.legacy, "TOKENPILOT_LAN_TLS_PORT");
+assert.equal(RUNTIME_IDENTITY_ENV.LAN_TLS_PORT.target, "CHATCOCKPIT_LAN_TLS_PORT");
+assert.equal(readIdentityEnv("LAN_TLS_PORT", { CHATCOCKPIT_LAN_TLS_PORT: "4319" }), "4319");
 
 const targetOnlyEnv = {
   CHATCOCKPIT_DISTRIBUTION_MODE: "packaged",

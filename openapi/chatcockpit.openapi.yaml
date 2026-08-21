@@ -316,6 +316,35 @@ components:
         nonce: { type: string, minLength: 16, maxLength: 128 }
         signature: { type: string, description: Base64url Ed25519 signature over the canonical Hub identity proof. }
       required: [ok, hubId, nonce, signature]
+    LanTlsIdentitySummary:
+      type: object
+      additionalProperties: false
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        algorithm: { type: string, const: P-256 }
+        certificate: { type: string, description: PEM-encoded self-signed LAN TLS certificate. }
+        certificateFingerprint: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        createdAt: { type: string }
+        notAfter: { type: string }
+      required: [schemaVersion, algorithm, certificate, certificateFingerprint, createdAt, notAfter]
+    LanTlsIdentityResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        hubId: { type: string, pattern: '^cc_hub_[A-Za-z0-9_-]{43}$' }
+        tls: { $ref: '#/components/schemas/LanTlsIdentitySummary' }
+      required: [ok, hubId, tls]
+    LanTlsProofResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        hubId: { type: string, pattern: '^cc_hub_[A-Za-z0-9_-]{43}$' }
+        nonce: { type: string, minLength: 16, maxLength: 128 }
+        certificateFingerprint: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        signature: { type: string, description: Hub Ed25519 signature binding the nonce to the LAN TLS certificate fingerprint. }
+      required: [ok, hubId, nonce, certificateFingerprint, signature]
     ManagedDeviceSummary:
       type: object
       additionalProperties: false
@@ -6216,6 +6245,72 @@ paths:
                 $ref: '#/components/schemas/HubIdentityProofResponse'
         "400":
           description: Invalid proof nonce
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/hub/lan-tls:
+    get:
+      operationId: getLanTlsIdentity
+      summary: Get the LAN TLS certificate
+      description: Returns the public self-signed LAN TLS certificate and fingerprint when Trusted LAN is enabled. This material grants no Owner or Device authority and remains subject to Access Policy admission.
+      security: []
+      responses:
+        "200":
+          description: Public LAN TLS identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LanTlsIdentityResponse'
+        "404":
+          description: LAN TLS is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "503":
+          description: LAN TLS identity is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/hub/lan-tls/proof:
+    post:
+      operationId: proveLanTlsIdentity
+      summary: Bind the LAN TLS certificate to Hub identity
+      description: Signs a nonce plus the current LAN TLS certificate fingerprint with the stable Hub Ed25519 key so an enrolled Agent can pin the certificate without treating mDNS or HTTP as trust.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nonce: { type: string, minLength: 16, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+              required: [nonce]
+      responses:
+        "200":
+          description: Signed LAN TLS certificate proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LanTlsProofResponse'
+        "400":
+          description: Invalid proof nonce
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: LAN TLS is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "503":
+          description: LAN TLS identity is unavailable
           content:
             application/json:
               schema:
