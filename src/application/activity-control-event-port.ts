@@ -18,5 +18,6 @@ export interface ActivityControlEventPage {
 export interface ActivityControlEventReader {
   latestSequence(): number;
   latestForJob(jobId: string): ActivityControlEventRecord | null;
+  listRecentForJob(jobId: string, limit?: number): ActivityControlEventRecord[];
   list(input?: { afterSequence?: number; limit?: number }): ActivityControlEventPage;
 }

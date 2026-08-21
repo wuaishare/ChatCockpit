@@ -14,6 +14,7 @@ const statusLanguage = read("web/src/status-language.ts");
 
 for (const required of [
   "fetchOperationalActivities",
+  "fetchOperationalActivityTimeline",
   'new EventSource("/api/activities/stream", { withCredentials: true })',
   'source.addEventListener("activity.snapshot"',
   'source.addEventListener("activity.event"',
@@ -32,12 +33,17 @@ for (const required of [
   "controlJob(",
   "crypto.randomUUID()",
   "Popconfirm",
-  "slice(0, 6)"
+  "slice(0, 6)",
+  "activityTimelineShow",
+  "resource-center__activity-timeline-list",
+  'role="log"',
+  "timelineByActivity"
 ]) {
   assert.equal(panel.includes(required), true, `Operational Activity UI must retain ${required}`);
 }
 
 assert.match(api, /fetchOperationalActivities[\s\S]*?"\/api\/activities"/);
+assert.match(api, /fetchOperationalActivityTimeline[\s\S]*?`\/api\/activities\/\$\{encodeURIComponent\(activityId\)\}\/events\?limit=50`/);
 for (const metric of ["active", "running", "waitingApproval", "paused", "total"]) {
   assert.equal(
     panel.includes(`snapshot?.counts.${metric} ?? "—"`),
@@ -91,6 +97,8 @@ for (const requiredCss of [
   "resource-center__activity-card--running",
   "resource-center__activity-metrics",
   "resource-center__activity-card-actions",
+  "resource-center__activity-timeline-list",
+  "resource-center__activity-timeline-item",
   "resource-center__activity-recent-list",
   "@media (max-width: 650px)",
   "@media (prefers-reduced-motion: reduce)"
@@ -135,7 +143,9 @@ for (const requiredCopy of [
   'activityResume: "Resume task"',
   'activityTerminate: "Terminate task"',
   'activityInterrupt: "Interrupt run"',
-  'activityInterruptFailed: "Interrupt failed. It is safe to retry."'
+  'activityInterruptFailed: "Interrupt failed. It is safe to retry."',
+  'activityTimelineShow: "Run history"',
+  'activityTimelineTitle: "Run timeline"'
 ]) {
   assert.equal(copy.includes(requiredCopy), true, `Activity UI i18n must retain ${requiredCopy}`);
 }

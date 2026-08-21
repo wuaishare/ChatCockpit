@@ -30,6 +30,11 @@ export interface ResourceCenterCopy {
   activityTerminateConfirm: string;
   activityTerminateCancel: string;
   activityJobControlFailed: string;
+  activityTimelineShow: string;
+  activityTimelineHide: string;
+  activityTimelineTitle: string;
+  activityTimelineEmpty: string;
+  activityTimelineLoadFailed: string;
   activityActive: string;
   activityRunning: string;
   activityWaitingApproval: string;
@@ -227,6 +232,11 @@ const zhCN: ResourceCenterCopy = {
   activityTerminateConfirm: "确认终止",
   activityTerminateCancel: "取消",
   activityJobControlFailed: "任务控制失败，可安全重试。",
+  activityTimelineShow: "运行记录",
+  activityTimelineHide: "收起记录",
+  activityTimelineTitle: "运行时间线",
+  activityTimelineEmpty: "当前还没有可公开展示的运行事件。",
+  activityTimelineLoadFailed: "运行记录读取失败。",
   activityActive: "活跃",
   activityRunning: "运行中",
   activityWaitingApproval: "等待批准",
@@ -424,6 +434,11 @@ const enUS: ResourceCenterCopy = {
   activityTerminateConfirm: "Terminate",
   activityTerminateCancel: "Cancel",
   activityJobControlFailed: "Task control failed. It is safe to retry.",
+  activityTimelineShow: "Run history",
+  activityTimelineHide: "Hide history",
+  activityTimelineTitle: "Run timeline",
+  activityTimelineEmpty: "No public-safe runtime events are available yet.",
+  activityTimelineLoadFailed: "Run history could not be loaded.",
   activityActive: "Active",
   activityRunning: "Running",
   activityWaitingApproval: "Waiting approval",

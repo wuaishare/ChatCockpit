@@ -418,6 +418,17 @@ components:
         updatedAt: { type: string }
         endedAt: { oneOf: [{ type: string }, { type: "null" }] }
       required: [id, kind, scope, status, title, targetDeviceId, projectId, workspaceId, taskId, repoId, agentSessionId, authorizationGrantId, traceId, workerInstanceId, runtime, job, directProcessSummary, latestEvent, controls, startedAt, updatedAt, endedAt]
+    OperationalActivityTimelineResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, enum: [true] }
+        activityId: { type: string }
+        events:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/OperationalActivityEvent' }
+      required: [ok, activityId, events]
     OperationalActivityListResponse:
       type: object
       additionalProperties: false
@@ -5999,6 +6010,41 @@ paths:
                 $ref: '#/components/schemas/OperationalActivityListResponse'
         "401":
           description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/activities/{activityId}/events:
+    get:
+      operationId: getOperationalActivityTimeline
+      summary: Read one Owner-visible operational activity timeline
+      description: Returns up to 100 recent normalized public-safe runtime and Job control events for one Activity. Raw runtime methods, commands, private paths, job instructions, process output, credentials and Governance records are excluded.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Public-safe operational activity timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalActivityTimelineResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Operational activity not found
           content:
             application/json:
               schema:

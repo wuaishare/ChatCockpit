@@ -40,6 +40,20 @@ export function registerOperationalActivityRoutes(
     return { ok: true, ...activities.list() };
   });
 
+  app.get<{ Params: { activityId: string }; Querystring: { limit?: string } }>(
+    "/api/activities/:activityId/events",
+    async (request, reply) => {
+      const authError = operatorSessionError(request, reply);
+      if (authError) return authError;
+      const requestedLimit = Number(request.query.limit ?? 50);
+      const timeline = activities.timeline(request.params.activityId, requestedLimit);
+      if (!timeline) {
+        return sendApiError(reply, 404, "OPERATIONAL_ACTIVITY_NOT_FOUND", "Operational activity not found");
+      }
+      return { ok: true, ...timeline };
+    }
+  );
+
   app.get("/api/activities/stream", async (request, reply) => {
     const authError = operatorSessionError(request, reply);
     if (authError) return authError;

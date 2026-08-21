@@ -3,6 +3,7 @@ import {
   ClockCircleOutlined,
   CloudServerOutlined,
   DesktopOutlined,
+  HistoryOutlined,
   ReloadOutlined,
   StopOutlined,
   ThunderboltOutlined
@@ -11,7 +12,7 @@ import { Button, Empty, Popconfirm, Tag, Tooltip } from "antd";
 import { Text } from "@lobehub/ui";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { controlJob, fetchOperationalActivities, interruptCodexRuntimeTurn } from "../../api";
+import { controlJob, fetchOperationalActivities, fetchOperationalActivityTimeline, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import type { ResourceCenterCopy } from "../../i18n/resources";
 import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
@@ -21,6 +22,7 @@ import type {
   OperationalActivityEventResponse,
   OperationalActivityListResponse,
   OperationalActivityProjection,
+  OperationalActivityTimelineResponse,
   OperationalActivityStatus
 } from "../../types";
 
@@ -110,6 +112,12 @@ function activityEventDetail(event: OperationalActivityEventProjection): string 
   return event.approvalKind ?? event.itemType ?? event.code;
 }
 
+function currentStepLabel(copy: ResourceCenterCopy, activity: OperationalActivityProjection): string {
+  if (activity.latestEvent) return activityEventLabel(copy, activity.latestEvent);
+  if (activity.job?.processLabel) return activity.job.processLabel;
+  return copy.activityEventActivity;
+}
+
 function ActivityIdentity({
   label,
   value,
@@ -142,8 +150,13 @@ const ActivityCard = memo(function ActivityCard({
   workspaceLabel,
   interrupting,
   controllingAction,
+  timeline,
+  timelineExpanded,
+  timelineLoading,
+  timelineError,
   onInterrupt,
-  onJobControl
+  onJobControl,
+  onToggleTimeline
 }: {
   activity: OperationalActivityProjection;
   locale: LocaleCode;
@@ -152,8 +165,13 @@ const ActivityCard = memo(function ActivityCard({
   workspaceLabel: string | null;
   interrupting: boolean;
   controllingAction: "pause" | "resume" | "terminate" | null;
+  timeline: OperationalActivityEventProjection[];
+  timelineExpanded: boolean;
+  timelineLoading: boolean;
+  timelineError: boolean;
   onInterrupt: (activity: OperationalActivityProjection) => void;
   onJobControl: (activity: OperationalActivityProjection, action: "pause" | "resume" | "terminate") => void;
+  onToggleTimeline: (activity: OperationalActivityProjection) => void;
 }) {
   const runtime = runtimeLabel(activity);
   const context =
@@ -237,10 +255,24 @@ const ActivityCard = memo(function ActivityCard({
               </Button>
             </Popconfirm>
           ) : null}
+          <Button
+            size="small"
+            type="text"
+            icon={<HistoryOutlined />}
+            loading={timelineLoading}
+            onClick={() => onToggleTimeline(activity)}
+          >
+            {timelineExpanded ? copy.activityTimelineHide : copy.activityTimelineShow}
+          </Button>
           <Tag color={getOperationalStatusTone(activity.status)}>
             {getOperationalStatusLabel(locale, activity.status)}
           </Tag>
         </div>
+      </div>
+
+      <div className="resource-center__activity-current-step">
+        <span>{copy.activityLastEvent}</span>
+        <strong>{currentStepLabel(copy, activity)}</strong>
       </div>
 
       <div className="resource-center__activity-facts">
@@ -266,6 +298,33 @@ const ActivityCard = memo(function ActivityCard({
           {activity.job?.processLabel ? <span>{copy.activityJob}: {activity.job.processLabel}</span> : null}
         </div>
       ) : null}
+
+      {timelineExpanded ? (
+        <div className="resource-center__activity-timeline">
+          <div className="resource-center__activity-timeline-head">
+            <Text as="span" strong>{copy.activityTimelineTitle}</Text>
+            <code>{compactId(activity.id)}</code>
+          </div>
+          {timelineError ? (
+            <div className="resource-center__activity-timeline-empty">{copy.activityTimelineLoadFailed}</div>
+          ) : timeline.length === 0 && !timelineLoading ? (
+            <div className="resource-center__activity-timeline-empty">{copy.activityTimelineEmpty}</div>
+          ) : (
+            <div className="resource-center__activity-timeline-list" role="log" aria-live="polite">
+              {timeline.map((event) => (
+                <div key={`${event.source}:${event.id}`} className="resource-center__activity-timeline-item">
+                  <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString(locale)}</time>
+                  <span className="resource-center__activity-timeline-dot" aria-hidden="true" />
+                  <span className="resource-center__activity-timeline-event">
+                    {activityEventLabel(copy, event)}
+                    {activityEventDetail(event) ? <code>{activityEventDetail(event)}</code> : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </article>
   );
 });
@@ -284,6 +343,10 @@ export function OperationalActivityPanel({
   const [interruptError, setInterruptError] = useState<string | null>(null);
   const [controllingJob, setControllingJob] = useState<{ activityId: string; action: "pause" | "resume" | "terminate" } | null>(null);
   const [jobControlError, setJobControlError] = useState<string | null>(null);
+  const [expandedTimelineId, setExpandedTimelineId] = useState<string | null>(null);
+  const [timelineByActivity, setTimelineByActivity] = useState<Record<string, OperationalActivityEventProjection[]>>({});
+  const [timelineLoadingId, setTimelineLoadingId] = useState<string | null>(null);
+  const [timelineErrorId, setTimelineErrorId] = useState<string | null>(null);
   const interruptKeys = useRef(new Map<string, string>());
   const jobControlKeys = useRef(new Map<string, string>());
 
@@ -333,6 +396,17 @@ export function OperationalActivityPanel({
             };
           });
           return changed ? { ...current, activities } : current;
+        });
+        setTimelineByActivity((current) => {
+          const existing = current[next.event.activityId];
+          if (!existing) return current;
+          if (existing.some((event) => event.source === next.event.source && event.id === next.event.id)) return current;
+          return {
+            ...current,
+            [next.event.activityId]: [...existing, next.event]
+              .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.source.localeCompare(b.source) || a.sequence - b.sequence)
+              .slice(-50)
+          };
         });
         setStreamState("live");
       } catch {
@@ -418,6 +492,25 @@ export function OperationalActivityPanel({
       setControllingJob((current) => current?.activityId === activity.id && current.action === action ? null : current);
     }
   }, [copy.activityJobControlFailed, load, token]);
+
+  const toggleTimeline = useCallback(async (activity: OperationalActivityProjection) => {
+    if (expandedTimelineId === activity.id) {
+      setExpandedTimelineId(null);
+      return;
+    }
+    setExpandedTimelineId(activity.id);
+    if (timelineByActivity[activity.id]) return;
+    setTimelineLoadingId(activity.id);
+    setTimelineErrorId(null);
+    try {
+      const response: OperationalActivityTimelineResponse = await fetchOperationalActivityTimeline(activity.id, token);
+      setTimelineByActivity((current) => ({ ...current, [activity.id]: response.events }));
+    } catch {
+      setTimelineErrorId(activity.id);
+    } finally {
+      setTimelineLoadingId((current) => current === activity.id ? null : current);
+    }
+  }, [expandedTimelineId, timelineByActivity, token]);
 
   const projectNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -515,8 +608,13 @@ export function OperationalActivityPanel({
               workspaceLabel={activity.workspaceId ? workspaceNames.get(activity.workspaceId) ?? null : null}
               interrupting={interruptingActivityId === activity.id}
               controllingAction={controllingJob?.activityId === activity.id ? controllingJob.action : null}
+              timeline={timelineByActivity[activity.id] ?? []}
+              timelineExpanded={expandedTimelineId === activity.id}
+              timelineLoading={timelineLoadingId === activity.id}
+              timelineError={timelineErrorId === activity.id}
               onInterrupt={interruptActivity}
               onJobControl={controlActivityJob}
+              onToggleTimeline={toggleTimeline}
             />
           ))}
         </div>

@@ -117,6 +117,19 @@ export class RuntimeEventRepository {
     return row ? eventFromRow(row) : null;
   }
 
+  listRecentForSession(sessionId: string, limit = 50): RuntimeEventRecord[] {
+    const boundedLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
+    const rows = this.database.sqlite
+      .prepare(`
+        SELECT * FROM runtime_events
+        WHERE session_id = ?
+        ORDER BY sequence DESC
+        LIMIT ?
+      `)
+      .all(sessionId, boundedLimit) as unknown as RuntimeEventRow[];
+    return rows.reverse().map(eventFromRow);
+  }
+
   list(input: ListRuntimeEventsInput = {}): RuntimeEventPage {
     const conditions = ["sequence > ?"];
     const values: Array<string | number> = [input.afterSequence ?? 0];

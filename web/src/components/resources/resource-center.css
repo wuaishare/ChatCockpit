@@ -676,6 +676,28 @@
   margin-top: 2px;
 }
 
+.resource-center__activity-current-step {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--tp-field);
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+}
+
+.resource-center__activity-current-step span {
+  color: var(--tp-text-soft);
+  font-size: var(--tp-text-xs);
+}
+
+.resource-center__activity-current-step strong {
+  overflow: hidden;
+  color: var(--tp-text-strong);
+  font-size: var(--tp-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .resource-center__activity-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -722,6 +744,73 @@
 .resource-center__activity-foot code {
   color: var(--tp-text-muted);
   font-family: var(--tp-font-mono);
+}
+
+.resource-center__activity-timeline {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.resource-center__activity-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+}
+
+.resource-center__activity-timeline-head code {
+  font-family: var(--tp-font-mono);
+  font-size: 11px;
+}
+
+.resource-center__activity-timeline-list {
+  display: grid;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.resource-center__activity-timeline-item {
+  display: grid;
+  grid-template-columns: 72px 10px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+}
+
+.resource-center__activity-timeline-item time {
+  font-family: var(--tp-font-mono);
+  color: var(--tp-text-soft);
+}
+
+.resource-center__activity-timeline-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--tp-line-strong);
+}
+
+.resource-center__activity-timeline-event {
+  min-width: 0;
+}
+
+.resource-center__activity-timeline-event code {
+  margin-left: 8px;
+  color: var(--tp-text-soft);
+  font-family: var(--tp-font-mono);
+}
+
+.resource-center__activity-timeline-empty {
+  padding: 10px 0;
+  color: var(--tp-text-soft);
+  font-size: var(--tp-text-xs);
 }
 
 .resource-center__activity-empty {
@@ -817,6 +906,7 @@
   }
 
   .resource-center__activity-facts,
+  .resource-center__activity-current-step,
   .resource-center__activity-grid {
     grid-template-columns: 1fr;
   }

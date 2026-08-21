@@ -99,6 +99,11 @@ export interface OperationalActivityEventPageResult {
   hasMore: boolean;
 }
 
+export interface OperationalActivityTimelineResult {
+  activityId: string;
+  events: OperationalActivityEventProjection[];
+}
+
 export interface OperationalActivityListResult {
   activities: OperationalActivityProjection[];
   counts: {
@@ -194,6 +199,32 @@ export class OperationalActivityService {
     private readonly activityProvenance?: ActivityProvenanceReader,
     private readonly activityControlEvents?: ActivityControlEventReader
   ) {}
+
+  timeline(activityId: string, limit = 50): OperationalActivityTimelineResult | null {
+    const boundedLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const snapshot = this.list();
+    const activity = snapshot.activities.find((item) => item.id === activityId);
+    if (!activity) return null;
+
+    const runtimeEvents = activity.kind === "agent-session"
+      ? this.repositories.runtimeEvents
+          .listRecentForSession(activity.id, boundedLimit)
+          .map(projectOperationalActivityEvent)
+      : [];
+    const controlEvents = activity.job && this.activityControlEvents
+      ? this.activityControlEvents
+          .listRecentForJob(activity.job.id, boundedLimit)
+          .map((event) => projectOperationalActivityControlEvent(event, activity.id))
+      : [];
+    const events = [...runtimeEvents, ...controlEvents]
+      .sort((a, b) =>
+        a.createdAt.localeCompare(b.createdAt) ||
+        a.source.localeCompare(b.source) ||
+        a.sequence - b.sequence
+      )
+      .slice(-boundedLimit);
+    return { activityId: activity.id, events };
+  }
 
   list(): OperationalActivityListResult {
     const sessions = this.repositories.sessions.listAll();
