@@ -41,6 +41,10 @@ import { OperatorPasskeyService } from "../auth/operator-passkey-service.js";
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorAuthError, OperatorService } from "../auth/operator-service.js";
 import { OperatorTotpService } from "../auth/operator-totp-service.js";
+import {
+  DeviceRegistryStore,
+  deviceRegistryDatabasePath
+} from "../devices/device-registry.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -153,6 +157,7 @@ import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
+import { registerDeviceRoutes } from "./device-routes.js";
 import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import {
   registerWebSecurityHeaders,
@@ -305,6 +310,7 @@ export interface BuildServerOptions {
   activityStreamPollIntervalMs?: number;
   activityStreamHeartbeatIntervalMs?: number;
   jobProcessSignalAdapter?: JobProcessSignalAdapter;
+  deviceNow?: () => string;
 }
 
 export function buildServer(
@@ -355,6 +361,9 @@ export function buildServer(
   const operatorTotpService = new OperatorTotpService({
     store: operatorStore,
     runtimeDir: paths.runtimeDir
+  });
+  const deviceRegistryStore = new DeviceRegistryStore({
+    path: deviceRegistryDatabasePath(paths.runtimeDir)
   });
   const publicRouteCandidateStore =
     options.publicRouteCandidateStore ??
@@ -641,6 +650,9 @@ export function buildServer(
     operatorPasskeyService,
     operatorTotpService
   );
+  registerDeviceRoutes(app, deviceRegistryStore, {
+    ...(options.deviceNow ? { now: options.deviceNow } : {})
+  });
   registerCapabilityRouterMutationRoutes(
     app,
     capabilityRouterMutations,
@@ -653,6 +665,7 @@ export function buildServer(
     continuityDatabase.close();
     oauthStore?.close();
     operatorStore.close();
+    deviceRegistryStore.close();
   });
   const exposedRuntimeResourceMutationService = isResourceMutationExposureEnabled()
     ? runtimeResourceMutationService

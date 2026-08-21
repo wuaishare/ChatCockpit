@@ -105,6 +105,7 @@ export interface UiCopy {
     dashboard: string;
     continuity: string;
     resources: string;
+    devices: string;
     jobs: string;
     publicAccess: string;
     integrations: string;
@@ -396,6 +397,7 @@ const zhCN: UiCopy = {
     dashboard: "总览",
     continuity: "连续性",
     resources: "资源中心",
+    devices: "设备",
     jobs: "任务",
     publicAccess: "公网接入",
     integrations: "集成",
@@ -750,6 +752,7 @@ const enUS: UiCopy = {
     dashboard: "Dashboard",
     continuity: "Continuity",
     resources: "Resources",
+    devices: "Devices",
     jobs: "Jobs",
     publicAccess: "Public Access",
     integrations: "Integrations",

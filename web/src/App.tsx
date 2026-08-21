@@ -144,6 +144,9 @@ const IntegrationsView = lazy(() =>
 const PublicAccessView = lazy(() =>
   import("./components/PublicAccessView").then((module) => ({ default: module.PublicAccessView }))
 );
+const DevicesView = lazy(() =>
+  import("./components/DevicesView").then((module) => ({ default: module.DevicesView }))
+);
 const ContinuityWorkbenchView = lazy(() =>
   import("./components/continuity/ContinuityWorkbenchView").then((module) => ({
     default: module.ContinuityWorkbenchView
@@ -166,6 +169,7 @@ const VIEW_PATHS: Record<ViewKey, string> = {
   dashboard: consolePath(),
   continuity: consolePath("continuity"),
   resources: consolePath("resources"),
+  devices: consolePath("devices"),
   jobs: consolePath("jobs"),
   publicAccess: consolePath("public-access"),
   integrations: consolePath("integrations")
@@ -250,6 +254,9 @@ function parseRoute(): {
   }
   if (route === "resources") {
     return { view: "resources", jobId: null, continuitySection: "projects" };
+  }
+  if (route === "devices") {
+    return { view: "devices", jobId: null, continuitySection: "projects" };
   }
   if (route === "public-access") {
     return { view: "publicAccess", jobId: null, continuitySection: "projects" };
@@ -1055,6 +1062,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     dashboard: copy.header.dashboard,
     continuity: copy.header.continuity,
     resources: copy.header.resources,
+    devices: copy.header.devices,
     jobs: copy.header.jobs,
     publicAccess: copy.header.publicAccess,
     integrations: copy.header.integrations
@@ -1157,6 +1165,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           dashboard: copy.header.dashboard,
           continuity: copy.header.continuity,
           resources: copy.header.resources,
+          devices: copy.header.devices,
           jobs: copy.header.jobs,
           publicAccess: copy.header.publicAccess,
           integrations: copy.header.integrations,
@@ -1295,6 +1304,20 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               token={token}
               authRequired={health.authRequired}
             />
+          </Suspense>
+        ) : null}
+
+        {activeView === "devices" ? (
+          <Suspense
+            fallback={
+              <ViewLoadingState
+                title={copy.header.devices}
+                description={copy.notices.loadingConsoleDescription}
+                retryLabel={copy.common.retry}
+              />
+            }
+          >
+            <DevicesView locale={locale} />
           </Suspense>
         ) : null}
 
