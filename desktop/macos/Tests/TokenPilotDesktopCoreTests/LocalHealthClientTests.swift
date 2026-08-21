@@ -50,11 +50,11 @@ struct LocalHealthClientTests {
         let urls = await transport.urls()
 
         #expect(urls.contains(URL(string: "http://localhost:5123/api/health")!))
-        #expect(urls.contains(URL(string: "http://localhost:5123/ui")!))
+        #expect(urls.contains(URL(string: "http://localhost:5123/ui?probe=1")!))
     }
 
-    @Test("probes the configured console path instead of assuming ui")
-    func probesConfiguredConsolePath() async {
+    @Test("probes the configured secure login entry without issuing a login gate")
+    func probesConfiguredSecureLoginEntry() async {
         let transport = RecordingHTTPTransport()
         let client = LocalHealthClient(transport: transport)
         let configuration = DesktopRuntimeConfiguration(
@@ -67,8 +67,8 @@ struct LocalHealthClientTests {
         let urls = await transport.urls()
 
         #expect(urls.contains(URL(string: "http://localhost:5123/api/health")!))
-        #expect(urls.contains(URL(string: "http://localhost:5123/ops-desktop")!))
-        #expect(urls.contains(URL(string: "http://localhost:5123/ui")!) == false)
+        #expect(urls.contains(URL(string: "http://localhost:5123/ops-desktop?probe=1")!))
+        #expect(urls.contains(URL(string: "http://localhost:5123/ui?probe=1")!) == false)
     }
 }
 

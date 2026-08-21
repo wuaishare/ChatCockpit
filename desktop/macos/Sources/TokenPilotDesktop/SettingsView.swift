@@ -375,7 +375,7 @@ struct SettingsView: View {
             }
 
             Section(DesktopL10n.string("Access Policy")) {
-                LabeledContent(DesktopL10n.string("Console path")) {
+                LabeledContent(DesktopL10n.string("Secure login entry")) {
                     HStack(spacing: 8) {
                         TextField("", text: $consolePathPrefix)
                             .font(.system(.body, design: .monospaced))
@@ -385,7 +385,7 @@ struct SettingsView: View {
 
                         iconActionButton(
                             systemName: model.isGeneratingConsolePath ? "arrow.triangle.2.circlepath" : "arrow.clockwise",
-                            title: DesktopL10n.string("Generate a new random console path"),
+                            title: DesktopL10n.string("Generate a new secure login entry"),
                             disabled: model.accessPolicyStatus == nil || model.isSecurityRefreshing || model.isGeneratingConsolePath
                         ) {
                             Task {
@@ -424,7 +424,7 @@ struct SettingsView: View {
 
                 Text(
                     DesktopL10n.string(
-                        "A custom console path only reduces opportunistic scanning; it never replaces authentication. Trusted LAN CIDRs are a network admission gate only. Allowed LAN devices must still sign in with a Passkey or password fallback, and public access remains HTTPS + authentication."
+                        "The secure login entry gates new unauthenticated Web sign-ins; it never replaces authentication. Existing signed-in sessions continue to use the stable /ui/ Cockpit. Trusted LAN CIDRs are a network admission gate only, and allowed LAN devices must still authenticate."
                     )
                 )
                     .font(.caption)

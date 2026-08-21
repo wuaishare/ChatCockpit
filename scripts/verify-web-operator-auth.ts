@@ -313,6 +313,10 @@ async function main(): Promise<void> {
     });
     assert.equal(logout.status, 200);
     assert.match(logout.headers.get("set-cookie") ?? "", /Max-Age=0/i);
+    const logoutBody = (await logout.json()) as { ok: true; loginPath: string };
+    assert.match(logoutBody.loginPath, /^\/ui\/login\?gate=cc_login_gate_[A-Za-z0-9_-]{43}$/);
+    const reloginDocument = await fetch(new URL(logoutBody.loginPath, server.baseUrl));
+    assert.equal(reloginDocument.status, 200);
 
     const afterLogout = await fetch(`${server.baseUrl}/api/jobs`, {
       headers: { cookie: secondCookie }

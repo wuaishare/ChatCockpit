@@ -1,13 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import type { OperatorService } from "../auth/operator-service.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { projectOpenApiForProduct } from "../core/openapi-product-projection.js";
 import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
 import { sendApiError } from "./errors.js";
+import { operatorSessionFromRequest } from "./operator-auth-context.js";
 
 const UI_DOCUMENT_CACHE_CONTROL = "no-store";
 const UI_HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -167,10 +169,33 @@ function renderPrivacyPolicy(displayName: string): string {
 </html>`;
 }
 
+function validatedOAuthReturnTo(value: string | null): string | null {
+  if (!value || !value.startsWith("/")) return null;
+  try {
+    const target = new URL(value, "http://chatcockpit.local");
+    if (target.origin !== "http://chatcockpit.local" || target.pathname !== "/oauth/authorize") {
+      return null;
+    }
+    const allowedKeys = new Set(["request_id", "ui_locales"]);
+    if ([...target.searchParams.keys()].some((key) => !allowedKeys.has(key))) return null;
+    const requestId = target.searchParams.get("request_id");
+    if (!requestId || !/^oauth_request_[0-9a-f-]{36}$/i.test(requestId)) return null;
+    const params = new URLSearchParams({ request_id: requestId });
+    const uiLocales = target.searchParams.get("ui_locales");
+    if (uiLocales === "zh-CN" || uiLocales === "en-US") {
+      params.set("ui_locales", uiLocales);
+    }
+    return `/oauth/authorize?${params.toString()}`;
+  } catch {
+    return null;
+  }
+}
+
 export function registerStaticRoutes(
   app: FastifyInstance,
   paths: TokenPilotPaths,
-  consolePathPrefix = "/ui"
+  secureEntryPath = "/ui",
+  operator?: OperatorService
 ): void {
   const identity = productIdentityForKey(paths.productIdentity);
   const uiDistDir = path.join(paths.installRoot, "web", "dist");
@@ -184,16 +209,38 @@ export function registerStaticRoutes(
 
   const renderUiIndex = (): string => {
     const source = fs.readFileSync(path.join(uiDistDir, "index.html"), "utf8");
-    const withAssetBase = source
-      .replaceAll("/ui/", `${consolePathPrefix}/`)
-      .replaceAll("./assets/", `${consolePathPrefix}/assets/`);
-    return withAssetBase.replace(
+    const withStableAssetBase = source.replaceAll("./assets/", "/ui/assets/");
+    return withStableAssetBase.replace(
       "</head>",
-      `    <meta name="chatcockpit-console-base" content="${consolePathPrefix}">\n  </head>`
+      `    <meta name="chatcockpit-console-base" content="/ui">\n  </head>`
     );
   };
 
-  app.get(consolePathPrefix, async (_request, reply) => {
+  if (secureEntryPath !== "/ui") {
+    const redirectSecureEntry = async (request: FastifyRequest, reply: FastifyReply) => {
+      reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
+      const requestUrl = new URL(request.url, "http://chatcockpit.local");
+      if (requestUrl.searchParams.get("probe") === "1") {
+        return reply.code(204).send();
+      }
+      if (operatorSessionFromRequest(request)) {
+        return reply.redirect("/ui/", 303);
+      }
+      if (!operator) {
+        return sendApiError(reply, 503, "OPERATOR_AUTH_UNAVAILABLE", "Web Owner authentication is unavailable");
+      }
+      const gate = operator.createSecureLoginGate();
+      const params = new URLSearchParams({ gate: gate.gateSecret });
+      const returnTo = validatedOAuthReturnTo(requestUrl.searchParams.get("returnTo"));
+      if (returnTo) params.set("returnTo", returnTo);
+      return reply.redirect(`/ui/login?${params.toString()}`, 303);
+    };
+
+    app.get(secureEntryPath, redirectSecureEntry);
+    app.get(`${secureEntryPath}/login`, redirectSecureEntry);
+  }
+
+  app.get("/ui", async (_request, reply) => {
     reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
     reply.type("text/html; charset=utf-8");
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
@@ -202,7 +249,7 @@ export function registerStaticRoutes(
     return renderUiIndex();
   });
 
-  app.get(`${consolePathPrefix}/*`, async (request, reply) => {
+  app.get("/ui/*", async (request, reply) => {
     const indexPath = path.join(uiDistDir, "index.html");
     if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
       reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
@@ -213,7 +260,7 @@ export function registerStaticRoutes(
     const requestUrl = request.url;
     const rawSuffix = requestUrl
       .split("?", 1)[0]
-      .slice(`${consolePathPrefix}/`.length);
+      .slice("/ui/".length);
     let suffix: string;
     try {
       suffix = decodeURIComponent(rawSuffix);

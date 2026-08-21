@@ -97,14 +97,14 @@ struct RuntimeControllerTests {
 
         #expect(snapshot.localApiBaseURL?.absoluteString == "http://127.0.0.1:5123")
         #expect(snapshot.localMcpURL?.absoluteString == "http://127.0.0.1:5123/mcp")
-        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ui")
+        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ui/")
         #expect(snapshot.publicApiBaseURL?.absoluteString == "https://chatcockpit.example.com")
         #expect(snapshot.publicMcpURL?.absoluteString == "https://chatcockpit.example.com/mcp")
-        #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ui")
+        #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ui/")
     }
 
-    @Test("Cockpit URLs honor the configured console path")
-    func cockpitEntrypointsHonorAccessPolicy() throws {
+    @Test("Cockpit URLs remain canonical while the secure login entry rotates")
+    func cockpitEntrypointsStayCanonical() throws {
         let snapshot = DesktopRuntimeSnapshot(
             overallState: .ready,
             context: nil,
@@ -121,8 +121,8 @@ struct RuntimeControllerTests {
             uiReachable: true
         )
 
-        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ops-desktop")
-        #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ops-desktop")
+        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:5123/ui/")
+        #expect(snapshot.publicCockpitURL?.absoluteString == "https://chatcockpit.example.com/ui/")
     }
 
     @Test("controller combines Node lifecycle and health truth")

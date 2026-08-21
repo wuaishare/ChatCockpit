@@ -171,8 +171,8 @@ async function main(): Promise<void> {
       machineApi: { configured: boolean };
     };
 
-    assert.equal(body.localCockpitUrl, "http://127.0.0.1:5123/ui");
-    assert.equal(body.publicCockpitUrl, "https://chatcockpit.example.com/ui");
+    assert.equal(body.localCockpitUrl, "http://127.0.0.1:5123/ui/");
+    assert.equal(body.publicCockpitUrl, "https://chatcockpit.example.com/ui/");
     assert.equal(body.localApiBaseUrl, "http://127.0.0.1:5123");
     assert.equal(body.publicApiBaseUrl, "https://chatcockpit.example.com");
     assert.equal(body.openapiUrl, "https://chatcockpit.example.com/openapi.yaml");
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
       openapiUrl: string;
       mcp: { endpoint: string | null; oauthStatus: string; oauthReady: boolean };
     };
-    assert.equal(localOnlyBody.localCockpitUrl, "http://127.0.0.1:5123/ui");
+    assert.equal(localOnlyBody.localCockpitUrl, "http://127.0.0.1:5123/ui/");
     assert.equal(localOnlyBody.publicCockpitUrl, null);
     assert.equal(localOnlyBody.localApiBaseUrl, "http://127.0.0.1:5123");
     assert.equal(localOnlyBody.publicApiBaseUrl, null);

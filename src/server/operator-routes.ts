@@ -20,7 +20,8 @@ import { readIdentityEnv } from "../core/identity-env.js";
 import { sendApiError } from "./errors.js";
 import {
   OPERATOR_SESSION_COOKIE,
-  operatorSessionFromRequest
+  operatorSessionFromRequest,
+  readOperatorLoginGate
 } from "./operator-auth-context.js";
 
 interface UnknownRecord {
@@ -179,6 +180,18 @@ function requireSession(request: FastifyRequest): OperatorSessionContext {
   return session;
 }
 
+function consumeLoginGateIfPresent(service: OperatorService, request: FastifyRequest): void {
+  const gate = readOperatorLoginGate(request);
+  if (!gate) return;
+  if (!service.consumeSecureLoginGate(gate)) {
+    throw new OperatorAuthError(
+      "LOGIN_GATE_INVALID",
+      "Secure login gate is invalid, expired, or already consumed",
+      401
+    );
+  }
+}
+
 function sendOperatorError(reply: FastifyReply, error: unknown): unknown {
   if (error instanceof OperatorAuthError) {
     if (error.retryAfterSeconds) {
@@ -255,6 +268,7 @@ export function registerOperatorRoutes(
           role: verified.role
         };
       }
+      consumeLoginGateIfPresent(service, request);
       const issued = service.issuePasswordSession({
         principalId: verified.principalId,
         source,
@@ -303,6 +317,7 @@ export function registerOperatorRoutes(
         source,
         userAgent: agent
       });
+      consumeLoginGateIfPresent(service, request);
       const issued = service.issueTotpSession({
         principalId: verified.principalId,
         source,
@@ -399,6 +414,7 @@ export function registerOperatorRoutes(
         challenge,
         response: response as AuthenticationResponseJSON
       });
+      consumeLoginGateIfPresent(service, request);
       const issued = service.issuePasskeySession({
         principalId: verified.principalId,
         source: sourceAddress(request),
@@ -638,10 +654,14 @@ export function registerOperatorRoutes(
     noStore(reply);
     const current = requireSession(request);
     service.logout(current.sessionId);
+    const loginGate = service.createSecureLoginGate();
     reply.header(
       "set-cookie",
       expiredSessionCookie(isPublicHttpsRequest(request))
     );
-    return { ok: true };
+    return {
+      ok: true,
+      loginPath: `/ui/login?${new URLSearchParams({ gate: loginGate.gateSecret }).toString()}`
+    };
   });
 }

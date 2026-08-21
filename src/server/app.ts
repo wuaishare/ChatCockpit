@@ -1741,7 +1741,7 @@ export function buildServer(
   app.post("/api/git/commit", gitCommitHandler);
   app.post("/tokenpilot/api/git/commit", gitCommitHandler);
 
-  registerStaticRoutes(app, paths, accessPolicy.consolePathPrefix);
+  registerStaticRoutes(app, paths, accessPolicy.consolePathPrefix, operatorService);
 
   return app;
 }

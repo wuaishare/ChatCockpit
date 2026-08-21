@@ -65,15 +65,14 @@ export function buildIntegrationStatusSnapshot(input: {
   const lanAccess = buildLanAccessSnapshot({
     policy: accessPolicy,
     host: readIdentityEnv("HOST")?.trim() || "127.0.0.1",
-    port: localPort(),
-    consolePathPrefix: accessPolicy.consolePathPrefix
+    port: localPort()
   });
 
   return {
     ok: true,
-    localCockpitUrl: appendPath(localApiBaseUrl, accessPolicy.consolePathPrefix),
+    localCockpitUrl: appendPath(localApiBaseUrl, "/ui/"),
     publicCockpitUrl: publicApiBaseUrl
-      ? appendPath(publicApiBaseUrl, accessPolicy.consolePathPrefix)
+      ? appendPath(publicApiBaseUrl, "/ui/")
       : null,
     localApiBaseUrl,
     publicApiBaseUrl,

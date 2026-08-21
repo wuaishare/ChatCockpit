@@ -493,7 +493,7 @@ struct StatusView: View {
                     .padding(.vertical, 9)
 
                 compactValueRow(
-                    DesktopL10n.string("Console path"),
+                    DesktopL10n.string("Secure login entry"),
                     value: model.snapshot.configuration.consolePathPrefix,
                     monospaced: true
                 )
