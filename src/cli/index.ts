@@ -1,5 +1,6 @@
 import process from "node:process";
 import path from "node:path";
+import os from "node:os";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
 import {
@@ -34,6 +35,11 @@ import {
   rotateMachineApiToken
 } from "../auth/machine-api-token.js";
 import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
+import {
+  DEVICE_AGENT_DEFAULT_INTERVAL_MS,
+  DeviceAgentService,
+  type DeviceAgentStatus
+} from "../devices/device-agent.js";
 import {
   generateRandomConsolePathPrefix,
   loadAccessPolicy,
@@ -89,6 +95,10 @@ Usage:
   ${identity.cliName} access-policy status [--json]
   ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
+  ${identity.cliName} device status [--json]
+  ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
+  ${identity.cliName} device heartbeat [--json]
+  ${identity.cliName} device agent [--interval 30] [--json]
   ${identity.cliName} connectivity providers [--json]
   ${identity.cliName} connectivity provider status --provider cloudflare-tunnel [--json]
   ${identity.cliName} connectivity provider prepare --provider cloudflare-tunnel --action install|upgrade|uninstall [--json]
@@ -213,6 +223,24 @@ function printDoctorResult(result: ReturnType<typeof runDoctor>, repoRoot: strin
   }
   process.stdout.write("Details JSON:\n");
   printHumanJson(result, repoRoot);
+}
+
+function defaultDeviceDisplayName(): string {
+  const hostname = os.hostname().trim();
+  return (hostname || `${process.platform}-${process.arch}`).slice(0, 80);
+}
+
+function printDeviceStatus(status: DeviceAgentStatus): void {
+  if (!status.configured) {
+    process.stdout.write("Device Agent: not configured\n");
+    return;
+  }
+  process.stdout.write(`Device Agent: ${status.state}\n`);
+  process.stdout.write(`Hub: ${status.hubOrigin}\n`);
+  process.stdout.write(`Device: ${status.displayName}\n`);
+  process.stdout.write(`Device ID: ${status.deviceId ?? "pending approval"}\n`);
+  process.stdout.write(`Fingerprint: ${status.publicKeyFingerprint}\n`);
+  process.stdout.write(`Last heartbeat: ${status.lastHeartbeatAt ?? "never"}\n`);
 }
 
 async function main(): Promise<void> {
@@ -455,6 +483,115 @@ async function main(): Promise<void> {
         }
         default:
           throw new Error("access-policy requires one of: status, generate-console-path, set");
+      }
+    }
+    case "device": {
+      const subcommand = process.argv[3];
+      const service = new DeviceAgentService({ runtimeDir: paths.runtimeDir });
+      const json = process.argv.includes("--json");
+      switch (subcommand) {
+        case "status": {
+          const status = service.status();
+          if (json) printJson(status);
+          else printDeviceStatus(status);
+          return;
+        }
+        case "connect": {
+          const hubUrl = process.argv[4];
+          if (!hubUrl || hubUrl.startsWith("--")) {
+            throw new Error("device connect requires <hub-url>");
+          }
+          const displayName = getFlag("--name") ?? defaultDeviceDisplayName();
+          const status = await service.connect(
+            { hubOrigin: hubUrl, displayName },
+            {
+              onPending: async (pending) => {
+                if (json) {
+                  process.stderr.write(`${JSON.stringify({
+                    event: "device-enrollment-pending",
+                    hubOrigin: hubUrl,
+                    verificationCode: pending.verificationCode,
+                    expiresAt: pending.expiresAt
+                  })}\n`);
+                } else {
+                  process.stdout.write("Device enrollment requested\n");
+                  process.stdout.write(`Hub: ${hubUrl}\n`);
+                  process.stdout.write(`Device: ${displayName}\n`);
+                  process.stdout.write(`Verification code: ${pending.verificationCode}\n`);
+                  process.stdout.write("Approve this device in ChatCockpit > Devices.\n");
+                  process.stdout.write(`Expires: ${pending.expiresAt}\n`);
+                  process.stdout.write("Waiting for Owner approval...\n");
+                }
+              }
+            }
+          );
+          if (json) printJson(status);
+          else {
+            process.stdout.write("Device approved and connected\n");
+            printDeviceStatus(status);
+          }
+          return;
+        }
+        case "heartbeat": {
+          const status = await service.heartbeat();
+          if (json) printJson(status);
+          else {
+            process.stdout.write("Device heartbeat accepted\n");
+            printDeviceStatus(status);
+          }
+          return;
+        }
+        case "agent": {
+          const intervalValue = getFlag("--interval");
+          const intervalSeconds = intervalValue === undefined
+            ? DEVICE_AGENT_DEFAULT_INTERVAL_MS / 1_000
+            : Number(intervalValue);
+          if (!Number.isFinite(intervalSeconds) || intervalSeconds <= 0) {
+            throw new Error("device agent --interval must be a positive number of seconds");
+          }
+          const intervalMs = Math.round(intervalSeconds * 1_000);
+          const controller = new AbortController();
+          const stop = () => controller.abort();
+          process.once("SIGINT", stop);
+          process.once("SIGTERM", stop);
+          try {
+            if (!json) {
+              process.stdout.write(`Device Agent started (heartbeat every ${intervalSeconds}s)\n`);
+              printDeviceStatus(service.status());
+            }
+            const finalStatus = await service.runHeartbeatLoop({
+              intervalMs,
+              signal: controller.signal,
+              onHeartbeat: json
+                ? undefined
+                : async (status) => {
+                    process.stdout.write(`Heartbeat accepted: ${status.lastHeartbeatAt ?? "now"}\n`);
+                  },
+              onRetry: async ({ attempt, delayMs, error }) => {
+                if (json) {
+                  process.stderr.write(`${JSON.stringify({
+                    event: "device-agent-retry",
+                    attempt,
+                    delayMs,
+                    code: error.code
+                  })}\n`);
+                } else {
+                  process.stderr.write(
+                    `Heartbeat retry ${attempt} in ${Math.round(delayMs / 100) / 10}s (${error.code})\n`
+                  );
+                }
+              }
+            });
+            if (json) printJson(finalStatus);
+            else process.stdout.write("Device Agent stopped\n");
+          } finally {
+            process.removeListener("SIGINT", stop);
+            process.removeListener("SIGTERM", stop);
+          }
+          return;
+        }
+        default:
+          throw new Error("device requires one of: status, connect, heartbeat, agent");
       }
     }
     case "connectivity": {
