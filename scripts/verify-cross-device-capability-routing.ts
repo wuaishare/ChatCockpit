@@ -80,7 +80,7 @@ class FakeRegistry {
 const channels = new DeviceChannelHub();
 const targets = new DeviceTargetService(
   new FakeRegistry(),
-  { isActive: (deviceId) => deviceId === remoteId },
+  channels,
   null
 );
 const rpc = new DeviceCapabilityRpc(channels, {
@@ -225,6 +225,11 @@ try {
   }) as Record<string, unknown>;
   assert.equal((remoteList.target as { id?: string }).id, remoteId);
   assert.equal((remoteList.target as { displayName?: string }).displayName, "Remote Read Mac");
+  assert.equal(
+    (remoteList.target as { executionAvailable?: boolean }).executionAvailable,
+    true,
+    "active v2 channel must project remote-read readiness"
+  );
   assert.equal(JSON.stringify(remoteList).includes("local-device"), false);
 
   const remoteInspect = await service.inspect(context, {

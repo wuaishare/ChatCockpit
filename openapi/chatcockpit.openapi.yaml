@@ -367,8 +367,9 @@ components:
           additionalProperties: false
           properties:
             heartbeat: { type: boolean }
+            remoteRead: { type: boolean, description: True only when an active v2 Device Agent channel can execute bounded Capability Router reads. }
             remoteControl: { type: boolean, const: false }
-          required: [heartbeat, remoteControl]
+          required: [heartbeat, remoteRead, remoteControl]
       required: [id, kind, locality, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, revision, trust, presence, management]
     ManagedDevicesResponse:
       type: object

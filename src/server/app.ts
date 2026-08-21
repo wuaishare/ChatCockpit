@@ -404,9 +404,7 @@ export function buildServer(
   const deviceCapabilityRpc = options.deviceCapabilityRpc ?? new DeviceCapabilityRpc(deviceChannelHub);
   const deviceTargetService = new DeviceTargetService(
     deviceRegistryStore,
-    {
-      isActive: (deviceId) => deviceChannelHub.isActive(deviceId)
-    },
+    deviceChannelHub,
     oauthDeviceAccessPolicy
   );
   let hubIdentity: HubIdentityRecord;

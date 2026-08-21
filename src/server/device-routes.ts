@@ -86,6 +86,7 @@ function projectLocalDevice(now: string) {
     presence: "online" as const,
     management: {
       heartbeat: false as const,
+      remoteRead: false as const,
       remoteControl: false as const
     }
   };
@@ -184,11 +185,21 @@ export function registerDeviceRoutes(
     const authError = operatorSessionError(request, reply);
     if (authError) return authError;
     const timestamp = now();
-    const remoteDevices = store.listDevices(timestamp).map((device) =>
-      device.trust === "paired" && options.channelHub?.isActive(device.id)
-        ? { ...device, presence: "online" as const }
-        : device
-    );
+    const remoteDevices = store.listDevices(timestamp).map((device) => {
+      const channelActive =
+        device.trust === "paired" && options.channelHub?.isActive(device.id) === true;
+      const remoteRead =
+        device.trust === "paired" &&
+        options.channelHub?.isCapabilityRpcAvailable(device.id) === true;
+      return {
+        ...device,
+        ...(channelActive ? { presence: "online" as const } : {}),
+        management: {
+          ...device.management,
+          remoteRead
+        }
+      };
+    });
     return {
       ok: true,
       devices: [projectLocalDevice(timestamp), ...remoteDevices]

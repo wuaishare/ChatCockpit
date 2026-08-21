@@ -187,6 +187,16 @@ try {
   const v2Ready = await nextEventOfType(v2Iterator, "channel.ready");
   assert.equal(v2Ready.protocolVersion, 2);
   assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
+  const devicesWithV2 = await app.inject({
+    method: "GET",
+    url: "/api/devices",
+    headers: { cookie }
+  });
+  assert.equal(devicesWithV2.statusCode, 200, devicesWithV2.body);
+  const v2DeviceProjection = (devicesWithV2.json() as {
+    devices: Array<{ id: string; management: { remoteRead?: boolean } }>;
+  }).devices.find((device) => device.id === deviceId);
+  assert.equal(v2DeviceProjection?.management.remoteRead, true);
   const v1Closed = await nextEventOfType(v1Iterator, "channel.close");
   assert.equal(v1Closed.reason, "superseded");
 

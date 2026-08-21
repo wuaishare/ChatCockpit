@@ -40,6 +40,7 @@ assert.match(types, /ManagedDevicePresence = "online" \| "offline" \| "revoked"/
 assert.match(types, /DeviceEnrollmentStatus = "pending" \| "approved" \| "denied" \| "expired"/);
 assert.match(types, /enrollmentRequests:\s*DeviceEnrollmentRequestSummary\[\]/);
 assert.match(types, /verificationCode:\s*string/);
+assert.match(types, /remoteRead:\s*boolean/);
 assert.match(types, /remoteControl:\s*false/);
 assert.match(types, /publicKeyFingerprint:\s*string \| null/);
 
@@ -56,6 +57,9 @@ assert.match(view, /device\.presence === "online"/);
 assert.match(view, /device\.presence === "revoked"/);
 assert.match(view, /device\.locality === "local"/);
 assert.match(view, /device\.management\.heartbeat/);
+assert.match(view, /device\.management\.remoteRead/);
+assert.match(view, /remoteReadAgentUpdate/);
+assert.match(view, /remoteReadOffline/);
 assert.match(view, /remoteControlPending/);
 assert.match(view, /Popconfirm/);
 assert.doesNotMatch(view, /createDevicePairing|pairing\.code|Pairing ID|一次性配对码/);
@@ -69,6 +73,8 @@ assert.match(copy, /验证码只用于人工核对，不是登录密码或认证
 assert.match(copy, /code is for human verification only, not authentication/);
 assert.match(copy, /局域网可达也不代表设备可信/);
 assert.match(copy, /LAN reachability does not make a device trusted/);
+assert.match(copy, /远程读取可用/);
+assert.match(copy, /Remote reads ready/);
 
 assert.match(routes, /app\.get\("\/api\/devices"/);
 assert.match(routes, /enrollmentRequests:\s*store\.listPendingEnrollmentRequests/);
@@ -78,6 +84,8 @@ assert.match(routes, /\/decision"/);
 assert.match(routes, /app\.post\("\/api\/devices\/heartbeat"/);
 assert.match(routes, /app\.delete\("\/api\/devices\/:deviceId"/);
 assert.match(routes, /OPERATOR_SESSION_REQUIRED/);
+assert.match(routes, /isCapabilityRpcAvailable/);
+assert.match(routes, /remoteRead/);
 assert.doesNotMatch(routes, /privateKey|machine-token/i);
 
 assert.match(store, /ed25519/);

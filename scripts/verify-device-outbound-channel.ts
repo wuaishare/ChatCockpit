@@ -193,9 +193,14 @@ try {
     headers: { cookie }
   });
   const activeProjection = (listedWhileChannelActive.json() as {
-    devices: Array<{ id: string; presence: string }>;
+    devices: Array<{ id: string; presence: string; management: { remoteRead?: boolean } }>;
   }).devices.find((device) => device.id === deviceId);
   assert.equal(activeProjection?.presence, "online", "active outbound channel must keep presence online");
+  assert.equal(
+    activeProjection?.management.remoteRead,
+    false,
+    "v1 presence channel must report that remote reads require an Agent update"
+  );
 
   const nonce2 = crypto.randomBytes(18).toString("base64url");
   const channel2 = await transport.openChannel(origin, {
