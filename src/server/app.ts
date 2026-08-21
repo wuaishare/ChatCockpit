@@ -389,8 +389,7 @@ export function buildServer(
     registerOAuthRoutes(
       app,
       oauthService,
-      oauthConfig,
-      accessPolicy.consolePathPrefix
+      oauthConfig
     );
   }
 
@@ -627,7 +626,9 @@ export function buildServer(
                     clientRegistrationId: record.clientId
                   }
                 : null;
-            }
+            },
+            isAuthorizationRequestPending: (requestId) =>
+              oauthService.isAuthorizationRequestPending(requestId)
           }
         : null,
       operatorService,

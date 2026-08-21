@@ -86,42 +86,29 @@ function readSecureLoginGate(): string | null {
   return /^cc_login_gate_[A-Za-z0-9_-]{43}$/.test(gate) ? gate : null;
 }
 
-function readOAuthApprovalReturnTo(): string | null {
-  if (typeof window === "undefined") return null;
-  const raw = new URLSearchParams(window.location.search).get("returnTo");
-  if (!raw || !raw.startsWith("/")) return null;
+interface OAuthLoginBootstrap {
+  requestId: string;
+  uiLocales: "zh-CN" | "en-US" | null;
+}
 
-  try {
-    const target = new URL(raw, window.location.origin);
-    if (
-      target.origin !== window.location.origin ||
-      target.pathname !== "/oauth/authorize"
-    ) {
-      return null;
-    }
-    const allowedKeys = new Set(["request_id", "ui_locales"]);
-    if ([...target.searchParams.keys()].some((key) => !allowedKeys.has(key))) {
-      return null;
-    }
-    const requestId = target.searchParams.get("request_id");
-    if (!requestId || !/^oauth_request_[0-9a-f-]{36}$/i.test(requestId)) {
-      return null;
-    }
-    const params = new URLSearchParams({ request_id: requestId });
-    const uiLocales = target.searchParams.get("ui_locales");
-    if (uiLocales === "zh-CN" || uiLocales === "en-US") {
-      params.set("ui_locales", uiLocales);
-    }
-    return `/oauth/authorize?${params.toString()}`;
-  } catch {
-    return null;
-  }
+function readOAuthLoginBootstrap(): OAuthLoginBootstrap | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const requestId = params.get("oauth_request_id")?.trim() ?? "";
+  if (!/^oauth_request_[0-9a-f-]{36}$/i.test(requestId)) return null;
+  const locale = params.get("ui_locales");
+  return {
+    requestId,
+    uiLocales: locale === "zh-CN" || locale === "en-US" ? locale : null
+  };
 }
 
 function continueOAuthApprovalIfRequested(): boolean {
-  const returnTo = readOAuthApprovalReturnTo();
-  if (!returnTo || typeof window === "undefined") return false;
-  window.location.assign(returnTo);
+  const bootstrap = readOAuthLoginBootstrap();
+  if (!bootstrap || typeof window === "undefined") return false;
+  const params = new URLSearchParams({ request_id: bootstrap.requestId });
+  if (bootstrap.uiLocales) params.set("ui_locales", bootstrap.uiLocales);
+  window.location.assign(`/oauth/authorize?${params.toString()}`);
   return true;
 }
 
@@ -411,6 +398,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     }
     const localLoginGrant = readAndClearLocalLoginGrant();
     const loginGate = readSecureLoginGate();
+    const oauthBootstrap = readOAuthLoginBootstrap();
     try {
       if (localLoginGrant) {
         try {
@@ -423,7 +411,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           setOperatorAuthError(copy.operatorAuth.localUnlockFailed);
         }
       }
-      const status = await fetchOperatorStatus(loginGate);
+      const status = await fetchOperatorStatus(loginGate, oauthBootstrap?.requestId);
       setOperatorDesktopSetupAvailable(status.desktopSetupAvailable);
       if (!status.configured) {
         setOperatorSession(null);
@@ -474,12 +462,20 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorAuthError(null);
     try {
       const loginGate = readSecureLoginGate();
-      const options = await fetchPasskeyAuthenticationOptions(loginGate);
+      const oauthBootstrap = readOAuthLoginBootstrap();
+      const options = await fetchPasskeyAuthenticationOptions(
+        loginGate,
+        oauthBootstrap?.requestId
+      );
       const response = await startAuthentication({ optionsJSON: options });
-      const session = await verifyPasskeyAuthentication({
-        challenge: options.challenge,
-        response
-      }, loginGate);
+      const session = await verifyPasskeyAuthentication(
+        {
+          challenge: options.challenge,
+          response
+        },
+        loginGate,
+        oauthBootstrap?.requestId
+      );
       setOperatorSession(session);
       finishOperatorAuthentication();
       setOperatorAuthState("authenticated");
@@ -500,7 +496,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorAuthError(null);
     try {
       const loginGate = readSecureLoginGate();
-      const result = await loginOperator(input, loginGate);
+      const oauthBootstrap = readOAuthLoginBootstrap();
+      const result = await loginOperator(input, loginGate, oauthBootstrap?.requestId);
       if ("requiresSecondFactor" in result) {
         setOperatorSession(null);
         setOperatorSecondFactor(result);
@@ -524,10 +521,15 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorAuthError(null);
     try {
       const loginGate = readSecureLoginGate();
-      const session = await verifyOperatorTotpLogin({
-        challenge: challenge.challenge,
-        verification
-      }, loginGate);
+      const oauthBootstrap = readOAuthLoginBootstrap();
+      const session = await verifyOperatorTotpLogin(
+        {
+          challenge: challenge.challenge,
+          verification
+        },
+        loginGate,
+        oauthBootstrap?.requestId
+      );
       setOperatorSecondFactor(null);
       setOperatorSession(session);
       finishOperatorAuthentication();

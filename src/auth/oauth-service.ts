@@ -241,6 +241,15 @@ export class OAuthService {
     return request;
   }
 
+  isAuthorizationRequestPending(requestId: string): boolean {
+    try {
+      this.getAuthorizationForApproval(requestId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   approveAuthorizationForOwner(requestId: string): AuthorizationApprovalResult {
     this.getAuthorizationForApproval(requestId);
     const code = opaqueToken(`${this.config.oauthOpaquePrefix}_code`);

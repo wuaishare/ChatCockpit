@@ -313,13 +313,10 @@ try {
   authorize.searchParams.set("code_challenge", challenge);
   authorize.searchParams.set("code_challenge_method", "S256");
   const approval = await fetch(authorize, { redirect: "manual" });
-  assert.equal(approval.status, 302);
+  assert.equal(approval.status, 303);
   const approvalLocation = approval.headers.get("location") ?? "";
-  assert.match(approvalLocation, /^\/ui\/login\?returnTo=/);
-  assert.match(
-    decodeURIComponent(approvalLocation),
-    /\/oauth\/authorize\?request_id=oauth_request_/
-  );
+  assert.match(approvalLocation, /^\/ui\/login\?oauth_request_id=oauth_request_/);
+  assert.doesNotMatch(approvalLocation, /returnTo=/);
   assertCanonicalText("fresh OAuth approval login redirect", approvalLocation);
   assert.equal(approvalLocation.includes(ownerToken), false);
 

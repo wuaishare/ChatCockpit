@@ -169,28 +169,6 @@ function renderPrivacyPolicy(displayName: string): string {
 </html>`;
 }
 
-function validatedOAuthReturnTo(value: string | null): string | null {
-  if (!value || !value.startsWith("/")) return null;
-  try {
-    const target = new URL(value, "http://chatcockpit.local");
-    if (target.origin !== "http://chatcockpit.local" || target.pathname !== "/oauth/authorize") {
-      return null;
-    }
-    const allowedKeys = new Set(["request_id", "ui_locales"]);
-    if ([...target.searchParams.keys()].some((key) => !allowedKeys.has(key))) return null;
-    const requestId = target.searchParams.get("request_id");
-    if (!requestId || !/^oauth_request_[0-9a-f-]{36}$/i.test(requestId)) return null;
-    const params = new URLSearchParams({ request_id: requestId });
-    const uiLocales = target.searchParams.get("ui_locales");
-    if (uiLocales === "zh-CN" || uiLocales === "en-US") {
-      params.set("ui_locales", uiLocales);
-    }
-    return `/oauth/authorize?${params.toString()}`;
-  } catch {
-    return null;
-  }
-}
-
 export function registerStaticRoutes(
   app: FastifyInstance,
   paths: TokenPilotPaths,
@@ -231,8 +209,6 @@ export function registerStaticRoutes(
       }
       const gate = operator.createSecureLoginGate();
       const params = new URLSearchParams({ gate: gate.gateSecret });
-      const returnTo = validatedOAuthReturnTo(requestUrl.searchParams.get("returnTo"));
-      if (returnTo) params.set("returnTo", returnTo);
       return reply.redirect(`/ui/login?${params.toString()}`, 303);
     };
 

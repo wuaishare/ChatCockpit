@@ -21,14 +21,17 @@ assert.doesNotMatch(
   "ordinary browser API calls must not propagate the legacy secret console path"
 );
 assert.match(api, /X-ChatCockpit-Login-Gate/);
+assert.match(api, /X-ChatCockpit-OAuth-Request-Id/);
 assert.match(api, /loginGate\?:\s*string\s*\|\s*null/);
+assert.match(api, /oauthRequestId\?:\s*string\s*\|\s*null/);
 
 assert.match(app, /function readSecureLoginGate\(\): string \| null/);
+assert.match(app, /function readOAuthLoginBootstrap\(\): OAuthLoginBootstrap \| null/);
 assert.match(app, /\^cc_login_gate_\[A-Za-z0-9_-\]\{43\}\$/);
-assert.match(app, /fetchOperatorStatus\(loginGate\)/);
-assert.match(app, /loginOperator\(input, loginGate\)/);
-assert.match(app, /fetchPasskeyAuthenticationOptions\(loginGate\)/);
-assert.match(app, /verifyOperatorTotpLogin\([^)]*loginGate/s);
+assert.match(app, /fetchOperatorStatus\(loginGate, oauthBootstrap\?\.requestId\)/);
+assert.match(app, /loginOperator\(input, loginGate, oauthBootstrap\?\.requestId\)/);
+assert.match(app, /fetchPasskeyAuthenticationOptions\([\s\S]*oauthBootstrap\?\.requestId[\s\S]*\)/);
+assert.match(app, /verifyOperatorTotpLogin\([\s\S]*oauthBootstrap\?\.requestId[\s\S]*\)/);
 assert.match(app, /window\.history\.replaceState\(null, "", `\$\{consolePath\(\)\}\/`\)/);
 
 process.stdout.write("VERIFY_STABLE_UI_WEB_OK\n");
