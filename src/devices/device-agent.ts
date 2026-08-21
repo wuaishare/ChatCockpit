@@ -8,6 +8,7 @@ import {
   type DeviceEnrollmentStatus
 } from "./device-registry.js";
 import {
+  addVerifiedDeviceAgentHubOrigin,
   clearDeviceAgentPendingEnrollment,
   completeDeviceAgentEnrollment,
   createDeviceAgentState,
@@ -30,6 +31,7 @@ import {
   type DeviceAgentChannelEvent,
   type DeviceAgentTransport
 } from "./device-agent-transport.js";
+import { verifyHubIdentityProof } from "./hub-identity.js";
 
 export interface DeviceAgentUnconfiguredStatus {
   configured: false;
@@ -138,6 +140,13 @@ interface HeartbeatBody {
   deviceId?: unknown;
   acceptedSequence?: unknown;
   revision?: unknown;
+}
+
+interface HubIdentityProofBody {
+  ok?: unknown;
+  hubId?: unknown;
+  nonce?: unknown;
+  signature?: unknown;
 }
 
 interface HubIdentityBody {
@@ -305,6 +314,75 @@ export class DeviceAgentService {
   status(): DeviceAgentStatus {
     const state = readDeviceAgentState(this.runtimeDir);
     return state ? projectDeviceAgentStatus(state) : { configured: false, state: "unconfigured" };
+  }
+
+  async verifyAndUseHubRoute(candidateOriginInput: string): Promise<DeviceAgentStatusProjection> {
+    const current = this.requireState();
+    if (current.revokedAt) {
+      throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked");
+    }
+    if (!current.deviceId) {
+      throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_NOT_CONNECTED", "Device Agent must be connected before changing Hub routes");
+    }
+    const candidateOrigin = normalizeDeviceHubOrigin(candidateOriginInput);
+    const pinned = current.hubId && current.hubPublicKeySpki && current.hubPublicKeyFingerprint
+      ? current
+      : await this.ensureHubIdentity(current);
+    if (!pinned.hubId || !pinned.hubPublicKeySpki || !pinned.hubPublicKeyFingerprint) {
+      throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_HUB_IDENTITY_MISSING", "Device Agent has no pinned Hub identity");
+    }
+
+    const identityBody = await this.transportCall(() => this.transport.getHubIdentity(candidateOrigin));
+    const observed = hubIdentityFromResponse(candidateOrigin, identityBody);
+    if (
+      observed.hubId !== pinned.hubId ||
+      observed.publicKeySpki !== pinned.hubPublicKeySpki ||
+      observed.publicKeyFingerprint !== pinned.hubPublicKeyFingerprint
+    ) {
+      throw new DeviceAgentProtocolError(
+        409,
+        "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
+        "Candidate route does not expose the pinned ChatCockpit Hub identity"
+      );
+    }
+
+    const nonce = crypto.randomBytes(18).toString("base64url");
+    const proofRaw = await this.transportCall(() => this.transport.proveHubIdentity(candidateOrigin, nonce));
+    const proof = proofRaw && typeof proofRaw === "object" ? proofRaw as HubIdentityProofBody : {};
+    if (
+      proof.ok !== true ||
+      proof.hubId !== pinned.hubId ||
+      proof.nonce !== nonce ||
+      typeof proof.signature !== "string"
+    ) {
+      throw new DeviceAgentProtocolError(
+        502,
+        "DEVICE_AGENT_HUB_ROUTE_PROOF_INVALID",
+        "Candidate route returned an invalid Hub identity proof"
+      );
+    }
+
+    let proofValid = false;
+    try {
+      proofValid = verifyHubIdentityProof(pinned.hubPublicKeySpki, nonce, proof.signature);
+    } catch {
+      proofValid = false;
+    }
+    if (!proofValid) {
+      throw new DeviceAgentProtocolError(
+        401,
+        "DEVICE_AGENT_HUB_ROUTE_PROOF_INVALID",
+        "Candidate route could not prove possession of the pinned Hub identity"
+      );
+    }
+
+    const updated = addVerifiedDeviceAgentHubOrigin(
+      this.runtimeDir,
+      observed,
+      this.now()
+    );
+    this.verifiedHubOrigins.add(candidateOrigin);
+    return projectDeviceAgentStatus(updated);
   }
 
   async startEnrollment(input: DeviceAgentConnectInput): Promise<DeviceAgentPendingEnrollment> {

@@ -98,6 +98,7 @@ Usage:
   ${identity.cliName} device status [--json]
   ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
   ${identity.cliName} device heartbeat [--json]
+  ${identity.cliName} device route verify <hub-url> [--json]
   ${identity.cliName} device agent [--json]
   ${identity.cliName} device agent --heartbeat-only [--interval 30] [--json]
   ${identity.cliName} connectivity providers [--json]
@@ -542,6 +543,23 @@ async function main(): Promise<void> {
           }
           return;
         }
+        case "route": {
+          const action = process.argv[4];
+          if (action !== "verify") {
+            throw new Error("device route requires: verify <hub-url>");
+          }
+          const hubUrl = process.argv[5];
+          if (!hubUrl || hubUrl.startsWith("--")) {
+            throw new Error("device route verify requires <hub-url>");
+          }
+          const status = await service.verifyAndUseHubRoute(hubUrl);
+          if (json) printJson(status);
+          else {
+            process.stdout.write("Hub route verified and activated\n");
+            printDeviceStatus(status);
+          }
+          return;
+        }
         case "agent": {
           const intervalValue = getFlag("--interval");
           const heartbeatOnly = process.argv.includes("--heartbeat-only") || intervalValue !== undefined;
@@ -619,7 +637,7 @@ async function main(): Promise<void> {
           return;
         }
         default:
-          throw new Error("device requires one of: status, connect, heartbeat, agent");
+          throw new Error("device requires one of: status, connect, heartbeat, route, agent");
       }
     }
     case "connectivity": {

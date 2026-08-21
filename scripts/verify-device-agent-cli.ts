@@ -211,6 +211,23 @@ async function main(): Promise<void> {
     const heartbeat = parseJson(heartbeatOutput.stdout);
     assert.equal(Number(heartbeat.nextSequence), nextBeforeHeartbeat + 1);
 
+    const alternateHubOrigin = `http://localhost:${address.port}`;
+    const routeExecution = await runCliAsync(home, [
+      "device",
+      "route",
+      "verify",
+      alternateHubOrigin,
+      "--json"
+    ]);
+    const routeExit = await waitForCliExit(routeExecution, "device route verify");
+    const routeOutput = routeExecution.output();
+    assert.equal(routeExit.code, 0, routeOutput.stderr);
+    const routed = parseJson(routeOutput.stdout);
+    assert.equal(routed.hubOrigin, alternateHubOrigin);
+    assert.deepEqual(routed.knownHubOrigins, [hubOrigin, alternateHubOrigin]);
+    assert.equal(routed.deviceId, connected.deviceId);
+    assert.equal(Number(routed.nextSequence), Number(heartbeat.nextSequence));
+
     const agent = await runCliAsync(home, ["device", "agent", "--json"]);
     await waitFor(async () => {
       const list = await app.inject({ method: "GET", url: "/api/devices", headers: { cookie } });
@@ -233,6 +250,10 @@ async function main(): Promise<void> {
     const insecureHome = path.join(root, "insecure-home");
     fs.mkdirSync(insecureHome, { recursive: true });
     result = runCli(insecureHome, ["device", "connect", "http://hub.example.com", "--json"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /HTTPS/i);
+
+    result = runCli(home, ["device", "route", "verify", "http://hub.example.com", "--json"]);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /HTTPS/i);
 
