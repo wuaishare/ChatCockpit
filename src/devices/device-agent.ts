@@ -22,6 +22,11 @@ import {
   type DeviceAgentStatusProjection,
   type DeviceAgentStateRecord
 } from "./device-agent-state.js";
+import {
+  DeviceAgentTransportError,
+  HttpDeviceAgentTransport,
+  type DeviceAgentTransport
+} from "./device-agent-transport.js";
 
 export interface DeviceAgentUnconfiguredStatus {
   configured: false;
@@ -70,6 +75,7 @@ type SleepLike = (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 interface DeviceAgentServiceOptions {
   runtimeDir: string;
   fetchImpl?: FetchLike;
+  transport?: DeviceAgentTransport;
   sleep?: SleepLike;
   now?: () => string;
   random?: () => number;
@@ -92,13 +98,6 @@ export interface DeviceAgentLoopOptions {
   signal?: AbortSignal;
   onHeartbeat?: (status: DeviceAgentStatusProjection) => void | Promise<void>;
   onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
-}
-
-interface ApiProblemBody {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-  };
 }
 
 interface EnrollmentCreateBody {
@@ -165,10 +164,6 @@ function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void>
   });
 }
 
-function isRedirect(status: number): boolean {
-  return status >= 300 && status < 400;
-}
-
 function validTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
@@ -219,31 +214,6 @@ function sign(state: DeviceAgentStateRecord, message: Buffer): string {
   return crypto.sign(null, message, parsePrivateKey(state)).toString("base64url");
 }
 
-async function parseResponseJson(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!text.trim()) return null;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    throw new DeviceAgentProtocolError(response.status, "DEVICE_AGENT_RESPONSE_INVALID", "Hub returned a non-JSON device protocol response");
-  }
-}
-
-function apiProblem(statusCode: number, body: unknown): DeviceAgentProtocolError {
-  const candidate = body && typeof body === "object" ? (body as ApiProblemBody) : {};
-  const code = typeof candidate.error?.code === "string"
-    ? candidate.error.code
-    : "DEVICE_AGENT_HUB_ERROR";
-  const message = typeof candidate.error?.message === "string"
-    ? candidate.error.message
-    : `Hub device protocol request failed with HTTP ${statusCode}`;
-  return new DeviceAgentProtocolError(statusCode, code, message);
-}
-
-function endpoint(origin: string, pathname: string): URL {
-  return new URL(pathname, `${origin}/`);
-}
-
 function hubIdentityFromResponse(origin: string, body: unknown): DeviceAgentHubIdentityInput {
   const response = body && typeof body === "object" ? body as HubIdentityBody : {};
   const hub = response.hub;
@@ -287,7 +257,7 @@ function pendingFromPoll(poll: DeviceAgentEnrollmentPoll): DeviceAgentPendingEnr
 
 export class DeviceAgentService {
   private readonly runtimeDir: string;
-  private readonly fetchImpl: FetchLike;
+  private readonly transport: DeviceAgentTransport;
   private readonly sleep: SleepLike;
   private readonly now: () => string;
   private readonly random: () => number;
@@ -295,7 +265,7 @@ export class DeviceAgentService {
 
   constructor(options: DeviceAgentServiceOptions) {
     this.runtimeDir = options.runtimeDir;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.transport = options.transport ?? new HttpDeviceAgentTransport({ fetchImpl: options.fetchImpl });
     this.sleep = options.sleep ?? defaultSleep;
     this.now = options.now ?? (() => new Date().toISOString());
     this.random = options.random ?? Math.random;
@@ -346,21 +316,15 @@ export class DeviceAgentService {
         requestNonce
       })
     );
-    const response = await this.requestJson(
-      verifiedState,
-      "/api/devices/enrollment-requests",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          displayName: verifiedState.displayName,
-          platform: verifiedState.platform,
-          architecture: verifiedState.architecture,
-          publicKey: verifiedState.publicKeySpki,
-          requestNonce,
-          signature
-        })
-      }
+    const response = await this.transportCall(() =>
+      this.transport.createEnrollment(verifiedState.hubOrigin, {
+        displayName: verifiedState.displayName,
+        platform: verifiedState.platform,
+        architecture: verifiedState.architecture,
+        publicKey: verifiedState.publicKeySpki,
+        requestNonce,
+        signature
+      })
     ) as EnrollmentCreateBody;
     const enrollment = response.enrollment;
     const enrollmentId = requiredEnrollmentId(enrollment?.id);
@@ -389,14 +353,8 @@ export class DeviceAgentService {
     }
     const enrollmentId = state.enrollmentId;
     const signature = sign(state, buildDeviceEnrollmentStatusProof(enrollmentId));
-    const response = await this.requestJson(
-      state,
-      `/api/devices/enrollment-requests/${encodeURIComponent(enrollmentId)}/status`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ signature })
-      }
+    const response = await this.transportCall(() =>
+      this.transport.pollEnrollment(state.hubOrigin, enrollmentId, { signature })
     ) as EnrollmentStatusBody;
     const enrollment = response.enrollment;
     const responseId = requiredEnrollmentId(enrollment?.id);
@@ -509,14 +467,12 @@ export class DeviceAgentService {
     const signature = sign(state, buildDeviceHeartbeatProof(current.deviceId, sequence));
     let response: HeartbeatBody;
     try {
-      response = await this.requestJson(
-        state,
-        "/api/devices/heartbeat",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ deviceId: current.deviceId, sequence, signature })
-        }
+      response = await this.transportCall(() =>
+        this.transport.heartbeat(state.hubOrigin, {
+          deviceId: current.deviceId,
+          sequence,
+          signature
+        })
       ) as HeartbeatBody;
     } catch (error) {
       if (
@@ -639,7 +595,7 @@ export class DeviceAgentService {
     if (!force && this.verifiedHubOrigins.has(origin) && state.hubId) {
       return state;
     }
-    const body = await this.requestOriginJson(origin, "/api/hub/identity", { method: "GET" });
+    const body = await this.transportCall(() => this.transport.getHubIdentity(origin));
     const observed = hubIdentityFromResponse(origin, body);
     try {
       const pinned = pinDeviceAgentHubIdentity(this.runtimeDir, observed, this.now());
@@ -654,42 +610,14 @@ export class DeviceAgentService {
     }
   }
 
-  private async requestJson(
-    state: DeviceAgentStateRecord,
-    pathname: string,
-    init: RequestInit
-  ): Promise<unknown> {
-    return this.requestOriginJson(state.hubOrigin, pathname, init);
-  }
-
-  private async requestOriginJson(
-    origin: string,
-    pathname: string,
-    init: RequestInit
-  ): Promise<unknown> {
-    let response: Response;
+  private async transportCall<T>(operation: () => Promise<T>): Promise<T> {
     try {
-      response = await this.fetchImpl(endpoint(origin, pathname), {
-        ...init,
-        redirect: "manual",
-        headers: {
-          accept: "application/json",
-          ...(init.headers ?? {})
-        }
-      });
+      return await operation();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new DeviceAgentProtocolError(null, "DEVICE_AGENT_NETWORK_ERROR", `Unable to reach ChatCockpit Hub: ${message}`);
+      if (error instanceof DeviceAgentTransportError) {
+        throw new DeviceAgentProtocolError(error.statusCode, error.code, error.message);
+      }
+      throw error;
     }
-    if (isRedirect(response.status)) {
-      throw new DeviceAgentProtocolError(
-        response.status,
-        "DEVICE_AGENT_REDIRECT_REJECTED",
-        "Device protocol redirects are not followed automatically"
-      );
-    }
-    const body = await parseResponseJson(response);
-    if (!response.ok) throw apiProblem(response.status, body);
-    return body;
   }
 }
