@@ -399,6 +399,13 @@ export interface IntegrationStatusResponse {
   localApiBaseUrl: string;
   publicApiBaseUrl: string | null;
   openapiUrl: string;
+  lanAccess?: {
+    enabled: boolean;
+    status: "disabled" | "listener-loopback" | "no-trusted-address" | "ready";
+    trustedCidrs: string[];
+    cockpitUrls: string[];
+    apiBaseUrls: string[];
+  };
   mcp: {
     endpoint: string | null;
     scope: "chatcockpit:mcp";

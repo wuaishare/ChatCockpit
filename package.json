@@ -116,7 +116,7 @@
     "verify:connectivity-bootstrap-proof": "tsx scripts/verify-connectivity-bootstrap-proof.ts",
     "verify:connectivity-machine-bootstrap": "tsx scripts/verify-connectivity-machine-bootstrap.ts",
     "verify:public-web-surface": "tsx scripts/verify-public-web-surface.ts",
-    "verify:integrations-status": "tsx scripts/verify-integrations-status.ts",
+    "verify:integrations-status": "tsx scripts/verify-lan-access.ts && tsx scripts/verify-integrations-status.ts",
     "verify:public-web-security": "npm run verify:web-security && npm run verify:access-policy && npm run verify:oauth-owner-approval && npm run verify:public-web-surface && npm run verify:integrations-status && npm run verify:connectivity-provider-public-projection && npm run verify:connectivity-route-candidate && npm run verify:connectivity-route-verification && npm run verify:connectivity-cutover-intent && npm run verify:connectivity-bootstrap-proof",
     "verify:operator-auth": "npm run verify:operator-password && npm run verify:operator-store && npm run verify:operator-service && npm run verify:operator-passkeys && npm run verify:operator-totp && npm run verify:operator-cli && npm run verify:secure-bootstrap && npm run verify:machine-api-token && npm run verify:web-operator-auth",
     "verify:public-errors": "tsx scripts/verify-public-errors.ts",

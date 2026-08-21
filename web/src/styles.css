@@ -1651,6 +1651,20 @@ button,
   font-weight: 680;
 }
 
+.public-access-status-tags {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.public-access-endpoint-list {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
 .public-access-endpoint {
   display: inline-flex;
   align-items: center;

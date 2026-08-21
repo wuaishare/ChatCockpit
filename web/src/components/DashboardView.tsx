@@ -133,6 +133,21 @@ export function DashboardView({
               </strong>
             </div>
             <div className="summary-line summary-line--wide">
+              <span>{integrationsCopy.lanCockpit}</span>
+              <strong>
+                {integrationStatus?.lanAccess?.cockpitUrls[0] ? (
+                  <a
+                    className="summary-entry-link"
+                    href={integrationStatus.lanAccess.cockpitUrls[0]}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {integrationStatus.lanAccess.cockpitUrls[0]}
+                  </a>
+                ) : copy.common.notAvailable}
+              </strong>
+            </div>
+            <div className="summary-line summary-line--wide">
               <span>{integrationsCopy.publicCockpit}</span>
               <strong>
                 {integrationStatus?.publicCockpitUrl ? (

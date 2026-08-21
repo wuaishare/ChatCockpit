@@ -2,6 +2,7 @@ import type { LocaleCode } from "../i18n";
 
 export interface IntegrationsCopy {
   localCockpit: string;
+  lanCockpit: string;
   publicCockpit: string;
   notConfigured: string;
   ready: string;
@@ -68,6 +69,7 @@ export interface IntegrationsCopy {
 
 const zhCN: IntegrationsCopy = {
   localCockpit: "本机控制台",
+  lanCockpit: "局域网控制台",
   publicCockpit: "公网控制台",
   notConfigured: "未配置",
   ready: "就绪",
@@ -134,6 +136,7 @@ const zhCN: IntegrationsCopy = {
 
 const enUS: IntegrationsCopy = {
   localCockpit: "Local Cockpit",
+  lanCockpit: "LAN Cockpit",
   publicCockpit: "Public Cockpit",
   notConfigured: "Not configured",
   ready: "Ready",

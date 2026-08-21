@@ -127,6 +127,7 @@ chatcockpit access-policy set --lan-enabled true --lan-cidr <your-lan-cidr> --js
 - **新初始化默认生成随机安全入口**；`/ui` 只作为旧状态/内部构建回退。随机入口启用后，传统 `/ui` 返回普通 404，而且匿名管理员 status/login/Passkey 登录接口也要求携带当前入口知识，否则同样返回 404。这样隐藏的是实际登录面，而不只是 HTML 页面。
 - 随机入口用于显著降低机会主义扫描与密码喷洒面，但仍是 defense-in-depth，**不能替代控制台管理员、Passkey、密码、登录限流、CSRF、HTTPS 等真实安全边界**。
 - 匿名根状态不会投影随机控制台路径；App 可以直接从本机 canonical policy 读取真实入口，已登录管理员也可以通过受保护的 Integrations 状态看到有效 Local/Public Cockpit URL。
+- 已登录的 Dashboard 与「公网接入」页面还会投影 **局域网控制台** readiness。只有 Trusted LAN 已启用、Runtime listener 确实监听对应地址族/地址，并且非 loopback 网卡地址命中可信 CIDR 时，Web 才会给出可点击的 LAN 控制台 URL；Web 不会为了生成入口而静默扩大 listener 或自动开启 Trusted LAN。
 - Trusted LAN 默认关闭，必须显式提供 IPv4/IPv6 CIDR allowlist。未命中的直接非 loopback 请求在身份认证之前返回 404；命中的 LAN 客户端只是获得网络准入，访问受保护 API 仍必须完成管理员认证。
 - 开启 LAN policy **不会自动修改 listener**。如果 `CHATCOCKPIT_HOST` 仍为 `127.0.0.1` / `::1`，其他设备仍无法连接；这是有意避免 App 静默扩大监听面。
 - loopback reverse proxy 与直接 LAN peer 分开处理：只有明确受信任的本机反代链可以承载公网 HTTPS；非 loopback peer 不能通过伪造 `X-Forwarded-*` 绕过 LAN gate。

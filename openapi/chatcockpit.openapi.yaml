@@ -257,6 +257,28 @@ components:
             - type: "null"
         openapiUrl:
           type: string
+        lanAccess:
+          type: object
+          additionalProperties: false
+          properties:
+            enabled:
+              type: boolean
+            status:
+              type: string
+              enum: [disabled, listener-loopback, no-trusted-address, ready]
+            trustedCidrs:
+              type: array
+              items:
+                type: string
+            cockpitUrls:
+              type: array
+              items:
+                type: string
+            apiBaseUrls:
+              type: array
+              items:
+                type: string
+          required: [enabled, status, trustedCidrs, cockpitUrls, apiBaseUrls]
         mcp:
           $ref: '#/components/schemas/IntegrationMcpStatus'
         machineApi:
@@ -266,7 +288,7 @@ components:
             configured:
               type: boolean
           required: [configured]
-      required: [ok, localCockpitUrl, publicCockpitUrl, localApiBaseUrl, publicApiBaseUrl, openapiUrl, mcp, machineApi]
+      required: [ok, localCockpitUrl, publicCockpitUrl, localApiBaseUrl, publicApiBaseUrl, openapiUrl, lanAccess, mcp, machineApi]
     OAuthAuthorizationGrantSummary:
       type: object
       additionalProperties: false

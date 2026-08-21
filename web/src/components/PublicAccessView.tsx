@@ -252,6 +252,32 @@ export function PublicAccessView({
     : status.mcp.oauthStatus === "disabled"
       ? "default"
       : "warning";
+  const lanAccess = status.lanAccess ?? {
+    enabled: false,
+    status: "disabled" as const,
+    trustedCidrs: [],
+    cockpitUrls: [],
+    apiBaseUrls: []
+  };
+  const lanAccessLabel = lanAccess.status === "ready"
+    ? copy.lanAccessReady
+    : lanAccess.status === "listener-loopback"
+      ? copy.lanAccessLoopbackOnly
+      : lanAccess.status === "no-trusted-address"
+        ? copy.lanAccessNoTrustedAddress
+        : copy.lanAccessDisabled;
+  const lanAccessTagColor = lanAccess.status === "ready"
+    ? "success"
+    : lanAccess.status === "disabled"
+      ? "default"
+      : "warning";
+  const lanAccessDescription = lanAccess.status === "ready"
+    ? copy.lanAccessReadyDescription
+    : lanAccess.status === "listener-loopback"
+      ? copy.lanAccessLoopbackDescription
+      : lanAccess.status === "no-trusted-address"
+        ? copy.lanAccessNoTrustedAddressDescription
+        : copy.lanAccessDisabledDescription;
   const workflowVerificationFailed = bootstrapMode
     ? bootstrapVerification?.status === "failed"
     : verification?.status === "failed";
@@ -361,9 +387,14 @@ export function PublicAccessView({
           <div className="public-access-status-block">
             <div className="public-access-status-block__header">
               <strong>{copy.addressesTitle}</strong>
-              <Tag color={exposed ? "processing" : "default"}>
-                {copy.exposureStatus} · {exposed ? copy.active : copy.inactive}
-              </Tag>
+              <div className="public-access-status-tags">
+                <Tag color={lanAccessTagColor}>
+                  {copy.lanAccess} · {lanAccessLabel}
+                </Tag>
+                <Tag color={exposed ? "processing" : "default"}>
+                  {copy.exposureStatus} · {exposed ? copy.active : copy.inactive}
+                </Tag>
+              </div>
             </div>
             <div className="gpt-facts">
               <div className="gpt-fact">
@@ -374,6 +405,24 @@ export function PublicAccessView({
                   copyLabel={`${copy.copyUrl}: ${copy.localCockpit}`}
                   openable
                 />
+              </div>
+              <div className="gpt-fact">
+                <span>{copy.lanCockpit}</span>
+                <div className="public-access-endpoint-list">
+                  {lanAccess.cockpitUrls.length > 0 ? (
+                    lanAccess.cockpitUrls.map((url) => (
+                      <EndpointValue
+                        key={url}
+                        value={url}
+                        fallback={copy.notConfigured}
+                        copyLabel={`${copy.copyUrl}: ${copy.lanCockpit}`}
+                        openable
+                      />
+                    ))
+                  ) : (
+                    <strong>{copy.notConfigured}</strong>
+                  )}
+                </div>
               </div>
               <div className="gpt-fact">
                 <span>{copy.publicCockpit}</span>
@@ -400,6 +449,17 @@ export function PublicAccessView({
                   copyLabel={`${copy.copyUrl}: ${copy.publicApiBase}`}
                 />
               </div>
+              <div className="gpt-fact">
+                <span>{copy.trustedLanCidrs}</span>
+                <strong>
+                  {lanAccess.trustedCidrs.length > 0
+                    ? lanAccess.trustedCidrs.join(", ")
+                    : copy.notConfigured}
+                </strong>
+              </div>
+            </div>
+            <div className="gpt-inline-note public-access-note">
+              <Text>{lanAccessDescription}</Text>
             </div>
           </div>
 
