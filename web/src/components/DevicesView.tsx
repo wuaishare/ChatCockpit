@@ -59,7 +59,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
         fetchDeviceEnrollmentRequests()
       ]);
       setDevices(deviceResponse.devices);
-      setRequests(requestResponse.requests);
+      setRequests(requestResponse.enrollmentRequests);
     } catch (loadError) {
       setError(errorMessage(loadError, copy.loadFailed, copy.apiVersionMismatch));
     } finally {

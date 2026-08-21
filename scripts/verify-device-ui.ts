@@ -38,6 +38,7 @@ assert.match(api, /buildHeaders\(null, \{ mutation: true \}\)/);
 
 assert.match(types, /ManagedDevicePresence = "online" \| "offline" \| "revoked"/);
 assert.match(types, /DeviceEnrollmentStatus = "pending" \| "approved" \| "denied" \| "expired"/);
+assert.match(types, /enrollmentRequests:\s*DeviceEnrollmentRequestSummary\[\]/);
 assert.match(types, /verificationCode:\s*string/);
 assert.match(types, /remoteControl:\s*false/);
 assert.match(types, /publicKeyFingerprint:\s*string \| null/);
@@ -45,6 +46,7 @@ assert.match(types, /publicKeyFingerprint:\s*string \| null/);
 assert.match(view, /Promise\.all\(\[/);
 assert.match(view, /fetchDevices\(\)/);
 assert.match(view, /fetchDeviceEnrollmentRequests\(\)/);
+assert.match(view, /requestResponse\.enrollmentRequests/);
 assert.match(view, /decideDeviceEnrollment\(requestId, decision\)/);
 assert.match(view, /revokeDevice\(deviceId\)/);
 assert.match(view, /window\.setInterval\([^]*10_000/);
@@ -69,6 +71,7 @@ assert.match(copy, /局域网可达也不代表设备可信/);
 assert.match(copy, /LAN reachability does not make a device trusted/);
 
 assert.match(routes, /app\.get\("\/api\/devices"/);
+assert.match(routes, /enrollmentRequests:\s*store\.listPendingEnrollmentRequests/);
 assert.match(routes, /app\.post\("\/api\/devices\/enrollment-requests"/);
 assert.match(routes, /\/status"/);
 assert.match(routes, /\/decision"/);

@@ -436,7 +436,7 @@ export interface DeviceEnrollmentRequestSummary {
 
 export interface DeviceEnrollmentRequestsResponse {
   ok: true;
-  requests: DeviceEnrollmentRequestSummary[];
+  enrollmentRequests: DeviceEnrollmentRequestSummary[];
 }
 
 export interface DeviceEnrollmentDecisionResponse {
