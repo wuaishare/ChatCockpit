@@ -37,6 +37,7 @@ import {
 import { readHiddenLine, readPasswordFromStdin } from "./secret-input.js";
 import {
   DEVICE_AGENT_DEFAULT_INTERVAL_MS,
+  DeviceAgentProtocolError,
   DeviceAgentService,
   type DeviceAgentStatus
 } from "../devices/device-agent.js";
@@ -103,7 +104,7 @@ Usage:
   ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
   ${identity.cliName} device status [--json]
-  ${identity.cliName} device discover [--timeout 3] [--json]
+  ${identity.cliName} device discover [--timeout 3] [--verify] [--json]
   ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
   ${identity.cliName} device heartbeat [--json]
   ${identity.cliName} device route verify <hub-url> [--json]
@@ -508,6 +509,7 @@ async function main(): Promise<void> {
         }
         case "discover": {
           const timeoutValue = getFlag("--timeout");
+          const verifyCandidates = process.argv.includes("--verify");
           const timeoutSeconds = timeoutValue === undefined
             ? LAN_DISCOVERY_DEFAULT_DURATION_MS / 1_000
             : Number(timeoutValue);
@@ -534,22 +536,96 @@ async function main(): Promise<void> {
               signal: controller.signal,
               onWarning: (code) => warnings.add(code)
             });
+            const verification = new Map<number, {
+              verified: boolean;
+              controlTransportEligible: false;
+              transportSecurity: "plaintext-http" | null;
+              origin: string | null;
+              code: string | null;
+            }>();
+            if (verifyCandidates) {
+              const status = service.status();
+              if (!status.configured || status.state !== "connected" || !status.hubId) {
+                throw new Error(
+                  "device discover --verify requires a connected Device Agent with a pinned Hub identity"
+                );
+              }
+              let attempted = 0;
+              for (let index = 0; index < snapshot.candidates.length; index += 1) {
+                const candidate = snapshot.candidates[index]!;
+                if (candidate.hubIdHint !== status.hubId) {
+                  verification.set(index, {
+                    verified: false,
+                    controlTransportEligible: false,
+                    transportSecurity: null,
+                    origin: null,
+                    code: "DEVICE_AGENT_HUB_IDENTITY_MISMATCH"
+                  });
+                  continue;
+                }
+                if (attempted >= 8) {
+                  verification.set(index, {
+                    verified: false,
+                    controlTransportEligible: false,
+                    transportSecurity: null,
+                    origin: null,
+                    code: "DEVICE_AGENT_LAN_VERIFY_LIMIT_REACHED"
+                  });
+                  continue;
+                }
+                attempted += 1;
+                try {
+                  const result = await service.verifyLanDiscoveryCandidate(candidate, {
+                    signal: controller.signal
+                  });
+                  verification.set(index, {
+                    verified: true,
+                    controlTransportEligible: result.controlTransportEligible,
+                    transportSecurity: result.transportSecurity,
+                    origin: result.origin,
+                    code: null
+                  });
+                } catch (error) {
+                  verification.set(index, {
+                    verified: false,
+                    controlTransportEligible: false,
+                    transportSecurity: null,
+                    origin: null,
+                    code: error instanceof DeviceAgentProtocolError
+                      ? error.code
+                      : "DEVICE_AGENT_LAN_VERIFY_FAILED"
+                  });
+                }
+              }
+            }
             if (json) {
               printJson({
                 ...snapshot,
                 durationMs,
-                warnings: [...warnings].sort()
+                warnings: [...warnings].sort(),
+                verification: verifyCandidates
+                  ? snapshot.candidates.map((_candidate, index) => verification.get(index) ?? null)
+                  : null
               });
             } else if (snapshot.candidates.length === 0) {
               process.stdout.write("No ChatCockpit Hubs discovered on the LAN.\n");
             } else {
               process.stdout.write("Discovered ChatCockpit Hubs (untrusted candidates)\n");
-              for (const candidate of snapshot.candidates) {
+              for (let index = 0; index < snapshot.candidates.length; index += 1) {
+                const candidate = snapshot.candidates[index]!;
+                const result = verification.get(index);
                 process.stdout.write(`\n${candidate.instanceName}\n`);
                 process.stdout.write(`  Host: ${candidate.host}:${candidate.port}\n`);
                 process.stdout.write(`  Addresses: ${candidate.addresses.join(", ")}\n`);
                 process.stdout.write(`  Hub hint: ${candidate.hubIdHint}\n`);
-                process.stdout.write("  Trust: verification required\n");
+                if (result?.verified) {
+                  process.stdout.write("  Trust: pinned Hub identity verified\n");
+                  process.stdout.write("  Transport: plaintext LAN HTTP (control transport not eligible)\n");
+                } else if (verifyCandidates) {
+                  process.stdout.write(`  Trust: not verified (${result?.code ?? "not attempted"})\n`);
+                } else {
+                  process.stdout.write("  Trust: verification required\n");
+                }
               }
               if (warnings.size > 0) {
                 process.stderr.write("LAN discovery completed with provider warnings.\n");

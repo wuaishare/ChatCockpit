@@ -11,6 +11,7 @@ interface SeenRequest {
   method: string;
   redirect: RequestRedirect | undefined;
   body: string | null;
+  signal: AbortSignal | null;
 }
 
 const seen: SeenRequest[] = [];
@@ -23,7 +24,8 @@ const transport = new HttpDeviceAgentTransport({
       url,
       method: String(init?.method ?? "GET"),
       redirect: init?.redirect,
-      body: init?.body === undefined || init?.body === null ? null : String(init.body)
+      body: init?.body === undefined || init?.body === null ? null : String(init.body),
+      signal: init?.signal ?? null
     });
     if (mode === "redirect") {
       return new Response(null, {
@@ -54,8 +56,10 @@ const transport = new HttpDeviceAgentTransport({
 });
 
 const origin = "https://hub.example.com";
-await transport.getHubIdentity(origin);
-await transport.proveHubIdentity(origin, "abcdefghijklmnopqrstuvwx");
+const identityController = new AbortController();
+const proofController = new AbortController();
+await transport.getHubIdentity(origin, identityController.signal);
+await transport.proveHubIdentity(origin, "abcdefghijklmnopqrstuvwx", proofController.signal);
 await transport.createEnrollment(origin, { displayName: "MacBook Pro" });
 await transport.pollEnrollment(origin, "cc_enroll_abcdefghijklmnopqrstuvwx", { signature: "sig" });
 await transport.heartbeat(origin, { deviceId: "cc_device_abcdefghijklmnopqrstuvwx", sequence: 7, signature: "sig" });
@@ -72,6 +76,8 @@ assert.deepEqual(
 );
 assert.equal(seen.every((request) => request.redirect === "manual"), true);
 assert.equal(seen.every((request) => new URL(request.url).origin === origin), true);
+assert.equal(seen[0]?.signal, identityController.signal);
+assert.equal(seen[1]?.signal, proofController.signal);
 
 mode = "redirect";
 await assert.rejects(

@@ -32,6 +32,11 @@ import {
   type DeviceAgentTransport
 } from "./device-agent-transport.js";
 import { verifyHubIdentityProof } from "./hub-identity.js";
+import {
+  CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
+  parseLanDiscoveryCandidate,
+  type LanDiscoveryCandidate
+} from "./lan-discovery.js";
 
 export interface DeviceAgentUnconfiguredStatus {
   configured: false;
@@ -45,6 +50,9 @@ export const DEVICE_AGENT_MIN_INTERVAL_MS = 5_000;
 export const DEVICE_AGENT_MAX_INTERVAL_MS = 5 * 60_000;
 const DEVICE_AGENT_RETRY_BASE_MS = 1_000;
 const DEVICE_AGENT_RETRY_MAX_MS = 30_000;
+const DEVICE_AGENT_LAN_VERIFY_DEFAULT_TIMEOUT_MS = 1_500;
+const DEVICE_AGENT_LAN_VERIFY_MIN_TIMEOUT_MS = 250;
+const DEVICE_AGENT_LAN_VERIFY_MAX_TIMEOUT_MS = 10_000;
 
 export interface DeviceAgentPendingEnrollment {
   enrollmentId: string;
@@ -109,6 +117,26 @@ export interface DeviceAgentChannelLoopOptions {
   signal?: AbortSignal;
   onEvent?: (event: DeviceAgentChannelEvent) => void | Promise<void>;
   onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
+}
+
+export interface DeviceAgentLanCandidateVerificationOptions {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface DeviceAgentVerifiedLanCandidate {
+  schemaVersion: 1;
+  source: "mdns";
+  identityVerified: true;
+  controlTransportEligible: false;
+  transportSecurity: "plaintext-http";
+  instanceName: string;
+  origin: string;
+  address: string;
+  port: number;
+  hubId: string;
+  hubPublicKeyFingerprint: string;
+  verifiedAt: string;
 }
 
 interface EnrollmentCreateBody {
@@ -283,6 +311,28 @@ function hubIdentityFromResponse(origin: string, body: unknown): DeviceAgentHubI
   };
 }
 
+function lanCandidateOrigin(address: string, port: number): string {
+  const host = address.includes(":") ? `[${address}]` : address;
+  return `http://${host}:${port}`;
+}
+
+function normalizeLanVerificationTimeout(value: number | undefined): number {
+  const timeoutMs = value ?? DEVICE_AGENT_LAN_VERIFY_DEFAULT_TIMEOUT_MS;
+  if (
+    !Number.isFinite(timeoutMs) ||
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs < DEVICE_AGENT_LAN_VERIFY_MIN_TIMEOUT_MS ||
+    timeoutMs > DEVICE_AGENT_LAN_VERIFY_MAX_TIMEOUT_MS
+  ) {
+    throw new DeviceAgentProtocolError(
+      null,
+      "DEVICE_AGENT_LAN_VERIFY_TIMEOUT_INVALID",
+      `LAN verification timeout must be ${DEVICE_AGENT_LAN_VERIFY_MIN_TIMEOUT_MS}-${DEVICE_AGENT_LAN_VERIFY_MAX_TIMEOUT_MS} ms`
+    );
+  }
+  return timeoutMs;
+}
+
 function pendingFromPoll(poll: DeviceAgentEnrollmentPoll): DeviceAgentPendingEnrollment {
   if (poll.status !== "pending" || !poll.verificationCode) {
     throw new DeviceAgentProtocolError(null, "DEVICE_AGENT_STATE_INVALID", "Enrollment is not pending");
@@ -383,6 +433,149 @@ export class DeviceAgentService {
     );
     this.verifiedHubOrigins.add(candidateOrigin);
     return projectDeviceAgentStatus(updated);
+  }
+
+  async verifyLanDiscoveryCandidate(
+    candidateInput: LanDiscoveryCandidate,
+    options: DeviceAgentLanCandidateVerificationOptions = {}
+  ): Promise<DeviceAgentVerifiedLanCandidate> {
+    const current = this.requireState();
+    if (current.revokedAt) {
+      throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked");
+    }
+    if (!current.deviceId) {
+      throw new DeviceAgentProtocolError(
+        409,
+        "DEVICE_AGENT_NOT_CONNECTED",
+        "Device Agent must be connected before verifying LAN routes"
+      );
+    }
+    if (!current.hubId || !current.hubPublicKeySpki || !current.hubPublicKeyFingerprint) {
+      throw new DeviceAgentProtocolError(
+        409,
+        "DEVICE_AGENT_HUB_IDENTITY_MISSING",
+        "Device Agent has no pinned Hub identity for LAN verification"
+      );
+    }
+
+    let candidate: LanDiscoveryCandidate;
+    try {
+      candidate = parseLanDiscoveryCandidate({
+        serviceType: candidateInput.serviceType,
+        instanceName: candidateInput.instanceName,
+        host: candidateInput.host,
+        port: candidateInput.port,
+        addresses: candidateInput.addresses,
+        txt: ["v=1", "role=hub", `hub=${candidateInput.hubIdHint}`]
+      });
+    } catch {
+      throw new DeviceAgentProtocolError(
+        400,
+        "DEVICE_AGENT_LAN_CANDIDATE_INVALID",
+        "LAN discovery candidate is invalid"
+      );
+    }
+    if (
+      candidate.serviceType !== CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE ||
+      candidate.hubIdHint !== current.hubId
+    ) {
+      throw new DeviceAgentProtocolError(
+        409,
+        "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
+        "LAN discovery candidate does not match the pinned ChatCockpit Hub identity"
+      );
+    }
+
+    const timeoutMs = normalizeLanVerificationTimeout(options.timeoutMs);
+    for (const address of candidate.addresses) {
+      const origin = lanCandidateOrigin(address, candidate.port);
+      let identityBody: unknown;
+      try {
+        identityBody = await this.lanRequest(
+          timeoutMs,
+          options.signal,
+          (signal) => this.transport.getHubIdentity(origin, signal)
+        );
+      } catch (error) {
+        if (
+          error instanceof DeviceAgentProtocolError &&
+          (error.code === "DEVICE_AGENT_LAN_CANDIDATE_TIMEOUT" ||
+            error.code === "DEVICE_AGENT_NETWORK_ERROR" ||
+            error.statusCode === 404 ||
+            (error.statusCode !== null && error.statusCode >= 500))
+        ) {
+          continue;
+        }
+        throw error;
+      }
+
+      const observed = hubIdentityFromResponse(origin, identityBody);
+      if (
+        observed.hubId !== current.hubId ||
+        observed.publicKeySpki !== current.hubPublicKeySpki ||
+        observed.publicKeyFingerprint !== current.hubPublicKeyFingerprint
+      ) {
+        throw new DeviceAgentProtocolError(
+          409,
+          "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
+          "LAN discovery candidate does not expose the pinned ChatCockpit Hub identity"
+        );
+      }
+
+      const nonce = crypto.randomBytes(18).toString("base64url");
+      const proofRaw = await this.lanRequest(
+        timeoutMs,
+        options.signal,
+        (signal) => this.transport.proveHubIdentity(origin, nonce, signal)
+      );
+      const proof = proofRaw && typeof proofRaw === "object" ? proofRaw as HubIdentityProofBody : {};
+      if (
+        proof.ok !== true ||
+        proof.hubId !== current.hubId ||
+        proof.nonce !== nonce ||
+        typeof proof.signature !== "string"
+      ) {
+        throw new DeviceAgentProtocolError(
+          502,
+          "DEVICE_AGENT_HUB_ROUTE_PROOF_INVALID",
+          "LAN discovery candidate returned an invalid Hub identity proof"
+        );
+      }
+      let proofValid = false;
+      try {
+        proofValid = verifyHubIdentityProof(current.hubPublicKeySpki, nonce, proof.signature);
+      } catch {
+        proofValid = false;
+      }
+      if (!proofValid) {
+        throw new DeviceAgentProtocolError(
+          401,
+          "DEVICE_AGENT_HUB_ROUTE_PROOF_INVALID",
+          "LAN discovery candidate could not prove possession of the pinned Hub identity"
+        );
+      }
+
+      return {
+        schemaVersion: 1,
+        source: "mdns",
+        identityVerified: true,
+        controlTransportEligible: false,
+        transportSecurity: "plaintext-http",
+        instanceName: candidate.instanceName,
+        origin,
+        address,
+        port: candidate.port,
+        hubId: current.hubId,
+        hubPublicKeyFingerprint: current.hubPublicKeyFingerprint,
+        verifiedAt: this.now()
+      };
+    }
+
+    throw new DeviceAgentProtocolError(
+      504,
+      "DEVICE_AGENT_LAN_CANDIDATE_UNREACHABLE",
+      "LAN discovery candidate could not be reached through any advertised local address"
+    );
   }
 
   async startEnrollment(input: DeviceAgentConnectInput): Promise<DeviceAgentPendingEnrollment> {
@@ -849,6 +1042,42 @@ export class DeviceAgentService {
         "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
         error instanceof Error ? error.message : "Observed Hub identity does not match the pinned Hub"
       );
+    }
+  }
+
+  private async lanRequest<T>(
+    timeoutMs: number,
+    externalSignal: AbortSignal | undefined,
+    operation: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    if (externalSignal?.aborted) {
+      throw new DeviceAgentProtocolError(null, "DEVICE_AGENT_ABORTED", "Device Agent operation was cancelled");
+    }
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    const onAbort = () => controller.abort();
+    externalSignal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      return await this.transportCall(() => operation(controller.signal));
+    } catch (error) {
+      if (externalSignal?.aborted) {
+        throw new DeviceAgentProtocolError(null, "DEVICE_AGENT_ABORTED", "Device Agent operation was cancelled");
+      }
+      if (timedOut) {
+        throw new DeviceAgentProtocolError(
+          504,
+          "DEVICE_AGENT_LAN_CANDIDATE_TIMEOUT",
+          "LAN discovery candidate verification timed out"
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      externalSignal?.removeEventListener("abort", onAbort);
     }
   }
 

@@ -39,8 +39,8 @@ export interface DeviceAgentChannelConnection {
 }
 
 export interface DeviceAgentTransport {
-  getHubIdentity(origin: string): Promise<unknown>;
-  proveHubIdentity(origin: string, nonce: string): Promise<unknown>;
+  getHubIdentity(origin: string, signal?: AbortSignal): Promise<unknown>;
+  proveHubIdentity(origin: string, nonce: string, signal?: AbortSignal): Promise<unknown>;
   createEnrollment(origin: string, body: unknown): Promise<unknown>;
   pollEnrollment(origin: string, enrollmentId: string, body: unknown): Promise<unknown>;
   heartbeat(origin: string, body: unknown): Promise<unknown>;
@@ -233,15 +233,16 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  getHubIdentity(origin: string): Promise<unknown> {
-    return this.request(origin, "/api/hub/identity", { method: "GET" });
+  getHubIdentity(origin: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(origin, "/api/hub/identity", { method: "GET", signal });
   }
 
-  proveHubIdentity(origin: string, nonce: string): Promise<unknown> {
+  proveHubIdentity(origin: string, nonce: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(origin, "/api/hub/identity/proof", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ nonce })
+      body: JSON.stringify({ nonce }),
+      signal
     });
   }
 

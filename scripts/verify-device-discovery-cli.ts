@@ -7,7 +7,7 @@ const cli = fs.readFileSync(
   "utf8"
 );
 
-assert.match(cli, /device discover \[--timeout 3\] \[--json\]/);
+assert.match(cli, /device discover \[--timeout 3\] \[--verify\] \[--json\]/);
 assert.match(cli, /case "discover":/);
 assert.match(cli, /new BonjourLanDiscoveryProvider\(\)/);
 assert.match(cli, /discoverLanHubs\(\{/);
@@ -16,6 +16,10 @@ assert.match(cli, /LAN_DISCOVERY_MIN_DURATION_MS/);
 assert.match(cli, /LAN_DISCOVERY_MAX_DURATION_MS/);
 assert.match(cli, /Discovered ChatCockpit Hubs \(untrusted candidates\)/);
 assert.match(cli, /Trust: verification required/);
+assert.match(cli, /verifyLanDiscoveryCandidate\(candidate/);
+assert.match(cli, /pinned Hub identity verified/);
+assert.match(cli, /plaintext LAN HTTP \(control transport not eligible\)/);
+assert.match(cli, /DEVICE_AGENT_LAN_VERIFY_LIMIT_REACHED/);
 assert.match(cli, /No ChatCockpit Hubs discovered on the LAN/);
 assert.match(cli, /process\.once\("SIGINT", stop\)/);
 assert.match(cli, /process\.once\("SIGTERM", stop\)/);
@@ -23,7 +27,7 @@ assert.match(cli, /warnings: \[\.\.\.warnings\]\.sort\(\)/);
 assert.doesNotMatch(
   cli.match(/case "discover": \{[\s\S]*?case "connect": \{/i)?.[0] ?? "",
   /verifyAndUseHubRoute|writeDeviceAgent|pinHubIdentity|knownHubOrigins|device connect/i,
-  "device discover must not promote or mutate a Hub route"
+  "device discover may verify identity but must not promote or mutate a Hub route"
 );
 
 const service = fs.readFileSync(
