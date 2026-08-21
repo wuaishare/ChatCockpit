@@ -141,6 +141,7 @@ export function IntegrationsView({
       setExpandedDeviceAccessGrantId(null);
       return;
     }
+    if (deviceAccessLoadingGrantId && deviceAccessLoadingGrantId !== grantId) return;
     setExpandedDeviceAccessGrantId(grantId);
     if (!deviceAccessByGrant[grantId]) {
       await loadDeviceAccess(grantId);
@@ -298,10 +299,19 @@ export function IntegrationsView({
                         </div>
                       </div>
                       {deviceAccessErrorByGrant[grant.id] ? (
-                        <div className="section-note section-note--warning">
-                          {deviceAccessErrorByGrant[grant.id]}
+                        <div className="section-note section-note--warning oauth-device-access__error">
+                          <span>{deviceAccessErrorByGrant[grant.id]}</span>
+                          {!deviceAccessByGrant[grant.id] ? (
+                            <Button
+                              size="small"
+                              onClick={() => void loadDeviceAccess(grant.id)}
+                            >
+                              {copy.deviceAccessRetry}
+                            </Button>
+                          ) : null}
                         </div>
-                      ) : deviceAccessLoadingGrantId === grant.id ? (
+                      ) : null}
+                      {deviceAccessLoadingGrantId === grant.id ? (
                         <div className="oauth-device-access__loading">
                           <Spin size="small" /> <span>{copy.deviceAccessLoading}</span>
                         </div>

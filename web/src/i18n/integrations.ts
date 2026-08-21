@@ -81,6 +81,7 @@ export interface IntegrationsCopy {
   deviceAccessRemove: string;
   deviceAccessLoadFailed: string;
   deviceAccessMutationFailed: string;
+  deviceAccessRetry: string;
   requestFailed: string;
 }
 
@@ -165,6 +166,7 @@ const zhCN: IntegrationsCopy = {
   deviceAccessRemove: "移除权限",
   deviceAccessLoadFailed: "无法读取设备访问权限",
   deviceAccessMutationFailed: "更新设备访问权限失败",
+  deviceAccessRetry: "重新读取",
   requestFailed: "无法读取集成状态"
 };
 
@@ -249,6 +251,7 @@ const enUS: IntegrationsCopy = {
   deviceAccessRemove: "Remove access",
   deviceAccessLoadFailed: "Unable to load device access",
   deviceAccessMutationFailed: "Unable to update device access",
+  deviceAccessRetry: "Retry",
   requestFailed: "Unable to load integrations"
 };
 

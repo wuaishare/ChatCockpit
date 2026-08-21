@@ -30,8 +30,12 @@ assert.match(view, /copy\.deviceAccessManage/);
 assert.match(view, /toggleDeviceAccess\(grant\.id\)/);
 assert.match(view, /deviceAccessByGrant\[grant\.id\]\.devices\.map/);
 assert.match(view, /updateDeviceAccess\(grant\.id, device\.deviceId, device\.granted\)/);
+assert.match(view, /setDeviceAccessByGrant\(\(current\) => \(\{ \.\.\.current, \[grantId\]: response\.access \}\)\)/);
+assert.match(view, /setMutatingDeviceAccessKey\(key\)/);
+assert.match(view, /setDeviceAccessErrorByGrant/);
 assert.match(view, /device\.status === "available"/);
 assert.match(view, /device\.effective \? <Tag color="success">/);
+assert.match(view, /disabled=\{device\.granted \? !canRemove : !canGrant\}/);
 assert.doesNotMatch(view, /grantAll|allowAll|authorizeAll|selectAllDevices/i);
 
 assert.match(copy, /新加入的远程设备不会自动继承此授权/);
