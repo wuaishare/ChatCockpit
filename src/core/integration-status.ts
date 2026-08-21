@@ -4,6 +4,10 @@ import { readIdentityEnv } from "./identity-env.js";
 import { buildHealthStatusSnapshot } from "./gpt-config.js";
 import type { TokenPilotPaths } from "../types.js";
 import { loadAccessPolicy } from "../security/access-policy.js";
+import {
+  buildLanAccessSnapshot,
+  type LanAccessSnapshot
+} from "../devices/lan-access.js";
 
 export interface IntegrationStatusSnapshot {
   ok: true;
@@ -12,6 +16,7 @@ export interface IntegrationStatusSnapshot {
   localApiBaseUrl: string;
   publicApiBaseUrl: string | null;
   openapiUrl: string;
+  lanAccess: LanAccessSnapshot;
   mcp: {
     endpoint: string | null;
     scope: string;
@@ -57,6 +62,12 @@ export function buildIntegrationStatusSnapshot(input: {
   const openapiUrl = publicApiBaseUrl
     ? appendPath(publicApiBaseUrl, "/openapi.yaml")
     : appendPath(localApiBaseUrl, "/openapi.yaml");
+  const lanAccess = buildLanAccessSnapshot({
+    policy: accessPolicy,
+    host: readIdentityEnv("HOST")?.trim() || "127.0.0.1",
+    port: localPort(),
+    consolePathPrefix: accessPolicy.consolePathPrefix
+  });
 
   return {
     ok: true,
@@ -67,6 +78,7 @@ export function buildIntegrationStatusSnapshot(input: {
     localApiBaseUrl,
     publicApiBaseUrl,
     openapiUrl,
+    lanAccess,
     mcp: {
       endpoint: publicApiBaseUrl ? appendPath(publicApiBaseUrl, "/mcp") : null,
       scope: "chatcockpit:mcp",

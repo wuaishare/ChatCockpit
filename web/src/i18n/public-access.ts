@@ -17,7 +17,18 @@ export interface PublicAccessCopy {
   protocolHealthTitle: string;
   exposureStatus: string;
   localCockpit: string;
+  lanCockpit: string;
   publicCockpit: string;
+  lanAccess: string;
+  lanAccessReady: string;
+  lanAccessDisabled: string;
+  lanAccessLoopbackOnly: string;
+  lanAccessNoTrustedAddress: string;
+  trustedLanCidrs: string;
+  lanAccessReadyDescription: string;
+  lanAccessDisabledDescription: string;
+  lanAccessLoopbackDescription: string;
+  lanAccessNoTrustedAddressDescription: string;
   localApiBase: string;
   publicApiBase: string;
   openapiUrl: string;
@@ -134,7 +145,18 @@ const zhCN: PublicAccessCopy = {
   protocolHealthTitle: "协议健康",
   exposureStatus: "公网暴露",
   localCockpit: "本机控制台",
+  lanCockpit: "局域网控制台",
   publicCockpit: "公网控制台",
+  lanAccess: "局域网访问",
+  lanAccessReady: "可访问",
+  lanAccessDisabled: "未启用",
+  lanAccessLoopbackOnly: "仅监听本机",
+  lanAccessNoTrustedAddress: "没有可用可信地址",
+  trustedLanCidrs: "可信局域网",
+  lanAccessReadyDescription: "同一可信局域网内的设备可以通过下面的地址打开 ChatCockpit；进入控制台后仍然需要 Owner 身份认证。",
+  lanAccessDisabledDescription: "Trusted LAN 尚未启用。当前只有本机或已配置的公网入口可以访问控制台。",
+  lanAccessLoopbackDescription: "Trusted LAN 已启用，但 Runtime 仍只监听回环地址。需要显式扩大监听范围并重启 Runtime，局域网设备才能连接。",
+  lanAccessNoTrustedAddressDescription: "Trusted LAN 已启用，但当前监听地址与可信 CIDR 没有形成可用交集。请检查 Runtime 监听地址与局域网网段配置。",
   localApiBase: "本机 API",
   publicApiBase: "公网 API",
   openapiUrl: "OpenAPI 地址",
@@ -277,7 +299,18 @@ const enUS: PublicAccessCopy = {
   protocolHealthTitle: "Protocol health",
   exposureStatus: "Public exposure",
   localCockpit: "Local Cockpit",
+  lanCockpit: "LAN Cockpit",
   publicCockpit: "Public Cockpit",
+  lanAccess: "LAN access",
+  lanAccessReady: "Reachable",
+  lanAccessDisabled: "Disabled",
+  lanAccessLoopbackOnly: "Loopback only",
+  lanAccessNoTrustedAddress: "No trusted address",
+  trustedLanCidrs: "Trusted LAN",
+  lanAccessReadyDescription: "Devices on the same trusted LAN can open ChatCockpit through the addresses below. Owner authentication is still required after network admission.",
+  lanAccessDisabledDescription: "Trusted LAN is disabled. The Cockpit is currently reachable only from this device or through a configured public entry.",
+  lanAccessLoopbackDescription: "Trusted LAN is enabled, but the Runtime still listens only on loopback. Expand the listener explicitly and restart the Runtime before LAN devices can connect.",
+  lanAccessNoTrustedAddressDescription: "Trusted LAN is enabled, but the active listener and trusted CIDRs do not produce a usable LAN address. Check the Runtime listener and LAN ranges.",
   localApiBase: "Local API",
   publicApiBase: "Public API",
   openapiUrl: "OpenAPI URL",

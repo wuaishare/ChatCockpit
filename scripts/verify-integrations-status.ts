@@ -149,6 +149,13 @@ async function main(): Promise<void> {
       localApiBaseUrl: string;
       publicApiBaseUrl: string | null;
       openapiUrl: string;
+      lanAccess: {
+        enabled: boolean;
+        status: string;
+        trustedCidrs: string[];
+        cockpitUrls: string[];
+        apiBaseUrls: string[];
+      };
       mcp: {
         endpoint: string | null;
         scope: string;
@@ -169,6 +176,11 @@ async function main(): Promise<void> {
     assert.equal(body.localApiBaseUrl, "http://127.0.0.1:5123");
     assert.equal(body.publicApiBaseUrl, "https://chatcockpit.example.com");
     assert.equal(body.openapiUrl, "https://chatcockpit.example.com/openapi.yaml");
+    assert.equal(body.lanAccess.enabled, false);
+    assert.equal(body.lanAccess.status, "disabled");
+    assert.deepEqual(body.lanAccess.trustedCidrs, []);
+    assert.deepEqual(body.lanAccess.cockpitUrls, []);
+    assert.deepEqual(body.lanAccess.apiBaseUrls, []);
     assert.equal(body.mcp.endpoint, "https://chatcockpit.example.com/mcp");
     assert.equal(body.mcp.scope, "chatcockpit:mcp");
     assert.equal(body.mcp.oauthStatus, "ready");
