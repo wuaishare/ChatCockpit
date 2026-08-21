@@ -56,6 +56,7 @@ import {
   readHubIdentity,
   type HubIdentityRecord
 } from "../devices/hub-identity.js";
+import { ensureLanTlsIdentity } from "../devices/lan-tls-identity.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -717,7 +718,11 @@ export function buildServer(
     operatorPasskeyService,
     operatorTotpService
   );
-  registerHubIdentityRoutes(app, hubIdentity);
+  registerHubIdentityRoutes(app, hubIdentity, {
+    getLanTlsIdentity: accessPolicy.trustedLan.enabled
+      ? () => ensureLanTlsIdentity(paths.runtimeDir)
+      : null
+  });
   registerDeviceRoutes(app, deviceRegistryStore, {
     ...(options.deviceNow ? { now: options.deviceNow } : {}),
     channelHub: deviceChannelHub
