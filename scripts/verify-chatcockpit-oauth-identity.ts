@@ -242,7 +242,7 @@ try {
     },
     { redirect: "manual", cookie: ownerCookie }
   );
-  assert.equal(approved.status, 302);
+  assert.equal(approved.status, 303);
   const location = approved.headers.get("location");
   assert.ok(location);
   const code = new URL(location).searchParams.get("code");
