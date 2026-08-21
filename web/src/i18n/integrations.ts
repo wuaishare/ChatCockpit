@@ -64,6 +64,23 @@ export interface IntegrationsCopy {
   grantLoadFailed: string;
   grantApiVersionMismatch: string;
   grantRevokeFailed: string;
+  deviceAccessManage: string;
+  deviceAccessHide: string;
+  deviceAccessTitle: string;
+  deviceAccessDescription: string;
+  deviceAccessLoading: string;
+  deviceAccessLocal: string;
+  deviceAccessRemote: string;
+  deviceAccessAvailable: string;
+  deviceAccessRevoked: string;
+  deviceAccessMissing: string;
+  deviceAccessEffective: string;
+  deviceAccessGranted: string;
+  deviceAccessNotGranted: string;
+  deviceAccessGrant: string;
+  deviceAccessRemove: string;
+  deviceAccessLoadFailed: string;
+  deviceAccessMutationFailed: string;
   requestFailed: string;
 }
 
@@ -131,6 +148,23 @@ const zhCN: IntegrationsCopy = {
   grantLoadFailed: "无法读取 OAuth 授权关系",
   grantApiVersionMismatch: "OAuth 授权管理接口暂不可用。当前 Web 与 Control Plane 版本可能未同步，请更新或重启 ChatCockpit 服务。",
   grantRevokeFailed: "撤销 OAuth 授权失败",
+  deviceAccessManage: "管理设备权限",
+  deviceAccessHide: "收起设备权限",
+  deviceAccessTitle: "设备访问权限",
+  deviceAccessDescription: "OAuth 授权默认只包含本机。新加入的远程设备不会自动继承此授权，必须由控制台管理员明确加入；授权关系或设备被撤销后会立即失效。",
+  deviceAccessLoading: "正在读取设备权限",
+  deviceAccessLocal: "本机",
+  deviceAccessRemote: "远程设备",
+  deviceAccessAvailable: "可用",
+  deviceAccessRevoked: "设备已撤销",
+  deviceAccessMissing: "设备不可用",
+  deviceAccessEffective: "当前有效",
+  deviceAccessGranted: "已授权",
+  deviceAccessNotGranted: "未授权",
+  deviceAccessGrant: "授权访问",
+  deviceAccessRemove: "移除权限",
+  deviceAccessLoadFailed: "无法读取设备访问权限",
+  deviceAccessMutationFailed: "更新设备访问权限失败",
   requestFailed: "无法读取集成状态"
 };
 
@@ -198,6 +232,23 @@ const enUS: IntegrationsCopy = {
   grantLoadFailed: "Unable to load OAuth authorizations",
   grantApiVersionMismatch: "The OAuth authorization management API is unavailable. The Web UI and Control Plane may be on different versions; update or restart ChatCockpit.",
   grantRevokeFailed: "Unable to revoke OAuth authorization",
+  deviceAccessManage: "Manage device access",
+  deviceAccessHide: "Hide device access",
+  deviceAccessTitle: "Device access",
+  deviceAccessDescription: "OAuth authorizations include this device by default only. Newly enrolled remote devices never inherit access automatically and must be explicitly allowed by the Web Owner. Revoking either the authorization or device takes effect immediately.",
+  deviceAccessLoading: "Loading device access",
+  deviceAccessLocal: "This device",
+  deviceAccessRemote: "Remote device",
+  deviceAccessAvailable: "Available",
+  deviceAccessRevoked: "Device revoked",
+  deviceAccessMissing: "Device unavailable",
+  deviceAccessEffective: "Effective now",
+  deviceAccessGranted: "Allowed",
+  deviceAccessNotGranted: "Not allowed",
+  deviceAccessGrant: "Allow access",
+  deviceAccessRemove: "Remove access",
+  deviceAccessLoadFailed: "Unable to load device access",
+  deviceAccessMutationFailed: "Unable to update device access",
   requestFailed: "Unable to load integrations"
 };
 

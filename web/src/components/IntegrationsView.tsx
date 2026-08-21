@@ -2,12 +2,19 @@ import { useEffect, useState } from "react";
 import { Button, Popconfirm, Spin, Tag } from "antd";
 import { CopyButton, Text } from "@lobehub/ui";
 import { ClipboardCopy } from "lucide-react";
-import { fetchOAuthAuthorizationGrants, revokeOAuthAuthorizationGrant } from "../api";
+import {
+  fetchOAuthAuthorizationGrants,
+  fetchOAuthGrantDeviceAccess,
+  grantOAuthDeviceAccess,
+  revokeOAuthAuthorizationGrant,
+  revokeOAuthDeviceAccess
+} from "../api";
 import type {
   GptConfigModel,
   IntegrationStatusResponse,
   OAuthAuthorizationGrantStatus,
-  OAuthAuthorizationGrantSummary
+  OAuthAuthorizationGrantSummary,
+  OAuthGrantDeviceAccessList
 } from "../types";
 import type { LocaleCode } from "../i18n";
 import { getIntegrationsCopy } from "../i18n/integrations";
@@ -46,6 +53,11 @@ export function IntegrationsView({
   const [grantsLoading, setGrantsLoading] = useState(true);
   const [grantError, setGrantError] = useState<string | null>(null);
   const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
+  const [expandedDeviceAccessGrantId, setExpandedDeviceAccessGrantId] = useState<string | null>(null);
+  const [deviceAccessByGrant, setDeviceAccessByGrant] = useState<Record<string, OAuthGrantDeviceAccessList>>({});
+  const [deviceAccessLoadingGrantId, setDeviceAccessLoadingGrantId] = useState<string | null>(null);
+  const [deviceAccessErrorByGrant, setDeviceAccessErrorByGrant] = useState<Record<string, string | null>>({});
+  const [mutatingDeviceAccessKey, setMutatingDeviceAccessKey] = useState<string | null>(null);
 
   const loadGrants = async () => {
     setGrantsLoading(true);
@@ -81,6 +93,18 @@ export function IntegrationsView({
     try {
       const updated = await revokeOAuthAuthorizationGrant(grantId);
       setGrants((current) => current.map((grant) => grant.id === updated.id ? updated : grant));
+      setDeviceAccessByGrant((current) => {
+        const existing = current[grantId];
+        if (!existing) return current;
+        return {
+          ...current,
+          [grantId]: {
+            ...existing,
+            grantRevoked: true,
+            devices: existing.devices.map((device) => ({ ...device, effective: false }))
+          }
+        };
+      });
       await onRefresh?.();
     } catch (error) {
       setGrantError(
@@ -90,6 +114,58 @@ export function IntegrationsView({
       );
     } finally {
       setRevokingGrantId(null);
+    }
+  };
+
+  const loadDeviceAccess = async (grantId: string) => {
+    if (deviceAccessLoadingGrantId) return;
+    setDeviceAccessLoadingGrantId(grantId);
+    setDeviceAccessErrorByGrant((current) => ({ ...current, [grantId]: null }));
+    try {
+      const response = await fetchOAuthGrantDeviceAccess(grantId);
+      setDeviceAccessByGrant((current) => ({ ...current, [grantId]: response.access }));
+    } catch (error) {
+      setDeviceAccessErrorByGrant((current) => ({
+        ...current,
+        [grantId]: typeof error === "object" && error && "message" in error && typeof error.message === "string"
+          ? error.message
+          : copy.deviceAccessLoadFailed
+      }));
+    } finally {
+      setDeviceAccessLoadingGrantId(null);
+    }
+  };
+
+  const toggleDeviceAccess = async (grantId: string) => {
+    if (expandedDeviceAccessGrantId === grantId) {
+      setExpandedDeviceAccessGrantId(null);
+      return;
+    }
+    setExpandedDeviceAccessGrantId(grantId);
+    if (!deviceAccessByGrant[grantId]) {
+      await loadDeviceAccess(grantId);
+    }
+  };
+
+  const updateDeviceAccess = async (grantId: string, deviceId: string, granted: boolean) => {
+    const key = `${grantId}:${deviceId}`;
+    if (mutatingDeviceAccessKey) return;
+    setMutatingDeviceAccessKey(key);
+    setDeviceAccessErrorByGrant((current) => ({ ...current, [grantId]: null }));
+    try {
+      const response = granted
+        ? await revokeOAuthDeviceAccess(grantId, deviceId)
+        : await grantOAuthDeviceAccess(grantId, deviceId);
+      setDeviceAccessByGrant((current) => ({ ...current, [grantId]: response.access }));
+    } catch (error) {
+      setDeviceAccessErrorByGrant((current) => ({
+        ...current,
+        [grantId]: typeof error === "object" && error && "message" in error && typeof error.message === "string"
+          ? error.message
+          : copy.deviceAccessMutationFailed
+      }));
+    } finally {
+      setMutatingDeviceAccessKey(null);
     }
   };
 
@@ -176,24 +252,34 @@ export function IntegrationsView({
                       <Tag color={meta.color}>{meta.label}</Tag>
                       {grant.legacy ? <Tag>{copy.grantLegacy}</Tag> : null}
                     </div>
-                    <Popconfirm
-                      title={copy.revokeGrantTitle}
-                      description={copy.revokeGrantDescription}
-                      okText={copy.revokeGrantConfirm}
-                      cancelText={copy.revokeGrantCancel}
-                      okButtonProps={{ danger: true }}
-                      disabled={grant.status === "revoked"}
-                      onConfirm={() => revokeGrant(grant.id)}
-                    >
+                    <div className="oauth-grant-card__actions">
                       <Button
-                        danger
                         size="small"
-                        disabled={grant.status === "revoked"}
-                        loading={revokingGrantId === grant.id}
+                        onClick={() => void toggleDeviceAccess(grant.id)}
                       >
-                        {copy.revokeGrant}
+                        {expandedDeviceAccessGrantId === grant.id
+                          ? copy.deviceAccessHide
+                          : copy.deviceAccessManage}
                       </Button>
-                    </Popconfirm>
+                      <Popconfirm
+                        title={copy.revokeGrantTitle}
+                        description={copy.revokeGrantDescription}
+                        okText={copy.revokeGrantConfirm}
+                        cancelText={copy.revokeGrantCancel}
+                        okButtonProps={{ danger: true }}
+                        disabled={grant.status === "revoked"}
+                        onConfirm={() => revokeGrant(grant.id)}
+                      >
+                        <Button
+                          danger
+                          size="small"
+                          disabled={grant.status === "revoked"}
+                          loading={revokingGrantId === grant.id}
+                        >
+                          {copy.revokeGrant}
+                        </Button>
+                      </Popconfirm>
+                    </div>
                   </div>
                   <div className="oauth-grant-card__facts">
                     <div><span>{copy.grantId}</span><code>{grant.id}</code></div>
@@ -203,6 +289,71 @@ export function IntegrationsView({
                     <div><span>{copy.grantLastTokenIssuedAt}</span><strong>{formatTime(grant.lastTokenIssuedAt)}</strong></div>
                     <div><span>{copy.grantActiveTokens}</span><strong>{grant.activeAccessTokenCount} / {grant.activeRefreshTokenCount}</strong></div>
                   </div>
+                  {expandedDeviceAccessGrantId === grant.id ? (
+                    <div className="oauth-device-access">
+                      <div className="oauth-device-access__heading">
+                        <div>
+                          <strong>{copy.deviceAccessTitle}</strong>
+                          <span>{copy.deviceAccessDescription}</span>
+                        </div>
+                      </div>
+                      {deviceAccessErrorByGrant[grant.id] ? (
+                        <div className="section-note section-note--warning">
+                          {deviceAccessErrorByGrant[grant.id]}
+                        </div>
+                      ) : deviceAccessLoadingGrantId === grant.id ? (
+                        <div className="oauth-device-access__loading">
+                          <Spin size="small" /> <span>{copy.deviceAccessLoading}</span>
+                        </div>
+                      ) : deviceAccessByGrant[grant.id] ? (
+                        <div className="oauth-device-access__list">
+                          {deviceAccessByGrant[grant.id].devices.map((device) => {
+                            const mutationKey = `${grant.id}:${device.deviceId}`;
+                            const statusLabel = device.status === "available"
+                              ? copy.deviceAccessAvailable
+                              : device.status === "revoked"
+                                ? copy.deviceAccessRevoked
+                                : copy.deviceAccessMissing;
+                            const statusColor = device.status === "available" ? "success" : "warning";
+                            const canGrant = !deviceAccessByGrant[grant.id].grantRevoked && device.status === "available";
+                            const canRemove = !deviceAccessByGrant[grant.id].grantRevoked && device.granted;
+                            return (
+                              <div className="oauth-device-access__row" key={device.deviceId}>
+                                <div className="oauth-device-access__identity">
+                                  <div className="oauth-device-access__name">
+                                    <strong>{device.displayName}</strong>
+                                    <Tag>{device.locality === "local" ? copy.deviceAccessLocal : copy.deviceAccessRemote}</Tag>
+                                    <Tag color={statusColor}>{statusLabel}</Tag>
+                                    {device.effective ? <Tag color="success">{copy.deviceAccessEffective}</Tag> : null}
+                                  </div>
+                                  <div className="oauth-device-access__meta">
+                                    <code>{device.deviceId}</code>
+                                    {device.platform || device.architecture ? (
+                                      <span>{[device.platform, device.architecture].filter(Boolean).join(" · ")}</span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div className="oauth-device-access__action">
+                                  <Tag color={device.granted ? "processing" : undefined}>
+                                    {device.granted ? copy.deviceAccessGranted : copy.deviceAccessNotGranted}
+                                  </Tag>
+                                  <Button
+                                    size="small"
+                                    danger={device.granted}
+                                    disabled={device.granted ? !canRemove : !canGrant}
+                                    loading={mutatingDeviceAccessKey === mutationKey}
+                                    onClick={() => void updateDeviceAccess(grant.id, device.deviceId, device.granted)}
+                                  >
+                                    {device.granted ? copy.deviceAccessRemove : copy.deviceAccessGrant}
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

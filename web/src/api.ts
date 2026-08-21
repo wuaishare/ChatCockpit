@@ -31,6 +31,8 @@ import type {
   IntegrationStatusResponse,
   OAuthAuthorizationGrantsResponse,
   OAuthAuthorizationGrantSummary,
+  OAuthGrantDeviceAccessMutationResponse,
+  OAuthGrantDeviceAccessResponse,
   ManagedDevicesResponse,
   DeviceEnrollmentRequestsResponse,
   DeviceEnrollmentDecisionResponse,
@@ -463,6 +465,14 @@ export async function fetchOAuthAuthorizationGrants(): Promise<OAuthAuthorizatio
   return requestJson<OAuthAuthorizationGrantsResponse>("/api/integrations/oauth/grants");
 }
 
+export async function fetchOAuthGrantDeviceAccess(
+  grantId: string
+): Promise<OAuthGrantDeviceAccessResponse> {
+  return requestJson<OAuthGrantDeviceAccessResponse>(
+    `/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices`
+  );
+}
+
 export async function fetchDevices(): Promise<ManagedDevicesResponse> {
   return requestJson<ManagedDevicesResponse>("/api/devices");
 }
@@ -491,6 +501,16 @@ export async function revokeDevice(deviceId: string): Promise<DeviceRevokeRespon
   return (await response.json()) as DeviceRevokeResponse;
 }
 
+export async function grantOAuthDeviceAccess(
+  grantId: string,
+  deviceId: string
+): Promise<OAuthGrantDeviceAccessMutationResponse> {
+  return postBodyJson<OAuthGrantDeviceAccessMutationResponse>(
+    `/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices/${encodeURIComponent(deviceId)}/grant`,
+    {}
+  );
+}
+
 export async function revokeOAuthAuthorizationGrant(
   grantId: string
 ): Promise<OAuthAuthorizationGrantSummary> {
@@ -499,6 +519,16 @@ export async function revokeOAuthAuthorizationGrant(
     {}
   );
   return result.grant;
+}
+
+export async function revokeOAuthDeviceAccess(
+  grantId: string,
+  deviceId: string
+): Promise<OAuthGrantDeviceAccessMutationResponse> {
+  return postBodyJson<OAuthGrantDeviceAccessMutationResponse>(
+    `/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices/${encodeURIComponent(deviceId)}/revoke`,
+    {}
+  );
 }
 
 export async function fetchConnectivityProviders(

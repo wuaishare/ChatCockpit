@@ -392,6 +392,34 @@ export interface OAuthAuthorizationGrantsResponse {
   grants: OAuthAuthorizationGrantSummary[];
 }
 
+export type OAuthGrantDeviceAccessStatus = "available" | "revoked" | "missing";
+
+export interface OAuthGrantDeviceAccess {
+  deviceId: string;
+  locality: "local" | "remote";
+  displayName: string;
+  platform: string | null;
+  architecture: string | null;
+  status: OAuthGrantDeviceAccessStatus;
+  granted: boolean;
+  effective: boolean;
+}
+
+export interface OAuthGrantDeviceAccessList {
+  grantId: string;
+  grantRevoked: boolean;
+  devices: OAuthGrantDeviceAccess[];
+}
+
+export interface OAuthGrantDeviceAccessResponse {
+  ok: true;
+  access: OAuthGrantDeviceAccessList;
+}
+
+export interface OAuthGrantDeviceAccessMutationResponse extends OAuthGrantDeviceAccessResponse {
+  changed: boolean;
+}
+
 export type ManagedDevicePresence = "online" | "offline" | "revoked";
 export type ManagedDeviceTrust = "local" | "paired" | "revoked";
 export type DeviceEnrollmentStatus = "pending" | "approved" | "denied" | "expired";

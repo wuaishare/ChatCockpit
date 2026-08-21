@@ -3869,6 +3869,82 @@ button.continuity-workspace.is-selected {
   font-size: 13px;
 }
 
+.oauth-grant-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.oauth-device-access {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.oauth-device-access__heading > div {
+  display: grid;
+  gap: 5px;
+}
+
+.oauth-device-access__heading span,
+.oauth-device-access__meta span {
+  color: var(--tp-text-muted);
+  font-size: 12px;
+}
+
+.oauth-device-access__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  color: var(--tp-text-muted);
+}
+
+.oauth-device-access__list {
+  display: grid;
+  gap: 8px;
+}
+
+.oauth-device-access__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+  background: var(--tp-surface);
+}
+
+.oauth-device-access__identity,
+.oauth-device-access__meta {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.oauth-device-access__name,
+.oauth-device-access__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.oauth-device-access__meta code {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.oauth-device-access__action {
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
 .device-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -4000,8 +4076,13 @@ button.continuity-workspace.is-selected {
 }
 
 @media (max-width: 640px) {
-  .oauth-grant-card__header {
+  .oauth-grant-card__header,
+  .oauth-device-access__row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .oauth-device-access__action {
+    justify-content: flex-start;
   }
 }
