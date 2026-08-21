@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
+import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import type {
   CreateAuthorizationCodeInput,
   CreateAuthorizationGrantInput,
@@ -178,6 +179,16 @@ export function legacyAuthorizationGrantId(
   return `oauth_grant_legacy_${digest}`;
 }
 
+const REMOTE_DEVICE_TARGET_PATTERN = /^cc_device_[A-Za-z0-9_-]{20,80}$/;
+
+function normalizeAuthorizationDeviceId(deviceId: string): string {
+  const normalized = deviceId.trim();
+  if (normalized !== LOCAL_DEVICE_TARGET_ID && !REMOTE_DEVICE_TARGET_PATTERN.test(normalized)) {
+    throw new Error("OAuth authorization device target is invalid");
+  }
+  return normalized;
+}
+
 export interface OAuthStoreOptions {
   path: string;
 }
@@ -320,23 +331,29 @@ export class OAuthStore {
   createAuthorizationGrant(
     input: CreateAuthorizationGrantInput
   ): OAuthAuthorizationGrantRecord {
-    this.sqlite
-      .prepare(`
-        INSERT INTO oauth_authorization_grants (
-          grant_id, client_id, display_label, scope, resource, created_at,
-          last_used_at, revoked_at, legacy
-        ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?)
-      `)
-      .run(
-        input.grantId,
-        input.clientId,
-        input.displayLabel,
-        input.scope,
-        input.resource,
-        input.createdAt,
-        input.legacy ? 1 : 0
-      );
-    return this.getAuthorizationGrant(input.grantId)!;
+    return this.transaction(() => {
+      this.sqlite
+        .prepare(`
+          INSERT INTO oauth_authorization_grants (
+            grant_id, client_id, display_label, scope, resource, created_at,
+            last_used_at, revoked_at, legacy
+          ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+        `)
+        .run(
+          input.grantId,
+          input.clientId,
+          input.displayLabel,
+          input.scope,
+          input.resource,
+          input.createdAt,
+          input.legacy ? 1 : 0
+        );
+      this.sqlite.prepare(`
+        INSERT INTO oauth_authorization_grant_devices (grant_id, device_id, granted_at)
+        VALUES (?, ?, ?)
+      `).run(input.grantId, LOCAL_DEVICE_TARGET_ID, input.createdAt);
+      return this.getAuthorizationGrant(input.grantId)!;
+    });
   }
 
   getAuthorizationGrant(grantId: string): OAuthAuthorizationGrantRecord | null {
@@ -384,6 +401,47 @@ export class OAuthStore {
         lastTokenIssuedAt
       };
     });
+  }
+
+  listAuthorizationGrantDeviceIds(grantId: string): string[] {
+    return (this.sqlite.prepare(`
+      SELECT device_id FROM oauth_authorization_grant_devices
+      WHERE grant_id = ?
+      ORDER BY CASE WHEN device_id = 'local-device' THEN 0 ELSE 1 END, device_id ASC
+    `).all(grantId) as Array<{ device_id: string }>).map((row) => row.device_id);
+  }
+
+  authorizationGrantAllowsDevice(grantId: string, deviceId: string): boolean {
+    const normalizedDeviceId = normalizeAuthorizationDeviceId(deviceId);
+    const row = this.sqlite.prepare(`
+      SELECT 1 AS present
+      FROM oauth_authorization_grant_devices AS d
+      JOIN oauth_authorization_grants AS g ON g.grant_id = d.grant_id
+      WHERE d.grant_id = ? AND d.device_id = ? AND g.revoked_at IS NULL
+    `).get(grantId, normalizedDeviceId) as { present: number } | undefined;
+    return Boolean(row);
+  }
+
+  grantAuthorizationDeviceAccess(grantId: string, deviceId: string, grantedAt: string): boolean {
+    const normalizedDeviceId = normalizeAuthorizationDeviceId(deviceId);
+    const grant = this.getAuthorizationGrant(grantId);
+    if (!grant || grant.revokedAt) {
+      throw new Error("OAuth authorization grant is missing or revoked and cannot receive device access");
+    }
+    const result = this.sqlite.prepare(`
+      INSERT OR IGNORE INTO oauth_authorization_grant_devices (grant_id, device_id, granted_at)
+      VALUES (?, ?, ?)
+    `).run(grantId, normalizedDeviceId, grantedAt);
+    return Number(result.changes) === 1;
+  }
+
+  revokeAuthorizationDeviceAccess(grantId: string, deviceId: string): boolean {
+    const normalizedDeviceId = normalizeAuthorizationDeviceId(deviceId);
+    const result = this.sqlite.prepare(`
+      DELETE FROM oauth_authorization_grant_devices
+      WHERE grant_id = ? AND device_id = ?
+    `).run(grantId, normalizedDeviceId);
+    return Number(result.changes) === 1;
   }
 
   revokeAuthorizationGrant(grantId: string, revokedAt: string): boolean {
@@ -722,11 +780,40 @@ export class OAuthStore {
       ) STRICT;
     `);
     this.migrateAuthorizationGrants();
+    this.migrateAuthorizationGrantDevices();
   }
 
   private hasColumn(table: string, column: string): boolean {
     const rows = this.sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     return rows.some((row) => row.name === column);
+  }
+
+  private migrateAuthorizationGrantDevices(): void {
+    const migrated = this.sqlite
+      .prepare("SELECT 1 AS present FROM oauth_schema_migrations WHERE version = 3")
+      .get() as { present: number } | undefined;
+    if (migrated) return;
+
+    this.transaction(() => {
+      this.sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS oauth_authorization_grant_devices (
+          grant_id TEXT NOT NULL REFERENCES oauth_authorization_grants(grant_id) ON DELETE CASCADE,
+          device_id TEXT NOT NULL,
+          granted_at TEXT NOT NULL,
+          PRIMARY KEY (grant_id, device_id)
+        ) STRICT;
+        CREATE INDEX IF NOT EXISTS oauth_authorization_grant_devices_device_idx
+          ON oauth_authorization_grant_devices(device_id);
+      `);
+      this.sqlite.prepare(`
+        INSERT OR IGNORE INTO oauth_authorization_grant_devices (grant_id, device_id, granted_at)
+        SELECT grant_id, ?, created_at
+        FROM oauth_authorization_grants
+      `).run(LOCAL_DEVICE_TARGET_ID);
+      this.sqlite.prepare(`
+        INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (3, ?)
+      `).run(new Date().toISOString());
+    });
   }
 
   private migrateAuthorizationGrants(): void {

@@ -7,6 +7,10 @@ import { OAuthStore, oauthDatabasePath } from "../src/auth/oauth-store.js";
 import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import {
+  DeviceRegistryStore,
+  deviceRegistryDatabasePath
+} from "../src/devices/device-registry.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
@@ -60,6 +64,28 @@ async function main(): Promise<void> {
   });
   oauthStore.close();
 
+  const remoteDeviceId = `cc_device_${"C".repeat(24)}`;
+  const deviceStore = new DeviceRegistryStore({
+    path: deviceRegistryDatabasePath(paths.runtimeDir)
+  });
+  deviceStore.sqlite.prepare(`
+    INSERT INTO managed_devices (
+      device_id, display_name, platform, architecture, public_key_spki,
+      public_key_fingerprint, paired_at, last_seen_at, revoked_at,
+      last_sequence, revision
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 1)
+  `).run(
+    remoteDeviceId,
+    "Remote Mac fixture",
+    "darwin",
+    "arm64",
+    "fixture-remote-public-key",
+    "fixture-remote-fingerprint",
+    "2026-08-19T00:02:00.000Z",
+    "2026-08-19T00:03:00.000Z"
+  );
+  deviceStore.close();
+
   const original = { ...process.env };
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_API_TOKEN = "test-token-machine-grant-management";
@@ -109,6 +135,95 @@ async function main(): Promise<void> {
     assert.equal(list.body.includes("token_hash"), false);
     assert.equal(list.body.includes("redirect_uri"), false);
 
+    const deviceAccess = await app.inject({
+      method: "GET",
+      url: `/api/integrations/oauth/grants/${grantId}/devices`,
+      headers: { cookie }
+    });
+    assert.equal(deviceAccess.statusCode, 200, deviceAccess.body);
+    const initialAccess = (deviceAccess.json() as {
+      access: {
+        grantRevoked: boolean;
+        devices: Array<{
+          deviceId: string;
+          displayName: string;
+          status: string;
+          granted: boolean;
+          effective: boolean;
+        }>;
+      };
+    }).access;
+    assert.equal(initialAccess.grantRevoked, false);
+    assert.equal(initialAccess.devices[0]?.deviceId, "local-device");
+    assert.equal(initialAccess.devices[0]?.granted, true);
+    assert.equal(initialAccess.devices[0]?.effective, true);
+    const initialRemote = initialAccess.devices.find((device) => device.deviceId === remoteDeviceId)!;
+    assert.equal(initialRemote.displayName, "Remote Mac fixture");
+    assert.equal(initialRemote.status, "available");
+    assert.equal(initialRemote.granted, false);
+    assert.equal(initialRemote.effective, false);
+    assert.equal(deviceAccess.body.includes("fixture-remote-public-key"), false);
+    assert.equal(deviceAccess.body.includes("fixture-remote-fingerprint"), false);
+    assert.equal(deviceAccess.body.includes("publicKey"), false);
+    assert.equal(deviceAccess.body.includes("secureOrigin"), false);
+
+    const grantMissingCsrf = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/grant`,
+      headers: { cookie },
+      payload: {}
+    });
+    assert.equal(grantMissingCsrf.statusCode, 403, grantMissingCsrf.body);
+
+    const grantedRemote = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/grant`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: {}
+    });
+    assert.equal(grantedRemote.statusCode, 200, grantedRemote.body);
+    assert.equal((grantedRemote.json() as { changed: boolean }).changed, true);
+    const grantedRemoteAgain = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/grant`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: {}
+    });
+    assert.equal(grantedRemoteAgain.statusCode, 200, grantedRemoteAgain.body);
+    assert.equal((grantedRemoteAgain.json() as { changed: boolean }).changed, false);
+
+    const revokedRemote = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/revoke`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: {}
+    });
+    assert.equal(revokedRemote.statusCode, 200, revokedRemote.body);
+    assert.equal((revokedRemote.json() as { changed: boolean }).changed, true);
+    const revokedRemoteAgain = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/revoke`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: {}
+    });
+    assert.equal(revokedRemoteAgain.statusCode, 200, revokedRemoteAgain.body);
+    assert.equal((revokedRemoteAgain.json() as { changed: boolean }).changed, false);
+
+    const invalidDevice = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/not-a-device/grant`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: {}
+    });
+    assert.equal(invalidDevice.statusCode, 400, invalidDevice.body);
+
+    const missingGrantDevices = await app.inject({
+      method: "GET",
+      url: "/api/integrations/oauth/grants/oauth_grant_missing_123456/devices",
+      headers: { cookie }
+    });
+    assert.equal(missingGrantDevices.statusCode, 404, missingGrantDevices.body);
+
     const missingCsrf = await app.inject({
       method: "POST",
       url: `/api/integrations/oauth/grants/${grantId}/revoke`,
@@ -134,6 +249,15 @@ async function main(): Promise<void> {
     assert.equal(revoked.statusCode, 200, revoked.body);
     assert.equal((revoked.json() as { grant: { status: string } }).grant.status, "revoked");
 
+    const grantAfterRevoked = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/local-device/grant`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: {}
+    });
+    assert.equal(grantAfterRevoked.statusCode, 409, grantAfterRevoked.body);
+    assert.equal((grantAfterRevoked.json() as { error: { code: string } }).error.code, "OAUTH_GRANT_REVOKED");
+
     const after = await app.inject({
       method: "GET",
       url: "/api/integrations/oauth/grants",
@@ -156,6 +280,37 @@ async function main(): Promise<void> {
     null
   );
   verifyStore.close();
+
+  const auditStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+  const deviceAccessAudit = auditStore
+    .listAuditEvents(200)
+    .filter((event) => event.eventType.startsWith("oauth.device_access."));
+  assert.equal(deviceAccessAudit.length, 5);
+  assert.equal(deviceAccessAudit.every((event) => Boolean(event.principalId)), true);
+  assert.equal(
+    deviceAccessAudit.some((event) =>
+      event.eventType === "oauth.device_access.grant.requested" &&
+      event.details.grantId === grantId &&
+      event.details.deviceId === remoteDeviceId &&
+      event.details.action === "grant"
+    ),
+    true
+  );
+  assert.equal(
+    deviceAccessAudit.some((event) =>
+      event.eventType === "oauth.device_access.revoke.requested" &&
+      event.details.grantId === grantId &&
+      event.details.deviceId === remoteDeviceId &&
+      event.details.action === "revoke"
+    ),
+    true
+  );
+  const auditJson = JSON.stringify(deviceAccessAudit);
+  assert.equal(auditJson.includes("test-token"), false);
+  assert.equal(auditJson.includes("fixture-remote-public-key"), false);
+  assert.equal(auditJson.includes("secureOrigin"), false);
+  auditStore.close();
+
   fs.rmSync(root, { recursive: true, force: true });
   console.log("VERIFY_OAUTH_GRANT_MANAGEMENT_OK");
 }

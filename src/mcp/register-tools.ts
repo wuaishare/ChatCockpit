@@ -32,10 +32,17 @@ export type McpOperationContextFactory = (
   sdkContext: unknown
 ) => OperationContext;
 
+export type McpToolExecutionGuard = (
+  toolName: string,
+  input: unknown,
+  sdkContext: unknown
+) => Promise<TokenPilotMcpToolResult | null> | TokenPilotMcpToolResult | null;
+
 export function registerMcpTools(
   registrar: McpToolRegistrar,
   tools: TokenPilotMcpTool[],
-  contextFactory: McpOperationContextFactory
+  contextFactory: McpOperationContextFactory,
+  executionGuard?: McpToolExecutionGuard
 ): void {
   for (const tool of tools) {
     registrar.registerTool(
@@ -46,8 +53,11 @@ export function registerMcpTools(
         inputSchema: tool.inputSchema,
         annotations: tool.annotations
       },
-      (input, sdkContext) =>
-        tool.execute(contextFactory(tool.name, sdkContext), input)
+      async (input, sdkContext) => {
+        const denied = await executionGuard?.(tool.name, input, sdkContext);
+        if (denied) return denied;
+        return tool.execute(contextFactory(tool.name, sdkContext), input);
+      }
     );
   }
 }

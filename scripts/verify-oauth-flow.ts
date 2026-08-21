@@ -5,9 +5,11 @@ import os from "node:os";
 import path from "node:path";
 
 import { resolveOAuthPublicConfig } from "../src/auth/oauth-config.js";
+import { OAuthStore, oauthDatabasePath } from "../src/auth/oauth-store.js";
 import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import { LOCAL_DEVICE_TARGET_ID } from "../src/devices/local-device.js";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { buildServer } from "../src/server/app.js";
 import { listenTestServer, type TestServerHandle } from "./test-support/server.ts";
@@ -483,6 +485,62 @@ async function main(): Promise<void> {
       structuredContent?: { task?: { id?: string; title?: string } };
     };
     assert.equal(firstTaskResult.structuredContent?.task?.id, taskCreated.task.id);
+
+    const policyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
+    const activeGrantId = policyStore.findActiveAccessToken(
+      tokens.access_token,
+      new Date().toISOString()
+    )?.grantId;
+    assert.ok(activeGrantId, "issued OAuth access token must remain bound to a grant");
+    assert.equal(
+      policyStore.revokeAuthorizationDeviceAccess(activeGrantId, LOCAL_DEVICE_TARGET_ID),
+      true
+    );
+    policyStore.close();
+
+    const deniedTaskRead = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 111,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.task.get",
+        arguments: { taskId: taskCreated.task.id }
+      }
+    });
+    assert.equal(deniedTaskRead.response.status, 200);
+    const deniedResult = deniedTaskRead.message.result as {
+      isError?: boolean;
+      structuredContent?: { error?: { code?: string }; task?: { id?: string } };
+    };
+    assert.equal(deniedResult.isError, true);
+    assert.equal(deniedResult.structuredContent?.error?.code, "DEVICE_ACCESS_DENIED");
+    assert.equal(deniedResult.structuredContent?.task, undefined);
+
+    const restorePolicyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
+    assert.equal(
+      restorePolicyStore.grantAuthorizationDeviceAccess(
+        activeGrantId,
+        LOCAL_DEVICE_TARGET_ID,
+        new Date().toISOString()
+      ),
+      true
+    );
+    restorePolicyStore.close();
+
+    const restoredTaskRead = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 112,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.task.get",
+        arguments: { taskId: taskCreated.task.id }
+      }
+    });
+    assert.equal(restoredTaskRead.response.status, 200);
+    const restoredResult = restoredTaskRead.message.result as {
+      structuredContent?: { task?: { id?: string } };
+    };
+    assert.equal(restoredResult.structuredContent?.task?.id, taskCreated.task.id);
 
     await server.close();
     server = await startServer(paths);

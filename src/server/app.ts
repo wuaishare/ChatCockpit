@@ -28,6 +28,7 @@ import { CapabilityRouterMutationPublicService } from "../application/capability
 import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
+import { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
 import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
@@ -392,6 +393,9 @@ export function buildServer(
   const deviceRegistryStore = new DeviceRegistryStore({
     path: deviceRegistryDatabasePath(paths.runtimeDir)
   });
+  const oauthDeviceAccessPolicy = oauthStore
+    ? new OAuthDeviceAccessPolicyService(oauthStore, deviceRegistryStore)
+    : null;
   const deviceChannelHub = options.deviceChannelHub ?? new DeviceChannelHub();
   let hubIdentity: HubIdentityRecord;
   try {
@@ -851,6 +855,12 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     exposedRuntimeResourceMutationService,
+    oauthDeviceAccessPolicy
+      ? {
+          allowsDevice: (grantId, deviceId) =>
+            oauthDeviceAccessPolicy.allowsDevice(grantId, deviceId)
+        }
+      : null,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
     }
@@ -1734,7 +1744,16 @@ export function buildServer(
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
-  registerOAuthGrantManagementRoutes(app, oauthStore);
+  registerOAuthGrantManagementRoutes(app, oauthStore, oauthDeviceAccessPolicy, {
+    record: ({ action, grantId, deviceId, principalId, createdAt }) => {
+      operatorStore.recordAuditEvent({
+        eventType: `oauth.device_access.${action}.requested`,
+        principalId,
+        createdAt,
+        details: { action, grantId, deviceId }
+      });
+    }
+  });
   app.get("/api/connectivity/providers", connectivityProviderStatusHandler);
   app.get("/api/connectivity/routes", publicRouteCandidateStatusHandler);
   app.post("/api/connectivity/routes/candidate", stagePublicRouteCandidateHandler);

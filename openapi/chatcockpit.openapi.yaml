@@ -540,6 +540,47 @@ components:
         grant:
           $ref: '#/components/schemas/OAuthAuthorizationGrantSummary'
       required: [ok, grant]
+    OAuthGrantDeviceAccess:
+      type: object
+      additionalProperties: false
+      properties:
+        deviceId: { type: string }
+        locality: { type: string, enum: [local, remote] }
+        displayName: { type: string }
+        platform: { oneOf: [{ type: string }, { type: "null" }] }
+        architecture: { oneOf: [{ type: string }, { type: "null" }] }
+        status: { type: string, enum: [available, revoked, missing] }
+        granted: { type: boolean }
+        effective: { type: boolean }
+      required: [deviceId, locality, displayName, platform, architecture, status, granted, effective]
+    OAuthGrantDeviceAccessList:
+      type: object
+      additionalProperties: false
+      properties:
+        grantId: { type: string }
+        grantRevoked: { type: boolean }
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/OAuthGrantDeviceAccess'
+      required: [grantId, grantRevoked, devices]
+    OAuthGrantDeviceAccessResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        access:
+          $ref: '#/components/schemas/OAuthGrantDeviceAccessList'
+      required: [ok, access]
+    OAuthGrantDeviceAccessMutationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        changed: { type: boolean }
+        access:
+          $ref: '#/components/schemas/OAuthGrantDeviceAccessList'
+      required: [ok, changed, access]
     OperationalActivityRuntime:
       type: object
       additionalProperties: false
@@ -6185,6 +6226,151 @@ paths:
                 $ref: '#/components/schemas/OAuthAuthorizationGrantMutationResponse'
         "400":
           description: Invalid grant id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Authorization grant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/integrations/oauth/grants/{grantId}/devices:
+    get:
+      operationId: listOAuthAuthorizationGrantDevices
+      summary: List device access for one OAuth grant
+      description: Returns public-safe device identity and effective access state for one Owner-visible OAuth grant. Network addresses, device keys, Hub keys and transport details are excluded.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OAuth grant device access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthGrantDeviceAccessResponse'
+        "400":
+          description: Invalid grant id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Authorization grant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/integrations/oauth/grants/{grantId}/devices/{deviceId}/grant:
+    post:
+      operationId: grantOAuthAuthorizationDeviceAccess
+      summary: Allow an OAuth grant to access one device
+      description: Adds one explicit device allowlist relation. Requires Owner session and CSRF. Remote devices must currently exist and not be revoked; changing access does not issue a new OAuth token.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated OAuth grant device access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthGrantDeviceAccessMutationResponse'
+        "400":
+          description: Invalid grant or device id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Grant or device not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Grant or device is revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/integrations/oauth/grants/{grantId}/devices/{deviceId}/revoke:
+    post:
+      operationId: revokeOAuthAuthorizationDeviceAccess
+      summary: Remove one device from an OAuth grant
+      description: Removes one explicit device relation immediately without revoking the OAuth token or grant. Stale relations can be removed even when the remote device is no longer present.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated OAuth grant device access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthGrantDeviceAccessMutationResponse'
+        "400":
+          description: Invalid grant or device id
           content:
             application/json:
               schema:
