@@ -10,6 +10,7 @@ export interface OperationContext {
   requestId: string;
   actorType: ActorType;
   actorId: string | null;
+  authorizationGrantId: string | null;
   publicProjection: boolean;
   now: string;
 }
@@ -18,6 +19,7 @@ export interface OperationContextInput {
   requestId: string;
   actorType: ActorType;
   actorId?: string | null;
+  authorizationGrantId?: string | null;
   publicProjection?: boolean;
   now?: string;
 }
@@ -27,6 +29,7 @@ export function buildOperationContext(input: OperationContextInput): OperationCo
     requestId: input.requestId,
     actorType: input.actorType,
     actorId: input.actorId ?? null,
+    authorizationGrantId: input.authorizationGrantId ?? null,
     publicProjection: input.publicProjection ?? false,
     now: input.now ?? new Date().toISOString()
   };

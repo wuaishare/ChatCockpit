@@ -28,6 +28,7 @@ import { CapabilityRouterMutationPublicService } from "../application/capability
 import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
+import { DeviceTargetService } from "../application/device-target-service.js";
 import { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
@@ -397,6 +398,11 @@ export function buildServer(
     ? new OAuthDeviceAccessPolicyService(oauthStore, deviceRegistryStore)
     : null;
   const deviceChannelHub = options.deviceChannelHub ?? new DeviceChannelHub();
+  const deviceTargetService = new DeviceTargetService(
+    deviceRegistryStore,
+    deviceChannelHub,
+    oauthDeviceAccessPolicy
+  );
   let hubIdentity: HubIdentityRecord;
   try {
     const anchoredFingerprint = deviceRegistryStore.getHubIdentityFingerprint();
@@ -836,6 +842,7 @@ export function buildServer(
     runtimeRecoveryServices,
     runtimeResourceServices,
     capabilityRouterServices,
+    deviceTargetService,
     exposedRuntimeResourceMutationService
   ).length;
   const mcpHandler = buildTokenPilotMcpHandler(
@@ -854,6 +861,7 @@ export function buildServer(
     runtimeRecoveryServices,
     runtimeResourceServices,
     capabilityRouterServices,
+    deviceTargetService,
     exposedRuntimeResourceMutationService,
     oauthDeviceAccessPolicy
       ? {

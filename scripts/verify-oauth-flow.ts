@@ -498,6 +498,23 @@ async function main(): Promise<void> {
     );
     policyStore.close();
 
+    const targetsWithoutLocalAccess = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 110,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.targets.list",
+        arguments: {}
+      }
+    });
+    assert.equal(targetsWithoutLocalAccess.response.status, 200);
+    const targetListResult = targetsWithoutLocalAccess.message.result as {
+      isError?: boolean;
+      structuredContent?: { targets?: Array<{ id?: string }> };
+    };
+    assert.equal(targetListResult.isError, undefined);
+    assert.deepEqual(targetListResult.structuredContent?.targets, []);
+
     const deniedTaskRead = await postMcp(server.baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
       id: 111,
