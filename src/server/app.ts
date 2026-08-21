@@ -28,6 +28,7 @@ import { CapabilityRouterMutationPublicService } from "../application/capability
 import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
+import { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
 import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
@@ -392,6 +393,9 @@ export function buildServer(
   const deviceRegistryStore = new DeviceRegistryStore({
     path: deviceRegistryDatabasePath(paths.runtimeDir)
   });
+  const oauthDeviceAccessPolicy = oauthStore
+    ? new OAuthDeviceAccessPolicyService(oauthStore, deviceRegistryStore)
+    : null;
   const deviceChannelHub = options.deviceChannelHub ?? new DeviceChannelHub();
   let hubIdentity: HubIdentityRecord;
   try {
@@ -851,10 +855,10 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     exposedRuntimeResourceMutationService,
-    oauthStore
+    oauthDeviceAccessPolicy
       ? {
           allowsDevice: (grantId, deviceId) =>
-            oauthStore.authorizationGrantAllowsDevice(grantId, deviceId)
+            oauthDeviceAccessPolicy.allowsDevice(grantId, deviceId)
         }
       : null,
     (error) => {
