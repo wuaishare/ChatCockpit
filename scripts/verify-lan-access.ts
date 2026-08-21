@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 
-import { buildLanAccessSnapshot } from "../src/devices/lan-access.js";
+import {
+  buildLanAccessSnapshot,
+  trustedLanListenerAddresses
+} from "../src/devices/lan-access.js";
 import type { AccessPolicy } from "../src/security/access-policy.js";
 
 function policy(enabled: boolean, cidrs: string[]): AccessPolicy {
@@ -43,6 +46,24 @@ const ready = buildLanAccessSnapshot({
 assert.equal(ready.status, "ready");
 assert.deepEqual(ready.apiBaseUrls, ["http://198.51.100.10:4318"]);
 assert.deepEqual(ready.cockpitUrls, ["http://198.51.100.10:4318/ui/"]);
+assert.deepEqual(
+  trustedLanListenerAddresses({
+    policy: policy(true, ["198.51.100.0/24"]),
+    host: "0.0.0.0",
+    addresses: ["198.51.100.10", "203.0.113.10"]
+  }),
+  ["198.51.100.10"],
+  "discovery advertisement must share the same trusted listener-address rule"
+);
+assert.deepEqual(
+  trustedLanListenerAddresses({
+    policy: policy(true, ["198.51.100.0/24"]),
+    host: "127.0.0.1",
+    addresses: ["198.51.100.10"]
+  }),
+  [],
+  "loopback-only Runtime must have no LAN advertisement interface"
+);
 
 const explicitHost = buildLanAccessSnapshot({
   policy: policy(true, ["198.51.100.0/24"]),
