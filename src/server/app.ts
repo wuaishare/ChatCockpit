@@ -89,6 +89,10 @@ import { productIdentityForKey } from "../core/product-identity.js";
 import { readIdentityEnv } from "../core/identity-env.js";
 import { buildDistributionContextFromPaths } from "../core/distribution-context.js";
 import { buildSetupStatus } from "../core/setup-status.js";
+import {
+  DeviceRegistryStore,
+  deviceRegistryDatabasePath
+} from "../devices/device-registry.js";
 import { loadAccessPolicy } from "../security/access-policy.js";
 import { listJobArtifacts, readJobArtifact } from "../core/job-artifacts.js";
 import { createJob, deleteJob, getJob, listJobs, listJobsPage } from "../core/jobs.js";
@@ -153,6 +157,7 @@ import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
+import { registerDeviceRoutes } from "./device-routes.js";
 import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import {
   registerWebSecurityHeaders,
@@ -302,6 +307,8 @@ export interface BuildServerOptions {
   publicRouteCutoverIntentStore?: PublicRouteCutoverIntentStore;
   publicRouteBootstrapProofStore?: PublicRouteBootstrapProofStore;
   publicRouteBootstrapVerifier?: PublicRouteBootstrapVerifier;
+  deviceRegistryStore?: DeviceRegistryStore;
+  deviceNow?: () => string;
   activityStreamPollIntervalMs?: number;
   activityStreamHeartbeatIntervalMs?: number;
   jobProcessSignalAdapter?: JobProcessSignalAdapter;
@@ -356,6 +363,9 @@ export function buildServer(
     store: operatorStore,
     runtimeDir: paths.runtimeDir
   });
+  const deviceRegistryStore =
+    options.deviceRegistryStore ??
+    new DeviceRegistryStore({ path: deviceRegistryDatabasePath(paths.runtimeDir) });
   const publicRouteCandidateStore =
     options.publicRouteCandidateStore ??
     new PublicRouteCandidateStore({ runtimeDir: paths.runtimeDir });
@@ -640,6 +650,9 @@ export function buildServer(
     operatorPasskeyService,
     operatorTotpService
   );
+  registerDeviceRoutes(app, deviceRegistryStore, {
+    ...(options.deviceNow ? { now: options.deviceNow } : {})
+  });
   registerCapabilityRouterMutationRoutes(
     app,
     capabilityRouterMutations,
@@ -651,6 +664,7 @@ export function buildServer(
     await runtimeService.close();
     continuityDatabase.close();
     oauthStore?.close();
+    deviceRegistryStore.close();
     operatorStore.close();
   });
   const exposedRuntimeResourceMutationService = isResourceMutationExposureEnabled()

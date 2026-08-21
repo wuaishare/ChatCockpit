@@ -31,6 +31,9 @@ import type {
   GptConfigResponse,
   HealthResponse,
   IntegrationStatusResponse,
+  ManagedDevicesResponse,
+  DevicePairingResponse,
+  DeviceRevokeResponse,
   OAuthAuthorizationGrantsResponse,
   OAuthAuthorizationGrantSummary,
   OperationalActivityListResponse,
@@ -429,6 +432,24 @@ export async function fetchIntegrationStatus(
   token?: string | null
 ): Promise<IntegrationStatusResponse> {
   return requestJson<IntegrationStatusResponse>("/api/integrations/status", token);
+}
+
+export async function fetchDevices(): Promise<ManagedDevicesResponse> {
+  return requestJson<ManagedDevicesResponse>("/api/devices");
+}
+
+export async function createDevicePairing(displayName: string): Promise<DevicePairingResponse> {
+  return postBodyJson<DevicePairingResponse>("/api/devices/pairings", { displayName });
+}
+
+export async function revokeDevice(deviceId: string): Promise<DeviceRevokeResponse> {
+  const response = await fetch(`/api/devices/${encodeURIComponent(deviceId)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: buildHeaders(null, { mutation: true })
+  });
+  if (!response.ok) throw await parseProblem(response);
+  return (await response.json()) as DeviceRevokeResponse;
 }
 
 export async function fetchOAuthAuthorizationGrants(): Promise<OAuthAuthorizationGrantsResponse> {

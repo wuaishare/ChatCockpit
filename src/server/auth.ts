@@ -21,6 +21,11 @@ const OAUTH_PUBLIC_PATHS = new Set([
   "/oauth/revoke"
 ]);
 
+const DEVICE_PUBLIC_PATHS = new Set([
+  "/api/devices/pairings/claim",
+  "/api/devices/heartbeat"
+]);
+
 const OPERATOR_PUBLIC_PATHS = new Set([
   "/api/operator/status",
   "/api/operator/login",
@@ -47,6 +52,7 @@ function isPublicPath(url: string, consolePathPrefix: string): boolean {
   const isBootstrapProofPath = pathname.startsWith("/.well-known/chatcockpit-bootstrap-proof/");
   return (
     OAUTH_PUBLIC_PATHS.has(pathname) ||
+    DEVICE_PUBLIC_PATHS.has(pathname) ||
     isBootstrapProofPath ||
     OPERATOR_PUBLIC_PATHS.has(pathname) ||
     pathname === "/" ||

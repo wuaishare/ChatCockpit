@@ -392,6 +392,54 @@ export interface OAuthAuthorizationGrantsResponse {
   grants: OAuthAuthorizationGrantSummary[];
 }
 
+export type ManagedDevicePresence = "online" | "offline" | "revoked";
+export type ManagedDeviceTrust = "local" | "paired" | "revoked";
+
+export interface ManagedDeviceSummary {
+  id: string;
+  kind: "device";
+  locality: "local" | "remote";
+  displayName: string;
+  platform: string;
+  architecture: string;
+  publicKeyFingerprint: string | null;
+  pairedAt: string | null;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+  revision: number;
+  trust: ManagedDeviceTrust;
+  presence: ManagedDevicePresence;
+  management: {
+    heartbeat: boolean;
+    remoteControl: false;
+  };
+}
+
+export interface ManagedDevicesResponse {
+  ok: true;
+  devices: ManagedDeviceSummary[];
+}
+
+export interface DevicePairingTicket {
+  id: string;
+  code: string;
+  displayName: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface DevicePairingResponse {
+  ok: true;
+  pairing: DevicePairingTicket;
+}
+
+export interface DeviceRevokeResponse {
+  ok: true;
+  deviceId: string;
+  revokedAt: string | null;
+  revision: number;
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

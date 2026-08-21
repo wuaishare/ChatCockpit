@@ -3869,6 +3869,135 @@ button.continuity-workspace.is-selected {
   font-size: 13px;
 }
 
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.device-list__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 72px;
+  color: var(--tp-text-muted);
+}
+
+.device-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-lg);
+  background: var(--tp-surface-soft);
+}
+
+.device-card__header,
+.device-card__identity,
+.device-card__tags,
+.device-pairing-form__row,
+.device-pairing-ticket__code {
+  display: flex;
+  align-items: center;
+}
+
+.device-card__header {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.device-card__identity {
+  gap: 10px;
+  min-width: 0;
+}
+
+.device-card__identity > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.device-card__identity strong {
+  overflow: hidden;
+  color: var(--tp-text-strong);
+  font-size: var(--tp-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-card__identity span,
+.device-pairing-form label {
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+}
+
+.device-card__icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--tp-line);
+  border-radius: 10px;
+  background: var(--tp-surface-subtle);
+}
+
+.device-card__tags {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.device-card__facts {
+  margin-top: 4px;
+}
+
+.device-card__fingerprint,
+.device-pairing-ticket__code {
+  overflow-wrap: anywhere;
+  font-family: var(--tp-font-mono);
+  font-size: 12px !important;
+}
+
+.device-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.device-empty-state {
+  margin-top: 12px;
+}
+
+.device-pairing-form {
+  display: grid;
+  gap: 7px;
+}
+
+.device-pairing-form__row {
+  gap: 8px;
+}
+
+.device-pairing-form__row .ant-input {
+  min-width: 0;
+}
+
+.device-pairing-ticket {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-lg);
+  background: var(--tp-surface-subtle);
+}
+
+.device-pairing-ticket__code {
+  gap: 6px;
+}
+
 @media (max-width: 640px) {
   .oauth-grant-card__header {
     align-items: flex-start;

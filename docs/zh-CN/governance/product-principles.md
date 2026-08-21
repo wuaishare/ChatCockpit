@@ -49,7 +49,7 @@ Development Continuity 仍然是重要且已实现的能力，但不再定义整
 
 - 机器真实路径、凭据、Transport Config、Provider Raw Error、PID 与私有运行态默认留在本机，除非有专门 public-safe projection。
 - 公共 HTTP、MCP、OpenAPI、Git、Runtime 与 Artifact 输出必须有界并脱敏。
-- `local-device` 是稳定 Target Projection，不代表已经承诺 Multi-device Fleet 基础设施。
+- `local-device` 继续作为当前 Runtime 执行能力时的稳定 Target Projection。Device Registry 可以记录显式配对的远端设备与签名心跳 Presence，但在跨设备执行合同完成审查前，不代表已经支持多设备能力路由或远程生命周期控制。
 - Secret、私有部署真相、维护者 Intelligence 与商业规划不进入公开仓库。
 
 ## Adapter 策略

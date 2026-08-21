@@ -50,7 +50,7 @@ Development Continuity remains a major implemented capability, but it does not d
 
 - Machine paths, credentials, transport configuration, provider raw errors, process IDs, and private runtime state remain local unless a dedicated public-safe projection exists.
 - Public HTTP, MCP, OpenAPI, Git, runtime, and artifact output must remain bounded and public-safe.
-- `local-device` is a stable target projection, not a promise of multi-device Fleet infrastructure.
+- `local-device` remains the stable target projection for capabilities executed by this Runtime. The Device Registry may track explicitly paired remote devices and signed-heartbeat Presence, but multi-device capability routing or remote lifecycle control is not implied until a reviewed cross-device execution contract exists.
 - Secrets and private deployment details do not belong in the public repository.
 
 ## Adapter strategy

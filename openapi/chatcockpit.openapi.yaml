@@ -289,6 +289,107 @@ components:
               type: boolean
           required: [configured]
       required: [ok, localCockpitUrl, publicCockpitUrl, localApiBaseUrl, publicApiBaseUrl, openapiUrl, lanAccess, mcp, machineApi]
+    ManagedDeviceSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        kind: { type: string, const: device }
+        locality: { type: string, enum: [local, remote] }
+        displayName: { type: string }
+        platform: { type: string }
+        architecture: { type: string }
+        publicKeyFingerprint:
+          oneOf:
+            - type: string
+            - type: "null"
+        pairedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        lastSeenAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        revokedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        revision: { type: integer, minimum: 1 }
+        trust: { type: string, enum: [local, paired, revoked] }
+        presence: { type: string, enum: [online, offline, revoked] }
+        management:
+          type: object
+          additionalProperties: false
+          properties:
+            heartbeat: { type: boolean }
+            remoteControl: { type: boolean, const: false }
+          required: [heartbeat, remoteControl]
+      required: [id, kind, locality, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, revision, trust, presence, management]
+    ManagedDevicesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManagedDeviceSummary'
+      required: [ok, devices]
+    DevicePairingTicket:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        code: { type: string }
+        displayName: { type: string }
+        createdAt: { type: string }
+        expiresAt: { type: string }
+      required: [id, code, displayName, createdAt, expiresAt]
+    DevicePairingResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        pairing:
+          $ref: '#/components/schemas/DevicePairingTicket'
+      required: [ok, pairing]
+    DevicePairingClaimResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        device:
+          type: object
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            displayName: { type: string }
+            pairedAt: { type: string }
+            publicKeyFingerprint: { type: string }
+          required: [id, displayName, pairedAt, publicKeyFingerprint]
+      required: [ok, device]
+    DeviceHeartbeatResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        deviceId: { type: string }
+        acceptedSequence: { type: integer, minimum: 1 }
+        revision: { type: integer, minimum: 1 }
+      required: [ok, deviceId, acceptedSequence, revision]
+    DeviceRevokeResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        deviceId: { type: string }
+        revokedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        revision: { type: integer, minimum: 1 }
+      required: [ok, deviceId, revokedAt, revision]
     OAuthAuthorizationGrantSummary:
       type: object
       additionalProperties: false
@@ -6012,6 +6113,195 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "404":
           description: Authorization grant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices:
+    get:
+      operationId: listManagedDevices
+      summary: List local and paired devices
+      description: Returns the Owner-only device registry projection, including the current local device plus explicitly paired remote devices and signed-heartbeat Presence. Raw device public keys, pairing secrets and private network discovery data are never returned. This endpoint does not scan the LAN or execute remote controls.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Managed device list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagedDevicesResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/pairings:
+    post:
+      operationId: createDevicePairing
+      summary: Create a one-time device pairing ticket
+      description: Creates a short-lived, one-use pairing ticket for a named remote ChatCockpit device. Requires an authenticated Web Owner session plus CSRF. The stored pairing value is hashed; successful claim also requires proof of possession of an Ed25519 device private key.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+              required: [displayName]
+      responses:
+        "200":
+          description: One-time pairing ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicePairingResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/pairings/claim:
+    post:
+      operationId: claimDevicePairing
+      summary: Claim a device pairing ticket
+      description: Consumes a valid one-time pairing ticket after verifying an Ed25519 proof over the pairing identity and device metadata. This route does not accept Owner cookies as device identity and never returns a reusable shared bearer token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                pairingId: { type: string }
+                code: { type: string }
+                publicKey: { type: string, description: Base64url DER-encoded Ed25519 SPKI public key. }
+                platform: { type: string }
+                architecture: { type: string }
+                signature: { type: string, description: Base64url Ed25519 signature over the canonical ChatCockpit pairing proof. }
+              required: [pairingId, code, publicKey, platform, architecture, signature]
+      responses:
+        "201":
+          description: Device paired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicePairingClaimResponse'
+        "400":
+          description: Invalid device metadata or key material
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Invalid or expired pairing proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/heartbeat:
+    post:
+      operationId: recordDeviceHeartbeat
+      summary: Record signed device Presence heartbeat
+      description: Accepts a monotonic sequence number signed by the paired device Ed25519 key. The server owns the last-seen timestamp and rejects replayed sequences, unknown devices and revoked devices. This route reports Presence only; it does not grant remote-control authority.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                deviceId: { type: string }
+                sequence: { type: integer, minimum: 1 }
+                signature: { type: string }
+              required: [deviceId, sequence, signature]
+      responses:
+        "200":
+          description: Heartbeat accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceHeartbeatResponse'
+        "401":
+          description: Device is unknown, revoked, or signature verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Heartbeat sequence replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/{deviceId}:
+    delete:
+      operationId: revokeManagedDevice
+      summary: Revoke one paired device
+      description: Revokes the remote device trust relationship. Future signed heartbeats from the device are rejected immediately. This does not power off the remote machine, delete files or execute any remote lifecycle operation.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Device trust revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceRevokeResponse'
+        "400":
+          description: Invalid device id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Managed device not found
           content:
             application/json:
               schema:
