@@ -28,6 +28,12 @@ export interface DeviceAgentUnconfiguredStatus {
 
 export type DeviceAgentStatus = DeviceAgentStatusProjection | DeviceAgentUnconfiguredStatus;
 
+export const DEVICE_AGENT_DEFAULT_INTERVAL_MS = 30_000;
+export const DEVICE_AGENT_MIN_INTERVAL_MS = 5_000;
+export const DEVICE_AGENT_MAX_INTERVAL_MS = 5 * 60_000;
+const DEVICE_AGENT_RETRY_BASE_MS = 1_000;
+const DEVICE_AGENT_RETRY_MAX_MS = 30_000;
+
 export interface DeviceAgentPendingEnrollment {
   enrollmentId: string;
   verificationCode: string;
@@ -64,6 +70,7 @@ interface DeviceAgentServiceOptions {
   fetchImpl?: FetchLike;
   sleep?: SleepLike;
   now?: () => string;
+  random?: () => number;
 }
 
 interface DeviceAgentConnectInput {
@@ -76,6 +83,13 @@ interface DeviceAgentConnectInput {
 interface DeviceAgentConnectHooks {
   onPending?: (pending: DeviceAgentPendingEnrollment) => void | Promise<void>;
   signal?: AbortSignal;
+}
+
+export interface DeviceAgentLoopOptions {
+  intervalMs?: number;
+  signal?: AbortSignal;
+  onHeartbeat?: (status: DeviceAgentStatusProjection) => void | Promise<void>;
+  onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
 }
 
 interface ApiProblemBody {
@@ -233,12 +247,14 @@ export class DeviceAgentService {
   private readonly fetchImpl: FetchLike;
   private readonly sleep: SleepLike;
   private readonly now: () => string;
+  private readonly random: () => number;
 
   constructor(options: DeviceAgentServiceOptions) {
     this.runtimeDir = options.runtimeDir;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleep = options.sleep ?? defaultSleep;
     this.now = options.now ?? (() => new Date().toISOString());
+    this.random = options.random ?? Math.random;
   }
 
   status(): DeviceAgentStatus {
@@ -471,6 +487,83 @@ export class DeviceAgentService {
       throw new DeviceAgentProtocolError(502, "DEVICE_AGENT_RESPONSE_INVALID", "Hub returned an invalid heartbeat acknowledgement");
     }
     return projectDeviceAgentStatus(markDeviceAgentHeartbeatAccepted(this.runtimeDir, this.now()));
+  }
+
+  async runHeartbeatLoop(options: DeviceAgentLoopOptions = {}): Promise<DeviceAgentStatusProjection> {
+    const intervalMs = options.intervalMs ?? DEVICE_AGENT_DEFAULT_INTERVAL_MS;
+    if (
+      !Number.isInteger(intervalMs) ||
+      intervalMs < DEVICE_AGENT_MIN_INTERVAL_MS ||
+      intervalMs > DEVICE_AGENT_MAX_INTERVAL_MS
+    ) {
+      throw new DeviceAgentProtocolError(
+        null,
+        "DEVICE_AGENT_INTERVAL_INVALID",
+        `Device Agent heartbeat interval must be between ${DEVICE_AGENT_MIN_INTERVAL_MS / 1_000} and ${DEVICE_AGENT_MAX_INTERVAL_MS / 1_000} seconds`
+      );
+    }
+
+    let latest = this.requireConnectedStatus();
+    let retryAttempt = 0;
+    while (true) {
+      if (options.signal?.aborted) return latest;
+
+      try {
+        latest = await this.heartbeat();
+        retryAttempt = 0;
+      } catch (error) {
+        if (options.signal?.aborted) return this.status() as DeviceAgentStatusProjection;
+        const protocolError = error instanceof DeviceAgentProtocolError
+          ? error
+          : new DeviceAgentProtocolError(
+              null,
+              "DEVICE_AGENT_RUNTIME_ERROR",
+              error instanceof Error ? error.message : String(error)
+            );
+        const retryable =
+          protocolError.code === "DEVICE_AGENT_NETWORK_ERROR" ||
+          protocolError.statusCode === 429 ||
+          (protocolError.statusCode !== null && protocolError.statusCode >= 500);
+        if (!retryable) throw protocolError;
+
+        retryAttempt += 1;
+        const exponential = Math.min(
+          DEVICE_AGENT_RETRY_MAX_MS,
+          DEVICE_AGENT_RETRY_BASE_MS * 2 ** Math.min(retryAttempt - 1, 10)
+        );
+        const randomValue = this.random();
+        const boundedRandom = Number.isFinite(randomValue)
+          ? Math.min(1, Math.max(0, randomValue))
+          : 0.5;
+        const delayMs = Math.max(1, Math.round(exponential * (0.8 + boundedRandom * 0.4)));
+        await options.onRetry?.({ attempt: retryAttempt, delayMs, error: protocolError });
+        try {
+          await this.sleep(delayMs, options.signal);
+        } catch (sleepError) {
+          if (
+            options.signal?.aborted ||
+            (sleepError instanceof DeviceAgentProtocolError && sleepError.code === "DEVICE_AGENT_ABORTED")
+          ) {
+            return this.requireConnectedStatus();
+          }
+          throw sleepError;
+        }
+        continue;
+      }
+
+      await options.onHeartbeat?.(latest);
+      try {
+        await this.sleep(intervalMs, options.signal);
+      } catch (sleepError) {
+        if (
+          options.signal?.aborted ||
+          (sleepError instanceof DeviceAgentProtocolError && sleepError.code === "DEVICE_AGENT_ABORTED")
+        ) {
+          return latest;
+        }
+        throw sleepError;
+      }
+    }
   }
 
   private requireState(): DeviceAgentStateRecord {
