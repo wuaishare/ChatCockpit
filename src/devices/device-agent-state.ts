@@ -2,14 +2,19 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-export const DEVICE_AGENT_STATE_SCHEMA_VERSION = 1 as const;
+export const DEVICE_AGENT_STATE_SCHEMA_VERSION = 2 as const;
 const DEVICE_AGENT_STATE_FILE = "device-agent.json";
+const DEVICE_AGENT_MAX_HUB_ORIGINS = 8;
 
 export type DeviceAgentConnectionState = "pending" | "connected" | "revoked";
 
 export interface DeviceAgentStateRecord {
   schemaVersion: typeof DEVICE_AGENT_STATE_SCHEMA_VERSION;
   hubOrigin: string;
+  knownHubOrigins: string[];
+  hubId: string | null;
+  hubPublicKeySpki: string | null;
+  hubPublicKeyFingerprint: string | null;
   displayName: string;
   platform: string;
   architecture: string;
@@ -30,6 +35,9 @@ export interface DeviceAgentStatusProjection {
   configured: true;
   state: DeviceAgentConnectionState;
   hubOrigin: string;
+  knownHubOrigins: string[];
+  hubId: string | null;
+  hubPublicKeyFingerprint: string | null;
   displayName: string;
   platform: string;
   architecture: string;
@@ -41,7 +49,14 @@ export interface DeviceAgentStatusProjection {
   revokedAt: string | null;
 }
 
-const STATE_KEYS = [
+export interface DeviceAgentHubIdentityInput {
+  hubOrigin: string;
+  hubId: string;
+  publicKeySpki: string;
+  publicKeyFingerprint: string;
+}
+
+const STATE_V1_KEYS = [
   "architecture",
   "connectedAt",
   "createdAt",
@@ -49,6 +64,29 @@ const STATE_KEYS = [
   "displayName",
   "enrollmentId",
   "hubOrigin",
+  "lastHeartbeatAt",
+  "nextSequence",
+  "platform",
+  "privateKeyPkcs8",
+  "publicKeyFingerprint",
+  "publicKeySpki",
+  "revokedAt",
+  "schemaVersion",
+  "updatedAt"
+].sort();
+
+const STATE_KEYS = [
+  "architecture",
+  "connectedAt",
+  "createdAt",
+  "deviceId",
+  "displayName",
+  "enrollmentId",
+  "hubId",
+  "hubOrigin",
+  "hubPublicKeyFingerprint",
+  "hubPublicKeySpki",
+  "knownHubOrigins",
   "lastHeartbeatAt",
   "nextSequence",
   "platform",
@@ -110,6 +148,23 @@ export function normalizeDeviceHubOrigin(value: string): string {
   return parsed.origin;
 }
 
+function normalizeHubOrigins(value: unknown, requiredOrigin: string): string[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > DEVICE_AGENT_MAX_HUB_ORIGINS) {
+    throw new Error("Device Agent known Hub origins are invalid");
+  }
+  const normalized = value.map((candidate) => {
+    if (typeof candidate !== "string") throw new Error("Device Agent known Hub origins are invalid");
+    return normalizeDeviceHubOrigin(candidate);
+  });
+  if (new Set(normalized).size !== normalized.length) {
+    throw new Error("Device Agent known Hub origins contain duplicates");
+  }
+  if (!normalized.includes(requiredOrigin)) {
+    throw new Error("Device Agent current Hub origin must be included in known Hub origins");
+  }
+  return normalized;
+}
+
 function decodeBase64Url(value: unknown, label: string, min: number, max: number): Buffer {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error(`Device Agent ${label} is invalid`);
@@ -146,7 +201,7 @@ function keyMaterial(input: {
     throw new Error("Device Agent identity must use Ed25519 keys");
   }
   const derivedPublic = crypto.createPublicKey(privateKey).export({ format: "der", type: "spki" }) as Buffer;
-  if (!crypto.timingSafeEqual(publicDer, derivedPublic)) {
+  if (publicDer.length !== derivedPublic.length || !crypto.timingSafeEqual(publicDer, derivedPublic)) {
     throw new Error("Device Agent public/private key pair does not match");
   }
   const fingerprint = crypto.createHash("sha256").update(publicDer).digest("base64url");
@@ -157,6 +212,64 @@ function keyMaterial(input: {
     publicKeySpki: publicDer.toString("base64url"),
     privateKeyPkcs8: privateDer.toString("base64url"),
     publicKeyFingerprint: fingerprint
+  };
+}
+
+function normalizeHubIdentityFields(input: {
+  hubId: unknown;
+  hubPublicKeySpki: unknown;
+  hubPublicKeyFingerprint: unknown;
+}): { hubId: string | null; hubPublicKeySpki: string | null; hubPublicKeyFingerprint: string | null } {
+  const allNull = input.hubId === null && input.hubPublicKeySpki === null && input.hubPublicKeyFingerprint === null;
+  if (allNull) {
+    return { hubId: null, hubPublicKeySpki: null, hubPublicKeyFingerprint: null };
+  }
+  if (
+    typeof input.hubId !== "string" ||
+    typeof input.hubPublicKeySpki !== "string" ||
+    typeof input.hubPublicKeyFingerprint !== "string"
+  ) {
+    throw new Error("Device Agent pinned Hub identity must be complete or empty");
+  }
+  const publicDer = decodeBase64Url(input.hubPublicKeySpki, "Hub public key", 32, 128);
+  let publicKey: crypto.KeyObject;
+  try {
+    publicKey = crypto.createPublicKey({ key: publicDer, format: "der", type: "spki" });
+  } catch {
+    throw new Error("Device Agent pinned Hub public key is invalid");
+  }
+  if (publicKey.asymmetricKeyType !== "ed25519") {
+    throw new Error("Device Agent pinned Hub identity must use Ed25519");
+  }
+  const fingerprint = crypto.createHash("sha256").update(publicDer).digest("base64url");
+  if (input.hubPublicKeyFingerprint !== fingerprint) {
+    throw new Error("Device Agent pinned Hub fingerprint does not match the public key");
+  }
+  if (input.hubId !== `cc_hub_${fingerprint}`) {
+    throw new Error("Device Agent pinned Hub ID does not match the public key fingerprint");
+  }
+  return {
+    hubId: input.hubId,
+    hubPublicKeySpki: publicDer.toString("base64url"),
+    hubPublicKeyFingerprint: fingerprint
+  };
+}
+
+function normalizeHubIdentityInput(input: DeviceAgentHubIdentityInput): DeviceAgentHubIdentityInput {
+  const hubOrigin = normalizeDeviceHubOrigin(input.hubOrigin);
+  const normalized = normalizeHubIdentityFields({
+    hubId: input.hubId,
+    hubPublicKeySpki: input.publicKeySpki,
+    hubPublicKeyFingerprint: input.publicKeyFingerprint
+  });
+  if (!normalized.hubId || !normalized.hubPublicKeySpki || !normalized.hubPublicKeyFingerprint) {
+    throw new Error("Device Agent Hub identity is invalid");
+  }
+  return {
+    hubOrigin,
+    hubId: normalized.hubId,
+    publicKeySpki: normalized.hubPublicKeySpki,
+    publicKeyFingerprint: normalized.hubPublicKeyFingerprint
   };
 }
 
@@ -176,18 +289,7 @@ function optionalDeviceId(value: unknown): string | null {
   return value;
 }
 
-function normalizeRecord(input: unknown): DeviceAgentStateRecord {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new Error("Device Agent state must be a JSON object");
-  }
-  const raw = input as Record<string, unknown>;
-  const keys = Object.keys(raw).sort();
-  if (keys.length !== STATE_KEYS.length || keys.some((key, index) => key !== STATE_KEYS[index])) {
-    throw new Error("Device Agent state schema contains unsupported fields");
-  }
-  if (raw.schemaVersion !== DEVICE_AGENT_STATE_SCHEMA_VERSION) {
-    throw new Error(`Unsupported Device Agent state schema: ${String(raw.schemaVersion)}`);
-  }
+function normalizeCommonRecord(raw: Record<string, unknown>) {
   if (typeof raw.hubOrigin !== "string") throw new Error("Device Agent Hub URL is invalid");
   const hubOrigin = normalizeDeviceHubOrigin(raw.hubOrigin);
   if (typeof raw.displayName !== "string") throw new Error("Device Agent display name is invalid");
@@ -220,7 +322,6 @@ function normalizeRecord(input: unknown): DeviceAgentStateRecord {
     throw new Error("Device Agent heartbeat timestamp requires a device ID");
   }
   return {
-    schemaVersion: DEVICE_AGENT_STATE_SCHEMA_VERSION,
     hubOrigin,
     displayName: normalizeDisplayName(raw.displayName),
     platform: normalizeMachineField(raw.platform, "platform"),
@@ -232,8 +333,55 @@ function normalizeRecord(input: unknown): DeviceAgentStateRecord {
     connectedAt,
     lastHeartbeatAt,
     revokedAt,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt
+    createdAt: raw.createdAt as string,
+    updatedAt: raw.updatedAt as string
+  };
+}
+
+function requireExactKeys(raw: Record<string, unknown>, expected: string[]): void {
+  const keys = Object.keys(raw).sort();
+  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
+    throw new Error("Device Agent state schema contains unsupported fields");
+  }
+}
+
+function migrateV1Record(raw: Record<string, unknown>): DeviceAgentStateRecord {
+  requireExactKeys(raw, STATE_V1_KEYS);
+  if (raw.schemaVersion !== 1) {
+    throw new Error(`Unsupported Device Agent state schema: ${String(raw.schemaVersion)}`);
+  }
+  const common = normalizeCommonRecord(raw);
+  return {
+    schemaVersion: DEVICE_AGENT_STATE_SCHEMA_VERSION,
+    ...common,
+    knownHubOrigins: [common.hubOrigin],
+    hubId: null,
+    hubPublicKeySpki: null,
+    hubPublicKeyFingerprint: null
+  };
+}
+
+function normalizeRecord(input: unknown): DeviceAgentStateRecord {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Device Agent state must be a JSON object");
+  }
+  const raw = input as Record<string, unknown>;
+  requireExactKeys(raw, STATE_KEYS);
+  if (raw.schemaVersion !== DEVICE_AGENT_STATE_SCHEMA_VERSION) {
+    throw new Error(`Unsupported Device Agent state schema: ${String(raw.schemaVersion)}`);
+  }
+  const common = normalizeCommonRecord(raw);
+  const knownHubOrigins = normalizeHubOrigins(raw.knownHubOrigins, common.hubOrigin);
+  const hubIdentity = normalizeHubIdentityFields({
+    hubId: raw.hubId,
+    hubPublicKeySpki: raw.hubPublicKeySpki,
+    hubPublicKeyFingerprint: raw.hubPublicKeyFingerprint
+  });
+  return {
+    schemaVersion: DEVICE_AGENT_STATE_SCHEMA_VERSION,
+    ...common,
+    knownHubOrigins,
+    ...hubIdentity
   };
 }
 
@@ -280,6 +428,9 @@ export function readDeviceAgentState(runtimeDir: string): DeviceAgentStateRecord
   } catch {
     throw new Error("Device Agent state is not valid JSON");
   }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed as Record<string, unknown>).schemaVersion === 1) {
+    return persistDeviceAgentState(runtimeDir, migrateV1Record(parsed as Record<string, unknown>));
+  }
   return normalizeRecord(parsed);
 }
 
@@ -296,7 +447,7 @@ export function createDeviceAgentState(input: {
   if (existing) {
     if (existing.hubOrigin !== hubOrigin) {
       throw new Error(
-        `Device Agent is already configured for a different Hub (${existing.hubOrigin}); explicit reset is required`
+        `Device Agent is already configured for a different Hub (${existing.hubOrigin}); explicit verified route change is required`
       );
     }
     return existing;
@@ -309,6 +460,10 @@ export function createDeviceAgentState(input: {
   return persistDeviceAgentState(input.runtimeDir, {
     schemaVersion: DEVICE_AGENT_STATE_SCHEMA_VERSION,
     hubOrigin,
+    knownHubOrigins: [hubOrigin],
+    hubId: null,
+    hubPublicKeySpki: null,
+    hubPublicKeyFingerprint: null,
     displayName: normalizeDisplayName(input.displayName),
     platform: normalizeMachineField(input.platform ?? process.platform, "platform"),
     architecture: normalizeMachineField(input.architecture ?? process.arch, "architecture"),
@@ -341,6 +496,71 @@ function withUpdate(
   const timestamp = now ?? new Date().toISOString();
   if (!validTimestamp(timestamp)) throw new Error("Device Agent update timestamp is invalid");
   return persistDeviceAgentState(runtimeDir, mutate(state, timestamp));
+}
+
+export function pinDeviceAgentHubIdentity(
+  runtimeDir: string,
+  input: DeviceAgentHubIdentityInput,
+  now?: string
+): DeviceAgentStateRecord {
+  const identity = normalizeHubIdentityInput(input);
+  return withUpdate(runtimeDir, now, (state, timestamp) => {
+    if (state.hubId) {
+      if (
+        state.hubId !== identity.hubId ||
+        state.hubPublicKeySpki !== identity.publicKeySpki ||
+        state.hubPublicKeyFingerprint !== identity.publicKeyFingerprint
+      ) {
+        throw new Error("Device Agent pinned Hub identity does not match the observed Hub");
+      }
+      if (!state.knownHubOrigins.includes(identity.hubOrigin)) {
+        throw new Error("Device Agent Hub route is not verified for the pinned Hub identity");
+      }
+      return state;
+    }
+    if (state.hubOrigin !== identity.hubOrigin) {
+      throw new Error("Device Agent initial Hub identity must be pinned on the configured Hub origin");
+    }
+    return {
+      ...state,
+      hubId: identity.hubId,
+      hubPublicKeySpki: identity.publicKeySpki,
+      hubPublicKeyFingerprint: identity.publicKeyFingerprint,
+      updatedAt: timestamp
+    };
+  });
+}
+
+export function addVerifiedDeviceAgentHubOrigin(
+  runtimeDir: string,
+  input: DeviceAgentHubIdentityInput,
+  now?: string
+): DeviceAgentStateRecord {
+  const identity = normalizeHubIdentityInput(input);
+  return withUpdate(runtimeDir, now, (state, timestamp) => {
+    if (!state.hubId || !state.hubPublicKeySpki || !state.hubPublicKeyFingerprint) {
+      throw new Error("Device Agent Hub identity must be pinned before adding another route");
+    }
+    if (
+      state.hubId !== identity.hubId ||
+      state.hubPublicKeySpki !== identity.publicKeySpki ||
+      state.hubPublicKeyFingerprint !== identity.publicKeyFingerprint
+    ) {
+      throw new Error("Device Agent verified route Hub identity does not match the pinned Hub");
+    }
+    const knownHubOrigins = state.knownHubOrigins.includes(identity.hubOrigin)
+      ? state.knownHubOrigins
+      : [...state.knownHubOrigins, identity.hubOrigin];
+    if (knownHubOrigins.length > DEVICE_AGENT_MAX_HUB_ORIGINS) {
+      throw new Error("Device Agent has too many known Hub origins");
+    }
+    return {
+      ...state,
+      hubOrigin: identity.hubOrigin,
+      knownHubOrigins,
+      updatedAt: timestamp
+    };
+  });
 }
 
 export function setDeviceAgentPendingEnrollment(
@@ -429,6 +649,9 @@ export function projectDeviceAgentStatus(state: DeviceAgentStateRecord): DeviceA
     configured: true,
     state: state.revokedAt ? "revoked" : state.deviceId ? "connected" : "pending",
     hubOrigin: state.hubOrigin,
+    knownHubOrigins: [...state.knownHubOrigins],
+    hubId: state.hubId,
+    hubPublicKeyFingerprint: state.hubPublicKeyFingerprint,
     displayName: state.displayName,
     platform: state.platform,
     architecture: state.architecture,

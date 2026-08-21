@@ -13,10 +13,12 @@ import {
   markDeviceAgentHeartbeatAccepted,
   markDeviceAgentRevoked,
   normalizeDeviceHubOrigin,
+  pinDeviceAgentHubIdentity,
   projectDeviceAgentStatus,
   readDeviceAgentState,
   reserveDeviceHeartbeatSequence,
   setDeviceAgentPendingEnrollment,
+  type DeviceAgentHubIdentityInput,
   type DeviceAgentStatusProjection,
   type DeviceAgentStateRecord
 } from "./device-agent-state.js";
@@ -130,6 +132,18 @@ interface HeartbeatBody {
   revision?: unknown;
 }
 
+interface HubIdentityBody {
+  ok?: unknown;
+  hub?: {
+    schemaVersion?: unknown;
+    hubId?: unknown;
+    algorithm?: unknown;
+    publicKey?: unknown;
+    publicKeyFingerprint?: unknown;
+    createdAt?: unknown;
+  };
+}
+
 function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
   if (milliseconds <= 0) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -226,8 +240,37 @@ function apiProblem(statusCode: number, body: unknown): DeviceAgentProtocolError
   return new DeviceAgentProtocolError(statusCode, code, message);
 }
 
-function endpoint(state: DeviceAgentStateRecord, pathname: string): URL {
-  return new URL(pathname, `${state.hubOrigin}/`);
+function endpoint(origin: string, pathname: string): URL {
+  return new URL(pathname, `${origin}/`);
+}
+
+function hubIdentityFromResponse(origin: string, body: unknown): DeviceAgentHubIdentityInput {
+  const response = body && typeof body === "object" ? body as HubIdentityBody : {};
+  const hub = response.hub;
+  if (
+    response.ok !== true ||
+    hub?.schemaVersion !== 1 ||
+    hub.algorithm !== "Ed25519" ||
+    typeof hub.hubId !== "string" ||
+    !/^cc_hub_[A-Za-z0-9_-]{43}$/.test(hub.hubId) ||
+    typeof hub.publicKey !== "string" ||
+    hub.publicKey.length > 512 ||
+    typeof hub.publicKeyFingerprint !== "string" ||
+    !/^[A-Za-z0-9_-]{43}$/.test(hub.publicKeyFingerprint) ||
+    !validTimestamp(hub.createdAt)
+  ) {
+    throw new DeviceAgentProtocolError(
+      502,
+      "DEVICE_AGENT_HUB_IDENTITY_INVALID",
+      "Hub returned an invalid public identity"
+    );
+  }
+  return {
+    hubOrigin: origin,
+    hubId: hub.hubId,
+    publicKeySpki: hub.publicKey,
+    publicKeyFingerprint: hub.publicKeyFingerprint
+  };
 }
 
 function pendingFromPoll(poll: DeviceAgentEnrollmentPoll): DeviceAgentPendingEnrollment {
@@ -248,6 +291,7 @@ export class DeviceAgentService {
   private readonly sleep: SleepLike;
   private readonly now: () => string;
   private readonly random: () => number;
+  private readonly verifiedHubOrigins = new Set<string>();
 
   constructor(options: DeviceAgentServiceOptions) {
     this.runtimeDir = options.runtimeDir;
@@ -274,10 +318,11 @@ export class DeviceAgentService {
     if (state.revokedAt) {
       throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked and cannot re-enroll automatically");
     }
-    if (state.deviceId) {
+    const verifiedState = await this.ensureHubIdentity(state);
+    if (verifiedState.deviceId) {
       throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_ALREADY_CONNECTED", "Device Agent is already connected to this Hub");
     }
-    if (state.enrollmentId) {
+    if (verifiedState.enrollmentId) {
       const existing = await this.pollEnrollment();
       if (existing.status === "pending") return pendingFromPoll(existing);
       if (existing.status === "approved") {
@@ -292,26 +337,26 @@ export class DeviceAgentService {
 
     const requestNonce = crypto.randomBytes(18).toString("base64url");
     const signature = sign(
-      state,
+      verifiedState,
       buildDeviceEnrollmentProof({
-        publicKey: state.publicKeySpki,
-        displayName: state.displayName,
-        platform: state.platform,
-        architecture: state.architecture,
+        publicKey: verifiedState.publicKeySpki,
+        displayName: verifiedState.displayName,
+        platform: verifiedState.platform,
+        architecture: verifiedState.architecture,
         requestNonce
       })
     );
     const response = await this.requestJson(
-      state,
+      verifiedState,
       "/api/devices/enrollment-requests",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          displayName: state.displayName,
-          platform: state.platform,
-          architecture: state.architecture,
-          publicKey: state.publicKeySpki,
+          displayName: verifiedState.displayName,
+          platform: verifiedState.platform,
+          architecture: verifiedState.architecture,
+          publicKey: verifiedState.publicKeySpki,
           requestNonce,
           signature
         })
@@ -334,10 +379,11 @@ export class DeviceAgentService {
   }
 
   async pollEnrollment(): Promise<DeviceAgentEnrollmentPoll> {
-    const state = this.requireState();
-    if (state.revokedAt) {
+    const current = this.requireState();
+    if (current.revokedAt) {
       throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked");
     }
+    const state = await this.ensureHubIdentity(current);
     if (!state.enrollmentId) {
       throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_ENROLLMENT_MISSING", "Device Agent has no pending enrollment request");
     }
@@ -378,6 +424,7 @@ export class DeviceAgentService {
     let deviceId: string | null = null;
     if (status === "approved") {
       deviceId = requiredDeviceId(enrollment?.deviceId);
+      await this.ensureHubIdentity(this.requireState(), true);
       completeDeviceAgentEnrollment(this.runtimeDir, deviceId, this.now());
     } else if (status === "denied" || status === "expired") {
       clearDeviceAgentPendingEnrollment(this.runtimeDir, this.now());
@@ -408,7 +455,8 @@ export class DeviceAgentService {
     if (state.revokedAt) {
       throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked and requires explicit reset/re-authorization");
     }
-    if (state.deviceId) return projectDeviceAgentStatus(state);
+    const verifiedState = await this.ensureHubIdentity(state);
+    if (verifiedState.deviceId) return projectDeviceAgentStatus(verifiedState);
 
     let pending: DeviceAgentPendingEnrollment;
     if (state.enrollmentId) {
@@ -456,6 +504,7 @@ export class DeviceAgentService {
     if (!current.deviceId) {
       throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_NOT_CONNECTED", "Device Agent is not connected");
     }
+    await this.ensureHubIdentity(current);
     const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
     const signature = sign(state, buildDeviceHeartbeatProof(current.deviceId, sequence));
     let response: HeartbeatBody;
@@ -582,14 +631,45 @@ export class DeviceAgentService {
     return projectDeviceAgentStatus(state);
   }
 
+  private async ensureHubIdentity(
+    state: DeviceAgentStateRecord,
+    force = false
+  ): Promise<DeviceAgentStateRecord> {
+    const origin = state.hubOrigin;
+    if (!force && this.verifiedHubOrigins.has(origin) && state.hubId) {
+      return state;
+    }
+    const body = await this.requestOriginJson(origin, "/api/hub/identity", { method: "GET" });
+    const observed = hubIdentityFromResponse(origin, body);
+    try {
+      const pinned = pinDeviceAgentHubIdentity(this.runtimeDir, observed, this.now());
+      this.verifiedHubOrigins.add(origin);
+      return pinned;
+    } catch (error) {
+      throw new DeviceAgentProtocolError(
+        409,
+        "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
+        error instanceof Error ? error.message : "Observed Hub identity does not match the pinned Hub"
+      );
+    }
+  }
+
   private async requestJson(
     state: DeviceAgentStateRecord,
     pathname: string,
     init: RequestInit
   ): Promise<unknown> {
+    return this.requestOriginJson(state.hubOrigin, pathname, init);
+  }
+
+  private async requestOriginJson(
+    origin: string,
+    pathname: string,
+    init: RequestInit
+  ): Promise<unknown> {
     let response: Response;
     try {
-      response = await this.fetchImpl(endpoint(state, pathname), {
+      response = await this.fetchImpl(endpoint(origin, pathname), {
         ...init,
         redirect: "manual",
         headers: {
