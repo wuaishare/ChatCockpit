@@ -5,6 +5,7 @@ import type { OperatorSessionContext } from "../auth/operator-service.js";
 export const OPERATOR_SESSION_COOKIE = "chatcockpit_operator_session";
 export const OPERATOR_CSRF_HEADER = "x-chatcockpit-csrf";
 export const OPERATOR_LOGIN_GATE_HEADER = "x-chatcockpit-login-gate";
+export const OPERATOR_OAUTH_REQUEST_HEADER = "x-chatcockpit-oauth-request-id";
 
 export type RequestAuthContext =
   | { kind: "anonymous" }
@@ -46,6 +47,12 @@ export function readOperatorSessionCookie(request: FastifyRequest): string | nul
 
 export function readOperatorLoginGate(request: FastifyRequest): string | null {
   const value = request.headers[OPERATOR_LOGIN_GATE_HEADER];
+  if (Array.isArray(value)) return value[0]?.trim() || null;
+  return typeof value === "string" ? value.trim() || null : null;
+}
+
+export function readOperatorOAuthRequestId(request: FastifyRequest): string | null {
+  const value = request.headers[OPERATOR_OAUTH_REQUEST_HEADER];
   if (Array.isArray(value)) return value[0]?.trim() || null;
   return typeof value === "string" ? value.trim() || null : null;
 }

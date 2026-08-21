@@ -39,21 +39,25 @@ async function postForm(
   });
 }
 
-function requestIdFromReturnTo(location: string): {
-  returnTo: string;
+function pendingFromLogin(location: string): {
   requestId: string;
+  uiLocales: string | null;
 } {
   const loginUrl = new URL(location, "http://localhost");
-  assert.equal(loginUrl.pathname, "/ops-oauth-approval/login");
-  const returnTo = loginUrl.searchParams.get("returnTo");
-  assert.ok(returnTo);
-  const continuation = new URL(returnTo, "http://localhost");
-  assert.equal(continuation.pathname, "/oauth/authorize");
-  const keys = [...continuation.searchParams.keys()];
-  assert.ok(keys.every((key) => key === "request_id" || key === "ui_locales"));
-  const requestId = continuation.searchParams.get("request_id");
+  assert.equal(loginUrl.pathname, "/ui/login");
+  assert.equal(loginUrl.searchParams.has("returnTo"), false);
+  const keys = [...loginUrl.searchParams.keys()];
+  assert.ok(keys.every((key) => key === "oauth_request_id" || key === "ui_locales"));
+  const requestId = loginUrl.searchParams.get("oauth_request_id");
   assert.match(requestId ?? "", /^oauth_request_[0-9a-f-]{36}$/i);
-  return { returnTo, requestId: requestId! };
+  return { requestId: requestId!, uiLocales: loginUrl.searchParams.get("ui_locales") };
+}
+
+function approvalUrl(baseUrl: string, requestId: string, uiLocales?: string | null): URL {
+  const url = new URL("/oauth/authorize", baseUrl);
+  url.searchParams.set("request_id", requestId);
+  if (uiLocales) url.searchParams.set("ui_locales", uiLocales);
+  return url;
 }
 
 async function main(): Promise<void> {
@@ -132,30 +136,23 @@ async function main(): Promise<void> {
     authorizeUrl.searchParams.set("ui_locales", "zh-CN");
 
     const unauthenticated = await fetch(authorizeUrl, { redirect: "manual" });
-    assert.equal(unauthenticated.status, 302);
+    assert.equal(unauthenticated.status, 303);
     const loginLocation = unauthenticated.headers.get("location");
     assert.ok(loginLocation);
-    const { returnTo, requestId } = requestIdFromReturnTo(loginLocation);
-    assert.equal(new URL(returnTo, server.baseUrl).searchParams.get("ui_locales"), "zh-CN");
-    assert.doesNotMatch(loginLocation, /client_id|code_challenge|redirect_uri|owner_secret/i);
+    const { requestId, uiLocales } = pendingFromLogin(loginLocation);
+    assert.equal(uiLocales, "zh-CN");
+    assert.doesNotMatch(loginLocation, /client_id|code_challenge|redirect_uri|owner_secret|returnTo/i);
 
-    const secureLoginEntry = await fetch(new URL(loginLocation, server.baseUrl), {
+    const stableLogin = await fetch(new URL(loginLocation, server.baseUrl), {
       redirect: "manual"
     });
-    assert.equal(secureLoginEntry.status, 303);
-    const stableLoginLocation = secureLoginEntry.headers.get("location");
-    assert.ok(stableLoginLocation);
-    const stableLoginUrl = new URL(stableLoginLocation, server.baseUrl);
-    assert.equal(stableLoginUrl.pathname, "/ui/login");
-    const loginGate = stableLoginUrl.searchParams.get("gate");
-    assert.match(loginGate ?? "", /^cc_login_gate_[A-Za-z0-9_-]{43}$/);
-    assert.equal(stableLoginUrl.searchParams.get("returnTo"), returnTo);
+    assert.equal(stableLogin.status, 200);
 
     const login = await fetch(`${server.baseUrl}/api/operator/login`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-chatcockpit-login-gate": loginGate ?? ""
+        "x-chatcockpit-oauth-request-id": requestId
       },
       body: JSON.stringify({
         username: "owner",
@@ -166,7 +163,7 @@ async function main(): Promise<void> {
     const loginBody = (await login.json()) as { csrfToken: string };
     const cookie = cookiePair(login);
 
-    const approval = await fetch(new URL(returnTo, server.baseUrl), {
+    const approval = await fetch(approvalUrl(server.baseUrl, requestId, uiLocales), {
       headers: { cookie, "accept-language": "en-US,en;q=0.9" },
       redirect: "manual"
     });
@@ -254,11 +251,11 @@ async function main(): Promise<void> {
     const denyUrl = new URL(authorizeUrl);
     denyUrl.searchParams.set("state", "oauth-owner-deny-state");
     const denyStart = await fetch(denyUrl, { redirect: "manual" });
-    assert.equal(denyStart.status, 302);
+    assert.equal(denyStart.status, 303);
     const denyLocation = denyStart.headers.get("location");
     assert.ok(denyLocation);
-    const denyPending = requestIdFromReturnTo(denyLocation);
-    const denyApproval = await fetch(new URL(denyPending.returnTo, server.baseUrl), {
+    const denyPending = pendingFromLogin(denyLocation);
+    const denyApproval = await fetch(approvalUrl(server.baseUrl, denyPending.requestId), {
       headers: { cookie }
     });
     assert.equal(denyApproval.status, 200);

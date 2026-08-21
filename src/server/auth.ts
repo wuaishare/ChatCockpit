@@ -8,6 +8,7 @@ import { isLoopbackProxyAddress } from "./security-headers.js";
 import {
   OPERATOR_CSRF_HEADER,
   readOperatorLoginGate,
+  readOperatorOAuthRequestId,
   readOperatorSessionCookie,
   type RequestAuthContext
 } from "./operator-auth-context.js";
@@ -93,6 +94,17 @@ function loginGateFromUiUrl(url: string): string | null {
   }
 }
 
+function oauthRequestIdFromUiUrl(url: string): string | null {
+  if (!isStableUiLoginPath(url)) return null;
+  try {
+    const parsed = new URL(url, "http://chatcockpit.local");
+    const requestId = parsed.searchParams.get("oauth_request_id")?.trim() ?? "";
+    return requestId || null;
+  } catch {
+    return null;
+  }
+}
+
 function isConcealedSecureEntrySubpath(url: string, secureEntryPath: string): boolean {
   if (secureEntryPath === "/ui") return false;
   const pathname = requestPath(url);
@@ -163,6 +175,7 @@ export interface McpOAuthAccessVerifier {
   protectedResourceMetadataUrl: string;
   scope: string;
   verifyAccessToken(token: string): McpOAuthAccessIdentity | null;
+  isAuthorizationRequestPending(requestId: string): boolean;
 }
 
 export function createTokenPilotAuthPlugin(
@@ -214,6 +227,13 @@ export function createTokenPilotAuthPlugin(
         ) {
           return;
         }
+        const oauthRequestId = oauthRequestIdFromUiUrl(request.url);
+        if (
+          oauthRequestId &&
+          oauth?.isAuthorizationRequestPending(oauthRequestId)
+        ) {
+          return;
+        }
         reply.code(404).type("text/plain; charset=utf-8");
         return reply.send("Not Found");
       }
@@ -230,6 +250,10 @@ export function createTokenPilotAuthPlugin(
         }
         const loginGate = readOperatorLoginGate(request);
         if (loginGate && operator?.inspectSecureLoginGate(loginGate)) {
+          return;
+        }
+        const oauthRequestId = readOperatorOAuthRequestId(request);
+        if (oauthRequestId && oauth?.isAuthorizationRequestPending(oauthRequestId)) {
           return;
         }
         reply.code(404).type("text/plain; charset=utf-8");

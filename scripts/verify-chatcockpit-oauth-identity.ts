@@ -41,18 +41,14 @@ function cookiePair(response: Response): string {
 }
 
 function approvalContinuation(location: string, baseUrl: string): {
-  returnTo: string;
   requestId: string;
 } {
   const loginUrl = new URL(location, baseUrl);
   assert.equal(loginUrl.pathname, "/ui/login");
-  const returnTo = loginUrl.searchParams.get("returnTo");
-  assert.ok(returnTo);
-  const continuation = new URL(returnTo, baseUrl);
-  assert.equal(continuation.pathname, "/oauth/authorize");
-  const requestId = continuation.searchParams.get("request_id");
+  assert.equal(loginUrl.searchParams.has("returnTo"), false);
+  const requestId = loginUrl.searchParams.get("oauth_request_id");
   assert.match(requestId ?? "", /^oauth_request_[0-9a-f-]{36}$/i);
-  return { returnTo, requestId: requestId! };
+  return { requestId: requestId! };
 }
 
 const MANAGED_ENV = [
@@ -205,14 +201,17 @@ try {
     buildAuthorizeUrl("chatcockpit:mcp offline_access"),
     { redirect: "manual" }
   );
-  assert.equal(approvalStart.status, 302);
+  assert.equal(approvalStart.status, 303);
   const loginLocation = approvalStart.headers.get("location");
   assert.ok(loginLocation);
-  const { returnTo, requestId } = approvalContinuation(loginLocation, server.baseUrl);
+  const { requestId } = approvalContinuation(loginLocation, server.baseUrl);
 
   const ownerLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-chatcockpit-oauth-request-id": requestId
+    },
     body: JSON.stringify({
       username: "owner",
       password: "test-password-chatcockpit-oauth-identity"
@@ -222,9 +221,10 @@ try {
   const ownerLoginBody = (await ownerLogin.json()) as { csrfToken: string };
   const ownerCookie = cookiePair(ownerLogin);
 
-  const approvalResponse = await fetch(new URL(returnTo, server.baseUrl), {
-    headers: { cookie: ownerCookie }
-  });
+  const approvalResponse = await fetch(
+    `${server.baseUrl}/oauth/authorize?request_id=${encodeURIComponent(requestId)}`,
+    { headers: { cookie: ownerCookie } }
+  );
   assert.equal(approvalResponse.status, 200);
   const approvalHtml = await approvalResponse.text();
   assert.match(approvalHtml, /Authorize ChatCockpit MCP/);

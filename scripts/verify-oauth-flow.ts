@@ -72,19 +72,15 @@ function cookiePair(response: Response): string {
 }
 
 function approvalContinuation(location: string, baseUrl: string): {
-  returnTo: string;
   requestId: string;
 } {
   const loginUrl = new URL(location, baseUrl);
   assert.equal(loginUrl.pathname, "/ui/login");
-  const returnTo = loginUrl.searchParams.get("returnTo");
-  assert.ok(returnTo);
-  const continuation = new URL(returnTo, baseUrl);
-  assert.equal(continuation.pathname, "/oauth/authorize");
-  assert.equal([...continuation.searchParams.keys()].join(","), "request_id");
-  const requestId = continuation.searchParams.get("request_id");
+  assert.equal(loginUrl.searchParams.has("returnTo"), false);
+  assert.equal([...loginUrl.searchParams.keys()].join(","), "oauth_request_id");
+  const requestId = loginUrl.searchParams.get("oauth_request_id");
   assert.match(requestId ?? "", /^oauth_request_[0-9a-f-]{36}$/i);
-  return { returnTo, requestId: requestId! };
+  return { requestId: requestId! };
 }
 
 async function authorizedJson<T>(
@@ -288,10 +284,10 @@ async function main(): Promise<void> {
     assert.equal(((await invalidResource.json()) as { error: string }).error, "invalid_target");
 
     const approvalStart = await fetch(authorizeUrl, { redirect: "manual" });
-    assert.equal(approvalStart.status, 302);
+    assert.equal(approvalStart.status, 303);
     const approvalLoginLocation = approvalStart.headers.get("location");
     assert.ok(approvalLoginLocation);
-    const { returnTo: approvalReturnTo, requestId } = approvalContinuation(
+    const { requestId } = approvalContinuation(
       approvalLoginLocation,
       server.baseUrl
     );
@@ -302,7 +298,10 @@ async function main(): Promise<void> {
 
     const ownerLogin = await fetch(`${server.baseUrl}/api/operator/login`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-chatcockpit-oauth-request-id": requestId
+      },
       body: JSON.stringify({
         username: "owner",
         password: "test-password-oauth-full-flow"
@@ -312,9 +311,10 @@ async function main(): Promise<void> {
     const ownerLoginBody = (await ownerLogin.json()) as { csrfToken: string };
     const ownerCookie = cookiePair(ownerLogin);
 
-    const approvalResponse = await fetch(new URL(approvalReturnTo, server.baseUrl), {
-      headers: { cookie: ownerCookie }
-    });
+    const approvalResponse = await fetch(
+      `${server.baseUrl}/oauth/authorize?request_id=${encodeURIComponent(requestId)}`,
+      { headers: { cookie: ownerCookie } }
+    );
     assert.equal(approvalResponse.status, 200);
     const approvalHtml = await approvalResponse.text();
     assert.match(approvalHtml, /Authorize ChatCockpit MCP/);

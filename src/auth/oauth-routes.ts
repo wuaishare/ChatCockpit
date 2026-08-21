@@ -242,8 +242,7 @@ function ensureUrlEncodedParser(app: FastifyInstance): void {
 export function registerOAuthRoutes(
   app: FastifyInstance,
   service: OAuthService,
-  config: OAuthPublicConfig,
-  consolePathPrefix = "/ui"
+  config: OAuthPublicConfig
 ): void {
   ensureUrlEncodedParser(app);
 
@@ -342,11 +341,9 @@ export function registerOAuthRoutes(
       const operatorSession = operatorSessionFromRequest(request);
       noStore(reply);
       if (!operatorSession) {
-        const continuationParams = new URLSearchParams({ request_id: pending.requestId });
-        if (requestedLocale) continuationParams.set("ui_locales", requestedLocale);
-        const continuation = `/oauth/authorize?${continuationParams.toString()}`;
-        const loginUrl = `${consolePathPrefix}/login?returnTo=${encodeURIComponent(continuation)}`;
-        return reply.redirect(loginUrl, 302);
+        const loginParams = new URLSearchParams({ oauth_request_id: pending.requestId });
+        if (requestedLocale) loginParams.set("ui_locales", requestedLocale);
+        return reply.redirect(`/ui/login?${loginParams.toString()}`, 303);
       }
 
       reply.header(
