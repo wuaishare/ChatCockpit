@@ -289,6 +289,141 @@ components:
               type: boolean
           required: [configured]
       required: [ok, localCockpitUrl, publicCockpitUrl, localApiBaseUrl, publicApiBaseUrl, openapiUrl, lanAccess, mcp, machineApi]
+    ManagedDeviceSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        kind: { type: string, const: device }
+        locality: { type: string, enum: [local, remote] }
+        displayName: { type: string }
+        platform: { type: string }
+        architecture: { type: string }
+        publicKeyFingerprint: { oneOf: [{ type: string }, { type: "null" }] }
+        pairedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        lastSeenAt: { oneOf: [{ type: string }, { type: "null" }] }
+        revokedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        revision: { type: integer, minimum: 1 }
+        trust: { type: string, enum: [local, paired, revoked] }
+        presence: { type: string, enum: [online, offline, revoked] }
+        management:
+          type: object
+          additionalProperties: false
+          properties:
+            heartbeat: { type: boolean }
+            remoteControl: { type: boolean, const: false }
+          required: [heartbeat, remoteControl]
+      required: [id, kind, locality, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, revision, trust, presence, management]
+    ManagedDevicesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        devices:
+          type: array
+          items: { $ref: '#/components/schemas/ManagedDeviceSummary' }
+      required: [ok, devices]
+    DeviceEnrollmentSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        platform: { type: string }
+        architecture: { type: string }
+        publicKeyFingerprint: { type: string }
+        verificationCode: { type: string }
+        createdAt: { type: string }
+        expiresAt: { type: string }
+        status: { type: string, enum: [pending, approved, denied, expired] }
+        decidedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        deviceId: { oneOf: [{ type: string }, { type: "null" }] }
+        revision: { type: integer, minimum: 1 }
+      required: [id, displayName, platform, architecture, publicKeyFingerprint, verificationCode, createdAt, expiresAt, status, decidedAt, deviceId, revision]
+    DeviceEnrollmentListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        enrollmentRequests:
+          type: array
+          items: { $ref: '#/components/schemas/DeviceEnrollmentSummary' }
+      required: [ok, enrollmentRequests]
+    DeviceEnrollmentCreateResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        enrollment:
+          type: object
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            displayName: { type: string }
+            verificationCode: { type: string }
+            expiresAt: { type: string }
+            pollAfterSeconds: { type: integer, minimum: 1 }
+          required: [id, displayName, verificationCode, expiresAt, pollAfterSeconds]
+      required: [ok, enrollment]
+    DeviceEnrollmentStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        enrollment:
+          type: object
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            status: { type: string, enum: [pending, approved, denied, expired] }
+            verificationCode: { type: string }
+            expiresAt: { type: string }
+            decidedAt: { oneOf: [{ type: string }, { type: "null" }] }
+            deviceId: { oneOf: [{ type: string }, { type: "null" }] }
+            pollAfterSeconds: { type: integer, minimum: 1 }
+          required: [id, status, expiresAt, decidedAt, deviceId, pollAfterSeconds]
+      required: [ok, enrollment]
+    DeviceEnrollmentDecisionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        enrollment: { $ref: '#/components/schemas/DeviceEnrollmentSummary' }
+        device:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              properties:
+                id: { type: string }
+                displayName: { type: string }
+                platform: { type: string }
+                architecture: { type: string }
+                publicKeyFingerprint: { type: string }
+                pairedAt: { type: string }
+                lastSeenAt: { oneOf: [{ type: string }, { type: "null" }] }
+                revokedAt: { oneOf: [{ type: string }, { type: "null" }] }
+                revision: { type: integer, minimum: 1 }
+              required: [id, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, revision]
+            - type: "null"
+      required: [ok, enrollment, device]
+    DeviceHeartbeatResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        deviceId: { type: string }
+        acceptedSequence: { type: integer, minimum: 1 }
+        revision: { type: integer, minimum: 1 }
+      required: [ok, deviceId, acceptedSequence, revision]
+    DeviceRevokeResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        deviceId: { type: string }
+        revokedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        revision: { type: integer, minimum: 1 }
+      required: [ok, deviceId, revokedAt, revision]
     OAuthAuthorizationGrantSummary:
       type: object
       additionalProperties: false
@@ -6012,6 +6147,302 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "404":
           description: Authorization grant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices:
+    get:
+      operationId: listManagedDevices
+      summary: List local and enrolled devices
+      description: Returns the Owner-only device registry with local-device first and remote Presence projections. Raw device public keys, signatures, enrollment nonces and network scan data are excluded.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Managed devices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagedDevicesResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/enrollment-requests:
+    get:
+      operationId: listDeviceEnrollmentRequests
+      summary: List pending device enrollment requests
+      description: Returns Owner-visible pending enrollment metadata and the display-only verification code. Raw public keys, signatures and enrollment nonces are excluded.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Pending device enrollment requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceEnrollmentListResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+    post:
+      operationId: createDeviceEnrollmentRequest
+      summary: Request enrollment for a remote device
+      description: Device-protocol endpoint. Creates or reuses a short-lived pending request only after verifying Ed25519 proof of private-key possession. The human code is display-only and is not an authentication secret.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                displayName: { type: string, minLength: 1, maxLength: 80 }
+                platform: { type: string, minLength: 1, maxLength: 40 }
+                architecture: { type: string, minLength: 1, maxLength: 40 }
+                publicKey: { type: string, description: Base64url DER-encoded Ed25519 SPKI public key. }
+                requestNonce: { type: string, minLength: 16, maxLength: 128 }
+                signature: { type: string, description: Base64url Ed25519 signature over the canonical enrollment proof. }
+              required: [displayName, platform, architecture, publicKey, requestNonce, signature]
+      responses:
+        "200":
+          description: Existing pending request reused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceEnrollmentCreateResponse'
+        "201":
+          description: Enrollment request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceEnrollmentCreateResponse'
+        "400":
+          description: Invalid enrollment metadata or key material
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Invalid device signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Device identity is already enrolled or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "429":
+          description: Too many active enrollment requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/enrollment-requests/{enrollmentId}/status:
+    post:
+      operationId: getDeviceEnrollmentStatus
+      summary: Read signed device enrollment status
+      description: Device-protocol endpoint. Returns only this enrollment request state after verifying an Ed25519 signature from the same device key. The verification code alone cannot read status.
+      security: []
+      parameters:
+        - name: enrollmentId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                signature: { type: string }
+              required: [signature]
+      responses:
+        "200":
+          description: Enrollment status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceEnrollmentStatusResponse'
+        "400":
+          description: Invalid request identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Invalid status signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Enrollment request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/enrollment-requests/{enrollmentId}/decision:
+    post:
+      operationId: decideDeviceEnrollmentRequest
+      summary: Approve or deny one device enrollment request
+      description: Owner-only decision. Approval atomically binds the verified device key to a new managed device identity; denial creates no device. Requires the session-bound CSRF header.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: enrollmentId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [approve, deny] }
+              required: [decision]
+      responses:
+        "200":
+          description: Enrollment decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceEnrollmentDecisionResponse'
+        "400":
+          description: Invalid decision or enrollment identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Enrollment request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Enrollment request expired or already decided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/heartbeat:
+    post:
+      operationId: recordDeviceHeartbeat
+      summary: Record signed device Presence heartbeat
+      description: Device-protocol endpoint. Accepts a strictly increasing sequence signed by an enrolled Ed25519 key. Unknown, revoked, invalid and replayed device messages are rejected.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                deviceId: { type: string }
+                sequence: { type: integer, minimum: 1 }
+                signature: { type: string }
+              required: [deviceId, sequence, signature]
+      responses:
+        "200":
+          description: Heartbeat accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceHeartbeatResponse'
+        "400":
+          description: Invalid heartbeat payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Unknown, revoked, or invalidly signed device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Heartbeat sequence replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/{deviceId}:
+    delete:
+      operationId: revokeManagedDevice
+      summary: Revoke one remote device identity
+      description: Owner-only trust revocation. Future signed heartbeats from this device identity are rejected immediately. This does not power off the machine or execute remote lifecycle controls.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Device revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceRevokeResponse'
+        "400":
+          description: Invalid device identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "404":
+          description: Managed device not found
           content:
             application/json:
               schema:

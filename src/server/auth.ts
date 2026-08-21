@@ -43,6 +43,20 @@ function isOperatorPublicPath(url: string): boolean {
   return OPERATOR_PUBLIC_PATHS.has(requestPath(url));
 }
 
+function isDeviceProtocolPath(url: string, method: string): boolean {
+  if (method.toUpperCase() !== "POST") return false;
+  const pathname = requestPath(url);
+  if (
+    pathname === "/api/devices/enrollment-requests" ||
+    pathname === "/api/devices/heartbeat"
+  ) {
+    return true;
+  }
+  return /^\/api\/devices\/enrollment-requests\/cc_enroll_[A-Za-z0-9_-]{20,80}\/status$/.test(
+    pathname
+  );
+}
+
 function isPublicPath(url: string, secureEntryPath: string): boolean {
   const pathname = requestPath(url);
   const isBootstrapProofPath = pathname.startsWith("/.well-known/chatcockpit-bootstrap-proof/");
@@ -236,6 +250,10 @@ export function createTokenPilotAuthPlugin(
         }
         reply.code(404).type("text/plain; charset=utf-8");
         return reply.send("Not Found");
+      }
+
+      if (isDeviceProtocolPath(request.url, request.method)) {
+        return;
       }
 
       if (isOperatorPublicPath(request.url)) {
