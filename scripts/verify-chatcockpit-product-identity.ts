@@ -49,6 +49,7 @@ try {
   assert.equal(defaultSource.stateRoot, path.join(canonical(fixtureHome), ".chatcockpit"));
   assert.equal(defaultSource.configPath, path.resolve(defaultConfigPath));
   assert.match(defaultPaths.runnerPlistPath, /com\.wuaishare\.chatcockpit\.runner\.plist$/);
+  assert.match(defaultPaths.deviceAgentPlistPath, /com\.wuaishare\.chatcockpit\.device-agent\.plist$/);
   assert.match(
     defaultPaths.processSupervisorPlistPath,
     /com\.wuaishare\.chatcockpit\.process-supervisor\.plist$/
@@ -91,6 +92,7 @@ try {
   assert.equal(legacySource.productIdentity, "tokenpilot");
   assert.equal(legacySource.stateRoot, path.join(canonical(repoRoot), ".tokenpilot"));
   assert.match(legacyPaths.runnerPlistPath, /com\.wuaishare\.tokenpilot\.runner\.plist$/);
+  assert.match(legacyPaths.deviceAgentPlistPath, /com\.wuaishare\.tokenpilot\.device-agent\.plist$/);
 
   const legacyConfig = loadUserConfig(repoRoot, legacySource);
   assert.equal(legacyConfig.defaultRepoId, "tokenpilot");

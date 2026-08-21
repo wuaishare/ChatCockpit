@@ -62,6 +62,7 @@ required("app/web/dist/index.html");
 required("app/openapi/chatcockpit.openapi.yaml");
 required("app/node_modules");
 required("app/scripts/macos-manage-local-server.sh");
+required("app/scripts/macos-manage-device-agent.sh");
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as PayloadManifest;
 assert.equal(manifest.schemaVersion, 1);
@@ -134,7 +135,8 @@ for (const requiredHashPath of [
   "app/dist/cli/index.js",
   "app/web/dist/index.html",
   "app/openapi/chatcockpit.openapi.yaml",
-  "app/scripts/macos-manage-local-server.sh"
+  "app/scripts/macos-manage-local-server.sh",
+  "app/scripts/macos-manage-device-agent.sh"
 ]) {
   assert.ok(manifest.payload.files[requiredHashPath], `Manifest missing critical hash: ${requiredHashPath}`);
 }

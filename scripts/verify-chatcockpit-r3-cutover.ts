@@ -180,6 +180,7 @@ try {
   assert.equal(paths.configPath, expectedConfigPath);
   assert.equal(paths.repoRoot, expectedWorkspaceRoot);
   assert.equal(path.basename(paths.runnerPlistPath), "com.wuaishare.chatcockpit.runner.plist");
+  assert.equal(path.basename(paths.deviceAgentPlistPath), "com.wuaishare.chatcockpit.device-agent.plist");
   assert.equal(
     path.basename(paths.processSupervisorPlistPath),
     "com.wuaishare.chatcockpit.process-supervisor.plist"

@@ -53,6 +53,12 @@ export function buildPaths(
       runtimeDir,
       `${identity.launchAgentPrefix}.runner.plist`
     ),
+    deviceAgentLogPath: path.join(runtimeDir, "device-agent.log"),
+    deviceAgentPidPath: path.join(runtimeDir, "device-agent.pid"),
+    deviceAgentPlistPath: path.join(
+      runtimeDir,
+      `${identity.launchAgentPrefix}.device-agent.plist`
+    ),
     processSupervisorSocketPath: path.join(runtimeDir, "process-supervisor.sock"),
     processSupervisorTokenPath: path.join(runtimeDir, "process-supervisor.token"),
     processSupervisorStatusPath: path.join(runtimeDir, "process-supervisor-status.json"),
