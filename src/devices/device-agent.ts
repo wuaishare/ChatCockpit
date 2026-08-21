@@ -1092,15 +1092,22 @@ export class DeviceAgentService {
         await this.ensureRouteIdentity(current, routeTarget);
         const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
         const channelNonce = crypto.randomBytes(18).toString("base64url");
+        const channelProtocolVersion = 2 as const;
         const signature = sign(
           state,
-          buildDeviceChannelOpenProof(current.deviceId, sequence, channelNonce)
+          buildDeviceChannelOpenProof(
+            current.deviceId,
+            sequence,
+            channelNonce,
+            channelProtocolVersion
+          )
         );
         connection = await this.transportCall(() =>
           routeTarget!.transport.openChannel(routeTarget!.origin, {
             deviceId: current.deviceId!,
             sequence,
             channelNonce,
+            protocolVersion: channelProtocolVersion,
             signature,
             signal: options.signal
           })
@@ -1115,7 +1122,7 @@ export class DeviceAgentService {
               event.type !== "channel.ready" ||
               event.deviceId !== current.deviceId ||
               event.acceptedSequence !== sequence ||
-              event.protocolVersion !== 1
+              event.protocolVersion !== channelProtocolVersion
             ) {
               throw new DeviceAgentProtocolError(
                 502,

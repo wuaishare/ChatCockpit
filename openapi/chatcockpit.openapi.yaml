@@ -6754,7 +6754,7 @@ paths:
     get:
       operationId: openDeviceOutboundChannel
       summary: Open an authenticated persistent outbound Device Agent channel
-      description: Device-protocol SSE endpoint opened outbound by an enrolled Agent. Uses a device ID, heartbeat-shared monotonic sequence, random nonce, and Ed25519 proof. One primary channel is active per device; newer valid connections supersede older ones. Events are transport-only and do not execute commands.
+      description: Authenticated outbound SSE channel for an enrolled Agent. Omit the protocol header for v1 presence-only compatibility; protocol 2 binds the negotiated version into the Ed25519 channel-open proof and enables bounded capability.request events. New valid channels supersede older ones.
       security: []
       parameters:
         - name: x-chatcockpit-device-id
@@ -6769,6 +6769,11 @@ paths:
           in: header
           required: true
           schema: { type: string, minLength: 16, maxLength: 128 }
+        - name: x-chatcockpit-channel-protocol
+          in: header
+          required: false
+          description: Omit for v1 compatibility or send 2 for signed capability-RPC channel negotiation.
+          schema: { type: integer, enum: [1, 2], default: 1 }
         - name: x-chatcockpit-channel-signature
           in: header
           required: true
@@ -6780,7 +6785,7 @@ paths:
             text/event-stream:
               schema:
                 type: string
-                description: Bounded SSE frames carrying channel.ready, channel.ping, or channel.close events.
+                description: Bounded SSE frames carrying channel.ready, channel.ping, channel.close, and on negotiated v2 channels capability.request events.
         "400":
           description: Invalid channel authentication payload
           content:
@@ -6795,6 +6800,91 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "409":
           description: Channel sequence replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/channel/results:
+    post:
+      operationId: submitDeviceCapabilityResult
+      summary: Submit one signed result for a pending v2 device capability request
+      description: Submit a bounded result from the active v2 Agent channel. The Ed25519 proof binds device ID, channel ID, shared monotonic sequence, request ID, and canonical-body digest. Unknown, duplicate, late, mismatched, oversized, forged, or replayed results are rejected.
+      security: []
+      parameters:
+        - name: x-chatcockpit-device-id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-channel-id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-channel-sequence
+          in: header
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: x-chatcockpit-channel-signature
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [requestId, outcome, result]
+                  properties:
+                    requestId: { type: string }
+                    outcome: { type: string, enum: [ok] }
+                    result: {}
+                - type: object
+                  additionalProperties: false
+                  required: [requestId, outcome, error]
+                  properties:
+                    requestId: { type: string }
+                    outcome: { type: string, enum: [error] }
+                    error:
+                      type: object
+                      additionalProperties: false
+                      required: [code, message]
+                      properties:
+                        code: { type: string, maxLength: 120 }
+                        message: { type: string, maxLength: 1000 }
+      responses:
+        "200":
+          description: Result accepted and matched to one pending request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok, acceptedSequence]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  acceptedSequence: { type: integer, minimum: 1 }
+        "400":
+          description: Invalid result envelope, headers, or unsupported channel protocol
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Unknown, revoked, or invalidly signed device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Unknown/duplicate request, wrong device/channel, or sequence replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "413":
+          description: Result exceeded the bounded capability-RPC size limit
           content:
             application/json:
               schema:

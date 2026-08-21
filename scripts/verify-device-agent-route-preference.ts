@@ -164,7 +164,7 @@ class RouteTransport implements DeviceAgentTransport {
           channelId: "cc_channel_fixture",
           deviceId,
           acceptedSequence: sequence,
-          protocolVersion: 1 as const
+          protocolVersion: input.protocolVersion ?? 1
         };
       })(),
       close() {}
