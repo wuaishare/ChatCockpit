@@ -1744,7 +1744,7 @@ export function buildServer(
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
-  registerOAuthGrantManagementRoutes(app, oauthStore);
+  registerOAuthGrantManagementRoutes(app, oauthStore, oauthDeviceAccessPolicy);
   app.get("/api/connectivity/providers", connectivityProviderStatusHandler);
   app.get("/api/connectivity/routes", publicRouteCandidateStatusHandler);
   app.post("/api/connectivity/routes/candidate", stagePublicRouteCandidateHandler);

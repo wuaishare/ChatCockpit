@@ -4,6 +4,8 @@ import type {
   OAuthAuthorizationGrantSummary,
   OAuthStore
 } from "../auth/oauth-store.js";
+import type { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
+import { ServiceError } from "../application/service-error.js";
 import { sendApiError } from "./errors.js";
 
 export type OAuthAuthorizationGrantPublicStatus =
@@ -64,9 +66,46 @@ function projectGrant(grant: OAuthAuthorizationGrantSummary): OAuthAuthorization
   };
 }
 
+function deviceAccessServiceError(
+  reply: FastifyReply,
+  error: unknown
+): ReturnType<typeof sendApiError> {
+  if (!(error instanceof ServiceError)) {
+    return sendApiError(reply, 500, "DEVICE_ACCESS_POLICY_FAILED", "Device access policy operation failed");
+  }
+  switch (error.code) {
+    case "DEVICE_ID_INVALID":
+      return sendApiError(reply, 400, error.code, error.message);
+    case "OAUTH_GRANT_NOT_FOUND":
+    case "DEVICE_NOT_FOUND":
+      return sendApiError(reply, 404, error.code, error.message);
+    case "OAUTH_GRANT_REVOKED":
+    case "DEVICE_REVOKED":
+      return sendApiError(reply, 409, error.code, error.message);
+    default:
+      return sendApiError(reply, 500, "DEVICE_ACCESS_POLICY_FAILED", "Device access policy operation failed");
+  }
+}
+
+function grantIdFromRequest(request: FastifyRequest): string | null {
+  const grantId = (request.params as { grantId?: unknown }).grantId;
+  return typeof grantId === "string" && /^[A-Za-z0-9_-]{16,180}$/.test(grantId)
+    ? grantId
+    : null;
+}
+
+function deviceIdFromRequest(request: FastifyRequest): string | null {
+  const deviceId = (request.params as { deviceId?: unknown }).deviceId;
+  return typeof deviceId === "string" &&
+    (deviceId === "local-device" || /^cc_device_[A-Za-z0-9_-]{20,80}$/.test(deviceId))
+    ? deviceId
+    : null;
+}
+
 export function registerOAuthGrantManagementRoutes(
   app: FastifyInstance,
-  store: OAuthStore | null
+  store: OAuthStore | null,
+  deviceAccessPolicy: OAuthDeviceAccessPolicyService | null = null
 ): void {
   app.get("/api/integrations/oauth/grants", async (request, reply) => {
     const authError = operatorSessionError(request, reply);
@@ -86,8 +125,8 @@ export function registerOAuthGrantManagementRoutes(
     if (!store) {
       return sendApiError(reply, 409, "OAUTH_DISABLED", "OAuth is not enabled for this deployment");
     }
-    const grantId = (request.params as { grantId?: unknown }).grantId;
-    if (typeof grantId !== "string" || !/^[A-Za-z0-9_-]{16,180}$/.test(grantId)) {
+    const grantId = grantIdFromRequest(request);
+    if (!grantId) {
       return sendApiError(reply, 400, "OAUTH_GRANT_ID_INVALID", "OAuth authorization grant ID is invalid");
     }
     const now = new Date().toISOString();
@@ -99,5 +138,74 @@ export function registerOAuthGrantManagementRoutes(
       return sendApiError(reply, 404, "OAUTH_GRANT_NOT_FOUND", "OAuth authorization grant was not found");
     }
     return { ok: true, grant: projectGrant(grant) };
+  });
+
+  app.get("/api/integrations/oauth/grants/:grantId/devices", async (request, reply) => {
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
+    if (!store || !deviceAccessPolicy) {
+      return sendApiError(reply, 409, "OAUTH_DISABLED", "OAuth is not enabled for this deployment");
+    }
+    const grantId = grantIdFromRequest(request);
+    if (!grantId) {
+      return sendApiError(reply, 400, "OAUTH_GRANT_ID_INVALID", "OAuth authorization grant ID is invalid");
+    }
+    try {
+      return { ok: true, access: deviceAccessPolicy.listGrantDeviceAccess(grantId) };
+    } catch (error) {
+      return deviceAccessServiceError(reply, error);
+    }
+  });
+
+  app.post("/api/integrations/oauth/grants/:grantId/devices/:deviceId/grant", async (request, reply) => {
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
+    if (!store || !deviceAccessPolicy) {
+      return sendApiError(reply, 409, "OAUTH_DISABLED", "OAuth is not enabled for this deployment");
+    }
+    const grantId = grantIdFromRequest(request);
+    if (!grantId) {
+      return sendApiError(reply, 400, "OAUTH_GRANT_ID_INVALID", "OAuth authorization grant ID is invalid");
+    }
+    const deviceId = deviceIdFromRequest(request);
+    if (!deviceId) {
+      return sendApiError(reply, 400, "DEVICE_ID_INVALID", "Device target ID is invalid");
+    }
+    try {
+      const changed = deviceAccessPolicy.grantDeviceAccess(grantId, deviceId);
+      return {
+        ok: true,
+        changed,
+        access: deviceAccessPolicy.listGrantDeviceAccess(grantId)
+      };
+    } catch (error) {
+      return deviceAccessServiceError(reply, error);
+    }
+  });
+
+  app.post("/api/integrations/oauth/grants/:grantId/devices/:deviceId/revoke", async (request, reply) => {
+    const authError = operatorSessionError(request, reply);
+    if (authError) return authError;
+    if (!store || !deviceAccessPolicy) {
+      return sendApiError(reply, 409, "OAUTH_DISABLED", "OAuth is not enabled for this deployment");
+    }
+    const grantId = grantIdFromRequest(request);
+    if (!grantId) {
+      return sendApiError(reply, 400, "OAUTH_GRANT_ID_INVALID", "OAuth authorization grant ID is invalid");
+    }
+    const deviceId = deviceIdFromRequest(request);
+    if (!deviceId) {
+      return sendApiError(reply, 400, "DEVICE_ID_INVALID", "Device target ID is invalid");
+    }
+    try {
+      const changed = deviceAccessPolicy.revokeDeviceAccess(grantId, deviceId);
+      return {
+        ok: true,
+        changed,
+        access: deviceAccessPolicy.listGrantDeviceAccess(grantId)
+      };
+    } catch (error) {
+      return deviceAccessServiceError(reply, error);
+    }
   });
 }
