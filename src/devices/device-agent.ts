@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import {
   buildDeviceChannelOpenProof,
+  buildDeviceChannelResultProof,
   buildDeviceEnrollmentProof,
   buildDeviceEnrollmentStatusProof,
   buildDeviceHeartbeatProof,
@@ -24,6 +25,11 @@ import {
   type DeviceAgentStatusProjection,
   type DeviceAgentStateRecord
 } from "./device-agent-state.js";
+import { DeviceAgentCapabilityService } from "./device-agent-capability-service.js";
+import type {
+  DeviceCapabilityRequestEnvelope,
+  DeviceCapabilityResultBody
+} from "./device-capability-rpc.js";
 import {
   DeviceAgentTransportError,
   HttpDeviceAgentTransport,
@@ -107,11 +113,17 @@ export class DeviceAgentProtocolError extends Error {
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 type SleepLike = (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 
+interface DeviceAgentCapabilityExecutor {
+  execute(request: DeviceCapabilityRequestEnvelope): Promise<DeviceCapabilityResultBody>;
+}
+
 interface DeviceAgentServiceOptions {
   runtimeDir: string;
   fetchImpl?: FetchLike;
   transport?: DeviceAgentTransport;
   pinnedTransportFactory?: (certificatePem: string) => DeviceAgentTransport;
+  capabilityService?: DeviceAgentCapabilityExecutor;
+  directExecutorsConfigPath?: string;
   sleep?: SleepLike;
   now?: () => string;
   random?: () => number;
@@ -474,6 +486,7 @@ export class DeviceAgentService {
   private readonly transport: DeviceAgentTransport;
   private readonly sleep: SleepLike;
   private readonly pinnedTransportFactory: (certificatePem: string) => DeviceAgentTransport;
+  private readonly capabilityService: DeviceAgentCapabilityExecutor;
   private readonly now: () => string;
   private readonly random: () => number;
   private readonly verifiedHubOrigins = new Set<string>();
@@ -485,6 +498,15 @@ export class DeviceAgentService {
       new HttpDeviceAgentTransport({ pinnedCertificatePem: certificatePem }));
     this.sleep = options.sleep ?? defaultSleep;
     this.now = options.now ?? (() => new Date().toISOString());
+    this.capabilityService =
+      options.capabilityService ??
+      new DeviceAgentCapabilityService({
+        runtimeDir: options.runtimeDir,
+        ...(options.directExecutorsConfigPath
+          ? { configPath: options.directExecutorsConfigPath }
+          : {}),
+        now: this.now
+      });
     this.random = options.random ?? Math.random;
   }
 
@@ -1114,6 +1136,7 @@ export class DeviceAgentService {
         );
 
         let readySeen = false;
+        let activeChannelId: string | null = null;
         let serverShutdown = false;
         for await (const event of connection.events) {
           if (options.signal?.aborted) return latest;
@@ -1131,11 +1154,61 @@ export class DeviceAgentService {
               );
             }
             readySeen = true;
+            activeChannelId = event.channelId;
             retryAttempt = 0;
             if (routeTarget?.kind === "lan") {
               this.markLanRouteSuccessful();
             }
             latest = this.requireConnectedStatus();
+            await options.onEvent?.(event);
+            continue;
+          }
+
+          if (event.type === "capability.request") {
+            if (!activeChannelId || !routeTarget?.transport.submitChannelResult) {
+              throw new DeviceAgentProtocolError(
+                502,
+                "DEVICE_AGENT_CHANNEL_INVALID",
+                "Device Agent capability result transport is unavailable"
+              );
+            }
+            const result = await this.capabilityService.execute({
+              protocolVersion: event.protocolVersion,
+              requestId: event.requestId,
+              operation: event.operation,
+              issuedAt: event.issuedAt,
+              expiresAt: event.expiresAt,
+              payload: event.payload
+            });
+            const reserved = reserveDeviceHeartbeatSequence(
+              this.runtimeDir,
+              this.now()
+            );
+            const resultSignature = sign(
+              reserved.state,
+              buildDeviceChannelResultProof(
+                current.deviceId,
+                activeChannelId,
+                reserved.sequence,
+                result
+              )
+            );
+            const acknowledgement = await this.transportCall(() =>
+              routeTarget!.transport.submitChannelResult!(routeTarget!.origin, {
+                deviceId: current.deviceId!,
+                channelId: activeChannelId!,
+                sequence: reserved.sequence,
+                body: result,
+                signature: resultSignature
+              })
+            );
+            if (acknowledgement.acceptedSequence !== reserved.sequence) {
+              throw new DeviceAgentProtocolError(
+                502,
+                "DEVICE_AGENT_CHANNEL_INVALID",
+                "Hub acknowledged an unexpected device capability result sequence"
+              );
+            }
             await options.onEvent?.(event);
             continue;
           }
