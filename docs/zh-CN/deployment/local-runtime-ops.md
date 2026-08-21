@@ -15,13 +15,19 @@ npm run doctor:runtime
 
 除非特别说明，本文命令描述的是 **Developer / Source Mode**。macOS Packaged Mode 继续复用同一套 Node/TypeScript Runtime 实现，但使用内置 Node `24.18.1`，把 Runtime / State / Config 部署到 Application Support，并让用户单独选择真实项目 Workspace。Packaged Mode 运行时不要求系统 Node/npm，也不要求 ChatCockpit checkout。
 
-macOS 上 `start:local` 会把三项 LaunchAgent 作为一个本地运行栈统一管理：
+macOS 上 `start:local` 会把三项 LaunchAgent 作为一个**可停止的本地 Runtime 运行栈**统一管理：
 
 - `com.wuaishare.chatcockpit.control-plane`
 - `com.wuaishare.chatcockpit.runner`
 - `com.wuaishare.chatcockpit.process-supervisor`
 
-异步 Job 需要 Runner 消费队列；Chat Direct 与 Codex Session 可以直接使用 Control Plane，不需要等待某个排队 Job 被 Runner 领取。Process Supervisor 独立持有 Durable Managed Process runtime；普通 `restart` 会重启 Control Plane / Runner，但会保留当前 Process Supervisor generation，而不是静默替换它。
+Device Agent 属于独立的管理平面 LaunchAgent：
+
+- `com.wuaishare.chatcockpit.device-agent`
+
+它使用 `./scripts/macos-manage-device-agent.sh` 单独管理，并要求设备已经完成 enrollment、存在 `device-agent.json`。启动这个服务不会创建或重置设备身份；卸载服务也会保留设备身份状态。Runtime 的 `stop` / `restart` / `reset` 不会 bootout Device Agent，这样后续即使 Runtime 已停止，远端仍有独立管理通道可以接收 Start。
+
+异步 Job 需要 Runner 消费队列；Chat Direct 与 Codex Session 可以直接使用 Control Plane，不需要等待某个排队 Job 被 Runner 领取。Process Supervisor 独立持有 Durable Managed Process runtime；普通 `restart` 会重启 Control Plane / Runner，但会保留当前 Process Supervisor generation，而不是静默替换它。Device Agent 则完全位于这组三项 Runtime 生命周期边界之外。
 
 ## 本地配置文件
 

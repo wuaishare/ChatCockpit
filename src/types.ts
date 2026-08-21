@@ -40,6 +40,9 @@ export interface TokenPilotPaths {
   runnerLogPath: string;
   runnerPidPath: string;
   runnerPlistPath: string;
+  deviceAgentLogPath: string;
+  deviceAgentPidPath: string;
+  deviceAgentPlistPath: string;
   processSupervisorSocketPath: string;
   processSupervisorTokenPath: string;
   processSupervisorStatusPath: string;

@@ -37,17 +37,24 @@ CHATCOCKPIT_PORT=4318 \
 ./scripts/macos-manage-local-server.sh start
 ```
 
-This macOS helper installs and manages three LaunchAgents as one local runtime stack:
+This macOS helper installs and manages three LaunchAgents as one stoppable local Runtime stack:
 
 - `com.wuaishare.chatcockpit.control-plane`
 - `com.wuaishare.chatcockpit.runner`
 - `com.wuaishare.chatcockpit.process-supervisor`
+
+The Device Agent is a separate management-plane LaunchAgent:
+
+- `com.wuaishare.chatcockpit.device-agent`
+
+Manage it independently with `./scripts/macos-manage-device-agent.sh`. The Device Agent requires an existing enrolled `device-agent.json`; starting the service never creates or resets device identity, and uninstalling the service preserves that identity state. Runtime `stop` / `restart` / `reset` do not boot out the Device Agent, which is required for future remote Runtime Start after the local Runtime stack has been stopped.
 
 The intent is explicit:
 
 - HTTPS / GPT Actions / Remote MCP reach the control plane
 - the local runner stays alive to consume the async queue and advance jobs out of `queued`
 - the Process Supervisor owns durable managed-process runtime state separately from ordinary Control Plane restarts, so a normal `restart` does not silently replace its generation
+- the Device Agent remains outside that Runtime lifecycle boundary and maintains the authenticated management channel
 
 ## Recommended Persistent Env File
 
