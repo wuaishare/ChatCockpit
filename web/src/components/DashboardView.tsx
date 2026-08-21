@@ -135,7 +135,7 @@ export function DashboardView({
             <div className="summary-line summary-line--wide">
               <span>{integrationsCopy.lanCockpit}</span>
               <strong>
-                {integrationStatus?.lanAccess.cockpitUrls[0] ? (
+                {integrationStatus?.lanAccess?.cockpitUrls[0] ? (
                   <a
                     className="summary-entry-link"
                     href={integrationStatus.lanAccess.cockpitUrls[0]}

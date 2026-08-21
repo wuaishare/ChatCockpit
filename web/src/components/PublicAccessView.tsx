@@ -252,23 +252,30 @@ export function PublicAccessView({
     : status.mcp.oauthStatus === "disabled"
       ? "default"
       : "warning";
-  const lanAccessLabel = status.lanAccess.status === "ready"
+  const lanAccess = status.lanAccess ?? {
+    enabled: false,
+    status: "disabled" as const,
+    trustedCidrs: [],
+    cockpitUrls: [],
+    apiBaseUrls: []
+  };
+  const lanAccessLabel = lanAccess.status === "ready"
     ? copy.lanAccessReady
-    : status.lanAccess.status === "listener-loopback"
+    : lanAccess.status === "listener-loopback"
       ? copy.lanAccessLoopbackOnly
-      : status.lanAccess.status === "no-trusted-address"
+      : lanAccess.status === "no-trusted-address"
         ? copy.lanAccessNoTrustedAddress
         : copy.lanAccessDisabled;
-  const lanAccessTagColor = status.lanAccess.status === "ready"
+  const lanAccessTagColor = lanAccess.status === "ready"
     ? "success"
-    : status.lanAccess.status === "disabled"
+    : lanAccess.status === "disabled"
       ? "default"
       : "warning";
-  const lanAccessDescription = status.lanAccess.status === "ready"
+  const lanAccessDescription = lanAccess.status === "ready"
     ? copy.lanAccessReadyDescription
-    : status.lanAccess.status === "listener-loopback"
+    : lanAccess.status === "listener-loopback"
       ? copy.lanAccessLoopbackDescription
-      : status.lanAccess.status === "no-trusted-address"
+      : lanAccess.status === "no-trusted-address"
         ? copy.lanAccessNoTrustedAddressDescription
         : copy.lanAccessDisabledDescription;
   const workflowVerificationFailed = bootstrapMode
@@ -402,8 +409,8 @@ export function PublicAccessView({
               <div className="gpt-fact">
                 <span>{copy.lanCockpit}</span>
                 <div className="public-access-endpoint-list">
-                  {status.lanAccess.cockpitUrls.length > 0 ? (
-                    status.lanAccess.cockpitUrls.map((url) => (
+                  {lanAccess.cockpitUrls.length > 0 ? (
+                    lanAccess.cockpitUrls.map((url) => (
                       <EndpointValue
                         key={url}
                         value={url}
@@ -445,8 +452,8 @@ export function PublicAccessView({
               <div className="gpt-fact">
                 <span>{copy.trustedLanCidrs}</span>
                 <strong>
-                  {status.lanAccess.trustedCidrs.length > 0
-                    ? status.lanAccess.trustedCidrs.join(", ")
+                  {lanAccess.trustedCidrs.length > 0
+                    ? lanAccess.trustedCidrs.join(", ")
                     : copy.notConfigured}
                 </strong>
               </div>

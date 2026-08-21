@@ -399,7 +399,7 @@ export interface IntegrationStatusResponse {
   localApiBaseUrl: string;
   publicApiBaseUrl: string | null;
   openapiUrl: string;
-  lanAccess: {
+  lanAccess?: {
     enabled: boolean;
     status: "disabled" | "listener-loopback" | "no-trusted-address" | "ready";
     trustedCidrs: string[];
