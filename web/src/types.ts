@@ -392,6 +392,67 @@ export interface OAuthAuthorizationGrantsResponse {
   grants: OAuthAuthorizationGrantSummary[];
 }
 
+export type ManagedDevicePresence = "online" | "offline" | "revoked";
+export type ManagedDeviceTrust = "local" | "paired" | "revoked";
+export type DeviceEnrollmentStatus = "pending" | "approved" | "denied" | "expired";
+
+export interface ManagedDeviceSummary {
+  id: string;
+  kind: "device";
+  locality: "local" | "remote";
+  displayName: string;
+  platform: string;
+  architecture: string;
+  publicKeyFingerprint: string | null;
+  pairedAt: string | null;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+  revision: number;
+  trust: ManagedDeviceTrust;
+  presence: ManagedDevicePresence;
+  management: {
+    heartbeat: boolean;
+    remoteControl: false;
+  };
+}
+
+export interface ManagedDevicesResponse {
+  ok: true;
+  devices: ManagedDeviceSummary[];
+}
+
+export interface DeviceEnrollmentRequestSummary {
+  id: string;
+  displayName: string;
+  platform: string;
+  architecture: string;
+  publicKeyFingerprint: string;
+  verificationCode: string;
+  status: DeviceEnrollmentStatus;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+}
+
+export interface DeviceEnrollmentRequestsResponse {
+  ok: true;
+  requests: DeviceEnrollmentRequestSummary[];
+}
+
+export interface DeviceEnrollmentDecisionResponse {
+  ok: true;
+  enrollmentId: string;
+  status: "approved" | "denied";
+  deviceId: string | null;
+}
+
+export interface DeviceRevokeResponse {
+  ok: true;
+  deviceId: string;
+  revokedAt: string | null;
+  revision: number;
+}
+
 export interface IntegrationStatusResponse {
   ok: true;
   localCockpitUrl: string;

@@ -3,6 +3,7 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   DashboardOutlined,
+  DesktopOutlined,
   DoubleLeftOutlined,
   DoubleRightOutlined,
   GlobalOutlined,
@@ -22,6 +23,7 @@ interface AppSidebarLabels {
   dashboard: string;
   continuity: string;
   resources: string;
+  devices: string;
   jobs: string;
   publicAccess: string;
   integrations: string;
@@ -73,6 +75,7 @@ export function AppSidebar({
           { key: "dashboard", icon: <DashboardOutlined />, label: labels.dashboard },
           { key: "continuity", icon: <ApartmentOutlined />, label: labels.continuity },
           { key: "resources", icon: <AppstoreOutlined />, label: labels.resources },
+          { key: "devices", icon: <DesktopOutlined />, label: labels.devices },
           { key: "jobs", icon: <UnorderedListOutlined />, label: labels.jobs }
         ]
       },

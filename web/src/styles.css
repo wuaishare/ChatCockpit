@@ -3869,6 +3869,136 @@ button.continuity-workspace.is-selected {
   font-size: 13px;
 }
 
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.device-list__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 72px;
+  color: var(--tp-text-muted);
+}
+
+.device-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-lg);
+  background: var(--tp-surface-soft);
+}
+
+.device-card--request {
+  background: var(--tp-surface-subtle);
+}
+
+.device-card__header,
+.device-card__identity,
+.device-card__tags,
+.device-card__actions {
+  display: flex;
+  align-items: center;
+}
+
+.device-card__header {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.device-card__identity {
+  gap: 10px;
+  min-width: 0;
+}
+
+.device-card__identity > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.device-card__identity strong {
+  overflow: hidden;
+  color: var(--tp-text-strong);
+  font-size: var(--tp-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-card__identity span {
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+}
+
+.device-card__icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--tp-line);
+  border-radius: 10px;
+  background: var(--tp-surface-subtle);
+}
+
+.device-card__tags {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.device-card__facts {
+  margin-top: 4px;
+}
+
+.device-card__fingerprint {
+  overflow-wrap: anywhere;
+  font-family: var(--tp-font-mono);
+  font-size: 12px !important;
+}
+
+.device-card__actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.device-card__actions--decision {
+  justify-content: space-between;
+}
+
+.device-empty-state,
+.device-security-note {
+  margin-top: 12px;
+}
+
+.device-verification-code {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+  background: var(--tp-surface);
+}
+
+.device-verification-code span {
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+}
+
+.device-verification-code strong {
+  color: var(--tp-text-strong);
+  font-family: var(--tp-font-mono);
+  font-size: 22px;
+  letter-spacing: 0.16em;
+}
+
 @media (max-width: 640px) {
   .oauth-grant-card__header {
     align-items: flex-start;

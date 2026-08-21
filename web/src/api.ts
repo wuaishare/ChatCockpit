@@ -31,6 +31,10 @@ import type {
   IntegrationStatusResponse,
   OAuthAuthorizationGrantsResponse,
   OAuthAuthorizationGrantSummary,
+  ManagedDevicesResponse,
+  DeviceEnrollmentRequestsResponse,
+  DeviceEnrollmentDecisionResponse,
+  DeviceRevokeResponse,
   OperationalActivityListResponse,
   OperationalActivityTimelineResponse,
   JobControlResponse,
@@ -457,6 +461,34 @@ export async function fetchIntegrationStatus(
 
 export async function fetchOAuthAuthorizationGrants(): Promise<OAuthAuthorizationGrantsResponse> {
   return requestJson<OAuthAuthorizationGrantsResponse>("/api/integrations/oauth/grants");
+}
+
+export async function fetchDevices(): Promise<ManagedDevicesResponse> {
+  return requestJson<ManagedDevicesResponse>("/api/devices");
+}
+
+export async function fetchDeviceEnrollmentRequests(): Promise<DeviceEnrollmentRequestsResponse> {
+  return requestJson<DeviceEnrollmentRequestsResponse>("/api/devices/enrollment-requests");
+}
+
+export async function decideDeviceEnrollment(
+  enrollmentId: string,
+  decision: "approve" | "deny"
+): Promise<DeviceEnrollmentDecisionResponse> {
+  return postBodyJson<DeviceEnrollmentDecisionResponse>(
+    `/api/devices/enrollment-requests/${encodeURIComponent(enrollmentId)}/decision`,
+    { decision }
+  );
+}
+
+export async function revokeDevice(deviceId: string): Promise<DeviceRevokeResponse> {
+  const response = await fetch(`/api/devices/${encodeURIComponent(deviceId)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: buildHeaders(null, { mutation: true })
+  });
+  if (!response.ok) throw await parseProblem(response);
+  return (await response.json()) as DeviceRevokeResponse;
 }
 
 export async function revokeOAuthAuthorizationGrant(
