@@ -6469,6 +6469,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/channel:
+    get:
+      operationId: openDeviceOutboundChannel
+      summary: Open an authenticated persistent outbound Device Agent channel
+      description: Device-protocol SSE endpoint opened outbound by an enrolled Agent. Uses a device ID, heartbeat-shared monotonic sequence, random nonce, and Ed25519 proof. One primary channel is active per device; newer valid connections supersede older ones. Events are transport-only and do not execute commands.
+      security: []
+      parameters:
+        - name: x-chatcockpit-device-id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-channel-sequence
+          in: header
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: x-chatcockpit-channel-nonce
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+        - name: x-chatcockpit-channel-signature
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Long-lived Server-Sent Events device channel
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Bounded SSE frames carrying channel.ready, channel.ping, or channel.close events.
+        "400":
+          description: Invalid channel authentication payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Unknown, revoked, or invalidly signed device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Channel sequence replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/devices/{deviceId}:
     delete:
       operationId: revokeManagedDevice

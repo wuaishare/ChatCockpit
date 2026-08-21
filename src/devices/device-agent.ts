@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import {
+  buildDeviceChannelOpenProof,
   buildDeviceEnrollmentProof,
   buildDeviceEnrollmentStatusProof,
   buildDeviceHeartbeatProof,
@@ -25,6 +26,8 @@ import {
 import {
   DeviceAgentTransportError,
   HttpDeviceAgentTransport,
+  type DeviceAgentChannelConnection,
+  type DeviceAgentChannelEvent,
   type DeviceAgentTransport
 } from "./device-agent-transport.js";
 
@@ -100,6 +103,12 @@ export interface DeviceAgentLoopOptions {
   onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
 }
 
+export interface DeviceAgentChannelLoopOptions {
+  signal?: AbortSignal;
+  onEvent?: (event: DeviceAgentChannelEvent) => void | Promise<void>;
+  onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
+}
+
 interface EnrollmentCreateBody {
   ok?: unknown;
   enrollment?: {
@@ -162,6 +171,28 @@ function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void>
     const cleanup = () => signal?.removeEventListener("abort", onAbort);
     signal?.addEventListener("abort", onAbort, { once: true });
   });
+}
+
+const NON_RETRYABLE_PROTOCOL_CODES = new Set([
+  "DEVICE_AGENT_CHANNEL_INVALID",
+  "DEVICE_AGENT_HUB_IDENTITY_INVALID",
+  "DEVICE_AGENT_RESPONSE_INVALID"
+]);
+
+function isRetryableDeviceAgentError(error: DeviceAgentProtocolError): boolean {
+  if (
+    error.code === "DEVICE_AGENT_NETWORK_ERROR" ||
+    error.code === "DEVICE_AGENT_CHANNEL_NETWORK_ERROR" ||
+    error.code === "DEVICE_AGENT_CHANNEL_CLOSED"
+  ) {
+    return true;
+  }
+  if (error.statusCode === 429) return true;
+  return (
+    error.statusCode !== null &&
+    error.statusCode >= 500 &&
+    !NON_RETRYABLE_PROTOCOL_CODES.has(error.code)
+  );
 }
 
 function validTimestamp(value: unknown): value is string {
@@ -494,6 +525,143 @@ export class DeviceAgentService {
     return projectDeviceAgentStatus(markDeviceAgentHeartbeatAccepted(this.runtimeDir, this.now()));
   }
 
+  async runOutboundChannelLoop(
+    options: DeviceAgentChannelLoopOptions = {}
+  ): Promise<DeviceAgentStatusProjection> {
+    let latest = this.requireConnectedStatus();
+    let retryAttempt = 0;
+
+    while (true) {
+      if (options.signal?.aborted) return latest;
+      let connection: DeviceAgentChannelConnection | null = null;
+      try {
+        const current = this.requireState();
+        if (current.revokedAt || !current.deviceId) {
+          throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_NOT_CONNECTED", "Device Agent is not connected");
+        }
+        const verified = await this.ensureHubIdentity(current);
+        const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
+        const channelNonce = crypto.randomBytes(18).toString("base64url");
+        const signature = sign(
+          state,
+          buildDeviceChannelOpenProof(current.deviceId, sequence, channelNonce)
+        );
+        connection = await this.transportCall(() =>
+          this.transport.openChannel(verified.hubOrigin, {
+            deviceId: current.deviceId!,
+            sequence,
+            channelNonce,
+            signature,
+            signal: options.signal
+          })
+        );
+
+        let readySeen = false;
+        let serverShutdown = false;
+        for await (const event of connection.events) {
+          if (options.signal?.aborted) return latest;
+          if (!readySeen) {
+            if (
+              event.type !== "channel.ready" ||
+              event.deviceId !== current.deviceId ||
+              event.acceptedSequence !== sequence ||
+              event.protocolVersion !== 1
+            ) {
+              throw new DeviceAgentProtocolError(
+                502,
+                "DEVICE_AGENT_CHANNEL_INVALID",
+                "Hub device channel did not begin with the expected ready event"
+              );
+            }
+            readySeen = true;
+            retryAttempt = 0;
+            latest = this.requireConnectedStatus();
+            await options.onEvent?.(event);
+            continue;
+          }
+
+          await options.onEvent?.(event);
+          if (event.type === "channel.close") {
+            if (event.reason === "revoked") {
+              markDeviceAgentRevoked(this.runtimeDir, this.now());
+              throw new DeviceAgentProtocolError(
+                401,
+                "DEVICE_AGENT_REVOKED",
+                "Device Agent identity was revoked by the Hub"
+              );
+            }
+            if (event.reason === "superseded") {
+              throw new DeviceAgentProtocolError(
+                409,
+                "DEVICE_AGENT_CHANNEL_SUPERSEDED",
+                "Device Agent channel was superseded by another connection"
+              );
+            }
+            serverShutdown = true;
+            break;
+          }
+        }
+
+        if (options.signal?.aborted) return latest;
+        if (!readySeen) {
+          throw new DeviceAgentProtocolError(
+            null,
+            "DEVICE_AGENT_CHANNEL_NETWORK_ERROR",
+            "Device Agent channel ended before becoming ready"
+          );
+        }
+        throw new DeviceAgentProtocolError(
+          serverShutdown ? 503 : null,
+          serverShutdown ? "DEVICE_AGENT_CHANNEL_CLOSED" : "DEVICE_AGENT_CHANNEL_NETWORK_ERROR",
+          serverShutdown
+            ? "ChatCockpit Hub closed the device channel for restart"
+            : "Device Agent channel disconnected"
+        );
+      } catch (error) {
+        if (options.signal?.aborted) return this.requireConnectedStatus();
+        const protocolError = error instanceof DeviceAgentProtocolError
+          ? error
+          : new DeviceAgentProtocolError(
+              null,
+              "DEVICE_AGENT_RUNTIME_ERROR",
+              error instanceof Error ? error.message : String(error)
+            );
+        if (
+          protocolError.statusCode === 401 &&
+          protocolError.code === "DEVICE_NOT_TRUSTED"
+        ) {
+          markDeviceAgentRevoked(this.runtimeDir, this.now());
+        }
+        if (!isRetryableDeviceAgentError(protocolError)) throw protocolError;
+
+        retryAttempt += 1;
+        const exponential = Math.min(
+          DEVICE_AGENT_RETRY_MAX_MS,
+          DEVICE_AGENT_RETRY_BASE_MS * 2 ** Math.min(retryAttempt - 1, 10)
+        );
+        const randomValue = this.random();
+        const boundedRandom = Number.isFinite(randomValue)
+          ? Math.min(1, Math.max(0, randomValue))
+          : 0.5;
+        const delayMs = Math.max(1, Math.round(exponential * (0.8 + boundedRandom * 0.4)));
+        await options.onRetry?.({ attempt: retryAttempt, delayMs, error: protocolError });
+        try {
+          await this.sleep(delayMs, options.signal);
+        } catch (sleepError) {
+          if (
+            options.signal?.aborted ||
+            (sleepError instanceof DeviceAgentProtocolError && sleepError.code === "DEVICE_AGENT_ABORTED")
+          ) {
+            return this.requireConnectedStatus();
+          }
+          throw sleepError;
+        }
+      } finally {
+        connection?.close();
+      }
+    }
+  }
+
   async runHeartbeatLoop(options: DeviceAgentLoopOptions = {}): Promise<DeviceAgentStatusProjection> {
     const intervalMs = options.intervalMs ?? DEVICE_AGENT_DEFAULT_INTERVAL_MS;
     if (
@@ -525,11 +693,7 @@ export class DeviceAgentService {
               "DEVICE_AGENT_RUNTIME_ERROR",
               error instanceof Error ? error.message : String(error)
             );
-        const retryable =
-          protocolError.code === "DEVICE_AGENT_NETWORK_ERROR" ||
-          protocolError.statusCode === 429 ||
-          (protocolError.statusCode !== null && protocolError.statusCode >= 500);
-        if (!retryable) throw protocolError;
+        if (!isRetryableDeviceAgentError(protocolError)) throw protocolError;
 
         retryAttempt += 1;
         const exponential = Math.min(

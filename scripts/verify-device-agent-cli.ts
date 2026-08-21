@@ -211,7 +211,7 @@ async function main(): Promise<void> {
     const heartbeat = parseJson(heartbeatOutput.stdout);
     assert.equal(Number(heartbeat.nextSequence), nextBeforeHeartbeat + 1);
 
-    const agent = await runCliAsync(home, ["device", "agent", "--interval", "5", "--json"]);
+    const agent = await runCliAsync(home, ["device", "agent", "--json"]);
     await waitFor(async () => {
       const list = await app.inject({ method: "GET", url: "/api/devices", headers: { cookie } });
       const devices = (list.json() as { devices: Array<{ id: string; revision: number }> }).devices;
@@ -222,6 +222,7 @@ async function main(): Promise<void> {
     const agentExit = await waitForCliExit(agent, "device agent shutdown");
     const agentOutput = agent.output();
     assert.equal(agentExit.code, 0, agentOutput.stderr);
+    assert.doesNotMatch(agentOutput.stderr, /compatibility-mode|Deprecated:/i);
     const finalAgentStatus = parseJson(agentOutput.stdout);
     assert.equal(finalAgentStatus.deviceId, connected.deviceId);
 

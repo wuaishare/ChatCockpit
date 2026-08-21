@@ -45,6 +45,7 @@ import {
   DeviceRegistryStore,
   deviceRegistryDatabasePath
 } from "../devices/device-registry.js";
+import { DeviceChannelHub } from "../devices/device-channel.js";
 import {
   createHubIdentity,
   readHubIdentity,
@@ -163,6 +164,7 @@ import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
+import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
 import { registerHubIdentityRoutes } from "./hub-identity-routes.js";
 import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import {
@@ -317,6 +319,8 @@ export interface BuildServerOptions {
   activityStreamHeartbeatIntervalMs?: number;
   jobProcessSignalAdapter?: JobProcessSignalAdapter;
   deviceNow?: () => string;
+  deviceChannelHub?: DeviceChannelHub;
+  deviceChannelPingIntervalMs?: number;
 }
 
 export function buildServer(
@@ -371,6 +375,7 @@ export function buildServer(
   const deviceRegistryStore = new DeviceRegistryStore({
     path: deviceRegistryDatabasePath(paths.runtimeDir)
   });
+  const deviceChannelHub = options.deviceChannelHub ?? new DeviceChannelHub();
   let hubIdentity: HubIdentityRecord;
   try {
     const anchoredFingerprint = deviceRegistryStore.getHubIdentityFingerprint();
@@ -675,7 +680,14 @@ export function buildServer(
   );
   registerHubIdentityRoutes(app, hubIdentity);
   registerDeviceRoutes(app, deviceRegistryStore, {
-    ...(options.deviceNow ? { now: options.deviceNow } : {})
+    ...(options.deviceNow ? { now: options.deviceNow } : {}),
+    channelHub: deviceChannelHub
+  });
+  registerDeviceChannelRoutes(app, deviceRegistryStore, deviceChannelHub, {
+    ...(options.deviceNow ? { now: options.deviceNow } : {}),
+    ...(options.deviceChannelPingIntervalMs
+      ? { pingIntervalMs: options.deviceChannelPingIntervalMs }
+      : {})
   });
   registerCapabilityRouterMutationRoutes(
     app,
@@ -689,6 +701,7 @@ export function buildServer(
     continuityDatabase.close();
     oauthStore?.close();
     operatorStore.close();
+    deviceChannelHub.closeAll("server-shutdown");
     deviceRegistryStore.close();
   });
   const exposedRuntimeResourceMutationService = isResourceMutationExposureEnabled()

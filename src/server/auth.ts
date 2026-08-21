@@ -44,8 +44,12 @@ function isOperatorPublicPath(url: string): boolean {
 }
 
 function isDeviceProtocolPath(url: string, method: string): boolean {
-  if (method.toUpperCase() !== "POST") return false;
+  const normalizedMethod = method.toUpperCase();
   const pathname = requestPath(url);
+  if (normalizedMethod === "GET" && pathname === "/api/devices/channel") {
+    return true;
+  }
+  if (normalizedMethod !== "POST") return false;
   if (
     pathname === "/api/devices/enrollment-requests" ||
     pathname === "/api/devices/heartbeat"
