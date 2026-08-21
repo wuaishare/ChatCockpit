@@ -6121,7 +6121,7 @@ paths:
     get:
       operationId: listManagedDevices
       summary: List local and paired devices
-      description: Returns the Owner-only device registry projection, including the current local device plus explicitly paired remote devices and signed-heartbeat Presence. Raw device public keys, pairing secrets and private network discovery data are never returned. This endpoint does not scan the LAN or execute remote controls.
+      description: Returns the Owner-only local and paired device registry with signed-heartbeat Presence. Raw public keys, pairing secrets and private network discovery data are excluded. This endpoint does not scan the LAN or execute remote controls.
       security:
         - operatorSession: []
       responses:
