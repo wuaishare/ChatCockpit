@@ -420,8 +420,9 @@ export interface OAuthGrantDeviceAccessMutationResponse extends OAuthGrantDevice
   changed: boolean;
 }
 
-export type ManagedDevicePresence = "online" | "offline" | "revoked";
+export type ManagedDevicePresence = "online" | "offline";
 export type ManagedDeviceTrust = "local" | "paired" | "revoked";
+export type ManagedDeviceExecutionPolicy = "active" | "paused";
 export type DeviceEnrollmentStatus = "pending" | "approved" | "denied" | "expired";
 
 export interface ManagedDeviceSummary {
@@ -435,9 +436,12 @@ export interface ManagedDeviceSummary {
   pairedAt: string | null;
   lastSeenAt: string | null;
   revokedAt: string | null;
+  pausedAt: string | null;
+  executionPolicyRevision: number;
   revision: number;
   trust: ManagedDeviceTrust;
   presence: ManagedDevicePresence;
+  executionPolicy: ManagedDeviceExecutionPolicy;
   management: {
     heartbeat: boolean;
     remoteRead: boolean;
@@ -473,6 +477,25 @@ export interface DeviceEnrollmentDecisionResponse {
   enrollmentId: string;
   status: "approved" | "denied";
   deviceId: string | null;
+}
+
+export interface DeviceExecutionPolicyMutationResponse {
+  ok: true;
+  device: Pick<
+    ManagedDeviceSummary,
+    | "id"
+    | "displayName"
+    | "platform"
+    | "architecture"
+    | "publicKeyFingerprint"
+    | "pairedAt"
+    | "lastSeenAt"
+    | "revokedAt"
+    | "pausedAt"
+    | "executionPolicyRevision"
+    | "executionPolicy"
+    | "revision"
+  > & { trust: "paired" };
 }
 
 export interface DeviceRevokeResponse {

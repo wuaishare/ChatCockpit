@@ -28,6 +28,8 @@ class FakeRegistry {
     pairedAt: now,
     lastSeenAt: now,
     revokedAt: null,
+    pausedAt: null,
+    executionPolicyRevision: 1,
     lastSequence: 3,
     revision: 1
   };
@@ -50,9 +52,12 @@ class FakeRegistry {
       pairedAt: this.device.pairedAt,
       lastSeenAt: this.device.lastSeenAt,
       revokedAt: this.device.revokedAt,
+      pausedAt: this.device.pausedAt,
+      executionPolicyRevision: this.device.executionPolicyRevision,
       revision: this.device.revision,
       trust: revoked ? "revoked" : "paired",
-      presence: revoked ? "revoked" : "online",
+      presence: revoked ? "offline" : "online",
+      executionPolicy: this.device.pausedAt ? "paused" : "active",
       management: { heartbeat: true, remoteControl: false }
     }];
   }

@@ -316,11 +316,58 @@ async function main(): Promise<void> {
       headers: { cookie }
     });
     const onlineRemote = (onlineList.json() as {
-      devices: Array<{ id: string; presence: string; trust: string; lastSeenAt: string | null }>;
+      devices: Array<{
+        id: string;
+        presence: string;
+        trust: string;
+        executionPolicy: string;
+        executionPolicyRevision: number;
+        lastSeenAt: string | null;
+      }>;
     }).devices.find((device) => device.id === approvedDevice.id)!;
     assert.equal(onlineRemote.presence, "online");
     assert.equal(onlineRemote.trust, "paired");
+    assert.equal(onlineRemote.executionPolicy, "active");
+    assert.equal(onlineRemote.executionPolicyRevision, 1);
     assert.equal(onlineRemote.lastSeenAt, currentNow);
+
+    const pauseWithoutCsrf = await app.inject({
+      method: "POST",
+      url: `/api/devices/${approvedDevice.id}/pause`,
+      headers: { cookie },
+      payload: { expectedExecutionPolicyRevision: 1 }
+    });
+    assert.equal(pauseWithoutCsrf.statusCode, 403, pauseWithoutCsrf.body);
+
+    const paused = await app.inject({
+      method: "POST",
+      url: `/api/devices/${approvedDevice.id}/pause`,
+      headers: { cookie, "x-chatcockpit-csrf": owner.csrfToken },
+      payload: { expectedExecutionPolicyRevision: 1 }
+    });
+    assert.equal(paused.statusCode, 200, paused.body);
+    const pausedDevice = (paused.json() as {
+      device: { executionPolicy: string; executionPolicyRevision: number };
+    }).device;
+    assert.equal(pausedDevice.executionPolicy, "paused");
+    assert.equal(pausedDevice.executionPolicyRevision, 2);
+
+    const pausedList = await app.inject({
+      method: "GET",
+      url: "/api/devices",
+      headers: { cookie }
+    });
+    const pausedRemote = (pausedList.json() as {
+      devices: Array<{
+        id: string;
+        presence: string;
+        executionPolicy: string;
+        management: { remoteRead: boolean };
+      }>;
+    }).devices.find((device) => device.id === approvedDevice.id)!;
+    assert.equal(pausedRemote.presence, "online", "Pause must not alter Presence");
+    assert.equal(pausedRemote.executionPolicy, "paused");
+    assert.equal(pausedRemote.management.remoteRead, false);
 
     currentNow = "2026-08-21T08:32:00.000Z";
     const offlineList = await app.inject({
@@ -346,6 +393,31 @@ async function main(): Promise<void> {
       }
     });
     assert.equal(heartbeat2.statusCode, 200, heartbeat2.body);
+
+    const resume = await app.inject({
+      method: "POST",
+      url: `/api/devices/${approvedDevice.id}/resume`,
+      headers: { cookie, "x-chatcockpit-csrf": owner.csrfToken },
+      payload: { expectedExecutionPolicyRevision: 2 }
+    });
+    assert.equal(resume.statusCode, 200, resume.body);
+    const resumedDevice = (resume.json() as {
+      device: { executionPolicy: string; executionPolicyRevision: number };
+    }).device;
+    assert.equal(resumedDevice.executionPolicy, "active");
+    assert.equal(resumedDevice.executionPolicyRevision, 3);
+
+    const stalePolicyMutation = await app.inject({
+      method: "POST",
+      url: `/api/devices/${approvedDevice.id}/pause`,
+      headers: { cookie, "x-chatcockpit-csrf": owner.csrfToken },
+      payload: { expectedExecutionPolicyRevision: 2 }
+    });
+    assert.equal(stalePolicyMutation.statusCode, 409, stalePolicyMutation.body);
+    assert.equal(
+      (stalePolicyMutation.json() as { error?: { code?: string } }).error?.code,
+      "DEVICE_EXECUTION_POLICY_REVISION_CONFLICT"
+    );
 
     const revokeWithoutCsrf = await app.inject({
       method: "DELETE",

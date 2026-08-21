@@ -46,7 +46,7 @@ export class DeviceTargetService {
   private projectRemote(
     device: Pick<
       ManagedDeviceProjection,
-      "id" | "displayName" | "platform" | "architecture" | "presence"
+      "id" | "displayName" | "platform" | "architecture" | "presence" | "executionPolicy"
     >
   ): ResolvedDeviceTarget {
     const active = this.channels.isActive(device.id);
@@ -58,7 +58,9 @@ export class DeviceTargetService {
       platform: device.platform,
       architecture: device.architecture,
       presence: active || device.presence === "online" ? "online" : "offline",
+      executionPolicy: device.executionPolicy,
       executionAvailable:
+        device.executionPolicy === "active" &&
         this.channels.isCapabilityRpcAvailable?.(device.id) === true
     };
   }
@@ -75,6 +77,7 @@ export class DeviceTargetService {
         platform: local.platform,
         architecture: local.architecture,
         presence: "online",
+        executionPolicy: "active",
         executionAvailable: true
       };
     }
@@ -101,8 +104,23 @@ export class DeviceTargetService {
       displayName: record.displayName,
       platform: record.platform,
       architecture: record.architecture,
-      presence: projection?.presence === "online" ? "online" : "offline"
+      presence: projection?.presence === "online" ? "online" : "offline",
+      executionPolicy: record.pausedAt ? "paused" : "active"
     });
+  }
+
+  resolveForExecution(
+    deviceId: string,
+    now = new Date().toISOString()
+  ): ResolvedDeviceTarget {
+    const target = this.resolve(deviceId, now);
+    if (target.executionPolicy === "paused") {
+      throw new ServiceError(
+        "DEVICE_EXECUTION_PAUSED",
+        "Requested device target is paused for AI execution"
+      );
+    }
+    return target;
   }
 
   listTargets(
