@@ -126,7 +126,11 @@ console_path_prefix() {
   ' "${ACCESS_POLICY_FILE}" 2>/dev/null || printf '%s' "/ui"
 }
 
-console_url() {
+cockpit_url() {
+  printf 'http://%s:%s/ui/' "${HOST}" "${PORT}"
+}
+
+secure_login_entry_url() {
   printf 'http://%s:%s%s' "${HOST}" "${PORT}" "$(console_path_prefix)"
 }
 
@@ -668,8 +672,9 @@ case "${ACTION}" in
     echo "control plane: running (pid $(cat "${PID_FILE}"))"
     echo "runner: registered"
     echo "process supervisor: ready (generation preserved across control-plane restart)"
-    echo "UI: $(console_url)"
-    echo "next action: open the UI or run npm run doctor:runtime"
+    echo "Cockpit: $(cockpit_url)"
+    echo "Secure login entry: $(secure_login_entry_url)"
+    echo "next action: open the Cockpit or run npm run doctor:runtime"
     ;;
   stop)
     assert_packaged_runtime_ownership
@@ -682,7 +687,7 @@ case "${ACTION}" in
     echo "control plane: stopped"
     echo "runner: stopped"
     echo "process supervisor: stopped after full-stack cleanup"
-    echo "UI: unavailable until start"
+    echo "Cockpit: unavailable until start"
     echo "next action: run npm run start:local"
     ;;
   restart)
@@ -724,7 +729,8 @@ case "${ACTION}" in
       echo "control plane: running (pid $(cat "${PID_FILE}"))"
       echo "runner: registered"
       echo "process supervisor: ready (not restarted)"
-      echo "UI: $(console_url)"
+      echo "Cockpit: $(cockpit_url)"
+      echo "Secure login entry: $(secure_login_entry_url)"
       echo "next action: run npm run doctor:runtime"
       exit 0
     fi
@@ -754,21 +760,22 @@ case "${ACTION}" in
       fi
       echo "runner: ${runner_state}"
       echo "process supervisor: ${process_supervisor_state}"
-      echo "UI: $(console_url)"
-      echo "next action: open UI or run npm run doctor:runtime"
+      echo "Cockpit: $(cockpit_url)"
+      echo "Secure login entry: $(secure_login_entry_url)"
+      echo "next action: open Cockpit or run npm run doctor:runtime"
       exit 0
     fi
     if [[ -f "${INSTALLED_PLIST_FILE}" ]]; then
       echo "control plane: stopped"
       echo "runner: ${runner_state}"
       echo "process supervisor: ${process_supervisor_state}"
-      echo "UI: unavailable"
+      echo "Cockpit: unavailable"
       echo "next action: run npm run start:local"
     else
       echo "control plane: not installed"
       echo "runner: not installed"
       echo "process supervisor: not installed"
-      echo "UI: unavailable"
+      echo "Cockpit: unavailable"
       echo "next action: run npm run setup, then npm run start:local"
     fi
     exit 1
@@ -790,7 +797,7 @@ case "${ACTION}" in
     echo "control plane: uninstalled"
     echo "runner: uninstalled"
     echo "process supervisor: uninstalled"
-    echo "UI: unavailable"
+    echo "Cockpit: unavailable"
     echo "next action: run npm run start:local to reinstall LaunchAgents; source code and server.env were kept"
     ;;
   *)
