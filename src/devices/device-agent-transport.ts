@@ -43,6 +43,28 @@ function requestBody(input: BodyInit | null | undefined): Buffer | null {
   throw new Error("Pinned LAN TLS transport received an unsupported request body");
 }
 
+const PINNED_TLS_TRUST_ERROR_CODES = new Set([
+  "CHATCOCKPIT_TLS_PIN_MISMATCH",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "CERT_SIGNATURE_FAILURE",
+  "ERR_TLS_CERT_ALTNAME_INVALID"
+]);
+
+function pinnedTlsMismatchError(message: string): Error {
+  const error = new Error(message) as NodeJS.ErrnoException;
+  error.code = "CHATCOCKPIT_TLS_PIN_MISMATCH";
+  return error;
+}
+
+function isPinnedTlsTrustError(error: unknown): boolean {
+  return error instanceof Error &&
+    typeof (error as NodeJS.ErrnoException).code === "string" &&
+    PINNED_TLS_TRUST_ERROR_CODES.has((error as NodeJS.ErrnoException).code!);
+}
+
 function buildPinnedHttpsFetch(certificatePem: string): FetchLike {
   const expectedFingerprint = pinnedCertificateFingerprint(certificatePem);
   return async (input, init = {}) => {
@@ -68,11 +90,11 @@ function buildPinnedHttpsFetch(certificatePem: string): FetchLike {
         signal: init.signal ?? undefined,
         checkServerIdentity: (_hostname, certificate) => {
           const raw = certificate.raw;
-          if (!raw) return new Error("LAN TLS peer certificate is unavailable");
+          if (!raw) return pinnedTlsMismatchError("LAN TLS peer certificate is unavailable");
           const observed = crypto.createHash("sha256").update(raw).digest("base64url");
           return observed === expectedFingerprint
             ? undefined
-            : new Error("LAN TLS peer certificate does not match the pinned Hub certificate");
+            : pinnedTlsMismatchError("LAN TLS peer certificate does not match the pinned Hub certificate");
         }
       }, (response) => {
         const bodyStream = Readable.toWeb(response) as ReadableStream<Uint8Array>;
@@ -127,6 +149,8 @@ export interface DeviceAgentChannelConnection {
 export interface DeviceAgentTransport {
   getHubIdentity(origin: string, signal?: AbortSignal): Promise<unknown>;
   proveHubIdentity(origin: string, nonce: string, signal?: AbortSignal): Promise<unknown>;
+  getLanTlsIdentity(origin: string, signal?: AbortSignal): Promise<unknown>;
+  proveLanTlsIdentity(origin: string, nonce: string, signal?: AbortSignal): Promise<unknown>;
   createEnrollment(origin: string, body: unknown): Promise<unknown>;
   pollEnrollment(origin: string, enrollmentId: string, body: unknown): Promise<unknown>;
   heartbeat(origin: string, body: unknown): Promise<unknown>;
@@ -314,11 +338,13 @@ async function* readChannelEvents(
 
 export class HttpDeviceAgentTransport implements DeviceAgentTransport {
   private readonly fetchImpl: FetchLike;
+  private readonly pinnedTls: boolean;
 
   constructor(options: { fetchImpl?: FetchLike; pinnedCertificatePem?: string } = {}) {
     if (options.fetchImpl && options.pinnedCertificatePem) {
       throw new Error("Device Agent transport cannot combine a custom fetch implementation with certificate pinning");
     }
+    this.pinnedTls = options.pinnedCertificatePem !== undefined;
     this.fetchImpl = options.fetchImpl
       ?? (options.pinnedCertificatePem
         ? buildPinnedHttpsFetch(options.pinnedCertificatePem)
@@ -331,6 +357,19 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
 
   proveHubIdentity(origin: string, nonce: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(origin, "/api/hub/identity/proof", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ nonce }),
+      signal
+    });
+  }
+
+  getLanTlsIdentity(origin: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(origin, "/api/hub/lan-tls", { method: "GET", signal });
+  }
+
+  proveLanTlsIdentity(origin: string, nonce: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(origin, "/api/hub/lan-tls/proof", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ nonce }),
@@ -395,6 +434,13 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
       if (controller.signal.aborted) {
         throw new DeviceAgentTransportError(null, "DEVICE_AGENT_ABORTED", "Device channel connection was cancelled");
       }
+      if (this.pinnedTls && isPinnedTlsTrustError(error)) {
+        throw new DeviceAgentTransportError(
+          null,
+          "DEVICE_AGENT_TLS_PIN_MISMATCH",
+          "LAN TLS peer certificate does not match the pinned Hub certificate"
+        );
+      }
       throw new DeviceAgentTransportError(
         null,
         "DEVICE_AGENT_NETWORK_ERROR",
@@ -440,6 +486,13 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
         }
       });
     } catch (error) {
+      if (this.pinnedTls && isPinnedTlsTrustError(error)) {
+        throw new DeviceAgentTransportError(
+          null,
+          "DEVICE_AGENT_TLS_PIN_MISMATCH",
+          "LAN TLS peer certificate does not match the pinned Hub certificate"
+        );
+      }
       const message = error instanceof Error ? error.message : String(error);
       throw new DeviceAgentTransportError(
         null,

@@ -107,6 +107,7 @@ Usage:
   ${identity.cliName} device discover [--timeout 3] [--verify] [--json]
   ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
   ${identity.cliName} device heartbeat [--json]
+  ${identity.cliName} device route status [--json]
   ${identity.cliName} device route verify <hub-url> [--json]
   ${identity.cliName} device agent [--json]
   ${identity.cliName} device agent --heartbeat-only [--interval 30] [--json]
@@ -538,9 +539,10 @@ async function main(): Promise<void> {
             });
             const verification = new Map<number, {
               verified: boolean;
-              controlTransportEligible: false;
-              transportSecurity: "plaintext-http" | null;
+              controlTransportEligible: boolean;
+              transportSecurity: "plaintext-http" | "pinned-tls" | null;
               origin: string | null;
+              secureOrigin: string | null;
               code: string | null;
             }>();
             if (verifyCandidates) {
@@ -559,6 +561,7 @@ async function main(): Promise<void> {
                     controlTransportEligible: false,
                     transportSecurity: null,
                     origin: null,
+                    secureOrigin: null,
                     code: "DEVICE_AGENT_HUB_IDENTITY_MISMATCH"
                   });
                   continue;
@@ -569,6 +572,7 @@ async function main(): Promise<void> {
                     controlTransportEligible: false,
                     transportSecurity: null,
                     origin: null,
+                    secureOrigin: null,
                     code: "DEVICE_AGENT_LAN_VERIFY_LIMIT_REACHED"
                   });
                   continue;
@@ -583,6 +587,7 @@ async function main(): Promise<void> {
                     controlTransportEligible: result.controlTransportEligible,
                     transportSecurity: result.transportSecurity,
                     origin: result.origin,
+                    secureOrigin: result.secureOrigin,
                     code: null
                   });
                 } catch (error) {
@@ -591,6 +596,7 @@ async function main(): Promise<void> {
                     controlTransportEligible: false,
                     transportSecurity: null,
                     origin: null,
+                    secureOrigin: null,
                     code: error instanceof DeviceAgentProtocolError
                       ? error.code
                       : "DEVICE_AGENT_LAN_VERIFY_FAILED"
@@ -620,7 +626,12 @@ async function main(): Promise<void> {
                 process.stdout.write(`  Hub hint: ${candidate.hubIdHint}\n`);
                 if (result?.verified) {
                   process.stdout.write("  Trust: pinned Hub identity verified\n");
-                  process.stdout.write("  Transport: plaintext LAN HTTP (control transport not eligible)\n");
+                  if (result.controlTransportEligible && result.transportSecurity === "pinned-tls") {
+                    process.stdout.write(`  Transport: pinned LAN TLS (${result.secureOrigin})\n`);
+                    process.stdout.write("  Control route: eligible\n");
+                  } else {
+                    process.stdout.write("  Transport: plaintext LAN HTTP (control transport not eligible)\n");
+                  }
                 } else if (verifyCandidates) {
                   process.stdout.write(`  Trust: not verified (${result?.code ?? "not attempted"})\n`);
                 } else {
@@ -684,8 +695,21 @@ async function main(): Promise<void> {
         }
         case "route": {
           const action = process.argv[4];
+          if (action === "status") {
+            const routeStatus = service.routeStatus();
+            if (json) printJson(routeStatus);
+            else {
+              process.stdout.write(`Route preference: ${routeStatus.preference === "lan" ? "LAN pinned TLS" : "Public"}\n`);
+              process.stdout.write(`LAN route: ${routeStatus.lan.configured ? "verified" : "not configured"}\n`);
+              if (routeStatus.lan.lastSuccessfulAt) {
+                process.stdout.write(`LAN last successful: ${routeStatus.lan.lastSuccessfulAt}\n`);
+              }
+              process.stdout.write(`Public route: ${routeStatus.public.configured ? "configured" : "not configured"}\n`);
+            }
+            return;
+          }
           if (action !== "verify") {
-            throw new Error("device route requires: verify <hub-url>");
+            throw new Error("device route requires one of: status, verify <hub-url>");
           }
           const hubUrl = process.argv[5];
           if (!hubUrl || hubUrl.startsWith("--")) {

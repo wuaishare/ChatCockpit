@@ -24,6 +24,14 @@ import {
   signHubIdentityProof
 } from "../src/devices/hub-identity.js";
 import {
+  createLanTlsIdentity,
+  signLanTlsCertificateProof,
+  type LanTlsIdentityRecord
+} from "../src/devices/lan-tls-identity.js";
+import {
+  readDeviceAgentLanRoute
+} from "../src/devices/device-agent-lan-route.js";
+import {
   CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
   parseLanDiscoveryCandidate,
   type LanDiscoveryCandidate
@@ -70,17 +78,40 @@ function candidate(hubIdHint: string, addresses: string[] = [
   });
 }
 
+function secureCandidate(
+  hubIdHint: string,
+  securePort = 4319,
+  addresses: string[] = ["fd12:3456:789a::8"]
+): LanDiscoveryCandidate {
+  return parseLanDiscoveryCandidate({
+    serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
+    instanceName: "Office Hub Secure",
+    host: "chatcockpit-office.local.",
+    port: 4318,
+    addresses,
+    txt: ["v=2", "role=hub", `hub=${hubIdHint}`, `tls=${securePort}`]
+  });
+}
+
 class FixtureTransport implements DeviceAgentTransport {
   readonly origins: string[] = [];
   readonly proofOrigins: string[] = [];
   firstAddressTimesOut = true;
   forgeProof = false;
+  forgeTlsProof = false;
+  readonly networkOrigins = new Set<string>();
   identityOverride: { hubId: string; publicKey: string; publicKeyFingerprint: string } | null = null;
 
-  constructor(private readonly hub: ReturnType<typeof createHubIdentity>) {}
+  constructor(
+    private readonly hub: ReturnType<typeof createHubIdentity>,
+    private readonly tlsIdentity?: LanTlsIdentityRecord
+  ) {}
 
   async getHubIdentity(origin: string, signal?: AbortSignal): Promise<unknown> {
     this.origins.push(origin);
+    if (this.networkOrigins.has(origin)) {
+      throw new DeviceAgentTransportError(null, "DEVICE_AGENT_NETWORK_ERROR", "fixture route unavailable");
+    }
     if (origin === publicOrigin) {
       throw new Error("LAN verification must not contact the previous public route");
     }
@@ -123,6 +154,34 @@ class FixtureTransport implements DeviceAgentTransport {
     };
   }
 
+  async getLanTlsIdentity(): Promise<unknown> {
+    if (!this.tlsIdentity) throw new Error("fixture LAN TLS identity is not configured");
+    return {
+      ok: true,
+      tls: {
+        schemaVersion: 1,
+        algorithm: "P-256",
+        certificate: this.tlsIdentity.certificatePem,
+        certificateFingerprint: this.tlsIdentity.certificateFingerprint,
+        createdAt: this.tlsIdentity.createdAt,
+        notAfter: this.tlsIdentity.notAfter
+      }
+    };
+  }
+
+  async proveLanTlsIdentity(_origin: string, nonce: string): Promise<unknown> {
+    if (!this.tlsIdentity) throw new Error("fixture LAN TLS identity is not configured");
+    return {
+      ok: true,
+      hubId: this.hub.hubId,
+      nonce,
+      certificateFingerprint: this.tlsIdentity.certificateFingerprint,
+      signature: this.forgeTlsProof
+        ? "A".repeat(86)
+        : signLanTlsCertificateProof(this.hub, nonce, this.tlsIdentity.certificateFingerprint)
+    };
+  }
+
   async createEnrollment(): Promise<unknown> {
     throw new Error("not used");
   }
@@ -143,8 +202,9 @@ class FixtureTransport implements DeviceAgentTransport {
 async function main(): Promise<void> {
   try {
     const hub = createConnectedAgent(agentRuntime);
+    const tlsIdentity = await createLanTlsIdentity(path.join(root, "lan-tls"), now);
     const before = readDeviceAgentState(agentRuntime)!;
-    const transport = new FixtureTransport(hub);
+    const transport = new FixtureTransport(hub, tlsIdentity);
     const service = new DeviceAgentService({
       runtimeDir: agentRuntime,
       transport,
@@ -174,8 +234,109 @@ async function main(): Promise<void> {
     assert.equal(after.deviceId, before.deviceId);
     assert.equal(after.publicKeyFingerprint, before.publicKeyFingerprint);
     assert.equal(after.nextSequence, before.nextSequence);
+    assert.equal(readDeviceAgentLanRoute(agentRuntime), null, "v1 discovery must not persist a secure LAN route");
 
-    const hintMismatchTransport = new FixtureTransport(hub);
+    const badTlsRuntime = path.join(root, "bad-tls-agent");
+    createDeviceAgentState({
+      runtimeDir: badTlsRuntime,
+      hubOrigin: publicOrigin,
+      displayName: "Bad TLS Fixture",
+      platform: "darwin",
+      architecture: "arm64",
+      now
+    });
+    pinDeviceAgentHubIdentity(badTlsRuntime, {
+      hubOrigin: publicOrigin,
+      hubId: hub.hubId,
+      publicKeySpki: hub.publicKeySpki,
+      publicKeyFingerprint: hub.publicKeyFingerprint
+    }, now);
+    completeDeviceAgentEnrollment(badTlsRuntime, "cc_device_bad_tls_abcdefghijklmnopqrst", now);
+    const badTlsTransport = new FixtureTransport(hub, tlsIdentity);
+    badTlsTransport.firstAddressTimesOut = false;
+    badTlsTransport.forgeTlsProof = true;
+    await assert.rejects(
+      new DeviceAgentService({
+        runtimeDir: badTlsRuntime,
+        transport: badTlsTransport,
+        pinnedTransportFactory: () => new FixtureTransport(hub, tlsIdentity)
+      }).verifyLanDiscoveryCandidate(secureCandidate(hub.hubId)),
+      (error: unknown) =>
+        error instanceof DeviceAgentProtocolError &&
+        error.code === "DEVICE_AGENT_LAN_TLS_PROOF_INVALID"
+    );
+    assert.equal(readDeviceAgentLanRoute(badTlsRuntime), null, "forged TLS proof must not persist a LAN route");
+
+    let pinnedFactoryCalls = 0;
+    const secureTransport = new FixtureTransport(hub, tlsIdentity);
+    secureTransport.firstAddressTimesOut = false;
+    const secureVerified = await new DeviceAgentService({
+      runtimeDir: agentRuntime,
+      transport: secureTransport,
+      pinnedTransportFactory: (certificatePem) => {
+        pinnedFactoryCalls += 1;
+        assert.equal(certificatePem, tlsIdentity.certificatePem);
+        const pinned = new FixtureTransport(hub, tlsIdentity);
+        pinned.firstAddressTimesOut = false;
+        return pinned;
+      },
+      now: () => now
+    }).verifyLanDiscoveryCandidate(secureCandidate(hub.hubId));
+    assert.equal(secureVerified.controlTransportEligible, true);
+    assert.equal(secureVerified.transportSecurity, "pinned-tls");
+    assert.equal(secureVerified.securePort, 4319);
+    assert.equal(secureVerified.secureOrigin, "https://[fd12:3456:789a::8]:4319");
+    assert.equal(secureVerified.certificateFingerprint, tlsIdentity.certificateFingerprint);
+    assert.equal(pinnedFactoryCalls, 1);
+    const persistedLanRoute = readDeviceAgentLanRoute(agentRuntime)!;
+    assert.equal(persistedLanRoute.hubId, hub.hubId);
+    assert.equal(persistedLanRoute.secureOrigin, secureVerified.secureOrigin);
+    assert.equal(persistedLanRoute.certificateFingerprint, tlsIdentity.certificateFingerprint);
+    const afterSecure = readDeviceAgentState(agentRuntime)!;
+    assert.deepEqual(afterSecure, after, "secure LAN verification must not mutate long-lived Device Agent identity state");
+
+    const multiRuntime = path.join(root, "multi-address-agent");
+    createDeviceAgentState({
+      runtimeDir: multiRuntime,
+      hubOrigin: publicOrigin,
+      displayName: "Multi Address Fixture",
+      platform: "darwin",
+      architecture: "arm64",
+      now
+    });
+    pinDeviceAgentHubIdentity(multiRuntime, {
+      hubOrigin: publicOrigin,
+      hubId: hub.hubId,
+      publicKeySpki: hub.publicKeySpki,
+      publicKeyFingerprint: hub.publicKeyFingerprint
+    }, now);
+    completeDeviceAgentEnrollment(multiRuntime, "cc_device_multi_address_abcdefghijkl", now);
+    const multiBootstrap = new FixtureTransport(hub, tlsIdentity);
+    multiBootstrap.firstAddressTimesOut = false;
+    let multiPinnedFactoryCalls = 0;
+    const multiVerified = await new DeviceAgentService({
+      runtimeDir: multiRuntime,
+      transport: multiBootstrap,
+      pinnedTransportFactory: () => {
+        multiPinnedFactoryCalls += 1;
+        const pinned = new FixtureTransport(hub, tlsIdentity);
+        pinned.firstAddressTimesOut = false;
+        if (multiPinnedFactoryCalls === 1) {
+          pinned.networkOrigins.add("https://[fd12:3456:789a::8]:4319");
+        }
+        return pinned;
+      },
+      now: () => now
+    }).verifyLanDiscoveryCandidate(
+      secureCandidate(hub.hubId, 4319, ["fd12:3456:789a::8", "fd12:3456:789a::9"]),
+      { timeoutMs: 250 }
+    );
+    assert.equal(multiVerified.address, "fd12:3456:789a::9");
+    assert.equal(multiVerified.secureOrigin, "https://[fd12:3456:789a::9]:4319");
+    assert.equal(multiPinnedFactoryCalls, 2, "unavailable secure address must fall through to the next advertised address");
+    assert.equal(readDeviceAgentLanRoute(multiRuntime)?.address, "fd12:3456:789a::9");
+
+    const hintMismatchTransport = new FixtureTransport(hub, tlsIdentity);
     const hintMismatchService = new DeviceAgentService({
       runtimeDir: agentRuntime,
       transport: hintMismatchTransport

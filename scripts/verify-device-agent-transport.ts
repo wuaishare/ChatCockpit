@@ -60,6 +60,8 @@ const identityController = new AbortController();
 const proofController = new AbortController();
 await transport.getHubIdentity(origin, identityController.signal);
 await transport.proveHubIdentity(origin, "abcdefghijklmnopqrstuvwx", proofController.signal);
+await transport.getLanTlsIdentity(origin, identityController.signal);
+await transport.proveLanTlsIdentity(origin, "abcdefghijklmnopqrstuvwx", proofController.signal);
 await transport.createEnrollment(origin, { displayName: "MacBook Pro" });
 await transport.pollEnrollment(origin, "cc_enroll_abcdefghijklmnopqrstuvwx", { signature: "sig" });
 await transport.heartbeat(origin, { deviceId: "cc_device_abcdefghijklmnopqrstuvwx", sequence: 7, signature: "sig" });
@@ -69,6 +71,8 @@ assert.deepEqual(
   [
     ["/api/hub/identity", "GET"],
     ["/api/hub/identity/proof", "POST"],
+    ["/api/hub/lan-tls", "GET"],
+    ["/api/hub/lan-tls/proof", "POST"],
     ["/api/devices/enrollment-requests", "POST"],
     ["/api/devices/enrollment-requests/cc_enroll_abcdefghijklmnopqrstuvwx/status", "POST"],
     ["/api/devices/heartbeat", "POST"]

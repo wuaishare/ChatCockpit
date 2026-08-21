@@ -89,7 +89,7 @@ try {
     wrongTransport.getHubIdentity(origin),
     (error: unknown) =>
       error instanceof DeviceAgentTransportError &&
-      error.code === "DEVICE_AGENT_NETWORK_ERROR" &&
+      error.code === "DEVICE_AGENT_TLS_PIN_MISMATCH" &&
       error.statusCode === null
   );
 
