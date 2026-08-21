@@ -24,6 +24,7 @@ import type { RuntimeRecoveryServices } from "../application/runtime-recovery-se
 import type { RuntimeResourceMutationService } from "../application/runtime-resource-mutation-service.js";
 import type { RuntimeResourceServices } from "../application/runtime-resource-services.js";
 import { productIdentityForKey } from "../core/product-identity.js";
+import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import type { TokenPilotPaths } from "../types.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
@@ -43,8 +44,14 @@ import {
   type McpToolRegistrar
 } from "./register-tools.js";
 
+export function authorizationGrantIdFromRequestContext(
+  context: McpRequestContext
+): string | null {
+  return context.requestInfo?.headers.get(MCP_AUTHORIZATION_GRANT_HEADER)?.trim() || null;
+}
+
 export function actorIdFromRequestContext(context: McpRequestContext): string | null {
-  const grantId = context.requestInfo?.headers.get(MCP_AUTHORIZATION_GRANT_HEADER)?.trim();
+  const grantId = authorizationGrantIdFromRequestContext(context);
   if (grantId) {
     return grantId;
   }
@@ -126,6 +133,26 @@ export function buildTokenPilotMcpToolCatalog(
   ], paths.productIdentity);
 }
 
+export interface McpDeviceAccessAuthorizer {
+  allowsDevice(grantId: string, deviceId: string): boolean;
+}
+
+function deviceAccessDeniedResult(deviceId: string) {
+  const structuredContent = {
+    ok: false,
+    error: {
+      code: "DEVICE_ACCESS_DENIED",
+      message: "This OAuth authorization grant is not allowed to access the requested device",
+      details: { deviceId }
+    }
+  };
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) }],
+    structuredContent,
+    isError: true
+  };
+}
+
 export function buildTokenPilotMcpHandler(
   paths: TokenPilotPaths,
   continuityServices: ContinuityServices,
@@ -143,6 +170,7 @@ export function buildTokenPilotMcpHandler(
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
+  deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
   onerror?: (error: Error) => void
 ): McpHttpHandler {
   const identity = productIdentityForKey(paths.productIdentity);
@@ -181,7 +209,18 @@ export function buildTokenPilotMcpHandler(
             actorId: actorIdFromRequestContext(requestContext),
             requestId: requestIdFromContext(requestContext, toolName),
             publicProjection: true
-          })
+          }),
+        () => {
+          const grantId = authorizationGrantIdFromRequestContext(requestContext);
+          if (!grantId) return null;
+          if (
+            !deviceAccessAuthorizer ||
+            !deviceAccessAuthorizer.allowsDevice(grantId, LOCAL_DEVICE_TARGET_ID)
+          ) {
+            return deviceAccessDeniedResult(LOCAL_DEVICE_TARGET_ID);
+          }
+          return null;
+        }
       );
 
       return server;

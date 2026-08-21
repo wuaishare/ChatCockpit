@@ -17,6 +17,7 @@ import {
   MCP_AUTHORIZATION_GRANT_HEADER,
   MCP_CLIENT_REGISTRATION_HEADER
 } from "../src/auth/oauth-request-identity.js";
+import { LOCAL_DEVICE_TARGET_ID } from "../src/devices/local-device.js";
 import { toWebStandardRequest } from "../src/mcp/http-adapter.js";
 import { actorIdFromRequestContext } from "../src/mcp/server.js";
 
@@ -105,7 +106,12 @@ function main(): void {
   assert.equal(store.listAuthorizationGrants().length, 1);
   assert.equal(
     Number((store.sqlite.prepare("SELECT MAX(version) AS version FROM oauth_schema_migrations").get() as { version: number }).version),
-    2
+    3
+  );
+  assert.deepEqual(
+    store.listAuthorizationGrantDeviceIds(expectedLegacyGrant),
+    [LOCAL_DEVICE_TARGET_ID],
+    "legacy grant migration must preserve only the existing local-device authority"
   );
 
   const config = resolveOAuthPublicConfig({

@@ -851,6 +851,12 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     exposedRuntimeResourceMutationService,
+    oauthStore
+      ? {
+          allowsDevice: (grantId, deviceId) =>
+            oauthStore.authorizationGrantAllowsDevice(grantId, deviceId)
+        }
+      : null,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
     }
