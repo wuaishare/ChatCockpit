@@ -288,7 +288,7 @@ assert.match(statusView, /\.id\("cockpit-copy-\\\(url\.absoluteString\)-\\\(copi
 assert.match(statusView, /AccessibleIconButton\([\s\S]*arrow\.up\.right\.square[\s\S]*action: openAction/s);
 assert.match(statusView, /DesktopL10n\.format\("Open %@ in Browser", title\)/);
 assert.match(statusView, /securityFeedback\?\.target == \.apiEndpoint\(url\.absoluteString\)/);
-assert.match(statusView, /DesktopL10n\.string\("Console path"\)/);
+assert.match(statusView, /DesktopL10n\.string\("Secure login entry"\)/);
 assert.match(statusView, /DesktopL10n\.string\("Trusted LAN"\)/);
 assert.match(statusView, /ownerSummary/);
 assert.match(statusView, /machineTokenSummary/);
@@ -481,7 +481,7 @@ assert.match(runtimeCommandRunner, /"--lan-cidr"/);
 assert.match(settings, /Section\(DesktopL10n\.string\("Access Policy"\)\)/);
 assert.match(settings, /TextField\("", text: \$consolePathPrefix\)/);
 assert.doesNotMatch(settings, /cc-random-entry/);
-assert.match(settings, /Generate a new random console path/);
+assert.match(settings, /Generate a new secure login entry/);
 assert.match(settings, /model\.generateRandomConsolePathCandidate\(\)/);
 assert.match(settings, /\.disabled\(!canApplyAccessPolicy\)/);
 assert.match(settings, /hasAccessPolicyChanges/);
@@ -623,8 +623,8 @@ assert.match(simplifiedChineseLocalization, /"Local API base" = "本机 API 基�
 assert.match(simplifiedChineseLocalization, /"Copy API address" = "复制 API 地址";/);
 assert.match(simplifiedChineseLocalization, /"Copied" = "已复制";/);
 assert.match(simplifiedChineseLocalization, /"Access Policy" = "访问策略";/);
-assert.match(simplifiedChineseLocalization, /"Console path" = "控制台入口路径";/);
-assert.match(simplifiedChineseLocalization, /"Generate a new random console path" = "重新生成随机入口";/);
+assert.match(simplifiedChineseLocalization, /"Secure login entry" = "安全登录入口";/);
+assert.match(simplifiedChineseLocalization, /"Generate a new secure login entry" = "重新生成安全登录入口";/);
 assert.match(simplifiedChineseLocalization, /"Changes not applied yet" = "更改尚未应用";/);
 assert.match(simplifiedChineseLocalization, /"Enable trusted LAN access" = "启用可信局域网访问";/);
 assert.match(simplifiedChineseLocalization, /"Connectivity Providers" = "接入组件";/);

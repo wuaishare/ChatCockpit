@@ -7,6 +7,7 @@ import {
 import {
   OperatorStore,
   hashOperatorLocalLoginSecret,
+  hashOperatorLoginGateSecret,
   hashOperatorSessionSecret,
   type OperatorPrincipalRecord,
   type OperatorSessionRecord
@@ -16,6 +17,7 @@ const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
 const SESSION_ABSOLUTE_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const LOCAL_LOGIN_GRANT_TTL_MS = 45 * 1000;
+const SECURE_LOGIN_GATE_TTL_MS = 5 * 60 * 1000;
 const LOGIN_FREE_FAILURES = 5;
 const LOGIN_BACKOFF_BASE_MS = 5 * 1000;
 const LOGIN_BACKOFF_MAX_MS = 15 * 60 * 1000;
@@ -221,6 +223,67 @@ export class OperatorService {
       details: { expiresAt }
     });
     return { grantSecret, expiresAt };
+  }
+
+  createSecureLoginGate(): { gateSecret: string; expiresAt: string } {
+    const owner = this.store.getOwner();
+    if (!owner) {
+      throw new OperatorAuthError(
+        "OPERATOR_SETUP_REQUIRED",
+        "Web Operator account has not been configured",
+        503
+      );
+    }
+    const now = this.now();
+    const nowIso = now.toISOString();
+    const expiresAt = toIso(now.getTime() + SECURE_LOGIN_GATE_TTL_MS);
+    const gateSecret = `cc_login_gate_${randomBytes(32).toString("base64url")}`;
+    this.store.createLoginGate({
+      id: randomUUID(),
+      principalId: owner.id,
+      secretHash: hashOperatorLoginGateSecret(gateSecret),
+      purpose: "secure-entry",
+      createdAt: nowIso,
+      expiresAt
+    });
+    this.store.recordAuditEvent({
+      eventType: "operator.secure_login_gate.created",
+      principalId: owner.id,
+      createdAt: nowIso,
+      details: { expiresAt }
+    });
+    return { gateSecret, expiresAt };
+  }
+
+  inspectSecureLoginGate(gateSecret: string): { expiresAt: string } | null {
+    const gate = this.store.getActiveLoginGate(
+      hashOperatorLoginGateSecret(gateSecret),
+      this.now().toISOString()
+    );
+    const owner = this.store.getOwner();
+    if (!gate || !owner || gate.principalId !== owner.id || gate.purpose !== "secure-entry") {
+      return null;
+    }
+    return { expiresAt: gate.expiresAt };
+  }
+
+  consumeSecureLoginGate(gateSecret: string): { expiresAt: string } | null {
+    const nowIso = this.now().toISOString();
+    const gate = this.store.consumeLoginGate(
+      hashOperatorLoginGateSecret(gateSecret),
+      nowIso
+    );
+    const owner = this.store.getOwner();
+    if (!gate || !owner || gate.principalId !== owner.id || gate.purpose !== "secure-entry") {
+      return null;
+    }
+    this.store.recordAuditEvent({
+      eventType: "operator.secure_login_gate.consumed",
+      principalId: owner.id,
+      createdAt: nowIso,
+      details: { expiresAt: gate.expiresAt }
+    });
+    return { expiresAt: gate.expiresAt };
   }
 
   redeemLocalLoginGrant(input: {

@@ -29,6 +29,15 @@ function writeMinimalWebDist(root: string): void {
   fs.writeFileSync(path.join(dist, "assets", "app.js"), "window.__console = true;\n", "utf8");
 }
 
+function loginGateFromEntry(location: string | undefined): string {
+  assert.ok(location, "secure entry must return a redirect location");
+  const target = new URL(location, "http://localhost");
+  assert.equal(target.pathname, "/ui/login");
+  const gate = target.searchParams.get("gate") ?? "";
+  assert.match(gate, /^cc_login_gate_[A-Za-z0-9_-]{43}$/);
+  return gate;
+}
+
 async function main(): Promise<void> {
   const privateLanBase = ["192", "168"].join(".");
   const allowedLanCidr = `${privateLanBase}.50.0/24`;
@@ -125,13 +134,18 @@ async function main(): Promise<void> {
     const wrongEntryOperatorStatus = await app.inject({
       method: "GET",
       url: "/api/operator/status",
-      headers: { "x-chatcockpit-console-path": "/wrong-entry" }
+      headers: { "x-chatcockpit-login-gate": "cc_login_gate_invalid" }
     });
     assert.equal(wrongEntryOperatorStatus.statusCode, 404);
+
+    const customEntry = await app.inject({ method: "GET", url: "/ops-7a3f" });
+    assert.equal(customEntry.statusCode, 303);
+    const loginGate = loginGateFromEntry(customEntry.headers.location);
+
     const knownEntryOperatorStatus = await app.inject({
       method: "GET",
       url: "/api/operator/status",
-      headers: { "x-chatcockpit-console-path": "/ops-7a3f" }
+      headers: { "x-chatcockpit-login-gate": loginGate }
     });
     assert.equal(knownEntryOperatorStatus.statusCode, 200);
     const concealedOperatorLogin = await app.inject({
@@ -143,13 +157,13 @@ async function main(): Promise<void> {
     const knownEntryOperatorLogin = await app.inject({
       method: "POST",
       url: "/api/operator/login",
-      headers: { "x-chatcockpit-console-path": "/ops-7a3f" },
+      headers: { "x-chatcockpit-login-gate": loginGate },
       payload: {}
     });
     assert.equal(
       knownEntryOperatorLogin.statusCode,
       400,
-      "known console entry may reach normal login validation"
+      "valid login gate may reach normal login validation"
     );
     const concealedTotpLogin = await app.inject({
       method: "POST",
@@ -159,40 +173,48 @@ async function main(): Promise<void> {
     assert.equal(
       concealedTotpLogin.statusCode,
       404,
-      "custom console path knowledge must also gate anonymous TOTP challenge verification"
+      "secure login gate must also protect anonymous TOTP challenge verification"
     );
     const knownEntryTotpLogin = await app.inject({
       method: "POST",
       url: "/api/operator/totp/login",
-      headers: { "x-chatcockpit-console-path": "/ops-7a3f" },
+      headers: { "x-chatcockpit-login-gate": loginGate },
       payload: { challenge: "invalid", verification: "000000" }
     });
     assert.equal(
       knownEntryTotpLogin.statusCode,
       401,
-      "known console entry may reach the normal TOTP challenge validator"
+      "valid login gate may reach the normal TOTP challenge validator"
     );
 
-    const customEntry = await app.inject({ method: "GET", url: "/ops-7a3f" });
-    assert.equal(customEntry.statusCode, 200);
-    assert.match(customEntry.body, /chatcockpit-console-base/);
-    assert.match(customEntry.body, /content="\/ops-7a3f"/);
-    assert.match(customEntry.body, /\/ops-7a3f\/assets\/app\.js/);
-    assert.doesNotMatch(customEntry.body, /src="\/ui\/assets/);
-    assert.doesNotMatch(customEntry.body, /src="\.\/assets/);
+    const loginDocument = await app.inject({
+      method: "GET",
+      url: `/ui/login?gate=${encodeURIComponent(loginGate)}`
+    });
+    assert.equal(loginDocument.statusCode, 200);
+    assert.match(loginDocument.body, /chatcockpit-console-base/);
+    assert.match(loginDocument.body, /content="\/ui"/);
+    assert.match(loginDocument.body, /\/ui\/assets\/app\.js/);
+    assert.doesNotMatch(loginDocument.body, /\/ops-7a3f\/assets/);
 
     const customDeepLink = await app.inject({
       method: "GET",
       url: "/ops-7a3f/jobs/job-1"
     });
-    assert.equal(customDeepLink.statusCode, 200);
+    assert.equal(customDeepLink.statusCode, 404);
 
     const customAsset = await app.inject({
       method: "GET",
       url: "/ops-7a3f/assets/app.js"
     });
-    assert.equal(customAsset.statusCode, 200);
-    assert.match(customAsset.body, /__console/);
+    assert.equal(customAsset.statusCode, 404);
+
+    const stableAsset = await app.inject({
+      method: "GET",
+      url: "/ui/assets/app.js"
+    });
+    assert.equal(stableAsset.statusCode, 200);
+    assert.match(stableAsset.body, /__console/);
 
     const deniedLan = await app.inject({
       method: "GET",
@@ -209,7 +231,8 @@ async function main(): Promise<void> {
       remoteAddress: allowedLanClient,
       headers: { host: lanHost }
     });
-    assert.equal(allowedLanLogin.statusCode, 200, "allowlisted LAN may reach the login surface");
+    assert.equal(allowedLanLogin.statusCode, 303, "allowlisted LAN may reach the secure login entry");
+    assert.match(allowedLanLogin.headers.location ?? "", /^\/ui\/login\?gate=cc_login_gate_/);
 
     const allowedLanProtected = await app.inject({
       method: "GET",
@@ -235,51 +258,49 @@ async function main(): Promise<void> {
       const builtPaths = buildFixturePaths(builtRoot);
       ensureWorkspaceDirs(builtPaths);
       updateAccessPolicy(builtPaths, { consolePathPrefix: "/ops-built-proof" });
+      const builtOperatorStore = new OperatorStore({ path: operatorDatabasePath(builtPaths.runtimeDir) });
+      const builtOperatorService = new OperatorService({ store: builtOperatorStore });
+      await builtOperatorService.setOwnerPassword({
+        username: "owner",
+        password: "test-password-built-access-policy-correct-horse"
+      });
+      builtOperatorStore.close();
       const builtApp = buildServer(builtPaths);
       try {
         const builtEntry = await builtApp.inject({ method: "GET", url: "/ops-built-proof" });
-        assert.equal(builtEntry.statusCode, 200);
-        assert.match(builtEntry.body, /chatcockpit-console-base/);
-        assert.doesNotMatch(builtEntry.body, /(?:src|href)="\/ui\/assets\//);
-        const assetReference = builtEntry.body.match(/(?:src|href)="([^\"]*assets\/[^\"]+)"/)?.[1];
+        assert.equal(builtEntry.statusCode, 303);
+        const builtGate = loginGateFromEntry(builtEntry.headers.location);
+        const builtLogin = await builtApp.inject({
+          method: "GET",
+          url: `/ui/login?gate=${encodeURIComponent(builtGate)}`
+        });
+        assert.equal(builtLogin.statusCode, 200);
+        assert.match(builtLogin.body, /chatcockpit-console-base/);
+        assert.match(builtLogin.body, /content="\/ui"/);
+        const assetReference = builtLogin.body.match(/(?:src|href)="([^\"]*assets\/[^\"]+)"/)?.[1];
         assert.ok(assetReference, "real Vite build must expose at least one hashed asset URL");
         assert.match(
           assetReference,
-          /^\/ops-built-proof\/assets\//,
-          "bare randomized console entry must rewrite relative Vite assets under the concealed console path"
+          /^\/ui\/assets\//,
+          "built Cockpit assets must use the stable /ui base"
         );
         const builtAsset = await builtApp.inject({ method: "GET", url: assetReference });
         assert.equal(builtAsset.statusCode, 200);
         const rootAsset = await builtApp.inject({
           method: "GET",
-          url: assetReference.replace("/ops-built-proof", "")
+          url: assetReference.replace("/ui", "")
         });
-        assert.notEqual(
-          rootAsset.statusCode,
-          200,
-          "randomized console bootstrap must not make the root /assets surface anonymously readable"
-        );
-        const builtJsFiles = fs
-          .readdirSync(path.join(builtRoot, "web", "dist", "assets"))
-          .filter((entry) => entry.endsWith(".js"));
-        assert.ok(builtJsFiles.length > 0, "real Vite build must contain JavaScript assets");
-        for (const jsFile of builtJsFiles) {
-          const jsSource = fs.readFileSync(
-            path.join(builtRoot, "web", "dist", "assets", jsFile),
-            "utf8"
-          );
-          assert.doesNotMatch(
-            jsSource,
-            /["'`]\/ui\//,
-            `built JavaScript must not hard-code the legacy /ui base: ${jsFile}`
-          );
-        }
-        const builtDeepLink = await builtApp.inject({
+        assert.notEqual(rootAsset.statusCode, 200, "root /assets must stay unavailable");
+        const oldRandomAsset = await builtApp.inject({
+          method: "GET",
+          url: assetReference.replace("/ui", "/ops-built-proof")
+        });
+        assert.equal(oldRandomAsset.statusCode, 404);
+        const oldRandomDeepLink = await builtApp.inject({
           method: "GET",
           url: "/ops-built-proof/continuity/tasks"
         });
-        assert.equal(builtDeepLink.statusCode, 200);
-        assert.match(builtDeepLink.body, /content="\/ops-built-proof"/);
+        assert.equal(oldRandomDeepLink.statusCode, 404);
       } finally {
         await builtApp.close();
         fs.rmSync(builtRoot, { recursive: true, force: true });

@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import net from "node:net";
 
+import { readOperatorCredentialVault } from "../src/auth/operator-credential-vault.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { loadAccessPolicy } from "../src/security/access-policy.ts";
 import type { TokenPilotPaths } from "../src/types.ts";
@@ -79,6 +80,21 @@ function findFreePort(): Promise<number> {
     });
     server.on("error", reject);
   });
+}
+
+function loginGateFromSecureEntry(location: string | null): string {
+  assert.ok(location, "secure entry must return a redirect Location");
+  const target = new URL(location, "http://localhost");
+  assert.equal(target.pathname, "/ui/login");
+  const gate = target.searchParams.get("gate") ?? "";
+  assert.match(gate, /^cc_login_gate_[A-Za-z0-9_-]{43}$/);
+  return gate;
+}
+
+function sessionCookieFromResponse(response: Response): string {
+  const value = response.headers.get("set-cookie");
+  assert.ok(value, "successful Owner login must set the session cookie");
+  return value.split(";", 1)[0] ?? "";
 }
 
 function assertOpenApiDescriptionLimit(openapiText: string, limit = 300): void {
@@ -301,9 +317,19 @@ async function runE2E(): Promise<void> {
   try {
     const noUiConsolePath = loadAccessPolicy(noUiPaths).consolePathPrefix;
     assert.notEqual(noUiConsolePath, "/ui");
-    const concealedLegacyUi = await fetch(`http://127.0.0.1:${noUiPort}/ui`);
-    assert.equal(concealedLegacyUi.status, 404);
-    const noUiResponse = await fetch(`http://127.0.0.1:${noUiPort}${noUiConsolePath}`);
+    const concealedStableUi = await fetch(`http://127.0.0.1:${noUiPort}/ui`, {
+      redirect: "manual"
+    });
+    assert.equal(concealedStableUi.status, 404);
+    const noUiEntry = await fetch(`http://127.0.0.1:${noUiPort}${noUiConsolePath}`, {
+      redirect: "manual"
+    });
+    assert.equal(noUiEntry.status, 303);
+    const noUiLoginLocation = noUiEntry.headers.get("location");
+    loginGateFromSecureEntry(noUiLoginLocation);
+    const noUiResponse = await fetch(
+      new URL(noUiLoginLocation!, `http://127.0.0.1:${noUiPort}`)
+    );
     assert.equal(noUiResponse.status, 200);
     assert.match(await noUiResponse.text(), /Web UI is not built yet/);
   } finally {
@@ -349,13 +375,35 @@ async function runE2E(): Promise<void> {
 
     const consolePathPrefix = loadAccessPolicy(paths).consolePathPrefix;
     assert.notEqual(consolePathPrefix, "/ui");
+    const secureEntry = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}`, {
+      redirect: "manual"
+    });
+    assert.equal(secureEntry.status, 303);
+    const loginLocation = secureEntry.headers.get("location");
+    const loginGate = loginGateFromSecureEntry(loginLocation);
     const bootstrapOperatorStatus = await fetch(
       `http://127.0.0.1:${port}/api/operator/status`,
-      { headers: { "X-ChatCockpit-Console-Path": consolePathPrefix } }
+      { headers: { "X-ChatCockpit-Login-Gate": loginGate } }
     );
     assert.equal(bootstrapOperatorStatus.status, 200);
     const bootstrapOperatorStatusBody = await bootstrapOperatorStatus.json();
     assert.equal(bootstrapOperatorStatusBody.configured, true);
+
+    const bootstrapCredential = readOperatorCredentialVault(paths);
+    assert.ok(bootstrapCredential, "secure bootstrap must persist a recoverable test Owner credential");
+    const operatorLogin = await fetch(`http://127.0.0.1:${port}/api/operator/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-ChatCockpit-Login-Gate": loginGate
+      },
+      body: JSON.stringify({
+        username: bootstrapCredential.username,
+        password: bootstrapCredential.password
+      })
+    });
+    assert.equal(operatorLogin.status, 200);
+    const operatorCookie = sessionCookieFromResponse(operatorLogin);
 
     const setupStatus = await fetch(`http://127.0.0.1:${port}/api/setup/status`, {
       headers: { Authorization: "Bearer test-token" }
@@ -435,14 +483,21 @@ async function runE2E(): Promise<void> {
     assert.equal(siblingRecentCommitsBody.repoId, "sourceflow-refactor");
     assert.equal(Array.isArray(siblingRecentCommitsBody.commits), true);
 
-    const concealedLegacyUi = await fetch(`http://127.0.0.1:${port}/ui`);
-    assert.equal(concealedLegacyUi.status, 404);
+    const consumedLoginGateStatus = await fetch(
+      `http://127.0.0.1:${port}/api/operator/status`,
+      { headers: { "X-ChatCockpit-Login-Gate": loginGate } }
+    );
+    assert.equal(consumedLoginGateStatus.status, 404);
 
-    const ui = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}`);
+    const ui = await fetch(`http://127.0.0.1:${port}/ui/`, {
+      headers: { Cookie: operatorCookie }
+    });
     assert.equal(ui.status, 200);
     assert.match(await ui.text(), /ChatCockpit Web UI Fixture/);
 
-    const uiDeepLink = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}/jobs/demo`);
+    const uiDeepLink = await fetch(`http://127.0.0.1:${port}/ui/jobs/demo`, {
+      headers: { Cookie: operatorCookie }
+    });
     assert.equal(uiDeepLink.status, 200);
     assert.match(await uiDeepLink.text(), /ChatCockpit Web UI Fixture/);
 
@@ -455,15 +510,21 @@ async function runE2E(): Promise<void> {
       "approvals"
     ]) {
       const continuityDeepLink = await fetch(
-        `http://127.0.0.1:${port}${consolePathPrefix}/continuity/${section}`
+        `http://127.0.0.1:${port}/ui/continuity/${section}`,
+        { headers: { Cookie: operatorCookie } }
       );
       assert.equal(continuityDeepLink.status, 200);
       assert.match(await continuityDeepLink.text(), /ChatCockpit Web UI Fixture/);
     }
 
-    const uiAsset = await fetch(`http://127.0.0.1:${port}${consolePathPrefix}/assets/app.js`);
+    const uiAsset = await fetch(`http://127.0.0.1:${port}/ui/assets/app.js`);
     assert.equal(uiAsset.status, 200);
     assert.match(await uiAsset.text(), /chatcockpit-web-ui-fixture/);
+
+    const legacyRandomAsset = await fetch(
+      `http://127.0.0.1:${port}${consolePathPrefix}/assets/app.js`
+    );
+    assert.equal(legacyRandomAsset.status, 404);
 
     const noAuthJobs = await fetch(`http://127.0.0.1:${port}/api/jobs`);
     assert.equal(noAuthJobs.status, 401);

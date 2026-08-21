@@ -139,11 +139,23 @@ async function main(): Promise<void> {
     assert.equal(new URL(returnTo, server.baseUrl).searchParams.get("ui_locales"), "zh-CN");
     assert.doesNotMatch(loginLocation, /client_id|code_challenge|redirect_uri|owner_secret/i);
 
+    const secureLoginEntry = await fetch(new URL(loginLocation, server.baseUrl), {
+      redirect: "manual"
+    });
+    assert.equal(secureLoginEntry.status, 303);
+    const stableLoginLocation = secureLoginEntry.headers.get("location");
+    assert.ok(stableLoginLocation);
+    const stableLoginUrl = new URL(stableLoginLocation, server.baseUrl);
+    assert.equal(stableLoginUrl.pathname, "/ui/login");
+    const loginGate = stableLoginUrl.searchParams.get("gate");
+    assert.match(loginGate ?? "", /^cc_login_gate_[A-Za-z0-9_-]{43}$/);
+    assert.equal(stableLoginUrl.searchParams.get("returnTo"), returnTo);
+
     const login = await fetch(`${server.baseUrl}/api/operator/login`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-chatcockpit-console-path": "/ops-oauth-approval"
+        "x-chatcockpit-login-gate": loginGate ?? ""
       },
       body: JSON.stringify({
         username: "owner",

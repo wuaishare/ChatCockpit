@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
-const OPERATOR_SCHEMA_VERSION = 4;
+const OPERATOR_SCHEMA_VERSION = 5;
 const SENSITIVE_AUDIT_KEY = /(password|secret|token|cookie|authorization|csrf|recovery.?code|totp)/i;
 
 export interface OperatorPrincipalRecord {
@@ -40,6 +40,16 @@ export interface OperatorLocalLoginGrantRecord {
   id: string;
   principalId: string;
   secretHash: string;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+}
+
+export interface OperatorLoginGateRecord {
+  id: string;
+  principalId: string;
+  secretHash: string;
+  purpose: "secure-entry";
   createdAt: string;
   expiresAt: string;
   consumedAt: string | null;
@@ -144,6 +154,16 @@ interface OperatorLocalLoginGrantRow {
   id: string;
   principal_id: string;
   secret_hash: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+}
+
+interface OperatorLoginGateRow {
+  id: string;
+  principal_id: string;
+  secret_hash: string;
+  purpose: "secure-entry";
   created_at: string;
   expires_at: string;
   consumed_at: string | null;
@@ -260,6 +280,15 @@ export interface CreateOperatorLocalLoginGrantInput {
   expiresAt: string;
 }
 
+export interface CreateOperatorLoginGateInput {
+  id: string;
+  principalId: string;
+  secretHash: string;
+  purpose: "secure-entry";
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface CreateOperatorPasskeyInput {
   id: string;
   principalId: string;
@@ -356,6 +385,18 @@ function mapLocalLoginGrant(
     id: row.id,
     principalId: row.principal_id,
     secretHash: row.secret_hash,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at
+  };
+}
+
+function mapLoginGate(row: OperatorLoginGateRow): OperatorLoginGateRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    secretHash: row.secret_hash,
+    purpose: row.purpose,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     consumedAt: row.consumed_at
@@ -483,6 +524,10 @@ export function hashOperatorSessionSecret(value: string): string {
 }
 
 export function hashOperatorLocalLoginSecret(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function hashOperatorLoginGateSecret(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
@@ -847,6 +892,90 @@ export class OperatorStore {
       if (result.changes !== 1) return null;
       return mapLocalLoginGrant({ ...row, consumed_at: consumedAt });
     });
+  }
+
+  createLoginGate(input: CreateOperatorLoginGateInput): OperatorLoginGateRecord {
+    this.sqlite
+      .prepare(`
+        DELETE FROM operator_login_gates
+        WHERE consumed_at IS NOT NULL OR expires_at <= ?
+      `)
+      .run(input.createdAt);
+    this.sqlite
+      .prepare(`
+        INSERT INTO operator_login_gates (
+          id, principal_id, secret_hash, purpose, created_at, expires_at, consumed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL)
+      `)
+      .run(
+        input.id,
+        input.principalId,
+        input.secretHash,
+        input.purpose,
+        input.createdAt,
+        input.expiresAt
+      );
+    const row = this.sqlite
+      .prepare("SELECT * FROM operator_login_gates WHERE id = ?")
+      .get(input.id) as OperatorLoginGateRow | undefined;
+    if (!row) throw new Error("Operator login gate persistence failed");
+    return mapLoginGate(row);
+  }
+
+  getActiveLoginGate(
+    secretHash: string,
+    nowIso: string
+  ): OperatorLoginGateRecord | null {
+    const row = this.sqlite
+      .prepare(`
+        SELECT * FROM operator_login_gates
+        WHERE secret_hash = ?
+          AND consumed_at IS NULL
+          AND expires_at > ?
+        LIMIT 1
+      `)
+      .get(secretHash, nowIso) as OperatorLoginGateRow | undefined;
+    return row ? mapLoginGate(row) : null;
+  }
+
+  consumeLoginGate(
+    secretHash: string,
+    consumedAt: string
+  ): OperatorLoginGateRecord | null {
+    return this.transaction(() => {
+      const row = this.sqlite
+        .prepare(`
+          SELECT * FROM operator_login_gates
+          WHERE secret_hash = ?
+            AND consumed_at IS NULL
+            AND expires_at > ?
+          LIMIT 1
+        `)
+        .get(secretHash, consumedAt) as OperatorLoginGateRow | undefined;
+      if (!row) return null;
+
+      const result = this.sqlite
+        .prepare(`
+          UPDATE operator_login_gates
+          SET consumed_at = ?
+          WHERE id = ? AND consumed_at IS NULL
+        `)
+        .run(consumedAt, row.id);
+      if (result.changes !== 1) return null;
+      return mapLoginGate({ ...row, consumed_at: consumedAt });
+    });
+  }
+
+  invalidateLoginGates(principalId: string, invalidatedAt: string): number {
+    return Number(
+      this.sqlite
+        .prepare(`
+          UPDATE operator_login_gates
+          SET consumed_at = ?
+          WHERE principal_id = ? AND consumed_at IS NULL
+        `)
+        .run(invalidatedAt, principalId).changes
+    );
   }
 
   listPasskeys(principalId: string, rpId?: string): OperatorPasskeyRecord[] {
@@ -1370,6 +1499,28 @@ export class OperatorStore {
           CREATE INDEX operator_recovery_codes_principal_idx
             ON operator_recovery_codes(principal_id, used_at, created_at);
 
+          PRAGMA user_version = 4;
+        `);
+      });
+      currentVersion = 4;
+    }
+    if (currentVersion === 4) {
+      this.transaction(() => {
+        this.sqlite.exec(`
+          CREATE TABLE operator_login_gates (
+            id TEXT PRIMARY KEY,
+            principal_id TEXT NOT NULL,
+            secret_hash TEXT NOT NULL UNIQUE,
+            purpose TEXT NOT NULL CHECK(purpose IN ('secure-entry')),
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+          );
+
+          CREATE INDEX operator_login_gates_expiry_idx
+            ON operator_login_gates(expires_at, consumed_at);
+
           PRAGMA user_version = ${OPERATOR_SCHEMA_VERSION};
         `);
       });
@@ -1428,6 +1579,20 @@ export class OperatorStore {
 
         CREATE INDEX operator_local_login_grants_expiry_idx
           ON operator_local_login_grants(expires_at, consumed_at);
+
+        CREATE TABLE operator_login_gates (
+          id TEXT PRIMARY KEY,
+          principal_id TEXT NOT NULL,
+          secret_hash TEXT NOT NULL UNIQUE,
+          purpose TEXT NOT NULL CHECK(purpose IN ('secure-entry')),
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          consumed_at TEXT,
+          FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+        );
+
+        CREATE INDEX operator_login_gates_expiry_idx
+          ON operator_login_gates(expires_at, consumed_at);
 
         CREATE TABLE operator_passkeys (
           id TEXT PRIMARY KEY,

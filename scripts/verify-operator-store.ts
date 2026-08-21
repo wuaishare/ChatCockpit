@@ -68,14 +68,15 @@ async function main(): Promise<void> {
   `);
   legacy.close();
   const migrated = new OperatorStore({ path: legacyDatabasePath });
-  assert.equal(migrated.schemaVersion(), 4);
+  assert.equal(migrated.schemaVersion(), 5);
   for (const tableName of [
     "operator_local_login_grants",
     "operator_passkeys",
     "operator_webauthn_challenges",
     "operator_mfa_state",
     "operator_mfa_login_challenges",
-    "operator_recovery_codes"
+    "operator_recovery_codes",
+    "operator_login_gates"
   ]) {
     assert.equal(
       migrated.sqlite
@@ -86,6 +87,71 @@ async function main(): Promise<void> {
     );
   }
   migrated.close();
+
+  const v4MigrationRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-v4-"));
+  const v4DatabasePath = path.join(v4MigrationRoot, "operator-auth.sqlite");
+  const v4 = new DatabaseSync(v4DatabasePath);
+  v4.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE operator_principals (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL CHECK(role = 'owner'),
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE operator_sessions (
+      id TEXT PRIMARY KEY,
+      principal_id TEXT NOT NULL,
+      secret_hash TEXT NOT NULL UNIQUE,
+      csrf_token TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      idle_expires_at TEXT NOT NULL,
+      absolute_expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      source_hash TEXT,
+      user_agent_hash TEXT,
+      FOREIGN KEY(principal_id) REFERENCES operator_principals(id)
+    );
+    INSERT INTO operator_principals (
+      id, username, role, password_hash, created_at, updated_at
+    ) VALUES (
+      'owner-v4', 'owner-v4', 'owner', 'v4-password-hash',
+      '2026-08-20T00:00:00.000Z', '2026-08-20T00:00:00.000Z'
+    );
+    INSERT INTO operator_sessions (
+      id, principal_id, secret_hash, csrf_token, created_at, last_seen_at,
+      idle_expires_at, absolute_expires_at, revoked_at, source_hash, user_agent_hash
+    ) VALUES (
+      'session-v4', 'owner-v4', 'session-v4-secret-hash', 'csrf-v4',
+      '2026-08-20T00:00:00.000Z', '2026-08-20T00:00:00.000Z',
+      '2099-08-20T12:00:00.000Z', '2099-08-27T00:00:00.000Z',
+      NULL, NULL, NULL
+    );
+    PRAGMA user_version = 4;
+  `);
+  v4.close();
+
+  const migratedV4 = new OperatorStore({ path: v4DatabasePath });
+  assert.equal(migratedV4.schemaVersion(), 5);
+  assert.equal(migratedV4.getOwner()?.id, "owner-v4");
+  assert.equal(
+    migratedV4.findActiveSessionBySecretHash(
+      "session-v4-secret-hash",
+      "2026-08-21T00:00:00.000Z"
+    )?.id,
+    "session-v4"
+  );
+  assert.equal(
+    migratedV4.sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operator_login_gates'")
+      .get() !== undefined,
+    true
+  );
+  migratedV4.close();
+  fs.rmSync(v4MigrationRoot, { recursive: true, force: true });
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-operator-store-"));
   const runtimeDir = path.join(root, "runtime");
@@ -99,7 +165,7 @@ async function main(): Promise<void> {
   const absoluteExpiresAt = "2026-08-23T02:00:00.000Z";
 
   let store = new OperatorStore({ path: databasePath });
-  assert.equal(store.schemaVersion(), 4);
+  assert.equal(store.schemaVersion(), 5);
   assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
 
   const owner = store.setOwner(

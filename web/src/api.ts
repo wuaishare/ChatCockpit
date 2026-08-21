@@ -5,8 +5,6 @@ import type {
   RegistrationResponseJSON
 } from "@simplewebauthn/browser";
 
-import { CONSOLE_BASE_PATH } from "./console-path";
-
 import type {
   ApiProblem,
   ContinuityDevelopmentDocumentDetailResponse,
@@ -63,7 +61,7 @@ export function setOperatorCsrfToken(value: string | null): void {
 
 function buildHeaders(
   _legacyToken?: string | null,
-  options: { mutation?: boolean; consoleEntry?: boolean } = {}
+  options: { mutation?: boolean; loginGate?: string | null } = {}
 ): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json"
@@ -71,8 +69,8 @@ function buildHeaders(
   if (options.mutation && operatorCsrfToken) {
     headers["X-ChatCockpit-CSRF"] = operatorCsrfToken;
   }
-  if (options.consoleEntry) {
-    headers["X-ChatCockpit-Console-Path"] = CONSOLE_BASE_PATH;
+  if (options.loginGate) {
+    headers["X-ChatCockpit-Login-Gate"] = options.loginGate;
   }
   return headers;
 }
@@ -109,7 +107,7 @@ async function parseProblem(response: Response): Promise<ApiProblem> {
 async function requestJson<T>(
   path: string,
   token?: string | null,
-  options: { consoleEntry?: boolean } = {}
+  options: { loginGate?: string | null } = {}
 ): Promise<T> {
   const response = await fetch(path, {
     credentials: "same-origin",
@@ -187,11 +185,13 @@ export interface OperatorTotpRecoveryCodesResponse {
   revokedSessionCount: number;
 }
 
-export async function fetchOperatorStatus(): Promise<OperatorStatusResponse> {
+export async function fetchOperatorStatus(
+  loginGate?: string | null
+): Promise<OperatorStatusResponse> {
   return requestJson<OperatorStatusResponse>(
     "/api/operator/status",
     null,
-    { consoleEntry: true }
+    { loginGate }
   );
 }
 
@@ -201,24 +201,29 @@ export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
   return result;
 }
 
-export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
+export async function fetchPasskeyAuthenticationOptions(
+  loginGate?: string | null
+): Promise<PublicKeyCredentialRequestOptionsJSON> {
   return postBodyJson<PublicKeyCredentialRequestOptionsJSON>(
     "/api/operator/passkeys/authentication/options",
     {},
     null,
-    { consoleEntry: true }
+    { loginGate }
   );
 }
 
-export async function verifyPasskeyAuthentication(input: {
-  challenge: string;
-  response: AuthenticationResponseJSON;
-}): Promise<OperatorSessionResponse> {
+export async function verifyPasskeyAuthentication(
+  input: {
+    challenge: string;
+    response: AuthenticationResponseJSON;
+  },
+  loginGate?: string | null
+): Promise<OperatorSessionResponse> {
   const response = await fetch("/api/operator/passkeys/authentication/verify", {
     method: "POST",
     credentials: "same-origin",
     headers: {
-      ...buildHeaders(null, { consoleEntry: true }),
+      ...buildHeaders(null, { loginGate }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
@@ -269,7 +274,7 @@ export async function redeemLocalLoginGrant(grant: string): Promise<OperatorSess
     method: "POST",
     credentials: "same-origin",
     headers: {
-      ...buildHeaders(null, { consoleEntry: true }),
+      ...buildHeaders(),
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ grant })
@@ -280,15 +285,18 @@ export async function redeemLocalLoginGrant(grant: string): Promise<OperatorSess
   return result;
 }
 
-export async function loginOperator(input: {
-  username: string;
-  password: string;
-}): Promise<OperatorPasswordLoginResponse> {
+export async function loginOperator(
+  input: {
+    username: string;
+    password: string;
+  },
+  loginGate?: string | null
+): Promise<OperatorPasswordLoginResponse> {
   const response = await fetch("/api/operator/login", {
     method: "POST",
     credentials: "same-origin",
     headers: {
-      ...buildHeaders(null, { consoleEntry: true }),
+      ...buildHeaders(null, { loginGate }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
@@ -301,15 +309,18 @@ export async function loginOperator(input: {
   return result;
 }
 
-export async function verifyOperatorTotpLogin(input: {
-  challenge: string;
-  verification: string;
-}): Promise<OperatorSessionResponse> {
+export async function verifyOperatorTotpLogin(
+  input: {
+    challenge: string;
+    verification: string;
+  },
+  loginGate?: string | null
+): Promise<OperatorSessionResponse> {
   const response = await fetch("/api/operator/totp/login", {
     method: "POST",
     credentials: "same-origin",
     headers: {
-      ...buildHeaders(null, { consoleEntry: true }),
+      ...buildHeaders(null, { loginGate }),
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
@@ -354,9 +365,10 @@ export async function disableOperatorTotp(verification: string): Promise<void> {
   );
 }
 
-export async function logoutOperator(): Promise<void> {
-  await postJson<{ ok: true }>("/api/operator/logout");
+export async function logoutOperator(): Promise<{ ok: true; loginPath: string }> {
+  const result = await postJson<{ ok: true; loginPath: string }>("/api/operator/logout");
   setOperatorCsrfToken(null);
+  return result;
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
@@ -786,7 +798,7 @@ async function postBodyJson<T>(
   path: string,
   body: unknown,
   token?: string | null,
-  options: { consoleEntry?: boolean } = {}
+  options: { loginGate?: string | null } = {}
 ): Promise<T> {
   const response = await fetch(path, {
     method: "POST",

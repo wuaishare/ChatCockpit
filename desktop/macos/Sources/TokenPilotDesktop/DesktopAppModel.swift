@@ -626,6 +626,8 @@ final class DesktopAppModel: ObservableObject {
                 NSWorkspace.shared.open(url)
                 return
             }
+            components.path = "/ui/local-login"
+            components.query = nil
             components.fragment = "local-login=\(grant.grantSecret)"
             NSWorkspace.shared.open(components.url ?? url)
         } catch {
@@ -641,7 +643,14 @@ final class DesktopAppModel: ObservableObject {
             lastUserMessage = DesktopL10n.string("Public Cockpit is not configured.")
             return
         }
-        NSWorkspace.shared.open(url)
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        components.path = snapshot.configuration.consolePathPrefix
+        components.query = nil
+        components.fragment = nil
+        NSWorkspace.shared.open(components.url ?? url)
     }
 
     @discardableResult
@@ -930,7 +939,7 @@ final class DesktopAppModel: ObservableObject {
             guard let context = try await currentContext() else { return nil }
             return try await authorityClient.generateConsolePath(context: context)
         } catch {
-            lastUserMessage = DesktopL10n.string("A new random console path could not be generated.")
+            lastUserMessage = DesktopL10n.string("A new secure login entry could not be generated.")
             return nil
         }
     }
@@ -1178,7 +1187,7 @@ final class DesktopAppModel: ObservableObject {
                 let alert = NSAlert()
                 alert.messageText = DesktopL10n.string("Apply Access Policy and Restart Services?")
                 alert.informativeText = DesktopL10n.string(
-                    "The new console path and network admission policy take effect after the Control Plane restarts. Running ChatCockpit services will restart now; stopped services are never started automatically."
+                    "The new secure login entry and network admission policy take effect after the Control Plane restarts. Existing signed-in /ui/ sessions remain valid. Running ChatCockpit services will restart now; stopped services are never started automatically."
                 )
                 alert.alertStyle = .warning
                 alert.addButton(withTitle: DesktopL10n.string("Apply and Restart"))
@@ -1207,7 +1216,7 @@ final class DesktopAppModel: ObservableObject {
                 kind: .updated
             )
         } catch {
-            lastUserMessage = DesktopL10n.string("Access policy could not be updated. Check the console path and LAN CIDR values.")
+            lastUserMessage = DesktopL10n.string("Access policy could not be updated. Check the secure login entry and LAN CIDR values.")
         }
     }
 

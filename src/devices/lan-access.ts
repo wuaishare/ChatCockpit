@@ -23,7 +23,6 @@ export interface LanAccessSnapshotInput {
   policy: AccessPolicy;
   host: string;
   port: number;
-  consolePathPrefix: string;
   addresses?: readonly string[];
 }
 
@@ -112,8 +111,6 @@ export function buildLanAccessSnapshot(input: LanAccessSnapshotInput): LanAccess
     status: "ready",
     trustedCidrs,
     apiBaseUrls,
-    cockpitUrls: apiBaseUrls.map(
-      (baseUrl) => `${baseUrl}${input.consolePathPrefix}`
-    )
+    cockpitUrls: apiBaseUrls.map((baseUrl) => `${baseUrl}/ui/`)
   };
 }

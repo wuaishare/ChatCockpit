@@ -221,11 +221,18 @@ try {
   assert.equal(fs.statSync(accessPolicyPath).mode & 0o777, 0o600);
   assert.equal(fs.statSync(credentialVaultPath).mode & 0o777, 0o600);
 
-  const concealedLegacyUi = await fetch(`${baseURL}/ui`);
-  assert.equal(concealedLegacyUi.status, 404);
-  const ui = await fetch(`${baseURL}${accessPolicy.consolePathPrefix}`);
-  assert.equal(ui.status, 200);
-  assert.match(await ui.text(), /<div id="root"><\/div>/);
+  const unauthenticatedUi = await fetch(`${baseURL}/ui/`);
+  assert.equal(unauthenticatedUi.status, 404);
+  const secureEntry = await fetch(`${baseURL}${accessPolicy.consolePathPrefix}`, {
+    redirect: "manual"
+  });
+  assert.equal(secureEntry.status, 303);
+  const secureEntryLocation = secureEntry.headers.get("location");
+  assert.ok(secureEntryLocation);
+  const loginUrl = new URL(secureEntryLocation, baseURL);
+  assert.equal(loginUrl.pathname, "/ui/login");
+  const loginGate = loginUrl.searchParams.get("gate");
+  assert.match(loginGate ?? "", /^cc_login_gate_[A-Za-z0-9_-]{43}$/);
 
   const openapi = await fetch(`${baseURL}/openapi.yaml`);
   assert.equal(openapi.status, 200);
@@ -245,7 +252,7 @@ try {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-ChatCockpit-Console-Path": accessPolicy.consolePathPrefix
+      "X-ChatCockpit-Login-Gate": loginGate ?? ""
     },
     body: JSON.stringify({
       username: credentials.username,
@@ -258,6 +265,12 @@ try {
   const setCookie = login.headers.get("set-cookie");
   assert.ok(setCookie);
   const operatorCookie = setCookie.split(";", 1)[0];
+
+  const ui = await fetch(`${baseURL}/ui/`, {
+    headers: { Cookie: operatorCookie }
+  });
+  assert.equal(ui.status, 200);
+  assert.match(await ui.text(), /<div id="root"><\/div>/);
 
   const fileRead = await fetch(`${baseURL}/api/files/read`, {
     method: "POST",

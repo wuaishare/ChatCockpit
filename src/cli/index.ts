@@ -237,7 +237,7 @@ async function main(): Promise<void> {
           process.stdout.write("Web Owner: generated machine-local credentials; reveal them from the ChatCockpit App or the local operator credentials command.\n");
         }
         if (secureBootstrap.consolePathRandomized) {
-          process.stdout.write("Console path: generated a randomized machine-local entry path.\n");
+          process.stdout.write("Secure login entry: generated a randomized machine-local sign-in path.\n");
         }
       }
       return;
@@ -410,7 +410,7 @@ async function main(): Promise<void> {
           if (process.argv.includes("--json")) {
             printJson(policy);
           } else {
-            process.stdout.write(`Console path: ${policy.consolePathPrefix}\n`);
+            process.stdout.write(`Secure login entry: ${policy.consolePathPrefix}\n`);
             process.stdout.write(`Trusted LAN: ${policy.trustedLan.enabled ? "enabled" : "disabled"}\n`);
             for (const cidr of policy.trustedLan.cidrs) {
               process.stdout.write(`LAN CIDR: ${cidr}\n`);
@@ -423,7 +423,7 @@ async function main(): Promise<void> {
           if (process.argv.includes("--json")) {
             printJson({ consolePathPrefix });
           } else {
-            process.stdout.write(`Generated console path: ${consolePathPrefix}\n`);
+            process.stdout.write(`Generated secure login entry: ${consolePathPrefix}\n`);
           }
           return;
         }
@@ -447,7 +447,7 @@ async function main(): Promise<void> {
             printJson(policy);
           } else {
             process.stdout.write("Access policy updated\n");
-            process.stdout.write(`Console path: ${policy.consolePathPrefix}\n`);
+            process.stdout.write(`Secure login entry: ${policy.consolePathPrefix}\n`);
             process.stdout.write(`Trusted LAN: ${policy.trustedLan.enabled ? "enabled" : "disabled"}\n`);
             process.stdout.write("Restart ChatCockpit services to apply the policy.\n");
           }

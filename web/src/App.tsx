@@ -80,6 +80,12 @@ import type { AppViewKey } from "./navigation";
 
 type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
 
+function readSecureLoginGate(): string | null {
+  if (typeof window === "undefined") return null;
+  const gate = new URLSearchParams(window.location.search).get("gate")?.trim() ?? "";
+  return /^cc_login_gate_[A-Za-z0-9_-]{43}$/.test(gate) ? gate : null;
+}
+
 function readOAuthApprovalReturnTo(): string | null {
   if (typeof window === "undefined") return null;
   const raw = new URLSearchParams(window.location.search).get("returnTo");
@@ -117,6 +123,16 @@ function continueOAuthApprovalIfRequested(): boolean {
   if (!returnTo || typeof window === "undefined") return false;
   window.location.assign(returnTo);
   return true;
+}
+
+function finishOperatorAuthentication(): void {
+  if (continueOAuthApprovalIfRequested()) return;
+  if (
+    typeof window !== "undefined" &&
+    [consolePath("login"), consolePath("local-login")].includes(window.location.pathname)
+  ) {
+    window.history.replaceState(null, "", `${consolePath()}/`);
+  }
 }
 
 function readAndClearLocalLoginGrant(): string | null {
@@ -394,8 +410,20 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setOperatorSetupFeedbackError(false);
     }
     const localLoginGrant = readAndClearLocalLoginGrant();
+    const loginGate = readSecureLoginGate();
     try {
-      const status = await fetchOperatorStatus();
+      if (localLoginGrant) {
+        try {
+          const session = await redeemLocalLoginGrant(localLoginGrant);
+          setOperatorSession(session);
+          finishOperatorAuthentication();
+          setOperatorAuthState("authenticated");
+          return;
+        } catch {
+          setOperatorAuthError(copy.operatorAuth.localUnlockFailed);
+        }
+      }
+      const status = await fetchOperatorStatus(loginGate);
       setOperatorDesktopSetupAvailable(status.desktopSetupAvailable);
       if (!status.configured) {
         setOperatorSession(null);
@@ -407,24 +435,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         }
         return;
       }
-      if (localLoginGrant) {
-        try {
-          const session = await redeemLocalLoginGrant(localLoginGrant);
-          setOperatorSession(session);
-          if (!continueOAuthApprovalIfRequested()) {
-            setOperatorAuthState("authenticated");
-          }
-          return;
-        } catch {
-          setOperatorAuthError(copy.operatorAuth.localUnlockFailed);
-        }
-      }
       try {
         const session = await fetchOperatorSession();
         setOperatorSession(session);
-        if (!continueOAuthApprovalIfRequested()) {
-          setOperatorAuthState("authenticated");
-        }
+        finishOperatorAuthentication();
+        setOperatorAuthState("authenticated");
       } catch (error) {
         const problem = error as ApiProblem;
         setOperatorSession(null);
@@ -458,16 +473,16 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorSecondFactor(null);
     setOperatorAuthError(null);
     try {
-      const options = await fetchPasskeyAuthenticationOptions();
+      const loginGate = readSecureLoginGate();
+      const options = await fetchPasskeyAuthenticationOptions(loginGate);
       const response = await startAuthentication({ optionsJSON: options });
       const session = await verifyPasskeyAuthentication({
         challenge: options.challenge,
         response
-      });
+      }, loginGate);
       setOperatorSession(session);
-      if (!continueOAuthApprovalIfRequested()) {
-        setOperatorAuthState("authenticated");
-      }
+      finishOperatorAuthentication();
+      setOperatorAuthState("authenticated");
     } catch (error) {
       const problem = error as ApiProblem;
       setOperatorAuthError(
@@ -484,7 +499,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorLoginLoading(true);
     setOperatorAuthError(null);
     try {
-      const result = await loginOperator(input);
+      const loginGate = readSecureLoginGate();
+      const result = await loginOperator(input, loginGate);
       if ("requiresSecondFactor" in result) {
         setOperatorSession(null);
         setOperatorSecondFactor(result);
@@ -492,9 +508,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       }
       setOperatorSecondFactor(null);
       setOperatorSession(result);
-      if (!continueOAuthApprovalIfRequested()) {
-        setOperatorAuthState("authenticated");
-      }
+      finishOperatorAuthentication();
+      setOperatorAuthState("authenticated");
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
     } finally {
@@ -508,15 +523,15 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     setOperatorLoginLoading(true);
     setOperatorAuthError(null);
     try {
+      const loginGate = readSecureLoginGate();
       const session = await verifyOperatorTotpLogin({
         challenge: challenge.challenge,
         verification
-      });
+      }, loginGate);
       setOperatorSecondFactor(null);
       setOperatorSession(session);
-      if (!continueOAuthApprovalIfRequested()) {
-        setOperatorAuthState("authenticated");
-      }
+      finishOperatorAuthentication();
+      setOperatorAuthState("authenticated");
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
     } finally {
@@ -526,7 +541,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
 
   async function signOutOperator() {
     try {
-      await logoutOperator();
+      const logout = await logoutOperator();
       setOperatorSession(null);
       setOperatorSecondFactor(null);
       setOperatorAuthState("login-required");
@@ -551,6 +566,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setPublicRouteBootstrapProofError(null);
       setPublicRouteBootstrapProofMutating(false);
       setSetupStatus(null);
+      if (typeof window !== "undefined") {
+        window.location.assign(logout.loginPath);
+      }
     } catch (error) {
       setOperatorAuthError(getErrorMessage(error));
     }

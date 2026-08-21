@@ -299,12 +299,39 @@ try {
       "utf8"
     )
   ) as { consolePathPrefix: string };
+  const credentials = JSON.parse(
+    fs.readFileSync(
+      path.join(homeRoot, ".chatcockpit", "runtime", "operator-credentials.json"),
+      "utf8"
+    )
+  ) as { username: string; password: string };
   assert.match(accessPolicy.consolePathPrefix, /^\/cc-[A-Za-z0-9_-]{24}$/);
-  const legacyUi = await fetch(`${baseUrl}/ui/continuity/projects`);
-  assert.equal(legacyUi.status, 404);
-  const continuityUi = await fetch(
-    `${baseUrl}${accessPolicy.consolePathPrefix}/continuity/projects`
-  );
+  const unauthenticatedUi = await fetch(`${baseUrl}/ui/continuity/projects`);
+  assert.equal(unauthenticatedUi.status, 404);
+  const secureEntry = await fetch(`${baseUrl}${accessPolicy.consolePathPrefix}`, {
+    redirect: "manual"
+  });
+  assert.equal(secureEntry.status, 303);
+  const secureEntryLocation = secureEntry.headers.get("location");
+  assert.ok(secureEntryLocation);
+  const loginUrl = new URL(secureEntryLocation, baseUrl);
+  const loginGate = loginUrl.searchParams.get("gate");
+  assert.match(loginGate ?? "", /^cc_login_gate_[A-Za-z0-9_-]{43}$/);
+  const login = await fetch(`${baseUrl}/api/operator/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-ChatCockpit-Login-Gate": loginGate ?? ""
+    },
+    body: JSON.stringify({ username: credentials.username, password: credentials.password })
+  });
+  assert.equal(login.status, 200);
+  const setCookie = login.headers.get("set-cookie");
+  assert.ok(setCookie);
+  const operatorCookie = setCookie.split(";", 1)[0];
+  const continuityUi = await fetch(`${baseUrl}/ui/continuity/projects`, {
+    headers: { Cookie: operatorCookie }
+  });
   assert.equal(continuityUi.status, 200);
   assert.match(await continuityUi.text(), /<div id="root"><\/div>/);
 

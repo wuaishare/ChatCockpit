@@ -7,6 +7,7 @@ import { ApiError } from "./errors.js";
 import { isLoopbackProxyAddress } from "./security-headers.js";
 import {
   OPERATOR_CSRF_HEADER,
+  readOperatorLoginGate,
   readOperatorSessionCookie,
   type RequestAuthContext
 } from "./operator-auth-context.js";
@@ -31,7 +32,6 @@ const OPERATOR_PUBLIC_PATHS = new Set([
 ]);
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const CONSOLE_ENTRY_HEADER = "x-chatcockpit-console-path";
 
 function requestPath(url: string): string {
   const queryIndex = url.indexOf("?");
@@ -42,22 +42,24 @@ function isOperatorPublicPath(url: string): boolean {
   return OPERATOR_PUBLIC_PATHS.has(requestPath(url));
 }
 
-function isPublicPath(url: string, consolePathPrefix: string): boolean {
+function isPublicPath(url: string, secureEntryPath: string): boolean {
   const pathname = requestPath(url);
   const isBootstrapProofPath = pathname.startsWith("/.well-known/chatcockpit-bootstrap-proof/");
+  const isStableUiAsset = pathname.startsWith("/ui/assets/");
+  const isSecureEntry =
+    secureEntryPath !== "/ui" &&
+    (pathname === secureEntryPath || pathname === `${secureEntryPath}/login`);
   return (
     OAUTH_PUBLIC_PATHS.has(pathname) ||
     isBootstrapProofPath ||
-    OPERATOR_PUBLIC_PATHS.has(pathname) ||
+    isStableUiAsset ||
+    isSecureEntry ||
     pathname === "/" ||
     pathname === "/favicon.ico" ||
     pathname === "/api/health" ||
     pathname === "/tokenpilot/api/health" ||
     pathname === "/openapi.yaml" ||
-    pathname === "/privacy-policy" ||
-    pathname === consolePathPrefix ||
-    pathname === `${consolePathPrefix}/` ||
-    pathname.startsWith(`${consolePathPrefix}/`)
+    pathname === "/privacy-policy"
   );
 }
 
@@ -71,10 +73,33 @@ function isDirectLoopbackRequest(request: FastifyRequest): boolean {
   return loopbackHost && isLoopbackProxyAddress(socketAddress);
 }
 
-function isConcealedLegacyConsolePath(url: string, consolePathPrefix: string): boolean {
-  if (consolePathPrefix === "/ui") return false;
+function isStableUiPath(url: string): boolean {
   const pathname = requestPath(url);
   return pathname === "/ui" || pathname === "/ui/" || pathname.startsWith("/ui/");
+}
+
+function isStableUiLoginPath(url: string): boolean {
+  return requestPath(url) === "/ui/login";
+}
+
+function loginGateFromUiUrl(url: string): string | null {
+  if (!isStableUiLoginPath(url)) return null;
+  try {
+    const parsed = new URL(url, "http://chatcockpit.local");
+    const gate = parsed.searchParams.get("gate")?.trim() ?? "";
+    return gate || null;
+  } catch {
+    return null;
+  }
+}
+
+function isConcealedSecureEntrySubpath(url: string, secureEntryPath: string): boolean {
+  if (secureEntryPath === "/ui") return false;
+  const pathname = requestPath(url);
+  return (
+    pathname.startsWith(`${secureEntryPath}/`) &&
+    pathname !== `${secureEntryPath}/login`
+  );
 }
 
 function isMcpPath(url: string): boolean {
@@ -153,20 +178,6 @@ export function createTokenPilotAuthPlugin(
     app.addHook("preHandler", async (request, reply) => {
       request.chatCockpitAuth = { kind: "anonymous" };
 
-      if (isConcealedLegacyConsolePath(request.url, consolePathPrefix)) {
-        reply.code(404).type("text/plain; charset=utf-8");
-        return reply.send("Not Found");
-      }
-
-      if (
-        consolePathPrefix !== "/ui" &&
-        isOperatorPublicPath(request.url) &&
-        request.headers[CONSOLE_ENTRY_HEADER] !== consolePathPrefix
-      ) {
-        reply.code(404).type("text/plain; charset=utf-8");
-        return reply.send("Not Found");
-      }
-
       const sessionSecret = operator ? readOperatorSessionCookie(request) : null;
       const operatorSession =
         operator && sessionSecret ? operator.authenticate(sessionSecret) : null;
@@ -175,6 +186,54 @@ export function createTokenPilotAuthPlugin(
           kind: "operator-session",
           session: operatorSession
         };
+      }
+
+      if (isConcealedSecureEntrySubpath(request.url, consolePathPrefix)) {
+        reply.code(404).type("text/plain; charset=utf-8");
+        return reply.send("Not Found");
+      }
+
+      if (isStableUiPath(request.url)) {
+        const pathname = requestPath(request.url);
+        if (pathname.startsWith("/ui/assets/")) {
+          return;
+        }
+        if (pathname === "/ui/local-login" && isDirectLoopbackRequest(request)) {
+          return;
+        }
+        if (request.chatCockpitAuth.kind === "operator-session") {
+          return;
+        }
+        if (consolePathPrefix === "/ui") {
+          return;
+        }
+        const loginGate = loginGateFromUiUrl(request.url);
+        if (
+          loginGate &&
+          operator?.inspectSecureLoginGate(loginGate)
+        ) {
+          return;
+        }
+        reply.code(404).type("text/plain; charset=utf-8");
+        return reply.send("Not Found");
+      }
+
+      if (isOperatorPublicPath(request.url)) {
+        if (request.chatCockpitAuth.kind === "operator-session") {
+          return;
+        }
+        if (requestPath(request.url) === "/api/operator/local-login") {
+          return;
+        }
+        if (consolePathPrefix === "/ui") {
+          return;
+        }
+        const loginGate = readOperatorLoginGate(request);
+        if (loginGate && operator?.inspectSecureLoginGate(loginGate)) {
+          return;
+        }
+        reply.code(404).type("text/plain; charset=utf-8");
+        return reply.send("Not Found");
       }
 
       if (isPublicPath(request.url, consolePathPrefix)) {

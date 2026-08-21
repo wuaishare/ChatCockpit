@@ -137,7 +137,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             return nil
         }
-        components.path = configuration.consolePathPrefix
+        components.path = "/ui/"
         components.query = nil
         components.fragment = nil
         return components.url
