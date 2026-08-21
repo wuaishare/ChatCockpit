@@ -3,15 +3,18 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { AccessPolicy } from "../security/access-policy.js";
 import type { DeviceChannelHub } from "../devices/device-channel.js";
 import type { DeviceRegistryStore } from "../devices/device-registry.js";
+import type { HubIdentityRecord } from "../devices/hub-identity.js";
 import type { LanTlsIdentityRecord } from "../devices/lan-tls-identity.js";
 import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
 import { registerDeviceHeartbeatRoute } from "./device-routes.js";
+import { registerHubIdentityRoutes } from "./hub-identity-routes.js";
 import { registerWebSecurityHeaders, trustLoopbackProxy } from "./security-headers.js";
 
 export interface DeviceLanTlsServerOptions {
   policy: AccessPolicy;
   tlsIdentity: LanTlsIdentityRecord;
+  hubIdentity: HubIdentityRecord;
   deviceRegistryStore: DeviceRegistryStore;
   deviceChannelHub: DeviceChannelHub;
   now?: () => string;
@@ -34,6 +37,9 @@ export function buildDeviceLanTlsServer(
 
   registerAccessPolicyGate(app, options.policy);
   registerWebSecurityHeaders(app);
+  registerHubIdentityRoutes(app, options.hubIdentity, {
+    getLanTlsIdentity: async () => options.tlsIdentity
+  });
   registerDeviceHeartbeatRoute(app, options.deviceRegistryStore, {
     ...(options.now ? { now: options.now } : {})
   });

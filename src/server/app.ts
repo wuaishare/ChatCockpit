@@ -452,6 +452,7 @@ export function buildServer(
       const secureServer = buildDeviceLanTlsServer({
         policy: accessPolicy,
         tlsIdentity: await ensureLanTlsIdentity(paths.runtimeDir),
+        hubIdentity,
         deviceRegistryStore,
         deviceChannelHub,
         ...(options.deviceNow ? { now: options.deviceNow } : {}),
