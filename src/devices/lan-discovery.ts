@@ -9,7 +9,7 @@ const MAX_ADDRESS_COUNT = 8;
 const MAX_TXT_ENTRY_LENGTH = 160;
 const HUB_ID_PATTERN = /^cc_hub_[A-Za-z0-9_-]{43}$/;
 const HOST_PATTERN = /^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+local\.$/;
-const TXT_KEYS = new Set(["v", "role", "hub"]);
+const TXT_KEYS = new Set(["v", "role", "hub", "tls"]);
 
 export interface LanDiscoveryServiceRecordInput {
   serviceType: string;
@@ -31,6 +31,8 @@ export interface LanDiscoveryCandidate {
   port: number;
   addresses: string[];
   hubIdHint: string;
+  wireProtocolVersion?: 2;
+  securePort?: number;
 }
 
 function normalizeInstanceName(value: string): string {
@@ -90,8 +92,8 @@ function normalizeAddresses(values: readonly string[]): string[] {
   return normalized;
 }
 
-function parseTxt(values: readonly string[]): { hubIdHint: string } {
-  if (values.length !== 3) {
+function parseTxt(values: readonly string[]): { hubIdHint: string; securePort?: number } {
+  if (values.length !== 3 && values.length !== 4) {
     throw new Error("LAN discovery TXT record is invalid");
   }
   const parsed = new Map<string, string>();
@@ -113,14 +115,29 @@ function parseTxt(values: readonly string[]): { hubIdHint: string } {
     }
     parsed.set(key, value);
   }
-  if (parsed.get("v") !== "1" || parsed.get("role") !== "hub") {
+  const version = parsed.get("v");
+  if ((version !== "1" && version !== "2") || parsed.get("role") !== "hub") {
     throw new Error("LAN discovery TXT protocol is unsupported");
   }
   const hubIdHint = parsed.get("hub");
   if (!hubIdHint || !HUB_ID_PATTERN.test(hubIdHint)) {
     throw new Error("LAN discovery Hub identity hint is invalid");
   }
-  return { hubIdHint };
+  const tlsValue = parsed.get("tls");
+  if (version === "1") {
+    if (values.length !== 3 || tlsValue !== undefined) {
+      throw new Error("LAN discovery TXT protocol is unsupported");
+    }
+    return { hubIdHint };
+  }
+  if (values.length !== 4 || tlsValue === undefined || !/^[1-9][0-9]{0,4}$/.test(tlsValue)) {
+    throw new Error("LAN discovery secure port is invalid");
+  }
+  const securePort = Number(tlsValue);
+  if (!Number.isInteger(securePort) || securePort < 1 || securePort > 65535) {
+    throw new Error("LAN discovery secure port is invalid");
+  }
+  return { hubIdHint, securePort };
 }
 
 export function parseLanDiscoveryCandidate(
@@ -130,6 +147,10 @@ export function parseLanDiscoveryCandidate(
     throw new Error("LAN discovery service type is unsupported");
   }
   const txt = parseTxt(input.txt);
+  const port = normalizePort(input.port);
+  if (txt.securePort === port) {
+    throw new Error("LAN discovery secure port must differ from the bootstrap port");
+  }
   return {
     schemaVersion: CHATCOCKPIT_LAN_DISCOVERY_SCHEMA_VERSION,
     source: "mdns",
@@ -138,8 +159,11 @@ export function parseLanDiscoveryCandidate(
     serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
     instanceName: normalizeInstanceName(input.instanceName),
     host: normalizeHost(input.host),
-    port: normalizePort(input.port),
+    port,
     addresses: normalizeAddresses(input.addresses),
-    hubIdHint: txt.hubIdHint
+    hubIdHint: txt.hubIdHint,
+    ...(txt.securePort === undefined
+      ? {}
+      : { wireProtocolVersion: 2 as const, securePort: txt.securePort })
   };
 }

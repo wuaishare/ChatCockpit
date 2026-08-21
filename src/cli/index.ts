@@ -1114,8 +1114,14 @@ async function main(): Promise<void> {
       await ensureSecureBootstrap(paths);
       const port = Number(readIdentityEnv("PORT") ?? "4318");
       const host = readIdentityEnv("HOST") ?? "127.0.0.1";
+      const defaultLanTlsPort = port < 65535 ? port + 1 : 4319;
+      const lanTlsPort = Number(readIdentityEnv("LAN_TLS_PORT") ?? String(defaultLanTlsPort));
+      if (!Number.isInteger(lanTlsPort) || lanTlsPort < 1 || lanTlsPort > 65535 || lanTlsPort === port) {
+        throw new Error("LAN TLS port must be a valid TCP port different from the primary Control Plane port");
+      }
       const app = buildServer(paths, {
-        lanDiscovery: { host, port }
+        lanDiscovery: { host, port },
+        deviceLanTls: { host, port: lanTlsPort }
       });
       await app.listen({ host, port });
       return;

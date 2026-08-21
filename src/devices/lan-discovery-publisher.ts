@@ -10,7 +10,8 @@ import {
 import type { AccessPolicy } from "../security/access-policy.js";
 
 const SERVICE_TYPE = "_chatcockpit._tcp.local";
-const SERVICE_PROTOCOL_VERSION = "1";
+const SERVICE_PROTOCOL_VERSION_LEGACY = "1";
+const SERVICE_PROTOCOL_VERSION_SECURE = "2";
 const SERVICE_ROLE = "hub";
 const RECORD_TTL_SECONDS = 120;
 const HUB_ID_PATTERN = /^cc_hub_[A-Za-z0-9_-]{43}$/;
@@ -19,6 +20,7 @@ export interface LanDiscoveryPublisherInput {
   policy: AccessPolicy;
   host: string;
   port: number;
+  securePort?: number;
   hubId: string;
   addresses?: readonly string[];
   onError?(code: "PUBLISHER_ERROR"): void;
@@ -107,6 +109,7 @@ function answerRecords(input: {
   instanceName: string;
   hostName: string;
   port: number;
+  securePort?: number;
   hubId: string;
   address: string;
   family: "IPv4" | "IPv6";
@@ -137,9 +140,15 @@ function answerRecords(input: {
       type: "TXT",
       ttl,
       data: [
-        Buffer.from(`v=${SERVICE_PROTOCOL_VERSION}`, "utf8"),
+        Buffer.from(
+          `v=${input.securePort === undefined ? SERVICE_PROTOCOL_VERSION_LEGACY : SERVICE_PROTOCOL_VERSION_SECURE}`,
+          "utf8"
+        ),
         Buffer.from(`role=${SERVICE_ROLE}`, "utf8"),
-        Buffer.from(`hub=${input.hubId}`, "utf8")
+        Buffer.from(`hub=${input.hubId}`, "utf8"),
+        ...(input.securePort === undefined
+          ? []
+          : [Buffer.from(`tls=${input.securePort}`, "utf8")])
       ]
     },
     {
@@ -186,6 +195,10 @@ export class LanDiscoveryPublisher implements LanDiscoveryPublisherService {
     if (this.#active) throw new Error("LAN discovery publisher is already running");
     const hubId = normalizeHubId(input.hubId);
     const port = normalizePort(input.port);
+    const securePort = input.securePort === undefined ? undefined : normalizePort(input.securePort);
+    if (securePort === port) {
+      throw new Error("LAN discovery publisher secure port must differ from the bootstrap port");
+    }
     const suffix = serviceSuffix(hubId);
     const instanceName = `ChatCockpit Hub ${suffix}`;
     const hostName = `chatcockpit-${suffix}.local`;
@@ -226,6 +239,7 @@ export class LanDiscoveryPublisher implements LanDiscoveryPublisherService {
           instanceName,
           hostName,
           port,
+          ...(securePort === undefined ? {} : { securePort }),
           hubId,
           address: iface.address,
           family: iface.family

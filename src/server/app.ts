@@ -171,6 +171,7 @@ import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
 import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
+import { buildDeviceLanTlsServer } from "./device-lan-tls-server.js";
 import { registerHubIdentityRoutes } from "./hub-identity-routes.js";
 import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import {
@@ -333,6 +334,10 @@ export interface BuildServerOptions {
     addresses?: readonly string[];
     publisher?: LanDiscoveryPublisherService;
   };
+  deviceLanTls?: {
+    host: string;
+    port: number;
+  };
 }
 
 export function buildServer(
@@ -434,6 +439,48 @@ export function buildServer(
       candidateStore: publicRouteCandidateStore,
       proofStore: publicRouteBootstrapProofStore
     });
+  let deviceLanTlsServer: ReturnType<typeof buildDeviceLanTlsServer> | null = null;
+  let deviceLanTlsPort: number | null = null;
+  let deviceLanTlsWarningLogged = false;
+  let resolveDeviceLanTlsReady: (() => void) | null = null;
+  const deviceLanTlsReady = options.deviceLanTls && accessPolicy.trustedLan.enabled
+    ? new Promise<void>((resolve) => { resolveDeviceLanTlsReady = resolve; })
+    : Promise.resolve();
+  if (options.deviceLanTls && accessPolicy.trustedLan.enabled) {
+    const deviceLanTls = options.deviceLanTls;
+    app.addHook("onListen", async () => {
+      const secureServer = buildDeviceLanTlsServer({
+        policy: accessPolicy,
+        tlsIdentity: await ensureLanTlsIdentity(paths.runtimeDir),
+        deviceRegistryStore,
+        deviceChannelHub,
+        ...(options.deviceNow ? { now: options.deviceNow } : {}),
+        ...(options.deviceChannelPingIntervalMs
+          ? { pingIntervalMs: options.deviceChannelPingIntervalMs }
+          : {})
+      });
+      try {
+        await secureServer.listen({ host: deviceLanTls.host, port: deviceLanTls.port });
+        const address = secureServer.server.address();
+        deviceLanTlsPort =
+          address && typeof address !== "string" ? address.port : deviceLanTls.port;
+        deviceLanTlsServer = secureServer;
+      } catch {
+        await secureServer.close().catch(() => undefined);
+        if (!deviceLanTlsWarningLogged) {
+          deviceLanTlsWarningLogged = true;
+          app.log.warn(
+            { code: "LAN_TLS_UNAVAILABLE" },
+            "LAN TLS device transport is unavailable"
+          );
+        }
+      } finally {
+        resolveDeviceLanTlsReady?.();
+        resolveDeviceLanTlsReady = null;
+      }
+    });
+  }
+
   let lanDiscoveryPublication: LanDiscoveryPublication | null = null;
   let lanDiscoveryWarningLogged = false;
   if (options.lanDiscovery) {
@@ -449,10 +496,12 @@ export function buildServer(
     };
     app.addHook("onListen", async () => {
       try {
+        await deviceLanTlsReady;
         lanDiscoveryPublication = await publisher.start({
           policy: accessPolicy,
           host: lanDiscovery.host,
           port: lanDiscovery.port,
+          ...(deviceLanTlsPort === null ? {} : { securePort: deviceLanTlsPort }),
           hubId: hubIdentity.hubId,
           ...(lanDiscovery.addresses ? { addresses: lanDiscovery.addresses } : {}),
           onError: warnDiscovery
@@ -745,6 +794,15 @@ export function buildServer(
       // Discovery is a convenience layer; shutdown continues if mDNS cleanup fails.
     }
     lanDiscoveryPublication = null;
+    if (deviceLanTlsServer) {
+      try {
+        await deviceLanTlsServer.close();
+      } catch {
+        // The primary Control Plane shutdown must continue even if the auxiliary LAN listener misbehaves.
+      }
+      deviceLanTlsServer = null;
+      deviceLanTlsPort = null;
+    }
     runtimeEventService.detach();
     await hostProcess.close();
     await runtimeService.close();

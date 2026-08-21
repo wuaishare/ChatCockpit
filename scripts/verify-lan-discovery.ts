@@ -33,6 +33,17 @@ assert.deepEqual(candidate, {
   hubIdHint: hubId
 });
 
+const secureCandidate = parseLanDiscoveryCandidate({
+  serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
+  instanceName: "Office Hub",
+  host: "chatcockpit-office.local.",
+  port: 4318,
+  addresses: [privateV4],
+  txt: ["v=2", "role=hub", `hub=${hubId}`, "tls=4319"]
+});
+assert.equal(secureCandidate.wireProtocolVersion, 2);
+assert.equal(secureCandidate.securePort, 4319);
+
 const invalidCases: Array<[string, Parameters<typeof parseLanDiscoveryCandidate>[0]]> = [
   ["wrong service type", {
     serviceType: "_http._tcp.local.",
@@ -48,7 +59,31 @@ const invalidCases: Array<[string, Parameters<typeof parseLanDiscoveryCandidate>
     host: "chatcockpit-office.local.",
     port: 4318,
     addresses: [privateV4],
+    txt: ["v=3", "role=hub", `hub=${hubId}`]
+  }],
+  ["v2 missing secure port", {
+    serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
+    instanceName: "Office Hub",
+    host: "chatcockpit-office.local.",
+    port: 4318,
+    addresses: [privateV4],
     txt: ["v=2", "role=hub", `hub=${hubId}`]
+  }],
+  ["v2 invalid secure port", {
+    serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
+    instanceName: "Office Hub",
+    host: "chatcockpit-office.local.",
+    port: 4318,
+    addresses: [privateV4],
+    txt: ["v=2", "role=hub", `hub=${hubId}`, "tls=70000"]
+  }],
+  ["v2 secure port equals bootstrap port", {
+    serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,
+    instanceName: "Office Hub",
+    host: "chatcockpit-office.local.",
+    port: 4318,
+    addresses: [privateV4],
+    txt: ["v=2", "role=hub", `hub=${hubId}`, "tls=4318"]
   }],
   ["wrong role", {
     serviceType: CHATCOCKPIT_LAN_DISCOVERY_SERVICE_TYPE,

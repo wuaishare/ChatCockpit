@@ -1,0 +1,51 @@
+import Fastify, { type FastifyInstance } from "fastify";
+
+import type { AccessPolicy } from "../security/access-policy.js";
+import type { DeviceChannelHub } from "../devices/device-channel.js";
+import type { DeviceRegistryStore } from "../devices/device-registry.js";
+import type { LanTlsIdentityRecord } from "../devices/lan-tls-identity.js";
+import { registerAccessPolicyGate } from "./access-policy-gate.js";
+import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
+import { registerDeviceHeartbeatRoute } from "./device-routes.js";
+import { registerWebSecurityHeaders, trustLoopbackProxy } from "./security-headers.js";
+
+export interface DeviceLanTlsServerOptions {
+  policy: AccessPolicy;
+  tlsIdentity: LanTlsIdentityRecord;
+  deviceRegistryStore: DeviceRegistryStore;
+  deviceChannelHub: DeviceChannelHub;
+  now?: () => string;
+  pingIntervalMs?: number;
+}
+
+export function buildDeviceLanTlsServer(
+  options: DeviceLanTlsServerOptions
+): FastifyInstance {
+  const app = Fastify({
+    logger: true,
+    trustProxy: trustLoopbackProxy,
+    bodyLimit: 16 * 1024,
+    https: {
+      key: options.tlsIdentity.privateKeyPem,
+      cert: options.tlsIdentity.certificatePem,
+      minVersion: "TLSv1.2"
+    }
+  });
+
+  registerAccessPolicyGate(app, options.policy);
+  registerWebSecurityHeaders(app);
+  registerDeviceHeartbeatRoute(app, options.deviceRegistryStore, {
+    ...(options.now ? { now: options.now } : {})
+  });
+  registerDeviceChannelRoutes(
+    app,
+    options.deviceRegistryStore,
+    options.deviceChannelHub,
+    {
+      ...(options.now ? { now: options.now } : {}),
+      ...(options.pingIntervalMs ? { pingIntervalMs: options.pingIntervalMs } : {})
+    }
+  );
+
+  return app;
+}

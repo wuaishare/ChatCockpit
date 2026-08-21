@@ -113,6 +113,7 @@ const publication = await publisher.start({
   policy: policy(true, ["169.254.20.0/24"]),
   host: "0.0.0.0",
   port: 4318,
+  securePort: 4319,
   hubId,
   addresses: ["169.254.20.7", "198.51.100.10"],
   onError: (code) => warnings.push(code)
@@ -147,7 +148,7 @@ const txt = announcement.find((record) => record.type === "TXT");
 assert.ok(txt && "data" in txt && Array.isArray(txt.data));
 assert.deepEqual(
   (txt.data as Array<Buffer>).map((entry) => entry.toString("utf8")),
-  ["v=1", "role=hub", `hub=${hubId}`]
+  ["v=2", "role=hub", `hub=${hubId}`, "tls=4319"]
 );
 
 mdns.emit("query", { questions: [{ name: "unrelated.local", type: "A" }] });
@@ -204,6 +205,17 @@ await assert.rejects(
     addresses: ["169.254.20.7"]
   }),
   /port/
+);
+await assert.rejects(
+  () => new LanDiscoveryPublisher(new FakeFactory()).start({
+    policy: policy(true, ["169.254.20.0/24"]),
+    host: "0.0.0.0",
+    port: 4318,
+    securePort: 4318,
+    hubId,
+    addresses: ["169.254.20.7"]
+  }),
+  /secure port/
 );
 await assert.rejects(
   () => new LanDiscoveryPublisher(new FakeFactory()).start({
