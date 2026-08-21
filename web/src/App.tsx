@@ -89,16 +89,24 @@ function readOAuthApprovalReturnTo(): string | null {
     const target = new URL(raw, window.location.origin);
     if (
       target.origin !== window.location.origin ||
-      target.pathname !== "/oauth/authorize" ||
-      target.searchParams.size !== 1
+      target.pathname !== "/oauth/authorize"
     ) {
+      return null;
+    }
+    const allowedKeys = new Set(["request_id", "ui_locales"]);
+    if ([...target.searchParams.keys()].some((key) => !allowedKeys.has(key))) {
       return null;
     }
     const requestId = target.searchParams.get("request_id");
     if (!requestId || !/^oauth_request_[0-9a-f-]{36}$/i.test(requestId)) {
       return null;
     }
-    return `/oauth/authorize?request_id=${encodeURIComponent(requestId)}`;
+    const params = new URLSearchParams({ request_id: requestId });
+    const uiLocales = target.searchParams.get("ui_locales");
+    if (uiLocales === "zh-CN" || uiLocales === "en-US") {
+      params.set("ui_locales", uiLocales);
+    }
+    return `/oauth/authorize?${params.toString()}`;
   } catch {
     return null;
   }

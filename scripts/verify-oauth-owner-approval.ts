@@ -49,7 +49,8 @@ function requestIdFromReturnTo(location: string): {
   assert.ok(returnTo);
   const continuation = new URL(returnTo, "http://localhost");
   assert.equal(continuation.pathname, "/oauth/authorize");
-  assert.equal([...continuation.searchParams.keys()].join(","), "request_id");
+  const keys = [...continuation.searchParams.keys()];
+  assert.ok(keys.every((key) => key === "request_id" || key === "ui_locales"));
   const requestId = continuation.searchParams.get("request_id");
   assert.match(requestId ?? "", /^oauth_request_[0-9a-f-]{36}$/i);
   return { returnTo, requestId: requestId! };
@@ -128,12 +129,14 @@ async function main(): Promise<void> {
     authorizeUrl.searchParams.set("state", state);
     authorizeUrl.searchParams.set("code_challenge", challenge(verifier));
     authorizeUrl.searchParams.set("code_challenge_method", "S256");
+    authorizeUrl.searchParams.set("ui_locales", "zh-CN");
 
     const unauthenticated = await fetch(authorizeUrl, { redirect: "manual" });
     assert.equal(unauthenticated.status, 302);
     const loginLocation = unauthenticated.headers.get("location");
     assert.ok(loginLocation);
     const { returnTo, requestId } = requestIdFromReturnTo(loginLocation);
+    assert.equal(new URL(returnTo, server.baseUrl).searchParams.get("ui_locales"), "zh-CN");
     assert.doesNotMatch(loginLocation, /client_id|code_challenge|redirect_uri|owner_secret/i);
 
     const login = await fetch(`${server.baseUrl}/api/operator/login`, {
@@ -152,18 +155,39 @@ async function main(): Promise<void> {
     const cookie = cookiePair(login);
 
     const approval = await fetch(new URL(returnTo, server.baseUrl), {
-      headers: { cookie },
+      headers: { cookie, "accept-language": "en-US,en;q=0.9" },
       redirect: "manual"
     });
     assert.equal(approval.status, 200);
     const approvalHtml = await approval.text();
-    assert.match(approvalHtml, /Authorize ChatCockpit MCP/);
+    assert.match(approvalHtml, /<html lang="zh-CN">/);
+    assert.match(approvalHtml, /授权 ChatCockpit MCP/);
     assert.match(approvalHtml, /ChatGPT Owner Session Approval Test/);
-    assert.match(approvalHtml, /chatcockpit:mcp offline_access/);
-    assert.match(approvalHtml, /Signed in as\s*<strong>owner<\/strong>/);
+    assert.match(approvalHtml, /正在请求访问您的 ChatCockpit MCP 端点/);
+    assert.match(approvalHtml, /权限范围: chatcockpit:mcp offline_access/);
+    assert.match(approvalHtml, /当前登录账号\s*<strong>owner<\/strong>/);
+    assert.match(approvalHtml, /name="decision" value=""/);
+    assert.match(approvalHtml, /data-pending-label="授权中…"/);
     assert.match(approvalHtml, new RegExp(`name="request_id" value="${requestId}"`));
     assert.match(approvalHtml, new RegExp(`name="csrf_token" value="${loginBody.csrfToken}"`));
+    assert.match(approvalHtml, /<script src="\/oauth\/approval\.js" defer><\/script>/);
     assert.doesNotMatch(approvalHtml, /owner_secret|CHATCOCKPIT_API_TOKEN|type="password"/i);
+    const approvalCsp = approval.headers.get("content-security-policy") ?? "";
+    assert.match(approvalCsp, /form-action 'self' https:\/\/chatgpt\.com(?:;|$)/);
+    assert.doesNotMatch(approvalCsp, /https:\/\/example\.com/);
+
+    const approvalScript = await fetch(`${server.baseUrl}/oauth/approval.js`, {
+      headers: { cookie }
+    });
+    assert.equal(approvalScript.status, 200);
+    assert.equal(
+      approvalScript.headers.get("content-type"),
+      "application/javascript; charset=utf-8"
+    );
+    const approvalScriptBody = await approvalScript.text();
+    assert.match(approvalScriptBody, /decision\.value = submitter\.value/);
+    assert.match(approvalScriptBody, /submitter\.dataset\.pendingLabel/);
+    assert.match(approvalScriptBody, /button\.disabled = true/);
 
     const anonymousPost = await postForm(`${server.baseUrl}/oauth/authorize`, {
       request_id: requestId,
@@ -195,7 +219,7 @@ async function main(): Promise<void> {
       },
       { cookie }
     );
-    assert.equal(approved.status, 302);
+    assert.equal(approved.status, 303);
     const approvedLocation = approved.headers.get("location");
     assert.ok(approvedLocation);
     const approvedRedirect = new URL(approvedLocation);
@@ -236,7 +260,7 @@ async function main(): Promise<void> {
       },
       { cookie }
     );
-    assert.equal(denied.status, 302);
+    assert.equal(denied.status, 303);
     const deniedLocation = denied.headers.get("location");
     assert.ok(deniedLocation);
     const deniedRedirect = new URL(deniedLocation);
@@ -244,6 +268,18 @@ async function main(): Promise<void> {
     assert.equal(deniedRedirect.searchParams.get("error"), "access_denied");
     assert.equal(deniedRedirect.searchParams.get("state"), "oauth-owner-deny-state");
     assert.equal(deniedRedirect.searchParams.get("iss"), publicOrigin);
+
+    const browserLocaleUrl = new URL(authorizeUrl);
+    browserLocaleUrl.searchParams.delete("ui_locales");
+    browserLocaleUrl.searchParams.set("state", "oauth-browser-locale-state");
+    const browserLocaleApproval = await fetch(browserLocaleUrl, {
+      headers: { cookie, "accept-language": "zh-CN,zh;q=0.9,en;q=0.8" },
+      redirect: "manual"
+    });
+    assert.equal(browserLocaleApproval.status, 200);
+    const browserLocaleHtml = await browserLocaleApproval.text();
+    assert.match(browserLocaleHtml, /<html lang="zh-CN">/);
+    assert.match(browserLocaleHtml, /授权 ChatCockpit MCP/);
   } finally {
     await server.close();
     if (original.configPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;

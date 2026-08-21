@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
-const CONTENT_SECURITY_POLICY = [
+const BASE_CONTENT_SECURITY_POLICY_DIRECTIVES = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
@@ -8,10 +8,35 @@ const CONTENT_SECURITY_POLICY = [
   "font-src 'self' data:",
   "connect-src 'self'",
   "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'"
-].join("; ");
+  "base-uri 'self'"
+] as const;
+
+function normalizeFormActionOrigin(value: string): string {
+  const parsed = new URL(value);
+  if (
+    parsed.origin !== value ||
+    (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+  ) {
+    throw new Error("CSP form-action entries must be HTTP(S) origins");
+  }
+  return parsed.origin;
+}
+
+export function buildContentSecurityPolicy(
+  formActionOrigins: readonly string[] = []
+): string {
+  const formActions = [
+    "'self'",
+    ...new Set(formActionOrigins.map(normalizeFormActionOrigin))
+  ];
+  return [
+    ...BASE_CONTENT_SECURITY_POLICY_DIRECTIVES,
+    `form-action ${formActions.join(" ")}`,
+    "frame-ancestors 'none'"
+  ].join("; ");
+}
+
+const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy();
 
 const LOOPBACK_V4 = /^127(?:\.(?:\d{1,3})){3}$/;
 const MAPPED_LOOPBACK_V4 = /^::ffff:(127(?:\.(?:\d{1,3})){3})$/i;
@@ -41,7 +66,9 @@ export function trustLoopbackProxy(address: string): boolean {
 
 export function registerWebSecurityHeaders(app: FastifyInstance): void {
   app.addHook("onSend", async (request, reply) => {
-    reply.header("content-security-policy", CONTENT_SECURITY_POLICY);
+    if (!reply.hasHeader("content-security-policy")) {
+      reply.header("content-security-policy", CONTENT_SECURITY_POLICY);
+    }
     reply.header("x-content-type-options", "nosniff");
     reply.header("x-frame-options", "DENY");
     reply.header("referrer-policy", "no-referrer");

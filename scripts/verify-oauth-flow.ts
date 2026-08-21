@@ -350,7 +350,7 @@ async function main(): Promise<void> {
       csrf_token: ownerLoginBody.csrfToken,
       decision: "approve"
     }, { redirect: "manual", cookie: ownerCookie });
-    assert.equal(approved.status, 302);
+    assert.equal(approved.status, 303);
     const location = approved.headers.get("location");
     assert.ok(location);
     const redirect = new URL(location);

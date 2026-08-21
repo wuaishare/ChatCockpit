@@ -7,6 +7,7 @@ import type {
 import type { OAuthPublicConfig } from "./oauth-config.js";
 import { OAuthProtocolError, OAuthService } from "./oauth-service.js";
 import { operatorSessionFromRequest } from "../server/operator-auth-context.js";
+import { buildContentSecurityPolicy } from "../server/security-headers.js";
 
 interface UnknownRecord {
   [key: string]: unknown;
@@ -77,6 +78,72 @@ function parseFormBody(body: unknown): UnknownRecord {
   return record(body);
 }
 
+type OAuthApprovalLocale = "zh-CN" | "en-US";
+
+interface OAuthApprovalCopy {
+  title: string;
+  requestAccess: string;
+  scope: string;
+  resource: string;
+  signedInAs: string;
+  authorize: string;
+  deny: string;
+  authorizing: string;
+  denying: string;
+}
+
+const OAUTH_APPROVAL_COPY: Record<OAuthApprovalLocale, OAuthApprovalCopy> = {
+  "zh-CN": {
+    title: "授权 {displayName} MCP",
+    requestAccess: "正在请求访问您的 {displayName} MCP 端点。",
+    scope: "权限范围",
+    resource: "资源",
+    signedInAs: "当前登录账号",
+    authorize: "授权",
+    deny: "拒绝",
+    authorizing: "授权中…",
+    denying: "拒绝中…"
+  },
+  "en-US": {
+    title: "Authorize {displayName} MCP",
+    requestAccess: "is requesting access to your {displayName} MCP endpoint.",
+    scope: "Scope",
+    resource: "Resource",
+    signedInAs: "Signed in as",
+    authorize: "Authorize",
+    deny: "Deny",
+    authorizing: "Authorizing…",
+    denying: "Denying…"
+  }
+};
+
+function isSimplifiedChineseLanguage(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replaceAll("_", "-");
+  return normalized === "zh" ||
+    normalized === "zh-cn" ||
+    normalized === "zh-sg" ||
+    normalized === "zh-hans" ||
+    normalized.startsWith("zh-hans-");
+}
+
+function localeFromUiLocales(value: string | undefined): OAuthApprovalLocale | null {
+  if (!value) return null;
+  for (const locale of value.split(/\s+/).filter(Boolean)) {
+    if (isSimplifiedChineseLanguage(locale)) return "zh-CN";
+    if (locale.trim().toLowerCase().startsWith("en")) return "en-US";
+  }
+  return null;
+}
+
+function localeFromAcceptLanguage(value: string | string[] | undefined): OAuthApprovalLocale {
+  const source = Array.isArray(value) ? value.join(",") : value ?? "";
+  const languages = source
+    .split(",")
+    .map((entry) => entry.split(";", 1)[0]?.trim() ?? "")
+    .filter(Boolean);
+  return languages.some(isSimplifiedChineseLanguage) ? "zh-CN" : "en-US";
+}
+
 function approvalPage(input: {
   requestId: string;
   clientName: string;
@@ -85,14 +152,18 @@ function approvalPage(input: {
   displayName: string;
   username: string;
   csrfToken: string;
+  locale: OAuthApprovalLocale;
 }): string {
+  const copy = OAUTH_APPROVAL_COPY[input.locale];
+  const title = copy.title.replace("{displayName}", input.displayName);
+  const requestAccess = copy.requestAccess.replace("{displayName}", input.displayName);
   return `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(input.locale)}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>Authorize ${escapeHtml(input.displayName)} MCP</title>
+  <title>${escapeHtml(title)}</title>
   <style>
     :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: Canvas; color: CanvasText; }
@@ -108,22 +179,49 @@ function approvalPage(input: {
 </head>
 <body>
   <main>
-    <h1>Authorize ${escapeHtml(input.displayName)} MCP</h1>
-    <p><strong>${escapeHtml(input.clientName)}</strong> is requesting access to your ${escapeHtml(input.displayName)} MCP endpoint.</p>
-    <p class="meta">Scope: ${escapeHtml(input.scope)}<br>Resource: ${escapeHtml(input.resource)}</p>
-    <p class="session">Signed in as <strong>${escapeHtml(input.username)}</strong></p>
+    <h1>${escapeHtml(title)}</h1>
+    <p><strong>${escapeHtml(input.clientName)}</strong> ${escapeHtml(requestAccess)}</p>
+    <p class="meta">${escapeHtml(copy.scope)}: ${escapeHtml(input.scope)}<br>${escapeHtml(copy.resource)}: ${escapeHtml(input.resource)}</p>
+    <p class="session">${escapeHtml(copy.signedInAs)} <strong>${escapeHtml(input.username)}</strong></p>
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="request_id" value="${escapeHtml(input.requestId)}">
       <input type="hidden" name="csrf_token" value="${escapeHtml(input.csrfToken)}">
+      <input type="hidden" name="decision" value="">
       <div class="actions">
-        <button type="submit" name="decision" value="approve">Authorize</button>
-        <button type="submit" name="decision" value="deny">Deny</button>
+        <button type="submit" name="decision" value="approve" data-pending-label="${escapeHtml(copy.authorizing)}">${escapeHtml(copy.authorize)}</button>
+        <button type="submit" name="decision" value="deny" data-pending-label="${escapeHtml(copy.denying)}">${escapeHtml(copy.deny)}</button>
       </div>
     </form>
   </main>
+  <script src="/oauth/approval.js" defer></script>
 </body>
 </html>`;
 }
+
+const APPROVAL_SCRIPT = `(() => {
+  const form = document.querySelector("form");
+  if (!(form instanceof HTMLFormElement)) return;
+
+  let submitted = false;
+  form.addEventListener("submit", (event) => {
+    if (submitted) {
+      event.preventDefault();
+      return;
+    }
+    submitted = true;
+    form.setAttribute("aria-busy", "true");
+
+    const submitter = event.submitter;
+    if (submitter instanceof HTMLButtonElement) {
+      const decision = form.querySelector('input[type="hidden"][name="decision"]');
+      if (decision instanceof HTMLInputElement) decision.value = submitter.value;
+      submitter.textContent = submitter.dataset.pendingLabel || submitter.textContent;
+    }
+    for (const button of form.querySelectorAll('button[type="submit"]')) {
+      if (button instanceof HTMLButtonElement) button.disabled = true;
+    }
+  });
+})();`;
 
 function ensureUrlEncodedParser(app: FastifyInstance): void {
   if (app.hasContentTypeParser("application/x-www-form-urlencoded")) return;
@@ -178,6 +276,12 @@ export function registerOAuthRoutes(
     };
   });
 
+  app.get("/oauth/approval.js", async (_request, reply) => {
+    noStore(reply);
+    reply.type("application/javascript; charset=utf-8");
+    return APPROVAL_SCRIPT;
+  });
+
   app.post("/oauth/register", async (request, reply) => {
     try {
       const body = record(request.body);
@@ -215,6 +319,9 @@ export function registerOAuthRoutes(
     try {
       const query = readQuery(request);
       const existingRequestId = optionalStringField(query, "request_id")?.trim();
+      const requestedUiLocales = optionalStringField(query, "ui_locales")?.trim();
+      const requestedLocale = localeFromUiLocales(requestedUiLocales);
+      const locale = requestedLocale ?? localeFromAcceptLanguage(request.headers["accept-language"]);
       const pending = existingRequestId
         ? service.getAuthorizationForApproval(existingRequestId)
         : service.beginAuthorization({
@@ -235,11 +342,17 @@ export function registerOAuthRoutes(
       const operatorSession = operatorSessionFromRequest(request);
       noStore(reply);
       if (!operatorSession) {
-        const continuation = `/oauth/authorize?request_id=${encodeURIComponent(pending.requestId)}`;
+        const continuationParams = new URLSearchParams({ request_id: pending.requestId });
+        if (requestedLocale) continuationParams.set("ui_locales", requestedLocale);
+        const continuation = `/oauth/authorize?${continuationParams.toString()}`;
         const loginUrl = `${consolePathPrefix}/login?returnTo=${encodeURIComponent(continuation)}`;
         return reply.redirect(loginUrl, 302);
       }
 
+      reply.header(
+        "content-security-policy",
+        buildContentSecurityPolicy([new URL(pending.redirectUri).origin])
+      );
       reply.type("text/html; charset=utf-8");
       return approvalPage({
         requestId: pending.requestId,
@@ -248,7 +361,8 @@ export function registerOAuthRoutes(
         resource: pending.resource,
         displayName: config.displayName,
         username: operatorSession.username,
-        csrfToken: operatorSession.csrfToken
+        csrfToken: operatorSession.csrfToken,
+        locale
       });
     } catch (error) {
       return sendOAuthError(reply, error);
@@ -286,7 +400,7 @@ export function registerOAuthRoutes(
         if (denied.state) redirect.searchParams.set("state", denied.state);
         redirect.searchParams.set("iss", denied.issuer);
         noStore(reply);
-        return reply.redirect(redirect.toString(), 302);
+        return reply.redirect(redirect.toString(), 303);
       }
       if (decision !== "approve") {
         throw new OAuthProtocolError(
@@ -301,7 +415,7 @@ export function registerOAuthRoutes(
       if (result.state) redirect.searchParams.set("state", result.state);
       redirect.searchParams.set("iss", result.issuer);
       noStore(reply);
-      return reply.redirect(redirect.toString(), 302);
+      return reply.redirect(redirect.toString(), 303);
     } catch (error) {
       return sendOAuthError(reply, error);
     }
