@@ -47,6 +47,11 @@ import {
 } from "../devices/device-registry.js";
 import { DeviceChannelHub } from "../devices/device-channel.js";
 import {
+  LanDiscoveryPublisher,
+  type LanDiscoveryPublication,
+  type LanDiscoveryPublisherService
+} from "../devices/lan-discovery-publisher.js";
+import {
   createHubIdentity,
   readHubIdentity,
   type HubIdentityRecord
@@ -321,6 +326,12 @@ export interface BuildServerOptions {
   deviceNow?: () => string;
   deviceChannelHub?: DeviceChannelHub;
   deviceChannelPingIntervalMs?: number;
+  lanDiscovery?: {
+    host: string;
+    port: number;
+    addresses?: readonly string[];
+    publisher?: LanDiscoveryPublisherService;
+  };
 }
 
 export function buildServer(
@@ -422,6 +433,34 @@ export function buildServer(
       candidateStore: publicRouteCandidateStore,
       proofStore: publicRouteBootstrapProofStore
     });
+  let lanDiscoveryPublication: LanDiscoveryPublication | null = null;
+  let lanDiscoveryWarningLogged = false;
+  if (options.lanDiscovery) {
+    const lanDiscovery = options.lanDiscovery;
+    const publisher = lanDiscovery.publisher ?? new LanDiscoveryPublisher();
+    const warnDiscovery = () => {
+      if (lanDiscoveryWarningLogged) return;
+      lanDiscoveryWarningLogged = true;
+      app.log.warn(
+        { code: "LAN_DISCOVERY_UNAVAILABLE" },
+        "LAN discovery advertisement is unavailable"
+      );
+    };
+    app.addHook("onListen", async () => {
+      try {
+        lanDiscoveryPublication = await publisher.start({
+          policy: accessPolicy,
+          host: lanDiscovery.host,
+          port: lanDiscovery.port,
+          hubId: hubIdentity.hubId,
+          ...(lanDiscovery.addresses ? { addresses: lanDiscovery.addresses } : {}),
+          onError: warnDiscovery
+        });
+      } catch {
+        warnDiscovery();
+      }
+    });
+  }
   if (oauthService && oauthConfig) {
     registerOAuthRoutes(
       app,
@@ -695,6 +734,12 @@ export function buildServer(
     capabilityRouterPublicMutations
   );
   app.addHook("onClose", async () => {
+    try {
+      await lanDiscoveryPublication?.stop();
+    } catch {
+      // Discovery is a convenience layer; shutdown continues if mDNS cleanup fails.
+    }
+    lanDiscoveryPublication = null;
     runtimeEventService.detach();
     await hostProcess.close();
     await runtimeService.close();

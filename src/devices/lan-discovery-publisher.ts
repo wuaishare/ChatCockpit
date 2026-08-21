@@ -32,6 +32,10 @@ export interface LanDiscoveryPublication {
   stop(): Promise<void>;
 }
 
+export interface LanDiscoveryPublisherService {
+  start(input: LanDiscoveryPublisherInput): Promise<LanDiscoveryPublication>;
+}
+
 interface MdnsQuestionLike {
   name: string;
   type: string;
@@ -170,7 +174,7 @@ async function destroy(instance: MdnsInstanceLike): Promise<void> {
   await new Promise<void>((resolve) => instance.destroy(resolve));
 }
 
-export class LanDiscoveryPublisher {
+export class LanDiscoveryPublisher implements LanDiscoveryPublisherService {
   readonly #factory: LanDiscoveryMdnsFactory;
   #active = false;
 

@@ -973,9 +973,11 @@ async function main(): Promise<void> {
     }
     case "server": {
       await ensureSecureBootstrap(paths);
-      const app = buildServer(paths);
       const port = Number(readIdentityEnv("PORT") ?? "4318");
       const host = readIdentityEnv("HOST") ?? "127.0.0.1";
+      const app = buildServer(paths, {
+        lanDiscovery: { host, port }
+      });
       await app.listen({ host, port });
       return;
     }
