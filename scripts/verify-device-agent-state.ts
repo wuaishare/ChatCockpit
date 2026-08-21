@@ -30,8 +30,12 @@ try {
     architecture: "arm64",
     now: "2026-08-21T09:30:00.000Z"
   });
-  assert.equal(created.schemaVersion, 1);
+  assert.equal(created.schemaVersion, 2);
   assert.equal(created.hubOrigin, "https://hub.example.com");
+  assert.deepEqual(created.knownHubOrigins, ["https://hub.example.com"]);
+  assert.equal(created.hubId, null);
+  assert.equal(created.hubPublicKeySpki, null);
+  assert.equal(created.hubPublicKeyFingerprint, null);
   assert.equal(created.displayName, "MacBook Pro");
   assert.equal(created.platform, "darwin");
   assert.equal(created.architecture, "arm64");
@@ -56,6 +60,9 @@ try {
   assert.equal(safe.configured, true);
   assert.equal(safe.state, "pending");
   assert.equal(safe.hubOrigin, "https://hub.example.com");
+  assert.deepEqual(safe.knownHubOrigins, ["https://hub.example.com"]);
+  assert.equal(safe.hubId, null);
+  assert.equal(safe.hubPublicKeyFingerprint, null);
   assert.equal(safe.publicKeyFingerprint, created.publicKeyFingerprint);
   assert.equal(Object.prototype.hasOwnProperty.call(safe, "privateKeyPkcs8"), false);
   assert.equal(JSON.stringify(safe).includes(created.privateKeyPkcs8), false);

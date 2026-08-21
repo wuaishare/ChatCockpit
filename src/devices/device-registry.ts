@@ -309,6 +309,25 @@ function heartbeatMessage(deviceId: string, sequence: number): Buffer {
   );
 }
 
+function channelOpenMessage(deviceId: string, sequence: number, channelNonce: string): Buffer {
+  return Buffer.from(
+    ["chatcockpit-device-channel-open-v1", deviceId, String(sequence), channelNonce].join("\n"),
+    "utf8"
+  );
+}
+
+function normalizeChannelNonce(value: string): string {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(normalized)) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_CHANNEL_NONCE_INVALID",
+      "Device channel nonce is invalid"
+    );
+  }
+  return normalized;
+}
+
 export class DeviceRegistryStore {
   readonly sqlite: DatabaseSync;
   readonly path: string;
@@ -328,6 +347,28 @@ export class DeviceRegistryStore {
     if (this.closed) return;
     this.sqlite.close();
     this.closed = true;
+  }
+
+  getHubIdentityFingerprint(): string | null {
+    const row = this.sqlite.prepare(`
+      SELECT value FROM device_registry_metadata WHERE key = 'hub_identity_fingerprint'
+    `).get() as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  bindHubIdentityFingerprint(fingerprint: string): string {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(fingerprint)) {
+      throw new Error("Device Registry Hub identity fingerprint is invalid");
+    }
+    this.sqlite.prepare(`
+      INSERT OR IGNORE INTO device_registry_metadata (key, value)
+      VALUES ('hub_identity_fingerprint', ?)
+    `).run(fingerprint);
+    const bound = this.getHubIdentityFingerprint();
+    if (bound !== fingerprint) {
+      throw new Error("Device Registry Hub identity fingerprint does not match the persisted Hub identity");
+    }
+    return bound;
   }
 
   createEnrollmentRequest(
@@ -557,6 +598,57 @@ export class DeviceRegistryStore {
     }
   }
 
+  recordChannelOpen(
+    input: { deviceId: string; sequence: number; channelNonce: string; signature: string },
+    now: string
+  ): ManagedDeviceRecord {
+    if (!Number.isSafeInteger(input.sequence) || input.sequence <= 0) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_SEQUENCE_INVALID",
+        "Device channel sequence must be a positive integer"
+      );
+    }
+    const channelNonce = normalizeChannelNonce(input.channelNonce);
+    const row = this.sqlite.prepare(`
+      SELECT * FROM managed_devices WHERE device_id = ?
+    `).get(input.deviceId) as DeviceRow | undefined;
+    if (!row || row.revoked_at) {
+      throw new DeviceRegistryError(401, "DEVICE_NOT_TRUSTED", "Device is unknown or revoked");
+    }
+    if (input.sequence <= Number(row.last_sequence)) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_CHANNEL_REPLAYED",
+        "Device channel sequence was already consumed"
+      );
+    }
+    const publicKey = parseEd25519PublicKey(row.public_key_spki);
+    if (
+      !crypto.verify(
+        null,
+        channelOpenMessage(input.deviceId, input.sequence, channelNonce),
+        publicKey,
+        decodeSignature(input.signature)
+      )
+    ) {
+      throw new DeviceRegistryError(401, "DEVICE_SIGNATURE_INVALID", "Device channel proof is invalid");
+    }
+    const updated = this.sqlite.prepare(`
+      UPDATE managed_devices
+      SET last_seen_at = ?, last_sequence = ?, revision = revision + 1
+      WHERE device_id = ? AND revoked_at IS NULL AND last_sequence < ?
+    `).run(now, input.sequence, input.deviceId, input.sequence);
+    if (Number(updated.changes) !== 1) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_CHANNEL_REPLAYED",
+        "Device channel sequence was already consumed"
+      );
+    }
+    return this.getDevice(input.deviceId)!;
+  }
+
   recordHeartbeat(
     input: { deviceId: string; sequence: number; signature: string },
     now: string
@@ -669,6 +761,11 @@ export class DeviceRegistryStore {
 
   private initializeSchema(): void {
     this.sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS device_registry_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      ) STRICT;
+
       CREATE TABLE IF NOT EXISTS managed_devices (
         device_id TEXT PRIMARY KEY,
         display_name TEXT NOT NULL,
@@ -730,4 +827,12 @@ export function buildDeviceEnrollmentStatusProof(enrollmentId: string): Buffer {
 
 export function buildDeviceHeartbeatProof(deviceId: string, sequence: number): Buffer {
   return heartbeatMessage(deviceId, sequence);
+}
+
+export function buildDeviceChannelOpenProof(
+  deviceId: string,
+  sequence: number,
+  channelNonce: string
+): Buffer {
+  return channelOpenMessage(deviceId, sequence, normalizeChannelNonce(channelNonce));
 }

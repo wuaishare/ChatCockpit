@@ -98,7 +98,9 @@ Usage:
   ${identity.cliName} device status [--json]
   ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
   ${identity.cliName} device heartbeat [--json]
-  ${identity.cliName} device agent [--interval 30] [--json]
+  ${identity.cliName} device route verify <hub-url> [--json]
+  ${identity.cliName} device agent [--json]
+  ${identity.cliName} device agent --heartbeat-only [--interval 30] [--json]
   ${identity.cliName} connectivity providers [--json]
   ${identity.cliName} connectivity provider status --provider cloudflare-tunnel [--json]
   ${identity.cliName} connectivity provider prepare --provider cloudflare-tunnel --action install|upgrade|uninstall [--json]
@@ -541,8 +543,26 @@ async function main(): Promise<void> {
           }
           return;
         }
+        case "route": {
+          const action = process.argv[4];
+          if (action !== "verify") {
+            throw new Error("device route requires: verify <hub-url>");
+          }
+          const hubUrl = process.argv[5];
+          if (!hubUrl || hubUrl.startsWith("--")) {
+            throw new Error("device route verify requires <hub-url>");
+          }
+          const status = await service.verifyAndUseHubRoute(hubUrl);
+          if (json) printJson(status);
+          else {
+            process.stdout.write("Hub route verified and activated\n");
+            printDeviceStatus(status);
+          }
+          return;
+        }
         case "agent": {
           const intervalValue = getFlag("--interval");
+          const heartbeatOnly = process.argv.includes("--heartbeat-only") || intervalValue !== undefined;
           const intervalSeconds = intervalValue === undefined
             ? DEVICE_AGENT_DEFAULT_INTERVAL_MS / 1_000
             : Number(intervalValue);
@@ -556,32 +576,58 @@ async function main(): Promise<void> {
           process.once("SIGTERM", stop);
           try {
             if (!json) {
-              process.stdout.write(`Device Agent started (heartbeat every ${intervalSeconds}s)\n`);
+              process.stdout.write(
+                heartbeatOnly
+                  ? `Device Agent started (heartbeat compatibility mode every ${intervalSeconds}s)\n`
+                  : "Device Agent started (persistent outbound channel)\n"
+              );
               printDeviceStatus(service.status());
             }
-            const finalStatus = await service.runHeartbeatLoop({
-              intervalMs,
-              signal: controller.signal,
-              onHeartbeat: json
-                ? undefined
-                : async (status) => {
-                    process.stdout.write(`Heartbeat accepted: ${status.lastHeartbeatAt ?? "now"}\n`);
-                  },
-              onRetry: async ({ attempt, delayMs, error }) => {
-                if (json) {
-                  process.stderr.write(`${JSON.stringify({
-                    event: "device-agent-retry",
-                    attempt,
-                    delayMs,
-                    code: error.code
-                  })}\n`);
-                } else {
-                  process.stderr.write(
-                    `Heartbeat retry ${attempt} in ${Math.round(delayMs / 100) / 10}s (${error.code})\n`
-                  );
-                }
+            if (intervalValue !== undefined && !process.argv.includes("--heartbeat-only")) {
+              const message = "Deprecated: --interval selects heartbeat compatibility mode; omit it to use the persistent outbound channel.";
+              if (json) process.stderr.write(`${JSON.stringify({ event: "device-agent-compatibility-mode", message })}\n`);
+              else process.stderr.write(`${message}\n`);
+            }
+            const onRetry = async ({ attempt, delayMs, error }: {
+              attempt: number;
+              delayMs: number;
+              error: { code: string };
+            }) => {
+              if (json) {
+                process.stderr.write(`${JSON.stringify({
+                  event: "device-agent-retry",
+                  attempt,
+                  delayMs,
+                  code: error.code
+                })}\n`);
+              } else {
+                process.stderr.write(
+                  `Device Agent retry ${attempt} in ${Math.round(delayMs / 100) / 10}s (${error.code})\n`
+                );
               }
-            });
+            };
+            const finalStatus = heartbeatOnly
+              ? await service.runHeartbeatLoop({
+                  intervalMs,
+                  signal: controller.signal,
+                  onHeartbeat: json
+                    ? undefined
+                    : async (status) => {
+                        process.stdout.write(`Heartbeat accepted: ${status.lastHeartbeatAt ?? "now"}\n`);
+                      },
+                  onRetry
+                })
+              : await service.runOutboundChannelLoop({
+                  signal: controller.signal,
+                  onEvent: json
+                    ? undefined
+                    : async (event) => {
+                        if (event.type === "channel.ready") {
+                          process.stdout.write("Persistent outbound channel connected\n");
+                        }
+                      },
+                  onRetry
+                });
             if (json) printJson(finalStatus);
             else process.stdout.write("Device Agent stopped\n");
           } finally {
@@ -591,7 +637,7 @@ async function main(): Promise<void> {
           return;
         }
         default:
-          throw new Error("device requires one of: status, connect, heartbeat, agent");
+          throw new Error("device requires one of: status, connect, heartbeat, route, agent");
       }
     }
     case "connectivity": {

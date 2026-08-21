@@ -8,6 +8,7 @@ import {
   type DeviceRegistryStore,
   type ManagedDeviceRecord
 } from "../devices/device-registry.js";
+import { DeviceChannelHub } from "../devices/device-channel.js";
 import { buildLocalDeviceTarget } from "../devices/local-device.js";
 import { sendApiError } from "./errors.js";
 
@@ -122,7 +123,10 @@ function projectManagedDevice(record: ManagedDeviceRecord) {
 export function registerDeviceRoutes(
   app: FastifyInstance,
   store: DeviceRegistryStore,
-  options: { now?: () => string } = {}
+  options: {
+    now?: () => string;
+    channelHub?: DeviceChannelHub;
+  } = {}
 ): void {
   const now = options.now ?? (() => new Date().toISOString());
 
@@ -130,9 +134,14 @@ export function registerDeviceRoutes(
     const authError = operatorSessionError(request, reply);
     if (authError) return authError;
     const timestamp = now();
+    const remoteDevices = store.listDevices(timestamp).map((device) =>
+      device.trust === "paired" && options.channelHub?.isActive(device.id)
+        ? { ...device, presence: "online" as const }
+        : device
+    );
     return {
       ok: true,
-      devices: [projectLocalDevice(timestamp), ...store.listDevices(timestamp)]
+      devices: [projectLocalDevice(timestamp), ...remoteDevices]
     };
   });
 
@@ -313,6 +322,7 @@ export function registerDeviceRoutes(
     if (!device) {
       return sendApiError(reply, 404, "DEVICE_NOT_FOUND", "Managed device was not found");
     }
+    options.channelHub?.closeDevice(rawDeviceId, "revoked");
     return {
       ok: true,
       deviceId: device.id,

@@ -1,25 +1,37 @@
 import crypto from "node:crypto";
 
 import {
+  buildDeviceChannelOpenProof,
   buildDeviceEnrollmentProof,
   buildDeviceEnrollmentStatusProof,
   buildDeviceHeartbeatProof,
   type DeviceEnrollmentStatus
 } from "./device-registry.js";
 import {
+  addVerifiedDeviceAgentHubOrigin,
   clearDeviceAgentPendingEnrollment,
   completeDeviceAgentEnrollment,
   createDeviceAgentState,
   markDeviceAgentHeartbeatAccepted,
   markDeviceAgentRevoked,
   normalizeDeviceHubOrigin,
+  pinDeviceAgentHubIdentity,
   projectDeviceAgentStatus,
   readDeviceAgentState,
   reserveDeviceHeartbeatSequence,
   setDeviceAgentPendingEnrollment,
+  type DeviceAgentHubIdentityInput,
   type DeviceAgentStatusProjection,
   type DeviceAgentStateRecord
 } from "./device-agent-state.js";
+import {
+  DeviceAgentTransportError,
+  HttpDeviceAgentTransport,
+  type DeviceAgentChannelConnection,
+  type DeviceAgentChannelEvent,
+  type DeviceAgentTransport
+} from "./device-agent-transport.js";
+import { verifyHubIdentityProof } from "./hub-identity.js";
 
 export interface DeviceAgentUnconfiguredStatus {
   configured: false;
@@ -68,6 +80,7 @@ type SleepLike = (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 interface DeviceAgentServiceOptions {
   runtimeDir: string;
   fetchImpl?: FetchLike;
+  transport?: DeviceAgentTransport;
   sleep?: SleepLike;
   now?: () => string;
   random?: () => number;
@@ -92,11 +105,10 @@ export interface DeviceAgentLoopOptions {
   onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
 }
 
-interface ApiProblemBody {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-  };
+export interface DeviceAgentChannelLoopOptions {
+  signal?: AbortSignal;
+  onEvent?: (event: DeviceAgentChannelEvent) => void | Promise<void>;
+  onRetry?: (input: { attempt: number; delayMs: number; error: DeviceAgentProtocolError }) => void | Promise<void>;
 }
 
 interface EnrollmentCreateBody {
@@ -130,6 +142,25 @@ interface HeartbeatBody {
   revision?: unknown;
 }
 
+interface HubIdentityProofBody {
+  ok?: unknown;
+  hubId?: unknown;
+  nonce?: unknown;
+  signature?: unknown;
+}
+
+interface HubIdentityBody {
+  ok?: unknown;
+  hub?: {
+    schemaVersion?: unknown;
+    hubId?: unknown;
+    algorithm?: unknown;
+    publicKey?: unknown;
+    publicKeyFingerprint?: unknown;
+    createdAt?: unknown;
+  };
+}
+
 function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
   if (milliseconds <= 0) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -151,8 +182,26 @@ function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void>
   });
 }
 
-function isRedirect(status: number): boolean {
-  return status >= 300 && status < 400;
+const NON_RETRYABLE_PROTOCOL_CODES = new Set([
+  "DEVICE_AGENT_CHANNEL_INVALID",
+  "DEVICE_AGENT_HUB_IDENTITY_INVALID",
+  "DEVICE_AGENT_RESPONSE_INVALID"
+]);
+
+function isRetryableDeviceAgentError(error: DeviceAgentProtocolError): boolean {
+  if (
+    error.code === "DEVICE_AGENT_NETWORK_ERROR" ||
+    error.code === "DEVICE_AGENT_CHANNEL_NETWORK_ERROR" ||
+    error.code === "DEVICE_AGENT_CHANNEL_CLOSED"
+  ) {
+    return true;
+  }
+  if (error.statusCode === 429) return true;
+  return (
+    error.statusCode !== null &&
+    error.statusCode >= 500 &&
+    !NON_RETRYABLE_PROTOCOL_CODES.has(error.code)
+  );
 }
 
 function validTimestamp(value: unknown): value is string {
@@ -205,29 +254,33 @@ function sign(state: DeviceAgentStateRecord, message: Buffer): string {
   return crypto.sign(null, message, parsePrivateKey(state)).toString("base64url");
 }
 
-async function parseResponseJson(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!text.trim()) return null;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    throw new DeviceAgentProtocolError(response.status, "DEVICE_AGENT_RESPONSE_INVALID", "Hub returned a non-JSON device protocol response");
+function hubIdentityFromResponse(origin: string, body: unknown): DeviceAgentHubIdentityInput {
+  const response = body && typeof body === "object" ? body as HubIdentityBody : {};
+  const hub = response.hub;
+  if (
+    response.ok !== true ||
+    hub?.schemaVersion !== 1 ||
+    hub.algorithm !== "Ed25519" ||
+    typeof hub.hubId !== "string" ||
+    !/^cc_hub_[A-Za-z0-9_-]{43}$/.test(hub.hubId) ||
+    typeof hub.publicKey !== "string" ||
+    hub.publicKey.length > 512 ||
+    typeof hub.publicKeyFingerprint !== "string" ||
+    !/^[A-Za-z0-9_-]{43}$/.test(hub.publicKeyFingerprint) ||
+    !validTimestamp(hub.createdAt)
+  ) {
+    throw new DeviceAgentProtocolError(
+      502,
+      "DEVICE_AGENT_HUB_IDENTITY_INVALID",
+      "Hub returned an invalid public identity"
+    );
   }
-}
-
-function apiProblem(statusCode: number, body: unknown): DeviceAgentProtocolError {
-  const candidate = body && typeof body === "object" ? (body as ApiProblemBody) : {};
-  const code = typeof candidate.error?.code === "string"
-    ? candidate.error.code
-    : "DEVICE_AGENT_HUB_ERROR";
-  const message = typeof candidate.error?.message === "string"
-    ? candidate.error.message
-    : `Hub device protocol request failed with HTTP ${statusCode}`;
-  return new DeviceAgentProtocolError(statusCode, code, message);
-}
-
-function endpoint(state: DeviceAgentStateRecord, pathname: string): URL {
-  return new URL(pathname, `${state.hubOrigin}/`);
+  return {
+    hubOrigin: origin,
+    hubId: hub.hubId,
+    publicKeySpki: hub.publicKey,
+    publicKeyFingerprint: hub.publicKeyFingerprint
+  };
 }
 
 function pendingFromPoll(poll: DeviceAgentEnrollmentPoll): DeviceAgentPendingEnrollment {
@@ -244,14 +297,15 @@ function pendingFromPoll(poll: DeviceAgentEnrollmentPoll): DeviceAgentPendingEnr
 
 export class DeviceAgentService {
   private readonly runtimeDir: string;
-  private readonly fetchImpl: FetchLike;
+  private readonly transport: DeviceAgentTransport;
   private readonly sleep: SleepLike;
   private readonly now: () => string;
   private readonly random: () => number;
+  private readonly verifiedHubOrigins = new Set<string>();
 
   constructor(options: DeviceAgentServiceOptions) {
     this.runtimeDir = options.runtimeDir;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.transport = options.transport ?? new HttpDeviceAgentTransport({ fetchImpl: options.fetchImpl });
     this.sleep = options.sleep ?? defaultSleep;
     this.now = options.now ?? (() => new Date().toISOString());
     this.random = options.random ?? Math.random;
@@ -260,6 +314,75 @@ export class DeviceAgentService {
   status(): DeviceAgentStatus {
     const state = readDeviceAgentState(this.runtimeDir);
     return state ? projectDeviceAgentStatus(state) : { configured: false, state: "unconfigured" };
+  }
+
+  async verifyAndUseHubRoute(candidateOriginInput: string): Promise<DeviceAgentStatusProjection> {
+    const current = this.requireState();
+    if (current.revokedAt) {
+      throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked");
+    }
+    if (!current.deviceId) {
+      throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_NOT_CONNECTED", "Device Agent must be connected before changing Hub routes");
+    }
+    const candidateOrigin = normalizeDeviceHubOrigin(candidateOriginInput);
+    const pinned = current.hubId && current.hubPublicKeySpki && current.hubPublicKeyFingerprint
+      ? current
+      : await this.ensureHubIdentity(current);
+    if (!pinned.hubId || !pinned.hubPublicKeySpki || !pinned.hubPublicKeyFingerprint) {
+      throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_HUB_IDENTITY_MISSING", "Device Agent has no pinned Hub identity");
+    }
+
+    const identityBody = await this.transportCall(() => this.transport.getHubIdentity(candidateOrigin));
+    const observed = hubIdentityFromResponse(candidateOrigin, identityBody);
+    if (
+      observed.hubId !== pinned.hubId ||
+      observed.publicKeySpki !== pinned.hubPublicKeySpki ||
+      observed.publicKeyFingerprint !== pinned.hubPublicKeyFingerprint
+    ) {
+      throw new DeviceAgentProtocolError(
+        409,
+        "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
+        "Candidate route does not expose the pinned ChatCockpit Hub identity"
+      );
+    }
+
+    const nonce = crypto.randomBytes(18).toString("base64url");
+    const proofRaw = await this.transportCall(() => this.transport.proveHubIdentity(candidateOrigin, nonce));
+    const proof = proofRaw && typeof proofRaw === "object" ? proofRaw as HubIdentityProofBody : {};
+    if (
+      proof.ok !== true ||
+      proof.hubId !== pinned.hubId ||
+      proof.nonce !== nonce ||
+      typeof proof.signature !== "string"
+    ) {
+      throw new DeviceAgentProtocolError(
+        502,
+        "DEVICE_AGENT_HUB_ROUTE_PROOF_INVALID",
+        "Candidate route returned an invalid Hub identity proof"
+      );
+    }
+
+    let proofValid = false;
+    try {
+      proofValid = verifyHubIdentityProof(pinned.hubPublicKeySpki, nonce, proof.signature);
+    } catch {
+      proofValid = false;
+    }
+    if (!proofValid) {
+      throw new DeviceAgentProtocolError(
+        401,
+        "DEVICE_AGENT_HUB_ROUTE_PROOF_INVALID",
+        "Candidate route could not prove possession of the pinned Hub identity"
+      );
+    }
+
+    const updated = addVerifiedDeviceAgentHubOrigin(
+      this.runtimeDir,
+      observed,
+      this.now()
+    );
+    this.verifiedHubOrigins.add(candidateOrigin);
+    return projectDeviceAgentStatus(updated);
   }
 
   async startEnrollment(input: DeviceAgentConnectInput): Promise<DeviceAgentPendingEnrollment> {
@@ -274,10 +397,11 @@ export class DeviceAgentService {
     if (state.revokedAt) {
       throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked and cannot re-enroll automatically");
     }
-    if (state.deviceId) {
+    const verifiedState = await this.ensureHubIdentity(state);
+    if (verifiedState.deviceId) {
       throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_ALREADY_CONNECTED", "Device Agent is already connected to this Hub");
     }
-    if (state.enrollmentId) {
+    if (verifiedState.enrollmentId) {
       const existing = await this.pollEnrollment();
       if (existing.status === "pending") return pendingFromPoll(existing);
       if (existing.status === "approved") {
@@ -292,30 +416,24 @@ export class DeviceAgentService {
 
     const requestNonce = crypto.randomBytes(18).toString("base64url");
     const signature = sign(
-      state,
+      verifiedState,
       buildDeviceEnrollmentProof({
-        publicKey: state.publicKeySpki,
-        displayName: state.displayName,
-        platform: state.platform,
-        architecture: state.architecture,
+        publicKey: verifiedState.publicKeySpki,
+        displayName: verifiedState.displayName,
+        platform: verifiedState.platform,
+        architecture: verifiedState.architecture,
         requestNonce
       })
     );
-    const response = await this.requestJson(
-      state,
-      "/api/devices/enrollment-requests",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          displayName: state.displayName,
-          platform: state.platform,
-          architecture: state.architecture,
-          publicKey: state.publicKeySpki,
-          requestNonce,
-          signature
-        })
-      }
+    const response = await this.transportCall(() =>
+      this.transport.createEnrollment(verifiedState.hubOrigin, {
+        displayName: verifiedState.displayName,
+        platform: verifiedState.platform,
+        architecture: verifiedState.architecture,
+        publicKey: verifiedState.publicKeySpki,
+        requestNonce,
+        signature
+      })
     ) as EnrollmentCreateBody;
     const enrollment = response.enrollment;
     const enrollmentId = requiredEnrollmentId(enrollment?.id);
@@ -334,23 +452,18 @@ export class DeviceAgentService {
   }
 
   async pollEnrollment(): Promise<DeviceAgentEnrollmentPoll> {
-    const state = this.requireState();
-    if (state.revokedAt) {
+    const current = this.requireState();
+    if (current.revokedAt) {
       throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked");
     }
+    const state = await this.ensureHubIdentity(current);
     if (!state.enrollmentId) {
       throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_ENROLLMENT_MISSING", "Device Agent has no pending enrollment request");
     }
     const enrollmentId = state.enrollmentId;
     const signature = sign(state, buildDeviceEnrollmentStatusProof(enrollmentId));
-    const response = await this.requestJson(
-      state,
-      `/api/devices/enrollment-requests/${encodeURIComponent(enrollmentId)}/status`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ signature })
-      }
+    const response = await this.transportCall(() =>
+      this.transport.pollEnrollment(state.hubOrigin, enrollmentId, { signature })
     ) as EnrollmentStatusBody;
     const enrollment = response.enrollment;
     const responseId = requiredEnrollmentId(enrollment?.id);
@@ -378,6 +491,7 @@ export class DeviceAgentService {
     let deviceId: string | null = null;
     if (status === "approved") {
       deviceId = requiredDeviceId(enrollment?.deviceId);
+      await this.ensureHubIdentity(this.requireState(), true);
       completeDeviceAgentEnrollment(this.runtimeDir, deviceId, this.now());
     } else if (status === "denied" || status === "expired") {
       clearDeviceAgentPendingEnrollment(this.runtimeDir, this.now());
@@ -408,7 +522,8 @@ export class DeviceAgentService {
     if (state.revokedAt) {
       throw new DeviceAgentProtocolError(401, "DEVICE_AGENT_REVOKED", "Device Agent identity is revoked and requires explicit reset/re-authorization");
     }
-    if (state.deviceId) return projectDeviceAgentStatus(state);
+    const verifiedState = await this.ensureHubIdentity(state);
+    if (verifiedState.deviceId) return projectDeviceAgentStatus(verifiedState);
 
     let pending: DeviceAgentPendingEnrollment;
     if (state.enrollmentId) {
@@ -456,18 +571,17 @@ export class DeviceAgentService {
     if (!current.deviceId) {
       throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_NOT_CONNECTED", "Device Agent is not connected");
     }
+    await this.ensureHubIdentity(current);
     const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
     const signature = sign(state, buildDeviceHeartbeatProof(current.deviceId, sequence));
     let response: HeartbeatBody;
     try {
-      response = await this.requestJson(
-        state,
-        "/api/devices/heartbeat",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ deviceId: current.deviceId, sequence, signature })
-        }
+      response = await this.transportCall(() =>
+        this.transport.heartbeat(state.hubOrigin, {
+          deviceId: current.deviceId,
+          sequence,
+          signature
+        })
       ) as HeartbeatBody;
     } catch (error) {
       if (
@@ -487,6 +601,143 @@ export class DeviceAgentService {
       throw new DeviceAgentProtocolError(502, "DEVICE_AGENT_RESPONSE_INVALID", "Hub returned an invalid heartbeat acknowledgement");
     }
     return projectDeviceAgentStatus(markDeviceAgentHeartbeatAccepted(this.runtimeDir, this.now()));
+  }
+
+  async runOutboundChannelLoop(
+    options: DeviceAgentChannelLoopOptions = {}
+  ): Promise<DeviceAgentStatusProjection> {
+    let latest = this.requireConnectedStatus();
+    let retryAttempt = 0;
+
+    while (true) {
+      if (options.signal?.aborted) return latest;
+      let connection: DeviceAgentChannelConnection | null = null;
+      try {
+        const current = this.requireState();
+        if (current.revokedAt || !current.deviceId) {
+          throw new DeviceAgentProtocolError(409, "DEVICE_AGENT_NOT_CONNECTED", "Device Agent is not connected");
+        }
+        const verified = await this.ensureHubIdentity(current);
+        const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
+        const channelNonce = crypto.randomBytes(18).toString("base64url");
+        const signature = sign(
+          state,
+          buildDeviceChannelOpenProof(current.deviceId, sequence, channelNonce)
+        );
+        connection = await this.transportCall(() =>
+          this.transport.openChannel(verified.hubOrigin, {
+            deviceId: current.deviceId!,
+            sequence,
+            channelNonce,
+            signature,
+            signal: options.signal
+          })
+        );
+
+        let readySeen = false;
+        let serverShutdown = false;
+        for await (const event of connection.events) {
+          if (options.signal?.aborted) return latest;
+          if (!readySeen) {
+            if (
+              event.type !== "channel.ready" ||
+              event.deviceId !== current.deviceId ||
+              event.acceptedSequence !== sequence ||
+              event.protocolVersion !== 1
+            ) {
+              throw new DeviceAgentProtocolError(
+                502,
+                "DEVICE_AGENT_CHANNEL_INVALID",
+                "Hub device channel did not begin with the expected ready event"
+              );
+            }
+            readySeen = true;
+            retryAttempt = 0;
+            latest = this.requireConnectedStatus();
+            await options.onEvent?.(event);
+            continue;
+          }
+
+          await options.onEvent?.(event);
+          if (event.type === "channel.close") {
+            if (event.reason === "revoked") {
+              markDeviceAgentRevoked(this.runtimeDir, this.now());
+              throw new DeviceAgentProtocolError(
+                401,
+                "DEVICE_AGENT_REVOKED",
+                "Device Agent identity was revoked by the Hub"
+              );
+            }
+            if (event.reason === "superseded") {
+              throw new DeviceAgentProtocolError(
+                409,
+                "DEVICE_AGENT_CHANNEL_SUPERSEDED",
+                "Device Agent channel was superseded by another connection"
+              );
+            }
+            serverShutdown = true;
+            break;
+          }
+        }
+
+        if (options.signal?.aborted) return latest;
+        if (!readySeen) {
+          throw new DeviceAgentProtocolError(
+            null,
+            "DEVICE_AGENT_CHANNEL_NETWORK_ERROR",
+            "Device Agent channel ended before becoming ready"
+          );
+        }
+        throw new DeviceAgentProtocolError(
+          serverShutdown ? 503 : null,
+          serverShutdown ? "DEVICE_AGENT_CHANNEL_CLOSED" : "DEVICE_AGENT_CHANNEL_NETWORK_ERROR",
+          serverShutdown
+            ? "ChatCockpit Hub closed the device channel for restart"
+            : "Device Agent channel disconnected"
+        );
+      } catch (error) {
+        if (options.signal?.aborted) return this.requireConnectedStatus();
+        const protocolError = error instanceof DeviceAgentProtocolError
+          ? error
+          : new DeviceAgentProtocolError(
+              null,
+              "DEVICE_AGENT_RUNTIME_ERROR",
+              error instanceof Error ? error.message : String(error)
+            );
+        if (
+          protocolError.statusCode === 401 &&
+          protocolError.code === "DEVICE_NOT_TRUSTED"
+        ) {
+          markDeviceAgentRevoked(this.runtimeDir, this.now());
+        }
+        if (!isRetryableDeviceAgentError(protocolError)) throw protocolError;
+
+        retryAttempt += 1;
+        const exponential = Math.min(
+          DEVICE_AGENT_RETRY_MAX_MS,
+          DEVICE_AGENT_RETRY_BASE_MS * 2 ** Math.min(retryAttempt - 1, 10)
+        );
+        const randomValue = this.random();
+        const boundedRandom = Number.isFinite(randomValue)
+          ? Math.min(1, Math.max(0, randomValue))
+          : 0.5;
+        const delayMs = Math.max(1, Math.round(exponential * (0.8 + boundedRandom * 0.4)));
+        await options.onRetry?.({ attempt: retryAttempt, delayMs, error: protocolError });
+        try {
+          await this.sleep(delayMs, options.signal);
+        } catch (sleepError) {
+          if (
+            options.signal?.aborted ||
+            (sleepError instanceof DeviceAgentProtocolError && sleepError.code === "DEVICE_AGENT_ABORTED")
+          ) {
+            return this.requireConnectedStatus();
+          }
+          throw sleepError;
+        }
+      } finally {
+        connection?.close();
+      }
+    }
   }
 
   async runHeartbeatLoop(options: DeviceAgentLoopOptions = {}): Promise<DeviceAgentStatusProjection> {
@@ -520,11 +771,7 @@ export class DeviceAgentService {
               "DEVICE_AGENT_RUNTIME_ERROR",
               error instanceof Error ? error.message : String(error)
             );
-        const retryable =
-          protocolError.code === "DEVICE_AGENT_NETWORK_ERROR" ||
-          protocolError.statusCode === 429 ||
-          (protocolError.statusCode !== null && protocolError.statusCode >= 500);
-        if (!retryable) throw protocolError;
+        if (!isRetryableDeviceAgentError(protocolError)) throw protocolError;
 
         retryAttempt += 1;
         const exponential = Math.min(
@@ -582,34 +829,37 @@ export class DeviceAgentService {
     return projectDeviceAgentStatus(state);
   }
 
-  private async requestJson(
+  private async ensureHubIdentity(
     state: DeviceAgentStateRecord,
-    pathname: string,
-    init: RequestInit
-  ): Promise<unknown> {
-    let response: Response;
-    try {
-      response = await this.fetchImpl(endpoint(state, pathname), {
-        ...init,
-        redirect: "manual",
-        headers: {
-          accept: "application/json",
-          ...(init.headers ?? {})
-        }
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new DeviceAgentProtocolError(null, "DEVICE_AGENT_NETWORK_ERROR", `Unable to reach ChatCockpit Hub: ${message}`);
+    force = false
+  ): Promise<DeviceAgentStateRecord> {
+    const origin = state.hubOrigin;
+    if (!force && this.verifiedHubOrigins.has(origin) && state.hubId) {
+      return state;
     }
-    if (isRedirect(response.status)) {
+    const body = await this.transportCall(() => this.transport.getHubIdentity(origin));
+    const observed = hubIdentityFromResponse(origin, body);
+    try {
+      const pinned = pinDeviceAgentHubIdentity(this.runtimeDir, observed, this.now());
+      this.verifiedHubOrigins.add(origin);
+      return pinned;
+    } catch (error) {
       throw new DeviceAgentProtocolError(
-        response.status,
-        "DEVICE_AGENT_REDIRECT_REJECTED",
-        "Device protocol redirects are not followed automatically"
+        409,
+        "DEVICE_AGENT_HUB_IDENTITY_MISMATCH",
+        error instanceof Error ? error.message : "Observed Hub identity does not match the pinned Hub"
       );
     }
-    const body = await parseResponseJson(response);
-    if (!response.ok) throw apiProblem(response.status, body);
-    return body;
+  }
+
+  private async transportCall<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof DeviceAgentTransportError) {
+        throw new DeviceAgentProtocolError(error.statusCode, error.code, error.message);
+      }
+      throw error;
+    }
   }
 }

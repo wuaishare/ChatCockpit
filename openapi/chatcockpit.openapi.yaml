@@ -289,6 +289,33 @@ components:
               type: boolean
           required: [configured]
       required: [ok, localCockpitUrl, publicCockpitUrl, localApiBaseUrl, publicApiBaseUrl, openapiUrl, lanAccess, mcp, machineApi]
+    HubIdentitySummary:
+      type: object
+      additionalProperties: false
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        hubId: { type: string, pattern: '^cc_hub_[A-Za-z0-9_-]{43}$' }
+        algorithm: { type: string, const: Ed25519 }
+        publicKey: { type: string, description: Base64url DER-encoded Ed25519 SPKI public key. }
+        publicKeyFingerprint: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        createdAt: { type: string }
+      required: [schemaVersion, hubId, algorithm, publicKey, publicKeyFingerprint, createdAt]
+    HubIdentityResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        hub: { $ref: '#/components/schemas/HubIdentitySummary' }
+      required: [ok, hub]
+    HubIdentityProofResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        hubId: { type: string, pattern: '^cc_hub_[A-Za-z0-9_-]{43}$' }
+        nonce: { type: string, minLength: 16, maxLength: 128 }
+        signature: { type: string, description: Base64url Ed25519 signature over the canonical Hub identity proof. }
+      required: [ok, hubId, nonce, signature]
     ManagedDeviceSummary:
       type: object
       additionalProperties: false
@@ -6151,6 +6178,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/hub/identity:
+    get:
+      operationId: getHubIdentity
+      summary: Get the public Hub identity
+      description: Returns the stable public Ed25519 identity of this ChatCockpit Hub. The private key, device credentials, network routes and Owner authentication state are never returned.
+      security: []
+      responses:
+        "200":
+          description: Public Hub identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HubIdentityResponse'
+  /api/hub/identity/proof:
+    post:
+      operationId: proveHubIdentity
+      summary: Prove possession of the Hub identity key
+      description: Signs a bounded caller nonce with the stable Hub Ed25519 identity. Enrolled Agents use this proof to verify that a candidate TLS route reaches the same pinned Hub.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nonce: { type: string, minLength: 16, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+              required: [nonce]
+      responses:
+        "200":
+          description: Signed Hub identity proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HubIdentityProofResponse'
+        "400":
+          description: Invalid proof nonce
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/devices:
     get:
       operationId: listManagedDevices
@@ -6396,6 +6465,55 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "409":
           description: Heartbeat sequence replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/channel:
+    get:
+      operationId: openDeviceOutboundChannel
+      summary: Open an authenticated persistent outbound Device Agent channel
+      description: Device-protocol SSE endpoint opened outbound by an enrolled Agent. Uses a device ID, heartbeat-shared monotonic sequence, random nonce, and Ed25519 proof. One primary channel is active per device; newer valid connections supersede older ones. Events are transport-only and do not execute commands.
+      security: []
+      parameters:
+        - name: x-chatcockpit-device-id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-channel-sequence
+          in: header
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: x-chatcockpit-channel-nonce
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+        - name: x-chatcockpit-channel-signature
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Long-lived Server-Sent Events device channel
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Bounded SSE frames carrying channel.ready, channel.ping, or channel.close events.
+        "400":
+          description: Invalid channel authentication payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Unknown, revoked, or invalidly signed device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        "409":
+          description: Channel sequence replayed
           content:
             application/json:
               schema:

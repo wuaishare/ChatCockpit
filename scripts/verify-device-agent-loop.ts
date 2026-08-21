@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -20,6 +21,27 @@ function jsonResponse(status: number, body: unknown): Response {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+const { publicKey: hubPublicKey } = crypto.generateKeyPairSync("ed25519");
+const hubPublicDer = hubPublicKey.export({ format: "der", type: "spki" }) as Buffer;
+const hubPublicKeySpki = hubPublicDer.toString("base64url");
+const hubPublicKeyFingerprint = crypto.createHash("sha256").update(hubPublicDer).digest("base64url");
+const hubIdentityResponse = {
+  ok: true,
+  hub: {
+    schemaVersion: 1,
+    hubId: `cc_hub_${hubPublicKeyFingerprint}`,
+    algorithm: "Ed25519",
+    publicKey: hubPublicKeySpki,
+    publicKeyFingerprint: hubPublicKeyFingerprint,
+    createdAt: "2026-08-21T10:59:00.000Z"
+  }
+};
+
+function isHubIdentityRequest(input: string | URL | Request): boolean {
+  const raw = input instanceof Request ? input.url : String(input);
+  return new URL(raw).pathname === "/api/hub/identity";
 }
 
 function connectedRuntime(root: string, name: string): string {
@@ -59,7 +81,8 @@ try {
         throw new DeviceAgentProtocolError(null, "DEVICE_AGENT_ABORTED", "cancelled");
       }
     },
-    fetchImpl: async (_input, init) => {
+    fetchImpl: async (input, init) => {
+      if (isHubIdentityRequest(input)) return jsonResponse(200, hubIdentityResponse);
       fetchCount += 1;
       const body = JSON.parse(String(init?.body ?? "{}")) as { deviceId: string; sequence: number };
       sequences.push(body.sequence);
@@ -94,10 +117,12 @@ try {
   const replayAgent = new DeviceAgentService({
     runtimeDir: replayRuntime,
     sleep: async () => undefined,
-    fetchImpl: async () => jsonResponse(409, {
-      ok: false,
-      error: { code: "DEVICE_HEARTBEAT_REPLAYED", message: "sequence already consumed" }
-    })
+    fetchImpl: async (input) => isHubIdentityRequest(input)
+      ? jsonResponse(200, hubIdentityResponse)
+      : jsonResponse(409, {
+          ok: false,
+          error: { code: "DEVICE_HEARTBEAT_REPLAYED", message: "sequence already consumed" }
+        })
   });
   await assert.rejects(
     replayAgent.runHeartbeatLoop({
@@ -115,10 +140,12 @@ try {
   const revokedAgent = new DeviceAgentService({
     runtimeDir: revokedRuntime,
     sleep: async () => undefined,
-    fetchImpl: async () => jsonResponse(401, {
-      ok: false,
-      error: { code: "DEVICE_NOT_TRUSTED", message: "unknown or revoked" }
-    })
+    fetchImpl: async (input) => isHubIdentityRequest(input)
+      ? jsonResponse(200, hubIdentityResponse)
+      : jsonResponse(401, {
+          ok: false,
+          error: { code: "DEVICE_NOT_TRUSTED", message: "unknown or revoked" }
+        })
   });
   await assert.rejects(
     revokedAgent.runHeartbeatLoop({ intervalMs: DEVICE_AGENT_MIN_INTERVAL_MS }),

@@ -211,7 +211,24 @@ async function main(): Promise<void> {
     const heartbeat = parseJson(heartbeatOutput.stdout);
     assert.equal(Number(heartbeat.nextSequence), nextBeforeHeartbeat + 1);
 
-    const agent = await runCliAsync(home, ["device", "agent", "--interval", "5", "--json"]);
+    const alternateHubOrigin = `http://localhost:${address.port}`;
+    const routeExecution = await runCliAsync(home, [
+      "device",
+      "route",
+      "verify",
+      alternateHubOrigin,
+      "--json"
+    ]);
+    const routeExit = await waitForCliExit(routeExecution, "device route verify");
+    const routeOutput = routeExecution.output();
+    assert.equal(routeExit.code, 0, routeOutput.stderr);
+    const routed = parseJson(routeOutput.stdout);
+    assert.equal(routed.hubOrigin, alternateHubOrigin);
+    assert.deepEqual(routed.knownHubOrigins, [hubOrigin, alternateHubOrigin]);
+    assert.equal(routed.deviceId, connected.deviceId);
+    assert.equal(Number(routed.nextSequence), Number(heartbeat.nextSequence));
+
+    const agent = await runCliAsync(home, ["device", "agent", "--json"]);
     await waitFor(async () => {
       const list = await app.inject({ method: "GET", url: "/api/devices", headers: { cookie } });
       const devices = (list.json() as { devices: Array<{ id: string; revision: number }> }).devices;
@@ -222,6 +239,7 @@ async function main(): Promise<void> {
     const agentExit = await waitForCliExit(agent, "device agent shutdown");
     const agentOutput = agent.output();
     assert.equal(agentExit.code, 0, agentOutput.stderr);
+    assert.doesNotMatch(agentOutput.stderr, /compatibility-mode|Deprecated:/i);
     const finalAgentStatus = parseJson(agentOutput.stdout);
     assert.equal(finalAgentStatus.deviceId, connected.deviceId);
 
@@ -232,6 +250,10 @@ async function main(): Promise<void> {
     const insecureHome = path.join(root, "insecure-home");
     fs.mkdirSync(insecureHome, { recursive: true });
     result = runCli(insecureHome, ["device", "connect", "http://hub.example.com", "--json"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /HTTPS/i);
+
+    result = runCli(home, ["device", "route", "verify", "http://hub.example.com", "--json"]);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /HTTPS/i);
 
