@@ -1686,6 +1686,7 @@ export class HostProcessService {
       requestId: `host-process-internal:${processId}`,
       actorType: "local-cli",
       actorId: null,
+      authorizationGrantId: null,
       publicProjection: false,
       now
     };

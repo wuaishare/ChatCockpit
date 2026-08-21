@@ -486,6 +486,34 @@ async function main(): Promise<void> {
     };
     assert.equal(firstTaskResult.structuredContent?.task?.id, taskCreated.task.id);
 
+    const unauthorizedRemoteTarget = `cc_device_${"Z".repeat(24)}`;
+    const deniedRemoteCapability = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 109,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.capabilities.list",
+        arguments: { targetDevice: unauthorizedRemoteTarget }
+      }
+    });
+    assert.equal(deniedRemoteCapability.response.status, 200);
+    const deniedRemoteCapabilityResult = deniedRemoteCapability.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { deviceId?: string } };
+      };
+    };
+    assert.equal(deniedRemoteCapabilityResult.isError, true);
+    assert.equal(
+      deniedRemoteCapabilityResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED",
+      "OAuth device authority must be checked before target lookup or RPC dispatch"
+    );
+    assert.equal(
+      deniedRemoteCapabilityResult.structuredContent?.error?.details?.deviceId,
+      unauthorizedRemoteTarget
+    );
+
     const policyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
     const activeGrantId = policyStore.findActiveAccessToken(
       tokens.access_token,
@@ -497,6 +525,23 @@ async function main(): Promise<void> {
       true
     );
     policyStore.close();
+
+    const targetsWithoutLocalAccess = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 110,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.targets.list",
+        arguments: {}
+      }
+    });
+    assert.equal(targetsWithoutLocalAccess.response.status, 200);
+    const targetListResult = targetsWithoutLocalAccess.message.result as {
+      isError?: boolean;
+      structuredContent?: { targets?: Array<{ id?: string }> };
+    };
+    assert.equal(targetListResult.isError, undefined);
+    assert.deepEqual(targetListResult.structuredContent?.targets, []);
 
     const deniedTaskRead = await postMcp(server.baseUrl, tokens.access_token, {
       jsonrpc: "2.0",

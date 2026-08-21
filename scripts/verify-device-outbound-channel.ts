@@ -179,6 +179,11 @@ try {
     assert.equal(ready1.protocolVersion, 1);
   }
   assert.equal(channelHub.isActive(deviceId), true);
+  assert.equal(
+    channelHub.isCapabilityRpcAvailable(deviceId),
+    false,
+    "v1 compatibility channel must remain presence-only"
+  );
   await nextEventOfType(iterator1, "channel.ping");
 
   currentNow = "2026-08-21T19:05:00.000Z";
@@ -188,9 +193,14 @@ try {
     headers: { cookie }
   });
   const activeProjection = (listedWhileChannelActive.json() as {
-    devices: Array<{ id: string; presence: string }>;
+    devices: Array<{ id: string; presence: string; management: { remoteRead?: boolean } }>;
   }).devices.find((device) => device.id === deviceId);
   assert.equal(activeProjection?.presence, "online", "active outbound channel must keep presence online");
+  assert.equal(
+    activeProjection?.management.remoteRead,
+    false,
+    "v1 presence channel must report that remote reads require an Agent update"
+  );
 
   const nonce2 = crypto.randomBytes(18).toString("base64url");
   const channel2 = await transport.openChannel(origin, {
@@ -205,6 +215,7 @@ try {
   const superseded = await nextEventOfType(iterator1, "channel.close");
   assert.deepEqual(superseded, { type: "channel.close", reason: "superseded" });
   assert.equal(channelHub.isActive(deviceId), true);
+  assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), false);
 
   await assert.rejects(
     transport.openChannel(origin, {

@@ -107,6 +107,13 @@ export function DevicesView({ locale }: DevicesViewProps) {
     return { label: copy.offline, color: "warning" as const };
   };
 
+  const remoteReadLabel = (device: ManagedDeviceSummary) => {
+    if (device.management.remoteRead) return copy.remoteReadReady;
+    return device.presence === "online"
+      ? copy.remoteReadAgentUpdate
+      : copy.remoteReadOffline;
+  };
+
   return (
     <div className="view-stack">
       <SectionCard
@@ -175,8 +182,8 @@ export function DevicesView({ locale }: DevicesViewProps) {
                       <span>{copy.management}</span>
                       <strong>
                         {device.management.heartbeat ? copy.presenceReady : copy.localPresence}
-                        {device.locality === "remote" && !device.management.remoteControl
-                          ? ` · ${copy.remoteControlPending}`
+                        {device.locality === "remote"
+                          ? ` · ${remoteReadLabel(device)} · ${copy.remoteControlPending}`
                           : ""}
                       </strong>
                     </div>

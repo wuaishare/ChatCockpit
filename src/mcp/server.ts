@@ -14,6 +14,7 @@ import type { HostDirectService } from "../application/host-direct-service.js";
 import type { HostMutationService } from "../application/host-mutation-service.js";
 import type { HostProcessService } from "../application/host-process-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
+import type { DeviceTargetService } from "../application/device-target-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import type { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -24,13 +25,14 @@ import type { RuntimeRecoveryServices } from "../application/runtime-recovery-se
 import type { RuntimeResourceMutationService } from "../application/runtime-resource-mutation-service.js";
 import type { RuntimeResourceServices } from "../application/runtime-resource-services.js";
 import { productIdentityForKey } from "../core/product-identity.js";
-import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import type { TokenPilotPaths } from "../types.js";
+import { resolveMcpToolDeviceTarget } from "./device-target-policy.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
 import { projectMcpToolsForProduct } from "./product-tool-identity.js";
 import { buildCapabilityRouterMcpTools, type CapabilityRouterMcpServices } from "./tools/capability-router.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
+import { buildDeviceTargetMcpTools } from "./tools/device-targets.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
 import { buildRuntimeRecoveryMcpTools } from "./tools/recovery.js";
@@ -95,6 +97,7 @@ export function buildTokenPilotMcpToolCatalog(
   runtimeRecoveryServices: RuntimeRecoveryServices,
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
+  deviceTargetService: DeviceTargetService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null
 ) {
   const identity = productIdentityForKey(paths.productIdentity);
@@ -104,6 +107,7 @@ export function buildTokenPilotMcpToolCatalog(
       identity.defaultRepoId
     ),
     ...buildCapabilityRouterMcpTools(capabilityRouterServices),
+    ...buildDeviceTargetMcpTools(deviceTargetService),
     ...buildHostMutationTools(hostMutation),
     ...buildHostCommandTools(hostCommand),
     ...buildHostProcessTools(hostProcess),
@@ -169,6 +173,7 @@ export function buildTokenPilotMcpHandler(
   runtimeRecoveryServices: RuntimeRecoveryServices,
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
+  deviceTargetService: DeviceTargetService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
   onerror?: (error: Error) => void
@@ -190,6 +195,7 @@ export function buildTokenPilotMcpHandler(
     runtimeRecoveryServices,
     runtimeResourceServices,
     capabilityRouterServices,
+    deviceTargetService,
     runtimeResourceMutationService
   );
 
@@ -203,21 +209,26 @@ export function buildTokenPilotMcpHandler(
       registerMcpTools(
         server as unknown as McpToolRegistrar,
         tools,
-        (toolName) =>
-          buildOperationContext({
+        (toolName) => {
+          const authorizationGrantId = authorizationGrantIdFromRequestContext(requestContext);
+          return buildOperationContext({
             actorType: "remote-mcp",
             actorId: actorIdFromRequestContext(requestContext),
+            authorizationGrantId,
             requestId: requestIdFromContext(requestContext, toolName),
             publicProjection: true
-          }),
-        () => {
+          });
+        },
+        (toolName, input) => {
           const grantId = authorizationGrantIdFromRequestContext(requestContext);
           if (!grantId) return null;
+          const targetDeviceId = resolveMcpToolDeviceTarget(toolName, input);
+          if (!targetDeviceId) return null;
           if (
             !deviceAccessAuthorizer ||
-            !deviceAccessAuthorizer.allowsDevice(grantId, LOCAL_DEVICE_TARGET_ID)
+            !deviceAccessAuthorizer.allowsDevice(grantId, targetDeviceId)
           ) {
-            return deviceAccessDeniedResult(LOCAL_DEVICE_TARGET_ID);
+            return deviceAccessDeniedResult(targetDeviceId);
           }
           return null;
         }

@@ -4,7 +4,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { Readable } from "node:stream";
 
 export const DEVICE_AGENT_TRANSPORT_MAX_JSON_BYTES = 64 * 1024;
-export const DEVICE_AGENT_CHANNEL_MAX_EVENT_BYTES = 16 * 1024;
+export const DEVICE_AGENT_CHANNEL_MAX_EVENT_BYTES = 72 * 1024;
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -126,8 +126,27 @@ export interface DeviceAgentChannelOpenInput {
   deviceId: string;
   sequence: number;
   channelNonce: string;
+  protocolVersion?: 1 | 2;
   signature: string;
   signal?: AbortSignal;
+}
+
+export interface DeviceAgentChannelResultInput {
+  deviceId: string;
+  channelId: string;
+  sequence: number;
+  body:
+    | {
+        requestId: string;
+        outcome: "ok";
+        result: unknown;
+      }
+    | {
+        requestId: string;
+        outcome: "error";
+        error: { code: string; message: string };
+      };
+  signature: string;
 }
 
 export type DeviceAgentChannelEvent =
@@ -136,7 +155,16 @@ export type DeviceAgentChannelEvent =
       channelId: string;
       deviceId: string;
       acceptedSequence: number;
+      protocolVersion: 1 | 2;
+    }
+  | {
+      type: "capability.request";
       protocolVersion: 1;
+      requestId: string;
+      operation: "capabilities.list" | "capabilities.inspect" | "capabilities.read.invoke";
+      issuedAt: string;
+      expiresAt: string;
+      payload: unknown;
     }
   | { type: "channel.ping"; at: string }
   | { type: "channel.close"; reason: "superseded" | "revoked" | "server-shutdown" };
@@ -155,6 +183,10 @@ export interface DeviceAgentTransport {
   pollEnrollment(origin: string, enrollmentId: string, body: unknown): Promise<unknown>;
   heartbeat(origin: string, body: unknown): Promise<unknown>;
   openChannel(origin: string, input: DeviceAgentChannelOpenInput): Promise<DeviceAgentChannelConnection>;
+  submitChannelResult?(
+    origin: string,
+    input: DeviceAgentChannelResultInput
+  ): Promise<{ ok: true; acceptedSequence: number }>;
 }
 
 interface ApiProblemBody {
@@ -250,7 +282,7 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       !/^cc_device_[A-Za-z0-9_-]{20,80}$/.test(data.deviceId) ||
       !Number.isSafeInteger(data.acceptedSequence) ||
       Number(data.acceptedSequence) <= 0 ||
-      data.protocolVersion !== 1
+      (data.protocolVersion !== 1 && data.protocolVersion !== 2)
     ) {
       throw channelProtocolError("Hub returned an invalid channel.ready event");
     }
@@ -259,7 +291,33 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       channelId: data.channelId,
       deviceId: data.deviceId,
       acceptedSequence: Number(data.acceptedSequence),
-      protocolVersion: 1
+      protocolVersion: data.protocolVersion
+    };
+  }
+  if (eventName === "capability.request") {
+    if (
+      data.protocolVersion !== 1 ||
+      typeof data.requestId !== "string" ||
+      !/^cc_device_request_[A-Za-z0-9_-]{20,80}$/.test(data.requestId) ||
+      (data.operation !== "capabilities.list" &&
+        data.operation !== "capabilities.inspect" &&
+        data.operation !== "capabilities.read.invoke") ||
+      typeof data.issuedAt !== "string" ||
+      Number.isNaN(Date.parse(data.issuedAt)) ||
+      typeof data.expiresAt !== "string" ||
+      Number.isNaN(Date.parse(data.expiresAt)) ||
+      !("payload" in data)
+    ) {
+      throw channelProtocolError("Hub returned an invalid capability.request event");
+    }
+    return {
+      type: "capability.request",
+      protocolVersion: 1,
+      requestId: data.requestId,
+      operation: data.operation,
+      issuedAt: data.issuedAt,
+      expiresAt: data.expiresAt,
+      payload: data.payload
     };
   }
   if (eventName === "channel.ping") {
@@ -426,6 +484,9 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
           "x-chatcockpit-device-id": input.deviceId,
           "x-chatcockpit-channel-sequence": String(input.sequence),
           "x-chatcockpit-channel-nonce": input.channelNonce,
+          ...(input.protocolVersion === undefined
+            ? {}
+            : { "x-chatcockpit-channel-protocol": String(input.protocolVersion) }),
           "x-chatcockpit-channel-signature": input.signature
         }
       });
@@ -471,6 +532,41 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
     return {
       events: readChannelEvents(response, controller, cleanupSignal),
       close: () => controller.abort()
+    };
+  }
+
+  async submitChannelResult(
+    origin: string,
+    input: DeviceAgentChannelResultInput
+  ): Promise<{ ok: true; acceptedSequence: number }> {
+    const response = await this.request(origin, "/api/devices/channel/results", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-chatcockpit-device-id": input.deviceId,
+        "x-chatcockpit-channel-id": input.channelId,
+        "x-chatcockpit-channel-sequence": String(input.sequence),
+        "x-chatcockpit-channel-signature": input.signature
+      },
+      body: JSON.stringify(input.body)
+    });
+    if (
+      !response ||
+      typeof response !== "object" ||
+      Array.isArray(response) ||
+      (response as Record<string, unknown>).ok !== true ||
+      !Number.isSafeInteger((response as Record<string, unknown>).acceptedSequence) ||
+      Number((response as Record<string, unknown>).acceptedSequence) <= 0
+    ) {
+      throw new DeviceAgentTransportError(
+        502,
+        "DEVICE_AGENT_RESPONSE_INVALID",
+        "Hub returned an invalid device capability result acknowledgement"
+      );
+    }
+    return {
+      ok: true,
+      acceptedSequence: Number((response as Record<string, unknown>).acceptedSequence)
     };
   }
 

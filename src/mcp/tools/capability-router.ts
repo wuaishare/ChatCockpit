@@ -2,6 +2,7 @@ import type { CapabilityRouterCatalogService } from "../../application/capabilit
 import type { CapabilityRouterReadInvocationService } from "../../application/capability-router-read-invocation-service.js";
 import type { CapabilityRouterMutationService } from "../../application/capability-router-mutation-service.js";
 import type { CapabilityRouterMutationPublicService } from "../../application/capability-router-mutation-public-service.js";
+import type { TargetedCapabilityRouterService } from "../../application/targeted-capability-router-service.js";
 import {
   capabilityRouterInspectSchema,
   capabilityRouterListSchema,
@@ -20,6 +21,7 @@ import {
 export interface CapabilityRouterMcpServices {
   catalog: CapabilityRouterCatalogService;
   reads: CapabilityRouterReadInvocationService;
+  targeted?: TargetedCapabilityRouterService;
   mutations: CapabilityRouterMutationService;
   publicMutations: CapabilityRouterMutationPublicService;
 }
@@ -56,7 +58,10 @@ export function buildCapabilityRouterMcpTools(
         "List the public-safe stable Capability Router catalog for explicitly exposed downstream providers and tools. Provider-native tool names are returned as data only and never become dynamic ChatCockpit MCP tool definitions.",
       inputSchema: capabilityRouterListSchema,
       annotations: readOnlyToolAnnotations,
-      handler: (_context, input) => services.catalog.list(input),
+      handler: (context, input) =>
+        services.targeted
+          ? services.targeted.list(context, input)
+          : services.catalog.list(input),
     }),
     defineMcpTool({
       name: "chatcockpit.capabilities.inspect",
@@ -65,7 +70,10 @@ export function buildCapabilityRouterMcpTools(
         "Inspect bounded metadata for one explicitly exposed provider-native tool, including its captured input/output schema and safety annotations when available. Transport commands, URLs, credentials, and private provider configuration are never projected.",
       inputSchema: capabilityRouterInspectSchema,
       annotations: readOnlyToolAnnotations,
-      handler: (_context, input) => services.catalog.inspect(input),
+      handler: (context, input) =>
+        services.targeted
+          ? services.targeted.inspect(context, input)
+          : services.catalog.inspect(input),
     }),
     defineMcpTool({
       name: "chatcockpit.capabilities.read.invoke",
@@ -74,7 +82,10 @@ export function buildCapabilityRouterMcpTools(
         "Invoke one explicitly exposed read-only provider-native tool through ChatCockpit. The current catalog, schema, exposure mode, and safety annotations are revalidated before the downstream call, and the result is projected into bounded public-safe text/structured content.",
       inputSchema: capabilityRouterReadInvokeSchema,
       annotations: readInvokeAnnotations,
-      handler: (_context, input) => services.reads.invoke(input),
+      handler: (context, input) =>
+        services.targeted
+          ? services.targeted.invokeRead(context, input)
+          : services.reads.invoke(input),
     }),
     defineMcpTool({
       name: "chatcockpit.capabilities.mutation.prepare",

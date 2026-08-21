@@ -52,7 +52,8 @@ function isDeviceProtocolPath(url: string, method: string): boolean {
   if (normalizedMethod !== "POST") return false;
   if (
     pathname === "/api/devices/enrollment-requests" ||
-    pathname === "/api/devices/heartbeat"
+    pathname === "/api/devices/heartbeat" ||
+    pathname === "/api/devices/channel/results"
   ) {
     return true;
   }

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 const identifierSchema = z.string().min(1).max(240);
+const targetDeviceSchema = z.union([
+  z.literal("local-device"),
+  z.string().regex(/^cc_device_[A-Za-z0-9_-]{20,80}$/)
+]);
 
 const idempotencyKeySchema = z
   .string()
@@ -15,12 +19,14 @@ const argumentsSchema = z
 
 export const capabilityRouterListSchema = z
   .object({
+    targetDevice: targetDeviceSchema.optional(),
     executorId: identifierSchema.optional()
   })
   .strict();
 
 export const capabilityRouterInspectSchema = z
   .object({
+    targetDevice: targetDeviceSchema.optional(),
     executorId: identifierSchema,
     toolName: identifierSchema
   })
@@ -28,6 +34,7 @@ export const capabilityRouterInspectSchema = z
 
 export const capabilityRouterReadInvokeSchema = z
   .object({
+    targetDevice: targetDeviceSchema.optional(),
     executorId: identifierSchema,
     toolName: identifierSchema,
     arguments: argumentsSchema

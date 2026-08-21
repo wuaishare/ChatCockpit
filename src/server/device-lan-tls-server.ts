@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import type { AccessPolicy } from "../security/access-policy.js";
 import type { DeviceChannelHub } from "../devices/device-channel.js";
+import { DeviceCapabilityRpc } from "../devices/device-capability-rpc.js";
 import type { DeviceRegistryStore } from "../devices/device-registry.js";
 import type { HubIdentityRecord } from "../devices/hub-identity.js";
 import type { LanTlsIdentityRecord } from "../devices/lan-tls-identity.js";
@@ -17,6 +18,7 @@ export interface DeviceLanTlsServerOptions {
   hubIdentity: HubIdentityRecord;
   deviceRegistryStore: DeviceRegistryStore;
   deviceChannelHub: DeviceChannelHub;
+  deviceCapabilityRpc?: DeviceCapabilityRpc;
   now?: () => string;
   pingIntervalMs?: number;
 }
@@ -35,6 +37,10 @@ export function buildDeviceLanTlsServer(
     }
   });
 
+  const capabilityRpc =
+    options.deviceCapabilityRpc ?? new DeviceCapabilityRpc(options.deviceChannelHub);
+  const ownsCapabilityRpc = options.deviceCapabilityRpc === undefined;
+
   registerAccessPolicyGate(app, options.policy);
   registerWebSecurityHeaders(app);
   registerHubIdentityRoutes(app, options.hubIdentity, {
@@ -47,11 +53,17 @@ export function buildDeviceLanTlsServer(
     app,
     options.deviceRegistryStore,
     options.deviceChannelHub,
+    capabilityRpc,
     {
       ...(options.now ? { now: options.now } : {}),
       ...(options.pingIntervalMs ? { pingIntervalMs: options.pingIntervalMs } : {})
     }
   );
+  if (ownsCapabilityRpc) {
+    app.addHook("onClose", async () => {
+      capabilityRpc.close();
+    });
+  }
 
   return app;
 }

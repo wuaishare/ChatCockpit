@@ -309,9 +309,84 @@ function heartbeatMessage(deviceId: string, sequence: number): Buffer {
   );
 }
 
-function channelOpenMessage(deviceId: string, sequence: number, channelNonce: string): Buffer {
+function channelOpenMessage(
+  deviceId: string,
+  sequence: number,
+  channelNonce: string,
+  protocolVersion: 1 | 2 = 1
+): Buffer {
+  if (protocolVersion === 1) {
+    return Buffer.from(
+      ["chatcockpit-device-channel-open-v1", deviceId, String(sequence), channelNonce].join("\n"),
+      "utf8"
+    );
+  }
   return Buffer.from(
-    ["chatcockpit-device-channel-open-v1", deviceId, String(sequence), channelNonce].join("\n"),
+    [
+      "chatcockpit-device-channel-open-v2",
+      deviceId,
+      String(sequence),
+      channelNonce,
+      String(protocolVersion)
+    ].join("\n"),
+    "utf8"
+  );
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(",")}}`;
+  }
+  throw new DeviceRegistryError(
+    400,
+    "DEVICE_CAPABILITY_RESULT_INVALID",
+    "Device capability result contains a non-JSON value"
+  );
+}
+
+function channelResultMessage(
+  deviceId: string,
+  channelId: string,
+  sequence: number,
+  body: { requestId: string }
+): Buffer {
+  if (!/^cc_channel_[A-Za-z0-9_-]{20,80}$/.test(channelId)) {
+    throw new DeviceRegistryError(400, "DEVICE_CHANNEL_ID_INVALID", "Device channel ID is invalid");
+  }
+  if (!/^cc_device_request_[A-Za-z0-9_-]{20,80}$/.test(body.requestId)) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_CAPABILITY_REQUEST_ID_INVALID",
+      "Device capability request ID is invalid"
+    );
+  }
+  const digest = crypto
+    .createHash("sha256")
+    .update(canonicalJson(body), "utf8")
+    .digest("base64url");
+  return Buffer.from(
+    [
+      "chatcockpit-device-channel-result-v1",
+      deviceId,
+      channelId,
+      String(sequence),
+      body.requestId,
+      digest
+    ].join("\n"),
     "utf8"
   );
 }
@@ -599,7 +674,13 @@ export class DeviceRegistryStore {
   }
 
   recordChannelOpen(
-    input: { deviceId: string; sequence: number; channelNonce: string; signature: string },
+    input: {
+      deviceId: string;
+      sequence: number;
+      channelNonce: string;
+      protocolVersion?: 1 | 2;
+      signature: string;
+    },
     now: string
   ): ManagedDeviceRecord {
     if (!Number.isSafeInteger(input.sequence) || input.sequence <= 0) {
@@ -610,6 +691,14 @@ export class DeviceRegistryStore {
       );
     }
     const channelNonce = normalizeChannelNonce(input.channelNonce);
+    const protocolVersion = input.protocolVersion ?? 1;
+    if (protocolVersion !== 1 && protocolVersion !== 2) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_CHANNEL_PROTOCOL_UNSUPPORTED",
+        "Device channel protocol version is unsupported"
+      );
+    }
     const row = this.sqlite.prepare(`
       SELECT * FROM managed_devices WHERE device_id = ?
     `).get(input.deviceId) as DeviceRow | undefined;
@@ -627,12 +716,77 @@ export class DeviceRegistryStore {
     if (
       !crypto.verify(
         null,
-        channelOpenMessage(input.deviceId, input.sequence, channelNonce),
+        channelOpenMessage(input.deviceId, input.sequence, channelNonce, protocolVersion),
         publicKey,
         decodeSignature(input.signature)
       )
     ) {
       throw new DeviceRegistryError(401, "DEVICE_SIGNATURE_INVALID", "Device channel proof is invalid");
+    }
+    const updated = this.sqlite.prepare(`
+      UPDATE managed_devices
+      SET last_seen_at = ?, last_sequence = ?, revision = revision + 1
+      WHERE device_id = ? AND revoked_at IS NULL AND last_sequence < ?
+    `).run(now, input.sequence, input.deviceId, input.sequence);
+    if (Number(updated.changes) !== 1) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_CHANNEL_REPLAYED",
+        "Device channel sequence was already consumed"
+      );
+    }
+    return this.getDevice(input.deviceId)!;
+  }
+
+  recordChannelResult(
+    input: {
+      deviceId: string;
+      channelId: string;
+      sequence: number;
+      body: { requestId: string };
+      signature: string;
+    },
+    now: string
+  ): ManagedDeviceRecord {
+    if (!Number.isSafeInteger(input.sequence) || input.sequence <= 0) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_SEQUENCE_INVALID",
+        "Device channel result sequence must be a positive integer"
+      );
+    }
+    const row = this.sqlite.prepare(`
+      SELECT * FROM managed_devices WHERE device_id = ?
+    `).get(input.deviceId) as DeviceRow | undefined;
+    if (!row || row.revoked_at) {
+      throw new DeviceRegistryError(401, "DEVICE_NOT_TRUSTED", "Device is unknown or revoked");
+    }
+    if (input.sequence <= Number(row.last_sequence)) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_CHANNEL_REPLAYED",
+        "Device channel sequence was already consumed"
+      );
+    }
+    const publicKey = parseEd25519PublicKey(row.public_key_spki);
+    if (
+      !crypto.verify(
+        null,
+        channelResultMessage(
+          input.deviceId,
+          input.channelId,
+          input.sequence,
+          input.body
+        ),
+        publicKey,
+        decodeSignature(input.signature)
+      )
+    ) {
+      throw new DeviceRegistryError(
+        401,
+        "DEVICE_SIGNATURE_INVALID",
+        "Device capability result proof is invalid"
+      );
     }
     const updated = this.sqlite.prepare(`
       UPDATE managed_devices
@@ -832,7 +986,22 @@ export function buildDeviceHeartbeatProof(deviceId: string, sequence: number): B
 export function buildDeviceChannelOpenProof(
   deviceId: string,
   sequence: number,
-  channelNonce: string
+  channelNonce: string,
+  protocolVersion: 1 | 2 = 1
 ): Buffer {
-  return channelOpenMessage(deviceId, sequence, normalizeChannelNonce(channelNonce));
+  return channelOpenMessage(
+    deviceId,
+    sequence,
+    normalizeChannelNonce(channelNonce),
+    protocolVersion
+  );
+}
+
+export function buildDeviceChannelResultProof(
+  deviceId: string,
+  channelId: string,
+  sequence: number,
+  body: { requestId: string }
+): Buffer {
+  return channelResultMessage(deviceId, channelId, sequence, body);
 }

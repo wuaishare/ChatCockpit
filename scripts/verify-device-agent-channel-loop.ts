@@ -73,7 +73,7 @@ function ready(input: DeviceAgentChannelOpenInput, channelId: string): DeviceAge
     channelId,
     deviceId: input.deviceId,
     acceptedSequence: input.sequence,
-    protocolVersion: 1
+    protocolVersion: input.protocolVersion ?? 1
   };
 }
 
@@ -132,6 +132,7 @@ try {
     }
   }));
   assert.ok(cleanOpen);
+  assert.equal(cleanOpen.protocolVersion, 2);
   assert.deepEqual(cleanEvents, ["channel.ready", "channel.ping"]);
   assert.equal(cleanResult.state, "connected");
   assert.equal(cleanResult.hubId, hub.hubId);

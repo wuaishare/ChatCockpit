@@ -440,6 +440,7 @@ export interface ManagedDeviceSummary {
   presence: ManagedDevicePresence;
   management: {
     heartbeat: boolean;
+    remoteRead: boolean;
     remoteControl: false;
   };
 }

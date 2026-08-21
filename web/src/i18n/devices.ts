@@ -22,6 +22,9 @@ export interface DevicesCopy {
   management: string;
   presenceReady: string;
   localPresence: string;
+  remoteReadReady: string;
+  remoteReadAgentUpdate: string;
+  remoteReadOffline: string;
   remoteControlPending: string;
   noRemoteTitle: string;
   noRemoteDescription: string;
@@ -74,6 +77,9 @@ const zhCN: DevicesCopy = {
   management: "管理能力",
   presenceReady: "Presence 已接入",
   localPresence: "本机可用",
+  remoteReadReady: "远程读取可用",
+  remoteReadAgentUpdate: "远程读取需更新 Agent",
+  remoteReadOffline: "远程读取离线",
   remoteControlPending: "远程启停尚未开放",
   noRemoteTitle: "目前只有当前设备",
   noRemoteDescription: "单设备使用无需额外配置。只有在你需要管理其他机器时，才需要添加远端设备。",
@@ -126,6 +132,9 @@ const enUS: DevicesCopy = {
   management: "Management",
   presenceReady: "Presence connected",
   localPresence: "Available locally",
+  remoteReadReady: "Remote reads ready",
+  remoteReadAgentUpdate: "Remote reads require an Agent update",
+  remoteReadOffline: "Remote reads offline",
   remoteControlPending: "Remote start/stop not enabled yet",
   noRemoteTitle: "Only this device is configured",
   noRemoteDescription: "Single-device use needs no extra setup. Add a remote device only when you actually need multi-device management.",
