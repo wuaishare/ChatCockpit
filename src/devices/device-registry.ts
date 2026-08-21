@@ -330,6 +330,28 @@ export class DeviceRegistryStore {
     this.closed = true;
   }
 
+  getHubIdentityFingerprint(): string | null {
+    const row = this.sqlite.prepare(`
+      SELECT value FROM device_registry_metadata WHERE key = 'hub_identity_fingerprint'
+    `).get() as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  bindHubIdentityFingerprint(fingerprint: string): string {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(fingerprint)) {
+      throw new Error("Device Registry Hub identity fingerprint is invalid");
+    }
+    this.sqlite.prepare(`
+      INSERT OR IGNORE INTO device_registry_metadata (key, value)
+      VALUES ('hub_identity_fingerprint', ?)
+    `).run(fingerprint);
+    const bound = this.getHubIdentityFingerprint();
+    if (bound !== fingerprint) {
+      throw new Error("Device Registry Hub identity fingerprint does not match the persisted Hub identity");
+    }
+    return bound;
+  }
+
   createEnrollmentRequest(
     input: {
       displayName: string;
@@ -669,6 +691,11 @@ export class DeviceRegistryStore {
 
   private initializeSchema(): void {
     this.sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS device_registry_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      ) STRICT;
+
       CREATE TABLE IF NOT EXISTS managed_devices (
         device_id TEXT PRIMARY KEY,
         display_name TEXT NOT NULL,

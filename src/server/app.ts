@@ -45,6 +45,11 @@ import {
   DeviceRegistryStore,
   deviceRegistryDatabasePath
 } from "../devices/device-registry.js";
+import {
+  createHubIdentity,
+  readHubIdentity,
+  type HubIdentityRecord
+} from "../devices/hub-identity.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -158,6 +163,7 @@ import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
+import { registerHubIdentityRoutes } from "./hub-identity-routes.js";
 import { registerAccessPolicyGate } from "./access-policy-gate.js";
 import {
   registerWebSecurityHeaders,
@@ -365,6 +371,23 @@ export function buildServer(
   const deviceRegistryStore = new DeviceRegistryStore({
     path: deviceRegistryDatabasePath(paths.runtimeDir)
   });
+  let hubIdentity: HubIdentityRecord;
+  try {
+    const anchoredFingerprint = deviceRegistryStore.getHubIdentityFingerprint();
+    const persistedIdentity = readHubIdentity(paths.runtimeDir);
+    if (!persistedIdentity && anchoredFingerprint) {
+      throw new Error(
+        "Hub identity private state is missing while Device Registry remains bound to an existing Hub identity"
+      );
+    }
+    hubIdentity = persistedIdentity ?? createHubIdentity(paths.runtimeDir);
+    deviceRegistryStore.bindHubIdentityFingerprint(hubIdentity.publicKeyFingerprint);
+  } catch (error) {
+    deviceRegistryStore.close();
+    operatorStore.close();
+    oauthStore?.close();
+    throw error;
+  }
   const publicRouteCandidateStore =
     options.publicRouteCandidateStore ??
     new PublicRouteCandidateStore({ runtimeDir: paths.runtimeDir });
@@ -650,6 +673,7 @@ export function buildServer(
     operatorPasskeyService,
     operatorTotpService
   );
+  registerHubIdentityRoutes(app, hubIdentity);
   registerDeviceRoutes(app, deviceRegistryStore, {
     ...(options.deviceNow ? { now: options.deviceNow } : {})
   });
