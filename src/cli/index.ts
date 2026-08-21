@@ -40,6 +40,13 @@ import {
   DeviceAgentService,
   type DeviceAgentStatus
 } from "../devices/device-agent.js";
+import { BonjourLanDiscoveryProvider } from "../devices/bonjour-lan-discovery-provider.js";
+import {
+  discoverLanHubs,
+  LAN_DISCOVERY_DEFAULT_DURATION_MS,
+  LAN_DISCOVERY_MAX_DURATION_MS,
+  LAN_DISCOVERY_MIN_DURATION_MS
+} from "../devices/lan-discovery-service.js";
 import {
   generateRandomConsolePathPrefix,
   loadAccessPolicy,
@@ -96,6 +103,7 @@ Usage:
   ${identity.cliName} access-policy generate-console-path [--json]
   ${identity.cliName} access-policy set [--console-path /console] [--lan-enabled true|false] [--lan-cidr CIDR ...] [--json]
   ${identity.cliName} device status [--json]
+  ${identity.cliName} device discover [--timeout 3] [--json]
   ${identity.cliName} device connect <hub-url> [--name "Device name"] [--json]
   ${identity.cliName} device heartbeat [--json]
   ${identity.cliName} device route verify <hub-url> [--json]
@@ -498,6 +506,61 @@ async function main(): Promise<void> {
           else printDeviceStatus(status);
           return;
         }
+        case "discover": {
+          const timeoutValue = getFlag("--timeout");
+          const timeoutSeconds = timeoutValue === undefined
+            ? LAN_DISCOVERY_DEFAULT_DURATION_MS / 1_000
+            : Number(timeoutValue);
+          const durationMs = Math.round(timeoutSeconds * 1_000);
+          if (
+            !Number.isFinite(timeoutSeconds) ||
+            !Number.isInteger(durationMs) ||
+            durationMs < LAN_DISCOVERY_MIN_DURATION_MS ||
+            durationMs > LAN_DISCOVERY_MAX_DURATION_MS
+          ) {
+            throw new Error(
+              `device discover --timeout must be between ${LAN_DISCOVERY_MIN_DURATION_MS / 1_000} and ${LAN_DISCOVERY_MAX_DURATION_MS / 1_000} seconds`
+            );
+          }
+          const controller = new AbortController();
+          const stop = () => controller.abort();
+          const warnings = new Set<string>();
+          process.once("SIGINT", stop);
+          process.once("SIGTERM", stop);
+          try {
+            const snapshot = await discoverLanHubs({
+              provider: new BonjourLanDiscoveryProvider(),
+              durationMs,
+              signal: controller.signal,
+              onWarning: (code) => warnings.add(code)
+            });
+            if (json) {
+              printJson({
+                ...snapshot,
+                durationMs,
+                warnings: [...warnings].sort()
+              });
+            } else if (snapshot.candidates.length === 0) {
+              process.stdout.write("No ChatCockpit Hubs discovered on the LAN.\n");
+            } else {
+              process.stdout.write("Discovered ChatCockpit Hubs (untrusted candidates)\n");
+              for (const candidate of snapshot.candidates) {
+                process.stdout.write(`\n${candidate.instanceName}\n`);
+                process.stdout.write(`  Host: ${candidate.host}:${candidate.port}\n`);
+                process.stdout.write(`  Addresses: ${candidate.addresses.join(", ")}\n`);
+                process.stdout.write(`  Hub hint: ${candidate.hubIdHint}\n`);
+                process.stdout.write("  Trust: verification required\n");
+              }
+              if (warnings.size > 0) {
+                process.stderr.write("LAN discovery completed with provider warnings.\n");
+              }
+            }
+          } finally {
+            process.removeListener("SIGINT", stop);
+            process.removeListener("SIGTERM", stop);
+          }
+          return;
+        }
         case "connect": {
           const hubUrl = process.argv[4];
           if (!hubUrl || hubUrl.startsWith("--")) {
@@ -637,7 +700,7 @@ async function main(): Promise<void> {
           return;
         }
         default:
-          throw new Error("device requires one of: status, connect, heartbeat, route, agent");
+          throw new Error("device requires one of: status, discover, connect, heartbeat, route, agent");
       }
     }
     case "connectivity": {
