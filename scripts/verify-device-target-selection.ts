@@ -222,7 +222,24 @@ assert.equal(
     arguments: {}
   }),
   LOCAL_DEVICE_TARGET_ID,
-  "Capability Router stays local-only until remote RPC is implemented"
+  "Capability Router keeps local-device as the compatibility default"
+);
+assert.equal(
+  resolveMcpToolDeviceTarget("chatcockpit.capabilities.read.invoke", {
+    targetDevice: allowedRemoteId,
+    executorId: "fixture",
+    toolName: "read",
+    arguments: {}
+  }),
+  allowedRemoteId,
+  "Capability Router must authorize the explicit remote device target"
+);
+assert.equal(
+  resolveMcpToolDeviceTarget("chatcockpit.capabilities.mutation.prepare", {
+    targetDevice: allowedRemoteId
+  }),
+  LOCAL_DEVICE_TARGET_ID,
+  "Capability Router mutations remain local-device governed in Phase 8"
 );
 
 process.stdout.write("VERIFY_DEVICE_TARGET_SELECTION_OK\n");

@@ -406,6 +406,14 @@ try {
     assert.equal(invalidPayload.error.code, "DEVICE_CAPABILITY_ARGUMENTS_INVALID");
   }
 
+  const nestedTarget = await service.execute(
+    request("capabilities.list", { targetDevice: "local-device" })
+  );
+  assert.equal(nestedTarget.outcome, "error");
+  if (nestedTarget.outcome === "error") {
+    assert.equal(nestedTarget.error.code, "DEVICE_CAPABILITY_ARGUMENTS_INVALID");
+  }
+
   const projection = JSON.stringify({ listed, inspected, invoked, drifted });
   for (const marker of [
     "private-provider.example.invalid",

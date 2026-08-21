@@ -25,6 +25,7 @@ import { CapabilityRouterCatalogService } from "../application/capability-router
 import { CapabilityRouterReadInvocationService } from "../application/capability-router-read-invocation-service.js";
 import { CapabilityRouterMutationService } from "../application/capability-router-mutation-service.js";
 import { CapabilityRouterMutationPublicService } from "../application/capability-router-mutation-public-service.js";
+import { TargetedCapabilityRouterService } from "../application/targeted-capability-router-service.js";
 import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
@@ -712,15 +713,24 @@ export function buildServer(
   const capabilityRouterPublicMutations = new CapabilityRouterMutationPublicService(
     governanceLedger
   );
+  const capabilityRouterCatalog = new CapabilityRouterCatalogService(
+    paths.runtimeDir,
+    options.directExecutorsConfigPath
+  );
+  const capabilityRouterReads = new CapabilityRouterReadInvocationService(
+    paths.runtimeDir,
+    options.directExecutorsConfigPath
+  );
+  const capabilityRouterTargeted = new TargetedCapabilityRouterService(
+    capabilityRouterCatalog,
+    capabilityRouterReads,
+    deviceTargetService,
+    deviceCapabilityRpc
+  );
   const capabilityRouterServices = {
-    catalog: new CapabilityRouterCatalogService(
-      paths.runtimeDir,
-      options.directExecutorsConfigPath
-    ),
-    reads: new CapabilityRouterReadInvocationService(
-      paths.runtimeDir,
-      options.directExecutorsConfigPath
-    ),
+    catalog: capabilityRouterCatalog,
+    reads: capabilityRouterReads,
+    targeted: capabilityRouterTargeted,
     mutations: capabilityRouterMutations,
     publicMutations: capabilityRouterPublicMutations
   };

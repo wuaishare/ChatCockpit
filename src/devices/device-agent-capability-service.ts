@@ -129,6 +129,19 @@ export class DeviceAgentCapabilityService {
       );
     }
 
+    if (
+      request.payload &&
+      typeof request.payload === "object" &&
+      !Array.isArray(request.payload) &&
+      "targetDevice" in request.payload
+    ) {
+      return errorBody(
+        request.requestId,
+        "DEVICE_CAPABILITY_ARGUMENTS_INVALID",
+        "Device capability request arguments are invalid"
+      );
+    }
+
     try {
       switch (request.operation) {
         case "capabilities.list": {
