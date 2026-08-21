@@ -14,6 +14,16 @@ export type OAuthAuthorizationGrantPublicStatus =
   | "inactive"
   | "revoked";
 
+export interface OAuthGrantDeviceAccessAuditRecorder {
+  record(input: {
+    action: "grant" | "revoke";
+    grantId: string;
+    deviceId: string;
+    principalId: string;
+    createdAt: string;
+  }): void;
+}
+
 export interface OAuthAuthorizationGrantPublicProjection {
   id: string;
   clientRegistrationId: string;
@@ -40,6 +50,13 @@ function operatorSessionError(
     "OPERATOR_SESSION_REQUIRED",
     "An authenticated console administrator session is required"
   );
+}
+
+function operatorPrincipalId(request: FastifyRequest): string {
+  if (request.chatCockpitAuth.kind !== "operator-session") {
+    throw new Error("Operator audit requires an authenticated Owner session");
+  }
+  return request.chatCockpitAuth.session.principalId;
 }
 
 function publicStatus(grant: OAuthAuthorizationGrantSummary): OAuthAuthorizationGrantPublicStatus {
@@ -105,7 +122,8 @@ function deviceIdFromRequest(request: FastifyRequest): string | null {
 export function registerOAuthGrantManagementRoutes(
   app: FastifyInstance,
   store: OAuthStore | null,
-  deviceAccessPolicy: OAuthDeviceAccessPolicyService | null = null
+  deviceAccessPolicy: OAuthDeviceAccessPolicyService | null = null,
+  deviceAccessAudit: OAuthGrantDeviceAccessAuditRecorder | null = null
 ): void {
   app.get("/api/integrations/oauth/grants", async (request, reply) => {
     const authError = operatorSessionError(request, reply);
@@ -171,6 +189,20 @@ export function registerOAuthGrantManagementRoutes(
     if (!deviceId) {
       return sendApiError(reply, 400, "DEVICE_ID_INVALID", "Device target ID is invalid");
     }
+    if (!deviceAccessAudit) {
+      return sendApiError(reply, 500, "DEVICE_ACCESS_AUDIT_UNAVAILABLE", "Device access audit is unavailable");
+    }
+    try {
+      deviceAccessAudit.record({
+        action: "grant",
+        grantId,
+        deviceId,
+        principalId: operatorPrincipalId(request),
+        createdAt: new Date().toISOString()
+      });
+    } catch {
+      return sendApiError(reply, 500, "DEVICE_ACCESS_AUDIT_FAILED", "Device access audit could not be recorded");
+    }
     try {
       const changed = deviceAccessPolicy.grantDeviceAccess(grantId, deviceId);
       return {
@@ -196,6 +228,20 @@ export function registerOAuthGrantManagementRoutes(
     const deviceId = deviceIdFromRequest(request);
     if (!deviceId) {
       return sendApiError(reply, 400, "DEVICE_ID_INVALID", "Device target ID is invalid");
+    }
+    if (!deviceAccessAudit) {
+      return sendApiError(reply, 500, "DEVICE_ACCESS_AUDIT_UNAVAILABLE", "Device access audit is unavailable");
+    }
+    try {
+      deviceAccessAudit.record({
+        action: "revoke",
+        grantId,
+        deviceId,
+        principalId: operatorPrincipalId(request),
+        createdAt: new Date().toISOString()
+      });
+    } catch {
+      return sendApiError(reply, 500, "DEVICE_ACCESS_AUDIT_FAILED", "Device access audit could not be recorded");
     }
     try {
       const changed = deviceAccessPolicy.revokeDeviceAccess(grantId, deviceId);

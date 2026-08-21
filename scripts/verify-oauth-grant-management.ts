@@ -280,6 +280,37 @@ async function main(): Promise<void> {
     null
   );
   verifyStore.close();
+
+  const auditStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+  const deviceAccessAudit = auditStore
+    .listAuditEvents(200)
+    .filter((event) => event.eventType.startsWith("oauth.device_access."));
+  assert.equal(deviceAccessAudit.length, 5);
+  assert.equal(deviceAccessAudit.every((event) => Boolean(event.principalId)), true);
+  assert.equal(
+    deviceAccessAudit.some((event) =>
+      event.eventType === "oauth.device_access.grant.requested" &&
+      event.details.grantId === grantId &&
+      event.details.deviceId === remoteDeviceId &&
+      event.details.action === "grant"
+    ),
+    true
+  );
+  assert.equal(
+    deviceAccessAudit.some((event) =>
+      event.eventType === "oauth.device_access.revoke.requested" &&
+      event.details.grantId === grantId &&
+      event.details.deviceId === remoteDeviceId &&
+      event.details.action === "revoke"
+    ),
+    true
+  );
+  const auditJson = JSON.stringify(deviceAccessAudit);
+  assert.equal(auditJson.includes("test-token"), false);
+  assert.equal(auditJson.includes("fixture-remote-public-key"), false);
+  assert.equal(auditJson.includes("secureOrigin"), false);
+  auditStore.close();
+
   fs.rmSync(root, { recursive: true, force: true });
   console.log("VERIFY_OAUTH_GRANT_MANAGEMENT_OK");
 }

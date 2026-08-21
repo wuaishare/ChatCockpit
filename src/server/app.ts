@@ -1744,7 +1744,16 @@ export function buildServer(
   app.get("/api/gpt/config", gptConfigHandler);
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
-  registerOAuthGrantManagementRoutes(app, oauthStore, oauthDeviceAccessPolicy);
+  registerOAuthGrantManagementRoutes(app, oauthStore, oauthDeviceAccessPolicy, {
+    record: ({ action, grantId, deviceId, principalId, createdAt }) => {
+      operatorStore.recordAuditEvent({
+        eventType: `oauth.device_access.${action}.requested`,
+        principalId,
+        createdAt,
+        details: { action, grantId, deviceId }
+      });
+    }
+  });
   app.get("/api/connectivity/providers", connectivityProviderStatusHandler);
   app.get("/api/connectivity/routes", publicRouteCandidateStatusHandler);
   app.post("/api/connectivity/routes/candidate", stagePublicRouteCandidateHandler);
