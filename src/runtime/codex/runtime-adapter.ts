@@ -54,6 +54,31 @@ export interface RuntimeThreadReadInput {
   includeTurns?: boolean;
 }
 
+export interface RuntimeThreadContextInput {
+  threadId: string;
+  cursor?: string | null;
+  limit?: number;
+}
+
+export interface RuntimeThreadContextMessage {
+  id: string;
+  turnId: string;
+  role: "user" | "assistant";
+  text: string;
+  truncated: boolean;
+}
+
+export interface RuntimeThreadContextPage {
+  threadId: string;
+  projectId: string | null;
+  workspaceId: string | null;
+  repoId: string | null;
+  messages: RuntimeThreadContextMessage[];
+  nextCursor: string | null;
+  truncated: boolean;
+  lastTurnId: string | null;
+}
+
 export interface RuntimeThreadResumeInput {
   threadId: string;
 }
@@ -193,6 +218,7 @@ export interface CodingRuntimeAdapter {
   capabilities(): Promise<RuntimeCapabilitySnapshot>;
   listThreads(input?: RuntimeThreadListInput): Promise<RuntimeThreadListResult>;
   readThread(input: RuntimeThreadReadInput): Promise<RuntimeThreadProjection>;
+  readThreadContext(input: RuntimeThreadContextInput): Promise<RuntimeThreadContextPage>;
   resumeThread(input: RuntimeThreadResumeInput): Promise<RuntimeThreadProjection>;
   forkThread(input: RuntimeThreadForkInput): Promise<RuntimeThreadProjection>;
   startTurn(input: RuntimeTurnStartInput): Promise<RuntimeTurnProjection>;

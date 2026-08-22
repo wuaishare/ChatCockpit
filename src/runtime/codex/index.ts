@@ -32,6 +32,9 @@ export {
   type RuntimeEventSink,
   type RuntimeInboundNotification,
   type RuntimeInboundRequest,
+  type RuntimeThreadContextInput,
+  type RuntimeThreadContextMessage,
+  type RuntimeThreadContextPage,
   type RuntimeThreadForkInput,
   type RuntimeThreadListInput,
   type RuntimeThreadListResult,
@@ -43,6 +46,12 @@ export {
   type RuntimeTurnProjection,
   type RuntimeTurnStartInput
 } from "./runtime-adapter.js";
+export {
+  MAX_THREAD_CONTEXT_MESSAGE_BYTES,
+  MAX_THREAD_CONTEXT_MESSAGES,
+  MAX_THREAD_CONTEXT_PAGE_BYTES,
+  projectCodexThreadContext
+} from "./thread-context-projection.js";
 export {
   projectCodexThread,
   resolveThreadWorkspace

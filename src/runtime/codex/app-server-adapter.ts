@@ -13,9 +13,8 @@ import {
   type CodexAppServerInitialization
 } from "./app-server-client.js";
 import type { CodexStandaloneCapabilityStore } from "./standalone-capabilities.js";
-import {
-  projectCodexThread
-} from "./thread-projection.js";
+import { projectCodexThreadContext } from "./thread-context-projection.js";
+import { projectCodexThread } from "./thread-projection.js";
 import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
@@ -29,6 +28,8 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeThreadContextInput,
+  RuntimeThreadContextPage,
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
@@ -560,6 +561,27 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       );
     }
     return projectCodexThread(response.thread, this.workspaces.listPrivate());
+  }
+
+  async readThreadContext(
+    input: RuntimeThreadContextInput
+  ): Promise<RuntimeThreadContextPage> {
+    const client = await this.ensureClient();
+    const response = await client.request<ThreadReadResponse>("thread/read", {
+      threadId: input.threadId,
+      includeTurns: true
+    });
+    if (!response.thread) {
+      throw new ServiceError(
+        "CODEX_THREAD_RESPONSE_INVALID",
+        "Codex App Server returned no thread record for context projection"
+      );
+    }
+    return projectCodexThreadContext(
+      response.thread,
+      this.workspaces.listPrivate(),
+      input
+    );
   }
 
   async resumeThread(
