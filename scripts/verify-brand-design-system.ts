@@ -30,6 +30,21 @@ assert.match(
 );
 assert.equal(exists("web/src/assets/chatcockpit-logo.svg"), false, "Legacy duplicate Web logo must not remain");
 
+const webTheme = read("web/src/theme.ts");
+const webStyles = read("web/src/styles.css");
+assert.match(webStyles, /--tp-brand-cyan:\s*#00e6ff/);
+assert.match(webStyles, /--tp-brand-blue:\s*#2073ff/);
+assert.match(webStyles, /--tp-brand-violet:\s*#7b4cff/);
+assert.match(webStyles, /--tp-accent:\s*var\(--tp-brand-blue\)/, "Web must define the canonical interaction accent");
+assert.match(webStyles, /--tp-bg:\s*#020817/, "Dark Web foundation must use the canonical Ink family");
+assert.match(webTheme, /colorPrimary:\s*"#2073ff"/, "Ant Design primary token must match ChatCockpit Primary");
+for (const legacyColor of ["#1777ff", "#2d5bdb", "#6b7fd7", "#8a8fe6"]) {
+  assert.equal(webStyles.toLowerCase().includes(legacyColor), false, `Web CSS still contains legacy color ${legacyColor}`);
+  assert.equal(webTheme.toLowerCase().includes(legacyColor), false, `Web theme still contains legacy color ${legacyColor}`);
+}
+assert.ok(exists("docs/architecture/design-system.md"), "Missing public Design System contract");
+assert.ok(exists("docs/zh-CN/architecture/design-system.md"), "Missing Chinese Design System contract");
+
 const infoPlist = read("desktop/macos/AppBundle/Info.plist");
 const desktopApp = read("desktop/macos/Sources/TokenPilotDesktop/TokenPilotDesktopApp.swift");
 const localBuild = read("scripts/build-macos-desktop-app.sh");
