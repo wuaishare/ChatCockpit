@@ -66,18 +66,18 @@ export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
       borderRadius: 12,
       borderRadiusLG: 14,
       borderRadiusSM: 8,
-      colorBgBase: isDark ? "#0f1116" : "#f5f7fb",
-      colorBgContainer: isDark ? "#181c25" : "#ffffff",
-      colorBgElevated: isDark ? "#202530" : "#ffffff",
-      colorBgLayout: isDark ? "#151922" : "#eff2f7",
-      colorBorder: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(17, 24, 39, 0.10)",
-      colorError: "#ff5d86",
-      colorInfo: "#35d2ff",
-      colorPrimary: "#1777ff",
-      colorSuccess: "#33e0a1",
-      colorText: isDark ? "#eef2fb" : "#1f2430",
-      colorTextSecondary: isDark ? "#adb5c9" : "#5e677a",
-      colorWarning: "#f6b84b",
+      colorBgBase: isDark ? "#020817" : "#f5f8fc",
+      colorBgContainer: isDark ? "#0a1935" : "#ffffff",
+      colorBgElevated: isDark ? "#0e1d39" : "#ffffff",
+      colorBgLayout: isDark ? "#061127" : "#eef3f9",
+      colorBorder: isDark ? "rgba(120, 155, 205, 0.12)" : "rgba(14, 37, 73, 0.10)",
+      colorError: "#f05f78",
+      colorInfo: "#06b8ff",
+      colorPrimary: "#2073ff",
+      colorSuccess: "#2bcf94",
+      colorText: isDark ? "#edf4ff" : "#17233a",
+      colorTextSecondary: isDark ? "#a9b9d0" : "#53647d",
+      colorWarning: "#e9a23b",
       controlHeight: 34,
       fontFamily:
         "\"HarmonyOS Sans\",\"HarmonyOS Sans SC\",\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft Yahei UI\",\"Microsoft YaHei\",\"Segoe UI\",\"SF Pro Display\",-apple-system,BlinkMacSystemFont,sans-serif"
@@ -90,8 +90,8 @@ export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
         borderRadius: 10,
         controlHeight: 34,
         primaryShadow: isDark
-          ? "0 8px 20px rgba(23, 119, 255, 0.22)"
-          : "0 4px 12px rgba(23, 119, 255, 0.12)"
+          ? "0 8px 20px rgba(32, 115, 255, 0.24)"
+          : "0 4px 12px rgba(32, 115, 255, 0.13)"
       },
       Input: {
         borderRadius: 10,
@@ -99,13 +99,13 @@ export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
       },
       Segmented: {
         borderRadius: 10,
-        itemSelectedBg: isDark ? "rgba(23, 119, 255, 0.18)" : "rgba(23, 119, 255, 0.10)",
+        itemSelectedBg: isDark ? "rgba(32, 115, 255, 0.18)" : "rgba(32, 115, 255, 0.10)",
         itemSelectedColor: isDark ? "#f3f7ff" : "#112044"
       },
       Table: {
         borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(17, 24, 39, 0.08)",
-        headerBg: isDark ? "rgba(24, 28, 37, 0.98)" : "rgba(245, 247, 251, 0.96)",
-        rowHoverBg: isDark ? "rgba(23, 119, 255, 0.06)" : "rgba(23, 119, 255, 0.04)"
+        headerBg: isDark ? "rgba(10, 25, 53, 0.98)" : "rgba(245, 248, 252, 0.96)",
+        rowHoverBg: isDark ? "rgba(32, 115, 255, 0.07)" : "rgba(32, 115, 255, 0.05)"
       },
       Tag: {
         borderRadiusSM: 999

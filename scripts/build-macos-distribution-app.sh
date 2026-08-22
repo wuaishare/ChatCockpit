@@ -113,6 +113,7 @@ fi
 cp -R "${ARCHIVED_APP}" "${OUTPUT_APP}"
 bash "${ROOT}/scripts/stamp-macos-build-provenance.sh" "${OUTPUT_APP}/Contents/Info.plist"
 mkdir -p "${OUTPUT_APP}/Contents/Resources"
+bash "${ROOT}/scripts/generate-macos-brand-assets.sh" "${OUTPUT_APP}/Contents/Resources"
 rm -rf "${EMBEDDED_RUNTIME}"
 cp -R "${RUNTIME_PAYLOAD}" "${EMBEDDED_RUNTIME}"
 

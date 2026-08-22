@@ -185,6 +185,7 @@
 				021000000000000000000001 /* Frameworks */,
 				026000000000000000000001 /* Embed Frameworks */,
 				022000000000000000000001 /* Resources */,
+				027000000000000000000001 /* Generate Brand Assets */,
 			);
 			buildRules = (
 			);
@@ -268,6 +269,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		027000000000000000000001 /* Generate Brand Assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../assets/brand/chatcockpit-app-icon.svg",
+				"$(SRCROOT)/../../assets/brand/chatcockpit-menubar-template.svg",
+				"$(SRCROOT)/../../scripts/generate-macos-brand-assets.sh",
+			);
+			name = "Generate Brand Assets";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ChatCockpit.icns",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/chatcockpit-menubar-template.svg",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "bash \"${SRCROOT}/../../scripts/generate-macos-brand-assets.sh\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		020000000000000000000001 /* Sources */ = {

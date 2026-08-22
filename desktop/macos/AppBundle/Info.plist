@@ -10,6 +10,8 @@
     <string>ChatCockpit</string>
     <key>CFBundleIdentifier</key>
     <string>cn.wuaishare.ChatCockpit</string>
+    <key>CFBundleIconFile</key>
+    <string>ChatCockpit.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleLocalizations</key>

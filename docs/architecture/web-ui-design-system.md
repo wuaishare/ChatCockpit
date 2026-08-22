@@ -6,7 +6,7 @@
 
 ## Design Direction
 
-ChatCockpit uses a Chinese-first operator console style: local-first, restrained, compact, and operationally clear. The goal is not visual spectacle. The goal is a professional Chinese product UI that feels closer to a serious control console than to a landing page, AI demo, or neon dashboard.
+ChatCockpit uses a Chinese-first operator console style: local-first, restrained, compact, and operationally clear. The Web surface implements the project-wide [Spectrum Cockpit Design System](./design-system.md): full spectrum for identity, `#2073FF` for primary interaction, Ink-derived operational surfaces, and independent semantic status colors. The goal is not visual spectacle. The goal is a professional Chinese product UI that feels closer to a serious control console than to a landing page, AI demo, or neon dashboard.
 
 The LobeHub reference is used in three specific ways:
 
@@ -47,7 +47,7 @@ Core implementation files:
 - `web/src/styles.css`: ChatCockpit CSS variables, surfaces, responsive layout, and component styling.
 - `web/src/main.tsx`: shared ThemeProvider wiring for Lobe UI and Ant Design.
 
-The CSS system uses project-prefixed variables (`--tp-*`) for colors, typography, radius, panels, text, and spacing. Do not hardcode new colors or radii in components unless the value becomes a named token.
+The CSS system uses project-prefixed variables (`--tp-*`) for colors, typography, radius, panels, text, and spacing. Brand primitives use `--tp-brand-*`; semantic interaction uses `--tp-accent*`; broadly consumed legacy aliases such as `--tp-cyan` remain compatibility mappings rather than a second palette. Do not hardcode new colors or radii in components unless the value becomes a named token.
 
 Required visual constraints:
 
