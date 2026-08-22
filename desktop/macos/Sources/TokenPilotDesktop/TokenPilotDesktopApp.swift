@@ -38,6 +38,26 @@ final class DesktopApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+private enum ChatCockpitBrandAssets {
+    static let menuBarImage: NSImage = {
+        let image: NSImage
+        if let url = Bundle.main.url(
+            forResource: "chatcockpit-menubar-template",
+            withExtension: "svg"
+        ), let bundledImage = NSImage(contentsOf: url) {
+            image = bundledImage
+        } else {
+            image = NSImage(
+                systemSymbolName: "airplane",
+                accessibilityDescription: ProductIdentity.current.displayName
+            ) ?? NSImage(size: NSSize(width: 18, height: 18))
+        }
+        image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
+        return image
+    }()
+}
+
 struct TokenPilotDesktopApp: App {
     @NSApplicationDelegateAdaptor(DesktopApplicationDelegate.self) private var applicationDelegate
     @StateObject private var model = DesktopAppModel()
@@ -62,8 +82,11 @@ struct TokenPilotDesktopApp: App {
         }
         .defaultSize(width: 980, height: 700)
 
-        MenuBarExtra(ProductIdentity.current.displayName, systemImage: model.snapshot.overallState.systemImage) {
+        MenuBarExtra {
             MenuBarContentView(model: model, mainSection: $mainSection)
+        } label: {
+            Image(nsImage: ChatCockpitBrandAssets.menuBarImage)
+                .accessibilityLabel(Text(ProductIdentity.current.displayName))
         }
         .menuBarExtraStyle(.window)
 

@@ -67,6 +67,7 @@ chmod 755 "${MACOS_DIR}/ChatCockpit"
 cp "${APP_TEMPLATE}" "${CONTENTS_DIR}/Info.plist"
 bash "${ROOT}/scripts/stamp-macos-build-provenance.sh" "${CONTENTS_DIR}/Info.plist"
 cp -R "${APP_RESOURCES}/." "${RESOURCES_DIR}/"
+bash "${ROOT}/scripts/generate-macos-brand-assets.sh" "${RESOURCES_DIR}"
 cp -R "${RUNTIME_PAYLOAD}" "${RESOURCES_DIR}/TokenPilotRuntime"
 
 plutil -lint "${CONTENTS_DIR}/Info.plist"

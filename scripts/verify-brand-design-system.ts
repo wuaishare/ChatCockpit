@@ -30,4 +30,21 @@ assert.match(
 );
 assert.equal(exists("web/src/assets/chatcockpit-logo.svg"), false, "Legacy duplicate Web logo must not remain");
 
+const infoPlist = read("desktop/macos/AppBundle/Info.plist");
+const desktopApp = read("desktop/macos/Sources/TokenPilotDesktop/TokenPilotDesktopApp.swift");
+const localBuild = read("scripts/build-macos-desktop-app.sh");
+const xcodeBuild = read("scripts/build-macos-xcode-app.sh");
+const distributionBuild = read("scripts/build-macos-distribution-app.sh");
+const xcodeProject = read("desktop/macos/ChatCockpit.xcodeproj/project.pbxproj");
+
+assert.ok(exists("scripts/generate-macos-brand-assets.sh"), "Missing canonical macOS brand asset generator");
+assert.match(infoPlist, /<key>CFBundleIconFile<\/key>\s*<string>ChatCockpit\.icns<\/string>/, "macOS bundle must declare ChatCockpit.icns");
+assert.match(desktopApp, /chatcockpit-menubar-template/, "Menu Bar must load the approved brand template asset");
+assert.match(desktopApp, /isTemplate\s*=\s*true/, "Menu Bar brand image must use macOS template rendering");
+assert.doesNotMatch(desktopApp, /MenuBarExtra\([^\n]+systemImage:\s*model\.snapshot\.overallState\.systemImage/, "Menu Bar identity must not change with runtime status");
+for (const buildScript of [localBuild, xcodeBuild, distributionBuild]) {
+  assert.match(buildScript, /generate-macos-brand-assets\.sh/, "Every official macOS build path must derive the same brand resources");
+}
+assert.match(xcodeProject, /generate-macos-brand-assets\.sh/, "Direct Xcode builds must derive the canonical brand resources too");
+
 console.log("VERIFY_BRAND_DESIGN_SYSTEM_OK");

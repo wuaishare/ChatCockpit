@@ -137,9 +137,11 @@ assert.match(statusView, /DesktopL10n\.string/);
 assert.match(settingsView, /DesktopL10n\.string/);
 assert.match(appModel, /DesktopL10n\.string/);
 const mainWindowSceneIndex = desktopApp.indexOf('Window(ProductIdentity.current.displayName, id: "main")');
-const menuBarSceneIndex = desktopApp.indexOf("MenuBarExtra(ProductIdentity.current.displayName");
+const menuBarSceneIndex = desktopApp.indexOf("MenuBarExtra {");
 assert.ok(mainWindowSceneIndex >= 0, "Desktop app must declare the unified ChatCockpit main window");
 assert.ok(menuBarSceneIndex >= 0, "Desktop app must declare the MenuBarExtra");
+assert.match(desktopApp, /chatcockpit-menubar-template/);
+assert.match(desktopApp, /isTemplate\s*=\s*true/);
 assert.ok(
   mainWindowSceneIndex < menuBarSceneIndex,
   "Unified ChatCockpit main window must remain the first desktop scene so normal launch presents a visible operator surface"
@@ -166,6 +168,7 @@ assert.match(scheme, /container:ChatCockpit\.xcodeproj/);
 assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>ChatCockpit<\/string>/s);
 assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>ChatCockpit<\/string>/s);
 assert.match(infoPlist, /<key>CFBundleIdentifier<\/key>\s*<string>cn\.wuaishare\.ChatCockpit<\/string>/s);
+assert.match(infoPlist, /<key>CFBundleIconFile<\/key>\s*<string>ChatCockpit\.icns<\/string>/s);
 
 assert.match(xcodeBuildScript, /PROJECT="\$\{ROOT\}\/desktop\/macos\/ChatCockpit\.xcodeproj"/);
 assert.match(xcodeBuildScript, /SCHEME="ChatCockpit"/);
