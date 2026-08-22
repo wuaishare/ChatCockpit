@@ -69,7 +69,7 @@ const operatorStore = new OperatorStore({ path: operatorDatabasePath(paths.runti
 const operatorService = new OperatorService({ store: operatorStore });
 await operatorService.setOwnerPassword({
   username: "owner",
-  password: "workspace-onboarding-api-password"
+  password: "test-password"
 });
 const loginGate = operatorService.createSecureLoginGate().gateSecret;
 operatorStore.close();
@@ -103,7 +103,7 @@ try {
     remoteAddress: "127.0.0.1",
     payload: {
       username: "owner",
-      password: "workspace-onboarding-api-password"
+      password: "test-password"
     }
   });
   assert.equal(login.statusCode, 200, login.body);
@@ -234,7 +234,7 @@ try {
     url: "/api/continuity/workspace-discovery/roots",
     headers: {
       host: "127.0.0.1",
-      authorization: "Bearer invalid-workspace-token"
+      authorization: "Bearer test-token"
     },
     remoteAddress: "127.0.0.1"
   });

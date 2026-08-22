@@ -35,6 +35,32 @@ export interface ContinuityCopy {
   detailReadsAvailable: string;
   noFakeData: string;
   workspaceSelector: string;
+  manageWorkspaces: string;
+  addProject: string;
+  workspaceManagerTitle: string;
+  workspaceManagerDescription: string;
+  registeredProjects: string;
+  discoveryRoots: string;
+  addDiscoveryRoot: string;
+  discoveryRootPath: string;
+  discoveryRootHint: string;
+  addRoot: string;
+  removeRoot: string;
+  scanProjects: string;
+  scanTruncated: string;
+  noDiscoveryRoots: string;
+  noDiscoveryRootsDescription: string;
+  discoveredProjects: string;
+  noCandidates: string;
+  registeredCandidate: string;
+  unregisteredCandidate: string;
+  reviewImport: string;
+  repoIdLabel: string;
+  permissionReview: string;
+  permissionExactProject: string;
+  permissionNoSiblings: string;
+  importProject: string;
+  machineLocalRequired: string;
   writerTitle: string;
   activeWriter: string;
   noActiveWriter: string;
@@ -228,7 +254,7 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   workspaceCount: "工作区",
   readyWorkspaceCount: "可用工作区",
   noProjectsTitle: "没有已配置项目",
-  noProjectsDescription: "在本地 ChatCockpit 配置中添加允许的仓库映射后，这里会显示真实项目。",
+  noProjectsDescription: "使用“添加项目”授权一个本机父目录并显式加入需要管理的 Git 项目。",
   defaultWorkspace: "默认工作区",
   workspaces: "工作区",
   branch: "分支",
@@ -246,6 +272,32 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   detailReadsAvailable: "已有记录仍可通过明确 ID 和对应 API 读取。",
   noFakeData: "为避免伪造状态，本视图不会生成演示数据。",
   workspaceSelector: "当前工作区",
+  manageWorkspaces: "管理工作区",
+  addProject: "添加项目",
+  workspaceManagerTitle: "工作区与项目接入",
+  workspaceManagerDescription: "先授权父目录用于受限发现，再显式加入需要交给 ChatCockpit 管理的 Git 项目。",
+  registeredProjects: "已注册项目",
+  discoveryRoots: "授权发现目录",
+  addDiscoveryRoot: "添加发现目录",
+  discoveryRootPath: "本机父目录路径",
+  discoveryRootHint: "例如一个专门存放多个 Git 项目的父目录。这里只授予一级扫描权限，不会自动授权所有子项目。",
+  addRoot: "授权目录",
+  removeRoot: "移除发现权限",
+  scanProjects: "扫描项目",
+  scanTruncated: "结果已达到安全扫描上限；可缩小父目录范围后重试。",
+  noDiscoveryRoots: "尚未授权项目发现目录",
+  noDiscoveryRootsDescription: "添加一个本机父目录后，ChatCockpit 只扫描其一级子目录中的 Git 项目。",
+  discoveredProjects: "发现的 Git 项目",
+  noCandidates: "该目录下没有发现符合条件的一级 Git 项目。",
+  registeredCandidate: "已加入",
+  unregisteredCandidate: "可加入",
+  reviewImport: "审核并加入",
+  repoIdLabel: "仓库 ID",
+  permissionReview: "权限确认",
+  permissionExactProject: "只把当前选中的 Git 项目加入 Workspace 执行权限。",
+  permissionNoSiblings: "同一父目录中的其他项目不会自动加入，也不会因此获得 AI 操作权限。",
+  importProject: "加入 ChatCockpit",
+  machineLocalRequired: "工作区路径管理只能在目标 Mac 的本机控制台中进行。远程访问仍可使用已注册的逻辑工作区。",
   writerTitle: "Workspace Writer",
   activeWriter: "存在活跃写入者",
   noActiveWriter: "当前没有活跃写入者",
@@ -439,7 +491,7 @@ export const enUSContinuityCopy: ContinuityCopy = {
   workspaceCount: "Workspaces",
   readyWorkspaceCount: "Ready workspaces",
   noProjectsTitle: "No configured projects",
-  noProjectsDescription: "Add an allowlisted repository mapping to local ChatCockpit config to display a real project here.",
+  noProjectsDescription: "Use Add project to authorize a local parent directory and explicitly register the Git project you want ChatCockpit to manage.",
   defaultWorkspace: "Default workspace",
   workspaces: "Workspaces",
   branch: "Branch",
@@ -457,6 +509,32 @@ export const enUSContinuityCopy: ContinuityCopy = {
   detailReadsAvailable: "Existing records remain readable through an explicit ID and the corresponding API.",
   noFakeData: "This view does not generate demo records or pretend that runtime state exists.",
   workspaceSelector: "Current workspace",
+  manageWorkspaces: "Manage workspaces",
+  addProject: "Add project",
+  workspaceManagerTitle: "Workspace and project onboarding",
+  workspaceManagerDescription: "Authorize a parent directory for bounded discovery, then explicitly register only the Git projects ChatCockpit should manage.",
+  registeredProjects: "Registered projects",
+  discoveryRoots: "Authorized discovery roots",
+  addDiscoveryRoot: "Add discovery root",
+  discoveryRootPath: "Local parent directory path",
+  discoveryRootHint: "Choose a parent directory that contains Git projects. This grants depth-1 discovery only and does not authorize every child project.",
+  addRoot: "Authorize directory",
+  removeRoot: "Remove discovery access",
+  scanProjects: "Scan projects",
+  scanTruncated: "The safe scan limit was reached. Choose a narrower parent directory to inspect more candidates.",
+  noDiscoveryRoots: "No project discovery roots authorized",
+  noDiscoveryRootsDescription: "Add a local parent directory and ChatCockpit will inspect only its direct child Git projects.",
+  discoveredProjects: "Discovered Git projects",
+  noCandidates: "No eligible direct-child Git projects were found under this root.",
+  registeredCandidate: "Registered",
+  unregisteredCandidate: "Available",
+  reviewImport: "Review and add",
+  repoIdLabel: "Repository ID",
+  permissionReview: "Permission review",
+  permissionExactProject: "Only the selected Git checkout is added to Workspace execution authority.",
+  permissionNoSiblings: "Sibling projects under the same parent remain unregistered and unavailable to AI operations.",
+  importProject: "Add to ChatCockpit",
+  machineLocalRequired: "Workspace path management is available only from the target Mac's local console. Remote access can still use already registered logical workspaces.",
   writerTitle: "Workspace Writer",
   activeWriter: "Active writer present",
   noActiveWriter: "No active writer",

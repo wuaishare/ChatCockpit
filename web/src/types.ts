@@ -582,6 +582,49 @@ export interface ContinuityProjectsResponse {
   projects: ContinuityProjectProjection[];
 }
 
+export interface WorkspaceDiscoveryRoot {
+  id: string;
+  displayName: string;
+  path: string;
+}
+
+export interface WorkspaceDiscoveryRootsResponse {
+  ok: true;
+  configRevision: string;
+  roots: WorkspaceDiscoveryRoot[];
+}
+
+export interface WorkspaceDiscoveryCandidate {
+  candidateId: string;
+  name: string;
+  suggestedRepoId: string;
+  git: {
+    repository: true;
+    branch: string | null;
+    headCommit: string | null;
+    dirty: boolean;
+  };
+  registration: "registered" | "unregistered";
+  existingRepoId: string | null;
+}
+
+export interface WorkspaceDiscoveryScanResponse {
+  ok: true;
+  configRevision: string;
+  root: WorkspaceDiscoveryRoot;
+  inspectedEntries: number;
+  truncated: boolean;
+  candidates: WorkspaceDiscoveryCandidate[];
+}
+
+export interface WorkspaceDiscoveryImportResponse {
+  ok: true;
+  configRevision: string;
+  project: ContinuityProjectRecord;
+  workspace: ContinuityWorkspaceRecord;
+  replayed: boolean;
+}
+
 export type ContinuityTaskStatus =
   | "backlog"
   | "ready"

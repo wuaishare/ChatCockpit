@@ -15,6 +15,9 @@ import type {
   ContinuityHandoffForkResponse,
   ContinuityHandoffMutationResponse,
   ContinuityProjectsResponse,
+  WorkspaceDiscoveryImportResponse,
+  WorkspaceDiscoveryRootsResponse,
+  WorkspaceDiscoveryScanResponse,
   ContinuitySessionMode,
   ContinuityTaskCompletionResponse,
   ContinuityTaskDocumentBindResponse,
@@ -672,6 +675,77 @@ export async function fetchContinuityProjects(
 ): Promise<ContinuityProjectsResponse> {
   return requestJson<ContinuityProjectsResponse>(
     "/api/continuity/projects?status=active",
+    token
+  );
+}
+
+export async function fetchWorkspaceDiscoveryRoots(
+  token?: string | null
+): Promise<WorkspaceDiscoveryRootsResponse> {
+  return requestJson<WorkspaceDiscoveryRootsResponse>(
+    "/api/continuity/workspace-discovery/roots",
+    token
+  );
+}
+
+export async function addDiscoveryRoot(
+  path: string,
+  expectedConfigRevision: string,
+  token?: string | null
+): Promise<WorkspaceDiscoveryRootsResponse> {
+  return postBodyJson<WorkspaceDiscoveryRootsResponse>(
+    "/api/continuity/workspace-discovery/roots",
+    { path, expectedConfigRevision },
+    token
+  );
+}
+
+export async function removeDiscoveryRoot(
+  rootId: string,
+  expectedConfigRevision: string,
+  token?: string | null
+): Promise<WorkspaceDiscoveryRootsResponse> {
+  const response = await fetch(
+    `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}`,
+    {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: {
+        ...buildHeaders(token, { mutation: true }),
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ expectedConfigRevision })
+    }
+  );
+  if (!response.ok) throw await parseProblem(response);
+  return (await response.json()) as WorkspaceDiscoveryRootsResponse;
+}
+
+export async function scanWorkspaceDiscoveryRoot(
+  rootId: string,
+  expectedConfigRevision: string,
+  token?: string | null
+): Promise<WorkspaceDiscoveryScanResponse> {
+  return postBodyJson<WorkspaceDiscoveryScanResponse>(
+    `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}/scan`,
+    { expectedConfigRevision },
+    token
+  );
+}
+
+export async function importWorkspaceCandidate(
+  rootId: string,
+  payload: {
+    candidateId: string;
+    repoId: string;
+    expectedConfigRevision: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<WorkspaceDiscoveryImportResponse> {
+  return postBodyJson<WorkspaceDiscoveryImportResponse>(
+    `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}/import`,
+    payload,
     token
   );
 }

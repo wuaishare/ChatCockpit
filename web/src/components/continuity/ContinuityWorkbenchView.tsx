@@ -10,6 +10,7 @@ import {
   ProjectOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
   SyncOutlined,
   SwapOutlined
 } from "@ant-design/icons";
@@ -29,6 +30,7 @@ import type {
 } from "../../types";
 import { StateNotice } from "../StateNotice";
 import { WorkspaceContinuityPanel } from "./WorkspaceContinuityPanel";
+import { WorkspaceOnboardingDrawer } from "./WorkspaceOnboardingDrawer";
 
 interface ContinuityWorkbenchViewProps {
   locale: LocaleCode;
@@ -76,6 +78,7 @@ export function ContinuityWorkbenchView({
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [workspaceManagerOpen, setWorkspaceManagerOpen] = useState(false);
   const protectedView = authRequired && !token?.trim();
 
   const loadProjects = useCallback(async () => {
@@ -185,6 +188,16 @@ export function ContinuityWorkbenchView({
   );
   const sectionCopy = copy.sections[activeSection];
 
+  const handleWorkspaceImported = useCallback(
+    async (workspaceId: string) => {
+      await loadProjects();
+      setSelectedWorkspaceId(workspaceId);
+      setWorkspaceManagerOpen(false);
+      onSectionChange("projects");
+    },
+    [loadProjects, onSectionChange]
+  );
+
   return (
     <section className="continuity-workbench" aria-labelledby="continuity-workbench-title">
       <header className="continuity-workbench__header panel">
@@ -236,13 +249,22 @@ export function ContinuityWorkbenchView({
             </div>
             <div className="continuity-workspace-selector">
               <span>{copy.workspaceSelector}</span>
-              <Select
-                value={selectedWorkspaceId ?? undefined}
-                options={workspaceOptions}
-                placeholder={copy.selectWorkspaceHint}
-                onChange={setSelectedWorkspaceId}
-                disabled={workspaceOptions.length === 0}
-              />
+              <div className="continuity-workspace-selector__controls">
+                <Select
+                  value={selectedWorkspaceId ?? undefined}
+                  options={workspaceOptions}
+                  placeholder={copy.selectWorkspaceHint}
+                  onChange={setSelectedWorkspaceId}
+                  disabled={workspaceOptions.length === 0}
+                />
+                <Button
+                  icon={<SettingOutlined />}
+                  onClick={() => setWorkspaceManagerOpen(true)}
+                  disabled={protectedView}
+                >
+                  {copy.manageWorkspaces}
+                </Button>
+              </div>
             </div>
           </header>
 
@@ -305,12 +327,22 @@ export function ContinuityWorkbenchView({
                   readyWorkspaceCount={readyWorkspaceCount}
                   selectedWorkspaceId={selectedWorkspaceId}
                   onSelectWorkspace={setSelectedWorkspaceId}
+                  onManageWorkspaces={() => setWorkspaceManagerOpen(true)}
                 />
               }
             />
           ) : null}
         </main>
       </div>
+
+      <WorkspaceOnboardingDrawer
+        open={workspaceManagerOpen}
+        locale={locale}
+        token={token}
+        projects={projects}
+        onClose={() => setWorkspaceManagerOpen(false)}
+        onImported={handleWorkspaceImported}
+      />
     </section>
   );
 }
@@ -321,7 +353,8 @@ function ProjectsSection({
   workspaceCount,
   readyWorkspaceCount,
   selectedWorkspaceId,
-  onSelectWorkspace
+  onSelectWorkspace,
+  onManageWorkspaces
 }: {
   locale: LocaleCode;
   projects: ContinuityProjectProjection[];
@@ -329,6 +362,7 @@ function ProjectsSection({
   readyWorkspaceCount: number;
   selectedWorkspaceId: string;
   onSelectWorkspace: (workspaceId: string) => void;
+  onManageWorkspaces: () => void;
 }) {
   const copy = getUiCopy(locale).continuity;
 
@@ -345,6 +379,11 @@ function ProjectsSection({
 
   return (
     <div className="continuity-projects">
+      <div className="continuity-projects__actions">
+        <Button type="primary" icon={<ProjectOutlined />} onClick={onManageWorkspaces}>
+          {copy.addProject}
+        </Button>
+      </div>
       <div className="continuity-summary" aria-label={copy.sections.projects.title}>
         <SummaryMetric value={projects.length} label={copy.projectCount} />
         <SummaryMetric value={workspaceCount} label={copy.workspaceCount} />

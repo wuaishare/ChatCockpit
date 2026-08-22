@@ -93,6 +93,7 @@
     "verify:workspace-config-store": "tsx scripts/verify-workspace-config-store.ts",
     "verify:workspace-onboarding": "tsx scripts/verify-workspace-onboarding.ts",
     "verify:workspace-onboarding-api": "tsx scripts/verify-workspace-onboarding-api.ts",
+    "verify:workspace-onboarding-ui": "tsx scripts/verify-workspace-onboarding-ui.ts",
     "verify:oauth-store": "tsx scripts/verify-oauth-store.ts",
     "verify:oauth-device-access-policy": "tsx scripts/verify-oauth-device-access-policy.ts",
     "verify:oauth-device-access-policy-service": "tsx scripts/verify-oauth-device-access-policy-service.ts",
