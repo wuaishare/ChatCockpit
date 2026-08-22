@@ -584,6 +584,10 @@ input.on("line", (line) => {
       break;
     }
     case "thread/resume": {
+      if (message.params?.threadId === "thread_active_writer") {
+        fail(message.id, -32600, "thread thread_active_writer already has an active writer");
+        break;
+      }
       const thread = threads.find((candidate) => candidate.id === message.params?.threadId);
       if (!thread) {
         fail(message.id, -32602, "thread not found");

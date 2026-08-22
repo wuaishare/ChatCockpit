@@ -469,6 +469,11 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     assert.equal(resumedThread.workspaceId, nestedWorkspace.id);
     assert.doesNotMatch(JSON.stringify(resumedThread), new RegExp(tempRoot));
 
+    await assert.rejects(
+      () => adapter.resumeThread({ threadId: "thread_active_writer" }),
+      (error) => assertServiceError(error, "CODEX_THREAD_ACTIVE_WRITER")
+    );
+
     const forkedThread = await adapter.forkThread({
       threadId: "thread_nested",
       lastTurnId: "turn_boundary"
@@ -542,9 +547,12 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     const resumeRequests = traces.filter(
       (entry) => entry.method === "thread/resume"
     );
-    assert.equal(resumeRequests.length, 1);
+    assert.equal(resumeRequests.length, 2);
     assert.deepEqual(resumeRequests[0]?.params, {
       threadId: "thread_nested"
+    });
+    assert.deepEqual(resumeRequests[1]?.params, {
+      threadId: "thread_active_writer"
     });
     const forkRequests = traces.filter(
       (entry) => entry.method === "thread/fork"

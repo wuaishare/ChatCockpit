@@ -61,6 +61,11 @@ function problemMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function problemCode(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("code" in error)) return null;
+  return typeof (error as ApiProblem).code === "string" ? (error as ApiProblem).code! : null;
+}
+
 function normalizeThreadReference(value: string): string {
   const trimmed = value.trim();
   if (trimmed.startsWith("codex://")) {
@@ -105,6 +110,7 @@ export function CodexThreadImportDrawer({
   const [execution, setExecution] =
     useState<CodexThreadImportExecutionResponse | null>(null);
   const [nativeResumed, setNativeResumed] = useState(false);
+  const [nativeWriterBusy, setNativeWriterBusy] = useState(false);
   const [inspecting, setInspecting] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [preparingTransfer, setPreparingTransfer] = useState(false);
@@ -117,6 +123,7 @@ export function CodexThreadImportDrawer({
     setAssessment(null);
     setExecution(null);
     setNativeResumed(false);
+    setNativeWriterBusy(false);
     setInspecting(false);
     setResuming(false);
     setPreparingTransfer(false);
@@ -135,6 +142,7 @@ export function CodexThreadImportDrawer({
     setAssessment(null);
     setExecution(null);
     setNativeResumed(false);
+    setNativeWriterBusy(false);
     try {
       const threadId = normalizeThreadReference(values.threadRef);
       const [threadResponse, accountResponse] = await Promise.all([
@@ -156,6 +164,7 @@ export function CodexThreadImportDrawer({
   async function resumeNative(): Promise<void> {
     if (!thread) return;
     setResuming(true);
+    setNativeWriterBusy(false);
     try {
       const response = await resumeNativeCodexThread(
         {
@@ -170,7 +179,12 @@ export function CodexThreadImportDrawer({
       await onComplete();
       message.success(copy.nativeResumeComplete);
     } catch (error) {
-      message.error(problemMessage(error, copy.operationFailed));
+      if (problemCode(error) === "CODEX_THREAD_ACTIVE_WRITER") {
+        setNativeWriterBusy(true);
+        message.warning(copy.nativeWriterBusyTitle);
+      } else {
+        message.error(problemMessage(error, copy.operationFailed));
+      }
     } finally {
       setResuming(false);
     }
@@ -227,7 +241,13 @@ export function CodexThreadImportDrawer({
   }
 
   const previewMessages = execution?.context.messages.slice(0, 6) ?? [];
-  const quotaLimited = account?.limited === true;
+  const quotaState = !account || account.rateLimits.length === 0
+    ? "unknown"
+    : account.limited
+      ? "limited"
+      : "available";
+  const quotaLimited = quotaState === "limited";
+  const transferPreferred = quotaLimited || nativeWriterBusy;
 
   return (
     <Drawer
@@ -286,8 +306,8 @@ export function CodexThreadImportDrawer({
                 <code>{workspaceLabel}</code>
               </Descriptions.Item>
               <Descriptions.Item label="Codex quota">
-                <Tag color={quotaLimited ? "gold" : "green"}>
-                  {quotaLimited ? "limited" : "available"}
+                <Tag color={quotaState === "limited" ? "gold" : quotaState === "available" ? "green" : "default"}>
+                  {quotaState}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>
@@ -296,18 +316,33 @@ export function CodexThreadImportDrawer({
               <Alert type="success" showIcon message={copy.nativeResumeComplete} />
             ) : null}
 
+            {nativeWriterBusy ? (
+              <Alert
+                type="warning"
+                showIcon
+                message={copy.nativeWriterBusyTitle}
+                description={copy.nativeWriterBusyDescription}
+              />
+            ) : null}
+
             <section className="codex-thread-import__codex-option">
               <strong>{copy.resumeNativeCodex}</strong>
               <Text as="p" type="secondary">
                 {copy.continueWithCodexDescription}
               </Text>
               <Alert
-                type={quotaLimited ? "warning" : "success"}
+                type={quotaState === "limited" ? "warning" : quotaState === "available" ? "success" : "info"}
                 showIcon
-                message={quotaLimited ? copy.noCodexQuotaNotice : copy.codexQuotaAvailableNotice}
+                message={
+                  quotaState === "limited"
+                    ? copy.noCodexQuotaNotice
+                    : quotaState === "available"
+                      ? copy.codexQuotaAvailableNotice
+                      : copy.codexQuotaUnknownNotice
+                }
               />
               <Button
-                type={quotaLimited ? "default" : "primary"}
+                type={transferPreferred ? "default" : "primary"}
                 loading={resuming}
                 disabled={nativeResumed}
                 onClick={() => void resumeNative()}
@@ -326,7 +361,7 @@ export function CodexThreadImportDrawer({
               </Text>
               {!assessment ? (
                 <Button
-                  type={quotaLimited ? "primary" : "default"}
+                  type={transferPreferred ? "primary" : "default"}
                   icon={<ArrowRightOutlined />}
                   loading={preparingTransfer}
                   onClick={() => void prepareTransfer()}

@@ -77,6 +77,24 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function rpcError(method: string, error: AppServerRpcError): ServiceError {
+  if (
+    method === "thread/resume" &&
+    error.code === -32600 &&
+    /already has an active writer/i.test(error.message)
+  ) {
+    return new ServiceError(
+      "CODEX_THREAD_ACTIVE_WRITER",
+      "This Codex thread is currently owned by another active Codex surface",
+      {
+        details: {
+          method,
+          rpcCode: error.code,
+          writerState: "busy-elsewhere"
+        }
+      }
+    );
+  }
+
   if (error.code === -32601) {
     return new ServiceError(
       "CAPABILITY_UNAVAILABLE",
