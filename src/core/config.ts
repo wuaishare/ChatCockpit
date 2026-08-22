@@ -83,6 +83,7 @@ function buildDefaultConfig(
   return {
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId,
+    workspaceDiscoveryRoots: [],
     workspaceAllowlist: dedupeSorted([normalizedRepoRoot, ...siblingAllowlist]),
     repoMappings: {
       [defaultRepoId]: {
@@ -112,6 +113,9 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
   return {
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId: config.defaultRepoId,
+    workspaceDiscoveryRoots: dedupeSorted(
+      (config.workspaceDiscoveryRoots || []).map(normalizeAbsolutePath)
+    ),
     workspaceAllowlist: dedupeSorted(
       (config.workspaceAllowlist || []).map(normalizeAbsolutePath)
     ),

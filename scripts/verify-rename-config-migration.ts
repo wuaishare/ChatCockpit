@@ -44,8 +44,11 @@ assert.equal(pureTarget.repoMappings.primary?.path, fs.realpathSync.native(repoR
 assert.equal(pureTarget.repoMappings.tokenpilot, undefined);
 
 const customRepoRoot = path.join(root, "custom-repo");
+const discoveryRoot = path.join(root, "discovery-root");
 fs.mkdirSync(customRepoRoot, { recursive: true });
+fs.mkdirSync(discoveryRoot, { recursive: true });
 const customTarget = migrateLegacyUserConfigToChatCockpit({
+  workspaceDiscoveryRoots: [discoveryRoot],
   workspaceAllowlist: [repoRoot, customRepoRoot],
   repoMappings: {
     tokenpilot: { path: repoRoot },
@@ -54,6 +57,7 @@ const customTarget = migrateLegacyUserConfigToChatCockpit({
 });
 assert.equal(customTarget.repoMappings.primary?.path, fs.realpathSync.native(repoRoot));
 assert.equal(customTarget.repoMappings.custom?.path, fs.realpathSync.native(customRepoRoot));
+assert.deepEqual(customTarget.workspaceDiscoveryRoots, [fs.realpathSync.native(discoveryRoot)]);
 
 const equivalent = assessChatCockpitTargetConfig({
   legacyConfigRaw: JSON.parse(legacyRaw),

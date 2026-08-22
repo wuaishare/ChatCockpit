@@ -11,6 +11,7 @@ const mappingSchema = z.object({
 });
 
 const commonSchema = z.object({
+  workspaceDiscoveryRoots: z.array(z.string()).default([]),
   workspaceAllowlist: z.array(z.string()).default([]),
   repoMappings: z.record(z.string(), mappingSchema).default({})
 });
@@ -50,6 +51,7 @@ export function parseUserConfig(raw: unknown): UserConfigParseResult {
     config: {
       schemaVersion: USER_CONFIG_SCHEMA_VERSION,
       defaultRepoId: LEGACY_DEFAULT_REPO_ID,
+      workspaceDiscoveryRoots: legacy.workspaceDiscoveryRoots,
       workspaceAllowlist: legacy.workspaceAllowlist,
       repoMappings: legacy.repoMappings
     }
