@@ -61,6 +61,7 @@ import {
   type HubIdentityRecord
 } from "../devices/hub-identity.js";
 import { ensureLanTlsIdentity } from "../devices/lan-tls-identity.js";
+import { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -623,6 +624,15 @@ export function buildServer(
     continuityServices.repositories,
     runtimeRouter
   );
+  const codexThreadImportService = new CodexThreadImportService({
+    repositories: continuityServices.repositories,
+    runtime: runtimeRouter,
+    tasks: continuityServices.tasks,
+    sessions: continuityServices.sessions,
+    runtimeBindings: runtimeBindingService,
+    handoffs: continuityServices.handoffs,
+    workspaceContinuity: continuityServices.workspaces
+  });
   const runtimeEventService = new RuntimeEventService(
     continuityServices.repositories,
     runtimeRouter
@@ -895,7 +905,7 @@ export function buildServer(
     }
   );
   registerMcpHttpRoutes(app, mcpHandler);
-  registerContinuityRoutes(app, continuityServices);
+  registerContinuityRoutes(app, continuityServices, codexThreadImportService);
   registerOperationalActivityRoutes(app, operationalActivityService, {
     pollIntervalMs: options.activityStreamPollIntervalMs,
     heartbeatIntervalMs: options.activityStreamHeartbeatIntervalMs

@@ -625,6 +625,100 @@ export interface WorkspaceDiscoveryImportResponse {
   replayed: boolean;
 }
 
+export type CodexThreadImportState = "assessed" | "importing" | "ready" | "failed";
+
+export interface CodexThreadImportRecord {
+  id: string;
+  sourceThreadId: string;
+  projectId: string;
+  workspaceId: string;
+  state: CodexThreadImportState;
+  assessmentHash: string;
+  expiresAt: string;
+  sourceTaskId: string | null;
+  sourceSessionId: string | null;
+  handoffId: string | null;
+  continuationTaskId: string | null;
+  continuationSessionId: string | null;
+  contextTruncated: boolean;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+
+export interface CodexThreadImportThreadProjection {
+  id: string;
+  preview: string;
+  modelProvider: string | null;
+  createdAt: number | null;
+  updatedAt: number | null;
+  recencyAt: number | null;
+  sourceKind: string | null;
+  status: { type: string; activeFlags?: string[] };
+  projectId: string | null;
+  workspaceId: string | null;
+  repoId: string | null;
+  parentThreadId: string | null;
+  agentNickname: string | null;
+  agentRole: string | null;
+}
+
+export interface CodexThreadContextMessage {
+  id: string;
+  turnId: string;
+  role: "user" | "assistant";
+  text: string;
+  truncated: boolean;
+}
+
+export interface CodexThreadContextPage {
+  threadId: string;
+  projectId: string | null;
+  workspaceId: string | null;
+  repoId: string | null;
+  messages: CodexThreadContextMessage[];
+  nextCursor: string | null;
+  truncated: boolean;
+  lastTurnId: string | null;
+}
+
+export interface CodexThreadImportAssessmentResponse {
+  ok: true;
+  assessmentId: string;
+  assessmentHash: string;
+  expiresAt: string;
+  thread: CodexThreadImportThreadProjection;
+  matchedWorkspaceId: string | null;
+  requestedWorkspaceId: string;
+  workspaceMatch: "matched" | "mismatch" | "unregistered";
+  availableActions: Array<"handoff-to-chat-direct">;
+  import: CodexThreadImportRecord;
+  replayed: boolean;
+}
+
+export interface CodexThreadImportExecutionResponse {
+  ok: true;
+  import: CodexThreadImportRecord;
+  sourceTask: ContinuityTaskRecord;
+  sourceSession: ContinuitySessionRecord;
+  handoff: ContinuityHandoffRecord;
+  continuationTask: ContinuityTaskRecord;
+  continuationSession: ContinuitySessionRecord;
+  contextSnapshotId: string;
+  context: CodexThreadContextPage;
+  replayed: boolean;
+}
+
+export interface CodexThreadImportResponse {
+  ok: true;
+  import: CodexThreadImportRecord;
+}
+
+export interface CodexThreadImportContextResponse {
+  ok: true;
+  context: CodexThreadContextPage;
+}
+
 export type ContinuityTaskStatus =
   | "backlog"
   | "ready"

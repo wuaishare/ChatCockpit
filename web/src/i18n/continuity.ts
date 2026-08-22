@@ -120,6 +120,29 @@ export interface ContinuityCopy {
   noTasksDescription: string;
   noSessionsTitle: string;
   noSessionsDescription: string;
+  importCodexThread: string;
+  importCodexThreadTitle: string;
+  importCodexThreadDescription: string;
+  threadReference: string;
+  threadReferencePlaceholder: string;
+  assessThread: string;
+  assessmentReady: string;
+  assessmentExpires: string;
+  threadSource: string;
+  threadProvider: string;
+  threadStatus: string;
+  threadWorkspace: string;
+  handoffToChatGpt: string;
+  handoffToChatGptDescription: string;
+  noCodexQuotaNotice: string;
+  executeChatDirectHandoff: string;
+  contextPreview: string;
+  contextTruncated: string;
+  contextComplete: string;
+  importComplete: string;
+  continuationSession: string;
+  continueWithCodex: string;
+  continueWithCodexDescription: string;
   noHandoffsTitle: string;
   noHandoffsDescription: string;
   noEvidenceTitle: string;
@@ -357,6 +380,29 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   noTasksDescription: "创建并绑定到该工作区的任务会显示在这里。",
   noSessionsTitle: "当前工作区没有开发会话",
   noSessionsDescription: "启动 Chat Direct、Codex Session 或异步 Agent 会话后会显示在这里。",
+  importCodexThread: "导入 Codex 会话",
+  importCodexThreadTitle: "导入已有 Codex 会话",
+  importCodexThreadDescription: "验证已有 Codex Thread 与当前工作区的真实归属，并把未完成工作交接给 ChatGPT Chat Direct。",
+  threadReference: "Codex Thread",
+  threadReferencePlaceholder: "codex://threads/<thread-id> 或直接输入 thread id",
+  assessThread: "验证会话",
+  assessmentReady: "会话与当前工作区匹配，可以安全交接。",
+  assessmentExpires: "本次验证有效至",
+  threadSource: "来源",
+  threadProvider: "Provider",
+  threadStatus: "状态",
+  threadWorkspace: "目标工作区",
+  handoffToChatGpt: "交接给 ChatGPT（Chat Direct）",
+  handoffToChatGptDescription: "保留原 Codex Thread 作为来源证据，创建 Chat Direct continuation，并继续使用同一个受治理工作区。",
+  noCodexQuotaNotice: "此操作不会调用 Codex thread/resume、thread/fork 或 turn/start，不会为了交接继续消耗 Codex 推理配额。",
+  executeChatDirectHandoff: "确认交接给 ChatGPT",
+  contextPreview: "可见历史上下文",
+  contextTruncated: "上下文已按安全上限截断，可在交接后继续分页读取。",
+  contextComplete: "已捕获当前可见历史。",
+  importComplete: "Codex 会话已交接到 Chat Direct。",
+  continuationSession: "Chat Direct 会话",
+  continueWithCodex: "继续使用 Codex",
+  continueWithCodexDescription: "需要继续消耗 Codex Runtime 时，请使用恢复中心的 Resume / Fork 流程。",
   noHandoffsTitle: "当前没有交接检查点",
   noHandoffsDescription: "从活跃任务会话准备交接后，可在这里接受、分叉或取消。",
   noEvidenceTitle: "当前没有验证证据",
@@ -594,6 +640,29 @@ export const enUSContinuityCopy: ContinuityCopy = {
   noTasksDescription: "Tasks created and bound to this workspace will appear here.",
   noSessionsTitle: "No development sessions in this workspace",
   noSessionsDescription: "Chat Direct, Codex Session, and asynchronous Agent sessions will appear after they start.",
+  importCodexThread: "Import Codex session",
+  importCodexThreadTitle: "Import an existing Codex session",
+  importCodexThreadDescription: "Verify the existing Codex thread against this workspace, then hand unfinished work to ChatGPT Chat Direct.",
+  threadReference: "Codex Thread",
+  threadReferencePlaceholder: "codex://threads/<thread-id> or a raw thread id",
+  assessThread: "Verify session",
+  assessmentReady: "The thread matches this workspace and is safe to hand off.",
+  assessmentExpires: "Assessment expires",
+  threadSource: "Source",
+  threadProvider: "Provider",
+  threadStatus: "Status",
+  threadWorkspace: "Target workspace",
+  handoffToChatGpt: "Hand off to ChatGPT (Chat Direct)",
+  handoffToChatGptDescription: "Keep the Codex thread as source provenance, create a Chat Direct continuation, and continue in the same governed workspace.",
+  noCodexQuotaNotice: "This handoff does not call Codex thread/resume, thread/fork, or turn/start, so the handoff itself does not continue Codex model execution.",
+  executeChatDirectHandoff: "Confirm ChatGPT handoff",
+  contextPreview: "Visible conversation context",
+  contextTruncated: "Context was bounded by safety limits; additional pages can be read after handoff.",
+  contextComplete: "Current visible history was captured.",
+  importComplete: "The Codex session is now handed off to Chat Direct.",
+  continuationSession: "Chat Direct session",
+  continueWithCodex: "Continue with Codex",
+  continueWithCodexDescription: "To keep using the Codex Runtime, use the Recovery Center Resume / Fork flow.",
   noHandoffsTitle: "No handoff checkpoints",
   noHandoffsDescription: "Prepare a handoff from an active task session to accept, fork, or cancel it here.",
   noEvidenceTitle: "No verification evidence",

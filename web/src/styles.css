@@ -2806,6 +2806,82 @@ button,
   white-space: nowrap;
 }
 
+.codex-thread-import {
+  display: grid;
+  gap: 18px;
+}
+
+.codex-thread-import__description {
+  margin: 0 !important;
+  line-height: 1.65 !important;
+}
+
+.codex-thread-import__assessment,
+.codex-thread-import__complete {
+  display: grid;
+  gap: 14px;
+}
+
+.codex-thread-import__handoff-card,
+.codex-thread-import__codex-option,
+.codex-thread-import__context {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: var(--tp-surface-soft);
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-lg);
+}
+
+.codex-thread-import__handoff-heading,
+.codex-thread-import__context-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--tp-text-strong);
+}
+
+.codex-thread-import__handoff-heading {
+  justify-content: flex-start;
+}
+
+.codex-thread-import__handoff-card p,
+.codex-thread-import__codex-option p {
+  margin: 0 !important;
+  line-height: 1.6 !important;
+}
+
+.codex-thread-import__message {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  background: var(--tp-surface);
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+}
+
+.codex-thread-import__message > span {
+  color: var(--tp-text-soft);
+  font-size: var(--tp-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.codex-thread-import__message p {
+  margin: 0;
+  color: var(--tp-text);
+  font-size: var(--tp-text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.codex-thread-import__message.is-assistant {
+  border-left: 3px solid var(--tp-cyan);
+}
+
 .continuity-workspace-manager__field {
   display: grid;
   gap: 6px;

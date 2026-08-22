@@ -6,7 +6,14 @@ import type {
 import { z } from "zod";
 
 import type { ContinuityServices } from "../application/continuity-services.js";
+import type { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { asyncJobQueueSchema } from "../contracts/async-job.js";
+import {
+  codexThreadImportAssessSchema,
+  codexThreadImportContextSchema,
+  codexThreadImportExecuteSchema,
+  codexThreadImportGetSchema
+} from "../contracts/codex-thread-import.js";
 import {
   workspaceDiscoveryImportSchema,
   workspaceDiscoveryRootCreateSchema,
@@ -40,7 +47,7 @@ import {
   taskGetSchema,
   workspaceSnapshotSchema
 } from "../contracts/continuity.js";
-import { sendUnknownApiError, validationError } from "./errors.js";
+import { ApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { requireMachineLocalOwner } from "./machine-local-authority.js";
 import { operationContextFromRequest } from "./request-context.js";
 
@@ -68,9 +75,20 @@ function registerAliases(
   }
 }
 
+function requireContinuityOwner(request: FastifyRequest): void {
+  if (request.chatCockpitAuth.kind !== "operator-session") {
+    throw new ApiError(
+      403,
+      "OPERATOR_SESSION_REQUIRED",
+      "Web Owner session is required for Codex thread import management"
+    );
+  }
+}
+
 export function registerContinuityRoutes(
   app: FastifyInstance,
-  services: ContinuityServices
+  services: ContinuityServices,
+  codexThreadImports?: CodexThreadImportService
 ): void {
   registerAliases(app, "GET", "/api/continuity/projects", (request, reply) => {
     const input = parseOrReply(projectListSchema, request.query ?? {}, reply);
@@ -222,6 +240,108 @@ export function registerContinuityRoutes(
       }
     }
   );
+
+  if (codexThreadImports) {
+    registerAliases(
+      app,
+      "POST",
+      "/api/continuity/workspaces/:workspaceId/codex-thread-imports/assess",
+      async (request, reply) => {
+        const input = parseOrReply(
+          codexThreadImportAssessSchema,
+          { ...(request.body as object), ...(request.params as object) },
+          reply
+        );
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            ...(await codexThreadImports.assess(
+              operationContextFromRequest(request),
+              input
+            ))
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+
+    registerAliases(
+      app,
+      "POST",
+      "/api/continuity/codex-thread-imports/:importId/execute",
+      async (request, reply) => {
+        const input = parseOrReply(
+          codexThreadImportExecuteSchema,
+          { ...(request.body as object), ...(request.params as object) },
+          reply
+        );
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            ...(await codexThreadImports.execute(
+              operationContextFromRequest(request),
+              input
+            ))
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+
+    registerAliases(
+      app,
+      "GET",
+      "/api/continuity/codex-thread-imports/:importId",
+      (request, reply) => {
+        const input = parseOrReply(codexThreadImportGetSchema, request.params, reply);
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            import: codexThreadImports.get(
+              operationContextFromRequest(request),
+              input.importId
+            )
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+
+    registerAliases(
+      app,
+      "GET",
+      "/api/continuity/codex-thread-imports/:importId/context",
+      async (request, reply) => {
+        const input = parseOrReply(
+          codexThreadImportContextSchema,
+          { ...(request.query as object), ...(request.params as object) },
+          reply
+        );
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            context: await codexThreadImports.readContext(
+              operationContextFromRequest(request),
+              input
+            )
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+  }
 
   registerAliases(
     app,

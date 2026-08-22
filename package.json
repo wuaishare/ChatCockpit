@@ -167,6 +167,7 @@
     "verify:codex-adapter": "tsx scripts/verify-codex-app-server.ts && tsx scripts/verify-codex-runtime-api.ts",
     "verify:codex-thread-context": "tsx scripts/verify-codex-thread-context.ts",
     "verify:codex-thread-import": "tsx scripts/verify-codex-thread-import.ts",
+    "verify:codex-thread-import-ui": "tsx scripts/verify-codex-thread-import-ui.ts",
     "verify:codex-execution": "tsx scripts/verify-codex-execution.ts",
     "verify:codex-standalone": "tsx scripts/verify-codex-standalone.ts",
     "verify:runtime-recovery": "tsx scripts/verify-runtime-recovery.ts && tsx scripts/verify-codex-recovery-adapter.ts && tsx scripts/verify-runtime-recovery-adapters.ts && tsx scripts/verify-runtime-recovery-assessment.ts && tsx scripts/verify-runtime-recovery-execution.ts && tsx scripts/verify-runtime-recovery-security.ts && tsx scripts/verify-runtime-recovery-api.ts && tsx scripts/verify-codex-runtime-recovery-live-harness.ts",

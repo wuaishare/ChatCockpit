@@ -3457,6 +3457,143 @@ components:
         workspace: { $ref: '#/components/schemas/ContinuityWorkspaceRecord' }
         replayed: { type: boolean }
       required: [ok, configRevision, project, workspace, replayed]
+    CodexThreadImportRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        sourceThreadId: { type: string }
+        projectId: { type: string }
+        workspaceId: { type: string }
+        state: { type: string, enum: [assessed, importing, ready, failed] }
+        assessmentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expiresAt: { type: string, format: date-time }
+        sourceTaskId: { oneOf: [{ type: string }, { type: "null" }] }
+        sourceSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        handoffId: { oneOf: [{ type: string }, { type: "null" }] }
+        continuationTaskId: { oneOf: [{ type: string }, { type: "null" }] }
+        continuationSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        contextTruncated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+      required: [id, sourceThreadId, projectId, workspaceId, state, assessmentHash, expiresAt, sourceTaskId, sourceSessionId, handoffId, continuationTaskId, continuationSessionId, contextTruncated, createdAt, updatedAt, revision]
+    CodexThreadImportThreadProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        preview: { type: string }
+        modelProvider: { oneOf: [{ type: string }, { type: "null" }] }
+        createdAt: { oneOf: [{ type: number }, { type: "null" }] }
+        updatedAt: { oneOf: [{ type: number }, { type: "null" }] }
+        recencyAt: { oneOf: [{ type: number }, { type: "null" }] }
+        sourceKind: { oneOf: [{ type: string }, { type: "null" }] }
+        status:
+          type: object
+          additionalProperties: false
+          properties:
+            type: { type: string }
+            activeFlags:
+              type: array
+              items: { type: string }
+          required: [type]
+        projectId: { oneOf: [{ type: string }, { type: "null" }] }
+        workspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        repoId: { oneOf: [{ type: string }, { type: "null" }] }
+        parentThreadId: { oneOf: [{ type: string }, { type: "null" }] }
+        agentNickname: { oneOf: [{ type: string }, { type: "null" }] }
+        agentRole: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [id, preview, modelProvider, createdAt, updatedAt, recencyAt, sourceKind, status, projectId, workspaceId, repoId, parentThreadId, agentNickname, agentRole]
+    CodexThreadContextMessage:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        turnId: { type: string }
+        role: { type: string, enum: [user, assistant] }
+        text: { type: string, maxLength: 8192 }
+        truncated: { type: boolean }
+      required: [id, turnId, role, text, truncated]
+    CodexThreadContextPage:
+      type: object
+      additionalProperties: false
+      properties:
+        threadId: { type: string }
+        projectId: { oneOf: [{ type: string }, { type: "null" }] }
+        workspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        repoId: { oneOf: [{ type: string }, { type: "null" }] }
+        messages:
+          type: array
+          maxItems: 40
+          items: { $ref: '#/components/schemas/CodexThreadContextMessage' }
+        nextCursor: { oneOf: [{ type: string }, { type: "null" }] }
+        truncated: { type: boolean }
+        lastTurnId: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [threadId, projectId, workspaceId, repoId, messages, nextCursor, truncated, lastTurnId]
+    CodexThreadImportAssessRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        threadRef: { type: string, minLength: 1, maxLength: 512 }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+      required: [threadRef, idempotencyKey]
+    CodexThreadImportAssessmentResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        assessmentId: { type: string }
+        assessmentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expiresAt: { type: string, format: date-time }
+        thread: { $ref: '#/components/schemas/CodexThreadImportThreadProjection' }
+        matchedWorkspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        requestedWorkspaceId: { type: string }
+        workspaceMatch: { type: string, enum: [matched, mismatch, unregistered] }
+        availableActions:
+          type: array
+          items: { type: string, enum: [handoff-to-chat-direct] }
+        import: { $ref: '#/components/schemas/CodexThreadImportRecord' }
+        replayed: { type: boolean }
+      required: [ok, assessmentId, assessmentHash, expiresAt, thread, matchedWorkspaceId, requestedWorkspaceId, workspaceMatch, availableActions, import, replayed]
+    CodexThreadImportExecuteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        assessmentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expectedRevision: { type: integer, minimum: 1 }
+        action: { type: string, const: handoff-to-chat-direct }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+      required: [assessmentHash, expectedRevision, action, idempotencyKey]
+    CodexThreadImportExecutionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        import: { $ref: '#/components/schemas/CodexThreadImportRecord' }
+        sourceTask: { $ref: '#/components/schemas/ContinuityTaskRecord' }
+        sourceSession: { $ref: '#/components/schemas/ContinuitySessionRecord' }
+        handoff: { $ref: '#/components/schemas/ContinuityHandoffRecord' }
+        continuationTask: { $ref: '#/components/schemas/ContinuityTaskRecord' }
+        continuationSession: { $ref: '#/components/schemas/ContinuitySessionRecord' }
+        contextSnapshotId: { type: string }
+        context: { $ref: '#/components/schemas/CodexThreadContextPage' }
+        replayed: { type: boolean }
+      required: [ok, import, sourceTask, sourceSession, handoff, continuationTask, continuationSession, contextSnapshotId, context, replayed]
+    CodexThreadImportResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        import: { $ref: '#/components/schemas/CodexThreadImportRecord' }
+      required: [ok, import]
+    CodexThreadImportContextResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        context: { $ref: '#/components/schemas/CodexThreadContextPage' }
+      required: [ok, context]
     ContinuityTaskRecord:
       type: object
       additionalProperties: false
@@ -8316,6 +8453,143 @@ paths:
               schema: { $ref: '#/components/schemas/ApiErrorResponse' }
         "409":
           description: Stale candidate, duplicate registration, repo-id conflict, idempotency conflict, or config revision conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/workspaces/{workspaceId}/codex-thread-imports/assess:
+    post:
+      operationId: assessCodexThreadImport
+      summary: Assess one existing Codex thread for this workspace
+      description: Reads public-safe Codex thread metadata, verifies its private cwd resolves to the selected registered Workspace, and creates a short-lived durable assessment. No Codex turn is resumed or started.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CodexThreadImportAssessRequest' }
+      responses:
+        "200":
+          description: Workspace-matched import assessment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportAssessmentResponse' }
+        "403":
+          description: Web Owner session or CSRF required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Thread is unregistered, belongs to another workspace, or already has an active import
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/codex-thread-imports/{importId}/execute:
+    post:
+      operationId: executeCodexThreadImport
+      summary: Hand an assessed Codex thread to Chat Direct
+      description: Binds the existing thread as source provenance, captures bounded visible context, prepares a normal Handoff, and creates a Chat Direct continuation. It does not invoke Codex thread/resume, thread/fork, or turn/start.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CodexThreadImportExecuteRequest' }
+      responses:
+        "200":
+          description: Durable source and Chat Direct continuation identities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportExecutionResponse' }
+        "403":
+          description: Web Owner session or CSRF required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Stale, expired, mismatched, or conflicting import state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/codex-thread-imports/{importId}:
+    get:
+      operationId: getCodexThreadImport
+      summary: Read one durable Codex thread import
+      description: Returns logical import identities and state only. Private cwd and raw provider payloads are never projected.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Durable import state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportResponse' }
+        "403":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/codex-thread-imports/{importId}/context:
+    get:
+      operationId: getCodexThreadImportContext
+      summary: Read bounded visible context for one imported Codex thread
+      description: Returns only reviewed user/assistant text for a ready import, with message and page size caps. Arbitrary unimported thread ids are not accepted by this endpoint.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+                maxLength: 256
+              - type: "null"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 40 }
+      responses:
+        "200":
+          description: Bounded imported visible context
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportContextResponse' }
+        "403":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Import is not ready or context identity changed
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiErrorResponse' }

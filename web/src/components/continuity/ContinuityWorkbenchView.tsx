@@ -319,6 +319,7 @@ export function ContinuityWorkbenchView({
               snapshot={snapshot}
               activeSection={activeSection}
               onRefresh={loadSnapshot}
+              onSectionChange={onSectionChange}
               projectsContent={
                 <ProjectsSection
                   locale={locale}

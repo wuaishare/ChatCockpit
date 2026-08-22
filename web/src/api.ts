@@ -15,6 +15,10 @@ import type {
   ContinuityHandoffForkResponse,
   ContinuityHandoffMutationResponse,
   ContinuityProjectsResponse,
+  CodexThreadImportAssessmentResponse,
+  CodexThreadImportContextResponse,
+  CodexThreadImportExecutionResponse,
+  CodexThreadImportResponse,
   WorkspaceDiscoveryImportResponse,
   WorkspaceDiscoveryRootsResponse,
   WorkspaceDiscoveryScanResponse,
@@ -746,6 +750,57 @@ export async function importWorkspaceCandidate(
   return postBodyJson<WorkspaceDiscoveryImportResponse>(
     `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}/import`,
     payload,
+    token
+  );
+}
+
+export async function assessCodexThreadImport(
+  workspaceId: string,
+  payload: { threadRef: string; idempotencyKey: string },
+  token?: string | null
+): Promise<CodexThreadImportAssessmentResponse> {
+  return postBodyJson(
+    `/api/continuity/workspaces/${encodeURIComponent(workspaceId)}/codex-thread-imports/assess`,
+    payload,
+    token
+  );
+}
+
+export async function executeCodexThreadImport(
+  importId: string,
+  payload: {
+    assessmentHash: string;
+    expectedRevision: number;
+    action: "handoff-to-chat-direct";
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<CodexThreadImportExecutionResponse> {
+  return postBodyJson(
+    `/api/continuity/codex-thread-imports/${encodeURIComponent(importId)}/execute`,
+    payload,
+    token
+  );
+}
+
+export async function fetchCodexThreadImport(
+  importId: string,
+  token?: string | null
+): Promise<CodexThreadImportResponse> {
+  return requestJson<CodexThreadImportResponse>(
+    `/api/continuity/codex-thread-imports/${encodeURIComponent(importId)}`,
+    token
+  );
+}
+
+export async function fetchCodexThreadImportContext(
+  importId: string,
+  cursor?: string | null,
+  token?: string | null
+): Promise<CodexThreadImportContextResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return requestJson<CodexThreadImportContextResponse>(
+    `/api/continuity/codex-thread-imports/${encodeURIComponent(importId)}/context${query}`,
     token
   );
 }

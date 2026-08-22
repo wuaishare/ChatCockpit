@@ -100,6 +100,16 @@
     flex: 1 1 auto;
   }
 
+  .codex-thread-import-drawer.ant-drawer .ant-drawer-content-wrapper {
+    width: calc(100vw - 16px) !important;
+    max-width: 560px;
+  }
+
+  .codex-thread-import__context-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .continuity-entity-card__footer,
   .continuity-git-summary > header {
     align-items: flex-start;
