@@ -3,7 +3,7 @@ import fs from "node:fs";
 
 import {
   isWithinWorkspaceAllowlist,
-  loadUserConfig
+  loadUserConfigForPaths
 } from "../core/config.js";
 import type { TokenPilotPaths } from "../types.js";
 import type { ContinuityDatabase } from "../continuity/database.js";
@@ -64,7 +64,7 @@ export class ProjectService {
   }
 
   private syncConfiguredProjects(): void {
-    const config = loadUserConfig(this.paths.repoRoot);
+    const config = loadUserConfigForPaths(this.paths);
     this.database.transaction(() => {
       for (const [repoId, mapping] of Object.entries(config.repoMappings).sort(
         ([left], [right]) => left.localeCompare(right)
