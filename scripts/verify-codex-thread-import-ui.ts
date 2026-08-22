@@ -241,7 +241,11 @@ assert.match(drawerSource, /assessCodexThreadImport/);
 assert.match(drawerSource, /executeCodexThreadImport/);
 assert.match(drawerSource, /action: "handoff-to-chat-direct"/);
 assert.match(drawerSource, /Codex quota/);
-assert.doesNotMatch(drawerSource, /resumeCodexThread|forkCodexThread|startCodexTurn/);
+assert.match(drawerSource, /CODEX_THREAD_ACTIVE_WRITER/);
+assert.match(drawerSource, /nativeWriterBusy/);
+assert.match(drawerSource, /quotaState/);
+assert.match(drawerSource, /"unknown"/);
+assert.doesNotMatch(drawerSource, /setInterval|resumeCodexThread|forkCodexThread|startCodexTurn/);
 
 const app = buildServer(paths, { codexAdapter });
 try {

@@ -136,6 +136,9 @@ export interface ContinuityCopy {
   handoffToChatGptDescription: string;
   noCodexQuotaNotice: string;
   codexQuotaAvailableNotice: string;
+  codexQuotaUnknownNotice: string;
+  nativeWriterBusyTitle: string;
+  nativeWriterBusyDescription: string;
   resumeNativeCodex: string;
   nativeResumeComplete: string;
   executeChatDirectHandoff: string;
@@ -399,6 +402,9 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   handoffToChatGptDescription: "这是跨 Runtime fallback，不是同一个 Codex 会话。仅在你明确切换模型运行链，或 Codex 当前受配额/可用性限制时使用；原 Codex Thread 保持为来源真源。",
   noCodexQuotaNotice: "Codex 当前报告存在配额/速率限制。推荐 Transfer 到 ChatGPT Direct；原生 Resume 仍保留，但新的 Codex Turn 可能无法执行。",
   codexQuotaAvailableNotice: "Codex 当前未报告配额限制。推荐直接 Resume 原 Thread，继续使用原生 Codex Session、配置与历史。",
+  codexQuotaUnknownNotice: "当前 Provider 没有返回可用的配额窗口数据。ChatCockpit 不会把未知状态当作“配额可用”；可先尝试原生 Resume，或明确选择 Transfer。",
+  nativeWriterBusyTitle: "该 Codex Thread 正由另一个 Surface 持有",
+  nativeWriterBusyDescription: "Codex 当前拒绝第二个 writer。请先在原 VS Code / Desktop / CLI Surface 中释放或关闭该会话，再手动重试；ChatCockpit 不会自动抢占、终止原进程或高频重试。若需要立即切换模型循环，可显式 Transfer 到 ChatGPT Direct。",
   resumeNativeCodex: "Resume 原生 Codex Thread",
   nativeResumeComplete: "已 Resume 原生 Codex Thread；没有创建 ChatCockpit Task、开发 Session 或 Handoff。",
   executeChatDirectHandoff: "准备并确认 Transfer",
@@ -662,6 +668,9 @@ export const enUSContinuityCopy: ContinuityCopy = {
   handoffToChatGptDescription: "This is a cross-runtime fallback, not the same Codex session. Use it only when intentionally switching model-loop owner or when Codex is quota/availability constrained; the original Codex Thread remains source truth.",
   noCodexQuotaNotice: "Codex currently reports a quota/rate-limit constraint. ChatGPT Direct Transfer is recommended; native Resume remains available, but new Codex Turns may be blocked.",
   codexQuotaAvailableNotice: "Codex currently reports no quota constraint. Resume the original Thread to preserve native Codex session, configuration, and history.",
+  codexQuotaUnknownNotice: "The current provider did not return usable quota-window data. ChatCockpit does not treat an unknown quota state as available; you may try native Resume or explicitly choose Transfer.",
+  nativeWriterBusyTitle: "This Codex Thread is owned by another active surface",
+  nativeWriterBusyDescription: "Codex is refusing a second writer. Release or close the session in the original VS Code, Desktop, or CLI surface, then retry manually. ChatCockpit will not steal ownership, terminate the original process, or retry in a tight loop. Use an explicit ChatGPT Direct Transfer if you need to switch model-loop ownership immediately.",
   resumeNativeCodex: "Resume native Codex Thread",
   nativeResumeComplete: "The native Codex Thread was resumed without creating a ChatCockpit Task, development Session, or Handoff.",
   executeChatDirectHandoff: "Prepare and confirm Transfer",
