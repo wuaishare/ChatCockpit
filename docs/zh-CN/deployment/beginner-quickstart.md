@@ -109,6 +109,10 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 
 确认读写链路后，再明确选择：Chat Direct 文件/搜索/命令/Git、Codex Session Thread/Turn/Approval，或 `createCodexRun` 异步 Job。
 
+如果项目还没出现在 Continuity，直接打开 `<安全入口>/continuity/projects`，使用“管理工作区 / 添加项目”：先添加仅用于发现的父目录，再扫描一级 Git 子项目并显式加入目标项目。父目录授权不会自动把所有兄弟项目变成 AI 可操作 Workspace。
+
+如果要把已有 Codex 会话交给 ChatGPT 继续，在目标 Workspace 的 Sessions 页面选择“导入 Codex 会话”，输入 Thread ID 或 `codex://threads/<thread-id>`，确认 Workspace 匹配后选择“交接给 ChatGPT（Chat Direct）”。该交接不会启动新的 Codex Turn。
+
 ## 6. 常见问题
 
 | 现象 | 常见原因 | 处理方式 |
@@ -119,7 +123,7 @@ CHATCOCKPIT_PUBLIC_BASE_URL=https://chatcockpit.example.com
 | Web UI 提示尚未创建管理员 | 旧状态、凭据损坏或 Secure Bootstrap 尚未完成 | 本机打开 ChatCockpit App 的 **访问与安全** 查看/重设管理员；“我已设置，重新检查”会明确显示仍未配置或检查失败的结果。也可使用本机 `chatcockpit operator set-password` 恢复 |
 | 调用 Actions 返回 401 | Custom GPT Actions 兼容路径的 Bearer token 不一致 | 检查 GPT Builder Authentication 和 `CHATCOCKPIT_API_TOKEN` |
 | Codex job 一直 queued | Runner 未运行 | 执行 `npm run start:local` 和 `npm run doctor:runtime` |
-| Continuity 页面没有项目 | 尚未配置有效 Repo Mapping | 重新运行 Setup/Init，并检查本地 ChatCockpit 配置 |
+| Continuity 页面没有项目 | 目标 Git 项目尚未显式加入 ChatCockpit | 在本机 `<安全入口>/continuity/projects` 打开“管理工作区 / 添加项目”，添加 Discovery Root、扫描并只加入需要的子项目；无需手工编辑 Repo Mapping |
 | Workspace 显示只读 | 另一个 Session 持有 Writer Lease | 查看 Writer Banner，通过 Handoff 接力，不要强行并发写入 |
 | Handoff 没有显示已验证 | 必需 Evidence 缺失、不完整、跳过或失败 | 记录并完成必需验证项 |
 | `runShell` 被拒绝 | exposed mode 阻止高信任命令 | 使用本地模式，或确认风险后设置 `CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true` |

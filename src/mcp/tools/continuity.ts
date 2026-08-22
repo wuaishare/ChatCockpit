@@ -1,5 +1,7 @@
 import type { ContinuityServices } from "../../application/continuity-services.js";
+import type { CodexThreadImportService } from "../../application/codex-thread-import-service.js";
 import { asyncJobQueueSchema } from "../../contracts/async-job.js";
+import { codexThreadImportContextSchema } from "../../contracts/codex-thread-import.js";
 import {
   developmentDocumentAppendVersionSchema,
   developmentDocumentCreateSchema,
@@ -49,7 +51,8 @@ const leaseAcquireAnnotations: McpToolAnnotations = {
 };
 
 export function buildContinuityMcpTools(
-  services: ContinuityServices
+  services: ContinuityServices,
+  codexThreadImports?: CodexThreadImportService
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
@@ -148,6 +151,23 @@ export function buildContinuityMcpTools(
         ...services.developmentDocuments.bindTaskDocuments(context, input)
       })
     }),
+    ...(codexThreadImports
+      ? [
+          defineMcpTool({
+            name: "chatcockpit.continuity.importedContext.read",
+            title: "Read imported Codex handoff context",
+            description:
+              "Read one bounded public-safe page of visible user/assistant history for a Codex thread that was explicitly imported into ChatCockpit. Accepts only a durable import id, never an arbitrary local Codex thread id.",
+            inputSchema: codexThreadImportContextSchema,
+            annotations: readOnlyToolAnnotations,
+            handler: async (context, input) => ({
+              ok: true,
+              import: codexThreadImports.get(context, input.importId),
+              context: await codexThreadImports.readContext(context, input)
+            })
+          })
+        ]
+      : []),
     defineMcpTool({
       name: "chatcockpit.project.list",
       title: "List ChatCockpit projects",

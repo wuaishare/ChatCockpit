@@ -264,6 +264,7 @@ async function runMcpSmoke(): Promise<void> {
         "codex.thread.read",
         "codex.turn.interrupt",
         "codex.turn.start",
+        "continuity.importedContext.read",
         "session.get",
         "session.start",
         "shell.run",
@@ -328,6 +329,7 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.codex.events.read",
       "chatcockpit.codex.thread.list",
       "chatcockpit.codex.thread.read",
+      "chatcockpit.continuity.importedContext.read",
       "chatcockpit.session.get",
       "chatcockpit.task.get",
       "chatcockpit.workspace.snapshot"

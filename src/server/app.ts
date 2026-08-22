@@ -874,7 +874,8 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
-    exposedRuntimeResourceMutationService
+    exposedRuntimeResourceMutationService,
+    codexThreadImportService
   ).length;
   const mcpHandler = buildTokenPilotMcpHandler(
     paths,
@@ -894,6 +895,7 @@ export function buildServer(
     capabilityRouterServices,
     deviceTargetService,
     exposedRuntimeResourceMutationService,
+    codexThreadImportService,
     oauthDeviceAccessPolicy
       ? {
           allowsDevice: (grantId, deviceId) =>

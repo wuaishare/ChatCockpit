@@ -354,6 +354,33 @@ chatcockpit.workspace.snapshot
 
 绝对路径和原始 Runtime Request Body 不会返回。
 
+### Workspace 接入与已有 Codex Thread 交接
+
+本机 Owner 可以在 `<安全入口>/continuity/projects` 使用“管理工作区 / 添加项目”：
+
+1. 添加一个 **Workspace Discovery Root**，例如某个集中存放 Git 项目的父目录；
+2. ChatCockpit 只做 depth-1、有上限、不跟随 symlink escape 的只读 Git 发现；
+3. 从候选中显式选择一个子项目加入 ChatCockpit；
+4. 只有这个精确 checkout 会进入 `workspaceAllowlist + repoMappings`，同级兄弟项目不会因为父目录获批而自动获得 AI 执行权限。
+
+Discovery Root 是 machine-local path authority，因此添加、删除、扫描与项目导入只能从目标机器的 Owner Web 会话执行；Remote MCP 不提供本机路径管理工具。
+
+对于已经存在的 Codex 会话，可以在目标 Workspace 的 Sessions 页面选择“导入 Codex 会话”，输入裸 Thread ID 或：
+
+```text
+codex://threads/<thread-id>
+```
+
+ChatCockpit 会先校验该 Thread 解析到的真实 Workspace。默认动作“交接给 ChatGPT（Chat Direct）”只会绑定原 Thread 作为来源、捕获受限的可见 user/assistant 历史、建立标准 Handoff 并创建 Chat Direct continuation；**不会调用 Codex `thread/resume`、`thread/fork` 或 `turn/start`**。
+
+交接完成后，Remote MCP 可通过：
+
+```text
+chatcockpit.continuity.importedContext.read
+```
+
+按 durable `importId` 分页读取已导入历史。该工具不能接受任意本地 Codex Thread ID；单条消息、单页大小与消息数量都有硬上限，reasoning、命令输出、文件 patch、绝对路径、环境变量和原始工具 payload 都不会进入投影。
+
 ## 7. Mutation 安全规则
 
 - 同一个 Idempotency Key 只用于完全相同输入的重试；

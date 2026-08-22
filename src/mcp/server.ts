@@ -9,6 +9,7 @@ import {
 
 import { MCP_AUTHORIZATION_GRANT_HEADER } from "../auth/oauth-request-identity.js";
 import type { ChatDirectService } from "../application/chat-direct-service.js";
+import type { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import type { HostCommandService } from "../application/host-command-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
 import type { HostMutationService } from "../application/host-mutation-service.js";
@@ -98,7 +99,8 @@ export function buildTokenPilotMcpToolCatalog(
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
   deviceTargetService: DeviceTargetService,
-  runtimeResourceMutationService: RuntimeResourceMutationService | null
+  runtimeResourceMutationService: RuntimeResourceMutationService | null,
+  codexThreadImportService?: CodexThreadImportService
 ) {
   const identity = productIdentityForKey(paths.productIdentity);
   return projectMcpToolsForProduct([
@@ -118,7 +120,7 @@ export function buildTokenPilotMcpToolCatalog(
       },
       paths.productIdentity
     ),
-    ...buildContinuityMcpTools(continuityServices),
+    ...buildContinuityMcpTools(continuityServices, codexThreadImportService),
     ...buildRuntimeMcpTools(
       runtimeService,
       runtimeBindingService,
@@ -175,6 +177,7 @@ export function buildTokenPilotMcpHandler(
   capabilityRouterServices: CapabilityRouterMcpServices,
   deviceTargetService: DeviceTargetService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
+  codexThreadImportService: CodexThreadImportService | undefined,
   deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
   onerror?: (error: Error) => void
 ): McpHttpHandler {
@@ -196,7 +199,8 @@ export function buildTokenPilotMcpHandler(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
-    runtimeResourceMutationService
+    runtimeResourceMutationService,
+    codexThreadImportService
   );
 
   return createMcpHandler(

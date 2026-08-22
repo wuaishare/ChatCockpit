@@ -355,6 +355,33 @@ The snapshot includes public-safe:
 
 Local absolute paths and raw runtime request bodies are not returned.
 
+### Workspace onboarding and existing Codex Thread handoff
+
+A machine-local Owner can use **Manage workspaces / Add project** from `<secure-entry>/continuity/projects`:
+
+1. Add a **Workspace Discovery Root**, usually a parent directory that contains Git projects.
+2. ChatCockpit performs a bounded depth-1, read-only Git discovery and does not follow symlink escapes.
+3. Explicitly choose one candidate child repository to add to ChatCockpit.
+4. Only that exact checkout is added to `workspaceAllowlist + repoMappings`; sibling projects do not receive AI execution authority merely because their parent directory is approved for discovery.
+
+Discovery Roots are machine-path authority, so add/remove/scan/import operations require an Owner Web session on the target machine. Remote MCP exposes no local path-management tool.
+
+For an existing Codex conversation, open the target Workspace Sessions view and choose **Import Codex session**. Supply either a raw Thread ID or:
+
+```text
+codex://threads/<thread-id>
+```
+
+ChatCockpit first verifies that the Thread resolves to the selected Workspace. The default **Handoff to ChatGPT (Chat Direct)** action binds the existing Thread as source provenance, captures only bounded visible user/assistant history, creates a normal Handoff, and creates a Chat Direct continuation. It **does not call Codex `thread/resume`, `thread/fork`, or `turn/start`**.
+
+After handoff, Remote MCP can page through the explicitly imported visible context with:
+
+```text
+chatcockpit.continuity.importedContext.read
+```
+
+The tool accepts only a durable `importId`, never an arbitrary local Codex Thread ID. Message count, per-message size, and page size are capped; reasoning, command output, file patches, absolute paths, environment values, and raw tool payloads are excluded by positive projection rules.
+
 ## Mutation Safety
 
 - Reuse the same idempotency key only for an exact retry of the same input.
