@@ -14,11 +14,11 @@
 > **Chat is the interface. Cockpit is the control plane.**
 > **聊天是入口，驾驶舱才是系统。**
 
-ChatCockpit 是一个 **本地优先的 AI 工作中控台**：让 ChatGPT、Claude Web 和其他支持 MCP 的 AI 客户端，通过一个统一入口安全地连接项目、本机设备、命令、资源与运行时。
+ChatCockpit 是一个 **本地优先的 AI 工作环境驾驶舱**：让 ChatGPT、Claude Web 和其他支持 MCP 的 AI 客户端，通过一个统一入口安全地连接项目、本机设备、命令、资源与成熟 AI Runtime。
 
-它把身份授权、MCP 服务端、实时运行活动、治理审批和可视化管理集中到一起，让 AI 能做事，也让人始终看得见、管得住，并能在需要时撤销授权。
+它更接近 AI 工作环境里的“控制面板”，而不是另一套 Agent Runtime：把身份授权、Remote MCP、Provider/Runtime 状态、资源、审批、设备与可视化管理集中到一起，让用户少花时间配置、寻找、切换、升级和排障，把更多时间留给真正的项目工作。
 
-它的目标不是再造一个 AI 聊天客户端、IDE、通用 Runtime 或软件商店，而是把成熟工具接入同一个安全控制面，让复杂的软件环境更容易被 Chat 使用和管理。
+ChatCockpit 的原则是 **Provider-native first**：Provider 已经拥有成熟 Session/Agent Loop 时优先驱动原生 Runtime，而不是复制一套低保真的 Task/Session 真源；只有真正跨 Runtime/Provider 时才使用 Transfer/Continuity 能力。
 
 > **当前状态：v0.2.0-alpha。** Capability / Governance Kernel、稳定 能力路由、Remote MCP/OAuth、资源中心 基础、macOS/Web 管理界面 与 开发连续性 能力都已存在；部分 Provider 生命周期管理与更完整的软件/能力管理体验仍在持续验证。
 
@@ -41,7 +41,7 @@ AI 客户端不必直接理解每一种本机工具；ChatCockpit 负责把这�
 - **资源中心**：本机 `local-device`、提供方管理 读模型、运行时配置、append-only inventory 与受治理资源操作；管理读模型统一投影检测、版本、健康、配置来源、Chat 暴露、Desired/实际状态 与 Provider-native Verification。
 - **Governance**：Approval、Idempotency、Evidence、Public-safe Projection、Actor provenance；原始 mutation arguments 与 Provider result body 不写入 Governance 记录。
 - **Host / Workspace 能力**：allowlisted 文件、受控命令、Git 与受治理 Managed Workspace Process；不暴露任意 raw shell 或系统级 PID 管理。
-- **开发连续性**：Task / Session / Handoff / Evidence / Recovery、显式 Codex Session、异步 Agent Job 与 Writer Lease。
+- **开发连续性 / Transfer**：Task / Session / Handoff / Evidence / Recovery、异步 Agent Job 与 Writer Lease 仍用于跨 Runtime 接力、异步编排和需要显式治理生命周期的工作，不再作为所有 Provider 原生会话的默认真源。
 - **管理界面s**：macOS App、Menu Bar、Web Cockpit、CLI；Surface 之间共享同一个本机控制面与 Authority 规则。
 
 ## 为什么需要 ChatCockpit
@@ -53,7 +53,21 @@ AI 客户端不必直接理解每一种本机工具；ChatCockpit 负责把这�
 - **可治理变更**：读、写、审批、执行与证据边界明确。
 - **Provider-native truth**：运行时状态与元数据变了就重新校验，而不是依赖旧快照继续执行。
 - **本地优先**：真实机器状态、凭据、绝对路径和私有运行信息默认留在本机。
-- **跨工具连续性**：需要开发接力时，Task、Handoff 与 Evidence 不依赖某个聊天窗口长期存活。
+- **原生会话优先**：同一 Provider 内优先 Resume/Fork 原生 Session；只有模型循环所有者真的发生变化时才做跨 Runtime Transfer。
+- **跨工具连续性**：真正需要跨 Runtime 接力时，Transfer、Evidence 与 Recovery 不依赖某个聊天窗口长期存活。
+
+## 当前主攻与未来方向
+
+| 状态 | 链路 | 说明 |
+|---|---|---|
+| **当前主攻** | ChatGPT → Remote MCP → ChatCockpit → Codex App Server | 以 Codex 原生 Thread / Turn / Approval / Session truth 为核心，目标是切换入口但不复制 Codex 会话真源。 |
+| **当前可用** | ChatGPT → Remote MCP → ChatCockpit → Files / Git / Shell / Processes / downstream capabilities | ChatGPT 自己拥有模型循环，ChatCockpit 提供本机与下游能力控制面。 |
+| **已规划** | Claude Web / MCP Host → ChatCockpit → Claude Code / Claude Agent SDK | Anthropic 已提供原生 Session resume/fork 与 Agent SDK；待完成独立兼容性与真实链路验证。 |
+| **探索中** | Remote AI Host → ChatCockpit → Cursor Agent CLI | Cursor 官方 CLI 已支持 session list/resume、workspace 与 stream-json；当前尚未确认等同 Codex App Server 的公开 Runtime Server 协议。 |
+| **探索中** | ChatCockpit ↔ VS Code | VS Code Extension / Chat Participant / Language Model Tool API 很强，但“远程恢复任意原生 Copilot 会话”目前没有已确认的公开通用协议。 |
+| **未来可能** | Local MCP | 作为未来部署模式保留；当前优先把 Remote MCP + 本地 Device/Runtime 控制链路做深、做稳。 |
+
+> 路线图标签表示产品成熟度，不代表所有链路已经实现。未完成真实集成验收的能力不会标记为“当前可用”。
 
 ## 立即体验
 

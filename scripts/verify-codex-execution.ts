@@ -269,9 +269,9 @@ async function verifyCodexExecution(): Promise<void> {
     const turnStarts = traces.filter((entry) => entry.method === "turn/start");
     assert.equal(turnStarts.length, 2);
     const firstStartParams = turnStarts[0]?.params as Record<string, unknown>;
-    assert.equal(firstStartParams.approvalPolicy, "on-request");
-    assert.equal(firstStartParams.approvalsReviewer, "user");
     for (const forbidden of [
+      "approvalPolicy",
+      "approvalsReviewer",
       "cwd",
       "sandboxPolicy",
       "model",

@@ -13,11 +13,11 @@
 
 > **Chat is the interface. Cockpit is the control plane.**
 
-ChatCockpit is a **local-first control panel for AI work**. It gives ChatGPT, Claude Web, and other MCP-compatible AI clients one governed entry point to projects, local devices, commands, resources, and runtimes.
+ChatCockpit is a **local-first cockpit for AI work environments**. It gives ChatGPT, Claude Web, and other MCP-compatible AI clients one governed entry point to projects, local devices, commands, resources, and mature AI runtimes.
 
-Identity and access, the MCP server, live activity, governance, and the visual console stay in one place so AI can act while people can still observe, govern, and revoke access when needed.
+It is closer to a control panel for AI work environments than to another Agent runtime: identity, Remote MCP, provider/runtime state, resources, approvals, devices, and visual operations stay in one place so users spend less time configuring, locating, switching, upgrading, and troubleshooting tools.
 
-It is not trying to become another AI chat client, IDE, universal runtime, or app store. The goal is to connect mature tools behind one safe control plane so complex software environments become easier to use and manage from Chat.
+ChatCockpit follows a **provider-native-first** rule. When a provider already owns a mature session and agent loop, ChatCockpit should drive that native runtime instead of copying a lower-fidelity Task/Session source of truth. Transfer/Continuity is reserved for real runtime or provider changes.
 
 > **Current status: v0.2.0-alpha.** The Capability/Governance kernel, stable Capability Router, Remote MCP/OAuth, Resource Center foundation, macOS/Web operator surfaces, and Development Continuity capabilities exist today. Deeper provider lifecycle management and a more complete software/capability management experience are still being validated.
 
@@ -40,7 +40,7 @@ AI clients do not need to understand every local tool directly; ChatCockpit turn
 - **Resource Center** — `local-device`, a provider-management read model, Runtime Profiles, append-only inventory, and governed resource operations. The management view unifies detection, version, health, configuration source, Chat exposure, desired/observed state, and provider-native verification.
 - **Governance** — Approval, idempotency, Evidence, public-safe projections, and actor provenance; raw mutation arguments and provider result bodies are not stored in Governance records.
 - **Host / Workspace capabilities** — allowlisted files, bounded commands, Git, and governed Managed Workspace Processes without exposing unrestricted raw shell or arbitrary system PID control.
-- **Development Continuity** — Task / Session / Handoff / Evidence / Recovery, explicit Codex Sessions, async Agent Jobs, and Writer Lease.
+- **Development Continuity / Transfer** — Task / Session / Handoff / Evidence / Recovery, async Agent Jobs, and Writer Lease remain useful for cross-runtime transfer, orchestration, and workflows that explicitly need a control-plane lifecycle; they are no longer the default source of truth for every provider-native session.
 - **Operator surfaces** — macOS App, Menu Bar, Web Cockpit, and CLI, all sharing the same local control plane and authority model.
 
 ## Why ChatCockpit
@@ -52,7 +52,21 @@ Many AI tools already provide filesystem, shell, coding, MCP, agent, or automati
 - **Governed mutation** — read, write, approval, execution, and evidence boundaries stay explicit.
 - **Provider-native truth** — runtime metadata is re-attested before side effects rather than trusting stale snapshots.
 - **Local-first authority** — real machine state, credentials, absolute paths, and private runtime details stay local by default.
-- **Cross-tool continuity** — when development handoff is needed, Tasks, Handoffs, and Evidence do not depend on one chat thread staying alive.
+- **Native session first** — resume or fork the provider's own session when staying inside the same runtime; use cross-runtime Transfer only when model-loop ownership actually changes.
+- **Cross-tool continuity** — when a real runtime transfer is needed, Transfer, Evidence, and Recovery do not depend on one chat thread staying alive.
+
+## Current focus and future directions
+
+| Status | Path | Meaning |
+|---|---|---|
+| **Current focus** | ChatGPT → Remote MCP → ChatCockpit → Codex App Server | Centered on native Codex Thread / Turn / Approval / session truth, with the goal of changing the entry surface without copying Codex session state. |
+| **Available today** | ChatGPT → Remote MCP → ChatCockpit → Files / Git / Shell / Processes / downstream capabilities | ChatGPT owns the model loop while ChatCockpit provides the governed local/downstream capability plane. |
+| **Planned** | Claude Web / MCP host → ChatCockpit → Claude Code / Claude Agent SDK | Anthropic exposes native session resume/fork and Agent SDK primitives; independent compatibility and live-path validation still need to be completed. |
+| **Exploratory** | Remote AI host → ChatCockpit → Cursor Agent CLI | Cursor's official CLI supports session list/resume, workspace selection, and stream-json; no public runtime-server protocol equivalent to Codex App Server has been confirmed yet. |
+| **Exploratory** | ChatCockpit ↔ VS Code | VS Code has strong Extension, Chat Participant, and Language Model Tool APIs, but no confirmed general public protocol for remotely resuming arbitrary native Copilot sessions. |
+| **Future option** | Local MCP | Kept as a future deployment mode. Current priority is to deepen and stabilize Remote MCP plus local Device/Runtime control. |
+
+> Roadmap labels describe maturity, not promises that every path is already implemented. A path is not marked available until real integration validation exists.
 
 ## Try it
 
