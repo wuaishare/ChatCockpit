@@ -1,6 +1,7 @@
 import os from "node:os";
 
 import type { CodexRuntimeEventsQuery } from "../contracts/codex-runtime.js";
+import type { CodexNativeTurnService } from "./codex-native-turn-service.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type {
   RuntimeApprovalKind,
@@ -74,7 +75,8 @@ export interface RuntimeEventReadResult {
 export class RuntimeEventService implements RuntimeEventSink {
   constructor(
     private readonly repositories: ContinuityRepositories,
-    private readonly runtime: RuntimeRouter
+    private readonly runtime: RuntimeRouter,
+    private readonly nativeTurns: CodexNativeTurnService | null = null
   ) {}
 
   attach(): void {
@@ -104,6 +106,9 @@ export class RuntimeEventService implements RuntimeEventSink {
   }
 
   async onRequest(request: RuntimeInboundRequest): Promise<void> {
+    if (this.nativeTurns && (await this.nativeTurns.handleRequest(request))) {
+      return;
+    }
     const threadId = stringValue(request.params.threadId);
     const turnId = turnIdFromParams(request.params);
     if (!threadId || !turnId) {
@@ -215,6 +220,9 @@ export class RuntimeEventService implements RuntimeEventSink {
   async onNotification(
     notification: RuntimeInboundNotification
   ): Promise<void> {
+    if (this.nativeTurns && (await this.nativeTurns.handleNotification(notification))) {
+      return;
+    }
     const params = notification.params;
     const threadId = stringValue(params.threadId);
     const turnId = turnIdFromParams(params);

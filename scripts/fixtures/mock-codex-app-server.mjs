@@ -20,6 +20,7 @@ function trace(message) {
   fs.appendFileSync(tracePath, `${JSON.stringify(message)}\n`, "utf8");
 }
 
+let startCounter = 0;
 let forkCounter = 0;
 let turnCounter = 0;
 let approvalCounter = 0;
@@ -58,6 +59,101 @@ const threads = [
     turns: [{ id: "private_turn", items: [{ text: "private history" }] }]
   },
   {
+    id: "thread_context",
+    preview: "Import visible Codex context",
+    modelProvider: "openai",
+    createdAt: 1785965000,
+    updatedAt: 1785965100,
+    recencyAt: 1785965200,
+    cwd: workspaceRoot,
+    path: `${workspaceRoot}/.codex/sessions/context.jsonl`,
+    instructionSources: [`${workspaceRoot}/AGENTS.md`],
+    source: { type: "cli" },
+    status: { type: "idle" },
+    turns: [
+      {
+        id: "turn_context_1",
+        status: "completed",
+        items: [
+          {
+            id: "item_user_1",
+            type: "userMessage",
+            content: [
+              { type: "text", text: "Fix the checkout" },
+              { type: "localImage", path: "/private/user-image.png" }
+            ]
+          },
+          { id: "item_reasoning_1", type: "reasoning", text: "private reasoning" },
+          {
+            id: "item_command_1",
+            type: "commandExecution",
+            command: "secret-command",
+            aggregatedOutput: "secret-output"
+          },
+          {
+            id: "item_file_1",
+            type: "fileChange",
+            changes: [{ path: "/private/path" }]
+          },
+          { id: "item_agent_1", type: "agentMessage", text: "Implemented the fix." }
+        ]
+      },
+      {
+        id: "turn_context_2",
+        status: "completed",
+        items: [
+          {
+            id: "item_user_2",
+            type: "userMessage",
+            content: [{ type: "text", text: "A".repeat(9000) }]
+          },
+          { id: "item_agent_2", type: "agentMessage", text: "Second visible reply." }
+        ]
+      },
+      {
+        id: "turn_context_3",
+        status: "completed",
+        items: [
+          {
+            id: "item_unknown_text",
+            type: "futureInternalItem",
+            text: "must-not-leak-from-unknown-item"
+          },
+          {
+            id: "item_user_3",
+            type: "userMessage",
+            content: [{ type: "text", text: "Final visible request." }]
+          },
+          { id: "item_agent_3", type: "agentMessage", text: "Final visible reply." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "thread_context_page_cap",
+    preview: "Exercise bounded context pages",
+    modelProvider: "openai",
+    createdAt: 1785964000,
+    updatedAt: 1785964100,
+    recencyAt: 1785964200,
+    cwd: workspaceRoot,
+    path: `${workspaceRoot}/.codex/sessions/context-cap.jsonl`,
+    instructionSources: [`${workspaceRoot}/AGENTS.md`],
+    source: { type: "cli" },
+    status: { type: "idle" },
+    turns: Array.from({ length: 12 }, (_, index) => ({
+      id: `turn_context_cap_${index + 1}`,
+      status: "completed",
+      items: [
+        {
+          id: `item_context_cap_${index + 1}`,
+          type: "agentMessage",
+          text: `${String(index + 1).padStart(2, "0")}:` + "B".repeat(9000)
+        }
+      ]
+    }))
+  },
+  {
     id: "thread_outside",
     preview: "Unmapped external workspace",
     modelProvider: "openai",
@@ -73,6 +169,52 @@ const threads = [
   }
 ];
 
+if (!process.env.CHATCOCKPIT_MOCK_INCLUDE_CONTEXT_THREAD) {
+  for (let index = threads.length - 1; index >= 0; index -= 1) {
+    if (threads[index]?.id.startsWith("thread_context")) threads.splice(index, 1);
+  }
+}
+
+if (process.env.CHATCOCKPIT_MOCK_INCLUDE_NATIVE_SESSION_FIXTURES) {
+  threads.push(
+    {
+      id: "thread_app_server",
+      preview: "Continue an App Server session",
+      modelProvider: "openai",
+      createdAt: 1785970400,
+      updatedAt: 1785970500,
+      recencyAt: 1785970600,
+      cwd: workspaceRoot,
+      path: `${workspaceRoot}/.codex/sessions/app-server.jsonl`,
+      instructionSources: [`${workspaceRoot}/AGENTS.md`],
+      source: { type: "appServer" },
+      status: { type: "idle" },
+      turns: []
+    },
+    {
+      id: "thread_subagent_fixture",
+      preview: "Internal subagent fixture",
+      modelProvider: "openai",
+      createdAt: 1785970401,
+      updatedAt: 1785970501,
+      recencyAt: 1785970601,
+      cwd: workspaceRoot,
+      path: `${workspaceRoot}/.codex/sessions/subagent.jsonl`,
+      instructionSources: [`${workspaceRoot}/AGENTS.md`],
+      source: { type: "subAgent" },
+      status: { type: "idle" },
+      turns: []
+    }
+  );
+}
+
+function threadSourceKind(thread) {
+  if (typeof thread.sourceKind === "string") return thread.sourceKind;
+  if (typeof thread.source === "string") return thread.source;
+  if (thread.source && typeof thread.source.type === "string") return thread.source.type;
+  return "unknown";
+}
+
 function filteredThreads(params) {
   let result = [...threads];
   if (Array.isArray(params.cwd) && params.cwd.length > 0) {
@@ -80,6 +222,9 @@ function filteredThreads(params) {
   }
   if (typeof params.searchTerm === "string" && params.searchTerm) {
     result = result.filter((thread) => thread.preview.includes(params.searchTerm));
+  }
+  if (Array.isArray(params.sourceKinds) && params.sourceKinds.length > 0) {
+    result = result.filter((thread) => params.sourceKinds.includes(threadSourceKind(thread)));
   }
   const limit = Number.isInteger(params.limit) ? params.limit : 25;
   return result.slice(0, Math.max(0, limit));
@@ -365,6 +510,63 @@ input.on("line", (line) => {
         }
       });
       break;
+    case "account/read":
+      respond(message.id, {
+        account: {
+          type: "chatgpt",
+          email: "fixture-user@example.invalid",
+          planType: "plus"
+        },
+        requiresOpenaiAuth: true
+      });
+      break;
+    case "account/rateLimits/read": {
+      const snapshot = {
+        limitId: "codex",
+        limitName: "Codex",
+        primary: {
+          usedPercent: 100,
+          windowDurationMins: 300,
+          resetsAt: 1787370000
+        },
+        secondary: null,
+        credits: { hasCredits: true, unlimited: false, balance: "fixture-private-credit" },
+        individualLimit: null,
+        spendControlReached: false,
+        planType: "plus",
+        rateLimitReachedType: "rate_limit_reached"
+      };
+      respond(message.id, {
+        rateLimits: snapshot,
+        rateLimitsByLimitId: { codex: snapshot },
+        rateLimitResetCredits: {
+          availableCount: 1,
+          credits: [{ id: "fixture-private-reset-credit" }]
+        }
+      });
+      break;
+    }
+    case "thread/start": {
+      startCounter += 1;
+      const thread = {
+        id: `thread_started_${startCounter}`,
+        preview: "New native App Server session",
+        modelProvider: "openai",
+        createdAt: 1785970700 + startCounter,
+        updatedAt: 1785970700 + startCounter,
+        recencyAt: 1785970700 + startCounter,
+        cwd: message.params?.cwd ?? workspaceRoot,
+        path: `${message.params?.cwd ?? workspaceRoot}/.codex/sessions/started-${startCounter}.jsonl`,
+        instructionSources: [`${message.params?.cwd ?? workspaceRoot}/AGENTS.md`],
+        source: { type: "appServer" },
+        status: { type: "idle" },
+        turns: []
+      };
+      threads.push(thread);
+      respond(message.id, { thread });
+      notify("thread/started", { thread });
+      break;
+    }
     case "thread/list":
       respond(message.id, {
         data: filteredThreads(message.params ?? {}),

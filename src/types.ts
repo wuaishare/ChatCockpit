@@ -63,6 +63,7 @@ export interface TokenPilotRepoMapping {
 export interface TokenPilotUserConfig {
   schemaVersion: 1;
   defaultRepoId: string;
+  workspaceDiscoveryRoots: string[];
   workspaceAllowlist: string[];
   repoMappings: Record<string, TokenPilotRepoMapping>;
 }

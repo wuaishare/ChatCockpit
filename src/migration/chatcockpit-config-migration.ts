@@ -29,6 +29,7 @@ function assertKnownConfigShape(raw: unknown): void {
   const allowedTopLevel = new Set([
     "schemaVersion",
     "defaultRepoId",
+    "workspaceDiscoveryRoots",
     "workspaceAllowlist",
     "repoMappings"
   ]);
@@ -76,6 +77,7 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
   return {
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId: config.defaultRepoId,
+    workspaceDiscoveryRoots: dedupeSorted(config.workspaceDiscoveryRoots),
     workspaceAllowlist: dedupeSorted(config.workspaceAllowlist),
     repoMappings: Object.fromEntries(
       Object.entries(config.repoMappings)
@@ -120,6 +122,7 @@ function stableConfig(config: TokenPilotUserConfig): string {
   return JSON.stringify({
     schemaVersion: normalized.schemaVersion,
     defaultRepoId: normalized.defaultRepoId,
+    workspaceDiscoveryRoots: [...normalized.workspaceDiscoveryRoots].sort(),
     workspaceAllowlist: [...normalized.workspaceAllowlist].sort(),
     repoMappings: Object.fromEntries(
       Object.entries(normalized.repoMappings).sort(([left], [right]) =>
@@ -160,6 +163,7 @@ export function migrateLegacyUserConfigToChatCockpit(raw: unknown): TokenPilotUs
   const target = normalizeConfig({
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId: CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
+    workspaceDiscoveryRoots: source.workspaceDiscoveryRoots,
     workspaceAllowlist: source.workspaceAllowlist,
     repoMappings
   });

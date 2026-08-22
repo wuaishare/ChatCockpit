@@ -6,7 +6,20 @@ import type {
 import { z } from "zod";
 
 import type { ContinuityServices } from "../application/continuity-services.js";
+import type { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { asyncJobQueueSchema } from "../contracts/async-job.js";
+import {
+  codexThreadImportAssessSchema,
+  codexThreadImportContextSchema,
+  codexThreadImportExecuteSchema,
+  codexThreadImportGetSchema
+} from "../contracts/codex-thread-import.js";
+import {
+  workspaceDiscoveryImportSchema,
+  workspaceDiscoveryRootCreateSchema,
+  workspaceDiscoveryRootMutationSchema,
+  workspaceDiscoveryRootParamsSchema
+} from "../contracts/workspace-onboarding.js";
 import {
   developmentDocumentAppendVersionSchema,
   developmentDocumentCreateSchema,
@@ -34,7 +47,8 @@ import {
   taskGetSchema,
   workspaceSnapshotSchema
 } from "../contracts/continuity.js";
-import { sendUnknownApiError, validationError } from "./errors.js";
+import { ApiError, sendUnknownApiError, validationError } from "./errors.js";
+import { requireMachineLocalOwner } from "./machine-local-authority.js";
 import { operationContextFromRequest } from "./request-context.js";
 
 function parseOrReply<TSchema extends z.ZodTypeAny>(
@@ -52,7 +66,7 @@ function parseOrReply<TSchema extends z.ZodTypeAny>(
 
 function registerAliases(
   app: FastifyInstance,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   path: string,
   handler: (request: FastifyRequest, reply: FastifyReply) => Promise<unknown> | unknown
 ): void {
@@ -61,9 +75,20 @@ function registerAliases(
   }
 }
 
+function requireContinuityOwner(request: FastifyRequest): void {
+  if (request.chatCockpitAuth.kind !== "operator-session") {
+    throw new ApiError(
+      403,
+      "OPERATOR_SESSION_REQUIRED",
+      "Web Owner session is required for Codex thread import management"
+    );
+  }
+}
+
 export function registerContinuityRoutes(
   app: FastifyInstance,
-  services: ContinuityServices
+  services: ContinuityServices,
+  codexThreadImports?: CodexThreadImportService
 ): void {
   registerAliases(app, "GET", "/api/continuity/projects", (request, reply) => {
     const input = parseOrReply(projectListSchema, request.query ?? {}, reply);
@@ -101,6 +126,222 @@ export function registerContinuityRoutes(
       }
     }
   );
+
+  registerAliases(
+    app,
+    "GET",
+    "/api/continuity/workspace-discovery/roots",
+    (request, reply) => {
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.listRoots(operationContextFromRequest(request))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/workspace-discovery/roots",
+    (request, reply) => {
+      const input = parseOrReply(workspaceDiscoveryRootCreateSchema, request.body, reply);
+      if (!input) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.addRoot(operationContextFromRequest(request), input)
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "DELETE",
+    "/api/continuity/workspace-discovery/roots/:rootId",
+    (request, reply) => {
+      const params = parseOrReply(workspaceDiscoveryRootParamsSchema, request.params, reply);
+      if (!params) return;
+      const body = parseOrReply(workspaceDiscoveryRootMutationSchema, request.body, reply);
+      if (!body) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.removeRoot(operationContextFromRequest(request), {
+            rootId: params.rootId,
+            expectedConfigRevision: body.expectedConfigRevision
+          })
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/workspace-discovery/roots/:rootId/scan",
+    (request, reply) => {
+      const params = parseOrReply(workspaceDiscoveryRootParamsSchema, request.params, reply);
+      if (!params) return;
+      const body = parseOrReply(workspaceDiscoveryRootMutationSchema, request.body, reply);
+      if (!body) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.scanRoot(operationContextFromRequest(request), {
+            rootId: params.rootId,
+            expectedConfigRevision: body.expectedConfigRevision
+          })
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/workspace-discovery/roots/:rootId/import",
+    async (request, reply) => {
+      const params = parseOrReply(workspaceDiscoveryRootParamsSchema, request.params, reply);
+      if (!params) return;
+      const body = parseOrReply(workspaceDiscoveryImportSchema, request.body, reply);
+      if (!body) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...(await services.workspaceOnboarding.importCandidate(
+            operationContextFromRequest(request),
+            {
+              rootId: params.rootId,
+              candidateId: body.candidateId,
+              repoId: body.repoId,
+              expectedConfigRevision: body.expectedConfigRevision,
+              idempotencyKey: body.idempotencyKey
+            }
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  if (codexThreadImports) {
+    registerAliases(
+      app,
+      "POST",
+      "/api/continuity/workspaces/:workspaceId/codex-thread-imports/assess",
+      async (request, reply) => {
+        const input = parseOrReply(
+          codexThreadImportAssessSchema,
+          { ...(request.body as object), ...(request.params as object) },
+          reply
+        );
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            ...(await codexThreadImports.assess(
+              operationContextFromRequest(request),
+              input
+            ))
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+
+    registerAliases(
+      app,
+      "POST",
+      "/api/continuity/codex-thread-imports/:importId/execute",
+      async (request, reply) => {
+        const input = parseOrReply(
+          codexThreadImportExecuteSchema,
+          { ...(request.body as object), ...(request.params as object) },
+          reply
+        );
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            ...(await codexThreadImports.execute(
+              operationContextFromRequest(request),
+              input
+            ))
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+
+    registerAliases(
+      app,
+      "GET",
+      "/api/continuity/codex-thread-imports/:importId",
+      (request, reply) => {
+        const input = parseOrReply(codexThreadImportGetSchema, request.params, reply);
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            import: codexThreadImports.get(
+              operationContextFromRequest(request),
+              input.importId
+            )
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+
+    registerAliases(
+      app,
+      "GET",
+      "/api/continuity/codex-thread-imports/:importId/context",
+      async (request, reply) => {
+        const input = parseOrReply(
+          codexThreadImportContextSchema,
+          { ...(request.query as object), ...(request.params as object) },
+          reply
+        );
+        if (!input) return;
+        try {
+          requireContinuityOwner(request);
+          return {
+            ok: true,
+            context: await codexThreadImports.readContext(
+              operationContextFromRequest(request),
+              input
+            )
+          };
+        } catch (error) {
+          return sendUnknownApiError(reply, error);
+        }
+      }
+    );
+  }
 
   registerAliases(
     app,

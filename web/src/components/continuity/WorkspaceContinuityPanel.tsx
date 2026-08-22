@@ -1,5 +1,5 @@
 import { App as AntApp, Button, Form, Input, Modal, Select } from "antd";
-import { SwapOutlined } from "@ant-design/icons";
+import { ImportOutlined, SwapOutlined } from "@ant-design/icons";
 import { useMemo, useState, type ReactNode } from "react";
 
 import {
@@ -20,6 +20,7 @@ import type {
   ContinuityWorkspaceSnapshot,
   ContinuityWorkspaceTaskProjection
 } from "../../types";
+import { CodexThreadImportDrawer } from "./CodexThreadImportDrawer";
 import { DevelopmentDocumentsSection } from "./DevelopmentDocumentsSection";
 import { RuntimeRecoverySection } from "./RuntimeRecoverySection";
 import {
@@ -39,6 +40,7 @@ interface WorkspaceContinuityPanelProps {
   activeSection: ContinuitySectionKey;
   projectsContent: ReactNode;
   onRefresh: () => Promise<void> | void;
+  onSectionChange: (section: ContinuitySectionKey) => void;
 }
 
 interface PrepareHandoffFormValues {
@@ -93,11 +95,13 @@ export function WorkspaceContinuityPanel({
   snapshot,
   activeSection,
   projectsContent,
-  onRefresh
+  onRefresh,
+  onSectionChange
 }: WorkspaceContinuityPanelProps) {
   const copy = getUiCopy(locale).continuity;
   const { message } = AntApp.useApp();
   const [prepareOpen, setPrepareOpen] = useState(false);
+  const [codexImportOpen, setCodexImportOpen] = useState(false);
   const [forkHandoff, setForkHandoff] = useState<ContinuityHandoffRecord | null>(null);
   const [mutating, setMutating] = useState<string | null>(null);
   const [prepareForm] = Form.useForm<PrepareHandoffFormValues>();
@@ -273,6 +277,14 @@ export function WorkspaceContinuityPanel({
         >
           {copy.prepareHandoff}
         </Button>
+        {activeSection === "sessions" ? (
+          <Button
+            icon={<ImportOutlined />}
+            onClick={() => setCodexImportOpen(true)}
+          >
+            {copy.importCodexThread}
+          </Button>
+        ) : null}
         <Button onClick={() => void onRefresh()}>{copy.refreshSnapshot}</Button>
       </div>
 
@@ -321,6 +333,17 @@ export function WorkspaceContinuityPanel({
       {activeSection === "approvals" ? (
         <ApprovalsSection locale={locale} snapshot={snapshot} />
       ) : null}
+
+      <CodexThreadImportDrawer
+        locale={locale}
+        token={token}
+        workspaceId={snapshot.workspace.id}
+        workspaceLabel={`${snapshot.project.displayName} · ${snapshot.workspace.repoId}`}
+        open={codexImportOpen}
+        onClose={() => setCodexImportOpen(false)}
+        onComplete={onRefresh}
+        onOpenRecovery={() => onSectionChange("recovery")}
+      />
 
       <Modal
         open={prepareOpen}

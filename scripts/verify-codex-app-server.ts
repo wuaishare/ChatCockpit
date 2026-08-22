@@ -246,12 +246,15 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     assert.equal(capabilities.binaryVersion, resolution.version);
     assert.equal(capabilities.serverProtocolVersion, "2.0");
     assert.deepEqual(capabilities.stableMethods, [
+      "thread/start",
       "thread/list",
       "thread/read",
       "thread/resume",
       "thread/fork",
       "turn/start",
-      "turn/interrupt"
+      "turn/interrupt",
+      "account/read",
+      "account/rateLimits/read"
     ]);
     assert.equal(capabilities.experimentalApiEnabled, false);
     assert.deepEqual(capabilities.standaloneExecution, standaloneSnapshot);

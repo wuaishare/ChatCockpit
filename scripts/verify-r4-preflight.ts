@@ -3,7 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ContinuityDatabase } from "../src/continuity/database.js";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.js";
 import { migrateLegacyUserConfigToChatCockpit } from "../src/migration/chatcockpit-config-migration.js";
 import { migrateChatCockpitTargetContinuityDatabase } from "../src/migration/chatcockpit-target-continuity.js";
 import {
@@ -150,14 +153,14 @@ assert.equal(JSON.stringify(ready).includes(root), false, "Preflight report leak
 assert.equal(JSON.stringify(ready).includes("fixture-secret"), false, "Preflight report leaked secret");
 
 const compatibilityUpgrade = new ContinuityDatabase({ path: continuityPath });
-assert.equal(compatibilityUpgrade.schemaVersion(), 19);
+assert.equal(compatibilityUpgrade.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
 compatibilityUpgrade.close();
-const v19Compatible = await report();
-assert.equal(v19Compatible.state, "ready-to-migrate");
-assert.deepEqual(v19Compatible.blockers, []);
-assert.equal(v19Compatible.database.schemaVersion, 19);
-assert.equal(v19Compatible.database.sourceContract, "v19-compatible");
-assert.equal(v19Compatible.database.targetIdentityMarkerPresent, false);
+const currentCompatible = await report();
+assert.equal(currentCompatible.state, "ready-to-migrate");
+assert.deepEqual(currentCompatible.blockers, []);
+assert.equal(currentCompatible.database.schemaVersion, LATEST_CONTINUITY_SCHEMA_VERSION);
+assert.equal(currentCompatible.database.sourceContract, "v20-compatible");
+assert.equal(currentCompatible.database.targetIdentityMarkerPresent, false);
 
 fs.writeFileSync(path.join(legacyStateRoot, "runtime", "unknown-authority.bin"), "x", "utf8");
 const unknownBlocked = await report();
@@ -213,7 +216,10 @@ migrateChatCockpitTargetContinuityDatabase(continuityPath, {
 });
 const targetOnlySourceBlocked = await report();
 assert.equal(targetOnlySourceBlocked.state, "blocked");
-assert.equal(targetOnlySourceBlocked.database.schemaVersion, 19);
+assert.equal(
+  targetOnlySourceBlocked.database.schemaVersion,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+);
 assert.equal(targetOnlySourceBlocked.database.sourceContract, "invalid");
 assert.equal(targetOnlySourceBlocked.database.targetIdentityMarkerPresent, true);
 assert.equal(

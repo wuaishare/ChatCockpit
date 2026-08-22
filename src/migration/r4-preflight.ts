@@ -465,7 +465,11 @@ export async function buildR4PreflightReport(input: R4PreflightInput): Promise<R
   );
   if (!database.present) blockers.push("legacy-continuity-database-missing");
   if (database.integrity !== "ok") blockers.push("legacy-continuity-database-integrity-failed");
-  if (database.sourceContract !== "v18" && database.sourceContract !== "v19-compatible") {
+  if (
+    database.sourceContract !== "v18" &&
+    database.sourceContract !== "v19-compatible" &&
+    database.sourceContract !== "v20-compatible"
+  ) {
     blockers.push("legacy-continuity-source-contract-invalid");
   }
   if (database.activeWriterLeases > 0) blockers.push("active-writer-leases-present");

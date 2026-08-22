@@ -4,6 +4,13 @@ export {
   buildContinuityServices,
   type ContinuityServices
 } from "./continuity-services.js";
+export {
+  CodexThreadImportService,
+  normalizeCodexThreadReference,
+  type CodexThreadImportAssessmentResult,
+  type CodexThreadImportExecutionResult,
+  type CodexThreadImportServiceOptions
+} from "./codex-thread-import-service.js";
 export { DevelopmentDocumentService } from "./development-document-service.js";
 export {
   buildDesktopOperationalSummary,

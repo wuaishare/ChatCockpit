@@ -22,6 +22,7 @@ import { runtimeResourceMutationsMigration } from "./migrations/016-runtime-reso
 import { governedPluginResourceMutationsMigration } from "./migrations/017-governed-plugin-resource-mutations.js";
 import { runtimeResourceMutationProvenanceMigration } from "./migrations/018-runtime-resource-mutation-provenance.js";
 import { chatCockpitRuntimeBindingIdentityMigration } from "./migrations/019-chatcockpit-runtime-binding-identity.js";
+import { codexThreadImportsMigration } from "./migrations/020-codex-thread-imports.js";
 
 interface ContinuityMigration {
   version: number;
@@ -49,7 +50,8 @@ const migrations: readonly ContinuityMigration[] = [
   runtimeResourceMutationsMigration,
   governedPluginResourceMutationsMigration,
   runtimeResourceMutationProvenanceMigration,
-  chatCockpitRuntimeBindingIdentityMigration
+  chatCockpitRuntimeBindingIdentityMigration,
+  codexThreadImportsMigration
 ];
 export const LATEST_CONTINUITY_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { ContinuityDatabase } from "../src/continuity/database.js";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.js";
 import { migrateChatCockpitTargetContinuityDatabase } from "../src/migration/chatcockpit-target-continuity.js";
 import {
   backupR4SqliteDatabaseForMigration,
@@ -227,7 +230,10 @@ try {
     ["node-sqlite-backup", "vacuum-into"].includes(result.continuityBackupMethod),
     true
   );
-  assert.equal(result.targetContinuitySchemaVersion, 19);
+  assert.equal(
+    result.targetContinuitySchemaVersion,
+    LATEST_CONTINUITY_SCHEMA_VERSION
+  );
   assert.equal(result.runtimeBindingRowsUpdated, 1);
   assert.equal(result.runtimeResourceRowsUpdated, 1);
   assert.equal(result.freshRuntimeAuthorityGenerated, true);
@@ -424,32 +430,37 @@ try {
   );
   targetConflictFixture.sourceDatabase.close();
 
-  const v19CompatibleRoot = fs.mkdtempSync(path.join(root, "v19-compatible-"));
-  const v19CompatibleFixture = buildLegacyFixture(v19CompatibleRoot);
-  v19CompatibleFixture.sourceDatabase.close();
-  const compatibilityUpgrade = new ContinuityDatabase({ path: v19CompatibleFixture.databasePath });
-  assert.equal(compatibilityUpgrade.schemaVersion(), 19);
-  compatibilityUpgrade.close();
-  const v19CompatibleResult = await buildR4MigrationStaging({
-    sandboxRoot: v19CompatibleRoot,
-    repoRoot: v19CompatibleFixture.repoRoot,
-    legacyStateRoot: v19CompatibleFixture.legacyStateRoot,
-    legacyConfigPath: v19CompatibleFixture.legacyConfigPath,
-    targetStateRoot: v19CompatibleFixture.targetStateRoot,
-    targetConfigPath: v19CompatibleFixture.targetConfigPath,
-    snapshotRoot: v19CompatibleFixture.snapshotRoot,
-    stagingRoot: v19CompatibleFixture.stagingRoot
+  const currentCompatibleRoot = fs.mkdtempSync(path.join(root, "current-compatible-"));
+  const currentCompatibleFixture = buildLegacyFixture(currentCompatibleRoot);
+  currentCompatibleFixture.sourceDatabase.close();
+  const compatibilityUpgrade = new ContinuityDatabase({
+    path: currentCompatibleFixture.databasePath
   });
-  assert.equal(v19CompatibleResult.legacyContinuitySourceContract, "v19-compatible");
-  assert.equal(v19CompatibleResult.targetContinuitySchemaVersion, 19);
-  assert.equal(v19CompatibleResult.runtimeBindingRowsUpdated, 1);
-  assert.equal(v19CompatibleResult.runtimeResourceRowsUpdated, 1);
+  assert.equal(compatibilityUpgrade.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
+  compatibilityUpgrade.close();
+  const currentCompatibleResult = await buildR4MigrationStaging({
+    sandboxRoot: currentCompatibleRoot,
+    repoRoot: currentCompatibleFixture.repoRoot,
+    legacyStateRoot: currentCompatibleFixture.legacyStateRoot,
+    legacyConfigPath: currentCompatibleFixture.legacyConfigPath,
+    targetStateRoot: currentCompatibleFixture.targetStateRoot,
+    targetConfigPath: currentCompatibleFixture.targetConfigPath,
+    snapshotRoot: currentCompatibleFixture.snapshotRoot,
+    stagingRoot: currentCompatibleFixture.stagingRoot
+  });
+  assert.equal(currentCompatibleResult.legacyContinuitySourceContract, "v20-compatible");
+  assert.equal(
+    currentCompatibleResult.targetContinuitySchemaVersion,
+    LATEST_CONTINUITY_SCHEMA_VERSION
+  );
+  assert.equal(currentCompatibleResult.runtimeBindingRowsUpdated, 1);
+  assert.equal(currentCompatibleResult.runtimeResourceRowsUpdated, 1);
 
   const targetOnlyRoot = fs.mkdtempSync(path.join(root, "target-only-source-"));
   const targetOnlyFixture = buildLegacyFixture(targetOnlyRoot);
   targetOnlyFixture.sourceDatabase.close();
   const targetOnlyUpgrade = new ContinuityDatabase({ path: targetOnlyFixture.databasePath });
-  assert.equal(targetOnlyUpgrade.schemaVersion(), 19);
+  assert.equal(targetOnlyUpgrade.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
   targetOnlyUpgrade.close();
   migrateChatCockpitTargetContinuityDatabase(targetOnlyFixture.databasePath, {
     now: "2026-08-15T00:00:00.000Z"

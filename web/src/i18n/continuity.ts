@@ -35,6 +35,32 @@ export interface ContinuityCopy {
   detailReadsAvailable: string;
   noFakeData: string;
   workspaceSelector: string;
+  manageWorkspaces: string;
+  addProject: string;
+  workspaceManagerTitle: string;
+  workspaceManagerDescription: string;
+  registeredProjects: string;
+  discoveryRoots: string;
+  addDiscoveryRoot: string;
+  discoveryRootPath: string;
+  discoveryRootHint: string;
+  addRoot: string;
+  removeRoot: string;
+  scanProjects: string;
+  scanTruncated: string;
+  noDiscoveryRoots: string;
+  noDiscoveryRootsDescription: string;
+  discoveredProjects: string;
+  noCandidates: string;
+  registeredCandidate: string;
+  unregisteredCandidate: string;
+  reviewImport: string;
+  repoIdLabel: string;
+  permissionReview: string;
+  permissionExactProject: string;
+  permissionNoSiblings: string;
+  importProject: string;
+  machineLocalRequired: string;
   writerTitle: string;
   activeWriter: string;
   noActiveWriter: string;
@@ -94,6 +120,32 @@ export interface ContinuityCopy {
   noTasksDescription: string;
   noSessionsTitle: string;
   noSessionsDescription: string;
+  importCodexThread: string;
+  importCodexThreadTitle: string;
+  importCodexThreadDescription: string;
+  threadReference: string;
+  threadReferencePlaceholder: string;
+  assessThread: string;
+  assessmentReady: string;
+  assessmentExpires: string;
+  threadSource: string;
+  threadProvider: string;
+  threadStatus: string;
+  threadWorkspace: string;
+  handoffToChatGpt: string;
+  handoffToChatGptDescription: string;
+  noCodexQuotaNotice: string;
+  codexQuotaAvailableNotice: string;
+  resumeNativeCodex: string;
+  nativeResumeComplete: string;
+  executeChatDirectHandoff: string;
+  contextPreview: string;
+  contextTruncated: string;
+  contextComplete: string;
+  importComplete: string;
+  continuationSession: string;
+  continueWithCodex: string;
+  continueWithCodexDescription: string;
   noHandoffsTitle: string;
   noHandoffsDescription: string;
   noEvidenceTitle: string;
@@ -228,7 +280,7 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   workspaceCount: "工作区",
   readyWorkspaceCount: "可用工作区",
   noProjectsTitle: "没有已配置项目",
-  noProjectsDescription: "在本地 ChatCockpit 配置中添加允许的仓库映射后，这里会显示真实项目。",
+  noProjectsDescription: "使用“添加项目”授权一个本机父目录并显式加入需要管理的 Git 项目。",
   defaultWorkspace: "默认工作区",
   workspaces: "工作区",
   branch: "分支",
@@ -246,6 +298,32 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   detailReadsAvailable: "已有记录仍可通过明确 ID 和对应 API 读取。",
   noFakeData: "为避免伪造状态，本视图不会生成演示数据。",
   workspaceSelector: "当前工作区",
+  manageWorkspaces: "管理工作区",
+  addProject: "添加项目",
+  workspaceManagerTitle: "工作区与项目接入",
+  workspaceManagerDescription: "先授权父目录用于受限发现，再显式加入需要交给 ChatCockpit 管理的 Git 项目。",
+  registeredProjects: "已注册项目",
+  discoveryRoots: "授权发现目录",
+  addDiscoveryRoot: "添加发现目录",
+  discoveryRootPath: "本机父目录路径",
+  discoveryRootHint: "例如一个专门存放多个 Git 项目的父目录。这里只授予一级扫描权限，不会自动授权所有子项目。",
+  addRoot: "授权目录",
+  removeRoot: "移除发现权限",
+  scanProjects: "扫描项目",
+  scanTruncated: "结果已达到安全扫描上限；可缩小父目录范围后重试。",
+  noDiscoveryRoots: "尚未授权项目发现目录",
+  noDiscoveryRootsDescription: "添加一个本机父目录后，ChatCockpit 只扫描其一级子目录中的 Git 项目。",
+  discoveredProjects: "发现的 Git 项目",
+  noCandidates: "该目录下没有发现符合条件的一级 Git 项目。",
+  registeredCandidate: "已加入",
+  unregisteredCandidate: "可加入",
+  reviewImport: "审核并加入",
+  repoIdLabel: "仓库 ID",
+  permissionReview: "权限确认",
+  permissionExactProject: "只把当前选中的 Git 项目加入 Workspace 执行权限。",
+  permissionNoSiblings: "同一父目录中的其他项目不会自动加入，也不会因此获得 AI 操作权限。",
+  importProject: "加入 ChatCockpit",
+  machineLocalRequired: "工作区路径管理只能在目标 Mac 的本机控制台中进行。远程访问仍可使用已注册的逻辑工作区。",
   writerTitle: "Workspace Writer",
   activeWriter: "存在活跃写入者",
   noActiveWriter: "当前没有活跃写入者",
@@ -305,6 +383,32 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   noTasksDescription: "创建并绑定到该工作区的任务会显示在这里。",
   noSessionsTitle: "当前工作区没有开发会话",
   noSessionsDescription: "启动 Chat Direct、Codex Session 或异步 Agent 会话后会显示在这里。",
+  importCodexThread: "继续 Codex 会话",
+  importCodexThreadTitle: "继续已有 Codex 会话",
+  importCodexThreadDescription: "先从 Codex App Server 读取原生 Thread 与配额状态。正常情况下直接 Resume 同一个原生会话；只有明确切换模型运行链或 Codex 受限时，才使用 Chat Direct Transfer。",
+  threadReference: "Codex Thread",
+  threadReferencePlaceholder: "codex://threads/<thread-id> 或直接输入 thread id",
+  assessThread: "检查原生会话",
+  assessmentReady: "已找到与当前工作区匹配的原生 Codex Thread。",
+  assessmentExpires: "本次验证有效至",
+  threadSource: "来源",
+  threadProvider: "Provider",
+  threadStatus: "状态",
+  threadWorkspace: "目标工作区",
+  handoffToChatGpt: "Transfer 到 ChatGPT Direct",
+  handoffToChatGptDescription: "这是跨 Runtime fallback，不是同一个 Codex 会话。仅在你明确切换模型运行链，或 Codex 当前受配额/可用性限制时使用；原 Codex Thread 保持为来源真源。",
+  noCodexQuotaNotice: "Codex 当前报告存在配额/速率限制。推荐 Transfer 到 ChatGPT Direct；原生 Resume 仍保留，但新的 Codex Turn 可能无法执行。",
+  codexQuotaAvailableNotice: "Codex 当前未报告配额限制。推荐直接 Resume 原 Thread，继续使用原生 Codex Session、配置与历史。",
+  resumeNativeCodex: "Resume 原生 Codex Thread",
+  nativeResumeComplete: "已 Resume 原生 Codex Thread；没有创建 ChatCockpit Task、开发 Session 或 Handoff。",
+  executeChatDirectHandoff: "准备并确认 Transfer",
+  contextPreview: "可见历史上下文",
+  contextTruncated: "上下文已按安全上限截断，可在交接后继续分页读取。",
+  contextComplete: "已捕获当前可见历史。",
+  importComplete: "Codex 工作已显式 Transfer 到 Chat Direct。",
+  continuationSession: "Chat Direct Transfer 会话",
+  continueWithCodex: "Codex 高级恢复",
+  continueWithCodexDescription: "仅在普通原生 Resume 无法满足恢复/分叉需求时进入 Recovery Center。",
   noHandoffsTitle: "当前没有交接检查点",
   noHandoffsDescription: "从活跃任务会话准备交接后，可在这里接受、分叉或取消。",
   noEvidenceTitle: "当前没有验证证据",
@@ -439,7 +543,7 @@ export const enUSContinuityCopy: ContinuityCopy = {
   workspaceCount: "Workspaces",
   readyWorkspaceCount: "Ready workspaces",
   noProjectsTitle: "No configured projects",
-  noProjectsDescription: "Add an allowlisted repository mapping to local ChatCockpit config to display a real project here.",
+  noProjectsDescription: "Use Add project to authorize a local parent directory and explicitly register the Git project you want ChatCockpit to manage.",
   defaultWorkspace: "Default workspace",
   workspaces: "Workspaces",
   branch: "Branch",
@@ -457,6 +561,32 @@ export const enUSContinuityCopy: ContinuityCopy = {
   detailReadsAvailable: "Existing records remain readable through an explicit ID and the corresponding API.",
   noFakeData: "This view does not generate demo records or pretend that runtime state exists.",
   workspaceSelector: "Current workspace",
+  manageWorkspaces: "Manage workspaces",
+  addProject: "Add project",
+  workspaceManagerTitle: "Workspace and project onboarding",
+  workspaceManagerDescription: "Authorize a parent directory for bounded discovery, then explicitly register only the Git projects ChatCockpit should manage.",
+  registeredProjects: "Registered projects",
+  discoveryRoots: "Authorized discovery roots",
+  addDiscoveryRoot: "Add discovery root",
+  discoveryRootPath: "Local parent directory path",
+  discoveryRootHint: "Choose a parent directory that contains Git projects. This grants depth-1 discovery only and does not authorize every child project.",
+  addRoot: "Authorize directory",
+  removeRoot: "Remove discovery access",
+  scanProjects: "Scan projects",
+  scanTruncated: "The safe scan limit was reached. Choose a narrower parent directory to inspect more candidates.",
+  noDiscoveryRoots: "No project discovery roots authorized",
+  noDiscoveryRootsDescription: "Add a local parent directory and ChatCockpit will inspect only its direct child Git projects.",
+  discoveredProjects: "Discovered Git projects",
+  noCandidates: "No eligible direct-child Git projects were found under this root.",
+  registeredCandidate: "Registered",
+  unregisteredCandidate: "Available",
+  reviewImport: "Review and add",
+  repoIdLabel: "Repository ID",
+  permissionReview: "Permission review",
+  permissionExactProject: "Only the selected Git checkout is added to Workspace execution authority.",
+  permissionNoSiblings: "Sibling projects under the same parent remain unregistered and unavailable to AI operations.",
+  importProject: "Add to ChatCockpit",
+  machineLocalRequired: "Workspace path management is available only from the target Mac's local console. Remote access can still use already registered logical workspaces.",
   writerTitle: "Workspace Writer",
   activeWriter: "Active writer present",
   noActiveWriter: "No active writer",
@@ -516,6 +646,32 @@ export const enUSContinuityCopy: ContinuityCopy = {
   noTasksDescription: "Tasks created and bound to this workspace will appear here.",
   noSessionsTitle: "No development sessions in this workspace",
   noSessionsDescription: "Chat Direct, Codex Session, and asynchronous Agent sessions will appear after they start.",
+  importCodexThread: "Continue Codex session",
+  importCodexThreadTitle: "Continue an existing Codex session",
+  importCodexThreadDescription: "Read the provider-native Thread and quota state from Codex App Server first. Normally resume the same native session; use Chat Direct Transfer only when intentionally switching model-loop owner or when Codex is constrained.",
+  threadReference: "Codex Thread",
+  threadReferencePlaceholder: "codex://threads/<thread-id> or a raw thread id",
+  assessThread: "Inspect native session",
+  assessmentReady: "The provider-native Codex Thread matches this workspace.",
+  assessmentExpires: "Assessment expires",
+  threadSource: "Source",
+  threadProvider: "Provider",
+  threadStatus: "Status",
+  threadWorkspace: "Target workspace",
+  handoffToChatGpt: "Transfer to ChatGPT Direct",
+  handoffToChatGptDescription: "This is a cross-runtime fallback, not the same Codex session. Use it only when intentionally switching model-loop owner or when Codex is quota/availability constrained; the original Codex Thread remains source truth.",
+  noCodexQuotaNotice: "Codex currently reports a quota/rate-limit constraint. ChatGPT Direct Transfer is recommended; native Resume remains available, but new Codex Turns may be blocked.",
+  codexQuotaAvailableNotice: "Codex currently reports no quota constraint. Resume the original Thread to preserve native Codex session, configuration, and history.",
+  resumeNativeCodex: "Resume native Codex Thread",
+  nativeResumeComplete: "The native Codex Thread was resumed without creating a ChatCockpit Task, development Session, or Handoff.",
+  executeChatDirectHandoff: "Prepare and confirm Transfer",
+  contextPreview: "Visible conversation context",
+  contextTruncated: "Context was bounded by safety limits; additional pages can be read after handoff.",
+  contextComplete: "Current visible history was captured.",
+  importComplete: "The Codex work was explicitly transferred to Chat Direct.",
+  continuationSession: "Chat Direct Transfer session",
+  continueWithCodex: "Advanced Codex recovery",
+  continueWithCodexDescription: "Use Recovery Center only when normal provider-native Resume is insufficient for recovery or branching.",
   noHandoffsTitle: "No handoff checkpoints",
   noHandoffsDescription: "Prepare a handoff from an active task session to accept, fork, or cancel it here.",
   noEvidenceTitle: "No verification evidence",

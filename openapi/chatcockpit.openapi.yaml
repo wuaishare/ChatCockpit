@@ -3372,6 +3372,228 @@ components:
           type: integer
           minimum: 1
       required: [id, projectId, repoId, kind, branch, headCommit, dirty, status, createdAt, updatedAt, revision]
+    WorkspaceDiscoveryRoot:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, pattern: '^workspace_root_[a-f0-9]{24}$' }
+        displayName: { type: string }
+        path:
+          type: string
+          description: Machine-local Owner-only canonical directory path. This field is not exposed through Remote MCP or public Project projections.
+      required: [id, displayName, path]
+    WorkspaceDiscoveryRootsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        configRevision: { type: string, pattern: '^[a-f0-9]{64}$' }
+        roots:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceDiscoveryRoot' }
+      required: [ok, configRevision, roots]
+    WorkspaceDiscoveryRootMutationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expectedConfigRevision: { type: string, pattern: '^[a-f0-9]{64}$' }
+      required: [expectedConfigRevision]
+    WorkspaceDiscoveryRootCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path: { type: string, minLength: 1, maxLength: 4096 }
+        expectedConfigRevision: { type: string, pattern: '^[a-f0-9]{64}$' }
+      required: [path, expectedConfigRevision]
+    WorkspaceDiscoveryCandidate:
+      type: object
+      additionalProperties: false
+      properties:
+        candidateId: { type: string, pattern: '^workspace_candidate_[a-f0-9]{32}$' }
+        name: { type: string }
+        suggestedRepoId: { type: string }
+        git:
+          type: object
+          additionalProperties: false
+          properties:
+            repository: { type: boolean, const: true }
+            branch: { oneOf: [{ type: string }, { type: "null" }] }
+            headCommit: { oneOf: [{ type: string }, { type: "null" }] }
+            dirty: { type: boolean }
+          required: [repository, branch, headCommit, dirty]
+        registration: { type: string, enum: [registered, unregistered] }
+        existingRepoId: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [candidateId, name, suggestedRepoId, git, registration, existingRepoId]
+    WorkspaceDiscoveryScanResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        configRevision: { type: string, pattern: '^[a-f0-9]{64}$' }
+        root: { $ref: '#/components/schemas/WorkspaceDiscoveryRoot' }
+        inspectedEntries: { type: integer, minimum: 0, maximum: 200 }
+        truncated: { type: boolean }
+        candidates:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/WorkspaceDiscoveryCandidate' }
+      required: [ok, configRevision, root, inspectedEntries, truncated, candidates]
+    WorkspaceDiscoveryImportRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        candidateId: { type: string, pattern: '^workspace_candidate_[a-f0-9]{32}$' }
+        repoId: { type: string, pattern: '^[a-z0-9][a-z0-9._-]{0,79}$' }
+        expectedConfigRevision: { type: string, pattern: '^[a-f0-9]{64}$' }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+      required: [candidateId, repoId, expectedConfigRevision, idempotencyKey]
+    WorkspaceDiscoveryImportResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        configRevision: { type: string, pattern: '^[a-f0-9]{64}$' }
+        project: { $ref: '#/components/schemas/ContinuityProjectRecord' }
+        workspace: { $ref: '#/components/schemas/ContinuityWorkspaceRecord' }
+        replayed: { type: boolean }
+      required: [ok, configRevision, project, workspace, replayed]
+    CodexThreadImportRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        sourceThreadId: { type: string }
+        projectId: { type: string }
+        workspaceId: { type: string }
+        state: { type: string, enum: [assessed, importing, ready, failed] }
+        assessmentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expiresAt: { type: string, format: date-time }
+        sourceTaskId: { oneOf: [{ type: string }, { type: "null" }] }
+        sourceSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        handoffId: { oneOf: [{ type: string }, { type: "null" }] }
+        continuationTaskId: { oneOf: [{ type: string }, { type: "null" }] }
+        continuationSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        contextTruncated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+      required: [id, sourceThreadId, projectId, workspaceId, state, assessmentHash, expiresAt, sourceTaskId, sourceSessionId, handoffId, continuationTaskId, continuationSessionId, contextTruncated, createdAt, updatedAt, revision]
+    CodexThreadImportThreadProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        preview: { type: string }
+        modelProvider: { oneOf: [{ type: string }, { type: "null" }] }
+        createdAt: { oneOf: [{ type: number }, { type: "null" }] }
+        updatedAt: { oneOf: [{ type: number }, { type: "null" }] }
+        recencyAt: { oneOf: [{ type: number }, { type: "null" }] }
+        sourceKind: { oneOf: [{ type: string }, { type: "null" }] }
+        status:
+          type: object
+          additionalProperties: false
+          properties:
+            type: { type: string }
+            activeFlags:
+              type: array
+              items: { type: string }
+          required: [type]
+        projectId: { oneOf: [{ type: string }, { type: "null" }] }
+        workspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        repoId: { oneOf: [{ type: string }, { type: "null" }] }
+        parentThreadId: { oneOf: [{ type: string }, { type: "null" }] }
+        agentNickname: { oneOf: [{ type: string }, { type: "null" }] }
+        agentRole: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [id, preview, modelProvider, createdAt, updatedAt, recencyAt, sourceKind, status, projectId, workspaceId, repoId, parentThreadId, agentNickname, agentRole]
+    CodexThreadContextMessage:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        turnId: { type: string }
+        role: { type: string, enum: [user, assistant] }
+        text: { type: string, maxLength: 8192 }
+        truncated: { type: boolean }
+      required: [id, turnId, role, text, truncated]
+    CodexThreadContextPage:
+      type: object
+      additionalProperties: false
+      properties:
+        threadId: { type: string }
+        projectId: { oneOf: [{ type: string }, { type: "null" }] }
+        workspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        repoId: { oneOf: [{ type: string }, { type: "null" }] }
+        messages:
+          type: array
+          maxItems: 40
+          items: { $ref: '#/components/schemas/CodexThreadContextMessage' }
+        nextCursor: { oneOf: [{ type: string }, { type: "null" }] }
+        truncated: { type: boolean }
+        lastTurnId: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [threadId, projectId, workspaceId, repoId, messages, nextCursor, truncated, lastTurnId]
+    CodexThreadImportAssessRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        threadRef: { type: string, minLength: 1, maxLength: 512 }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+      required: [threadRef, idempotencyKey]
+    CodexThreadImportAssessmentResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        assessmentId: { type: string }
+        assessmentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expiresAt: { type: string, format: date-time }
+        thread: { $ref: '#/components/schemas/CodexThreadImportThreadProjection' }
+        matchedWorkspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        requestedWorkspaceId: { type: string }
+        workspaceMatch: { type: string, enum: [matched, mismatch, unregistered] }
+        availableActions:
+          type: array
+          items: { type: string, enum: [handoff-to-chat-direct] }
+        import: { $ref: '#/components/schemas/CodexThreadImportRecord' }
+        replayed: { type: boolean }
+      required: [ok, assessmentId, assessmentHash, expiresAt, thread, matchedWorkspaceId, requestedWorkspaceId, workspaceMatch, availableActions, import, replayed]
+    CodexThreadImportExecuteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        assessmentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expectedRevision: { type: integer, minimum: 1 }
+        action: { type: string, const: handoff-to-chat-direct }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+      required: [assessmentHash, expectedRevision, action, idempotencyKey]
+    CodexThreadImportExecutionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        import: { $ref: '#/components/schemas/CodexThreadImportRecord' }
+        sourceTask: { $ref: '#/components/schemas/ContinuityTaskRecord' }
+        sourceSession: { $ref: '#/components/schemas/ContinuitySessionRecord' }
+        handoff: { $ref: '#/components/schemas/ContinuityHandoffRecord' }
+        continuationTask: { $ref: '#/components/schemas/ContinuityTaskRecord' }
+        continuationSession: { $ref: '#/components/schemas/ContinuitySessionRecord' }
+        contextSnapshotId: { type: string }
+        context: { $ref: '#/components/schemas/CodexThreadContextPage' }
+        replayed: { type: boolean }
+      required: [ok, import, sourceTask, sourceSession, handoff, continuationTask, continuationSession, contextSnapshotId, context, replayed]
+    CodexThreadImportResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        import: { $ref: '#/components/schemas/CodexThreadImportRecord' }
+      required: [ok, import]
+    CodexThreadImportContextResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        context: { $ref: '#/components/schemas/CodexThreadContextPage' }
+      required: [ok, context]
     ContinuityTaskRecord:
       type: object
       additionalProperties: false
@@ -5457,6 +5679,282 @@ components:
         thread:
           $ref: '#/components/schemas/RuntimeThreadProjection'
       required: [ok, thread]
+    RuntimeCodexRateLimitWindow:
+      type: object
+      additionalProperties: false
+      properties:
+        usedPercent: { type: number }
+        windowDurationMins:
+          oneOf:
+            - type: number
+            - type: "null"
+        resetsAt:
+          oneOf:
+            - type: number
+            - type: "null"
+      required: [usedPercent, windowDurationMins, resetsAt]
+    RuntimeCodexRateLimit:
+      type: object
+      additionalProperties: false
+      properties:
+        limitId:
+          oneOf:
+            - type: string
+            - type: "null"
+        limitName:
+          oneOf:
+            - type: string
+            - type: "null"
+        primary:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeCodexRateLimitWindow'
+            - type: "null"
+        secondary:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeCodexRateLimitWindow'
+            - type: "null"
+        spendControlReached:
+          oneOf:
+            - type: boolean
+            - type: "null"
+        planType:
+          oneOf:
+            - type: string
+            - type: "null"
+        rateLimitReachedType:
+          oneOf:
+            - type: string
+            - type: "null"
+        limited: { type: boolean }
+      required: [limitId, limitName, primary, secondary, spendControlReached, planType, rateLimitReachedType, limited]
+    RuntimeCodexAccountStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        authenticated: { type: boolean }
+        requiresOpenaiAuth: { type: boolean }
+        accountType:
+          oneOf:
+            - type: string
+            - type: "null"
+        planType:
+          oneOf:
+            - type: string
+            - type: "null"
+        limited: { type: boolean }
+        rateLimits:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeCodexRateLimit'
+      required: [authenticated, requiresOpenaiAuth, accountType, planType, limited, rateLimits]
+    RuntimeCodexAccountStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        account:
+          $ref: '#/components/schemas/RuntimeCodexAccountStatus'
+      required: [ok, account]
+    RuntimeNativeThreadStartPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string, minLength: 1, maxLength: 160 }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [workspaceId, idempotencyKey]
+    RuntimeNativeThreadMutationPayload:
+      allOf:
+        - $ref: '#/components/schemas/RuntimeNativeThreadStartPayload'
+        - type: object
+          properties:
+            threadId: { type: string, minLength: 1, maxLength: 240 }
+          required: [threadId]
+    RuntimeNativeThreadForkPayload:
+      allOf:
+        - $ref: '#/components/schemas/RuntimeNativeThreadMutationPayload'
+        - type: object
+          properties:
+            lastTurnId:
+              oneOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 240
+                - type: "null"
+    RuntimeNativeThreadMutationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        thread:
+          $ref: '#/components/schemas/RuntimeThreadProjection'
+        replayed: { type: boolean }
+      required: [ok, thread, replayed]
+    RuntimeNativeTurnStartPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string, minLength: 1, maxLength: 160 }
+        threadId: { type: string, minLength: 1, maxLength: 240 }
+        text: { type: string, minLength: 1, maxLength: 50000 }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [workspaceId, threadId, text, idempotencyKey]
+    RuntimeNativeTurnInterruptPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string, minLength: 1, maxLength: 160 }
+        threadId: { type: string, minLength: 1, maxLength: 240 }
+        turnId: { type: string, minLength: 1, maxLength: 240 }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [workspaceId, threadId, turnId, idempotencyKey]
+    RuntimeNativeTurnStartResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        threadId: { type: string }
+        workspaceId: { type: string }
+        turn:
+          $ref: '#/components/schemas/RuntimeTurnProjection'
+        replayed: { type: boolean }
+      required: [ok, threadId, workspaceId, turn, replayed]
+    RuntimeNativeTurnInterruptResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        threadId: { type: string }
+        workspaceId: { type: string }
+        turnId: { type: string }
+        replayed: { type: boolean }
+      required: [ok, threadId, workspaceId, turnId, replayed]
+    RuntimeNativeApprovalProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        threadId: { type: string }
+        turnId: { type: string }
+        itemId:
+          oneOf:
+            - type: string
+            - type: "null"
+        kind:
+          type: string
+          enum: [command-execution, file-change]
+        status:
+          type: string
+          enum: [pending, responded, resolved, cancelled]
+        publicSummary:
+          type: object
+          additionalProperties: true
+        receivedAt: { type: string, format: date-time }
+        respondedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        resolvedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision: { type: integer, minimum: 1 }
+      required: [id, threadId, turnId, itemId, kind, status, publicSummary, receivedAt, respondedAt, resolvedAt, revision]
+    RuntimeNativeApprovalListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approvals:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeNativeApprovalProjection'
+      required: [ok, approvals]
+    RuntimeNativeApprovalRespondPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId: { type: string, minLength: 1, maxLength: 160 }
+        expectedRevision: { type: integer, minimum: 1 }
+        decision:
+          type: string
+          enum: [accept, decline, cancel]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    RuntimeNativeApprovalRespondResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/RuntimeNativeApprovalProjection'
+        replayed: { type: boolean }
+      required: [ok, approval, replayed]
+    RuntimeNativeEventProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        sequence: { type: integer, minimum: 1 }
+        id: { type: string }
+        threadId: { type: string }
+        turnId:
+          oneOf:
+            - type: string
+            - type: "null"
+        method: { type: string }
+        category:
+          type: string
+          enum: [lifecycle, approval, item, warning, error, other]
+        publicPayload:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      required: [sequence, id, threadId, turnId, method, category, publicPayload, createdAt]
+    RuntimeNativeEventListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeNativeEventProjection'
+        nextSequence:
+          oneOf:
+            - type: integer
+            - type: "null"
+      required: [ok, events, nextSequence]
     RuntimeSessionMutationPayload:
       type: object
       additionalProperties: false
@@ -8038,6 +8536,339 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContinuityReadResponse'
+  /api/continuity/workspace-discovery/roots:
+    get:
+      operationId: listWorkspaceDiscoveryRoots
+      summary: List machine-local workspace discovery roots
+      description: Machine-local Owner-only path-bearing projection. This endpoint is concealed or rejected for non-loopback callers and is never available to OAuth bearer clients.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Config revision and discovery roots
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDiscoveryRootsResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: Machine-local authority required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+    post:
+      operationId: addWorkspaceDiscoveryRoot
+      summary: Add one machine-local project discovery root
+      description: Adds discovery permission only. It does not add the parent directory to Workspace execution authority and does not register child projects automatically.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkspaceDiscoveryRootCreateRequest' }
+      responses:
+        "200":
+          description: Updated root set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDiscoveryRootsResponse' }
+        "400":
+          description: Invalid or forbidden root
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF or machine-local authority required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Configuration revision conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/workspace-discovery/roots/{rootId}:
+    delete:
+      operationId: removeWorkspaceDiscoveryRoot
+      summary: Remove one discovery-only root
+      description: Removes future discovery permission only. Existing explicitly registered Projects/Workspaces remain registered.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: rootId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^workspace_root_[a-f0-9]{24}$' }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkspaceDiscoveryRootMutationRequest' }
+      responses:
+        "200":
+          description: Updated root set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDiscoveryRootsResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF or machine-local authority required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Configuration revision conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/workspace-discovery/roots/{rootId}/scan:
+    post:
+      operationId: scanWorkspaceDiscoveryRoot
+      summary: Scan one discovery root for direct-child Git repositories
+      description: Performs a bounded depth-1 read-only scan. Symlink escapes and nested recursive traversal are not followed.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: rootId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^workspace_root_[a-f0-9]{24}$' }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkspaceDiscoveryRootMutationRequest' }
+      responses:
+        "200":
+          description: Bounded candidate projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDiscoveryScanResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF or machine-local authority required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Configuration revision conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/workspace-discovery/roots/{rootId}/import:
+    post:
+      operationId: importWorkspaceDiscoveryCandidate
+      summary: Explicitly register one discovered Git checkout
+      description: Revalidates the short-lived candidate, then adds only the exact checkout to workspaceAllowlist and repoMappings before synchronizing Continuity Project/Workspace identity. No Runtime restart occurs.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: rootId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^workspace_root_[a-f0-9]{24}$' }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkspaceDiscoveryImportRequest' }
+      responses:
+        "200":
+          description: Imported logical Project/Workspace identity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDiscoveryImportResponse' }
+        "400":
+          description: Invalid candidate or repo id
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF or machine-local authority required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Stale candidate, duplicate registration, repo-id conflict, idempotency conflict, or config revision conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/workspaces/{workspaceId}/codex-thread-imports/assess:
+    post:
+      operationId: assessCodexThreadImport
+      summary: Assess one existing Codex thread for this workspace
+      description: Reads public-safe Codex thread metadata, verifies its private cwd resolves to the selected registered Workspace, and creates a short-lived durable assessment. No Codex turn is resumed or started.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CodexThreadImportAssessRequest' }
+      responses:
+        "200":
+          description: Workspace-matched import assessment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportAssessmentResponse' }
+        "403":
+          description: Web Owner session or CSRF required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Thread is unregistered, belongs to another workspace, or already has an active import
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/codex-thread-imports/{importId}/execute:
+    post:
+      operationId: executeCodexThreadImport
+      summary: Hand an assessed Codex thread to Chat Direct
+      description: Binds the existing thread as source provenance, captures bounded visible context, prepares a normal Handoff, and creates a Chat Direct continuation. It does not invoke Codex thread/resume, thread/fork, or turn/start.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CodexThreadImportExecuteRequest' }
+      responses:
+        "200":
+          description: Durable source and Chat Direct continuation identities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportExecutionResponse' }
+        "403":
+          description: Web Owner session or CSRF required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Stale, expired, mismatched, or conflicting import state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/codex-thread-imports/{importId}:
+    get:
+      operationId: getCodexThreadImport
+      summary: Read one durable Codex thread import
+      description: Returns logical import identities and state only. Private cwd and raw provider payloads are never projected.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Durable import state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportResponse' }
+        "403":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/codex-thread-imports/{importId}/context:
+    get:
+      operationId: getCodexThreadImportContext
+      summary: Read bounded visible context for one imported Codex thread
+      description: Returns only reviewed user/assistant text for a ready import, with message and page size caps. Arbitrary unimported thread ids are not accepted by this endpoint.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+                maxLength: 256
+              - type: "null"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 40 }
+      responses:
+        "200":
+          description: Bounded imported visible context
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodexThreadImportContextResponse' }
+        "403":
+          description: Web Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Import is not ready or context identity changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
   /api/continuity/workspaces/{workspaceId}/snapshot:
     get:
       operationId: getWorkspaceContinuitySnapshot
@@ -9078,6 +9909,18 @@ paths:
           required: false
           schema:
             type: boolean
+        - name: sourceKinds
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 5
+            items:
+              type: string
+              enum: [cli, vscode, exec, appServer, unknown]
+          description: Explicit provider-native source kinds included in the Session Directory. Primary defaults include CLI, VS Code, exec, App Server, and unknown while excluding subagent-only sources.
       responses:
         "200":
           description: Public-safe thread list
@@ -9112,6 +9955,207 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RuntimeThreadReadResponse'
+  /api/runtime/codex/account/status:
+    get:
+      operationId: getCodexAccountStatus
+      summary: Read public-safe Codex account and quota status
+      description: Reads authentication type, plan type, and provider-classified rate-limit windows for routing decisions. Email, credentials, credits, reset-credit identifiers, and raw provider payloads are omitted.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Public-safe Codex account and quota status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeCodexAccountStatusResponse'
+  /api/runtime/codex/native/threads/start:
+    post:
+      operationId: startNativeCodexThread
+      summary: Start a provider-native Codex thread
+      description: Creates a persistent Codex Thread for one registered Workspace. ChatCockpit supplies only the private Workspace cwd; model, sandbox, approval, instructions, and other settings remain provider-native configuration truth.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeThreadStartPayload'
+      responses:
+        "200":
+          description: Native Codex Thread created or idempotently replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeThreadMutationResponse'
+  /api/runtime/codex/native/threads/resume:
+    post:
+      operationId: resumeNativeCodexThread
+      summary: Resume the same provider-native Codex thread
+      description: Verifies Workspace identity and resumes the authoritative Codex Thread without creating a ChatCockpit Task, Development Session, or Handoff.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeThreadMutationPayload'
+      responses:
+        "200":
+          description: Native Codex Thread resumed with the same Thread identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeThreadMutationResponse'
+  /api/runtime/codex/native/threads/fork:
+    post:
+      operationId: forkNativeCodexThread
+      summary: Fork a provider-native Codex thread
+      description: Creates a provider-native Thread fork while preserving Codex lineage rather than manufacturing a ChatCockpit same-provider handoff model.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeThreadForkPayload'
+      responses:
+        "200":
+          description: Native Codex fork created or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeThreadMutationResponse'
+  /api/runtime/codex/native/turns/start:
+    post:
+      operationId: startNativeCodexTurn
+      summary: Start a native Turn without a ChatCockpit Development Session
+      description: Starts the Codex provider-native model loop on an existing Thread. No ChatCockpit Task, Development Session, Handoff, Spec, Plan, or Writer Lease is required merely to continue the same provider-native session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeTurnStartPayload'
+      responses:
+        "200":
+          description: Native Codex Turn started or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeTurnStartResponse'
+  /api/runtime/codex/native/turns/interrupt:
+    post:
+      operationId: interruptNativeCodexTurn
+      summary: Interrupt a native Codex Turn
+      description: Interrupts one provider-native Turn by Thread and Turn identity without requiring a ChatCockpit Development Session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeTurnInterruptPayload'
+      responses:
+        "200":
+          description: Native Codex Turn interruption requested or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeTurnInterruptResponse'
+  /api/runtime/codex/native/approvals:
+    get:
+      operationId: listNativeCodexApprovals
+      summary: List public-safe native Codex approvals
+      description: Lists bounded approval state for provider-native Turns. Internal App Server request handles, cwd, raw provider payloads, and private paths are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threadId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public-safe native approval list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeApprovalListResponse'
+  /api/runtime/codex/native/approvals/respond:
+    post:
+      operationId: respondToNativeCodexApproval
+      summary: Decide a native Codex approval as the human Operator
+      description: Responds to a pending provider-native command/file approval. This decision is intentionally unavailable to Remote MCP agents; it requires an authenticated Operator session plus the session-bound CSRF token.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeApprovalRespondPayload'
+      responses:
+        "200":
+          description: Native Codex approval decision accepted or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeApprovalRespondResponse'
+        "403":
+          description: Operator session or valid CSRF token is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/runtime/codex/native/events:
+    get:
+      operationId: readNativeCodexEvents
+      summary: Read public-safe native Codex activity
+      description: Reads a bounded in-process event window for provider-native Turns. Raw command output, cwd, patches, prompts, hidden reasoning, and provider-private payloads are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threadId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: afterSequence
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Bounded native Codex activity events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeEventListResponse'
   /api/runtime/codex/sessions/bind:
     post:
       operationId: bindCodexRuntimeSession

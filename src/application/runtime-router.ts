@@ -2,6 +2,7 @@ import { ServiceError } from "./service-error.js";
 import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
+  RuntimeCodexAccountStatus,
   RuntimeEventSink,
   RuntimeMcpServerProjection,
   RuntimePluginListInput,
@@ -12,12 +13,15 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeThreadContextInput,
+  RuntimeThreadContextPage,
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
   RuntimeThreadProjection,
   RuntimeThreadReadInput,
   RuntimeThreadResumeInput,
+  RuntimeThreadStartInput,
   RuntimeTurnInterruptInput,
   RuntimeTurnProjection,
   RuntimeTurnStartInput
@@ -42,6 +46,18 @@ export class RuntimeRouter {
     return this.codex.readThread(input);
   }
 
+  readCodexThreadContext(
+    input: RuntimeThreadContextInput
+  ): Promise<RuntimeThreadContextPage> {
+    return this.codex.readThreadContext(input);
+  }
+
+  startCodexThread(
+    input: RuntimeThreadStartInput
+  ): Promise<RuntimeThreadProjection> {
+    return this.codex.startThread(input);
+  }
+
   resumeCodexThread(
     input: RuntimeThreadResumeInput
   ): Promise<RuntimeThreadProjection> {
@@ -60,6 +76,10 @@ export class RuntimeRouter {
 
   interruptCodexTurn(input: RuntimeTurnInterruptInput): Promise<void> {
     return this.codex.interruptTurn(input);
+  }
+
+  readCodexAccountStatus(): Promise<RuntimeCodexAccountStatus> {
+    return this.codex.readAccountStatus();
   }
 
   listCodexSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]> {

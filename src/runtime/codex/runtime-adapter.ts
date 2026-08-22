@@ -35,12 +35,20 @@ export interface RuntimeThreadProjection {
   agentRole: string | null;
 }
 
+export type RuntimeThreadSourceKind =
+  | "cli"
+  | "vscode"
+  | "exec"
+  | "appServer"
+  | "unknown";
+
 export interface RuntimeThreadListInput {
   cursor?: string | null;
   limit?: number;
   workspaceId?: string;
   searchTerm?: string;
   archived?: boolean;
+  sourceKinds?: RuntimeThreadSourceKind[];
 }
 
 export interface RuntimeThreadListResult {
@@ -52,6 +60,35 @@ export interface RuntimeThreadListResult {
 export interface RuntimeThreadReadInput {
   threadId: string;
   includeTurns?: boolean;
+}
+
+export interface RuntimeThreadContextInput {
+  threadId: string;
+  cursor?: string | null;
+  limit?: number;
+}
+
+export interface RuntimeThreadContextMessage {
+  id: string;
+  turnId: string;
+  role: "user" | "assistant";
+  text: string;
+  truncated: boolean;
+}
+
+export interface RuntimeThreadContextPage {
+  threadId: string;
+  projectId: string | null;
+  workspaceId: string | null;
+  repoId: string | null;
+  messages: RuntimeThreadContextMessage[];
+  nextCursor: string | null;
+  truncated: boolean;
+  lastTurnId: string | null;
+}
+
+export interface RuntimeThreadStartInput {
+  workspaceId: string;
 }
 
 export interface RuntimeThreadResumeInput {
@@ -81,6 +118,32 @@ export interface RuntimeTurnStartInput {
 export interface RuntimeTurnInterruptInput {
   threadId: string;
   turnId: string;
+}
+
+export interface RuntimeRateLimitWindowProjection {
+  usedPercent: number;
+  windowDurationMins: number | null;
+  resetsAt: number | null;
+}
+
+export interface RuntimeRateLimitProjection {
+  limitId: string | null;
+  limitName: string | null;
+  primary: RuntimeRateLimitWindowProjection | null;
+  secondary: RuntimeRateLimitWindowProjection | null;
+  spendControlReached: boolean | null;
+  planType: string | null;
+  rateLimitReachedType: string | null;
+  limited: boolean;
+}
+
+export interface RuntimeCodexAccountStatus {
+  authenticated: boolean;
+  requiresOpenaiAuth: boolean;
+  accountType: string | null;
+  planType: string | null;
+  limited: boolean;
+  rateLimits: RuntimeRateLimitProjection[];
 }
 
 export interface RuntimeStandaloneFileReadResult {
@@ -193,10 +256,13 @@ export interface CodingRuntimeAdapter {
   capabilities(): Promise<RuntimeCapabilitySnapshot>;
   listThreads(input?: RuntimeThreadListInput): Promise<RuntimeThreadListResult>;
   readThread(input: RuntimeThreadReadInput): Promise<RuntimeThreadProjection>;
+  readThreadContext(input: RuntimeThreadContextInput): Promise<RuntimeThreadContextPage>;
+  startThread(input: RuntimeThreadStartInput): Promise<RuntimeThreadProjection>;
   resumeThread(input: RuntimeThreadResumeInput): Promise<RuntimeThreadProjection>;
   forkThread(input: RuntimeThreadForkInput): Promise<RuntimeThreadProjection>;
   startTurn(input: RuntimeTurnStartInput): Promise<RuntimeTurnProjection>;
   interruptTurn(input: RuntimeTurnInterruptInput): Promise<void>;
+  readAccountStatus(): Promise<RuntimeCodexAccountStatus>;
   listSkills?(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]>;
   listMcpServers?(): Promise<RuntimeMcpServerProjection[]>;
   listPlugins?(input?: RuntimePluginListInput): Promise<RuntimePluginProjection[]>;

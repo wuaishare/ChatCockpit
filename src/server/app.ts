@@ -61,6 +61,9 @@ import {
   type HubIdentityRecord
 } from "../devices/hub-identity.js";
 import { ensureLanTlsIdentity } from "../devices/lan-tls-identity.js";
+import { CodexNativeSessionService } from "../application/codex-native-session-service.js";
+import { CodexNativeTurnService } from "../application/codex-native-turn-service.js";
+import { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -619,13 +622,31 @@ export function buildServer(
     continuityServices.repositories
   );
   const runtimeService = new RuntimeService(runtimeRouter);
+  const codexNativeSessionService = new CodexNativeSessionService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
+  const codexNativeTurnService = new CodexNativeTurnService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
   const runtimeBindingService = new RuntimeBindingService(
     continuityServices.repositories,
     runtimeRouter
   );
+  const codexThreadImportService = new CodexThreadImportService({
+    repositories: continuityServices.repositories,
+    runtime: runtimeRouter,
+    tasks: continuityServices.tasks,
+    sessions: continuityServices.sessions,
+    runtimeBindings: runtimeBindingService,
+    handoffs: continuityServices.handoffs,
+    workspaceContinuity: continuityServices.workspaces
+  });
   const runtimeEventService = new RuntimeEventService(
     continuityServices.repositories,
-    runtimeRouter
+    runtimeRouter,
+    codexNativeTurnService
   );
   const runtimeTurnService = new RuntimeTurnService(
     paths,
@@ -856,6 +877,8 @@ export function buildServer(
     hostCommand,
     hostProcess,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,
@@ -864,7 +887,8 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
-    exposedRuntimeResourceMutationService
+    exposedRuntimeResourceMutationService,
+    codexThreadImportService
   ).length;
   const mcpHandler = buildTokenPilotMcpHandler(
     paths,
@@ -875,6 +899,8 @@ export function buildServer(
     hostCommand,
     hostProcess,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,
@@ -884,6 +910,7 @@ export function buildServer(
     capabilityRouterServices,
     deviceTargetService,
     exposedRuntimeResourceMutationService,
+    codexThreadImportService,
     oauthDeviceAccessPolicy
       ? {
           allowsDevice: (grantId, deviceId) =>
@@ -895,7 +922,7 @@ export function buildServer(
     }
   );
   registerMcpHttpRoutes(app, mcpHandler);
-  registerContinuityRoutes(app, continuityServices);
+  registerContinuityRoutes(app, continuityServices, codexThreadImportService);
   registerOperationalActivityRoutes(app, operationalActivityService, {
     pollIntervalMs: options.activityStreamPollIntervalMs,
     heartbeatIntervalMs: options.activityStreamHeartbeatIntervalMs
@@ -903,6 +930,8 @@ export function buildServer(
   registerRuntimeRoutes(
     app,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,

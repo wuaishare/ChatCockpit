@@ -1,4 +1,5 @@
 import type { ContinuityDatabase } from "../database.js";
+import { CodexThreadImportRepository } from "./codex-thread-import-repository.js";
 import { DevelopmentDocumentRepository } from "./development-document-repository.js";
 import { DirectCommandApprovalRepository } from "./direct-command-approval-repository.js";
 import { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";
@@ -26,6 +27,7 @@ import { TaskRepository } from "./task-repository.js";
 import { WorkspaceRepository } from "./workspace-repository.js";
 
 export interface ContinuityRepositories {
+  codexThreadImports: CodexThreadImportRepository;
   projects: ProjectRepository;
   developmentDocuments: DevelopmentDocumentRepository;
   directCommandApprovals: DirectCommandApprovalRepository;
@@ -61,6 +63,7 @@ export function buildContinuityRepositories(
   identity: ContinuityRepositoryIdentityOptions = {}
 ): ContinuityRepositories {
   return {
+    codexThreadImports: new CodexThreadImportRepository(database),
     projects: new ProjectRepository(database),
     developmentDocuments: new DevelopmentDocumentRepository(database),
     directCommandApprovals: new DirectCommandApprovalRepository(database),
@@ -91,6 +94,7 @@ export function buildContinuityRepositories(
   };
 }
 
+export { CodexThreadImportRepository } from "./codex-thread-import-repository.js";
 export { DevelopmentDocumentRepository } from "./development-document-repository.js";
 export { DirectCommandApprovalRepository } from "./direct-command-approval-repository.js";
 export { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";

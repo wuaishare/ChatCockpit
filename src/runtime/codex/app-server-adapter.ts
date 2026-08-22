@@ -13,12 +13,12 @@ import {
   type CodexAppServerInitialization
 } from "./app-server-client.js";
 import type { CodexStandaloneCapabilityStore } from "./standalone-capabilities.js";
-import {
-  projectCodexThread
-} from "./thread-projection.js";
+import { projectCodexThreadContext } from "./thread-context-projection.js";
+import { projectCodexThread } from "./thread-projection.js";
 import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
+  RuntimeCodexAccountStatus,
   RuntimeEventSink,
   RuntimeMcpServerProjection,
   RuntimePluginListInput,
@@ -29,12 +29,15 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeThreadContextInput,
+  RuntimeThreadContextPage,
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
   RuntimeThreadProjection,
   RuntimeThreadReadInput,
   RuntimeThreadResumeInput,
+  RuntimeThreadStartInput,
   RuntimeTurnInterruptInput,
   RuntimeTurnProjection,
   RuntimeTurnStartInput
@@ -50,6 +53,16 @@ interface ThreadReadResponse {
   thread?: unknown;
 }
 
+interface AccountReadResponse {
+  account?: unknown;
+  requiresOpenaiAuth?: unknown;
+}
+
+interface AccountRateLimitsResponse {
+  rateLimits?: unknown;
+  rateLimitsByLimitId?: unknown;
+}
+
 interface TurnStartResponse {
   turn?: unknown;
 }
@@ -58,6 +71,60 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+const PRIMARY_CODEX_THREAD_SOURCE_KINDS = [
+  "cli",
+  "vscode",
+  "exec",
+  "appServer",
+  "unknown"
+] as const;
+
+function finiteNumberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function projectRateLimitWindow(value: unknown) {
+  const window = asRecord(value);
+  const usedPercent = finiteNumberOrNull(window.usedPercent);
+  if (usedPercent === null) return null;
+  return {
+    usedPercent,
+    windowDurationMins: finiteNumberOrNull(window.windowDurationMins),
+    resetsAt: finiteNumberOrNull(window.resetsAt)
+  };
+}
+
+function projectRateLimitSnapshot(value: unknown) {
+  const snapshot = asRecord(value);
+  const rateLimitReachedType =
+    typeof snapshot.rateLimitReachedType === "string" && snapshot.rateLimitReachedType
+      ? snapshot.rateLimitReachedType
+      : null;
+  const spendControlReached =
+    typeof snapshot.spendControlReached === "boolean"
+      ? snapshot.spendControlReached
+      : null;
+  return {
+    limitId:
+      typeof snapshot.limitId === "string" && snapshot.limitId
+        ? snapshot.limitId
+        : null,
+    limitName:
+      typeof snapshot.limitName === "string" && snapshot.limitName
+        ? snapshot.limitName
+        : null,
+    primary: projectRateLimitWindow(snapshot.primary),
+    secondary: projectRateLimitWindow(snapshot.secondary),
+    spendControlReached,
+    planType:
+      typeof snapshot.planType === "string" && snapshot.planType
+        ? snapshot.planType
+        : null,
+    rateLimitReachedType,
+    limited: spendControlReached === true || rateLimitReachedType !== null
+  };
 }
 
 function pluginSourceType(value: unknown): RuntimePluginProjection["sourceType"] {
@@ -325,12 +392,15 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         protocolFamily: "app-server-v2",
         serverProtocolVersion: this.initialization?.protocolVersion ?? null,
         stableMethods: [
+          "thread/start",
           "thread/list",
           "thread/read",
           "thread/resume",
           "thread/fork",
           "turn/start",
-          "turn/interrupt"
+          "turn/interrupt",
+          "account/read",
+          "account/rateLimits/read"
         ],
         experimentalApiEnabled: false,
         standaloneExecution: this.standaloneCapabilityStore?.read() ?? null
@@ -508,7 +578,11 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       sortKey: "recency_at",
       sortDirection: "desc",
       modelProviders: [],
-      archived: input.archived ?? false
+      archived: input.archived ?? false,
+      sourceKinds:
+        input.sourceKinds === undefined
+          ? [...PRIMARY_CODEX_THREAD_SOURCE_KINDS]
+          : input.sourceKinds
     };
 
     if (input.searchTerm?.trim()) {
@@ -562,6 +636,44 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     return projectCodexThread(response.thread, this.workspaces.listPrivate());
   }
 
+  async readThreadContext(
+    input: RuntimeThreadContextInput
+  ): Promise<RuntimeThreadContextPage> {
+    const client = await this.ensureClient();
+    const response = await client.request<ThreadReadResponse>("thread/read", {
+      threadId: input.threadId,
+      includeTurns: true
+    });
+    if (!response.thread) {
+      throw new ServiceError(
+        "CODEX_THREAD_RESPONSE_INVALID",
+        "Codex App Server returned no thread record for context projection"
+      );
+    }
+    return projectCodexThreadContext(
+      response.thread,
+      this.workspaces.listPrivate(),
+      input
+    );
+  }
+
+  async startThread(
+    input: RuntimeThreadStartInput
+  ): Promise<RuntimeThreadProjection> {
+    const client = await this.ensureClient();
+    const workspace = this.workspaces.getPrivate(input.workspaceId);
+    const response = await client.request<ThreadReadResponse>("thread/start", {
+      cwd: workspace.privatePath
+    });
+    if (!response.thread) {
+      throw new ServiceError(
+        "CODEX_THREAD_RESPONSE_INVALID",
+        "Codex App Server returned no started thread record"
+      );
+    }
+    return projectCodexThread(response.thread, this.workspaces.listPrivate());
+  }
+
   async resumeThread(
     input: RuntimeThreadResumeInput
   ): Promise<RuntimeThreadProjection> {
@@ -609,9 +721,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           text: input.text,
           text_elements: []
         }
-      ],
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user"
+      ]
     });
     return projectRuntimeTurn(response.turn);
   }
@@ -622,6 +732,36 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       threadId: input.threadId,
       turnId: input.turnId
     });
+  }
+
+  async readAccountStatus(): Promise<RuntimeCodexAccountStatus> {
+    const client = await this.ensureClient();
+    const [accountResponse, rateLimitResponse] = await Promise.all([
+      client.request<AccountReadResponse>("account/read", {}),
+      client.request<AccountRateLimitsResponse>("account/rateLimits/read", {})
+    ]);
+    const account = asRecord(accountResponse.account);
+    const accountType =
+      typeof account.type === "string" && account.type ? account.type : null;
+    const planType =
+      typeof account.planType === "string" && account.planType
+        ? account.planType
+        : null;
+    const rateLimitsByLimitId = asRecord(rateLimitResponse.rateLimitsByLimitId);
+    const rawSnapshots = Object.keys(rateLimitsByLimitId).length
+      ? Object.values(rateLimitsByLimitId)
+      : rateLimitResponse.rateLimits === undefined
+        ? []
+        : [rateLimitResponse.rateLimits];
+    const rateLimits = rawSnapshots.map(projectRateLimitSnapshot);
+    return {
+      authenticated: accountType !== null,
+      requiresOpenaiAuth: accountResponse.requiresOpenaiAuth === true,
+      accountType,
+      planType,
+      limited: rateLimits.some((snapshot) => snapshot.limited),
+      rateLimits
+    };
   }
 
   async readStandaloneFile(

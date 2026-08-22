@@ -16,6 +16,7 @@ import { TaskCompletionService } from "./task-completion-service.js";
 import { TaskService } from "./task-service.js";
 import { TaskExecutionPolicyService } from "./task-execution-policy.js";
 import { WorkspaceContinuityService } from "./workspace-continuity-service.js";
+import { WorkspaceOnboardingService } from "./workspace-onboarding-service.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 
 export interface ContinuityServices {
@@ -23,6 +24,7 @@ export interface ContinuityServices {
   asyncJobs: AsyncJobService;
   developmentDocuments: DevelopmentDocumentService;
   projects: ProjectService;
+  workspaceOnboarding: WorkspaceOnboardingService;
   workspaces: WorkspaceContinuityService;
   tasks: TaskService;
   taskCompletion: TaskCompletionService;
@@ -43,13 +45,15 @@ export function buildContinuityServices(
     asyncRunnerRuntimeKind: identity.asyncRunnerRuntimeKind
   });
   const taskExecutionPolicy = new TaskExecutionPolicyService(repositories);
+  const projects = new ProjectService(paths, database, repositories);
   return {
     repositories,
     asyncJobs: new AsyncJobService(
       paths, repositories, taskExecutionPolicy, options.activityProvenance
     ),
     developmentDocuments: new DevelopmentDocumentService(repositories),
-    projects: new ProjectService(paths, database, repositories),
+    projects,
+    workspaceOnboarding: new WorkspaceOnboardingService(paths, projects, repositories),
     workspaces: new WorkspaceContinuityService(
       paths,
       repositories,

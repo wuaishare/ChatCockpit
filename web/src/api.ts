@@ -15,6 +15,16 @@ import type {
   ContinuityHandoffForkResponse,
   ContinuityHandoffMutationResponse,
   ContinuityProjectsResponse,
+  CodexNativeThreadMutationResponse,
+  CodexRuntimeAccountStatusResponse,
+  CodexRuntimeThreadReadResponse,
+  CodexThreadImportAssessmentResponse,
+  CodexThreadImportContextResponse,
+  CodexThreadImportExecutionResponse,
+  CodexThreadImportResponse,
+  WorkspaceDiscoveryImportResponse,
+  WorkspaceDiscoveryRootsResponse,
+  WorkspaceDiscoveryScanResponse,
   ContinuitySessionMode,
   ContinuityTaskCompletionResponse,
   ContinuityTaskDocumentBindResponse,
@@ -672,6 +682,158 @@ export async function fetchContinuityProjects(
 ): Promise<ContinuityProjectsResponse> {
   return requestJson<ContinuityProjectsResponse>(
     "/api/continuity/projects?status=active",
+    token
+  );
+}
+
+export async function fetchWorkspaceDiscoveryRoots(
+  token?: string | null
+): Promise<WorkspaceDiscoveryRootsResponse> {
+  return requestJson<WorkspaceDiscoveryRootsResponse>(
+    "/api/continuity/workspace-discovery/roots",
+    token
+  );
+}
+
+export async function addDiscoveryRoot(
+  path: string,
+  expectedConfigRevision: string,
+  token?: string | null
+): Promise<WorkspaceDiscoveryRootsResponse> {
+  return postBodyJson<WorkspaceDiscoveryRootsResponse>(
+    "/api/continuity/workspace-discovery/roots",
+    { path, expectedConfigRevision },
+    token
+  );
+}
+
+export async function removeDiscoveryRoot(
+  rootId: string,
+  expectedConfigRevision: string,
+  token?: string | null
+): Promise<WorkspaceDiscoveryRootsResponse> {
+  const response = await fetch(
+    `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}`,
+    {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: {
+        ...buildHeaders(token, { mutation: true }),
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ expectedConfigRevision })
+    }
+  );
+  if (!response.ok) throw await parseProblem(response);
+  return (await response.json()) as WorkspaceDiscoveryRootsResponse;
+}
+
+export async function scanWorkspaceDiscoveryRoot(
+  rootId: string,
+  expectedConfigRevision: string,
+  token?: string | null
+): Promise<WorkspaceDiscoveryScanResponse> {
+  return postBodyJson<WorkspaceDiscoveryScanResponse>(
+    `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}/scan`,
+    { expectedConfigRevision },
+    token
+  );
+}
+
+export async function importWorkspaceCandidate(
+  rootId: string,
+  payload: {
+    candidateId: string;
+    repoId: string;
+    expectedConfigRevision: string;
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<WorkspaceDiscoveryImportResponse> {
+  return postBodyJson<WorkspaceDiscoveryImportResponse>(
+    `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}/import`,
+    payload,
+    token
+  );
+}
+
+export async function fetchCodexRuntimeThread(
+  threadId: string,
+  token?: string | null
+): Promise<CodexRuntimeThreadReadResponse> {
+  return requestJson<CodexRuntimeThreadReadResponse>(
+    `/api/runtime/codex/threads/${encodeURIComponent(threadId)}`,
+    token
+  );
+}
+
+export async function fetchCodexRuntimeAccountStatus(
+  token?: string | null
+): Promise<CodexRuntimeAccountStatusResponse> {
+  return requestJson<CodexRuntimeAccountStatusResponse>(
+    "/api/runtime/codex/account/status",
+    token
+  );
+}
+
+export async function resumeNativeCodexThread(
+  payload: { workspaceId: string; threadId: string; idempotencyKey: string },
+  token?: string | null
+): Promise<CodexNativeThreadMutationResponse> {
+  return postBodyJson<CodexNativeThreadMutationResponse>(
+    "/api/runtime/codex/native/threads/resume",
+    payload,
+    token
+  );
+}
+
+export async function assessCodexThreadImport(
+  workspaceId: string,
+  payload: { threadRef: string; idempotencyKey: string },
+  token?: string | null
+): Promise<CodexThreadImportAssessmentResponse> {
+  return postBodyJson(
+    `/api/continuity/workspaces/${encodeURIComponent(workspaceId)}/codex-thread-imports/assess`,
+    payload,
+    token
+  );
+}
+
+export async function executeCodexThreadImport(
+  importId: string,
+  payload: {
+    assessmentHash: string;
+    expectedRevision: number;
+    action: "handoff-to-chat-direct";
+    idempotencyKey: string;
+  },
+  token?: string | null
+): Promise<CodexThreadImportExecutionResponse> {
+  return postBodyJson(
+    `/api/continuity/codex-thread-imports/${encodeURIComponent(importId)}/execute`,
+    payload,
+    token
+  );
+}
+
+export async function fetchCodexThreadImport(
+  importId: string,
+  token?: string | null
+): Promise<CodexThreadImportResponse> {
+  return requestJson<CodexThreadImportResponse>(
+    `/api/continuity/codex-thread-imports/${encodeURIComponent(importId)}`,
+    token
+  );
+}
+
+export async function fetchCodexThreadImportContext(
+  importId: string,
+  cursor?: string | null,
+  token?: string | null
+): Promise<CodexThreadImportContextResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return requestJson<CodexThreadImportContextResponse>(
+    `/api/continuity/codex-thread-imports/${encodeURIComponent(importId)}/context${query}`,
     token
   );
 }

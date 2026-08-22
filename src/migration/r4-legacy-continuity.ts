@@ -2,7 +2,11 @@ import type { DatabaseSync } from "node:sqlite";
 
 import { CHATCOCKPIT_TARGET_IDENTITY_MIGRATION } from "./chatcockpit-target-continuity.js";
 
-export type R4LegacyContinuitySourceContract = "v18" | "v19-compatible" | "invalid";
+export type R4LegacyContinuitySourceContract =
+  | "v18"
+  | "v19-compatible"
+  | "v20-compatible"
+  | "invalid";
 
 export interface R4LegacyContinuitySourceInspection {
   schemaVersion: number;
@@ -70,14 +74,14 @@ export function inspectR4LegacyContinuitySource(
   ) {
     sourceContract = "v18";
   } else if (
-    schemaVersion === 19 &&
+    (schemaVersion === 19 || schemaVersion === 20) &&
     !targetIdentityTablePresent &&
     runtimeBindingAcceptsLegacy &&
     runtimeBindingAcceptsTarget &&
     runtimeResourceAcceptsLegacy &&
     runtimeResourceAcceptsTarget
   ) {
-    sourceContract = "v19-compatible";
+    sourceContract = schemaVersion === 20 ? "v20-compatible" : "v19-compatible";
   }
 
   return {

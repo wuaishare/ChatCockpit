@@ -39,8 +39,10 @@ const actor = {
 };
 
 try {
-  assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 19);
-  assert.equal(continuityDatabase.schemaVersion(), 19);
+  assert.equal(
+    continuityDatabase.schemaVersion(),
+    LATEST_CONTINUITY_SCHEMA_VERSION
+  );
   assert.equal(LATEST_GOVERNANCE_SCHEMA_VERSION, 3);
   assert.equal(database.schemaVersion(), 3);
   const continuityTables = continuityDatabase.sqlite
