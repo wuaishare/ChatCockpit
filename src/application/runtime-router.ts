@@ -12,6 +12,8 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeThreadContextInput,
+  RuntimeThreadContextPage,
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
@@ -40,6 +42,12 @@ export class RuntimeRouter {
     input: RuntimeThreadReadInput
   ): Promise<RuntimeThreadProjection> {
     return this.codex.readThread(input);
+  }
+
+  readCodexThreadContext(
+    input: RuntimeThreadContextInput
+  ): Promise<RuntimeThreadContextPage> {
+    return this.codex.readThreadContext(input);
   }
 
   resumeCodexThread(

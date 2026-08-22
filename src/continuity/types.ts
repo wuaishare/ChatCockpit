@@ -152,6 +152,7 @@ export type RuntimeEventCategory =
   | "other";
 export type HandoffMode = SessionMode | "unassigned";
 export type HandoffStatus = "draft" | "ready" | "accepted" | "superseded";
+export type CodexThreadImportState = "assessed" | "importing" | "ready" | "failed";
 export type EvidenceStatus = "passed" | "failed" | "skipped" | "not-run";
 export type EvidenceKind =
   | "command"
@@ -563,6 +564,25 @@ export interface WriterLeaseRecord {
   heartbeatAt: string;
   expiresAt: string;
   releasedAt: string | null;
+  revision: number;
+}
+
+export interface CodexThreadImportRecord {
+  id: string;
+  sourceThreadId: string;
+  projectId: string;
+  workspaceId: string;
+  state: CodexThreadImportState;
+  assessmentHash: string;
+  expiresAt: string;
+  sourceTaskId: string | null;
+  sourceSessionId: string | null;
+  handoffId: string | null;
+  continuationTaskId: string | null;
+  continuationSessionId: string | null;
+  contextTruncated: boolean;
+  createdAt: string;
+  updatedAt: string;
   revision: number;
 }
 
