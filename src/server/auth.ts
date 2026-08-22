@@ -4,7 +4,7 @@ import type { FastifyRequest } from "fastify";
 import type { OperatorService } from "../auth/operator-service.js";
 import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
 import { ApiError } from "./errors.js";
-import { isLoopbackProxyAddress } from "./security-headers.js";
+import { isMachineLocalRequest } from "./machine-local-authority.js";
 import {
   OPERATOR_CSRF_HEADER,
   readOperatorLoginGate,
@@ -85,16 +85,6 @@ function isPublicPath(url: string, secureEntryPath: string): boolean {
     pathname === "/openapi.yaml" ||
     pathname === "/privacy-policy"
   );
-}
-
-function isDirectLoopbackRequest(request: FastifyRequest): boolean {
-  const hostname = request.hostname.trim().replace(/^\[|\]$/g, "").toLowerCase();
-  const socketAddress = request.socket.remoteAddress?.trim() ?? "";
-  const loopbackHost =
-    hostname === "localhost" ||
-    hostname === "::1" ||
-    isLoopbackProxyAddress(hostname);
-  return loopbackHost && isLoopbackProxyAddress(socketAddress);
 }
 
 function isStableUiPath(url: string): boolean {
@@ -234,7 +224,7 @@ export function createTokenPilotAuthPlugin(
         if (pathname.startsWith("/ui/assets/")) {
           return;
         }
-        if (pathname === "/ui/local-login" && isDirectLoopbackRequest(request)) {
+        if (pathname === "/ui/local-login" && isMachineLocalRequest(request)) {
           return;
         }
         if (request.chatCockpitAuth.kind === "operator-session") {
@@ -309,7 +299,7 @@ export function createTokenPilotAuthPlugin(
           return;
         }
 
-        if (!configured && !isExposedMode() && isDirectLoopbackRequest(request)) {
+        if (!configured && !isExposedMode() && isMachineLocalRequest(request)) {
           return;
         }
 
@@ -332,7 +322,7 @@ export function createTokenPilotAuthPlugin(
         !configured &&
         !operatorConfigured &&
         !isExposedMode() &&
-        isDirectLoopbackRequest(request)
+        isMachineLocalRequest(request)
       ) {
         return;
       }

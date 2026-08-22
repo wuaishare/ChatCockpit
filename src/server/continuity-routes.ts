@@ -8,6 +8,12 @@ import { z } from "zod";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import { asyncJobQueueSchema } from "../contracts/async-job.js";
 import {
+  workspaceDiscoveryImportSchema,
+  workspaceDiscoveryRootCreateSchema,
+  workspaceDiscoveryRootMutationSchema,
+  workspaceDiscoveryRootParamsSchema
+} from "../contracts/workspace-onboarding.js";
+import {
   developmentDocumentAppendVersionSchema,
   developmentDocumentCreateSchema,
   developmentDocumentGetSchema,
@@ -35,6 +41,7 @@ import {
   workspaceSnapshotSchema
 } from "../contracts/continuity.js";
 import { sendUnknownApiError, validationError } from "./errors.js";
+import { requireMachineLocalOwner } from "./machine-local-authority.js";
 import { operationContextFromRequest } from "./request-context.js";
 
 function parseOrReply<TSchema extends z.ZodTypeAny>(
@@ -52,7 +59,7 @@ function parseOrReply<TSchema extends z.ZodTypeAny>(
 
 function registerAliases(
   app: FastifyInstance,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   path: string,
   handler: (request: FastifyRequest, reply: FastifyReply) => Promise<unknown> | unknown
 ): void {
@@ -95,6 +102,120 @@ export function registerContinuityRoutes(
             operationContextFromRequest(request),
             input.projectId
           )
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "GET",
+    "/api/continuity/workspace-discovery/roots",
+    (request, reply) => {
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.listRoots(operationContextFromRequest(request))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/workspace-discovery/roots",
+    (request, reply) => {
+      const input = parseOrReply(workspaceDiscoveryRootCreateSchema, request.body, reply);
+      if (!input) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.addRoot(operationContextFromRequest(request), input)
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "DELETE",
+    "/api/continuity/workspace-discovery/roots/:rootId",
+    (request, reply) => {
+      const params = parseOrReply(workspaceDiscoveryRootParamsSchema, request.params, reply);
+      if (!params) return;
+      const body = parseOrReply(workspaceDiscoveryRootMutationSchema, request.body, reply);
+      if (!body) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.removeRoot(operationContextFromRequest(request), {
+            rootId: params.rootId,
+            expectedConfigRevision: body.expectedConfigRevision
+          })
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/workspace-discovery/roots/:rootId/scan",
+    (request, reply) => {
+      const params = parseOrReply(workspaceDiscoveryRootParamsSchema, request.params, reply);
+      if (!params) return;
+      const body = parseOrReply(workspaceDiscoveryRootMutationSchema, request.body, reply);
+      if (!body) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...services.workspaceOnboarding.scanRoot(operationContextFromRequest(request), {
+            rootId: params.rootId,
+            expectedConfigRevision: body.expectedConfigRevision
+          })
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/workspace-discovery/roots/:rootId/import",
+    async (request, reply) => {
+      const params = parseOrReply(workspaceDiscoveryRootParamsSchema, request.params, reply);
+      if (!params) return;
+      const body = parseOrReply(workspaceDiscoveryImportSchema, request.body, reply);
+      if (!body) return;
+      try {
+        requireMachineLocalOwner(request);
+        return {
+          ok: true,
+          ...(await services.workspaceOnboarding.importCandidate(
+            operationContextFromRequest(request),
+            {
+              rootId: params.rootId,
+              candidateId: body.candidateId,
+              repoId: body.repoId,
+              expectedConfigRevision: body.expectedConfigRevision,
+              idempotencyKey: body.idempotencyKey
+            }
+          ))
         };
       } catch (error) {
         return sendUnknownApiError(reply, error);
