@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { LATEST_CONTINUITY_SCHEMA_VERSION } from "../src/continuity/database.js";
 import { migrateLegacyUserConfigToChatCockpit } from "../src/migration/chatcockpit-config-migration.js";
 import { buildR4MigrationStaging } from "../src/migration/r4-executor.js";
 import {
@@ -248,7 +249,10 @@ async function runSuccess(): Promise<void> {
       snapshotRoot: fixture.snapshotRoot,
       stagingRoot: fixture.stagingRoot
     });
-    assert.equal(staged.targetContinuitySchemaVersion, 19);
+    assert.equal(
+      staged.targetContinuitySchemaVersion,
+      LATEST_CONTINUITY_SCHEMA_VERSION
+    );
     transition(states, "migrating");
     const activation = activateStaging(fixture);
     transition(states, "verifying");

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { LATEST_CONTINUITY_SCHEMA_VERSION } from "../src/continuity/database.js";
 import {
   activateChatCockpitSourceStateRelocation,
   inspectChatCockpitSourceStateRelocation,
@@ -40,7 +41,7 @@ function buildTargetOnlyContinuity(databasePath: string): void {
         applied_at TEXT NOT NULL
       ) STRICT;
       INSERT INTO schema_migrations (version, name, applied_at)
-      VALUES (19, 'chatcockpit-compatible-domain-identities', '2026-08-16T00:00:00Z');
+      VALUES (${LATEST_CONTINUITY_SCHEMA_VERSION}, 'current-chatcockpit-continuity', '2026-08-16T00:00:00Z');
       CREATE TABLE product_identity_migrations (
         name TEXT PRIMARY KEY,
         applied_at TEXT NOT NULL
@@ -165,7 +166,10 @@ try {
     targetConfigPath
   });
   assert.equal(ready.ready, true, ready.blockers.join("\n"));
-  assert.equal(ready.sourceContinuitySchemaVersion, 19);
+  assert.equal(
+    ready.sourceContinuitySchemaVersion,
+    LATEST_CONTINUITY_SCHEMA_VERSION
+  );
   assert.equal(ready.sourceTargetIdentityMarkerPresent, true);
 
   const staged = stageChatCockpitSourceStateRelocation({

@@ -15,6 +15,9 @@ import type {
   ContinuityHandoffForkResponse,
   ContinuityHandoffMutationResponse,
   ContinuityProjectsResponse,
+  CodexNativeThreadMutationResponse,
+  CodexRuntimeAccountStatusResponse,
+  CodexRuntimeThreadReadResponse,
   CodexThreadImportAssessmentResponse,
   CodexThreadImportContextResponse,
   CodexThreadImportExecutionResponse,
@@ -749,6 +752,36 @@ export async function importWorkspaceCandidate(
 ): Promise<WorkspaceDiscoveryImportResponse> {
   return postBodyJson<WorkspaceDiscoveryImportResponse>(
     `/api/continuity/workspace-discovery/roots/${encodeURIComponent(rootId)}/import`,
+    payload,
+    token
+  );
+}
+
+export async function fetchCodexRuntimeThread(
+  threadId: string,
+  token?: string | null
+): Promise<CodexRuntimeThreadReadResponse> {
+  return requestJson<CodexRuntimeThreadReadResponse>(
+    `/api/runtime/codex/threads/${encodeURIComponent(threadId)}`,
+    token
+  );
+}
+
+export async function fetchCodexRuntimeAccountStatus(
+  token?: string | null
+): Promise<CodexRuntimeAccountStatusResponse> {
+  return requestJson<CodexRuntimeAccountStatusResponse>(
+    "/api/runtime/codex/account/status",
+    token
+  );
+}
+
+export async function resumeNativeCodexThread(
+  payload: { workspaceId: string; threadId: string; idempotencyKey: string },
+  token?: string | null
+): Promise<CodexNativeThreadMutationResponse> {
+  return postBodyJson<CodexNativeThreadMutationResponse>(
+    "/api/runtime/codex/native/threads/resume",
     payload,
     token
   );

@@ -9,6 +9,8 @@ import {
 
 import { MCP_AUTHORIZATION_GRANT_HEADER } from "../auth/oauth-request-identity.js";
 import type { ChatDirectService } from "../application/chat-direct-service.js";
+import type { CodexNativeSessionService } from "../application/codex-native-session-service.js";
+import type { CodexNativeTurnService } from "../application/codex-native-turn-service.js";
 import type { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import type { HostCommandService } from "../application/host-command-service.js";
 import type { HostDirectService } from "../application/host-direct-service.js";
@@ -91,6 +93,8 @@ export function buildTokenPilotMcpToolCatalog(
   hostCommand: HostCommandService,
   hostProcess: HostProcessService,
   runtimeService: RuntimeService,
+  codexNativeSessionService: CodexNativeSessionService,
+  codexNativeTurnService: CodexNativeTurnService,
   runtimeBindingService: RuntimeBindingService,
   runtimeTurnService: RuntimeTurnService,
   runtimeApprovalService: RuntimeApprovalService,
@@ -123,6 +127,8 @@ export function buildTokenPilotMcpToolCatalog(
     ...buildContinuityMcpTools(continuityServices, codexThreadImportService),
     ...buildRuntimeMcpTools(
       runtimeService,
+      codexNativeSessionService,
+      codexNativeTurnService,
       runtimeBindingService,
       runtimeTurnService,
       runtimeApprovalService,
@@ -168,6 +174,8 @@ export function buildTokenPilotMcpHandler(
   hostCommand: HostCommandService,
   hostProcess: HostProcessService,
   runtimeService: RuntimeService,
+  codexNativeSessionService: CodexNativeSessionService,
+  codexNativeTurnService: CodexNativeTurnService,
   runtimeBindingService: RuntimeBindingService,
   runtimeTurnService: RuntimeTurnService,
   runtimeApprovalService: RuntimeApprovalService,
@@ -191,6 +199,8 @@ export function buildTokenPilotMcpHandler(
     hostCommand,
     hostProcess,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,

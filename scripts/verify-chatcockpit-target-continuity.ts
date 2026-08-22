@@ -7,7 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 
 import { buildRuntimeProfileId } from "../src/application/runtime-resource-hash.js";
 import type { RuntimeProfileDescriptor } from "../src/application/runtime-resource-types.js";
-import { ContinuityDatabase } from "../src/continuity/database.js";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.js";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.js";
 import {
   buildSourceDistributionContext,
@@ -267,7 +270,7 @@ async function main(): Promise<void> {
       assert.equal(
         targetInspection.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()
           ?.version,
-        19
+        LATEST_CONTINUITY_SCHEMA_VERSION
       );
       assert.equal(
         targetInspection
@@ -465,15 +468,18 @@ async function main(): Promise<void> {
     fs.mkdirSync(path.dirname(unknownSchemaPath), { recursive: true });
     fs.copyFileSync(legacyPath, unknownSchemaPath);
     const unknownDatabase = new DatabaseSync(unknownSchemaPath);
+    const futureSchemaVersion = LATEST_CONTINUITY_SCHEMA_VERSION + 1;
     unknownDatabase
       .prepare(
-        "INSERT INTO schema_migrations (version, name, applied_at) VALUES (20, 'future-fixture', '2026-08-14T00:00:00.000Z')"
+        "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, 'future-fixture', '2026-08-14T00:00:00.000Z')"
       )
-      .run();
+      .run(futureSchemaVersion);
     unknownDatabase.close();
     assert.throws(
       () => migrateChatCockpitTargetContinuityDatabase(unknownSchemaPath),
-      /requires continuity schema v19, received 20/
+      new RegExp(
+        `requires continuity schema v${LATEST_CONTINUITY_SCHEMA_VERSION}, received ${futureSchemaVersion}`
+      )
     );
 
     console.log("VERIFY_CHATCOCKPIT_TARGET_CONTINUITY_OK");

@@ -5679,6 +5679,282 @@ components:
         thread:
           $ref: '#/components/schemas/RuntimeThreadProjection'
       required: [ok, thread]
+    RuntimeCodexRateLimitWindow:
+      type: object
+      additionalProperties: false
+      properties:
+        usedPercent: { type: number }
+        windowDurationMins:
+          oneOf:
+            - type: number
+            - type: "null"
+        resetsAt:
+          oneOf:
+            - type: number
+            - type: "null"
+      required: [usedPercent, windowDurationMins, resetsAt]
+    RuntimeCodexRateLimit:
+      type: object
+      additionalProperties: false
+      properties:
+        limitId:
+          oneOf:
+            - type: string
+            - type: "null"
+        limitName:
+          oneOf:
+            - type: string
+            - type: "null"
+        primary:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeCodexRateLimitWindow'
+            - type: "null"
+        secondary:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeCodexRateLimitWindow'
+            - type: "null"
+        spendControlReached:
+          oneOf:
+            - type: boolean
+            - type: "null"
+        planType:
+          oneOf:
+            - type: string
+            - type: "null"
+        rateLimitReachedType:
+          oneOf:
+            - type: string
+            - type: "null"
+        limited: { type: boolean }
+      required: [limitId, limitName, primary, secondary, spendControlReached, planType, rateLimitReachedType, limited]
+    RuntimeCodexAccountStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        authenticated: { type: boolean }
+        requiresOpenaiAuth: { type: boolean }
+        accountType:
+          oneOf:
+            - type: string
+            - type: "null"
+        planType:
+          oneOf:
+            - type: string
+            - type: "null"
+        limited: { type: boolean }
+        rateLimits:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeCodexRateLimit'
+      required: [authenticated, requiresOpenaiAuth, accountType, planType, limited, rateLimits]
+    RuntimeCodexAccountStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        account:
+          $ref: '#/components/schemas/RuntimeCodexAccountStatus'
+      required: [ok, account]
+    RuntimeNativeThreadStartPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string, minLength: 1, maxLength: 160 }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [workspaceId, idempotencyKey]
+    RuntimeNativeThreadMutationPayload:
+      allOf:
+        - $ref: '#/components/schemas/RuntimeNativeThreadStartPayload'
+        - type: object
+          properties:
+            threadId: { type: string, minLength: 1, maxLength: 240 }
+          required: [threadId]
+    RuntimeNativeThreadForkPayload:
+      allOf:
+        - $ref: '#/components/schemas/RuntimeNativeThreadMutationPayload'
+        - type: object
+          properties:
+            lastTurnId:
+              oneOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 240
+                - type: "null"
+    RuntimeNativeThreadMutationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        thread:
+          $ref: '#/components/schemas/RuntimeThreadProjection'
+        replayed: { type: boolean }
+      required: [ok, thread, replayed]
+    RuntimeNativeTurnStartPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string, minLength: 1, maxLength: 160 }
+        threadId: { type: string, minLength: 1, maxLength: 240 }
+        text: { type: string, minLength: 1, maxLength: 50000 }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [workspaceId, threadId, text, idempotencyKey]
+    RuntimeNativeTurnInterruptPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaceId: { type: string, minLength: 1, maxLength: 160 }
+        threadId: { type: string, minLength: 1, maxLength: 240 }
+        turnId: { type: string, minLength: 1, maxLength: 240 }
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [workspaceId, threadId, turnId, idempotencyKey]
+    RuntimeNativeTurnStartResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        threadId: { type: string }
+        workspaceId: { type: string }
+        turn:
+          $ref: '#/components/schemas/RuntimeTurnProjection'
+        replayed: { type: boolean }
+      required: [ok, threadId, workspaceId, turn, replayed]
+    RuntimeNativeTurnInterruptResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        threadId: { type: string }
+        workspaceId: { type: string }
+        turnId: { type: string }
+        replayed: { type: boolean }
+      required: [ok, threadId, workspaceId, turnId, replayed]
+    RuntimeNativeApprovalProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        threadId: { type: string }
+        turnId: { type: string }
+        itemId:
+          oneOf:
+            - type: string
+            - type: "null"
+        kind:
+          type: string
+          enum: [command-execution, file-change]
+        status:
+          type: string
+          enum: [pending, responded, resolved, cancelled]
+        publicSummary:
+          type: object
+          additionalProperties: true
+        receivedAt: { type: string, format: date-time }
+        respondedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        resolvedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revision: { type: integer, minimum: 1 }
+      required: [id, threadId, turnId, itemId, kind, status, publicSummary, receivedAt, respondedAt, resolvedAt, revision]
+    RuntimeNativeApprovalListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approvals:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeNativeApprovalProjection'
+      required: [ok, approvals]
+    RuntimeNativeApprovalRespondPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalId: { type: string, minLength: 1, maxLength: 160 }
+        expectedRevision: { type: integer, minimum: 1 }
+        decision:
+          type: string
+          enum: [accept, decline, cancel]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [approvalId, expectedRevision, decision, idempotencyKey]
+    RuntimeNativeApprovalRespondResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        approval:
+          $ref: '#/components/schemas/RuntimeNativeApprovalProjection'
+        replayed: { type: boolean }
+      required: [ok, approval, replayed]
+    RuntimeNativeEventProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        sequence: { type: integer, minimum: 1 }
+        id: { type: string }
+        threadId: { type: string }
+        turnId:
+          oneOf:
+            - type: string
+            - type: "null"
+        method: { type: string }
+        category:
+          type: string
+          enum: [lifecycle, approval, item, warning, error, other]
+        publicPayload:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      required: [sequence, id, threadId, turnId, method, category, publicPayload, createdAt]
+    RuntimeNativeEventListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeNativeEventProjection'
+        nextSequence:
+          oneOf:
+            - type: integer
+            - type: "null"
+      required: [ok, events, nextSequence]
     RuntimeSessionMutationPayload:
       type: object
       additionalProperties: false
@@ -9633,6 +9909,18 @@ paths:
           required: false
           schema:
             type: boolean
+        - name: sourceKinds
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 5
+            items:
+              type: string
+              enum: [cli, vscode, exec, appServer, unknown]
+          description: Explicit provider-native source kinds included in the Session Directory. Primary defaults include CLI, VS Code, exec, App Server, and unknown while excluding subagent-only sources.
       responses:
         "200":
           description: Public-safe thread list
@@ -9667,6 +9955,207 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RuntimeThreadReadResponse'
+  /api/runtime/codex/account/status:
+    get:
+      operationId: getCodexAccountStatus
+      summary: Read public-safe Codex account and quota status
+      description: Reads authentication type, plan type, and provider-classified rate-limit windows for routing decisions. Email, credentials, credits, reset-credit identifiers, and raw provider payloads are omitted.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Public-safe Codex account and quota status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeCodexAccountStatusResponse'
+  /api/runtime/codex/native/threads/start:
+    post:
+      operationId: startNativeCodexThread
+      summary: Start a provider-native Codex thread
+      description: Creates a persistent Codex Thread for one registered Workspace. ChatCockpit supplies only the private Workspace cwd; model, sandbox, approval, instructions, and other settings remain provider-native configuration truth.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeThreadStartPayload'
+      responses:
+        "200":
+          description: Native Codex Thread created or idempotently replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeThreadMutationResponse'
+  /api/runtime/codex/native/threads/resume:
+    post:
+      operationId: resumeNativeCodexThread
+      summary: Resume the same provider-native Codex thread
+      description: Verifies Workspace identity and resumes the authoritative Codex Thread without creating a ChatCockpit Task, Development Session, or Handoff.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeThreadMutationPayload'
+      responses:
+        "200":
+          description: Native Codex Thread resumed with the same Thread identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeThreadMutationResponse'
+  /api/runtime/codex/native/threads/fork:
+    post:
+      operationId: forkNativeCodexThread
+      summary: Fork a provider-native Codex thread
+      description: Creates a provider-native Thread fork while preserving Codex lineage rather than manufacturing a ChatCockpit same-provider handoff model.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeThreadForkPayload'
+      responses:
+        "200":
+          description: Native Codex fork created or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeThreadMutationResponse'
+  /api/runtime/codex/native/turns/start:
+    post:
+      operationId: startNativeCodexTurn
+      summary: Start a native Turn without a ChatCockpit Development Session
+      description: Starts the Codex provider-native model loop on an existing Thread. No ChatCockpit Task, Development Session, Handoff, Spec, Plan, or Writer Lease is required merely to continue the same provider-native session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeTurnStartPayload'
+      responses:
+        "200":
+          description: Native Codex Turn started or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeTurnStartResponse'
+  /api/runtime/codex/native/turns/interrupt:
+    post:
+      operationId: interruptNativeCodexTurn
+      summary: Interrupt a native Codex Turn
+      description: Interrupts one provider-native Turn by Thread and Turn identity without requiring a ChatCockpit Development Session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeTurnInterruptPayload'
+      responses:
+        "200":
+          description: Native Codex Turn interruption requested or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeTurnInterruptResponse'
+  /api/runtime/codex/native/approvals:
+    get:
+      operationId: listNativeCodexApprovals
+      summary: List public-safe native Codex approvals
+      description: Lists bounded approval state for provider-native Turns. Internal App Server request handles, cwd, raw provider payloads, and private paths are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threadId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public-safe native approval list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeApprovalListResponse'
+  /api/runtime/codex/native/approvals/respond:
+    post:
+      operationId: respondToNativeCodexApproval
+      summary: Decide a native Codex approval as the human Operator
+      description: Responds to a pending provider-native command/file approval. This decision is intentionally unavailable to Remote MCP agents; it requires an authenticated Operator session plus the session-bound CSRF token.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeNativeApprovalRespondPayload'
+      responses:
+        "200":
+          description: Native Codex approval decision accepted or replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeApprovalRespondResponse'
+        "403":
+          description: Operator session or valid CSRF token is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/runtime/codex/native/events:
+    get:
+      operationId: readNativeCodexEvents
+      summary: Read public-safe native Codex activity
+      description: Reads a bounded in-process event window for provider-native Turns. Raw command output, cwd, patches, prompts, hidden reasoning, and provider-private payloads are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threadId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: afterSequence
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Bounded native Codex activity events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeNativeEventListResponse'
   /api/runtime/codex/sessions/bind:
     post:
       operationId: bindCodexRuntimeSession

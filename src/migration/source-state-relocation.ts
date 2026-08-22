@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { LATEST_CONTINUITY_SCHEMA_VERSION } from "../continuity/database.js";
+
 const TARGET_IDENTITY_MIGRATION = "chatcockpit-domain-identity-v1";
 const QUIESCED_RUNTIME_ABSENCES = [
   "server.pid",
@@ -229,7 +231,9 @@ export function inspectChatCockpitSourceStateRelocation(
   if (fs.existsSync(oauthPath) && !sqliteQuickCheckOk(oauthPath)) {
     blockers.push("source-oauth-integrity-failed");
   }
-  if (continuity.schemaVersion !== 19) blockers.push("source-continuity-schema-not-v19");
+  if (continuity.schemaVersion !== LATEST_CONTINUITY_SCHEMA_VERSION) {
+    blockers.push("source-continuity-schema-not-current");
+  }
   if (!continuity.targetIdentityMarkerPresent) blockers.push("source-target-identity-marker-missing");
 
   const targetConfigRelative = relativeInside(targetStateRoot, targetConfigPath);
@@ -307,7 +311,7 @@ export function stageChatCockpitSourceStateRelocation(
   const stagedInspection = inspectContinuity(path.join(input.stagingRoot, "runtime", "continuity.sqlite"));
   if (
     !stagedInspection.integrityOk ||
-    stagedInspection.schemaVersion !== 19 ||
+    stagedInspection.schemaVersion !== LATEST_CONTINUITY_SCHEMA_VERSION ||
     !stagedInspection.targetIdentityMarkerPresent
   ) {
     throw new Error("staged ChatCockpit continuity database failed target-only verification");

@@ -61,6 +61,8 @@ import {
   type HubIdentityRecord
 } from "../devices/hub-identity.js";
 import { ensureLanTlsIdentity } from "../devices/lan-tls-identity.js";
+import { CodexNativeSessionService } from "../application/codex-native-session-service.js";
+import { CodexNativeTurnService } from "../application/codex-native-turn-service.js";
 import { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
@@ -620,6 +622,14 @@ export function buildServer(
     continuityServices.repositories
   );
   const runtimeService = new RuntimeService(runtimeRouter);
+  const codexNativeSessionService = new CodexNativeSessionService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
+  const codexNativeTurnService = new CodexNativeTurnService(
+    continuityServices.repositories,
+    runtimeRouter
+  );
   const runtimeBindingService = new RuntimeBindingService(
     continuityServices.repositories,
     runtimeRouter
@@ -635,7 +645,8 @@ export function buildServer(
   });
   const runtimeEventService = new RuntimeEventService(
     continuityServices.repositories,
-    runtimeRouter
+    runtimeRouter,
+    codexNativeTurnService
   );
   const runtimeTurnService = new RuntimeTurnService(
     paths,
@@ -866,6 +877,8 @@ export function buildServer(
     hostCommand,
     hostProcess,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,
@@ -886,6 +899,8 @@ export function buildServer(
     hostCommand,
     hostProcess,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,
@@ -915,6 +930,8 @@ export function buildServer(
   registerRuntimeRoutes(
     app,
     runtimeService,
+    codexNativeSessionService,
+    codexNativeTurnService,
     runtimeBindingService,
     runtimeTurnService,
     runtimeApprovalService,

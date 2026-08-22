@@ -1,5 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 
+import { LATEST_CONTINUITY_SCHEMA_VERSION } from "../continuity/database.js";
+
 export const CHATCOCKPIT_TARGET_IDENTITY_MIGRATION =
   "chatcockpit-domain-identity-v1";
 
@@ -9,13 +11,13 @@ export interface ChatCockpitTargetContinuityMigrationResult {
   runtimeResourceRowsUpdated: number;
 }
 
-function requireContinuityV19(database: DatabaseSync): void {
+function requireCurrentContinuitySchema(database: DatabaseSync): void {
   const row = database
     .prepare("SELECT MAX(version) AS version FROM schema_migrations")
     .get() as { version: number | null } | undefined;
-  if (Number(row?.version ?? 0) !== 19) {
+  if (Number(row?.version ?? 0) !== LATEST_CONTINUITY_SCHEMA_VERSION) {
     throw new Error(
-      `ChatCockpit target identity migration requires continuity schema v19, received ${String(
+      `ChatCockpit target identity migration requires continuity schema v${LATEST_CONTINUITY_SCHEMA_VERSION}, received ${String(
         row?.version ?? "unknown"
       )}`
     );
@@ -85,7 +87,7 @@ export function migrateChatCockpitTargetContinuityDatabase(
   const database = new DatabaseSync(databasePath);
   database.exec("PRAGMA foreign_keys = ON");
   try {
-    requireContinuityV19(database);
+    requireCurrentContinuitySchema(database);
     const alreadyApplied = hasIdentityMigration(database);
     if (alreadyApplied) {
       try {

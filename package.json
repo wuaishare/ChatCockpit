@@ -166,6 +166,7 @@
     "verify:async-job-binding": "tsx scripts/verify-async-job-binding.ts",
     "verify:codex-adapter": "tsx scripts/verify-codex-app-server.ts && tsx scripts/verify-codex-runtime-api.ts",
     "verify:codex-thread-context": "tsx scripts/verify-codex-thread-context.ts",
+    "verify:codex-native-session": "tsx scripts/verify-codex-native-session.ts",
     "verify:codex-thread-import": "tsx scripts/verify-codex-thread-import.ts",
     "verify:codex-thread-import-ui": "tsx scripts/verify-codex-thread-import-ui.ts",
     "verify:workspace-thread-handoff-live": "tsx scripts/verify-workspace-thread-handoff-live.ts",

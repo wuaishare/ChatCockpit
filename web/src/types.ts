@@ -663,6 +663,48 @@ export interface CodexThreadImportThreadProjection {
   agentRole: string | null;
 }
 
+export type CodexRuntimeThreadProjection = CodexThreadImportThreadProjection;
+
+export interface CodexRuntimeThreadReadResponse {
+  ok: true;
+  thread: CodexRuntimeThreadProjection;
+}
+
+export interface CodexRuntimeRateLimitWindow {
+  usedPercent: number;
+  windowDurationMins: number | null;
+  resetsAt: number | null;
+}
+
+export interface CodexRuntimeRateLimit {
+  limitId: string | null;
+  limitName: string | null;
+  primary: CodexRuntimeRateLimitWindow | null;
+  secondary: CodexRuntimeRateLimitWindow | null;
+  spendControlReached: boolean | null;
+  planType: string | null;
+  rateLimitReachedType: string | null;
+  limited: boolean;
+}
+
+export interface CodexRuntimeAccountStatusResponse {
+  ok: true;
+  account: {
+    authenticated: boolean;
+    requiresOpenaiAuth: boolean;
+    accountType: string | null;
+    planType: string | null;
+    limited: boolean;
+    rateLimits: CodexRuntimeRateLimit[];
+  };
+}
+
+export interface CodexNativeThreadMutationResponse {
+  ok: true;
+  thread: CodexRuntimeThreadProjection;
+  replayed: boolean;
+}
+
 export interface CodexThreadContextMessage {
   id: string;
   turnId: string;

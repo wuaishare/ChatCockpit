@@ -68,7 +68,7 @@ const otherWorkspace = repositories.workspaces.create({
   now: "2026-08-22T00:00:02.000Z"
 });
 
-let activeThreadId = "01a0231a-6aa3-7e63-ba79-6793c27ac9fe";
+let activeThreadId = "01a00000-2222-4333-8444-555555555555";
 let projectedWorkspaceId: string | null = workspace.id;
 let projectedProjectId: string | null = project.id;
 let projectedRepoId: string | null = workspace.repoId;
@@ -186,16 +186,16 @@ const context = buildOperationContext({
 });
 
 assert.equal(
-  normalizeCodexThreadReference("codex://threads/01a0231a-6aa3-7e63-ba79-6793c27ac9fe"),
-  "01a0231a-6aa3-7e63-ba79-6793c27ac9fe"
+  normalizeCodexThreadReference("codex://threads/01a00000-2222-4333-8444-555555555555"),
+  "01a00000-2222-4333-8444-555555555555"
 );
 assert.equal(
-  normalizeCodexThreadReference("01a0231a-6aa3-7e63-ba79-6793c27ac9fe"),
-  "01a0231a-6aa3-7e63-ba79-6793c27ac9fe"
+  normalizeCodexThreadReference("01a00000-2222-4333-8444-555555555555"),
+  "01a00000-2222-4333-8444-555555555555"
 );
 for (const invalid of [
-  "http://threads/01a0231a-6aa3-7e63-ba79-6793c27ac9fe",
-  "codex://threads/01a0231a-6aa3-7e63-ba79-6793c27ac9fe?x=1",
+  "http://threads/01a00000-2222-4333-8444-555555555555",
+  "codex://threads/01a00000-2222-4333-8444-555555555555?x=1",
   "codex://threads/",
   "x"
 ]) {
@@ -207,7 +207,7 @@ for (const invalid of [
 
 const assessment = await service.assess(context, {
   workspaceId: workspace.id,
-  threadRef: "codex://threads/01a0231a-6aa3-7e63-ba79-6793c27ac9fe",
+  threadRef: "codex://threads/01a00000-2222-4333-8444-555555555555",
   idempotencyKey: "thread-import-assess-001"
 });
 assert.equal(assessment.workspaceMatch, "matched");
@@ -254,7 +254,7 @@ assert.ok(sourceBinding);
 assert.equal(sourceBinding.runtimeKind, "codex-app-server");
 assert.equal(
   sourceBinding.externalThreadId,
-  "01a0231a-6aa3-7e63-ba79-6793c27ac9fe"
+  "01a00000-2222-4333-8444-555555555555"
 );
 assert.equal(resumeCalls, 0);
 assert.equal(forkCalls, 0);
@@ -296,7 +296,7 @@ await assert.rejects(
   () =>
     service.assess(context, {
       workspaceId: workspace.id,
-      threadRef: "01a0231a-6aa3-7e63-ba79-6793c27ac9fe",
+      threadRef: "01a00000-2222-4333-8444-555555555555",
       idempotencyKey: "thread-import-assess-mismatch"
     }),
   (error) => assertServiceError(error, "CODEX_THREAD_WORKSPACE_MISMATCH")
@@ -309,13 +309,13 @@ await assert.rejects(
   () =>
     service.assess(context, {
       workspaceId: workspace.id,
-      threadRef: "01a0231a-6aa3-7e63-ba79-6793c27ac9fe",
+      threadRef: "01a00000-2222-4333-8444-555555555555",
       idempotencyKey: "thread-import-assess-unregistered"
     }),
   (error) => assertServiceError(error, "CODEX_THREAD_WORKSPACE_UNREGISTERED")
 );
 
-activeThreadId = "01a0231a-6aa3-7e63-ba79-6793c27ac9ff";
+activeThreadId = "01a00000-2222-4333-8444-555555555556";
 projectedWorkspaceId = workspace.id;
 projectedProjectId = project.id;
 projectedRepoId = workspace.repoId;

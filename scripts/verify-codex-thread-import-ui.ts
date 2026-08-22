@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 
 import { OperatorService } from "../src/auth/operator-service.ts";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { continuityDatabasePath } from "../src/continuity/database.ts";
 import type {
   CodingRuntimeAdapter,
   RuntimeEventSink,
@@ -77,9 +79,11 @@ const threadId = "01a00000-1111-4222-8333-444444444444";
 let projectId: string | null = null;
 let workspaceId: string | null = null;
 let repoId: string | null = null;
+let startThreadCalls = 0;
 let resumeCalls = 0;
 let forkCalls = 0;
 let turnStartCalls = 0;
+let accountReadCalls = 0;
 let eventSink: RuntimeEventSink | null = null;
 
 function thread(): RuntimeThreadProjection {
@@ -148,6 +152,10 @@ const codexAdapter = {
       lastTurnId: "turn_fixture"
     };
   },
+  async startThread() {
+    startThreadCalls += 1;
+    return thread();
+  },
   async resumeThread() {
     resumeCalls += 1;
     return thread();
@@ -161,6 +169,28 @@ const codexAdapter = {
     throw new Error("Codex turn start must not occur during Chat Direct handoff");
   },
   async interruptTurn() {},
+  async readAccountStatus() {
+    accountReadCalls += 1;
+    return {
+      authenticated: true,
+      requiresOpenaiAuth: true,
+      accountType: "chatgpt",
+      planType: "plus",
+      limited: true,
+      rateLimits: [
+        {
+          limitId: "fixture-primary",
+          limitName: "Fixture primary",
+          primary: { usedPercent: 100, windowDurationMins: 300, resetsAt: 1787369000 },
+          secondary: null,
+          spendControlReached: false,
+          planType: "plus",
+          rateLimitReachedType: "rate_limit_reached",
+          limited: true
+        }
+      ]
+    };
+  },
   async readStandaloneFile() {
     throw new Error("unused");
   },
@@ -204,9 +234,13 @@ const drawerSource = fs.readFileSync(
   ),
   "utf8"
 );
+assert.match(drawerSource, /fetchCodexRuntimeThread/);
+assert.match(drawerSource, /fetchCodexRuntimeAccountStatus/);
+assert.match(drawerSource, /resumeNativeCodexThread/);
 assert.match(drawerSource, /assessCodexThreadImport/);
 assert.match(drawerSource, /executeCodexThreadImport/);
 assert.match(drawerSource, /action: "handoff-to-chat-direct"/);
+assert.match(drawerSource, /Codex quota/);
 assert.doesNotMatch(drawerSource, /resumeCodexThread|forkCodexThread|startCodexTurn/);
 
 const app = buildServer(paths, { codexAdapter });
@@ -242,6 +276,66 @@ try {
   projectId = projection.project.id;
   workspaceId = projection.workspaces[0]!.id;
   repoId = projection.workspaces[0]!.repoId;
+
+  const continuity = new DatabaseSync(continuityDatabasePath(paths.runtimeDir), {
+    readOnly: true
+  });
+  const countRows = (table: string): number =>
+    Number(
+      (
+        continuity.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as {
+          count: number;
+        }
+      ).count
+    );
+  const nativeBaseline = {
+    imports: countRows("codex_thread_imports"),
+    tasks: countRows("tasks"),
+    sessions: countRows("development_sessions")
+  };
+
+  const nativeRead = await app.inject({
+    method: "GET",
+    url: `/api/runtime/codex/threads/${encodeURIComponent(threadId)}`,
+    headers: { host: "127.0.0.1", cookie },
+    remoteAddress: "127.0.0.1"
+  });
+  assert.equal(nativeRead.statusCode, 200, nativeRead.body);
+  assert.equal((nativeRead.json() as { thread: { workspaceId: string } }).thread.workspaceId, workspaceId);
+
+  const accountStatus = await app.inject({
+    method: "GET",
+    url: "/api/runtime/codex/account/status",
+    headers: { host: "127.0.0.1", cookie },
+    remoteAddress: "127.0.0.1"
+  });
+  assert.equal(accountStatus.statusCode, 200, accountStatus.body);
+  assert.equal((accountStatus.json() as { account: { limited: boolean } }).account.limited, true);
+
+  const nativeResume = await app.inject({
+    method: "POST",
+    url: "/api/runtime/codex/native/threads/resume",
+    headers: {
+      host: "127.0.0.1",
+      cookie,
+      "content-type": "application/json",
+      "x-chatcockpit-csrf": csrf
+    },
+    remoteAddress: "127.0.0.1",
+    payload: {
+      workspaceId,
+      threadId,
+      idempotencyKey: "codex-native-ui-resume-0001"
+    }
+  });
+  assert.equal(nativeResume.statusCode, 200, nativeResume.body);
+  assert.equal((nativeResume.json() as { thread: { id: string } }).thread.id, threadId);
+  assert.equal(resumeCalls, 1);
+  assert.equal(accountReadCalls, 1);
+  assert.equal(startThreadCalls, 0);
+  assert.equal(countRows("codex_thread_imports"), nativeBaseline.imports);
+  assert.equal(countRows("tasks"), nativeBaseline.tasks);
+  assert.equal(countRows("development_sessions"), nativeBaseline.sessions);
 
   const noCsrf = await app.inject({
     method: "POST",
@@ -279,6 +373,9 @@ try {
   };
   assert.equal(assessment.thread.workspaceId, workspaceId);
   assert.equal(assessed.body.includes(repoRoot), false);
+  assert.equal(countRows("codex_thread_imports"), nativeBaseline.imports + 1);
+  assert.equal(countRows("tasks"), nativeBaseline.tasks);
+  assert.equal(countRows("development_sessions"), nativeBaseline.sessions);
 
   const executed = await app.inject({
     method: "POST",
@@ -344,9 +441,10 @@ try {
   });
   assert.notEqual(bearerRejected.statusCode, 200);
 
-  assert.equal(resumeCalls, 0);
+  assert.equal(resumeCalls, 1);
   assert.equal(forkCalls, 0);
   assert.equal(turnStartCalls, 0);
+  continuity.close();
   process.stdout.write("VERIFY_CODEX_THREAD_IMPORT_UI_OK\n");
 } finally {
   await app.close();

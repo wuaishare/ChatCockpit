@@ -20,6 +20,7 @@ function trace(message) {
   fs.appendFileSync(tracePath, `${JSON.stringify(message)}\n`, "utf8");
 }
 
+let startCounter = 0;
 let forkCounter = 0;
 let turnCounter = 0;
 let approvalCounter = 0;
@@ -174,6 +175,46 @@ if (!process.env.CHATCOCKPIT_MOCK_INCLUDE_CONTEXT_THREAD) {
   }
 }
 
+if (process.env.CHATCOCKPIT_MOCK_INCLUDE_NATIVE_SESSION_FIXTURES) {
+  threads.push(
+    {
+      id: "thread_app_server",
+      preview: "Continue an App Server session",
+      modelProvider: "openai",
+      createdAt: 1785970400,
+      updatedAt: 1785970500,
+      recencyAt: 1785970600,
+      cwd: workspaceRoot,
+      path: `${workspaceRoot}/.codex/sessions/app-server.jsonl`,
+      instructionSources: [`${workspaceRoot}/AGENTS.md`],
+      source: { type: "appServer" },
+      status: { type: "idle" },
+      turns: []
+    },
+    {
+      id: "thread_subagent_fixture",
+      preview: "Internal subagent fixture",
+      modelProvider: "openai",
+      createdAt: 1785970401,
+      updatedAt: 1785970501,
+      recencyAt: 1785970601,
+      cwd: workspaceRoot,
+      path: `${workspaceRoot}/.codex/sessions/subagent.jsonl`,
+      instructionSources: [`${workspaceRoot}/AGENTS.md`],
+      source: { type: "subAgent" },
+      status: { type: "idle" },
+      turns: []
+    }
+  );
+}
+
+function threadSourceKind(thread) {
+  if (typeof thread.sourceKind === "string") return thread.sourceKind;
+  if (typeof thread.source === "string") return thread.source;
+  if (thread.source && typeof thread.source.type === "string") return thread.source.type;
+  return "unknown";
+}
+
 function filteredThreads(params) {
   let result = [...threads];
   if (Array.isArray(params.cwd) && params.cwd.length > 0) {
@@ -181,6 +222,9 @@ function filteredThreads(params) {
   }
   if (typeof params.searchTerm === "string" && params.searchTerm) {
     result = result.filter((thread) => thread.preview.includes(params.searchTerm));
+  }
+  if (Array.isArray(params.sourceKinds) && params.sourceKinds.length > 0) {
+    result = result.filter((thread) => params.sourceKinds.includes(threadSourceKind(thread)));
   }
   const limit = Number.isInteger(params.limit) ? params.limit : 25;
   return result.slice(0, Math.max(0, limit));
@@ -466,6 +510,63 @@ input.on("line", (line) => {
         }
       });
       break;
+    case "account/read":
+      respond(message.id, {
+        account: {
+          type: "chatgpt",
+          email: "fixture-user@example.invalid",
+          planType: "plus"
+        },
+        requiresOpenaiAuth: true
+      });
+      break;
+    case "account/rateLimits/read": {
+      const snapshot = {
+        limitId: "codex",
+        limitName: "Codex",
+        primary: {
+          usedPercent: 100,
+          windowDurationMins: 300,
+          resetsAt: 1787370000
+        },
+        secondary: null,
+        credits: { hasCredits: true, unlimited: false, balance: "fixture-private-credit" },
+        individualLimit: null,
+        spendControlReached: false,
+        planType: "plus",
+        rateLimitReachedType: "rate_limit_reached"
+      };
+      respond(message.id, {
+        rateLimits: snapshot,
+        rateLimitsByLimitId: { codex: snapshot },
+        rateLimitResetCredits: {
+          availableCount: 1,
+          credits: [{ id: "fixture-private-reset-credit" }]
+        }
+      });
+      break;
+    }
+    case "thread/start": {
+      startCounter += 1;
+      const thread = {
+        id: `thread_started_${startCounter}`,
+        preview: "New native App Server session",
+        modelProvider: "openai",
+        createdAt: 1785970700 + startCounter,
+        updatedAt: 1785970700 + startCounter,
+        recencyAt: 1785970700 + startCounter,
+        cwd: message.params?.cwd ?? workspaceRoot,
+        path: `${message.params?.cwd ?? workspaceRoot}/.codex/sessions/started-${startCounter}.jsonl`,
+        instructionSources: [`${message.params?.cwd ?? workspaceRoot}/AGENTS.md`],
+        source: { type: "appServer" },
+        status: { type: "idle" },
+        turns: []
+      };
+      threads.push(thread);
+      respond(message.id, { thread });
+      notify("thread/started", { thread });
+      break;
+    }
     case "thread/list":
       respond(message.id, {
         data: filteredThreads(message.params ?? {}),

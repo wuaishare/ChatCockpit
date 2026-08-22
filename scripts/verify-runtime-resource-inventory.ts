@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 
-import { ContinuityDatabase } from "../src/continuity/database.ts";
+import {
+  ContinuityDatabase,
+  LATEST_CONTINUITY_SCHEMA_VERSION
+} from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 
 const NOW = "2026-08-10T03:20:00.000Z";
@@ -10,7 +13,7 @@ const database = new ContinuityDatabase({ path: ":memory:" });
 try {
   const repositories = buildContinuityRepositories(database);
 
-  assert.equal(database.schemaVersion(), 19);
+  assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
   assert.ok(repositories.runtimeResourceSnapshots);
   assert.ok(repositories.runtimeResourceMutations);
 
