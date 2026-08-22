@@ -11,7 +11,7 @@ import {
 } from "@ant-design/icons";
 import { Button, Drawer, Menu, type MenuProps } from "antd";
 import { useMemo, useState } from "react";
-import chatCockpitLogo from "../assets/chatcockpit-logo.svg";
+import chatCockpitLogo from "../../../assets/brand/chatcockpit-app-icon.svg";
 import type { AppViewKey } from "../navigation";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "chatcockpit-sidebar-collapsed";

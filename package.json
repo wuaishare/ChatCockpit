@@ -32,6 +32,7 @@
     "verify:macos-manual-update": "tsx scripts/verify-macos-manual-update.ts",
     "verify:macos-release-workflow": "tsx scripts/verify-macos-release-workflow.ts",
     "verify:macos-signed-app": "tsx scripts/verify-macos-signed-app.ts",
+    "verify:brand-design-system": "tsx scripts/verify-brand-design-system.ts",
     "verify:distribution-context": "tsx scripts/verify-distribution-context.ts",
     "verify:rename-env-compat": "tsx scripts/verify-rename-env-compat.ts",
     "verify:rename-config-migration": "tsx scripts/verify-rename-config-migration.ts",
