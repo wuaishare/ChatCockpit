@@ -47,6 +47,8 @@ Success, warning, danger, inactive, and unknown use independent semantic colors.
 
 Semantic colors are split into **base** and **foreground** roles. Base colors feed low-opacity backgrounds, borders, and indicators; dedicated foreground tokens (`*-fg`) protect text and icon contrast in both Light and Dark themes. Ant Design preset `Tag` and `Alert` palettes must be normalized through ChatCockpit semantic tokens instead of exposing bright preset backgrounds directly, especially in Dark mode. Small semantic text targets at least WCAG AA 4.5:1 contrast.
 
+Business components express status through five implementation tones only: `default`, `processing`, `success`, `warning`, and `error`. Named Ant Design preset colors such as `blue`, `green`, `orange`, `gold`, `red`, `purple`, or `cyan` are palette implementation details and must not appear in product component logic.
+
 The seven-state product contract remains: `healthy`, `active`, `pending`, `warning`, `danger`, `inactive`, and `unknown`.
 
 ## Surface Foundations

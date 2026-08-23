@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import type { LocaleCode } from "../i18n";
 import { getIntegrationsCopy } from "../i18n/integrations";
+import type { OperationalStatusTone } from "../status-language";
 import { SectionCard } from "./SectionCard";
 
 interface IntegrationsViewProps {
@@ -41,7 +42,7 @@ export function IntegrationsView({
     : status.mcp.oauthStatus === "disabled"
       ? copy.disabled
       : copy.needsAttention;
-  const oauthTagColor = status.mcp.oauthStatus === "ready"
+  const oauthTagColor: OperationalStatusTone = status.mcp.oauthStatus === "ready"
     ? "success"
     : status.mcp.oauthStatus === "disabled"
       ? "default"
@@ -324,7 +325,7 @@ export function IntegrationsView({
                               : device.status === "revoked"
                                 ? copy.deviceAccessRevoked
                                 : copy.deviceAccessMissing;
-                            const statusColor = device.status === "available" ? "success" : "warning";
+                            const statusColor: OperationalStatusTone = device.status === "available" ? "success" : "warning";
                             const canGrant = !deviceAccessByGrant[grant.id].grantRevoked && device.status === "available";
                             const canRemove = !deviceAccessByGrant[grant.id].grantRevoked && device.granted;
                             return (

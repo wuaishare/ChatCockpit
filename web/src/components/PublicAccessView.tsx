@@ -4,6 +4,7 @@ import { UiText as Text } from "./UiText";
 import { useEffect, useMemo, useState } from "react";
 import type { LocaleCode } from "../i18n";
 import { getPublicAccessCopy } from "../i18n/public-access";
+import type { OperationalStatusTone } from "../status-language";
 import type {
   ConnectivityProviderDetection,
   ConnectivityProviderMachineAction,
@@ -83,7 +84,7 @@ function providerDetectionLabel(
   return copy.providerProbeFailed;
 }
 
-function providerDetectionColor(detection: ConnectivityProviderDetection): "success" | "default" | "warning" {
+function providerDetectionColor(detection: ConnectivityProviderDetection): OperationalStatusTone {
   if (detection === "detected") return "success";
   if (detection === "probe-failed") return "warning";
   return "default";
@@ -247,7 +248,7 @@ export function PublicAccessView({
     : status.mcp.oauthStatus === "disabled"
       ? copy.disabled
       : copy.needsAttention;
-  const oauthTagColor = status.mcp.oauthStatus === "ready"
+  const oauthTagColor: OperationalStatusTone = status.mcp.oauthStatus === "ready"
     ? "success"
     : status.mcp.oauthStatus === "disabled"
       ? "default"
@@ -266,7 +267,7 @@ export function PublicAccessView({
       : lanAccess.status === "no-trusted-address"
         ? copy.lanAccessNoTrustedAddress
         : copy.lanAccessDisabled;
-  const lanAccessTagColor = lanAccess.status === "ready"
+  const lanAccessTagColor: OperationalStatusTone = lanAccess.status === "ready"
     ? "success"
     : lanAccess.status === "disabled"
       ? "default"
@@ -317,7 +318,7 @@ export function PublicAccessView({
               displayWorkflowStage === 3 ? (
                 <Tag color="success">{copy.workflowLive}</Tag>
               ) : (
-                <Tag color={bootstrapMode ? "blue" : "purple"}>
+                <Tag color={bootstrapMode ? "processing" : "default"}>
                   {bootstrapMode ? copy.workflowBootstrapMode : copy.workflowReplacementMode}
                 </Tag>
               )

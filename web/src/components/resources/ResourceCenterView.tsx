@@ -31,7 +31,7 @@ import {
 } from "../../api";
 import { getResourceCenterCopy } from "../../i18n/resources";
 import type { LocaleCode } from "../../i18n";
-import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
+import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
   CapabilityProviderManagementDescriptor,
@@ -97,33 +97,33 @@ function booleanText(value: boolean | null, yes: string, no: string, unknown: st
 
 function profileTone(
   value: RuntimeProfileDescriptor["compatibilityStatus"]
-): string {
+): OperationalStatusTone {
   if (value === "ready") return "success";
   if (value === "degraded") return "warning";
   return "error";
 }
 
-function resourceTone(value: RuntimeResourceCompatibilityStatus): string {
+function resourceTone(value: RuntimeResourceCompatibilityStatus): OperationalStatusTone {
   if (value === "ready") return "success";
   if (value === "degraded") return "warning";
   if (value === "blocked") return "error";
   return "default";
 }
 
-function authTone(value: RuntimeResourceAuthStatus | RuntimeProfileDescriptor["authStatus"]): string {
+function authTone(value: RuntimeResourceAuthStatus | RuntimeProfileDescriptor["authStatus"]): OperationalStatusTone {
   if (value === "ready" || value === "not-applicable") return "success";
   if (value === "required") return "warning";
   if (value === "unsupported") return "error";
   return "default";
 }
 
-function updateTone(value: RuntimeResourceUpdateStatus): string {
+function updateTone(value: RuntimeResourceUpdateStatus): OperationalStatusTone {
   if (value === "current" || value === "not-applicable") return "success";
   if (value === "update-available") return "warning";
   return "default";
 }
 
-function managementTone(value: string): string {
+function managementTone(value: string): OperationalStatusTone {
   if (["ready", "detected", "verified", "enabled"].includes(value)) return "success";
   if (["degraded", "unverified", "stale"].includes(value)) return "warning";
   if (value === "unavailable") return "error";

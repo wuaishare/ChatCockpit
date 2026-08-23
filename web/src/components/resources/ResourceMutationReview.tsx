@@ -3,6 +3,7 @@ import { SafetyCertificateOutlined, WarningOutlined } from "@ant-design/icons";
 import { UiText as Text } from "../UiText";
 
 import type { ResourceCenterCopy } from "../../i18n/resources";
+import type { OperationalStatusTone } from "../../status-language";
 import type {
   RuntimeResourceMutationActivityResponse,
   RuntimeResourceMutationApproval,
@@ -72,7 +73,7 @@ function executionStatusLabel(
 
 function statusTone(
   status: RuntimeResourceMutationApprovalStatus | RuntimeResourceMutationVerificationStatus
-): "success" | "warning" | "error" | "processing" | "default" {
+): OperationalStatusTone {
   if (status === "verified") return "success";
   if (status === "pending" || status === "approved" || status === "executing") {
     return "processing";

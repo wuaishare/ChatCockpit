@@ -673,7 +673,7 @@ function PlanningRequirement({
   return (
     <span>
       <strong>{label}</strong>
-      <Tag color={state === "approved-current" ? "green" : state === "stale" ? "orange" : undefined}>
+      <Tag color={state === "approved-current" ? "success" : state === "stale" ? "warning" : "default"}>
         {stateLabel[state]}
       </Tag>
       <code>

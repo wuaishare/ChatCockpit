@@ -15,7 +15,7 @@ import { UiText as Text } from "../UiText";
 import { controlJob, fetchOperationalActivities, fetchOperationalActivityTimeline, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import type { ResourceCenterCopy } from "../../i18n/resources";
-import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
+import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
 import type {
   ContinuityProjectProjection,
   OperationalActivityEventProjection,
@@ -65,7 +65,7 @@ function streamLabel(copy: ResourceCenterCopy, state: StreamState): string {
   return copy.activityOffline;
 }
 
-function streamTone(state: StreamState): string {
+function streamTone(state: StreamState): OperationalStatusTone {
   if (state === "live") return "success";
   if (state === "connecting" || state === "reconnecting") return "processing";
   return "default";

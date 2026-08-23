@@ -14,7 +14,7 @@ import {
 } from "@ant-design/icons";
 
 import { getUiCopy, type LocaleCode } from "../../i18n";
-import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
+import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
 import { consolePath } from "../../console-path";
 import type {
   ContinuityHandoffRecord,
@@ -92,7 +92,7 @@ export function GitSummary({
           <BranchesOutlined aria-hidden="true" />
           <strong>{copy.gitSummary}</strong>
         </div>
-        <Tag color={snapshot.git.dirty ? "orange" : "green"}>
+        <Tag color={snapshot.git.dirty ? "warning" : "success"}>
           {snapshot.git.dirty ? copy.dirty : copy.clean}
         </Tag>
       </header>
@@ -563,10 +563,10 @@ function VerificationTag({
     incomplete: copy.verificationIncomplete,
     missing: copy.verificationMissing
   };
-  const colors: Record<ContinuityVerificationState, string> = {
-    verified: "green",
-    incomplete: "orange",
-    missing: "red"
+  const colors: Record<ContinuityVerificationState, OperationalStatusTone> = {
+    verified: "success",
+    incomplete: "warning",
+    missing: "error"
   };
   return (
     <Tag icon={<SafetyCertificateOutlined />} color={colors[state]}>

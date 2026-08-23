@@ -6,6 +6,18 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), "utf8");
 const exists = (relativePath: string) => fs.existsSync(path.join(root, relativePath));
+const readSourceTree = (relativeDir: string): string => {
+  const chunks: string[] = [];
+  const visit = (absoluteDir: string) => {
+    for (const entry of fs.readdirSync(absoluteDir, { withFileTypes: true })) {
+      const absolutePath = path.join(absoluteDir, entry.name);
+      if (entry.isDirectory()) visit(absolutePath);
+      else if (/\.(?:ts|tsx)$/.test(entry.name)) chunks.push(fs.readFileSync(absolutePath, "utf8"));
+    }
+  };
+  visit(path.join(root, relativeDir));
+  return chunks.join("\n");
+};
 const packageJson = JSON.parse(read("package.json")) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -44,6 +56,7 @@ assert.equal(exists("web/src/assets/chatcockpit-logo.svg"), false, "Legacy dupli
 const webMain = read("web/src/main.tsx");
 const webTheme = read("web/src/theme.ts");
 const webStyles = read("web/src/styles.css");
+const webComponentSource = readSourceTree("web/src/components");
 assert.equal(packageDependencies.antd, "6.5.4", "Ant Design must stay on the reviewed 6.5.4 baseline");
 assert.equal(packageDependencies["@ant-design/icons"], "6.3.2", "Ant Design icons must be a direct, pinned dependency");
 for (const removedDependency of ["@lobehub/ui", "@lobehub/icons", "@lobehub/fluent-emoji", "antd-style", "motion"]) {
@@ -77,6 +90,13 @@ for (const semanticForeground of ["--tp-success-fg", "--tp-warning-fg", "--tp-da
 }
 assert.match(webStyles, /\.ant-tag\.ant-tag-success[\s\S]+var\(--tp-success-fg\)/, "Success Tag text must use the readable semantic foreground");
 assert.match(webStyles, /\.ant-tag\.ant-tag-processing[\s\S]+var\(--tp-accent-fg\)/, "Processing Tag text must use the readable accent foreground");
+for (const antPresetColor of ["blue", "green", "orange", "gold", "red", "purple", "magenta", "cyan", "geekblue", "volcano", "lime"]) {
+  assert.doesNotMatch(
+    webComponentSource,
+    new RegExp(`[\"']${antPresetColor}[\"']`),
+    `Business components must express tone semantically instead of using Ant Design preset color ${antPresetColor}`
+  );
+}
 for (const legacyColor of ["#1777ff", "#2d5bdb", "#6b7fd7", "#8a8fe6"]) {
   assert.equal(webStyles.toLowerCase().includes(legacyColor), false, `Web CSS still contains legacy color ${legacyColor}`);
   assert.equal(webTheme.toLowerCase().includes(legacyColor), false, `Web theme still contains legacy color ${legacyColor}`);

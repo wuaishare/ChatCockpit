@@ -23,7 +23,7 @@ import {
   executeRuntimeRecovery
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
-import { getOperationalStatusLabel, getOperationalStatusTone } from "../../status-language";
+import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
   ContinuitySessionMode,
@@ -81,7 +81,7 @@ function preferredSession(
 
 function classificationTone(
   classification: RuntimeRecoveryClassification
-): "success" | "warning" | "error" | "processing" | "default" {
+): OperationalStatusTone {
   if (classification === "healthy") return "success";
   if (classification === "recoverable" || classification === "binding-missing") {
     return "processing";
