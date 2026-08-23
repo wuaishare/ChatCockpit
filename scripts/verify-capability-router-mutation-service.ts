@@ -16,6 +16,8 @@ import type {
 import { GovernanceDatabase } from "../src/governance/database.js";
 import { buildGovernanceLedger } from "../src/governance/governance-ledger.js";
 import { GovernedExternalActionRepository } from "../src/governance/governed-external-action-repository.js";
+import { DeviceRuntimeOperationRepository } from "../src/governance/device-runtime-operation-repository.js";
+import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
 
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "chatcockpit-router-mutation-"),
@@ -29,9 +31,13 @@ governanceSchemaDatabase.close();
 const externalActions = new GovernedExternalActionRepository(
   continuityDatabase,
 );
+const deviceRuntimeOperations = new DeviceRuntimeOperationRepository(continuityDatabase);
+const activityProvenance = new OperationalActivityProvenanceRepository(continuityDatabase);
 const governance = buildGovernanceLedger(
   buildContinuityRepositories(continuityDatabase),
   externalActions,
+  deviceRuntimeOperations,
+  activityProvenance
 );
 const executorId = "downstream-mcp:mutation-fixture";
 

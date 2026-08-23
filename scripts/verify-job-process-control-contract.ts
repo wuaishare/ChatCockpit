@@ -49,8 +49,7 @@ async function verifyServiceContract(): Promise<void> {
   const databasePath = continuityDatabasePath(paths.runtimeDir);
   const continuity = new ContinuityDatabase({ path: databasePath });
   const governance = new GovernanceDatabase({ path: governanceDatabasePath(paths.runtimeDir) });
-  assert.equal(LATEST_GOVERNANCE_SCHEMA_VERSION, 3);
-  assert.equal(governance.schemaVersion(), 3);
+  assert.equal(governance.schemaVersion(), LATEST_GOVERNANCE_SCHEMA_VERSION);
   governance.close();
   const repositories = buildContinuityRepositories(continuity);
   const controlEvents = new OperationalActivityControlEventRepository(continuity);
