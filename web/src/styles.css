@@ -45,6 +45,10 @@
   --tp-text-strong: #ffffff;
   --tp-text-muted: #a9b9d0;
   --tp-text-soft: #788aa7;
+  --tp-success-fg: #73dfb8;
+  --tp-warning-fg: #f2bd63;
+  --tp-danger-fg: #f58ca0;
+  --tp-accent-fg: #76a9ff;
   --tp-line: rgba(120, 155, 205, 0.12);
   --tp-line-strong: color-mix(in srgb, var(--tp-accent) 38%, transparent);
   --tp-shadow: 0 18px 44px rgba(0, 4, 16, 0.38);
@@ -66,6 +70,10 @@
   --tp-text-strong: #081326;
   --tp-text-muted: #53647d;
   --tp-text-soft: #75859d;
+  --tp-success-fg: #1f7d61;
+  --tp-warning-fg: #8a5a0b;
+  --tp-danger-fg: #b23c52;
+  --tp-accent-fg: #1a5ccb;
   --tp-line: rgba(14, 37, 73, 0.10);
   --tp-line-strong: color-mix(in srgb, var(--tp-accent) 30%, transparent);
   --tp-shadow: 0 12px 32px rgba(18, 42, 78, 0.08);
@@ -1212,7 +1220,7 @@ button,
   place-items: center;
   inline-size: 32px;
   block-size: 32px;
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   background: color-mix(in srgb, var(--tp-warning) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--tp-warning) 28%, var(--tp-line));
   border-radius: 8px;
@@ -2026,6 +2034,35 @@ button,
   border-radius: 999px;
 }
 
+.ant-tag.ant-tag-success,
+.ant-tag.ant-tag-green {
+  color: var(--tp-success-fg) !important;
+  background: color-mix(in srgb, var(--tp-success) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--tp-success) 24%, transparent) !important;
+}
+
+.ant-tag.ant-tag-warning,
+.ant-tag.ant-tag-orange,
+.ant-tag.ant-tag-gold {
+  color: var(--tp-warning-fg) !important;
+  background: color-mix(in srgb, var(--tp-warning) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--tp-warning) 24%, transparent) !important;
+}
+
+.ant-tag.ant-tag-error,
+.ant-tag.ant-tag-red {
+  color: var(--tp-danger-fg) !important;
+  background: color-mix(in srgb, var(--tp-danger) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--tp-danger) 24%, transparent) !important;
+}
+
+.ant-tag.ant-tag-processing,
+.ant-tag.ant-tag-blue {
+  color: var(--tp-accent-fg) !important;
+  background: color-mix(in srgb, var(--tp-accent) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--tp-accent) 22%, transparent) !important;
+}
+
 @media (max-width: 1120px) {
   .app-header__copy {
     gap: 2px;
@@ -2422,7 +2459,7 @@ button,
 .continuity-nav__integrity .anticon {
   flex: 0 0 auto;
   margin-top: 2px;
-  color: var(--tp-success);
+  color: var(--tp-success-fg);
 }
 
 .continuity-content {
@@ -2610,12 +2647,12 @@ button,
 }
 
 .continuity-workspace__cleanliness.is-clean {
-  color: var(--tp-success);
+  color: var(--tp-success-fg);
   background: color-mix(in srgb, var(--tp-success) 8%, transparent);
 }
 
 .continuity-workspace__cleanliness.is-dirty {
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   background: color-mix(in srgb, var(--tp-warning) 9%, transparent);
 }
 
@@ -3054,7 +3091,7 @@ button.continuity-workspace.is-selected {
 }
 
 .continuity-git-summary__unavailable {
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   font-size: var(--tp-text-sm);
 }
 
@@ -3323,7 +3360,7 @@ button.continuity-workspace.is-selected {
 }
 
 .continuity-recovery__blockers code {
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   font-family: var(--tp-font-mono);
 }
 
@@ -3500,11 +3537,11 @@ button.continuity-workspace.is-selected {
 }
 
 .continuity-completion-state.is-ready .continuity-completion-state__heading .anticon {
-  color: var(--tp-success);
+  color: var(--tp-success-fg);
 }
 
 .continuity-completion-state.is-blocked .continuity-completion-state__heading .anticon {
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
 }
 
 .continuity-completion-blockers {
@@ -3534,7 +3571,7 @@ button.continuity-workspace.is-selected {
 
 .continuity-completion-blockers li code {
   margin-right: 7px;
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   font-family: var(--tp-font-mono);
 }
 
@@ -3645,18 +3682,18 @@ button.continuity-workspace.is-selected {
 }
 
 .continuity-evidence-item__status.is-passed {
-  color: var(--tp-success);
+  color: var(--tp-success-fg);
   background: color-mix(in srgb, var(--tp-success) 10%, transparent);
 }
 
 .continuity-evidence-item__status.is-failed {
-  color: var(--tp-danger);
+  color: var(--tp-danger-fg);
   background: color-mix(in srgb, var(--tp-danger) 10%, transparent);
 }
 
 .continuity-evidence-item__status.is-skipped,
 .continuity-evidence-item__status.is-not-run {
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   background: color-mix(in srgb, var(--tp-warning) 10%, transparent);
 }
 
@@ -3759,7 +3796,7 @@ button.continuity-workspace.is-selected {
 
 .continuity-planning-status__blockers code {
   padding: 3px 6px;
-  color: var(--tp-warning);
+  color: var(--tp-warning-fg);
   background: color-mix(in srgb, var(--tp-warning) 8%, transparent);
   border-radius: 5px;
 }

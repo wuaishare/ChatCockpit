@@ -58,6 +58,7 @@ Ant Design implementation notes:
 - Font stack should prefer `HarmonyOS Sans` and `HarmonyOS Sans SC` when available, then fall back to PingFang / Microsoft Yahei / system fonts.
 - ChatCockpit intentionally keeps Ant Design controls in a compact operator-console range (`controlHeight` around 34 and radii on the `6 / 8 / 10 / 12` scale).
 - Ant Design component defaults may be overridden only through documented theme/component tokens or project-owned semantic wrappers, not by inventing a parallel component theme.
+- Preset `Tag` / `Alert` colors are implementation inputs, not product colors. ChatCockpit maps Info/Success/Warning/Error backgrounds and borders to low-opacity semantic tokens and uses dedicated semantic foreground tokens for readable text in Light and Dark modes; bright Ant Design preset surfaces must not leak into the Dark Cockpit.
 
 ## Component Vocabulary
 
