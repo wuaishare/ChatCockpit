@@ -42,7 +42,17 @@ assert.doesNotMatch(webStyles, /--tp-brand-(?:violet|magenta|pink|amber):/, "Ret
 assert.doesNotMatch(webStyles, /--tp-(?:violet|magenta):/, "Legacy violet/magenta aliases must not return");
 assert.match(webStyles, /--tp-brand-gradient:\s*linear-gradient\([^\n]+#00e6ff[^\n]+#06b8ff[^\n]+#2073ff/, "Brand gradient must stay inside the focused Cyan → Sky → Blue spectrum");
 assert.match(webStyles, /--tp-accent:\s*var\(--tp-brand-blue\)/, "Web must define the canonical interaction accent");
+assert.doesNotMatch(webStyles, /--tp-cyan\s*:/, "Cyan must remain an identity primitive, not a product interaction alias");
+assert.doesNotMatch(webStyles, /var\(--tp-cyan\)/, "Ordinary Web interaction must not consume the retired Cyan alias");
+assert.match(read("web/src/main.tsx"), /primaryColor:\s*"blue"/, "Lobe UI must not inject a competing Cyan primary theme while it remains installed");
 assert.match(webStyles, /--tp-bg:\s*#020817/, "Dark Web foundation must use the canonical Ink family");
+assert.match(webStyles, /--tp-radius-sm:\s*6px/);
+assert.match(webStyles, /--tp-radius-md:\s*8px/);
+assert.match(webStyles, /--tp-radius-lg:\s*10px/);
+assert.match(webStyles, /--tp-radius-xl:\s*12px/);
+assert.match(webTheme, /borderRadius:\s*8,/, "Ant Design base radius must match the compact cockpit geometry");
+assert.match(webTheme, /borderRadiusLG:\s*10,/, "Ant Design large radius must match the compact cockpit geometry");
+assert.match(webTheme, /borderRadiusSM:\s*6,/, "Ant Design small radius must match the compact cockpit geometry");
 assert.match(webTheme, /colorPrimary:\s*"#2073ff"/, "Ant Design primary token must match ChatCockpit Primary");
 for (const legacyColor of ["#1777ff", "#2d5bdb", "#6b7fd7", "#8a8fe6"]) {
   assert.equal(webStyles.toLowerCase().includes(legacyColor), false, `Web CSS still contains legacy color ${legacyColor}`);

@@ -44,7 +44,7 @@ function ChatCockpitRoot() {
       <ConfigProvider motion={motion}>
         <ThemeProvider
           appearance={appearance}
-          customTheme={{ neutralColor: "slate", primaryColor: "cyan" }}
+          customTheme={{ neutralColor: "slate", primaryColor: "blue" }}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
           theme={antdTheme}

@@ -47,12 +47,12 @@ Core implementation files:
 - `web/src/styles.css`: ChatCockpit CSS variables, surfaces, responsive layout, and component styling.
 - `web/src/main.tsx`: shared ThemeProvider wiring for Lobe UI and Ant Design.
 
-The CSS system uses project-prefixed variables (`--tp-*`) for colors, typography, radius, panels, text, and spacing. Brand primitives use `--tp-brand-*`; semantic interaction uses `--tp-accent*`; broadly consumed legacy aliases such as `--tp-cyan` remain compatibility mappings rather than a second palette. Do not hardcode new colors or radii in components unless the value becomes a named token.
+The CSS system uses project-prefixed variables (`--tp-*`) for colors, typography, radius, panels, text, and spacing. Brand primitives use `--tp-brand-*`; semantic interaction uses `--tp-accent*`. Cyan and Sky are identity-only primitives and must not be exposed through compatibility aliases such as `--tp-cyan` for ordinary product interaction. Do not hardcode new colors or radii in components unless the value becomes a named token.
 
 Required visual constraints:
 
 - Typography scale stays in a tight product range. Default UI sizes should be `12 / 13 / 14 / 16 / 18 / 20`.
-- Radius stays on a strict discrete scale. Default UI radii should be `8 / 10 / 14 / 18`.
+- Radius stays on a strict discrete scale. Default UI radii should be `6 / 8 / 10 / 12` to keep the cockpit precise and compact.
 - Dark mode is not a neon stage. Light mode is not a washed-out whiteboard.
 - Background treatment must stay subtle enough that data remains the first thing the eye sees.
 
