@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Text } from "@lobehub/ui";
 import { AppstoreOutlined } from "@ant-design/icons";
+import { UiText as Text } from "./UiText";
 
 interface SectionCardProps {
   title: string;

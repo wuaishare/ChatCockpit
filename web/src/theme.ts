@@ -1,6 +1,6 @@
 import type { ThemeConfig } from "antd";
-import type { ThemeMode } from "antd-style";
 
+export type ThemeMode = "auto" | "dark" | "light";
 export type ChatCockpitAppearance = "dark" | "light";
 
 export const THEME_STORAGE_KEY = "chatcockpit:web:theme-mode";

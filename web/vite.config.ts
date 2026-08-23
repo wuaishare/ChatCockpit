@@ -53,12 +53,12 @@ export default defineConfig(() => {
               return;
             }
 
-            if (id.includes("@lobehub/ui") || id.includes("antd-style")) {
+            if (
+              id.includes("/antd/") ||
+              id.includes("/@ant-design/") ||
+              id.includes("/@rc-component/")
+            ) {
               return "ui-core";
-            }
-
-            if (id.includes("motion")) {
-              return "motion-vendor";
             }
 
             if (id.includes("react") || id.includes("scheduler")) {

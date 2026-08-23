@@ -20,8 +20,8 @@ import {
   SafetyCertificateOutlined,
   ToolOutlined
 } from "@ant-design/icons";
-import { Text } from "@lobehub/ui";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { UiText as Text } from "../UiText";
 
 import {
   fetchContinuityProjects,

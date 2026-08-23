@@ -1,6 +1,6 @@
 import { Alert, Button, Descriptions, Empty, Modal, Space, Spin, Tag } from "antd";
 import { SafetyCertificateOutlined, WarningOutlined } from "@ant-design/icons";
-import { Text } from "@lobehub/ui";
+import { UiText as Text } from "../UiText";
 
 import type { ResourceCenterCopy } from "../../i18n/resources";
 import type {

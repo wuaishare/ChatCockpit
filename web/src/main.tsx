@@ -1,18 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ConfigProvider, ThemeProvider } from "@lobehub/ui";
-import { App as AntApp } from "antd";
-import type { ThemeMode } from "antd-style";
+import { App as AntApp, ConfigProvider } from "antd";
 import { useEffect, useMemo, useState } from "react";
-import { LazyMotion, domAnimation } from "motion/react";
-import * as motion from "motion/react-m";
 import App from "./App";
 import {
   buildAntdTheme,
   getStoredThemeMode,
   getSystemAppearance,
   resolveAppearance,
-  THEME_STORAGE_KEY
+  THEME_STORAGE_KEY,
+  type ThemeMode
 } from "./theme";
 import "./styles.css";
 import "./styles/continuity-responsive.css";
@@ -40,24 +37,14 @@ function ChatCockpitRoot() {
   }, []);
 
   return (
-    <LazyMotion features={domAnimation}>
-      <ConfigProvider motion={motion}>
-        <ThemeProvider
-          appearance={appearance}
-          customTheme={{ neutralColor: "slate", primaryColor: "blue" }}
+    <ConfigProvider theme={antdTheme}>
+      <AntApp>
+        <App
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
-          theme={antdTheme}
-        >
-          <AntApp>
-            <App
-              themeMode={themeMode}
-              onThemeModeChange={setThemeMode}
-            />
-          </AntApp>
-        </ThemeProvider>
-      </ConfigProvider>
-    </LazyMotion>
+        />
+      </AntApp>
+    </ConfigProvider>
   );
 }
 

@@ -15,8 +15,8 @@ import {
   CodeOutlined,
   SafetyCertificateOutlined
 } from "@ant-design/icons";
-import { Text } from "@lobehub/ui";
 import { useState } from "react";
+import { UiText as Text } from "../UiText";
 
 import {
   assessCodexThreadImport,

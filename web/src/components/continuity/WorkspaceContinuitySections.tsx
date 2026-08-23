@@ -1,5 +1,5 @@
 import { Alert, Button, Popconfirm, Tag } from "antd";
-import { Text } from "@lobehub/ui";
+import { UiText as Text } from "../UiText";
 import {
   BranchesOutlined,
   CheckCircleOutlined,

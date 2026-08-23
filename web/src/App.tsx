@@ -1,7 +1,7 @@
-import { Button, Layout } from "antd";
+import { Button, Layout, Tooltip } from "antd";
 import { startAuthentication } from "@simplewebauthn/browser";
-import { Text, Tooltip } from "@lobehub/ui";
-import type { ThemeMode } from "antd-style";
+import { UiText as Text } from "./components/UiText";
+import type { ThemeMode } from "./theme";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { MenuOutlined, ReloadOutlined } from "@ant-design/icons";
 import {

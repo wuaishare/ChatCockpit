@@ -15,8 +15,8 @@ import {
   SyncOutlined,
   WarningOutlined
 } from "@ant-design/icons";
-import { Text } from "@lobehub/ui";
 import { useEffect, useMemo, useState } from "react";
+import { UiText as Text } from "../UiText";
 
 import {
   assessRuntimeRecovery,

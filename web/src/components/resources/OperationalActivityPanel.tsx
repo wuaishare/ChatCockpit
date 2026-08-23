@@ -9,8 +9,8 @@ import {
   ThunderboltOutlined
 } from "@ant-design/icons";
 import { Button, Empty, Popconfirm, Tag, Tooltip } from "antd";
-import { Text } from "@lobehub/ui";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UiText as Text } from "../UiText";
 
 import { controlJob, fetchOperationalActivities, fetchOperationalActivityTimeline, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";

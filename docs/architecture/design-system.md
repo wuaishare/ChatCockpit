@@ -82,8 +82,10 @@ Motion is short and functional. It may communicate selection, focus, opening, cl
 
 Brand consistency does not mean visual cloning.
 
-- **Web Cockpit** uses Ink-derived surfaces, precise borders, compact data density, and restrained brand accents.
+- **Web Cockpit** uses Ink-derived surfaces, precise borders, compact data density, and restrained brand accents. Ant Design is the single general-purpose Web component implementation layer; ChatCockpit semantic tokens map into it through the project theme boundary rather than through a second UI theme framework.
 - **macOS App** follows SwiftUI/AppKit conventions, native materials, native semantic colors, and system interaction behavior. Brand color is limited to identity and accent roles.
 - **Menu Bar** uses the canonical monochrome artwork as a macOS Template Image. Runtime health remains a separate status signal inside the Operational HUD; the brand icon itself does not become a red/green status light.
+
+Cross-platform consistency is defined at the semantic-token, component-intent, terminology, state, density, and interaction-rule layers. Platform implementations remain native to their environment instead of forcing one Web component library across macOS, Windows, iOS, or Android.
 
 The [Surface Design Contract](./surface-design-contract.md) remains authoritative for capability ownership across Menu Bar, macOS App, Web Cockpit, and Runtime.

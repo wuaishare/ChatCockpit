@@ -1,6 +1,7 @@
-import { CopyButton, Text, Tooltip } from "@lobehub/ui";
+import { Tooltip } from "antd";
 import { useMemo } from "react";
-import { ClipboardCopy } from "lucide-react";
+import { CopyButton } from "./CopyButton";
+import { UiText as Text } from "./UiText";
 import type { GptConfigModel, HealthModel } from "../types";
 import { buildGptHelperText, formatDateTime } from "../utils";
 import { SectionCard } from "./SectionCard";
@@ -81,7 +82,6 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
             <CopyButton
               aria-label={copy.gpt.copySummaryAction}
               content={summaryText}
-              icon={ClipboardCopy}
             />
           </div>
 
@@ -138,7 +138,6 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
             <CopyButton
               aria-label={copy.gpt.copyInstructionsAction}
               content={helperText}
-              icon={ClipboardCopy}
             />
           }
         >
@@ -154,8 +153,7 @@ export function GptHelperView({ locale, health, config, configError }: GptHelper
               <CopyButton
                 aria-label={copy.gpt.copySchemaAction}
                 content={importUrl}
-                icon={ClipboardCopy}
-              />
+                />
             </div>
           </div>
         </SectionCard>
