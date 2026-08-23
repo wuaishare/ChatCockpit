@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import {
   buildDeviceChannelOpenProof,
   buildDeviceChannelResultProof,
+  buildDeviceRuntimeLifecycleResultProof,
   buildDeviceEnrollmentProof,
   buildDeviceEnrollmentStatusProof,
   buildDeviceHeartbeatProof,
@@ -30,6 +31,10 @@ import type {
   DeviceCapabilityRequestEnvelope,
   DeviceCapabilityResultBody
 } from "./device-capability-rpc.js";
+import type {
+  DeviceRuntimeLifecycleRequestEnvelope,
+  DeviceRuntimeLifecycleResultBody
+} from "./device-runtime-lifecycle-rpc.js";
 import {
   DeviceAgentTransportError,
   HttpDeviceAgentTransport,
@@ -117,12 +122,17 @@ interface DeviceAgentCapabilityExecutor {
   execute(request: DeviceCapabilityRequestEnvelope): Promise<DeviceCapabilityResultBody>;
 }
 
+interface DeviceAgentRuntimeLifecycleExecutor {
+  execute(request: DeviceRuntimeLifecycleRequestEnvelope): Promise<DeviceRuntimeLifecycleResultBody>;
+}
+
 interface DeviceAgentServiceOptions {
   runtimeDir: string;
   fetchImpl?: FetchLike;
   transport?: DeviceAgentTransport;
   pinnedTransportFactory?: (certificatePem: string) => DeviceAgentTransport;
   capabilityService?: DeviceAgentCapabilityExecutor;
+  runtimeLifecycleService?: DeviceAgentRuntimeLifecycleExecutor;
   directExecutorsConfigPath?: string;
   sleep?: SleepLike;
   now?: () => string;
@@ -487,6 +497,7 @@ export class DeviceAgentService {
   private readonly sleep: SleepLike;
   private readonly pinnedTransportFactory: (certificatePem: string) => DeviceAgentTransport;
   private readonly capabilityService: DeviceAgentCapabilityExecutor;
+  private readonly runtimeLifecycleService: DeviceAgentRuntimeLifecycleExecutor | null;
   private readonly now: () => string;
   private readonly random: () => number;
   private readonly verifiedHubOrigins = new Set<string>();
@@ -507,6 +518,7 @@ export class DeviceAgentService {
           : {}),
         now: this.now
       });
+    this.runtimeLifecycleService = options.runtimeLifecycleService ?? null;
     this.random = options.random ?? Math.random;
   }
 
@@ -1114,7 +1126,7 @@ export class DeviceAgentService {
         await this.ensureRouteIdentity(current, routeTarget);
         const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
         const channelNonce = crypto.randomBytes(18).toString("base64url");
-        const channelProtocolVersion = 2 as const;
+        const channelProtocolVersion = this.runtimeLifecycleService ? 3 as const : 2 as const;
         const signature = sign(
           state,
           buildDeviceChannelOpenProof(
@@ -1207,6 +1219,58 @@ export class DeviceAgentService {
                 502,
                 "DEVICE_AGENT_CHANNEL_INVALID",
                 "Hub acknowledged an unexpected device capability result sequence"
+              );
+            }
+            await options.onEvent?.(event);
+            continue;
+          }
+
+          if (event.type === "runtime.lifecycle.request") {
+            if (
+              !activeChannelId ||
+              !this.runtimeLifecycleService ||
+              !routeTarget?.transport.submitRuntimeLifecycleResult
+            ) {
+              throw new DeviceAgentProtocolError(
+                502,
+                "DEVICE_AGENT_CHANNEL_INVALID",
+                "Device Agent Runtime lifecycle result transport is unavailable"
+              );
+            }
+            const result = await this.runtimeLifecycleService.execute({
+              protocolVersion: event.protocolVersion,
+              operationId: event.operationId,
+              action: event.action,
+              issuedAt: event.issuedAt,
+              expiresAt: event.expiresAt,
+              ...(event.expectedStateRevision === undefined
+                ? {}
+                : { expectedStateRevision: event.expectedStateRevision })
+            });
+            const reserved = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
+            const resultSignature = sign(
+              reserved.state,
+              buildDeviceRuntimeLifecycleResultProof(
+                current.deviceId,
+                activeChannelId,
+                reserved.sequence,
+                result
+              )
+            );
+            const acknowledgement = await this.transportCall(() =>
+              routeTarget!.transport.submitRuntimeLifecycleResult!(routeTarget!.origin, {
+                deviceId: current.deviceId!,
+                channelId: activeChannelId!,
+                sequence: reserved.sequence,
+                body: result,
+                signature: resultSignature
+              })
+            );
+            if (acknowledgement.acceptedSequence !== reserved.sequence) {
+              throw new DeviceAgentProtocolError(
+                502,
+                "DEVICE_AGENT_CHANNEL_INVALID",
+                "Hub acknowledged an unexpected Runtime lifecycle result sequence"
               );
             }
             await options.onEvent?.(event);
