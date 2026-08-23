@@ -6,10 +6,32 @@ set -euo pipefail
 
 ACTION="${1:-}"
 PRODUCT_IDENTITY="chatcockpit"
-if [[ "${2:-}" == "--product-identity" ]]; then
-  PRODUCT_IDENTITY="${3:-}"
-elif [[ -n "${2:-}" ]]; then
-  echo "Unknown argument: ${2}" >&2
+JSON_OUTPUT="false"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      JSON_OUTPUT="true"
+      shift
+      ;;
+    --product-identity)
+      if [[ $# -lt 2 ]]; then
+        echo "--product-identity requires a value" >&2
+        exit 2
+      fi
+      PRODUCT_IDENTITY="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+if [[ "${JSON_OUTPUT}" == "true" && "${ACTION}" != "status" ]]; then
+  echo "--json is supported only for status" >&2
   exit 2
 fi
 
@@ -135,7 +157,7 @@ secure_login_entry_url() {
 }
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|reset|uninstall} [--product-identity {tokenpilot|chatcockpit}]"
+  echo "Usage: $0 {start|stop|restart|status|reset|uninstall} [--json] [--product-identity {tokenpilot|chatcockpit}]"
 }
 
 ensure_launch_agents_dir() {
@@ -742,6 +764,39 @@ case "${ACTION}" in
     exit 1
     ;;
   status)
+    if [[ "${JSON_OUTPUT}" == "true" ]]; then
+      for dependency in launchctl lsof curl; do
+        if ! command -v "${dependency}" >/dev/null 2>&1; then
+          echo "Runtime lifecycle observation dependency is unavailable" >&2
+          exit 1
+        fi
+      done
+
+      control_plane_state="stopped"
+      runner_state="stopped"
+      process_supervisor_state="stopped"
+      if is_running; then
+        control_plane_state="running"
+      elif launchctl_service_registered; then
+        control_plane_state="unknown"
+      fi
+      if launchctl_runner_registered; then
+        runner_state="registered"
+      fi
+      if process_supervisor_ready; then
+        process_supervisor_state="ready"
+      elif launchctl_process_supervisor_registered; then
+        process_supervisor_state="registered"
+      fi
+      observed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+      printf '{"schemaVersion":1,"support":"managed-macos","controlPlane":"%s","runner":"%s","processSupervisor":"%s","observedAt":"%s"}\n' \
+        "${control_plane_state}" \
+        "${runner_state}" \
+        "${process_supervisor_state}" \
+        "${observed_at}"
+      exit 0
+    fi
+
     runner_state="NOT registered"
     process_supervisor_state="NOT registered"
     if launchctl_runner_registered; then
