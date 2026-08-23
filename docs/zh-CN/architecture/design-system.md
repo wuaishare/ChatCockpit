@@ -1,6 +1,6 @@
 # ChatCockpit 设计系统
 
-ChatCockpit 采用克制型 **Spectrum Cockpit** 设计系统：品牌识别使用完整光谱，交互语言稳定在冷静的蓝色体系，状态语义色独立管理，业务界面保持高信息密度与低噪声。
+ChatCockpit 采用克制型 **Spectrum Cockpit** 设计系统：品牌识别收敛到聚焦的冷色光谱（Cyan → Sky → Blue），交互语言保持在同一蓝色体系，状态语义色独立管理，业务界面保持高信息密度与低噪声。
 
 核心原则是：**驾驶舱的精密感，而不是驾驶舱装饰。** 产品应呈现现代 AI 工作环境控制面板的专业感，而不是电竞 RGB 仪表盘或普通 SaaS 后台。
 
@@ -13,42 +13,43 @@ ChatCockpit 采用克制型 **Spectrum Cockpit** 设计系统：品牌识别使�
 
 各端不得再手工复制、改色或维护第二份 Logo。平台派生资源必须从这两份 canonical source 生成。
 
+App Icon 母版在圆角图标主体之外必须保持透明画布。macOS 的 `ChatCockpit.icns` 只能从支持 Alpha 的 PNG 中间产物生成，并使用 `sips` 渲染；禁止 Quick Look 缩略图链路和 JPEG/JPG 中间格式，因为它们可能把透明四角压成白色。
+
 ## 色彩架构
 
 颜色分为三层：品牌基础色、交互语义色、状态语义色。品牌光谱不能和运行状态混为一谈。
 
-### 品牌光谱
+### 聚焦品牌光谱
 
 | Token | 色值 | 用途 |
 | --- | --- | --- |
-| Brand Cyan | `#00E6FF` | 品牌光谱 |
+| Brand Cyan | `#00E6FF` | 高对比品牌高光 |
 | Brand Sky | `#06B8FF` | 品牌 / Hover 过渡 |
-| Brand Blue | `#2073FF` | 主交互色 |
-| Brand Violet | `#7B4CFF` | 品牌 / Active 过渡 |
-| Brand Magenta | `#C934F2` | 品牌光谱 |
-| Brand Pink | `#FF3EAE` | 品牌光谱 |
-| Brand Amber | `#FFAA22` | 品牌光谱 |
+| Brand Blue | `#2073FF` | 主品牌色与主交互色 |
+| Icon Graphite | `#282828` | 仅用于 App 图标底板的对比中性色 |
 
-完整 Spectrum Gradient 是品牌资产，不是全局 UI 渐变。只用于正式 Logo、品牌展示和极少数高价值视觉锚点，不能用于普通按钮、卡片或状态提示。
+正式品牌色带刻意收敛为 Cyan → Sky → Blue。Violet、Magenta、Pink、Amber 不再属于品牌基础色。`#282828` 只是帮助小尺寸 Logo 保持清晰对比的图标底板中性色，不是新的交互色。聚焦渐变只用于正式 Logo、品牌展示和极少数高价值视觉锚点，不能用于普通按钮、卡片或状态提示。
+
+为保证小尺寸识别度，耳机、麦克风等结构性图形优先使用纯 Cyan 或 Blue；Cyan → Sky → Blue 渐变只保留在镜片等较大的视觉焦点区域。32 px 以下禁止重新堆叠大量细碎多色片段，避免缩小时糊成一团。
 
 ### 交互体系
 
 - Primary：`#2073FF`
 - Hover 方向：`#06B8FF`
-- Active 方向：`#7B4CFF`
+- Active 方向：由 Primary 与 Ink 派生的更深蓝色，不再引入新的紫色系。
 - Focus Ring：由 Primary 派生并保证可见对比度。
 
-按钮、链接、导航选中态和关键控件统一使用这一交互体系，不铺满完整彩虹渐变。
+按钮、链接、导航选中态和关键控件统一使用这一交互体系，不使用多色彩虹渐变。
 
 ### 状态语义
 
-Success、Warning、Danger、Inactive、Unknown 使用独立语义色。品牌里的 Magenta 或 Amber 不自动等价于错误或警告。
+Success、Warning、Danger、Inactive、Unknown 使用独立语义色。Brand Cyan/Sky/Blue 用于 ChatCockpit 身份与交互，不直接代表运行健康状态。
 
 跨端七态合同继续保持：`healthy`、`active`、`pending`、`warning`、`danger`、`inactive`、`unknown`。
 
 ## Surface 基础色
 
-深色主题以 App Icon 的 Ink 系列为基础：
+深色主题继续使用独立的运营型 Ink 系列。它会比仅用于图标底板的 Graphite 更深、更偏蓝，用于建立产品界面的层级，而不是把 App Icon 的底色机械铺到所有页面：
 
 - Ink 950 `#020817`
 - Ink 900 `#061127`

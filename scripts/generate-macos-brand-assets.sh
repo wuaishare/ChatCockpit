@@ -11,7 +11,7 @@ if [[ -z "${RESOURCES_DIR}" ]]; then
   exit 2
 fi
 
-for tool in /usr/bin/qlmanage /usr/bin/sips /usr/bin/iconutil; do
+for tool in /usr/bin/sips /usr/bin/iconutil; do
   if [[ ! -x "${tool}" ]]; then
     echo "Missing required macOS icon tool: ${tool}" >&2
     exit 2
@@ -30,10 +30,18 @@ RENDER_DIR="${TMP_ROOT}/render"
 ICONSET_DIR="${TMP_ROOT}/ChatCockpit.iconset"
 mkdir -p "${RESOURCES_DIR}" "${RENDER_DIR}" "${ICONSET_DIR}"
 
-/usr/bin/qlmanage -t -s 1024 -o "${RENDER_DIR}" "${APP_ICON}" >/dev/null 2>&1
-RENDERED_PNG="${RENDER_DIR}/$(basename "${APP_ICON}").png"
+RAW_PNG="${RENDER_DIR}/chatcockpit-app-icon-source.png"
+RENDERED_PNG="${RENDER_DIR}/chatcockpit-app-icon-1024.png"
+/usr/bin/sips -s format png "${APP_ICON}" --out "${RAW_PNG}" >/dev/null
+/usr/bin/sips -z 1024 1024 "${RAW_PNG}" --out "${RENDERED_PNG}" >/dev/null
 if [[ ! -s "${RENDERED_PNG}" ]]; then
   echo "Failed to render canonical ChatCockpit app icon" >&2
+  exit 1
+fi
+
+HAS_ALPHA="$(/usr/bin/sips -g hasAlpha "${RENDERED_PNG}" | awk '/hasAlpha:/ {print $2}')"
+if [[ "${HAS_ALPHA}" != "yes" ]]; then
+  echo "Rendered ChatCockpit app icon lost its alpha channel" >&2
   exit 1
 fi
 
