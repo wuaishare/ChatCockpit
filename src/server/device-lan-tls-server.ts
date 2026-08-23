@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { AccessPolicy } from "../security/access-policy.js";
 import type { DeviceChannelHub } from "../devices/device-channel.js";
 import { DeviceCapabilityRpc } from "../devices/device-capability-rpc.js";
+import { DeviceRuntimeLifecycleRpc } from "../devices/device-runtime-lifecycle-rpc.js";
 import type { DeviceRegistryStore } from "../devices/device-registry.js";
 import type { HubIdentityRecord } from "../devices/hub-identity.js";
 import type { LanTlsIdentityRecord } from "../devices/lan-tls-identity.js";
@@ -19,6 +20,7 @@ export interface DeviceLanTlsServerOptions {
   deviceRegistryStore: DeviceRegistryStore;
   deviceChannelHub: DeviceChannelHub;
   deviceCapabilityRpc?: DeviceCapabilityRpc;
+  deviceRuntimeLifecycleRpc?: DeviceRuntimeLifecycleRpc;
   now?: () => string;
   pingIntervalMs?: number;
 }
@@ -40,6 +42,9 @@ export function buildDeviceLanTlsServer(
   const capabilityRpc =
     options.deviceCapabilityRpc ?? new DeviceCapabilityRpc(options.deviceChannelHub);
   const ownsCapabilityRpc = options.deviceCapabilityRpc === undefined;
+  const lifecycleRpc =
+    options.deviceRuntimeLifecycleRpc ?? new DeviceRuntimeLifecycleRpc(options.deviceChannelHub);
+  const ownsLifecycleRpc = options.deviceRuntimeLifecycleRpc === undefined;
 
   registerAccessPolicyGate(app, options.policy);
   registerWebSecurityHeaders(app);
@@ -54,14 +59,16 @@ export function buildDeviceLanTlsServer(
     options.deviceRegistryStore,
     options.deviceChannelHub,
     capabilityRpc,
+    lifecycleRpc,
     {
       ...(options.now ? { now: options.now } : {}),
       ...(options.pingIntervalMs ? { pingIntervalMs: options.pingIntervalMs } : {})
     }
   );
-  if (ownsCapabilityRpc) {
+  if (ownsCapabilityRpc || ownsLifecycleRpc) {
     app.addHook("onClose", async () => {
-      capabilityRpc.close();
+      if (ownsLifecycleRpc) lifecycleRpc.close();
+      if (ownsCapabilityRpc) capabilityRpc.close();
     });
   }
 

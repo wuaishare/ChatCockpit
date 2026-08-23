@@ -230,23 +230,41 @@ try {
       error.statusCode === 409
   );
 
+  const nonce3 = crypto.randomBytes(18).toString("base64url");
+  const channel3 = await transport.openChannel(origin, {
+    deviceId,
+    sequence: 3,
+    channelNonce: nonce3,
+    protocolVersion: 3,
+    signature: sign(privateKey, buildDeviceChannelOpenProof(deviceId, 3, nonce3, 3))
+  });
+  const iterator3 = channel3.events[Symbol.asyncIterator]();
+  const ready3 = await nextEventOfType(iterator3, "channel.ready");
+  assert.equal(ready3.type, "channel.ready");
+  if (ready3.type === "channel.ready") assert.equal(ready3.protocolVersion, 3);
+  const superseded2 = await nextEventOfType(iterator2, "channel.close");
+  assert.deepEqual(superseded2, { type: "channel.close", reason: "superseded" });
+  assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
+  assert.equal(channelHub.isRuntimeLifecycleRpcAvailable(deviceId), true);
+
   const revoked = await app.inject({
     method: "DELETE",
     url: `/api/devices/${deviceId}`,
     headers: { cookie, "x-chatcockpit-csrf": owner.csrfToken }
   });
   assert.equal(revoked.statusCode, 200, revoked.body);
-  const revokedClose = await nextEventOfType(iterator2, "channel.close");
+  const revokedClose = await nextEventOfType(iterator3, "channel.close");
   assert.deepEqual(revokedClose, { type: "channel.close", reason: "revoked" });
   assert.equal(channelHub.isActive(deviceId), false);
 
-  const nonce3 = crypto.randomBytes(18).toString("base64url");
+  const nonce4 = crypto.randomBytes(18).toString("base64url");
   await assert.rejects(
     transport.openChannel(origin, {
       deviceId,
-      sequence: 3,
-      channelNonce: nonce3,
-      signature: sign(privateKey, buildDeviceChannelOpenProof(deviceId, 3, nonce3))
+      sequence: 4,
+      channelNonce: nonce4,
+      protocolVersion: 3,
+      signature: sign(privateKey, buildDeviceChannelOpenProof(deviceId, 4, nonce4, 3))
     }),
     (error: unknown) =>
       error instanceof DeviceAgentTransportError &&
@@ -256,6 +274,7 @@ try {
 
   channel1.close();
   channel2.close();
+  channel3.close();
   process.stdout.write("VERIFY_DEVICE_OUTBOUND_CHANNEL_OK\n");
 } finally {
   await app.close();

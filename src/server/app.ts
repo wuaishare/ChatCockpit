@@ -50,6 +50,7 @@ import {
 } from "../devices/device-registry.js";
 import { DeviceChannelHub } from "../devices/device-channel.js";
 import { DeviceCapabilityRpc } from "../devices/device-capability-rpc.js";
+import { DeviceRuntimeLifecycleRpc } from "../devices/device-runtime-lifecycle-rpc.js";
 import {
   LanDiscoveryPublisher,
   type LanDiscoveryPublication,
@@ -335,6 +336,7 @@ export interface BuildServerOptions {
   deviceNow?: () => string;
   deviceChannelHub?: DeviceChannelHub;
   deviceCapabilityRpc?: DeviceCapabilityRpc;
+  deviceRuntimeLifecycleRpc?: DeviceRuntimeLifecycleRpc;
   deviceChannelPingIntervalMs?: number;
   lanDiscovery?: {
     host: string;
@@ -405,6 +407,8 @@ export function buildServer(
     : null;
   const deviceChannelHub = options.deviceChannelHub ?? new DeviceChannelHub();
   const deviceCapabilityRpc = options.deviceCapabilityRpc ?? new DeviceCapabilityRpc(deviceChannelHub);
+  const deviceRuntimeLifecycleRpc =
+    options.deviceRuntimeLifecycleRpc ?? new DeviceRuntimeLifecycleRpc(deviceChannelHub);
   const deviceTargetService = new DeviceTargetService(
     deviceRegistryStore,
     deviceChannelHub,
@@ -473,6 +477,7 @@ export function buildServer(
         deviceRegistryStore,
         deviceChannelHub,
         deviceCapabilityRpc,
+        deviceRuntimeLifecycleRpc,
         ...(options.deviceNow ? { now: options.deviceNow } : {}),
         ...(options.deviceChannelPingIntervalMs
           ? { pingIntervalMs: options.deviceChannelPingIntervalMs }
@@ -837,6 +842,7 @@ export function buildServer(
     deviceRegistryStore,
     deviceChannelHub,
     deviceCapabilityRpc,
+    deviceRuntimeLifecycleRpc,
     {
       ...(options.deviceNow ? { now: options.deviceNow } : {}),
       ...(options.deviceChannelPingIntervalMs
@@ -871,6 +877,7 @@ export function buildServer(
     continuityDatabase.close();
     oauthStore?.close();
     operatorStore.close();
+    deviceRuntimeLifecycleRpc.close();
     deviceCapabilityRpc.close();
     deviceChannelHub.closeAll("server-shutdown");
     deviceRegistryStore.close();
