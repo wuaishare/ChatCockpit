@@ -74,7 +74,9 @@ mv "${APP_DIR}/web-dist-staging" "${APP_DIR}/web/dist"
 cp -R "${ROOT}/openapi" "${APP_DIR}/openapi"
 mkdir -p "${APP_DIR}/scripts"
 cp "${ROOT}/scripts/macos-manage-local-server.sh" "${APP_DIR}/scripts/macos-manage-local-server.sh"
+cp "${ROOT}/scripts/macos-manage-device-agent.sh" "${APP_DIR}/scripts/macos-manage-device-agent.sh"
 chmod 755 "${APP_DIR}/scripts/macos-manage-local-server.sh"
+chmod 755 "${APP_DIR}/scripts/macos-manage-device-agent.sh"
 
 (
   cd "${APP_DIR}"
@@ -116,7 +118,8 @@ const criticalFiles = [
   "app/dist/cli/index.js",
   "app/web/dist/index.html",
   "app/openapi/chatcockpit.openapi.yaml",
-  "app/scripts/macos-manage-local-server.sh"
+  "app/scripts/macos-manage-local-server.sh",
+  "app/scripts/macos-manage-device-agent.sh"
 ];
 
 function sha256(relativePath) {

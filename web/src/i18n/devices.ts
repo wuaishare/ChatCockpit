@@ -14,6 +14,9 @@ export interface DevicesCopy {
   online: string;
   offline: string;
   revoked: string;
+  executionPolicy: string;
+  aiActive: string;
+  aiPaused: string;
   platform: string;
   architecture: string;
   lastSeen: string;
@@ -47,6 +50,13 @@ export interface DevicesCopy {
   confirm: string;
   cancel: string;
   decisionFailed: string;
+  pause: string;
+  pausing: string;
+  pauseTitle: string;
+  pauseDescription: string;
+  resume: string;
+  resuming: string;
+  executionPolicyFailed: string;
   revoke: string;
   revoking: string;
   revokeTitle: string;
@@ -69,6 +79,9 @@ const zhCN: DevicesCopy = {
   online: "在线",
   offline: "离线",
   revoked: "已撤销",
+  executionPolicy: "AI 执行策略",
+  aiActive: "AI 可执行",
+  aiPaused: "AI 已暂停",
   platform: "平台",
   architecture: "架构",
   lastSeen: "最近在线",
@@ -102,6 +115,13 @@ const zhCN: DevicesCopy = {
   confirm: "确认",
   cancel: "取消",
   decisionFailed: "处理设备授权请求失败",
+  pause: "暂停 AI 执行",
+  pausing: "正在暂停…",
+  pauseTitle: "暂停这台设备的 AI 执行？",
+  pauseDescription: "设备身份和管理通道会保持有效，现有 OAuth 设备授权也不会删除；AI 对这台设备的执行会立即被阻止，之后可直接恢复。",
+  resume: "恢复 AI 执行",
+  resuming: "正在恢复…",
+  executionPolicyFailed: "更新设备 AI 执行策略失败",
   revoke: "撤销设备",
   revoking: "正在撤销…",
   revokeTitle: "撤销这台设备？",
@@ -124,6 +144,9 @@ const enUS: DevicesCopy = {
   online: "Online",
   offline: "Offline",
   revoked: "Revoked",
+  executionPolicy: "AI execution policy",
+  aiActive: "AI active",
+  aiPaused: "AI paused",
   platform: "Platform",
   architecture: "Architecture",
   lastSeen: "Last seen",
@@ -157,6 +180,13 @@ const enUS: DevicesCopy = {
   confirm: "Confirm",
   cancel: "Cancel",
   decisionFailed: "Unable to process the device authorization request",
+  pause: "Pause AI execution",
+  pausing: "Pausing…",
+  pauseTitle: "Pause AI execution on this device?",
+  pauseDescription: "The device identity and management channel stay valid, and existing OAuth device grants are preserved. AI execution against this device is blocked immediately and can be resumed later.",
+  resume: "Resume AI execution",
+  resuming: "Resuming…",
+  executionPolicyFailed: "Unable to update device AI execution policy",
   revoke: "Revoke device",
   revoking: "Revoking…",
   revokeTitle: "Revoke this device?",

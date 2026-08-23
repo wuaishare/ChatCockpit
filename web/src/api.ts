@@ -46,6 +46,7 @@ import type {
   ManagedDevicesResponse,
   DeviceEnrollmentRequestsResponse,
   DeviceEnrollmentDecisionResponse,
+  DeviceExecutionPolicyMutationResponse,
   DeviceRevokeResponse,
   OperationalActivityListResponse,
   OperationalActivityTimelineResponse,
@@ -498,6 +499,17 @@ export async function decideDeviceEnrollment(
   return postBodyJson<DeviceEnrollmentDecisionResponse>(
     `/api/devices/enrollment-requests/${encodeURIComponent(enrollmentId)}/decision`,
     { decision }
+  );
+}
+
+export async function setDeviceExecutionPolicy(
+  deviceId: string,
+  action: "pause" | "resume",
+  expectedExecutionPolicyRevision: number
+): Promise<DeviceExecutionPolicyMutationResponse> {
+  return postBodyJson<DeviceExecutionPolicyMutationResponse>(
+    `/api/devices/${encodeURIComponent(deviceId)}/${action}`,
+    { expectedExecutionPolicyRevision }
   );
 }
 

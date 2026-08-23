@@ -251,6 +251,7 @@ try {
   assertWithin(paths.configPath, root);
   assertWithin(paths.runtimeDir, root);
   assert.equal(path.basename(paths.runnerPlistPath), "com.wuaishare.chatcockpit.runner.plist");
+  assert.equal(path.basename(paths.deviceAgentPlistPath), "com.wuaishare.chatcockpit.device-agent.plist");
   assert.equal(
     path.basename(paths.processSupervisorPlistPath),
     "com.wuaishare.chatcockpit.process-supervisor.plist"

@@ -359,18 +359,21 @@ components:
         pairedAt: { oneOf: [{ type: string }, { type: "null" }] }
         lastSeenAt: { oneOf: [{ type: string }, { type: "null" }] }
         revokedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        pausedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        executionPolicyRevision: { type: integer, minimum: 1 }
         revision: { type: integer, minimum: 1 }
         trust: { type: string, enum: [local, paired, revoked] }
-        presence: { type: string, enum: [online, offline, revoked] }
+        presence: { type: string, enum: [online, offline] }
+        executionPolicy: { type: string, enum: [active, paused] }
         management:
           type: object
           additionalProperties: false
           properties:
             heartbeat: { type: boolean }
-            remoteRead: { type: boolean, description: True only when an active v2 Device Agent channel can execute bounded Capability Router reads. }
+            remoteRead: { type: boolean, description: True only when the device is AI-active and an authenticated v2+ Device Agent channel can execute bounded Capability Router reads. }
             remoteControl: { type: boolean, const: false }
           required: [heartbeat, remoteRead, remoteControl]
-      required: [id, kind, locality, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, revision, trust, presence, management]
+      required: [id, kind, locality, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, pausedAt, executionPolicyRevision, revision, trust, presence, executionPolicy, management]
     ManagedDevicesResponse:
       type: object
       additionalProperties: false
@@ -459,8 +462,11 @@ components:
                 pairedAt: { type: string }
                 lastSeenAt: { oneOf: [{ type: string }, { type: "null" }] }
                 revokedAt: { oneOf: [{ type: string }, { type: "null" }] }
+                pausedAt: { oneOf: [{ type: string }, { type: "null" }] }
+                executionPolicyRevision: { type: integer, minimum: 1 }
+                executionPolicy: { type: string, enum: [active, paused] }
                 revision: { type: integer, minimum: 1 }
-              required: [id, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, revision]
+              required: [id, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, pausedAt, executionPolicyRevision, executionPolicy, revision]
             - type: "null"
       required: [ok, enrollment, device]
     DeviceHeartbeatResponse:
@@ -472,6 +478,36 @@ components:
         acceptedSequence: { type: integer, minimum: 1 }
         revision: { type: integer, minimum: 1 }
       required: [ok, deviceId, acceptedSequence, revision]
+    DeviceExecutionPolicyMutationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expectedExecutionPolicyRevision: { type: integer, minimum: 1 }
+      required: [expectedExecutionPolicyRevision]
+    DeviceExecutionPolicyMutationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        device:
+          type: object
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            displayName: { type: string }
+            platform: { type: string }
+            architecture: { type: string }
+            publicKeyFingerprint: { type: string }
+            pairedAt: { type: string }
+            lastSeenAt: { oneOf: [{ type: string }, { type: "null" }] }
+            revokedAt: { oneOf: [{ type: string }, { type: "null" }] }
+            pausedAt: { oneOf: [{ type: string }, { type: "null" }] }
+            executionPolicyRevision: { type: integer, minimum: 1 }
+            executionPolicy: { type: string, enum: [active, paused] }
+            revision: { type: integer, minimum: 1 }
+            trust: { type: string, const: paired }
+          required: [id, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, pausedAt, executionPolicyRevision, executionPolicy, revision, trust]
+      required: [ok, device]
     DeviceRevokeResponse:
       type: object
       additionalProperties: false
@@ -7388,6 +7424,104 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/{deviceId}/pause:
+    post:
+      operationId: pauseManagedDeviceExecution
+      summary: Pause AI execution on one paired remote device
+      description: Owner-only execution-policy mutation. Device trust, Presence, Agent connectivity and existing OAuth grant-device relationships remain intact; AI execution is denied before transport until Resume.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^cc_device_[A-Za-z0-9_-]{20,80}$' }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceExecutionPolicyMutationRequest'
+      responses:
+        "200":
+          description: Device AI execution paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceExecutionPolicyMutationResponse'
+        "400":
+          description: Invalid device ID or execution-policy revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "401":
+          description: Owner session required or device no longer trusted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Execution policy revision changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/devices/{deviceId}/resume:
+    post:
+      operationId: resumeManagedDeviceExecution
+      summary: Resume AI execution on one paired remote device
+      description: Owner-only execution-policy mutation. Restores execution eligibility subject to the unchanged OAuth grant-device authority and current Agent/runtime readiness; no re-enrollment or OAuth token reissue occurs.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^cc_device_[A-Za-z0-9_-]{20,80}$' }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceExecutionPolicyMutationRequest'
+      responses:
+        "200":
+          description: Device AI execution resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceExecutionPolicyMutationResponse'
+        "400":
+          description: Invalid device ID or execution-policy revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "401":
+          description: Owner session required or device no longer trusted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Execution policy revision changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
   /api/devices/{deviceId}:
     delete:
       operationId: revokeManagedDevice
