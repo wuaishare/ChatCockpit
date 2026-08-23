@@ -2,26 +2,23 @@
 
 > Status: Implemented for the local-first operator Web UI MVP.
 >
-> This document records the project-owned visual system. It uses Lobe UI and Ant Design as implementation references, but ChatCockpit owns the palette, theme tokens, layout rhythm, and component vocabulary.
+> This document records the project-owned visual system. Ant Design is the Web component implementation foundation, while ChatCockpit owns the palette, semantic tokens, layout rhythm, component vocabulary, and cross-platform design contract.
 
 ## Design Direction
 
 ChatCockpit uses a Chinese-first operator console style: local-first, restrained, compact, and operationally clear. The Web surface implements the project-wide [Spectrum Cockpit Design System](./design-system.md): a focused Cyan → Sky → Blue identity spectrum, `#2073FF` for primary interaction, Ink-derived operational surfaces, and independent semantic status colors. The goal is not visual spectacle. The goal is a professional Chinese product UI that feels closer to a serious control console than to a landing page, AI demo, or neon dashboard.
 
-The LobeHub reference is used in three specific ways:
+Ant Design is used as the Web implementation layer in three specific ways:
 
-- theme and token centralization through `ThemeProvider` + Ant Design compatible tokens
-- restrained visual hierarchy instead of oversized hero typography
-- consistency across toolbar, cards, empty states, and theme modes
+- one `ConfigProvider` owns component theme delivery
+- ChatCockpit semantic tokens map into Ant Design `ThemeConfig` through `buildAntdTheme()`
+- mature Ant Design components provide consistent behavior for forms, tables, navigation, feedback, overlays, and accessibility
 
-Current source-backed constraints taken from `@lobehub/ui`:
+ChatCockpit does not adopt Ant Design's brand identity wholesale. The project owns its Primary seed, neutral surfaces, density, status semantics, and geometry. Business CSS must not depend directly on generated `--ant-*` internals; those variables are an implementation detail produced from the public Ant Design token API.
 
-- the default theme entry is `ThemeProvider` from `antd-style`
-- custom colors are expected to flow through Ant Design compatible theme tokens
-- the package already loads `@lobehub/webfont-harmony-sans` and `@lobehub/webfont-harmony-sans-sc`
-- the default base token direction in Lobe UI uses compact product radii and compact control heights instead of oversized marketing spacing
+Project-owned thin adapters such as `UiText` and `CopyButton` may wrap Ant Design components when they preserve ChatCockpit semantics or reduce repetitive migration code. They must not introduce a second theme system.
 
-The reference is not used as a license to add decorative gradients, oversized display copy, or oversized empty whitespace.
+The design system is not a license to add decorative gradients, oversized display copy, or oversized empty whitespace.
 
 ## Cross-Surface Contract
 
@@ -37,7 +34,7 @@ The Web UI supports three modes:
 - `dark`: uses the dark control-deck palette.
 - `light`: uses the light control-deck palette.
 
-The selected mode is stored in browser `sessionStorage` under `chatcockpit:web:theme-mode`; the legacy `tokenpilot:web:theme-mode` key is migrated receive-only on read. The resolved appearance is written to `data-theme` on `<html>` so CSS tokens, Ant Design, and Lobe UI share the same truth.
+The selected mode is stored in browser `sessionStorage` under `chatcockpit:web:theme-mode`; the legacy `tokenpilot:web:theme-mode` key is migrated receive-only on read. The resolved appearance is written to `data-theme` on `<html>` so ChatCockpit CSS tokens and Ant Design share the same truth.
 
 ## Token Strategy
 
@@ -45,22 +42,22 @@ Core implementation files:
 
 - `web/src/theme.ts`: mode persistence, system preference resolution, and Ant Design token mapping.
 - `web/src/styles.css`: ChatCockpit CSS variables, surfaces, responsive layout, and component styling.
-- `web/src/main.tsx`: shared ThemeProvider wiring for Lobe UI and Ant Design.
+- `web/src/main.tsx`: the single Ant Design `ConfigProvider` theme boundary and application root.
 
-The CSS system uses project-prefixed variables (`--tp-*`) for colors, typography, radius, panels, text, and spacing. Brand primitives use `--tp-brand-*`; semantic interaction uses `--tp-accent*`; broadly consumed legacy aliases such as `--tp-cyan` remain compatibility mappings rather than a second palette. Do not hardcode new colors or radii in components unless the value becomes a named token.
+The CSS system uses project-prefixed variables (`--tp-*`) for colors, typography, radius, panels, text, and spacing. Brand primitives use `--tp-brand-*`; semantic interaction uses `--tp-accent*`. Cyan and Sky are identity-only primitives and must not be exposed through compatibility aliases such as `--tp-cyan` for ordinary product interaction. Do not hardcode new colors or radii in components unless the value becomes a named token.
 
 Required visual constraints:
 
 - Typography scale stays in a tight product range. Default UI sizes should be `12 / 13 / 14 / 16 / 18 / 20`.
-- Radius stays on a strict discrete scale. Default UI radii should be `8 / 10 / 14 / 18`.
+- Radius stays on a strict discrete scale. Default UI radii should be `6 / 8 / 10 / 12` to keep the cockpit precise and compact.
 - Dark mode is not a neon stage. Light mode is not a washed-out whiteboard.
 - Background treatment must stay subtle enough that data remains the first thing the eye sees.
 
-LobeHub-aligned implementation notes:
+Ant Design implementation notes:
 
 - Font stack should prefer `HarmonyOS Sans` and `HarmonyOS Sans SC` when available, then fall back to PingFang / Microsoft Yahei / system fonts.
-- Lobe UI base token defaults around `borderRadius: 8` and `controlHeight: 36`. ChatCockpit intentionally stays near that compact range and should not drift toward oversized cards or controls.
-- ChatCockpit may be slightly denser than LobeHub defaults because this surface is an operator console rather than a consumer chat product.
+- ChatCockpit intentionally keeps Ant Design controls in a compact operator-console range (`controlHeight` around 34 and radii on the `6 / 8 / 10 / 12` scale).
+- Ant Design component defaults may be overridden only through documented theme/component tokens or project-owned semantic wrappers, not by inventing a parallel component theme.
 
 ## Component Vocabulary
 
@@ -112,4 +109,4 @@ Current verification targets:
 
 Known non-blocking follow-up:
 
-- The production web bundle is above Vite's default chunk warning threshold because Ant Design and Lobe UI are loaded in one MVP bundle. This is acceptable for the local-first MVP, but future routes can use lazy imports if startup cost becomes an issue.
+- Ant Design and its RC component dependencies are grouped into the Web `ui-core` vendor chunk. Continue monitoring startup cost and prefer route-level lazy loading before introducing another general-purpose UI framework.

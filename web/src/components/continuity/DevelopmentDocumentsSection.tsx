@@ -1,5 +1,5 @@
 import { App as AntApp, Button, Form, Input, Modal, Select, Tag } from "antd";
-import { Text } from "@lobehub/ui";
+import { UiText as Text } from "../UiText";
 import {
   CheckCircleOutlined,
   FileAddOutlined,

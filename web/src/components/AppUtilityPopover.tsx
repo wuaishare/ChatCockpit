@@ -1,10 +1,9 @@
 import { Button, Divider, Popover, Segmented } from "antd";
 import { LogoutOutlined, SafetyCertificateOutlined, UserOutlined } from "@ant-design/icons";
-import type { ThemeMode } from "antd-style";
 import { useState } from "react";
 
 import { getUiCopy, localeOptions, type LocaleCode } from "../i18n";
-import { themeLabels } from "../theme";
+import { themeLabels, type ThemeMode } from "../theme";
 
 interface AppUtilityPopoverProps {
   locale: LocaleCode;

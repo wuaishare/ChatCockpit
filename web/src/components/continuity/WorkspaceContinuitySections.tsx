@@ -1,5 +1,5 @@
 import { Alert, Button, Popconfirm, Tag } from "antd";
-import { Text } from "@lobehub/ui";
+import { UiText as Text } from "../UiText";
 import {
   BranchesOutlined,
   CheckCircleOutlined,
@@ -52,7 +52,7 @@ export function WriterBanner({
     <Alert
       className="continuity-writer-banner"
       showIcon
-      type={lease ? "warning" : "success"}
+      type={lease ? "warning" : "info"}
       icon={lease ? <LockOutlined /> : <UnlockOutlined />}
       message={lease ? copy.activeWriter : copy.noActiveWriter}
       description={

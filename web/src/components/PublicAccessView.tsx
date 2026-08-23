@@ -1,6 +1,6 @@
 import { Button, Collapse, Input, Select, Steps, Tag } from "antd";
-import { CopyButton, Text } from "@lobehub/ui";
-import { ClipboardCopy } from "lucide-react";
+import { CopyButton } from "./CopyButton";
+import { UiText as Text } from "./UiText";
 import { useEffect, useMemo, useState } from "react";
 import type { LocaleCode } from "../i18n";
 import { getPublicAccessCopy } from "../i18n/public-access";
@@ -69,7 +69,7 @@ function EndpointValue({
           {value}
         </a>
       ) : value}
-      <CopyButton aria-label={copyLabel} content={value} icon={ClipboardCopy} />
+      <CopyButton aria-label={copyLabel} content={value} />
     </strong>
   );
 }

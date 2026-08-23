@@ -24,7 +24,7 @@ App Icon 母版在圆角图标主体之外必须保持透明画布。macOS 的 `
 | Token | 色值 | 用途 |
 | --- | --- | --- |
 | Brand Cyan | `#00E6FF` | 高对比品牌高光 |
-| Brand Sky | `#06B8FF` | 品牌 / Hover 过渡 |
+| Brand Sky | `#06B8FF` | 仅用于品牌渐变 |
 | Brand Blue | `#2073FF` | 主品牌色与主交互色 |
 | Icon Graphite | `#282828` | 仅用于 App 图标底板的对比中性色 |
 
@@ -35,11 +35,11 @@ App Icon 母版在圆角图标主体之外必须保持透明画布。macOS 的 `
 ### 交互体系
 
 - Primary：`#2073FF`
-- Hover 方向：`#06B8FF`
-- Active 方向：由 Primary 与 Ink 派生的更深蓝色，不再引入新的紫色系。
+- Hover：`#3B82FF`
+- Active：`#155FD6`
 - Focus Ring：由 Primary 派生并保证可见对比度。
 
-按钮、链接、导航选中态和关键控件统一使用这一交互体系，不使用多色彩虹渐变。
+按钮、链接、导航选中态、信息提示和关键控件统一使用这一套 Blue Ramp。Cyan 与 Sky 只属于品牌识别，不再进入普通交互状态。
 
 ### 状态语义
 
@@ -74,7 +74,7 @@ Success、Warning、Danger、Inactive、Unknown 使用独立语义色。Brand Cy
 
 产品字体保持紧凑，默认 UI 维持 `12 / 13 / 14 / 15 / 17 / 19` 这一范围；业务页不使用营销页式超大标题。
 
-圆角继续使用 `8 / 10 / 14 / 18` 离散尺度，组件不得随意发明新的圆角值。
+圆角收紧为 `6 / 8 / 10 / 12` 离散尺度，组件不得随意发明新的圆角值；运营型界面应呈现精密、克制的结构感，而不是过度柔软或玩具化。
 
 动效只服务于选中、聚焦、开合和状态变化。持续发光、装饰性循环动画和大面积霓虹不属于 ChatCockpit 设计语言。
 
@@ -82,8 +82,10 @@ Success、Warning、Danger、Inactive、Unknown 使用独立语义色。Brand Cy
 
 品牌一致不等于各端长得完全一样：
 
-- **Web Cockpit**：使用 Ink Surface、精细边框、高信息密度和克制品牌强调。
+- **Web Cockpit**：使用 Ink Surface、精细边框、高信息密度和克制品牌强调。Ant Design 是 Web 唯一的通用组件实现层；ChatCockpit 语义 Token 通过项目主题边界映射到 Ant Design，不再叠加第二套 UI Theme Framework。
 - **macOS App**：尊重 SwiftUI/AppKit 原生材质、系统语义色和交互习惯，品牌色主要用于 Logo 和 Accent。
 - **Menu Bar**：使用 canonical 单色 Logo 作为 macOS Template Image；Runtime 健康状态在 Operational HUD 内独立表达，品牌图标本身不充当红绿灯。
+
+跨平台一致性定义在语义 Token、组件意图、术语、状态、密度和交互规则层；各端实现仍遵循本平台原生体系，不强行把 Web 组件库复制到 macOS、Windows、iOS 或 Android。
 
 能力归属与跨端职责继续以 [Surface Design Contract](./surface-design-contract.md) 为最高合同。

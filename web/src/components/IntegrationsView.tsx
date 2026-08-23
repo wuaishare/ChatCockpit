@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Popconfirm, Spin, Tag } from "antd";
-import { CopyButton, Text } from "@lobehub/ui";
-import { ClipboardCopy } from "lucide-react";
+import { CopyButton } from "./CopyButton";
+import { UiText as Text } from "./UiText";
 import {
   fetchOAuthAuthorizationGrants,
   fetchOAuthGrantDeviceAccess,
@@ -419,7 +419,6 @@ export function IntegrationsView({
               <CopyButton
                 aria-label={copy.copyInstructions}
                 content={compatibilityInstructions}
-                icon={ClipboardCopy}
               />
             </div>
           ) : (
@@ -431,7 +430,7 @@ export function IntegrationsView({
           <strong>{copy.schemaImportUrl}</strong>
           <div className="gpt-schema-line">
             <pre className="job-detail__preview">{schemaImportUrl}</pre>
-            <CopyButton aria-label={copy.copyUrl} content={schemaImportUrl} icon={ClipboardCopy} />
+            <CopyButton aria-label={copy.copyUrl} content={schemaImportUrl} />
           </div>
         </div>
       </SectionCard>

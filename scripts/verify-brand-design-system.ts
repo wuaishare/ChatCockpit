@@ -6,6 +6,14 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), "utf8");
 const exists = (relativePath: string) => fs.existsSync(path.join(root, relativePath));
+const packageJson = JSON.parse(read("package.json")) as {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+const packageDependencies = {
+  ...packageJson.dependencies,
+  ...packageJson.devDependencies
+};
 
 const appIconPath = "assets/brand/chatcockpit-app-icon.svg";
 const menuBarTemplatePath = "assets/brand/chatcockpit-menubar-template.svg";
@@ -33,8 +41,16 @@ assert.match(
 );
 assert.equal(exists("web/src/assets/chatcockpit-logo.svg"), false, "Legacy duplicate Web logo must not remain");
 
+const webMain = read("web/src/main.tsx");
 const webTheme = read("web/src/theme.ts");
 const webStyles = read("web/src/styles.css");
+assert.equal(packageDependencies.antd, "6.5.4", "Ant Design must stay on the reviewed 6.5.4 baseline");
+assert.equal(packageDependencies["@ant-design/icons"], "6.3.2", "Ant Design icons must be a direct, pinned dependency");
+for (const removedDependency of ["@lobehub/ui", "@lobehub/icons", "@lobehub/fluent-emoji", "antd-style", "motion"]) {
+  assert.equal(packageDependencies[removedDependency], undefined, `${removedDependency} must not return to the Web design-system dependency chain`);
+}
+assert.match(webMain, /import \{ App as AntApp, ConfigProvider \} from "antd";/, "Web root must use the Ant Design ConfigProvider directly");
+assert.doesNotMatch(webMain, /@lobehub|ThemeProvider|primaryColor/, "Web root must not reintroduce a competing theme provider");
 assert.match(webStyles, /--tp-brand-cyan:\s*#00e6ff/);
 assert.match(webStyles, /--tp-brand-sky:\s*#06b8ff/);
 assert.match(webStyles, /--tp-brand-blue:\s*#2073ff/);
@@ -42,7 +58,16 @@ assert.doesNotMatch(webStyles, /--tp-brand-(?:violet|magenta|pink|amber):/, "Ret
 assert.doesNotMatch(webStyles, /--tp-(?:violet|magenta):/, "Legacy violet/magenta aliases must not return");
 assert.match(webStyles, /--tp-brand-gradient:\s*linear-gradient\([^\n]+#00e6ff[^\n]+#06b8ff[^\n]+#2073ff/, "Brand gradient must stay inside the focused Cyan → Sky → Blue spectrum");
 assert.match(webStyles, /--tp-accent:\s*var\(--tp-brand-blue\)/, "Web must define the canonical interaction accent");
+assert.doesNotMatch(webStyles, /--tp-cyan\s*:/, "Cyan must remain an identity primitive, not a product interaction alias");
+assert.doesNotMatch(webStyles, /var\(--tp-cyan\)/, "Ordinary Web interaction must not consume the retired Cyan alias");
 assert.match(webStyles, /--tp-bg:\s*#020817/, "Dark Web foundation must use the canonical Ink family");
+assert.match(webStyles, /--tp-radius-sm:\s*6px/);
+assert.match(webStyles, /--tp-radius-md:\s*8px/);
+assert.match(webStyles, /--tp-radius-lg:\s*10px/);
+assert.match(webStyles, /--tp-radius-xl:\s*12px/);
+assert.match(webTheme, /borderRadius:\s*8,/, "Ant Design base radius must match the compact cockpit geometry");
+assert.match(webTheme, /borderRadiusLG:\s*10,/, "Ant Design large radius must match the compact cockpit geometry");
+assert.match(webTheme, /borderRadiusSM:\s*6,/, "Ant Design small radius must match the compact cockpit geometry");
 assert.match(webTheme, /colorPrimary:\s*"#2073ff"/, "Ant Design primary token must match ChatCockpit Primary");
 for (const legacyColor of ["#1777ff", "#2d5bdb", "#6b7fd7", "#8a8fe6"]) {
   assert.equal(webStyles.toLowerCase().includes(legacyColor), false, `Web CSS still contains legacy color ${legacyColor}`);

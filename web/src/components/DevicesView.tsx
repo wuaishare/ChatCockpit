@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Popconfirm, Spin, Tag } from "antd";
-import { MonitorSmartphone, RefreshCw, ShieldCheck } from "lucide-react";
+import { DesktopOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import {
   decideDeviceEnrollment,
@@ -122,7 +122,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
         extra={
           <Button
             size="small"
-            icon={<RefreshCw size={14} />}
+            icon={<ReloadOutlined />}
             onClick={() => void load(true)}
             loading={loading}
           >
@@ -142,7 +142,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                   <div className="device-card__header">
                     <div className="device-card__identity">
                       <span className="device-card__icon" aria-hidden="true">
-                        <MonitorSmartphone size={18} />
+                        <DesktopOutlined />
                       </span>
                       <div>
                         <strong>{device.displayName}</strong>
@@ -222,7 +222,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
       <SectionCard
         title={copy.requestsTitle}
         description={copy.requestsDescription}
-        extra={<Tag icon={<ShieldCheck size={12} />}>{requests.length}</Tag>}
+        extra={<Tag icon={<SafetyCertificateOutlined />}>{requests.length}</Tag>}
       >
         {requests.length === 0 ? (
           <div className="section-note device-empty-state">
@@ -236,7 +236,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                 <div className="device-card__header">
                   <div className="device-card__identity">
                     <span className="device-card__icon" aria-hidden="true">
-                      <ShieldCheck size={18} />
+                      <SafetyCertificateOutlined />
                     </span>
                     <div>
                       <strong>{request.displayName}</strong>

@@ -1,6 +1,6 @@
 import { Button, Menu, Select, Tag } from "antd";
 import type { MenuProps } from "antd";
-import { Text } from "@lobehub/ui";
+import { UiText as Text } from "../UiText";
 import {
   ApartmentOutlined,
   AuditOutlined,

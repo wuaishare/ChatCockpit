@@ -24,7 +24,7 @@ Color is separated into three layers: primitive brand colors, semantic interacti
 | Token | Value | Role |
 | --- | --- | --- |
 | Brand Cyan | `#00E6FF` | high-contrast identity highlight |
-| Brand Sky | `#06B8FF` | identity / hover bridge |
+| Brand Sky | `#06B8FF` | identity gradient only |
 | Brand Blue | `#2073FF` | primary identity and interaction |
 | Icon Graphite | `#282828` | App icon tile only; contrast neutral |
 
@@ -35,15 +35,15 @@ For small-size legibility, structural headset/microphone shapes should prefer so
 ### Interaction
 
 - Primary: `#2073FF`
-- Hover direction: `#06B8FF`
-- Active direction: a darker Blue derived from Primary and Ink, not a new hue family.
+- Hover: `#3B82FF`
+- Active: `#155FD6`
 - Focus rings derive from Primary with sufficient contrast.
 
-Buttons, links, selected navigation, and controls use this interaction family. They do not use multi-hue or rainbow gradients.
+Buttons, links, selected navigation, information notices, and controls use this Blue ramp. Cyan and Sky are identity colors only and must not leak into ordinary interaction states.
 
 ### Semantic status
 
-Success, warning, danger, inactive, and unknown use independent semantic colors. Brand Cyan/Sky/Blue identify ChatCockpit and interaction; they do not encode runtime health by themselves.
+Success, warning, danger, inactive, and unknown use independent semantic colors. Cyan/Sky are identity-only; Blue owns ordinary interaction and information. None of the brand colors encodes runtime health by itself.
 
 The seven-state product contract remains: `healthy`, `active`, `pending`, `warning`, `danger`, `inactive`, and `unknown`.
 
@@ -74,7 +74,7 @@ Legacy `--tp-*` variable names may remain where they are already broadly consume
 
 Product typography stays compact. Default UI sizes remain in the `12 / 13 / 14 / 15 / 17 / 19` range; large marketing typography does not belong in operational screens.
 
-Radii use the established `8 / 10 / 14 / 18` scale. Controls and cards should not invent arbitrary corner radii.
+Radii use the tighter `6 / 8 / 10 / 12` scale. Controls and cards should not invent arbitrary corner radii; operational UI should read as precise rather than soft or toy-like.
 
 Motion is short and functional. It may communicate selection, focus, opening, closing, or state change. Decorative looping motion and persistent glow are out of scope.
 
@@ -82,8 +82,10 @@ Motion is short and functional. It may communicate selection, focus, opening, cl
 
 Brand consistency does not mean visual cloning.
 
-- **Web Cockpit** uses Ink-derived surfaces, precise borders, compact data density, and restrained brand accents.
+- **Web Cockpit** uses Ink-derived surfaces, precise borders, compact data density, and restrained brand accents. Ant Design is the single general-purpose Web component implementation layer; ChatCockpit semantic tokens map into it through the project theme boundary rather than through a second UI theme framework.
 - **macOS App** follows SwiftUI/AppKit conventions, native materials, native semantic colors, and system interaction behavior. Brand color is limited to identity and accent roles.
 - **Menu Bar** uses the canonical monochrome artwork as a macOS Template Image. Runtime health remains a separate status signal inside the Operational HUD; the brand icon itself does not become a red/green status light.
+
+Cross-platform consistency is defined at the semantic-token, component-intent, terminology, state, density, and interaction-rule layers. Platform implementations remain native to their environment instead of forcing one Web component library across macOS, Windows, iOS, or Android.
 
 The [Surface Design Contract](./surface-design-contract.md) remains authoritative for capability ownership across Menu Bar, macOS App, Web Cockpit, and Runtime.
