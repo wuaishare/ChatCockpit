@@ -191,10 +191,78 @@ const operationalActivityControlEventsMigration: GovernanceMigration = {
   }
 };
 
+const deviceRuntimeOperationsMigration: GovernanceMigration = {
+  version: 4,
+  name: "device-runtime-operations",
+  up(database) {
+    database.exec(`
+      CREATE TABLE device_runtime_operations (
+        id TEXT PRIMARY KEY CHECK (length(id) > 0),
+        device_id TEXT NOT NULL CHECK (device_id GLOB 'cc_device_*'),
+        action TEXT NOT NULL CHECK (action IN ('start', 'stop', 'restart')),
+        state TEXT NOT NULL CHECK (
+          state IN ('prepared', 'awaiting-approval', 'executing', 'succeeded', 'failed', 'ambiguous', 'stale')
+        ),
+        approval_id TEXT NOT NULL REFERENCES governed_external_action_approvals(id) ON DELETE RESTRICT,
+        authorization_grant_id TEXT,
+        expected_state_revision INTEGER CHECK (
+          expected_state_revision IS NULL OR expected_state_revision >= 0
+        ),
+        requested_actor_type TEXT NOT NULL CHECK (
+          requested_actor_type IN ('local-cli', 'local-ui', 'rest-api', 'gpt-actions', 'remote-mcp', 'runner')
+        ),
+        requested_actor_identity_hash TEXT CHECK (
+          requested_actor_identity_hash IS NULL OR (
+            length(requested_actor_identity_hash) = 64
+            AND requested_actor_identity_hash NOT GLOB '*[^0-9a-f]*'
+          )
+        ),
+        requested_request_identity_hash TEXT NOT NULL CHECK (
+          length(requested_request_identity_hash) = 64
+          AND requested_request_identity_hash NOT GLOB '*[^0-9a-f]*'
+        ),
+        executed_actor_type TEXT CHECK (
+          executed_actor_type IS NULL OR executed_actor_type IN (
+            'local-cli', 'local-ui', 'rest-api', 'gpt-actions', 'remote-mcp', 'runner'
+          )
+        ),
+        executed_actor_identity_hash TEXT CHECK (
+          executed_actor_identity_hash IS NULL OR (
+            length(executed_actor_identity_hash) = 64
+            AND executed_actor_identity_hash NOT GLOB '*[^0-9a-f]*'
+          )
+        ),
+        executed_request_identity_hash TEXT CHECK (
+          executed_request_identity_hash IS NULL OR (
+            length(executed_request_identity_hash) = 64
+            AND executed_request_identity_hash NOT GLOB '*[^0-9a-f]*'
+          )
+        ),
+        preflight_conditions_json TEXT,
+        postflight_conditions_json TEXT,
+        error_code TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0)
+      ) STRICT;
+
+      CREATE INDEX device_runtime_operations_device_index
+        ON device_runtime_operations(device_id, updated_at DESC);
+      CREATE INDEX device_runtime_operations_state_index
+        ON device_runtime_operations(state, updated_at DESC);
+      CREATE INDEX device_runtime_operations_approval_index
+        ON device_runtime_operations(approval_id);
+    `);
+  }
+};
+
 const migrations: readonly GovernanceMigration[] = [
   initialGovernanceMigration,
   operationalActivityProvenanceMigration,
-  operationalActivityControlEventsMigration
+  operationalActivityControlEventsMigration,
+  deviceRuntimeOperationsMigration
 ];
 export const LATEST_GOVERNANCE_SCHEMA_VERSION =
   migrations[migrations.length - 1]?.version ?? 0;

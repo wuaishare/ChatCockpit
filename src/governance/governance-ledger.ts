@@ -5,6 +5,7 @@ import type {
   RuntimeResourceSnapshotRepository
 } from "../continuity/repositories/index.js";
 import type { GovernedExternalActionRepository } from "./governed-external-action-repository.js";
+import type { DeviceRuntimeOperationRepository } from "./device-runtime-operation-repository.js";
 import type { OperationalActivityProvenanceRepository } from "./operational-activity-provenance-repository.js";
 
 /**
@@ -20,6 +21,7 @@ export interface GovernanceLedger {
   runtimeResourceMutations: RuntimeResourceMutationRepository;
   runtimeResourceSnapshots: RuntimeResourceSnapshotRepository;
   externalActions: GovernedExternalActionRepository;
+  deviceRuntimeOperations: DeviceRuntimeOperationRepository;
   activityProvenance: OperationalActivityProvenanceRepository;
 }
 
@@ -29,6 +31,7 @@ export function buildGovernanceLedger(
     "idempotency" | "runtimeResourceMutations" | "runtimeResourceSnapshots"
   >,
   externalActions: GovernedExternalActionRepository,
+  deviceRuntimeOperations: DeviceRuntimeOperationRepository,
   activityProvenance: OperationalActivityProvenanceRepository
 ): GovernanceLedger {
   return {
@@ -36,6 +39,7 @@ export function buildGovernanceLedger(
     runtimeResourceMutations: repositories.runtimeResourceMutations,
     runtimeResourceSnapshots: repositories.runtimeResourceSnapshots,
     externalActions,
+    deviceRuntimeOperations,
     activityProvenance
   };
 }

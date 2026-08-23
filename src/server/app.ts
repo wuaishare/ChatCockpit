@@ -30,6 +30,7 @@ import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
 import { DeviceTargetService } from "../application/device-target-service.js";
+import { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
 import { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
@@ -82,6 +83,7 @@ import {
   governanceDatabasePath
 } from "../governance/database.js";
 import { GovernedExternalActionRepository } from "../governance/governed-external-action-repository.js";
+import { DeviceRuntimeOperationRepository } from "../governance/device-runtime-operation-repository.js";
 import { OperationalActivityProvenanceRepository } from "../governance/operational-activity-provenance-repository.js";
 import { OperationalActivityControlEventRepository } from "../governance/operational-activity-control-event-repository.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
@@ -178,6 +180,7 @@ import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
+import { registerDeviceRuntimeLifecycleRoutes } from "./device-runtime-lifecycle-routes.js";
 import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
 import { buildDeviceLanTlsServer } from "./device-lan-tls-server.js";
 import { registerHubIdentityRoutes } from "./hub-identity-routes.js";
@@ -553,6 +556,9 @@ export function buildServer(
   const governedExternalActions = new GovernedExternalActionRepository(
     continuityDatabase
   );
+  const deviceRuntimeOperations = new DeviceRuntimeOperationRepository(
+    continuityDatabase
+  );
   const operationalActivityProvenance = new OperationalActivityProvenanceRepository(
     continuityDatabase
   );
@@ -727,7 +733,15 @@ export function buildServer(
   const governanceLedger = buildGovernanceLedger(
     continuityServices.repositories,
     governedExternalActions,
+    deviceRuntimeOperations,
     operationalActivityProvenance
+  );
+  const deviceRuntimeLifecycleService = new DeviceRuntimeLifecycleService(
+    governanceLedger,
+    deviceTargetService,
+    deviceChannelHub,
+    deviceRuntimeLifecycleRpc,
+    oauthDeviceAccessPolicy
   );
   const capabilityRouterMutations = new CapabilityRouterMutationService(
     paths.runtimeDir,
@@ -837,6 +851,7 @@ export function buildServer(
       }
     }
   });
+  registerDeviceRuntimeLifecycleRoutes(app, deviceRuntimeLifecycleService);
   registerDeviceChannelRoutes(
     app,
     deviceRegistryStore,
@@ -904,6 +919,7 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
+    deviceRuntimeLifecycleService,
     exposedRuntimeResourceMutationService,
     codexThreadImportService
   ).length;
@@ -926,6 +942,7 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
+    deviceRuntimeLifecycleService,
     exposedRuntimeResourceMutationService,
     codexThreadImportService,
     oauthDeviceAccessPolicy
