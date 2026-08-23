@@ -6,7 +6,7 @@
 
 ## Design Direction
 
-ChatCockpit uses a Chinese-first operator console style: local-first, restrained, compact, and operationally clear. The Web surface implements the project-wide [Spectrum Cockpit Design System](./design-system.md): full spectrum for identity, `#2073FF` for primary interaction, Ink-derived operational surfaces, and independent semantic status colors. The goal is not visual spectacle. The goal is a professional Chinese product UI that feels closer to a serious control console than to a landing page, AI demo, or neon dashboard.
+ChatCockpit uses a Chinese-first operator console style: local-first, restrained, compact, and operationally clear. The Web surface implements the project-wide [Spectrum Cockpit Design System](./design-system.md): a focused Cyan → Sky → Blue identity spectrum, `#2073FF` for primary interaction, Ink-derived operational surfaces, and independent semantic status colors. The goal is not visual spectacle. The goal is a professional Chinese product UI that feels closer to a serious control console than to a landing page, AI demo, or neon dashboard.
 
 The LobeHub reference is used in three specific ways:
 

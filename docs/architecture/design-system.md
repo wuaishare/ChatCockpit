@@ -1,6 +1,6 @@
 # ChatCockpit Design System
 
-ChatCockpit uses a restrained **Spectrum Cockpit** design system: recognizable brand color at identity points, a calm blue interaction language, independent semantic status colors, and dense operational surfaces.
+ChatCockpit uses a restrained **Spectrum Cockpit** design system: identity is limited to a focused cool spectrum (Cyan → Sky → Blue), interaction stays in the same calm blue family, semantic status colors remain independent, and operational surfaces stay dense and low-noise.
 
 The visual principle is **cockpit precision, not cockpit decoration**. The product should feel like a modern AI work-environment control panel, not an RGB gaming dashboard or a generic SaaS admin template.
 
@@ -13,42 +13,43 @@ Canonical artwork lives in `assets/brand/`:
 
 Do not create hand-edited copies of either asset inside product surfaces. Derived platform assets must be generated from these canonical sources.
 
+The App icon master intentionally leaves the canvas outside its rounded tile transparent. macOS derives `ChatCockpit.icns` only from alpha-capable PNG intermediates rendered with `sips`; Quick Look thumbnail rendering and JPEG/JPG intermediates are prohibited because they can flatten transparent corners to white.
+
 ## Color Architecture
 
 Color is separated into three layers: primitive brand colors, semantic interaction tokens, and status colors. Brand spectrum and operational status must never be conflated.
 
-### Brand spectrum
+### Focused brand spectrum
 
 | Token | Value | Role |
 | --- | --- | --- |
-| Brand Cyan | `#00E6FF` | identity spectrum |
+| Brand Cyan | `#00E6FF` | high-contrast identity highlight |
 | Brand Sky | `#06B8FF` | identity / hover bridge |
-| Brand Blue | `#2073FF` | primary interaction |
-| Brand Violet | `#7B4CFF` | identity / active bridge |
-| Brand Magenta | `#C934F2` | identity spectrum |
-| Brand Pink | `#FF3EAE` | identity spectrum |
-| Brand Amber | `#FFAA22` | identity spectrum |
+| Brand Blue | `#2073FF` | primary identity and interaction |
+| Icon Graphite | `#282828` | App icon tile only; contrast neutral |
 
-The full spectrum gradient is a brand asset, not a universal UI fill. Use it for the canonical icon, brand presentation, and rare high-value identity accents only.
+The canonical color sweep is intentionally limited to Cyan → Sky → Blue. Violet, magenta, pink, and amber are no longer brand primitives. `#282828` is an identity-neutral tile used to keep the logo readable at small sizes; it is not a new interactive color. The focused gradient is a brand asset, not a universal UI fill; use it for the canonical icon, brand presentation, and rare high-value identity accents only.
+
+For small-size legibility, structural headset/microphone shapes should prefer solid Cyan or Blue, while the Cyan → Sky → Blue gradient is reserved for larger focal areas such as the visor. Do not reintroduce many small multicolor fragments that disappear or muddy together below 32 px.
 
 ### Interaction
 
 - Primary: `#2073FF`
 - Hover direction: `#06B8FF`
-- Active direction: `#7B4CFF`
+- Active direction: a darker Blue derived from Primary and Ink, not a new hue family.
 - Focus rings derive from Primary with sufficient contrast.
 
-Buttons, links, selected navigation, and controls use this interaction family. They do not use the full spectrum gradient.
+Buttons, links, selected navigation, and controls use this interaction family. They do not use multi-hue or rainbow gradients.
 
 ### Semantic status
 
-Success, warning, danger, inactive, and unknown use independent semantic colors. A magenta or amber brand stop does not automatically mean danger or warning.
+Success, warning, danger, inactive, and unknown use independent semantic colors. Brand Cyan/Sky/Blue identify ChatCockpit and interaction; they do not encode runtime health by themselves.
 
 The seven-state product contract remains: `healthy`, `active`, `pending`, `warning`, `danger`, `inactive`, and `unknown`.
 
 ## Surface Foundations
 
-Dark mode is anchored in the App icon's Ink family:
+Dark mode uses a dedicated operational Ink family. It is intentionally darker and bluer than the icon-only Graphite tile so product surfaces keep depth without forcing the App icon background into every screen:
 
 - Ink 950 `#020817`
 - Ink 900 `#061127`
