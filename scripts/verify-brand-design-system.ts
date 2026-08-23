@@ -69,6 +69,14 @@ assert.match(webTheme, /borderRadius:\s*8,/, "Ant Design base radius must match 
 assert.match(webTheme, /borderRadiusLG:\s*10,/, "Ant Design large radius must match the compact cockpit geometry");
 assert.match(webTheme, /borderRadiusSM:\s*6,/, "Ant Design small radius must match the compact cockpit geometry");
 assert.match(webTheme, /colorPrimary:\s*"#2073ff"/, "Ant Design primary token must match ChatCockpit Primary");
+for (const semanticToken of ["colorInfoBg", "colorInfoBorder", "colorSuccessBg", "colorSuccessBorder", "colorWarningBg", "colorWarningBorder", "colorErrorBg", "colorErrorBorder"]) {
+  assert.match(webTheme, new RegExp(`${semanticToken}:`), `Ant Design ${semanticToken} must be normalized through ChatCockpit semantic tokens`);
+}
+for (const semanticForeground of ["--tp-success-fg", "--tp-warning-fg", "--tp-danger-fg", "--tp-accent-fg"]) {
+  assert.match(webStyles, new RegExp(`${semanticForeground}:`), `Missing semantic foreground token ${semanticForeground}`);
+}
+assert.match(webStyles, /\.ant-tag\.ant-tag-success[\s\S]+var\(--tp-success-fg\)/, "Success Tag text must use the readable semantic foreground");
+assert.match(webStyles, /\.ant-tag\.ant-tag-processing[\s\S]+var\(--tp-accent-fg\)/, "Processing Tag text must use the readable accent foreground");
 for (const legacyColor of ["#1777ff", "#2d5bdb", "#6b7fd7", "#8a8fe6"]) {
   assert.equal(webStyles.toLowerCase().includes(legacyColor), false, `Web CSS still contains legacy color ${legacyColor}`);
   assert.equal(webTheme.toLowerCase().includes(legacyColor), false, `Web theme still contains legacy color ${legacyColor}`);

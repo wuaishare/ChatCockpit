@@ -45,6 +45,8 @@ Buttons, links, selected navigation, information notices, and controls use this 
 
 Success, warning, danger, inactive, and unknown use independent semantic colors. Cyan/Sky are identity-only; Blue owns ordinary interaction and information. None of the brand colors encodes runtime health by itself.
 
+Semantic colors are split into **base** and **foreground** roles. Base colors feed low-opacity backgrounds, borders, and indicators; dedicated foreground tokens (`*-fg`) protect text and icon contrast in both Light and Dark themes. Ant Design preset `Tag` and `Alert` palettes must be normalized through ChatCockpit semantic tokens instead of exposing bright preset backgrounds directly, especially in Dark mode. Small semantic text targets at least WCAG AA 4.5:1 contrast.
+
 The seven-state product contract remains: `healthy`, `active`, `pending`, `warning`, `danger`, `inactive`, and `unknown`.
 
 ## Surface Foundations

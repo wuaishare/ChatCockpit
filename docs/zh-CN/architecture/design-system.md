@@ -45,6 +45,8 @@ App Icon 母版在圆角图标主体之外必须保持透明画布。macOS 的 `
 
 Success、Warning、Danger、Inactive、Unknown 使用独立语义色。Brand Cyan/Sky/Blue 用于 ChatCockpit 身份与交互，不直接代表运行健康状态。
 
+状态色进一步拆成 **Base** 与 **Foreground** 两类职责：Base 用于低透明度背景、边框与状态标记，专用 `*-fg` Token 用于保障 Light / Dark 两套主题下的小字号文字与图标对比度。Ant Design 自带的 `Tag` / `Alert` preset 色板必须通过 ChatCockpit 语义 Token 归一化，不能在深色主题中直接露出高亮浅底。语义小字号文本至少以 WCAG AA 4.5:1 为目标。
+
 跨端七态合同继续保持：`healthy`、`active`、`pending`、`warning`、`danger`、`inactive`、`unknown`。
 
 ## Surface 基础色
