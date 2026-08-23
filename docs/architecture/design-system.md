@@ -62,7 +62,9 @@ Dark mode uses a dedicated operational Ink family. It is intentionally darker an
 - Ink 700 `#173257`
 - Ink 600 `#29466F`
 
-Light mode uses cool white and blue-gray surfaces rather than a pure-white marketing canvas. Borders remain subtle; elevation is communicated by restrained contrast and shadow rather than glass effects.
+Light mode uses cool white and blue-gray surfaces rather than a pure-white marketing canvas. Ordinary panels are border-first and shadowless; restrained shadow is reserved for genuinely elevated or overlay surfaces rather than repeated on every card.
+
+Repeated section headers must earn any accent icon through information value. A generic colored glyph repeated across every section is decoration, not hierarchy; typography and compact spacing should carry the default section structure.
 
 ## Token Layers
 

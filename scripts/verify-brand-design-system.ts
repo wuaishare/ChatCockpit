@@ -36,6 +36,7 @@ assert.ok(exists(menuBarTemplatePath), "Missing canonical ChatCockpit Menu Bar t
 const appIcon = read(appIconPath);
 const menuBarTemplate = read(menuBarTemplatePath);
 const appSidebar = read("web/src/components/AppSidebar.tsx");
+const sectionCard = read("web/src/components/SectionCard.tsx");
 
 for (const color of ["#00e6ff", "#06b8ff", "#2073ff", "#282828"]) {
   assert.match(appIcon.toLowerCase(), new RegExp(color), `Canonical app icon is missing ${color}`);
@@ -81,6 +82,15 @@ assert.match(webStyles, /--tp-radius-xl:\s*12px/);
 assert.match(webTheme, /borderRadius:\s*8,/, "Ant Design base radius must match the compact cockpit geometry");
 assert.match(webTheme, /borderRadiusLG:\s*10,/, "Ant Design large radius must match the compact cockpit geometry");
 assert.match(webTheme, /borderRadiusSM:\s*6,/, "Ant Design small radius must match the compact cockpit geometry");
+assert.match(webTheme, /controlHeight:\s*34,/, "Ordinary Ant Design controls must keep the 34px cockpit baseline");
+assert.match(webTheme, /bodyPadding:\s*16,/, "Ant Design Card density must be governed through component tokens");
+assert.match(webTheme, /itemMarginBottom:\s*16,/, "Ant Design Form density must be governed through component tokens");
+assert.match(webTheme, /itemPaddingBottom:\s*10,/, "Ant Design Descriptions density must be governed through component tokens");
+for (const tableDensityToken of ["cellPaddingBlock", "cellPaddingBlockMD", "cellPaddingBlockSM", "cellPaddingInline", "cellPaddingInlineMD", "cellPaddingInlineSM"]) {
+  assert.match(webTheme, new RegExp(`${tableDensityToken}:`), `Missing centralized Ant Design Table density token ${tableDensityToken}`);
+}
+assert.match(webStyles, /\.panel\s*\{[^}]*box-shadow:\s*none;/, "Ordinary panels must stay border-first and shadowless");
+assert.doesNotMatch(sectionCard, /AppstoreOutlined|section-card__icon/, "SectionCard must not repeat a generic colored decorative icon");
 assert.match(webTheme, /colorPrimary:\s*"#2073ff"/, "Ant Design primary token must match ChatCockpit Primary");
 for (const semanticToken of ["colorInfoBg", "colorInfoBorder", "colorSuccessBg", "colorSuccessBorder", "colorWarningBg", "colorWarningBorder", "colorErrorBg", "colorErrorBorder"]) {
   assert.match(webTheme, new RegExp(`${semanticToken}:`), `Ant Design ${semanticToken} must be normalized through ChatCockpit semantic tokens`);

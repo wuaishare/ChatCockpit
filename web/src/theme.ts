@@ -105,6 +105,22 @@ export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
           ? "0 4px 12px rgba(32, 115, 255, 0.20)"
           : "0 2px 8px rgba(32, 115, 255, 0.12)"
       },
+      Card: {
+        bodyPadding: 16,
+        bodyPaddingSM: 12,
+        headerPadding: 16,
+        headerPaddingSM: 12
+      },
+      Descriptions: {
+        itemPaddingBottom: 10,
+        itemPaddingEnd: 12,
+        titleMarginBottom: 12
+      },
+      Form: {
+        itemMarginBottom: 16,
+        labelHeight: 32,
+        verticalLabelPadding: "0 0 6px"
+      },
       Input: {
         borderRadius: 8,
         controlHeight: 34
@@ -116,6 +132,12 @@ export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
       },
       Table: {
         borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(17, 24, 39, 0.08)",
+        cellPaddingBlock: 10,
+        cellPaddingBlockMD: 8,
+        cellPaddingBlockSM: 6,
+        cellPaddingInline: 12,
+        cellPaddingInlineMD: 10,
+        cellPaddingInlineSM: 8,
         headerBg: isDark ? "rgba(10, 25, 53, 0.98)" : "rgba(245, 248, 252, 0.96)",
         rowHoverBg: isDark ? "rgba(32, 115, 255, 0.07)" : "rgba(32, 115, 255, 0.05)"
       },

@@ -328,8 +328,7 @@ button,
 }
 
 .app-page-heading,
-.token-bar__meta,
-.section-card__title-wrap {
+.token-bar__meta {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -348,8 +347,7 @@ button,
   min-height: 36px;
 }
 
-.token-bar__icon,
-.section-card__icon {
+.token-bar__icon {
   position: relative;
   display: block;
   flex: 0 0 auto;
@@ -484,7 +482,7 @@ button,
   background: color-mix(in srgb, var(--tp-surface) 98%, transparent);
   border: 1px solid color-mix(in srgb, var(--tp-line) 90%, transparent);
   border-radius: var(--tp-radius-lg);
-  box-shadow: var(--tp-shadow-soft);
+  box-shadow: none;
 }
 
 .token-bar {
@@ -543,18 +541,6 @@ button,
   inline-size: 18px;
   block-size: 18px;
   border-radius: 8px;
-}
-
-.section-card__icon {
-  display: grid;
-  place-items: center;
-  inline-size: 28px;
-  block-size: 28px;
-  border: 1px solid color-mix(in srgb, var(--tp-accent) 16%, transparent);
-  border-radius: var(--tp-radius-sm);
-  background: color-mix(in srgb, var(--tp-accent) 9%, transparent);
-  color: var(--tp-accent);
-  box-shadow: none;
 }
 
 .token-bar__title,
@@ -638,7 +624,7 @@ button,
 .section-card {
   position: relative;
   overflow: hidden;
-  padding: 14px 16px;
+  padding: 12px 14px;
 }
 
 .section-card::before {
@@ -677,12 +663,14 @@ button,
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .section-card__title-wrap {
+  display: grid;
   min-width: 0;
+  gap: 2px;
 }
 
 .section-card__extra {
@@ -700,7 +688,7 @@ button,
   max-width: 66ch;
   color: var(--tp-text-muted) !important;
   font-size: var(--tp-text-sm);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 .section-note {
@@ -1955,8 +1943,9 @@ button,
 .ant-table-thead > tr > th {
   color: var(--tp-text-muted) !important;
   font-size: var(--tp-text-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .ant-table-tbody > tr {
