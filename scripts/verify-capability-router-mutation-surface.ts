@@ -23,6 +23,8 @@ import type {
 } from "../src/direct/downstream-mcp-types.js";
 import { GovernanceDatabase } from "../src/governance/database.js";
 import { GovernedExternalActionRepository } from "../src/governance/governed-external-action-repository.js";
+import { DeviceRuntimeOperationRepository } from "../src/governance/device-runtime-operation-repository.js";
+import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
 import { buildGovernanceLedger } from "../src/governance/governance-ledger.js";
 import { buildCapabilityRouterMcpTools } from "../src/mcp/tools/capability-router.js";
 import { buildServer } from "../src/server/app.js";
@@ -161,9 +163,13 @@ async function verifyDirectMcpSurface(): Promise<void> {
   const governanceSchema = new GovernanceDatabase({ path: databasePath });
   governanceSchema.close();
   const externalActions = new GovernedExternalActionRepository(continuity);
+  const deviceRuntimeOperations = new DeviceRuntimeOperationRepository(continuity);
+  const activityProvenance = new OperationalActivityProvenanceRepository(continuity);
   const governance = buildGovernanceLedger(
     buildContinuityRepositories(continuity),
     externalActions,
+    deviceRuntimeOperations,
+    activityProvenance
   );
   writeConfig(configPath);
   new DownstreamMcpCapabilityStore(runtimeDir).write(snapshot());

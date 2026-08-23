@@ -8,6 +8,7 @@ import { buildContinuityRepositories } from "../src/continuity/repositories/inde
 import { buildGovernanceLedger } from "../src/governance/governance-ledger.js";
 import { GovernanceDatabase } from "../src/governance/database.js";
 import { GovernedExternalActionRepository } from "../src/governance/governed-external-action-repository.js";
+import { DeviceRuntimeOperationRepository } from "../src/governance/device-runtime-operation-repository.js";
 import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-governance-ledger-"));
@@ -17,11 +18,18 @@ const governanceDatabase = new GovernanceDatabase({ path: databasePath });
 try {
   const repositories = buildContinuityRepositories(database);
   const externalActions = new GovernedExternalActionRepository(database);
+  const deviceRuntimeOperations = new DeviceRuntimeOperationRepository(database);
   const activityProvenance = new OperationalActivityProvenanceRepository(database);
-  const ledger = buildGovernanceLedger(repositories, externalActions, activityProvenance);
+  const ledger = buildGovernanceLedger(
+    repositories,
+    externalActions,
+    deviceRuntimeOperations,
+    activityProvenance
+  );
 
   assert.deepEqual(Object.keys(ledger).sort(), [
     "activityProvenance",
+    "deviceRuntimeOperations",
     "externalActions",
     "idempotency",
     "runtimeResourceMutations",
@@ -31,6 +39,7 @@ try {
   assert.equal(ledger.runtimeResourceMutations, repositories.runtimeResourceMutations);
   assert.equal(ledger.runtimeResourceSnapshots, repositories.runtimeResourceSnapshots);
   assert.equal(ledger.externalActions, externalActions);
+  assert.equal(ledger.deviceRuntimeOperations, deviceRuntimeOperations);
   assert.equal(ledger.activityProvenance, activityProvenance);
 
   for (const relativePath of [

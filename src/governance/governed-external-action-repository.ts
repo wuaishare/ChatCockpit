@@ -459,6 +459,13 @@ export class GovernedExternalActionRepository {
     return requireExecution(row, id);
   }
 
+  findExecutionByApprovalId(approvalId: string): GovernedExternalActionExecutionRecord | null {
+    const row = this.database.sqlite
+      .prepare("SELECT * FROM governed_external_action_executions WHERE approval_id = ?")
+      .get(approvalId) as ExecutionRow | undefined;
+    return row ? executionFromRow(row) : null;
+  }
+
   finishExecution(input: {
     id: string;
     status: Exclude<GovernedExternalActionVerificationStatus, "executing">;

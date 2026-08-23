@@ -212,6 +212,9 @@ async function runMcpSmoke(): Promise<void> {
         "capabilities.mutation.prepare",
         "capabilities.read.invoke",
         "devices.targets.list",
+        "devices.runtime.lifecycle.execute",
+        "devices.runtime.operation.get",
+        "devices.runtime.status",
         "direct.executors.list",
         "document.appendVersion",
         "document.create",
@@ -316,6 +319,8 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.capabilities.mutation.inspect",
       "chatcockpit.capabilities.read.invoke",
       "chatcockpit.devices.targets.list",
+      "chatcockpit.devices.runtime.operation.get",
+      "chatcockpit.devices.runtime.status",
       "chatcockpit.direct.executors.list",
       "chatcockpit.document.get",
       "chatcockpit.document.list",
@@ -348,6 +353,18 @@ async function runMcpSmoke(): Promise<void> {
       assert.equal(toolByName.get(name)?.annotations.readOnlyHint, true);
       assert.equal(toolByName.get(name)?.annotations.destructiveHint, false);
     }
+    assert.equal(
+      toolByName.get("chatcockpit.devices.runtime.lifecycle.execute")?.annotations.readOnlyHint,
+      false
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.devices.runtime.lifecycle.execute")?.annotations.destructiveHint,
+      true
+    );
+    assert.equal(
+      toolByName.get("chatcockpit.devices.runtime.lifecycle.execute")?.annotations.idempotentHint,
+      true
+    );
     assert.equal(toolByName.get("chatcockpit.files.write")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("chatcockpit.files.write")?.annotations.destructiveHint, true);
     assert.equal(toolByName.get("chatcockpit.files.edit")?.annotations.readOnlyHint, false);

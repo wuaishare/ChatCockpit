@@ -18,6 +18,7 @@ import type { HostMutationService } from "../application/host-mutation-service.j
 import type { HostProcessService } from "../application/host-process-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import type { DeviceTargetService } from "../application/device-target-service.js";
+import type { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import type { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -36,6 +37,7 @@ import { projectMcpToolsForProduct } from "./product-tool-identity.js";
 import { buildCapabilityRouterMcpTools, type CapabilityRouterMcpServices } from "./tools/capability-router.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildDeviceTargetMcpTools } from "./tools/device-targets.js";
+import { buildDeviceRuntimeLifecycleMcpTools } from "./tools/device-runtime-lifecycle.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
 import { buildRuntimeRecoveryMcpTools } from "./tools/recovery.js";
@@ -103,6 +105,7 @@ export function buildTokenPilotMcpToolCatalog(
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
   deviceTargetService: DeviceTargetService,
+  deviceRuntimeLifecycleService: DeviceRuntimeLifecycleService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   codexThreadImportService?: CodexThreadImportService
 ) {
@@ -114,6 +117,7 @@ export function buildTokenPilotMcpToolCatalog(
     ),
     ...buildCapabilityRouterMcpTools(capabilityRouterServices),
     ...buildDeviceTargetMcpTools(deviceTargetService),
+    ...buildDeviceRuntimeLifecycleMcpTools(deviceRuntimeLifecycleService),
     ...buildHostMutationTools(hostMutation),
     ...buildHostCommandTools(hostCommand),
     ...buildHostProcessTools(hostProcess),
@@ -184,6 +188,7 @@ export function buildTokenPilotMcpHandler(
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
   deviceTargetService: DeviceTargetService,
+  deviceRuntimeLifecycleService: DeviceRuntimeLifecycleService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   codexThreadImportService: CodexThreadImportService | undefined,
   deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
@@ -209,6 +214,7 @@ export function buildTokenPilotMcpHandler(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
+    deviceRuntimeLifecycleService,
     runtimeResourceMutationService,
     codexThreadImportService
   );

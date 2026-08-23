@@ -43,8 +43,7 @@ try {
     continuityDatabase.schemaVersion(),
     LATEST_CONTINUITY_SCHEMA_VERSION
   );
-  assert.equal(LATEST_GOVERNANCE_SCHEMA_VERSION, 3);
-  assert.equal(database.schemaVersion(), 3);
+  assert.equal(database.schemaVersion(), LATEST_GOVERNANCE_SCHEMA_VERSION);
   const continuityTables = continuityDatabase.sqlite
     .prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'governed_external_action_%'"
@@ -67,7 +66,10 @@ try {
   const governanceVersions = database.sqlite
     .prepare("SELECT version FROM governance_schema_migrations ORDER BY version ASC")
     .all() as Array<{ version: number }>;
-  assert.deepEqual(governanceVersions.map((entry) => Number(entry.version)), [1, 2, 3]);
+  assert.deepEqual(
+    governanceVersions.map((entry) => Number(entry.version)),
+    Array.from({ length: LATEST_GOVERNANCE_SCHEMA_VERSION }, (_, index) => index + 1)
+  );
 
   const pending = repository.createApproval({
     id: "external_action_approval_fixture",
@@ -236,6 +238,7 @@ try {
     expiresAt: "2026-08-19T04:05:00.000Z",
     now: "2026-08-19T04:00:00.000Z"
   });
+  upgradeGovernance.sqlite.exec("DROP TABLE device_runtime_operations");
   upgradeGovernance.sqlite.exec("DROP TABLE operational_activity_control_events");
   upgradeGovernance.sqlite.exec("DROP TABLE operational_activity_provenance");
   upgradeGovernance.sqlite
@@ -244,7 +247,7 @@ try {
   assert.equal(upgradeGovernance.schemaVersion(), 1);
   upgradeGovernance.close();
   upgradeGovernance = new GovernanceDatabase({ path: upgradePath });
-  assert.equal(upgradeGovernance.schemaVersion(), 3);
+  assert.equal(upgradeGovernance.schemaVersion(), LATEST_GOVERNANCE_SCHEMA_VERSION);
   assert.equal(upgradeRepository.getApproval("external_action_v1_preserved").providerId, "downstream-mcp:upgrade-fixture");
   const upgradedTable = upgradeGovernance.sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operational_activity_provenance'")

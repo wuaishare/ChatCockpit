@@ -508,6 +508,72 @@ components:
             trust: { type: string, const: paired }
           required: [id, displayName, platform, architecture, publicKeyFingerprint, pairedAt, lastSeenAt, revokedAt, pausedAt, executionPolicyRevision, executionPolicy, revision, trust]
       required: [ok, device]
+    DeviceRuntimeConditions:
+      type: object
+      additionalProperties: false
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        support: { type: string, enum: [managed-macos, unsupported] }
+        controlPlane: { type: string, enum: [running, stopped, unknown] }
+        runner: { type: string, enum: [registered, stopped, unknown] }
+        processSupervisor: { type: string, enum: [ready, registered, stopped, unknown] }
+        observedAt: { type: string }
+      required: [schemaVersion, support, controlPlane, runner, processSupervisor, observedAt]
+    DeviceRuntimeOperation:
+      type: object
+      additionalProperties: false
+      properties:
+        operationId: { type: string, pattern: '^cc_device_runtime_op_[A-Za-z0-9_-]{20,120}$' }
+        deviceId: { type: string, pattern: '^cc_device_[A-Za-z0-9_-]{20,80}$' }
+        action: { type: string, enum: [start, stop, restart] }
+        state: { type: string, enum: [prepared, executing, succeeded, failed, ambiguous, stale] }
+        preflightConditions:
+          oneOf:
+            - $ref: '#/components/schemas/DeviceRuntimeConditions'
+            - type: "null"
+        postflightConditions:
+          oneOf:
+            - $ref: '#/components/schemas/DeviceRuntimeConditions'
+            - type: "null"
+        errorCode: { oneOf: [{ type: string }, { type: "null" }] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        startedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        completedAt: { oneOf: [{ type: string }, { type: "null" }] }
+        revision: { type: integer, minimum: 1 }
+      required: [operationId, deviceId, action, state, preflightConditions, postflightConditions, errorCode, createdAt, updatedAt, startedAt, completedAt, revision]
+    DeviceRuntimeStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        deviceId: { type: string, pattern: '^cc_device_[A-Za-z0-9_-]{20,80}$' }
+        conditions: { $ref: '#/components/schemas/DeviceRuntimeConditions' }
+      required: [ok, deviceId, conditions]
+    DeviceRuntimeLifecycleMutationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+        action: { type: string, enum: [start, stop, restart] }
+        expectedStateRevision: { type: integer, minimum: 0 }
+      required: [idempotencyKey, action]
+    DeviceRuntimeLifecycleExecuteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        operation: { $ref: '#/components/schemas/DeviceRuntimeOperation' }
+        replayed: { type: boolean }
+      required: [ok, operation, replayed]
+    DeviceRuntimeOperationGetResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        operation: { $ref: '#/components/schemas/DeviceRuntimeOperation' }
+        reconciled: { type: boolean }
+      required: [ok, operation, reconciled]
     DeviceRevokeResponse:
       type: object
       additionalProperties: false
@@ -7424,6 +7490,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/{deviceId}/runtime:
+    get:
+      operationId: getManagedDeviceRuntimeStatus
+      summary: Read one remote device Runtime status
+      description: Owner-only management read of bounded Runtime conditions through the active Device Channel v3 lifecycle transport. Does not start, stop, or restart the Runtime.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^cc_device_[A-Za-z0-9_-]{20,80}$' }
+      responses:
+        "200":
+          description: Current bounded Runtime conditions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceRuntimeStatusResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Device Agent is offline or lifecycle transport is unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/devices/{deviceId}/runtime/lifecycle:
+    post:
+      operationId: executeManagedDeviceRuntimeLifecycle
+      summary: Execute one governed remote Runtime lifecycle action
+      description: Owner-only start, stop, or restart through the same governed and idempotent lifecycle kernel used by MCP. The request is never held open for an out-of-band approval.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^cc_device_[A-Za-z0-9_-]{20,80}$' }
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceRuntimeLifecycleMutationRequest' }
+      responses:
+        "200":
+          description: Governed lifecycle operation result; ambiguous means the mutation is not replayed and must be reconciled by operation ID.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceRuntimeLifecycleExecuteResponse' }
+        "400":
+          description: Invalid lifecycle input
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "403":
+          description: CSRF validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Device policy, presence, lifecycle support, or operation state rejected execution
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/devices/runtime/operations/{operationId}:
+    get:
+      operationId: getManagedDeviceRuntimeOperation
+      summary: Read or reconcile one governed Runtime lifecycle operation
+      description: Owner-only read. If the Hub state is ambiguous and the same Device Agent is online, ChatCockpit may query the Agent durable ledger by the exact operation ID. It never replays start, stop, or restart automatically.
+      security:
+        - operatorSession: []
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^cc_device_runtime_op_[A-Za-z0-9_-]{20,120}$' }
+      responses:
+        "200":
+          description: Public-safe governed Runtime operation projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceRuntimeOperationGetResponse' }
+        "401":
+          description: Owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "404":
+          description: Runtime operation not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
   /api/devices/{deviceId}/pause:
     post:
       operationId: pauseManagedDeviceExecution

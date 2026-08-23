@@ -9,7 +9,11 @@ import { buildOperationContext } from "../src/application/operation-context.js";
 import { ContinuityDatabase, continuityDatabasePath } from "../src/continuity/database.js";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
-import { GovernanceDatabase, governanceDatabasePath } from "../src/governance/database.js";
+import {
+  GovernanceDatabase,
+  governanceDatabasePath,
+  LATEST_GOVERNANCE_SCHEMA_VERSION
+} from "../src/governance/database.js";
 import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
 import { OperationalActivityControlEventRepository } from "../src/governance/operational-activity-control-event-repository.js";
 import { createJob } from "../src/core/jobs.js";
@@ -69,7 +73,7 @@ async function main(): Promise<void> {
   const continuity = new ContinuityDatabase({ path: continuityDatabasePath(paths.runtimeDir) });
   const repositories = buildContinuityRepositories(continuity);
   const governance = new GovernanceDatabase({ path: governanceDatabasePath(paths.runtimeDir) });
-  assert.equal(governance.schemaVersion(), 3);
+  assert.equal(governance.schemaVersion(), LATEST_GOVERNANCE_SCHEMA_VERSION);
   governance.close();
   const activityProvenance = new OperationalActivityProvenanceRepository(continuity);
   const project = repositories.projects.create({
