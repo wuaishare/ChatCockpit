@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { AppstoreOutlined } from "@ant-design/icons";
 import { UiText as Text } from "./UiText";
 
 interface SectionCardProps {
@@ -21,9 +20,6 @@ export function SectionCard({
     <section className={`panel section-card section-card--${tone}`}>
       <header className="section-card__header">
         <div className="section-card__title-wrap">
-          <span className="section-card__icon" aria-hidden="true">
-            <AppstoreOutlined />
-          </span>
           <div>
             <Text as="div" className="section-card__title">
               {title}

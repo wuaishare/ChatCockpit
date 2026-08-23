@@ -56,7 +56,8 @@ Required visual constraints:
 Ant Design implementation notes:
 
 - Font stack should prefer `HarmonyOS Sans` and `HarmonyOS Sans SC` when available, then fall back to PingFang / Microsoft Yahei / system fonts.
-- ChatCockpit intentionally keeps Ant Design controls in a compact operator-console range (`controlHeight` around 34 and radii on the `6 / 8 / 10 / 12` scale).
+- ChatCockpit intentionally keeps ordinary Ant Design controls in a compact operator-console range (`controlHeight` around 34 and radii on the `6 / 8 / 10 / 12` scale); explicitly emphasized authentication controls may be larger.
+- Repeated data surfaces use Ant Design component tokens for density: Table cell padding, Form item spacing, Descriptions spacing, and Card padding are governed centrally rather than through page-local `!important` overrides.
 - Ant Design component defaults may be overridden only through documented theme/component tokens or project-owned semantic wrappers, not by inventing a parallel component theme.
 - Preset `Tag` / `Alert` colors are implementation inputs, not product colors. ChatCockpit maps Info/Success/Warning/Error backgrounds and borders to low-opacity semantic tokens and uses dedicated semantic foreground tokens for readable text in Light and Dark modes; bright Ant Design preset surfaces must not leak into the Dark Cockpit.
 - Business components use only semantic tones (`default`, `processing`, `success`, `warning`, `error`). Named Ant Design palette presets such as `blue`, `green`, `gold`, `orange`, `red`, `purple`, or `cyan` are forbidden in component logic; the theme layer owns their visual realization.
@@ -64,7 +65,8 @@ Ant Design implementation notes:
 ## Component Vocabulary
 
 - Header: brand glyph, product title, current deck status, language switch, view switch, theme switch, refresh action.
-- Panel: translucent but readable control surface, one border, one shadow vocabulary, no nested glass stacks.
+- Panel: border-first control surface with no default drop shadow. Elevation is reserved for hero/elevated or overlay contexts; nested glass/card stacks are prohibited.
+- Section card: hierarchy comes from typography, spacing, and content. Do not repeat the same colored decorative icon on every section when it carries no information.
 - Summary block: single source of truth for health, mode, auth, and explicit Local/Public Cockpit entrypoints. Those entrypoints are actionable links and are not duplicated inside Integrations. OpenAPI and machine-interface detail belongs in Integrations.
 - First-run setup: machine prerequisites are described as ChatCockpit App responsibilities; the Web surface must not instruct normal Operators to run local lifecycle CLI commands or edit machine paths/env vars.
 - Secondary metrics: compact only, and only when they add new information.
