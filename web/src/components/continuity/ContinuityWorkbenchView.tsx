@@ -21,6 +21,7 @@ import {
   fetchWorkspaceContinuitySnapshot
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import type { OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
   ContinuityProjectProjection,
@@ -430,7 +431,7 @@ function ProjectsSection({
                       <div className="continuity-workspace__name-row">
                         <strong>{workspace.repoId}</strong>
                         <WorkspaceStatusTag status={workspace.status} locale={locale} />
-                        {isDefault ? <Tag color="blue">{copy.defaultWorkspace}</Tag> : null}
+                        {isDefault ? <Tag color="processing">{copy.defaultWorkspace}</Tag> : null}
                       </div>
                       <div className="continuity-workspace__meta">
                         <span>
@@ -485,10 +486,10 @@ function WorkspaceStatusTag({
     blocked: copy.statusBlocked,
     archived: copy.statusArchived
   };
-  const colorByStatus: Record<ContinuityWorkspaceStatus, string> = {
-    ready: "green",
-    missing: "orange",
-    blocked: "red",
+  const colorByStatus: Record<ContinuityWorkspaceStatus, OperationalStatusTone> = {
+    ready: "success",
+    missing: "warning",
+    blocked: "error",
     archived: "default"
   };
   return <Tag color={colorByStatus[status]}>{labelByStatus[status]}</Tag>;

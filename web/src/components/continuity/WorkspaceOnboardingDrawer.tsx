@@ -376,7 +376,7 @@ export function WorkspaceOnboardingDrawer({
                           {candidate.git.dirty ? ` · ${copy.dirty}` : ` · ${copy.clean}`}
                         </span>
                       </div>
-                      <Tag color={candidate.registration === "registered" ? "default" : "blue"}>
+                      <Tag color={candidate.registration === "registered" ? "default" : "processing"}>
                         {candidate.registration === "registered"
                           ? copy.registeredCandidate
                           : copy.unregisteredCandidate}

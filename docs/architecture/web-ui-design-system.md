@@ -59,6 +59,7 @@ Ant Design implementation notes:
 - ChatCockpit intentionally keeps Ant Design controls in a compact operator-console range (`controlHeight` around 34 and radii on the `6 / 8 / 10 / 12` scale).
 - Ant Design component defaults may be overridden only through documented theme/component tokens or project-owned semantic wrappers, not by inventing a parallel component theme.
 - Preset `Tag` / `Alert` colors are implementation inputs, not product colors. ChatCockpit maps Info/Success/Warning/Error backgrounds and borders to low-opacity semantic tokens and uses dedicated semantic foreground tokens for readable text in Light and Dark modes; bright Ant Design preset surfaces must not leak into the Dark Cockpit.
+- Business components use only semantic tones (`default`, `processing`, `success`, `warning`, `error`). Named Ant Design palette presets such as `blue`, `green`, `gold`, `orange`, `red`, `purple`, or `cyan` are forbidden in component logic; the theme layer owns their visual realization.
 
 ## Component Vocabulary
 

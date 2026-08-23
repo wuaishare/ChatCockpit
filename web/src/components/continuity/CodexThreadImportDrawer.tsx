@@ -306,7 +306,7 @@ export function CodexThreadImportDrawer({
                 <code>{workspaceLabel}</code>
               </Descriptions.Item>
               <Descriptions.Item label="Codex quota">
-                <Tag color={quotaState === "limited" ? "gold" : quotaState === "available" ? "green" : "default"}>
+                <Tag color={quotaState === "limited" ? "warning" : quotaState === "available" ? "success" : "default"}>
                   {quotaState}
                 </Tag>
               </Descriptions.Item>
@@ -416,7 +416,7 @@ export function CodexThreadImportDrawer({
             <section className="codex-thread-import__context">
               <div className="codex-thread-import__context-heading">
                 <strong>{copy.contextPreview}</strong>
-                <Tag color={execution.context.truncated ? "gold" : "green"}>
+                <Tag color={execution.context.truncated ? "warning" : "success"}>
                   {execution.context.truncated ? copy.contextTruncated : copy.contextComplete}
                 </Tag>
               </div>
