@@ -41,6 +41,8 @@ import {
   DeviceAgentService,
   type DeviceAgentStatus
 } from "../devices/device-agent.js";
+import { DeviceAgentRuntimeLifecycleService } from "../devices/device-agent-runtime-lifecycle-service.js";
+import { createDeviceRuntimeLifecycleAdapter } from "../devices/device-runtime-lifecycle-adapter.js";
 import { BonjourLanDiscoveryProvider } from "../devices/bonjour-lan-discovery-provider.js";
 import {
   discoverLanHubs,
@@ -733,6 +735,18 @@ async function main(): Promise<void> {
             throw new Error("device agent --interval must be a positive number of seconds");
           }
           const intervalMs = Math.round(intervalSeconds * 1_000);
+          const runtimeLifecycleService = heartbeatOnly
+            ? null
+            : new DeviceAgentRuntimeLifecycleService({
+                runtimeDir: paths.runtimeDir,
+                adapter: createDeviceRuntimeLifecycleAdapter(paths)
+              });
+          const agentService = runtimeLifecycleService
+            ? new DeviceAgentService({
+                runtimeDir: paths.runtimeDir,
+                runtimeLifecycleService
+              })
+            : service;
           const controller = new AbortController();
           const stop = () => controller.abort();
           process.once("SIGINT", stop);
@@ -744,7 +758,7 @@ async function main(): Promise<void> {
                   ? `Device Agent started (heartbeat compatibility mode every ${intervalSeconds}s)\n`
                   : "Device Agent started (persistent outbound channel)\n"
               );
-              printDeviceStatus(service.status());
+              printDeviceStatus(agentService.status());
             }
             if (intervalValue !== undefined && !process.argv.includes("--heartbeat-only")) {
               const message = "Deprecated: --interval selects heartbeat compatibility mode; omit it to use the persistent outbound channel.";
@@ -770,7 +784,7 @@ async function main(): Promise<void> {
               }
             };
             const finalStatus = heartbeatOnly
-              ? await service.runHeartbeatLoop({
+              ? await agentService.runHeartbeatLoop({
                   intervalMs,
                   signal: controller.signal,
                   onHeartbeat: json
@@ -780,7 +794,7 @@ async function main(): Promise<void> {
                       },
                   onRetry
                 })
-              : await service.runOutboundChannelLoop({
+              : await agentService.runOutboundChannelLoop({
                   signal: controller.signal,
                   onEvent: json
                     ? undefined
@@ -796,6 +810,7 @@ async function main(): Promise<void> {
           } finally {
             process.removeListener("SIGINT", stop);
             process.removeListener("SIGTERM", stop);
+            runtimeLifecycleService?.close();
           }
           return;
         }
