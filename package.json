@@ -298,7 +298,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^6.0.2",
-    "antd": "^6.4.2",
+    "antd": "6.5.4",
     "motion": "^12.38.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
