@@ -15,6 +15,12 @@ import {
   DeviceCapabilityRpcError,
   type DeviceCapabilityResultBody
 } from "../devices/device-capability-rpc.js";
+import {
+  DEVICE_RUNTIME_LIFECYCLE_RESULT_MAX_BYTES,
+  DeviceRuntimeLifecycleRpc,
+  DeviceRuntimeLifecycleRpcError,
+  type DeviceRuntimeLifecycleResultBody
+} from "../devices/device-runtime-lifecycle-rpc.js";
 import { sendApiError } from "./errors.js";
 
 export const DEVICE_CHANNEL_DEFAULT_PING_INTERVAL_MS = 30_000;
@@ -77,6 +83,7 @@ function optionalProtocolVersion(request: FastifyRequest): DeviceChannelProtocol
   const value = headerValue(request, "x-chatcockpit-channel-protocol");
   if (value === null || value === "1") return 1;
   if (value === "2") return 2;
+  if (value === "3") return 3;
   throw new DeviceRegistryError(
     400,
     "DEVICE_CHANNEL_PROTOCOL_UNSUPPORTED",
@@ -188,8 +195,91 @@ function requiredResultBody(value: unknown): DeviceCapabilityResultBody {
   );
 }
 
+function requiredRuntimeLifecycleResultBody(value: unknown): DeviceRuntimeLifecycleResultBody {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_RUNTIME_LIFECYCLE_RESULT_INVALID",
+      "Device Runtime lifecycle result body is invalid"
+    );
+  }
+  const body = value as Record<string, unknown>;
+  if (
+    typeof body.operationId !== "string" ||
+    !/^cc_device_runtime_op_[A-Za-z0-9_-]{20,120}$/.test(body.operationId)
+  ) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_RUNTIME_LIFECYCLE_OPERATION_ID_INVALID",
+      "Device Runtime lifecycle operation ID is invalid"
+    );
+  }
+  if (body.outcome === "ok") {
+    if (
+      !("result" in body) ||
+      "error" in body ||
+      Object.keys(body).some(
+        (key) => key !== "operationId" && key !== "outcome" && key !== "result"
+      )
+    ) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_RUNTIME_LIFECYCLE_RESULT_INVALID",
+        "Successful Runtime lifecycle results must contain result only"
+      );
+    }
+    return { operationId: body.operationId, outcome: "ok", result: body.result };
+  }
+  if (body.outcome === "error") {
+    if (
+      "result" in body ||
+      !body.error ||
+      typeof body.error !== "object" ||
+      Array.isArray(body.error) ||
+      Object.keys(body).some(
+        (key) => key !== "operationId" && key !== "outcome" && key !== "error"
+      )
+    ) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_RUNTIME_LIFECYCLE_RESULT_INVALID",
+        "Failed Runtime lifecycle results must contain a bounded error only"
+      );
+    }
+    const error = body.error as Record<string, unknown>;
+    if (
+      Object.keys(error).some((key) => key !== "code" && key !== "message") ||
+      typeof error.code !== "string" ||
+      !/^[A-Z0-9_]{1,120}$/.test(error.code) ||
+      typeof error.message !== "string" ||
+      !error.message.trim() ||
+      error.message.length > 1000
+    ) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_RUNTIME_LIFECYCLE_RESULT_INVALID",
+        "Device Runtime lifecycle error projection is invalid"
+      );
+    }
+    return {
+      operationId: body.operationId,
+      outcome: "error",
+      error: { code: error.code, message: error.message }
+    };
+  }
+  throw new DeviceRegistryError(
+    400,
+    "DEVICE_RUNTIME_LIFECYCLE_RESULT_INVALID",
+    "Device Runtime lifecycle result outcome is invalid"
+  );
+}
+
 function deviceError(reply: FastifyReply, error: unknown) {
-  if (error instanceof DeviceRegistryError || error instanceof DeviceCapabilityRpcError) {
+  if (
+    error instanceof DeviceRegistryError ||
+    error instanceof DeviceCapabilityRpcError ||
+    error instanceof DeviceRuntimeLifecycleRpcError
+  ) {
     return sendApiError(reply, error.statusCode, error.code, error.message);
   }
   throw error;
@@ -197,7 +287,12 @@ function deviceError(reply: FastifyReply, error: unknown) {
 
 function writeSse(
   reply: FastifyReply,
-  event: "channel.ready" | "channel.ping" | "channel.close" | "capability.request",
+  event:
+    | "channel.ready"
+    | "channel.ping"
+    | "channel.close"
+    | "capability.request"
+    | "runtime.lifecycle.request",
   data: Record<string, unknown>
 ): boolean {
   if (reply.raw.destroyed || reply.raw.writableEnded) return false;
@@ -209,6 +304,7 @@ export function registerDeviceChannelRoutes(
   store: DeviceRegistryStore,
   channelHub: DeviceChannelHub,
   capabilityRpc: DeviceCapabilityRpc,
+  lifecycleRpc: DeviceRuntimeLifecycleRpc,
   options: {
     now?: () => string;
     pingIntervalMs?: number;
@@ -277,14 +373,10 @@ export function registerDeviceChannelRoutes(
 
       registration = channelHub.register(deviceId, close, {
         protocolVersion,
-        ...(protocolVersion === 2
+        ...(protocolVersion >= 2
           ? {
-              send: (_event, data) =>
-                writeSse(
-                  reply,
-                  "capability.request",
-                  data as Record<string, unknown>
-                )
+              send: (event, data) =>
+                writeSse(reply, event, data as Record<string, unknown>)
             }
           : {})
       });
@@ -328,6 +420,36 @@ export function registerDeviceChannelRoutes(
           now()
         );
         capabilityRpc.completeExpectedResult({ deviceId, channelId, body });
+        return { ok: true, acceptedSequence: sequence };
+      } catch (error) {
+        return deviceError(reply, error);
+      }
+    }
+  );
+
+  app.post(
+    "/api/devices/runtime-lifecycle/results",
+    { bodyLimit: DEVICE_RUNTIME_LIFECYCLE_RESULT_MAX_BYTES + 128 * 1024 },
+    async (request, reply) => {
+      try {
+        const deviceId = requiredDeviceId(request);
+        const channelId = requiredChannelId(request);
+        const sequence = requiredSequence(request);
+        const signature = requiredHeader(
+          request,
+          "x-chatcockpit-channel-signature",
+          "DEVICE_SIGNATURE_INVALID",
+          "Device channel signature is invalid",
+          256
+        );
+        const body = requiredRuntimeLifecycleResultBody(request.body);
+
+        lifecycleRpc.assertExpectedResult({ deviceId, channelId, body });
+        store.recordRuntimeLifecycleResult(
+          { deviceId, channelId, sequence, body, signature },
+          now()
+        );
+        lifecycleRpc.completeExpectedResult({ deviceId, channelId, body });
         return { ok: true, acceptedSequence: sequence };
       } catch (error) {
         return deviceError(reply, error);

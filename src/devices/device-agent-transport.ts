@@ -126,7 +126,7 @@ export interface DeviceAgentChannelOpenInput {
   deviceId: string;
   sequence: number;
   channelNonce: string;
-  protocolVersion?: 1 | 2;
+  protocolVersion?: 1 | 2 | 3;
   signature: string;
   signal?: AbortSignal;
 }
@@ -149,13 +149,31 @@ export interface DeviceAgentChannelResultInput {
   signature: string;
 }
 
+export interface DeviceAgentRuntimeLifecycleResultInput {
+  deviceId: string;
+  channelId: string;
+  sequence: number;
+  body:
+    | {
+        operationId: string;
+        outcome: "ok";
+        result: unknown;
+      }
+    | {
+        operationId: string;
+        outcome: "error";
+        error: { code: string; message: string };
+      };
+  signature: string;
+}
+
 export type DeviceAgentChannelEvent =
   | {
       type: "channel.ready";
       channelId: string;
       deviceId: string;
       acceptedSequence: number;
-      protocolVersion: 1 | 2;
+      protocolVersion: 1 | 2 | 3;
     }
   | {
       type: "capability.request";
@@ -165,6 +183,15 @@ export type DeviceAgentChannelEvent =
       issuedAt: string;
       expiresAt: string;
       payload: unknown;
+    }
+  | {
+      type: "runtime.lifecycle.request";
+      protocolVersion: 1;
+      operationId: string;
+      action: "status" | "start" | "stop" | "restart" | "operation.get";
+      issuedAt: string;
+      expiresAt: string;
+      expectedStateRevision?: number;
     }
   | { type: "channel.ping"; at: string }
   | { type: "channel.close"; reason: "superseded" | "revoked" | "server-shutdown" };
@@ -186,6 +213,10 @@ export interface DeviceAgentTransport {
   submitChannelResult?(
     origin: string,
     input: DeviceAgentChannelResultInput
+  ): Promise<{ ok: true; acceptedSequence: number }>;
+  submitRuntimeLifecycleResult?(
+    origin: string,
+    input: DeviceAgentRuntimeLifecycleResultInput
   ): Promise<{ ok: true; acceptedSequence: number }>;
 }
 
@@ -282,7 +313,7 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       !/^cc_device_[A-Za-z0-9_-]{20,80}$/.test(data.deviceId) ||
       !Number.isSafeInteger(data.acceptedSequence) ||
       Number(data.acceptedSequence) <= 0 ||
-      (data.protocolVersion !== 1 && data.protocolVersion !== 2)
+      (data.protocolVersion !== 1 && data.protocolVersion !== 2 && data.protocolVersion !== 3)
     ) {
       throw channelProtocolError("Hub returned an invalid channel.ready event");
     }
@@ -318,6 +349,49 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       issuedAt: data.issuedAt,
       expiresAt: data.expiresAt,
       payload: data.payload
+    };
+  }
+  if (eventName === "runtime.lifecycle.request") {
+    const validAction =
+      data.action === "status" ||
+      data.action === "start" ||
+      data.action === "stop" ||
+      data.action === "restart" ||
+      data.action === "operation.get";
+    const validRevision =
+      data.expectedStateRevision === undefined ||
+      (Number.isSafeInteger(data.expectedStateRevision) && Number(data.expectedStateRevision) >= 0);
+    if (
+      data.protocolVersion !== 1 ||
+      typeof data.operationId !== "string" ||
+      !/^cc_device_runtime_op_[A-Za-z0-9_-]{20,120}$/.test(data.operationId) ||
+      !validAction ||
+      typeof data.issuedAt !== "string" ||
+      Number.isNaN(Date.parse(data.issuedAt)) ||
+      typeof data.expiresAt !== "string" ||
+      Number.isNaN(Date.parse(data.expiresAt)) ||
+      !validRevision ||
+      Object.keys(data).some((key) =>
+        key !== "protocolVersion" &&
+        key !== "operationId" &&
+        key !== "action" &&
+        key !== "issuedAt" &&
+        key !== "expiresAt" &&
+        key !== "expectedStateRevision"
+      )
+    ) {
+      throw channelProtocolError("Hub returned an invalid runtime.lifecycle.request event");
+    }
+    return {
+      type: "runtime.lifecycle.request",
+      protocolVersion: 1,
+      operationId: data.operationId,
+      action: data.action as "status" | "start" | "stop" | "restart" | "operation.get",
+      issuedAt: data.issuedAt,
+      expiresAt: data.expiresAt,
+      ...(data.expectedStateRevision === undefined
+        ? {}
+        : { expectedStateRevision: Number(data.expectedStateRevision) })
     };
   }
   if (eventName === "channel.ping") {
@@ -562,6 +636,41 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
         502,
         "DEVICE_AGENT_RESPONSE_INVALID",
         "Hub returned an invalid device capability result acknowledgement"
+      );
+    }
+    return {
+      ok: true,
+      acceptedSequence: Number((response as Record<string, unknown>).acceptedSequence)
+    };
+  }
+
+  async submitRuntimeLifecycleResult(
+    origin: string,
+    input: DeviceAgentRuntimeLifecycleResultInput
+  ): Promise<{ ok: true; acceptedSequence: number }> {
+    const response = await this.request(origin, "/api/devices/runtime-lifecycle/results", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-chatcockpit-device-id": input.deviceId,
+        "x-chatcockpit-channel-id": input.channelId,
+        "x-chatcockpit-channel-sequence": String(input.sequence),
+        "x-chatcockpit-channel-signature": input.signature
+      },
+      body: JSON.stringify(input.body)
+    });
+    if (
+      !response ||
+      typeof response !== "object" ||
+      Array.isArray(response) ||
+      (response as Record<string, unknown>).ok !== true ||
+      !Number.isSafeInteger((response as Record<string, unknown>).acceptedSequence) ||
+      Number((response as Record<string, unknown>).acceptedSequence) <= 0
+    ) {
+      throw new DeviceAgentTransportError(
+        502,
+        "DEVICE_AGENT_RESPONSE_INVALID",
+        "Hub returned an invalid Runtime lifecycle result acknowledgement"
       );
     }
     return {

@@ -6,6 +6,11 @@ import os from "node:os";
 import path from "node:path";
 
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
+import { DeviceChannelHub } from "../src/devices/device-channel.js";
+import {
+  DeviceRuntimeLifecycleRpc,
+  DeviceRuntimeLifecycleRpcError
+} from "../src/devices/device-runtime-lifecycle-rpc.js";
 import { readLanTlsIdentity } from "../src/devices/lan-tls-identity.js";
 import { updateAccessPolicy } from "../src/security/access-policy.js";
 import { buildServer } from "../src/server/app.js";
@@ -29,7 +34,8 @@ async function requestPinned(
   certificatePem: string,
   pathname: string,
   method: "GET" | "POST",
-  body?: string
+  body?: string,
+  extraHeaders: Record<string, string> = {}
 ): Promise<{ statusCode: number; body: string; authorized: boolean }> {
   return await new Promise((resolve, reject) => {
     const request = https.request({
@@ -40,9 +46,12 @@ async function requestPinned(
       ca: certificatePem,
       rejectUnauthorized: true,
       checkServerIdentity: () => undefined,
-      headers: body
-        ? { "content-type": "application/json", "content-length": Buffer.byteLength(body) }
-        : undefined
+      headers: {
+        ...extraHeaders,
+        ...(body
+          ? { "content-type": "application/json", "content-length": String(Buffer.byteLength(body)) }
+          : {})
+      }
     }, (response) => {
       const authorized = Boolean(response.socket.authorized);
       let data = "";
@@ -91,7 +100,18 @@ updateAccessPolicy(paths, {
 });
 
 const securePort = await reservePort();
+const channelHub = new DeviceChannelHub();
+const lifecycleRpc = new DeviceRuntimeLifecycleRpc(channelHub);
+lifecycleRpc.assertExpectedResult = () => {
+  throw new DeviceRuntimeLifecycleRpcError(
+    409,
+    "DEVICE_RUNTIME_LIFECYCLE_SHARED_BROKER_PROBE",
+    "Shared Runtime lifecycle broker probe"
+  );
+};
 const app = buildServer(paths, {
+  deviceChannelHub: channelHub,
+  deviceRuntimeLifecycleRpc: lifecycleRpc,
   deviceLanTls: { host: "127.0.0.1", port: securePort }
 });
 
@@ -111,6 +131,30 @@ try {
   assert.equal(
     (JSON.parse(heartbeat.body) as { error?: { code?: string } }).error?.code,
     "DEVICE_NOT_TRUSTED"
+  );
+
+  const lifecycleProbe = await requestPinned(
+    securePort,
+    tlsIdentity.certificatePem,
+    "/api/devices/runtime-lifecycle/results",
+    "POST",
+    JSON.stringify({
+      operationId: `cc_device_runtime_op_lan_${"x".repeat(24)}`,
+      outcome: "ok",
+      result: { ok: true }
+    }),
+    {
+      "x-chatcockpit-device-id": "cc_device_abcdefghijklmnopqrstuvwx",
+      "x-chatcockpit-channel-id": "cc_channel_abcdefghijklmnopqrstuvwx",
+      "x-chatcockpit-channel-sequence": "1",
+      "x-chatcockpit-channel-signature": "probe"
+    }
+  );
+  assert.equal(lifecycleProbe.statusCode, 409, lifecycleProbe.body);
+  assert.equal(
+    (JSON.parse(lifecycleProbe.body) as { error?: { code?: string } }).error?.code,
+    "DEVICE_RUNTIME_LIFECYCLE_SHARED_BROKER_PROBE",
+    "LAN TLS lifecycle result route must use the same lifecycle RPC broker as the public listener"
   );
 
   const ownerSurface = await requestPinned(

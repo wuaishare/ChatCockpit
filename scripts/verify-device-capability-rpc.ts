@@ -432,12 +432,14 @@ try {
     deviceId,
     sequence: 7,
     channelNonce: v2Nonce2,
-    protocolVersion: 2,
-    signature: sign(privateKey, buildDeviceChannelOpenProof(deviceId, 7, v2Nonce2, 2))
+    protocolVersion: 3,
+    signature: sign(privateKey, buildDeviceChannelOpenProof(deviceId, 7, v2Nonce2, 3))
   });
   const replacementIterator = v2Replacement.events[Symbol.asyncIterator]();
   const replacementReady = await nextEventOfType(replacementIterator, "channel.ready");
-  assert.equal(replacementReady.protocolVersion, 2);
+  assert.equal(replacementReady.protocolVersion, 3);
+  assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
+  assert.equal(channelHub.isRuntimeLifecycleRpcAvailable(deviceId), true);
   await closedPendingRejected;
 
   const revokedPending = rpc.request(deviceId, "capabilities.list", {});

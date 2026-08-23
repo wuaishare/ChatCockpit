@@ -322,7 +322,7 @@ function channelOpenMessage(
   deviceId: string,
   sequence: number,
   channelNonce: string,
-  protocolVersion: 1 | 2 = 1
+  protocolVersion: 1 | 2 | 3 = 1
 ): Buffer {
   if (protocolVersion === 1) {
     return Buffer.from(
@@ -330,14 +330,11 @@ function channelOpenMessage(
       "utf8"
     );
   }
+  const domain = protocolVersion === 2
+    ? "chatcockpit-device-channel-open-v2"
+    : "chatcockpit-device-channel-open-v3";
   return Buffer.from(
-    [
-      "chatcockpit-device-channel-open-v2",
-      deviceId,
-      String(sequence),
-      channelNonce,
-      String(protocolVersion)
-    ].join("\n"),
+    [domain, deviceId, String(sequence), channelNonce, String(protocolVersion)].join("\n"),
     "utf8"
   );
 }
@@ -394,6 +391,39 @@ function channelResultMessage(
       channelId,
       String(sequence),
       body.requestId,
+      digest
+    ].join("\n"),
+    "utf8"
+  );
+}
+
+function runtimeLifecycleResultMessage(
+  deviceId: string,
+  channelId: string,
+  sequence: number,
+  body: { operationId: string }
+): Buffer {
+  if (!/^cc_channel_[A-Za-z0-9_-]{20,80}$/.test(channelId)) {
+    throw new DeviceRegistryError(400, "DEVICE_CHANNEL_ID_INVALID", "Device channel ID is invalid");
+  }
+  if (!/^cc_device_runtime_op_[A-Za-z0-9_-]{20,120}$/.test(body.operationId)) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_RUNTIME_LIFECYCLE_OPERATION_ID_INVALID",
+      "Device Runtime lifecycle operation ID is invalid"
+    );
+  }
+  const digest = crypto
+    .createHash("sha256")
+    .update(canonicalJson(body), "utf8")
+    .digest("base64url");
+  return Buffer.from(
+    [
+      "chatcockpit-device-runtime-lifecycle-result-v1",
+      deviceId,
+      channelId,
+      String(sequence),
+      body.operationId,
       digest
     ].join("\n"),
     "utf8"
@@ -687,7 +717,7 @@ export class DeviceRegistryStore {
       deviceId: string;
       sequence: number;
       channelNonce: string;
-      protocolVersion?: 1 | 2;
+      protocolVersion?: 1 | 2 | 3;
       signature: string;
     },
     now: string
@@ -701,7 +731,7 @@ export class DeviceRegistryStore {
     }
     const channelNonce = normalizeChannelNonce(input.channelNonce);
     const protocolVersion = input.protocolVersion ?? 1;
-    if (protocolVersion !== 1 && protocolVersion !== 2) {
+    if (protocolVersion !== 1 && protocolVersion !== 2 && protocolVersion !== 3) {
       throw new DeviceRegistryError(
         400,
         "DEVICE_CHANNEL_PROTOCOL_UNSUPPORTED",
@@ -795,6 +825,71 @@ export class DeviceRegistryStore {
         401,
         "DEVICE_SIGNATURE_INVALID",
         "Device capability result proof is invalid"
+      );
+    }
+    const updated = this.sqlite.prepare(`
+      UPDATE managed_devices
+      SET last_seen_at = ?, last_sequence = ?, revision = revision + 1
+      WHERE device_id = ? AND revoked_at IS NULL AND last_sequence < ?
+    `).run(now, input.sequence, input.deviceId, input.sequence);
+    if (Number(updated.changes) !== 1) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_CHANNEL_REPLAYED",
+        "Device channel sequence was already consumed"
+      );
+    }
+    return this.getDevice(input.deviceId)!;
+  }
+
+  recordRuntimeLifecycleResult(
+    input: {
+      deviceId: string;
+      channelId: string;
+      sequence: number;
+      body: { operationId: string };
+      signature: string;
+    },
+    now: string
+  ): ManagedDeviceRecord {
+    if (!Number.isSafeInteger(input.sequence) || input.sequence <= 0) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_SEQUENCE_INVALID",
+        "Device Runtime lifecycle result sequence must be a positive integer"
+      );
+    }
+    const row = this.sqlite.prepare(`
+      SELECT * FROM managed_devices WHERE device_id = ?
+    `).get(input.deviceId) as DeviceRow | undefined;
+    if (!row || row.revoked_at) {
+      throw new DeviceRegistryError(401, "DEVICE_NOT_TRUSTED", "Device is unknown or revoked");
+    }
+    if (input.sequence <= Number(row.last_sequence)) {
+      throw new DeviceRegistryError(
+        409,
+        "DEVICE_CHANNEL_REPLAYED",
+        "Device channel sequence was already consumed"
+      );
+    }
+    const publicKey = parseEd25519PublicKey(row.public_key_spki);
+    if (
+      !crypto.verify(
+        null,
+        runtimeLifecycleResultMessage(
+          input.deviceId,
+          input.channelId,
+          input.sequence,
+          input.body
+        ),
+        publicKey,
+        decodeSignature(input.signature)
+      )
+    ) {
+      throw new DeviceRegistryError(
+        401,
+        "DEVICE_SIGNATURE_INVALID",
+        "Device Runtime lifecycle result proof is invalid"
       );
     }
     const updated = this.sqlite.prepare(`
@@ -1060,7 +1155,7 @@ export function buildDeviceChannelOpenProof(
   deviceId: string,
   sequence: number,
   channelNonce: string,
-  protocolVersion: 1 | 2 = 1
+  protocolVersion: 1 | 2 | 3 = 1
 ): Buffer {
   return channelOpenMessage(
     deviceId,
@@ -1068,6 +1163,15 @@ export function buildDeviceChannelOpenProof(
     normalizeChannelNonce(channelNonce),
     protocolVersion
   );
+}
+
+export function buildDeviceRuntimeLifecycleResultProof(
+  deviceId: string,
+  channelId: string,
+  sequence: number,
+  body: { operationId: string }
+): Buffer {
+  return runtimeLifecycleResultMessage(deviceId, channelId, sequence, body);
 }
 
 export function buildDeviceChannelResultProof(
