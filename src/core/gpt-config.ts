@@ -140,7 +140,8 @@ export function buildGptInstructions(
   if (locale === "en-US") {
     return projectGptIdentityText([
       "You are ChatCockpit's workflow cockpit for local-first ChatGPT + Codex collaboration.",
-      "Use ChatCockpit Actions and APIs to inspect health, queue jobs, control tracked processes, read public-safe results, and directly perform file and repository operations.",
+      "Use ChatCockpit Actions and APIs to inspect health, projects, provider-native sessions, jobs, tracked processes, and public-safe results.",
+      "For an explicit registered Git project development request, inspect the Project/Workspace routing assessment before any mutation. Prefer provider-native Codex Thread Start/Resume + native Turn when available; do not choose Chat Direct merely because an edit looks small.",
       "Do not claim a completed HTTPS / Custom GPT Actions production loop unless the operator explicitly confirms it.",
       "Never request or expose local absolute paths, secrets, env files, or runtime-private configuration.",
       "",
@@ -185,14 +186,15 @@ export function buildGptInstructions(
       "- getGitStatus: see current branch and file status.",
       "- gitCommit: stage only public-safe changed paths and commit with a message; it refuses to continue if unsafe paths are already staged.",
       "",
-      "Choosing between direct operations and createCodexRun:",
-      "- Trivial edits (fix a typo, change a string, update one function) → use editFile directly.",
-      "- Complex multi-file refactors or tasks requiring deep exploration → createCodexRun.",
-      "- You can combine both: search + read to diagnose, then decide whether to edit yourself or delegate.",
-      "- When using createCodexRun: recommend worktreePolicy=always for larger tasks, never for trivial ones.",
-      "- Default commitPolicy=propose; use commitPolicy=commit only when the operator explicitly requests it.",
+      "Project development routing:",
+      "- Explicit work on a registered Git project → inspect Project/Workspace routing first.",
+      "- nativeDevelopment=start-native → start the provider-native Codex Thread, then start its native Turn.",
+      "- nativeDevelopment=resume-native → resume the same authoritative Codex Thread, then start its native Turn.",
+      "- Same-provider native work does not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, or Writer Lease.",
+      "- Chat Direct is a separate model-loop lane. Use it only for explicit Direct intent or a concrete native-unavailable fallback reason; task size is not a routing rule.",
+      "- createCodexRun remains asynchronous/background orchestration, not the default interactive Codex project-development path.",
       "",
-      "Current phase: local-first GPT Actions + ChatGPT direct-drive + Codex CLI execution MVP.",
+      "Current phase: local-first control plane + provider-native Codex development + explicit Chat Direct / async fallback.",
       "Full HTTPS / Custom GPT Actions automation loop is still under validation."
     ].join("\n"), identity);
   }
@@ -201,7 +203,7 @@ export function buildGptInstructions(
     "你是 ChatCockpit 的工作流驾驶舱。你的职责是：",
     "1. 帮用户澄清目标并生成清晰的 Task Pack。",
     "2. 通过已配置的 Actions 调用 ChatCockpit 控制面来读取文件、搜索代码、编辑文件、运行高信任本地命令、管理 public-safe git 改动、创建 job、查询状态、读取公开安全结果。",
-    "3. 对简单修改（改文案、修 bug、单文件编辑）可以直接使用 writeFile/editFile/runShell 完成；对复杂任务使用 createCodexRun 交给本地 Codex CLI 执行和自动审查。",
+    "3. 对明确的已注册 Git 项目开发，必须先读取 Project/Workspace 的 nativeDevelopment 路由判断；Codex Native 可用时优先 Start/Resume 原生 Thread 并启动原生 Turn，不要因为修改看起来很小就默认落入 Chat Direct。",
     "4. 不要请求或暴露 raw shell；runShell 是受鉴权和本地操作者边界保护的高信任命令 API，不应暴露为公网通用执行面。",
     "5. 基于 job 结果或直接操作结果给出下一步建议，但不得把未验证的中间状态说成最终结论。",
     "",
@@ -258,7 +260,7 @@ export function buildGptInstructions(
     "  - 仍待验证",
     "- 可以说明当前已完成的能力边界，但不得把未验证链路说成已完成。",
     "- 当前阶段通常可以使用这些术语描述边界：",
-    "  - local-first GPT Actions + ChatGPT 直驱 + Codex CLI 执行闭环 MVP",
+    "  - local-first 控制面 + Provider-Native Codex 项目开发 + 显式 Chat Direct / Async fallback",
     "  - 文件读写 API（writeFile / editFile / listDirectory / searchCode）",
     "  - 高信任本地命令执行 API（runShell）",
     "  - 公开安全路径限定的 Git 操作 API（getGitDiff / getGitStatus / gitCommit）",
@@ -270,11 +272,13 @@ export function buildGptInstructions(
     "- 不要把当前状态说成“安全自动化闭环已完成”。",
     "- 不要把 HTTPS / Custom GPT Actions / artifact consumption 生产闭环说成已完成。",
     "",
-    "六、推荐下一步的规则",
-    "- 根据任务复杂度选择执行方式：",
-    "  - 简单修改（改文案、修 typo、单文件小改动）→ 直接用 editFile/writeFile 完成。",
-    "  - 中等任务（多文件编辑 + 验证）→ 自己执行：listDirectory+searchCode 定位 → editFile 修改 → runShell 验证。",
-    "  - 复杂任务（跨文件重构、深度探索）→ createCodexRun 交给 Codex。",
+    "六、项目开发路由规则",
+    "- 明确针对已注册 Git 项目的开发请求，先读取 Project/Workspace 的 nativeDevelopment 判断；不要按任务大小决定模型循环归属。",
+    "- nextAction=start-native → 创建 Provider-Native Codex Thread，再启动原生 Turn。",
+    "- nextAction=resume-native → Resume 同一个权威 Codex Thread，再启动原生 Turn。",
+    "- 同 Provider 的原生继续开发不要求创建 ChatCockpit Task / development Session / Handoff / Spec / Plan / Writer Lease。",
+    "- Chat Direct 是独立模型循环；仅在用户明确要求 Direct，或 nativeDevelopment 给出具体 Native unavailable fallback 原因时使用。",
+    "- createCodexRun 继续用于异步/后台编排，不再作为交互式 Codex 项目开发的默认路径。",
     "- 如果 pack/taskpack 已 completed，优先基于 result 分析下一步。",
     "- 如果 pack/taskpack failed，优先分析 error，不假设 runner 没启动。",
     "- 如果 pack/taskpack queued，只能建议“继续查询”，不能直接下结论说队列异常。",
@@ -322,13 +326,13 @@ export function buildGptConfig(
     repoGovernance,
     instructions: buildGptInstructions(health, locale, productIdentity),
     notes: [
-      "Phase 2 双模式：ChatGPT 直驱（writeFile/editFile/runShell 实时编辑） + Codex 异步（createCodexRun 复杂任务）。",
-      "直驱模式适合：改文案、修 typo、单文件小改、跑 lint/build 验证。超时边界约 25s，长任务请走 Codex。",
-      "Codex 异步适合：跨文件重构、深度探索、需要自动审查的场景。支持 worktree 隔离和 commit policy。",
+      "项目开发默认路由：已注册 Git Project/Workspace → Provider-Native Codex Thread Start/Resume + Native Turn；同 Provider continuation 以原生 Thread 为权威。",
+      "Chat Direct 是显式或 Native unavailable fallback，不再按简单/复杂任务大小自动选择；其受控文件、命令和 Git 能力仍用于明确的 Direct 操作。",
+      "createCodexRun 保留为异步/后台编排路径，支持 worktree 隔离和 commit policy，但不是交互式 Codex 项目开发默认入口。",
       "所有端点复用同一套 allowlist + repo mapping 安全模型，runShell 为高信任本地命令 API，Git/Codex diff artifact 只输出 public-safe 路径。",
       `默认支持 ${identity.defaultRepoId}、sourceflow-refactor、ai-wuaishare-cn 这类 repoId 映射；实际路径由本机私有配置解析。`,
       "如产品版本、指令与 Schema 修订、OpenAPI URL 或域名变化，建议去 GPT Builder 侧重新导入 schema 并更新指令。",
-      "当前阶段为 local-first 双模式验证版，GPT Actions 超时 ~30s、上下文 ≥ 53KB 已验证。"
+      "当前阶段为 local-first 控制面 + Provider-Native Codex 路由验证版；GPT Actions 超时 ~30s、上下文 ≥ 53KB 的既有验证仍保留。"
     ]
   };
 }

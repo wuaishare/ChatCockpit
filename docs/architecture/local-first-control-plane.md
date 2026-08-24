@@ -33,7 +33,7 @@ ChatCockpit owns the stable public capability surface, policy/authority boundary
 
 Provider-native tool names are catalog data. They do not become dynamic ChatGPT tools. Read and governed mutation paths re-attest downstream metadata before invocation; meaningful provider mutation requires a local Operator decision rather than Remote MCP self-approval. OAuth client registration and Owner-approved authorization are separate identities: each approval mints a durable Authorization Grant, authorization codes and access/refresh tokens inherit that grant, and verified MCP requests use the Grant as their remote actor identity. Legacy OAuth rows are migrated into deterministic legacy grants without rewriting token hashes. The Owner-only Operational Activity read model unifies project-bound Development Sessions and standalone Jobs; project/workspace/task context is intentionally nullable so host-scoped work remains observable without inventing a fake workspace. Activity provenance is persisted in the Governance logical schema, binding Session/Job work to an OAuth Authorization Grant when one exists, an opaque trace id, and an optional worker instance without storing raw request ids. The Owner-only SSE surface emits changed public-safe Activity snapshots, normalized `activity.event` frames for new RuntimeEvents and governed Job process-control events after the connection baseline, and heartbeat frames. Event frames use product-owned event kinds plus bounded metadata rather than runtime-native method names or Governance-private provenance, and never stream raw commands, logs, private paths, approval summaries, job instructions, or provider payloads.
 
-Development Continuity remains a major implemented solution layer above this control plane. Its Chat Direct, Codex Session, Async Agent Job, Task, Handoff, Evidence, Recovery, and Writer Lease contracts remain valid, but they are not the top-level product category.
+Development Continuity remains an implemented solution layer above this control plane, but it is no longer a universal prerequisite for provider-native interactive work. Its Chat Direct compatibility, Async Agent Job, Task, Handoff, Evidence, Recovery, and Writer Lease contracts remain valid where ChatCockpit owns the workflow. Provider-native Codex Threads/Turns remain authoritative for same-provider interactive development and do not require mirrored Task/Session/Handoff state.
 
 ## Control-Plane Responsibilities
 
@@ -42,9 +42,11 @@ The Control Plane currently provides:
 - authenticated REST and MCP transports over shared Application Services;
 - OpenAPI for Custom GPT Actions experiments;
 - Project and Workspace mapping through public IDs rather than absolute paths;
-- Chat Direct routing for files, search, controlled commands, and Git operations;
-- Codex App Server Thread List/Read/Bind/Resume/Fork;
-- explicit Codex Turn, Interrupt, Approval, and Event operations;
+- project-development routing that prefers provider-native Codex for a ready registered Git Workspace and reports concrete repair/fallback reasons;
+- Chat Direct routing for files, search, controlled commands, and Git operations as an explicit or Native-unavailable model-loop lane;
+- Codex App Server native Thread List/Read/Start/Resume/Fork and account/quota projection;
+- explicit native Codex Turn Start/Interrupt plus public-safe Approval and Event projections;
+- compatibility Continuity-bound Codex Session surfaces for existing workflows;
 - SQLite continuity state for Tasks, Sessions, Runtime Bindings, Writer Leases, Handoffs, Evidence, Runs, Approvals, and Events;
 - Workspace Continuity Snapshot for the Web UI and remote clients;
 - file-backed asynchronous Job Queue and local Runner;
@@ -52,7 +54,7 @@ The Control Plane currently provides:
 - a stable non-persistent `local-device` target projection containing only platform and architecture, without hostname, machine UUID, or Fleet state;
 - release, privacy, protocol, restart, and source-archive gates.
 
-## Development Continuity execution lanes
+## Development execution lanes
 
 ### Direct Drive — Workspace Direct and governed Host Files / bounded Command implemented
 
@@ -103,18 +105,18 @@ Every result records:
 
 The release gate proves Chat Direct does not invoke `turn/start` or create a Codex Thread. Standalone execution never bypasses ChatCockpit path, command, workspace, timeout, output, or exposed-mode policy. File write/edit, Git commit, and potentially mutating Shell operations require an active `chat-direct` Session that owns the Workspace Writer Lease; read-only observers remain lease-free.
 
-### Codex Session — implemented, experimental protocol adapter
+### Codex Native — implemented provider-native interactive lane
 
-A ChatCockpit `codex-session` can bind, resume, or fork a Codex App Server Thread. Starting a Codex model loop is a separate explicit operation that requires:
+For explicit development on a ready registered Git Project/Workspace, Codex Native is the preferred interactive lane when App Server is available. `chatcockpit.project.get` exposes a public-safe `nativeDevelopment` assessment with the next action and required native tool sequence:
 
-- active Runtime Binding;
-- matching Project, Workspace, Task, and Session revisions;
-- one Writer Lease for the Workspace;
-- a pre-run Handoff checkpoint;
-- an Evidence bundle;
-- fixed `on-request` user approval policy.
+- matching native Thread → `chatcockpit.codex.thread.resume` then `chatcockpit.codex.thread.turn.start`;
+- no matching native Thread → `chatcockpit.codex.thread.start` then `chatcockpit.codex.thread.turn.start`;
+- detached/not-ready Workspace → repair first, without mutation;
+- unavailable native runtime → explicit Chat Direct fallback with a concrete reason.
 
-Command and file-change Approval requests are stored and exposed through public-safe projections. Raw server request handles and private request bodies remain local.
+The Codex Thread ID is authoritative for same-provider interactive continuity. Native Start/Resume/Fork/Turn does not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, Runtime Binding, Evidence bundle, or Writer Lease. Codex/App Server owns native model-loop execution, sandbox/approval semantics, and writer ownership. ChatCockpit verifies the registered Workspace, projects public-safe status/events/approvals, and does not steal an active provider writer.
+
+Older `chatcockpit.codex.session.*` and Continuity-bound Turn surfaces remain implemented compatibility APIs for workflows that genuinely use ChatCockpit orchestration; they are not the default project-development path.
 
 ### Async Agent Job — implemented delegated background lane
 
@@ -124,23 +126,25 @@ Async Jobs are already first-class Runtime Bindings in the shared Continuity mod
 
 ## Continuity System of Record
 
-SQLite is the durable continuity store. Core invariants include:
+SQLite is the durable system of record for ChatCockpit-owned orchestration and compatibility Continuity state. Core invariants include:
 
-- one active Writer Lease per writable Workspace;
-- at most one active Codex Runtime Binding per Session;
-- one active Session ownership relation for a Task;
-- one ready Handoff per Task;
+- one active Writer Lease per writable Workspace for ChatCockpit-owned Direct/orchestration flows;
+- at most one active Codex Runtime Binding per compatibility Session;
+- one active Session ownership relation for a Task where a Task-owned workflow exists;
+- one ready Handoff per Task for explicit cross-runtime transfer workflows;
 - optimistic revisions on mutable records;
 - idempotent external mutations with pending/completed recovery semantics;
 - append-preserving Binding, Run, Approval, Event, Handoff, and Evidence history.
 
-A ChatGPT conversation, Codex Thread, process ID, or Runner Job is not the primary Task identity.
+Provider-native Codex Thread/Turn identity is not mirrored into a mandatory ChatCockpit Task/Session. Project/Workspace remains ChatCockpit-owned cross-provider identity; native Thread history remains provider-owned.
 
 ## Public And Private Boundaries
 
 Public clients use:
 
-- `projectId`, `workspaceId`, `taskId`, and `sessionId`;
+- `projectId` and `workspaceId` for cross-provider project routing;
+- native provider Thread/Turn IDs on reviewed provider-native surfaces;
+- `taskId` and `sessionId` only where a ChatCockpit-owned/compatibility workflow actually exists;
 - `repoId` aliases;
 - relative public-safe paths;
 - bounded output and redacted event summaries;
@@ -205,5 +209,5 @@ npm run verify:release
 - Public HTTPS and ChatGPT client compatibility remain environment-dependent and under validation.
 - Provider Management currently exposes only lifecycle operations backed by a reviewed provider contract. Downstream MCP providers such as Desktop Commander therefore report an empty lifecycle-action list until install/update/start/stop ownership is implemented explicitly; the UI does not invent lifecycle buttons. Downstream MCP local config, probe, snapshot, explicit mapping, Broker descriptor projection, and normalized internal execution registry are implemented.
 - Host Direct is exposed through public-safe Host Root Aliases for governed Files and bounded Host Command. Pure Host commands remain read-only; Workspace write effects require Direct Command Approval plus Writer Lease/Git/Evidence re-entry. Raw shell source, interactive terminals, and background Process Management remain unexposed.
-- Recovery of every provider-specific running Session is not automatic; the current restart gate covers durable Lease, Handoff, and Idempotency recovery.
+- Provider-native writer ownership can temporarily make a Codex Thread busy elsewhere; ChatCockpit surfaces that condition rather than stealing ownership. Recovery of every provider-specific running activity is not automatic; ChatCockpit restart recovery still covers its own durable Lease, Handoff, and Idempotency state.
 - Multi-runner distributed coordination and public SaaS operation are not implemented.
