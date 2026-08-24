@@ -50,6 +50,7 @@ export interface ManagedDeviceProjection {
   management: {
     heartbeat: true;
     remoteControl: false;
+    runtimeLifecycle?: boolean;
   };
 }
 

@@ -227,6 +227,16 @@ export class DeviceRuntimeOperationRepository {
     return row ? mapRow(row) : null;
   }
 
+  listRecent(limit = 200): DeviceRuntimeOperationRecord[] {
+    const boundedLimit = Math.min(500, Math.max(1, Math.floor(limit)));
+    const rows = this.database.sqlite.prepare(`
+      SELECT * FROM device_runtime_operations
+      ORDER BY updated_at DESC, id ASC
+      LIMIT ?
+    `).all(boundedLimit) as unknown as OperationRow[];
+    return rows.map(mapRow);
+  }
+
   transition(input: {
     id: string;
     expectedRevision: number;

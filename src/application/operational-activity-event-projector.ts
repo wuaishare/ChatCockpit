@@ -5,6 +5,11 @@ import type {
 } from "../continuity/types.js";
 import type { ActivityControlEventRecord } from "./activity-control-event-port.js";
 import type { JobControlAction, JobProcessState } from "../core/job-processes.js";
+import type {
+  DeviceRuntimeOperationAction,
+  DeviceRuntimeOperationRecord,
+  DeviceRuntimeOperationState
+} from "../governance/device-runtime-operation-repository.js";
 
 export type OperationalActivityEventKind =
   | "run-started"
@@ -21,21 +26,24 @@ export type OperationalActivityEventKind =
   | "approval-rejected"
   | "warning"
   | "error"
+  | "device-operation-updated"
   | "activity";
 
 export interface OperationalActivityEventProjection {
   id: string;
   activityId: string;
-  source: "runtime" | "job-control";
+  source: "runtime" | "job-control" | "device-operation";
   sequence: number;
   kind: OperationalActivityEventKind;
-  category: RuntimeEventCategory | "control";
+  category: RuntimeEventCategory | "control" | "device-operation";
   approvalKind: RuntimeApprovalKind | null;
   itemType: string | null;
   code: string | null;
   controlAction: JobControlAction | null;
   resultingState: JobProcessState | null;
   processRevision: number | null;
+  deviceAction: DeviceRuntimeOperationAction | null;
+  deviceOperationState: DeviceRuntimeOperationState | null;
   createdAt: string;
 }
 
@@ -99,6 +107,8 @@ export function projectOperationalActivityEvent(
     controlAction: null,
     resultingState: null,
     processRevision: null,
+    deviceAction: null,
+    deviceOperationState: null,
     createdAt: event.createdAt
   };
 }
@@ -124,6 +134,30 @@ export function projectOperationalActivityControlEvent(
     controlAction: event.action,
     resultingState: event.resultingState,
     processRevision: event.processRevision,
+    deviceAction: null,
+    deviceOperationState: null,
     createdAt: event.createdAt
+  };
+}
+
+export function projectDeviceRuntimeOperationEvent(
+  operation: DeviceRuntimeOperationRecord
+): OperationalActivityEventProjection {
+  return {
+    id: `${operation.id}:revision:${operation.revision}`,
+    activityId: operation.id,
+    source: "device-operation",
+    sequence: operation.revision,
+    kind: "device-operation-updated",
+    category: "device-operation",
+    approvalKind: null,
+    itemType: null,
+    code: operation.errorCode,
+    controlAction: null,
+    resultingState: null,
+    processRevision: null,
+    deviceAction: operation.action,
+    deviceOperationState: operation.state,
+    createdAt: operation.updatedAt
   };
 }

@@ -446,6 +446,7 @@ export interface ManagedDeviceSummary {
     heartbeat: boolean;
     remoteRead: boolean;
     remoteControl: false;
+    runtimeLifecycle: boolean;
   };
 }
 
@@ -503,6 +504,42 @@ export interface DeviceRevokeResponse {
   deviceId: string;
   revokedAt: string | null;
   revision: number;
+}
+
+export type DeviceRuntimeLifecycleSupport = "managed-macos" | "unsupported";
+export interface DeviceRuntimeConditions {
+  schemaVersion: 1;
+  support: DeviceRuntimeLifecycleSupport;
+  controlPlane: "running" | "stopped" | "unknown";
+  runner: "registered" | "stopped" | "unknown";
+  processSupervisor: "ready" | "registered" | "stopped" | "unknown";
+  observedAt: string;
+}
+export interface DeviceRuntimeStatusResponse {
+  ok: true;
+  deviceId: string;
+  conditions: DeviceRuntimeConditions;
+}
+export type DeviceRuntimeLifecycleAction = "start" | "stop" | "restart";
+export type DeviceRuntimeOperationState = "prepared" | "awaiting-approval" | "executing" | "succeeded" | "failed" | "ambiguous" | "stale";
+export interface DeviceRuntimeOperationProjection {
+  operationId: string;
+  deviceId: string;
+  action: DeviceRuntimeLifecycleAction;
+  state: DeviceRuntimeOperationState;
+  preflightConditions: DeviceRuntimeConditions | null;
+  postflightConditions: DeviceRuntimeConditions | null;
+  errorCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  revision: number;
+}
+export interface DeviceRuntimeLifecycleExecuteResponse {
+  ok: true;
+  operation: DeviceRuntimeOperationProjection;
+  replayed: boolean;
 }
 
 export interface IntegrationStatusResponse {
@@ -1399,7 +1436,7 @@ export interface RuntimeResourceMutationExecution {
   finishedAt: string | null;
 }
 
-export type OperationalActivityKind = "agent-session" | "job";
+export type OperationalActivityKind = "agent-session" | "job" | "device-operation";
 export type OperationalActivityScope = "workspace" | "repo" | "host";
 export type OperationalActivityStatus =
   | "queued"
@@ -1429,21 +1466,24 @@ export type OperationalActivityEventKind =
   | "approval-rejected"
   | "warning"
   | "error"
+  | "device-operation-updated"
   | "activity";
 
 export interface OperationalActivityEventProjection {
   id: string;
   activityId: string;
-  source: "runtime" | "job-control";
+  source: "runtime" | "job-control" | "device-operation";
   sequence: number;
   kind: OperationalActivityEventKind;
-  category: "lifecycle" | "approval" | "item" | "warning" | "error" | "other" | "control";
+  category: "lifecycle" | "approval" | "item" | "warning" | "error" | "other" | "control" | "device-operation";
   approvalKind: "command-execution" | "file-change" | "permissions" | "unsupported" | null;
   itemType: string | null;
   code: string | null;
   controlAction: "pause" | "resume" | "terminate" | null;
   resultingState: "running" | "paused" | "terminated" | "completed" | "failed" | null;
   processRevision: number | null;
+  deviceAction: DeviceRuntimeLifecycleAction | null;
+  deviceOperationState: DeviceRuntimeOperationState | null;
   createdAt: string;
 }
 
@@ -1474,7 +1514,7 @@ export interface OperationalActivityProjection {
   scope: OperationalActivityScope;
   status: OperationalActivityStatus;
   title: string;
-  targetDeviceId: "local-device";
+  targetDeviceId: string;
   projectId: string | null;
   workspaceId: string | null;
   taskId: string | null;
@@ -1484,6 +1524,17 @@ export interface OperationalActivityProjection {
   traceId: string | null;
   workerInstanceId: string | null;
   runtime: OperationalActivityRuntimeProjection | null;
+  deviceOperation: {
+    operationId: string;
+    deviceId: string;
+    deviceDisplayName: string;
+    platform: string | null;
+    architecture: string | null;
+    action: DeviceRuntimeLifecycleAction;
+    state: DeviceRuntimeOperationState;
+    actorType: "local-ui" | "remote-mcp" | "gpt-actions" | null;
+    revision: number;
+  } | null;
   job: {
     id: string;
     type: "pack" | "taskpack" | "codex-run";

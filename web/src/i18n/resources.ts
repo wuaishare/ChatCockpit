@@ -46,12 +46,14 @@ export interface ResourceCenterCopy {
   activityRecentDescription: string;
   activityKindAgent: string;
   activityKindJob: string;
+  activityKindDeviceOperation: string;
   activityScopeWorkspace: string;
   activityScopeRepo: string;
   activityScopeHost: string;
   activityRuntime: string;
   activityJob: string;
   activityGrant: string;
+  activityActor: string;
   activityTrace: string;
   activityWorker: string;
   activityProcesses: string;
@@ -70,6 +72,7 @@ export interface ResourceCenterCopy {
   activityEventApprovalRejected: string;
   activityEventWarning: string;
   activityEventError: string;
+  activityEventDeviceOperation: string;
   activityEventActivity: string;
   activityUpdated: string;
   activityUnknownAuthority: string;
@@ -248,12 +251,14 @@ const zhCN: ResourceCenterCopy = {
   activityRecentDescription: "仅保留最近完成、失败或终止的条目，避免历史任务淹没当前运行态。",
   activityKindAgent: "Agent Session",
   activityKindJob: "独立任务",
+  activityKindDeviceOperation: "设备运行栈操作",
   activityScopeWorkspace: "Workspace",
   activityScopeRepo: "Repository",
   activityScopeHost: "Host",
   activityRuntime: "Runtime",
   activityJob: "任务",
   activityGrant: "授权关系",
+  activityActor: "发起方",
   activityTrace: "Trace",
   activityWorker: "Worker",
   activityProcesses: "受管进程",
@@ -272,6 +277,7 @@ const zhCN: ResourceCenterCopy = {
   activityEventApprovalRejected: "批准请求已拒绝",
   activityEventWarning: "运行警告",
   activityEventError: "运行错误",
+  activityEventDeviceOperation: "设备运行栈状态已更新",
   activityEventActivity: "运行状态已更新",
   activityUpdated: "更新",
   activityUnknownAuthority: "未绑定授权",
@@ -450,12 +456,14 @@ const enUS: ResourceCenterCopy = {
   activityRecentDescription: "Only the latest terminal items are kept visible so historical work does not obscure current execution.",
   activityKindAgent: "Agent Session",
   activityKindJob: "Standalone job",
+  activityKindDeviceOperation: "Device Runtime operation",
   activityScopeWorkspace: "Workspace",
   activityScopeRepo: "Repository",
   activityScopeHost: "Host",
   activityRuntime: "Runtime",
   activityJob: "Job",
   activityGrant: "Authorization grant",
+  activityActor: "Actor",
   activityTrace: "Trace",
   activityWorker: "Worker",
   activityProcesses: "Managed processes",
@@ -474,6 +482,7 @@ const enUS: ResourceCenterCopy = {
   activityEventApprovalRejected: "Approval request rejected",
   activityEventWarning: "Runtime warning",
   activityEventError: "Runtime error",
+  activityEventDeviceOperation: "Device Runtime state updated",
   activityEventActivity: "Runtime state updated",
   activityUpdated: "Updated",
   activityUnknownAuthority: "No grant bound",
