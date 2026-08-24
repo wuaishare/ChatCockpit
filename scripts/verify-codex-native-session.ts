@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { CodexNativeSessionService } from "../src/application/codex-native-session-service.ts";
 import { CodexNativeTurnService } from "../src/application/codex-native-turn-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { RuntimeEventService } from "../src/application/runtime-event-service.ts";
@@ -103,6 +104,7 @@ const adapter = new CodexAppServerAdapter({
     })
 });
 const runtime = new RuntimeRouter(adapter);
+const nativeSessions = new CodexNativeSessionService(repositories, runtime);
 const nativeTurns = new CodexNativeTurnService(repositories, runtime);
 const runtimeEvents = new RuntimeEventService(repositories, runtime, nativeTurns);
 runtimeEvents.attach();
@@ -162,22 +164,50 @@ try {
     "unknown"
   ]);
 
-  const started = await adapter.startThread({ workspaceId: workspace.id });
+  const startedResult = await nativeSessions.start(remoteContext, {
+    workspaceId: workspace.id,
+    name: "Provider Native Visibility",
+    idempotencyKey: "native-thread-start-0001"
+  });
+  const started = startedResult.thread;
   assert.equal(started.workspaceId, workspace.id);
   assert.equal(started.projectId, project.id);
   assert.equal(started.repoId, workspace.repoId);
   assert.equal(started.sourceKind, "appServer");
+  assert.equal(started.threadSource, "user");
+  assert.equal(started.name, "Provider Native Visibility");
 
-  const startRequest = readTrace(tracePath)
-    .filter((entry) => entry.method === "thread/start")
-    .at(-1);
+  const replayedStart = await nativeSessions.start(remoteContext, {
+    workspaceId: workspace.id,
+    name: "Provider Native Visibility",
+    idempotencyKey: "native-thread-start-0001"
+  });
+  assert.equal(replayedStart.replayed, true);
+  assert.equal(replayedStart.thread.id, started.id);
+
+  const startRequests = readTrace(tracePath).filter((entry) => entry.method === "thread/start");
+  assert.equal(startRequests.length, 1, "idempotent replay must not create a second native Thread");
+  const startRequest = startRequests[0];
   assert.ok(startRequest);
   assert.equal(startRequest.params?.cwd, workspaceRoot);
+  assert.equal(startRequest.params?.threadSource, "user");
   assert.deepEqual(
     Object.keys(startRequest.params ?? {}).sort(),
-    ["cwd"],
+    ["cwd", "threadSource"],
     "Native thread/start should inherit provider/user config instead of overriding model, sandbox, or approval policy"
   );
+  const nameRequests = readTrace(tracePath).filter((entry) => entry.method === "thread/name/set");
+  assert.equal(nameRequests.length, 1, "idempotent replay must not rename/recreate the same Thread again");
+  assert.equal(nameRequests[0]?.params?.threadId, started.id);
+  assert.equal(nameRequests[0]?.params?.name, "Provider Native Visibility");
+
+  const unnamedFallback = await adapter.startThread({
+    workspaceId: workspace.id,
+    name: "__mock_name_set_unsupported__"
+  });
+  assert.equal(unnamedFallback.threadSource, "user");
+  assert.equal(unnamedFallback.name, null);
+  assert.notEqual(unnamedFallback.id, started.id);
 
   const resumed = await adapter.resumeThread({ threadId: "thread_root" });
   assert.equal(resumed.id, "thread_root", "Native Resume must preserve the authoritative Thread ID");

@@ -23,7 +23,7 @@ export interface ProjectDevelopmentRoutingAssessment {
   nativeToolSequence: string[];
   matchingThread: Pick<
     RuntimeThreadProjection,
-    "id" | "preview" | "updatedAt" | "recencyAt" | "sourceKind" | "status"
+    "id" | "preview" | "updatedAt" | "recencyAt" | "sourceKind" | "threadSource" | "name" | "status"
   > | null;
   workspace: {
     status: string | null;
@@ -166,7 +166,16 @@ export class ProjectDevelopmentRoutingService {
       archived: undefined,
       sourceKinds: ["cli", "vscode", "exec", "appServer", "unknown"]
     });
-    const matching = newestThread(threads.data);
+    const userFacingThreads = threads.data.filter(
+      (thread) => thread.threadSource === "user" && thread.parentThreadId === null
+    );
+    const matching = newestThread(userFacingThreads);
+    const ignoredNonUserThreadCount = threads.data.length - userFacingThreads.length;
+    if (ignoredNonUserThreadCount > 0) {
+      warnings.push(
+        `Ignored ${ignoredNonUserThreadCount} non-user Codex thread(s) for automatic project continuation`
+      );
+    }
     if (matching) {
       return {
         projectId,
@@ -186,6 +195,8 @@ export class ProjectDevelopmentRoutingService {
           updatedAt: matching.updatedAt,
           recencyAt: matching.recencyAt,
           sourceKind: matching.sourceKind,
+          threadSource: matching.threadSource,
+          name: matching.name ?? null,
           status: matching.status
         },
         workspace: {
@@ -206,7 +217,7 @@ export class ProjectDevelopmentRoutingService {
       repoId: workspace.repoId,
       preferredLane: "codex-native",
       nextAction: "start-native",
-      reason: "NO_MATCHING_NATIVE_THREAD",
+      reason: threads.data.length > 0 ? "NO_USER_FACING_NATIVE_THREAD" : "NO_MATCHING_NATIVE_THREAD",
       nativeRuntimeAvailable: true,
       nativeToolSequence: [
         "chatcockpit.codex.thread.start",

@@ -686,7 +686,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     const client = await this.ensureClient();
     const workspace = this.workspaces.getPrivate(input.workspaceId);
     const response = await client.request<ThreadReadResponse>("thread/start", {
-      cwd: workspace.privatePath
+      cwd: workspace.privatePath,
+      threadSource: "user"
     });
     if (!response.thread) {
       throw new ServiceError(
@@ -694,7 +695,22 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Codex App Server returned no started thread record"
       );
     }
-    return projectCodexThread(response.thread, this.workspaces.listPrivate());
+    const projected = projectCodexThread(
+      response.thread,
+      this.workspaces.listPrivate()
+    );
+    const requestedName = input.name?.trim();
+    if (!requestedName) return projected;
+    try {
+      await client.request("thread/name/set", {
+        threadId: projected.id,
+        name: requestedName
+      });
+      return { ...projected, name: requestedName };
+    } catch {
+      // Naming improves Codex discoverability but must never duplicate an already-created Thread.
+      return projected;
+    }
   }
 
   async resumeThread(

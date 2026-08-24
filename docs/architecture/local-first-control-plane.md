@@ -109,12 +109,12 @@ The release gate proves Chat Direct does not invoke `turn/start` or create a Cod
 
 For explicit development on a ready registered Git Project/Workspace, Codex Native is the preferred interactive lane when App Server is available. `chatcockpit.project.get` exposes a public-safe `nativeDevelopment` assessment with the next action and required native tool sequence:
 
-- matching native Thread → `chatcockpit.codex.thread.resume` then `chatcockpit.codex.thread.turn.start`;
-- no matching native Thread → `chatcockpit.codex.thread.start` then `chatcockpit.codex.thread.turn.start`;
+- matching top-level user Thread (`threadSource=user`) → `chatcockpit.codex.thread.resume` then `chatcockpit.codex.thread.turn.start`;
+- no matching user Thread, including when only legacy/non-user or subagent Threads exist → `chatcockpit.codex.thread.start` then `chatcockpit.codex.thread.turn.start`;
 - detached/not-ready Workspace → repair first, without mutation;
 - unavailable native runtime → explicit Chat Direct fallback with a concrete reason.
 
-The Codex Thread ID is authoritative for same-provider interactive continuity. Native Start/Resume/Fork/Turn does not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, Runtime Binding, Evidence bundle, or Writer Lease. Codex/App Server owns native model-loop execution, sandbox/approval semantics, and writer ownership. ChatCockpit verifies the registered Workspace, projects public-safe status/events/approvals, and does not steal an active provider writer.
+The Codex Thread ID is authoritative for same-provider interactive continuity. New automatic project-development Threads are created with `threadSource=user`; ChatCockpit then best-effort calls the native `thread/name/set` method with a bounded name so the Thread can participate in Codex user-session discovery. Naming is secondary metadata: failure must not retry or duplicate a Thread whose native `thread/start` already succeeded. Automatic continuation ignores legacy/non-user and subagent Threads, while explicit native APIs may still address them. Generic App Server does not own Codex Desktop Project grouping, so user-session discoverability must not be described as guaranteed placement inside a Desktop Project. Native Start/Resume/Fork/Turn does not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, Runtime Binding, Evidence bundle, or Writer Lease. Codex/App Server owns native model-loop execution, sandbox/approval semantics, and writer ownership. ChatCockpit verifies the registered Workspace, projects public-safe status/events/approvals, and does not steal an active provider writer.
 
 Older `chatcockpit.codex.session.*` and Continuity-bound Turn surfaces remain implemented compatibility APIs for workflows that genuinely use ChatCockpit orchestration; they are not the default project-development path.
 
