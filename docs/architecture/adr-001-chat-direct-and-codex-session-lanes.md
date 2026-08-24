@@ -1,18 +1,18 @@
 # ADR-001: Separate Chat Direct and Codex Session Lanes
 
-- Status: Accepted and implemented for the current Chat Direct and Codex Session mutation surfaces
-- Date: 2026-08-06
+- Status: Accepted; refined for Provider-Native Session Authority on 2026-08-24
+- Date: 2026-08-06; refinement: 2026-08-24
 - Decision owners: ChatCockpit maintainers
 - Related governance: `docs/governance/product-principles.md`
 
 ## Context
 
-ChatCockpit must support two forms of local development from ChatGPT:
+ChatCockpit must support two distinct model-loop ownership modes from ChatGPT:
 
-1. ordinary ChatGPT Chat directly operates an allowlisted local project;
-2. ChatGPT discovers and delegates to an official Codex session.
+1. **Codex Native** for explicit development inside a registered Git Project/Workspace when the provider-native App Server is available;
+2. **Chat Direct** when the operator explicitly wants ChatGPT to own the model loop, or when provider-native development has a concrete unavailable/fallback reason.
 
-Both forms may use capabilities exposed by the official Codex App Server, but they do not have the same model-loop ownership, usage behavior, safety boundary, or operator expectation.
+Both modes may use capabilities exposed by the official Codex App Server, but they do not have the same model-loop ownership, usage behavior, safety boundary, or operator expectation. Task size is not a routing rule.
 
 Without an explicit split, a low-level tool such as “run command” could silently start a Codex turn. That would make Chat Direct unreliable, obscure usage and cost, confuse approvals, and make handoff semantics impossible to reason about.
 
@@ -30,11 +30,13 @@ ChatCockpit may use official App Server standalone capabilities or ChatCockpit-o
 
 Chat Direct must not call `turn/start`, `codex exec`, or an equivalent agent-loop entry point implicitly.
 
-### Lane B: Codex Session
+### Lane B: Codex Native
 
-Codex owns the delegated agent loop.
+Codex owns the provider-native agent loop. The Codex Thread ID is the authoritative interactive coding-session identity; ChatCockpit Project/Workspace remains the cross-provider project identity.
 
-ChatCockpit exposes explicit operations for thread discovery, read, bind, resume, fork, turn start, interrupt, approval, events, and status.
+For explicit registered Git project development, ChatCockpit first assesses Workspace/Git truth and native runtime availability. A matching native Thread is resumed; otherwise a native Thread is started. The native Turn is then started explicitly.
+
+Same-provider native continuation does not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, or Writer Lease. Compatibility Continuity surfaces may still exist for workflows that actually need ChatCockpit-owned orchestration.
 
 Any operation that can start or continue Codex model inference must be named, classified, and visible to the operator.
 
@@ -82,7 +84,7 @@ Chat Direct operations must:
 - record what changed and how it was verified;
 - expose whether the implementation used App Server standalone execution or a ChatCockpit fallback executor.
 
-Current implementation note: file write, file edit, Git commit, and every Shell command classified as potentially mutating require a `chat-direct` Session that is active for its Task and owns the Workspace Writer Lease. Read-only Files/Search/Git operations and Shell commands conservatively classified as read-only do not require Writer ownership. Codex Turn independently enforces its bound Session and Writer Lease.
+Current implementation note: file write, file edit, Git commit, and every Shell command classified as potentially mutating in the **Chat Direct compatibility/Continuity lane** require a `chat-direct` Session that is active for its Task and owns the Workspace Writer Lease. Read-only Files/Search/Git operations and Shell commands conservatively classified as read-only do not require Writer ownership. Provider-native Codex Turn does not inherit this ChatCockpit Session/Lease requirement; older `chatcockpit.codex.session.*` compatibility surfaces retain their existing Continuity contract.
 
 Chat Direct operations must not:
 
@@ -91,26 +93,26 @@ Chat Direct operations must not:
 - silently change provider or billing mode;
 - report skipped verification as passed.
 
-## Codex Session Contract
+## Codex Native Contract
 
-Codex Session operations may:
+Codex Native operations may:
 
-- list and search threads;
-- read thread metadata and history projections;
-- bind a ChatCockpit development session to a Codex thread;
-- resume or fork a thread;
-- start and interrupt turns;
-- broker approvals;
-- stream runtime events;
-- capture usage, changes, commands, and verification evidence.
+- list and search native threads;
+- read public-safe thread metadata;
+- start, resume, or fork a provider-native thread for a registered Workspace;
+- start and interrupt native turns;
+- project provider-native approvals and events through reviewed public-safe surfaces;
+- read account/quota status for routing decisions.
 
-Codex Session operations must:
+Codex Native operations must:
 
 - make `turn/start` and provider selection explicit;
-- acquire or transfer the workspace writer lease before starting a write-capable turn;
-- preserve the external Codex thread ID as a runtime binding, not ChatCockpit's primary domain identity;
-- create a handoff checkpoint before changing active runtime or writer;
-- record capability and protocol versions.
+- preserve the Codex Thread ID as the authoritative same-provider interactive session identity;
+- verify the selected ChatCockpit Workspace before start/resume/fork;
+- respect provider-native writer ownership and surface a busy/owned-elsewhere condition rather than stealing ownership;
+- inherit the user's provider-native model, sandbox, approval, instructions, and runtime configuration unless an explicit reviewed override exists;
+- avoid manufacturing ChatCockpit Task/Session/Handoff state solely to continue the same provider-native Thread;
+- record public-safe capability/protocol diagnostics without exposing private paths or credentials.
 
 ## Ephemeral Carrier Threads
 
@@ -142,35 +144,34 @@ ChatCockpit must not assume that an experimental method exists solely because it
 
 Unsupported capabilities return a stable `CAPABILITY_UNAVAILABLE` result and identify the available fallback, if one exists.
 
-## Writer Lease Rule
+## Writer Ownership Rule
 
-A writable workspace may have only one active writer.
+Writer ownership is enforced by the runtime that owns the model loop; ChatCockpit must not invent a second mandatory lock for a mature provider-native session.
 
-- Chat Direct mutation requires a Chat Direct lease.
-- A write-capable Codex turn requires a Codex Session lease.
-- Async Agent work uses its own isolated worktree and lease.
-- Observers can read while another writer holds the lease.
-- Handoff transfers ownership after the current operation reaches a safe checkpoint.
-- Parallel work requires a forked session and a separate worktree.
+- Chat Direct compatibility mutations continue to use the ChatCockpit Writer Lease contract.
+- Provider-native Codex work follows Codex/App Server native writer ownership. A busy/active-writer response is surfaced as operational state; ChatCockpit does not kill, steal, or tight-loop retry the writer.
+- Async Agent work uses its own isolated worktree and ChatCockpit-owned lease/orchestration contract.
+- Cross-runtime Transfer/Handoff is reserved for an intentional change in model-loop ownership, not ordinary same-provider Resume.
+- Parallel provider-native work uses provider-native fork plus an appropriate separate worktree when concurrent writes would otherwise collide.
 
 ## Security Consequences
 
 The split enables separate policies:
 
-| Concern | Chat Direct | Codex Session |
+| Concern | Chat Direct | Codex Native |
 |---|---|---|
 | Model inference owner | ChatGPT | Codex |
-| Shell policy | ChatCockpit allowlist and approval | Codex sandbox and approval plus ChatCockpit policy |
-| Session persistence | ChatCockpit operation/session | Native Codex thread binding |
+| Shell policy | ChatCockpit allowlist and approval | Provider-native Codex sandbox/approval semantics |
+| Session persistence | ChatCockpit compatibility operation/session when needed | Native Codex Thread is authoritative |
 | Usage impact | Chat experience and invoked tools | Codex/agentic usage |
-| Mutations | writer lease required | writer lease required |
-| Hidden escalation | forbidden | not applicable; entry is explicit |
+| Mutations | ChatCockpit Direct policy/lease | Provider-native writer ownership |
+| Hidden escalation | forbidden | not applicable; native Turn entry is explicit |
 
 ## Alternatives Rejected
 
-### Always call Codex for local work
+### Collapse every local operation into Codex Native
 
-Rejected because it removes the independent Chat Direct lane, introduces a second model loop, and defeats quota-resilient continuation.
+Rejected because Chat Direct remains a legitimate explicit model-loop choice and an important native-unavailable/quota-resilient fallback. This does not change the project-development default: explicit registered Git project development prefers Codex Native when the provider is available.
 
 ### Implement only low-level filesystem and shell tools
 
@@ -193,27 +194,30 @@ Rejected because shared workspace mutation without ownership produces non-determ
 ### Positive
 
 - honest and predictable model-loop ownership;
+- provider-native continuity without a shadow ChatCockpit session state machine;
 - explicit usage and approval boundaries;
 - reuse of official Codex runtime capabilities;
-- reliable handoff between ChatGPT and Codex;
-- room for additional runtime adapters;
-- compatibility with ChatCockpit's existing async runner.
+- native Resume/Fork semantics when staying on the same provider;
+- explicit Transfer/Handoff only when model-loop ownership actually changes;
+- compatibility with ChatCockpit's existing Direct and async orchestration lanes.
 
 ### Costs
 
 - adapter capability matrix and version testing;
-- writer-lease implementation;
-- more explicit UI than a single “run task” button;
-- separate evidence mapping for direct and delegated operations;
-- careful handling of ephemeral carrier threads.
+- provider-specific native writer-ownership and busy-state handling;
+- more explicit routing/UI than a single “run task” button;
+- compatibility maintenance for older Continuity-bound Codex Session surfaces;
+- careful handling of ephemeral carrier threads and cross-runtime Transfer.
 
 ## Validation Criteria
 
 Implementation status:
 
 1. **Implemented:** a Chat Direct edit and standalone command complete without invoking a Codex Turn or Thread method.
-2. **Implemented:** a Codex Session Turn cannot start through a Chat Direct tool.
-3. **Implemented:** Codex Turn and every mutating Chat Direct surface require Session-bound Writer ownership; read-only observers remain lease-free.
-4. **Implemented:** a Runtime Handoff records Project, Task, Git, changed files, pending work, risks, next action, and optional Evidence.
-5. **Implemented:** capability probing and runtime invocation produce deterministic unavailable/fallback behavior.
-6. **Not currently exercised:** no ephemeral carrier thread is created by the verified standalone path; any future carrier implementation must remain distinct from native Codex Sessions.
+2. **Implemented:** provider-native Codex Thread Start/Resume/Fork and native Turn Start are explicit tools and do not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, or Writer Lease.
+3. **Implemented:** a ready registered Git Workspace with healthy Codex App Server routes project development to `codex-native`; a matching Thread routes to native Resume, otherwise native Start.
+4. **Implemented:** detached/not-ready Workspace state blocks native execution with a concrete repair reason instead of silently falling back to mutation.
+5. **Implemented:** Chat Direct fallback carries a concrete Native-unavailable reason, and Direct Standalone execution rejects stale binary capability evidence.
+6. **Implemented:** MCP diagnostics publish catalog count/fingerprint/version so connector catalog staleness can be diagnosed; reconnect remains required for the current stateless transport.
+7. **Implemented compatibility:** older `chatcockpit.codex.session.*` Continuity-bound surfaces remain available without becoming mandatory for provider-native development.
+8. **Not currently exercised:** no ephemeral carrier thread is created by the verified standalone path; any future carrier implementation must remain distinct from native Codex Threads.

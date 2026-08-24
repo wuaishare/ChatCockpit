@@ -123,6 +123,7 @@ import {
   continuityDatabasePath
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
+import { buildMcpToolCatalogMetadata } from "../mcp/catalog-metadata.js";
 import {
   buildTokenPilotMcpHandler,
   buildTokenPilotMcpToolCatalog
@@ -151,7 +152,11 @@ import {
 } from "../contracts/host-direct.js";
 import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
-import { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
+import {
+  CodexStandaloneCapabilityStore,
+  type CodexStandaloneSnapshotStatus
+} from "../runtime/codex/standalone-capabilities.js";
+import { CodexStandaloneCapabilityRefreshLoop } from "../runtime/codex/standalone-refresh.js";
 import { AcpRegistryAdapter } from "../runtime/resources/acp-registry-adapter.js";
 import { CodexPluginMutationAdapter } from "../runtime/resources/codex-plugin-mutation-adapter.js";
 import { CodexResourceInventoryAdapter } from "../runtime/resources/codex-resource-inventory-adapter.js";
@@ -322,6 +327,8 @@ function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus
 
 export interface BuildServerOptions {
   codexAdapter?: CodingRuntimeAdapter;
+  codexStandaloneInitialStatus?: CodexStandaloneSnapshotStatus;
+  codexStandaloneRefreshIntervalMs?: number;
   codexSkillMutationAdapter?: CodexSkillMutationAdapter;
   codexPluginMutationAdapter?: CodexPluginMutationAdapter;
   runtimeResourceMutationNow?: () => string;
@@ -595,6 +602,34 @@ export function buildServer(
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
     paths.runtimeDir
   );
+  let codexStandaloneStatus: CodexStandaloneSnapshotStatus =
+    options.codexStandaloneInitialStatus ?? (() => {
+      const snapshot = standaloneCapabilityStore.read();
+      return snapshot
+        ? { state: "ready", reason: null, probedAt: snapshot.probedAt }
+        : {
+            state: "missing",
+            reason: "CAPABILITY_SNAPSHOT_MISSING",
+            probedAt: null
+          };
+    })();
+  const standaloneRefreshIntervalMs = options.codexStandaloneRefreshIntervalMs ?? 0;
+  const standaloneRefreshLoop = standaloneRefreshIntervalMs > 0
+    ? new CodexStandaloneCapabilityRefreshLoop(
+        paths,
+        standaloneRefreshIntervalMs,
+        (result) => {
+          codexStandaloneStatus = result.status;
+          if (result.errorCode) {
+            app.log.warn(
+              { errorCode: result.errorCode, state: result.status.state },
+              "Codex standalone capability refresh did not complete"
+            );
+          }
+        }
+      )
+    : null;
+  standaloneRefreshLoop?.start();
   const codexAdapter =
     options.codexAdapter ??
     new CodexAppServerAdapter({
@@ -899,6 +934,7 @@ export function buildServer(
       deviceLanTlsPort = null;
     }
     runtimeEventService.detach();
+    await standaloneRefreshLoop?.stop();
     await hostProcess.close();
     await runtimeService.close();
     continuityDatabase.close();
@@ -912,7 +948,7 @@ export function buildServer(
   const exposedRuntimeResourceMutationService = isResourceMutationExposureEnabled()
     ? runtimeResourceMutationService
     : null;
-  const mcpToolCount = buildTokenPilotMcpToolCatalog(
+  const mcpTools = buildTokenPilotMcpToolCatalog(
     paths,
     continuityServices,
     chatDirect,
@@ -934,7 +970,8 @@ export function buildServer(
     deviceRuntimeLifecycleService,
     exposedRuntimeResourceMutationService,
     codexThreadImportService
-  ).length;
+  );
+  const mcpCatalogMetadata = buildMcpToolCatalogMetadata(mcpTools);
   const mcpHandler = buildTokenPilotMcpHandler(
     paths,
     continuityServices,
@@ -1012,7 +1049,8 @@ export function buildServer(
     buildIntegrationStatusSnapshot({
       paths,
       oauthSummary: oauthStore?.integrationSummary(new Date().toISOString()) ?? null,
-      toolCount: mcpToolCount
+      toolCatalog: mcpCatalogMetadata,
+      codexStandalone: codexStandaloneStatus
     });
 
   const connectivityProviderStatusHandler = async () =>

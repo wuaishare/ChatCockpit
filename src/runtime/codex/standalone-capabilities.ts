@@ -28,6 +28,14 @@ export interface CodexStandaloneOperationCapability {
   evidence: Record<string, boolean | number | string | null>;
 }
 
+export type CodexStandaloneSnapshotState = "ready" | "missing" | "stale";
+
+export interface CodexStandaloneSnapshotStatus {
+  state: CodexStandaloneSnapshotState;
+  reason: "CAPABILITY_SNAPSHOT_MISSING" | "CODEX_BINARY_CHANGED" | null;
+  probedAt: string | null;
+}
+
 export interface CodexStandaloneCapabilitySnapshot {
   schemaVersion: 1;
   runtime: "codex-app-server";
@@ -43,6 +51,30 @@ export interface CodexStandaloneCapabilitySnapshot {
   outgoingMethods: string[];
   turnStartObserved: boolean;
   directExecutionReady: boolean;
+}
+
+export function assessCodexStandaloneSnapshot(
+  snapshot: CodexStandaloneCapabilitySnapshot | null,
+  currentBinary: { source: string | null; version: string | null }
+): CodexStandaloneSnapshotStatus {
+  if (!snapshot) {
+    return {
+      state: "missing",
+      reason: "CAPABILITY_SNAPSHOT_MISSING",
+      probedAt: null
+    };
+  }
+  if (
+    snapshot.binarySource !== currentBinary.source ||
+    snapshot.binaryVersion !== currentBinary.version
+  ) {
+    return {
+      state: "stale",
+      reason: "CODEX_BINARY_CHANGED",
+      probedAt: snapshot.probedAt
+    };
+  }
+  return { state: "ready", reason: null, probedAt: snapshot.probedAt };
 }
 
 function snapshotPath(runtimeDir: string): string {

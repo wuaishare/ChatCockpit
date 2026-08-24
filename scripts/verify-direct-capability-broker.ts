@@ -93,7 +93,10 @@ function verifyDirectCapabilityBroker(): void {
   store.write(buildSnapshot());
 
   const broker = new DirectCapabilityBroker([
-    createCodexStandaloneExecutorSource(store),
+    createCodexStandaloneExecutorSource(store, {
+      source: "/private/should-not-leak/codex",
+      version: "codex-cli broker-test"
+    }),
     createBuiltInDirectExecutorSource()
   ], {
     executorAliases: DEFAULT_PRODUCT_IDENTITY.directExecutorInputAliases
@@ -168,6 +171,23 @@ function verifyDirectCapabilityBroker(): void {
   for (const descriptor of catalog) {
     assertPublicDescriptor(descriptor);
   }
+
+  const staleBroker = new DirectCapabilityBroker([
+    createCodexStandaloneExecutorSource(store, {
+      source: "chatgpt-app",
+      version: "codex-cli broker-test-newer"
+    }),
+    createBuiltInDirectExecutorSource()
+  ]);
+  const staleCatalog = staleBroker.catalog();
+  assert.equal(staleCatalog[0]?.health, "unavailable");
+  assert.deepEqual(staleCatalog[0]?.capabilities, []);
+  const staleFallback = staleBroker.resolve({
+    capability: "files.read",
+    scope: "workspace",
+    access: "read"
+  });
+  assert.equal(staleFallback.executorId, "builtin-direct");
 
   fs.rmSync(runtimeDir, { recursive: true, force: true });
 

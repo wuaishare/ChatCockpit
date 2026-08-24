@@ -12,7 +12,10 @@ import {
   CodexAppServerClient,
   type CodexAppServerInitialization
 } from "./app-server-client.js";
-import type { CodexStandaloneCapabilityStore } from "./standalone-capabilities.js";
+import {
+  assessCodexStandaloneSnapshot,
+  type CodexStandaloneCapabilityStore
+} from "./standalone-capabilities.js";
 import { projectCodexThreadContext } from "./thread-context-projection.js";
 import { projectCodexThread } from "./thread-projection.js";
 import type {
@@ -384,6 +387,13 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   async capabilities(): Promise<RuntimeCapabilitySnapshot> {
     try {
       await this.ensureClient();
+      const standaloneExecution = this.standaloneCapabilityStore?.read() ?? null;
+      const standaloneExecutionStatus = this.standaloneCapabilityStore
+        ? assessCodexStandaloneSnapshot(standaloneExecution, {
+            source: this.resolution?.source ?? null,
+            version: this.resolution?.version ?? null
+          })
+        : undefined;
       return {
         available: true,
         runtime: "codex-app-server",
@@ -403,7 +413,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           "account/rateLimits/read"
         ],
         experimentalApiEnabled: false,
-        standaloneExecution: this.standaloneCapabilityStore?.read() ?? null
+        standaloneExecution,
+        ...(standaloneExecutionStatus
+          ? { standaloneExecutionStatus }
+          : {})
       };
     } catch (error) {
       const normalized =
@@ -413,6 +426,13 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
               "CODEX_APP_SERVER_UNAVAILABLE",
               "Codex App Server is unavailable"
             );
+      const standaloneExecution = this.standaloneCapabilityStore?.read() ?? null;
+      const standaloneExecutionStatus = this.standaloneCapabilityStore
+        ? assessCodexStandaloneSnapshot(standaloneExecution, {
+            source: this.resolution?.source ?? null,
+            version: this.resolution?.version ?? null
+          })
+        : undefined;
       return {
         available: false,
         runtime: "codex-app-server",
@@ -422,7 +442,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         serverProtocolVersion: null,
         stableMethods: [],
         experimentalApiEnabled: false,
-        standaloneExecution: this.standaloneCapabilityStore?.read() ?? null,
+        standaloneExecution,
+        ...(standaloneExecutionStatus
+          ? { standaloneExecutionStatus }
+          : {}),
         unavailableReason: normalized.code
       };
     }

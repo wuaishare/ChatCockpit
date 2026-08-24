@@ -8,6 +8,7 @@ import {
   buildLanAccessSnapshot,
   type LanAccessSnapshot
 } from "../devices/lan-access.js";
+import type { CodexStandaloneSnapshotStatus } from "../runtime/codex/standalone-capabilities.js";
 
 export interface IntegrationStatusSnapshot {
   ok: true;
@@ -28,6 +29,11 @@ export interface IntegrationStatusSnapshot {
     activeRefreshTokenCount: number;
     toolCatalogStatus: "ready";
     toolCount: number;
+    toolCatalogFingerprint: string;
+    serverVersion: string;
+  };
+  runtime: {
+    codexStandalone: CodexStandaloneSnapshotStatus;
   };
   machineApi: {
     configured: boolean;
@@ -46,7 +52,12 @@ function appendPath(baseUrl: string, pathname: string): string {
 export function buildIntegrationStatusSnapshot(input: {
   paths: TokenPilotPaths;
   oauthSummary?: OAuthIntegrationSummary | null;
-  toolCount: number;
+  toolCatalog: {
+    toolCount: number;
+    fingerprint: string;
+    serverVersion: string;
+  };
+  codexStandalone: CodexStandaloneSnapshotStatus;
 }): IntegrationStatusSnapshot {
   const health = buildHealthStatusSnapshot(input.paths.productIdentity);
   const accessPolicy = loadAccessPolicy(input.paths);
@@ -88,7 +99,12 @@ export function buildIntegrationStatusSnapshot(input: {
       activeAccessTokenCount: oauthSummary.activeAccessTokenCount,
       activeRefreshTokenCount: oauthSummary.activeRefreshTokenCount,
       toolCatalogStatus: "ready",
-      toolCount: Math.max(0, Math.floor(input.toolCount))
+      toolCount: Math.max(0, Math.floor(input.toolCatalog.toolCount)),
+      toolCatalogFingerprint: input.toolCatalog.fingerprint,
+      serverVersion: input.toolCatalog.serverVersion
+    },
+    runtime: {
+      codexStandalone: input.codexStandalone
     },
     machineApi: {
       configured: Boolean(readIdentityEnv("API_TOKEN"))

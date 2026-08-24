@@ -1,5 +1,5 @@
 import { getGitDiff, getGitStatus, gitCommit } from "../core/git-api.js";
-import { readRecentGitCommitsForRepo } from "../core/git-history.js";
+import { readRecentGitCommitsForPaths } from "../core/git-history.js";
 import type { GitCommitPayload, TokenPilotPaths } from "../types.js";
 import type { OperationContext } from "./operation-context.js";
 import { wrapServiceOperationError } from "./service-error.js";
@@ -32,7 +32,7 @@ export class GitService {
     return runGitOperation(
       "GIT_RECENT_COMMITS_FAILED",
       "Recent Git commits could not be read.",
-      () => readRecentGitCommitsForRepo(this.paths.repoRoot, repoId, limit)
+      () => readRecentGitCommitsForPaths(this.paths, repoId, limit)
     );
   }
 
