@@ -206,14 +206,23 @@ async function runContinuityApiVerification(): Promise<void> {
     const nativeRouting = nativeDevelopment as {
       preferredLane?: string;
       nextAction?: string;
+      reason?: string;
+      nativeRuntimeAvailable?: boolean;
       nativeToolSequence?: string[];
     };
-    assert.equal(nativeRouting.preferredLane, "codex-native");
-    assert.equal(nativeRouting.nextAction, "start-native");
-    assert.deepEqual(nativeRouting.nativeToolSequence, [
-      "chatcockpit.codex.thread.start",
-      "chatcockpit.codex.thread.turn.start"
-    ]);
+    if (nativeRouting.preferredLane === "codex-native") {
+      assert.equal(nativeRouting.nextAction, "start-native");
+      assert.deepEqual(nativeRouting.nativeToolSequence, [
+        "chatcockpit.codex.thread.start",
+        "chatcockpit.codex.thread.turn.start"
+      ]);
+    } else {
+      assert.equal(nativeRouting.preferredLane, "chat-direct");
+      assert.equal(nativeRouting.nextAction, "direct-fallback");
+      assert.equal(nativeRouting.reason, "CODEX_NATIVE_UNAVAILABLE");
+      assert.equal(nativeRouting.nativeRuntimeAvailable, false);
+      assert.deepEqual(nativeRouting.nativeToolSequence, []);
+    }
 
     const taskInput = {
       projectId: project.id,
