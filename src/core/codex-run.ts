@@ -462,7 +462,7 @@ export async function runCodexRunJob(
     repoId: payload.repoId,
     title: payload.title,
     executionMode: mode,
-    worktreePolicy: payload.worktreePolicy ?? "auto",
+    worktreePolicy: payload.worktreePolicy ?? "never",
     worktreeCreated: target.worktreeDecision === "created",
     branchName: target.branchName,
     statusSummary:

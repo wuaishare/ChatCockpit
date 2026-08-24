@@ -17,7 +17,7 @@ export const asyncJobQueueSchema = z.object({
   title: z.string().min(1).max(500),
   instructions: z.string().min(1).max(100_000),
   executionMode: z.enum(["plan", "review", "develop"]).default("develop"),
-  worktreePolicy: z.enum(["auto", "always", "never"]).default("auto"),
+  worktreePolicy: z.enum(["auto", "always", "never"]).default("never"),
   branchName: z.string().min(1).max(512).optional(),
   approvalPolicy: z.enum(["untrusted", "on-request", "never"]).default("never"),
   sandbox: z

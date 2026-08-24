@@ -200,29 +200,43 @@ async function runContinuityApiVerification(): Promise<void> {
       "chatcockpit.project.get",
       { projectId: project.id }
     );
-    const { nativeDevelopment, ...projectMcpCompatibility } = projectMcp;
-    assert.deepEqual(projectMcpCompatibility, projectRest);
-    assert.ok(nativeDevelopment && typeof nativeDevelopment === "object");
-    const nativeRouting = nativeDevelopment as {
+    assert.deepEqual(projectMcp, projectRest);
+    const developmentCoordination = projectRest.developmentCoordination as {
+      modelLoopOwnership?: {
+        defaultOwner?: string;
+        implicitCodexTurnAllowed?: boolean;
+        codexTurnRequiresExplicitTransfer?: boolean;
+      };
+      workspaceExecution?: { mode?: string; worktreeRequiresExplicitOptIn?: boolean };
+      codexContinuity?: {
+        nextAction?: string;
+        sessionToolSequence?: string[];
+        nativeTurnTool?: string | null;
+      };
+    };
+    assert.equal(developmentCoordination.modelLoopOwnership?.defaultOwner, "caller");
+    assert.equal(developmentCoordination.modelLoopOwnership?.implicitCodexTurnAllowed, false);
+    assert.equal(developmentCoordination.modelLoopOwnership?.codexTurnRequiresExplicitTransfer, true);
+    assert.equal(developmentCoordination.workspaceExecution?.mode, "native-checkout");
+    assert.equal(developmentCoordination.workspaceExecution?.worktreeRequiresExplicitOptIn, true);
+    assert.ok(["start-native", "resume-native", "unavailable"].includes(
+      developmentCoordination.codexContinuity?.nextAction ?? ""
+    ));
+    assert.ok(
+      developmentCoordination.codexContinuity?.nativeTurnTool === null ||
+      developmentCoordination.codexContinuity?.nativeTurnTool === "chatcockpit.codex.thread.turn.start"
+    );
+
+    const nativeRouting = projectRest.nativeDevelopment as {
       preferredLane?: string;
       nextAction?: string;
       reason?: string;
-      nativeRuntimeAvailable?: boolean;
       nativeToolSequence?: string[];
     };
-    if (nativeRouting.preferredLane === "codex-native") {
-      assert.equal(nativeRouting.nextAction, "start-native");
-      assert.deepEqual(nativeRouting.nativeToolSequence, [
-        "chatcockpit.codex.thread.start",
-        "chatcockpit.codex.thread.turn.start"
-      ]);
-    } else {
-      assert.equal(nativeRouting.preferredLane, "chat-direct");
-      assert.equal(nativeRouting.nextAction, "direct-fallback");
-      assert.equal(nativeRouting.reason, "CODEX_NATIVE_UNAVAILABLE");
-      assert.equal(nativeRouting.nativeRuntimeAvailable, false);
-      assert.deepEqual(nativeRouting.nativeToolSequence, []);
-    }
+    assert.equal(nativeRouting.preferredLane, "chat-direct");
+    assert.equal(nativeRouting.nextAction, "continue-direct");
+    assert.equal(nativeRouting.reason, "CALLER_OWNS_MODEL_LOOP");
+    assert.deepEqual(nativeRouting.nativeToolSequence, []);
 
     const taskInput = {
       projectId: project.id,

@@ -351,7 +351,7 @@ async function main(): Promise<void> {
       const title = getFlag("--title");
       const instructions = getFlag("--instructions");
       const executionMode = getFlag("--execution-mode") || "develop";
-      const worktreePolicy = getFlag("--worktree-policy") || "auto";
+      const worktreePolicy = getFlag("--worktree-policy") || "never";
       const commitPolicy = getFlag("--commit-policy") || "propose";
       if (!title || !instructions) {
         throw new Error("queue-codex-run requires --title and --instructions");

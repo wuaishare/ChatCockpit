@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { ContinuityServices } from "../application/continuity-services.js";
 import type { CodexThreadImportService } from "../application/codex-thread-import-service.js";
+import type { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import { asyncJobQueueSchema } from "../contracts/async-job.js";
 import {
   codexThreadImportAssessSchema,
@@ -88,7 +89,8 @@ function requireContinuityOwner(request: FastifyRequest): void {
 export function registerContinuityRoutes(
   app: FastifyInstance,
   services: ContinuityServices,
-  codexThreadImports?: CodexThreadImportService
+  codexThreadImports?: CodexThreadImportService,
+  projectDevelopmentRouting?: ProjectDevelopmentRoutingService
 ): void {
   registerAliases(app, "GET", "/api/continuity/projects", (request, reply) => {
     const input = parseOrReply(projectListSchema, request.query ?? {}, reply);
@@ -110,16 +112,25 @@ export function registerContinuityRoutes(
     app,
     "GET",
     "/api/continuity/projects/:projectId",
-    (request, reply) => {
+    async (request, reply) => {
       const input = parseOrReply(projectGetSchema, request.params, reply);
       if (!input) return;
       try {
+        const context = operationContextFromRequest(request);
+        const project = services.projects.get(context, input.projectId);
+        if (!projectDevelopmentRouting) {
+          return { ok: true, ...project };
+        }
+        const developmentCoordination = await projectDevelopmentRouting.coordinate(
+          context,
+          input.projectId
+        );
         return {
           ok: true,
-          ...services.projects.get(
-            operationContextFromRequest(request),
-            input.projectId
-          )
+          ...project,
+          developmentCoordination,
+          nativeDevelopment:
+            projectDevelopmentRouting.toLegacyAssessment(developmentCoordination)
         };
       } catch (error) {
         return sendUnknownApiError(reply, error);

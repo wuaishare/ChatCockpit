@@ -65,8 +65,9 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 - `queued/running` 只能当作中间态，不能直接判异常
 - 不输出本地绝对路径
 - 对外统一使用 `repoId`
-- 对审查、规划、开发、验证等非读取类任务，优先使用 `createCodexRun`
-- 较大开发任务建议 `worktreePolicy=always`，极小任务可建议 `worktreePolicy=never`，最终由用户决定
+- 当前 ChatGPT/调用方默认持有模型循环；不要仅因 Codex runtime 可用就启动 Codex Turn
+- `createCodexRun` 仅用于用户明确选择的异步 Codex 委派
+- `worktreePolicy` 默认 `never`；只有用户明确需要并行/隔离执行时才选择 `auto` 或 `always`
 - 默认 `commitPolicy=propose`；只有用户明确要求自动提交时才使用 `commitPolicy=commit`
 - 不夸大当前阶段完成度
 
@@ -113,11 +114,12 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 3. **验证**：`runShell` 运行 `npm run build` / `npm test` / `tsc --noEmit`
 4. **提交**：`getGitDiff` 检查变更 → `gitCommit` 提交
 
-### 与 createCodexRun 的互补关系
+### 与 Codex 委派的关系
 
-- **微小编辑**（改一行文案、修一个 typo）→ 用 ChatGPT 直驱
-- **复杂开发**（跨文件重构、多步骤任务）→ 仍推荐 `createCodexRun`，让 Codex 执行完整循环
-- **两者不互斥**：ChatGPT 可以先 `searchCode` 定位问题，再决定是自己改还是交给 Codex
+- **默认**：当前 ChatGPT/调用方持有模型循环，通过 ChatCockpit 工具直接推进项目，不按任务大小自动切换到 Codex。
+- **显式 Delegate/Transfer**：只有用户明确要把模型循环交给 Codex 时，才 Resume/Start Codex Thread 并启动 Native Turn。
+- **异步委派**：`createCodexRun` 保留为显式后台 Codex 任务入口，不是复杂任务的自动默认。
+- **Continuity**：Codex Thread ID 可以作为原生会话连续性引用，但不意味着当前 ChatGPT 推理发生在 Codex runtime 内。
 
 ### 安全边界
 
@@ -148,5 +150,5 @@ GPT 指令里有几类信息最好和用户当前环境保持一致：
 - runShell 只用于白名单内的短耗时验证命令；不要用它执行长任务或高风险变更
 - Git diff / commit 输出可能跳过 public-unsafe 路径；看到 blocked 或缺失时应提示用户本地检查，而不是复述私有路径内容
 
-你仍然可以使用 createCodexRun 来委托复杂开发任务给本地 Codex CLI 执行和审查。
+只有在用户明确选择 Codex 异步委派时，才使用 createCodexRun 让本地 Codex CLI 执行和审查；任务复杂度本身不触发委派。
 ```

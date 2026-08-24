@@ -68,6 +68,7 @@ import { CodexNativeTurnService } from "../application/codex-native-turn-service
 import { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
+import { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -250,7 +251,7 @@ function buildProductRequestSchemas(defaultRepoId: string) {
       title: z.string().min(1),
       instructions: z.string().min(1),
       executionMode: z.enum(["plan", "review", "develop"]).default("develop"),
-      worktreePolicy: z.enum(["auto", "always", "never"]).default("auto"),
+      worktreePolicy: z.enum(["auto", "always", "never"]).default("never"),
       branchName: z.string().min(1).optional(),
       approvalPolicy: z.enum(["untrusted", "on-request", "never"]).default("never"),
       sandbox: z.enum(["read-only", "workspace-write", "danger-full-access"]).default("workspace-write"),
@@ -680,6 +681,11 @@ export function buildServer(
     continuityServices.repositories
   );
   const runtimeService = new RuntimeService(runtimeRouter);
+  const projectDevelopmentRouting = new ProjectDevelopmentRoutingService(
+    paths,
+    continuityServices.projects,
+    runtimeService
+  );
   const codexNativeSessionService = new CodexNativeSessionService(
     continuityServices.repositories,
     runtimeRouter
@@ -1005,7 +1011,12 @@ export function buildServer(
     }
   );
   registerMcpHttpRoutes(app, mcpHandler);
-  registerContinuityRoutes(app, continuityServices, codexThreadImportService);
+  registerContinuityRoutes(
+    app,
+    continuityServices,
+    codexThreadImportService,
+    projectDevelopmentRouting
+  );
   registerOperationalActivityRoutes(app, operationalActivityService, {
     pollIntervalMs: options.activityStreamPollIntervalMs,
     heartbeatIntervalMs: options.activityStreamHeartbeatIntervalMs

@@ -82,7 +82,7 @@ function publicJob(
       repoId: payload.repoId,
       title: payload.title,
       executionMode: payload.executionMode ?? "develop",
-      worktreePolicy: payload.worktreePolicy ?? "auto",
+      worktreePolicy: payload.worktreePolicy ?? "never",
       commitPolicy: payload.commitPolicy ?? "propose",
       continuityTaskId: payload.continuityTaskId,
       continuitySessionId: payload.continuitySessionId,

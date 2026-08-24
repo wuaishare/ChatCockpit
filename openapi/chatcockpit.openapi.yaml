@@ -8823,7 +8823,7 @@ paths:
     get:
       operationId: getContinuityProject
       summary: Read continuity project
-      description: Returns one durable project and its public-safe workspace projections.
+      description: Returns one durable project, public-safe workspace projections, model-loop ownership coordination, Codex continuity metadata, and the deprecated nativeDevelopment compatibility view.
       security:
         - bearerAuth: []
       parameters:
