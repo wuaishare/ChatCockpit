@@ -91,6 +91,8 @@ export function projectCodexThread(
     updatedAt: numberOrNull(thread.updatedAt),
     recencyAt: numberOrNull(thread.recencyAt),
     sourceKind: stringOrNull(thread.sourceKind) ?? sourceKind(thread.source),
+    threadSource: stringOrNull(thread.threadSource),
+    name: stringOrNull(thread.name),
     status: threadStatus(thread.status),
     projectId: workspace?.projectId ?? null,
     workspaceId: workspace?.id ?? null,

@@ -559,12 +559,28 @@ input.on("line", (line) => {
         path: `${message.params?.cwd ?? workspaceRoot}/.codex/sessions/started-${startCounter}.jsonl`,
         instructionSources: [`${message.params?.cwd ?? workspaceRoot}/AGENTS.md`],
         source: { type: "appServer" },
+        threadSource: message.params?.threadSource ?? null,
+        name: null,
         status: { type: "idle" },
         turns: []
       };
       threads.push(thread);
       respond(message.id, { thread });
       notify("thread/started", { thread });
+      break;
+    }
+    case "thread/name/set": {
+      const thread = threads.find((candidate) => candidate.id === message.params?.threadId);
+      if (!thread) {
+        fail(message.id, -32602, "thread not found");
+        break;
+      }
+      if (message.params?.name === "__mock_name_set_unsupported__") {
+        fail(message.id, -32601, "thread/name/set unavailable");
+        break;
+      }
+      thread.name = message.params?.name ?? null;
+      respond(message.id, {});
       break;
     }
     case "thread/list":

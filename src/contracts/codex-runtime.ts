@@ -40,7 +40,9 @@ const nativeRuntimeMutationBaseSchema = z.object({
     .regex(/^[A-Za-z0-9._:-]+$/)
 });
 
-export const codexNativeThreadStartSchema = nativeRuntimeMutationBaseSchema;
+export const codexNativeThreadStartSchema = nativeRuntimeMutationBaseSchema.extend({
+  name: z.string().trim().min(1).max(120).optional()
+});
 
 export const codexNativeThreadResumeSchema = nativeRuntimeMutationBaseSchema.extend({
   threadId: z.string().min(1).max(240)

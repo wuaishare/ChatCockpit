@@ -30,6 +30,8 @@ export interface RuntimeThreadProjection {
   updatedAt: number | null;
   recencyAt: number | null;
   sourceKind: string | null;
+  threadSource: string | null;
+  name?: string | null;
   status: RuntimeThreadStatus;
   projectId: string | null;
   workspaceId: string | null;
@@ -93,6 +95,7 @@ export interface RuntimeThreadContextPage {
 
 export interface RuntimeThreadStartInput {
   workspaceId: string;
+  name?: string;
 }
 
 export interface RuntimeThreadResumeInput {

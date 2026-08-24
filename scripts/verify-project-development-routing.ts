@@ -98,13 +98,14 @@ try {
   assert.equal(fresh.workspace.branch, "main");
 
   threads = [{
-    id: "thread-native-1",
-    preview: "Continue native development",
+    id: "thread-hidden-app-server",
+    preview: "Legacy hidden native development",
     modelProvider: "openai",
-    createdAt: 1,
-    updatedAt: 2,
-    recencyAt: 3,
+    createdAt: 4,
+    updatedAt: 5,
+    recencyAt: 6,
     sourceKind: "appServer",
+    threadSource: null,
     status: { type: "idle" },
     projectId: project.id,
     workspaceId: workspace.id,
@@ -113,6 +114,29 @@ try {
     agentNickname: null,
     agentRole: null
   }];
+  const hiddenOnly = await routing.assess(context, project.id);
+  assert.equal(hiddenOnly.nextAction, "start-native");
+  assert.equal(hiddenOnly.reason, "NO_USER_FACING_NATIVE_THREAD");
+  assert.equal(hiddenOnly.matchingThread, null);
+  assert.equal(hiddenOnly.warnings.some((item) => item.includes("non-user Codex thread")), true);
+
+  threads.push({
+    id: "thread-native-1",
+    preview: "Continue native development",
+    modelProvider: "openai",
+    createdAt: 1,
+    updatedAt: 2,
+    recencyAt: 3,
+    sourceKind: "vscode",
+    threadSource: "user",
+    status: { type: "idle" },
+    projectId: project.id,
+    workspaceId: workspace.id,
+    repoId: "primary",
+    parentThreadId: null,
+    agentNickname: null,
+    agentRole: null
+  });
   const resumable = await routing.assess(context, project.id);
   assert.equal(resumable.nextAction, "resume-native");
   assert.equal(resumable.reason, "MATCHING_NATIVE_THREAD");
@@ -121,6 +145,7 @@ try {
     "chatcockpit.codex.thread.turn.start"
   ]);
   assert.equal(resumable.matchingThread?.id, "thread-native-1");
+  assert.equal(resumable.matchingThread?.threadSource, "user");
 
   fs.appendFileSync(path.join(repoRoot, "README.md"), "dirty\n", "utf8");
   const dirtyProjection = projects.get(context, project.id).workspaces[0]!;

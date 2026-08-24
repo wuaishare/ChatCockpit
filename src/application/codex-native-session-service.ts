@@ -34,11 +34,19 @@ export class CodexNativeSessionService {
         "Codex native session requires a ready ChatCockpit workspace"
       );
     }
+    const project = this.repositories.projects.get(workspace.projectId);
+    const requestedName = (
+      input.name?.trim() || `ChatCockpit · ${project.displayName}`
+    ).slice(0, 120);
     const result = await this.repositories.idempotency.executeExternalMutation(
       "codex-native.thread.start",
       input.idempotencyKey,
-      { workspaceId: workspace.id },
-      () => this.runtime.startCodexThread({ workspaceId: workspace.id }),
+      { workspaceId: workspace.id, name: requestedName },
+      () =>
+        this.runtime.startCodexThread({
+          workspaceId: workspace.id,
+          name: requestedName
+        }),
       (thread) => {
         this.assertThreadWorkspace(thread, workspace.id, workspace.projectId);
         return { thread };
