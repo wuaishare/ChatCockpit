@@ -87,14 +87,28 @@ try {
   assert.equal(workspace.headCommit, head);
   assert.equal(workspace.dirty, false);
 
-  const fresh = await routing.assess(context, project.id);
-  assert.equal(fresh.preferredLane, "codex-native");
-  assert.equal(fresh.nextAction, "start-native");
-  assert.equal(fresh.reason, "NO_MATCHING_NATIVE_THREAD");
-  assert.deepEqual(fresh.nativeToolSequence, [
-    "chatcockpit.codex.thread.start",
-    "chatcockpit.codex.thread.turn.start"
+  const freshCoordination = await routing.coordinate(context, project.id);
+  assert.equal(freshCoordination.modelLoopOwnership.defaultOwner, "caller");
+  assert.equal(freshCoordination.modelLoopOwnership.implicitCodexTurnAllowed, false);
+  assert.equal(freshCoordination.modelLoopOwnership.codexTurnRequiresExplicitTransfer, true);
+  assert.equal(freshCoordination.workspaceExecution.mode, "native-checkout");
+  assert.equal(freshCoordination.workspaceExecution.worktreeRequiresExplicitOptIn, true);
+  assert.equal(freshCoordination.codexContinuity.nextAction, "start-native");
+  assert.equal(freshCoordination.codexContinuity.reason, "NO_MATCHING_NATIVE_THREAD");
+  assert.deepEqual(freshCoordination.codexContinuity.sessionToolSequence, [
+    "chatcockpit.codex.thread.start"
   ]);
+  assert.equal(
+    freshCoordination.codexContinuity.nativeTurnTool,
+    "chatcockpit.codex.thread.turn.start"
+  );
+  assert.equal(freshCoordination.handoff.requiredForModelLoopOwnerChange, true);
+
+  const fresh = await routing.assess(context, project.id);
+  assert.equal(fresh.preferredLane, "chat-direct");
+  assert.equal(fresh.nextAction, "continue-direct");
+  assert.equal(fresh.reason, "CALLER_OWNS_MODEL_LOOP");
+  assert.deepEqual(fresh.nativeToolSequence, []);
   assert.equal(fresh.workspace.branch, "main");
 
   threads = [{
@@ -114,11 +128,14 @@ try {
     agentNickname: null,
     agentRole: null
   }];
-  const hiddenOnly = await routing.assess(context, project.id);
-  assert.equal(hiddenOnly.nextAction, "start-native");
-  assert.equal(hiddenOnly.reason, "NO_USER_FACING_NATIVE_THREAD");
-  assert.equal(hiddenOnly.matchingThread, null);
-  assert.equal(hiddenOnly.warnings.some((item) => item.includes("non-user Codex thread")), true);
+  const hiddenOnly = await routing.coordinate(context, project.id);
+  assert.equal(hiddenOnly.codexContinuity.nextAction, "start-native");
+  assert.equal(hiddenOnly.codexContinuity.reason, "NO_USER_FACING_NATIVE_THREAD");
+  assert.equal(hiddenOnly.codexContinuity.matchingThread, null);
+  assert.equal(
+    hiddenOnly.codexContinuity.warnings.some((item) => item.includes("non-user Codex thread")),
+    true
+  );
 
   threads.push({
     id: "thread-native-1",
@@ -137,40 +154,50 @@ try {
     agentNickname: null,
     agentRole: null
   });
-  const resumable = await routing.assess(context, project.id);
-  assert.equal(resumable.nextAction, "resume-native");
-  assert.equal(resumable.reason, "MATCHING_NATIVE_THREAD");
-  assert.deepEqual(resumable.nativeToolSequence, [
-    "chatcockpit.codex.thread.resume",
-    "chatcockpit.codex.thread.turn.start"
+  const resumable = await routing.coordinate(context, project.id);
+  assert.equal(resumable.codexContinuity.nextAction, "resume-native");
+  assert.equal(resumable.codexContinuity.reason, "MATCHING_NATIVE_THREAD");
+  assert.deepEqual(resumable.codexContinuity.sessionToolSequence, [
+    "chatcockpit.codex.thread.resume"
   ]);
-  assert.equal(resumable.matchingThread?.id, "thread-native-1");
-  assert.equal(resumable.matchingThread?.threadSource, "user");
+  assert.equal(resumable.codexContinuity.matchingThread?.id, "thread-native-1");
+  assert.equal(resumable.codexContinuity.matchingThread?.threadSource, "user");
+  const resumableLegacy = routing.toLegacyAssessment(resumable);
+  assert.equal(resumableLegacy.preferredLane, "chat-direct");
+  assert.equal(resumableLegacy.nextAction, "continue-direct");
+  assert.equal(resumableLegacy.reason, "CALLER_OWNS_MODEL_LOOP");
+  assert.deepEqual(resumableLegacy.nativeToolSequence, []);
 
   fs.appendFileSync(path.join(repoRoot, "README.md"), "dirty\n", "utf8");
   const dirtyProjection = projects.get(context, project.id).workspaces[0]!;
   assert.equal(dirtyProjection.dirty, true);
 
   runGit(["-C", repoRoot, "checkout", "--detach"]);
-  const detached = await routing.assess(context, project.id);
-  assert.equal(detached.preferredLane, "codex-native");
+  const detachedCoordination = await routing.coordinate(context, project.id);
+  assert.equal(detachedCoordination.codexContinuity.nextAction, "repair-workspace");
+  assert.equal(detachedCoordination.codexContinuity.reason, "WORKSPACE_DETACHED");
+  assert.equal(detachedCoordination.workspaceExecution.branch, "HEAD");
+  const detached = routing.toLegacyAssessment(detachedCoordination);
+  assert.equal(detached.preferredLane, "chat-direct");
   assert.equal(detached.nextAction, "repair-workspace");
   assert.equal(detached.reason, "WORKSPACE_DETACHED");
   assert.deepEqual(detached.nativeToolSequence, []);
-  assert.equal(detached.workspace.branch, "HEAD");
   assert.equal(projects.get(context, project.id).workspaces[0]?.branch, "HEAD");
 
   runGit(["-C", repoRoot, "checkout", "main"]);
   runtimeAvailable = false;
   threads = [];
-  const fallback = await routing.assess(context, project.id);
+  const unavailable = await routing.coordinate(context, project.id);
+  assert.equal(unavailable.codexContinuity.nextAction, "unavailable");
+  assert.equal(unavailable.codexContinuity.reason, "CODEX_NATIVE_UNAVAILABLE");
+  assert.equal(unavailable.codexContinuity.warnings.includes("TEST_UNAVAILABLE"), true);
+  const fallback = routing.toLegacyAssessment(unavailable);
   assert.equal(fallback.preferredLane, "chat-direct");
-  assert.equal(fallback.nextAction, "direct-fallback");
-  assert.equal(fallback.reason, "CODEX_NATIVE_UNAVAILABLE");
+  assert.equal(fallback.nextAction, "continue-direct");
+  assert.equal(fallback.reason, "CALLER_OWNS_MODEL_LOOP");
   assert.deepEqual(fallback.nativeToolSequence, []);
-  assert.equal(fallback.warnings.includes("TEST_UNAVAILABLE"), true);
 
-  process.stdout.write("project development routing verification passed\n");
+  process.stdout.write("project development coordination verification passed\n");
 } finally {
   database.close();
   fs.rmSync(root, { recursive: true, force: true });

@@ -1,9 +1,10 @@
 # ADR-001: Separate Chat Direct and Codex Session Lanes
 
-- Status: Accepted; refined for Provider-Native Session Authority on 2026-08-24
+- Status: Superseded in part by ADR-002 on 2026-08-24; retained as historical lane/adapter rationale
 - Date: 2026-08-06; refinement: 2026-08-24
 - Decision owners: ChatCockpit maintainers
 - Related governance: `docs/governance/product-principles.md`
+- Current routing authority: `adr-002-model-loop-ownership-and-native-checkout.md`
 
 ## Context
 

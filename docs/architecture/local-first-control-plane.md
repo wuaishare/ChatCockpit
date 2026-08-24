@@ -105,18 +105,20 @@ Every result records:
 
 The release gate proves Chat Direct does not invoke `turn/start` or create a Codex Thread. Standalone execution never bypasses ChatCockpit path, command, workspace, timeout, output, or exposed-mode policy. File write/edit, Git commit, and potentially mutating Shell operations require an active `chat-direct` Session that owns the Workspace Writer Lease; read-only observers remain lease-free.
 
-### Codex Native — implemented provider-native interactive lane
+### Codex Native — implemented continuity and explicit delegation lane
 
-For explicit development on a ready registered Git Project/Workspace, Codex Native is the preferred interactive lane when App Server is available. `chatcockpit.project.get` exposes a public-safe `nativeDevelopment` assessment with the next action and required native tool sequence:
+For ChatGPT-driven development on a ready registered Git Project/Workspace, the current caller keeps the model loop by default. `chatcockpit.project.get` exposes `developmentCoordination`, which separates model-loop ownership, workspace execution facts, Codex continuity, and Handoff requirements. Codex runtime availability does not implicitly transfer inference ownership.
 
-- matching top-level user Thread (`threadSource=user`) → `chatcockpit.codex.thread.resume` then `chatcockpit.codex.thread.turn.start`;
-- no matching user Thread, including when only legacy/non-user or subagent Threads exist → `chatcockpit.codex.thread.start` then `chatcockpit.codex.thread.turn.start`;
+`codexContinuity` remains the provider-native fast path:
+
+- matching top-level user Thread (`threadSource=user`) → `chatcockpit.codex.thread.resume` is available as a session operation;
+- no matching user Thread, including when only legacy/non-user or subagent Threads exist → `chatcockpit.codex.thread.start` is available as a session operation;
 - detached/not-ready Workspace → repair first, without mutation;
-- unavailable native runtime → explicit Chat Direct fallback with a concrete reason.
+- unavailable native runtime → continuity is reported unavailable while the current caller may continue through ChatCockpit capabilities.
 
-The Codex Thread ID is authoritative for same-provider interactive continuity. New automatic project-development Threads are created with `threadSource=user`; ChatCockpit then best-effort calls the native `thread/name/set` method with a bounded name so the Thread can participate in Codex user-session discovery. Naming is secondary metadata: failure must not retry or duplicate a Thread whose native `thread/start` already succeeded. Automatic continuation ignores legacy/non-user and subagent Threads, while explicit native APIs may still address them. Generic App Server does not own Codex Desktop Project grouping, so user-session discoverability must not be described as guaranteed placement inside a Desktop Project. Native Start/Resume/Fork/Turn does not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, Runtime Binding, Evidence bundle, or Writer Lease. Codex/App Server owns native model-loop execution, sandbox/approval semantics, and writer ownership. ChatCockpit verifies the registered Workspace, projects public-safe status/events/approvals, and does not steal an active provider writer.
+`chatcockpit.codex.thread.turn.start` is deliberately separate from those session operations. It may run only after an explicit Delegate/Transfer decision changes model-loop ownership to Codex. The Codex Thread ID remains authoritative for same-provider Codex continuity, but a ChatGPT takeover does not pretend to become native Codex history. New ChatCockpit-created user Threads retain `threadSource=user` and best-effort native naming for user-session discoverability; generic App Server still does not own Codex Desktop Project grouping. Provider writer ownership is respected and never stolen.
 
-Older `chatcockpit.codex.session.*` and Continuity-bound Turn surfaces remain implemented compatibility APIs for workflows that genuinely use ChatCockpit orchestration; they are not the default project-development path.
+The compatibility `nativeDevelopment` projection remains readable during migration but resolves ChatGPT-driven work to caller-owned Direct execution and contains no automatic native Turn sequence. Older `chatcockpit.codex.session.*` and Continuity-bound Turn surfaces likewise remain compatibility APIs for workflows that genuinely use ChatCockpit orchestration.
 
 ### Async Agent Job — implemented delegated background lane
 

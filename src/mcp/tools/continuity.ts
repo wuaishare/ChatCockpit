@@ -186,21 +186,26 @@ export function buildContinuityMcpTools(
       name: "chatcockpit.project.get",
       title: "Read ChatCockpit project",
       description:
-        "Read one ChatCockpit project, its public-safe workspaces, and the authoritative project-development routing assessment. For an explicit Git project development request, call this before mutating the workspace: codex-native start/resume is preferred when ready; Chat Direct is only an explicit or native-unavailable fallback.",
+        "Read one ChatCockpit project, its public-safe workspaces, model-loop ownership rules, and Codex continuity metadata. For ChatGPT-driven project development, the caller keeps the model loop by default; a Codex native turn requires an explicit transfer/delegation decision.",
       inputSchema: projectGetSchema,
       annotations: readOnlyToolAnnotations,
-      handler: async (context, input) => ({
-        ok: true,
-        ...services.projects.get(context, input.projectId),
-        ...(projectDevelopmentRouting
-          ? {
-              nativeDevelopment: await projectDevelopmentRouting.assess(
-                context,
-                input.projectId
-              )
-            }
-          : {})
-      })
+      handler: async (context, input) => {
+        const project = services.projects.get(context, input.projectId);
+        if (!projectDevelopmentRouting) {
+          return { ok: true, ...project };
+        }
+        const developmentCoordination = await projectDevelopmentRouting.coordinate(
+          context,
+          input.projectId
+        );
+        return {
+          ok: true,
+          ...project,
+          developmentCoordination,
+          nativeDevelopment:
+            projectDevelopmentRouting.toLegacyAssessment(developmentCoordination)
+        };
+      }
     }),
     defineMcpTool({
       name: "chatcockpit.workspace.snapshot",
