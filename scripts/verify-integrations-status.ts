@@ -167,6 +167,15 @@ async function main(): Promise<void> {
         activeRefreshTokenCount: number;
         toolCatalogStatus: string;
         toolCount: number;
+        toolCatalogFingerprint: string;
+        serverVersion: string;
+      };
+      runtime: {
+        codexStandalone: {
+          state: string;
+          reason: string | null;
+          probedAt: string | null;
+        };
       };
       machineApi: { configured: boolean };
     };
@@ -191,6 +200,17 @@ async function main(): Promise<void> {
     assert.equal(body.mcp.activeRefreshTokenCount, 1);
     assert.equal(body.mcp.toolCatalogStatus, "ready");
     assert.ok(body.mcp.toolCount > 0);
+    assert.match(body.mcp.toolCatalogFingerprint, /^[a-f0-9]{64}$/);
+    assert.equal(
+      body.mcp.serverVersion,
+      `0.1.0-alpha.${body.mcp.toolCatalogFingerprint.slice(0, 12)}`
+    );
+    assert.equal(body.runtime.codexStandalone.state, "missing");
+    assert.equal(
+      body.runtime.codexStandalone.reason,
+      "CAPABILITY_SNAPSHOT_MISSING"
+    );
+    assert.equal(body.runtime.codexStandalone.probedAt, null);
     assert.equal(body.machineApi.configured, false);
     assert.equal(body.mcp.oauthReady, true, "OAuth readiness must not depend on a machine API token");
 

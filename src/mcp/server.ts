@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/server";
 
 import { MCP_AUTHORIZATION_GRANT_HEADER } from "../auth/oauth-request-identity.js";
+import { buildMcpToolCatalogMetadata } from "./catalog-metadata.js";
 import type { ChatDirectService } from "../application/chat-direct-service.js";
 import type { CodexNativeSessionService } from "../application/codex-native-session-service.js";
 import type { CodexNativeTurnService } from "../application/codex-native-turn-service.js";
@@ -17,6 +18,7 @@ import type { HostDirectService } from "../application/host-direct-service.js";
 import type { HostMutationService } from "../application/host-mutation-service.js";
 import type { HostProcessService } from "../application/host-process-service.js";
 import type { ContinuityServices } from "../application/continuity-services.js";
+import { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import type { DeviceTargetService } from "../application/device-target-service.js";
 import type { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
@@ -110,6 +112,11 @@ export function buildTokenPilotMcpToolCatalog(
   codexThreadImportService?: CodexThreadImportService
 ) {
   const identity = productIdentityForKey(paths.productIdentity);
+  const projectDevelopmentRouting = new ProjectDevelopmentRoutingService(
+    paths,
+    continuityServices.projects,
+    runtimeService
+  );
   return projectMcpToolsForProduct([
     ...buildReadOnlyMcpToolCatalog(
       { chatDirect, hostDirect },
@@ -128,7 +135,11 @@ export function buildTokenPilotMcpToolCatalog(
       },
       paths.productIdentity
     ),
-    ...buildContinuityMcpTools(continuityServices, codexThreadImportService),
+    ...buildContinuityMcpTools(
+      continuityServices,
+      codexThreadImportService,
+      projectDevelopmentRouting
+    ),
     ...buildRuntimeMcpTools(
       runtimeService,
       codexNativeSessionService,
@@ -218,12 +229,13 @@ export function buildTokenPilotMcpHandler(
     runtimeResourceMutationService,
     codexThreadImportService
   );
+  const catalogMetadata = buildMcpToolCatalogMetadata(tools);
 
   return createMcpHandler(
     (requestContext) => {
       const server = new McpServer({
         name: identity.mcpServerName,
-        version: "0.1.0-alpha"
+        version: catalogMetadata.serverVersion
       });
 
       registerMcpTools(

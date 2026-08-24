@@ -3,7 +3,10 @@ import {
   productIdentityForKey
 } from "../core/product-identity.js";
 import type { ProductIdentityKey } from "../types.js";
-import type { CodexStandaloneCapabilityStore } from "../runtime/codex/standalone-capabilities.js";
+import {
+  assessCodexStandaloneSnapshot,
+  type CodexStandaloneCapabilityStore
+} from "../runtime/codex/standalone-capabilities.js";
 import type { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
 import type {
   DirectCapabilityAccess,
@@ -118,29 +121,34 @@ export function createDownstreamMcpExecutorSource(
 }
 
 export function createCodexStandaloneExecutorSource(
-  store: CodexStandaloneCapabilityStore
+  store: CodexStandaloneCapabilityStore,
+  currentBinary?: { source: string | null; version: string | null } | null
 ): DirectExecutorSource {
   return {
     describe(): DirectExecutorDescriptor {
       const snapshot = store.read();
+      const fresh = currentBinary === undefined
+        ? Boolean(snapshot)
+        : currentBinary !== null &&
+          assessCodexStandaloneSnapshot(snapshot, currentBinary).state === "ready";
       const ready = Boolean(
-        snapshot?.directExecutionReady && !snapshot.turnStartObserved
+        fresh && snapshot?.directExecutionReady && !snapshot.turnStartObserved
       );
       const capabilities: DirectExecutorCapability[] = [];
 
-      if (isVerified(store, "files.read")) {
+      if (ready && isVerified(store, "files.read")) {
         capabilities.push(
           capability("files.read", ["read"]),
           capability("files.readBatch", ["read"])
         );
       }
-      if (isVerified(store, "files.list")) {
+      if (ready && isVerified(store, "files.list")) {
         capabilities.push(capability("files.list", ["read"]));
       }
-      if (isVerified(store, "files.write")) {
+      if (ready && isVerified(store, "files.write")) {
         capabilities.push(capability("files.write", ["write"]));
       }
-      if (isVerified(store, "command.exec")) {
+      if (ready && isVerified(store, "command.exec")) {
         capabilities.push(capability("shell.exec", ["read"]));
       }
 

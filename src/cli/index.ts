@@ -20,6 +20,7 @@ import { buildBundleManifest } from "../core/manifest.js";
 import { createTaskPack } from "../core/taskpack.js";
 import { createJob, getJob, listJobs } from "../core/jobs.js";
 import { buildServer } from "../server/app.js";
+import { refreshCodexStandaloneCapabilities } from "../runtime/codex/standalone-refresh.js";
 import { runRunner } from "../runner/index.js";
 import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
 import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js";
@@ -1158,9 +1159,23 @@ async function main(): Promise<void> {
       if (!Number.isInteger(lanTlsPort) || lanTlsPort < 1 || lanTlsPort > 65535 || lanTlsPort === port) {
         throw new Error("LAN TLS port must be a valid TCP port different from the primary Control Plane port");
       }
+      const standaloneRefresh = paths.productIdentity === "chatcockpit"
+        ? await refreshCodexStandaloneCapabilities({ paths })
+        : null;
+      if (standaloneRefresh?.errorCode) {
+        process.stderr.write(
+          `[ChatCockpit] Codex standalone capability refresh: ${standaloneRefresh.errorCode} (${standaloneRefresh.status.state})\n`
+        );
+      }
       const app = buildServer(paths, {
         lanDiscovery: { host, port },
-        deviceLanTls: { host, port: lanTlsPort }
+        deviceLanTls: { host, port: lanTlsPort },
+        ...(standaloneRefresh
+          ? {
+              codexStandaloneInitialStatus: standaloneRefresh.status,
+              codexStandaloneRefreshIntervalMs: 5 * 60_000
+            }
+          : {})
       });
       await app.listen({ host, port });
       return;

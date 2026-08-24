@@ -567,6 +567,15 @@ export interface IntegrationStatusResponse {
     activeRefreshTokenCount: number;
     toolCatalogStatus: "ready";
     toolCount: number;
+    toolCatalogFingerprint: string;
+    serverVersion: string;
+  };
+  runtime: {
+    codexStandalone: {
+      state: "ready" | "missing" | "stale";
+      reason: "CAPABILITY_SNAPSHOT_MISSING" | "CODEX_BINARY_CHANGED" | null;
+      probedAt: string | null;
+    };
   };
   machineApi: {
     configured: boolean;

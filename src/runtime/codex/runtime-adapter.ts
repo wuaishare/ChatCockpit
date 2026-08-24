@@ -1,4 +1,7 @@
-import type { CodexStandaloneCapabilitySnapshot } from "./standalone-capabilities.js";
+import type {
+  CodexStandaloneCapabilitySnapshot,
+  CodexStandaloneSnapshotStatus
+} from "./standalone-capabilities.js";
 
 export interface RuntimeCapabilitySnapshot {
   available: boolean;
@@ -10,6 +13,7 @@ export interface RuntimeCapabilitySnapshot {
   stableMethods: string[];
   experimentalApiEnabled: boolean;
   standaloneExecution: CodexStandaloneCapabilitySnapshot | null;
+  standaloneExecutionStatus?: CodexStandaloneSnapshotStatus;
   unavailableReason?: string;
 }
 
