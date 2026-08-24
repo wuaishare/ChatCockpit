@@ -48,6 +48,8 @@ import type {
   DeviceEnrollmentDecisionResponse,
   DeviceExecutionPolicyMutationResponse,
   DeviceRevokeResponse,
+  DeviceRuntimeLifecycleExecuteResponse,
+  DeviceRuntimeStatusResponse,
   OperationalActivityListResponse,
   OperationalActivityTimelineResponse,
   JobControlResponse,
@@ -521,6 +523,25 @@ export async function revokeDevice(deviceId: string): Promise<DeviceRevokeRespon
   });
   if (!response.ok) throw await parseProblem(response);
   return (await response.json()) as DeviceRevokeResponse;
+}
+
+export async function fetchDeviceRuntimeStatus(
+  deviceId: string
+): Promise<DeviceRuntimeStatusResponse> {
+  return requestJson<DeviceRuntimeStatusResponse>(
+    `/api/devices/${encodeURIComponent(deviceId)}/runtime`
+  );
+}
+
+export async function executeDeviceRuntimeLifecycle(
+  deviceId: string,
+  action: "start" | "stop" | "restart",
+  idempotencyKey: string
+): Promise<DeviceRuntimeLifecycleExecuteResponse> {
+  return postBodyJson<DeviceRuntimeLifecycleExecuteResponse>(
+    `/api/devices/${encodeURIComponent(deviceId)}/runtime/lifecycle`,
+    { action, idempotencyKey }
+  );
 }
 
 export async function grantOAuthDeviceAccess(

@@ -1,10 +1,15 @@
 import type { ActivityProvenanceReader } from "./activity-provenance-port.js";
 import {
+  projectDeviceRuntimeOperationEvent,
   projectOperationalActivityControlEvent,
   projectOperationalActivityEvent,
   type OperationalActivityEventProjection
 } from "./operational-activity-event-projector.js";
 import type { ActivityControlEventReader } from "./activity-control-event-port.js";
+import type {
+  DeviceRuntimeOperationRecord,
+  DeviceRuntimeOperationRepository
+} from "../governance/device-runtime-operation-repository.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type {
   DevelopmentSessionRecord,
@@ -21,7 +26,7 @@ import type {
   TokenPilotPaths
 } from "../types.js";
 
-export type OperationalActivityKind = "agent-session" | "job";
+export type OperationalActivityKind = "agent-session" | "job" | "device-operation";
 export type OperationalActivityScope = "workspace" | "repo" | "host";
 export type OperationalActivityStatus =
   | "queued"
@@ -57,7 +62,7 @@ export interface OperationalActivityProjection {
   scope: OperationalActivityScope;
   status: OperationalActivityStatus;
   title: string;
-  targetDeviceId: "local-device";
+  targetDeviceId: string;
   projectId: string | null;
   workspaceId: string | null;
   taskId: string | null;
@@ -67,6 +72,17 @@ export interface OperationalActivityProjection {
   traceId: string | null;
   workerInstanceId: string | null;
   runtime: OperationalActivityRuntimeProjection | null;
+  deviceOperation: {
+    operationId: string;
+    deviceId: string;
+    deviceDisplayName: string;
+    platform: string | null;
+    architecture: string | null;
+    action: DeviceRuntimeOperationRecord["action"];
+    state: DeviceRuntimeOperationRecord["state"];
+    actorType: DeviceRuntimeOperationRecord["requestedActor"]["actorType"];
+    revision: number;
+  } | null;
   job: {
     id: string;
     type: JobType;
@@ -102,6 +118,16 @@ export interface OperationalActivityEventPageResult {
 export interface OperationalActivityTimelineResult {
   activityId: string;
   events: OperationalActivityEventProjection[];
+}
+
+export interface DeviceOperationalActivityProjectionOptions {
+  operations: DeviceRuntimeOperationRepository;
+  resolveDevice(deviceId: string): {
+    id: string;
+    displayName: string;
+    platform: string;
+    architecture: string;
+  } | null;
 }
 
 export interface OperationalActivityListResult {
@@ -197,7 +223,8 @@ export class OperationalActivityService {
     private readonly paths: TokenPilotPaths,
     private readonly repositories: ContinuityRepositories,
     private readonly activityProvenance?: ActivityProvenanceReader,
-    private readonly activityControlEvents?: ActivityControlEventReader
+    private readonly activityControlEvents?: ActivityControlEventReader,
+    private readonly deviceRuntime?: DeviceOperationalActivityProjectionOptions
   ) {}
 
   timeline(activityId: string, limit = 50): OperationalActivityTimelineResult | null {
@@ -205,6 +232,14 @@ export class OperationalActivityService {
     const snapshot = this.list();
     const activity = snapshot.activities.find((item) => item.id === activityId);
     if (!activity) return null;
+
+    if (activity.kind === "device-operation") {
+      const operation = this.deviceRuntime?.operations.find(activity.id) ?? null;
+      return {
+        activityId: activity.id,
+        events: operation ? [projectDeviceRuntimeOperationEvent(operation)] : []
+      };
+    }
 
     const runtimeEvents = activity.kind === "agent-session"
       ? this.repositories.runtimeEvents
@@ -238,6 +273,7 @@ export class OperationalActivityService {
     }
 
     const sessionIds = new Set(sessions.map((session) => session.id));
+    const deviceOperations = this.deviceRuntime?.operations.listRecent(200) ?? [];
     const activities = [
       ...sessions.map((session) => this.projectSession(session, jobsBySession.get(session.id) ?? null)),
       ...jobs
@@ -245,7 +281,8 @@ export class OperationalActivityService {
           const sessionId = continuitySessionId(job);
           return !sessionId || !sessionIds.has(sessionId);
         })
-        .map((job) => this.projectJob(job))
+        .map((job) => this.projectJob(job)),
+      ...deviceOperations.map((operation) => this.projectDeviceOperation(operation))
     ].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.startedAt.localeCompare(a.startedAt));
 
     return {
@@ -305,6 +342,73 @@ export class OperationalActivityService {
     };
   }
 
+  currentDeviceOperationRevisions(): Record<string, number> {
+    const revisions: Record<string, number> = {};
+    for (const operation of this.deviceRuntime?.operations.listRecent(500) ?? []) {
+      revisions[operation.id] = operation.revision;
+    }
+    return revisions;
+  }
+
+  listDeviceOperationEventsAfter(
+    revisions: Readonly<Record<string, number>>
+  ): OperationalActivityEventProjection[] {
+    return (this.deviceRuntime?.operations.listRecent(500) ?? [])
+      .filter((operation) => operation.revision > (revisions[operation.id] ?? 0))
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || a.id.localeCompare(b.id))
+      .map(projectDeviceRuntimeOperationEvent);
+  }
+
+  private projectDeviceOperation(
+    operation: DeviceRuntimeOperationRecord
+  ): OperationalActivityProjection {
+    const device = this.deviceRuntime?.resolveDevice(operation.deviceId) ?? null;
+    const displayName = device?.displayName ?? operation.deviceId;
+    const status: OperationalActivityStatus =
+      operation.state === "succeeded" ? "completed" :
+      operation.state === "failed" ? "failed" :
+      operation.state === "stale" ? "stale" :
+      operation.state === "ambiguous" ? "interrupted" :
+      operation.state === "awaiting-approval" ? "waiting-approval" :
+      operation.state === "executing" ? "running" : "queued";
+    const latestEvent = projectDeviceRuntimeOperationEvent(operation);
+    return {
+      id: operation.id,
+      kind: "device-operation",
+      scope: "host",
+      status,
+      title: `${displayName} · ${operation.action} Runtime`,
+      targetDeviceId: operation.deviceId,
+      projectId: null,
+      workspaceId: null,
+      taskId: null,
+      repoId: null,
+      agentSessionId: null,
+      authorizationGrantId: operation.authorizationGrantId,
+      traceId: null,
+      workerInstanceId: null,
+      runtime: null,
+      deviceOperation: {
+        operationId: operation.id,
+        deviceId: operation.deviceId,
+        deviceDisplayName: displayName,
+        platform: device?.platform ?? null,
+        architecture: device?.architecture ?? null,
+        action: operation.action,
+        state: operation.state,
+        actorType: operation.executedActor.actorType ?? operation.requestedActor.actorType,
+        revision: operation.revision
+      },
+      job: null,
+      directProcessSummary: { total: 0, active: 0, running: 0 },
+      latestEvent,
+      controls: { pause: false, resume: false, terminate: false, interrupt: false, hold: false },
+      startedAt: operation.startedAt ?? operation.createdAt,
+      updatedAt: operation.updatedAt,
+      endedAt: operation.completedAt
+    };
+  }
+
   private projectSession(
     session: DevelopmentSessionRecord,
     linkedJob: JobRecord<TokenPilotJobPayload> | null
@@ -350,6 +454,7 @@ export class OperationalActivityService {
         turnId: run?.externalTurnId ?? null,
         runStatus: run?.status ?? null
       } : null,
+      deviceOperation: null,
       job: linkedJob ? {
         id: linkedJob.id,
         type: linkedJob.type,
@@ -409,6 +514,7 @@ export class OperationalActivityService {
       traceId: provenance?.traceId ?? null,
       workerInstanceId: provenance?.workerInstanceId ?? null,
       runtime: null,
+      deviceOperation: null,
       job: {
         id: job.id,
         type: job.type,

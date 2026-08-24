@@ -62,9 +62,11 @@ export function registerOperationalActivityRoutes(
     const heartbeatIntervalMs = positiveInterval(options.heartbeatIntervalMs, 15_000);
     let eventCursor = activities.currentEventCursor();
     let controlEventCursor = activities.currentControlEventCursor();
+    let deviceOperationRevisions = activities.currentDeviceOperationRevisions();
     const initialSnapshot = { ok: true, ...activities.list() };
     eventCursor = Math.max(eventCursor, activities.currentEventCursor());
     controlEventCursor = Math.max(controlEventCursor, activities.currentControlEventCursor());
+    deviceOperationRevisions = activities.currentDeviceOperationRevisions();
     reply.hijack();
     reply.raw.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
@@ -95,6 +97,10 @@ export function registerOperationalActivityRoutes(
           for (const event of page.events) write("activity.event", { ok: true, event });
           controlEventCursor = page.cursor;
           if (!page.hasMore) break;
+        }
+        for (const event of activities.listDeviceOperationEventsAfter(deviceOperationRevisions)) {
+          write("activity.event", { ok: true, event });
+          deviceOperationRevisions[event.activityId] = event.sequence;
         }
       } catch (error) {
         app.log.warn({ err: error }, "Operational Activity event refresh failed");

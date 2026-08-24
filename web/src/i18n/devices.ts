@@ -29,6 +29,25 @@ export interface DevicesCopy {
   remoteReadAgentUpdate: string;
   remoteReadOffline: string;
   remoteControlPending: string;
+  runtime: string;
+  runtimeLocal: string;
+  runtimeLoading: string;
+  runtimeReady: string;
+  runtimeStopped: string;
+  runtimeUnknown: string;
+  runtimeUnsupported: string;
+  runtimeAgentUpdate: string;
+  startRuntime: string;
+  startingRuntime: string;
+  stopRuntime: string;
+  stoppingRuntime: string;
+  restartRuntime: string;
+  restartingRuntime: string;
+  stopRuntimeTitle: string;
+  stopRuntimeDescription: string;
+  restartRuntimeTitle: string;
+  restartRuntimeDescription: string;
+  runtimeActionFailed: string;
   noRemoteTitle: string;
   noRemoteDescription: string;
   requestsTitle: string;
@@ -94,6 +113,25 @@ const zhCN: DevicesCopy = {
   remoteReadAgentUpdate: "远程读取需更新 Agent",
   remoteReadOffline: "远程读取离线",
   remoteControlPending: "远程启停尚未开放",
+  runtime: "Runtime 状态",
+  runtimeLocal: "本机 Runtime",
+  runtimeLoading: "正在读取 Runtime…",
+  runtimeReady: "Runtime 就绪",
+  runtimeStopped: "Runtime 已停止",
+  runtimeUnknown: "Runtime 状态未知",
+  runtimeUnsupported: "此设备不支持受管 Runtime",
+  runtimeAgentUpdate: "Runtime 管理需更新 Agent",
+  startRuntime: "启动 Runtime",
+  startingRuntime: "正在启动…",
+  stopRuntime: "停止 Runtime",
+  stoppingRuntime: "正在停止…",
+  restartRuntime: "重启 Runtime",
+  restartingRuntime: "正在重启…",
+  stopRuntimeTitle: "停止这台设备的 Runtime？",
+  stopRuntimeDescription: "Control Plane、Runner 与 Process Supervisor 会停止，但独立 Device Agent 保持在线，之后仍可从这里重新启动。",
+  restartRuntimeTitle: "重启这台设备的 Runtime？",
+  restartRuntimeDescription: "这会重启远端 Control Plane、Runner 与 Process Supervisor。正在进行的 Runtime 工作可能被中断。",
+  runtimeActionFailed: "远端 Runtime 生命周期操作失败",
   noRemoteTitle: "目前只有当前设备",
   noRemoteDescription: "单设备使用无需额外配置。只有在你需要管理其他机器时，才需要添加远端设备。",
   requestsTitle: "待批准设备",
@@ -159,6 +197,25 @@ const enUS: DevicesCopy = {
   remoteReadAgentUpdate: "Remote reads require an Agent update",
   remoteReadOffline: "Remote reads offline",
   remoteControlPending: "Remote start/stop not enabled yet",
+  runtime: "Runtime status",
+  runtimeLocal: "Local Runtime",
+  runtimeLoading: "Reading Runtime…",
+  runtimeReady: "Runtime ready",
+  runtimeStopped: "Runtime stopped",
+  runtimeUnknown: "Runtime unknown",
+  runtimeUnsupported: "Managed Runtime unsupported",
+  runtimeAgentUpdate: "Runtime management requires an Agent update",
+  startRuntime: "Start Runtime",
+  startingRuntime: "Starting…",
+  stopRuntime: "Stop Runtime",
+  stoppingRuntime: "Stopping…",
+  restartRuntime: "Restart Runtime",
+  restartingRuntime: "Restarting…",
+  stopRuntimeTitle: "Stop Runtime on this device?",
+  stopRuntimeDescription: "Control Plane, Runner, and Process Supervisor will stop. The independent Device Agent remains online so Runtime can be started again from here.",
+  restartRuntimeTitle: "Restart Runtime on this device?",
+  restartRuntimeDescription: "This restarts the remote Control Plane, Runner, and Process Supervisor. Active Runtime work may be interrupted.",
+  runtimeActionFailed: "Unable to change remote Runtime lifecycle",
   noRemoteTitle: "Only this device is configured",
   noRemoteDescription: "Single-device use needs no extra setup. Add a remote device only when you actually need multi-device management.",
   requestsTitle: "Pending devices",

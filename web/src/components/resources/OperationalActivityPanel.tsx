@@ -78,12 +78,15 @@ function scopeLabel(copy: ResourceCenterCopy, activity: OperationalActivityProje
 }
 
 function kindLabel(copy: ResourceCenterCopy, activity: OperationalActivityProjection): string {
-  return activity.kind === "agent-session" ? copy.activityKindAgent : copy.activityKindJob;
+  if (activity.kind === "agent-session") return copy.activityKindAgent;
+  if (activity.kind === "device-operation") return copy.activityKindDeviceOperation;
+  return copy.activityKindJob;
 }
 
 function runtimeLabel(activity: OperationalActivityProjection): string | null {
   if (activity.runtime) return activity.runtime.runtimeKind;
   if (activity.job) return activity.job.type;
+  if (activity.deviceOperation) return `${activity.deviceOperation.action} · ${activity.deviceOperation.state}`;
   return null;
 }
 
@@ -103,12 +106,16 @@ function activityEventLabel(copy: ResourceCenterCopy, event: OperationalActivity
     case "approval-rejected": return copy.activityEventApprovalRejected;
     case "warning": return copy.activityEventWarning;
     case "error": return copy.activityEventError;
+    case "device-operation-updated": return copy.activityEventDeviceOperation;
     default: return copy.activityEventActivity;
   }
 }
 
 function activityEventDetail(event: OperationalActivityEventProjection): string | null {
   if (event.source === "job-control") return null;
+  if (event.source === "device-operation") {
+    return [event.deviceAction, event.deviceOperationState].filter(Boolean).join(" · ") || event.code;
+  }
   return event.approvalKind ?? event.itemType ?? event.code;
 }
 
@@ -174,8 +181,9 @@ const ActivityCard = memo(function ActivityCard({
   onToggleTimeline: (activity: OperationalActivityProjection) => void;
 }) {
   const runtime = runtimeLabel(activity);
-  const context =
-    activity.scope === "workspace"
+  const context = activity.deviceOperation
+    ? activity.deviceOperation.deviceDisplayName
+    : activity.scope === "workspace"
       ? [projectName, workspaceLabel].filter(Boolean).join(" · ")
       : activity.repoId ?? copy.activityScopeHost;
   return (
@@ -279,6 +287,9 @@ const ActivityCard = memo(function ActivityCard({
         <div><span>{copy.activityRuntime}</span><strong>{runtime ?? "—"}</strong></div>
         <div><span>{copy.activityProcesses}</span><strong>{activity.directProcessSummary.active}/{activity.directProcessSummary.total}</strong></div>
         <ActivityIdentity label={copy.activityGrant} value={activity.authorizationGrantId} fallback={copy.activityUnknownAuthority} />
+        {activity.deviceOperation ? (
+          <div><span>{copy.activityActor}</span><strong>{activity.deviceOperation.actorType ?? "—"}</strong></div>
+        ) : null}
         <ActivityIdentity label={copy.activityTrace} value={activity.traceId} fallback="—" />
         <ActivityIdentity label={copy.activityWorker} value={activity.workerInstanceId} fallback="—" />
         <div>

@@ -572,7 +572,19 @@ export function buildServer(
     paths,
     continuityServices.repositories,
     operationalActivityProvenance,
-    operationalActivityControlEvents
+    operationalActivityControlEvents,
+    {
+      operations: deviceRuntimeOperations,
+      resolveDevice(deviceId) {
+        const device = deviceRegistryStore.getDevice(deviceId);
+        return device ? {
+          id: device.id,
+          displayName: device.displayName,
+          platform: device.platform,
+          architecture: device.architecture
+        } : null;
+      }
+    }
   );
   const jobProcessControl = new JobProcessControlService(
     paths,

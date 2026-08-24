@@ -130,7 +130,8 @@ function projectLocalDevice(now: string) {
     management: {
       heartbeat: false as const,
       remoteRead: false as const,
-      remoteControl: false as const
+      remoteControl: false as const,
+      runtimeLifecycle: false as const
     }
   };
 }
@@ -239,12 +240,16 @@ export function registerDeviceRoutes(
         device.trust === "paired" &&
         device.executionPolicy === "active" &&
         options.channelHub?.isCapabilityRpcAvailable(device.id) === true;
+      const runtimeLifecycle =
+        device.trust === "paired" &&
+        options.channelHub?.isRuntimeLifecycleRpcAvailable(device.id) === true;
       return {
         ...device,
         ...(channelActive ? { presence: "online" as const } : {}),
         management: {
           ...device.management,
-          remoteRead
+          remoteRead,
+          runtimeLifecycle
         }
       };
     });

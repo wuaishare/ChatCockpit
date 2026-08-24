@@ -4,13 +4,17 @@ import { DesktopOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant
 
 import {
   decideDeviceEnrollment,
+  executeDeviceRuntimeLifecycle,
   fetchDeviceEnrollmentRequests,
+  fetchDeviceRuntimeStatus,
   fetchDevices,
   revokeDevice,
   setDeviceExecutionPolicy
 } from "../api";
 import type {
   DeviceEnrollmentRequestSummary,
+  DeviceRuntimeConditions,
+  DeviceRuntimeLifecycleAction,
   ManagedDeviceSummary
 } from "../types";
 import type { LocaleCode } from "../i18n";
@@ -39,6 +43,9 @@ export function DevicesView({ locale }: DevicesViewProps) {
   const [decisionKey, setDecisionKey] = useState<string | null>(null);
   const [policyActionKey, setPolicyActionKey] = useState<string | null>(null);
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
+  const [runtimeByDevice, setRuntimeByDevice] = useState<Record<string, DeviceRuntimeConditions | null>>({});
+  const [runtimeLoading, setRuntimeLoading] = useState<Record<string, boolean>>({});
+  const [runtimeActionKey, setRuntimeActionKey] = useState<string | null>(null);
 
   const remoteDevices = useMemo(
     () => devices.filter((device) => device.locality === "remote"),
@@ -62,6 +69,23 @@ export function DevicesView({ locale }: DevicesViewProps) {
       ]);
       setDevices(deviceResponse.devices);
       setRequests(requestResponse.enrollmentRequests);
+      const runtimeCandidates = deviceResponse.devices.filter((device) =>
+        device.locality === "remote" &&
+        device.trust === "paired" &&
+        device.presence === "online" &&
+        device.management.runtimeLifecycle
+      );
+      setRuntimeLoading(Object.fromEntries(runtimeCandidates.map((device) => [device.id, true])));
+      const runtimeEntries = await Promise.all(runtimeCandidates.map(async (device) => {
+        try {
+          const response = await fetchDeviceRuntimeStatus(device.id);
+          return [device.id, response.conditions] as const;
+        } catch {
+          return [device.id, null] as const;
+        }
+      }));
+      setRuntimeByDevice(Object.fromEntries(runtimeEntries));
+      setRuntimeLoading({});
     } catch (loadError) {
       setError(errorMessage(loadError, copy.loadFailed, copy.apiVersionMismatch));
     } finally {
@@ -110,6 +134,34 @@ export function DevicesView({ locale }: DevicesViewProps) {
     }
   };
 
+  const runRuntimeLifecycle = async (
+    device: ManagedDeviceSummary,
+    action: DeviceRuntimeLifecycleAction
+  ) => {
+    if (runtimeActionKey) return;
+    setRuntimeActionKey(`${device.id}:${action}`);
+    setError(null);
+    try {
+      const response = await executeDeviceRuntimeLifecycle(
+        device.id,
+        action,
+        crypto.randomUUID()
+      );
+      const conditions = response.operation.postflightConditions;
+      if (conditions) {
+        setRuntimeByDevice((current) => ({ ...current, [device.id]: conditions }));
+      } else {
+        const refreshed = await fetchDeviceRuntimeStatus(device.id);
+        setRuntimeByDevice((current) => ({ ...current, [device.id]: refreshed.conditions }));
+      }
+      await load(false);
+    } catch (runtimeError) {
+      setError(errorMessage(runtimeError, copy.runtimeActionFailed, copy.apiVersionMismatch));
+    } finally {
+      setRuntimeActionKey(null);
+    }
+  };
+
   const revoke = async (deviceId: string) => {
     if (revokingDeviceId) return;
     setRevokingDeviceId(deviceId);
@@ -128,6 +180,27 @@ export function DevicesView({ locale }: DevicesViewProps) {
     if (device.trust === "revoked") return { label: copy.revoked, color: "default" as const };
     if (device.presence === "online") return { label: copy.online, color: "success" as const };
     return { label: copy.offline, color: "warning" as const };
+  };
+
+  const runtimeMeta = (device: ManagedDeviceSummary) => {
+    if (device.locality !== "remote") return { state: "local" as const, label: copy.runtimeLocal };
+    if (device.presence !== "online") return { state: "unknown" as const, label: copy.runtimeUnknown };
+    if (!device.management.runtimeLifecycle) return { state: "unavailable" as const, label: copy.runtimeAgentUpdate };
+    if (runtimeLoading[device.id]) return { state: "loading" as const, label: copy.runtimeLoading };
+    const conditions = runtimeByDevice[device.id];
+    if (!conditions) return { state: "unknown" as const, label: copy.runtimeUnknown };
+    if (conditions.support !== "managed-macos") return { state: "unsupported" as const, label: copy.runtimeUnsupported };
+    if (
+      conditions.controlPlane === "running" &&
+      conditions.runner === "registered" &&
+      conditions.processSupervisor === "ready"
+    ) return { state: "ready" as const, label: copy.runtimeReady };
+    if (
+      conditions.controlPlane === "stopped" &&
+      conditions.runner === "stopped" &&
+      conditions.processSupervisor === "stopped"
+    ) return { state: "stopped" as const, label: copy.runtimeStopped };
+    return { state: "unknown" as const, label: copy.runtimeUnknown };
   };
 
   const remoteReadLabel = (device: ManagedDeviceSummary) => {
@@ -161,6 +234,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
           <div className="device-grid">
             {devices.map((device) => {
               const presence = presenceMeta(device);
+              const runtime = runtimeMeta(device);
               return (
                 <article className="device-card" key={device.id}>
                   <div className="device-card__header">
@@ -207,11 +281,15 @@ export function DevicesView({ locale }: DevicesViewProps) {
                       <strong>{device.executionPolicy === "paused" ? copy.aiPaused : copy.aiActive}</strong>
                     </div>
                     <div className="gpt-fact">
+                      <span>{copy.runtime}</span>
+                      <strong>{runtime.label}</strong>
+                    </div>
+                    <div className="gpt-fact">
                       <span>{copy.management}</span>
                       <strong>
                         {device.management.heartbeat ? copy.presenceReady : copy.localPresence}
                         {device.locality === "remote"
-                          ? ` · ${remoteReadLabel(device)} · ${copy.remoteControlPending}`
+                          ? ` · ${remoteReadLabel(device)} · ${runtime.label}`
                           : ""}
                       </strong>
                     </div>
@@ -240,6 +318,52 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           </Button>
                         </Popconfirm>
                       )}
+                      {runtime.state === "stopped" ? (
+                        <Button
+                          size="small"
+                          loading={runtimeActionKey === `${device.id}:start`}
+                          disabled={Boolean(runtimeActionKey)}
+                          onClick={() => void runRuntimeLifecycle(device, "start")}
+                        >
+                          {runtimeActionKey === `${device.id}:start` ? copy.startingRuntime : copy.startRuntime}
+                        </Button>
+                      ) : null}
+                      {runtime.state === "ready" ? (
+                        <Popconfirm
+                          title={copy.stopRuntimeTitle}
+                          description={copy.stopRuntimeDescription}
+                          okText={copy.confirm}
+                          cancelText={copy.cancel}
+                          okButtonProps={{ danger: true }}
+                          onConfirm={() => void runRuntimeLifecycle(device, "stop")}
+                        >
+                          <Button
+                            danger
+                            size="small"
+                            loading={runtimeActionKey === `${device.id}:stop`}
+                            disabled={Boolean(runtimeActionKey)}
+                          >
+                            {runtimeActionKey === `${device.id}:stop` ? copy.stoppingRuntime : copy.stopRuntime}
+                          </Button>
+                        </Popconfirm>
+                      ) : null}
+                      {runtime.state === "ready" ? (
+                        <Popconfirm
+                          title={copy.restartRuntimeTitle}
+                          description={copy.restartRuntimeDescription}
+                          okText={copy.confirm}
+                          cancelText={copy.cancel}
+                          onConfirm={() => void runRuntimeLifecycle(device, "restart")}
+                        >
+                          <Button
+                            size="small"
+                            loading={runtimeActionKey === `${device.id}:restart`}
+                            disabled={Boolean(runtimeActionKey)}
+                          >
+                            {runtimeActionKey === `${device.id}:restart` ? copy.restartingRuntime : copy.restartRuntime}
+                          </Button>
+                        </Popconfirm>
+                      ) : null}
                       <Popconfirm
                         title={copy.revokeTitle}
                         description={copy.revokeDescription}
