@@ -1,5 +1,6 @@
 import type { ContinuityServices } from "../../application/continuity-services.js";
 import type { CodexThreadImportService } from "../../application/codex-thread-import-service.js";
+import type { ProjectDevelopmentRoutingService } from "../../application/project-development-routing-service.js";
 import { asyncJobQueueSchema } from "../../contracts/async-job.js";
 import { codexThreadImportContextSchema } from "../../contracts/codex-thread-import.js";
 import {
@@ -52,7 +53,8 @@ const leaseAcquireAnnotations: McpToolAnnotations = {
 
 export function buildContinuityMcpTools(
   services: ContinuityServices,
-  codexThreadImports?: CodexThreadImportService
+  codexThreadImports?: CodexThreadImportService,
+  projectDevelopmentRouting?: ProjectDevelopmentRoutingService
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
@@ -184,12 +186,20 @@ export function buildContinuityMcpTools(
       name: "chatcockpit.project.get",
       title: "Read ChatCockpit project",
       description:
-        "Read one ChatCockpit project and its public-safe workspaces by ChatCockpit project id.",
+        "Read one ChatCockpit project, its public-safe workspaces, and the authoritative project-development routing assessment. For an explicit Git project development request, call this before mutating the workspace: codex-native start/resume is preferred when ready; Chat Direct is only an explicit or native-unavailable fallback.",
       inputSchema: projectGetSchema,
       annotations: readOnlyToolAnnotations,
-      handler: (context, input) => ({
+      handler: async (context, input) => ({
         ok: true,
-        ...services.projects.get(context, input.projectId)
+        ...services.projects.get(context, input.projectId),
+        ...(projectDevelopmentRouting
+          ? {
+              nativeDevelopment: await projectDevelopmentRouting.assess(
+                context,
+                input.projectId
+              )
+            }
+          : {})
       })
     }),
     defineMcpTool({

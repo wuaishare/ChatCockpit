@@ -14,6 +14,7 @@ import type {
   WorkspaceStatus
 } from "../continuity/types.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
 
 function stableId(prefix: string, value: string): string {
@@ -37,25 +38,29 @@ export interface ProjectProjection {
 }
 
 export class ProjectService {
+  private readonly git: GitService;
+
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly database: ContinuityDatabase,
     private readonly repositories: ContinuityRepositories
-  ) {}
+  ) {
+    this.git = new GitService(paths);
+  }
 
   list(
-    _context: OperationContext,
+    context: OperationContext,
     status?: ProjectStatus
   ): ProjectProjection[] {
-    this.syncConfiguredProjects();
+    this.syncConfiguredProjects(context);
     return this.repositories.projects.list(status).map((project) => ({
       project,
       workspaces: this.repositories.workspaces.listByProject(project.id)
     }));
   }
 
-  get(_context: OperationContext, projectId: string): ProjectProjection {
-    this.syncConfiguredProjects();
+  get(context: OperationContext, projectId: string): ProjectProjection {
+    this.syncConfiguredProjects(context);
     const project = this.repositories.projects.get(projectId);
     return {
       project,
@@ -63,7 +68,7 @@ export class ProjectService {
     };
   }
 
-  private syncConfiguredProjects(): void {
+  private syncConfiguredProjects(context: OperationContext): void {
     const config = loadUserConfigForPaths(this.paths);
     this.database.transaction(() => {
       for (const [repoId, mapping] of Object.entries(config.repoMappings).sort(
@@ -116,5 +121,32 @@ export class ProjectService {
         }
       }
     });
+
+    for (const workspace of this.repositories.workspaces.listPrivate()) {
+      if (!config.repoMappings[workspace.repoId] || workspace.status !== "ready") {
+        continue;
+      }
+      try {
+        const status = this.git.status(context, workspace.repoId);
+        const branch = status.branch || null;
+        const headCommit =
+          this.git.recentCommits(context, workspace.repoId, 1)[0]?.hash ?? null;
+        const dirty = status.entries.length > 0;
+        if (
+          workspace.branch !== branch ||
+          workspace.headCommit !== headCommit ||
+          workspace.dirty !== dirty
+        ) {
+          this.repositories.workspaces.updateGitState(workspace.id, {
+            branch,
+            headCommit,
+            dirty,
+            expectedRevision: workspace.revision
+          });
+        }
+      } catch {
+        // Configuration truth remains usable even when live Git observation fails.
+      }
+    }
   }
 }

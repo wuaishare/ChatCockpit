@@ -200,7 +200,20 @@ async function runContinuityApiVerification(): Promise<void> {
       "chatcockpit.project.get",
       { projectId: project.id }
     );
-    assert.deepEqual(projectMcp, projectRest);
+    const { nativeDevelopment, ...projectMcpCompatibility } = projectMcp;
+    assert.deepEqual(projectMcpCompatibility, projectRest);
+    assert.ok(nativeDevelopment && typeof nativeDevelopment === "object");
+    const nativeRouting = nativeDevelopment as {
+      preferredLane?: string;
+      nextAction?: string;
+      nativeToolSequence?: string[];
+    };
+    assert.equal(nativeRouting.preferredLane, "codex-native");
+    assert.equal(nativeRouting.nextAction, "start-native");
+    assert.deepEqual(nativeRouting.nativeToolSequence, [
+      "chatcockpit.codex.thread.start",
+      "chatcockpit.codex.thread.turn.start"
+    ]);
 
     const taskInput = {
       projectId: project.id,
