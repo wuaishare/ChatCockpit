@@ -1,9 +1,12 @@
 import {
   BranchesOutlined,
+  CheckOutlined,
   ClockCircleOutlined,
   CloudServerOutlined,
+  CopyOutlined,
   DesktopOutlined,
   HistoryOutlined,
+  LinkOutlined,
   ReloadOutlined,
   StopOutlined,
   ThunderboltOutlined
@@ -12,7 +15,7 @@ import { Button, Empty, Popconfirm, Tag, Tooltip } from "antd";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UiText as Text } from "../UiText";
 
-import { controlJob, fetchOperationalActivities, fetchOperationalActivityTimeline, interruptCodexRuntimeTurn } from "../../api";
+import { controlJob, fetchContinuityCapsule, fetchExecutionTrajectory, fetchOperationalActivities, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import type { ResourceCenterCopy } from "../../i18n/resources";
 import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
@@ -22,8 +25,9 @@ import type {
   OperationalActivityEventResponse,
   OperationalActivityListResponse,
   OperationalActivityProjection,
-  OperationalActivityTimelineResponse,
-  OperationalActivityStatus
+  OperationalActivityStatus,
+  TrajectoryEventProjection,
+  TrajectoryResponse
 } from "../../types";
 
 interface OperationalActivityPanelProps {
@@ -90,7 +94,10 @@ function runtimeLabel(activity: OperationalActivityProjection): string | null {
   return null;
 }
 
-function activityEventLabel(copy: ResourceCenterCopy, event: OperationalActivityEventProjection): string {
+function activityEventLabel(
+  copy: ResourceCenterCopy,
+  event: Pick<OperationalActivityEventProjection, "kind">
+): string {
   switch (event.kind) {
     case "run-started": return copy.activityEventRunStarted;
     case "run-completed": return copy.activityEventRunCompleted;
@@ -117,6 +124,10 @@ function activityEventDetail(event: OperationalActivityEventProjection): string 
     return [event.deviceAction, event.deviceOperationState].filter(Boolean).join(" · ") || event.code;
   }
   return event.approvalKind ?? event.itemType ?? event.code;
+}
+
+function trajectoryEventDetail(event: TrajectoryEventProjection): string | null {
+  return event.itemType ?? event.code;
 }
 
 function currentStepLabel(copy: ResourceCenterCopy, activity: OperationalActivityProjection): string {
@@ -161,9 +172,12 @@ const ActivityCard = memo(function ActivityCard({
   timelineExpanded,
   timelineLoading,
   timelineError,
+  copyingCapsule,
+  capsuleCopied,
   onInterrupt,
   onJobControl,
-  onToggleTimeline
+  onToggleTimeline,
+  onCopyCapsule
 }: {
   activity: OperationalActivityProjection;
   locale: LocaleCode;
@@ -172,13 +186,16 @@ const ActivityCard = memo(function ActivityCard({
   workspaceLabel: string | null;
   interrupting: boolean;
   controllingAction: "pause" | "resume" | "terminate" | null;
-  timeline: OperationalActivityEventProjection[];
+  timeline: TrajectoryEventProjection[];
   timelineExpanded: boolean;
   timelineLoading: boolean;
   timelineError: boolean;
+  copyingCapsule: boolean;
+  capsuleCopied: boolean;
   onInterrupt: (activity: OperationalActivityProjection) => void;
   onJobControl: (activity: OperationalActivityProjection, action: "pause" | "resume" | "terminate") => void;
   onToggleTimeline: (activity: OperationalActivityProjection) => void;
+  onCopyCapsule: (activity: OperationalActivityProjection) => void;
 }) {
   const runtime = runtimeLabel(activity);
   const context = activity.deviceOperation
@@ -263,6 +280,27 @@ const ActivityCard = memo(function ActivityCard({
               </Button>
             </Popconfirm>
           ) : null}
+          {activity.workspaceId ? (
+            <Button
+              size="small"
+              type="text"
+              icon={capsuleCopied ? <CheckOutlined /> : <CopyOutlined />}
+              loading={copyingCapsule}
+              onClick={() => onCopyCapsule(activity)}
+            >
+              {capsuleCopied ? copy.activityCapsuleCopied : copy.activityCopyCapsule}
+            </Button>
+          ) : null}
+          {activity.runtime?.externalThreadId ? (
+            <Button
+              size="small"
+              type="text"
+              icon={<LinkOutlined />}
+              href={`codex://threads/${encodeURIComponent(activity.runtime.externalThreadId)}`}
+            >
+              {copy.activityOpenCodex}
+            </Button>
+          ) : null}
           <Button
             size="small"
             type="text"
@@ -323,12 +361,12 @@ const ActivityCard = memo(function ActivityCard({
           ) : (
             <div className="resource-center__activity-timeline-list" role="log" aria-live="polite">
               {timeline.map((event) => (
-                <div key={`${event.source}:${event.id}`} className="resource-center__activity-timeline-item">
+                <div key={event.id} className="resource-center__activity-timeline-item">
                   <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString(locale)}</time>
                   <span className="resource-center__activity-timeline-dot" aria-hidden="true" />
                   <span className="resource-center__activity-timeline-event">
                     {activityEventLabel(copy, event)}
-                    {activityEventDetail(event) ? <code>{activityEventDetail(event)}</code> : null}
+                    {trajectoryEventDetail(event) ? <code>{trajectoryEventDetail(event)}</code> : null}
                   </span>
                 </div>
               ))}
@@ -355,9 +393,12 @@ export function OperationalActivityPanel({
   const [controllingJob, setControllingJob] = useState<{ activityId: string; action: "pause" | "resume" | "terminate" } | null>(null);
   const [jobControlError, setJobControlError] = useState<string | null>(null);
   const [expandedTimelineId, setExpandedTimelineId] = useState<string | null>(null);
-  const [timelineByActivity, setTimelineByActivity] = useState<Record<string, OperationalActivityEventProjection[]>>({});
+  const [timelineByActivity, setTimelineByActivity] = useState<Record<string, TrajectoryEventProjection[]>>({});
   const [timelineLoadingId, setTimelineLoadingId] = useState<string | null>(null);
   const [timelineErrorId, setTimelineErrorId] = useState<string | null>(null);
+  const [copyingCapsuleId, setCopyingCapsuleId] = useState<string | null>(null);
+  const [copiedCapsuleId, setCopiedCapsuleId] = useState<string | null>(null);
+  const [capsuleCopyError, setCapsuleCopyError] = useState<string | null>(null);
   const interruptKeys = useRef(new Map<string, string>());
   const jobControlKeys = useRef(new Map<string, string>());
 
@@ -411,11 +452,19 @@ export function OperationalActivityPanel({
         setTimelineByActivity((current) => {
           const existing = current[next.event.activityId];
           if (!existing) return current;
-          if (existing.some((event) => event.source === next.event.source && event.id === next.event.id)) return current;
+          if (existing.some((event) => event.id === next.event.id)) return current;
+          const projected: TrajectoryEventProjection = {
+            id: next.event.id,
+            kind: next.event.kind,
+            category: next.event.category,
+            code: next.event.code,
+            itemType: next.event.itemType,
+            createdAt: next.event.createdAt
+          };
           return {
             ...current,
-            [next.event.activityId]: [...existing, next.event]
-              .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.source.localeCompare(b.source) || a.sequence - b.sequence)
+            [next.event.activityId]: [...existing, projected]
+              .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
               .slice(-50)
           };
         });
@@ -514,14 +563,40 @@ export function OperationalActivityPanel({
     setTimelineLoadingId(activity.id);
     setTimelineErrorId(null);
     try {
-      const response: OperationalActivityTimelineResponse = await fetchOperationalActivityTimeline(activity.id, token);
-      setTimelineByActivity((current) => ({ ...current, [activity.id]: response.events }));
+      const response: TrajectoryResponse = await fetchExecutionTrajectory(activity.id, token);
+      setTimelineByActivity((current) => ({ ...current, [activity.id]: response.trajectory.events }));
     } catch {
       setTimelineErrorId(activity.id);
     } finally {
       setTimelineLoadingId((current) => current === activity.id ? null : current);
     }
   }, [expandedTimelineId, timelineByActivity, token]);
+
+  const copyContinuityCapsule = useCallback(async (activity: OperationalActivityProjection) => {
+    if (!activity.workspaceId) return;
+    setCopyingCapsuleId(activity.id);
+    setCapsuleCopyError(null);
+    try {
+      const response = await fetchContinuityCapsule(
+        activity.workspaceId,
+        {
+          ...(activity.taskId ? { taskId: activity.taskId } : {}),
+          activityId: activity.id,
+          trajectoryLimit: 20
+        },
+        token
+      );
+      await navigator.clipboard.writeText(response.capsule.markdown);
+      setCopiedCapsuleId(activity.id);
+      window.setTimeout(() => {
+        setCopiedCapsuleId((current) => current === activity.id ? null : current);
+      }, 1600);
+    } catch {
+      setCapsuleCopyError(copy.activityCapsuleCopyFailed);
+    } finally {
+      setCopyingCapsuleId((current) => current === activity.id ? null : current);
+    }
+  }, [copy.activityCapsuleCopyFailed, token]);
 
   const projectNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -583,10 +658,10 @@ export function OperationalActivityPanel({
         <div role="listitem"><span>{copy.activityTotal}</span><strong>{snapshot?.counts.total ?? "—"}</strong></div>
       </div>
 
-      {interruptError ? (
+      {interruptError || jobControlError || capsuleCopyError ? (
         <div className="resource-center__activity-inline-error">
           <ThunderboltOutlined />
-          <span>{interruptError}</span>
+          <span>{interruptError ?? jobControlError ?? capsuleCopyError}</span>
         </div>
       ) : null}
 
@@ -623,9 +698,12 @@ export function OperationalActivityPanel({
               timelineExpanded={expandedTimelineId === activity.id}
               timelineLoading={timelineLoadingId === activity.id}
               timelineError={timelineErrorId === activity.id}
+              copyingCapsule={copyingCapsuleId === activity.id}
+              capsuleCopied={copiedCapsuleId === activity.id}
               onInterrupt={interruptActivity}
               onJobControl={controlActivityJob}
               onToggleTimeline={toggleTimeline}
+              onCopyCapsule={copyContinuityCapsule}
             />
           ))}
         </div>

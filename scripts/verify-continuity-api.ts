@@ -140,6 +140,8 @@ async function runContinuityApiVerification(): Promise<void> {
       "listContinuityProjects",
       "getContinuityProject",
       "getWorkspaceContinuitySnapshot",
+      "getExecutionTrajectory",
+      "getWorkspaceContinuityCapsule",
       "queueContinuityAsyncJob",
       "createContinuityTask",
       "submitContinuityTaskReview",
@@ -503,6 +505,63 @@ async function runContinuityApiVerification(): Promise<void> {
     assert.equal(restSnapshot.snapshot.tasks[0].runtimes[0].binding, null);
     assert.equal(restSnapshot.snapshot.tasks[0].runtimes[0].job, null);
     assert.doesNotMatch(JSON.stringify(restSnapshot), new RegExp(repoRoot));
+
+    const restTrajectory = await rest<{
+      ok: true;
+      trajectory: {
+        version: string;
+        activity: { id: string; workspaceId: string | null; taskId: string | null };
+        events: Array<{ kind: string; category: string; createdAt: string }>;
+        bounded: boolean;
+      };
+    }>(
+      "GET",
+      `/api/trajectories/${restSession.session.id}?limit=20`
+    );
+    const mcpTrajectory = await mcp<typeof restTrajectory>(
+      "chatcockpit.trajectory.read",
+      { activityId: restSession.session.id, limit: 20 }
+    );
+    assert.deepEqual(mcpTrajectory, restTrajectory);
+    assert.equal(restTrajectory.trajectory.activity.id, restSession.session.id);
+    assert.equal(restTrajectory.trajectory.activity.workspaceId, workspace.id);
+    assert.equal(restTrajectory.trajectory.activity.taskId, restTask.task.id);
+    assert.equal(restTrajectory.trajectory.bounded, true);
+    assert.doesNotMatch(JSON.stringify(restTrajectory), new RegExp(repoRoot));
+
+    const capsuleRoute =
+      `/api/continuity/workspaces/${workspace.id}/capsule` +
+      `?taskId=${restTask.task.id}&activityId=${restSession.session.id}&trajectoryLimit=10`;
+    const restCapsule = await rest<{
+      ok: true;
+      capsule: {
+        version: string;
+        source: { modelLoopOwner: string; sessionId: string | null; activityId: string | null };
+        objective: string | null;
+        verification: { state: string };
+        trajectory: { activityId: string } | null;
+        markdown: string;
+      };
+    }>("GET", capsuleRoute);
+    const mcpCapsule = await mcp<typeof restCapsule>(
+      "chatcockpit.continuity.capsule",
+      {
+        workspaceId: workspace.id,
+        taskId: restTask.task.id,
+        activityId: restSession.session.id,
+        trajectoryLimit: 10
+      }
+    );
+    assert.deepEqual(mcpCapsule, restCapsule);
+    assert.equal(restCapsule.capsule.version, "1");
+    assert.equal(restCapsule.capsule.source.modelLoopOwner, "chatgpt");
+    assert.equal(restCapsule.capsule.source.sessionId, restSession.session.id);
+    assert.equal(restCapsule.capsule.source.activityId, restSession.session.id);
+    assert.equal(restCapsule.capsule.objective, handoffInput.goal);
+    assert.equal(restCapsule.capsule.verification.state, "verified");
+    assert.equal(restCapsule.capsule.trajectory?.activityId, restSession.session.id);
+    assert.match(restCapsule.capsule.markdown, /ChatCockpit Continuity Capsule v1/);
+    assert.doesNotMatch(JSON.stringify(restCapsule), new RegExp(repoRoot));
 
     const acceptInput = {
       handoffId: restHandoff.handoff.id,

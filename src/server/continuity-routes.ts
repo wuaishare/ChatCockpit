@@ -8,7 +8,10 @@ import { z } from "zod";
 import type { ContinuityServices } from "../application/continuity-services.js";
 import type { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import type { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
+import type { TrajectoryService } from "../application/trajectory-service.js";
+import type { ContinuityCapsuleService } from "../application/continuity-capsule-service.js";
 import { asyncJobQueueSchema } from "../contracts/async-job.js";
+import { continuityCapsuleSchema, trajectoryReadSchema } from "../contracts/continuity-observability.js";
 import {
   codexThreadImportAssessSchema,
   codexThreadImportContextSchema,
@@ -90,7 +93,9 @@ export function registerContinuityRoutes(
   app: FastifyInstance,
   services: ContinuityServices,
   codexThreadImports?: CodexThreadImportService,
-  projectDevelopmentRouting?: ProjectDevelopmentRoutingService
+  projectDevelopmentRouting?: ProjectDevelopmentRoutingService,
+  trajectoryService?: TrajectoryService,
+  continuityCapsules?: ContinuityCapsuleService
 ): void {
   registerAliases(app, "GET", "/api/continuity/projects", (request, reply) => {
     const input = parseOrReply(projectListSchema, request.query ?? {}, reply);
@@ -137,6 +142,30 @@ export function registerContinuityRoutes(
       }
     }
   );
+
+  if (trajectoryService) {
+    registerAliases(app, "GET", "/api/trajectories/:activityId", (request, reply) => {
+      const input = parseOrReply(trajectoryReadSchema, { ...(request.params as object), ...(request.query as object) }, reply);
+      if (!input) return;
+      try {
+        return { ok: true, trajectory: trajectoryService.read(input) };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    });
+  }
+
+  if (continuityCapsules) {
+    registerAliases(app, "GET", "/api/continuity/workspaces/:workspaceId/capsule", (request, reply) => {
+      const input = parseOrReply(continuityCapsuleSchema, { ...(request.params as object), ...(request.query as object) }, reply);
+      if (!input) return;
+      try {
+        return { ok: true, capsule: continuityCapsules.generate(operationContextFromRequest(request), input) };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    });
+  }
 
   registerAliases(
     app,

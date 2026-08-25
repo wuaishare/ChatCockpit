@@ -1,7 +1,15 @@
 import type { ContinuityServices } from "../../application/continuity-services.js";
 import type { CodexThreadImportService } from "../../application/codex-thread-import-service.js";
 import type { ProjectDevelopmentRoutingService } from "../../application/project-development-routing-service.js";
+import type { TrajectoryService } from "../../application/trajectory-service.js";
+import type { ContinuityCapsuleService } from "../../application/continuity-capsule-service.js";
 import { asyncJobQueueSchema } from "../../contracts/async-job.js";
+import {
+  continuityCapsuleSchema,
+  continuityCapsuleToolOutputSchema,
+  trajectoryReadSchema,
+  trajectoryToolOutputSchema
+} from "../../contracts/continuity-observability.js";
 import { codexThreadImportContextSchema } from "../../contracts/codex-thread-import.js";
 import {
   developmentDocumentAppendVersionSchema,
@@ -54,7 +62,9 @@ const leaseAcquireAnnotations: McpToolAnnotations = {
 export function buildContinuityMcpTools(
   services: ContinuityServices,
   codexThreadImports?: CodexThreadImportService,
-  projectDevelopmentRouting?: ProjectDevelopmentRoutingService
+  projectDevelopmentRouting?: ProjectDevelopmentRoutingService,
+  trajectoryService?: TrajectoryService,
+  continuityCapsules?: ContinuityCapsuleService
 ): TokenPilotMcpTool[] {
   return [
     defineMcpTool({
@@ -207,6 +217,40 @@ export function buildContinuityMcpTools(
         };
       }
     }),
+    ...(trajectoryService
+      ? [
+          defineMcpTool({
+            name: "chatcockpit.trajectory.read",
+            title: "Read bounded execution trajectory",
+            description:
+              "Read the bounded, normalized execution trajectory for one existing Operational Activity. Returns lifecycle, step, approval, control, warning/error, and device-operation events without raw commands, private paths, provider payloads, or secrets.",
+            inputSchema: trajectoryReadSchema,
+            outputSchema: trajectoryToolOutputSchema,
+            annotations: readOnlyToolAnnotations,
+            handler: (_context, input) => ({
+              ok: true,
+              trajectory: trajectoryService.read(input)
+            })
+          })
+        ]
+      : []),
+    ...(continuityCapsules
+      ? [
+          defineMcpTool({
+            name: "chatcockpit.continuity.capsule",
+            title: "Generate continuity capsule",
+            description:
+              "Generate a bounded public-safe Continuity Capsule from current Project/Workspace Git state, optional Task/Handoff/Evidence, provider session reference, and recent normalized Trajectory. The capsule is regenerated from authoritative state and never claims cross-runtime work became native provider history.",
+            inputSchema: continuityCapsuleSchema,
+            outputSchema: continuityCapsuleToolOutputSchema,
+            annotations: readOnlyToolAnnotations,
+            handler: (context, input) => ({
+              ok: true,
+              capsule: continuityCapsules.generate(context, input)
+            })
+          })
+        ]
+      : []),
     defineMcpTool({
       name: "chatcockpit.workspace.snapshot",
       title: "Read workspace continuity snapshot",

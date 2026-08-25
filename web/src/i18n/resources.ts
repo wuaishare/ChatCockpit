@@ -33,6 +33,10 @@ export interface ResourceCenterCopy {
   activityTimelineShow: string;
   activityTimelineHide: string;
   activityTimelineTitle: string;
+  activityCopyCapsule: string;
+  activityCapsuleCopied: string;
+  activityCapsuleCopyFailed: string;
+  activityOpenCodex: string;
   activityTimelineEmpty: string;
   activityTimelineLoadFailed: string;
   activityActive: string;
@@ -235,9 +239,13 @@ const zhCN: ResourceCenterCopy = {
   activityTerminateConfirm: "确认终止",
   activityTerminateCancel: "取消",
   activityJobControlFailed: "任务控制失败，可安全重试。",
-  activityTimelineShow: "运行记录",
-  activityTimelineHide: "收起记录",
-  activityTimelineTitle: "运行时间线",
+  activityTimelineShow: "执行轨迹",
+  activityTimelineHide: "收起轨迹",
+  activityTimelineTitle: "执行轨迹",
+  activityCopyCapsule: "复制接力胶囊",
+  activityCapsuleCopied: "接力胶囊已复制",
+  activityCapsuleCopyFailed: "接力胶囊复制失败",
+  activityOpenCodex: "在 Codex 中打开",
   activityTimelineEmpty: "当前还没有可公开展示的运行事件。",
   activityTimelineLoadFailed: "运行记录读取失败。",
   activityActive: "活跃",
@@ -440,9 +448,13 @@ const enUS: ResourceCenterCopy = {
   activityTerminateConfirm: "Terminate",
   activityTerminateCancel: "Cancel",
   activityJobControlFailed: "Task control failed. It is safe to retry.",
-  activityTimelineShow: "Run history",
-  activityTimelineHide: "Hide history",
-  activityTimelineTitle: "Run timeline",
+  activityTimelineShow: "Execution trajectory",
+  activityTimelineHide: "Hide trajectory",
+  activityTimelineTitle: "Execution trajectory",
+  activityCopyCapsule: "Copy continuity capsule",
+  activityCapsuleCopied: "Continuity capsule copied",
+  activityCapsuleCopyFailed: "Could not copy continuity capsule",
+  activityOpenCodex: "Open in Codex",
   activityTimelineEmpty: "No public-safe runtime events are available yet.",
   activityTimelineLoadFailed: "Run history could not be loaded.",
   activityActive: "Active",

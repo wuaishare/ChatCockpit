@@ -26,6 +26,7 @@ export interface TokenPilotMcpTool<TSchema extends z.ZodTypeAny = z.ZodTypeAny> 
   title: string;
   description: string;
   inputSchema: TSchema;
+  outputSchema?: z.ZodTypeAny;
   annotations: McpToolAnnotations;
   execute(context: OperationContext, input: unknown): Promise<TokenPilotMcpToolResult>;
 }
@@ -35,6 +36,7 @@ interface DefineMcpToolInput<TSchema extends z.ZodTypeAny> {
   title: string;
   description: string;
   inputSchema: TSchema;
+  outputSchema?: z.ZodTypeAny;
   annotations: McpToolAnnotations;
   handler: (
     context: OperationContext,
@@ -137,11 +139,22 @@ export function defineMcpTool<TSchema extends z.ZodTypeAny>(
     title: definition.title,
     description: definition.description,
     inputSchema: definition.inputSchema,
+    ...(definition.outputSchema ? { outputSchema: definition.outputSchema } : {}),
     annotations: definition.annotations,
     async execute(context, input) {
       try {
         const parsed = definition.inputSchema.parse(input);
-        return toToolResult(await definition.handler(context, parsed));
+        const rawOutput = await definition.handler(context, parsed);
+        if (!definition.outputSchema) return toToolResult(rawOutput);
+        const output = definition.outputSchema.safeParse(rawOutput);
+        if (!output.success) {
+          throw new ServiceError(
+            "TOOL_OUTPUT_VALIDATION_FAILED",
+            "Tool output did not match its declared output schema",
+            { cause: output.error }
+          );
+        }
+        return toToolResult(output.data);
       } catch (error) {
         return toToolError(context, error);
       }

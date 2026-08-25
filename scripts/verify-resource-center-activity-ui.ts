@@ -14,7 +14,8 @@ const statusLanguage = read("web/src/status-language.ts");
 
 for (const required of [
   "fetchOperationalActivities",
-  "fetchOperationalActivityTimeline",
+  "fetchExecutionTrajectory",
+  "fetchContinuityCapsule",
   'new EventSource("/api/activities/stream", { withCredentials: true })',
   'source.addEventListener("activity.snapshot"',
   'source.addEventListener("activity.event"',
@@ -43,13 +44,17 @@ for (const required of [
   "activityTimelineShow",
   "resource-center__activity-timeline-list",
   'role="log"',
-  "timelineByActivity"
+  "timelineByActivity",
+  "navigator.clipboard.writeText(response.capsule.markdown)",
+  "onCopyCapsule(activity)",
+  "codex://threads/${encodeURIComponent(activity.runtime.externalThreadId)}"
 ]) {
   assert.equal(panel.includes(required), true, `Operational Activity UI must retain ${required}`);
 }
 
 assert.match(api, /fetchOperationalActivities[\s\S]*?"\/api\/activities"/);
-assert.match(api, /fetchOperationalActivityTimeline[\s\S]*?`\/api\/activities\/\$\{encodeURIComponent\(activityId\)\}\/events\?limit=50`/);
+assert.match(api, /fetchExecutionTrajectory[\s\S]*?`\/api\/trajectories\/\$\{encodeURIComponent\(activityId\)\}\?limit=50`/);
+assert.match(api, /fetchContinuityCapsule[\s\S]*?`\/api\/continuity\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/capsule\$\{suffix\}`/);
 for (const metric of ["active", "running", "waitingApproval", "paused", "total"]) {
   assert.equal(
     panel.includes(`snapshot?.counts.${metric} ?? "—"`),
@@ -154,8 +159,14 @@ for (const requiredCopy of [
   'activityTerminate: "Terminate task"',
   'activityInterrupt: "Interrupt run"',
   'activityInterruptFailed: "Interrupt failed. It is safe to retry."',
-  'activityTimelineShow: "Run history"',
-  'activityTimelineTitle: "Run timeline"'
+  'activityTimelineShow: "执行轨迹"',
+  'activityTimelineTitle: "执行轨迹"',
+  'activityCopyCapsule: "复制接力胶囊"',
+  'activityOpenCodex: "在 Codex 中打开"',
+  'activityTimelineShow: "Execution trajectory"',
+  'activityTimelineTitle: "Execution trajectory"',
+  'activityCopyCapsule: "Copy continuity capsule"',
+  'activityOpenCodex: "Open in Codex"'
 ]) {
   assert.equal(copy.includes(requiredCopy), true, `Activity UI i18n must retain ${requiredCopy}`);
 }

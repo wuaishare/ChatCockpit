@@ -1571,6 +1571,35 @@ export interface OperationalActivityTimelineResponse {
   events: OperationalActivityEventProjection[];
 }
 
+export interface TrajectoryEventProjection {
+  id: string;
+  kind: OperationalActivityEventKind;
+  category: string;
+  code: string | null;
+  itemType: string | null;
+  createdAt: string;
+}
+
+export interface TrajectoryResponse {
+  ok: true;
+  trajectory: {
+    version: "1";
+    activity: { id: string; projectId: string | null; workspaceId: string | null; taskId: string | null; runtime: { runtimeKind: "codex-app-server" | "async-runner"; externalThreadId: string | null } | null };
+    events: TrajectoryEventProjection[];
+    limit: number;
+    bounded: true;
+  };
+}
+
+export interface ContinuityCapsuleResponse {
+  ok: true;
+  capsule: {
+    version: "1";
+    source: { modelLoopOwner: "chatgpt" | "codex" | "async-agent" | "unknown"; runtime: { kind: string; id: string; deepLink: string | null } | null };
+    markdown: string;
+  };
+}
+
 export interface OperationalActivityListResponse {
   ok: true;
   activities: OperationalActivityProjection[];

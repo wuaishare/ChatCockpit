@@ -4158,6 +4158,183 @@ components:
           items:
             $ref: '#/components/schemas/RuntimeApprovalRecord'
       required: [project, workspace, activeLease, readOnly, readOnlyReason, git, tasks, pendingApprovals]
+    TrajectoryEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        category: { type: string }
+        code: { oneOf: [{ type: string }, { type: "null" }] }
+        itemType: { oneOf: [{ type: string }, { type: "null" }] }
+        createdAt: { type: string }
+      required: [id, kind, category, code, itemType, createdAt]
+    TrajectoryActivity:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [agent-session, job, device-operation] }
+        scope: { type: string, enum: [workspace, repo, host] }
+        status: { type: string }
+        title: { type: string }
+        targetDeviceId: { type: string }
+        projectId: { oneOf: [{ type: string }, { type: "null" }] }
+        workspaceId: { oneOf: [{ type: string }, { type: "null" }] }
+        taskId: { oneOf: [{ type: string }, { type: "null" }] }
+        repoId: { oneOf: [{ type: string }, { type: "null" }] }
+        agentSessionId: { oneOf: [{ type: string }, { type: "null" }] }
+        runtime:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              properties:
+                runtimeKind: { type: string, enum: [codex-app-server, async-runner] }
+                externalThreadId: { oneOf: [{ type: string }, { type: "null" }] }
+                turnId: { oneOf: [{ type: string }, { type: "null" }] }
+                runStatus: { oneOf: [{ type: string }, { type: "null" }] }
+              required: [runtimeKind, externalThreadId, turnId, runStatus]
+            - type: "null"
+        startedAt: { type: string }
+        updatedAt: { type: string }
+        endedAt: { oneOf: [{ type: string }, { type: "null" }] }
+      required: [id, kind, scope, status, title, targetDeviceId, projectId, workspaceId, taskId, repoId, agentSessionId, runtime, startedAt, updatedAt, endedAt]
+    TrajectoryProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        version: { type: string, const: "1" }
+        activity: { $ref: '#/components/schemas/TrajectoryActivity' }
+        events:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/TrajectoryEvent' }
+        limit: { type: integer, minimum: 1, maximum: 100 }
+        bounded: { type: boolean, const: true }
+      required: [version, activity, events, limit, bounded]
+    TrajectoryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        trajectory: { $ref: '#/components/schemas/TrajectoryProjection' }
+      required: [ok, trajectory]
+    ContinuityCapsuleProjection:
+      type: object
+      additionalProperties: false
+      properties:
+        version: { type: string, const: "1" }
+        project:
+          type: object
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            name: { type: string }
+          required: [id, name]
+        workspace:
+          type: object
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            repoId: { type: string }
+            kind: { type: string, enum: [checkout, worktree] }
+          required: [id, repoId, kind]
+        source:
+          type: object
+          additionalProperties: false
+          properties:
+            modelLoopOwner: { type: string, enum: [chatgpt, codex, async-agent, unknown] }
+            sessionId: { oneOf: [{ type: string }, { type: "null" }] }
+            sessionMode: { oneOf: [{ type: string, enum: [chat-direct, codex-session, async-agent] }, { type: "null" }] }
+            activityId: { oneOf: [{ type: string }, { type: "null" }] }
+            runtime:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  properties:
+                    kind: { type: string }
+                    id: { type: string }
+                    deepLink: { oneOf: [{ type: string }, { type: "null" }] }
+                  required: [kind, id, deepLink]
+                - type: "null"
+          required: [modelLoopOwner, sessionId, sessionMode, activityId, runtime]
+        git:
+          type: object
+          additionalProperties: false
+          properties:
+            available: { type: boolean }
+            branch: { oneOf: [{ type: string }, { type: "null" }] }
+            headCommit: { oneOf: [{ type: string }, { type: "null" }] }
+            dirty: { type: boolean }
+            changedPaths:
+              type: array
+              maxItems: 100
+              items: { type: string }
+          required: [available, branch, headCommit, dirty, changedPaths]
+        objective: { oneOf: [{ type: string }, { type: "null" }] }
+        completedItems:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        pendingItems:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        risks:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        nextAction: { oneOf: [{ type: string }, { type: "null" }] }
+        verification:
+          type: object
+          additionalProperties: false
+          properties:
+            state: { type: string, enum: [verified, incomplete, missing] }
+            items:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                additionalProperties: false
+                properties:
+                  kind: { type: string }
+                  label: { type: string }
+                  status: { type: string }
+                  required: { type: boolean }
+                required: [kind, label, status, required]
+          required: [state, items]
+        trajectory:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              properties:
+                activityId: { type: string }
+                title: { type: string }
+                status: { type: string }
+                events:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      kind: { type: string }
+                      category: { type: string }
+                      code: { oneOf: [{ type: string }, { type: "null" }] }
+                      itemType: { oneOf: [{ type: string }, { type: "null" }] }
+                      createdAt: { type: string }
+                    required: [kind, category, code, itemType, createdAt]
+              required: [activityId, title, status, events]
+            - type: "null"
+        markdown: { type: string, maxLength: 12000 }
+      required: [version, project, workspace, source, git, objective, completedItems, pendingItems, risks, nextAction, verification, trajectory, markdown]
+    ContinuityCapsuleResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        capsule: { $ref: '#/components/schemas/ContinuityCapsuleProjection' }
+      required: [ok, capsule]
     WorkspaceContinuitySnapshotResponse:
       type: object
       additionalProperties: false
@@ -7793,6 +7970,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+  /api/trajectories/{activityId}:
+    get:
+      operationId: getExecutionTrajectory
+      summary: Read bounded execution trajectory
+      description: Returns a bounded normalized execution trajectory derived from existing Operational Activity facts. Raw commands, private paths, provider payloads, authorization provenance, process output, and secrets are excluded.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Bounded normalized trajectory
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrajectoryResponse' }
+        "404":
+          description: Operational activity not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
   /api/activities/stream:
     get:
       operationId: streamOperationalActivities
@@ -9169,6 +9373,46 @@ paths:
               schema: { $ref: '#/components/schemas/ApiErrorResponse' }
         "409":
           description: Import is not ready or context identity changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+  /api/continuity/workspaces/{workspaceId}/capsule:
+    get:
+      operationId: getWorkspaceContinuityCapsule
+      summary: Generate bounded continuity capsule
+      description: Regenerates a public-safe Continuity Capsule from authoritative Workspace Git state plus optional Task, Handoff, Evidence, provider-session reference, and recent normalized Trajectory. The capsule is a read projection and does not forge provider-native history.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: taskId
+          in: query
+          required: false
+          schema: { type: string }
+        - name: activityId
+          in: query
+          required: false
+          schema: { type: string }
+        - name: trajectoryLimit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Bounded continuity capsule
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContinuityCapsuleResponse' }
+        "404":
+          description: Workspace, Task, or Activity not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorResponse' }
+        "409":
+          description: Requested Activity does not belong to the Workspace
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiErrorResponse' }
