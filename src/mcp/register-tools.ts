@@ -11,6 +11,7 @@ export interface McpToolRegistrationConfig {
   title?: string;
   description?: string;
   inputSchema?: z.ZodTypeAny;
+  outputSchema?: z.ZodTypeAny;
   annotations?: McpToolAnnotations;
 }
 
@@ -51,6 +52,7 @@ export function registerMcpTools(
         title: tool.title,
         description: tool.description,
         inputSchema: tool.inputSchema,
+        ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
         annotations: tool.annotations
       },
       async (input, sdkContext) => {

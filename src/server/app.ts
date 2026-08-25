@@ -68,6 +68,8 @@ import { CodexNativeTurnService } from "../application/codex-native-turn-service
 import { CodexThreadImportService } from "../application/codex-thread-import-service.js";
 import { buildContinuityServices } from "../application/continuity-services.js";
 import { OperationalActivityService } from "../application/operational-activity-service.js";
+import { TrajectoryService } from "../application/trajectory-service.js";
+import { ContinuityCapsuleService } from "../application/continuity-capsule-service.js";
 import { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
@@ -594,6 +596,11 @@ export function buildServer(
       }
     }
   );
+  const trajectoryService = new TrajectoryService(operationalActivityService);
+  const continuityCapsuleService = new ContinuityCapsuleService(
+    continuityServices.workspaces,
+    trajectoryService
+  );
   const jobProcessControl = new JobProcessControlService(
     paths,
     continuityServices.repositories,
@@ -975,7 +982,8 @@ export function buildServer(
     deviceTargetService,
     deviceRuntimeLifecycleService,
     exposedRuntimeResourceMutationService,
-    codexThreadImportService
+    codexThreadImportService,
+    { trajectoryService, continuityCapsules: continuityCapsuleService }
   );
   const mcpCatalogMetadata = buildMcpToolCatalogMetadata(mcpTools);
   const mcpHandler = buildTokenPilotMcpHandler(
@@ -1008,14 +1016,17 @@ export function buildServer(
       : null,
     (error) => {
     app.log.error({ err: error }, "MCP request failed");
-    }
+    },
+    { trajectoryService, continuityCapsules: continuityCapsuleService }
   );
   registerMcpHttpRoutes(app, mcpHandler);
   registerContinuityRoutes(
     app,
     continuityServices,
     codexThreadImportService,
-    projectDevelopmentRouting
+    projectDevelopmentRouting,
+    trajectoryService,
+    continuityCapsuleService
   );
   registerOperationalActivityRoutes(app, operationalActivityService, {
     pollIntervalMs: options.activityStreamPollIntervalMs,

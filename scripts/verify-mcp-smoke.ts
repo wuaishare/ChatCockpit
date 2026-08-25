@@ -196,6 +196,7 @@ async function runMcpSmoke(): Promise<void> {
         idempotentHint?: boolean;
         openWorldHint?: boolean;
       };
+      outputSchema?: Record<string, unknown>;
     }>;
     assert.equal(
       tools.every((tool) => tool.name.startsWith("chatcockpit.")),
@@ -275,6 +276,7 @@ async function runMcpSmoke(): Promise<void> {
         "codex.thread.turn.start",
         "codex.turn.interrupt",
         "codex.turn.start",
+        "continuity.capsule",
         "continuity.importedContext.read",
         "session.get",
         "session.start",
@@ -284,6 +286,7 @@ async function runMcpSmoke(): Promise<void> {
         "task.create",
         "task.get",
         "task.submitReview",
+        "trajectory.read",
         "workspace.snapshot"
       ].sort()
     );
@@ -345,9 +348,11 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.codex.thread.events.read",
       "chatcockpit.codex.thread.list",
       "chatcockpit.codex.thread.read",
+      "chatcockpit.continuity.capsule",
       "chatcockpit.continuity.importedContext.read",
       "chatcockpit.session.get",
       "chatcockpit.task.get",
+      "chatcockpit.trajectory.read",
       "chatcockpit.workspace.snapshot"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.readOnlyHint, true);
@@ -365,6 +370,9 @@ async function runMcpSmoke(): Promise<void> {
       toolByName.get("chatcockpit.devices.runtime.lifecycle.execute")?.annotations.idempotentHint,
       true
     );
+    for (const name of ["chatcockpit.trajectory.read", "chatcockpit.continuity.capsule"]) {
+      assert.ok(toolByName.get(name)?.outputSchema, `${name} must declare outputSchema`);
+    }
     assert.equal(toolByName.get("chatcockpit.files.write")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("chatcockpit.files.write")?.annotations.destructiveHint, true);
     assert.equal(toolByName.get("chatcockpit.files.edit")?.annotations.readOnlyHint, false);

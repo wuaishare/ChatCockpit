@@ -52,6 +52,8 @@ import type {
   DeviceRuntimeStatusResponse,
   OperationalActivityListResponse,
   OperationalActivityTimelineResponse,
+  ContinuityCapsuleResponse,
+  TrajectoryResponse,
   JobControlResponse,
   JobArtifactReadResponse,
   JobArtifactsListResponse,
@@ -942,6 +944,32 @@ export async function fetchOperationalActivityTimeline(
 ): Promise<OperationalActivityTimelineResponse> {
   return requestJson<OperationalActivityTimelineResponse>(
     `/api/activities/${encodeURIComponent(activityId)}/events?limit=50`,
+    token
+  );
+}
+
+export async function fetchExecutionTrajectory(
+  activityId: string,
+  token?: string | null
+): Promise<TrajectoryResponse> {
+  return requestJson<TrajectoryResponse>(
+    `/api/trajectories/${encodeURIComponent(activityId)}?limit=50`,
+    token
+  );
+}
+
+export async function fetchContinuityCapsule(
+  workspaceId: string,
+  options: { taskId?: string; activityId?: string; trajectoryLimit?: number } = {},
+  token?: string | null
+): Promise<ContinuityCapsuleResponse> {
+  const query = new URLSearchParams();
+  if (options.taskId) query.set("taskId", options.taskId);
+  if (options.activityId) query.set("activityId", options.activityId);
+  if (options.trajectoryLimit) query.set("trajectoryLimit", String(options.trajectoryLimit));
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return requestJson<ContinuityCapsuleResponse>(
+    `/api/continuity/workspaces/${encodeURIComponent(workspaceId)}/capsule${suffix}`,
     token
   );
 }

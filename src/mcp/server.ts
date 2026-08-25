@@ -30,6 +30,8 @@ import type { RuntimeTurnService } from "../application/runtime-turn-service.js"
 import type { RuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
 import type { RuntimeResourceMutationService } from "../application/runtime-resource-mutation-service.js";
 import type { RuntimeResourceServices } from "../application/runtime-resource-services.js";
+import type { TrajectoryService } from "../application/trajectory-service.js";
+import type { ContinuityCapsuleService } from "../application/continuity-capsule-service.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
 import { resolveMcpToolDeviceTarget } from "./device-target-policy.js";
@@ -109,7 +111,8 @@ export function buildTokenPilotMcpToolCatalog(
   deviceTargetService: DeviceTargetService,
   deviceRuntimeLifecycleService: DeviceRuntimeLifecycleService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
-  codexThreadImportService?: CodexThreadImportService
+  codexThreadImportService?: CodexThreadImportService,
+  observability?: ContinuityObservabilityMcpServices
 ) {
   const identity = productIdentityForKey(paths.productIdentity);
   const projectDevelopmentRouting = new ProjectDevelopmentRoutingService(
@@ -138,7 +141,9 @@ export function buildTokenPilotMcpToolCatalog(
     ...buildContinuityMcpTools(
       continuityServices,
       codexThreadImportService,
-      projectDevelopmentRouting
+      projectDevelopmentRouting,
+      observability?.trajectoryService,
+      observability?.continuityCapsules
     ),
     ...buildRuntimeMcpTools(
       runtimeService,
@@ -158,6 +163,11 @@ export function buildTokenPilotMcpToolCatalog(
         })
       : [])
   ], paths.productIdentity);
+}
+
+export interface ContinuityObservabilityMcpServices {
+  trajectoryService?: TrajectoryService;
+  continuityCapsules?: ContinuityCapsuleService;
 }
 
 export interface McpDeviceAccessAuthorizer {
@@ -203,7 +213,8 @@ export function buildTokenPilotMcpHandler(
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   codexThreadImportService: CodexThreadImportService | undefined,
   deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
-  onerror?: (error: Error) => void
+  onerror?: (error: Error) => void,
+  observability?: ContinuityObservabilityMcpServices
 ): McpHttpHandler {
   const identity = productIdentityForKey(paths.productIdentity);
   const tools = buildTokenPilotMcpToolCatalog(
@@ -227,7 +238,8 @@ export function buildTokenPilotMcpHandler(
     deviceTargetService,
     deviceRuntimeLifecycleService,
     runtimeResourceMutationService,
-    codexThreadImportService
+    codexThreadImportService,
+    observability
   );
   const catalogMetadata = buildMcpToolCatalogMetadata(tools);
 

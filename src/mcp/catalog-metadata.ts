@@ -19,7 +19,10 @@ export function buildMcpToolCatalogMetadata(
       title: tool.title,
       description: tool.description,
       annotations: tool.annotations,
-      inputSchema: z.toJSONSchema(tool.inputSchema, { unrepresentable: "any" })
+      inputSchema: z.toJSONSchema(tool.inputSchema, { unrepresentable: "any" }),
+      outputSchema: tool.outputSchema
+        ? z.toJSONSchema(tool.outputSchema, { unrepresentable: "any" })
+        : null
     }));
   const fingerprint = createHash("sha256")
     .update(JSON.stringify(canonical))

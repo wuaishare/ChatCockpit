@@ -72,5 +72,7 @@ assert.doesNotMatch(scripts["verify:ci-core"] ?? "", /npm run verify:distributio
 assert.match(scripts["verify:ci-core"] ?? "", /npm run verify:connectivity-machine-bootstrap/);
 assert.match(scripts["verify:ci-node22"] ?? "", /npm run verify:oauth-flow/);
 assert.match(scripts["verify:ci-node22"] ?? "", /npm run verify:operator-auth/);
+assert.match(scripts["verify:ci-node22"] ?? "", /npm run verify:trajectory/);
+assert.match(scripts["verify:ci-node22"] ?? "", /npm run verify:continuity-capsule/);
 
 process.stdout.write("VERIFY_CI_WORKFLOWS_OK\n");
