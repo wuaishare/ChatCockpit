@@ -127,8 +127,9 @@ import {
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { buildMcpToolCatalogMetadata } from "../mcp/catalog-metadata.js";
+import { MCP_TOOL_SURFACE_PACKS, selectMcpToolsForSurface } from "../mcp/tool-surface.js";
 import {
-  buildTokenPilotMcpHandler,
+  buildTokenPilotMcpHandlerFromTools,
   buildTokenPilotMcpToolCatalog
 } from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
@@ -985,41 +986,35 @@ export function buildServer(
     codexThreadImportService,
     { trajectoryService, continuityCapsules: continuityCapsuleService }
   );
-  const mcpCatalogMetadata = buildMcpToolCatalogMetadata(mcpTools);
-  const mcpHandler = buildTokenPilotMcpHandler(
-    paths,
-    continuityServices,
-    chatDirect,
-    hostDirect,
-    hostMutation,
-    hostCommand,
-    hostProcess,
-    runtimeService,
-    codexNativeSessionService,
-    codexNativeTurnService,
-    runtimeBindingService,
-    runtimeTurnService,
-    runtimeApprovalService,
-    runtimeEventService,
-    runtimeRecoveryServices,
-    runtimeResourceServices,
-    capabilityRouterServices,
-    deviceTargetService,
-    deviceRuntimeLifecycleService,
-    exposedRuntimeResourceMutationService,
-    codexThreadImportService,
-    oauthDeviceAccessPolicy
-      ? {
-          allowsDevice: (grantId, deviceId) =>
-            oauthDeviceAccessPolicy.allowsDevice(grantId, deviceId)
-        }
-      : null,
-    (error) => {
+  const coreMcpTools = selectMcpToolsForSurface(mcpTools, { kind: "core" });
+  const mcpCatalogMetadata = buildMcpToolCatalogMetadata(coreMcpTools);
+  const mcpDeviceAccessAuthorizer = oauthDeviceAccessPolicy
+    ? {
+        allowsDevice: (grantId: string, deviceId: string) =>
+          oauthDeviceAccessPolicy.allowsDevice(grantId, deviceId)
+      }
+    : null;
+  const mcpOnError = (error: Error) => {
     app.log.error({ err: error }, "MCP request failed");
-    },
-    { trajectoryService, continuityCapsules: continuityCapsuleService }
-  );
-  registerMcpHttpRoutes(app, mcpHandler);
+  };
+  const buildSurfaceHandler = (tools: typeof mcpTools) =>
+    buildTokenPilotMcpHandlerFromTools(
+      paths,
+      tools,
+      mcpDeviceAccessAuthorizer,
+      mcpOnError
+    );
+  const mcpPackHandlers = Object.fromEntries(
+    MCP_TOOL_SURFACE_PACKS.map((pack) => [
+      pack,
+      buildSurfaceHandler(selectMcpToolsForSurface(mcpTools, { kind: "pack", pack }))
+    ])
+  ) as Record<(typeof MCP_TOOL_SURFACE_PACKS)[number], ReturnType<typeof buildSurfaceHandler>>;
+  registerMcpHttpRoutes(app, {
+    core: buildSurfaceHandler(coreMcpTools),
+    full: buildSurfaceHandler(selectMcpToolsForSurface(mcpTools, { kind: "full" })),
+    packs: mcpPackHandlers
+  });
   registerContinuityRoutes(
     app,
     continuityServices,

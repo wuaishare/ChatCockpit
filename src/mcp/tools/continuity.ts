@@ -10,6 +10,10 @@ import {
   trajectoryReadSchema,
   trajectoryToolOutputSchema
 } from "../../contracts/continuity-observability.js";
+import {
+  projectGetToolOutputSchema,
+  projectListToolOutputSchema
+} from "../../contracts/mcp-core-outputs.js";
 import { codexThreadImportContextSchema } from "../../contracts/codex-thread-import.js";
 import {
   developmentDocumentAppendVersionSchema,
@@ -186,6 +190,7 @@ export function buildContinuityMcpTools(
       description:
         "List configured ChatCockpit projects and their public-safe workspace projections without exposing local absolute paths.",
       inputSchema: projectListSchema,
+      outputSchema: projectListToolOutputSchema,
       annotations: readOnlyToolAnnotations,
       handler: (context, input) => ({
         ok: true,
@@ -198,6 +203,7 @@ export function buildContinuityMcpTools(
       description:
         "Read one ChatCockpit project, its public-safe workspaces, model-loop ownership rules, and Codex continuity metadata. For ChatGPT-driven project development, the caller keeps the model loop by default; a Codex native turn requires an explicit transfer/delegation decision.",
       inputSchema: projectGetSchema,
+      outputSchema: projectGetToolOutputSchema,
       annotations: readOnlyToolAnnotations,
       handler: async (context, input) => {
         const project = services.projects.get(context, input.projectId);

@@ -12,6 +12,7 @@ import { initLocalRuntime } from "../src/core/setup.js";
 import { buildServer } from "../src/server/app.js";
 import { runGit } from "./test-support/git.js";
 import { listenTestServer } from "./test-support/server.js";
+import { mcpPathForRequest } from "./test-support/mcp-tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -106,7 +107,8 @@ async function mcpRequest(
   method: string,
   params: Record<string, unknown>
 ): Promise<JsonRpcResponse> {
-  const response = await fetch(`${baseUrl}/mcp`, {
+  const payload = { jsonrpc: "2.0", id, method, params };
+  const response = await fetch(`${baseUrl}${mcpPathForRequest(payload)}`, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",
@@ -114,7 +116,7 @@ async function mcpRequest(
       "content-type": "application/json",
       "mcp-protocol-version": "2025-06-18"
     },
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, params })
+    body: JSON.stringify(payload)
   });
   assert.equal(response.status, 200);
   return parseMcpResponse(await response.text());

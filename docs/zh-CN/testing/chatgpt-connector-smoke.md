@@ -14,6 +14,10 @@
 
 在 ChatGPT 中，可以从工具菜单选择 ChatCockpit，也可以在提示词中明确要求使用 ChatCockpit。
 
+### P0.2 工具面说明
+
+canonical `/mcp` 现在只暴露 16 个普通开发 Core。`chatcockpit.tools.discover` 可以说明 8 个专业能力包及其 endpoint，但不会在当前 ChatGPT 连接中动态加入工具。需要 Continuity 治理、Codex Native、Host 管理、Runtime 管理等专业能力时，必须显式配置到相应 `/mcp/packs/<pack>`；`/mcp/full` 只用于完整兼容验证，不应作为新的默认 ChatGPT App。
+
 ## 1. Discovery / Read-only
 
 先从不会产生写入的操作开始。
@@ -33,19 +37,21 @@ chatcockpit.project.list
 chatcockpit.project.get
 ```
 
-### Prompt B — Workspace Snapshot
+### Prompt B — 默认 Core 的能力发现与连续性
 
 ```text
-使用 ChatCockpit 查看 primary Workspace 的当前 snapshot。
-总结 Git、Task、Session、Runtime Binding 和 Writer 状态。
-不要创建或修改任何内容。
+使用 ChatCockpit 说明有哪些专业能力包；如果已知 primary Workspace ID，再生成它的 Continuity Capsule。
+只读取，不要启动 Codex Turn，也不要修改项目状态。
 ```
 
-典型工具：
+典型 Core 工具：
 
 ```text
-chatcockpit.workspace.snapshot
+chatcockpit.tools.discover
+chatcockpit.continuity.capsule
 ```
+
+如果需要更深的 `chatcockpit.workspace.snapshot`，应显式连接 `continuity-governance` 能力包。
 
 ### Prompt C — Git + 文件读取
 
@@ -69,9 +75,9 @@ chatcockpit.files.read
 - 没有出现 legacy product namespace 的 MCP tool；
 - 没有产生意外写入。
 
-## 2. Continuity
+## 2. Continuity Governance 专业能力包
 
-使用独立的 disposable Task 测试跨对话连续性，不要拿真实生产 Task 做 smoke target。
+本节开始前，显式连接 `/mcp/packs/continuity-governance`。使用独立的 disposable Task 测试跨对话连续性，不要拿真实生产 Task 做 smoke target。
 
 ### Prompt D — 创建测试 Task
 
@@ -160,9 +166,9 @@ chatcockpit.handoff.prepare
 - 批准后结果进入可审计状态；
 - 不出现 raw unrestricted shell。
 
-## 5. Codex Session
+## 5. Codex Native 专业能力包
 
-只有在前面的 Direct / Continuity 测试稳定后，再测试 Codex 模型循环：
+本节使用显式 `/mcp/packs/codex-native` 连接。只有在前面的 Direct / Continuity 测试稳定后，再测试 Codex 模型循环：
 
 ```text
 使用 ChatCockpit 查看可用 Codex Threads。
@@ -178,7 +184,10 @@ chatcockpit.codex.thread.read
 
 显式启动 Turn 时，应明确这是从 ChatGPT-held model loop 切换到 Codex-held model loop 的动作。
 
-## 6. Async Agent Job
+## 6. Workflow 专业能力包
+
+本节使用 `/mcp/packs/workflow`，并继续遵守需要的 Continuity 身份与治理约束。
+
 
 使用 disposable Task/Workspace 测试：
 

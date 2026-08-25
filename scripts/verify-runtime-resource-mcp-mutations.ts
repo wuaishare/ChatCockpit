@@ -21,6 +21,7 @@ import type { CodexPluginMutationAdapter } from "../src/runtime/resources/codex-
 import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
+import { mcpPathForTool } from "./test-support/mcp-tool-surface.ts";
 
 const API_TOKEN = "test-token";
 
@@ -46,7 +47,7 @@ function parseMcpResponse(body: string): Record<string, unknown> {
 }
 
 async function listTools(baseUrl: string): Promise<ListedTool[]> {
-  const response = await fetch(`${baseUrl}/mcp`, {
+  const response = await fetch(`${baseUrl}/mcp/packs/runtime-admin`, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",
@@ -193,7 +194,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
       return payload;
     };
     const mcp = async <T>(name: string, args: Record<string, unknown>): Promise<T> => {
-      const response = await fetch(`${server.baseUrl}/mcp`, {
+      const response = await fetch(`${server.baseUrl}${mcpPathForTool(name)}`, {
         method: "POST",
         headers: {
           accept: "application/json, text/event-stream",

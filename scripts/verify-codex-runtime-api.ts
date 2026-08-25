@@ -22,6 +22,7 @@ import type {
 } from "../src/runtime/codex/runtime-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
+import { mcpPathForTool } from "./test-support/mcp-tool-surface.ts";
 import { waitForValue } from "./test-support/wait.ts";
 
 interface JsonRpcResponse {
@@ -409,7 +410,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
     };
 
     const mcp = async <T>(name: string, args: unknown): Promise<T> => {
-      const response = await fetch(`${baseUrl}/mcp`, {
+      const response = await fetch(`${baseUrl}${mcpPathForTool(name)}`, {
         method: "POST",
         headers: {
           accept: "application/json, text/event-stream",
@@ -898,7 +899,7 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
     };
     assert.equal(unsupportedRest.error.code, "CAPABILITY_UNAVAILABLE");
 
-    const unsupportedMcpResponse = await fetch(`${baseUrl}/mcp`, {
+    const unsupportedMcpResponse = await fetch(`${baseUrl}${mcpPathForTool("chatcockpit.codex.thread.read")}`, {
       method: "POST",
       headers: {
         accept: "application/json, text/event-stream",

@@ -16,6 +16,7 @@ import type {
 import { buildServer } from "../src/server/app.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 import { listenTestServer } from "./test-support/server.ts";
+import { mcpPathForTool } from "./test-support/mcp-tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -251,7 +252,7 @@ try {
   }
 
   async function mcp<T>(name: string, args: unknown): Promise<T> {
-    const response = await fetch(`${baseUrl}/mcp`, {
+    const response = await fetch(`${baseUrl}${mcpPathForTool(name)}`, {
       method: "POST",
       headers: {
         accept: "application/json, text/event-stream",
@@ -430,7 +431,7 @@ try {
     true
   );
 
-  const arbitraryThreadRead = await fetch(`${baseUrl}/mcp`, {
+  const arbitraryThreadRead = await fetch(`${baseUrl}${mcpPathForTool("chatcockpit.continuity.importedContext.read")}`, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",

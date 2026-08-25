@@ -7,6 +7,7 @@ import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts
 import { buildServer } from "../src/server/app.ts";
 import { runGit } from "./test-support/git.ts";
 import { listenTestServer } from "./test-support/server.ts";
+import { classifyMcpToolSurface, isDefaultCoreMcpTool } from "../src/mcp/tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -43,7 +44,7 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 async function postMcp(
   baseUrl: string,
   payload: Record<string, unknown>,
-  options: { token?: string; path?: "/mcp" | "/tokenpilot/mcp" } = {}
+  options: { token?: string; path?: string } = {}
 ): Promise<{ response: Response; message: JsonRpcResponse }> {
   const headers = new Headers({
     accept: "application/json, text/event-stream",
@@ -286,11 +287,94 @@ async function runMcpSmoke(): Promise<void> {
         "task.create",
         "task.get",
         "task.submitReview",
+        "tools.discover",
         "trajectory.read",
         "workspace.snapshot"
       ].sort()
     );
+    assert.equal(tools.length, 84, "Full compatibility surface must retain all 84 configured tools");
+
+    const coreList = await postMcp(
+      baseUrl,
+      { jsonrpc: "2.0", id: "core-list", method: "tools/list", params: {} },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(coreList.response.status, 200);
+    const coreTools = coreList.message.result?.tools as typeof tools;
+    assert.equal(coreTools.length, 16);
+    assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
+    assert.equal(
+      coreTools.every((tool) => Boolean(tool.outputSchema)),
+      true,
+      "Every canonical /mcp core tool must declare outputSchema"
+    );
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), false);
+
+    const fullList = await postMcp(
+      baseUrl,
+      { jsonrpc: "2.0", id: "full-list", method: "tools/list", params: {} },
+      { token: "test-token", path: "/mcp/full" }
+    );
+    assert.equal(fullList.response.status, 200);
+    const fullTools = fullList.message.result?.tools as typeof tools;
+    assert.deepEqual(
+      fullTools.map((tool) => tool.name).sort(),
+      tools.map((tool) => tool.name).sort()
+    );
+
+    const codexPackList = await postMcp(
+      baseUrl,
+      { jsonrpc: "2.0", id: "codex-pack-list", method: "tools/list", params: {} },
+      { token: "test-token", path: "/mcp/packs/codex-native" }
+    );
+    assert.equal(codexPackList.response.status, 200);
+    const codexPackTools = codexPackList.message.result?.tools as typeof tools;
+    assert.equal(codexPackTools.length, 26);
+    assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
+    assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
+
+    const discover = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "discover-codex",
+        method: "tools/call",
+        params: { name: "chatcockpit.tools.discover", arguments: { pack: "codex-native" } }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(discover.response.status, 200);
+    assert.equal(discover.message.error, undefined);
+    const discoverResult = discover.message.result as {
+      structuredContent: {
+        ok: true;
+        surface: {
+          defaultCoreCount: number;
+          fullToolCount: number;
+          selectedPack: { id: string; endpointPath: string; toolSuffixes: string[] };
+        };
+      };
+    };
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 16);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 84);
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 10);
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.thread.turn.start"), true);
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.turn.start"), false);
+
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
+    assert.deepEqual(
+      tools.filter((tool) => classifyMcpToolSurface(tool.name) === null),
+      [],
+      "Every model-visible MCP tool must have an explicit surface classification"
+    );
+    assert.equal(
+      tools.filter((tool) => isDefaultCoreMcpTool(tool.name)).length,
+      16,
+      "The P0.2 default surface must classify exactly 16 core tools including discovery"
+    );
     assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
       "chatcockpit.resources.mutation.prepare",
@@ -632,6 +716,51 @@ async function runMcpSmoke(): Promise<void> {
     assert.ok(project);
     assert.ok(workspace);
 
+
+    const coreReadCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [
+      { name: "chatcockpit.project.list", arguments: {} },
+      { name: "chatcockpit.project.get", arguments: { projectId: project.id } },
+      { name: "chatcockpit.devices.targets.list", arguments: {} },
+      { name: "chatcockpit.files.list", arguments: { repoId: "primary", path: "." } },
+      {
+        name: "chatcockpit.files.readBatch",
+        arguments: { repoId: "primary", paths: ["README.md", "src/catalog-fixture.ts"] }
+      },
+      {
+        name: "chatcockpit.search.code",
+        arguments: { repoId: "primary", pattern: "mcpNeedle", path: "src" }
+      },
+      { name: "chatcockpit.git.status", arguments: { repoId: "primary" } },
+      { name: "chatcockpit.git.diff", arguments: { repoId: "primary", staged: false } },
+      {
+        name: "chatcockpit.shell.run",
+        arguments: {
+          repoId: "primary",
+          command: "git",
+          args: ["status", "--short"],
+          idempotencyKey: "core-read-shell-status-0001"
+        }
+      }
+    ];
+    for (const [index, coreCall] of coreReadCalls.entries()) {
+      const result = await postMcp(
+        baseUrl,
+        {
+          jsonrpc: "2.0",
+          id: `core-read-${index}`,
+          method: "tools/call",
+          params: coreCall
+        },
+        { token: "test-token" }
+      );
+      assert.equal(result.response.status, 200);
+      assert.equal(
+        (result.message.result as { isError?: boolean }).isError,
+        undefined,
+        `${coreCall.name} must satisfy its declared outputSchema`
+      );
+    }
+
     const taskResult = await restPost<{
       ok: true;
       task: { id: string; revision: number };
@@ -654,12 +783,69 @@ async function runMcpSmoke(): Promise<void> {
       expectedTaskRevision: taskResult.task.revision,
       idempotencyKey: "mcp-chat-direct-session-0001"
     });
+    for (const coreCall of [
+      {
+        name: "chatcockpit.trajectory.read",
+        arguments: { activityId: sessionResult.session.id, limit: 10 }
+      },
+      {
+        name: "chatcockpit.continuity.capsule",
+        arguments: {
+          workspaceId: workspace.id,
+          taskId: taskResult.task.id,
+          activityId: sessionResult.session.id,
+          trajectoryLimit: 10
+        }
+      }
+    ]) {
+      const result = await postMcp(
+        baseUrl,
+        {
+          jsonrpc: "2.0",
+          id: `core-continuity-${coreCall.name}`,
+          method: "tools/call",
+          params: coreCall
+        },
+        { token: "test-token" }
+      );
+      assert.equal(
+        (result.message.result as { isError?: boolean }).isError,
+        undefined,
+        `${coreCall.name} must satisfy its declared outputSchema`
+      );
+    }
+
     await restPost("/api/continuity/leases/acquire", {
       sessionId: sessionResult.session.id,
       holderId: "mcp-chat-direct-holder",
       expiresAt: "2099-01-01T00:00:00.000Z",
       idempotencyKey: "mcp-chat-direct-lease-0001"
     });
+    const writeCoreResult = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "core-write",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.files.write",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            path: "src/core-output-contract.ts",
+            content: "export const coreOutputContract = true;\n",
+            idempotencyKey: "core-files-write-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    assert.equal(
+      (writeCoreResult.message.result as { isError?: boolean }).isError,
+      undefined,
+      "chatcockpit.files.write must satisfy its declared outputSchema"
+    );
+
     const competingTaskResult = await restPost<{
       ok: true;
       task: { id: string; revision: number };
@@ -865,6 +1051,30 @@ async function runMcpSmoke(): Promise<void> {
       "IDEMPOTENCY_KEY_REUSED"
     );
     assert.equal(fs.readFileSync(path.join(repoRoot, "README.md"), "utf8"), "# MCP updated\n");
+
+    const commitCoreResult = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "core-git-commit",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.git.commit",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            message: "verify core MCP output contracts",
+            idempotencyKey: "core-git-commit-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    assert.equal(
+      (commitCoreResult.message.result as { isError?: boolean }).isError,
+      undefined,
+      "chatcockpit.git.commit must satisfy its declared outputSchema"
+    );
 
     const blockedShell = await postMcp(
       baseUrl,
