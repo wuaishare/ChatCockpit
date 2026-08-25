@@ -14,6 +14,10 @@ Use this checklist to verify that a connected and OAuth-authorized **ChatCockpit
 
 Select ChatCockpit from the ChatGPT tools menu, or explicitly ask ChatGPT to use ChatCockpit.
 
+### P0.2 tool-surface note
+
+The canonical app endpoint `/mcp` intentionally exposes only the 16-tool ordinary-development core. `chatcockpit.tools.discover` can explain the eight specialist packs and their endpoint paths, but it does not dynamically add tools to the current ChatGPT connection. Tests that need Continuity governance, Codex Native, Host administration, Runtime administration, or another specialist domain must use an explicitly configured connection to the corresponding `/mcp/packs/<pack>` endpoint. `/mcp/full` exists for compatibility testing and should not be the normal default ChatGPT app.
+
 ## 1. Discovery / read-only
 
 Start with operations that should not write anything.
@@ -33,19 +37,21 @@ chatcockpit.project.list
 chatcockpit.project.get
 ```
 
-### Prompt B — Workspace Snapshot
+### Prompt B — compact-surface discovery and continuity
 
 ```text
-Use ChatCockpit to inspect the current snapshot for the primary Workspace.
-Summarize Git, Task, Session, Runtime Binding, and Writer state.
-Do not create or modify anything.
+Use ChatCockpit to explain which specialist capability packs are available, then generate a Continuity Capsule for the primary Workspace if its workspace id is known.
+Read only. Do not start a Codex Turn and do not modify project state.
 ```
 
-Typical tool:
+Typical core tools:
 
 ```text
-chatcockpit.workspace.snapshot
+chatcockpit.tools.discover
+chatcockpit.continuity.capsule
 ```
+
+For the deeper `chatcockpit.workspace.snapshot` view, connect the `continuity-governance` pack explicitly.
 
 ### Prompt C — Git + file read
 
@@ -69,9 +75,9 @@ Pass criteria:
 - no legacy product namespace MCP tool appears;
 - no unexpected write occurs.
 
-## 2. Continuity
+## 2. Continuity governance specialist pack
 
-Use a disposable Task so the smoke test does not mutate real production work.
+Connect an explicit ChatCockpit MCP app/profile to `/mcp/packs/continuity-governance` before this section. Use a disposable Task so the smoke test does not mutate real production work.
 
 ### Prompt D — create a test Task
 
@@ -159,9 +165,9 @@ Pass criteria:
 - an approved result is auditable;
 - no unrestricted raw shell path appears.
 
-## 5. Codex Session
+## 5. Codex Native specialist pack
 
-Only after Direct / Continuity checks are stable:
+Connect an explicit ChatCockpit MCP app/profile to `/mcp/packs/codex-native`. Only after Direct / Continuity checks are stable:
 
 ```text
 Use ChatCockpit to list available Codex Threads.
@@ -177,9 +183,9 @@ chatcockpit.codex.thread.read
 
 Starting a Turn should be treated as an explicit transition from a ChatGPT-held model loop to a Codex-held model loop.
 
-## 6. Async Agent Job
+## 6. Workflow specialist pack
 
-Use a disposable Task/Workspace:
+Connect `/mcp/packs/workflow` (and use the required governed Continuity identity) before testing Async Agent Job. Use a disposable Task/Workspace:
 
 ```text
 Use ChatCockpit to queue an Async Agent Job for a read-only inspection.

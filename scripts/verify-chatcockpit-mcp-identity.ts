@@ -8,6 +8,7 @@ import { buildSourceDistributionContextForProduct } from "../src/core/distributi
 import { buildPaths, ensureWorkspaceDirs } from "../src/core/paths.js";
 import { buildServer } from "../src/server/app.js";
 import { runGit } from "./test-support/git.js";
+import { mcpPathForRequest } from "./test-support/mcp-tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -30,7 +31,7 @@ async function postMcp(
 ): Promise<JsonRpcResponse> {
   const response = await app.inject({
     method: "POST",
-    url: "/mcp",
+    url: mcpPathForRequest(payload),
     headers: {
       accept: "application/json, text/event-stream",
       "content-type": "application/json",

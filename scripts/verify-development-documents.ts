@@ -7,6 +7,7 @@ import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
+import { mcpPathForTool } from "./test-support/mcp-tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -84,7 +85,7 @@ async function verifyDevelopmentDocuments(): Promise<void> {
     };
 
     const mcp = async <T>(toolName: string, args: unknown): Promise<T> => {
-      const response = await fetch(`${baseUrl}/mcp`, {
+      const response = await fetch(`${baseUrl}${mcpPathForTool(toolName)}`, {
         method: "POST",
         headers: {
           authorization: "Bearer test-token",

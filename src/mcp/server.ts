@@ -38,6 +38,8 @@ import { resolveMcpToolDeviceTarget } from "./device-target-policy.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
 import { projectMcpToolsForProduct } from "./product-tool-identity.js";
+import { assertMcpToolSurfaceClassified } from "./tool-surface.js";
+import type { TokenPilotMcpTool } from "./tool-definition.js";
 import { buildCapabilityRouterMcpTools, type CapabilityRouterMcpServices } from "./tools/capability-router.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildDeviceTargetMcpTools } from "./tools/device-targets.js";
@@ -50,6 +52,7 @@ import { buildRuntimeResourceMcpTools } from "./tools/runtime-resources.js";
 import { buildHostMutationTools } from "./tools/host-mutation.js";
 import { buildHostProcessTools } from "./tools/host-process.js";
 import { buildWorkspaceWriteTools } from "./tools/workspace-write.js";
+import { buildToolSurfaceDiscoveryMcpTools } from "./tools/tool-surface-discovery.js";
 import {
   registerMcpTools,
   type McpToolRegistrar
@@ -120,7 +123,7 @@ export function buildTokenPilotMcpToolCatalog(
     continuityServices.projects,
     runtimeService
   );
-  return projectMcpToolsForProduct([
+  const baseTools = [
     ...buildReadOnlyMcpToolCatalog(
       { chatDirect, hostDirect },
       identity.defaultRepoId
@@ -162,7 +165,13 @@ export function buildTokenPilotMcpToolCatalog(
           publicMutations: runtimeResourceServices.mutations
         })
       : [])
-  ], paths.productIdentity);
+  ];
+  const tools = projectMcpToolsForProduct(
+    [...baseTools, ...buildToolSurfaceDiscoveryMcpTools(baseTools)],
+    paths.productIdentity
+  );
+  assertMcpToolSurfaceClassified(tools);
+  return tools;
 }
 
 export interface ContinuityObservabilityMcpServices {
@@ -216,43 +225,30 @@ export function buildTokenPilotMcpHandler(
   onerror?: (error: Error) => void,
   observability?: ContinuityObservabilityMcpServices
 ): McpHttpHandler {
-  const identity = productIdentityForKey(paths.productIdentity);
   const tools = buildTokenPilotMcpToolCatalog(
-    paths,
-    continuityServices,
-    chatDirect,
-    hostDirect,
-    hostMutation,
-    hostCommand,
-    hostProcess,
-    runtimeService,
-    codexNativeSessionService,
-    codexNativeTurnService,
-    runtimeBindingService,
-    runtimeTurnService,
-    runtimeApprovalService,
-    runtimeEventService,
-    runtimeRecoveryServices,
-    runtimeResourceServices,
-    capabilityRouterServices,
-    deviceTargetService,
-    deviceRuntimeLifecycleService,
-    runtimeResourceMutationService,
-    codexThreadImportService,
-    observability
+    paths, continuityServices, chatDirect, hostDirect, hostMutation, hostCommand, hostProcess,
+    runtimeService, codexNativeSessionService, codexNativeTurnService, runtimeBindingService,
+    runtimeTurnService, runtimeApprovalService, runtimeEventService, runtimeRecoveryServices,
+    runtimeResourceServices, capabilityRouterServices, deviceTargetService,
+    deviceRuntimeLifecycleService, runtimeResourceMutationService, codexThreadImportService, observability
   );
-  const catalogMetadata = buildMcpToolCatalogMetadata(tools);
+  return buildTokenPilotMcpHandlerFromTools(paths, tools, deviceAccessAuthorizer, onerror);
+}
 
+export function buildTokenPilotMcpHandlerFromTools(
+  paths: TokenPilotPaths,
+  tools: readonly TokenPilotMcpTool[],
+  deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
+  onerror?: (error: Error) => void
+): McpHttpHandler {
+  const identity = productIdentityForKey(paths.productIdentity);
+  const catalogMetadata = buildMcpToolCatalogMetadata(tools);
   return createMcpHandler(
     (requestContext) => {
-      const server = new McpServer({
-        name: identity.mcpServerName,
-        version: catalogMetadata.serverVersion
-      });
-
+      const server = new McpServer({ name: identity.mcpServerName, version: catalogMetadata.serverVersion });
       registerMcpTools(
         server as unknown as McpToolRegistrar,
-        tools,
+        [...tools],
         (toolName) => {
           const authorizationGrantId = authorizationGrantIdFromRequestContext(requestContext);
           return buildOperationContext({
@@ -268,22 +264,14 @@ export function buildTokenPilotMcpHandler(
           if (!grantId) return null;
           const targetDeviceId = resolveMcpToolDeviceTarget(toolName, input);
           if (!targetDeviceId) return null;
-          if (
-            !deviceAccessAuthorizer ||
-            !deviceAccessAuthorizer.allowsDevice(grantId, targetDeviceId)
-          ) {
+          if (!deviceAccessAuthorizer || !deviceAccessAuthorizer.allowsDevice(grantId, targetDeviceId)) {
             return deviceAccessDeniedResult(targetDeviceId);
           }
           return null;
         }
       );
-
       return server;
     },
-    {
-      legacy: "stateless",
-      responseMode: "auto",
-      onerror
-    }
+    { legacy: "stateless", responseMode: "auto", onerror }
   );
 }

@@ -14,6 +14,7 @@ import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-
 import { updateAccessPolicy } from "../src/security/access-policy.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+import { mcpPathForRequest } from "./test-support/mcp-tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -54,7 +55,7 @@ async function postMcp(
   token: string,
   payload: Record<string, unknown>
 ): Promise<{ response: Response; message: JsonRpcResponse }> {
-  const response = await fetch(`${baseUrl}/mcp`, {
+  const response = await fetch(`${baseUrl}${mcpPathForRequest(payload)}`, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",

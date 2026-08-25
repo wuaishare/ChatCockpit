@@ -390,7 +390,7 @@ async function verifyOperatorDecisionRoute(): Promise<void> {
     name: string,
     args: Record<string, unknown>,
   ): Promise<T> => {
-    const response = await fetch(`${server.baseUrl}/mcp`, {
+    const response = await fetch(`${server.baseUrl}/mcp/packs/capability-routing`, {
       method: "POST",
       headers: {
         accept: "application/json, text/event-stream",
@@ -417,7 +417,7 @@ async function verifyOperatorDecisionRoute(): Promise<void> {
   };
 
   try {
-    const toolListResponse = await fetch(`${server.baseUrl}/mcp`, {
+    const toolListResponse = await fetch(`${server.baseUrl}/mcp/packs/capability-routing`, {
       method: "POST",
       headers: {
         accept: "application/json, text/event-stream",

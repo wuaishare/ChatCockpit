@@ -32,9 +32,10 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 async function postMcp(
   baseUrl: string,
   token: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  mcpPath = "/mcp"
 ): Promise<{ response: Response; message: JsonRpcResponse }> {
-  const response = await fetch(`${baseUrl}/mcp`, {
+  const response = await fetch(`${baseUrl}${mcpPath}`, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",
@@ -479,7 +480,7 @@ async function main(): Promise<void> {
         name: "chatcockpit.task.get",
         arguments: { taskId: taskCreated.task.id }
       }
-    });
+    }, "/mcp/packs/continuity-governance");
     assert.equal(oauthTaskRead.response.status, 200);
     const firstTaskResult = oauthTaskRead.message.result as {
       structuredContent?: { task?: { id?: string; title?: string } };
@@ -495,7 +496,7 @@ async function main(): Promise<void> {
         name: "chatcockpit.capabilities.list",
         arguments: { targetDevice: unauthorizedRemoteTarget }
       }
-    });
+    }, "/mcp/packs/capability-routing");
     assert.equal(deniedRemoteCapability.response.status, 200);
     const deniedRemoteCapabilityResult = deniedRemoteCapability.message.result as {
       isError?: boolean;
@@ -551,7 +552,7 @@ async function main(): Promise<void> {
         name: "chatcockpit.task.get",
         arguments: { taskId: taskCreated.task.id }
       }
-    });
+    }, "/mcp/packs/continuity-governance");
     assert.equal(deniedTaskRead.response.status, 200);
     const deniedResult = deniedTaskRead.message.result as {
       isError?: boolean;
@@ -580,7 +581,7 @@ async function main(): Promise<void> {
         name: "chatcockpit.task.get",
         arguments: { taskId: taskCreated.task.id }
       }
-    });
+    }, "/mcp/packs/continuity-governance");
     assert.equal(restoredTaskRead.response.status, 200);
     const restoredResult = restoredTaskRead.message.result as {
       structuredContent?: { task?: { id?: string } };
@@ -627,7 +628,7 @@ async function main(): Promise<void> {
         name: "chatcockpit.task.get",
         arguments: { taskId: taskCreated.task.id }
       }
-    });
+    }, "/mcp/packs/continuity-governance");
     assert.equal(taskAfterRestart.response.status, 200);
     const restartedTaskResult = taskAfterRestart.message.result as {
       structuredContent?: { task?: { id?: string; title?: string } };

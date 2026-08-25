@@ -53,12 +53,24 @@ function parseMcpResponse(body: string): JsonRpcResponse {
   return JSON.parse(dataLines.length > 0 ? dataLines.join("\n") : body) as JsonRpcResponse;
 }
 
+function mcpPathForPayload(payload: Record<string, unknown>): string {
+  const params = payload.params as { name?: string } | undefined;
+  const toolName = params?.name ?? "";
+  if (toolName.startsWith("chatcockpit.capabilities.")) {
+    return "/mcp/packs/capability-routing";
+  }
+  if (toolName.startsWith("chatcockpit.devices.runtime.")) {
+    return "/mcp/packs/device-admin";
+  }
+  return "/mcp";
+}
+
 async function postMcp(
   baseUrl: string,
   token: string,
   payload: Record<string, unknown>
 ): Promise<{ response: Response; message: JsonRpcResponse }> {
-  const response = await fetch(`${baseUrl}/mcp`, {
+  const response = await fetch(`${baseUrl}${mcpPathForPayload(payload)}`, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",

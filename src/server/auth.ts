@@ -130,7 +130,12 @@ function isConcealedSecureEntrySubpath(url: string, secureEntryPath: string): bo
 
 function isMcpPath(url: string): boolean {
   const pathname = requestPath(url);
-  return pathname === "/mcp" || pathname === "/tokenpilot/mcp";
+  return (
+    pathname === "/mcp" ||
+    pathname === "/mcp/full" ||
+    pathname === "/tokenpilot/mcp" ||
+    pathname.startsWith("/mcp/packs/")
+  );
 }
 
 function readBearerToken(request: FastifyRequest): string | null {

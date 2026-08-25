@@ -27,6 +27,17 @@ http://127.0.0.1:4318/mcp
 
 0.2.x 仍保留 receive-only legacy transport alias，但新的客户端配置应只使用 canonical `/mcp`。
 
+P0.2 已把“底层能力是否存在”和“默认让模型看到什么”分离：
+
+| 地址 | 用途 | 当前配置下工具数 |
+|---|---|---:|
+| `/mcp` | 默认普通开发核心面 | 16 |
+| `/mcp/packs/<pack>` | Core + 一个显式专业能力包 | 依能力包而定 |
+| `/mcp/full` | 完整兼容工具面 | 84 |
+| `/tokenpilot/mcp` | 0.2.x 接收型旧兼容别名，对应完整面 | 84 |
+
+默认 Core 覆盖项目/设备选择、public-safe 文件/搜索/命令/Git、执行轨迹、接力胶囊与 `chatcockpit.tools.discover`。发现工具只返回专业能力包及其 endpoint，并**不会**在已经建立的 MCP 连接里动态注入新工具；客户端需要专业能力时，应显式连接对应 `/mcp/packs/<pack>`，`/mcp/full` 只用于完整兼容。
+
 ## 2. 鉴权
 
 仅监听 `127.0.0.1` 且 `CHATCOCKPIT_EXPOSED=false` 时，可以在明确的本机私有环境中不设置 Bearer Token。
@@ -71,7 +82,7 @@ ChatCockpit 会公开协议所需端点：
 Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 ```
 
-OAuth Access Token 刻意只授权 canonical `/mcp` 与兼容期 receive-only `/tokenpilot/mcp`，不会顺便获得 REST Control Plane 权限。
+OAuth Access Token 可用于 canonical `/mcp`、显式 `/mcp/packs/<pack>`、`/mcp/full` 与兼容期 `/tokenpilot/mcp`。这些 MCP surface 共用 `chatcockpit:mcp` 权限，但都不会顺便获得普通 REST Control Plane 权限。
 
 不要把真实控制台管理员密码/Session、机器 API Token、域名、Tunnel 凭据、OAuth/Operator 数据库或机器路径提交到 Git。
 
@@ -100,11 +111,15 @@ curl -sS http://127.0.0.1:4318/mcp \
 -H 'Authorization: Bearer replace-with-your-token'
 ```
 
-发布门禁会验证：静态 Bearer 兼容、OAuth Discovery / Registration / PKCE / Refresh / Restart / Revoke、Tool List、Tool Call、结构化错误、幂等，以及 canonical `/mcp` 与 receive-only `/tokenpilot/mcp` 兼容别名。
+发布门禁会验证：静态 Bearer 兼容、OAuth Discovery / Registration / PKCE / Refresh / Restart / Revoke、canonical 16-tool `/mcp`、`/mcp/full`、专业能力包路由、`tools.discover`、结构化输出契约、Mutation 幂等，以及 receive-only `/tokenpilot/mcp` 兼容别名。
 
-## 4. 工具分类
+## 4. 工具面与能力分类
 
-Remote MCP 目录使用静态产品能力合同，不再把“总工具数”当作发布真源。Capability Router 的 6 个 ChatCockpit-owned 工具固定存在；Runtime Resource mutation 的 3 个工具仅在本地非 exposed 模式，或 exposed deployment 显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 时注册：
+canonical `/mcp` 不再把全部内部能力平铺给模型。当前配置下完整目录为 84 个工具，默认 Core 只有 16 个面向常规开发流程的工具，并且 16/16 都声明且由服务端实际校验 `outputSchema`。专业能力通过 8 个显式能力包提供：`capability-routing`、`host-admin`、`device-admin`、`workflow`、`continuity-governance`、`codex-native`、`runtime-admin`、`recovery`。仅为历史兼容保留的旧别名继续留在完整面，不进入专业能力包。
+
+`chatcockpit.tools.discover` 只负责报告能力包、endpoint、专业工具数量与工具后缀，不伪造“调用后动态改变 tools/list”的非标准 MCP 行为。支持 Tool Search / allowed-tools 的客户端仍可在客户端一侧进一步延迟或过滤工具定义。
+
+底层能力继续复用同一套 Application Services。Runtime Resource mutation 的 3 个工具仅在本地非 exposed 模式，或 exposed deployment 显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 时注册：
 
 - Direct Drive Executor / Capability Discovery、public-safe Host Root Alias Discovery、受治理的 Host Direct 文件读取、审批式 Host Write / Exact Edit、审批式 bounded Host Command、ChatCockpit-owned Managed Workspace Process `prepare/decide/execute/read/list`，以及 Workspace Files、Search、Shell、Git；
 - Capability Router 固定注册 `chatcockpit.capabilities.list`、`inspect`、`read.invoke` 与 `mutation.prepare`、`mutation.inspect`、`mutation.execute`。Provider-native Tool Name 只作为 Catalog 数据返回；MCP 不注册 Router `decide`。Mutation approve/deny 只能由已认证本地 Operator Session 通过 `/api/capabilities/mutations/decision` + CSRF 完成；

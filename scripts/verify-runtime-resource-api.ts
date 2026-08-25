@@ -17,6 +17,7 @@ import { buildServer } from "../src/server/app.ts";
 import type { CodexPluginMutationAdapter } from "../src/runtime/resources/codex-plugin-mutation-adapter.ts";
 import type { CodexSkillMutationAdapter } from "../src/runtime/resources/codex-skill-mutation-adapter.ts";
 import { listenTestServer } from "./test-support/server.ts";
+import { mcpPathForTool } from "./test-support/mcp-tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -221,7 +222,7 @@ async function run(): Promise<void> {
       return payload;
     };
     const mcp = async <T>(name: string, args: unknown): Promise<T> => {
-      const response = await fetch(`${baseUrl}/mcp`, {
+      const response = await fetch(`${baseUrl}${mcpPathForTool(name)}`, {
         method: "POST",
         headers: {
           accept: "application/json, text/event-stream",

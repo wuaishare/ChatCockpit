@@ -7,6 +7,7 @@ import type {
   FastifyRequest
 } from "fastify";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
+import { MCP_TOOL_SURFACE_PACKS, type McpToolSurfacePack } from "./tool-surface.js";
 
 import {
   MCP_AUTHORIZATION_GRANT_HEADER,
@@ -121,22 +122,37 @@ export async function handleMcpHttpRequest(
   return sendWebStandardResponse(reply, response);
 }
 
+export interface McpHttpSurfaceHandlers {
+  core: McpHttpHandler;
+  full: McpHttpHandler;
+  packs: Record<McpToolSurfacePack, McpHttpHandler>;
+}
+
 export function registerMcpHttpRoutes(
   app: FastifyInstance,
-  handler: McpHttpHandler
+  handlers: McpHttpSurfaceHandlers
 ): void {
-  const routeHandler = (request: FastifyRequest, reply: FastifyReply) =>
-    handleMcpHttpRequest(handler, request, reply);
-
-  for (const url of ["/mcp", "/tokenpilot/mcp"] as const) {
+  const register = (url: string, handler: McpHttpHandler) => {
     app.route({
       method: ["GET", "POST", "DELETE"],
       url,
-      handler: routeHandler
+      handler: (request: FastifyRequest, reply: FastifyReply) =>
+        handleMcpHttpRequest(handler, request, reply)
     });
+  };
+
+  register("/mcp", handlers.core);
+  register("/mcp/full", handlers.full);
+  register("/tokenpilot/mcp", handlers.full);
+  for (const pack of MCP_TOOL_SURFACE_PACKS) {
+    register(`/mcp/packs/${pack}`, handlers.packs[pack]);
   }
 
   app.addHook("onClose", async () => {
-    await handler.close();
+    await handlers.core.close();
+    await handlers.full.close();
+    for (const pack of MCP_TOOL_SURFACE_PACKS) {
+      await handlers.packs[pack].close();
+    }
   });
 }

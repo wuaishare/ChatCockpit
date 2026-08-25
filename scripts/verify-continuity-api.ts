@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import { classifyMcpToolSurface } from "../src/mcp/tool-surface.ts";
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
 
@@ -98,7 +99,15 @@ async function runContinuityApiVerification(): Promise<void> {
     };
 
     const mcp = async <T>(name: string, args: unknown): Promise<T> => {
-      const response = await fetch(`${baseUrl}/mcp`, {
+      const classification = classifyMcpToolSurface(name);
+      assert.ok(classification, `MCP parity tool is not classified: ${name}`);
+      const mcpPath =
+        classification.disposition === "core"
+          ? "/mcp"
+          : classification.disposition === "compatibility"
+            ? "/mcp/full"
+            : `/mcp/packs/${classification.pack}`;
+      const response = await fetch(`${baseUrl}${mcpPath}`, {
         method: "POST",
         headers: {
           accept: "application/json, text/event-stream",

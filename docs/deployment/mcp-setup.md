@@ -29,6 +29,17 @@ http://127.0.0.1:4318/mcp
 
 A receive-only legacy transport alias remains during the 0.2.x compatibility window, but new client configuration should use canonical `/mcp` only.
 
+P0.2 separates capability availability from default model visibility:
+
+| Endpoint | Purpose | Current configured catalog |
+|---|---|---:|
+| `/mcp` | canonical ordinary-development core | 16 tools |
+| `/mcp/packs/<pack>` | core plus one explicit specialist capability pack | varies by pack |
+| `/mcp/full` | complete compatibility surface | 84 tools |
+| `/tokenpilot/mcp` | receive-only legacy compatibility alias of the full surface | 84 tools |
+
+The default core covers project/device selection, public-safe files/search/shell/Git, Trajectory, Continuity Capsule, and `chatcockpit.tools.discover`. Discovery returns specialist pack metadata and endpoint paths; it does **not** dynamically inject tools into an already-connected MCP client. A client that needs a specialist pack must explicitly connect that pack endpoint (or use `/mcp/full` only for compatibility).
+
 ## Authentication
 
 Local non-exposed mode can be used without a Bearer token when the operator explicitly keeps the service on loopback.
@@ -73,7 +84,7 @@ Static Bearer authentication remains supported for machine API/automation workfl
 Authorization: Bearer <CHATCOCKPIT_API_TOKEN>
 ```
 
-An OAuth access token is intentionally accepted on canonical `/mcp` and the compatibility-period receive-only `/tokenpilot/mcp`; it does not widen access to the REST control plane.
+An OAuth access token is accepted on the canonical `/mcp`, explicit `/mcp/packs/<pack>`, `/mcp/full`, and compatibility-period `/tokenpilot/mcp` MCP surfaces. All use the same `chatcockpit:mcp` authority and none widens access to the ordinary REST control plane.
 
 Never put the real Web Owner password/session, machine API token, domain, tunnel credential, OAuth/operator database, or machine path in this repository.
 
@@ -102,11 +113,15 @@ Add the Bearer header when authentication is required:
 -H 'Authorization: Bearer replace-with-your-token'
 ```
 
-The release gate verifies static Bearer compatibility plus OAuth discovery, registration, PKCE, refresh/restart, revocation, tool listing, tool calls, structured errors, mutation idempotency, canonical `/mcp`, and the receive-only `/tokenpilot/mcp` compatibility alias.
+The release gate verifies static Bearer compatibility plus OAuth discovery, registration, PKCE, refresh/restart, revocation, canonical 16-tool `/mcp`, `/mcp/full`, specialist pack routing, `tools.discover`, structured output contracts, mutation idempotency, and the receive-only `/tokenpilot/mcp` compatibility alias.
 
-## Tool Families
+## Tool Surfaces And Families
 
-The Remote MCP catalog uses a static product-owned capability contract rather than a hard-coded total. The six ChatCockpit-owned Capability Router tools are always present; the three governed Runtime Resource mutation tools are registered only in local non-exposed mode or when an exposed deployment sets `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`:
+The canonical `/mcp` catalog is intentionally compact rather than a flat dump of every internal capability. The current configured full catalog contains 84 tools, while the default core exposes 16 workflow-oriented tools. Every core tool declares and server-validates `outputSchema`. Specialist capabilities remain available through eight explicit packs: `capability-routing`, `host-admin`, `device-admin`, `workflow`, `continuity-governance`, `codex-native`, `runtime-admin`, and `recovery`. Compatibility-only aliases remain on the full surface and are not promoted into specialist packs.
+
+`chatcockpit.tools.discover` reports available packs, endpoint paths, specialist counts, and tool suffixes. It is discovery only: ChatCockpit does not invent a non-standard MCP mechanism that mutates `tools/list` after a tool call. OpenAI clients that support their own tool-search/allowed-tool mechanisms may additionally filter the returned surface client-side.
+
+Underlying capabilities remain governed by the same Application Services. The three Runtime Resource mutation tools are registered only in local non-exposed mode or when an exposed deployment sets `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true`:
 
 - Direct Drive executor/capability discovery, public-safe Host Root Alias discovery, governed Host Direct file read, approval-gated Host Write / Exact Edit, approval-gated bounded Host Command, ChatCockpit-owned Managed Workspace Process `prepare/decide/execute/read/list`, and Workspace Files, Search, Shell, and Git operations;
 - Capability Router always registers `chatcockpit.capabilities.list`, `inspect`, `read.invoke`, plus `mutation.prepare`, `mutation.inspect`, and `mutation.execute`. Provider-native tool names are returned only as catalog data; MCP does not register Router `decide`. Mutation approve/deny requires an authenticated local Operator session through `/api/capabilities/mutations/decision` plus CSRF;

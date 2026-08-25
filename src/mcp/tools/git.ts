@@ -2,6 +2,10 @@ import type { ChatDirectService } from "../../application/chat-direct-service.js
 import { DEFAULT_PRODUCT_IDENTITY } from "../../core/product-identity.js";
 import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
 import {
+  gitDiffToolOutputSchema,
+  gitStatusToolOutputSchema
+} from "../../contracts/mcp-core-outputs.js";
+import {
   defineMcpTool,
   readOnlyToolAnnotations,
   type TokenPilotMcpTool
@@ -19,6 +23,7 @@ export function buildGitReadOnlyTools(
       description:
         "Read the public-safe Git branch and working-tree status for an allowlisted repository.",
       inputSchema: gitStatusSchema,
+      outputSchema: gitStatusToolOutputSchema,
       annotations: readOnlyToolAnnotations,
       handler: (context, input) =>
         chatDirect.gitStatus(context, input.repoId, input.executorId)
@@ -29,6 +34,7 @@ export function buildGitReadOnlyTools(
       description:
         "Read a public-safe staged or unstaged Git diff for an allowlisted repository.",
       inputSchema: gitDiffSchema,
+      outputSchema: gitDiffToolOutputSchema,
       annotations: readOnlyToolAnnotations,
       handler: (context, input) =>
         chatDirect.gitDiff(

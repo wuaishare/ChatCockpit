@@ -3,6 +3,12 @@ import { z } from "zod";
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
 import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
 import {
+  fileEditToolOutputSchema,
+  fileWriteToolOutputSchema,
+  gitCommitToolOutputSchema,
+  shellRunToolOutputSchema
+} from "../../contracts/mcp-core-outputs.js";
+import {
   DEFAULT_PRODUCT_IDENTITY,
   productIdentityForKey
 } from "../../core/product-identity.js";
@@ -114,6 +120,7 @@ export function buildWorkspaceWriteTools(
       description:
         "Create or overwrite a public-safe text file. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
       inputSchema: fileWriteMcpSchema,
+      outputSchema: fileWriteToolOutputSchema,
       annotations: destructiveMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
@@ -144,6 +151,7 @@ export function buildWorkspaceWriteTools(
       description:
         "Apply one unique search-and-replace edit. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
       inputSchema: fileEditMcpSchema,
+      outputSchema: fileEditToolOutputSchema,
       annotations: reversibleMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
@@ -174,6 +182,7 @@ export function buildWorkspaceWriteTools(
       description:
         `Run a command allowed by ${identity.displayName} policy. Read-only commands may omit sessionId; potentially mutating commands require a chat-direct session that owns the active writer lease. Exposed-mode high-trust controls still apply.`,
       inputSchema: shellRunMcpSchema,
+      outputSchema: shellRunToolOutputSchema,
       annotations: destructiveMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
@@ -207,6 +216,7 @@ export function buildWorkspaceWriteTools(
       description:
         "Stage and commit only public-safe changes. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
       inputSchema: gitCommitMcpSchema,
+      outputSchema: gitCommitToolOutputSchema,
       annotations: reversibleMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
