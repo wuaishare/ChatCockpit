@@ -345,6 +345,92 @@ components:
         certificateFingerprint: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
         signature: { type: string, description: Hub Ed25519 signature binding the nonce to the LAN TLS certificate fingerprint. }
       required: [ok, hubId, nonce, certificateFingerprint, signature]
+    DeviceOnboardingResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, const: true }
+        schemaVersion: { type: integer, const: 1 }
+        recommendedPath: { type: string, enum: [nearby, remote, advanced] }
+        routes:
+          type: object
+          additionalProperties: false
+          properties:
+            nearby:
+              type: object
+              additionalProperties: false
+              properties:
+                available: { type: boolean }
+                configured: { type: boolean }
+                discoveryReady: { type: boolean }
+                secureTransportReady: { type: boolean }
+                reason: { type: string, enum: [ready, trusted-lan-disabled, secure-transport-unavailable, discovery-unavailable] }
+              required: [available, configured, discoveryReady, secureTransportReady, reason]
+            remote:
+              type: object
+              additionalProperties: false
+              properties:
+                available: { type: boolean }
+                configured: { type: boolean }
+                origin: { oneOf: [{ type: string }, { type: "null" }] }
+                verified: { type: boolean }
+                verificationStatus: { type: string, enum: [verified, failed, not-attempted] }
+                reason: { type: string, enum: [ready, public-route-not-configured, public-route-not-https] }
+              required: [available, configured, origin, verified, verificationStatus, reason]
+          required: [nearby, remote]
+        bootstrap:
+          type: object
+          additionalProperties: false
+          properties:
+            installedCli:
+              type: object
+              additionalProperties: false
+              properties:
+                available: { type: boolean, const: true }
+                requirement: { type: string, const: chatcockpit-cli-installed }
+                discoverCommand: { type: string }
+                connectCommand: { oneOf: [{ type: string }, { type: "null" }] }
+              required: [available, requirement, discoverCommand, connectCommand]
+            npx:
+              type: object
+              additionalProperties: false
+              properties:
+                available: { type: boolean, const: false }
+                reason: { type: string, const: package-not-published }
+              required: [available, reason]
+            nativePackage:
+              type: object
+              additionalProperties: false
+              properties:
+                available: { type: boolean, const: false }
+                reason: { type: string, const: not-shipped }
+              required: [available, reason]
+          required: [installedCli, npx, nativePackage]
+        enrollment:
+          type: object
+          additionalProperties: false
+          properties:
+            pendingCount: { type: integer, minimum: 0 }
+          required: [pendingCount]
+        advanced:
+          type: object
+          additionalProperties: false
+          properties:
+            hubId: { type: string, pattern: '^cc_hub_[A-Za-z0-9_-]{43}$' }
+            publicKeyFingerprint: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+            trustedLanEnabled: { type: boolean }
+            stagedPublicRoute:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  properties:
+                    origin: { type: string }
+                    status: { type: string, const: staged-unverified }
+                    verificationStatus: { type: string, enum: [verified, failed, not-attempted] }
+                  required: [origin, status, verificationStatus]
+                - type: "null"
+          required: [hubId, publicKeyFingerprint, trustedLanEnabled, stagedPublicRoute]
+      required: [ok, schemaVersion, recommendedPath, routes, bootstrap, enrollment, advanced]
     ManagedDeviceSummary:
       type: object
       additionalProperties: false
@@ -7275,6 +7361,26 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "503":
           description: LAN TLS identity is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/devices/onboarding:
+    get:
+      operationId: getDeviceOnboarding
+      summary: Read safe device onboarding guidance
+      description: Owner-only bounded projection for the Add Device experience. Aggregates existing Hub, Trusted LAN, Public Route, bootstrap-capability and pending-enrollment facts without returning reusable credentials, private keys or local paths.
+      security:
+        - operatorSession: []
+      responses:
+        "200":
+          description: Device onboarding projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceOnboardingResponse'
+        "401":
+          description: Web Owner session required
           content:
             application/json:
               schema:

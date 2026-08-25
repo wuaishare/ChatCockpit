@@ -87,6 +87,7 @@ import {
 } from "../governance/database.js";
 import { GovernedExternalActionRepository } from "../governance/governed-external-action-repository.js";
 import { DeviceRuntimeOperationRepository } from "../governance/device-runtime-operation-repository.js";
+import { DeviceOnboardingService } from "../application/device-onboarding-service.js";
 import { OperationalActivityProvenanceRepository } from "../governance/operational-activity-provenance-repository.js";
 import { OperationalActivityControlEventRepository } from "../governance/operational-activity-control-event-repository.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
@@ -126,6 +127,7 @@ import {
   continuityDatabasePath
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
+import { registerDeviceOnboardingRoutes } from "./device-onboarding-routes.js";
 import { buildMcpToolCatalogMetadata } from "../mcp/catalog-metadata.js";
 import { MCP_TOOL_SURFACE_PACKS, selectMcpToolsForSurface } from "../mcp/tool-surface.js";
 import {
@@ -854,6 +856,38 @@ export function buildServer(
         : {})
     }
   );
+  const deviceOnboardingService = new DeviceOnboardingService({
+    accessPolicy,
+    hubIdentity,
+    pendingEnrollmentCount: () =>
+      deviceRegistryStore.listPendingEnrollmentRequests(
+        (options.deviceNow ?? (() => new Date().toISOString()))()
+      ).length,
+    publicRouteSnapshot: () => {
+      const snapshot = publicRouteVerifier.snapshot();
+      const storedVerification = publicRouteVerificationStore.read();
+      return {
+        canonicalOrigin: snapshot.canonical.origin,
+        verificationEvidence: storedVerification
+          ? {
+              origin: storedVerification.candidateOrigin,
+              status: storedVerification.status
+            }
+          : null,
+        candidate: snapshot.candidate
+          ? {
+              origin: snapshot.candidate.origin,
+              status: snapshot.candidate.status,
+              verificationStatus: snapshot.verification?.status ?? "not-attempted"
+            }
+          : null
+      };
+    },
+    lanRuntimeSnapshot: () => ({
+      discoveryAdvertised: lanDiscoveryPublication?.advertised === true,
+      secureTransportReady: deviceLanTlsPort !== null
+    })
+  });
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof OperatorAuthError) {
@@ -898,6 +932,7 @@ export function buildServer(
       ? () => ensureLanTlsIdentity(paths.runtimeDir)
       : null
   });
+  registerDeviceOnboardingRoutes(app, deviceOnboardingService);
   registerDeviceRoutes(app, deviceRegistryStore, {
     ...(options.deviceNow ? { now: options.deviceNow } : {}),
     channelHub: deviceChannelHub,
