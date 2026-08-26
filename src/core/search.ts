@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
@@ -62,6 +63,46 @@ function buildExcludeArgs(tool: string): string[] {
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   const config = loadUserConfigForPaths(paths);
   return resolveRepoMapping(config, repoId).repoRoot;
+}
+
+function isSearchResultFile(filePath: string, repoRoot: string): boolean {
+  const candidatePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.join(repoRoot, filePath);
+  try {
+    return fs.statSync(candidatePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function parseSearchOutputLine(
+  line: string,
+  repoRoot: string
+): { filePath: string; lineNum: number; content: string } | null {
+  const matchLine = /^(.*?):(\d+):(.*)$/.exec(line);
+  if (matchLine && isSearchResultFile(matchLine[1], repoRoot)) {
+    return {
+      filePath: matchLine[1],
+      lineNum: Number(matchLine[2]),
+      content: matchLine[3]
+    };
+  }
+
+  const contextSeparator = /-(\d+)-/g;
+  for (const separator of line.matchAll(contextSeparator)) {
+    const separatorIndex = separator.index;
+    if (separatorIndex === undefined) continue;
+    const filePath = line.substring(0, separatorIndex);
+    if (!isSearchResultFile(filePath, repoRoot)) continue;
+    return {
+      filePath,
+      lineNum: Number(separator[1]),
+      content: line.substring(separatorIndex + separator[0].length)
+    };
+  }
+
+  return null;
 }
 
 export function searchRepo(
@@ -148,29 +189,13 @@ export function searchRepo(
   for (const line of lines) {
     if (!line.trim()) continue;
 
-    // rg output: "path:line:text"
-    // grep output: "path:line:text"
-    const colonIndex = line.indexOf(":");
-    if (colonIndex === -1) continue;
-
-    const filePath = line.substring(0, colonIndex);
+    const parsed = parseSearchOutputLine(line, repoRoot);
+    if (!parsed || parsed.lineNum <= 0) continue;
+    const { filePath, lineNum, content } = parsed;
 
     // Skip blocked paths in output (extra safety)
     if (filePath.split("/").some((seg) => BLOCKED_SEGMENTS.includes(seg))) {
       continue;
-    }
-
-    const afterPath = line.substring(colonIndex + 1);
-    const secondColon = afterPath.indexOf(":");
-
-    let lineNum = 0;
-    let content = "";
-    if (secondColon !== -1) {
-      const lineStr = afterPath.substring(0, secondColon);
-      lineNum = parseInt(lineStr, 10) || 0;
-      content = afterPath.substring(secondColon + 1);
-    } else {
-      content = afterPath;
     }
 
     // Determine if this is a new match or context line

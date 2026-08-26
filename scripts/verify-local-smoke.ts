@@ -87,7 +87,11 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
   fs.mkdirSync(path.join(paths.repoRoot, "src"), { recursive: true });
   fs.writeFileSync(
     path.join(paths.repoRoot, "src", "catalog-fixture.ts"),
-    "export const catalogNeedle = 'chatcockpit-mcp-catalog';\n",
+    [
+      "export const catalogBefore: string = 'context-before';",
+      "export const catalogNeedle = 'chatcockpit-mcp-catalog';",
+      "export const catalogAfter: string = 'context-after';"
+    ].join("\n") + "\n",
     "utf8"
   );
   fs.writeFileSync(path.join(paths.repoRoot, ".env"), "SECRET=blocked\n", "utf8");
@@ -274,11 +278,14 @@ async function verifyReadOnlyMcpToolCatalog(): Promise<void> {
     const searchResult = await toolByName.get("chatcockpit.search.code")!.execute(context, {
       repoId: "primary",
       pattern: "catalogNeedle",
-      path: "src"
+      path: "src",
+      contextLines: 1
     });
     assert.equal(searchResult.isError, undefined);
     assert.equal(searchResult.structuredContent.ok, true);
     assert.match(JSON.stringify(searchResult.structuredContent), /catalog-fixture\.ts/);
+    assert.match(JSON.stringify(searchResult.structuredContent), /context-before/);
+    assert.match(JSON.stringify(searchResult.structuredContent), /context-after/);
 
     const statusResult = await toolByName.get("chatcockpit.git.status")!.execute(context, {
       repoId: "primary"
