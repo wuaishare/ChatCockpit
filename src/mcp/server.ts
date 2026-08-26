@@ -115,10 +115,11 @@ export function buildTokenPilotMcpToolCatalog(
   deviceRuntimeLifecycleService: DeviceRuntimeLifecycleService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   codexThreadImportService?: CodexThreadImportService,
-  observability?: ContinuityObservabilityMcpServices
+  observability?: ContinuityObservabilityMcpServices,
+  projectDevelopmentRoutingOverride?: ProjectDevelopmentRoutingService
 ) {
   const identity = productIdentityForKey(paths.productIdentity);
-  const projectDevelopmentRouting = new ProjectDevelopmentRoutingService(
+  const projectDevelopmentRouting = projectDevelopmentRoutingOverride ?? new ProjectDevelopmentRoutingService(
     paths,
     continuityServices.projects,
     runtimeService

@@ -56,9 +56,18 @@ const database = new ContinuityDatabase({ path: path.join(root, "continuity.sqli
 const repositories = buildContinuityRepositories(database);
 const projects = new ProjectService(paths, database, repositories);
 let runtimeAvailable = true;
+let capabilityProbeMode: "ok" | "error" | "hang" = "ok";
+let threadProbeMode: "ok" | "error" | "hang" = "ok";
 let threads: RuntimeThreadProjection[] = [];
 const runtime = {
-  capabilities: async () => ({
+  capabilities: async () => {
+    if (capabilityProbeMode === "error") {
+      throw new Error("TEST_CAPABILITIES_FAILED");
+    }
+    if (capabilityProbeMode === "hang") {
+      return await new Promise<never>(() => undefined);
+    }
+    return {
     available: runtimeAvailable,
     runtime: "codex-app-server" as const,
     binarySource: "test",
@@ -69,14 +78,25 @@ const runtime = {
     experimentalApiEnabled: false,
     standaloneExecution: null,
     ...(runtimeAvailable ? {} : { unavailableReason: "TEST_UNAVAILABLE" })
-  }),
-  listCodexThreads: async (_context: typeof context, input: { workspaceId?: string }) => ({
-    data: threads.filter((thread) => !input.workspaceId || thread.workspaceId === input.workspaceId),
-    nextCursor: null,
-    backwardsCursor: null
-  })
+    };
+  },
+  listCodexThreads: async (_context: typeof context, input: { workspaceId?: string }) => {
+    if (threadProbeMode === "error") {
+      throw new Error("TEST_THREADS_FAILED");
+    }
+    if (threadProbeMode === "hang") {
+      return await new Promise<never>(() => undefined);
+    }
+    return {
+      data: threads.filter((thread) => !input.workspaceId || thread.workspaceId === input.workspaceId),
+      nextCursor: null,
+      backwardsCursor: null
+    };
+  }
 } as unknown as RuntimeService;
-const routing = new ProjectDevelopmentRoutingService(paths, projects, runtime);
+const routing = new ProjectDevelopmentRoutingService(paths, projects, runtime, {
+  providerObservationCacheTtlMs: 0
+});
 
 try {
   const listed = projects.list(context);
@@ -93,6 +113,9 @@ try {
   assert.equal(freshCoordination.modelLoopOwnership.codexTurnRequiresExplicitTransfer, true);
   assert.equal(freshCoordination.workspaceExecution.mode, "native-checkout");
   assert.equal(freshCoordination.workspaceExecution.worktreeRequiresExplicitOptIn, true);
+  assert.equal(freshCoordination.codexContinuity.runtimeAvailability, "available");
+  assert.equal(freshCoordination.codexContinuity.observation.status, "ready");
+  assert.equal(freshCoordination.codexContinuity.observation.reason, null);
   assert.equal(freshCoordination.codexContinuity.nextAction, "start-native");
   assert.equal(freshCoordination.codexContinuity.reason, "NO_MATCHING_NATIVE_THREAD");
   assert.deepEqual(freshCoordination.codexContinuity.sessionToolSequence, [
@@ -174,6 +197,9 @@ try {
 
   runGit(["-C", repoRoot, "checkout", "--detach"]);
   const detachedCoordination = await routing.coordinate(context, project.id);
+  assert.equal(detachedCoordination.codexContinuity.runtimeAvailability, "unknown");
+  assert.equal(detachedCoordination.codexContinuity.observation.status, "not-required");
+  assert.equal(detachedCoordination.codexContinuity.observation.reason, "WORKSPACE_DETACHED");
   assert.equal(detachedCoordination.codexContinuity.nextAction, "repair-workspace");
   assert.equal(detachedCoordination.codexContinuity.reason, "WORKSPACE_DETACHED");
   assert.equal(detachedCoordination.workspaceExecution.branch, "HEAD");
@@ -188,6 +214,9 @@ try {
   runtimeAvailable = false;
   threads = [];
   const unavailable = await routing.coordinate(context, project.id);
+  assert.equal(unavailable.codexContinuity.runtimeAvailability, "unavailable");
+  assert.equal(unavailable.codexContinuity.observation.status, "ready");
+  assert.equal(unavailable.codexContinuity.observation.reason, null);
   assert.equal(unavailable.codexContinuity.nextAction, "unavailable");
   assert.equal(unavailable.codexContinuity.reason, "CODEX_NATIVE_UNAVAILABLE");
   assert.equal(unavailable.codexContinuity.warnings.includes("TEST_UNAVAILABLE"), true);
@@ -196,6 +225,60 @@ try {
   assert.equal(fallback.nextAction, "continue-direct");
   assert.equal(fallback.reason, "CALLER_OWNS_MODEL_LOOP");
   assert.deepEqual(fallback.nativeToolSequence, []);
+
+  runtimeAvailable = true;
+  const boundedRouting = new ProjectDevelopmentRoutingService(paths, projects, runtime, {
+    providerObservationBudgetMs: 25,
+    providerObservationCacheTtlMs: 0
+  });
+
+  capabilityProbeMode = "hang";
+  const capabilityTimeoutStartedAt = Date.now();
+  const capabilityTimeout = await boundedRouting.coordinate(context, project.id);
+  assert.equal(Date.now() - capabilityTimeoutStartedAt < 500, true);
+  assert.equal(capabilityTimeout.modelLoopOwnership.defaultOwner, "caller");
+  assert.equal(capabilityTimeout.workspaceExecution.status, "ready");
+  assert.equal(capabilityTimeout.codexContinuity.runtimeAvailability, "unknown");
+  assert.equal(capabilityTimeout.codexContinuity.observation.status, "degraded");
+  assert.equal(capabilityTimeout.codexContinuity.observation.reason, "CAPABILITIES_TIMEOUT");
+  assert.equal(capabilityTimeout.codexContinuity.nextAction, "unavailable");
+  assert.equal(capabilityTimeout.codexContinuity.reason, "CODEX_CAPABILITIES_TIMEOUT");
+
+  capabilityProbeMode = "error";
+  const capabilityFailure = await boundedRouting.coordinate(context, project.id);
+  assert.equal(capabilityFailure.codexContinuity.runtimeAvailability, "unknown");
+  assert.equal(capabilityFailure.codexContinuity.observation.status, "degraded");
+  assert.equal(capabilityFailure.codexContinuity.observation.reason, "CAPABILITIES_FAILED");
+  assert.equal(capabilityFailure.codexContinuity.reason, "CODEX_CAPABILITIES_FAILED");
+
+  capabilityProbeMode = "ok";
+  threadProbeMode = "hang";
+  const threadTimeout = await boundedRouting.coordinate(context, project.id);
+  assert.equal(threadTimeout.codexContinuity.runtimeAvailability, "available");
+  assert.equal(threadTimeout.codexContinuity.observation.status, "degraded");
+  assert.equal(threadTimeout.codexContinuity.observation.reason, "THREADS_TIMEOUT");
+  assert.equal(threadTimeout.codexContinuity.nextAction, "unavailable");
+  assert.equal(threadTimeout.codexContinuity.reason, "CODEX_THREADS_TIMEOUT");
+
+  threadProbeMode = "error";
+  const threadFailure = await boundedRouting.coordinate(context, project.id);
+  assert.equal(threadFailure.codexContinuity.runtimeAvailability, "available");
+  assert.equal(threadFailure.codexContinuity.observation.status, "degraded");
+  assert.equal(threadFailure.codexContinuity.observation.reason, "THREADS_FAILED");
+  assert.equal(threadFailure.codexContinuity.reason, "CODEX_THREADS_FAILED");
+
+  threadProbeMode = "ok";
+  capabilityProbeMode = "hang";
+  const cachedRouting = new ProjectDevelopmentRoutingService(paths, projects, runtime, {
+    providerObservationBudgetMs: 25,
+    providerObservationCacheTtlMs: 1_000
+  });
+  const cachedDegraded = await cachedRouting.coordinate(context, project.id);
+  assert.equal(cachedDegraded.codexContinuity.observation.reason, "CAPABILITIES_TIMEOUT");
+  capabilityProbeMode = "ok";
+  const cachedRepeat = await cachedRouting.coordinate(context, project.id);
+  assert.equal(cachedRepeat.codexContinuity.observation.reason, "CAPABILITIES_TIMEOUT");
+  assert.equal(cachedRepeat.codexContinuity.reason, "CODEX_CAPABILITIES_TIMEOUT");
 
   process.stdout.write("project development coordination verification passed\n");
 } finally {

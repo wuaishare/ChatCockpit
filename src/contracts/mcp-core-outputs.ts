@@ -200,6 +200,20 @@ const projectDevelopmentCoordinationSchema = z.object({
   }),
   codexContinuity: z.object({
     runtimeAvailable: z.boolean(),
+    runtimeAvailability: z.enum(["available", "unavailable", "unknown"]),
+    observation: z.object({
+      status: z.enum(["ready", "degraded", "not-required"]),
+      reason: z.enum([
+        "NO_REGISTERED_WORKSPACE",
+        "WORKSPACE_NOT_READY",
+        "WORKSPACE_DETACHED",
+        "CAPABILITIES_TIMEOUT",
+        "CAPABILITIES_FAILED",
+        "THREADS_TIMEOUT",
+        "THREADS_FAILED"
+      ]).nullable(),
+      latencyBudgetMs: z.number().int().positive()
+    }),
     nextAction: z.enum(["resume-native", "start-native", "repair-workspace", "unavailable"]),
     reason: z.string(),
     sessionToolSequence: z.array(z.string()),

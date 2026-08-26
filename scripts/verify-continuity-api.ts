@@ -220,6 +220,8 @@ async function runContinuityApiVerification(): Promise<void> {
       };
       workspaceExecution?: { mode?: string; worktreeRequiresExplicitOptIn?: boolean };
       codexContinuity?: {
+        runtimeAvailability?: string;
+        observation?: { status?: string; reason?: string | null; latencyBudgetMs?: number };
         nextAction?: string;
         sessionToolSequence?: string[];
         nativeTurnTool?: string | null;
@@ -230,6 +232,16 @@ async function runContinuityApiVerification(): Promise<void> {
     assert.equal(developmentCoordination.modelLoopOwnership?.codexTurnRequiresExplicitTransfer, true);
     assert.equal(developmentCoordination.workspaceExecution?.mode, "native-checkout");
     assert.equal(developmentCoordination.workspaceExecution?.worktreeRequiresExplicitOptIn, true);
+    assert.ok(["available", "unavailable", "unknown"].includes(
+      developmentCoordination.codexContinuity?.runtimeAvailability ?? ""
+    ));
+    assert.ok(["ready", "degraded", "not-required"].includes(
+      developmentCoordination.codexContinuity?.observation?.status ?? ""
+    ));
+    assert.equal(
+      (developmentCoordination.codexContinuity?.observation?.latencyBudgetMs ?? 0) > 0,
+      true
+    );
     assert.ok(["start-native", "resume-native", "unavailable"].includes(
       developmentCoordination.codexContinuity?.nextAction ?? ""
     ));

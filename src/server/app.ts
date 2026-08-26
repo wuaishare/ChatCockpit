@@ -1019,7 +1019,8 @@ export function buildServer(
     deviceRuntimeLifecycleService,
     exposedRuntimeResourceMutationService,
     codexThreadImportService,
-    { trajectoryService, continuityCapsules: continuityCapsuleService }
+    { trajectoryService, continuityCapsules: continuityCapsuleService },
+    projectDevelopmentRouting
   );
   const coreMcpTools = selectMcpToolsForSurface(mcpTools, { kind: "core" });
   const mcpCatalogMetadata = buildMcpToolCatalogMetadata(coreMcpTools);
