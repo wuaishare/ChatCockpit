@@ -55,6 +55,41 @@ export class LeaseRepository {
     const now = nowIso(input.now);
     return this.database.transaction(() => {
       this.reconcileExpired(now);
+      this.database.sqlite
+        .prepare(`
+          UPDATE core_writer_authorities
+          SET status = 'expired', released_at = ?, revision = revision + 1
+          WHERE status = 'active' AND expires_at <= ?
+        `)
+        .run(now, now);
+      const coreAuthority = this.database.sqlite
+        .prepare(`
+          SELECT id, holder_request_id, actor_type, expires_at
+          FROM core_writer_authorities
+          WHERE workspace_id = ? AND status = 'active'
+          LIMIT 1
+        `)
+        .get(input.workspaceId) as {
+          id: string;
+          holder_request_id: string;
+          actor_type: string;
+          expires_at: string;
+        } | undefined;
+      if (coreAuthority) {
+        throw new ServiceError(
+          "WRITER_LEASE_CONFLICT",
+          "A Core request already owns the workspace",
+          {
+            details: {
+              workspaceId: input.workspaceId,
+              authorityId: coreAuthority.id,
+              holderRequestId: coreAuthority.holder_request_id,
+              actorType: coreAuthority.actor_type,
+              expiresAt: coreAuthority.expires_at
+            }
+          }
+        );
+      }
       const existing = this.getActive(input.workspaceId);
       if (existing) {
         throw new ServiceError(

@@ -118,7 +118,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("files.write"),
       title: "Write repository file",
       description:
-        "Create or overwrite a public-safe text file. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
+        "Create or overwrite a public-safe text file. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: fileWriteMcpSchema,
       outputSchema: fileWriteToolOutputSchema,
       annotations: destructiveMutationAnnotations,
@@ -149,7 +149,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("files.edit"),
       title: "Edit repository file",
       description:
-        "Apply one unique search-and-replace edit. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
+        "Apply one unique search-and-replace edit. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: fileEditMcpSchema,
       outputSchema: fileEditToolOutputSchema,
       annotations: reversibleMutationAnnotations,
@@ -180,7 +180,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("shell.run"),
       title: "Run controlled repository command",
       description:
-        `Run a command allowed by ${identity.displayName} policy. Read-only commands may omit sessionId; potentially mutating commands require a chat-direct session that owns the active writer lease. Exposed-mode high-trust controls still apply.`,
+        `Run a command allowed by ${identity.displayName} policy. Read-only commands require no writer authority. OAuth MCP callers receive bounded workspace writer authority automatically for mutating commands; callers using an explicit chat-direct session must own its active writer lease. Exposed-mode high-trust controls still apply.`,
       inputSchema: shellRunMcpSchema,
       outputSchema: shellRunToolOutputSchema,
       annotations: destructiveMutationAnnotations,
@@ -214,7 +214,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("git.commit"),
       title: "Commit public-safe repository changes",
       description:
-        "Stage and commit only public-safe changes. Requires a chat-direct session that owns the active workspace writer lease plus an idempotency key.",
+        "Stage and commit only public-safe changes. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: gitCommitMcpSchema,
       outputSchema: gitCommitToolOutputSchema,
       annotations: reversibleMutationAnnotations,

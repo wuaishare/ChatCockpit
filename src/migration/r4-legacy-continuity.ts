@@ -6,6 +6,7 @@ export type R4LegacyContinuitySourceContract =
   | "v18"
   | "v19-compatible"
   | "v20-compatible"
+  | "v21-compatible"
   | "invalid";
 
 export interface R4LegacyContinuitySourceInspection {
@@ -74,14 +75,20 @@ export function inspectR4LegacyContinuitySource(
   ) {
     sourceContract = "v18";
   } else if (
-    (schemaVersion === 19 || schemaVersion === 20) &&
+    (schemaVersion === 19 || schemaVersion === 20 || schemaVersion === 21) &&
     !targetIdentityTablePresent &&
     runtimeBindingAcceptsLegacy &&
     runtimeBindingAcceptsTarget &&
     runtimeResourceAcceptsLegacy &&
     runtimeResourceAcceptsTarget
   ) {
-    sourceContract = schemaVersion === 20 ? "v20-compatible" : "v19-compatible";
+    if (schemaVersion === 21) {
+      sourceContract = "v21-compatible";
+    } else if (schemaVersion === 20) {
+      sourceContract = "v20-compatible";
+    } else {
+      sourceContract = "v19-compatible";
+    }
   }
 
   return {

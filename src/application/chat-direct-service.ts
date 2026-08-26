@@ -24,6 +24,7 @@ import type {
   TokenPilotPaths
 } from "../types.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type { CoreWriterAuthorityRecord } from "../continuity/repositories/core-writer-authority-repository.js";
 import {
   DirectCapabilityBroker,
   DirectCapabilityBrokerError,
@@ -90,6 +91,8 @@ function selectionMetadata(
   );
 }
 
+const CORE_WRITER_AUTHORITY_TTL_MS = 120_000;
+
 function serviceError(code: string, error: unknown): ServiceError {
   return wrapServiceOperationError(
     code,
@@ -115,6 +118,80 @@ export class ChatDirectService {
     this.git = new GitService(paths);
     this.searchService = new SearchService(paths);
     this.shellService = new ShellService(paths);
+  }
+
+  private acquireMutationAuthority(
+    context: OperationContext,
+    repoId: string,
+    sessionId?: string
+  ): CoreWriterAuthorityRecord | null {
+    if (sessionId) {
+      assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        repoId,
+        sessionId
+      );
+      return null;
+    }
+
+    if (context.actorType !== "remote-mcp" || !context.authorizationGrantId) {
+      throw new ServiceError(
+        "WRITER_LEASE_REQUIRED",
+        "A mutating Chat Direct operation requires either a development session or an authorized remote MCP caller",
+        {
+          hint:
+            "Use an OAuth-authorized remote MCP connection, or supply a development session that owns the workspace writer lease.",
+          details: { repoId, actorType: context.actorType }
+        }
+      );
+    }
+
+    const workspace = this.repositories.workspaces.findPrivateByRepoId(repoId);
+    if (!workspace) {
+      throw new ServiceError(
+        "CONTINUITY_RELATION_INVALID",
+        `No ChatCockpit workspace is mapped to repository ${repoId}`,
+        { details: { repoId } }
+      );
+    }
+    if (workspace.status !== "ready") {
+      throw new ServiceError(
+        "WORKSPACE_NOT_READY",
+        "Core remote development mutation requires a ready ChatCockpit workspace",
+        { details: { repoId, workspaceId: workspace.id, workspaceStatus: workspace.status } }
+      );
+    }
+
+    return this.repositories.coreWriterAuthorities.acquire({
+      workspaceId: workspace.id,
+      holderRequestId: context.requestId,
+      actorType: context.actorType,
+      actorId: context.actorId,
+      authorizationGrantId: context.authorizationGrantId,
+      expiresAt: new Date(
+        Date.parse(context.now) + CORE_WRITER_AUTHORITY_TTL_MS
+      ).toISOString(),
+      now: context.now
+    });
+  }
+
+  private releaseMutationAuthority(
+    context: OperationContext,
+    authority: CoreWriterAuthorityRecord | null
+  ): void {
+    if (!authority) return;
+    try {
+      this.repositories.coreWriterAuthorities.release(authority.id, {
+        holderRequestId: context.requestId,
+        expectedRevision: authority.revision,
+        now: context.now
+      });
+    } catch {
+      // The mutation result is already authoritative. A failed release must not
+      // encourage a caller retry that could duplicate the write; the bounded
+      // authority remains fail-safe and will expire automatically.
+    }
   }
 
   listExecutors() {
@@ -263,70 +340,76 @@ export class ChatDirectService {
   }
 
   async write(context: OperationContext, payload: FileWritePayload) {
-    assertChatDirectWriterLease(
-      this.repositories,
+    const authority = this.acquireMutationAuthority(
       context,
       payload.repoId,
       payload.sessionId
     );
-    const selection = this.select("files.write", "write", payload.executorId);
-    if (selection.executorId === "codex-app-server-standalone") {
-      try {
-        const target = resolveWritableRepoPathTarget(
-          this.paths,
-          payload.repoId,
-          payload.path
-        );
-        assertWriteContentAllowed(payload.content);
-        await this.runtime.writeStandaloneFile(
-          target.absolutePath,
-          Buffer.from(payload.content, "utf8").toString("base64")
-        );
-        const stat = fs.statSync(target.absolutePath);
-        return {
-          ok: true as const,
-          repoId: payload.repoId,
-          path: target.relativePath,
-          written: true as const,
-          size: stat.size,
-          execution: selectionMetadata(selection, [target.relativePath])
-        };
-      } catch (error) {
-        if (!this.canFallbackMutation(selection, error)) {
-          throw serviceError("FILES_WRITE_BLOCKED", error);
+    try {
+      const selection = this.select("files.write", "write", payload.executorId);
+      if (selection.executorId === "codex-app-server-standalone") {
+        try {
+          const target = resolveWritableRepoPathTarget(
+            this.paths,
+            payload.repoId,
+            payload.path
+          );
+          assertWriteContentAllowed(payload.content);
+          await this.runtime.writeStandaloneFile(
+            target.absolutePath,
+            Buffer.from(payload.content, "utf8").toString("base64")
+          );
+          const stat = fs.statSync(target.absolutePath);
+          return {
+            ok: true as const,
+            repoId: payload.repoId,
+            path: target.relativePath,
+            written: true as const,
+            size: stat.size,
+            execution: selectionMetadata(selection, [target.relativePath])
+          };
+        } catch (error) {
+          if (!this.canFallbackMutation(selection, error)) {
+            throw serviceError("FILES_WRITE_BLOCKED", error);
+          }
+          const fallback = this.fallbackSelection("files.write", "write");
+          const value = this.files.write(context, payload);
+          return {
+            ...value,
+            execution: selectionMetadata(
+              fallback,
+              [payload.path],
+              "standalone-write-unavailable"
+            )
+          };
         }
-        const fallback = this.fallbackSelection("files.write", "write");
-        const value = this.files.write(context, payload);
-        return {
-          ...value,
-          execution: selectionMetadata(
-            fallback,
-            [payload.path],
-            "standalone-write-unavailable"
-          )
-        };
       }
+      const value = this.files.write(context, payload);
+      return {
+        ...value,
+        execution: selectionMetadata(selection, [payload.path])
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
     }
-    const value = this.files.write(context, payload);
-    return {
-      ...value,
-      execution: selectionMetadata(selection, [payload.path])
-    };
   }
 
   async edit(context: OperationContext, payload: FileEditPayload) {
-    assertChatDirectWriterLease(
-      this.repositories,
+    const authority = this.acquireMutationAuthority(
       context,
       payload.repoId,
       payload.sessionId
     );
-    const selection = this.select("files.edit", "write", payload.executorId);
-    const value = this.files.edit(context, payload);
-    return {
-      ...value,
-      execution: selectionMetadata(selection, [payload.path])
-    };
+    try {
+      const selection = this.select("files.edit", "write", payload.executorId);
+      const value = this.files.edit(context, payload);
+      return {
+        ...value,
+        execution: selectionMetadata(selection, [payload.path])
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
+    }
   }
 
   async search(context: OperationContext, payload: SearchPayload) {
@@ -348,65 +431,65 @@ export class ChatDirectService {
     const access: DirectCapabilityAccess = prepared.standaloneReadOnly
       ? "read"
       : "write";
-    if (access === "write") {
-      assertChatDirectWriterLease(
-        this.repositories,
-        context,
-        payload.repoId,
-        payload.sessionId
-      );
-    }
-    const selection = this.select("shell.exec", access, payload.executorId);
-    if (selection.executorId === "codex-app-server-standalone") {
-      const startedAt = Date.now();
-      try {
-        const result = await this.runtime.executeStandaloneCommand({
-          command: [prepared.command, ...prepared.args],
-          cwd: prepared.workdir,
-          timeoutMs: prepared.timeoutMs,
-          outputBytesCap: prepared.outputBytesCap,
-          readOnly: true
-        });
-        const elapsed = Date.now() - startedAt;
-        return {
-          ok: result.exitCode === 0,
-          exitCode: result.exitCode,
-          stdout:
-            result.stdout || (result.exitCode === 0 ? "(no output)" : ""),
-          stderr: result.stderr,
-          truncated: false,
-          executedCommand: `${prepared.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
-          execution: selectionMetadata(selection)
-        };
-      } catch (error) {
-        if (!this.canFallbackRead(selection, error)) {
-          throw serviceError("SHELL_COMMAND_BLOCKED", error);
+    const authority =
+      access === "write"
+        ? this.acquireMutationAuthority(context, payload.repoId, payload.sessionId)
+        : null;
+    try {
+      const selection = this.select("shell.exec", access, payload.executorId);
+      if (selection.executorId === "codex-app-server-standalone") {
+        const startedAt = Date.now();
+        try {
+          const result = await this.runtime.executeStandaloneCommand({
+            command: [prepared.command, ...prepared.args],
+            cwd: prepared.workdir,
+            timeoutMs: prepared.timeoutMs,
+            outputBytesCap: prepared.outputBytesCap,
+            readOnly: true
+          });
+          const elapsed = Date.now() - startedAt;
+          return {
+            ok: result.exitCode === 0,
+            exitCode: result.exitCode,
+            stdout:
+              result.stdout || (result.exitCode === 0 ? "(no output)" : ""),
+            stderr: result.stderr,
+            truncated: false,
+            executedCommand: `${prepared.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
+            execution: selectionMetadata(selection)
+          };
+        } catch (error) {
+          if (!this.canFallbackRead(selection, error)) {
+            throw serviceError("SHELL_COMMAND_BLOCKED", error);
+          }
+          const fallback = this.fallbackSelection("shell.exec", "read");
+          const value = this.shellService.run(context, payload);
+          return {
+            ...value,
+            execution: selectionMetadata(
+              fallback,
+              [],
+              "standalone-command-unavailable"
+            )
+          };
         }
-        const fallback = this.fallbackSelection("shell.exec", "read");
-        const value = this.shellService.run(context, payload);
-        return {
-          ...value,
-          execution: selectionMetadata(
-            fallback,
-            [],
-            "standalone-command-unavailable"
-          )
-        };
       }
+      const value = this.shellService.run(context, payload);
+      return {
+        ...value,
+        execution: selectionMetadata(
+          selection,
+          [],
+          access === "write" && selection.selectionMode === "automatic"
+            ? `command-policy-kept-${
+                productIdentityForKey(this.paths.productIdentity).builtInDirectExecutorId
+              }`
+            : undefined
+        )
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
     }
-    const value = this.shellService.run(context, payload);
-    return {
-      ...value,
-      execution: selectionMetadata(
-        selection,
-        [],
-        access === "write" && selection.selectionMode === "automatic"
-          ? `command-policy-kept-${
-              productIdentityForKey(this.paths.productIdentity).builtInDirectExecutorId
-            }`
-          : undefined
-      )
-    };
   }
 
   async gitStatus(
@@ -431,24 +514,27 @@ export class ChatDirectService {
   }
 
   async gitCommit(context: OperationContext, payload: GitCommitPayload) {
-    assertChatDirectWriterLease(
-      this.repositories,
+    const authority = this.acquireMutationAuthority(
       context,
       payload.repoId,
       payload.sessionId
     );
-    const selection = this.select("git.commit", "write", payload.executorId);
-    const before = this.git.status(context, payload.repoId);
-    const value = this.git.commit(context, payload);
-    return {
-      ...value,
-      execution: selectionMetadata(
-        selection,
-        before.entries
-          .filter((entry) => entry.status !== "blocked")
-          .map((entry) => entry.path)
-      )
-    };
+    try {
+      const selection = this.select("git.commit", "write", payload.executorId);
+      const before = this.git.status(context, payload.repoId);
+      const value = this.git.commit(context, payload);
+      return {
+        ...value,
+        execution: selectionMetadata(
+          selection,
+          before.entries
+            .filter((entry) => entry.status !== "blocked")
+            .map((entry) => entry.path)
+        )
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
+    }
   }
 
   async recentCommits(

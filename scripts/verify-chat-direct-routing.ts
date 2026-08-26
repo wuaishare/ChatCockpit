@@ -332,15 +332,6 @@ async function verifyChatDirectRouting(): Promise<void> {
     task.revision,
     "2026-08-06T04:00:00.000Z"
   );
-  const lease = repositories.leases.acquire({
-    id: "lease_chat_direct",
-    workspaceId: workspace.id,
-    sessionId: session.id,
-    holderType: "chat-direct",
-    holderId: "chat-direct-writer",
-    expiresAt: "2026-08-06T05:00:00.000Z",
-    now: "2026-08-06T04:00:00.000Z"
-  });
   const competingTask = repositories.tasks.create({
     id: "task_chat_direct_competing",
     projectId: project.id,
@@ -382,6 +373,7 @@ async function verifyChatDirectRouting(): Promise<void> {
   const context = buildOperationContext({
     requestId: "verify-chat-direct",
     actorType: "remote-mcp",
+    authorizationGrantId: "grant_chat_direct_alpha",
     publicProjection: true,
     now: "2026-08-06T04:00:00.000Z"
   });
@@ -439,6 +431,171 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.ok(listed.entries.some((entry) => entry.name === "fixture.ts"));
     assert.equal(listed.execution.executor, "codex-app-server-standalone");
+
+    const alphaCoreWrite = await service.write(context, {
+      repoId: "primary",
+      path: "src/alpha-core.ts",
+      content: "export const alphaCore = true;\n"
+    });
+    assert.equal(alphaCoreWrite.execution.modelLoopOwner, "chatgpt");
+    assert.equal(
+      fs.readFileSync(path.join(repoRoot, "src", "alpha-core.ts"), "utf8"),
+      "export const alphaCore = true;\n"
+    );
+
+    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+    const releasedAuthority = database.sqlite
+      .prepare(`
+        SELECT holder_request_id, actor_type, actor_id, authorization_grant_id, status
+        FROM core_writer_authorities
+        WHERE workspace_id = ?
+        ORDER BY acquired_at DESC, rowid DESC
+        LIMIT 1
+      `)
+      .get(workspace.id) as {
+        holder_request_id: string;
+        actor_type: string;
+        actor_id: string | null;
+        authorization_grant_id: string | null;
+        status: string;
+      };
+    assert.equal(releasedAuthority.holder_request_id, context.requestId);
+    assert.equal(releasedAuthority.actor_type, "remote-mcp");
+    assert.equal(releasedAuthority.authorization_grant_id, "grant_chat_direct_alpha");
+    assert.equal(releasedAuthority.status, "released");
+
+    await assert.rejects(
+      () =>
+        service.edit(
+          buildOperationContext({
+            requestId: "verify-chat-direct-no-grant",
+            actorType: "remote-mcp",
+            publicProjection: true,
+            now: "2026-08-06T04:00:00.000Z"
+          }),
+          {
+            repoId: "primary",
+            path: "src/fixture.ts",
+            search: "before",
+            replace: "must-not-write-without-grant"
+          }
+        ),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "WRITER_LEASE_REQUIRED");
+        return true;
+      }
+    );
+
+    await assert.rejects(
+      () =>
+        service.edit(context, {
+          repoId: "primary",
+          path: "src/fixture.ts",
+          search: "missing-alpha-edit-sentinel",
+          replace: "never"
+        }),
+      () => true
+    );
+    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
+    const coreBlocker = repositories.coreWriterAuthorities.acquire({
+      workspaceId: workspace.id,
+      holderRequestId: "manual-core-blocker",
+      actorType: "remote-mcp",
+      actorId: "tester",
+      authorizationGrantId: "grant_manual_core",
+      expiresAt: "2026-08-06T04:10:00.000Z",
+      now: "2026-08-06T04:00:00.000Z"
+    });
+    await assert.rejects(
+      () =>
+        service.edit(context, {
+          repoId: "primary",
+          path: "src/fixture.ts",
+          search: "before",
+          replace: "blocked-by-core"
+        }),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "WRITER_LEASE_CONFLICT");
+        return true;
+      }
+    );
+    assert.throws(
+      () =>
+        repositories.leases.acquire({
+          id: "lease_blocked_by_core",
+          workspaceId: workspace.id,
+          sessionId: session.id,
+          holderType: "chat-direct",
+          holderId: "blocked-by-core",
+          expiresAt: "2026-08-06T04:20:00.000Z",
+          now: "2026-08-06T04:00:00.000Z"
+        }),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "WRITER_LEASE_CONFLICT");
+        return true;
+      }
+    );
+    repositories.coreWriterAuthorities.release(coreBlocker.id, {
+      holderRequestId: coreBlocker.holderRequestId,
+      expectedRevision: coreBlocker.revision,
+      now: "2026-08-06T04:00:01.000Z"
+    });
+
+    const expiringCoreAuthority = repositories.coreWriterAuthorities.acquire({
+      workspaceId: workspace.id,
+      holderRequestId: "expiring-core",
+      actorType: "remote-mcp",
+      actorId: null,
+      authorizationGrantId: "grant_expiring_core",
+      expiresAt: "2026-08-06T04:00:05.000Z",
+      now: "2026-08-06T04:00:02.000Z"
+    });
+    const afterExpiryCoreAuthority = repositories.coreWriterAuthorities.acquire({
+      workspaceId: workspace.id,
+      holderRequestId: "after-expiry-core",
+      actorType: "remote-mcp",
+      actorId: null,
+      authorizationGrantId: "grant_after_expiry_core",
+      expiresAt: "2026-08-06T04:02:00.000Z",
+      now: "2026-08-06T04:00:06.000Z"
+    });
+    assert.equal(
+      repositories.coreWriterAuthorities.get(expiringCoreAuthority.id).status,
+      "expired"
+    );
+    repositories.coreWriterAuthorities.release(afterExpiryCoreAuthority.id, {
+      holderRequestId: afterExpiryCoreAuthority.holderRequestId,
+      expectedRevision: afterExpiryCoreAuthority.revision,
+      now: "2026-08-06T04:00:07.000Z"
+    });
+
+    const lease = repositories.leases.acquire({
+      id: "lease_chat_direct",
+      workspaceId: workspace.id,
+      sessionId: session.id,
+      holderType: "chat-direct",
+      holderId: "chat-direct-writer",
+      expiresAt: "2026-08-06T05:00:00.000Z",
+      now: "2026-08-06T04:00:00.000Z"
+    });
+    await assert.rejects(
+      () =>
+        service.edit(context, {
+          repoId: "primary",
+          path: "src/fixture.ts",
+          search: "before",
+          replace: "blocked-by-continuity"
+        } as any),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "WRITER_LEASE_CONFLICT");
+        return true;
+      }
+    );
 
     const written = await service.write(context, {
       repoId: "primary",
@@ -601,7 +758,7 @@ async function verifyChatDirectRouting(): Promise<void> {
         }),
       (error) => {
         assert.ok(error instanceof ServiceError);
-        assert.equal(error.code, "WRITER_LEASE_REQUIRED");
+        assert.equal(error.code, "WRITER_LEASE_CONFLICT");
         return true;
       }
     );
@@ -612,25 +769,42 @@ async function verifyChatDirectRouting(): Promise<void> {
       expectedRevision: lease.revision,
       now: "2026-08-06T04:30:00.000Z"
     });
-    await assert.rejects(
-      () =>
-        service.edit(context, {
-          repoId: "primary",
-          sessionId: session.id,
-          path: "src/fixture.ts",
-          search: "after",
-          replace: "without-lease"
-        }),
-      (error) => {
-        assert.ok(error instanceof ServiceError);
-        assert.equal(error.code, "WRITER_LEASE_REQUIRED");
-        return true;
-      }
+    const alphaCoreEditAfterContinuityRelease = await service.edit(context, {
+      repoId: "primary",
+      path: "src/fixture.ts",
+      search: "after",
+      replace: "alpha-core-after-release"
+    });
+    assert.equal(
+      alphaCoreEditAfterContinuityRelease.execution.modelLoopOwner,
+      "chatgpt"
     );
     assert.match(
       fs.readFileSync(path.join(repoRoot, "src", "fixture.ts"), "utf8"),
-      /after/
+      /alpha-core-after-release/
     );
+
+    const alphaCoreShell = await service.shell(context, {
+      repoId: "primary",
+      command: "node",
+      args: [
+        "-e",
+        "require('node:fs').writeFileSync('src/alpha-shell.txt','alpha-shell')"
+      ]
+    });
+    assert.equal(alphaCoreShell.exitCode, 0);
+    assert.equal(
+      fs.readFileSync(path.join(repoRoot, "src", "alpha-shell.txt"), "utf8"),
+      "alpha-shell"
+    );
+    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
+    const alphaCoreCommit = await service.gitCommit(context, {
+      repoId: "primary",
+      message: "verify alpha core writer authority"
+    });
+    assert.equal(alphaCoreCommit.committed, true);
+    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
 
     assert.equal(adapter.turnStartCount, 0);
     assert.equal(

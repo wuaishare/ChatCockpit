@@ -487,6 +487,40 @@ async function main(): Promise<void> {
     };
     assert.equal(firstTaskResult.structuredContent?.task?.id, taskCreated.task.id);
 
+    const oauthCoreEdit = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 108,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.files.edit",
+        arguments: {
+          repoId: "primary",
+          path: "README.md",
+          search: "OAuth fixture",
+          replace: "OAuth Alpha fixture",
+          idempotencyKey: "oauth-core-edit-no-session-0001"
+        }
+      }
+    });
+    assert.equal(oauthCoreEdit.response.status, 200);
+    const oauthCoreEditResult = oauthCoreEdit.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        changedPaths?: string[];
+        execution?: { modelLoopOwner?: string };
+      };
+    };
+    assert.equal(oauthCoreEditResult.isError, undefined);
+    assert.deepEqual(oauthCoreEditResult.structuredContent?.changedPaths, ["README.md"]);
+    assert.equal(
+      oauthCoreEditResult.structuredContent?.execution?.modelLoopOwner,
+      "chatgpt"
+    );
+    assert.equal(
+      fs.readFileSync(path.join(root, "README.md"), "utf8"),
+      "# OAuth Alpha fixture\n"
+    );
+
     const unauthorizedRemoteTarget = `cc_device_${"Z".repeat(24)}`;
     const deniedRemoteCapability = await postMcp(server.baseUrl, tokens.access_token, {
       jsonrpc: "2.0",

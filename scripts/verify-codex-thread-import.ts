@@ -29,8 +29,8 @@ function assertServiceError(error: unknown, code: string): boolean {
 }
 
 const database = new ContinuityDatabase({ path: ":memory:" });
-assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 20);
-assert.equal(database.schemaVersion(), 20);
+assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 21);
+assert.equal(database.schemaVersion(), 21);
 
 const schemaSql = String(
   (
@@ -43,6 +43,17 @@ assert.match(schemaSql, /source_thread_id/);
 assert.match(schemaSql, /context_json/);
 assert.match(schemaSql, /expires_at/);
 assert.doesNotMatch(schemaSql, /cwd|private_path|provider_payload|raw_payload/);
+
+const coreWriterAuthoritySql = String(
+  (
+    database.sqlite
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'core_writer_authorities'")
+      .get() as { sql: string }
+  ).sql
+);
+assert.match(coreWriterAuthoritySql, /workspace_id/);
+assert.match(coreWriterAuthoritySql, /authorization_grant_id/);
+assert.doesNotMatch(coreWriterAuthoritySql, /session_id|task_id|private_path/);
 
 const repositories = buildContinuityRepositories(database);
 const project = repositories.projects.create({

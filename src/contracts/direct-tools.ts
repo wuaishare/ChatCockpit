@@ -29,14 +29,14 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
     fileWriteSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
-      sessionId: z.string().min(1).max(160),
+      sessionId: z.string().min(1).max(160).optional(),
       path: z.string().min(1),
       content: z.string().min(1)
     }),
     fileEditSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
-      sessionId: z.string().min(1).max(160),
+      sessionId: z.string().min(1).max(160).optional(),
       path: z.string().min(1),
       search: z.string().min(1),
       replace: z.string()
@@ -75,7 +75,7 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
     gitCommitSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
-      sessionId: z.string().min(1).max(160),
+      sessionId: z.string().min(1).max(160).optional(),
       message: z.string().min(1),
       body: z.string().optional()
     })

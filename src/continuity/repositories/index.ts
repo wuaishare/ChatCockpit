@@ -1,5 +1,6 @@
 import type { ContinuityDatabase } from "../database.js";
 import { CodexThreadImportRepository } from "./codex-thread-import-repository.js";
+import { CoreWriterAuthorityRepository } from "./core-writer-authority-repository.js";
 import { DevelopmentDocumentRepository } from "./development-document-repository.js";
 import { DirectCommandApprovalRepository } from "./direct-command-approval-repository.js";
 import { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";
@@ -28,6 +29,7 @@ import { WorkspaceRepository } from "./workspace-repository.js";
 
 export interface ContinuityRepositories {
   codexThreadImports: CodexThreadImportRepository;
+  coreWriterAuthorities: CoreWriterAuthorityRepository;
   projects: ProjectRepository;
   developmentDocuments: DevelopmentDocumentRepository;
   directCommandApprovals: DirectCommandApprovalRepository;
@@ -64,6 +66,7 @@ export function buildContinuityRepositories(
 ): ContinuityRepositories {
   return {
     codexThreadImports: new CodexThreadImportRepository(database),
+    coreWriterAuthorities: new CoreWriterAuthorityRepository(database),
     projects: new ProjectRepository(database),
     developmentDocuments: new DevelopmentDocumentRepository(database),
     directCommandApprovals: new DirectCommandApprovalRepository(database),
@@ -95,6 +98,7 @@ export function buildContinuityRepositories(
 }
 
 export { CodexThreadImportRepository } from "./codex-thread-import-repository.js";
+export { CoreWriterAuthorityRepository } from "./core-writer-authority-repository.js";
 export { DevelopmentDocumentRepository } from "./development-document-repository.js";
 export { DirectCommandApprovalRepository } from "./direct-command-approval-repository.js";
 export { DirectCommandAuditRepository } from "./direct-command-audit-repository.js";

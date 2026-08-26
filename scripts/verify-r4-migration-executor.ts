@@ -448,7 +448,7 @@ try {
     snapshotRoot: currentCompatibleFixture.snapshotRoot,
     stagingRoot: currentCompatibleFixture.stagingRoot
   });
-  assert.equal(currentCompatibleResult.legacyContinuitySourceContract, "v20-compatible");
+  assert.equal(currentCompatibleResult.legacyContinuitySourceContract, "v21-compatible");
   assert.equal(
     currentCompatibleResult.targetContinuitySchemaVersion,
     LATEST_CONTINUITY_SCHEMA_VERSION

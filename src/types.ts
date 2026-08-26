@@ -369,7 +369,7 @@ export interface TokenPilotTextPreview {
 
 export interface FileWritePayload extends DirectExecutorPreference {
   repoId: string;
-  sessionId: string;
+  sessionId?: string;
   path: string;
   content: string;
 }
@@ -385,7 +385,7 @@ export interface FileWriteResponse {
 
 export interface FileEditPayload extends DirectExecutorPreference {
   repoId: string;
-  sessionId: string;
+  sessionId?: string;
   path: string;
   search: string;
   replace: string;
@@ -490,7 +490,7 @@ export interface GitStatusResponse {
 
 export interface GitCommitPayload extends DirectExecutorPreference {
   repoId: string;
-  sessionId: string;
+  sessionId?: string;
   message: string;
   body?: string;
 }
