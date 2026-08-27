@@ -8,23 +8,32 @@ import { DownstreamMcpCapabilityStore } from "./downstream-mcp-snapshot.js";
 import {
   createBuiltInDirectExecutorSource,
   createCodexStandaloneExecutorSource,
-  createDownstreamMcpExecutorSource
+  createDownstreamMcpExecutorSource,
+  type CodexStandaloneCurrentBinary
 } from "./executor-sources.js";
 
 export function buildConfiguredDirectCapabilityBroker(options: {
   paths: TokenPilotPaths;
   codexStandaloneStore: CodexStandaloneCapabilityStore;
   downstreamConfigPath?: string;
+  currentCodexBinary?:
+    | CodexStandaloneCurrentBinary
+    | (() => CodexStandaloneCurrentBinary);
 }): DirectCapabilityBroker {
   const config = loadDownstreamMcpExecutorsConfig(options.downstreamConfigPath);
   const downstreamStore = new DownstreamMcpCapabilityStore(options.paths.runtimeDir);
   const identity = productIdentityForKey(options.paths.productIdentity);
-  let currentCodexBinary: { source: string | null; version: string | null } | null = null;
-  try {
-    const resolution = resolveCodexBinary();
-    currentCodexBinary = { source: resolution.source, version: resolution.version };
-  } catch {
-    currentCodexBinary = null;
+  let currentCodexBinary = options.currentCodexBinary;
+  if (currentCodexBinary === undefined) {
+    try {
+      const resolution = resolveCodexBinary();
+      currentCodexBinary = {
+        source: resolution.source,
+        version: resolution.version
+      };
+    } catch {
+      currentCodexBinary = null;
+    }
   }
 
   return new DirectCapabilityBroker([

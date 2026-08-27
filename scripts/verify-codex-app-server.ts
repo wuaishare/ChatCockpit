@@ -9,7 +9,11 @@ import { ContinuityDatabase } from "../src/continuity/database.ts";
 import {
   buildContinuityRepositories
 } from "../src/continuity/repositories/index.ts";
-import { CodexAppServerAdapter } from "../src/runtime/codex/app-server-adapter.ts";
+import {
+  buildCodexStandaloneSandboxPolicy,
+  CodexAppServerAdapter,
+  prepareCodexStandaloneCommandInvocation
+} from "../src/runtime/codex/app-server-adapter.ts";
 import { CodexAppServerClient } from "../src/runtime/codex/app-server-client.ts";
 import {
   resolveCodexBinary,
@@ -39,6 +43,85 @@ function mockResolution(command: string): CodexBinaryResolution {
       }
     ]
   };
+}
+
+function verifyStandaloneSandboxPolicy(): void {
+  assert.deepEqual(
+    buildCodexStandaloneSandboxPolicy({
+      cwd: "/workspace",
+      readOnly: true,
+      networkAccess: false
+    }),
+    { type: "readOnly", networkAccess: false }
+  );
+  assert.deepEqual(
+    buildCodexStandaloneSandboxPolicy({
+      cwd: "/workspace",
+      readOnly: false,
+      networkAccess: false
+    }),
+    {
+      type: "workspaceWrite",
+      writableRoots: ["/workspace"],
+      networkAccess: false,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false
+    }
+  );
+}
+
+function verifyStandaloneCommandCompatibility(): void {
+  const directTsx = prepareCodexStandaloneCommandInvocation(
+    ["tsx", "/workspace/scripts/check.ts", "--fixture"],
+    "/tmp/chatcockpit-tsx-compat.bash"
+  );
+  assert.deepEqual(directTsx.command, [
+    process.execPath,
+    "--import",
+    "tsx",
+    "/workspace/scripts/check.ts",
+    "--fixture"
+  ]);
+  assert.equal(directTsx.compatibilityMode, "tsx-node-import-hook");
+  assert.equal(directTsx.env, undefined);
+
+  for (const cliSpecific of [
+    ["tsx", "watch", "scripts/check.ts"],
+    ["tsx", "--tsconfig", "tsconfig.json", "scripts/check.ts"]
+  ]) {
+    assert.deepEqual(
+      prepareCodexStandaloneCommandInvocation(
+        cliSpecific,
+        "/tmp/chatcockpit-tsx-compat.bash"
+      ),
+      {
+        command: cliSpecific,
+        env: undefined,
+        compatibilityMode: null
+      }
+    );
+  }
+
+  const npmRun = prepareCodexStandaloneCommandInvocation(
+    ["npm", "run", "verify:chat-direct"],
+    "/tmp/chatcockpit-tsx-compat.bash"
+  );
+  assert.deepEqual(npmRun.command, ["npm", "run", "verify:chat-direct"]);
+  assert.deepEqual(npmRun.env, {
+    BASH_ENV: "/tmp/chatcockpit-tsx-compat.bash",
+    npm_config_script_shell: "/bin/bash"
+  });
+  assert.equal(npmRun.compatibilityMode, "tsx-node-import-hook");
+
+  const git = prepareCodexStandaloneCommandInvocation(
+    ["git", "status", "--short"],
+    "/tmp/chatcockpit-tsx-compat.bash"
+  );
+  assert.deepEqual(git, {
+    command: ["git", "status", "--short"],
+    env: undefined,
+    compatibilityMode: null
+  });
 }
 
 async function verifyCodexAppServerAdapter(): Promise<void> {
@@ -588,5 +671,7 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
   assert.equal(unavailable.binaryVersion, null);
 }
 
+verifyStandaloneSandboxPolicy();
+verifyStandaloneCommandCompatibility();
 await verifyCodexAppServerAdapter();
 process.stdout.write("VERIFY_CODEX_APP_SERVER_OK\n");

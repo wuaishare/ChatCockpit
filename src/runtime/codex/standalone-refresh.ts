@@ -5,10 +5,14 @@ import path from "node:path";
 import { ServiceError } from "../../application/service-error.js";
 import type { TokenPilotPaths } from "../../types.js";
 import { CodexAppServerClient } from "./app-server-client.js";
-import { resolveCodexBinary } from "./binary.js";
+import {
+  resolveCodexBinaryAsync,
+  type CodexBinaryResolution
+} from "./binary.js";
 import {
   assessCodexStandaloneSnapshot,
   CodexStandaloneCapabilityStore,
+  isCodexStandaloneSnapshotReusable,
   type CodexStandaloneSnapshotStatus
 } from "./standalone-capabilities.js";
 import { CodexStandaloneCapabilityProbe } from "./standalone-probe.js";
@@ -28,26 +32,32 @@ export async function refreshCodexStandaloneCapabilities(input: {
   paths: TokenPilotPaths;
   force?: boolean;
   requestTimeoutMs?: number;
+  resolveBinary?: () => Promise<CodexBinaryResolution>;
+  currentBinary?: () =>
+    | { source: string | null; version: string | null }
+    | null
+    | undefined;
 }): Promise<CodexStandaloneRefreshResult> {
   const store = new CodexStandaloneCapabilityStore(input.paths.runtimeDir);
   const previous = store.read();
   let binary;
 
   try {
-    binary = resolveCodexBinary();
+    binary = await (input.resolveBinary?.() ?? resolveCodexBinaryAsync());
   } catch (error) {
+    const currentBinary = input.currentBinary?.();
     return {
-      status: assessCodexStandaloneSnapshot(previous, {
-        source: null,
-        version: null
-      }),
+      status: assessCodexStandaloneSnapshot(
+        previous,
+        currentBinary ?? { source: null, version: null }
+      ),
       refreshed: false,
       errorCode: normalizedErrorCode(error)
     };
   }
 
   const previousStatus = assessCodexStandaloneSnapshot(previous, binary);
-  if (!input.force && previousStatus.state === "ready") {
+  if (!input.force && isCodexStandaloneSnapshotReusable(previous, binary)) {
     return { status: previousStatus, refreshed: false, errorCode: null };
   }
   const rootPath = fs.mkdtempSync(
@@ -89,7 +99,12 @@ export class CodexStandaloneCapabilityRefreshLoop {
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly intervalMs: number,
-    private readonly onResult?: (result: CodexStandaloneRefreshResult) => void
+    private readonly onResult?: (result: CodexStandaloneRefreshResult) => void,
+    private readonly resolveBinary?: () => Promise<CodexBinaryResolution>,
+    private readonly currentBinary?: () =>
+      | { source: string | null; version: string | null }
+      | null
+      | undefined
   ) {}
 
   start(): void {
@@ -108,7 +123,11 @@ export class CodexStandaloneCapabilityRefreshLoop {
   }
   private async tick(): Promise<void> {
     if (this.activeRefresh) return;
-    this.activeRefresh = refreshCodexStandaloneCapabilities({ paths: this.paths });
+    this.activeRefresh = refreshCodexStandaloneCapabilities({
+      paths: this.paths,
+      ...(this.resolveBinary ? { resolveBinary: this.resolveBinary } : {}),
+      ...(this.currentBinary ? { currentBinary: this.currentBinary } : {})
+    });
     try {
       const result = await this.activeRefresh;
       this.onResult?.(result);

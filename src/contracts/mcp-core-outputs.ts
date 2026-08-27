@@ -12,7 +12,8 @@ export const chatDirectExecutionSchema = z.object({
   operationId: identifierSchema,
   changedPaths: z.array(z.string().max(1024)),
   evidenceBundleId: nullableIdentifierSchema,
-  fallbackReason: z.string().max(240).optional()
+  fallbackReason: z.string().max(240).optional(),
+  compatibilityMode: z.string().max(120).optional()
 });
 
 const textPreviewSchema = z.object({

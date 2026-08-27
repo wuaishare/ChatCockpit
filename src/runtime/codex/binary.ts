@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 import { ServiceError } from "../../application/service-error.js";
 import { readIdentityEnv } from "../../core/identity-env.js";
@@ -31,6 +31,15 @@ export interface ResolveCodexBinaryOptions {
   platform?: NodeJS.Platform;
   homeDir?: string;
 }
+
+export interface ResolveCodexBinaryAsyncOptions extends ResolveCodexBinaryOptions {
+  preferredSource?: CodexBinarySource;
+}
+
+export type CodexBinaryIdentity = Pick<
+  CodexBinaryResolution,
+  "source" | "version"
+>;
 
 interface Candidate {
   command: string;
@@ -88,6 +97,24 @@ function candidateList(options: ResolveCodexBinaryOptions): Candidate[] {
   }
 
   return candidates;
+}
+
+function orderedCandidates(
+  options: ResolveCodexBinaryAsyncOptions
+): Candidate[] {
+  const candidates = candidateList(options);
+  if (!options.preferredSource || candidates[0]?.explicit) {
+    return candidates;
+  }
+  const preferredIndex = candidates.findIndex(
+    (candidate) => candidate.source === options.preferredSource
+  );
+  if (preferredIndex <= 0) return candidates;
+  return [
+    candidates[preferredIndex],
+    ...candidates.slice(0, preferredIndex),
+    ...candidates.slice(preferredIndex + 1)
+  ];
 }
 
 function probeCandidate(
@@ -166,6 +193,121 @@ function probeCandidate(
   };
 }
 
+async function probeCandidateAsync(
+  candidate: Candidate,
+  env: NodeJS.ProcessEnv
+): Promise<{
+  resolution?: CodexBinaryResolution;
+  attempt: CodexBinaryAttempt;
+}> {
+  if (candidate.command.includes(path.sep) && !fs.existsSync(candidate.command)) {
+    return {
+      attempt: {
+        source: candidate.source,
+        available: false,
+        reason: "binary path does not exist"
+      }
+    };
+  }
+
+  return await new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let timedOut = false;
+    const child = spawn(candidate.command, ["--version"], {
+      env,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const finish = (
+      resolution: CodexBinaryResolution | undefined,
+      reason: string
+    ) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve({
+        ...(resolution ? { resolution } : {}),
+        attempt: {
+          source: candidate.source,
+          available: Boolean(resolution),
+          reason
+        }
+      });
+    };
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, 5_000);
+    timeout.unref?.();
+
+    child.stdout.on("data", (chunk) => {
+      stdout = `${stdout}${chunk.toString()}`.slice(-8_192);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+    });
+    child.once("error", (error) => {
+      const code = (error as NodeJS.ErrnoException).code;
+      finish(
+        undefined,
+        code === "ENOENT" ? "command was not found" : error.message
+      );
+    });
+    child.once("close", (code) => {
+      if (timedOut) {
+        finish(undefined, "version probe timed out");
+        return;
+      }
+      if ((code ?? 1) !== 0) {
+        finish(
+          undefined,
+          (stderr || stdout || "version probe failed").trim().split("\n")[0]
+        );
+        return;
+      }
+      const version = (stdout || stderr).trim().split("\n")[0];
+      if (!version) {
+        finish(undefined, "version probe returned no version");
+        return;
+      }
+      finish(
+        {
+          command: candidate.command,
+          source: candidate.source,
+          version,
+          attempts: []
+        },
+        version
+      );
+    });
+  });
+}
+
+export async function resolveCodexBinaryAsync(
+  options: ResolveCodexBinaryAsyncOptions = {}
+): Promise<CodexBinaryResolution> {
+  const env = options.env ?? process.env;
+  const attempts: CodexBinaryAttempt[] = [];
+  for (const candidate of orderedCandidates(options)) {
+    const probe = await probeCandidateAsync(candidate, env);
+    attempts.push(probe.attempt);
+    if (probe.resolution) {
+      return { ...probe.resolution, attempts };
+    }
+    if (candidate.explicit) break;
+  }
+  throw new ServiceError(
+    "CODEX_BINARY_UNAVAILABLE",
+    "No working Codex CLI binary could be resolved",
+    {
+      hint:
+        "Install Codex CLI or set CHATCOCKPIT_CODEX_BIN to a working binary that supports --version.",
+      details: { attempts }
+    }
+  );
+}
+
 export function resolveCodexBinary(
   options: ResolveCodexBinaryOptions = {}
 ): CodexBinaryResolution {
@@ -196,4 +338,57 @@ export function resolveCodexBinary(
       }
     }
   );
+}
+
+export interface CodexBinaryResolutionAuthorityOptions {
+  resolve?: (preferredSource?: CodexBinarySource) => Promise<CodexBinaryResolution>;
+}
+
+export class CodexBinaryResolutionAuthority {
+  private current: CodexBinaryResolution | null = null;
+  private active: Promise<CodexBinaryResolution> | null = null;
+  private attempted = false;
+  private readonly resolver: (
+    preferredSource?: CodexBinarySource
+  ) => Promise<CodexBinaryResolution>;
+
+  constructor(options: CodexBinaryResolutionAuthorityOptions = {}) {
+    this.resolver =
+      options.resolve ??
+      ((preferredSource) =>
+        resolveCodexBinaryAsync(
+          preferredSource ? { preferredSource } : undefined
+        ));
+  }
+
+  currentIdentity(): CodexBinaryIdentity | null | undefined {
+    if (this.current) {
+      return {
+        source: this.current.source,
+        version: this.current.version
+      };
+    }
+    return this.attempted ? null : undefined;
+  }
+
+  resolve(): Promise<CodexBinaryResolution> {
+    return this.current ? Promise.resolve(this.current) : this.refresh();
+  }
+
+  refresh(): Promise<CodexBinaryResolution> {
+    if (this.active) return this.active;
+    const preferredSource = this.current?.source;
+    this.active = this.resolver(preferredSource)
+      .then((resolution) => {
+        if (!this.current) {
+          this.current = resolution;
+        }
+        return resolution;
+      })
+      .finally(() => {
+        this.attempted = true;
+        this.active = null;
+      });
+    return this.active;
+  }
 }

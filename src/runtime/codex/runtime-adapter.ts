@@ -167,6 +167,7 @@ export interface RuntimeStandaloneCommandResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+  compatibilityMode?: string;
 }
 
 export type RuntimeStandaloneProcessState =
@@ -185,6 +186,7 @@ export interface RuntimeStandaloneProcessChunk {
 export interface RuntimeStandaloneProcessStartResult {
   processId: string;
   state: "running";
+  compatibilityMode?: string;
 }
 
 export interface RuntimeStandaloneProcessSnapshot {

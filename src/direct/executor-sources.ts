@@ -120,17 +120,27 @@ export function createDownstreamMcpExecutorSource(
   };
 }
 
+export type CodexStandaloneCurrentBinary =
+  | { source: string | null; version: string | null }
+  | null
+  | undefined;
+
 export function createCodexStandaloneExecutorSource(
   store: CodexStandaloneCapabilityStore,
-  currentBinary?: { source: string | null; version: string | null } | null
+  currentBinary?:
+    | CodexStandaloneCurrentBinary
+    | (() => CodexStandaloneCurrentBinary)
 ): DirectExecutorSource {
   return {
     describe(): DirectExecutorDescriptor {
       const snapshot = store.read();
-      const fresh = currentBinary === undefined
-        ? Boolean(snapshot)
-        : currentBinary !== null &&
-          assessCodexStandaloneSnapshot(snapshot, currentBinary).state === "ready";
+      const currentBinarySupplied = currentBinary !== undefined;
+      const observedCurrentBinary =
+        typeof currentBinary === "function" ? currentBinary() : currentBinary;
+      const fresh = currentBinarySupplied
+        ? observedCurrentBinary != null &&
+          assessCodexStandaloneSnapshot(snapshot, observedCurrentBinary).state === "ready"
+        : Boolean(snapshot);
       const ready = Boolean(
         fresh && snapshot?.directExecutionReady && !snapshot.turnStartObserved
       );

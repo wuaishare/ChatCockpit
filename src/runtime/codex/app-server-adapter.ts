@@ -1,4 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { ServiceError } from "../../application/service-error.js";
 import { DEFAULT_PRODUCT_IDENTITY } from "../../core/product-identity.js";
@@ -366,10 +369,75 @@ const MANAGED_COMMAND_OUTPUT_BYTES_CAP = 512 * 1024;
 const MANAGED_COMMAND_MAX_CHUNKS = 4_096;
 const MANAGED_COMMAND_RECORD_RETENTION_MS = 30 * 60_000;
 
+export function buildCodexStandaloneSandboxPolicy(input: {
+  cwd: string;
+  readOnly: boolean;
+  networkAccess: boolean;
+}) {
+  if (input.readOnly) {
+    return { type: "readOnly" as const, networkAccess: input.networkAccess };
+  }
+  return {
+    type: "workspaceWrite" as const,
+    writableRoots: [input.cwd],
+    networkAccess: input.networkAccess,
+    excludeTmpdirEnvVar: false,
+    excludeSlashTmp: false
+  };
+}
+
+export type CodexStandaloneCompatibilityMode = "tsx-node-import-hook";
+
+export function prepareCodexStandaloneCommandInvocation(
+  command: string[],
+  tsxCompatibilityBashEnvPath?: string | null
+): {
+  command: string[];
+  env: Record<string, string> | undefined;
+  compatibilityMode: CodexStandaloneCompatibilityMode | null;
+} {
+  const executable = path.basename(command[0] ?? "");
+  const firstArgument = command[1] ?? "";
+  const directTsxScript =
+    executable === "tsx" &&
+    firstArgument.length > 0 &&
+    firstArgument !== "watch" &&
+    !firstArgument.startsWith("-");
+  if (directTsxScript) {
+    return {
+      command: [process.execPath, "--import", "tsx", ...command.slice(1)],
+      env: undefined,
+      compatibilityMode: "tsx-node-import-hook"
+    };
+  }
+
+  const subcommand = command[1] ?? "";
+  const packageScriptRunner =
+    (executable === "npm" && ["run", "test", "start"].includes(subcommand)) ||
+    (["pnpm", "yarn"].includes(executable) &&
+      ["run", "test", "build", "lint"].includes(subcommand));
+  if (packageScriptRunner && tsxCompatibilityBashEnvPath) {
+    return {
+      command: [...command],
+      env: {
+        BASH_ENV: tsxCompatibilityBashEnvPath,
+        npm_config_script_shell: "/bin/bash"
+      },
+      compatibilityMode: "tsx-node-import-hook"
+    };
+  }
+
+  return {
+    command: [...command],
+    env: undefined,
+    compatibilityMode: null
+  };
+}
+
 export interface CodexAppServerAdapterOptions {
   workspaces: WorkspaceRepository;
   productIdentity?: ProductIdentityKey;
-  resolveBinary?: () => CodexBinaryResolution;
+  resolveBinary?: () => CodexBinaryResolution | Promise<CodexBinaryResolution>;
   createClient?: (resolution: CodexBinaryResolution) => CodexAppServerClient;
   standaloneCapabilityStore?: CodexStandaloneCapabilityStore;
 }
@@ -377,7 +445,8 @@ export interface CodexAppServerAdapterOptions {
 export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   private readonly workspaces: WorkspaceRepository;
   private readonly productIdentity: ProductIdentityKey;
-  private readonly binaryResolver: () => CodexBinaryResolution;
+  private readonly binaryResolver: () =>
+    CodexBinaryResolution | Promise<CodexBinaryResolution>;
   private readonly clientFactory: (
     resolution: CodexBinaryResolution
   ) => CodexAppServerClient;
@@ -387,6 +456,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   private initialization: CodexAppServerInitialization | null = null;
   private connecting: Promise<CodexAppServerClient> | null = null;
   private eventSink: RuntimeEventSink | null = null;
+  private tsxCompatibilityRoot: string | null = null;
+  private tsxCompatibilityBashEnvPath: string | null = null;
   private readonly standaloneProcesses = new Map<
     string,
     ManagedStandaloneProcessRecord
@@ -404,6 +475,38 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           command: resolution.command,
           productIdentity: this.productIdentity
         }));
+  }
+
+  private ensureTsxCompatibilityBashEnvPath(): string | null {
+    if (process.platform === "win32" || !fs.existsSync("/bin/bash")) {
+      return null;
+    }
+    if (this.tsxCompatibilityBashEnvPath) {
+      return this.tsxCompatibilityBashEnvPath;
+    }
+
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `${this.productIdentity}-codex-tsx-compat-`)
+    );
+    fs.chmodSync(root, 0o700);
+    const bashEnvPath = path.join(root, "bash-env");
+    fs.writeFileSync(
+      bashEnvPath,
+      [
+        "tsx() {",
+        '  case "${1-}" in',
+        '    ""|-*|watch) command tsx "$@" ;;',
+        '    *) command node --import tsx "$@" ;;',
+        "  esac",
+        "}",
+        "export -f tsx",
+        ""
+      ].join("\n"),
+      { encoding: "utf8", mode: 0o600 }
+    );
+    this.tsxCompatibilityRoot = root;
+    this.tsxCompatibilityBashEnvPath = bashEnvPath;
+    return bashEnvPath;
   }
 
   async capabilities(): Promise<RuntimeCapabilitySnapshot> {
@@ -896,22 +999,23 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   }): Promise<RuntimeStandaloneCommandResult> {
     this.assertStandaloneCapability("command.exec", "command/exec");
     const client = await this.ensureClient();
+    const invocation = prepareCodexStandaloneCommandInvocation(
+      input.command,
+      this.ensureTsxCompatibilityBashEnvPath()
+    );
     const response = await client.request<Record<string, unknown>>(
       "command/exec",
       {
-        command: input.command,
+        command: invocation.command,
         cwd: input.cwd,
         timeoutMs: input.timeoutMs,
         outputBytesCap: input.outputBytesCap,
-        sandboxPolicy: input.readOnly
-          ? { type: "readOnly", networkAccess: false }
-          : {
-              type: "workspaceWrite",
-              writableRoots: [input.cwd],
-              networkAccess: false,
-              excludeTmpdirEnvVar: true,
-              excludeSlashTmp: true
-            }
+        ...(invocation.env ? { env: invocation.env } : {}),
+        sandboxPolicy: buildCodexStandaloneSandboxPolicy({
+          cwd: input.cwd,
+          readOnly: input.readOnly,
+          networkAccess: false
+        })
       }
     );
     if (
@@ -927,7 +1031,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     return {
       exitCode: response.exitCode,
       stdout: response.stdout,
-      stderr: response.stderr
+      stderr: response.stderr,
+      ...(invocation.compatibilityMode
+        ? { compatibilityMode: invocation.compatibilityMode }
+        : {})
     };
   }
 
@@ -940,6 +1047,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   }): Promise<RuntimeStandaloneProcessStartResult> {
     this.assertStandaloneCapability("command.exec", "command/exec");
     const client = await this.ensureClient();
+    const invocation = prepareCodexStandaloneCommandInvocation(
+      input.command,
+      this.ensureTsxCompatibilityBashEnvPath()
+    );
     const processId = `chatcockpit_${randomUUID()}`;
     const record: ManagedStandaloneProcessRecord = {
       processId,
@@ -957,22 +1068,19 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       .request<Record<string, unknown>>(
         "command/exec",
         {
-          command: input.command,
+          command: invocation.command,
           cwd: input.cwd,
           processId,
           disableTimeout: true,
           outputBytesCap: MANAGED_COMMAND_OUTPUT_BYTES_CAP,
           streamStdin: input.allowStdin,
           streamStdoutStderr: true,
-          sandboxPolicy: input.readOnly
-            ? { type: "readOnly", networkAccess: input.networkAccess }
-            : {
-                type: "workspaceWrite",
-                writableRoots: [input.cwd],
-                networkAccess: input.networkAccess,
-                excludeTmpdirEnvVar: true,
-                excludeSlashTmp: true
-              }
+          ...(invocation.env ? { env: invocation.env } : {}),
+          sandboxPolicy: buildCodexStandaloneSandboxPolicy({
+            cwd: input.cwd,
+            readOnly: input.readOnly,
+            networkAccess: input.networkAccess
+          })
         },
         { timeoutMs: null }
       )
@@ -1001,7 +1109,13 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         cleanup.unref?.();
       });
 
-    return { processId, state: "running" };
+    return {
+      processId,
+      state: "running",
+      ...(invocation.compatibilityMode
+        ? { compatibilityMode: invocation.compatibilityMode }
+        : {})
+    };
   }
 
   async readStandaloneProcess(
@@ -1091,6 +1205,11 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     if (client) {
       await client.close();
     }
+    if (this.tsxCompatibilityRoot) {
+      fs.rmSync(this.tsxCompatibilityRoot, { recursive: true, force: true });
+      this.tsxCompatibilityRoot = null;
+      this.tsxCompatibilityBashEnvPath = null;
+    }
   }
 
   private async ensureClient(): Promise<CodexAppServerClient> {
@@ -1110,7 +1229,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   }
 
   private async connect(): Promise<CodexAppServerClient> {
-    const resolution = this.resolution ?? this.binaryResolver();
+    const resolution = this.resolution ?? await this.binaryResolver();
     this.resolution = resolution;
     const client = this.clientFactory(resolution);
     this.configureClientEvents(client);

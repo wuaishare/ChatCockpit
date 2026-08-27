@@ -200,6 +200,20 @@ function verifyDirectCapabilityBroker(): void {
   });
   assert.equal(staleFallback.executorId, "builtin-direct");
 
+  const unresolvedAuthorityBroker = new DirectCapabilityBroker([
+    createCodexStandaloneExecutorSource(store, () => undefined),
+    createBuiltInDirectExecutorSource()
+  ]);
+  const unresolvedCatalog = unresolvedAuthorityBroker.catalog();
+  assert.equal(unresolvedCatalog[0]?.health, "unavailable");
+  assert.deepEqual(unresolvedCatalog[0]?.capabilities, []);
+  const unresolvedFallback = unresolvedAuthorityBroker.resolve({
+    capability: "files.read",
+    scope: "workspace",
+    access: "read"
+  });
+  assert.equal(unresolvedFallback.executorId, "builtin-direct");
+
   fs.rmSync(runtimeDir, { recursive: true, force: true });
 
   const unavailableStore = new CodexStandaloneCapabilityStore(

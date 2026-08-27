@@ -63,6 +63,7 @@ export interface ChatDirectExecutionMetadata {
   changedPaths: string[];
   evidenceBundleId: string | null;
   fallbackReason?: string;
+  compatibilityMode?: string;
 }
 
 type WithExecution<T> = T & { execution: ChatDirectExecutionMetadata };
@@ -71,7 +72,8 @@ function metadata(
   executor: ChatDirectExecutor,
   selectionMode: "automatic" | "explicit",
   changedPaths: string[] = [],
-  fallbackReason?: string
+  fallbackReason?: string,
+  compatibilityMode?: string
 ): ChatDirectExecutionMetadata {
   return {
     lane: "chat-direct",
@@ -82,20 +84,23 @@ function metadata(
     operationId: `chat_direct_${randomUUID()}`,
     changedPaths: [...changedPaths].sort(),
     evidenceBundleId: null,
-    ...(fallbackReason ? { fallbackReason } : {})
+    ...(fallbackReason ? { fallbackReason } : {}),
+    ...(compatibilityMode ? { compatibilityMode } : {})
   };
 }
 
 function selectionMetadata(
   selection: DirectExecutorSelection,
   changedPaths: string[] = [],
-  fallbackReason?: string
+  fallbackReason?: string,
+  compatibilityMode?: string
 ): ChatDirectExecutionMetadata {
   return metadata(
     selection.executorId,
     selection.selectionMode,
     changedPaths,
-    fallbackReason
+    fallbackReason,
+    compatibilityMode
   );
 }
 
@@ -108,11 +113,14 @@ interface ManagedChatDirectProcess {
   repoId: string;
   processId: string;
   sessionId: string | null;
+  actorType: OperationContext["actorType"];
+  actorId: string | null;
   authorizationGrantId: string | null;
   authority: CoreWriterAuthorityRecord | null;
   continuityLease: WriterLeaseRecord | null;
   selection: DirectExecutorSelection;
   access: DirectCapabilityAccess;
+  compatibilityMode: string | null;
 }
 
 function serviceError(code: string, error: unknown): ServiceError {
@@ -238,13 +246,21 @@ export class ChatDirectService {
           "Managed workspace process belongs to another development session"
         );
       }
+    } else if (record.authorizationGrantId) {
+      if (context.authorizationGrantId !== record.authorizationGrantId) {
+        throw new ServiceError(
+          "WORKSPACE_PROCESS_ACCESS_DENIED",
+          "Managed workspace process belongs to another authorization grant"
+        );
+      }
     } else if (
-      !context.authorizationGrantId ||
-      context.authorizationGrantId !== record.authorizationGrantId
+      context.authorizationGrantId ||
+      context.actorType !== record.actorType ||
+      context.actorId !== record.actorId
     ) {
       throw new ServiceError(
         "WORKSPACE_PROCESS_ACCESS_DENIED",
-        "Managed workspace process belongs to another authorization grant"
+        "Managed workspace process belongs to another caller principal"
       );
     }
     return record;
@@ -613,7 +629,12 @@ export class ChatDirectService {
             stderr: result.stderr,
             truncated: false,
             executedCommand: `${prepared.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
-            execution: selectionMetadata(selection)
+            execution: selectionMetadata(
+              selection,
+              [],
+              undefined,
+              result.compatibilityMode
+            )
           };
         } catch (error) {
           if (!this.canFallbackRead(selection, error)) {
@@ -697,11 +718,14 @@ export class ChatDirectService {
         repoId: payload.repoId,
         processId: started.processId,
         sessionId: payload.sessionId ?? null,
+        actorType: context.actorType,
+        actorId: context.actorId,
         authorizationGrantId: context.authorizationGrantId ?? null,
         authority,
         continuityLease,
         selection,
-        access
+        access,
+        compatibilityMode: started.compatibilityMode ?? null
       };
       this.managedProcesses.set(started.processId, record);
       this.superviseManagedProcess(record);
@@ -710,7 +734,12 @@ export class ChatDirectService {
         repoId: payload.repoId,
         processId: started.processId,
         state: started.state,
-        execution: selectionMetadata(selection)
+        execution: selectionMetadata(
+          selection,
+          [],
+          undefined,
+          started.compatibilityMode
+        )
       };
     } catch (error) {
       this.releaseMutationAuthority(context, authority);
@@ -737,7 +766,12 @@ export class ChatDirectService {
       ok: true as const,
       repoId: payload.repoId,
       ...snapshot,
-      execution: selectionMetadata(record.selection)
+      execution: selectionMetadata(
+        record.selection,
+        [],
+        undefined,
+        record.compatibilityMode ?? undefined
+      )
     };
   }
 
@@ -769,7 +803,12 @@ export class ChatDirectService {
       repoId: payload.repoId,
       processId: payload.processId,
       accepted: true as const,
-      execution: selectionMetadata(record.selection)
+      execution: selectionMetadata(
+        record.selection,
+        [],
+        undefined,
+        record.compatibilityMode ?? undefined
+      )
     };
   }
 
@@ -789,7 +828,12 @@ export class ChatDirectService {
       repoId: payload.repoId,
       processId: payload.processId,
       terminationRequested: true as const,
-      execution: selectionMetadata(record.selection)
+      execution: selectionMetadata(
+        record.selection,
+        [],
+        undefined,
+        record.compatibilityMode ?? undefined
+      )
     };
   }
 

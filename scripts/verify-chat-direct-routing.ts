@@ -488,6 +488,12 @@ async function verifyChatDirectRouting(): Promise<void> {
     publicProjection: true,
     now: "2026-08-06T04:00:00.000Z"
   });
+  const apiTokenContext = buildOperationContext({
+    requestId: "verify-chat-direct-api-token",
+    actorType: "remote-mcp",
+    publicProjection: true,
+    now: "2026-08-06T04:00:00.000Z"
+  });
 
   try {
     const read = await service.read(context, {
@@ -970,6 +976,23 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(completedManaged.state, "completed");
     assert.equal(completedManaged.chunks[0]?.content, "managed-finished");
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
+    const apiTokenManaged = await service.workspaceExec(apiTokenContext, {
+      repoId: "primary",
+      command: "git",
+      args: ["status", "--short"]
+    });
+    adapter.completeManagedProcess(apiTokenManaged.processId, "api-token-finished");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const completedApiTokenManaged = await service.workspaceProcessRead(
+      apiTokenContext,
+      {
+        repoId: "primary",
+        processId: apiTokenManaged.processId
+      }
+    );
+    assert.equal(completedApiTokenManaged.state, "completed");
+    assert.equal(completedApiTokenManaged.chunks[0]?.content, "api-token-finished");
 
     const afterManagedWrite = await service.write(context, {
       repoId: "primary",

@@ -81,6 +81,24 @@ export function assessCodexStandaloneSnapshot(
   return { state: "ready", reason: null, probedAt: snapshot.probedAt };
 }
 
+export function isCodexStandaloneSnapshotReusable(
+  snapshot: CodexStandaloneCapabilitySnapshot | null,
+  currentBinary: { source: string | null; version: string | null }
+): boolean {
+  if (
+    assessCodexStandaloneSnapshot(snapshot, currentBinary).state !== "ready" ||
+    !snapshot ||
+    !snapshot.directExecutionReady ||
+    snapshot.turnStartObserved
+  ) {
+    return false;
+  }
+
+  return !Object.values(snapshot.operations).some(
+    (capability) => capability.status === "failed"
+  );
+}
+
 function snapshotPath(runtimeDir: string): string {
   return path.join(
     runtimeDir,

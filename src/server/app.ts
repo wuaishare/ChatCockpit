@@ -157,8 +157,10 @@ import {
   hostMutationPrepareSchema
 } from "../contracts/host-direct.js";
 import { CodexAppServerAdapter } from "../runtime/codex/app-server-adapter.js";
+import { CodexBinaryResolutionAuthority } from "../runtime/codex/binary.js";
 import type { CodingRuntimeAdapter } from "../runtime/codex/runtime-adapter.js";
 import {
+  assessCodexStandaloneSnapshot,
   CodexStandaloneCapabilityStore,
   type CodexStandaloneSnapshotStatus
 } from "../runtime/codex/standalone-capabilities.js";
@@ -613,31 +615,33 @@ export function buildServer(
   const standaloneCapabilityStore = new CodexStandaloneCapabilityStore(
     paths.runtimeDir
   );
+  const codexBinaryAuthority = new CodexBinaryResolutionAuthority();
   let codexStandaloneStatus: CodexStandaloneSnapshotStatus =
-    options.codexStandaloneInitialStatus ?? (() => {
-      const snapshot = standaloneCapabilityStore.read();
-      return snapshot
-        ? { state: "ready", reason: null, probedAt: snapshot.probedAt }
-        : {
-            state: "missing",
-            reason: "CAPABILITY_SNAPSHOT_MISSING",
-            probedAt: null
-          };
-    })();
+    options.codexStandaloneInitialStatus ??
+    assessCodexStandaloneSnapshot(standaloneCapabilityStore.read(), {
+      source: null,
+      version: null
+    });
   const standaloneRefreshIntervalMs = options.codexStandaloneRefreshIntervalMs ?? 0;
   const standaloneRefreshLoop = standaloneRefreshIntervalMs > 0
     ? new CodexStandaloneCapabilityRefreshLoop(
         paths,
         standaloneRefreshIntervalMs,
         (result) => {
-          codexStandaloneStatus = result.status;
+          const currentBinary = codexBinaryAuthority.currentIdentity();
+          codexStandaloneStatus = assessCodexStandaloneSnapshot(
+            standaloneCapabilityStore.read(),
+            currentBinary ?? { source: null, version: null }
+          );
           if (result.errorCode) {
             app.log.warn(
-              { errorCode: result.errorCode, state: result.status.state },
+              { errorCode: result.errorCode, state: codexStandaloneStatus.state },
               "Codex standalone capability refresh did not complete"
             );
           }
-        }
+        },
+        () => codexBinaryAuthority.refresh(),
+        () => codexBinaryAuthority.currentIdentity()
       )
     : null;
   standaloneRefreshLoop?.start();
@@ -646,12 +650,14 @@ export function buildServer(
     new CodexAppServerAdapter({
       workspaces: continuityServices.repositories.workspaces,
       productIdentity: paths.productIdentity,
-      standaloneCapabilityStore
+      standaloneCapabilityStore,
+      resolveBinary: () => codexBinaryAuthority.resolve()
     });
   const runtimeRouter = new RuntimeRouter(codexAdapter);
   const directCapabilityBroker = buildConfiguredDirectCapabilityBroker({
     paths,
     codexStandaloneStore: standaloneCapabilityStore,
+    currentCodexBinary: () => codexBinaryAuthority.currentIdentity(),
     ...(options.directExecutorsConfigPath
       ? { downstreamConfigPath: options.directExecutorsConfigPath }
       : {})
