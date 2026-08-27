@@ -494,8 +494,23 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       developerInstructionsConfigured: true
     });
     assert.deepEqual(nativeContext.skills, resourceSkills);
+    const mcpApplicability = await adapter.readMcpApplicability({
+      workspaceId: rootWorkspace.id
+    });
+    assert.deepEqual(mcpApplicability, {
+      workspaceId: rootWorkspace.id,
+      configuredServerCount: 3,
+      applicableServerCount: 2,
+      disabledServerCount: 1,
+      servers: [
+        { name: "legacy-disabled", enabled: false },
+        { name: "project-ci", enabled: true },
+        { name: "project-files", enabled: true }
+      ]
+    });
     const resourceProjectionJson = JSON.stringify({
       resourceSkills,
+      mcpApplicability,
       resourceMcp,
       resourcePlugins,
       resourceConfig,
@@ -507,6 +522,9 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     assert.equal(resourceProjectionJson.includes("fixture-private-user-instructions"), false);
     assert.equal(resourceProjectionJson.includes("fixture-private-developer-instructions"), false);
     assert.equal(resourceProjectionJson.includes("fixture-private-layer-instructions"), false);
+    assert.equal(resourceProjectionJson.includes("fixture-private-files-command"), false);
+    assert.equal(resourceProjectionJson.includes("fixture-private-ci-command"), false);
+    assert.equal(resourceProjectionJson.includes("fixture-private-disabled-command"), false);
     assert.equal(resourceProjectionJson.includes("private-config.toml"), false);
     assert.equal(resourceProjectionJson.includes("inputSchema"), false);
     assert.equal(resourceProjectionJson.includes("marketplace.json"), false);
@@ -650,6 +668,27 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
         false
       );
     }
+    const configReadRequests = traces.filter(
+      (entry) => entry.method === "config/read"
+    );
+    const workspaceConfigReadRequests = configReadRequests.filter(
+      (entry) => (entry.params as { cwd?: string }).cwd === workspaceRoot
+    );
+    assert.equal(workspaceConfigReadRequests.length >= 2, true);
+    assert.equal(
+      workspaceConfigReadRequests.some(
+        (request) =>
+          (request.params as { includeLayers?: boolean }).includeLayers === true
+      ),
+      true
+    );
+    assert.equal(
+      workspaceConfigReadRequests.some(
+        (request) =>
+          (request.params as { includeLayers?: boolean }).includeLayers === false
+      ),
+      true
+    );
     const pluginInstalledRequests = traces.filter(
       (entry) => entry.method === "plugin/installed"
     );

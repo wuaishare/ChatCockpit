@@ -1,5 +1,8 @@
 import type { TokenPilotPaths } from "../types.js";
-import type { RuntimeThreadProjection } from "../runtime/codex/runtime-adapter.js";
+import type {
+  RuntimeMcpApplicabilityProjection,
+  RuntimeThreadProjection
+} from "../runtime/codex/runtime-adapter.js";
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
 import type { ProjectService } from "./project-service.js";
@@ -37,6 +40,26 @@ export type CodexContinuityObservationReason =
   | "CAPABILITIES_FAILED"
   | "THREADS_TIMEOUT"
   | "THREADS_FAILED";
+
+export type ProjectMcpApplicabilityReason =
+  | "NO_REGISTERED_WORKSPACE"
+  | "WORKSPACE_NOT_READY"
+  | "WORKSPACE_DETACHED"
+  | "MCP_CONFIG_TIMEOUT"
+  | "MCP_CONFIG_FAILED";
+
+export interface ProjectMcpApplicabilityAssessment {
+  observation: {
+    status: "ready" | "degraded" | "not-required";
+    reason: ProjectMcpApplicabilityReason | null;
+  };
+  source: "codex-config" | null;
+  configuredServerCount: number | null;
+  applicableServerCount: number | null;
+  disabledServerCount: number | null;
+  servers: RuntimeMcpApplicabilityProjection["servers"];
+  warnings: string[];
+}
 
 export interface ProjectDevelopmentRoutingOptions {
   providerObservationBudgetMs?: number;
@@ -124,6 +147,7 @@ export interface ProjectDevelopmentCoordinationAssessment {
     matchingThread: MatchingThread | null;
     warnings: string[];
   };
+  mcpApplicability: ProjectMcpApplicabilityAssessment;
   handoff: {
     requiredForModelLoopOwnerChange: true;
     sameOwnerResumeRequiresHandoff: false;
@@ -158,6 +182,22 @@ function newestThread(threads: RuntimeThreadProjection[]): RuntimeThreadProjecti
     const rightTime = right.recencyAt ?? right.updatedAt ?? right.createdAt ?? 0;
     return rightTime - leftTime;
   })[0] ?? null;
+}
+
+function emptyMcpApplicability(
+  status: "degraded" | "not-required",
+  reason: ProjectMcpApplicabilityReason,
+  warning: string
+): ProjectMcpApplicabilityAssessment {
+  return {
+    observation: { status, reason },
+    source: null,
+    configuredServerCount: null,
+    applicableServerCount: null,
+    disabledServerCount: null,
+    servers: [],
+    warnings: [warning]
+  };
 }
 
 export class ProjectDevelopmentRoutingService {
@@ -343,13 +383,17 @@ export class ProjectDevelopmentRoutingService {
 
     const threads = threadObservation.value;
     const userFacingThreads = threads.data.filter(
-      (thread) => thread.threadSource === "user" && thread.parentThreadId === null
+      (thread) =>
+        thread.parentThreadId === null &&
+        (thread.threadSource === "user" ||
+          thread.sourceKind === "cli" ||
+          thread.sourceKind === "vscode")
     );
     const matching = newestThread(userFacingThreads);
     const ignoredNonUserThreadCount = threads.data.length - userFacingThreads.length;
     if (ignoredNonUserThreadCount > 0) {
       warnings.push(
-        `Ignored ${ignoredNonUserThreadCount} non-user Codex thread(s) for automatic project continuation`
+        `Ignored ${ignoredNonUserThreadCount} non-user-facing Codex thread(s) for automatic project continuation`
       );
     }
 
@@ -399,6 +443,40 @@ export class ProjectDevelopmentRoutingService {
     });
   }
 
+  private async observeMcpApplicability(
+    context: OperationContext,
+    workspaceId: string,
+    deadline: number
+  ): Promise<ProjectMcpApplicabilityAssessment> {
+    const observation = await observeWithinBudget(
+      () => this.runtime.readCodexMcpApplicability(context, workspaceId),
+      Math.max(0, deadline - Date.now())
+    );
+    if (observation.kind === "timeout") {
+      return emptyMcpApplicability(
+        "degraded",
+        "MCP_CONFIG_TIMEOUT",
+        "Codex effective MCP configuration observation timed out"
+      );
+    }
+    if (observation.kind === "error") {
+      return emptyMcpApplicability(
+        "degraded",
+        "MCP_CONFIG_FAILED",
+        "Codex effective MCP configuration observation failed"
+      );
+    }
+    return {
+      observation: { status: "ready", reason: null },
+      source: "codex-config",
+      configuredServerCount: observation.value.configuredServerCount,
+      applicableServerCount: observation.value.applicableServerCount,
+      disabledServerCount: observation.value.disabledServerCount,
+      servers: observation.value.servers.map((server) => ({ ...server })),
+      warnings: []
+    };
+  }
+
   async coordinate(
     context: OperationContext,
     projectId: string
@@ -445,6 +523,11 @@ export class ProjectDevelopmentRoutingService {
           matchingThread: null,
           warnings: ["Project has no registered Workspace"]
         },
+        mcpApplicability: emptyMcpApplicability(
+          "not-required",
+          "NO_REGISTERED_WORKSPACE",
+          "Project has no registered Workspace"
+        ),
         handoff: {
           requiredForModelLoopOwnerChange: true,
           sameOwnerResumeRequiresHandoff: false,
@@ -479,6 +562,7 @@ export class ProjectDevelopmentRoutingService {
     }
 
     let codexContinuity: ProjectDevelopmentCoordinationAssessment["codexContinuity"];
+    let mcpApplicability: ProjectMcpApplicabilityAssessment;
     if (workspace.status !== "ready" || detached) {
       const reason = detached ? "WORKSPACE_DETACHED" : "WORKSPACE_NOT_READY";
       codexContinuity = {
@@ -496,8 +580,19 @@ export class ProjectDevelopmentRoutingService {
         matchingThread: null,
         warnings: []
       };
+      mcpApplicability = emptyMcpApplicability(
+        "not-required",
+        reason,
+        detached
+          ? "Workspace is detached; project MCP applicability was not observed"
+          : "Workspace is not ready; project MCP applicability was not observed"
+      );
     } else {
-      codexContinuity = await this.observeCodexContinuity(context, workspace.id);
+      const deadline = Date.now() + this.providerObservationBudgetMs;
+      [codexContinuity, mcpApplicability] = await Promise.all([
+        this.observeCodexContinuity(context, workspace.id),
+        this.observeMcpApplicability(context, workspace.id, deadline)
+      ]);
     }
 
     return {
@@ -524,6 +619,7 @@ export class ProjectDevelopmentRoutingService {
         ...codexContinuity,
         warnings: [...warnings, ...codexContinuity.warnings]
       },
+      mcpApplicability,
       handoff: {
         requiredForModelLoopOwnerChange: true,
         sameOwnerResumeRequiresHandoff: false,

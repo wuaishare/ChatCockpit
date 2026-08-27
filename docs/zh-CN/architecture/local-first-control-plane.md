@@ -91,6 +91,8 @@ Direct Drive 已确认采用 **ChatCockpit Capability Broker + Pluggable Downstr
 
 文件写入、文件编辑、Git Commit，以及所有被策略判定为可能写入的 Shell Command，都必须携带 Active `chat-direct` Session，并由该 Session 持有 Workspace Writer Lease；只读 Observer 保持免租约。
 
+**Project-scoped MCP Applicability — 已实现：** `developmentCoordination.mcpApplicability` 不会把全局 Runtime Resource Inventory 当成“某个 Project 可用 MCP”的证据，也不依赖 Thread 生命周期。对于 Ready Workspace，ChatCockpit 使用其私有 cwd 调用稳定的 `config/read`，只投影 Codex 已经完成配置层合并后的 Effective `mcp_servers` 名称与 enabled/disabled 状态，从而得到 configured、applicable/enabled、disabled 数量；不自行解析 TOML、不复制 transport/command/credential 等私密配置，也不创建或 Resume Probe Thread。`mcpServerStatus/list` 继续只负责 Resource Center 或已加载 Native Runtime 的 Tool/Auth/Health 运行态事实，不与 Project Applicability 混为一谈。Workspace 未 Ready，或 Effective Config 在预算内无法读取时，各 Count 保持 `null` 并明确标记 not-required/degraded，而不是从全局 Inventory 猜测。
+
 ### Codex Session — 已实现，协议适配层为实验性
 
 ChatCockpit `codex-session` 可以 Bind、Resume、Fork Codex App Server Thread。启动模型循环是单独的显式操作，并要求：

@@ -110,8 +110,8 @@ Codex Native operations must:
 - make `turn/start` and provider selection explicit;
 - preserve the Codex Thread ID as the authoritative same-provider interactive session identity;
 - verify the selected ChatCockpit Workspace before start/resume/fork;
-- create automatic project-development Threads as top-level `threadSource=user` Threads and apply a bounded native display name on a best-effort basis so they remain discoverable through Codex user-session surfaces;
-- automatically Resume only top-level `threadSource=user` Threads for the selected Workspace; compatibility App Server Threads without user authority and subagent Threads remain explicitly addressable but are not selected as the project-development authority;
+- create automatic project-development Threads as top-level native Threads, send `threadSource=user` only as a client analytics hint, and apply a bounded native display name on a best-effort basis;
+- automatically Resume only top-level user-facing Threads for the selected Workspace, primarily identified by provider-native `SessionSource` (`cli` or `vscode`) or an explicit `threadSource=user` hint; exec/app-server/unknown Threads without explicit user-facing evidence and subagent Threads remain addressable but are not selected as the project-development authority;
 - never retry native Thread creation merely because `thread/name/set` is unavailable or fails after `thread/start` has succeeded;
 - respect provider-native writer ownership and surface a busy/owned-elsewhere condition rather than stealing ownership;
 - inherit the user's provider-native model, sandbox, approval, instructions, and runtime configuration unless an explicit reviewed override exists;
@@ -219,8 +219,8 @@ Implementation status:
 
 1. **Implemented:** a Chat Direct edit and standalone command complete without invoking a Codex Turn or Thread method.
 2. **Implemented:** provider-native Codex Thread Start/Resume/Fork and native Turn Start are explicit tools and do not require a ChatCockpit Task, development Session, Handoff, Spec, Plan, or Writer Lease.
-3. **Implemented:** a ready registered Git Workspace with healthy Codex App Server routes project development to `codex-native`; only a matching top-level `threadSource=user` Thread is eligible for automatic Resume. Legacy/non-user or subagent Threads do not capture project continuation.
-4. **Implemented:** native Thread Start declares `threadSource=user` and best-effort applies a bounded native name. A naming failure never converts an already-created Thread into a failed Start or triggers duplicate creation.
+3. **Implemented:** a ready registered Git Workspace with healthy Codex App Server can identify a matching top-level user-facing native Thread for continuity. Provider-native `SessionSource=cli|vscode` is authoritative user-facing evidence; an explicit `threadSource=user` analytics hint is also accepted, while exec/app-server/unknown Threads without that evidence and subagent Threads do not capture project continuation.
+4. **Implemented:** native Thread Start sends `threadSource=user` as an analytics hint and best-effort applies a bounded native name. Continuation does not assume that optional hint is persisted. A naming failure never converts an already-created Thread into a failed Start or triggers duplicate creation.
 5. **Implemented:** detached/not-ready Workspace state blocks native execution with a concrete repair reason instead of silently falling back to mutation.
 6. **Implemented:** Chat Direct fallback carries a concrete Native-unavailable reason, and Direct Standalone execution rejects stale binary capability evidence.
 7. **Implemented:** MCP diagnostics publish catalog count/fingerprint/version so connector catalog staleness can be diagnosed; reconnect remains required for the current stateless transport.

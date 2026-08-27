@@ -515,6 +515,11 @@ input.on("line", (line) => {
           sandbox_mode: "workspace-write",
           instructions: "fixture-private-user-instructions",
           developer_instructions: "fixture-private-developer-instructions",
+          mcp_servers: {
+            "project-files": { enabled: true, command: "fixture-private-files-command" },
+            "project-ci": { command: "fixture-private-ci-command" },
+            "legacy-disabled": { enabled: false, command: "fixture-private-disabled-command" }
+          },
           secret_token: "fixture-secret-token",
           desktop: {
             perPath: {

@@ -252,6 +252,23 @@ export interface RuntimeSkillProjection {
   brandColor: string | null;
 }
 
+export interface RuntimeMcpApplicabilityReadInput {
+  workspaceId: string;
+}
+
+export interface RuntimeMcpApplicabilityServerProjection {
+  name: string;
+  enabled: boolean;
+}
+
+export interface RuntimeMcpApplicabilityProjection {
+  workspaceId: string;
+  configuredServerCount: number;
+  applicableServerCount: number;
+  disabledServerCount: number;
+  servers: RuntimeMcpApplicabilityServerProjection[];
+}
+
 export interface RuntimeMcpServerProjection {
   name: string;
   title: string | null;
@@ -333,6 +350,9 @@ export interface CodingRuntimeAdapter {
     input: RuntimeNativeContextReadInput
   ): Promise<RuntimeNativeContextProjection>;
   listSkills?(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]>;
+  readMcpApplicability?(
+    input: RuntimeMcpApplicabilityReadInput
+  ): Promise<RuntimeMcpApplicabilityProjection>;
   listMcpServers?(): Promise<RuntimeMcpServerProjection[]>;
   listPlugins?(input?: RuntimePluginListInput): Promise<RuntimePluginProjection[]>;
   readResourceConfigSummary?(): Promise<RuntimeResourceConfigSummary>;

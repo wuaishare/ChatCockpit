@@ -237,6 +237,11 @@ const matchingThreadSchema = z.object({
   })
 });
 
+const projectMcpApplicabilityServerSchema = z.object({
+  name: z.string(),
+  enabled: z.boolean()
+});
+
 const projectDevelopmentCoordinationSchema = z.object({
   projectId: identifierSchema,
   workspaceId: nullableIdentifierSchema,
@@ -278,6 +283,24 @@ const projectDevelopmentCoordinationSchema = z.object({
     sessionToolSequence: z.array(z.string()),
     nativeTurnTool: z.literal("chatcockpit.codex.thread.turn.start").nullable(),
     matchingThread: matchingThreadSchema.nullable(),
+    warnings: z.array(z.string())
+  }),
+  mcpApplicability: z.object({
+    observation: z.object({
+      status: z.enum(["ready", "degraded", "not-required"]),
+      reason: z.enum([
+        "NO_REGISTERED_WORKSPACE",
+        "WORKSPACE_NOT_READY",
+        "WORKSPACE_DETACHED",
+        "MCP_CONFIG_TIMEOUT",
+        "MCP_CONFIG_FAILED"
+      ]).nullable()
+    }),
+    source: z.literal("codex-config").nullable(),
+    configuredServerCount: z.number().int().nonnegative().nullable(),
+    applicableServerCount: z.number().int().nonnegative().nullable(),
+    disabledServerCount: z.number().int().nonnegative().nullable(),
+    servers: z.array(projectMcpApplicabilityServerSchema),
     warnings: z.array(z.string())
   }),
   handoff: z.object({

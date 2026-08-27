@@ -201,7 +201,7 @@ export function buildContinuityMcpTools(
       name: "chatcockpit.project.get",
       title: "Read ChatCockpit project",
       description:
-        "Read one ChatCockpit project, its public-safe workspaces, model-loop ownership rules, and Codex continuity metadata. For ChatGPT-driven project development, the caller keeps the model loop by default; a Codex native turn requires an explicit transfer/delegation decision.",
+        "Read one ChatCockpit project, its public-safe workspaces, model-loop ownership rules, Codex continuity metadata, and provider-native effective MCP applicability for the selected Workspace. For ChatGPT-driven project development, the caller keeps the model loop by default; a Codex native turn requires an explicit transfer/delegation decision.",
       inputSchema: projectGetSchema,
       outputSchema: projectGetToolOutputSchema,
       annotations: readOnlyToolAnnotations,

@@ -30,6 +30,8 @@ import type {
   RuntimeCapabilitySnapshot,
   RuntimeCodexAccountStatus,
   RuntimeEventSink,
+  RuntimeMcpApplicabilityProjection,
+  RuntimeMcpApplicabilityReadInput,
   RuntimeMcpServerProjection,
   RuntimeNativeContextProjection,
   RuntimeNativeContextReadInput,
@@ -683,6 +685,35 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       left.name.localeCompare(right.name) ||
       String(left.scope ?? "").localeCompare(String(right.scope ?? ""))
     );
+  }
+
+  async readMcpApplicability(
+    input: RuntimeMcpApplicabilityReadInput
+  ): Promise<RuntimeMcpApplicabilityProjection> {
+    const client = await this.ensureClient();
+    const workspace = this.workspaces.getPrivate(input.workspaceId);
+    const response = asRecord(
+      await client.request<unknown>("config/read", {
+        cwd: workspace.privatePath,
+        includeLayers: false
+      })
+    );
+    const config = asRecord(response.config);
+    const configuredServers = asRecord(config.mcp_servers);
+    const servers = Object.entries(configuredServers)
+      .map(([name, rawValue]) => ({
+        name,
+        enabled: asRecord(rawValue).enabled !== false
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    const applicableServerCount = servers.filter((server) => server.enabled).length;
+    return {
+      workspaceId: workspace.id,
+      configuredServerCount: servers.length,
+      applicableServerCount,
+      disabledServerCount: servers.length - applicableServerCount,
+      servers
+    };
   }
 
   async listMcpServers(): Promise<RuntimeMcpServerProjection[]> {

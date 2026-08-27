@@ -10,7 +10,10 @@ import type { RuntimeService } from "../src/application/runtime-service.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
-import type { RuntimeThreadProjection } from "../src/runtime/codex/runtime-adapter.ts";
+import type {
+  RuntimeMcpApplicabilityProjection,
+  RuntimeThreadProjection
+} from "../src/runtime/codex/runtime-adapter.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 const context = {
@@ -58,7 +61,19 @@ const projects = new ProjectService(paths, database, repositories);
 let runtimeAvailable = true;
 let capabilityProbeMode: "ok" | "error" | "hang" = "ok";
 let threadProbeMode: "ok" | "error" | "hang" = "ok";
+let mcpProbeMode: "ok" | "error" | "hang" = "ok";
 let threads: RuntimeThreadProjection[] = [];
+let mcpApplicability: RuntimeMcpApplicabilityProjection = {
+  workspaceId: "",
+  configuredServerCount: 3,
+  applicableServerCount: 2,
+  disabledServerCount: 1,
+  servers: [
+    { name: "project-files", enabled: true },
+    { name: "project-ci", enabled: true },
+    { name: "legacy-disabled", enabled: false }
+  ]
+};
 const runtime = {
   capabilities: async () => {
     if (capabilityProbeMode === "error") {
@@ -79,6 +94,15 @@ const runtime = {
     standaloneExecution: null,
     ...(runtimeAvailable ? {} : { unavailableReason: "TEST_UNAVAILABLE" })
     };
+  },
+  readCodexMcpApplicability: async (_context: typeof context, workspaceId: string) => {
+    if (mcpProbeMode === "error" || !runtimeAvailable) {
+      throw new Error("TEST_MCP_CONFIG_FAILED");
+    }
+    if (mcpProbeMode === "hang") {
+      return await new Promise<never>(() => undefined);
+    }
+    return { ...mcpApplicability, workspaceId };
   },
   listCodexThreads: async (_context: typeof context, input: { workspaceId?: string }) => {
     if (threadProbeMode === "error") {
@@ -125,6 +149,19 @@ try {
     freshCoordination.codexContinuity.nativeTurnTool,
     "chatcockpit.codex.thread.turn.start"
   );
+  assert.deepEqual(freshCoordination.mcpApplicability, {
+    observation: { status: "ready", reason: null },
+    source: "codex-config",
+    configuredServerCount: 3,
+    applicableServerCount: 2,
+    disabledServerCount: 1,
+    servers: [
+      { name: "project-files", enabled: true },
+      { name: "project-ci", enabled: true },
+      { name: "legacy-disabled", enabled: false }
+    ],
+    warnings: []
+  });
   assert.equal(freshCoordination.handoff.requiredForModelLoopOwnerChange, true);
 
   const fresh = await routing.assess(context, project.id);
@@ -156,9 +193,11 @@ try {
   assert.equal(hiddenOnly.codexContinuity.reason, "NO_USER_FACING_NATIVE_THREAD");
   assert.equal(hiddenOnly.codexContinuity.matchingThread, null);
   assert.equal(
-    hiddenOnly.codexContinuity.warnings.some((item) => item.includes("non-user Codex thread")),
+    hiddenOnly.codexContinuity.warnings.some((item) => item.includes("non-user-facing Codex thread")),
     true
   );
+  assert.equal(hiddenOnly.mcpApplicability.observation.status, "ready");
+  assert.equal(hiddenOnly.mcpApplicability.applicableServerCount, 2);
 
   threads.push({
     id: "thread-native-1",
@@ -168,7 +207,7 @@ try {
     updatedAt: 2,
     recencyAt: 3,
     sourceKind: "vscode",
-    threadSource: "user",
+    threadSource: null,
     status: { type: "idle" },
     projectId: project.id,
     workspaceId: workspace.id,
@@ -184,7 +223,9 @@ try {
     "chatcockpit.codex.thread.resume"
   ]);
   assert.equal(resumable.codexContinuity.matchingThread?.id, "thread-native-1");
-  assert.equal(resumable.codexContinuity.matchingThread?.threadSource, "user");
+  assert.equal(resumable.codexContinuity.matchingThread?.threadSource, null);
+  assert.equal(resumable.mcpApplicability.source, "codex-config");
+  assert.equal(resumable.mcpApplicability.applicableServerCount, 2);
   const resumableLegacy = routing.toLegacyAssessment(resumable);
   assert.equal(resumableLegacy.preferredLane, "chat-direct");
   assert.equal(resumableLegacy.nextAction, "continue-direct");
@@ -203,6 +244,9 @@ try {
   assert.equal(detachedCoordination.codexContinuity.nextAction, "repair-workspace");
   assert.equal(detachedCoordination.codexContinuity.reason, "WORKSPACE_DETACHED");
   assert.equal(detachedCoordination.workspaceExecution.branch, "HEAD");
+  assert.equal(detachedCoordination.mcpApplicability.observation.status, "not-required");
+  assert.equal(detachedCoordination.mcpApplicability.observation.reason, "WORKSPACE_DETACHED");
+  assert.equal(detachedCoordination.mcpApplicability.applicableServerCount, null);
   const detached = routing.toLegacyAssessment(detachedCoordination);
   assert.equal(detached.preferredLane, "chat-direct");
   assert.equal(detached.nextAction, "repair-workspace");
@@ -220,6 +264,9 @@ try {
   assert.equal(unavailable.codexContinuity.nextAction, "unavailable");
   assert.equal(unavailable.codexContinuity.reason, "CODEX_NATIVE_UNAVAILABLE");
   assert.equal(unavailable.codexContinuity.warnings.includes("TEST_UNAVAILABLE"), true);
+  assert.equal(unavailable.mcpApplicability.observation.status, "degraded");
+  assert.equal(unavailable.mcpApplicability.observation.reason, "MCP_CONFIG_FAILED");
+  assert.equal(unavailable.mcpApplicability.applicableServerCount, null);
   const fallback = routing.toLegacyAssessment(unavailable);
   assert.equal(fallback.preferredLane, "chat-direct");
   assert.equal(fallback.nextAction, "continue-direct");
@@ -268,6 +315,20 @@ try {
   assert.equal(threadFailure.codexContinuity.reason, "CODEX_THREADS_FAILED");
 
   threadProbeMode = "ok";
+  mcpProbeMode = "hang";
+  capabilityProbeMode = "ok";
+  const mcpTimeout = await boundedRouting.coordinate(context, project.id);
+  assert.equal(mcpTimeout.mcpApplicability.observation.status, "degraded");
+  assert.equal(mcpTimeout.mcpApplicability.observation.reason, "MCP_CONFIG_TIMEOUT");
+  assert.equal(mcpTimeout.mcpApplicability.applicableServerCount, null);
+
+  mcpProbeMode = "error";
+  const mcpFailure = await boundedRouting.coordinate(context, project.id);
+  assert.equal(mcpFailure.mcpApplicability.observation.status, "degraded");
+  assert.equal(mcpFailure.mcpApplicability.observation.reason, "MCP_CONFIG_FAILED");
+  assert.equal(mcpFailure.mcpApplicability.applicableServerCount, null);
+
+  mcpProbeMode = "ok";
   capabilityProbeMode = "hang";
   const cachedRouting = new ProjectDevelopmentRoutingService(paths, projects, runtime, {
     providerObservationBudgetMs: 25,

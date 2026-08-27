@@ -5,6 +5,7 @@ import type {
 } from "../contracts/codex-runtime.js";
 import type {
   RuntimeCapabilitySnapshot,
+  RuntimeMcpApplicabilityProjection,
   RuntimeNativeContextProjection,
   RuntimeThreadListResult,
   RuntimeThreadProjection
@@ -24,6 +25,13 @@ export class RuntimeService {
     input: CodexNativeContextReadInput
   ): Promise<RuntimeNativeContextProjection> {
     return this.runtime.readCodexNativeContext(input);
+  }
+
+  readCodexMcpApplicability(
+    _context: OperationContext,
+    workspaceId: string
+  ): Promise<RuntimeMcpApplicabilityProjection> {
+    return this.runtime.readCodexMcpApplicability({ workspaceId });
   }
 
   listCodexThreads(

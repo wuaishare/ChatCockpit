@@ -4,6 +4,8 @@ import type {
   RuntimeCapabilitySnapshot,
   RuntimeCodexAccountStatus,
   RuntimeEventSink,
+  RuntimeMcpApplicabilityProjection,
+  RuntimeMcpApplicabilityReadInput,
   RuntimeMcpServerProjection,
   RuntimeNativeContextProjection,
   RuntimeNativeContextReadInput,
@@ -106,6 +108,18 @@ export class RuntimeRouter {
       );
     }
     return this.codex.listSkills(input);
+  }
+
+  readCodexMcpApplicability(
+    input: RuntimeMcpApplicabilityReadInput
+  ): Promise<RuntimeMcpApplicabilityProjection> {
+    if (!this.codex.readMcpApplicability) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex project MCP applicability is unavailable"
+      );
+    }
+    return this.codex.readMcpApplicability(input);
   }
 
   listCodexMcpServers(): Promise<RuntimeMcpServerProjection[]> {

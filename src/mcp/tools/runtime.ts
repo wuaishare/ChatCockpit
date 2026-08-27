@@ -106,7 +106,7 @@ export function buildRuntimeMcpTools(
       name: "chatcockpit.codex.thread.start",
       title: "Start native Codex thread",
       description:
-        "Create a new user-facing provider-native Codex thread for one registered ChatCockpit workspace. ChatCockpit supplies only the private workspace cwd plus threadSource=user and a bounded display name; model, sandbox, approval policy, instructions, and other native settings inherit the user's Codex configuration. Naming is best-effort so an already-created native Thread is never duplicated if the provider cannot set its name.",
+        "Create a new user-facing provider-native Codex thread for one registered ChatCockpit workspace. ChatCockpit supplies only the private workspace cwd, threadSource=user as an analytics hint, and a bounded display name; model, sandbox, approval policy, instructions, and other native settings inherit the user's Codex configuration. User-facing continuation primarily follows provider-native SessionSource and top-level/subagent identity rather than assuming the optional analytics hint is persisted. Naming is best-effort so an already-created native Thread is never duplicated if the provider cannot set its name.",
       inputSchema: codexNativeThreadStartSchema,
       annotations: runtimeMutationAnnotations,
       handler: async (context, input) => ({
