@@ -122,6 +122,8 @@ RUNNER_INTERVAL="${RUNNER_INTERVAL:-3}"
 API_TOKEN="$(identity_env_value API_TOKEN)"
 EXPOSED="$(identity_env_value EXPOSED)"
 EXPOSED="${EXPOSED:-false}"
+ALLOW_HIGH_TRUST_COMMANDS="$(identity_env_value ALLOW_HIGH_TRUST_COMMANDS)"
+ALLOW_HIGH_TRUST_COMMANDS="${ALLOW_HIGH_TRUST_COMMANDS:-false}"
 HOST="$(identity_env_value HOST)"
 HOST="${HOST:-127.0.0.1}"
 PUBLIC_BASE_URL="$(identity_env_value PUBLIC_BASE_URL)"
@@ -190,6 +192,8 @@ write_server_plist() {
     <string>${API_TOKEN}</string>
     <key>${ENV_PREFIX}_EXPOSED</key>
     <string>${EXPOSED}</string>
+    <key>${ENV_PREFIX}_ALLOW_HIGH_TRUST_COMMANDS</key>
+    <string>${ALLOW_HIGH_TRUST_COMMANDS}</string>
     <key>${ENV_PREFIX}_HOST</key>
     <string>${HOST}</string>
     <key>${ENV_PREFIX}_PORT</key>
@@ -250,6 +254,8 @@ write_runner_plist() {
     <string>${API_TOKEN}</string>
     <key>${ENV_PREFIX}_EXPOSED</key>
     <string>${EXPOSED}</string>
+    <key>${ENV_PREFIX}_ALLOW_HIGH_TRUST_COMMANDS</key>
+    <string>${ALLOW_HIGH_TRUST_COMMANDS}</string>
     <key>${ENV_PREFIX}_HOST</key>
     <string>${HOST}</string>
     <key>${ENV_PREFIX}_PORT</key>
