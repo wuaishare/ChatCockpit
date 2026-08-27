@@ -12,7 +12,8 @@ import {
 } from "../core/files-write.js";
 import {
   prepareShellCommand,
-  prepareWorkspaceExecCommand
+  prepareWorkspaceExecCommand,
+  publicSafeShellOutput
 } from "../core/shell-api.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import type {
@@ -111,6 +112,7 @@ const MANAGED_PROCESS_RECORD_RETENTION_MS = 30 * 60_000;
 
 interface ManagedChatDirectProcess {
   repoId: string;
+  repoRoot: string;
   processId: string;
   sessionId: string | null;
   actorType: OperationContext["actorType"];
@@ -625,8 +627,9 @@ export class ChatDirectService {
             ok: result.exitCode === 0,
             exitCode: result.exitCode,
             stdout:
-              result.stdout || (result.exitCode === 0 ? "(no output)" : ""),
-            stderr: result.stderr,
+              publicSafeShellOutput(result.stdout, prepared.repoRoot) ||
+              (result.exitCode === 0 ? "(no output)" : ""),
+            stderr: publicSafeShellOutput(result.stderr, prepared.repoRoot),
             truncated: false,
             executedCommand: `${prepared.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
             execution: selectionMetadata(
@@ -716,6 +719,7 @@ export class ChatDirectService {
       });
       const record: ManagedChatDirectProcess = {
         repoId: payload.repoId,
+        repoRoot: prepared.repoRoot,
         processId: started.processId,
         sessionId: payload.sessionId ?? null,
         actorType: context.actorType,
@@ -762,10 +766,17 @@ export class ChatDirectService {
       payload.cursor ?? 0,
       payload.limit ?? 100
     );
+    const publicSnapshot = {
+      ...snapshot,
+      chunks: snapshot.chunks.map((chunk) => ({
+        ...chunk,
+        content: publicSafeShellOutput(chunk.content, record.repoRoot)
+      }))
+    };
     return {
       ok: true as const,
       repoId: payload.repoId,
-      ...snapshot,
+      ...publicSnapshot,
       execution: selectionMetadata(
         record.selection,
         [],

@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   evaluateNativeWorkspaceCommand,
@@ -17,6 +19,34 @@ import type {
 // ── Security constants ──
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const COMMAND_TIMEOUT_MS = 25_000; // GPT Action 超时 ~30s，留 5s 余量
+const LOCAL_ABSOLUTE_PATH = /(?:file:\/\/\/(?:Users|home|Applications|Volumes|private|var|tmp)\/[^\s,;:)"'`]+|\/(?:Users|home|Applications|Volumes|private|var|tmp)\/[^\s,;:)"'`]+|\b[A-Za-z]:\\[^\s,;:)"'`]+)/g;
+
+export function publicSafeShellOutput(value: string, repoRoot: string): string {
+  let output = value;
+  const workspaceRoots = new Set<string>([repoRoot]);
+  try {
+    workspaceRoots.add(fs.realpathSync(repoRoot));
+  } catch {
+    // Keep the configured root when the filesystem cannot resolve a canonical path.
+  }
+  for (const root of [...workspaceRoots]) {
+    if (root.startsWith("/private/")) {
+      workspaceRoots.add(root.slice("/private".length));
+    } else if (root.startsWith("/var/") || root.startsWith("/tmp/")) {
+      workspaceRoots.add(`/private${root}`);
+    }
+  }
+  for (const root of [...workspaceRoots].filter(Boolean).sort((a, b) => b.length - a.length)) {
+    output = output.replaceAll(pathToFileURL(root).href, "[workspace]");
+    output = output.replaceAll(root, "[workspace]");
+  }
+  const home = process.env.HOME;
+  if (home) {
+    output = output.replaceAll(pathToFileURL(home).href, "[local-home]");
+    output = output.replaceAll(home, "[local-home]");
+  }
+  return output.replace(LOCAL_ABSOLUTE_PATH, "[local-path-hidden]");
+}
 
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   const config = loadUserConfigForPaths(paths);
@@ -135,8 +165,10 @@ export function runShellCommand(
   }
 
   const elapsed = Date.now() - startTime;
-  const stdout = (result.stdout ?? "").slice(0, MAX_OUTPUT_BYTES);
-  const stderr = (result.stderr ?? "").slice(0, MAX_OUTPUT_BYTES);
+  const rawStdout = (result.stdout ?? "").slice(0, MAX_OUTPUT_BYTES);
+  const rawStderr = (result.stderr ?? "").slice(0, MAX_OUTPUT_BYTES);
+  const stdout = publicSafeShellOutput(rawStdout, prepared.repoRoot);
+  const stderr = publicSafeShellOutput(rawStderr, prepared.repoRoot);
   const truncated =
     (result.stdout?.length ?? 0) > MAX_OUTPUT_BYTES ||
     (result.stderr?.length ?? 0) > MAX_OUTPUT_BYTES;

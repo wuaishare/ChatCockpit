@@ -359,6 +359,11 @@ async function verifyChatDirectRouting(): Promise<void> {
     "utf8"
   );
   fs.writeFileSync(
+    path.join(repoRoot, "scripts", "public-output-failure.mjs"),
+    "throw new Error('public shell output fixture');\n",
+    "utf8"
+  );
+  fs.writeFileSync(
     path.join(repoRoot, "src", "fixture.ts"),
     "export const mode = 'before';\n",
     "utf8"
@@ -775,6 +780,17 @@ async function verifyChatDirectRouting(): Promise<void> {
       "codex-app-server-standalone"
     );
     assert.match(directShell.stdout, /codex-standalone-write/);
+
+    const failedShell = await service.shell(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      command: "node",
+      args: ["scripts/public-output-failure.mjs"]
+    });
+    assert.equal(failedShell.exitCode, 1);
+    assert.doesNotMatch(failedShell.stderr, new RegExp(repoRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(failedShell.stderr, /\[workspace\]\/scripts\/public-output-failure\.mjs/);
+
     const standaloneWriteCommand = adapter.calls.find(
       (call) =>
         call.method === "command/exec" &&
@@ -967,14 +983,14 @@ async function verifyChatDirectRouting(): Promise<void> {
       }
     );
 
-    adapter.completeManagedProcess(managed.processId, "managed-finished");
+    adapter.completeManagedProcess(managed.processId, `${repoRoot}/managed-finished`);
     await new Promise<void>((resolve) => setImmediate(resolve));
     const completedManaged = await service.workspaceProcessRead(context, {
       repoId: "primary",
       processId: managed.processId
     });
     assert.equal(completedManaged.state, "completed");
-    assert.equal(completedManaged.chunks[0]?.content, "managed-finished");
+    assert.equal(completedManaged.chunks[0]?.content, "[workspace]/managed-finished");
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
 
     const apiTokenManaged = await service.workspaceExec(apiTokenContext, {
