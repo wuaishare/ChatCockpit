@@ -10,6 +10,7 @@ import type { RuntimeTurnService } from "../../application/runtime-turn-service.
 import {
   codexApprovalRespondSchema,
   codexNativeApprovalListSchema,
+  codexNativeContextReadSchema,
   codexNativeEventsQuerySchema,
   codexNativeThreadForkSchema,
   codexNativeThreadResumeSchema,
@@ -63,6 +64,18 @@ export function buildRuntimeMcpTools(
       handler: async (context) => ({
         ok: true,
         capabilities: await runtimeService.capabilities(context)
+      })
+    }),
+    defineMcpTool({
+      name: "chatcockpit.codex.context.read",
+      title: "Read native Codex workspace context",
+      description:
+        "Read a public-safe projection of the native Codex configuration layers and skills resolved for one registered ChatCockpit workspace. Workspace-contained skills may expose only their workspace-relative path so existing governed file reads can consume them; instruction text, external absolute paths, secrets, raw config values, and external skill contents are omitted.",
+      inputSchema: codexNativeContextReadSchema,
+      annotations: readOnlyToolAnnotations,
+      handler: async (context, input) => ({
+        ok: true,
+        context: await runtimeService.readCodexNativeContext(context, input)
       })
     }),
     defineMcpTool({

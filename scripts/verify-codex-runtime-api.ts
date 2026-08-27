@@ -10,6 +10,8 @@ import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
   RuntimeEventSink,
+  RuntimeNativeContextProjection,
+  RuntimeNativeContextReadInput,
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
@@ -85,6 +87,33 @@ class FakeCodexRuntimeAdapter implements CodingRuntimeAdapter {
       ],
       experimentalApiEnabled: false,
       standaloneExecution: null
+    };
+  }
+
+  async readNativeContext(
+    input: RuntimeNativeContextReadInput
+  ): Promise<RuntimeNativeContextProjection> {
+    return {
+      workspaceId: input.workspaceId,
+      config: {
+        loaded: true,
+        layerTypes: ["system", "user"],
+        instructionsConfigured: true,
+        developerInstructionsConfigured: false
+      },
+      skills: [
+        {
+          name: "runtime-api-skill",
+          description: "Public-safe fixture skill",
+          scope: "user",
+          sourceIdentityHash: "a".repeat(64),
+          workspaceRelativePath: ".agents/skills/runtime-api-skill/SKILL.md",
+          enabled: true,
+          displayName: "Runtime API Skill",
+          shortDescription: "Fixture skill",
+          brandColor: null
+        }
+      ]
     };
   }
 
@@ -339,6 +368,10 @@ class FakeCodexRuntimeAdapter implements CodingRuntimeAdapter {
 async function runCodexRuntimeApiVerification(): Promise<void> {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-api-"));
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Runtime API fixture\n", "utf8");
+  const skillRelativePath = ".agents/skills/runtime-api-skill/SKILL.md";
+  const skillPath = path.join(repoRoot, skillRelativePath);
+  fs.mkdirSync(path.dirname(skillPath), { recursive: true });
+  fs.writeFileSync(skillPath, "# Runtime API Skill\n\nUse the native workspace skill.\n", "utf8");
   fs.mkdirSync(path.join(repoRoot, "openapi"), { recursive: true });
   fs.copyFileSync(
     path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
@@ -530,6 +563,31 @@ async function runCodexRuntimeApiVerification(): Promise<void> {
     );
     assert.deepEqual(mcpCapabilities, restCapabilities);
     assert.doesNotMatch(JSON.stringify(restCapabilities), /\/Users\/|private_path/);
+
+    const mcpNativeContext = await mcp<{
+      ok: true;
+      context: RuntimeNativeContextProjection;
+    }>("chatcockpit.codex.context.read", {
+      workspaceId: workspace.id,
+      forceReload: true
+    });
+    assert.equal(mcpNativeContext.context.workspaceId, workspace.id);
+    assert.deepEqual(mcpNativeContext.context.config.layerTypes, ["system", "user"]);
+    assert.equal(mcpNativeContext.context.skills[0]?.name, "runtime-api-skill");
+    assert.equal(
+      mcpNativeContext.context.skills[0]?.workspaceRelativePath,
+      skillRelativePath
+    );
+    assert.doesNotMatch(JSON.stringify(mcpNativeContext), /\/private\/|AGENTS\.md/);
+
+    const skillRead = await mcp<{
+      ok: true;
+      file: { content: string };
+    }>("chatcockpit.files.read", {
+      repoId: "primary",
+      path: mcpNativeContext.context.skills[0]?.workspaceRelativePath
+    });
+    assert.match(skillRead.file.content, /Use the native workspace skill/);
 
     const listArguments = {
       limit: 2,

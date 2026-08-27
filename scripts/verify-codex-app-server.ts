@@ -348,12 +348,25 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     });
     assert.deepEqual(resourceSkills, [
       {
+        name: "fixture-external-skill",
+        description: "External Codex skill",
+        scope: "user",
+        sourceIdentityHash: createHash("sha256")
+          .update("/tmp/codex-user/skills/fixture-external-skill/SKILL.md")
+          .digest("hex"),
+        enabled: true,
+        displayName: "External Skill",
+        shortDescription: "External Codex skill",
+        brandColor: null
+      },
+      {
         name: "fixture-skill",
         description: "Fixture Codex skill",
         scope: "user",
         sourceIdentityHash: createHash("sha256")
           .update(path.join(workspaceRoot, ".agents/skills/fixture-skill/SKILL.md"))
           .digest("hex"),
+        workspaceRelativePath: ".agents/skills/fixture-skill/SKILL.md",
         enabled: true,
         displayName: "Fixture Skill",
         shortDescription: "Fixture Codex skill",
@@ -470,14 +483,31 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       sandboxModeConfigured: true,
       desktopConfigPresent: true
     });
+    const nativeContext = await adapter.readNativeContext({
+      workspaceId: rootWorkspace.id,
+      forceReload: true
+    });
+    assert.deepEqual(nativeContext.config, {
+      loaded: true,
+      layerTypes: ["system", "user"],
+      instructionsConfigured: true,
+      developerInstructionsConfigured: true
+    });
+    assert.deepEqual(nativeContext.skills, resourceSkills);
     const resourceProjectionJson = JSON.stringify({
       resourceSkills,
       resourceMcp,
       resourcePlugins,
-      resourceConfig
+      resourceConfig,
+      nativeContext
     });
     assert.equal(resourceProjectionJson.includes(workspaceRoot), false);
+    assert.equal(resourceProjectionJson.includes("/tmp/codex-user"), false);
     assert.equal(resourceProjectionJson.includes("fixture-secret-token"), false);
+    assert.equal(resourceProjectionJson.includes("fixture-private-user-instructions"), false);
+    assert.equal(resourceProjectionJson.includes("fixture-private-developer-instructions"), false);
+    assert.equal(resourceProjectionJson.includes("fixture-private-layer-instructions"), false);
+    assert.equal(resourceProjectionJson.includes("private-config.toml"), false);
     assert.equal(resourceProjectionJson.includes("inputSchema"), false);
     assert.equal(resourceProjectionJson.includes("marketplace.json"), false);
 
@@ -545,12 +575,32 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
       (error) => assertServiceError(error, "CAPABILITY_UNAVAILABLE")
     );
 
+    const startedThread = await adapter.startThread({
+      workspaceId: rootWorkspace.id,
+      name: "Native Context Fixture"
+    });
+    assert.equal(startedThread.workspaceId, rootWorkspace.id);
+    assert.deepEqual(startedThread.nativeContext?.instructionSources.map((source) => ({
+      name: source.name,
+      scope: source.scope,
+      relativePath: source.relativePath
+    })), [
+      { name: "AGENTS.md", scope: "external", relativePath: null },
+      { name: "AGENTS.md", scope: "workspace", relativePath: "AGENTS.md" }
+    ]);
+    assert.equal(startedThread.nativeContext?.runtimeWorkspaceRootCount, 1);
+    assert.doesNotMatch(JSON.stringify(startedThread), new RegExp(tempRoot));
+    assert.doesNotMatch(JSON.stringify(startedThread), /\/tmp\/codex-user/);
+
     const resumedThread = await adapter.resumeThread({
       threadId: "thread_nested"
     });
     assert.equal(resumedThread.id, "thread_nested");
     assert.equal(resumedThread.workspaceId, nestedWorkspace.id);
+    assert.equal(resumedThread.nativeContext?.instructionSources.length, 2);
+    assert.equal(resumedThread.nativeContext?.runtimeWorkspaceRootCount, 1);
     assert.doesNotMatch(JSON.stringify(resumedThread), new RegExp(tempRoot));
+    assert.doesNotMatch(JSON.stringify(resumedThread), /\/tmp\/codex-user/);
 
     await assert.rejects(
       () => adapter.resumeThread({ threadId: "thread_active_writer" }),
@@ -564,7 +614,10 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     assert.equal(forkedThread.id, "thread_forked_1");
     assert.equal(forkedThread.workspaceId, nestedWorkspace.id);
     assert.equal(forkedThread.parentThreadId, "thread_nested");
-    assert.doesNotMatch(JSON.stringify(forkedThread), /private history|instructionSources|\.jsonl/);
+    assert.equal(forkedThread.nativeContext?.instructionSources.length, 2);
+    assert.equal(forkedThread.nativeContext?.runtimeWorkspaceRootCount, 1);
+    assert.doesNotMatch(JSON.stringify(forkedThread), new RegExp(tempRoot));
+    assert.doesNotMatch(JSON.stringify(forkedThread), /private history|\.jsonl|\/tmp\/codex-user/);
 
     const directClient = createClient();
     try {

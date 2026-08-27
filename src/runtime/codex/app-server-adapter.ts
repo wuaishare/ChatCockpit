@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { ServiceError } from "../../application/service-error.js";
+import { isPathInsideRoot } from "../../core/path-guards.js";
 import { DEFAULT_PRODUCT_IDENTITY } from "../../core/product-identity.js";
 import type { WorkspaceRepository } from "../../continuity/repositories/workspace-repository.js";
 import type { ProductIdentityKey } from "../../types.js";
@@ -20,13 +21,18 @@ import {
   type CodexStandaloneCapabilityStore
 } from "./standalone-capabilities.js";
 import { projectCodexThreadContext } from "./thread-context-projection.js";
-import { projectCodexThread } from "./thread-projection.js";
+import {
+  projectCodexThread,
+  projectCodexThreadNativeContext
+} from "./thread-projection.js";
 import type {
   CodingRuntimeAdapter,
   RuntimeCapabilitySnapshot,
   RuntimeCodexAccountStatus,
   RuntimeEventSink,
   RuntimeMcpServerProjection,
+  RuntimeNativeContextProjection,
+  RuntimeNativeContextReadInput,
   RuntimePluginListInput,
   RuntimePluginProjection,
   RuntimeResourceConfigSummary,
@@ -60,6 +66,11 @@ interface ThreadListResponse {
 
 interface ThreadReadResponse {
   thread?: unknown;
+}
+
+interface ThreadLifecycleResponse extends ThreadReadResponse {
+  instructionSources?: unknown[];
+  runtimeWorkspaceRoots?: unknown[];
 }
 
 interface AccountReadResponse {
@@ -576,6 +587,45 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     }
   }
 
+  async readNativeContext(
+    input: RuntimeNativeContextReadInput
+  ): Promise<RuntimeNativeContextProjection> {
+    const client = await this.ensureClient();
+    const workspace = this.workspaces.getPrivate(input.workspaceId);
+    const [rawConfigResponse, skills] = await Promise.all([
+      client.request<unknown>("config/read", {
+        cwd: workspace.privatePath,
+        includeLayers: true
+      }),
+      this.listSkills({
+        workspaceId: workspace.id,
+        forceReload: input.forceReload ?? false
+      })
+    ]);
+    const response = asRecord(rawConfigResponse);
+    const config = asRecord(response.config);
+    const layerTypes: string[] = [];
+    for (const rawLayer of Array.isArray(response.layers) ? response.layers : []) {
+      const layer = asRecord(rawLayer);
+      const name = asRecord(layer.name);
+      const type = typeof name.type === "string" ? name.type.trim() : "";
+      if (type && !layerTypes.includes(type)) layerTypes.push(type);
+    }
+    return {
+      workspaceId: workspace.id,
+      config: {
+        loaded: true,
+        layerTypes,
+        instructionsConfigured:
+          typeof config.instructions === "string" && config.instructions.trim().length > 0,
+        developerInstructionsConfigured:
+          typeof config.developer_instructions === "string" &&
+          config.developer_instructions.trim().length > 0
+      },
+      skills
+    };
+  }
+
   async listSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]> {
     const client = await this.ensureClient();
     const workspace = this.workspaces.getPrivate(input.workspaceId);
@@ -603,6 +653,16 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
             typeof skill.path === "string" && skill.path.length > 0
               ? createHash("sha256").update(skill.path).digest("hex")
               : null,
+          ...(typeof skill.path === "string" &&
+          path.isAbsolute(skill.path) &&
+          isPathInsideRoot(workspace.privatePath, skill.path)
+            ? {
+                workspaceRelativePath: path
+                  .relative(workspace.privatePath, skill.path)
+                  .split(path.sep)
+                  .join("/")
+              }
+            : {}),
           enabled: skill.enabled !== false,
           displayName:
             typeof interfaceInfo.displayName === "string"
@@ -810,7 +870,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   ): Promise<RuntimeThreadProjection> {
     const client = await this.ensureClient();
     const workspace = this.workspaces.getPrivate(input.workspaceId);
-    const response = await client.request<ThreadReadResponse>("thread/start", {
+    const response = await client.request<ThreadLifecycleResponse>("thread/start", {
       cwd: workspace.privatePath,
       threadSource: "user"
     });
@@ -820,10 +880,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Codex App Server returned no started thread record"
       );
     }
-    const projected = projectCodexThread(
-      response.thread,
-      this.workspaces.listPrivate()
-    );
+    const projected = {
+      ...projectCodexThread(response.thread, this.workspaces.listPrivate()),
+      nativeContext: projectCodexThreadNativeContext(response, workspace)
+    };
     const requestedName = input.name?.trim();
     if (!requestedName) return projected;
     try {
@@ -842,7 +902,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     input: RuntimeThreadResumeInput
   ): Promise<RuntimeThreadProjection> {
     const client = await this.ensureClient();
-    const response = await client.request<ThreadReadResponse>("thread/resume", {
+    const response = await client.request<ThreadLifecycleResponse>("thread/resume", {
       threadId: input.threadId
     });
     if (!response.thread) {
@@ -851,14 +911,20 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Codex App Server returned no resumed thread record"
       );
     }
-    return projectCodexThread(response.thread, this.workspaces.listPrivate());
+    const projected = projectCodexThread(response.thread, this.workspaces.listPrivate());
+    if (!projected.workspaceId) return projected;
+    const workspace = this.workspaces.getPrivate(projected.workspaceId);
+    return {
+      ...projected,
+      nativeContext: projectCodexThreadNativeContext(response, workspace)
+    };
   }
 
   async forkThread(
     input: RuntimeThreadForkInput
   ): Promise<RuntimeThreadProjection> {
     const client = await this.ensureClient();
-    const response = await client.request<ThreadReadResponse>("thread/fork", {
+    const response = await client.request<ThreadLifecycleResponse>("thread/fork", {
       threadId: input.threadId,
       ...(input.lastTurnId ? { lastTurnId: input.lastTurnId } : {}),
       ephemeral: false
@@ -869,7 +935,13 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Codex App Server returned no forked thread record"
       );
     }
-    return projectCodexThread(response.thread, this.workspaces.listPrivate());
+    const projected = projectCodexThread(response.thread, this.workspaces.listPrivate());
+    if (!projected.workspaceId) return projected;
+    const workspace = this.workspaces.getPrivate(projected.workspaceId);
+    return {
+      ...projected,
+      nativeContext: projectCodexThreadNativeContext(response, workspace)
+    };
   }
 
   async startTurn(

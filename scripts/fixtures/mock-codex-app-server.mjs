@@ -324,6 +324,18 @@ input.on("line", (line) => {
             cwd: workspaceRoot,
             skills: [
               {
+                name: "fixture-external-skill",
+                description: "External Codex skill",
+                path: "/tmp/codex-user/skills/fixture-external-skill/SKILL.md",
+                scope: "user",
+                enabled: true,
+                interface: {
+                  displayName: "External Skill",
+                  shortDescription: "External Codex skill",
+                  brandColor: null
+                }
+              },
+              {
                 name: "fixture-skill",
                 description: "Fixture Codex skill",
                 path: `${workspaceRoot}/.agents/skills/fixture-skill/SKILL.md`,
@@ -501,13 +513,24 @@ input.on("line", (line) => {
         config: {
           model_provider: "fixture-provider",
           sandbox_mode: "workspace-write",
+          instructions: "fixture-private-user-instructions",
+          developer_instructions: "fixture-private-developer-instructions",
           secret_token: "fixture-secret-token",
           desktop: {
             perPath: {
               [workspaceRoot]: "fixture-editor"
             }
           }
-        }
+        },
+        layers: [
+          { name: { type: "system" }, version: "1", config: {} },
+          {
+            name: { type: "user", file: `${workspaceRoot}/private-config.toml` },
+            version: "1",
+            config: { instructions: "fixture-private-layer-instructions" }
+          }
+        ],
+        origins: { secret_token: `${workspaceRoot}/private-config.toml` }
       });
       break;
     case "account/read":
@@ -565,7 +588,14 @@ input.on("line", (line) => {
         turns: []
       };
       threads.push(thread);
-      respond(message.id, { thread });
+      respond(message.id, {
+        thread,
+        instructionSources: [
+          "/tmp/codex-user/AGENTS.md",
+          `${message.params?.cwd ?? workspaceRoot}/AGENTS.md`
+        ],
+        runtimeWorkspaceRoots: [message.params?.cwd ?? workspaceRoot]
+      });
       notify("thread/started", { thread });
       break;
     }
@@ -613,7 +643,9 @@ input.on("line", (line) => {
         thread: {
           ...thread,
           status: { type: "idle" }
-        }
+        },
+        instructionSources: ["/tmp/codex-user/AGENTS.md", `${thread.cwd}/AGENTS.md`],
+        runtimeWorkspaceRoots: [thread.cwd]
       });
       break;
     }
@@ -634,7 +666,11 @@ input.on("line", (line) => {
         turns: Array.isArray(source.turns) ? [...source.turns] : []
       };
       threads.push(forked);
-      respond(message.id, { thread: forked });
+      respond(message.id, {
+        thread: forked,
+        instructionSources: ["/tmp/codex-user/AGENTS.md", `${forked.cwd}/AGENTS.md`],
+        runtimeWorkspaceRoots: [forked.cwd]
+      });
       break;
     }
     case "turn/start": {

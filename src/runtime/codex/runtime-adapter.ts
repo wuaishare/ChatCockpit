@@ -39,6 +39,7 @@ export interface RuntimeThreadProjection {
   parentThreadId: string | null;
   agentNickname: string | null;
   agentRole: string | null;
+  nativeContext?: RuntimeThreadNativeContextProjection;
 }
 
 export type RuntimeThreadSourceKind =
@@ -211,11 +212,40 @@ export interface RuntimeSkillListInput {
   forceReload?: boolean;
 }
 
+export interface RuntimeNativeContextReadInput {
+  workspaceId: string;
+  forceReload?: boolean;
+}
+
+export interface RuntimeInstructionSourceProjection {
+  name: string;
+  scope: "workspace" | "external";
+  relativePath: string | null;
+  sourceIdentityHash: string;
+}
+
+export interface RuntimeThreadNativeContextProjection {
+  instructionSources: RuntimeInstructionSourceProjection[];
+  runtimeWorkspaceRootCount: number;
+}
+
+export interface RuntimeNativeContextProjection {
+  workspaceId: string;
+  config: {
+    loaded: true;
+    layerTypes: string[];
+    instructionsConfigured: boolean;
+    developerInstructionsConfigured: boolean;
+  };
+  skills: RuntimeSkillProjection[];
+}
+
 export interface RuntimeSkillProjection {
   name: string;
   description: string | null;
   scope: string | null;
   sourceIdentityHash?: string | null;
+  workspaceRelativePath?: string | null;
   enabled: boolean;
   displayName: string | null;
   shortDescription: string | null;
@@ -299,6 +329,9 @@ export interface CodingRuntimeAdapter {
   startTurn(input: RuntimeTurnStartInput): Promise<RuntimeTurnProjection>;
   interruptTurn(input: RuntimeTurnInterruptInput): Promise<void>;
   readAccountStatus(): Promise<RuntimeCodexAccountStatus>;
+  readNativeContext?(
+    input: RuntimeNativeContextReadInput
+  ): Promise<RuntimeNativeContextProjection>;
   listSkills?(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]>;
   listMcpServers?(): Promise<RuntimeMcpServerProjection[]>;
   listPlugins?(input?: RuntimePluginListInput): Promise<RuntimePluginProjection[]>;

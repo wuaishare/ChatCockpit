@@ -31,6 +31,11 @@ export const codexThreadReadSchema = z.object({
   includeTurns: optionalBooleanSchema.default(false)
 });
 
+export const codexNativeContextReadSchema = z.object({
+  workspaceId: z.string().min(1).max(160),
+  forceReload: optionalBooleanSchema
+});
+
 const nativeRuntimeMutationBaseSchema = z.object({
   workspaceId: z.string().min(1).max(160),
   idempotencyKey: z
@@ -161,6 +166,7 @@ export const codexRuntimeEventsQuerySchema = z
 
 export type CodexThreadListInput = z.infer<typeof codexThreadListSchema>;
 export type CodexThreadReadInput = z.infer<typeof codexThreadReadSchema>;
+export type CodexNativeContextReadInput = z.infer<typeof codexNativeContextReadSchema>;
 export type CodexNativeThreadStartInput = z.infer<typeof codexNativeThreadStartSchema>;
 export type CodexNativeThreadResumeInput = z.infer<typeof codexNativeThreadResumeSchema>;
 export type CodexNativeThreadForkInput = z.infer<typeof codexNativeThreadForkSchema>;

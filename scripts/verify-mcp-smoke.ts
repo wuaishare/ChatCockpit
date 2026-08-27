@@ -263,6 +263,7 @@ async function runMcpSmoke(): Promise<void> {
         "runtime.restart.read",
         "search.code",
         "codex.account.status",
+        "codex.context.read",
         "codex.approval.respond",
         "codex.events.read",
         "codex.session.bind",
@@ -297,7 +298,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 89, "Full compatibility surface must retain all 89 configured tools");
+    assert.equal(tools.length, 90, "Full compatibility surface must retain all 90 configured tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -335,7 +336,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 29);
+    assert.equal(codexPackTools.length, 30);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -362,10 +363,11 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 19);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 89);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 90);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
-    assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 10);
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
+    assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.context.read"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.thread.turn.start"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.turn.start"), false);
 

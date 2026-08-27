@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { isPathInsideRoot } from "../../core/path-guards.js";
 import type { PrivateWorkspaceRecord } from "../../continuity/types.js";
 import type {
+  RuntimeThreadNativeContextProjection,
   RuntimeThreadProjection,
   RuntimeThreadStatus
 } from "./runtime-adapter.js";
@@ -68,6 +70,38 @@ export function resolveThreadWorkspace(
           normalizeComparablePath(left.privatePath).length
       )[0] ?? null
   );
+}
+
+export function projectCodexThreadNativeContext(
+  value: unknown,
+  workspace: PrivateWorkspaceRecord
+): RuntimeThreadNativeContextProjection {
+  const response = asRecord(value);
+  const instructionSources = Array.isArray(response.instructionSources)
+    ? response.instructionSources
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .slice(0, 64)
+        .map((item) => {
+          const source = item.trim();
+          const insideWorkspace =
+            path.isAbsolute(source) && isPathInsideRoot(workspace.privatePath, source);
+          const relativePath = insideWorkspace
+            ? path.relative(workspace.privatePath, source).split(path.sep).join("/")
+            : null;
+          return {
+            name: path.basename(source) || "instruction",
+            scope: insideWorkspace ? ("workspace" as const) : ("external" as const),
+            relativePath,
+            sourceIdentityHash: createHash("sha256").update(source).digest("hex")
+          };
+        })
+    : [];
+  const runtimeWorkspaceRootCount = Array.isArray(response.runtimeWorkspaceRoots)
+    ? response.runtimeWorkspaceRoots.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0
+      ).length
+    : 0;
+  return { instructionSources, runtimeWorkspaceRootCount };
 }
 
 export function projectCodexThread(

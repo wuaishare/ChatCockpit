@@ -5,6 +5,8 @@ import type {
   RuntimeCodexAccountStatus,
   RuntimeEventSink,
   RuntimeMcpServerProjection,
+  RuntimeNativeContextProjection,
+  RuntimeNativeContextReadInput,
   RuntimePluginListInput,
   RuntimePluginProjection,
   RuntimeResourceConfigSummary,
@@ -82,6 +84,18 @@ export class RuntimeRouter {
 
   readCodexAccountStatus(): Promise<RuntimeCodexAccountStatus> {
     return this.codex.readAccountStatus();
+  }
+
+  readCodexNativeContext(
+    input: RuntimeNativeContextReadInput
+  ): Promise<RuntimeNativeContextProjection> {
+    if (!this.codex.readNativeContext) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex native context projection is unavailable"
+      );
+    }
+    return this.codex.readNativeContext(input);
   }
 
   listCodexSkills(input: RuntimeSkillListInput): Promise<RuntimeSkillProjection[]> {

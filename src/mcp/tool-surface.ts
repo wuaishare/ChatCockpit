@@ -114,6 +114,7 @@ const DEFERRED_BY_PACK = {
     "evidence.record"
   ],
   "codex-native": [
+    "codex.context.read",
     "codex.thread.list",
     "codex.account.status",
     "codex.thread.start",
