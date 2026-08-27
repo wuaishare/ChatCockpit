@@ -100,6 +100,64 @@ export const shellRunToolOutputSchema = z.object({
   executedCommand: z.string(),
   execution: chatDirectExecutionSchema
 }).merge(mutationEnvelopeSchema);
+
+const workspaceProcessStateSchema = z.enum([
+  "running",
+  "completed",
+  "failed",
+  "terminated"
+]);
+
+const idempotencyEnvelopeSchema = z.object({
+  idempotency: z.object({
+    key: z.string().min(8).max(128),
+    replayed: z.boolean()
+  })
+});
+
+export const workspaceExecToolOutputSchema = z.object({
+  ok: z.literal(true),
+  repoId: z.string().min(1),
+  processId: identifierSchema,
+  state: z.literal("running"),
+  execution: chatDirectExecutionSchema
+}).merge(idempotencyEnvelopeSchema);
+
+export const workspaceProcessReadToolOutputSchema = z.object({
+  ok: z.literal(true),
+  repoId: z.string().min(1),
+  processId: identifierSchema,
+  state: workspaceProcessStateSchema,
+  exitCode: z.number().int().nullable(),
+  errorCode: z.string().max(200).nullable(),
+  chunks: z.array(z.object({
+    sequence: z.number().int().nonnegative(),
+    stream: z.enum(["stdout", "stderr"]),
+    content: z.string(),
+    capReached: z.boolean()
+  })).max(200),
+  nextCursor: z.number().int().nonnegative(),
+  execution: chatDirectExecutionSchema
+});
+
+export const workspaceProcessControlToolOutputSchema = z.discriminatedUnion("action", [
+  z.object({
+    ok: z.literal(true),
+    repoId: z.string().min(1),
+    processId: identifierSchema,
+    action: z.literal("input"),
+    accepted: z.literal(true),
+    execution: chatDirectExecutionSchema
+  }).merge(idempotencyEnvelopeSchema),
+  z.object({
+    ok: z.literal(true),
+    repoId: z.string().min(1),
+    processId: identifierSchema,
+    action: z.literal("terminate"),
+    terminationRequested: z.literal(true),
+    execution: chatDirectExecutionSchema
+  }).merge(idempotencyEnvelopeSchema)
+]);
 export const gitStatusToolOutputSchema = directBaseSchema.extend({
   ok: z.literal(true),
   branch: z.string(),

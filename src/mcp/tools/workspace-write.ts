@@ -6,7 +6,10 @@ import {
   fileEditToolOutputSchema,
   fileWriteToolOutputSchema,
   gitCommitToolOutputSchema,
-  shellRunToolOutputSchema
+  shellRunToolOutputSchema,
+  workspaceExecToolOutputSchema,
+  workspaceProcessControlToolOutputSchema,
+  workspaceProcessReadToolOutputSchema
 } from "../../contracts/mcp-core-outputs.js";
 import {
   DEFAULT_PRODUCT_IDENTITY,
@@ -26,6 +29,13 @@ const idempotencyKeySchema = z
   .min(8)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
+
+const readOnlyAnnotations: McpToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false
+};
 
 const reversibleMutationAnnotations: McpToolAnnotations = {
   readOnlyHint: false,
@@ -96,7 +106,10 @@ export function buildWorkspaceWriteTools(
     fileEditSchema,
     fileWriteSchema,
     gitCommitSchema,
-    shellRunSchema
+    shellRunSchema,
+    workspaceExecSchema,
+    workspaceProcessControlSchema,
+    workspaceProcessReadSchema
   } = buildDirectToolSchemas(identity.defaultRepoId);
   const fileWriteMcpSchema = fileWriteSchema.extend({
     idempotencyKey: idempotencyKeySchema
@@ -107,6 +120,12 @@ export function buildWorkspaceWriteTools(
   const shellRunMcpSchema = shellRunSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
+  const workspaceExecMcpSchema = workspaceExecSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const workspaceProcessControlMcpSchema = workspaceProcessControlSchema.and(
+    z.object({ idempotencyKey: idempotencyKeySchema })
+  );
   const gitCommitMcpSchema = gitCommitSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
@@ -168,6 +187,84 @@ export function buildWorkspaceWriteTools(
               [payload.path],
               gitEvidenceHints
             )
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("workspace.exec"),
+      title: "Start governed workspace process",
+      description:
+        "Start a managed command in the selected repository workspace through the verified native execution backend. Long-running commands return a process id immediately. Mutating commands retain workspace writer authority until the process reaches a terminal state. An idempotency key is required to prevent duplicate process starts.",
+      inputSchema: workspaceExecMcpSchema,
+      outputSchema: workspaceExecToolOutputSchema,
+      annotations: destructiveMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("workspace.exec"),
+          idempotencyKey,
+          payload,
+          async () =>
+            (await services.chatDirect.workspaceExec(
+              context,
+              payload
+            )) as unknown as Record<string, unknown>
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("workspace.process.read"),
+      title: "Read workspace process",
+      description:
+        "Read bounded streamed output and terminal state for a managed workspace process. Use the returned nextCursor to continue reading without replaying prior chunks.",
+      inputSchema: workspaceProcessReadSchema,
+      outputSchema: workspaceProcessReadToolOutputSchema,
+      annotations: readOnlyAnnotations,
+      handler: async (context, input) =>
+        services.chatDirect.workspaceProcessRead(context, input)
+    }),
+    defineMcpTool({
+      name: toolName("workspace.process.control"),
+      title: "Control workspace process",
+      description:
+        "Send stdin to or terminate a managed workspace process. Access remains bound to the development session or OAuth authorization grant that started the process. An idempotency key is required so retries cannot duplicate stdin writes.",
+      inputSchema: workspaceProcessControlMcpSchema,
+      outputSchema: workspaceProcessControlToolOutputSchema,
+      annotations: destructiveMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("workspace.process.control"),
+          idempotencyKey,
+          payload,
+          async () => {
+            if (payload.action === "input") {
+              return {
+                ...(await services.chatDirect.workspaceProcessInput(
+                  context,
+                  payload
+                )),
+                action: "input" as const
+              };
+            }
+            return {
+              ...(await services.chatDirect.workspaceProcessTerminate(
+                context,
+                payload
+              )),
+              action: "terminate" as const
+            };
+          }
         );
         return withIdempotency(
           execution.value,

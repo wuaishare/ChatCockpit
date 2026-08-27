@@ -282,6 +282,9 @@ async function runMcpSmoke(): Promise<void> {
         "session.get",
         "session.start",
         "shell.run",
+        "workspace.exec",
+        "workspace.process.control",
+        "workspace.process.read",
         "task.bindDocuments",
         "task.complete",
         "task.create",
@@ -292,7 +295,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 84, "Full compatibility surface must retain all 84 configured tools");
+    assert.equal(tools.length, 87, "Full compatibility surface must retain all 87 configured tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -301,7 +304,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 16);
+    assert.equal(coreTools.length, 19);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
     assert.equal(
@@ -330,7 +333,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 26);
+    assert.equal(codexPackTools.length, 29);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -356,8 +359,8 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 16);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 84);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 19);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 87);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 10);
@@ -372,8 +375,8 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       tools.filter((tool) => isDefaultCoreMcpTool(tool.name)).length,
-      16,
-      "The P0.2 default surface must classify exactly 16 core tools including discovery"
+      19,
+      "The default surface must classify exactly 19 core tools including governed workspace processes"
     );
     assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
@@ -437,7 +440,8 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.session.get",
       "chatcockpit.task.get",
       "chatcockpit.trajectory.read",
-      "chatcockpit.workspace.snapshot"
+      "chatcockpit.workspace.snapshot",
+      "chatcockpit.workspace.process.read"
     ]) {
       assert.equal(toolByName.get(name)?.annotations.readOnlyHint, true);
       assert.equal(toolByName.get(name)?.annotations.destructiveHint, false);
@@ -462,6 +466,10 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("chatcockpit.files.edit")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("chatcockpit.files.edit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.shell.run")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.workspace.exec")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.workspace.exec")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.destructiveHint, true);
     assert.equal(
       toolByName.get("chatcockpit.host.command.execute")?.annotations.readOnlyHint,
       false

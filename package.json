@@ -87,7 +87,7 @@
     "gpt:instructions": "tsx scripts/generate-gpt-instructions.ts",
     "verify:e2e": "tsx scripts/verify-local-e2e.ts",
     "verify:smoke": "tsx scripts/verify-local-smoke.ts",
-    "verify:mcp": "npm run verify:mcp-tool-surface && tsx scripts/verify-mcp-smoke.ts",
+    "verify:mcp": "npm run verify:mcp-tool-surface && npm run verify:workspace-process-mcp && tsx scripts/verify-mcp-smoke.ts",
     "verify:mcp-catalog-metadata": "tsx scripts/verify-mcp-catalog-metadata.ts",
     "verify:continuity": "tsx scripts/verify-continuity-store.ts",
     "verify:continuity-api": "tsx scripts/verify-continuity-api.ts",
@@ -289,7 +289,8 @@
     "verify:device-runtime-activity": "tsx scripts/verify-device-runtime-activity.ts",
     "verify:device-runtime-live-smoke": "tsx scripts/verify-device-runtime-live-smoke.ts",
     "verify:mcp-tool-surface": "tsx scripts/verify-mcp-tool-surface.ts",
-    "verify:device-onboarding-surface": "tsx scripts/verify-device-onboarding-surface.ts"
+    "verify:device-onboarding-surface": "tsx scripts/verify-device-onboarding-surface.ts",
+    "verify:workspace-process-mcp": "tsx scripts/verify-workspace-process-mcp.ts"
   },
   "engines": {
     "node": ">=22.13.0"

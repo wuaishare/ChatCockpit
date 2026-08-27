@@ -63,6 +63,38 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       args: z.array(z.string()),
       workdir: z.string().optional()
     }),
+    workspaceExecSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      command: z.string().min(1),
+      args: z.array(z.string()),
+      workdir: z.string().optional(),
+      allowStdin: z.boolean().optional()
+    }),
+    workspaceProcessReadSchema: z.object({
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      processId: z.string().min(1).max(200),
+      cursor: z.number().int().nonnegative().optional(),
+      limit: z.number().int().positive().max(200).optional()
+    }),
+    workspaceProcessControlSchema: z.discriminatedUnion("action", [
+      z.object({
+        repoId: z.string().min(1).default(defaultRepoId),
+        sessionId: z.string().min(1).max(160).optional(),
+        processId: z.string().min(1).max(200),
+        action: z.literal("input"),
+        input: z.string(),
+        closeStdin: z.boolean().optional()
+      }),
+      z.object({
+        repoId: z.string().min(1).default(defaultRepoId),
+        sessionId: z.string().min(1).max(160).optional(),
+        processId: z.string().min(1).max(200),
+        action: z.literal("terminate")
+      })
+    ]),
     gitStatusSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId)
@@ -89,6 +121,9 @@ export const fileEditSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileEditSchema;
 export const fileListSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileListSchema;
 export const searchSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.searchSchema;
 export const shellRunSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.shellRunSchema;
+export const workspaceExecSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.workspaceExecSchema;
+export const workspaceProcessReadSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.workspaceProcessReadSchema;
+export const workspaceProcessControlSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.workspaceProcessControlSchema;
 export const gitStatusSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
 export const gitDiffSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
 export const gitCommitSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
@@ -100,6 +135,9 @@ export type FileEditInput = z.infer<typeof fileEditSchema>;
 export type FileListInput = z.infer<typeof fileListSchema>;
 export type SearchInput = z.infer<typeof searchSchema>;
 export type ShellRunInput = z.infer<typeof shellRunSchema>;
+export type WorkspaceExecInput = z.infer<typeof workspaceExecSchema>;
+export type WorkspaceProcessReadInput = z.infer<typeof workspaceProcessReadSchema>;
+export type WorkspaceProcessControlInput = z.infer<typeof workspaceProcessControlSchema>;
 export type GitStatusInput = z.infer<typeof gitStatusSchema>;
 export type GitDiffInput = z.infer<typeof gitDiffSchema>;
 export type GitCommitInput = z.infer<typeof gitCommitSchema>;
