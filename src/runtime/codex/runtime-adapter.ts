@@ -169,6 +169,33 @@ export interface RuntimeStandaloneCommandResult {
   stderr: string;
 }
 
+export type RuntimeStandaloneProcessState =
+  | "running"
+  | "completed"
+  | "failed"
+  | "terminated";
+
+export interface RuntimeStandaloneProcessChunk {
+  sequence: number;
+  stream: "stdout" | "stderr";
+  content: string;
+  capReached: boolean;
+}
+
+export interface RuntimeStandaloneProcessStartResult {
+  processId: string;
+  state: "running";
+}
+
+export interface RuntimeStandaloneProcessSnapshot {
+  processId: string;
+  state: RuntimeStandaloneProcessState;
+  exitCode: number | null;
+  errorCode: string | null;
+  chunks: RuntimeStandaloneProcessChunk[];
+  nextCursor: number;
+}
+
 export interface RuntimeInboundRequest {
   connectionId: string;
   requestKey: string;
@@ -284,6 +311,24 @@ export interface CodingRuntimeAdapter {
     outputBytesCap: number;
     readOnly: boolean;
   }): Promise<RuntimeStandaloneCommandResult>;
+  startStandaloneProcess?(input: {
+    command: string[];
+    cwd: string;
+    readOnly: boolean;
+    allowStdin: boolean;
+  }): Promise<RuntimeStandaloneProcessStartResult>;
+  readStandaloneProcess?(
+    processId: string,
+    cursor?: number,
+    limit?: number
+  ): Promise<RuntimeStandaloneProcessSnapshot>;
+  waitStandaloneProcess?(processId: string): Promise<RuntimeStandaloneProcessSnapshot>;
+  writeStandaloneProcess?(
+    processId: string,
+    input: string,
+    closeStdin?: boolean
+  ): Promise<void>;
+  terminateStandaloneProcess?(processId: string): Promise<void>;
   respondToServerRequest(
     requestKey: string,
     result: Record<string, unknown>

@@ -30,6 +30,10 @@ const ALL_OPERATIONS: CodexStandaloneOperation[] = [
   "search.fileName",
   "search.content",
   "command.exec",
+  "context.skills",
+  "context.hooks",
+  "context.mcpStatus",
+  "context.config",
   "git.native"
 ];
 
@@ -134,6 +138,13 @@ function verifyDirectCapabilityBroker(): void {
     access: "write"
   });
   assert.equal(automaticEdit.executorId, "builtin-direct");
+
+  const automaticShellWrite = broker.resolve({
+    capability: "shell.exec",
+    scope: "workspace",
+    access: "write"
+  });
+  assert.equal(automaticShellWrite.executorId, "codex-app-server-standalone");
 
   assert.throws(
     () =>

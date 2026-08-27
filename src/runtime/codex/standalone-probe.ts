@@ -336,6 +336,85 @@ export class CodexStandaloneCapabilityProbe {
         }
       );
 
+      operations["context.skills"] = await this.verifyOperation(
+        "context.skills",
+        "skills/list",
+        true,
+        async () => {
+          const response = await this.request<{ data?: unknown }>("skills/list", {
+            cwds: [this.rootPath],
+            forceReload: false
+          });
+          if (!Array.isArray(response.data)) {
+            throw new ServiceError(
+              "CODEX_STANDALONE_RESPONSE_INVALID",
+              "skills/list returned no data list"
+            );
+          }
+          return { groupCount: response.data.length };
+        }
+      );
+
+      operations["context.hooks"] = await this.verifyOperation(
+        "context.hooks",
+        "hooks/list",
+        true,
+        async () => {
+          const response = await this.request<{ data?: unknown }>("hooks/list", {
+            cwds: [this.rootPath]
+          });
+          if (!Array.isArray(response.data)) {
+            throw new ServiceError(
+              "CODEX_STANDALONE_RESPONSE_INVALID",
+              "hooks/list returned no data list"
+            );
+          }
+          return { groupCount: response.data.length };
+        }
+      );
+
+      operations["context.mcpStatus"] = await this.verifyOperation(
+        "context.mcpStatus",
+        "mcpServerStatus/list",
+        true,
+        async () => {
+          const response = await this.request<{ data?: unknown }>(
+            "mcpServerStatus/list",
+            { cursor: null, limit: 1, detail: "toolsAndAuthOnly" }
+          );
+          if (!Array.isArray(response.data)) {
+            throw new ServiceError(
+              "CODEX_STANDALONE_RESPONSE_INVALID",
+              "mcpServerStatus/list returned no data list"
+            );
+          }
+          return { serverCount: response.data.length };
+        }
+      );
+
+      operations["context.config"] = await this.verifyOperation(
+        "context.config",
+        "config/read",
+        true,
+        async () => {
+          const response = await this.request<{ config?: unknown }>("config/read", {
+            cwd: this.rootPath,
+            includeLayers: false
+          });
+          if (
+            !response.config ||
+            typeof response.config !== "object" ||
+            Array.isArray(response.config)
+          ) {
+            throw new ServiceError(
+              "CODEX_STANDALONE_RESPONSE_INVALID",
+              "config/read returned no config object"
+            );
+          }
+          return { configLoaded: true };
+        }
+      );
+
       operations["files.remove"] = await this.verifyOperation(
         "files.remove",
         "fs/remove",

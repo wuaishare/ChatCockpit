@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { ServiceError } from "../../application/service-error.js";
 import { DEFAULT_PRODUCT_IDENTITY } from "../../core/product-identity.js";
@@ -32,6 +32,9 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeStandaloneProcessChunk,
+  RuntimeStandaloneProcessSnapshot,
+  RuntimeStandaloneProcessStartResult,
   RuntimeThreadContextInput,
   RuntimeThreadContextPage,
   RuntimeThreadForkInput,
@@ -348,6 +351,21 @@ function projectRuntimeTurn(value: unknown): RuntimeTurnProjection {
   };
 }
 
+interface ManagedStandaloneProcessRecord {
+  processId: string;
+  state: RuntimeStandaloneProcessSnapshot["state"];
+  exitCode: number | null;
+  errorCode: string | null;
+  chunks: RuntimeStandaloneProcessChunk[];
+  allowStdin: boolean;
+  terminationRequested: boolean;
+  completion: Promise<void>;
+}
+
+const MANAGED_COMMAND_OUTPUT_BYTES_CAP = 512 * 1024;
+const MANAGED_COMMAND_MAX_CHUNKS = 4_096;
+const MANAGED_COMMAND_RECORD_RETENTION_MS = 30 * 60_000;
+
 export interface CodexAppServerAdapterOptions {
   workspaces: WorkspaceRepository;
   productIdentity?: ProductIdentityKey;
@@ -369,6 +387,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   private initialization: CodexAppServerInitialization | null = null;
   private connecting: Promise<CodexAppServerClient> | null = null;
   private eventSink: RuntimeEventSink | null = null;
+  private readonly standaloneProcesses = new Map<
+    string,
+    ManagedStandaloneProcessRecord
+  >();
 
   constructor(options: CodexAppServerAdapterOptions) {
     this.workspaces = options.workspaces;
@@ -909,6 +931,132 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     };
   }
 
+  async startStandaloneProcess(input: {
+    command: string[];
+    cwd: string;
+    readOnly: boolean;
+    allowStdin: boolean;
+  }): Promise<RuntimeStandaloneProcessStartResult> {
+    this.assertStandaloneCapability("command.exec", "command/exec");
+    const client = await this.ensureClient();
+    const processId = `chatcockpit_${randomUUID()}`;
+    const record: ManagedStandaloneProcessRecord = {
+      processId,
+      state: "running",
+      exitCode: null,
+      errorCode: null,
+      chunks: [],
+      allowStdin: input.allowStdin,
+      terminationRequested: false,
+      completion: Promise.resolve()
+    };
+    this.standaloneProcesses.set(processId, record);
+
+    record.completion = client
+      .request<Record<string, unknown>>(
+        "command/exec",
+        {
+          command: input.command,
+          cwd: input.cwd,
+          processId,
+          disableTimeout: true,
+          outputBytesCap: MANAGED_COMMAND_OUTPUT_BYTES_CAP,
+          streamStdin: input.allowStdin,
+          streamStdoutStderr: true,
+          sandboxPolicy: input.readOnly
+            ? { type: "readOnly", networkAccess: false }
+            : {
+                type: "workspaceWrite",
+                writableRoots: [input.cwd],
+                networkAccess: false,
+                excludeTmpdirEnvVar: true,
+                excludeSlashTmp: true
+              }
+        },
+        { timeoutMs: null }
+      )
+      .then((response) => {
+        if (typeof response.exitCode !== "number") {
+          record.state = "failed";
+          record.errorCode = "CODEX_STANDALONE_RESPONSE_INVALID";
+          return;
+        }
+        record.exitCode = response.exitCode;
+        record.state = record.terminationRequested
+          ? "terminated"
+          : response.exitCode === 0
+            ? "completed"
+            : "failed";
+      })
+      .catch((error: unknown) => {
+        record.state = record.terminationRequested ? "terminated" : "failed";
+        record.errorCode =
+          error instanceof ServiceError ? error.code : "INTERNAL_ERROR";
+      })
+      .finally(() => {
+        const cleanup = setTimeout(() => {
+          this.standaloneProcesses.delete(processId);
+        }, MANAGED_COMMAND_RECORD_RETENTION_MS);
+        cleanup.unref?.();
+      });
+
+    return { processId, state: "running" };
+  }
+
+  async readStandaloneProcess(
+    processId: string,
+    cursor = 0,
+    limit = 100
+  ): Promise<RuntimeStandaloneProcessSnapshot> {
+    const record = this.getStandaloneProcess(processId);
+    const safeCursor = Math.max(0, Math.floor(cursor));
+    const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+    return {
+      processId: record.processId,
+      state: record.state,
+      exitCode: record.exitCode,
+      errorCode: record.errorCode,
+      chunks: record.chunks.slice(safeCursor, safeCursor + safeLimit),
+      nextCursor: Math.min(record.chunks.length, safeCursor + safeLimit)
+    };
+  }
+
+  async waitStandaloneProcess(
+    processId: string
+  ): Promise<RuntimeStandaloneProcessSnapshot> {
+    const record = this.getStandaloneProcess(processId);
+    await record.completion;
+    return this.readStandaloneProcess(processId, 0, 1);
+  }
+
+  async writeStandaloneProcess(
+    processId: string,
+    input: string,
+    closeStdin = false
+  ): Promise<void> {
+    const record = this.getStandaloneProcess(processId);
+    if (record.state !== "running" || !record.allowStdin) {
+      throw new ServiceError(
+        "CODEX_STANDALONE_PROCESS_INPUT_UNAVAILABLE",
+        "Standalone process stdin is unavailable"
+      );
+    }
+    const client = await this.ensureClient();
+    await client.request("command/exec/write", {
+      processId,
+      ...(input ? { deltaBase64: Buffer.from(input, "utf8").toString("base64") } : {}),
+      closeStdin
+    });
+  }
+
+  async terminateStandaloneProcess(processId: string): Promise<void> {
+    const record = this.getStandaloneProcess(processId);
+    if (record.state !== "running") return;
+    record.terminationRequested = true;
+    const client = await this.ensureClient();
+    await client.request("command/exec/terminate", { processId });
+  }
+
   async respondToServerRequest(
     requestKey: string,
     result: Record<string, unknown>
@@ -938,6 +1086,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     this.client = null;
     this.initialization = null;
     this.connecting = null;
+    this.standaloneProcesses.clear();
     if (client) {
       await client.close();
     }
@@ -977,6 +1126,40 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     }
   }
 
+  private getStandaloneProcess(processId: string): ManagedStandaloneProcessRecord {
+    const record = this.standaloneProcesses.get(processId);
+    if (!record) {
+      throw new ServiceError(
+        "CODEX_STANDALONE_PROCESS_NOT_FOUND",
+        "Standalone process is unavailable"
+      );
+    }
+    return record;
+  }
+
+  private recordStandaloneProcessOutput(
+    params: Record<string, unknown>
+  ): void {
+    const processId = typeof params.processId === "string" ? params.processId : "";
+    const stream = params.stream === "stderr" ? "stderr" : params.stream === "stdout" ? "stdout" : null;
+    const deltaBase64 =
+      typeof params.deltaBase64 === "string" ? params.deltaBase64 : null;
+    if (!processId || !stream || deltaBase64 === null) return;
+    const record = this.standaloneProcesses.get(processId);
+    if (!record) return;
+    if (record.chunks.length >= MANAGED_COMMAND_MAX_CHUNKS) {
+      const last = record.chunks.at(-1);
+      if (last) last.capReached = true;
+      return;
+    }
+    record.chunks.push({
+      sequence: record.chunks.length,
+      stream,
+      content: Buffer.from(deltaBase64, "base64").toString("utf8"),
+      capReached: params.capReached === true
+    });
+  }
+
   private assertStandaloneCapability(
     operation: keyof NonNullable<
       RuntimeCapabilitySnapshot["standaloneExecution"]
@@ -1013,6 +1196,9 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         await this.eventSink.onRequest(request);
       },
       onNotification: async (notification) => {
+        if (notification.method === "command/exec/outputDelta") {
+          this.recordStandaloneProcessOutput(notification.params);
+        }
         await this.eventSink?.onNotification(notification);
       }
     });

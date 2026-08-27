@@ -163,6 +163,29 @@ export class CoreWriterAuthorityRepository {
     return row ? fromRow(row) : null;
   }
 
+  renew(
+    id: string,
+    input: {
+      holderRequestId: string;
+      expectedRevision: number;
+      expiresAt: string;
+      now?: string;
+    }
+  ): CoreWriterAuthorityRecord {
+    const now = nowIso(input.now);
+    this.reconcileExpired(now);
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE core_writer_authorities
+        SET expires_at = ?, revision = revision + 1
+        WHERE id = ? AND holder_request_id = ?
+          AND status = 'active' AND revision = ?
+      `)
+      .run(input.expiresAt, id, input.holderRequestId, input.expectedRevision);
+    assertUpdated(result.changes, "Core writer authority", id, input.expectedRevision);
+    return this.get(id);
+  }
+
   release(
     id: string,
     input: {

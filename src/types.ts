@@ -461,6 +461,37 @@ export interface ShellRunResponse {
   error?: string;
 }
 
+export interface WorkspaceExecPayload extends DirectExecutorPreference {
+  repoId: string;
+  sessionId?: string;
+  command: string;
+  args: string[];
+  workdir?: string;
+  allowStdin?: boolean;
+}
+
+export interface WorkspaceProcessReadPayload {
+  repoId: string;
+  sessionId?: string;
+  processId: string;
+  cursor?: number;
+  limit?: number;
+}
+
+export interface WorkspaceProcessInputPayload {
+  repoId: string;
+  sessionId?: string;
+  processId: string;
+  input: string;
+  closeStdin?: boolean;
+}
+
+export interface WorkspaceProcessTerminatePayload {
+  repoId: string;
+  sessionId?: string;
+  processId: string;
+}
+
 export interface GitDiffPayload extends DirectExecutorPreference {
   repoId: string;
   staged?: boolean;

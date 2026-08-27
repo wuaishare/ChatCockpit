@@ -48,7 +48,11 @@ interface PendingRequest {
   method: string;
   resolve(value: unknown): void;
   reject(error: Error): void;
-  timeout: NodeJS.Timeout;
+  timeout: NodeJS.Timeout | null;
+}
+
+export interface CodexAppServerRequestOptions {
+  timeoutMs?: number | null;
 }
 
 export interface CodexAppServerClientOptions {
@@ -172,9 +176,13 @@ export class CodexAppServerClient {
     }
   }
 
-  async request<T = unknown>(method: string, params: unknown = {}): Promise<T> {
+  async request<T = unknown>(
+    method: string,
+    params: unknown = {},
+    options: CodexAppServerRequestOptions = {}
+  ): Promise<T> {
     await this.start();
-    return this.sendRequest<T>(method, params);
+    return this.sendRequest<T>(method, params, options);
   }
 
   async respondToServerRequest(
@@ -355,7 +363,11 @@ export class CodexAppServerClient {
     };
   }
 
-  private sendRequest<T>(method: string, params: unknown): Promise<T> {
+  private sendRequest<T>(
+    method: string,
+    params: unknown,
+    options: CodexAppServerRequestOptions = {}
+  ): Promise<T> {
     const child = this.child;
     if (!child || child.exitCode !== null || !child.stdin.writable) {
       return Promise.reject(
@@ -368,19 +380,24 @@ export class CodexAppServerClient {
 
     const id = this.nextRequestId++;
     return new Promise<T>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pending.delete(id);
-        reject(
-          new ServiceError(
-            "CODEX_APP_SERVER_TIMEOUT",
-            `Codex App Server request ${method} timed out`,
-            {
-              details: { method }
-            }
-          )
-        );
-      }, this.options.requestTimeoutMs);
-      timeout.unref();
+      const requestTimeoutMs =
+        options.timeoutMs === undefined
+          ? this.options.requestTimeoutMs
+          : options.timeoutMs;
+      const timeout =
+        requestTimeoutMs === null
+          ? null
+          : setTimeout(() => {
+              this.pending.delete(id);
+              reject(
+                new ServiceError(
+                  "CODEX_APP_SERVER_TIMEOUT",
+                  `Codex App Server request ${method} timed out`,
+                  { details: { method } }
+                )
+              );
+            }, requestTimeoutMs);
+      timeout?.unref();
       this.pending.set(id, {
         method,
         resolve: (value) => resolve(value as T),
@@ -391,7 +408,7 @@ export class CodexAppServerClient {
         if (!error) return;
         const pending = this.pending.get(id);
         if (!pending) return;
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         this.pending.delete(id);
         reject(
           new ServiceError(
@@ -511,7 +528,7 @@ export class CodexAppServerClient {
     if (!pending) {
       return;
     }
-    clearTimeout(pending.timeout);
+    if (pending.timeout) clearTimeout(pending.timeout);
     this.pending.delete(record.id);
 
     if (record.error) {
@@ -523,7 +540,7 @@ export class CodexAppServerClient {
 
   private rejectPending(error: Error): void {
     for (const pending of this.pending.values()) {
-      clearTimeout(pending.timeout);
+      if (pending.timeout) clearTimeout(pending.timeout);
       pending.reject(error);
     }
     this.pending.clear();

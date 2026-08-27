@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
@@ -6,6 +6,7 @@ import readline from "node:readline";
 const root = path.resolve(process.env.CHATCOCKPIT_MOCK_STANDALONE_ROOT || process.cwd());
 const tracePath = process.env.CHATCOCKPIT_MOCK_STANDALONE_TRACE;
 const unsupportedMethod = process.env.CHATCOCKPIT_MOCK_UNSUPPORTED_METHOD || "";
+const commandProcesses = new Map();
 
 function trace(message) {
   if (!tracePath) return;
@@ -18,6 +19,10 @@ function respond(id, result) {
 
 function fail(id, code, message) {
   process.stdout.write(`${JSON.stringify({ id, error: { code, message } })}\n`);
+}
+
+function notify(method, params) {
+  process.stdout.write(`${JSON.stringify({ method, params })}\n`);
 }
 
 function safePath(value) {
@@ -152,6 +157,18 @@ lineReader.on("line", (line) => {
         respond(message.id, {});
         break;
       }
+      case "skills/list":
+        respond(message.id, { data: [{ cwd: root, skills: [], errors: [] }] });
+        break;
+      case "hooks/list":
+        respond(message.id, { data: [{ cwd: root, hooks: [], errors: [], warnings: [] }] });
+        break;
+      case "mcpServerStatus/list":
+        respond(message.id, { data: [], nextCursor: null });
+        break;
+      case "config/read":
+        respond(message.id, { config: {}, layers: [] });
+        break;
       case "fs/remove": {
         const target = safePath(message.params?.path);
         fs.rmSync(target, {
@@ -175,23 +192,55 @@ lineReader.on("line", (line) => {
           break;
         }
         const cwd = safePath(message.params?.cwd || root);
-        const result = spawnSync(command[0], command.slice(1), {
-          cwd,
-          encoding: "utf8",
-          timeout:
-            typeof message.params?.timeoutMs === "number"
-              ? message.params.timeoutMs
-              : 5_000,
-          maxBuffer:
-            typeof message.params?.outputBytesCap === "number"
-              ? Math.max(message.params.outputBytesCap * 2, 8_192)
-              : 64 * 1_024
+        const processId = typeof message.params?.processId === "string"
+          ? message.params.processId
+          : null;
+        const streaming = message.params?.streamStdoutStderr === true && processId;
+        if (!streaming) {
+          const result = spawnSync(command[0], command.slice(1), {
+            cwd, encoding: "utf8",
+            timeout: typeof message.params?.timeoutMs === "number" ? message.params.timeoutMs : 5_000,
+            maxBuffer: typeof message.params?.outputBytesCap === "number"
+              ? Math.max(message.params.outputBytesCap * 2, 8_192) : 64 * 1_024
+          });
+          respond(message.id, {
+            exitCode: result.status ?? (result.error ? 1 : 0),
+            stdout: result.stdout || "",
+            stderr: result.stderr || result.error?.message || ""
+          });
+          break;
+        }
+        const child = spawn(command[0], command.slice(1), { cwd, stdio: ["pipe", "pipe", "pipe"] });
+        commandProcesses.set(processId, child);
+        child.stdout.on("data", (chunk) => notify("command/exec/outputDelta", {
+          processId, stream: "stdout", deltaBase64: Buffer.from(chunk).toString("base64"), capReached: false
+        }));
+        child.stderr.on("data", (chunk) => notify("command/exec/outputDelta", {
+          processId, stream: "stderr", deltaBase64: Buffer.from(chunk).toString("base64"), capReached: false
+        }));
+        child.on("exit", (code) => {
+          commandProcesses.delete(processId);
+          respond(message.id, { exitCode: code ?? 1, stdout: "", stderr: "" });
         });
-        respond(message.id, {
-          exitCode: result.status ?? (result.error ? 1 : 0),
-          stdout: result.stdout || "",
-          stderr: result.stderr || result.error?.message || ""
-        });
+        break;
+      }
+      case "command/exec/write": {
+        const processId = String(message.params?.processId || "");
+        const child = commandProcesses.get(processId);
+        if (!child) { fail(message.id, -32602, "process not found"); break; }
+        if (typeof message.params?.deltaBase64 === "string") {
+          child.stdin.write(Buffer.from(message.params.deltaBase64, "base64"));
+        }
+        if (message.params?.closeStdin === true) child.stdin.end();
+        respond(message.id, {});
+        break;
+      }
+      case "command/exec/terminate": {
+        const processId = String(message.params?.processId || "");
+        const child = commandProcesses.get(processId);
+        if (!child) { fail(message.id, -32602, "process not found"); break; }
+        child.kill("SIGTERM");
+        respond(message.id, {});
         break;
       }
       default:

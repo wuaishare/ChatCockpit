@@ -17,6 +17,10 @@ export type CodexStandaloneOperation =
   | "search.fileName"
   | "search.content"
   | "command.exec"
+  | "context.skills"
+  | "context.hooks"
+  | "context.mcpStatus"
+  | "context.config"
   | "git.native";
 
 export interface CodexStandaloneOperationCapability {

@@ -149,7 +149,7 @@ export function createCodexStandaloneExecutorSource(
         capabilities.push(capability("files.write", ["write"]));
       }
       if (ready && isVerified(store, "command.exec")) {
-        capabilities.push(capability("shell.exec", ["read"]));
+        capabilities.push(capability("shell.exec", ["read", "write"]));
       }
 
       return {

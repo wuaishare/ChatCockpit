@@ -110,7 +110,11 @@ async function verifyCodexStandalone(): Promise<void> {
     "files.copy",
     "files.remove",
     "search.fileName",
-    "command.exec"
+    "command.exec",
+    "context.skills",
+    "context.hooks",
+    "context.mcpStatus",
+    "context.config"
   ] as const) {
     assert.equal(
       verified.snapshot.operations[operation].status,
@@ -143,6 +147,10 @@ async function verifyCodexStandalone(): Promise<void> {
     "fs/copy",
     "fuzzyFileSearch",
     "command/exec",
+    "skills/list",
+    "hooks/list",
+    "mcpServerStatus/list",
+    "config/read",
     "fs/remove"
   ]);
   const tracedMethods = verified.trace

@@ -30,6 +30,8 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeStandaloneProcessSnapshot,
+  RuntimeStandaloneProcessStartResult,
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
@@ -52,6 +54,10 @@ const ALL_OPERATIONS: CodexStandaloneOperation[] = [
   "search.fileName",
   "search.content",
   "command.exec",
+  "context.skills",
+  "context.hooks",
+  "context.mcpStatus",
+  "context.config",
   "git.native"
 ];
 
@@ -106,6 +112,12 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
   nextReadError: Error | null = null;
   nextWriteError: Error | null = null;
   private eventSink: RuntimeEventSink | null = null;
+  private managedProcessCounter = 0;
+  private readonly managedProcesses = new Map<string, RuntimeStandaloneProcessSnapshot>();
+  private readonly managedProcessResolvers = new Map<
+    string,
+    (snapshot: RuntimeStandaloneProcessSnapshot) => void
+  >();
 
   async capabilities(): Promise<RuntimeCapabilitySnapshot> {
     return {
@@ -172,6 +184,98 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
       stdout: result.stdout ?? "",
       stderr: result.stderr ?? ""
     };
+  }
+
+  async startStandaloneProcess(input: {
+    command: string[];
+    cwd: string;
+    readOnly: boolean;
+    allowStdin: boolean;
+  }): Promise<RuntimeStandaloneProcessStartResult> {
+    const processId = `fake_process_${++this.managedProcessCounter}`;
+    this.calls.push({ method: "command/exec:managed", payload: { ...input, processId } });
+    this.managedProcesses.set(processId, {
+      processId,
+      state: "running",
+      exitCode: null,
+      errorCode: null,
+      chunks: [],
+      nextCursor: 0
+    });
+    return { processId, state: "running" };
+  }
+
+  async readStandaloneProcess(
+    processId: string,
+    cursor = 0,
+    limit = 100
+  ): Promise<RuntimeStandaloneProcessSnapshot> {
+    const snapshot = this.requireManagedProcess(processId);
+    const chunks = snapshot.chunks.slice(cursor, cursor + limit);
+    return {
+      ...snapshot,
+      chunks,
+      nextCursor: Math.min(snapshot.chunks.length, cursor + limit)
+    };
+  }
+
+  async waitStandaloneProcess(
+    processId: string
+  ): Promise<RuntimeStandaloneProcessSnapshot> {
+    const snapshot = this.requireManagedProcess(processId);
+    if (snapshot.state !== "running") return snapshot;
+    return new Promise((resolve) => {
+      this.managedProcessResolvers.set(processId, resolve);
+    });
+  }
+
+  async writeStandaloneProcess(
+    processId: string,
+    input: string,
+    closeStdin = false
+  ): Promise<void> {
+    this.requireManagedProcess(processId);
+    this.calls.push({
+      method: "command/exec/write",
+      payload: { processId, input, closeStdin }
+    });
+  }
+
+  async terminateStandaloneProcess(processId: string): Promise<void> {
+    const snapshot = this.requireManagedProcess(processId);
+    if (snapshot.state !== "running") return;
+    const terminal: RuntimeStandaloneProcessSnapshot = {
+      ...snapshot,
+      state: "terminated",
+      exitCode: null
+    };
+    this.managedProcesses.set(processId, terminal);
+    const resolve = this.managedProcessResolvers.get(processId);
+    this.managedProcessResolvers.delete(processId);
+    resolve?.(terminal);
+  }
+
+  completeManagedProcess(processId: string, output = "managed-complete"): void {
+    const snapshot = this.requireManagedProcess(processId);
+    const terminal: RuntimeStandaloneProcessSnapshot = {
+      ...snapshot,
+      state: "completed",
+      exitCode: 0,
+      chunks: [
+        { sequence: 0, stream: "stdout", content: output, capReached: false }
+      ],
+      nextCursor: 1
+    };
+    this.managedProcesses.set(processId, terminal);
+    const resolve = this.managedProcessResolvers.get(processId);
+    this.managedProcessResolvers.delete(processId);
+    resolve?.(terminal);
+  }
+
+  private requireManagedProcess(processId: string): RuntimeStandaloneProcessSnapshot {
+    const snapshot = this.managedProcesses.get(processId);
+    if (!snapshot) throw new Error(`missing managed process ${processId}`);
+    return snapshot;
   }
 
   async listThreads(
@@ -651,10 +755,21 @@ async function verifyChatDirectRouting(): Promise<void> {
       repoId: "primary",
       sessionId: session.id,
       command: "node",
-      args: ["-e", "console.log('builtin-direct')"]
+      args: ["-e", "console.log('codex-standalone-write')"]
     });
-    assert.equal(directShell.execution.executor, "builtin-direct");
-    assert.match(directShell.stdout, /builtin-direct/);
+    assert.equal(
+      directShell.execution.executor,
+      "codex-app-server-standalone"
+    );
+    assert.match(directShell.stdout, /codex-standalone-write/);
+    const standaloneWriteCommand = adapter.calls.find(
+      (call) =>
+        call.method === "command/exec" &&
+        typeof call.payload === "object" &&
+        call.payload !== null &&
+        (call.payload as { readOnly?: boolean }).readOnly === false
+    );
+    assert.ok(standaloneWriteCommand);
 
     const gitStatus = await service.gitStatus(context, "primary");
     assert.equal(gitStatus.execution.executor, "builtin-direct");
@@ -798,6 +913,76 @@ async function verifyChatDirectRouting(): Promise<void> {
       "alpha-shell"
     );
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
+    const managed = await service.workspaceExec(context, {
+      repoId: "primary",
+      command: "node",
+      args: ["-e", "setTimeout(() => {}, 1000)"],
+      allowStdin: true
+    });
+    assert.equal(managed.state, "running");
+    assert.equal(managed.execution.executor, "codex-app-server-standalone");
+    assert.ok(repositories.coreWriterAuthorities.getActive(workspace.id));
+
+    await assert.rejects(
+      () => service.write(context, {
+        repoId: "primary",
+        path: "src/must-wait-for-managed.ts",
+        content: "export const blocked = true;\n"
+      }),
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "WRITER_LEASE_CONFLICT");
+        return true;
+      }
+    );
+
+    adapter.completeManagedProcess(managed.processId, "managed-finished");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const completedManaged = await service.workspaceProcessRead(context, {
+      repoId: "primary",
+      processId: managed.processId
+    });
+    assert.equal(completedManaged.state, "completed");
+    assert.equal(completedManaged.chunks[0]?.content, "managed-finished");
+    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
+    const afterManagedWrite = await service.write(context, {
+      repoId: "primary",
+      path: "src/after-managed.ts",
+      content: "export const afterManaged = true;\n"
+    });
+    assert.equal(afterManagedWrite.written, true);
+
+    const sessionManagedLease = repositories.leases.acquire({
+      id: "lease_session_managed_process",
+      workspaceId: workspace.id,
+      sessionId: session.id,
+      holderType: "chat-direct",
+      holderId: "session-managed-process",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      now: "2026-08-06T04:31:00.000Z"
+    });
+    const sessionManaged = await service.workspaceExec(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      command: "node",
+      args: ["-e", "setTimeout(() => {}, 10000)"]
+    });
+    assert.equal(sessionManaged.state, "running");
+    repositories.leases.release(sessionManagedLease.id, {
+      sessionId: session.id,
+      holderId: sessionManagedLease.holderId,
+      expectedRevision: sessionManagedLease.revision,
+      now: "2026-08-06T04:32:00.000Z"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    const terminatedSessionManaged = await service.workspaceProcessRead(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      processId: sessionManaged.processId
+    });
+    assert.equal(terminatedSessionManaged.state, "terminated");
 
     const alphaCoreCommit = await service.gitCommit(context, {
       repoId: "primary",

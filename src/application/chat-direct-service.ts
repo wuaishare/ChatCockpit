@@ -21,10 +21,15 @@ import type {
   GitCommitPayload,
   SearchPayload,
   ShellRunPayload,
-  TokenPilotPaths
+  TokenPilotPaths,
+  WorkspaceExecPayload,
+  WorkspaceProcessInputPayload,
+  WorkspaceProcessReadPayload,
+  WorkspaceProcessTerminatePayload
 } from "../types.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type { CoreWriterAuthorityRecord } from "../continuity/repositories/core-writer-authority-repository.js";
+import type { WriterLeaseRecord } from "../continuity/types.js";
 import {
   DirectCapabilityBroker,
   DirectCapabilityBrokerError,
@@ -92,6 +97,20 @@ function selectionMetadata(
 }
 
 const CORE_WRITER_AUTHORITY_TTL_MS = 120_000;
+const MANAGED_PROCESS_WRITER_AUTHORITY_TTL_MS = 10 * 60_000;
+const MANAGED_PROCESS_LEASE_GUARD_INTERVAL_MS = 1_000;
+const MANAGED_PROCESS_RECORD_RETENTION_MS = 30 * 60_000;
+
+interface ManagedChatDirectProcess {
+  repoId: string;
+  processId: string;
+  sessionId: string | null;
+  authorizationGrantId: string | null;
+  authority: CoreWriterAuthorityRecord | null;
+  continuityLease: WriterLeaseRecord | null;
+  selection: DirectExecutorSelection;
+  access: DirectCapabilityAccess;
+}
 
 function serviceError(code: string, error: unknown): ServiceError {
   return wrapServiceOperationError(
@@ -107,6 +126,7 @@ export class ChatDirectService {
   private readonly git: GitService;
   private readonly searchService: SearchService;
   private readonly shellService: ShellService;
+  private readonly managedProcesses = new Map<string, ManagedChatDirectProcess>();
 
   constructor(
     private readonly paths: TokenPilotPaths,
@@ -123,7 +143,8 @@ export class ChatDirectService {
   private acquireMutationAuthority(
     context: OperationContext,
     repoId: string,
-    sessionId?: string
+    sessionId?: string,
+    ttlMs = CORE_WRITER_AUTHORITY_TTL_MS
   ): CoreWriterAuthorityRecord | null {
     if (sessionId) {
       assertChatDirectWriterLease(
@@ -170,7 +191,7 @@ export class ChatDirectService {
       actorId: context.actorId,
       authorizationGrantId: context.authorizationGrantId,
       expiresAt: new Date(
-        Date.parse(context.now) + CORE_WRITER_AUTHORITY_TTL_MS
+        Date.parse(context.now) + ttlMs
       ).toISOString(),
       now: context.now
     });
@@ -192,6 +213,139 @@ export class ChatDirectService {
       // encourage a caller retry that could duplicate the write; the bounded
       // authority remains fail-safe and will expire automatically.
     }
+  }
+
+  private getManagedProcess(
+    context: OperationContext,
+    repoId: string,
+    processId: string,
+    sessionId?: string
+  ): ManagedChatDirectProcess {
+    const record = this.managedProcesses.get(processId);
+    if (!record || record.repoId !== repoId) {
+      throw new ServiceError(
+        "WORKSPACE_PROCESS_NOT_FOUND",
+        "Managed workspace process is unavailable"
+      );
+    }
+    if (record.sessionId) {
+      if (sessionId !== record.sessionId) {
+        throw new ServiceError(
+          "WORKSPACE_PROCESS_ACCESS_DENIED",
+          "Managed workspace process belongs to another development session"
+        );
+      }
+    } else if (
+      !context.authorizationGrantId ||
+      context.authorizationGrantId !== record.authorizationGrantId
+    ) {
+      throw new ServiceError(
+        "WORKSPACE_PROCESS_ACCESS_DENIED",
+        "Managed workspace process belongs to another authorization grant"
+      );
+    }
+    return record;
+  }
+
+  private renewManagedProcessAuthority(
+    context: OperationContext,
+    record: ManagedChatDirectProcess
+  ): void {
+    if (!record.authority) return;
+    record.authority = this.repositories.coreWriterAuthorities.renew(
+      record.authority.id,
+      {
+        holderRequestId: record.authority.holderRequestId,
+        expectedRevision: record.authority.revision,
+        expiresAt: new Date(
+          Date.parse(context.now) + MANAGED_PROCESS_WRITER_AUTHORITY_TTL_MS
+        ).toISOString(),
+        now: context.now
+      }
+    );
+  }
+
+  private releaseManagedProcessAuthority(
+    record: ManagedChatDirectProcess,
+    now = new Date().toISOString()
+  ): void {
+    const authority = record.authority;
+    if (!authority) return;
+    try {
+      this.repositories.coreWriterAuthorities.release(authority.id, {
+        holderRequestId: authority.holderRequestId,
+        expectedRevision: authority.revision,
+        now
+      });
+    } catch {
+      // Fail-safe: the bounded authority will expire even if release races with expiry.
+    } finally {
+      record.authority = null;
+    }
+  }
+
+  private superviseManagedProcess(record: ManagedChatDirectProcess): void {
+    const heartbeat = record.authority
+      ? setInterval(() => {
+          const authority = record.authority;
+          if (!authority) return;
+          const now = new Date().toISOString();
+          try {
+            record.authority = this.repositories.coreWriterAuthorities.renew(
+              authority.id,
+              {
+                holderRequestId: authority.holderRequestId,
+                expectedRevision: authority.revision,
+                expiresAt: new Date(
+                  Date.parse(now) + MANAGED_PROCESS_WRITER_AUTHORITY_TTL_MS
+                ).toISOString(),
+                now
+              }
+            );
+          } catch {
+            void this.runtime.terminateStandaloneProcess(record.processId).catch(() => undefined);
+          }
+        }, 60_000)
+      : null;
+    heartbeat?.unref?.();
+
+    const leaseGuard = record.continuityLease
+      ? setInterval(() => {
+          const lease = record.continuityLease;
+          if (!lease) return;
+          const now = new Date().toISOString();
+          try {
+            this.repositories.leases.reconcileExpired(now);
+            const active = this.repositories.leases.getActive(lease.workspaceId);
+            if (
+              !active ||
+              active.id !== lease.id ||
+              active.sessionId !== lease.sessionId ||
+              active.holderType !== "chat-direct"
+            ) {
+              throw new Error("Managed process lost its Continuity writer lease");
+            }
+            record.continuityLease = active;
+          } catch {
+            record.continuityLease = null;
+            void this.runtime.terminateStandaloneProcess(record.processId).catch(() => undefined);
+          }
+        }, MANAGED_PROCESS_LEASE_GUARD_INTERVAL_MS)
+      : null;
+    leaseGuard?.unref?.();
+
+    void this.runtime
+      .waitStandaloneProcess(record.processId)
+      .catch(() => undefined)
+      .finally(() => {
+        if (heartbeat) clearInterval(heartbeat);
+        if (leaseGuard) clearInterval(leaseGuard);
+        this.releaseManagedProcessAuthority(record);
+        const cleanup = setTimeout(() => {
+          this.managedProcesses.delete(record.processId);
+        }, MANAGED_PROCESS_RECORD_RETENTION_MS);
+        cleanup.unref?.();
+      });
   }
 
   listExecutors() {
@@ -445,7 +599,7 @@ export class ChatDirectService {
             cwd: prepared.workdir,
             timeoutMs: prepared.timeoutMs,
             outputBytesCap: prepared.outputBytesCap,
-            readOnly: true
+            readOnly: access === "read"
           });
           const elapsed = Date.now() - startedAt;
           return {
@@ -490,6 +644,151 @@ export class ChatDirectService {
     } finally {
       this.releaseMutationAuthority(context, authority);
     }
+  }
+
+  async workspaceExec(
+    context: OperationContext,
+    payload: WorkspaceExecPayload
+  ) {
+    let prepared: ReturnType<typeof prepareShellCommand>;
+    try {
+      prepared = prepareShellCommand(this.paths, payload);
+    } catch (error) {
+      throw serviceError("SHELL_COMMAND_BLOCKED", error);
+    }
+    const access: DirectCapabilityAccess = prepared.standaloneReadOnly
+      ? "read"
+      : "write";
+    const selection = this.select("shell.exec", access, payload.executorId);
+    if (selection.executorId !== "codex-app-server-standalone") {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed workspace execution requires a verified native execution backend"
+      );
+    }
+    let continuityLease: WriterLeaseRecord | null = null;
+    const authority =
+      access === "write" && !payload.sessionId
+        ? this.acquireMutationAuthority(
+            context,
+            payload.repoId,
+            undefined,
+            MANAGED_PROCESS_WRITER_AUTHORITY_TTL_MS
+          )
+        : null;
+    if (access === "write" && payload.sessionId) {
+      continuityLease = assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        payload.repoId,
+        payload.sessionId
+      ).lease;
+    }
+    try {
+      const started = await this.runtime.startStandaloneProcess({
+        command: [prepared.command, ...prepared.args],
+        cwd: prepared.workdir,
+        readOnly: access === "read",
+        allowStdin: payload.allowStdin === true
+      });
+      const record: ManagedChatDirectProcess = {
+        repoId: payload.repoId,
+        processId: started.processId,
+        sessionId: payload.sessionId ?? null,
+        authorizationGrantId: context.authorizationGrantId ?? null,
+        authority,
+        continuityLease,
+        selection,
+        access
+      };
+      this.managedProcesses.set(started.processId, record);
+      this.superviseManagedProcess(record);
+      return {
+        ok: true as const,
+        repoId: payload.repoId,
+        processId: started.processId,
+        state: started.state,
+        execution: selectionMetadata(selection)
+      };
+    } catch (error) {
+      this.releaseMutationAuthority(context, authority);
+      throw serviceError("WORKSPACE_EXEC_BLOCKED", error);
+    }
+  }
+
+  async workspaceProcessRead(
+    context: OperationContext,
+    payload: WorkspaceProcessReadPayload
+  ) {
+    const record = this.getManagedProcess(
+      context,
+      payload.repoId,
+      payload.processId,
+      payload.sessionId
+    );
+    const snapshot = await this.runtime.readStandaloneProcess(
+      payload.processId,
+      payload.cursor ?? 0,
+      payload.limit ?? 100
+    );
+    return {
+      ok: true as const,
+      repoId: payload.repoId,
+      ...snapshot,
+      execution: selectionMetadata(record.selection)
+    };
+  }
+
+  async workspaceProcessInput(
+    context: OperationContext,
+    payload: WorkspaceProcessInputPayload
+  ) {
+    const record = this.getManagedProcess(
+      context,
+      payload.repoId,
+      payload.processId,
+      payload.sessionId
+    );
+    if (record.access === "write" && record.sessionId) {
+      assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        payload.repoId,
+        record.sessionId
+      );
+    }
+    await this.runtime.writeStandaloneProcess(
+      payload.processId,
+      payload.input,
+      payload.closeStdin === true
+    );
+    return {
+      ok: true as const,
+      repoId: payload.repoId,
+      processId: payload.processId,
+      accepted: true as const,
+      execution: selectionMetadata(record.selection)
+    };
+  }
+
+  async workspaceProcessTerminate(
+    context: OperationContext,
+    payload: WorkspaceProcessTerminatePayload
+  ) {
+    const record = this.getManagedProcess(
+      context,
+      payload.repoId,
+      payload.processId,
+      payload.sessionId
+    );
+    await this.runtime.terminateStandaloneProcess(payload.processId);
+    return {
+      ok: true as const,
+      repoId: payload.repoId,
+      processId: payload.processId,
+      terminationRequested: true as const,
+      execution: selectionMetadata(record.selection)
+    };
   }
 
   async gitStatus(

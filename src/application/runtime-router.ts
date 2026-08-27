@@ -13,6 +13,8 @@ import type {
   RuntimeStandaloneCommandResult,
   RuntimeStandaloneDirectoryEntry,
   RuntimeStandaloneFileReadResult,
+  RuntimeStandaloneProcessSnapshot,
+  RuntimeStandaloneProcessStartResult,
   RuntimeThreadContextInput,
   RuntimeThreadContextPage,
   RuntimeThreadForkInput,
@@ -146,6 +148,71 @@ export class RuntimeRouter {
     readOnly: boolean;
   }): Promise<RuntimeStandaloneCommandResult> {
     return this.codex.executeStandaloneCommand(input);
+  }
+
+  startStandaloneProcess(input: {
+    command: string[];
+    cwd: string;
+    readOnly: boolean;
+    allowStdin: boolean;
+  }): Promise<RuntimeStandaloneProcessStartResult> {
+    if (!this.codex.startStandaloneProcess) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed standalone process execution is unavailable"
+      );
+    }
+    return this.codex.startStandaloneProcess(input);
+  }
+
+  readStandaloneProcess(
+    processId: string,
+    cursor = 0,
+    limit = 100
+  ): Promise<RuntimeStandaloneProcessSnapshot> {
+    if (!this.codex.readStandaloneProcess) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed standalone process inspection is unavailable"
+      );
+    }
+    return this.codex.readStandaloneProcess(processId, cursor, limit);
+  }
+
+  waitStandaloneProcess(
+    processId: string
+  ): Promise<RuntimeStandaloneProcessSnapshot> {
+    if (!this.codex.waitStandaloneProcess) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed standalone process completion is unavailable"
+      );
+    }
+    return this.codex.waitStandaloneProcess(processId);
+  }
+
+  writeStandaloneProcess(
+    processId: string,
+    input: string,
+    closeStdin = false
+  ): Promise<void> {
+    if (!this.codex.writeStandaloneProcess) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed standalone process stdin is unavailable"
+      );
+    }
+    return this.codex.writeStandaloneProcess(processId, input, closeStdin);
+  }
+
+  terminateStandaloneProcess(processId: string): Promise<void> {
+    if (!this.codex.terminateStandaloneProcess) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed standalone process termination is unavailable"
+      );
+    }
+    return this.codex.terminateStandaloneProcess(processId);
   }
 
   respondToCodexServerRequest(
