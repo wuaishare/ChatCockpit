@@ -1,6 +1,6 @@
 import { App as AntApp, Button, Form, Input, Modal, Select } from "antd";
 import { ImportOutlined, SwapOutlined } from "@ant-design/icons";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 
 import {
   acceptContinuityHandoff,
@@ -38,7 +38,6 @@ interface WorkspaceContinuityPanelProps {
   token: string | null;
   snapshot: ContinuityWorkspaceSnapshot;
   activeSection: ContinuitySectionKey;
-  projectsContent: ReactNode;
   onRefresh: () => Promise<void> | void;
   onSectionChange: (section: ContinuitySectionKey) => void;
 }
@@ -94,7 +93,6 @@ export function WorkspaceContinuityPanel({
   token,
   snapshot,
   activeSection,
-  projectsContent,
   onRefresh,
   onSectionChange
 }: WorkspaceContinuityPanelProps) {
@@ -288,7 +286,6 @@ export function WorkspaceContinuityPanel({
         <Button onClick={() => void onRefresh()}>{copy.refreshSnapshot}</Button>
       </div>
 
-      {activeSection === "projects" ? projectsContent : null}
       {activeSection === "documents" ? (
         <DevelopmentDocumentsSection
           locale={locale}

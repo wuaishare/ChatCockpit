@@ -292,7 +292,8 @@
     "verify:mcp-tool-surface": "tsx scripts/verify-mcp-tool-surface.ts",
     "verify:device-onboarding-surface": "tsx scripts/verify-device-onboarding-surface.ts",
     "verify:workspace-process-mcp": "tsx scripts/verify-workspace-process-mcp.ts",
-    "verify:native-workspace-command-policy": "tsx scripts/verify-native-workspace-command-policy.ts"
+    "verify:native-workspace-command-policy": "tsx scripts/verify-native-workspace-command-policy.ts",
+    "verify:project-cockpit-p0-ui": "tsx scripts/verify-project-cockpit-p0-ui.ts"
   },
   "engines": {
     "node": ">=22.13.0"

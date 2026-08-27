@@ -93,6 +93,8 @@ Direct Drive 已确认采用 **ChatCockpit Capability Broker + Pluggable Downstr
 
 **Project-scoped MCP Applicability — 已实现：** `developmentCoordination.mcpApplicability` 不会把全局 Runtime Resource Inventory 当成“某个 Project 可用 MCP”的证据，也不依赖 Thread 生命周期。对于 Ready Workspace，ChatCockpit 使用其私有 cwd 调用稳定的 `config/read`，只投影 Codex 已经完成配置层合并后的 Effective `mcp_servers` 名称与 enabled/disabled 状态，从而得到 configured、applicable/enabled、disabled 数量；不自行解析 TOML、不复制 transport/command/credential 等私密配置，也不创建或 Resume Probe Thread。`mcpServerStatus/list` 继续只负责 Resource Center 或已加载 Native Runtime 的 Tool/Auth/Health 运行态事实，不与 Project Applicability 混为一谈。Workspace 未 Ready，或 Effective Config 在预算内无法读取时，各 Count 保持 `null` 并明确标记 not-required/degraded，而不是从全局 Inventory 猜测。
 
+**Project Cockpit P0 — 已实现：** Web Cockpit 的“项目”首屏以 `GET /api/continuity/projects/:projectId` 返回的 `developmentCoordination` 为权威真源，只读展示三组核心事实：Project / Workspace / Git、模型循环 / Codex / Handoff，以及该 Project 的 Effective MCP Applicability。该首屏刻意与 Workspace Continuity Snapshot 解耦，Snapshot 不可用不能遮蔽 Project 开发协调真相。前端只允许把服务端枚举映射为产品文案，不自行推断模型循环所有者、Codex Transfer 策略或 MCP 适用性；也不消费兼容字段 `nativeDevelopment`、不展示 Thread Preview 正文、不复制 Workflow Mutation。
+
 ### Codex Session — 已实现，协议适配层为实验性
 
 ChatCockpit `codex-session` 可以 Bind、Resume、Fork Codex App Server Thread。启动模型循环是单独的显式操作，并要求：

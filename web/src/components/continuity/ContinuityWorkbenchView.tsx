@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  fetchContinuityProject,
   fetchContinuityProjects,
   fetchWorkspaceContinuitySnapshot
 } from "../../api";
@@ -24,12 +25,14 @@ import { getUiCopy, type LocaleCode } from "../../i18n";
 import type { OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
+  ContinuityProjectDetailResponse,
   ContinuityProjectProjection,
   ContinuitySectionKey,
   ContinuityWorkspaceSnapshot,
   ContinuityWorkspaceStatus
 } from "../../types";
 import { StateNotice } from "../StateNotice";
+import { ProjectCockpitOverview } from "./ProjectCockpitOverview";
 import { WorkspaceContinuityPanel } from "./WorkspaceContinuityPanel";
 import { WorkspaceOnboardingDrawer } from "./WorkspaceOnboardingDrawer";
 
@@ -74,6 +77,9 @@ export function ContinuityWorkbenchView({
   const copy = getUiCopy(locale).continuity;
   const [projects, setProjects] = useState<ContinuityProjectProjection[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [projectDetail, setProjectDetail] = useState<ContinuityProjectDetailResponse | null>(null);
+  const [projectDetailLoading, setProjectDetailLoading] = useState(false);
+  const [projectDetailError, setProjectDetailError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ContinuityWorkspaceSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -81,11 +87,22 @@ export function ContinuityWorkbenchView({
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [workspaceManagerOpen, setWorkspaceManagerOpen] = useState(false);
   const protectedView = authRequired && !token?.trim();
+  const selectedProjectId = useMemo(() => {
+    if (!selectedWorkspaceId) return null;
+    return (
+      projects.find(({ workspaces }) =>
+        workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
+      )?.project.id ?? null
+    );
+  }, [projects, selectedWorkspaceId]);
 
   const loadProjects = useCallback(async () => {
     if (protectedView) {
       setProjects([]);
       setSelectedWorkspaceId(null);
+      setProjectDetail(null);
+      setProjectDetailError(null);
+      setProjectDetailLoading(false);
       setSnapshot(null);
       setError(null);
       setSnapshotError(null);
@@ -131,8 +148,31 @@ export function ContinuityWorkbenchView({
     void loadProjects();
   }, [loadProjects]);
 
+  const loadProjectDetail = useCallback(async () => {
+    if (activeSection !== "projects" || protectedView || !selectedProjectId) {
+      setProjectDetail(null);
+      setProjectDetailError(null);
+      setProjectDetailLoading(false);
+      return;
+    }
+    setProjectDetail(null);
+    setProjectDetailLoading(true);
+    setProjectDetailError(null);
+    try {
+      setProjectDetail(await fetchContinuityProject(selectedProjectId, token));
+    } catch (loadError) {
+      setProjectDetailError(errorMessage(loadError, copy.requestFailedTitle));
+    } finally {
+      setProjectDetailLoading(false);
+    }
+  }, [activeSection, copy.requestFailedTitle, protectedView, selectedProjectId, token]);
+
+  useEffect(() => {
+    void loadProjectDetail();
+  }, [loadProjectDetail]);
+
   const loadSnapshot = useCallback(async () => {
-    if (protectedView || !selectedWorkspaceId) {
+    if (activeSection === "projects" || protectedView || !selectedWorkspaceId) {
       setSnapshot(null);
       setSnapshotError(null);
       setSnapshotLoading(false);
@@ -152,7 +192,7 @@ export function ContinuityWorkbenchView({
     } finally {
       setSnapshotLoading(false);
     }
-  }, [copy.requestFailedTitle, protectedView, selectedWorkspaceId, token]);
+  }, [activeSection, copy.requestFailedTitle, protectedView, selectedWorkspaceId, token]);
 
   useEffect(() => {
     void loadSnapshot();
@@ -215,7 +255,7 @@ export function ContinuityWorkbenchView({
         </div>
         <Button
           icon={<ReloadOutlined />}
-          onClick={() => void loadProjects()}
+          onClick={() => void Promise.all([loadProjects(), loadProjectDetail()])}
           loading={loading}
           disabled={protectedView}
         >
@@ -298,6 +338,36 @@ export function ContinuityWorkbenchView({
               description={copy.selectWorkspaceHint}
               retryLabel={copy.refresh}
             />
+          ) : activeSection === "projects" ? (
+            <>
+              {projectDetailLoading ? (
+                <StateNotice
+                  kind="loading"
+                  title={copy.projectDetailLoadingTitle}
+                  description={copy.projectDetailLoadingDescription}
+                  retryLabel={copy.refresh}
+                />
+              ) : projectDetailError ? (
+                <StateNotice
+                  kind="error"
+                  title={copy.requestFailedTitle}
+                  description={projectDetailError}
+                  retryLabel={copy.refresh}
+                  onRetry={() => void loadProjectDetail()}
+                />
+              ) : projectDetail ? (
+                <ProjectCockpitOverview locale={locale} detail={projectDetail} />
+              ) : null}
+              <ProjectsSection
+                locale={locale}
+                projects={projects}
+                workspaceCount={workspaceCount}
+                readyWorkspaceCount={readyWorkspaceCount}
+                selectedWorkspaceId={selectedWorkspaceId}
+                onSelectWorkspace={setSelectedWorkspaceId}
+                onManageWorkspaces={() => setWorkspaceManagerOpen(true)}
+              />
+            </>
           ) : snapshotLoading ? (
             <StateNotice
               kind="loading"
@@ -321,17 +391,6 @@ export function ContinuityWorkbenchView({
               activeSection={activeSection}
               onRefresh={loadSnapshot}
               onSectionChange={onSectionChange}
-              projectsContent={
-                <ProjectsSection
-                  locale={locale}
-                  projects={projects}
-                  workspaceCount={workspaceCount}
-                  readyWorkspaceCount={readyWorkspaceCount}
-                  selectedWorkspaceId={selectedWorkspaceId}
-                  onSelectWorkspace={setSelectedWorkspaceId}
-                  onManageWorkspaces={() => setWorkspaceManagerOpen(true)}
-                />
-              }
             />
           ) : null}
         </main>

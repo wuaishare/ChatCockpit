@@ -52,6 +52,7 @@ Chat Direct may reuse deterministic or standalone runtime capabilities that do n
 ## Public projection
 
 `chatcockpit.project.get` exposes `developmentCoordination` with separate `modelLoopOwnership`, `workspaceExecution`, `codexContinuity` and `handoff` sections. The older `nativeDevelopment` projection is compatibility-only and must not drive new ChatGPT instructions.
+The Web Project Cockpit consumes that projection directly. Project-level coordination must render independently from Workspace Continuity Snapshot availability, and the UI must not recompute ownership or transfer policy from provider/runtime availability.
 
 ## Consequences
 

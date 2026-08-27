@@ -14,6 +14,7 @@ import type {
   ContinuityDevelopmentDocumentStatus,
   ContinuityHandoffForkResponse,
   ContinuityHandoffMutationResponse,
+  ContinuityProjectDetailResponse,
   ContinuityProjectsResponse,
   CodexNativeThreadMutationResponse,
   CodexRuntimeAccountStatusResponse,
@@ -717,6 +718,16 @@ export async function fetchContinuityProjects(
 ): Promise<ContinuityProjectsResponse> {
   return requestJson<ContinuityProjectsResponse>(
     "/api/continuity/projects?status=active",
+    token
+  );
+}
+
+export async function fetchContinuityProject(
+  projectId: string,
+  token?: string | null
+): Promise<ContinuityProjectDetailResponse> {
+  return requestJson<ContinuityProjectDetailResponse>(
+    `/api/continuity/projects/${encodeURIComponent(projectId)}`,
     token
   );
 }

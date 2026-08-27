@@ -651,6 +651,81 @@ export interface ContinuityProjectsResponse {
   projects: ContinuityProjectProjection[];
 }
 
+export type ProjectDevelopmentObservationStatus = "ready" | "degraded" | "not-required";
+export type ProjectCodexRuntimeAvailability = "available" | "unavailable" | "unknown";
+export type ProjectCodexNextAction =
+  | "resume-native"
+  | "start-native"
+  | "repair-workspace"
+  | "unavailable";
+
+export interface ProjectDevelopmentMatchingThread {
+  id: string;
+  preview: string;
+  updatedAt: number | null;
+  recencyAt: number | null;
+  sourceKind: string | null;
+  threadSource: string | null;
+  name?: string | null;
+  status: { type: string; activeFlags?: string[] };
+}
+
+export interface ProjectDevelopmentCoordination {
+  projectId: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  modelLoopOwnership: {
+    defaultOwner: "caller";
+    implicitCodexTurnAllowed: false;
+    codexTurnRequiresExplicitTransfer: true;
+  };
+  workspaceExecution: {
+    kind: ContinuityWorkspaceKind | null;
+    mode: "native-checkout" | "worktree" | null;
+    worktreeRequiresExplicitOptIn: true;
+    status: string | null;
+    gitAvailable: boolean;
+    branch: string | null;
+    headCommit: string | null;
+    detached: boolean;
+    dirty: boolean;
+  };
+  codexContinuity: {
+    runtimeAvailable: boolean;
+    runtimeAvailability: ProjectCodexRuntimeAvailability;
+    observation: {
+      status: ProjectDevelopmentObservationStatus;
+      reason: string | null;
+      latencyBudgetMs: number;
+    };
+    nextAction: ProjectCodexNextAction;
+    reason: string;
+    sessionToolSequence: string[];
+    nativeTurnTool: "chatcockpit.codex.thread.turn.start" | null;
+    matchingThread: ProjectDevelopmentMatchingThread | null;
+    warnings: string[];
+  };
+  mcpApplicability: {
+    observation: { status: ProjectDevelopmentObservationStatus; reason: string | null };
+    source: "codex-config" | null;
+    configuredServerCount: number | null;
+    applicableServerCount: number | null;
+    disabledServerCount: number | null;
+    servers: Array<{ name: string; enabled: boolean }>;
+    warnings: string[];
+  };
+  handoff: {
+    requiredForModelLoopOwnerChange: true;
+    sameOwnerResumeRequiresHandoff: false;
+    recommendedArtifact: "continuity-capsule";
+  };
+}
+
+export interface ContinuityProjectDetailResponse extends ContinuityProjectProjection {
+  ok: true;
+  developmentCoordination: ProjectDevelopmentCoordination;
+}
+
 export interface WorkspaceDiscoveryRoot {
   id: string;
   displayName: string;

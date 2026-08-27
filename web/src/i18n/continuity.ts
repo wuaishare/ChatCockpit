@@ -37,6 +37,53 @@ export interface ContinuityCopy {
   workspaceSelector: string;
   manageWorkspaces: string;
   addProject: string;
+  projectCockpitTitle: string;
+  projectCockpitDescription: string;
+  projectWorkspaceCard: string;
+  developmentControlCard: string;
+  projectCapabilitiesCard: string;
+  modelLoopOwner: string;
+  modelLoopCaller: string;
+  implicitCodexTurns: string;
+  implicitCodexTurnsDisabled: string;
+  workspaceMode: string;
+  workspaceNativeCheckout: string;
+  workspaceWorktree: string;
+  workspaceState: string;
+  projectName: string;
+  projectSlug: string;
+  detachedHead: string;
+  observationReady: string;
+  observationDegraded: string;
+  observationNotRequired: string;
+  gitLive: string;
+  codexContinuity: string;
+  codexRuntime: string;
+  codexAvailable: string;
+  codexUnavailable: string;
+  codexUnknown: string;
+  codexObservation: string;
+  codexNextAction: string;
+  codexActionResume: string;
+  codexActionStart: string;
+  codexActionRepair: string;
+  codexActionUnavailable: string;
+  codexThread: string;
+  noMatchingThread: string;
+  handoffPolicy: string;
+  handoffOwnerChangeRequired: string;
+  handoffSameOwnerResumeNotRequired: string;
+  handoffArtifact: string;
+  mcpApplicability: string;
+  mcpConfigured: string;
+  mcpApplicable: string;
+  mcpDisabled: string;
+  mcpEffectiveConfig: string;
+  mcpObservation: string;
+  mcpServerEnabled: string;
+  mcpServerDisabled: string;
+  projectDetailLoadingTitle: string;
+  projectDetailLoadingDescription: string;
   workspaceManagerTitle: string;
   workspaceManagerDescription: string;
   registeredProjects: string;
@@ -303,6 +350,53 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   workspaceSelector: "当前工作区",
   manageWorkspaces: "管理工作区",
   addProject: "添加项目",
+  projectCockpitTitle: "Project Cockpit",
+  projectCockpitDescription: "直接读取该项目的权威开发协调状态，不依赖 Workspace 连续性快照才能显示。",
+  projectWorkspaceCard: "项目与工作区",
+  developmentControlCard: "开发控制",
+  projectCapabilitiesCard: "项目能力",
+  modelLoopOwner: "模型循环所有者",
+  modelLoopCaller: "调用方（Caller）",
+  implicitCodexTurns: "隐式 Codex Turn",
+  implicitCodexTurnsDisabled: "禁止；必须显式转交模型循环",
+  workspaceMode: "工作区模式",
+  workspaceNativeCheckout: "原生 Checkout",
+  workspaceWorktree: "显式 Worktree",
+  workspaceState: "工作区状态",
+  projectName: "项目名称",
+  projectSlug: "项目 Slug",
+  detachedHead: "Detached HEAD",
+  observationReady: "已就绪",
+  observationDegraded: "降级",
+  observationNotRequired: "无需观测",
+  gitLive: "已读取实时 Git 状态",
+  codexContinuity: "Codex 连续性",
+  codexRuntime: "Codex Runtime",
+  codexAvailable: "可用",
+  codexUnavailable: "不可用",
+  codexUnknown: "未知",
+  codexObservation: "Provider 观测",
+  codexNextAction: "服务端建议动作",
+  codexActionResume: "Resume 已有原生 Thread",
+  codexActionStart: "启动新的原生 Thread",
+  codexActionRepair: "先修复 Workspace",
+  codexActionUnavailable: "当前无可执行原生动作",
+  codexThread: "匹配 Thread",
+  noMatchingThread: "当前没有匹配的原生 Thread",
+  handoffPolicy: "Handoff 策略",
+  handoffOwnerChangeRequired: "模型循环所有者变更必须 Handoff",
+  handoffSameOwnerResumeNotRequired: "同一所有者 Resume 不需要 Handoff",
+  handoffArtifact: "推荐交接产物",
+  mcpApplicability: "MCP 适用性",
+  mcpConfigured: "已配置",
+  mcpApplicable: "当前适用",
+  mcpDisabled: "已禁用",
+  mcpEffectiveConfig: "Codex Effective Config",
+  mcpObservation: "配置观测",
+  mcpServerEnabled: "启用",
+  mcpServerDisabled: "禁用",
+  projectDetailLoadingTitle: "正在读取 Project Cockpit",
+  projectDetailLoadingDescription: "正在读取该项目的权威 Workspace、Codex 与 MCP 协调状态。",
   workspaceManagerTitle: "工作区与项目接入",
   workspaceManagerDescription: "先授权父目录用于受限发现，再显式加入需要交给 ChatCockpit 管理的 Git 项目。",
   registeredProjects: "已注册项目",
@@ -569,6 +663,53 @@ export const enUSContinuityCopy: ContinuityCopy = {
   workspaceSelector: "Current workspace",
   manageWorkspaces: "Manage workspaces",
   addProject: "Add project",
+  projectCockpitTitle: "Project Cockpit",
+  projectCockpitDescription: "Read authoritative project development coordination directly, without requiring the Workspace continuity snapshot to render first.",
+  projectWorkspaceCard: "Project and workspace",
+  developmentControlCard: "Development control",
+  projectCapabilitiesCard: "Project capabilities",
+  modelLoopOwner: "Model-loop owner",
+  modelLoopCaller: "Caller",
+  implicitCodexTurns: "Implicit Codex Turns",
+  implicitCodexTurnsDisabled: "Disabled; model-loop transfer must be explicit",
+  workspaceMode: "Workspace mode",
+  workspaceNativeCheckout: "Native checkout",
+  workspaceWorktree: "Explicit worktree",
+  workspaceState: "Workspace state",
+  projectName: "Project name",
+  projectSlug: "Project slug",
+  detachedHead: "Detached HEAD",
+  observationReady: "Ready",
+  observationDegraded: "Degraded",
+  observationNotRequired: "Not required",
+  gitLive: "Live Git state observed",
+  codexContinuity: "Codex continuity",
+  codexRuntime: "Codex Runtime",
+  codexAvailable: "Available",
+  codexUnavailable: "Unavailable",
+  codexUnknown: "Unknown",
+  codexObservation: "Provider observation",
+  codexNextAction: "Server-recommended action",
+  codexActionResume: "Resume existing native Thread",
+  codexActionStart: "Start a new native Thread",
+  codexActionRepair: "Repair the Workspace first",
+  codexActionUnavailable: "No native action is currently available",
+  codexThread: "Matching Thread",
+  noMatchingThread: "No matching native Thread is currently available",
+  handoffPolicy: "Handoff policy",
+  handoffOwnerChangeRequired: "Changing model-loop owner requires a Handoff",
+  handoffSameOwnerResumeNotRequired: "Same-owner resume does not require a Handoff",
+  handoffArtifact: "Recommended handoff artifact",
+  mcpApplicability: "MCP applicability",
+  mcpConfigured: "Configured",
+  mcpApplicable: "Applicable",
+  mcpDisabled: "Disabled",
+  mcpEffectiveConfig: "Codex Effective Config",
+  mcpObservation: "Config observation",
+  mcpServerEnabled: "Enabled",
+  mcpServerDisabled: "Disabled",
+  projectDetailLoadingTitle: "Loading Project Cockpit",
+  projectDetailLoadingDescription: "Reading authoritative Workspace, Codex, and MCP coordination for this project.",
   workspaceManagerTitle: "Workspace and project onboarding",
   workspaceManagerDescription: "Authorize a parent directory for bounded discovery, then explicitly register only the Git projects ChatCockpit should manage.",
   registeredProjects: "Registered projects",
