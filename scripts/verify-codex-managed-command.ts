@@ -65,7 +65,8 @@ async function verifyCodexManagedCommand(): Promise<void> {
       command: [process.execPath, "-e", "setTimeout(() => process.stdout.write('slow-done'), 300)"],
       cwd: probeRoot,
       readOnly: true,
-      allowStdin: false
+      allowStdin: false,
+      networkAccess: false
     });
     assert.equal(slow.state, "running");
     const slowDone = await waitForExit(adapter, slow.processId);
@@ -77,7 +78,8 @@ async function verifyCodexManagedCommand(): Promise<void> {
       command: [process.execPath, "-e", "process.stdin.once('data', d => { process.stdout.write('echo:' + d.toString()); process.exit(0); })"],
       cwd: probeRoot,
       readOnly: true,
-      allowStdin: true
+      allowStdin: true,
+      networkAccess: false
     });
     await adapter.writeStandaloneProcess(interactive.processId, "hello", true);
     const interactiveDone = await waitForExit(adapter, interactive.processId);
@@ -88,7 +90,8 @@ async function verifyCodexManagedCommand(): Promise<void> {
       command: [process.execPath, "-e", "setInterval(() => process.stdout.write('.'), 25)"],
       cwd: probeRoot,
       readOnly: true,
-      allowStdin: false
+      allowStdin: false,
+      networkAccess: false
     });
     await sleep(60);
     await adapter.terminateStandaloneProcess(stoppable.processId);

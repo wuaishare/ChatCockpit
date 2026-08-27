@@ -51,6 +51,13 @@ const destructiveMutationAnnotations: McpToolAnnotations = {
   openWorldHint: false
 };
 
+const openWorldDestructiveMutationAnnotations: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: true
+};
+
 function publicChangedPaths(status: GitStatusResponse): string[] {
   return status.entries
     .filter((entry) => entry.status !== "blocked")
@@ -199,10 +206,10 @@ export function buildWorkspaceWriteTools(
       name: toolName("workspace.exec"),
       title: "Start governed workspace process",
       description:
-        "Start a managed command in the selected repository workspace through the verified native execution backend. Long-running commands return a process id immediately. Mutating commands retain workspace writer authority until the process reaches a terminal state. An idempotency key is required to prevent duplicate process starts.",
+        "Start a governed command in the selected repository workspace through the verified native execution backend. Native sandboxing constrains writes to the workspace, while ChatCockpit validates cwd and path-bearing arguments; project-code execution remains a high-trust capability in exposed mode. Network access is disabled unless networkAccess=true is explicitly requested. Long-running commands return a process id immediately, and mutating commands retain writer authority until terminal state. An idempotency key prevents duplicate process starts.",
       inputSchema: workspaceExecMcpSchema,
       outputSchema: workspaceExecToolOutputSchema,
-      annotations: destructiveMutationAnnotations,
+      annotations: openWorldDestructiveMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
         const execution = await services.idempotency.execute(
@@ -240,7 +247,7 @@ export function buildWorkspaceWriteTools(
         "Send stdin to or terminate a managed workspace process. Access remains bound to the development session or OAuth authorization grant that started the process. An idempotency key is required so retries cannot duplicate stdin writes.",
       inputSchema: workspaceProcessControlMcpSchema,
       outputSchema: workspaceProcessControlToolOutputSchema,
-      annotations: destructiveMutationAnnotations,
+      annotations: openWorldDestructiveMutationAnnotations,
       handler: async (context, input) => {
         const { idempotencyKey, ...payload } = input;
         const execution = await services.idempotency.execute(

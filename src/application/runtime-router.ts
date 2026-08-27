@@ -155,6 +155,7 @@ export class RuntimeRouter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     if (!this.codex.startStandaloneProcess) {
       throw new ServiceError(

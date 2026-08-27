@@ -468,8 +468,10 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("chatcockpit.shell.run")?.annotations.destructiveHint, true);
     assert.equal(toolByName.get("chatcockpit.workspace.exec")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("chatcockpit.workspace.exec")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.workspace.exec")?.annotations.openWorldHint, true);
     assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.openWorldHint, true);
     assert.equal(
       toolByName.get("chatcockpit.host.command.execute")?.annotations.readOnlyHint,
       false

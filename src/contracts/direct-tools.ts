@@ -70,7 +70,8 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       command: z.string().min(1),
       args: z.array(z.string()),
       workdir: z.string().optional(),
-      allowStdin: z.boolean().optional()
+      allowStdin: z.boolean().optional(),
+      networkAccess: z.boolean().optional()
     }),
     workspaceProcessReadSchema: z.object({
       repoId: z.string().min(1).default(defaultRepoId),

@@ -936,6 +936,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     this.assertStandaloneCapability("command.exec", "command/exec");
     const client = await this.ensureClient();
@@ -964,11 +965,11 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           streamStdin: input.allowStdin,
           streamStdoutStderr: true,
           sandboxPolicy: input.readOnly
-            ? { type: "readOnly", networkAccess: false }
+            ? { type: "readOnly", networkAccess: input.networkAccess }
             : {
                 type: "workspaceWrite",
                 writableRoots: [input.cwd],
-                networkAccess: false,
+                networkAccess: input.networkAccess,
                 excludeTmpdirEnvVar: true,
                 excludeSlashTmp: true
               }

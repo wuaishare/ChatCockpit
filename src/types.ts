@@ -468,6 +468,7 @@ export interface WorkspaceExecPayload extends DirectExecutorPreference {
   args: string[];
   workdir?: string;
   allowStdin?: boolean;
+  networkAccess?: boolean;
 }
 
 export interface WorkspaceProcessReadPayload {

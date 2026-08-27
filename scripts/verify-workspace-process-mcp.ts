@@ -26,12 +26,17 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
     path.join(os.tmpdir(), "chatcockpit-workspace-process-mcp-")
   );
   let execCalls = 0;
+  let lastExecNetworkAccess: boolean | undefined;
   let inputCalls = 0;
   let terminateCalls = 0;
 
   const fakeChatDirect = {
-    async workspaceExec(_context: unknown, payload: { repoId: string }) {
+    async workspaceExec(
+      _context: unknown,
+      payload: { repoId: string; networkAccess?: boolean }
+    ) {
       execCalls += 1;
+      lastExecNetworkAccess = payload.networkAccess;
       return {
         ok: true as const,
         repoId: payload.repoId,
@@ -105,13 +110,17 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.ok(readTool);
   assert.ok(controlTool);
   assert.equal(execTool.annotations.destructiveHint, true);
+  assert.equal(execTool.annotations.openWorldHint, true);
   assert.equal(readTool.annotations.readOnlyHint, true);
+  assert.equal(readTool.annotations.openWorldHint, false);
   assert.equal(controlTool.annotations.destructiveHint, true);
+  assert.equal(controlTool.annotations.openWorldHint, true);
 
   const execInput = {
     repoId: "primary",
     command: "git",
-    args: ["status", "--short"],
+    args: ["fetch", "origin"],
+    networkAccess: true,
     idempotencyKey: "workspace-exec-fixture-0001"
   };
   const firstExec = await execTool.execute(context, execInput);
@@ -125,6 +134,7 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.equal(replayExec.isError, undefined);
   assert.equal((replayExec.structuredContent.idempotency as { replayed: boolean }).replayed, true);
   assert.equal(execCalls, 1);
+  assert.equal(lastExecNetworkAccess, true);
 
   const read = await readTool.execute(context, {
     repoId: "primary",

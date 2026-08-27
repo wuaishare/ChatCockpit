@@ -48,6 +48,30 @@ const READ_ONLY_GIT_SUBCOMMANDS = new Set([
   "rev-list"
 ]);
 
+const NATIVE_WORKSPACE_GIT_SUBCOMMANDS = new Set([
+  "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle",
+  "cat-file", "checkout", "cherry-pick", "clean", "clone", "commit", "describe",
+  "diff", "fetch", "for-each-ref", "format-patch", "gc", "grep", "init", "log",
+  "ls-files", "ls-tree", "maintenance", "merge", "merge-base", "mv", "name-rev",
+  "notes", "prune", "pull", "push", "rebase", "reflog", "remote", "replace",
+  "reset", "restore", "rev-list", "rev-parse", "revert", "rm", "show",
+  "sparse-checkout", "stash", "status", "submodule", "switch", "tag",
+  "update-ref", "worktree"
+]);
+
+const NATIVE_WORKSPACE_READ_ONLY_GIT_SUBCOMMANDS = new Set([
+  ...READ_ONLY_GIT_SUBCOMMANDS,
+  "blame", "grep", "ls-files", "ls-tree", "cat-file", "for-each-ref",
+  "describe", "name-rev", "merge-base"
+]);
+
+const NATIVE_WORKSPACE_PROJECT_COMMANDS = new Set(
+  Object.keys(WORKSPACE_COMMAND_WHITELIST).filter((command) => command !== "git")
+);
+const NATIVE_WORKSPACE_SCRIPT_COMMANDS = new Set(["node", "python", "python3", "tsx"]);
+const MAX_COMMAND_LENGTH = 1024;
+
+
 const PURE_HOST_GIT_SUBCOMMANDS = READ_ONLY_GIT_SUBCOMMANDS;
 const PURE_HOST_LS_OPTION = /^(?:--|-?[AaCcdFfghiklmnopqrstuvwx1]+)$/;
 const MAX_COMMAND_ARGS = 64;
@@ -67,6 +91,17 @@ function assertHighTrustCommandAllowed(command: string): void {
     throw new Error(
       `High-trust command ${command} is blocked in exposed mode. ` +
         "Set CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true only in a private authenticated operator environment."
+    );
+  }
+}
+
+function assertNativeWorkspaceProjectCodeAllowed(command: string): void {
+  const exposed = envFlagEnabled(readIdentityEnv("EXPOSED"));
+  const explicitlyAllowed = envFlagEnabled(readIdentityEnv("ALLOW_HIGH_TRUST_COMMANDS"));
+  if (exposed && !explicitlyAllowed) {
+    throw new Error(
+      `Native workspace project-code command ${command} is blocked in exposed mode. ` +
+        "Set CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS=true only for an authenticated operator environment that trusts the selected project code."
     );
   }
 }
@@ -131,6 +166,112 @@ export function evaluateWorkspaceCommand(
       ? "read"
       : "write";
   return { command, args: safeArgs, effect };
+}
+
+function nativeWorkspacePathLooksAbsolute(value: string): boolean {
+  return (
+    path.isAbsolute(value) ||
+    path.win32.isAbsolute(value) ||
+    /^~(?:[\\/]|$)/.test(value) ||
+    /^file:\/\//i.test(value)
+  );
+}
+
+function validateNativeWorkspaceArgs(args: string[]): string[] {
+  const safeArgs = validateCommandArgs(args);
+  for (const arg of safeArgs) {
+    if (nativeWorkspacePathLooksAbsolute(arg)) {
+      throw new Error("Native workspace command paths must be workspace-relative");
+    }
+    const equalsIndex = arg.indexOf("=");
+    if (arg.startsWith("-") && equalsIndex > 0) {
+      const optionValue = arg.slice(equalsIndex + 1);
+      if (nativeWorkspacePathLooksAbsolute(optionValue)) {
+        throw new Error("Native workspace command option paths must be workspace-relative");
+      }
+    }
+    if (arg.startsWith("@") && nativeWorkspacePathLooksAbsolute(arg.slice(1))) {
+      throw new Error("Native workspace response-file paths must be workspace-relative");
+    }
+  }
+  return safeArgs;
+}
+
+function isNativeWorkspaceRelativeExecutable(command: string): boolean {
+  if (!command.includes("/")) return false;
+  if (nativeWorkspacePathLooksAbsolute(command) || command.includes("\\")) return false;
+  const normalized = path.posix.normalize(command);
+  return !(normalized === ".." || normalized.startsWith("../") || normalized.includes("/../"));
+}
+
+export interface NativeWorkspaceCommandPolicyDecision extends CommandPolicyDecision {
+  commandPath: boolean;
+  projectPathArgIndexes: number[];
+}
+
+export function evaluateNativeWorkspaceCommand(
+  command: string,
+  args: string[]
+): NativeWorkspaceCommandPolicyDecision {
+  if (
+    typeof command !== "string" ||
+    command.length === 0 ||
+    command.length > MAX_COMMAND_LENGTH ||
+    command.includes("\0")
+  ) {
+    throw new Error("Native workspace command is invalid");
+  }
+  const safeArgs = validateNativeWorkspaceArgs(args);
+  const commandPath = isNativeWorkspaceRelativeExecutable(command);
+
+  if (command === "git") {
+    const subcommand = safeArgs[0] ?? "";
+    if (!subcommand || subcommand.startsWith("-")) {
+      throw new Error("Native workspace git global options are not allowed; use the workspace cwd instead");
+    }
+    if (!NATIVE_WORKSPACE_GIT_SUBCOMMANDS.has(subcommand)) {
+      throw new Error(`Native workspace git subcommand is not allowed: ${subcommand}`);
+    }
+    if (subcommand === "submodule" && safeArgs[1] === "foreach") {
+      throw new Error("Native workspace git submodule foreach is not allowed");
+    }
+    if (subcommand === "apply" && safeArgs.includes("--unsafe-paths")) {
+      throw new Error("Native workspace git apply --unsafe-paths is not allowed");
+    }
+    return {
+      command,
+      args: safeArgs,
+      effect: NATIVE_WORKSPACE_READ_ONLY_GIT_SUBCOMMANDS.has(subcommand) ? "read" : "write",
+      commandPath: false,
+      projectPathArgIndexes: []
+    };
+  }
+
+  if (commandPath) {
+    assertNativeWorkspaceProjectCodeAllowed(command);
+    return { command, args: safeArgs, effect: "write", commandPath: true, projectPathArgIndexes: [] };
+  }
+
+  const allowedSubcommands = WORKSPACE_COMMAND_WHITELIST[command];
+  if (!NATIVE_WORKSPACE_PROJECT_COMMANDS.has(command) || !allowedSubcommands) {
+    throw new Error(`Native workspace command is not allowed: ${command}`);
+  }
+  assertNativeWorkspaceProjectCodeAllowed(command);
+  if (!allowedSubcommands.includes("*")) {
+    const subcommand = safeArgs[0];
+    if (!subcommand || !allowedSubcommands.includes(subcommand)) {
+      throw new Error(`Native workspace subcommand is not allowed for ${command}: ${subcommand ?? "<none>"}`);
+    }
+  }
+  const projectPathArgIndexes: number[] = [];
+  if (NATIVE_WORKSPACE_SCRIPT_COMMANDS.has(command)) {
+    const script = safeArgs[0];
+    if (!script || script.startsWith("-") || nativeWorkspacePathLooksAbsolute(script)) {
+      throw new Error(`${command} requires a relative project script; inline evaluation is not allowed`);
+    }
+    projectPathArgIndexes.push(0);
+  }
+  return { command, args: safeArgs, effect: "write", commandPath: false, projectPathArgIndexes };
 }
 
 export interface PureHostCommandPolicyDecision extends CommandPolicyDecision {

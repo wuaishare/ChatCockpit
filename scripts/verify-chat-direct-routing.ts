@@ -191,6 +191,7 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     const processId = `fake_process_${++this.managedProcessCounter}`;
     this.calls.push({ method: "command/exec:managed", payload: { ...input, processId } });
@@ -350,7 +351,13 @@ function runGit(repoRoot: string, args: string[]): void {
 async function verifyChatDirectRouting(): Promise<void> {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-chat-direct-"));
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Chat Direct\n", "utf8");
+  fs.writeFileSync(
+    path.join(repoRoot, "scripts", "managed.mjs"),
+    "setTimeout(() => {}, 10000);\n",
+    "utf8"
+  );
   fs.writeFileSync(
     path.join(repoRoot, "src", "fixture.ts"),
     "export const mode = 'before';\n",
@@ -916,13 +923,30 @@ async function verifyChatDirectRouting(): Promise<void> {
 
     const managed = await service.workspaceExec(context, {
       repoId: "primary",
-      command: "node",
-      args: ["-e", "setTimeout(() => {}, 1000)"],
-      allowStdin: true
+      command: "git",
+      args: ["fetch", "origin"],
+      allowStdin: true,
+      networkAccess: true
     });
     assert.equal(managed.state, "running");
     assert.equal(managed.execution.executor, "codex-app-server-standalone");
     assert.ok(repositories.coreWriterAuthorities.getActive(workspace.id));
+    const managedCall = adapter.calls.find(
+      (call) =>
+        call.method === "command/exec:managed" &&
+        typeof call.payload === "object" &&
+        call.payload !== null &&
+        (call.payload as { processId?: string }).processId === managed.processId
+    );
+    assert.ok(managedCall);
+    assert.equal((managedCall.payload as { networkAccess?: boolean }).networkAccess, true);
+    assert.deepEqual((managedCall.payload as { command?: string[] }).command, ["git", "fetch", "origin"]);
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary", command: "bash", args: ["-lc", "git status"]
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
 
     await assert.rejects(
       () => service.write(context, {
@@ -967,7 +991,7 @@ async function verifyChatDirectRouting(): Promise<void> {
       repoId: "primary",
       sessionId: session.id,
       command: "node",
-      args: ["-e", "setTimeout(() => {}, 10000)"]
+      args: ["scripts/managed.mjs"]
     });
     assert.equal(sessionManaged.state, "running");
     repositories.leases.release(sessionManagedLease.id, {

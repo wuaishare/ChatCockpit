@@ -1,13 +1,17 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-import { evaluateWorkspaceCommand } from "./command-policy.js";
+import {
+  evaluateNativeWorkspaceCommand,
+  evaluateWorkspaceCommand
+} from "./command-policy.js";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   ShellRunPayload,
   ShellRunResponse,
-  TokenPilotPaths
+  TokenPilotPaths,
+  WorkspaceExecPayload
 } from "../types.js";
 
 // ── Security constants ──
@@ -24,6 +28,17 @@ function resolveWorkDir(repoRoot: string, workdir?: string): string {
   return resolvePathInsideRoot(repoRoot, workdir, "workdir").absolutePath;
 }
 
+function resolveWorkspaceExecPath(
+  repoRoot: string,
+  workdir: string,
+  input: string,
+  label: string
+): string {
+  const candidate = path.resolve(workdir, input);
+  const repoRelative = path.relative(repoRoot, candidate).replaceAll("\\", "/");
+  return resolvePathInsideRoot(repoRoot, repoRelative, label).absolutePath;
+}
+
 export interface PreparedShellCommand {
   repoRoot: string;
   command: string;
@@ -33,6 +48,41 @@ export interface PreparedShellCommand {
   outputBytesCap: number;
   environment: Record<string, string>;
   standaloneReadOnly: boolean;
+}
+
+export interface PreparedWorkspaceExecCommand {
+  repoRoot: string;
+  command: string;
+  args: string[];
+  workdir: string;
+  readOnly: boolean;
+}
+
+export function prepareWorkspaceExecCommand(
+  paths: TokenPilotPaths,
+  payload: WorkspaceExecPayload
+): PreparedWorkspaceExecCommand {
+  const repoRoot = assertRepoAllowed(paths, payload.repoId);
+  const policy = evaluateNativeWorkspaceCommand(payload.command, payload.args);
+  const workdir = resolveWorkDir(repoRoot, payload.workdir);
+  const args = [...policy.args];
+  for (const index of policy.projectPathArgIndexes) {
+    args[index] = resolveWorkspaceExecPath(
+      repoRoot,
+      workdir,
+      args[index],
+      `command argument ${index}`
+    );
+  }
+  return {
+    repoRoot,
+    command: policy.commandPath
+      ? resolveWorkspaceExecPath(repoRoot, workdir, policy.command, "command")
+      : policy.command,
+    args,
+    workdir,
+    readOnly: policy.effect === "read"
+  };
 }
 
 export function prepareShellCommand(

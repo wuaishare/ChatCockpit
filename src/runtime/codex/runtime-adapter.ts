@@ -316,6 +316,7 @@ export interface CodingRuntimeAdapter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult>;
   readStandaloneProcess?(
     processId: string,

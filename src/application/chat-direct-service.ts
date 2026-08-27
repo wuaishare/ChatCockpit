@@ -10,7 +10,10 @@ import {
   listRepoDirectory,
   resolveWritableRepoPathTarget
 } from "../core/files-write.js";
-import { prepareShellCommand } from "../core/shell-api.js";
+import {
+  prepareShellCommand,
+  prepareWorkspaceExecCommand
+} from "../core/shell-api.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import type {
   FileEditPayload,
@@ -650,15 +653,13 @@ export class ChatDirectService {
     context: OperationContext,
     payload: WorkspaceExecPayload
   ) {
-    let prepared: ReturnType<typeof prepareShellCommand>;
+    let prepared: ReturnType<typeof prepareWorkspaceExecCommand>;
     try {
-      prepared = prepareShellCommand(this.paths, payload);
+      prepared = prepareWorkspaceExecCommand(this.paths, payload);
     } catch (error) {
       throw serviceError("SHELL_COMMAND_BLOCKED", error);
     }
-    const access: DirectCapabilityAccess = prepared.standaloneReadOnly
-      ? "read"
-      : "write";
+    const access: DirectCapabilityAccess = prepared.readOnly ? "read" : "write";
     const selection = this.select("shell.exec", access, payload.executorId);
     if (selection.executorId !== "codex-app-server-standalone") {
       throw new ServiceError(
@@ -689,7 +690,8 @@ export class ChatDirectService {
         command: [prepared.command, ...prepared.args],
         cwd: prepared.workdir,
         readOnly: access === "read",
-        allowStdin: payload.allowStdin === true
+        allowStdin: payload.allowStdin === true,
+        networkAccess: payload.networkAccess === true
       });
       const record: ManagedChatDirectProcess = {
         repoId: payload.repoId,
