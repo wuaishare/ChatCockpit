@@ -224,6 +224,7 @@ const context = buildOperationContext({
 });
 const capsule = service.generate(context, {
   workspaceId: session.workspaceId,
+  taskId: session.taskId,
   trajectoryLimit: 20
 });
 assert.equal(capsule.version, "1");
@@ -242,6 +243,25 @@ assert.match(capsule.markdown, new RegExp(`codex://threads/${threadId}`));
 assert.equal(JSON.stringify(capsule).includes(syntheticHome), false);
 assert.doesNotMatch(JSON.stringify(capsule), /id_ed25519/);
 assert.doesNotMatch(JSON.stringify(capsule), /private summary/);
+
+const workspaceOnlyCapsule = service.generate(context, {
+  workspaceId: session.workspaceId,
+  trajectoryLimit: 20
+});
+assert.equal(workspaceOnlyCapsule.source.modelLoopOwner, "unknown");
+assert.equal(workspaceOnlyCapsule.source.sessionId, null);
+assert.equal(workspaceOnlyCapsule.source.sessionMode, null);
+assert.equal(workspaceOnlyCapsule.source.activityId, null);
+assert.equal(workspaceOnlyCapsule.source.runtime, null);
+assert.equal(workspaceOnlyCapsule.objective, null);
+assert.deepEqual(workspaceOnlyCapsule.completedItems, []);
+assert.deepEqual(workspaceOnlyCapsule.pendingItems, []);
+assert.deepEqual(workspaceOnlyCapsule.risks, []);
+assert.equal(workspaceOnlyCapsule.nextAction, null);
+assert.equal(workspaceOnlyCapsule.verification.state, "missing");
+assert.deepEqual(workspaceOnlyCapsule.verification.items, []);
+assert.equal(workspaceOnlyCapsule.trajectory, null);
+assert.deepEqual(workspaceOnlyCapsule.git.changedPaths, ["src/live.ts"]);
 
 const parsed = continuityCapsuleToolOutputSchema.safeParse({
   ok: true,

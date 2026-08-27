@@ -40,10 +40,8 @@ function pickTask(
   tasks: WorkspaceTaskContinuityProjection[],
   taskId?: string
 ): WorkspaceTaskContinuityProjection | null {
-  if (taskId) return tasks.find((item) => item.task.id === taskId) ?? null;
-  return tasks.find((item) => Boolean(item.task.activeSessionId))
-    ?? tasks.find((item) => !["completed", "cancelled"].includes(item.task.status))
-    ?? null;
+  if (!taskId) return null;
+  return tasks.find((item) => item.task.id === taskId) ?? null;
 }
 function pickSession(task: WorkspaceTaskContinuityProjection | null): DevelopmentSessionRecord | null {
   if (!task) return null;

@@ -246,7 +246,7 @@ export function buildContinuityMcpTools(
             name: "chatcockpit.continuity.capsule",
             title: "Generate continuity capsule",
             description:
-              "Generate a bounded public-safe Continuity Capsule from current Project/Workspace Git state, optional Task/Handoff/Evidence, provider session reference, and recent normalized Trajectory. The capsule is regenerated from authoritative state and never claims cross-runtime work became native provider history.",
+              "Generate a bounded public-safe Continuity Capsule from current Project/Workspace Git state. Task/Session/Handoff/Evidence context is included only when taskId is explicitly supplied; activityId is independently optional. The capsule is regenerated from authoritative state and never guesses an unrelated Task or claims cross-runtime work became native provider history.",
             inputSchema: continuityCapsuleSchema,
             outputSchema: continuityCapsuleToolOutputSchema,
             annotations: readOnlyToolAnnotations,
