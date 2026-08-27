@@ -77,6 +77,7 @@ import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-se
 import { RuntimeResourceMutationService } from "../application/runtime-resource-mutation-service.js";
 import { buildRuntimeResourceServices } from "../application/runtime-resource-services.js";
 import { RuntimeEventService } from "../application/runtime-event-service.js";
+import { RuntimeLifecycleService } from "../application/runtime-lifecycle-service.js";
 import { RuntimeRouter } from "../application/runtime-router.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import { RuntimeTurnService } from "../application/runtime-turn-service.js";
@@ -697,6 +698,10 @@ export function buildServer(
     continuityServices.repositories
   );
   const runtimeService = new RuntimeService(runtimeRouter);
+  const runtimeLifecycleService = new RuntimeLifecycleService(
+    paths,
+    continuityServices.repositories
+  );
   const projectDevelopmentRouting = new ProjectDevelopmentRoutingService(
     paths,
     continuityServices.projects,
@@ -1012,6 +1017,7 @@ export function buildServer(
     hostCommand,
     hostProcess,
     runtimeService,
+    runtimeLifecycleService,
     codexNativeSessionService,
     codexNativeTurnService,
     runtimeBindingService,

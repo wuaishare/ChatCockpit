@@ -12,7 +12,9 @@ export const PROCESS_SUPERVISOR_METHODS = [
   "process.input",
   "process.stop",
   "events.list",
-  "events.ack"
+  "events.ack",
+  "runtime.restart",
+  "runtime.restart.read"
 ] as const;
 
 export type ProcessSupervisorMethod = (typeof PROCESS_SUPERVISOR_METHODS)[number];

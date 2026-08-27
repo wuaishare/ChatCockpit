@@ -71,6 +71,14 @@ const stopSchema = z.object({
 const eventAckSchema = z.object({
   eventIds: z.array(z.string().min(1).max(200)).max(1000)
 });
+const runtimeRestartOperationIdSchema = z.string().regex(/^runtime_restart_[A-Za-z0-9_-]{1,160}$/);
+const runtimeRestartSchema = z.object({
+  operationId: runtimeRestartOperationIdSchema,
+  requestHash: actionHashSchema
+});
+const runtimeRestartReadSchema = z.object({
+  operationId: runtimeRestartOperationIdSchema
+});
 
 export class ProcessSupervisorRuntimeError extends Error {
   constructor(
@@ -80,6 +88,25 @@ export class ProcessSupervisorRuntimeError extends Error {
     super(message);
     this.name = "ProcessSupervisorRuntimeError";
   }
+}
+
+export interface ProcessSupervisorRuntimeLifecycleAdapter {
+  restart(): Promise<void>;
+}
+
+export type SupervisorRuntimeRestartState =
+  | "scheduled"
+  | "running"
+  | "succeeded"
+  | "failed";
+
+export interface SupervisorRuntimeRestartRecord {
+  operationId: string;
+  requestHash: string;
+  state: SupervisorRuntimeRestartState;
+  startedAt: string | null;
+  completedAt: string | null;
+  errorCode: string | null;
 }
 
 export interface ProcessSupervisorManagedAdapter {
@@ -189,6 +216,7 @@ function mapAdapterError(error: unknown): ProcessSupervisorRuntimeError {
 export class ProcessSupervisorRuntimeService {
   private readonly owned = new Map<string, SupervisorOwnedProcess>();
   private readonly receipts = new Map<string, SupervisorActionReceipt>();
+  private readonly runtimeRestarts = new Map<string, SupervisorRuntimeRestartRecord>();
   private readonly activeProcessActions = new Map<string, number>();
   private readonly now: () => string;
   private watchdogTimer: NodeJS.Timeout | null = null;
@@ -199,6 +227,8 @@ export class ProcessSupervisorRuntimeService {
       adapter: ProcessSupervisorManagedAdapter;
       authorityReader?: ProcessSupervisorAuthorityReader;
       eventJournal?: ProcessSupervisorEventStore;
+      runtimeLifecycle?: ProcessSupervisorRuntimeLifecycleAdapter;
+      runtimeRestartDelayMs?: number;
       now?: () => string;
     }
   ) {
@@ -570,6 +600,84 @@ export class ProcessSupervisorRuntimeService {
     }
   }
 
+  async restartRuntime(params: unknown): Promise<SupervisorRuntimeRestartRecord> {
+    const request = this.parse(runtimeRestartSchema, params, "runtime.restart");
+    const existing = this.runtimeRestarts.get(request.operationId);
+    if (existing) {
+      if (existing.requestHash !== request.requestHash) {
+        throw new ProcessSupervisorRuntimeError(
+          "SUPERVISOR_RUNTIME_RESTART_CONFLICT",
+          "Runtime restart operation ID is already bound to another request"
+        );
+      }
+      return { ...existing };
+    }
+    if (!this.options.runtimeLifecycle) {
+      throw new ProcessSupervisorRuntimeError(
+        "SUPERVISOR_RUNTIME_LIFECYCLE_UNAVAILABLE",
+        "Runtime lifecycle control is unavailable on this Process Supervisor"
+      );
+    }
+    const active = [...this.runtimeRestarts.values()].find(
+      (record) => record.state === "scheduled" || record.state === "running"
+    );
+    if (active) {
+      throw new ProcessSupervisorRuntimeError(
+        "SUPERVISOR_RUNTIME_RESTART_BUSY",
+        "Another Runtime restart operation is already active"
+      );
+    }
+    const record: SupervisorRuntimeRestartRecord = {
+      operationId: request.operationId,
+      requestHash: request.requestHash,
+      state: "scheduled",
+      startedAt: null,
+      completedAt: null,
+      errorCode: null
+    };
+    this.runtimeRestarts.set(record.operationId, record);
+    const timer = setTimeout(
+      () => void this.executeRuntimeRestart(record.operationId),
+      Math.max(0, this.options.runtimeRestartDelayMs ?? 250)
+    );
+    timer.unref?.();
+    return { ...record };
+  }
+
+  readRuntimeRestart(params: unknown): SupervisorRuntimeRestartRecord {
+    const request = this.parse(
+      runtimeRestartReadSchema,
+      params,
+      "runtime.restart.read"
+    );
+    const record = this.runtimeRestarts.get(request.operationId);
+    if (!record) {
+      throw new ProcessSupervisorRuntimeError(
+        "SUPERVISOR_RUNTIME_RESTART_NOT_FOUND",
+        "Runtime restart operation is unavailable"
+      );
+    }
+    return { ...record };
+  }
+
+  private async executeRuntimeRestart(operationId: string): Promise<void> {
+    const record = this.runtimeRestarts.get(operationId);
+    const lifecycle = this.options.runtimeLifecycle;
+    if (!record || !lifecycle || record.state !== "scheduled") return;
+    record.state = "running";
+    record.startedAt = this.now();
+    try {
+      await lifecycle.restart();
+      record.state = "succeeded";
+      record.completedAt = this.now();
+      record.errorCode = null;
+    } catch {
+      record.state = "failed";
+      record.completedAt = this.now();
+      record.errorCode = "SUPERVISOR_RUNTIME_RESTART_FAILED";
+    }
+  }
+
   async closeAll(): Promise<SupervisorProcessMutationResult[]> {
     this.stopWatchdog();
     const snapshots = await this.options.adapter.closeAll();
@@ -595,6 +703,10 @@ export class ProcessSupervisorRuntimeService {
         return await this.input(params);
       case "process.stop":
         return await this.stop(params);
+      case "runtime.restart":
+        return await this.restartRuntime(params);
+      case "runtime.restart.read":
+        return this.readRuntimeRestart(params);
       case "events.list":
         return { events: this.options.eventJournal?.list() ?? [] };
       case "events.ack": {

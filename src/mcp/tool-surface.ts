@@ -127,6 +127,8 @@ const DEFERRED_BY_PACK = {
   ],
   "runtime-admin": [
     "runtime.capabilities",
+    "runtime.restart",
+    "runtime.restart.read",
     "resources.inventory",
     "resources.inspect",
     "resources.mutation.prepare",

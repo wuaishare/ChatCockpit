@@ -25,6 +25,7 @@ import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import type { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import type { RuntimeEventService } from "../application/runtime-event-service.js";
+import type { RuntimeLifecycleService } from "../application/runtime-lifecycle-service.js";
 import { RuntimeService } from "../application/runtime-service.js";
 import type { RuntimeTurnService } from "../application/runtime-turn-service.js";
 import type { RuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -45,6 +46,7 @@ import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildDeviceTargetMcpTools } from "./tools/device-targets.js";
 import { buildDeviceRuntimeLifecycleMcpTools } from "./tools/device-runtime-lifecycle.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
+import { buildRuntimeLifecycleMcpTools } from "./tools/runtime-lifecycle.js";
 import { buildRuntimeMcpTools } from "./tools/runtime.js";
 import { buildRuntimeRecoveryMcpTools } from "./tools/recovery.js";
 import { buildRuntimeResourceMutationMcpTools } from "./tools/runtime-resource-mutations.js";
@@ -102,6 +104,7 @@ export function buildTokenPilotMcpToolCatalog(
   hostCommand: HostCommandService,
   hostProcess: HostProcessService,
   runtimeService: RuntimeService,
+  runtimeLifecycleService: RuntimeLifecycleService,
   codexNativeSessionService: CodexNativeSessionService,
   codexNativeTurnService: CodexNativeTurnService,
   runtimeBindingService: RuntimeBindingService,
@@ -149,6 +152,7 @@ export function buildTokenPilotMcpToolCatalog(
       observability?.trajectoryService,
       observability?.continuityCapsules
     ),
+    ...buildRuntimeLifecycleMcpTools(runtimeLifecycleService),
     ...buildRuntimeMcpTools(
       runtimeService,
       codexNativeSessionService,
@@ -209,6 +213,7 @@ export function buildTokenPilotMcpHandler(
   hostCommand: HostCommandService,
   hostProcess: HostProcessService,
   runtimeService: RuntimeService,
+  runtimeLifecycleService: RuntimeLifecycleService,
   codexNativeSessionService: CodexNativeSessionService,
   codexNativeTurnService: CodexNativeTurnService,
   runtimeBindingService: RuntimeBindingService,
@@ -228,7 +233,7 @@ export function buildTokenPilotMcpHandler(
 ): McpHttpHandler {
   const tools = buildTokenPilotMcpToolCatalog(
     paths, continuityServices, chatDirect, hostDirect, hostMutation, hostCommand, hostProcess,
-    runtimeService, codexNativeSessionService, codexNativeTurnService, runtimeBindingService,
+    runtimeService, runtimeLifecycleService, codexNativeSessionService, codexNativeTurnService, runtimeBindingService,
     runtimeTurnService, runtimeApprovalService, runtimeEventService, runtimeRecoveryServices,
     runtimeResourceServices, capabilityRouterServices, deviceTargetService,
     deviceRuntimeLifecycleService, runtimeResourceMutationService, codexThreadImportService, observability

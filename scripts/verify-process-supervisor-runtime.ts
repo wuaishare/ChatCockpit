@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   ProcessSupervisorRuntimeService,
   ProcessSupervisorRuntimeError,
-  type ProcessSupervisorManagedAdapter
+  type ProcessSupervisorManagedAdapter,
+  type ProcessSupervisorRuntimeLifecycleAdapter
 } from "../src/process-supervisor/service.ts";
 import type {
   ManagedProcessAdapterSnapshot,
@@ -113,10 +114,30 @@ class FixtureManagedAdapter implements ProcessSupervisorManagedAdapter {
   }
 }
 
+class FixtureRuntimeLifecycleAdapter implements ProcessSupervisorRuntimeLifecycleAdapter {
+  restartCalls = 0;
+  private releaseRestart: (() => void) | null = null;
+
+  async restart(): Promise<void> {
+    this.restartCalls += 1;
+    await new Promise<void>((resolve) => {
+      this.releaseRestart = resolve;
+    });
+  }
+
+  completeRestart(): void {
+    this.releaseRestart?.();
+    this.releaseRestart = null;
+  }
+}
+
 const adapter = new FixtureManagedAdapter();
+const runtimeLifecycle = new FixtureRuntimeLifecycleAdapter();
 const service = new ProcessSupervisorRuntimeService({
   generation: "generation-runtime-a",
   adapter,
+  runtimeLifecycle,
+  runtimeRestartDelayMs: 0,
   now: () => "2026-08-09T07:00:00.000Z"
 });
 
@@ -217,5 +238,34 @@ assert.equal(second.status, "running");
 assert.equal(service.listOwned().length, 1);
 await service.closeAll();
 assert.equal(service.listOwned().length, 0);
+
+const restartParams = {
+  operationId: "runtime_restart_a",
+  requestHash: "1".repeat(64)
+};
+const scheduledRestart = await service.restartRuntime(restartParams);
+assert.equal(scheduledRestart.state, "scheduled");
+assert.equal(runtimeLifecycle.restartCalls, 0);
+await new Promise<void>((resolve) => setTimeout(resolve, 5));
+const runningRestart = service.readRuntimeRestart({
+  operationId: restartParams.operationId
+});
+assert.equal(runningRestart.state, "running");
+assert.equal(runtimeLifecycle.restartCalls, 1);
+assert.equal((await service.restartRuntime(restartParams)).operationId, restartParams.operationId);
+assert.equal(runtimeLifecycle.restartCalls, 1);
+await assert.rejects(
+  () => service.restartRuntime({ ...restartParams, requestHash: "2".repeat(64) }),
+  (error: unknown) =>
+    error instanceof ProcessSupervisorRuntimeError &&
+    error.code === "SUPERVISOR_RUNTIME_RESTART_CONFLICT"
+);
+runtimeLifecycle.completeRestart();
+await new Promise<void>((resolve) => setImmediate(resolve));
+const completedRestart = service.readRuntimeRestart({
+  operationId: restartParams.operationId
+});
+assert.equal(completedRestart.state, "succeeded");
+assert.equal(completedRestart.errorCode, null);
 
 process.stdout.write("VERIFY_PROCESS_SUPERVISOR_RUNTIME_OK\n");

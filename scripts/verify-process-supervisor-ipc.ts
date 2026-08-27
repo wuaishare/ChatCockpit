@@ -73,7 +73,9 @@ try {
     "process.input",
     "process.stop",
     "events.list",
-    "events.ack"
+    "events.ack",
+    "runtime.restart",
+    "runtime.restart.read"
   ]) {
     assert.equal(isProcessSupervisorMethod(method), true, method);
   }

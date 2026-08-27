@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { continuityDatabasePath } from "../continuity/database.js";
+import { createDeviceRuntimeLifecycleAdapter } from "../devices/device-runtime-lifecycle-adapter.js";
 import { DesktopCommanderManagedProcessSupervisor } from "../direct/adapters/desktop-commander-managed-process.js";
 import { getDownstreamMcpExecutorsConfigPath } from "../direct/downstream-mcp-config.js";
 import type { TokenPilotPaths } from "../types.js";
@@ -12,7 +13,8 @@ import {
   ProcessSupervisorRuntimeService,
   type ProcessSupervisorAuthorityReader,
   type ProcessSupervisorEventStore,
-  type ProcessSupervisorManagedAdapter
+  type ProcessSupervisorManagedAdapter,
+  type ProcessSupervisorRuntimeLifecycleAdapter
 } from "./service.js";
 import {
   ensureProcessSupervisorRuntime,
@@ -32,6 +34,7 @@ export interface ProcessSupervisorDaemonOptions {
   adapter?: ProcessSupervisorManagedAdapter;
   authorityReader?: ClosableAuthorityReader;
   eventJournal?: ProcessSupervisorEventStore;
+  runtimeLifecycle?: ProcessSupervisorRuntimeLifecycleAdapter;
   generationFactory?: () => string;
   heartbeatIntervalMs?: number;
   watchdogIntervalMs?: number;
@@ -91,7 +94,9 @@ export class ProcessSupervisorDaemon {
         generation,
         adapter,
         authorityReader,
-        eventJournal
+        eventJournal,
+        runtimeLifecycle:
+          this.options.runtimeLifecycle ?? createDeviceRuntimeLifecycleAdapter(this.paths)
       });
       const ipcServer = new ProcessSupervisorIpcServer({
         paths: this.paths,

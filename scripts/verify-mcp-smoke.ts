@@ -259,6 +259,8 @@ async function runMcpSmoke(): Promise<void> {
         "resources.inspect",
         "resources.inventory",
         "runtime.capabilities",
+        "runtime.restart",
+        "runtime.restart.read",
         "search.code",
         "codex.account.status",
         "codex.approval.respond",
@@ -295,7 +297,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 87, "Full compatibility surface must retain all 87 configured tools");
+    assert.equal(tools.length, 89, "Full compatibility surface must retain all 89 configured tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -360,7 +362,7 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 19);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 87);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 89);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 10);
@@ -428,6 +430,7 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.project.list",
       "chatcockpit.resources.inspect",
       "chatcockpit.runtime.capabilities",
+      "chatcockpit.runtime.restart.read",
       "chatcockpit.search.code",
       "chatcockpit.codex.account.status",
       "chatcockpit.codex.events.read",
@@ -458,6 +461,10 @@ async function runMcpSmoke(): Promise<void> {
       toolByName.get("chatcockpit.devices.runtime.lifecycle.execute")?.annotations.idempotentHint,
       true
     );
+    assert.equal(toolByName.get("chatcockpit.runtime.restart")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.runtime.restart")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.runtime.restart")?.annotations.idempotentHint, true);
+    assert.equal(toolByName.get("chatcockpit.runtime.restart")?.annotations.openWorldHint, false);
     for (const name of ["chatcockpit.trajectory.read", "chatcockpit.continuity.capsule"]) {
       assert.ok(toolByName.get(name)?.outputSchema, `${name} must declare outputSchema`);
     }

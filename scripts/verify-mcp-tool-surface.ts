@@ -12,8 +12,8 @@ import {
 
 const classifications = listMcpToolSurfaceClassifications();
 
-assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 90);
-assert.equal(classifications.length, 90);
+assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 92);
+assert.equal(classifications.length, 92);
 assert.equal(MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES.length, 19);
 
 const byDisposition = Object.groupBy(
@@ -21,7 +21,7 @@ const byDisposition = Object.groupBy(
   (item) => item.disposition
 );
 assert.equal(byDisposition.core?.length, 19);
-assert.equal(byDisposition["deferred-pack"]?.length, 61);
+assert.equal(byDisposition["deferred-pack"]?.length, 63);
 assert.equal(byDisposition.compatibility?.length, 7);
 assert.equal(byDisposition["consolidation-candidate"]?.length, 3);
 
@@ -35,7 +35,7 @@ assert.equal(byPack["device-admin"]?.length, 3);
 assert.equal(byPack.workflow?.length, 8);
 assert.equal(byPack["continuity-governance"]?.length, 15);
 assert.equal(byPack["codex-native"]?.length, 17);
-assert.equal(byPack["runtime-admin"]?.length, 6);
+assert.equal(byPack["runtime-admin"]?.length, 8);
 assert.equal(byPack.recovery?.length, 2);
 
 assert.deepEqual(
@@ -92,7 +92,7 @@ const productionBaseline = classifications.filter(
     "resources.mutation.execute"
   ].includes(item.suffix)
 );
-assert.equal(productionBaseline.length, 87);
+assert.equal(productionBaseline.length, 89);
 assert.equal(
   productionBaseline.filter((item) => item.disposition === "core").length,
   19
@@ -100,7 +100,7 @@ assert.equal(
 
 const syntheticTools = classifications.map((item) => ({ name: `chatcockpit.${item.suffix}` }));
 assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "core" }).length, 19);
-assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "full" }).length, 90);
+assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "full" }).length, 92);
 assert.equal(
   selectMcpToolsForSurface(syntheticTools, { kind: "pack", pack: "codex-native" }).length,
   29
