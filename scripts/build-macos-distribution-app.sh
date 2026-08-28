@@ -60,6 +60,13 @@ if [[ ! "${BUILD_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 
+SOURCE_REVISION="$(git -C "${ROOT}" rev-parse --short=12 HEAD)"
+if [[ -n "$(git -C "${ROOT}" status --porcelain --untracked-files=all)" ]]; then
+  echo "Distribution builds require a clean committed working tree." >&2
+  git -C "${ROOT}" status --short --untracked-files=all >&2
+  exit 1
+fi
+
 DEVELOPER_DIR_VALUE="$(xcode-select -p 2>/dev/null || true)"
 if [[ "${DEVELOPER_DIR_VALUE}" == "/Library/Developer/CommandLineTools" ]] || ! command -v xcodebuild >/dev/null 2>&1; then
   echo "FULL_XCODE_REQUIRED: install/select full Xcode before running the distribution archive build" >&2
@@ -86,6 +93,15 @@ if [[ ! -f "${RUNTIME_PAYLOAD}/manifest.json" ]] || [[ ! -x "${RUNTIME_PAYLOAD}/
   echo "Missing verified ChatCockpit runtime payload at ${RUNTIME_PAYLOAD}" >&2
   exit 1
 fi
+
+CHATCOCKPIT_INSTALL_ROOT="${RUNTIME_PAYLOAD}/app" \
+CHATCOCKPIT_DISTRIBUTION_MODE="packaged" \
+"${RUNTIME_PAYLOAD}/node/bin/node" \
+  "${RUNTIME_PAYLOAD}/app/dist/cli/index.js" \
+  build-provenance verify \
+  --require-clean \
+  --expected-revision "${SOURCE_REVISION}" \
+  --json
 
 rm -rf "${DIST_ROOT}" "${DERIVED_DATA}"
 mkdir -p "${DIST_ROOT}"

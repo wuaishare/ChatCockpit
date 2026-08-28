@@ -194,6 +194,7 @@ import { registerRecoveryRoutes } from "./recovery-routes.js";
 import { isResourceMutationExposureEnabled } from "./runtime-resource-mutation-policy.js";
 import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
 import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
+import type { RuntimeBuildProvenance } from "../core/build-provenance.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
@@ -360,6 +361,7 @@ export interface BuildServerOptions {
   deviceCapabilityRpc?: DeviceCapabilityRpc;
   deviceRuntimeLifecycleRpc?: DeviceRuntimeLifecycleRpc;
   deviceChannelPingIntervalMs?: number;
+  runtimeBuildProvenance?: RuntimeBuildProvenance | null;
   lanDiscovery?: {
     host: string;
     port: number;
@@ -2139,7 +2141,13 @@ export function buildServer(
   app.post("/api/git/commit", gitCommitHandler);
   app.post("/tokenpilot/api/git/commit", gitCommitHandler);
 
-  registerStaticRoutes(app, paths, accessPolicy.consolePathPrefix, operatorService);
+  registerStaticRoutes(
+    app,
+    paths,
+    accessPolicy.consolePathPrefix,
+    operatorService,
+    options.runtimeBuildProvenance ?? null
+  );
 
   return app;
 }

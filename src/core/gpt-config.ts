@@ -114,6 +114,7 @@ export function buildHealthStatusSnapshot(
 ): TokenPilotHealthStatus {
   const publicBaseUrl = resolvePublicBaseUrl();
   const exposed = /^(1|true|yes|on)$/i.test(readIdentityEnv("EXPOSED") ?? "");
+  const provenance = readRuntimeBuildProvenance();
   return {
     ok: true,
     mode: "phase2-dual-mode",
@@ -123,7 +124,12 @@ export function buildHealthStatusSnapshot(
     openapiUrl: publicBaseUrl
       ? `${publicBaseUrl.replace(/\/+$/, "")}/openapi.yaml`
       : "/openapi.yaml",
-    build: readRuntimeBuildProvenance()
+    build: {
+      version: provenance.version,
+      buildId: provenance.buildId,
+      revision: provenance.revision,
+      builtAt: provenance.builtAt
+    }
   };
 }
 

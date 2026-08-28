@@ -58,7 +58,9 @@ const nodePath = required("node/bin/node");
 required("app/package.json");
 required("app/package-lock.json");
 required("app/dist/cli/index.js");
+required("app/dist/build-provenance.json");
 required("app/web/dist/index.html");
+required("app/web/dist/build-provenance.json");
 required("app/openapi/chatcockpit.openapi.yaml");
 required("app/node_modules");
 required("app/scripts/macos-manage-local-server.sh");
@@ -133,7 +135,9 @@ for (const requiredHashPath of [
   "node/bin/node",
   "app/package.json",
   "app/dist/cli/index.js",
+  "app/dist/build-provenance.json",
   "app/web/dist/index.html",
+  "app/web/dist/build-provenance.json",
   "app/openapi/chatcockpit.openapi.yaml",
   "app/scripts/macos-manage-local-server.sh",
   "app/scripts/macos-manage-device-agent.sh"

@@ -4,6 +4,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { OperatorService } from "../auth/operator-service.js";
 import { readIdentityEnv } from "../core/identity-env.js";
+import {
+  verifyWebBuildGeneration,
+  verifyWebBuildIntegrity,
+  type RuntimeBuildProvenance
+} from "../core/build-provenance.js";
 import { projectOpenApiForProduct } from "../core/openapi-product-projection.js";
 import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
 import { productIdentityForKey } from "../core/product-identity.js";
@@ -149,6 +154,25 @@ function renderUiNotBuiltPage(displayName: string): string {
 </html>`;
 }
 
+function renderUiBuildMismatchPage(displayName: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${displayName} Build Generation Mismatch</title>
+  </head>
+  <body>
+    <main style="max-width: 760px; margin: 56px auto; padding: 0 24px; font: 16px/1.7 -apple-system, BlinkMacSystemFont, sans-serif;">
+      <h1>${displayName} build artifacts are out of sync</h1>
+      <p>The Control Plane and Web UI were not produced by the same complete build generation, so the Web UI has been blocked instead of loading an incompatible client.</p>
+      <p>Rebuild and deploy the complete runtime artifact set, then retry <code>/ui</code>. For a source checkout, run <code>npm run build</code> rather than rebuilding only <code>web/dist</code>.</p>
+      <p><code>/api/health</code> remains available for diagnostics.</p>
+    </main>
+  </body>
+</html>`;
+}
+
 function renderPrivacyPolicy(displayName: string): string {
   return `<!doctype html>
 <html lang="zh-Hans">
@@ -173,7 +197,8 @@ export function registerStaticRoutes(
   app: FastifyInstance,
   paths: TokenPilotPaths,
   secureEntryPath = "/ui",
-  operator?: OperatorService
+  operator?: OperatorService,
+  runtimeBuildProvenance: RuntimeBuildProvenance | null = null
 ): void {
   const identity = productIdentityForKey(paths.productIdentity);
   const uiDistDir = path.join(paths.installRoot, "web", "dist");
@@ -222,6 +247,13 @@ export function registerStaticRoutes(
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
       return renderUiNotBuiltPage(identity.displayName);
     }
+    const buildIntegrity = runtimeBuildProvenance
+      ? verifyWebBuildIntegrity(paths.installRoot, runtimeBuildProvenance)
+      : null;
+    if (buildIntegrity && !buildIntegrity.ok) {
+      reply.code(503);
+      return renderUiBuildMismatchPage(identity.displayName);
+    }
     return renderUiIndex();
   });
 
@@ -234,6 +266,28 @@ export function registerStaticRoutes(
     }
 
     const requestUrl = request.url;
+    const rawSuffixForIntegrity = requestUrl
+      .split("?", 1)[0]
+      .slice("/ui/".length);
+    const buildIntegrity = runtimeBuildProvenance
+      ? rawSuffixForIntegrity.startsWith("assets/")
+        ? verifyWebBuildGeneration(paths.installRoot, runtimeBuildProvenance)
+        : verifyWebBuildIntegrity(paths.installRoot, runtimeBuildProvenance)
+      : null;
+    if (buildIntegrity && !buildIntegrity.ok) {
+      if (rawSuffixForIntegrity.startsWith("assets/")) {
+        return sendApiError(
+          reply,
+          503,
+          "UI_BUILD_GENERATION_MISMATCH",
+          "Web UI artifacts do not match the running Control Plane build generation"
+        );
+      }
+      reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
+      reply.type("text/html; charset=utf-8");
+      return reply.code(503).send(renderUiBuildMismatchPage(identity.displayName));
+    }
+
     const rawSuffix = requestUrl
       .split("?", 1)[0]
       .slice("/ui/".length);

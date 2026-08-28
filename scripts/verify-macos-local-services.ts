@@ -19,6 +19,8 @@ assert.match(source, /process_supervisor_ready/);
 assert.match(source, /bootout_all_services/);
 assert.match(source, /stop_process_supervisor_process/);
 assert.match(source, /assert_packaged_runtime_ownership/);
+assert.match(source, /assert_runtime_build_integrity/);
+assert.match(source, /build-provenance verify --json/);
 assert.match(source, /installed_runtime_ownership_matches/);
 assert.match(source, /launchctl_service_pid\(\)/);
 assert.match(source, /http_health_reachable\(\)/);
@@ -71,10 +73,17 @@ assert.match(source, /<key>\$\{ENV_PREFIX\}_DISTRIBUTION_MODE<\/key>/);
 assert.match(source, /<string>\$\{DISTRIBUTION_MODE\}<\/string>/);
 assert.match(source, /<string>--product-identity<\/string>[\s\S]*<string>\$\{PRODUCT_IDENTITY\}<\/string>/);
 
+const startStart = source.indexOf("  start)\n");
+const stopBoundary = source.indexOf("  stop)\n", startStart);
+assert.ok(startStart >= 0 && stopBoundary > startStart);
+const startBlock = source.slice(startStart, stopBoundary);
+assert.match(startBlock, /assert_runtime_build_integrity/);
+
 const restartStart = source.indexOf("  restart)\n");
 const statusStart = source.indexOf("  status)\n", restartStart);
 assert.ok(restartStart >= 0 && statusStart > restartStart);
 const restartBlock = source.slice(restartStart, statusStart);
+assert.match(restartBlock, /assert_runtime_build_integrity/);
 assert.match(restartBlock, /kickstart_control_plane_and_runner/);
 assert.match(restartBlock, /launchctl_process_supervisor_registered/);
 assert.doesNotMatch(restartBlock, /bootout_process_supervisor/);

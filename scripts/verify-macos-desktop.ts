@@ -287,6 +287,10 @@ assert.match(buildProvenanceStamp, /ChatCockpitBuildTimestamp/);
 assert.match(buildScript, /stamp-macos-build-provenance\.sh/);
 assert.match(xcodeBuildScript, /stamp-macos-build-provenance\.sh/);
 assert.match(distributionBuildScript, /stamp-macos-build-provenance\.sh/);
+assert.match(distributionBuildScript, /status --porcelain --untracked-files=all/);
+assert.match(distributionBuildScript, /build-provenance verify/);
+assert.match(distributionBuildScript, /--require-clean/);
+assert.match(distributionBuildScript, /--expected-revision "\$\{SOURCE_REVISION\}"/);
 assert.match(statusView, /cockpitEndpointRow\([\s\S]*openAction: model\.openLocalCockpit/s);
 assert.match(statusView, /cockpitEndpointRow\([\s\S]*openAction: model\.openPublicCockpit/s);
 assert.match(statusView, /AccessibleIconButton\([\s\S]*doc\.on\.doc[\s\S]*model\.copyMachineEndpoint\(url\)/s);
@@ -744,7 +748,9 @@ if (fs.existsSync(builtAppRoot)) {
     "node/bin/node",
     "app/package.json",
     "app/dist/cli/index.js",
+    "app/dist/build-provenance.json",
     "app/web/dist/index.html",
+    "app/web/dist/build-provenance.json",
     "app/openapi/chatcockpit.openapi.yaml",
     "app/scripts/macos-manage-local-server.sh"
   ]) {

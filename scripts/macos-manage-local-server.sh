@@ -649,6 +649,20 @@ process_supervisor_ready() {
   grep -q '"state": "ready"' "${PROCESS_SUPERVISOR_STATUS_FILE}"
 }
 
+assert_runtime_build_integrity() {
+  local cli_entry="${INSTALL_ROOT}/dist/cli/index.js"
+  local result=""
+  if [[ ! -f "${cli_entry}" ]]; then
+    echo "ChatCockpit compiled runtime is missing; refusing to start mixed or incomplete artifacts." >&2
+    return 1
+  fi
+  if ! result="$("${NODE_BIN}" "${cli_entry}" build-provenance verify --json 2>&1)"; then
+    echo "ChatCockpit build integrity check failed; refusing to start or restart mixed-generation artifacts." >&2
+    printf '%s\n' "${result}" >&2
+    return 1
+  fi
+}
+
 wait_for_process_supervisor_ready() {
   local attempts="${1:-20}"
   local idx=0
@@ -665,6 +679,7 @@ wait_for_process_supervisor_ready() {
 case "${ACTION}" in
   start)
     cd "${INSTALL_ROOT}"
+    assert_runtime_build_integrity
     assert_packaged_runtime_ownership
     assert_port_available_or_owned_runtime
     write_server_plist
@@ -737,6 +752,7 @@ case "${ACTION}" in
     ;;
   restart)
     cd "${INSTALL_ROOT}"
+    assert_runtime_build_integrity
     assert_packaged_runtime_ownership
     assert_port_available_or_owned_runtime
     write_server_plist

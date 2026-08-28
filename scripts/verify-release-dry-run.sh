@@ -4,11 +4,13 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "${ROOT}"
 
-if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
-  echo "Working tree has tracked changes. Commit or stash them before release dry-run." >&2
-  git status --short --untracked-files=no >&2
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+  echo "Working tree has changes. Commit or stash them before release dry-run." >&2
+  git status --short --untracked-files=all >&2
   exit 1
 fi
+
+source_revision="$(git rev-parse --short=12 HEAD)"
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
@@ -48,7 +50,8 @@ fi
 pushd "${extract_dir}" >/dev/null
 npm ci
 npm audit --audit-level=moderate
-npm run build
+CHATCOCKPIT_BUILD_REVISION="${source_revision}" CHATCOCKPIT_BUILD_SOURCE_DIRTY=false npm run build
+CHATCOCKPIT_EXPECTED_BUILD_REVISION="${source_revision}" npm run verify:build-provenance:certified
 npm run verify:web:safety
 popd >/dev/null
 

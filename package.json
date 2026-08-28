@@ -8,7 +8,7 @@
     "chatcockpit": "./dist/cli/index.js"
   },
   "scripts": {
-    "build": "npm run build:web && tsc -p tsconfig.json && tsx scripts/generate-build-provenance.ts",
+    "build": "npm run build:web && tsc -p tsconfig.json && tsx scripts/generate-build-provenance.ts && node dist/cli/index.js build-provenance verify --json",
     "build:web": "vite build --config web/vite.config.ts",
     "build:macos-desktop": "bash ./scripts/build-macos-desktop-app.sh",
     "build:macos-xcode": "bash ./scripts/build-macos-xcode-app.sh",
@@ -62,6 +62,7 @@
     "verify:runtime-lifecycle": "tsx scripts/verify-runtime-lifecycle.ts && npm run verify:runtime-restart-request",
     "verify:runtime-restart-request": "tsx scripts/verify-runtime-restart-request.ts",
     "verify:build-provenance": "tsx scripts/verify-build-provenance.ts",
+    "verify:build-provenance:certified": "tsx scripts/verify-build-provenance.ts --require-clean",
     "verify:packaged-runtime": "tsx scripts/verify-packaged-runtime.ts",
     "verify:runtime-manifest": "tsx scripts/verify-runtime-manifest.ts",
     "verify:macos-runtime-payload": "tsx scripts/verify-macos-runtime-payload.ts",

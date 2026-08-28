@@ -2,6 +2,7 @@ import process from "node:process";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
@@ -22,6 +23,11 @@ import {
   productIdentityForKey
 } from "../core/product-identity.js";
 import { runDoctor } from "../core/doctor.js";
+import {
+  verifyRuntimeBuildIntegrity,
+  type RuntimeBuildIntegrityResult,
+  type RuntimeBuildProvenance
+} from "../core/build-provenance.js";
 import { initLocalRuntime } from "../core/setup.js";
 import { runPack } from "../core/pack.js";
 import { buildBundleManifest } from "../core/manifest.js";
@@ -103,6 +109,7 @@ Usage:
   ${identity.cliName} queue-taskpack --title "..." --problem "..."
   ${identity.cliName} queue-codex-run --title "..." --instructions "..." [--repo-id ${identity.defaultRepoId}]
   ${identity.cliName} desktop-summary [--json]
+  ${identity.cliName} build-provenance verify [--require-clean] [--expected-revision <git-sha>] [--json]
   ${identity.cliName} project-registry list [--json]
   ${identity.cliName} project-registry create --slug <slug> --display-name <name> --path <folder> --kind git-repository|directory [--role primary-source|supporting-source|documentation|knowledge|assets] [--access read-write|read-only] [--repo-id <repo-id>] [--expected-revision <sha>] [--json]
   ${identity.cliName} project-registry add-root --project-id <id> --path <folder> --kind git-repository|directory [--role primary-source|supporting-source|documentation|knowledge|assets] [--access read-write|read-only] [--repo-id <repo-id>] --expected-revision <sha> [--json]
@@ -287,6 +294,33 @@ function printInitResult(result: ReturnType<typeof initLocalRuntime>, repoRoot: 
   printHumanJson(result, repoRoot);
 }
 
+function runningFromCompiledDist(): boolean {
+  const currentFile = fileURLToPath(import.meta.url);
+  return currentFile.endsWith(path.join("dist", "cli", "index.js"));
+}
+
+function assertBuiltRuntimeIntegrity(paths: TokenPilotPaths): RuntimeBuildProvenance | null {
+  if (!runningFromCompiledDist()) return null;
+  const result = verifyRuntimeBuildIntegrity(paths.installRoot);
+  if (!result.ok) {
+    throw new Error(
+      `RUNTIME_BUILD_INTEGRITY_FAILED ${result.code}: rebuild the complete ChatCockpit runtime before starting compiled services`
+    );
+  }
+  return result.provenance;
+}
+
+function printBuildIntegrityResult(result: RuntimeBuildIntegrityResult, json: boolean): void {
+  if (json) {
+    printJson(result);
+    return;
+  }
+  process.stdout.write(`Build integrity: ${result.ok ? "ready" : "blocked"}\n`);
+  process.stdout.write(`Code: ${result.code}\n`);
+  process.stdout.write(`Revision: ${result.provenance.revision ?? "unknown"}\n`);
+  process.stdout.write(`Source dirty: ${result.provenance.sourceDirty ?? "unknown"}\n`);
+}
+
 function printDoctorResult(result: ReturnType<typeof runDoctor>, repoRoot: string): void {
   process.stdout.write(`${DEFAULT_PRODUCT_IDENTITY.displayName} doctor\n`);
   process.stdout.write(`Summary: ${result.summary}\n`);
@@ -329,7 +363,7 @@ async function main(): Promise<void> {
   const command = process.argv[2];
   const productIdentity = productIdentityFromArgs();
   const paths = buildPaths(buildDistributionContextForProduct(productIdentity));
-  if (command !== "doctor" && command !== "desktop-summary") {
+  if (command !== "doctor" && command !== "desktop-summary" && command !== "build-provenance") {
     ensureWorkspaceDirs(paths);
   }
 
@@ -441,6 +475,19 @@ async function main(): Promise<void> {
         commitPolicy: commitPolicy as "none" | "propose" | "commit"
       });
       process.stdout.write(`${JSON.stringify(job, null, 2)}\n`);
+      return;
+    }
+    case "build-provenance": {
+      const subcommand = process.argv[3];
+      if (subcommand !== "verify") {
+        throw new Error("build-provenance requires verify");
+      }
+      const result = verifyRuntimeBuildIntegrity(paths.installRoot, {
+        requireCleanSource: process.argv.includes("--require-clean"),
+        expectedRevision: getFlag("--expected-revision")?.trim() || null
+      });
+      printBuildIntegrityResult(result, process.argv.includes("--json"));
+      if (!result.ok) process.exitCode = 1;
       return;
     }
     case "desktop-summary": {
@@ -1307,6 +1354,7 @@ async function main(): Promise<void> {
       }
     }
     case "server": {
+      const runtimeBuildProvenance = assertBuiltRuntimeIntegrity(paths);
       await ensureSecureBootstrap(paths);
       const port = Number(readIdentityEnv("PORT") ?? "4318");
       const host = readIdentityEnv("HOST") ?? "127.0.0.1";
@@ -1316,6 +1364,7 @@ async function main(): Promise<void> {
         throw new Error("LAN TLS port must be a valid TCP port different from the primary Control Plane port");
       }
       const app = buildServer(paths, {
+        runtimeBuildProvenance,
         lanDiscovery: { host, port },
         deviceLanTls: { host, port: lanTlsPort },
         ...(paths.productIdentity === "chatcockpit"
@@ -1326,6 +1375,7 @@ async function main(): Promise<void> {
       return;
     }
     case "process-supervisor": {
+      assertBuiltRuntimeIntegrity(paths);
       await runProcessSupervisorUntilSignal(paths);
       return;
     }
@@ -1348,6 +1398,7 @@ async function main(): Promise<void> {
       return;
     }
     case "runner": {
+      assertBuiltRuntimeIntegrity(paths);
       const once = process.argv.includes("--once");
       const watch = process.argv.includes("--watch");
       const intervalValue = getFlag("--interval");
