@@ -47,6 +47,18 @@ if find "${extract_dir}" \( -name ".env" -o -name ".env.*" -o -name "server.env"
   exit 1
 fi
 
+while IFS= read -r env_name; do
+  case "${env_name}" in
+    CHATCOCKPIT_*|TOKENPILOT_*) unset "${env_name}" ;;
+  esac
+done < <(compgen -e)
+
+export CHATCOCKPIT_REPO_ROOT="${extract_dir}"
+export CHATCOCKPIT_INSTALL_ROOT="${extract_dir}"
+export CHATCOCKPIT_STATE_ROOT="${tmp_dir}/state"
+export CHATCOCKPIT_CONFIG_PATH="${tmp_dir}/config.json"
+export CHATCOCKPIT_EXPOSED=false
+
 pushd "${extract_dir}" >/dev/null
 npm ci
 npm audit --audit-level=moderate

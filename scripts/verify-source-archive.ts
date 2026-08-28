@@ -4,7 +4,6 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { RUNTIME_IDENTITY_ENV } from "../src/core/identity-env.ts";
 import { sleep, waitForValue } from "./test-support/wait.ts";
 
 const repoRoot = process.cwd();
@@ -226,9 +225,10 @@ assert.equal(
 
 const sourceArchiveMachineToken = "source-archive-fixture-machine-token";
 const isolatedEnv: NodeJS.ProcessEnv = { ...process.env };
-for (const pair of Object.values(RUNTIME_IDENTITY_ENV)) {
-  delete isolatedEnv[pair.legacy];
-  delete isolatedEnv[pair.target];
+for (const name of Object.keys(isolatedEnv)) {
+  if (name.startsWith("CHATCOCKPIT_") || name.startsWith("TOKENPILOT_")) {
+    delete isolatedEnv[name];
+  }
 }
 Object.assign(isolatedEnv, {
   HOME: homeRoot,
