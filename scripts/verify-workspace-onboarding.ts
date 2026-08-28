@@ -10,6 +10,7 @@ import { WorkspaceOnboardingService } from "../src/application/workspace-onboard
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
+import { rootIdForRepoId } from "../src/core/project-config-identity.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 const NOW = "2026-08-22T00:00:00.000Z";
@@ -144,15 +145,27 @@ try {
   assert.equal(imported.project.slug, "repo-a");
 
   const raw = JSON.parse(fs.readFileSync(paths.configPath, "utf8")) as {
+    schemaVersion: number;
     workspaceDiscoveryRoots: string[];
     workspaceAllowlist: string[];
-    repoMappings: Record<string, { path: string }>;
+    projects: Record<string, { displayName: string; primaryRootId: string; rootIds: string[] }>;
+    projectRoots: Record<string, { path: string; kind: string; role: string; access: string }>;
+    executionWorkspaces: Record<string, { projectRootId: string; path: string; kind: string }>;
+    repoMappings?: unknown;
   };
+  const importedRootId = rootIdForRepoId("repo-a");
+  assert.equal(raw.schemaVersion, 3);
   assert.equal(raw.workspaceDiscoveryRoots.includes(fs.realpathSync.native(discoveryRoot)), true);
   assert.equal(raw.workspaceAllowlist.includes(fs.realpathSync.native(repoA)), true);
   assert.equal(raw.workspaceAllowlist.includes(fs.realpathSync.native(discoveryRoot)), false);
-  assert.equal(raw.repoMappings["repo-a"]?.path, fs.realpathSync.native(repoA));
-  assert.equal(raw.repoMappings["repo-b"], undefined);
+  assert.equal(raw.projects["repo-a"]?.primaryRootId, importedRootId);
+  assert.deepEqual(raw.projects["repo-a"]?.rootIds, [importedRootId]);
+  assert.equal(raw.projectRoots[importedRootId]?.path, fs.realpathSync.native(repoA));
+  assert.equal(raw.projectRoots[importedRootId]?.kind, "git-repository");
+  assert.equal(raw.executionWorkspaces["repo-a"]?.projectRootId, importedRootId);
+  assert.equal(raw.executionWorkspaces["repo-a"]?.path, fs.realpathSync.native(repoA));
+  assert.equal(raw.executionWorkspaces["repo-b"], undefined);
+  assert.equal(raw.repoMappings, undefined);
 
   const replay = await service.importCandidate(context, {
     rootId,

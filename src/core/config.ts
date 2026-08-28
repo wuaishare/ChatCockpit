@@ -4,7 +4,10 @@ import path from "node:path";
 
 import type {
   TokenPilotDistributionContext,
+  TokenPilotExecutionWorkspaceMapping,
   TokenPilotPaths,
+  TokenPilotProjectMapping,
+  TokenPilotProjectRootMapping,
   TokenPilotRepoGovernanceEntry,
   TokenPilotRepoGovernanceRecord,
   TokenPilotUserConfig
@@ -14,6 +17,7 @@ import {
   buildSourceDistributionContext
 } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
+import { rootIdForRepoId } from "./project-config-identity.js";
 import {
   DEFAULT_PRODUCT_IDENTITY,
   productIdentityForKey
@@ -22,7 +26,8 @@ import {
   CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
   LEGACY_DEFAULT_REPO_ID,
   USER_CONFIG_SCHEMA_VERSION,
-  parseUserConfig
+  parseUserConfig,
+  serializeUserConfigV3
 } from "./user-config-schema.js";
 
 export const DEFAULT_REPO_ID = DEFAULT_PRODUCT_IDENTITY.defaultRepoId;
@@ -41,9 +46,7 @@ function defaultConfigPath(context?: TokenPilotDistributionContext): string {
 
 function normalizeAbsolutePath(input: string): string {
   const resolved = path.resolve(input);
-  if (!fs.existsSync(resolved)) {
-    return resolved;
-  }
+  if (!fs.existsSync(resolved)) return resolved;
   try {
     return fs.realpathSync.native(resolved);
   } catch {
@@ -68,15 +71,91 @@ function assertUniqueRepoMappings(config: TokenPilotUserConfig): void {
 }
 
 function dedupeSorted(values: string[]): string[] {
-  return Array.from(new Set(values)).sort();
+  return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
 }
 
-function standaloneProject(repoId: string) {
+function standaloneProjectBundle(repoId: string, repoPath: string): {
+  project: TokenPilotProjectMapping;
+  rootId: string;
+  root: TokenPilotProjectRootMapping;
+  workspace: TokenPilotExecutionWorkspaceMapping;
+} {
+  const rootId = rootIdForRepoId(repoId);
   return {
-    displayName: repoId,
-    primaryRepoId: repoId,
-    repoIds: [repoId]
+    project: {
+      displayName: repoId,
+      primaryRootId: rootId,
+      rootIds: [rootId]
+    },
+    rootId,
+    root: {
+      path: repoPath,
+      kind: "git-repository",
+      role: "primary-source",
+      access: "read-write"
+    },
+    workspace: {
+      projectRootId: rootId,
+      path: repoPath,
+      kind: "checkout",
+      provenance: "registered"
+    }
   };
+}
+
+function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
+  const canonicalProjects = Object.fromEntries(
+    Object.entries(config.projects || {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([projectSlug, project]) => [
+        projectSlug,
+        {
+          displayName: project.displayName.trim(),
+          primaryRootId: project.primaryRootId,
+          rootIds: dedupeSorted(project.rootIds)
+        }
+      ])
+  );
+  const canonicalRoots = Object.fromEntries(
+    Object.entries(config.projectRoots || {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([rootId, root]) => [
+        rootId,
+        {
+          ...root,
+          path: normalizeAbsolutePath(root.path)
+        }
+      ])
+  );
+  const canonicalWorkspaces = Object.fromEntries(
+    Object.entries(config.executionWorkspaces || {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([repoId, workspace]) => [
+        repoId,
+        {
+          ...workspace,
+          path: normalizeAbsolutePath(workspace.path)
+        }
+      ])
+  );
+
+  const parsed = parseUserConfig({
+    schemaVersion: USER_CONFIG_SCHEMA_VERSION,
+    workspaceDiscoveryRoots: dedupeSorted(
+      (config.workspaceDiscoveryRoots || []).map(normalizeAbsolutePath)
+    ),
+    workspaceAllowlist: dedupeSorted(
+      (config.workspaceAllowlist || []).map(normalizeAbsolutePath)
+    ),
+    projects: canonicalProjects,
+    projectRoots: canonicalRoots,
+    executionWorkspaces: canonicalWorkspaces
+  }).config;
+
+  if (config.defaultRepoId && parsed.executionWorkspaces[config.defaultRepoId]) {
+    parsed.defaultRepoId = config.defaultRepoId;
+  }
+  return parsed;
 }
 
 function buildDefaultConfig(
@@ -87,25 +166,33 @@ function buildDefaultConfig(
   const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
   const siblingMappings =
     context.mode === "source" ? discoverSiblingRepoMappings(normalizedRepoRoot) : {};
-  const siblingAllowlist = Object.values(siblingMappings).map((mapping) => mapping.path);
   const repoMappings = {
-    [defaultRepoId]: {
-      path: normalizedRepoRoot
-    },
+    [defaultRepoId]: { path: normalizedRepoRoot },
     ...siblingMappings
   };
-  return {
+  const projects: Record<string, TokenPilotProjectMapping> = {};
+  const projectRoots: Record<string, TokenPilotProjectRootMapping> = {};
+  const executionWorkspaces: Record<string, TokenPilotExecutionWorkspaceMapping> = {};
+
+  for (const [repoId, mapping] of Object.entries(repoMappings).sort(
+    ([left], [right]) => left.localeCompare(right)
+  )) {
+    const bundle = standaloneProjectBundle(repoId, mapping.path);
+    projects[repoId] = bundle.project;
+    projectRoots[bundle.rootId] = bundle.root;
+    executionWorkspaces[repoId] = bundle.workspace;
+  }
+
+  return normalizeConfig({
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId,
     workspaceDiscoveryRoots: [],
-    workspaceAllowlist: dedupeSorted([normalizedRepoRoot, ...siblingAllowlist]),
+    workspaceAllowlist: dedupeSorted(Object.values(repoMappings).map((mapping) => mapping.path)),
     repoMappings,
-    projects: Object.fromEntries(
-      Object.keys(repoMappings)
-        .sort((left, right) => left.localeCompare(right))
-        .map((repoId) => [repoId, standaloneProject(repoId)])
-    )
-  };
+    projects,
+    projectRoots,
+    executionWorkspaces
+  });
 }
 
 function discoverSiblingRepoMappings(normalizedRepoRoot: string): Record<string, { path: string }> {
@@ -123,39 +210,18 @@ function discoverSiblingRepoMappings(normalizedRepoRoot: string): Record<string,
   );
 }
 
-function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
-  return {
-    schemaVersion: USER_CONFIG_SCHEMA_VERSION,
-    defaultRepoId: config.defaultRepoId,
-    workspaceDiscoveryRoots: dedupeSorted(
-      (config.workspaceDiscoveryRoots || []).map(normalizeAbsolutePath)
-    ),
-    workspaceAllowlist: dedupeSorted(
-      (config.workspaceAllowlist || []).map(normalizeAbsolutePath)
-    ),
-    repoMappings: Object.fromEntries(
-      Object.entries(config.repoMappings || {})
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([repoId, mapping]) => [
-          repoId,
-          {
-            path: normalizeAbsolutePath(mapping.path)
-          }
-        ])
-    ),
-    projects: Object.fromEntries(
-      Object.entries(config.projects || {})
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([projectSlug, project]) => [
-          projectSlug,
-          {
-            displayName: project.displayName.trim(),
-            primaryRepoId: project.primaryRepoId,
-            repoIds: dedupeSorted(project.repoIds)
-          }
-        ])
-    )
-  };
+function attachStandaloneRepo(
+  config: TokenPilotUserConfig,
+  repoId: string,
+  repoPath: string
+): void {
+  if (config.executionWorkspaces[repoId]) return;
+  const canonicalPath = normalizeAbsolutePath(repoPath);
+  const bundle = standaloneProjectBundle(repoId, canonicalPath);
+  config.projects[repoId] = bundle.project;
+  config.projectRoots[bundle.rootId] = bundle.root;
+  config.executionWorkspaces[repoId] = bundle.workspace;
+  config.repoMappings[repoId] = { path: canonicalPath };
 }
 
 export function buildChatCockpitTargetConfigPreview(
@@ -179,7 +245,11 @@ export function loadUserConfig(
   if (!fs.existsSync(configPath)) {
     const config = buildDefaultConfig(repoRoot, context);
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify(serializeUserConfigV3(config), null, 2)}\n`,
+      "utf8"
+    );
     return config;
   }
 
@@ -188,23 +258,17 @@ export function loadUserConfig(
   const normalized = normalizeConfig(parsed.config);
   const normalizedRepoRoot = normalizeAbsolutePath(context.primaryWorkspaceRoot || repoRoot);
 
-  if (parsed.sourceSchemaVersion === 0 && !normalized.repoMappings[LEGACY_DEFAULT_REPO_ID]) {
-    normalized.repoMappings[LEGACY_DEFAULT_REPO_ID] = {
-      path: normalizedRepoRoot
-    };
-    normalized.projects[LEGACY_DEFAULT_REPO_ID] = standaloneProject(LEGACY_DEFAULT_REPO_ID);
+  if (parsed.sourceSchemaVersion === 0 && !normalized.executionWorkspaces[LEGACY_DEFAULT_REPO_ID]) {
+    attachStandaloneRepo(normalized, LEGACY_DEFAULT_REPO_ID, normalizedRepoRoot);
   }
-  if (!normalized.repoMappings[normalized.defaultRepoId]) {
+  if (!normalized.executionWorkspaces[normalized.defaultRepoId]) {
     throw new Error(`User config defaultRepoId ${normalized.defaultRepoId} has no repo mapping`);
   }
 
   const siblingMappings =
     context.mode === "source" ? discoverSiblingRepoMappings(normalizedRepoRoot) : {};
   for (const [repoId, mapping] of Object.entries(siblingMappings)) {
-    if (!normalized.repoMappings[repoId]) {
-      normalized.repoMappings[repoId] = mapping;
-      normalized.projects[repoId] = standaloneProject(repoId);
-    }
+    attachStandaloneRepo(normalized, repoId, mapping.path);
   }
 
   if (!normalized.workspaceAllowlist.includes(normalizedRepoRoot)) {
@@ -214,6 +278,11 @@ export function loadUserConfig(
     ...normalized.workspaceAllowlist,
     ...Object.values(siblingMappings).map((mapping) => mapping.path)
   ]);
+  normalized.repoMappings = Object.fromEntries(
+    Object.entries(normalized.executionWorkspaces)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([repoId, workspace]) => [repoId, { path: workspace.path }])
+  );
   assertUniqueRepoMappings(normalized);
 
   return normalized;

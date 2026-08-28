@@ -1,7 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { TokenPilotUserConfig } from "../types.js";
+import type {
+  TokenPilotExecutionWorkspaceMapping,
+  TokenPilotProjectMapping,
+  TokenPilotProjectRootMapping,
+  TokenPilotUserConfig
+} from "../types.js";
+import { rootIdForRepoId } from "../core/project-config-identity.js";
 import {
   CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
   LEGACY_DEFAULT_REPO_ID,
@@ -23,16 +29,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function assertKnownConfigShape(raw: unknown): void {
-  if (!isRecord(raw)) {
-    throw new Error("User config must be an object");
-  }
+  if (!isRecord(raw)) throw new Error("User config must be an object");
   const allowedTopLevel = new Set([
     "schemaVersion",
     "defaultRepoId",
     "workspaceDiscoveryRoots",
     "workspaceAllowlist",
     "repoMappings",
-    "projects"
+    "projects",
+    "projectRoots",
+    "executionWorkspaces"
   ]);
   const unknownTopLevel = Object.keys(raw).filter((key) => !allowedTopLevel.has(key));
   if (unknownTopLevel.length > 0) {
@@ -40,44 +46,49 @@ function assertKnownConfigShape(raw: unknown): void {
       `User config contains unsupported field(s): ${unknownTopLevel.sort().join(", ")}`
     );
   }
+
   if (raw.repoMappings !== undefined) {
-    if (!isRecord(raw.repoMappings)) {
-      throw new Error("User config repoMappings must be an object");
-    }
+    if (!isRecord(raw.repoMappings)) throw new Error("User config repoMappings must be an object");
     for (const [repoId, mapping] of Object.entries(raw.repoMappings)) {
       if (!isRecord(mapping)) {
         throw new Error(`User config repoMappings.${repoId} must be an object`);
       }
-      const unknownMappingFields = Object.keys(mapping).filter((key) => key !== "path");
-      if (unknownMappingFields.length > 0) {
+      const unknown = Object.keys(mapping).filter((key) => key !== "path");
+      if (unknown.length > 0) {
         throw new Error(
-          `User config repoMappings.${repoId} contains unsupported field(s): ${unknownMappingFields
-            .sort()
-            .join(", ")}`
+          `User config repoMappings.${repoId} contains unsupported field(s): ${unknown.sort().join(", ")}`
         );
       }
     }
   }
+
   if (raw.projects !== undefined) {
-    if (!isRecord(raw.projects)) {
-      throw new Error("User config projects must be an object");
-    }
+    if (!isRecord(raw.projects)) throw new Error("User config projects must be an object");
     for (const [projectSlug, project] of Object.entries(raw.projects)) {
       if (!isRecord(project)) {
         throw new Error(`User config projects.${projectSlug} must be an object`);
       }
-      const allowedProjectFields = new Set(["displayName", "primaryRepoId", "repoIds"]);
-      const unknownProjectFields = Object.keys(project).filter(
-        (key) => !allowedProjectFields.has(key)
-      );
-      if (unknownProjectFields.length > 0) {
+      const allowed = new Set([
+        "displayName",
+        "primaryRepoId",
+        "repoIds",
+        "primaryRootId",
+        "rootIds"
+      ]);
+      const unknown = Object.keys(project).filter((key) => !allowed.has(key));
+      if (unknown.length > 0) {
         throw new Error(
-          `User config projects.${projectSlug} contains unsupported field(s): ${unknownProjectFields
-            .sort()
-            .join(", ")}`
+          `User config projects.${projectSlug} contains unsupported field(s): ${unknown.sort().join(", ")}`
         );
       }
     }
+  }
+
+  if (raw.projectRoots !== undefined && !isRecord(raw.projectRoots)) {
+    throw new Error("User config projectRoots must be an object");
+  }
+  if (raw.executionWorkspaces !== undefined && !isRecord(raw.executionWorkspaces)) {
+    throw new Error("User config executionWorkspaces must be an object");
   }
 }
 
@@ -92,20 +103,14 @@ function canonicalPath(value: string): string {
 }
 
 function dedupeSorted(values: readonly string[]): string[] {
-  return Array.from(new Set(values.map(canonicalPath))).sort();
+  return Array.from(new Set(values.map(canonicalPath))).sort((left, right) => left.localeCompare(right));
 }
 
 function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
-  return {
+  const parsed = parseUserConfig({
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
-    defaultRepoId: config.defaultRepoId,
     workspaceDiscoveryRoots: dedupeSorted(config.workspaceDiscoveryRoots),
     workspaceAllowlist: dedupeSorted(config.workspaceAllowlist),
-    repoMappings: Object.fromEntries(
-      Object.entries(config.repoMappings)
-        .map(([repoId, mapping]) => [repoId, { path: canonicalPath(mapping.path) }] as const)
-        .sort(([left], [right]) => left.localeCompare(right))
-    ),
     projects: Object.fromEntries(
       Object.entries(config.projects)
         .sort(([left], [right]) => left.localeCompare(right))
@@ -113,12 +118,29 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
           projectSlug,
           {
             displayName: project.displayName.trim(),
-            primaryRepoId: project.primaryRepoId,
-            repoIds: Array.from(new Set(project.repoIds)).sort((left, right) => left.localeCompare(right))
+            primaryRootId: project.primaryRootId,
+            rootIds: Array.from(new Set(project.rootIds)).sort((left, right) => left.localeCompare(right))
           }
         ])
+    ),
+    projectRoots: Object.fromEntries(
+      Object.entries(config.projectRoots)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([rootId, root]) => [rootId, { ...root, path: canonicalPath(root.path) }])
+    ),
+    executionWorkspaces: Object.fromEntries(
+      Object.entries(config.executionWorkspaces)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([repoId, workspace]) => [
+          repoId,
+          { ...workspace, path: canonicalPath(workspace.path) }
+        ])
     )
-  };
+  }).config;
+  if (config.defaultRepoId && parsed.executionWorkspaces[config.defaultRepoId]) {
+    parsed.defaultRepoId = config.defaultRepoId;
+  }
+  return parsed;
 }
 
 function isWithinAllowlist(repoPath: string, allowlist: readonly string[]): boolean {
@@ -130,18 +152,18 @@ function isWithinAllowlist(repoPath: string, allowlist: readonly string[]): bool
 }
 
 function assertConfigIntegrity(config: TokenPilotUserConfig): void {
-  const defaultMapping = config.repoMappings[config.defaultRepoId];
-  if (!defaultMapping) {
-    throw new Error(`User config defaultRepoId ${config.defaultRepoId} has no repo mapping`);
+  const defaultWorkspace = config.executionWorkspaces[config.defaultRepoId];
+  if (!defaultWorkspace) {
+    throw new Error(`User config defaultRepoId ${config.defaultRepoId} has no execution workspace`);
   }
 
   const seenPaths = new Map<string, string>();
-  for (const [repoId, mapping] of Object.entries(config.repoMappings)) {
-    const normalizedPath = canonicalPath(mapping.path);
+  for (const [repoId, workspace] of Object.entries(config.executionWorkspaces)) {
+    const normalizedPath = canonicalPath(workspace.path);
     const existing = seenPaths.get(normalizedPath);
     if (existing && existing !== repoId) {
       throw new Error(
-        `User config repo mappings ${existing} and ${repoId} resolve to the same physical path`
+        `User config execution workspaces ${existing} and ${repoId} resolve to the same physical path`
       );
     }
     seenPaths.set(normalizedPath, repoId);
@@ -149,53 +171,65 @@ function assertConfigIntegrity(config: TokenPilotUserConfig): void {
       throw new Error(`User config repoId ${repoId} is outside the workspace allowlist`);
     }
   }
-
-  const ownerByRepoId = new Map<string, string>();
-  for (const [projectSlug, project] of Object.entries(config.projects)) {
-    if (!project.repoIds.includes(project.primaryRepoId)) {
-      throw new Error(`User config project ${projectSlug} primaryRepoId must belong to repoIds`);
-    }
-    for (const repoId of project.repoIds) {
-      if (!config.repoMappings[repoId]) {
-        throw new Error(`User config project ${projectSlug} references unknown repoId ${repoId}`);
-      }
-      const existingOwner = ownerByRepoId.get(repoId);
-      if (existingOwner && existingOwner !== projectSlug) {
-        throw new Error(`User config repoId ${repoId} belongs to more than one project`);
-      }
-      ownerByRepoId.set(repoId, projectSlug);
-    }
-  }
-  for (const repoId of Object.keys(config.repoMappings)) {
-    if (!ownerByRepoId.has(repoId)) {
-      throw new Error(`User config repoId ${repoId} is not assigned to a project`);
-    }
-  }
 }
 
-function remapLegacyProjectRegistry(
+function remapRootId(rootId: string): string {
+  return rootId === rootIdForRepoId(LEGACY_DEFAULT_REPO_ID)
+    ? rootIdForRepoId(CHATCOCKPIT_TARGET_DEFAULT_REPO_ID)
+    : rootId;
+}
+
+function remapProjectRegistry(
   source: TokenPilotUserConfig
-): TokenPilotUserConfig["projects"] {
-  const remapped: TokenPilotUserConfig["projects"] = {};
+): Record<string, TokenPilotProjectMapping> {
+  const remapped: Record<string, TokenPilotProjectMapping> = {};
   for (const [projectSlug, project] of Object.entries(source.projects)) {
-    const targetSlug =
-      projectSlug === LEGACY_DEFAULT_REPO_ID
-        ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
-        : projectSlug;
+    const targetSlug = projectSlug === LEGACY_DEFAULT_REPO_ID
+      ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
+      : projectSlug;
     if (remapped[targetSlug]) {
       throw new Error(`Legacy project ${projectSlug} conflicts with target project ${targetSlug}`);
     }
-    const remapRepoId = (repoId: string) =>
-      repoId === LEGACY_DEFAULT_REPO_ID
-        ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
-        : repoId;
     remapped[targetSlug] = {
       displayName:
         projectSlug === LEGACY_DEFAULT_REPO_ID && project.displayName === LEGACY_DEFAULT_REPO_ID
           ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
           : project.displayName,
-      primaryRepoId: remapRepoId(project.primaryRepoId),
-      repoIds: project.repoIds.map(remapRepoId)
+      primaryRootId: remapRootId(project.primaryRootId),
+      rootIds: project.rootIds.map(remapRootId)
+    };
+  }
+  return remapped;
+}
+
+function remapProjectRoots(
+  source: TokenPilotUserConfig
+): Record<string, TokenPilotProjectRootMapping> {
+  const remapped: Record<string, TokenPilotProjectRootMapping> = {};
+  for (const [rootId, root] of Object.entries(source.projectRoots)) {
+    const targetRootId = remapRootId(rootId);
+    if (remapped[targetRootId]) {
+      throw new Error(`Legacy ProjectRoot ${rootId} conflicts with target ProjectRoot ${targetRootId}`);
+    }
+    remapped[targetRootId] = { ...root };
+  }
+  return remapped;
+}
+
+function remapExecutionWorkspaces(
+  source: TokenPilotUserConfig
+): Record<string, TokenPilotExecutionWorkspaceMapping> {
+  const remapped: Record<string, TokenPilotExecutionWorkspaceMapping> = {};
+  for (const [repoId, workspace] of Object.entries(source.executionWorkspaces)) {
+    const targetRepoId = repoId === LEGACY_DEFAULT_REPO_ID
+      ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
+      : repoId;
+    if (remapped[targetRepoId]) {
+      throw new Error(`Legacy workspace ${repoId} conflicts with target workspace ${targetRepoId}`);
+    }
+    remapped[targetRepoId] = {
+      ...workspace,
+      projectRootId: remapRootId(workspace.projectRootId)
     };
   }
   return remapped;
@@ -208,15 +242,14 @@ function stableConfig(config: TokenPilotUserConfig): string {
     defaultRepoId: normalized.defaultRepoId,
     workspaceDiscoveryRoots: [...normalized.workspaceDiscoveryRoots].sort(),
     workspaceAllowlist: [...normalized.workspaceAllowlist].sort(),
-    repoMappings: Object.fromEntries(
-      Object.entries(normalized.repoMappings).sort(([left], [right]) =>
-        left.localeCompare(right)
-      )
-    ),
     projects: Object.fromEntries(
-      Object.entries(normalized.projects).sort(([left], [right]) =>
-        left.localeCompare(right)
-      )
+      Object.entries(normalized.projects).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    projectRoots: Object.fromEntries(
+      Object.entries(normalized.projectRoots).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    executionWorkspaces: Object.fromEntries(
+      Object.entries(normalized.executionWorkspaces).sort(([left], [right]) => left.localeCompare(right))
     )
   });
 }
@@ -232,31 +265,32 @@ export function migrateLegacyUserConfigToChatCockpit(raw: unknown): TokenPilotUs
       `Legacy config defaultRepoId must be ${LEGACY_DEFAULT_REPO_ID}, received ${source.defaultRepoId}`
     );
   }
-  const legacyDefaultMapping = source.repoMappings[LEGACY_DEFAULT_REPO_ID];
-  if (!legacyDefaultMapping) {
-    throw new Error(`Legacy config is missing ${LEGACY_DEFAULT_REPO_ID} repo mapping`);
+  if (!source.executionWorkspaces[LEGACY_DEFAULT_REPO_ID]) {
+    throw new Error(`Legacy config is missing ${LEGACY_DEFAULT_REPO_ID} execution workspace`);
   }
-  if (source.repoMappings[CHATCOCKPIT_TARGET_DEFAULT_REPO_ID]) {
+  if (source.executionWorkspaces[CHATCOCKPIT_TARGET_DEFAULT_REPO_ID]) {
     throw new Error(
       `Legacy config already contains reserved target repoId ${CHATCOCKPIT_TARGET_DEFAULT_REPO_ID}`
     );
   }
 
-  const repoMappings = Object.fromEntries(
-    Object.entries(source.repoMappings).filter(([repoId]) => repoId !== LEGACY_DEFAULT_REPO_ID)
-  );
-  repoMappings[CHATCOCKPIT_TARGET_DEFAULT_REPO_ID] = {
-    path: legacyDefaultMapping.path
-  };
-
+  const executionWorkspaces = remapExecutionWorkspaces(source);
   const target = normalizeConfig({
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId: CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
     workspaceDiscoveryRoots: source.workspaceDiscoveryRoots,
     workspaceAllowlist: source.workspaceAllowlist,
-    repoMappings,
-    projects: remapLegacyProjectRegistry(source)
+    projects: remapProjectRegistry(source),
+    projectRoots: remapProjectRoots(source),
+    executionWorkspaces,
+    repoMappings: Object.fromEntries(
+      Object.entries(executionWorkspaces).map(([repoId, workspace]) => [
+        repoId,
+        { path: workspace.path }
+      ])
+    )
   });
+  target.defaultRepoId = CHATCOCKPIT_TARGET_DEFAULT_REPO_ID;
   assertConfigIntegrity(target);
   return target;
 }
@@ -264,8 +298,8 @@ export function migrateLegacyUserConfigToChatCockpit(raw: unknown): TokenPilotUs
 export function parseCanonicalChatCockpitTargetConfig(raw: unknown): TokenPilotUserConfig {
   assertKnownConfigShape(raw);
   const parsed = parseUserConfig(raw);
-  if (parsed.sourceSchemaVersion !== 1 && parsed.sourceSchemaVersion !== 2) {
-    throw new Error("ChatCockpit target config must use schemaVersion 1 or 2");
+  if (![1, 2, 3].includes(parsed.sourceSchemaVersion)) {
+    throw new Error("ChatCockpit target config must use a versioned schema");
   }
   const config = normalizeConfig(parsed.config);
   if (config.defaultRepoId !== CHATCOCKPIT_TARGET_DEFAULT_REPO_ID) {
@@ -273,8 +307,8 @@ export function parseCanonicalChatCockpitTargetConfig(raw: unknown): TokenPilotU
       `ChatCockpit target config defaultRepoId must be ${CHATCOCKPIT_TARGET_DEFAULT_REPO_ID}`
     );
   }
-  if (config.repoMappings[LEGACY_DEFAULT_REPO_ID]) {
-    throw new Error("ChatCockpit target config must not retain legacy tokenpilot repo mapping");
+  if (config.executionWorkspaces[LEGACY_DEFAULT_REPO_ID]) {
+    throw new Error("ChatCockpit target config must not retain legacy tokenpilot workspace mapping");
   }
   assertConfigIntegrity(config);
   return config;

@@ -63,19 +63,46 @@ export interface TokenPilotRepoMapping {
   path: string;
 }
 
+export type TokenPilotProjectRootKind = "git-repository" | "directory";
+export type TokenPilotProjectRootRole =
+  | "primary-source"
+  | "supporting-source"
+  | "documentation"
+  | "knowledge"
+  | "assets";
+export type TokenPilotProjectRootAccess = "read-write" | "read-only";
+
+export interface TokenPilotProjectRootMapping {
+  path: string;
+  kind: TokenPilotProjectRootKind;
+  role: TokenPilotProjectRootRole;
+  access: TokenPilotProjectRootAccess;
+}
+
+export interface TokenPilotExecutionWorkspaceMapping {
+  projectRootId: string;
+  path: string;
+  kind: "checkout" | "worktree";
+  provenance: "registered" | "chatcockpit-created";
+}
+
 export interface TokenPilotProjectMapping {
   displayName: string;
-  primaryRepoId: string;
-  repoIds: string[];
+  primaryRootId: string;
+  rootIds: string[];
 }
 
 export interface TokenPilotUserConfig {
-  schemaVersion: 2;
-  defaultRepoId: string;
+  schemaVersion: 3;
   workspaceDiscoveryRoots: string[];
   workspaceAllowlist: string[];
-  repoMappings: Record<string, TokenPilotRepoMapping>;
   projects: Record<string, TokenPilotProjectMapping>;
+  projectRoots: Record<string, TokenPilotProjectRootMapping>;
+  executionWorkspaces: Record<string, TokenPilotExecutionWorkspaceMapping>;
+  /** @deprecated In-memory compatibility projection for existing execution/Git consumers. */
+  defaultRepoId: string;
+  /** @deprecated In-memory compatibility projection for existing execution/Git consumers. */
+  repoMappings: Record<string, TokenPilotRepoMapping>;
 }
 
 export type TokenPilotRepoGovernanceStatus = "enabled" | "missing" | "blocked";

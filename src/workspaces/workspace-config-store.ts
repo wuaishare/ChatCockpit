@@ -3,15 +3,34 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { ServiceError } from "../application/service-error.js";
-import { parseUserConfig } from "../core/user-config-schema.js";
-import type { TokenPilotProjectMapping } from "../types.js";
+import {
+  rootIdForRepoId,
+  stableProjectConfigId
+} from "../core/project-config-identity.js";
+import {
+  parseUserConfig,
+  serializeUserConfigV3
+} from "../core/user-config-schema.js";
+import type {
+  TokenPilotExecutionWorkspaceMapping,
+  TokenPilotProjectMapping,
+  TokenPilotProjectRootAccess,
+  TokenPilotProjectRootKind,
+  TokenPilotProjectRootMapping,
+  TokenPilotProjectRootRole,
+  TokenPilotUserConfig
+} from "../types.js";
 
 export interface WorkspaceConfigSnapshot {
   revision: string;
   discoveryRoots: string[];
   workspaceAllowlist: string[];
-  repoMappings: Record<string, { path: string }>;
   projects: Record<string, TokenPilotProjectMapping>;
+  projectRoots: Record<string, TokenPilotProjectRootMapping>;
+  executionWorkspaces: Record<string, TokenPilotExecutionWorkspaceMapping>;
+  /** @deprecated Compatibility projection for existing repoId consumers. */
+  repoMappings: Record<string, { path: string }>;
+  /** @deprecated Compatibility projection for existing repoId consumers. */
   defaultRepoId: string;
 }
 
@@ -112,9 +131,7 @@ export class WorkspaceConfigStore {
       "WORKSPACE_DISCOVERY_ROOT_NOT_FOUND",
       "Workspace discovery root must be an existing directory"
     );
-    if (current.snapshot.discoveryRoots.includes(canonicalRoot)) {
-      return current.snapshot;
-    }
+    if (current.snapshot.discoveryRoots.includes(canonicalRoot)) return current.snapshot;
     return this.write(current, {
       discoveryRoots: [...current.snapshot.discoveryRoots, canonicalRoot]
     });
@@ -171,14 +188,42 @@ export class WorkspaceConfigStore {
       );
     }
 
-    return this.registerRepoOnCurrent(current, {
-      repoPath: canonicalRepo,
-      repoId: input.repoId,
+    return this.registerProjectRootOnCurrent(current, {
+      rootPath: canonicalRepo,
       projectSlug: input.repoId,
-      projectDisplayName: input.repoId
+      projectDisplayName: input.repoId,
+      kind: "git-repository",
+      role: "primary-source",
+      access: "read-write",
+      repoId: input.repoId,
+      createCheckoutWorkspace: true
     });
   }
 
+  registerProjectRoot(input: {
+    rootPath: string;
+    projectSlug: string;
+    projectDisplayName?: string;
+    kind: TokenPilotProjectRootKind;
+    role?: TokenPilotProjectRootRole;
+    access?: TokenPilotProjectRootAccess;
+    repoId?: string;
+    createCheckoutWorkspace?: boolean;
+    expectedRevision: string;
+  }): WorkspaceConfigSnapshot {
+    const current = this.readAndAssertRevision(input.expectedRevision);
+    const canonicalRoot = requireDirectory(
+      input.rootPath,
+      "PROJECT_ROOT_NOT_FOUND",
+      "Project root must be an existing directory"
+    );
+    return this.registerProjectRootOnCurrent(current, {
+      ...input,
+      rootPath: canonicalRoot
+    });
+  }
+
+  /** @deprecated Use registerProjectRoot. */
   registerRepo(input: {
     repoPath: string;
     repoId: string;
@@ -186,17 +231,14 @@ export class WorkspaceConfigStore {
     projectDisplayName?: string;
     expectedRevision: string;
   }): WorkspaceConfigSnapshot {
-    const current = this.readAndAssertRevision(input.expectedRevision);
-    const canonicalRepo = requireDirectory(
-      input.repoPath,
-      "WORKSPACE_PATH_NOT_FOUND",
-      "Workspace path must be an existing directory"
-    );
-    return this.registerRepoOnCurrent(current, {
-      repoPath: canonicalRepo,
+    return this.registerProjectRoot({
+      rootPath: input.repoPath,
       repoId: input.repoId,
       projectSlug: input.projectSlug,
-      projectDisplayName: input.projectDisplayName
+      projectDisplayName: input.projectDisplayName,
+      kind: "git-repository",
+      createCheckoutWorkspace: true,
+      expectedRevision: input.expectedRevision
     });
   }
 
@@ -208,9 +250,7 @@ export class WorkspaceConfigStore {
     const current = this.readAndAssertRevision(input.expectedRevision);
     const projectSlug = validateProjectSlug(input.projectSlug);
     const project = current.snapshot.projects[projectSlug];
-    if (!project) {
-      throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
-    }
+    if (!project) throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
     const displayName = validateProjectDisplayName(input.displayName);
     if (project.displayName === displayName) return current.snapshot;
     return this.write(current, {
@@ -221,82 +261,160 @@ export class WorkspaceConfigStore {
     });
   }
 
+  setPrimaryRoot(input: {
+    projectSlug: string;
+    rootId: string;
+    expectedRevision: string;
+  }): WorkspaceConfigSnapshot {
+    const current = this.readAndAssertRevision(input.expectedRevision);
+    return this.setPrimaryRootOnCurrent(current, input.projectSlug, input.rootId);
+  }
+
+  /** @deprecated Use setPrimaryRoot. */
   setPrimaryRepo(input: {
     projectSlug: string;
     repoId: string;
     expectedRevision: string;
   }): WorkspaceConfigSnapshot {
     const current = this.readAndAssertRevision(input.expectedRevision);
-    const projectSlug = validateProjectSlug(input.projectSlug);
     const repoId = validateRepoId(input.repoId);
-    const project = current.snapshot.projects[projectSlug];
-    if (!project) {
-      throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
-    }
-    if (!project.repoIds.includes(repoId)) {
+    const workspace = current.snapshot.executionWorkspaces[repoId];
+    if (!workspace) {
       throw new ServiceError(
         "PROJECT_WORKSPACE_NOT_ATTACHED",
         "Workspace repository is not attached to the selected Project"
       );
     }
-    if (project.primaryRepoId === repoId) return current.snapshot;
+    return this.setPrimaryRootOnCurrent(current, input.projectSlug, workspace.projectRootId);
+  }
+
+  private setPrimaryRootOnCurrent(
+    current: RawConfigState,
+    projectSlugInput: string,
+    rootId: string
+  ): WorkspaceConfigSnapshot {
+    const projectSlug = validateProjectSlug(projectSlugInput);
+    const project = current.snapshot.projects[projectSlug];
+    if (!project) throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
+    if (!project.rootIds.includes(rootId)) {
+      throw new ServiceError(
+        "PROJECT_ROOT_NOT_ATTACHED",
+        "ProjectRoot does not belong to the selected Project"
+      );
+    }
+    if (project.primaryRootId === rootId) return current.snapshot;
     return this.write(current, {
       projects: {
         ...current.snapshot.projects,
-        [projectSlug]: { ...project, primaryRepoId: repoId }
+        [projectSlug]: { ...project, primaryRootId: rootId }
       }
     });
   }
 
-  private registerRepoOnCurrent(
+  private registerProjectRootOnCurrent(
     current: RawConfigState,
     input: {
-      repoPath: string;
-      repoId: string;
+      rootPath: string;
       projectSlug: string;
       projectDisplayName?: string;
+      kind: TokenPilotProjectRootKind;
+      role?: TokenPilotProjectRootRole;
+      access?: TokenPilotProjectRootAccess;
+      repoId?: string;
+      createCheckoutWorkspace?: boolean;
     }
   ): WorkspaceConfigSnapshot {
-    const canonicalRepo = normalizeAbsolutePath(input.repoPath);
-    const duplicateRepo = Object.entries(current.snapshot.repoMappings).find(
-      ([, mapping]) => normalizeAbsolutePath(mapping.path) === canonicalRepo
+    const canonicalRoot = normalizeAbsolutePath(input.rootPath);
+    const duplicateRoot = Object.entries(current.snapshot.projectRoots).find(
+      ([, root]) => normalizeAbsolutePath(root.path) === canonicalRoot
     );
-    if (duplicateRepo) {
+    if (duplicateRoot) {
       throw new ServiceError(
-        "WORKSPACE_ALREADY_REGISTERED",
-        "Workspace checkout is already registered",
-        { details: { repoId: duplicateRepo[0] } }
-      );
-    }
-
-    const repoId = validateRepoId(input.repoId);
-    if (current.snapshot.repoMappings[repoId]) {
-      throw new ServiceError(
-        "WORKSPACE_REPO_ID_CONFLICT",
-        "Workspace repository id is already in use",
-        { details: { repoId } }
+        "PROJECT_ROOT_PATH_CONFLICT",
+        "Project root is already registered",
+        { details: { rootId: duplicateRoot[0] } }
       );
     }
 
     const projectSlug = validateProjectSlug(input.projectSlug);
     const existingProject = current.snapshot.projects[projectSlug];
-    const project = existingProject
+    const wantsWorkspace = input.createCheckoutWorkspace === true;
+    let repoId: string | undefined;
+    if (wantsWorkspace) {
+      if (input.kind !== "git-repository") {
+        throw new ServiceError(
+          "PROJECT_ROOT_WORKSPACE_KIND_INVALID",
+          "Only git-repository ProjectRoots can create checkout Workspaces"
+        );
+      }
+      if (!input.repoId) {
+        throw new ServiceError(
+          "WORKSPACE_REPO_ID_INVALID",
+          "Git ProjectRoot checkout registration requires a workspace repository id"
+        );
+      }
+      repoId = validateRepoId(input.repoId);
+      if (current.snapshot.executionWorkspaces[repoId]) {
+        throw new ServiceError(
+          "WORKSPACE_REPO_ID_CONFLICT",
+          "Workspace repository id is already in use",
+          { details: { repoId } }
+        );
+      }
+    }
+
+    const rootId = repoId
+      ? rootIdForRepoId(repoId)
+      : stableProjectConfigId("root", canonicalRoot);
+    if (current.snapshot.projectRoots[rootId]) {
+      throw new ServiceError(
+        "PROJECT_ROOT_ID_CONFLICT",
+        "Project root identity is already in use",
+        { details: { rootId } }
+      );
+    }
+
+    const role = input.role ?? (
+      existingProject
+        ? input.kind === "git-repository" ? "supporting-source" : "documentation"
+        : input.kind === "git-repository" ? "primary-source" : "documentation"
+    );
+    const root: TokenPilotProjectRootMapping = {
+      path: canonicalRoot,
+      kind: input.kind,
+      role,
+      access: input.access ?? "read-write"
+    };
+    const project: TokenPilotProjectMapping = existingProject
       ? {
           ...existingProject,
-          repoIds: uniqueSorted([...existingProject.repoIds, repoId])
+          rootIds: uniqueSorted([...existingProject.rootIds, rootId])
         }
       : {
           displayName: validateProjectDisplayName(input.projectDisplayName ?? projectSlug),
-          primaryRepoId: repoId,
-          repoIds: [repoId]
+          primaryRootId: rootId,
+          rootIds: [rootId]
         };
 
+    const executionWorkspaces = { ...current.snapshot.executionWorkspaces };
+    let workspaceAllowlist = [...current.snapshot.workspaceAllowlist];
+    if (wantsWorkspace && repoId) {
+      executionWorkspaces[repoId] = {
+        projectRootId: rootId,
+        path: canonicalRoot,
+        kind: "checkout",
+        provenance: "registered"
+      };
+      workspaceAllowlist = [...workspaceAllowlist, canonicalRoot];
+    }
+
     return this.write(current, {
-      workspaceAllowlist: [...current.snapshot.workspaceAllowlist, canonicalRepo],
-      repoMappings: {
-        ...current.snapshot.repoMappings,
-        [repoId]: { path: canonicalRepo }
+      workspaceAllowlist,
+      projectRoots: {
+        ...current.snapshot.projectRoots,
+        [rootId]: root
       },
+      executionWorkspaces,
       projects: {
         ...current.snapshot.projects,
         [projectSlug]: project
@@ -314,10 +432,7 @@ export class WorkspaceConfigStore {
         conflictCode,
         "Workspace configuration changed before it could be updated",
         {
-          details: {
-            expectedRevision,
-            actualRevision: current.revision
-          }
+          details: { expectedRevision, actualRevision: current.revision }
         }
       );
     }
@@ -353,7 +468,7 @@ export class WorkspaceConfigStore {
       );
     }
 
-    let parsed;
+    let parsed: TokenPilotUserConfig;
     try {
       parsed = parseUserConfig(raw).config;
     } catch (error) {
@@ -364,28 +479,26 @@ export class WorkspaceConfigStore {
       );
     }
 
-    const discoveryRoots = uniqueSorted(
-      parsed.workspaceDiscoveryRoots.map(normalizeAbsolutePath)
+    const discoveryRoots = uniqueSorted(parsed.workspaceDiscoveryRoots.map(normalizeAbsolutePath));
+    const workspaceAllowlist = uniqueSorted(parsed.workspaceAllowlist.map(normalizeAbsolutePath));
+    const projectRoots = Object.fromEntries(
+      Object.entries(parsed.projectRoots)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([rootId, root]) => [rootId, { ...root, path: normalizeAbsolutePath(root.path) }])
     );
-    const workspaceAllowlist = uniqueSorted(
-      parsed.workspaceAllowlist.map(normalizeAbsolutePath)
+    const executionWorkspaces = Object.fromEntries(
+      Object.entries(parsed.executionWorkspaces)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([repoId, workspace]) => [
+          repoId,
+          { ...workspace, path: normalizeAbsolutePath(workspace.path) }
+        ])
     );
     const repoMappings = Object.fromEntries(
-      Object.entries(parsed.repoMappings)
-        .map(([repoId, mapping]) => [repoId, { path: normalizeAbsolutePath(mapping.path) }] as const)
-        .sort(([left], [right]) => left.localeCompare(right))
-    );
-    const projects = Object.fromEntries(
-      Object.entries(parsed.projects)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([projectSlug, project]) => [
-          projectSlug,
-          {
-            displayName: project.displayName,
-            primaryRepoId: project.primaryRepoId,
-            repoIds: uniqueSorted(project.repoIds)
-          }
-        ])
+      Object.entries(executionWorkspaces).map(([repoId, workspace]) => [
+        repoId,
+        { path: workspace.path }
+      ])
     );
 
     return {
@@ -396,8 +509,10 @@ export class WorkspaceConfigStore {
         revision: hashBytes(source),
         discoveryRoots,
         workspaceAllowlist,
+        projects: parsed.projects,
+        projectRoots,
+        executionWorkspaces,
         repoMappings,
-        projects,
         defaultRepoId: parsed.defaultRepoId
       }
     };
@@ -408,63 +523,53 @@ export class WorkspaceConfigStore {
     update: {
       discoveryRoots?: string[];
       workspaceAllowlist?: string[];
-      repoMappings?: Record<string, { path: string }>;
       projects?: Record<string, TokenPilotProjectMapping>;
+      projectRoots?: Record<string, TokenPilotProjectRootMapping>;
+      executionWorkspaces?: Record<string, TokenPilotExecutionWorkspaceMapping>;
     }
   ): WorkspaceConfigSnapshot {
-    const raw = { ...current.raw };
     const discoveryRoots = uniqueSorted(
       (update.discoveryRoots ?? current.snapshot.discoveryRoots).map(normalizeAbsolutePath)
     );
     const workspaceAllowlist = uniqueSorted(
       (update.workspaceAllowlist ?? current.snapshot.workspaceAllowlist).map(normalizeAbsolutePath)
     );
-    const repoMappings = update.repoMappings ?? current.snapshot.repoMappings;
     const projects = update.projects ?? current.snapshot.projects;
-
-    raw.schemaVersion = 2;
-    raw.defaultRepoId = current.snapshot.defaultRepoId;
-    raw.workspaceDiscoveryRoots = discoveryRoots;
-    raw.workspaceAllowlist = workspaceAllowlist;
-
-    const previousMappings =
-      raw.repoMappings && typeof raw.repoMappings === "object" && !Array.isArray(raw.repoMappings)
-        ? (raw.repoMappings as Record<string, unknown>)
-        : {};
-    raw.repoMappings = Object.fromEntries(
-      Object.entries(repoMappings)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([repoId, mapping]) => {
-          const existing = previousMappings[repoId];
-          const preserved =
-            existing && typeof existing === "object" && !Array.isArray(existing)
-              ? { ...(existing as Record<string, unknown>) }
-              : {};
-          preserved.path = normalizeAbsolutePath(mapping.path);
-          return [repoId, preserved];
-        })
+    const projectRoots = Object.fromEntries(
+      Object.entries(update.projectRoots ?? current.snapshot.projectRoots).map(([rootId, root]) => [
+        rootId,
+        { ...root, path: normalizeAbsolutePath(root.path) }
+      ])
     );
-
-    const previousProjects =
-      raw.projects && typeof raw.projects === "object" && !Array.isArray(raw.projects)
-        ? (raw.projects as Record<string, unknown>)
-        : {};
-    raw.projects = Object.fromEntries(
-      Object.entries(projects)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([projectSlug, project]) => {
-          const existing = previousProjects[projectSlug];
-          const preserved =
-            existing && typeof existing === "object" && !Array.isArray(existing)
-              ? { ...(existing as Record<string, unknown>) }
-              : {};
-          preserved.displayName = project.displayName.trim();
-          preserved.primaryRepoId = project.primaryRepoId;
-          preserved.repoIds = uniqueSorted(project.repoIds);
-          return [projectSlug, preserved];
-        })
+    const executionWorkspaces = Object.fromEntries(
+      Object.entries(update.executionWorkspaces ?? current.snapshot.executionWorkspaces).map(
+        ([repoId, workspace]) => [
+          repoId,
+          { ...workspace, path: normalizeAbsolutePath(workspace.path) }
+        ]
+      )
     );
+    const repoMappings = Object.fromEntries(
+      Object.entries(executionWorkspaces).map(([repoId, workspace]) => [
+        repoId,
+        { path: workspace.path }
+      ])
+    );
+    const defaultRepoId = executionWorkspaces[current.snapshot.defaultRepoId]
+      ? current.snapshot.defaultRepoId
+      : Object.keys(executionWorkspaces).sort((left, right) => left.localeCompare(right))[0] ?? current.snapshot.defaultRepoId;
 
+    const config: TokenPilotUserConfig = {
+      schemaVersion: 3,
+      workspaceDiscoveryRoots: discoveryRoots,
+      workspaceAllowlist,
+      projects,
+      projectRoots,
+      executionWorkspaces,
+      repoMappings,
+      defaultRepoId
+    };
+    const raw = serializeUserConfigV3(config, { existingRaw: current.raw });
     const serialized = `${JSON.stringify(raw, null, 2)}\n`;
     fs.mkdirSync(path.dirname(this.configPath), { recursive: true });
     const tempPath = path.join(
@@ -474,9 +579,7 @@ export class WorkspaceConfigStore {
     try {
       fs.writeFileSync(tempPath, serialized, { encoding: "utf8", mode: 0o600 });
       fs.renameSync(tempPath, this.configPath);
-      if (process.platform !== "win32") {
-        fs.chmodSync(this.configPath, 0o600);
-      }
+      if (process.platform !== "win32") fs.chmodSync(this.configPath, 0o600);
     } finally {
       fs.rmSync(tempPath, { force: true });
     }
