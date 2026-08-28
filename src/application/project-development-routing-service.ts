@@ -112,12 +112,56 @@ type MatchingThread = Pick<
   "id" | "preview" | "updatedAt" | "recencyAt" | "sourceKind" | "threadSource" | "name" | "status"
 >;
 
+export type ProjectProviderRuntimeAvailability = "available" | "unavailable" | "unknown";
+export type ProjectProviderContinuationAction = "resume" | "start" | "repair" | "unavailable";
+
+export interface ProjectDevelopmentProviderCapabilityProjection {
+  id: string;
+  displayName: string;
+  observation: {
+    status: "ready" | "degraded" | "not-required";
+    reason: string | null;
+  };
+  source: string | null;
+  configuredCount: number | null;
+  applicableCount: number | null;
+  disabledCount: number | null;
+  items: Array<{ id: string; enabled: boolean }>;
+  warnings: string[];
+}
+
+/**
+ * Shallow read projection only. Provider authority remains in the orthogonal
+ * DevelopmentContextProvider / ExecutionBackend / NativeAgentProvider seams.
+ */
+export interface ProjectDevelopmentProviderProjection {
+  id: string;
+  displayName: string;
+  runtimeKind: string;
+  runtimeAvailability: ProjectProviderRuntimeAvailability;
+  observation: {
+    status: "ready" | "degraded" | "not-required";
+    reason: string | null;
+    latencyBudgetMs: number;
+  };
+  continuation: {
+    action: ProjectProviderContinuationAction;
+    reason: string;
+    actionIds: string[];
+    matchingContext: MatchingThread | null;
+  };
+  capabilities: ProjectDevelopmentProviderCapabilityProjection[];
+  warnings: string[];
+}
+
 export interface ProjectDevelopmentCoordinationAssessment {
   projectId: string;
   workspaceId: string | null;
   repoId: string | null;
   modelLoopOwnership: {
     defaultOwner: "caller";
+    implicitProviderTurnAllowed: false;
+    providerTurnRequiresExplicitTransfer: true;
     implicitCodexTurnAllowed: false;
     codexTurnRequiresExplicitTransfer: true;
   };
@@ -132,6 +176,7 @@ export interface ProjectDevelopmentCoordinationAssessment {
     detached: boolean;
     dirty: boolean;
   };
+  providers: ProjectDevelopmentProviderProjection[];
   codexContinuity: {
     runtimeAvailable: boolean;
     runtimeAvailability: CodexContinuityRuntimeAvailability;
@@ -197,6 +242,51 @@ function emptyMcpApplicability(
     disabledServerCount: null,
     servers: [],
     warnings: [warning]
+  };
+}
+
+function providerContinuationAction(
+  action: CodexContinuityNextAction
+): ProjectProviderContinuationAction {
+  if (action === "resume-native") return "resume";
+  if (action === "start-native") return "start";
+  if (action === "repair-workspace") return "repair";
+  return "unavailable";
+}
+
+function buildCodexProviderProjection(
+  continuity: ProjectDevelopmentCoordinationAssessment["codexContinuity"],
+  mcp: ProjectMcpApplicabilityAssessment
+): ProjectDevelopmentProviderProjection {
+  return {
+    id: "codex",
+    displayName: "Codex",
+    runtimeKind: "codex-app-server",
+    runtimeAvailability: continuity.runtimeAvailability,
+    observation: { ...continuity.observation },
+    continuation: {
+      action: providerContinuationAction(continuity.nextAction),
+      reason: continuity.reason,
+      actionIds: [
+        ...continuity.sessionToolSequence,
+        ...(continuity.nativeTurnTool ? [continuity.nativeTurnTool] : [])
+      ],
+      matchingContext: continuity.matchingThread ? { ...continuity.matchingThread } : null
+    },
+    capabilities: [
+      {
+        id: "mcp",
+        displayName: "MCP",
+        observation: { ...mcp.observation },
+        source: mcp.source,
+        configuredCount: mcp.configuredServerCount,
+        applicableCount: mcp.applicableServerCount,
+        disabledCount: mcp.disabledServerCount,
+        items: mcp.servers.map((server) => ({ id: server.name, enabled: server.enabled })),
+        warnings: [...mcp.warnings]
+      }
+    ],
+    warnings: [...continuity.warnings]
   };
 }
 
@@ -490,12 +580,34 @@ export class ProjectDevelopmentRoutingService {
       ) ?? projection.workspaces[0] ?? null;
 
     if (!workspace) {
+      const codexContinuity: ProjectDevelopmentCoordinationAssessment["codexContinuity"] = {
+        runtimeAvailable: false,
+        runtimeAvailability: "unknown",
+        observation: {
+          status: "not-required",
+          reason: "NO_REGISTERED_WORKSPACE",
+          latencyBudgetMs: this.providerObservationBudgetMs
+        },
+        nextAction: "unavailable",
+        reason: "NO_REGISTERED_WORKSPACE",
+        sessionToolSequence: [],
+        nativeTurnTool: null,
+        matchingThread: null,
+        warnings: ["Project has no registered Workspace"]
+      };
+      const mcpApplicability = emptyMcpApplicability(
+        "not-required",
+        "NO_REGISTERED_WORKSPACE",
+        "Project has no registered Workspace"
+      );
       return {
         projectId,
         workspaceId: null,
         repoId: null,
         modelLoopOwnership: {
           defaultOwner: "caller",
+          implicitProviderTurnAllowed: false,
+          providerTurnRequiresExplicitTransfer: true,
           implicitCodexTurnAllowed: false,
           codexTurnRequiresExplicitTransfer: true
         },
@@ -510,26 +622,9 @@ export class ProjectDevelopmentRoutingService {
           detached: false,
           dirty: false
         },
-        codexContinuity: {
-          runtimeAvailable: false,
-          runtimeAvailability: "unknown",
-          observation: {
-            status: "not-required",
-            reason: "NO_REGISTERED_WORKSPACE",
-            latencyBudgetMs: this.providerObservationBudgetMs
-          },
-          nextAction: "unavailable",
-          reason: "NO_REGISTERED_WORKSPACE",
-          sessionToolSequence: [],
-          nativeTurnTool: null,
-          matchingThread: null,
-          warnings: ["Project has no registered Workspace"]
-        },
-        mcpApplicability: emptyMcpApplicability(
-          "not-required",
-          "NO_REGISTERED_WORKSPACE",
-          "Project has no registered Workspace"
-        ),
+        providers: [buildCodexProviderProjection(codexContinuity, mcpApplicability)],
+        codexContinuity,
+        mcpApplicability,
         handoff: {
           requiredForModelLoopOwnerChange: true,
           sameOwnerResumeRequiresHandoff: false,
@@ -597,12 +692,19 @@ export class ProjectDevelopmentRoutingService {
       ]);
     }
 
+    const effectiveCodexContinuity: ProjectDevelopmentCoordinationAssessment["codexContinuity"] = {
+      ...codexContinuity,
+      warnings: [...warnings, ...codexContinuity.warnings]
+    };
+
     return {
       projectId,
       workspaceId: workspace.id,
       repoId: workspace.repoId,
       modelLoopOwnership: {
         defaultOwner: "caller",
+        implicitProviderTurnAllowed: false,
+        providerTurnRequiresExplicitTransfer: true,
         implicitCodexTurnAllowed: false,
         codexTurnRequiresExplicitTransfer: true
       },
@@ -617,10 +719,8 @@ export class ProjectDevelopmentRoutingService {
         detached,
         dirty
       },
-      codexContinuity: {
-        ...codexContinuity,
-        warnings: [...warnings, ...codexContinuity.warnings]
-      },
+      providers: [buildCodexProviderProjection(effectiveCodexContinuity, mcpApplicability)],
+      codexContinuity: effectiveCodexContinuity,
       mcpApplicability,
       handoff: {
         requiredForModelLoopOwnerChange: true,

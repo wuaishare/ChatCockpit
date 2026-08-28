@@ -141,6 +141,8 @@ try {
 
   const freshCoordination = await routing.coordinate(context, project.id);
   assert.equal(freshCoordination.modelLoopOwnership.defaultOwner, "caller");
+  assert.equal(freshCoordination.modelLoopOwnership.implicitProviderTurnAllowed, false);
+  assert.equal(freshCoordination.modelLoopOwnership.providerTurnRequiresExplicitTransfer, true);
   assert.equal(freshCoordination.modelLoopOwnership.implicitCodexTurnAllowed, false);
   assert.equal(freshCoordination.modelLoopOwnership.codexTurnRequiresExplicitTransfer, true);
   assert.equal(freshCoordination.workspaceExecution.mode, "native-checkout");
@@ -170,6 +172,14 @@ try {
     ],
     warnings: []
   });
+  assert.equal(freshCoordination.providers.length, 1);
+  assert.equal(freshCoordination.providers[0]?.id, "codex");
+  assert.equal(freshCoordination.providers[0]?.runtimeKind, "codex-app-server");
+  assert.equal(freshCoordination.providers[0]?.runtimeAvailability, "available");
+  assert.equal(freshCoordination.providers[0]?.continuation.action, "start");
+  assert.equal(freshCoordination.providers[0]?.continuation.reason, "NO_MATCHING_NATIVE_THREAD");
+  assert.equal(freshCoordination.providers[0]?.capabilities[0]?.id, "mcp");
+  assert.equal(freshCoordination.providers[0]?.capabilities[0]?.applicableCount, 2);
   assert.equal(freshCoordination.handoff.requiredForModelLoopOwnerChange, true);
 
   const fresh = await routing.assess(context, project.id);
@@ -232,6 +242,8 @@ try {
   ]);
   assert.equal(resumable.codexContinuity.matchingThread?.id, "thread-native-1");
   assert.equal(resumable.codexContinuity.matchingThread?.threadSource, null);
+  assert.equal(resumable.providers[0]?.continuation.action, "resume");
+  assert.equal(resumable.providers[0]?.continuation.matchingContext?.id, "thread-native-1");
   assert.equal(resumable.mcpApplicability.source, "codex-config");
   assert.equal(resumable.mcpApplicability.applicableServerCount, 2);
   const resumableLegacy = routing.toLegacyAssessment(resumable);
@@ -251,6 +263,8 @@ try {
   assert.equal(detachedCoordination.codexContinuity.observation.reason, "WORKSPACE_DETACHED");
   assert.equal(detachedCoordination.codexContinuity.nextAction, "repair-workspace");
   assert.equal(detachedCoordination.codexContinuity.reason, "WORKSPACE_DETACHED");
+  assert.equal(detachedCoordination.providers[0]?.continuation.action, "repair");
+  assert.equal(detachedCoordination.providers[0]?.observation.status, "not-required");
   assert.equal(detachedCoordination.workspaceExecution.branch, "HEAD");
   assert.equal(detachedCoordination.mcpApplicability.observation.status, "not-required");
   assert.equal(detachedCoordination.mcpApplicability.observation.reason, "WORKSPACE_DETACHED");
@@ -271,6 +285,8 @@ try {
   assert.equal(unavailable.codexContinuity.observation.reason, null);
   assert.equal(unavailable.codexContinuity.nextAction, "unavailable");
   assert.equal(unavailable.codexContinuity.reason, "CODEX_NATIVE_UNAVAILABLE");
+  assert.equal(unavailable.providers[0]?.runtimeAvailability, "unavailable");
+  assert.equal(unavailable.providers[0]?.continuation.action, "unavailable");
   assert.equal(unavailable.codexContinuity.warnings.includes("TEST_UNAVAILABLE"), true);
   assert.equal(unavailable.mcpApplicability.observation.status, "degraded");
   assert.equal(unavailable.mcpApplicability.observation.reason, "MCP_CONFIG_FAILED");
