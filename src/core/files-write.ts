@@ -4,6 +4,7 @@ import path from "node:path";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
+import { TEXT_LIKE_EXTENSIONS } from "./text-file-policy.js";
 import type {
   FileWritePayload,
   FileWriteResponse,
@@ -32,58 +33,6 @@ const BLOCKED_FILENAMES = [
   "operator-credentials.json",
   "operator-mfa.json"
 ];
-
-const WRITEABLE_EXTENSIONS = new Set([
-  ".md",
-  ".txt",
-  ".json",
-  ".yaml",
-  ".yml",
-  ".ts",
-  ".tsx",
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".jsx",
-  ".css",
-  ".scss",
-  ".less",
-  ".html",
-  ".htm",
-  ".xml",
-  ".svg",
-  ".sh",
-  ".bash",
-  ".py",
-  ".php",
-  ".rb",
-  ".go",
-  ".rs",
-  ".java",
-  ".kt",
-  ".swift",
-  ".c",
-  ".h",
-  ".cpp",
-  ".hpp",
-  ".ini",
-  ".toml",
-  ".cfg",
-  ".conf",
-  ".csv",
-  ".env.example",
-  ".gitignore",
-  ".dockerignore",
-  ".editorconfig",
-  ".prettierrc",
-  ".eslintrc",
-  ".graphql",
-  ".gql",
-  ".proto",
-  ".sql",
-  ".vue",
-  ".svelte"
-]);
 
 export function validateRelativePathForWrite(inputPath: string): string {
   if (!inputPath || path.isAbsolute(inputPath)) {
@@ -118,7 +67,7 @@ export function validateRelativePathForWrite(inputPath: string): string {
   }
 
   const ext = path.extname(basename).toLowerCase();
-  if (ext && !WRITEABLE_EXTENSIONS.has(ext)) {
+  if (ext && !TEXT_LIKE_EXTENSIONS.has(ext)) {
     throw new Error(`File type not allowed for write: ${ext}`);
   }
 

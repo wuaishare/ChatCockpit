@@ -4,6 +4,7 @@ import path from "node:path";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import { PRODUCT_STATE_DIR_NAMES, productIdentityForKey } from "./product-identity.js";
+import { isTextLikeFilePath } from "./text-file-policy.js";
 import type {
   FileReadBatchPayload,
   FileReadPayload,
@@ -31,29 +32,6 @@ const BLOCKED_FILENAMES = [
   "operator-credentials.json",
   "operator-mfa.json"
 ];
-
-const TEXT_EXTENSIONS = new Set([
-  ".md",
-  ".txt",
-  ".json",
-  ".yaml",
-  ".yml",
-  ".ts",
-  ".tsx",
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".css",
-  ".html",
-  ".xml",
-  ".sh",
-  ".py",
-  ".php",
-  ".ini",
-  ".toml",
-  ".csv",
-  ".svg"
-]);
 
 function isUtf8Boundary(buffer: Buffer, offset: number): boolean {
   if (offset <= 0 || offset >= buffer.length) {
@@ -157,8 +135,7 @@ function isAllowedProductArtifactPath(relativePath: string): boolean {
 }
 
 function ensureTextFile(filePath: string): void {
-  const ext = path.extname(filePath).toLowerCase();
-  if (!TEXT_EXTENSIONS.has(ext)) {
+  if (!isTextLikeFilePath(filePath)) {
     throw new Error(`Only text-like files are allowed: ${filePath}`);
   }
 }
