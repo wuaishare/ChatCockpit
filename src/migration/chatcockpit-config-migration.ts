@@ -31,7 +31,8 @@ function assertKnownConfigShape(raw: unknown): void {
     "defaultRepoId",
     "workspaceDiscoveryRoots",
     "workspaceAllowlist",
-    "repoMappings"
+    "repoMappings",
+    "projects"
   ]);
   const unknownTopLevel = Object.keys(raw).filter((key) => !allowedTopLevel.has(key));
   if (unknownTopLevel.length > 0) {
@@ -51,6 +52,27 @@ function assertKnownConfigShape(raw: unknown): void {
       if (unknownMappingFields.length > 0) {
         throw new Error(
           `User config repoMappings.${repoId} contains unsupported field(s): ${unknownMappingFields
+            .sort()
+            .join(", ")}`
+        );
+      }
+    }
+  }
+  if (raw.projects !== undefined) {
+    if (!isRecord(raw.projects)) {
+      throw new Error("User config projects must be an object");
+    }
+    for (const [projectSlug, project] of Object.entries(raw.projects)) {
+      if (!isRecord(project)) {
+        throw new Error(`User config projects.${projectSlug} must be an object`);
+      }
+      const allowedProjectFields = new Set(["displayName", "primaryRepoId", "repoIds"]);
+      const unknownProjectFields = Object.keys(project).filter(
+        (key) => !allowedProjectFields.has(key)
+      );
+      if (unknownProjectFields.length > 0) {
+        throw new Error(
+          `User config projects.${projectSlug} contains unsupported field(s): ${unknownProjectFields
             .sort()
             .join(", ")}`
         );
@@ -83,6 +105,18 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
       Object.entries(config.repoMappings)
         .map(([repoId, mapping]) => [repoId, { path: canonicalPath(mapping.path) }] as const)
         .sort(([left], [right]) => left.localeCompare(right))
+    ),
+    projects: Object.fromEntries(
+      Object.entries(config.projects)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([projectSlug, project]) => [
+          projectSlug,
+          {
+            displayName: project.displayName.trim(),
+            primaryRepoId: project.primaryRepoId,
+            repoIds: Array.from(new Set(project.repoIds)).sort((left, right) => left.localeCompare(right))
+          }
+        ])
     )
   };
 }
@@ -115,6 +149,56 @@ function assertConfigIntegrity(config: TokenPilotUserConfig): void {
       throw new Error(`User config repoId ${repoId} is outside the workspace allowlist`);
     }
   }
+
+  const ownerByRepoId = new Map<string, string>();
+  for (const [projectSlug, project] of Object.entries(config.projects)) {
+    if (!project.repoIds.includes(project.primaryRepoId)) {
+      throw new Error(`User config project ${projectSlug} primaryRepoId must belong to repoIds`);
+    }
+    for (const repoId of project.repoIds) {
+      if (!config.repoMappings[repoId]) {
+        throw new Error(`User config project ${projectSlug} references unknown repoId ${repoId}`);
+      }
+      const existingOwner = ownerByRepoId.get(repoId);
+      if (existingOwner && existingOwner !== projectSlug) {
+        throw new Error(`User config repoId ${repoId} belongs to more than one project`);
+      }
+      ownerByRepoId.set(repoId, projectSlug);
+    }
+  }
+  for (const repoId of Object.keys(config.repoMappings)) {
+    if (!ownerByRepoId.has(repoId)) {
+      throw new Error(`User config repoId ${repoId} is not assigned to a project`);
+    }
+  }
+}
+
+function remapLegacyProjectRegistry(
+  source: TokenPilotUserConfig
+): TokenPilotUserConfig["projects"] {
+  const remapped: TokenPilotUserConfig["projects"] = {};
+  for (const [projectSlug, project] of Object.entries(source.projects)) {
+    const targetSlug =
+      projectSlug === LEGACY_DEFAULT_REPO_ID
+        ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
+        : projectSlug;
+    if (remapped[targetSlug]) {
+      throw new Error(`Legacy project ${projectSlug} conflicts with target project ${targetSlug}`);
+    }
+    const remapRepoId = (repoId: string) =>
+      repoId === LEGACY_DEFAULT_REPO_ID
+        ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
+        : repoId;
+    remapped[targetSlug] = {
+      displayName:
+        projectSlug === LEGACY_DEFAULT_REPO_ID && project.displayName === LEGACY_DEFAULT_REPO_ID
+          ? CHATCOCKPIT_TARGET_DEFAULT_REPO_ID
+          : project.displayName,
+      primaryRepoId: remapRepoId(project.primaryRepoId),
+      repoIds: project.repoIds.map(remapRepoId)
+    };
+  }
+  return remapped;
 }
 
 function stableConfig(config: TokenPilotUserConfig): string {
@@ -126,6 +210,11 @@ function stableConfig(config: TokenPilotUserConfig): string {
     workspaceAllowlist: [...normalized.workspaceAllowlist].sort(),
     repoMappings: Object.fromEntries(
       Object.entries(normalized.repoMappings).sort(([left], [right]) =>
+        left.localeCompare(right)
+      )
+    ),
+    projects: Object.fromEntries(
+      Object.entries(normalized.projects).sort(([left], [right]) =>
         left.localeCompare(right)
       )
     )
@@ -165,7 +254,8 @@ export function migrateLegacyUserConfigToChatCockpit(raw: unknown): TokenPilotUs
     defaultRepoId: CHATCOCKPIT_TARGET_DEFAULT_REPO_ID,
     workspaceDiscoveryRoots: source.workspaceDiscoveryRoots,
     workspaceAllowlist: source.workspaceAllowlist,
-    repoMappings
+    repoMappings,
+    projects: remapLegacyProjectRegistry(source)
   });
   assertConfigIntegrity(target);
   return target;
@@ -174,8 +264,8 @@ export function migrateLegacyUserConfigToChatCockpit(raw: unknown): TokenPilotUs
 export function parseCanonicalChatCockpitTargetConfig(raw: unknown): TokenPilotUserConfig {
   assertKnownConfigShape(raw);
   const parsed = parseUserConfig(raw);
-  if (parsed.sourceSchemaVersion !== 1) {
-    throw new Error("ChatCockpit target config must use schemaVersion 1");
+  if (parsed.sourceSchemaVersion !== 1 && parsed.sourceSchemaVersion !== 2) {
+    throw new Error("ChatCockpit target config must use schemaVersion 1 or 2");
   }
   const config = normalizeConfig(parsed.config);
   if (config.defaultRepoId !== CHATCOCKPIT_TARGET_DEFAULT_REPO_ID) {

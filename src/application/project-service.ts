@@ -16,6 +16,7 @@ import type {
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
+import { ServiceError } from "./service-error.js";
 
 function stableId(prefix: string, value: string): string {
   const digest = createHash("sha256").update(value).digest("hex").slice(0, 24);
@@ -71,52 +72,98 @@ export class ProjectService {
   private syncConfiguredProjects(context: OperationContext): void {
     const config = loadUserConfigForPaths(this.paths);
     this.database.transaction(() => {
-      for (const [repoId, mapping] of Object.entries(config.repoMappings).sort(
+      for (const [projectSlug, configuredProject] of Object.entries(config.projects).sort(
         ([left], [right]) => left.localeCompare(right)
       )) {
-        let project = this.repositories.projects.findBySlug(repoId);
+        let project = this.repositories.projects.findBySlug(projectSlug);
         if (!project) {
           project = this.repositories.projects.create({
-            id: stableId("project", repoId),
-            slug: repoId,
-            displayName: repoId,
+            id: stableId("project", projectSlug),
+            slug: projectSlug,
+            displayName: configuredProject.displayName,
             status: "active"
           });
-        }
-
-        const status = workspaceStatus(mapping.path, config.workspaceAllowlist);
-        let workspace = this.repositories.workspaces.findPrivateByProjectRepo(
-          project.id,
-          repoId
-        );
-        if (!workspace) {
-          workspace = this.repositories.workspaces.create({
-            id: stableId("workspace", repoId),
-            projectId: project.id,
-            repoId,
-            privatePath: mapping.path,
-            kind: "checkout",
-            status
-          });
-        } else if (
-          workspace.privatePath !== mapping.path ||
-          workspace.status !== status
-        ) {
-          workspace = this.repositories.workspaces.syncConfiguration(
-            workspace.id,
-            {
-              privatePath: mapping.path,
-              status,
-              expectedRevision: workspace.revision
-            }
+        } else if (project.displayName !== configuredProject.displayName) {
+          project = this.repositories.projects.rename(
+            project.id,
+            configuredProject.displayName,
+            project.revision,
+            context.now
           );
         }
 
-        if (!project.defaultWorkspaceId) {
+        const workspaceByRepoId = new Map<string, WorkspaceRecord>();
+        for (const repoId of configuredProject.repoIds) {
+          const mapping = config.repoMappings[repoId];
+          if (!mapping) {
+            throw new ServiceError(
+              "PROJECT_REGISTRY_REPO_MISSING",
+              `Project registry references unknown repository ${repoId}`,
+              { details: { projectId: project.id, repoId } }
+            );
+          }
+
+          const status = workspaceStatus(mapping.path, config.workspaceAllowlist);
+          let workspace = this.repositories.workspaces.findPrivateByRepoId(repoId);
+          if (workspace && workspace.projectId !== project.id) {
+            throw new ServiceError(
+              "PROJECT_WORKSPACE_REPARENT_REQUIRED",
+              "Workspace is already materialized under another Project and requires an explicit governed reparent operation",
+              {
+                details: {
+                  workspaceId: workspace.id,
+                  repoId,
+                  currentProjectId: workspace.projectId,
+                  targetProjectId: project.id
+                }
+              }
+            );
+          }
+          if (!workspace) {
+            workspace = this.repositories.workspaces.create({
+              id: stableId("workspace", repoId),
+              projectId: project.id,
+              repoId,
+              privatePath: mapping.path,
+              kind: "checkout",
+              status
+            });
+          } else if (
+            workspace.privatePath !== mapping.path ||
+            workspace.status !== status
+          ) {
+            workspace = this.repositories.workspaces.syncConfiguration(
+              workspace.id,
+              {
+                privatePath: mapping.path,
+                status,
+                expectedRevision: workspace.revision,
+                now: context.now
+              }
+            );
+          }
+          workspaceByRepoId.set(repoId, workspace);
+        }
+
+        const primaryWorkspace = workspaceByRepoId.get(configuredProject.primaryRepoId);
+        if (!primaryWorkspace) {
+          throw new ServiceError(
+            "PROJECT_PRIMARY_WORKSPACE_MISSING",
+            "Project primary workspace could not be materialized",
+            {
+              details: {
+                projectId: project.id,
+                primaryRepoId: configuredProject.primaryRepoId
+              }
+            }
+          );
+        }
+        if (project.defaultWorkspaceId !== primaryWorkspace.id) {
           project = this.repositories.projects.setDefaultWorkspace(
             project.id,
-            workspace.id,
-            project.revision
+            primaryWorkspace.id,
+            project.revision,
+            context.now
           );
         }
       }
@@ -141,7 +188,8 @@ export class ProjectService {
             branch,
             headCommit,
             dirty,
-            expectedRevision: workspace.revision
+            expectedRevision: workspace.revision,
+            now: context.now
           });
         }
       } catch {

@@ -32,16 +32,27 @@ const legacyRaw = JSON.stringify(
 fs.writeFileSync(configPath, legacyRaw, "utf8");
 
 const migrated = loadUserConfig(repoRoot, context);
-assert.equal(migrated.schemaVersion, 1);
+assert.equal(migrated.schemaVersion, 2);
 assert.equal(migrated.defaultRepoId, "tokenpilot");
 assert.equal(migrated.repoMappings.tokenpilot?.path, fs.realpathSync.native(repoRoot));
+assert.deepEqual(migrated.projects.tokenpilot, {
+  displayName: "tokenpilot",
+  primaryRepoId: "tokenpilot",
+  repoIds: ["tokenpilot"]
+});
 assert.equal(fs.readFileSync(configPath, "utf8"), legacyRaw);
 
 const pureTarget = migrateLegacyUserConfigToChatCockpit(JSON.parse(legacyRaw));
-assert.equal(pureTarget.schemaVersion, 1);
+assert.equal(pureTarget.schemaVersion, 2);
 assert.equal(pureTarget.defaultRepoId, "primary");
 assert.equal(pureTarget.repoMappings.primary?.path, fs.realpathSync.native(repoRoot));
 assert.equal(pureTarget.repoMappings.tokenpilot, undefined);
+assert.deepEqual(pureTarget.projects.primary, {
+  displayName: "primary",
+  primaryRepoId: "primary",
+  repoIds: ["primary"]
+});
+assert.equal(pureTarget.projects.tokenpilot, undefined);
 
 const customRepoRoot = path.join(root, "custom-repo");
 const discoveryRoot = path.join(root, "discovery-root");
@@ -57,6 +68,16 @@ const customTarget = migrateLegacyUserConfigToChatCockpit({
 });
 assert.equal(customTarget.repoMappings.primary?.path, fs.realpathSync.native(repoRoot));
 assert.equal(customTarget.repoMappings.custom?.path, fs.realpathSync.native(customRepoRoot));
+assert.deepEqual(customTarget.projects.primary, {
+  displayName: "primary",
+  primaryRepoId: "primary",
+  repoIds: ["primary"]
+});
+assert.deepEqual(customTarget.projects.custom, {
+  displayName: "custom",
+  primaryRepoId: "custom",
+  repoIds: ["custom"]
+});
 assert.deepEqual(customTarget.workspaceDiscoveryRoots, [fs.realpathSync.native(discoveryRoot)]);
 
 const equivalent = assessChatCockpitTargetConfig({
@@ -106,22 +127,30 @@ assert.throws(
 );
 
 const target = buildChatCockpitTargetConfigPreview(repoRoot, context);
-assert.equal(target.schemaVersion, 1);
+assert.equal(target.schemaVersion, 2);
 assert.equal(target.defaultRepoId, "primary");
 assert.equal(target.repoMappings.primary?.path, fs.realpathSync.native(repoRoot));
 assert.equal(target.repoMappings.tokenpilot, undefined);
+assert.deepEqual(target.projects.primary, {
+  displayName: "primary",
+  primaryRepoId: "primary",
+  repoIds: ["primary"]
+});
 
 fs.writeFileSync(
   configPath,
   JSON.stringify({
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaultRepoId: "primary",
     workspaceAllowlist: [repoRoot],
-    repoMappings: { primary: { path: repoRoot } }
+    repoMappings: { primary: { path: repoRoot } },
+    projects: {
+      primary: { displayName: "primary", primaryRepoId: "primary", repoIds: ["primary"] }
+    }
   }),
   "utf8"
 );
-assert.throws(() => loadUserConfig(repoRoot, context), /schemaVersion 2 is unsupported/);
+assert.throws(() => loadUserConfig(repoRoot, context), /schemaVersion 3 is unsupported/);
 
 fs.writeFileSync(
   configPath,

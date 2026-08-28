@@ -63,12 +63,19 @@ export interface TokenPilotRepoMapping {
   path: string;
 }
 
+export interface TokenPilotProjectMapping {
+  displayName: string;
+  primaryRepoId: string;
+  repoIds: string[];
+}
+
 export interface TokenPilotUserConfig {
-  schemaVersion: 1;
+  schemaVersion: 2;
   defaultRepoId: string;
   workspaceDiscoveryRoots: string[];
   workspaceAllowlist: string[];
   repoMappings: Record<string, TokenPilotRepoMapping>;
+  projects: Record<string, TokenPilotProjectMapping>;
 }
 
 export type TokenPilotRepoGovernanceStatus = "enabled" | "missing" | "blocked";

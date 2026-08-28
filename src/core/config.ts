@@ -71,6 +71,14 @@ function dedupeSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort();
 }
 
+function standaloneProject(repoId: string) {
+  return {
+    displayName: repoId,
+    primaryRepoId: repoId,
+    repoIds: [repoId]
+  };
+}
+
 function buildDefaultConfig(
   repoRoot: string,
   context: TokenPilotDistributionContext,
@@ -80,17 +88,23 @@ function buildDefaultConfig(
   const siblingMappings =
     context.mode === "source" ? discoverSiblingRepoMappings(normalizedRepoRoot) : {};
   const siblingAllowlist = Object.values(siblingMappings).map((mapping) => mapping.path);
+  const repoMappings = {
+    [defaultRepoId]: {
+      path: normalizedRepoRoot
+    },
+    ...siblingMappings
+  };
   return {
     schemaVersion: USER_CONFIG_SCHEMA_VERSION,
     defaultRepoId,
     workspaceDiscoveryRoots: [],
     workspaceAllowlist: dedupeSorted([normalizedRepoRoot, ...siblingAllowlist]),
-    repoMappings: {
-      [defaultRepoId]: {
-        path: normalizedRepoRoot
-      },
-      ...siblingMappings
-    }
+    repoMappings,
+    projects: Object.fromEntries(
+      Object.keys(repoMappings)
+        .sort((left, right) => left.localeCompare(right))
+        .map((repoId) => [repoId, standaloneProject(repoId)])
+    )
   };
 }
 
@@ -120,12 +134,26 @@ function normalizeConfig(config: TokenPilotUserConfig): TokenPilotUserConfig {
       (config.workspaceAllowlist || []).map(normalizeAbsolutePath)
     ),
     repoMappings: Object.fromEntries(
-      Object.entries(config.repoMappings || {}).map(([repoId, mapping]) => [
-        repoId,
-        {
-          path: normalizeAbsolutePath(mapping.path)
-        }
-      ])
+      Object.entries(config.repoMappings || {})
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([repoId, mapping]) => [
+          repoId,
+          {
+            path: normalizeAbsolutePath(mapping.path)
+          }
+        ])
+    ),
+    projects: Object.fromEntries(
+      Object.entries(config.projects || {})
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([projectSlug, project]) => [
+          projectSlug,
+          {
+            displayName: project.displayName.trim(),
+            primaryRepoId: project.primaryRepoId,
+            repoIds: dedupeSorted(project.repoIds)
+          }
+        ])
     )
   };
 }
@@ -164,6 +192,7 @@ export function loadUserConfig(
     normalized.repoMappings[LEGACY_DEFAULT_REPO_ID] = {
       path: normalizedRepoRoot
     };
+    normalized.projects[LEGACY_DEFAULT_REPO_ID] = standaloneProject(LEGACY_DEFAULT_REPO_ID);
   }
   if (!normalized.repoMappings[normalized.defaultRepoId]) {
     throw new Error(`User config defaultRepoId ${normalized.defaultRepoId} has no repo mapping`);
@@ -174,6 +203,7 @@ export function loadUserConfig(
   for (const [repoId, mapping] of Object.entries(siblingMappings)) {
     if (!normalized.repoMappings[repoId]) {
       normalized.repoMappings[repoId] = mapping;
+      normalized.projects[repoId] = standaloneProject(repoId);
     }
   }
 

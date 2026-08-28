@@ -33,7 +33,51 @@ const parsed = parseUserConfig({
   workspaceAllowlist: [repoRoot],
   repoMappings: { primary: { path: repoRoot } }
 });
+assert.equal(parsed.sourceSchemaVersion, 1);
+assert.equal(parsed.config.schemaVersion, 2);
 assert.deepEqual(parsed.config.workspaceDiscoveryRoots, [discoveryA]);
+assert.deepEqual(parsed.config.projects, {
+  primary: {
+    displayName: "primary",
+    primaryRepoId: "primary",
+    repoIds: ["primary"]
+  }
+});
+
+const grouped = parseUserConfig({
+  schemaVersion: 2,
+  defaultRepoId: "primary",
+  workspaceDiscoveryRoots: [discoveryA],
+  workspaceAllowlist: [repoRoot, importedRepo],
+  repoMappings: {
+    primary: { path: repoRoot },
+    secondary: { path: importedRepo }
+  },
+  projects: {
+    chatcockpit: {
+      displayName: "ChatCockpit",
+      primaryRepoId: "primary",
+      repoIds: ["primary", "secondary"]
+    }
+  }
+});
+assert.equal(grouped.sourceSchemaVersion, 2);
+assert.deepEqual(grouped.config.projects.chatcockpit, {
+  displayName: "ChatCockpit",
+  primaryRepoId: "primary",
+  repoIds: ["primary", "secondary"]
+});
+assert.throws(() => parseUserConfig({
+  schemaVersion: 2,
+  defaultRepoId: "primary",
+  workspaceDiscoveryRoots: [],
+  workspaceAllowlist: [repoRoot],
+  repoMappings: { primary: { path: repoRoot } },
+  projects: {
+    first: { displayName: "First", primaryRepoId: "primary", repoIds: ["primary"] },
+    second: { displayName: "Second", primaryRepoId: "primary", repoIds: ["primary"] }
+  }
+}), /more than one project/i);
 
 const legacy = parseUserConfig({
   schemaVersion: 1,
@@ -69,6 +113,13 @@ const store = new WorkspaceConfigStore({ configPath });
 const initial = store.snapshot();
 assert.deepEqual(initial.discoveryRoots, [canonical(discoveryA)]);
 assert.equal(initial.defaultRepoId, "primary");
+assert.deepEqual(initial.projects, {
+  primary: {
+    displayName: "primary",
+    primaryRepoId: "primary",
+    repoIds: ["primary"]
+  }
+});
 assert.match(initial.revision, /^[a-f0-9]{64}$/);
 
 const added = store.addDiscoveryRoot(discoveryB, initial.revision);
@@ -76,6 +127,11 @@ assert.deepEqual(added.discoveryRoots, [canonical(discoveryA), canonical(discove
 assert.notEqual(added.revision, initial.revision);
 
 const rawAfterAdd = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
+assert.equal(rawAfterAdd.schemaVersion, 2);
+assert.deepEqual(
+  (rawAfterAdd.projects as Record<string, unknown>).primary,
+  { displayName: "primary", primaryRepoId: "primary", repoIds: ["primary"] }
+);
 assert.deepEqual(rawAfterAdd.futureTopLevelField, { preserve: true });
 assert.equal(
   ((rawAfterAdd.repoMappings as Record<string, Record<string, unknown>>).primary ?? {})
@@ -95,6 +151,11 @@ const imported = store.importRepo({
   expectedRevision: added.revision
 });
 assert.equal(imported.repoMappings["imported-repo"]?.path, canonical(importedRepo));
+assert.deepEqual(imported.projects["imported-repo"], {
+  displayName: "imported-repo",
+  primaryRepoId: "imported-repo",
+  repoIds: ["imported-repo"]
+});
 assert.equal(imported.workspaceAllowlist.includes(canonical(importedRepo)), true);
 assert.equal(imported.workspaceAllowlist.includes(canonical(discoveryA)), false);
 assert.equal(imported.discoveryRoots.includes(canonical(discoveryA)), true);

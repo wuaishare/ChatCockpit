@@ -95,6 +95,7 @@
     "verify:continuity-api": "tsx scripts/verify-continuity-api.ts",
     "verify:continuity-restart": "tsx scripts/verify-continuity-restart.ts",
     "verify:workspace-config-store": "tsx scripts/verify-workspace-config-store.ts",
+    "verify:project-registry": "tsx scripts/verify-project-registry.ts",
     "verify:workspace-onboarding": "tsx scripts/verify-workspace-onboarding.ts",
     "verify:project-development-routing": "tsx scripts/verify-project-development-routing.ts",
     "verify:model-loop-ownership": "tsx scripts/verify-model-loop-ownership.ts",

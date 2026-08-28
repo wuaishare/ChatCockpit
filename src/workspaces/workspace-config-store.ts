@@ -4,12 +4,14 @@ import path from "node:path";
 
 import { ServiceError } from "../application/service-error.js";
 import { parseUserConfig } from "../core/user-config-schema.js";
+import type { TokenPilotProjectMapping } from "../types.js";
 
 export interface WorkspaceConfigSnapshot {
   revision: string;
   discoveryRoots: string[];
   workspaceAllowlist: string[];
   repoMappings: Record<string, { path: string }>;
+  projects: Record<string, TokenPilotProjectMapping>;
   defaultRepoId: string;
 }
 
@@ -163,6 +165,14 @@ export class WorkspaceConfigStore {
       repoMappings: {
         ...current.snapshot.repoMappings,
         [repoId]: { path: canonicalRepo }
+      },
+      projects: {
+        ...current.snapshot.projects,
+        [repoId]: {
+          displayName: repoId,
+          primaryRepoId: repoId,
+          repoIds: [repoId]
+        }
       }
     });
   }
@@ -235,6 +245,18 @@ export class WorkspaceConfigStore {
         .map(([repoId, mapping]) => [repoId, { path: normalizeAbsolutePath(mapping.path) }] as const)
         .sort(([left], [right]) => left.localeCompare(right))
     );
+    const projects = Object.fromEntries(
+      Object.entries(parsed.projects)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([projectSlug, project]) => [
+          projectSlug,
+          {
+            displayName: project.displayName,
+            primaryRepoId: project.primaryRepoId,
+            repoIds: uniqueSorted(project.repoIds)
+          }
+        ])
+    );
 
     return {
       source,
@@ -245,6 +267,7 @@ export class WorkspaceConfigStore {
         discoveryRoots,
         workspaceAllowlist,
         repoMappings,
+        projects,
         defaultRepoId: parsed.defaultRepoId
       }
     };
@@ -256,6 +279,7 @@ export class WorkspaceConfigStore {
       discoveryRoots?: string[];
       workspaceAllowlist?: string[];
       repoMappings?: Record<string, { path: string }>;
+      projects?: Record<string, TokenPilotProjectMapping>;
     }
   ): WorkspaceConfigSnapshot {
     const raw = { ...current.raw };
@@ -266,8 +290,9 @@ export class WorkspaceConfigStore {
       (update.workspaceAllowlist ?? current.snapshot.workspaceAllowlist).map(normalizeAbsolutePath)
     );
     const repoMappings = update.repoMappings ?? current.snapshot.repoMappings;
+    const projects = update.projects ?? current.snapshot.projects;
 
-    raw.schemaVersion = 1;
+    raw.schemaVersion = 2;
     raw.defaultRepoId = current.snapshot.defaultRepoId;
     raw.workspaceDiscoveryRoots = discoveryRoots;
     raw.workspaceAllowlist = workspaceAllowlist;
@@ -287,6 +312,26 @@ export class WorkspaceConfigStore {
               : {};
           preserved.path = normalizeAbsolutePath(mapping.path);
           return [repoId, preserved];
+        })
+    );
+
+    const previousProjects =
+      raw.projects && typeof raw.projects === "object" && !Array.isArray(raw.projects)
+        ? (raw.projects as Record<string, unknown>)
+        : {};
+    raw.projects = Object.fromEntries(
+      Object.entries(projects)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([projectSlug, project]) => {
+          const existing = previousProjects[projectSlug];
+          const preserved =
+            existing && typeof existing === "object" && !Array.isArray(existing)
+              ? { ...(existing as Record<string, unknown>) }
+              : {};
+          preserved.displayName = project.displayName.trim();
+          preserved.primaryRepoId = project.primaryRepoId;
+          preserved.repoIds = uniqueSorted(project.repoIds);
+          return [projectSlug, preserved];
         })
     );
 
