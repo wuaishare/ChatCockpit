@@ -61,7 +61,8 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       sessionId: z.string().min(1).max(160).optional(),
       command: z.string().min(1),
       args: z.array(z.string()),
-      workdir: z.string().optional()
+      workdir: z.string().optional(),
+      timeoutMs: z.number().int().min(1_000).max(120_000).optional()
     }),
     workspaceExecSchema: z.object({
       ...directExecutorPreference,
@@ -71,7 +72,8 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       args: z.array(z.string()),
       workdir: z.string().optional(),
       allowStdin: z.boolean().optional(),
-      networkAccess: z.boolean().optional()
+      networkAccess: z.boolean().optional(),
+      allowBuiltinFallback: z.boolean().optional()
     }),
     workspaceProcessReadSchema: z.object({
       repoId: z.string().min(1).default(defaultRepoId),

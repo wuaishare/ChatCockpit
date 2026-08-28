@@ -19,7 +19,8 @@ import type {
 
 // ── Security constants ──
 const MAX_OUTPUT_BYTES = 64 * 1024;
-const COMMAND_TIMEOUT_MS = 25_000; // GPT Action 超时 ~30s，留 5s 余量
+export const DEFAULT_COMMAND_TIMEOUT_MS = 45_000;
+export const MAX_COMMAND_TIMEOUT_MS = 120_000;
 const LOCAL_ABSOLUTE_PATH = /(?:file:\/\/\/(?:Users|home|Applications|Volumes|private|var|tmp)\/[^\s,;:)"'`]+|\/(?:Users|home|Applications|Volumes|private|var|tmp)\/[^\s,;:)"'`]+|\b[A-Za-z]:\\[^\s,;:)"'`]+)/g;
 
 export function publicSafeShellOutput(value: string, repoRoot: string): string {
@@ -57,6 +58,16 @@ function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
 function resolveWorkDir(repoRoot: string, workdir?: string): string {
   if (!workdir) return repoRoot;
   return resolvePathInsideRoot(repoRoot, workdir, "workdir").absolutePath;
+}
+
+export function resolveShellCommandTimeoutMs(timeoutMs?: number): number {
+  if (timeoutMs === undefined) return DEFAULT_COMMAND_TIMEOUT_MS;
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > MAX_COMMAND_TIMEOUT_MS) {
+    throw new Error(
+      `timeoutMs must be an integer between 1000 and ${MAX_COMMAND_TIMEOUT_MS}`
+    );
+  }
+  return timeoutMs;
 }
 
 function resolveWorkspaceExecPath(
@@ -131,7 +142,7 @@ export function prepareShellCommand(
     command: payload.command,
     args: [...policy.args],
     workdir,
-    timeoutMs: COMMAND_TIMEOUT_MS,
+    timeoutMs: resolveShellCommandTimeoutMs(payload.timeoutMs),
     outputBytesCap: MAX_OUTPUT_BYTES,
     environment: {
       HOME: process.env.HOME || "",

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 
+import { BuiltinManagedProcessSupervisor } from "../core/builtin-managed-process.js";
 import {
   buildTextPreviewFromBuffer,
   resolveReadableRepoFileTarget
@@ -114,6 +115,7 @@ interface ManagedChatDirectProcess {
   repoId: string;
   repoRoot: string;
   processId: string;
+  backend: "codex-standalone" | "builtin-direct";
   sessionId: string | null;
   actorType: OperationContext["actorType"];
   actorId: string | null;
@@ -140,6 +142,7 @@ export class ChatDirectService {
   private readonly searchService: SearchService;
   private readonly shellService: ShellService;
   private readonly managedProcesses = new Map<string, ManagedChatDirectProcess>();
+  private readonly builtinManagedProcesses = new BuiltinManagedProcessSupervisor();
 
   constructor(
     private readonly paths: TokenPilotPaths,
@@ -305,6 +308,38 @@ export class ChatDirectService {
     }
   }
 
+  private readManagedProcess(
+    record: ManagedChatDirectProcess,
+    cursor = 0,
+    limit = 100
+  ) {
+    return record.backend === "builtin-direct"
+      ? Promise.resolve(this.builtinManagedProcesses.read(record.processId, cursor, limit))
+      : this.runtime.readStandaloneProcess(record.processId, cursor, limit);
+  }
+
+  private waitManagedProcess(record: ManagedChatDirectProcess) {
+    return record.backend === "builtin-direct"
+      ? this.builtinManagedProcesses.wait(record.processId)
+      : this.runtime.waitStandaloneProcess(record.processId);
+  }
+
+  private inputManagedProcess(
+    record: ManagedChatDirectProcess,
+    input: string,
+    closeStdin = false
+  ) {
+    return record.backend === "builtin-direct"
+      ? this.builtinManagedProcesses.write(record.processId, input, closeStdin)
+      : this.runtime.writeStandaloneProcess(record.processId, input, closeStdin);
+  }
+
+  private terminateManagedProcess(record: ManagedChatDirectProcess) {
+    return record.backend === "builtin-direct"
+      ? this.builtinManagedProcesses.terminate(record.processId)
+      : this.runtime.terminateStandaloneProcess(record.processId);
+  }
+
   private superviseManagedProcess(record: ManagedChatDirectProcess): void {
     const heartbeat = record.authority
       ? setInterval(() => {
@@ -324,7 +359,7 @@ export class ChatDirectService {
               }
             );
           } catch {
-            void this.runtime.terminateStandaloneProcess(record.processId).catch(() => undefined);
+            void this.terminateManagedProcess(record).catch(() => undefined);
           }
         }, 60_000)
       : null;
@@ -349,14 +384,13 @@ export class ChatDirectService {
             record.continuityLease = active;
           } catch {
             record.continuityLease = null;
-            void this.runtime.terminateStandaloneProcess(record.processId).catch(() => undefined);
+            void this.terminateManagedProcess(record).catch(() => undefined);
           }
         }, MANAGED_PROCESS_LEASE_GUARD_INTERVAL_MS)
       : null;
     leaseGuard?.unref?.();
 
-    void this.runtime
-      .waitStandaloneProcess(record.processId)
+    void this.waitManagedProcess(record)
       .catch(() => undefined)
       .finally(() => {
         if (heartbeat) clearInterval(heartbeat);
@@ -688,10 +722,39 @@ export class ChatDirectService {
     }
     const access: DirectCapabilityAccess = prepared.readOnly ? "read" : "write";
     const selection = this.select("shell.exec", access, payload.executorId);
-    if (selection.executorId !== "codex-app-server-standalone") {
+    const builtInExecutorId = productIdentityForKey(
+      this.paths.productIdentity
+    ).builtInDirectExecutorId;
+    const nativeBackend = selection.executorId === "codex-app-server-standalone";
+    const builtInBackend = selection.executorId === builtInExecutorId;
+    if (!nativeBackend && !builtInBackend) {
       throw new ServiceError(
         "CAPABILITY_UNAVAILABLE",
-        "Managed workspace execution requires a verified native execution backend"
+        `Managed workspace execution does not support executor ${selection.executorId}`
+      );
+    }
+    if (builtInBackend && payload.allowBuiltinFallback !== true) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed workspace native execution is unavailable. Set allowBuiltinFallback=true only when this authenticated operator explicitly accepts the governed built-in process fallback.",
+        {
+          details: {
+            executorId: selection.executorId,
+            nativeExecutorId: "codex-app-server-standalone"
+          }
+        }
+      );
+    }
+    if (builtInBackend && payload.networkAccess !== true) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "The built-in managed process fallback cannot prove OS-level network denial. Restore the native executor for network-isolated execution, or explicitly allow network access for this trusted task.",
+        {
+          details: {
+            executorId: selection.executorId,
+            networkAccess: false
+          }
+        }
       );
     }
     let continuityLease: WriterLeaseRecord | null = null;
@@ -713,17 +776,28 @@ export class ChatDirectService {
       ).lease;
     }
     try {
-      const started = await this.runtime.startStandaloneProcess({
-        command: [prepared.command, ...prepared.args],
-        cwd: prepared.workdir,
-        readOnly: access === "read",
-        allowStdin: payload.allowStdin === true,
-        networkAccess: payload.networkAccess === true
-      });
+      const started = nativeBackend
+        ? await this.runtime.startStandaloneProcess({
+            command: [prepared.command, ...prepared.args],
+            cwd: prepared.workdir,
+            readOnly: access === "read",
+            allowStdin: payload.allowStdin === true,
+            networkAccess: payload.networkAccess === true
+          })
+        : this.builtinManagedProcesses.start({
+            command: prepared.command,
+            args: prepared.args,
+            cwd: prepared.workdir,
+            allowStdin: payload.allowStdin === true
+          });
+      const backend: ManagedChatDirectProcess["backend"] = nativeBackend
+        ? "codex-standalone"
+        : "builtin-direct";
       const record: ManagedChatDirectProcess = {
         repoId: payload.repoId,
         repoRoot: prepared.repoRoot,
         processId: started.processId,
+        backend,
         sessionId: payload.sessionId ?? null,
         actorType: context.actorType,
         actorId: context.actorId,
@@ -744,7 +818,11 @@ export class ChatDirectService {
         execution: selectionMetadata(
           selection,
           [],
-          undefined,
+          builtInBackend
+            ? selection.selectionMode === "automatic"
+              ? "native-managed-executor-unavailable"
+              : "explicit-builtin-managed-executor"
+            : undefined,
           started.compatibilityMode
         )
       };
@@ -764,8 +842,8 @@ export class ChatDirectService {
       payload.processId,
       payload.sessionId
     );
-    const snapshot = await this.runtime.readStandaloneProcess(
-      payload.processId,
+    const snapshot = await this.readManagedProcess(
+      record,
       payload.cursor ?? 0,
       payload.limit ?? 100
     );
@@ -807,8 +885,8 @@ export class ChatDirectService {
         record.sessionId
       );
     }
-    await this.runtime.writeStandaloneProcess(
-      payload.processId,
+    await this.inputManagedProcess(
+      record,
       payload.input,
       payload.closeStdin === true
     );
@@ -836,7 +914,7 @@ export class ChatDirectService {
       payload.processId,
       payload.sessionId
     );
-    await this.runtime.terminateStandaloneProcess(payload.processId);
+    await this.terminateManagedProcess(record);
     return {
       ok: true as const,
       repoId: payload.repoId,

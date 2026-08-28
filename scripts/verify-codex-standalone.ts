@@ -15,6 +15,7 @@ import {
 } from "../src/runtime/codex/standalone-capabilities.ts";
 import { CodexStandaloneCapabilityProbe } from "../src/runtime/codex/standalone-probe.ts";
 import { refreshCodexStandaloneCapabilities } from "../src/runtime/codex/standalone-refresh.ts";
+import { buildCodexStandaloneDoctorCheck } from "../src/core/doctor.ts";
 
 function mockResolution(): CodexBinaryResolution {
   return {
@@ -206,6 +207,38 @@ async function verifyCodexStandalone(): Promise<void> {
     false,
     "a matching Codex binary must not make a failed capability snapshot reusable"
   );
+  const doctorRuntimeDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "chatcockpit-doctor-standalone-")
+  );
+  try {
+    new CodexStandaloneCapabilityStore(doctorRuntimeDir).write(verified.snapshot);
+    const readyDoctorCheck = buildCodexStandaloneDoctorCheck(
+      doctorRuntimeDir,
+      { source: verified.snapshot.binarySource, version: verified.snapshot.binaryVersion }
+    );
+    assert.equal(readyDoctorCheck.ok, true);
+    assert.equal(readyDoctorCheck.impact, "capability");
+    assert.match(readyDoctorCheck.detail, /ready binary=/);
+
+    new CodexStandaloneCapabilityStore(doctorRuntimeDir).write(failedDirectSnapshot);
+    const failedDoctorCheck = buildCodexStandaloneDoctorCheck(
+      doctorRuntimeDir,
+      { source: failedDirectSnapshot.binarySource, version: failedDirectSnapshot.binaryVersion }
+    );
+    assert.equal(failedDoctorCheck.ok, false);
+    assert.match(failedDoctorCheck.detail, /governed built-in fallback/);
+
+    new CodexStandaloneCapabilityStore(doctorRuntimeDir).write(verified.snapshot);
+    const staleDoctorCheck = buildCodexStandaloneDoctorCheck(doctorRuntimeDir, {
+      source: verified.snapshot.binarySource,
+      version: "codex-cli changed-after-probe"
+    });
+    assert.equal(staleDoctorCheck.ok, false);
+    assert.match(staleDoctorCheck.detail, /snapshot=stale/);
+    assert.match(staleDoctorCheck.detail, /reason=CODEX_BINARY_CHANGED/);
+  } finally {
+    fs.rmSync(doctorRuntimeDir, { recursive: true, force: true });
+  }
   for (const operation of [
     "files.read",
     "files.write",

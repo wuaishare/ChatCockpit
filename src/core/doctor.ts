@@ -8,6 +8,11 @@ import { productIdentityForKey } from "./product-identity.js";
 import { runCommand } from "./shell.js";
 import { buildPaths, ensureWorkspaceDirs } from "./paths.js";
 import { listJobs } from "./jobs.js";
+import { resolveCodexBinary } from "../runtime/codex/binary.js";
+import {
+  assessCodexStandaloneSnapshot,
+  CodexStandaloneCapabilityStore
+} from "../runtime/codex/standalone-capabilities.js";
 
 export type DoctorCheckImpact = "runtime-blocking" | "capability" | "informational";
 
@@ -32,6 +37,38 @@ export interface RunDoctorOptions {
 
 function commandDetail(stdout: string, stderr: string): string {
   return stdout.trim() || stderr.trim() || "Command is unavailable.";
+}
+
+export function buildCodexStandaloneDoctorCheck(
+  runtimeDir: string,
+  currentBinary: { source: string | null; version: string | null }
+): DoctorCheck {
+  const snapshot = new CodexStandaloneCapabilityStore(runtimeDir).read();
+  const status = assessCodexStandaloneSnapshot(snapshot, currentBinary);
+  const commandExec = snapshot?.operations["command.exec"];
+  const ready = Boolean(
+    status.state === "ready" &&
+      snapshot?.directExecutionReady &&
+      !snapshot.turnStartObserved &&
+      commandExec?.status === "verified" &&
+      commandExec.safeForChatDirect
+  );
+  if (ready && snapshot) {
+    return {
+      name: "chat-direct-native-managed-exec",
+      ok: true,
+      detail: `ready binary=${snapshot.binaryVersion ?? "unknown"} probedAt=${snapshot.probedAt}`,
+      impact: "capability"
+    };
+  }
+  return {
+    name: "chat-direct-native-managed-exec",
+    ok: false,
+    detail: snapshot
+      ? `native managed execution unavailable: snapshot=${status.state} reason=${status.reason ?? "none"} currentBinary=${currentBinary.version ?? "unknown"} command.exec=${commandExec?.status ?? "unknown"} error=${commandExec?.errorCode ?? "unknown"}; workspace.exec can use the explicit governed built-in fallback for trusted tasks that allow network access.`
+      : `Native managed execution capability snapshot is unavailable for currentBinary=${currentBinary.version ?? "unknown"}; workspace.exec can use the explicit governed built-in fallback for trusted tasks that allow network access.`,
+    impact: "capability"
+  };
 }
 
 export function runDoctor(
@@ -97,6 +134,21 @@ export function runDoctor(
     detail: `${identity.displayName} internal XML bundle generator`,
     impact: "informational"
   });
+
+  let currentCodexBinary = { source: null as string | null, version: null as string | null };
+  try {
+    const resolvedCodexBinary = resolveCodexBinary();
+    currentCodexBinary = {
+      source: resolvedCodexBinary.source,
+      version: resolvedCodexBinary.version
+    };
+  } catch {
+    // Keep a public-safe unavailable identity; the capability check below will
+    // report the native managed execution path as unavailable.
+  }
+  checks.push(
+    buildCodexStandaloneDoctorCheck(paths.runtimeDir, currentCodexBinary)
+  );
 
   const oauth = buildOAuthReadiness(paths);
   checks.push({

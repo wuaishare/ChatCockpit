@@ -483,6 +483,7 @@ export interface ShellRunPayload extends DirectExecutorPreference {
   command: string;
   args: string[];
   workdir?: string;
+  timeoutMs?: number;
 }
 
 export interface ShellRunResponse {
@@ -503,6 +504,7 @@ export interface WorkspaceExecPayload extends DirectExecutorPreference {
   workdir?: string;
   allowStdin?: boolean;
   networkAccess?: boolean;
+  allowBuiltinFallback?: boolean;
 }
 
 export interface WorkspaceProcessReadPayload {

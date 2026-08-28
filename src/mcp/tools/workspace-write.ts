@@ -206,7 +206,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("workspace.exec"),
       title: "Start governed workspace process",
       description:
-        "Start a governed command in the selected repository workspace through the verified native execution backend. Native sandboxing constrains writes to the workspace, while ChatCockpit validates cwd and path-bearing arguments; project-code execution remains a high-trust capability in exposed mode. Network access is disabled unless networkAccess=true is explicitly requested. Long-running commands return a process id immediately, and mutating commands retain writer authority until terminal state. An idempotency key prevents duplicate process starts.",
+        "Start a governed long-running command in the selected repository workspace. ChatCockpit prefers the verified native execution backend, whose sandbox constrains writes and can deny network access. If that backend is unavailable, an authenticated operator may explicitly set allowBuiltinFallback=true together with networkAccess=true to use the governed built-in process fallback; that compatibility mode retains command/path policy and writer authority but does not claim native OS sandbox isolation. Long-running commands return a process id immediately, and mutating commands retain writer authority until terminal state. An idempotency key prevents duplicate process starts.",
       inputSchema: workspaceExecMcpSchema,
       outputSchema: workspaceExecToolOutputSchema,
       annotations: openWorldDestructiveMutationAnnotations,
@@ -284,7 +284,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("shell.run"),
       title: "Run controlled repository command",
       description:
-        `Run a command allowed by ${identity.displayName} policy. Read-only commands require no writer authority. OAuth MCP callers receive bounded workspace writer authority automatically for mutating commands; callers using an explicit chat-direct session must own its active writer lease. Exposed-mode high-trust controls still apply.`,
+        `Run a bounded command allowed by ${identity.displayName} policy. The default timeout is 45 seconds and callers may request up to 120 seconds with timeoutMs; use workspace.exec for longer-running or streamed commands. Read-only commands require no writer authority. OAuth MCP callers receive bounded workspace writer authority automatically for mutating commands; callers using an explicit chat-direct session must own its active writer lease. Exposed-mode high-trust controls still apply.`,
       inputSchema: shellRunMcpSchema,
       outputSchema: shellRunToolOutputSchema,
       annotations: destructiveMutationAnnotations,

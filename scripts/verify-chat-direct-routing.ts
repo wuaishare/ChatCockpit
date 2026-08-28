@@ -1036,6 +1036,66 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(completedApiTokenManaged.state, "completed");
     assert.equal(completedApiTokenManaged.chunks[0]?.content, "api-token-finished");
 
+    const builtInOnlyBroker = new DirectCapabilityBroker(
+      [createBuiltInDirectExecutorSource()],
+      { executorAliases: DEFAULT_PRODUCT_IDENTITY.directExecutorInputAliases }
+    );
+    const builtInManagedService = new ChatDirectService(
+      paths,
+      runtime,
+      builtInOnlyBroker,
+      repositories
+    );
+    await assert.rejects(
+      () => builtInManagedService.workspaceExec(context, {
+        repoId: "primary",
+        command: "git",
+        args: ["status", "--short"],
+        networkAccess: true
+      }),
+      (error) => error instanceof ServiceError && error.code === "CAPABILITY_UNAVAILABLE"
+    );
+    await assert.rejects(
+      () => builtInManagedService.workspaceExec(context, {
+        repoId: "primary",
+        command: "git",
+        args: ["status", "--short"],
+        allowBuiltinFallback: true,
+        networkAccess: false
+      }),
+      (error) => error instanceof ServiceError && error.code === "CAPABILITY_UNAVAILABLE"
+    );
+    const builtInManaged = await builtInManagedService.workspaceExec(context, {
+      repoId: "primary",
+      command: "git",
+      args: ["status", "--short"],
+      allowBuiltinFallback: true,
+      networkAccess: true
+    });
+    assert.equal(builtInManaged.state, "running");
+    assert.equal(builtInManaged.execution.executor, "builtin-direct");
+    assert.equal(
+      builtInManaged.execution.compatibilityMode,
+      "builtin-governed-process"
+    );
+    assert.equal(
+      builtInManaged.execution.fallbackReason,
+      "native-managed-executor-unavailable"
+    );
+    let builtInManagedSnapshot = await builtInManagedService.workspaceProcessRead(
+      context,
+      { repoId: "primary", processId: builtInManaged.processId }
+    );
+    for (let attempt = 0; attempt < 100 && builtInManagedSnapshot.state === "running"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      builtInManagedSnapshot = await builtInManagedService.workspaceProcessRead(
+        context,
+        { repoId: "primary", processId: builtInManaged.processId }
+      );
+    }
+    assert.equal(builtInManagedSnapshot.state, "completed");
+    assert.equal(builtInManagedSnapshot.exitCode, 0);
+
     const afterManagedWrite = await service.write(context, {
       repoId: "primary",
       path: "src/after-managed.ts",
