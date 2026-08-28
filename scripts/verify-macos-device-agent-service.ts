@@ -39,6 +39,10 @@ try {
   assert.equal(fs.existsSync(helperPath), true, "Device Agent launchd helper must exist");
   const helper = fs.readFileSync(helperPath, "utf8");
   assert.match(helper, /SERVICE_LABEL="\$\{SERVICE_PREFIX\}\.device-agent"/);
+  assert.match(helper, /resolve_direct_node_bin\(\)/);
+  assert.match(helper, /process\.execPath/);
+  assert.match(helper, /NODE_BIN_CANDIDATE="\$\(identity_env_value NODE_BIN\)"/);
+  assert.match(helper, /resolve_direct_node_bin "\$\{NODE_BIN_FALLBACK\}"/);
   assert.match(helper, /<key>RunAtLoad<\/key>\s*<true\/>/);
   assert.match(helper, /<key>KeepAlive<\/key>\s*<true\/>/);
   assert.match(

@@ -177,7 +177,7 @@ export class MacOSChatCockpitRuntimeLifecycleAdapter
       [runtimeIdentityEnvName("PRIMARY_WORKSPACE_ROOT", this.paths.productIdentity)]:
         this.paths.repoRoot,
       [runtimeIdentityEnvName("NODE_BIN", this.paths.productIdentity)]:
-        this.paths.nodeExecutable,
+        process.execPath,
       [runtimeIdentityEnvName("DISTRIBUTION_MODE", this.paths.productIdentity)]:
         this.paths.distributionMode
     };

@@ -20,7 +20,7 @@ const repoRoot = path.resolve(import.meta.dirname, "..");
 const helperPath = path.join(repoRoot, "scripts", "macos-manage-local-server.sh");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-lifecycle-adapter-"));
 
-function fixturePaths() {
+function fixturePaths(nodeExecutable = process.execPath) {
   const home = path.join(root, "home");
   const stateRoot = path.join(root, "state");
   fs.mkdirSync(home, { recursive: true });
@@ -32,7 +32,7 @@ function fixturePaths() {
       installRoot: repoRoot,
       stateRoot,
       primaryWorkspaceRoot: repoRoot,
-      nodeExecutable: process.execPath,
+      nodeExecutable,
       configPath: path.join(stateRoot, "config.json")
     },
     { ...process.env, HOME: home }
@@ -41,7 +41,11 @@ function fixturePaths() {
 }
 
 class FakeRunner implements DeviceRuntimeLifecycleCommandRunner {
-  calls: Array<{ executable: string; args: readonly string[] }> = [];
+  calls: Array<{
+    executable: string;
+    args: readonly string[];
+    env: NodeJS.ProcessEnv;
+  }> = [];
   next = {
     status: 0,
     stdout: JSON.stringify({
@@ -63,7 +67,11 @@ class FakeRunner implements DeviceRuntimeLifecycleCommandRunner {
     timeoutMs: number;
     maxBufferBytes: number;
   }) {
-    this.calls.push({ executable: input.executable, args: [...input.args] });
+    this.calls.push({
+      executable: input.executable,
+      args: [...input.args],
+      env: { ...input.env }
+    });
     return { ...this.next };
   }
 }
@@ -76,7 +84,8 @@ async function expectCode(operation: () => Promise<unknown>, code: string): Prom
 }
 
 try {
-  const { home, paths } = fixturePaths();
+  const staleNodeWrapper = path.join(root, "stale-node-wrapper");
+  const { home, paths } = fixturePaths(staleNodeWrapper);
   const runner = new FakeRunner();
   const adapter = new MacOSChatCockpitRuntimeLifecycleAdapter(paths, runner);
 
@@ -96,6 +105,7 @@ try {
     "chatcockpit"
   ]);
   assert.equal(runner.calls[0]?.executable, helperPath);
+  assert.equal(runner.calls[0]?.env.CHATCOCKPIT_NODE_BIN, process.execPath);
 
   await adapter.start();
   await adapter.stop();

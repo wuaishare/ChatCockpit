@@ -64,6 +64,15 @@ identity_env_value() {
   printf '%s' "${!variable_name:-}"
 }
 
+resolve_direct_node_bin() {
+  local candidate="${1:-}"
+  local resolved=""
+  [[ -n "${candidate}" && -x "${candidate}" ]] || return 1
+  resolved="$("${candidate}" -p 'process.execPath' 2>/dev/null)" || return 1
+  [[ -n "${resolved}" && -x "${resolved}" ]] || return 1
+  printf '%s' "${resolved}"
+}
+
 SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_ROOT="$(identity_env_value INSTALL_ROOT)"
 INSTALL_ROOT="${INSTALL_ROOT:-${SCRIPT_ROOT}}"
@@ -81,10 +90,8 @@ if [[ -z "${STATE_ROOT}" ]]; then
 fi
 PRIMARY_WORKSPACE_ROOT="$(identity_env_value PRIMARY_WORKSPACE_ROOT)"
 PRIMARY_WORKSPACE_ROOT="${PRIMARY_WORKSPACE_ROOT:-${INSTALL_ROOT}}"
-NODE_BIN="$(identity_env_value NODE_BIN)"
-NODE_BIN="${NODE_BIN:-$(command -v node)}"
-NODE_BIN_DIR="$(dirname "${NODE_BIN}")"
-RUNTIME_PATH="${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+NODE_BIN_CANDIDATE="$(identity_env_value NODE_BIN)"
+NODE_BIN_FALLBACK="$(command -v node || true)"
 RUNTIME_DIR="${STATE_ROOT}/runtime"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 LOG_FILE="${RUNTIME_DIR}/server.log"
@@ -114,6 +121,16 @@ if [[ -f "${ENV_FILE}" ]]; then
   source "${ENV_FILE}"
   set +a
 fi
+
+NODE_BIN=""
+if ! NODE_BIN="$(resolve_direct_node_bin "${NODE_BIN_CANDIDATE}")"; then
+  if ! NODE_BIN="$(resolve_direct_node_bin "${NODE_BIN_FALLBACK}")"; then
+    echo "A direct Node.js executable could not be resolved; refusing to install a wrapper command into LaunchAgent ProgramArguments." >&2
+    exit 2
+  fi
+fi
+NODE_BIN_DIR="$(dirname "${NODE_BIN}")"
+RUNTIME_PATH="${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
 
 PORT="$(identity_env_value PORT)"
 PORT="${PORT:-4318}"

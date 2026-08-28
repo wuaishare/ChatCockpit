@@ -34,7 +34,13 @@ assert.match(source, /DISTRIBUTION_MODE.*packaged[\s\S]*STATE_ROOT="\$\{HOME\}\/
 assert.match(source, /PRODUCT_IDENTITY.*chatcockpit[\s\S]*STATE_ROOT="\$\{HOME\}\/\$\{STATE_DIR_NAME\}"/);
 assert.match(source, /STATE_ROOT="\$\{INSTALL_ROOT\}\/\$\{STATE_DIR_NAME\}"/);
 assert.match(source, /PRIMARY_WORKSPACE_ROOT="\$\(identity_env_value PRIMARY_WORKSPACE_ROOT\)"/);
-assert.match(source, /NODE_BIN="\$\(identity_env_value NODE_BIN\)"/);
+assert.match(source, /resolve_direct_node_bin\(\)/);
+assert.match(source, /process\.execPath/);
+assert.match(source, /NODE_BIN_CANDIDATE="\$\(identity_env_value NODE_BIN\)"/);
+assert.match(source, /NODE_BIN_FALLBACK="\$\(command -v node \|\| true\)"/);
+assert.match(source, /resolve_direct_node_bin "\$\{NODE_BIN_CANDIDATE\}"/);
+assert.match(source, /resolve_direct_node_bin "\$\{NODE_BIN_FALLBACK\}"/);
+assert.match(source, /refusing to install a wrapper command into LaunchAgent ProgramArguments/);
 assert.match(source, /NODE_BIN_DIR="\$\(dirname "\$\{NODE_BIN\}"\)"/);
 assert.match(
   source,
