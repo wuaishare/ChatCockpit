@@ -78,6 +78,7 @@ export interface PreparedShellCommand {
   outputBytesCap: number;
   environment: Record<string, string>;
   standaloneReadOnly: boolean;
+  gitMetadataWrite: boolean;
 }
 
 export interface PreparedWorkspaceExecCommand {
@@ -139,7 +140,8 @@ export function prepareShellCommand(
       NODE: process.execPath,
       ...(process.env.NODE_ENV ? { NODE_ENV: process.env.NODE_ENV } : {})
     },
-    standaloneReadOnly
+    standaloneReadOnly,
+    gitMetadataWrite: payload.command === "git" && policy.effect === "write"
   };
 }
 

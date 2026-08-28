@@ -769,6 +769,24 @@ async function verifyChatDirectRouting(): Promise<void> {
       adapter.calls.some((call) => call.method === "command/exec")
     );
 
+    const commandExecCallsBeforeGitMutation = adapter.calls.filter(
+      (call) => call.method === "command/exec"
+    ).length;
+    const builtinGitMutation = await service.shell(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      command: "git",
+      args: ["add", "--", "src/fixture.ts"]
+    });
+    assert.equal(builtinGitMutation.exitCode, 0);
+    assert.equal(builtinGitMutation.execution.executor, "builtin-direct");
+    assert.equal(builtinGitMutation.execution.selectionMode, "automatic");
+    assert.equal(
+      adapter.calls.filter((call) => call.method === "command/exec").length,
+      commandExecCallsBeforeGitMutation
+    );
+    runGit(repoRoot, ["restore", "--staged", "src/fixture.ts"]);
+
     const directShell = await service.shell(context, {
       repoId: "primary",
       sessionId: session.id,

@@ -65,13 +65,6 @@ function publicChangedPaths(status: GitStatusResponse): string[] {
     .sort();
 }
 
-function stagedPublicChangedPaths(status: GitStatusResponse): string[] {
-  return status.entries
-    .filter((entry) => entry.status !== "blocked" && entry.staged)
-    .map((entry) => entry.path)
-    .sort();
-}
-
 function mutationValue<T extends Record<string, unknown>>(
   value: T,
   changedPaths: string[],
@@ -336,17 +329,13 @@ export function buildWorkspaceWriteTools(
           idempotencyKey,
           payload,
           async () => {
-            const before = await services.chatDirect.gitStatus(
-              context,
-              payload.repoId
-            );
             const value = await services.chatDirect.gitCommit(
               context,
               payload
             );
             return mutationValue(
               value as unknown as Record<string, unknown>,
-              stagedPublicChangedPaths(before),
+              value.execution.changedPaths,
               gitEvidenceHints
             );
           }

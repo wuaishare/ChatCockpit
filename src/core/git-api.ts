@@ -36,6 +36,14 @@ export function getGitDiff(
   };
 }
 
+export function getStagedPublicSafePaths(
+  paths: TokenPilotPaths,
+  repoId: string
+): string[] {
+  const repoRoot = assertRepoAllowed(paths, repoId);
+  return stagedPublicSafePaths(repoRoot);
+}
+
 export function getGitStatus(
   paths: TokenPilotPaths,
   repoId: string

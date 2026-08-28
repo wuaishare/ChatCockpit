@@ -611,7 +611,10 @@ export class ChatDirectService {
         ? this.acquireMutationAuthority(context, payload.repoId, payload.sessionId)
         : null;
     try {
-      const selection = this.select("shell.exec", access, payload.executorId);
+      const selection =
+        !payload.executorId && prepared.gitMetadataWrite
+          ? this.fallbackSelection("shell.exec", access)
+          : this.select("shell.exec", access, payload.executorId);
       if (selection.executorId === "codex-app-server-standalone") {
         const startedAt = Date.now();
         try {
@@ -877,16 +880,11 @@ export class ChatDirectService {
     );
     try {
       const selection = this.select("git.commit", "write", payload.executorId);
-      const before = this.git.status(context, payload.repoId);
+      const stagedPaths = this.git.stagedPaths(context, payload.repoId);
       const value = this.git.commit(context, payload);
       return {
         ...value,
-        execution: selectionMetadata(
-          selection,
-          before.entries
-            .filter((entry) => entry.status !== "blocked" && entry.staged)
-            .map((entry) => entry.path)
-        )
+        execution: selectionMetadata(selection, stagedPaths)
       };
     } finally {
       this.releaseMutationAuthority(context, authority);

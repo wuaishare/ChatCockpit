@@ -27,7 +27,7 @@ const WORKSPACE_COMMAND_WHITELIST: Record<string, string[]> = {
   make: ["*"],
   cargo: ["build", "test", "check", "clippy", "fmt", "run"],
   go: ["build", "test", "vet", "fmt", "run"],
-  git: ["status", "diff", "log", "branch", "add", "restore", "stash", "show", "rev-parse", "rev-list"]
+  git: ["status", "diff", "log", "branch", "add", "restore", "stash", "show", "rev-parse", "rev-list", "fetch", "rebase", "push"]
 };
 
 const HIGH_TRUST_COMMANDS = new Set([
@@ -159,6 +159,24 @@ export function evaluateWorkspaceCommand(
         `Subcommand not allowed for ${command}: ${subcommand ?? "<none>"}. ` +
           `Allowed: ${allowedSubcommands.join(", ")}`
       );
+    }
+  }
+  if (command === "git") {
+    const subcommand = safeArgs[0] ?? "";
+    if (
+      subcommand === "fetch" &&
+      !(safeArgs.length === 1 || (safeArgs.length === 2 && safeArgs[1] === "--prune"))
+    ) {
+      throw new Error("git fetch is limited to the configured upstream; only optional --prune is allowed");
+    }
+    if (
+      subcommand === "rebase" &&
+      !(safeArgs.length === 2 && safeArgs[1] === "@{upstream}")
+    ) {
+      throw new Error("git rebase is limited to @{upstream}");
+    }
+    if (subcommand === "push" && safeArgs.length !== 1) {
+      throw new Error("git push uses the configured upstream and does not accept additional arguments");
     }
   }
   const effect: CommandEffect =

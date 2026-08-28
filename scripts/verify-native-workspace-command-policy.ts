@@ -45,8 +45,14 @@ assert.throws(() => evaluateNativeWorkspaceCommand("git\0bad", ["status"]));
 assert.throws(
   () => evaluateWorkspaceCommand("git", ["switch", "feature/native-exec"]),
   /Subcommand not allowed/,
-  "legacy shell.run policy must remain unchanged during native workspace exec migration"
+  "legacy shell.run keeps broad Git lifecycle commands blocked"
 );
+assert.equal(evaluateWorkspaceCommand("git", ["fetch", "--prune"]).effect, "write");
+assert.equal(evaluateWorkspaceCommand("git", ["rebase", "@{upstream}"]).effect, "write");
+assert.equal(evaluateWorkspaceCommand("git", ["push"]).effect, "write");
+assert.throws(() => evaluateWorkspaceCommand("git", ["fetch", "https://example.invalid/repo.git"]));
+assert.throws(() => evaluateWorkspaceCommand("git", ["rebase", "origin/main"]));
+assert.throws(() => evaluateWorkspaceCommand("git", ["push", "--force"]));
 
 const previousExposed = process.env.CHATCOCKPIT_EXPOSED;
 const previousHighTrust = process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
