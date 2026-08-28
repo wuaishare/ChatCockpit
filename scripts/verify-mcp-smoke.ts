@@ -294,8 +294,8 @@ async function runMcpSmoke(): Promise<void> {
         "task.create",
         "task.get",
         "task.submitReview",
+        "continuity.invoke",
         "tools.discover",
-        "tools.invoke",
         "trajectory.read",
         "workspace.snapshot"
       ].sort()
@@ -312,7 +312,23 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(coreTools.length, 20);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
-    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.invoke"), true);
+    const continuityInvokeTool = coreTools.find(
+      (tool) => tool.name === "chatcockpit.continuity.invoke"
+    );
+    assert.ok(continuityInvokeTool);
+    const continuityInvokeInputSchema = JSON.stringify(continuityInvokeTool.inputSchema);
+    for (const marker of [
+      "task.create",
+      "session.start",
+      "evidence.record",
+      "expectedTaskRevision",
+      "idempotencyKey"
+    ]) {
+      assert.equal(continuityInvokeInputSchema.includes(marker), true);
+    }
+    for (const forbidden of ["runtime.restart", "host.command.execute", "devices.runtime.lifecycle.execute"]) {
+      assert.equal(continuityInvokeInputSchema.includes(forbidden), false);
+    }
     assert.equal(
       coreTools.every((tool) => Boolean(tool.outputSchema)),
       true,
@@ -398,12 +414,14 @@ async function runMcpSmoke(): Promise<void> {
             annotations: { readOnlyHint: boolean; destructiveHint: boolean };
             inputSchema: Record<string, unknown>;
             outputSchema: Record<string, unknown> | null;
+            invokeVia: "continuity.invoke" | null;
           } | null;
         };
       };
     };
     assert.equal(discoverEvidenceResult.isError, undefined);
     assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.suffix, "evidence.record");
+    assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.invokeVia, "continuity.invoke");
     assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.annotations.readOnlyHint, false);
     assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.annotations.destructiveHint, false);
     assert.match(
@@ -850,19 +868,19 @@ async function runMcpSmoke(): Promise<void> {
         id: "invoke-evidence-record",
         method: "tools/call",
         params: {
-          name: "chatcockpit.tools.invoke",
+          name: "chatcockpit.continuity.invoke",
           arguments: {
             tool: "evidence.record",
             input: {
               taskId: taskResult.task.id,
               sessionId: sessionResult.session.id,
               kind: "test",
-              label: "Deferred specialist gateway smoke",
+              label: "Bounded continuity gateway smoke",
               status: "passed",
               required: true,
-              summary: "Recorded through compact-core tools.invoke without mounting a second MCP endpoint.",
+              summary: "Recorded through compact-core continuity.invoke without mounting a second MCP endpoint.",
               expectedTaskRevision: sessionResult.task.revision,
-              idempotencyKey: "mcp-tools-invoke-evidence-0001"
+              idempotencyKey: "mcp-continuity-invoke-evidence-0001"
             }
           }
         }
@@ -897,19 +915,19 @@ async function runMcpSmoke(): Promise<void> {
         id: "invoke-evidence-record-replay",
         method: "tools/call",
         params: {
-          name: "chatcockpit.tools.invoke",
+          name: "chatcockpit.continuity.invoke",
           arguments: {
             tool: "evidence.record",
             input: {
               taskId: taskResult.task.id,
               sessionId: sessionResult.session.id,
               kind: "test",
-              label: "Deferred specialist gateway smoke",
+              label: "Bounded continuity gateway smoke",
               status: "passed",
               required: true,
-              summary: "Recorded through compact-core tools.invoke without mounting a second MCP endpoint.",
+              summary: "Recorded through compact-core continuity.invoke without mounting a second MCP endpoint.",
               expectedTaskRevision: sessionResult.task.revision,
-              idempotencyKey: "mcp-tools-invoke-evidence-0001"
+              idempotencyKey: "mcp-continuity-invoke-evidence-0001"
             }
           }
         }
@@ -924,7 +942,11 @@ async function runMcpSmoke(): Promise<void> {
       invokeEvidenceResult.structuredContent.result.bundle.id
     );
 
-    for (const blockedTool of ["project.list", "codex.turn.start"]) {
+    for (const blockedTool of [
+      "runtime.restart",
+      "devices.runtime.lifecycle.execute",
+      "host.command.execute"
+    ]) {
       const blockedInvoke = await postMcp(
         baseUrl,
         {
@@ -932,19 +954,23 @@ async function runMcpSmoke(): Promise<void> {
           id: `invoke-blocked-${blockedTool}`,
           method: "tools/call",
           params: {
-            name: "chatcockpit.tools.invoke",
+            name: "chatcockpit.continuity.invoke",
             arguments: { tool: blockedTool, input: {} }
           }
         },
         { token: "test-token", path: "/mcp" }
       );
       assert.equal(blockedInvoke.response.status, 200);
+      assert.equal(blockedInvoke.message.error, undefined);
       const blockedInvokeResult = blockedInvoke.message.result as {
         isError: true;
-        structuredContent: { error: { code: string } };
+        content: Array<{ type: "text"; text: string }>;
       };
       assert.equal(blockedInvokeResult.isError, true);
-      assert.equal(blockedInvokeResult.structuredContent.error.code, "SPECIALIST_TOOL_NOT_FOUND");
+      assert.match(
+        blockedInvokeResult.content[0]?.text ?? "",
+        /Invalid arguments.*Invalid discriminator value.*task\.create.*evidence\.record.*task\.complete/i
+      );
     }
 
     for (const coreCall of [

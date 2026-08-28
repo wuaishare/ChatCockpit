@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import {
+  MCP_CONTINUITY_INVOKE_SUFFIXES,
   MCP_TOOL_SURFACE_CLASSIFICATION_COUNT,
   MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES,
   assertMcpToolSurfaceClassified,
@@ -37,6 +38,25 @@ assert.equal(byPack["continuity-governance"]?.length, 15);
 assert.equal(byPack["codex-native"]?.length, 18);
 assert.equal(byPack["runtime-admin"]?.length, 8);
 assert.equal(byPack.recovery?.length, 2);
+
+assert.deepEqual(
+  [...MCP_CONTINUITY_INVOKE_SUFFIXES].sort(),
+  [
+    "task.create",
+    "task.get",
+    "session.start",
+    "session.get",
+    "evidence.record",
+    "task.submitReview",
+    "task.complete"
+  ].sort()
+);
+for (const suffix of MCP_CONTINUITY_INVOKE_SUFFIXES) {
+  assert.deepEqual(classifyMcpToolSurface(`chatcockpit.${suffix}`), {
+    disposition: "deferred-pack",
+    pack: "continuity-governance"
+  });
+}
 
 assert.deepEqual(
   classifications

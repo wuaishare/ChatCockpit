@@ -56,9 +56,21 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "git.commit",
   "trajectory.read",
   "continuity.capsule",
-  "tools.discover",
-  "tools.invoke"
+  "continuity.invoke",
+  "tools.discover"
 ] as const;
+
+export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
+  "task.create",
+  "task.get",
+  "session.start",
+  "session.get",
+  "evidence.record",
+  "task.submitReview",
+  "task.complete"
+] as const;
+
+export type McpContinuityInvokeSuffix = (typeof MCP_CONTINUITY_INVOKE_SUFFIXES)[number];
 
 const DEFERRED_BY_PACK = {
   "capability-routing": [

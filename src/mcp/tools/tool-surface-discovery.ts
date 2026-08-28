@@ -2,6 +2,16 @@ import { z } from "zod";
 
 import { ServiceError } from "../../application/service-error.js";
 import {
+  evidenceRecordSchema,
+  sessionGetSchema,
+  sessionStartSchema,
+  taskCompleteSchema,
+  taskCreateSchema,
+  taskGetSchema,
+  taskSubmitReviewSchema
+} from "../../contracts/continuity.js";
+import {
+  MCP_CONTINUITY_INVOKE_SUFFIXES,
   MCP_TOOL_SURFACE_PACKS,
   MCP_TOOL_SURFACE_PACK_METADATA,
   classifyMcpToolSurface,
@@ -25,10 +35,15 @@ const toolSurfaceDiscoverSchema = z.object({
   tool: toolSuffixSchema.optional()
 });
 
-const toolSurfaceInvokeSchema = z.object({
-  tool: toolSuffixSchema,
-  input: z.record(z.string(), z.unknown()).default({})
-});
+const continuityInvokeSchema = z.discriminatedUnion("tool", [
+  z.object({ tool: z.literal("task.create"), input: taskCreateSchema }),
+  z.object({ tool: z.literal("task.get"), input: taskGetSchema }),
+  z.object({ tool: z.literal("session.start"), input: sessionStartSchema }),
+  z.object({ tool: z.literal("session.get"), input: sessionGetSchema }),
+  z.object({ tool: z.literal("evidence.record"), input: evidenceRecordSchema }),
+  z.object({ tool: z.literal("task.submitReview"), input: taskSubmitReviewSchema }),
+  z.object({ tool: z.literal("task.complete"), input: taskCompleteSchema })
+]);
 
 const packSummarySchema = z.object({
   id: z.enum(MCP_TOOL_SURFACE_PACKS),
@@ -38,6 +53,8 @@ const packSummarySchema = z.object({
   specialistToolCount: z.number().int().nonnegative(),
   available: z.boolean()
 });
+const continuityInvokeSuffixes = new Set<string>(MCP_CONTINUITY_INVOKE_SUFFIXES);
+
 const toolAnnotationsSchema = z.object({
   readOnlyHint: z.boolean(),
   destructiveHint: z.boolean(),
@@ -51,7 +68,8 @@ const selectedToolSchema = z.object({
   description: z.string(),
   annotations: toolAnnotationsSchema,
   inputSchema: jsonObjectSchema,
-  outputSchema: jsonObjectSchema.nullable()
+  outputSchema: jsonObjectSchema.nullable(),
+  invokeVia: z.literal("continuity.invoke").nullable()
 });
 const toolSurfaceDiscoverOutputSchema = z.object({
   ok: z.literal(true),
@@ -70,7 +88,7 @@ const toolSurfaceDiscoverOutputSchema = z.object({
     selectedTool: selectedToolSchema.nullable()
   })
 });
-const toolSurfaceInvokeOutputSchema = z.object({
+const continuityInvokeOutputSchema = z.object({
   ok: z.literal(true),
   tool: toolSuffixSchema,
   result: jsonObjectSchema
@@ -84,15 +102,16 @@ function isPackSpecialist(tool: Pick<TokenPilotMcpTool, "name">, pack: string): 
   );
 }
 
-function specialistToolBySuffix(
+function continuityToolBySuffix(
   baseTools: readonly TokenPilotMcpTool[],
   suffix: string
 ): TokenPilotMcpTool | null {
+  if (!continuityInvokeSuffixes.has(suffix)) return null;
   return baseTools.find((tool) => {
     if (mcpToolSurfaceSuffix(tool.name) !== suffix) return false;
     const classification = classifyMcpToolSurface(tool.name);
-    return classification?.disposition === "deferred-pack" ||
-      classification?.disposition === "consolidation-candidate";
+    return classification?.pack === "continuity-governance" &&
+      classification.disposition === "deferred-pack";
   }) ?? null;
 }
 
@@ -105,6 +124,9 @@ function publicToolDescriptor(tool: TokenPilotMcpTool) {
     inputSchema: z.toJSONSchema(tool.inputSchema, { unrepresentable: "any" }),
     outputSchema: tool.outputSchema
       ? z.toJSONSchema(tool.outputSchema, { unrepresentable: "any" })
+      : null,
+    invokeVia: continuityInvokeSuffixes.has(mcpToolSurfaceSuffix(tool.name))
+      ? "continuity.invoke" as const
       : null
   };
 }
@@ -149,7 +171,7 @@ export function buildToolSurfaceDiscoveryMcpTools(
     name: "chatcockpit.tools.discover",
     title: "Discover specialist ChatCockpit tools",
     description:
-      "Inspect the compact MCP surface and specialist capability packs. Pass pack+tool to inspect one deferred tool's schema and annotations before calling it through tools.invoke. Explicit pack endpoints and /mcp/full remain compatibility surfaces.",
+      "Inspect the compact MCP surface and specialist capability packs. Pass pack+tool to inspect one deferred tool's schema and annotations. Selected continuity task/evidence tools report continuity.invoke as their bounded core invocation path. Explicit pack endpoints and /mcp/full remain compatibility surfaces.",
     inputSchema: toolSurfaceDiscoverSchema,
     outputSchema: toolSurfaceDiscoverOutputSchema,
     annotations: readOnlyToolAnnotations,
@@ -204,13 +226,13 @@ export function buildToolSurfaceDiscoveryMcpTools(
     }
   });
 
-  const invoke = defineMcpTool({
-    name: "chatcockpit.tools.invoke",
-    title: "Invoke deferred ChatCockpit tool",
+  const continuityInvoke = defineMcpTool({
+    name: "chatcockpit.continuity.invoke",
+    title: "Invoke bounded continuity governance action",
     description:
-      "Invoke one deferred specialist tool by suffix after inspecting it with tools.discover. Core and compatibility-only tools cannot be called through this gateway. The target tool retains its own validation, authorization, idempotency, and mutation governance.",
-    inputSchema: toolSurfaceInvokeSchema,
-    outputSchema: toolSurfaceInvokeOutputSchema,
+      "Invoke one explicitly allowlisted continuity task, session, or evidence action. The tool enum is part of this public action schema so any future scope expansion requires a visible action-definition update. Host, runtime, device, workflow, and compatibility tools are never dispatched here.",
+    inputSchema: continuityInvokeSchema,
+    outputSchema: continuityInvokeOutputSchema,
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -218,11 +240,11 @@ export function buildToolSurfaceDiscoveryMcpTools(
       openWorldHint: true
     },
     handler: async (context, input) => {
-      const target = specialistToolBySuffix(baseTools, input.tool);
+      const target = continuityToolBySuffix(baseTools, input.tool);
       if (!target) {
         throw new ServiceError(
-          "SPECIALIST_TOOL_NOT_FOUND",
-          "The requested tool is not an invokable deferred specialist",
+          "CONTINUITY_INVOKE_TOOL_UNAVAILABLE",
+          "The requested continuity action is not available through the bounded core gateway",
           { details: { tool: input.tool } }
         );
       }
@@ -238,5 +260,5 @@ export function buildToolSurfaceDiscoveryMcpTools(
     }
   });
 
-  return [discover, invoke];
+  return [discover, continuityInvoke];
 }

@@ -262,34 +262,5 @@ assert.equal(
   LOCAL_DEVICE_TARGET_ID,
   "Capability Router mutations remain local-device governed in Phase 8"
 );
-assert.equal(
-  resolveMcpToolDeviceTarget("chatcockpit.tools.invoke", {
-    tool: "capabilities.read.invoke",
-    input: {
-      targetDevice: allowedRemoteId,
-      executorId: "fixture",
-      toolName: "read",
-      arguments: {}
-    }
-  }),
-  allowedRemoteId,
-  "Deferred-tool invocation must preserve the nested specialist's explicit remote target"
-);
-assert.equal(
-  resolveMcpToolDeviceTarget("chatcockpit.tools.invoke", {
-    tool: "devices.runtime.status",
-    input: { deviceId: allowedRemoteId }
-  }),
-  allowedRemoteId,
-  "Deferred device-runtime invocation must authorize the nested deviceId"
-);
-assert.equal(
-  resolveMcpToolDeviceTarget("tokenpilot.tools.invoke", {
-    tool: "evidence.record",
-    input: {}
-  }),
-  LOCAL_DEVICE_TARGET_ID,
-  "Compatibility product prefixes must retain local-device authorization semantics"
-);
 
 process.stdout.write("VERIFY_DEVICE_TARGET_SELECTION_OK\n");
