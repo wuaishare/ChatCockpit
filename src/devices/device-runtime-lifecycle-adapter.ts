@@ -1,5 +1,5 @@
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 
 import type { TokenPilotPaths } from "../types.js";
 import { runtimeIdentityEnvName } from "../core/identity-env.js";
@@ -31,24 +31,34 @@ export interface DeviceRuntimeLifecycleCommandRunner {
     env: NodeJS.ProcessEnv;
     timeoutMs: number;
     maxBufferBytes: number;
-  }): DeviceRuntimeLifecycleCommandResult;
+  }): DeviceRuntimeLifecycleCommandResult | Promise<DeviceRuntimeLifecycleCommandResult>;
 }
 
 const defaultCommandRunner: DeviceRuntimeLifecycleCommandRunner = {
   run(input) {
-    const result = spawnSync(input.executable, [...input.args], {
-      cwd: input.cwd,
-      env: input.env,
-      encoding: "utf8",
-      timeout: input.timeoutMs,
-      maxBuffer: input.maxBufferBytes
+    return new Promise<DeviceRuntimeLifecycleCommandResult>((resolve) => {
+      execFile(
+        input.executable,
+        [...input.args],
+        {
+          cwd: input.cwd,
+          env: input.env,
+          encoding: "utf8",
+          timeout: input.timeoutMs,
+          maxBuffer: input.maxBufferBytes
+        },
+        (error, stdout, stderr) => {
+          const numericExitCode =
+            error && typeof error.code === "number" ? error.code : null;
+          resolve({
+            status: error ? numericExitCode : 0,
+            stdout: stdout ?? "",
+            stderr: stderr ?? "",
+            ...(error && numericExitCode === null ? { error } : {})
+          });
+        }
+      );
     });
-    return {
-      status: result.status,
-      stdout: result.stdout ?? "",
-      stderr: result.stderr ?? "",
-      ...(result.error ? { error: result.error } : {})
-    };
   }
 };
 
@@ -124,7 +134,10 @@ export class MacOSChatCockpitRuntimeLifecycleAdapter
   ) {}
 
   async status(): Promise<DeviceRuntimeConditions> {
-    const result = this.invoke(["status", "--json", "--product-identity", "chatcockpit"], 10_000);
+    const result = await this.invoke(
+      ["status", "--json", "--product-identity", "chatcockpit"],
+      10_000
+    );
     if (result.error || result.status !== 0) {
       throw new DeviceRuntimeLifecycleError(
         "DEVICE_RUNTIME_STATUS_FAILED",
@@ -135,19 +148,19 @@ export class MacOSChatCockpitRuntimeLifecycleAdapter
   }
 
   async start(): Promise<void> {
-    this.invokeAction("start");
+    await this.invokeAction("start");
   }
 
   async stop(): Promise<void> {
-    this.invokeAction("stop");
+    await this.invokeAction("stop");
   }
 
   async restart(): Promise<void> {
-    this.invokeAction("restart");
+    await this.invokeAction("restart");
   }
 
-  private invokeAction(action: "start" | "stop" | "restart"): void {
-    const result = this.invoke(
+  private async invokeAction(action: "start" | "stop" | "restart"): Promise<void> {
+    const result = await this.invoke(
       [action, "--product-identity", "chatcockpit"],
       100_000
     );
@@ -159,10 +172,10 @@ export class MacOSChatCockpitRuntimeLifecycleAdapter
     }
   }
 
-  private invoke(
+  private async invoke(
     args: readonly string[],
     timeoutMs: number
-  ): DeviceRuntimeLifecycleCommandResult {
+  ): Promise<DeviceRuntimeLifecycleCommandResult> {
     const executable = path.join(
       this.paths.installRoot,
       "scripts",
@@ -181,7 +194,7 @@ export class MacOSChatCockpitRuntimeLifecycleAdapter
       [runtimeIdentityEnvName("DISTRIBUTION_MODE", this.paths.productIdentity)]:
         this.paths.distributionMode
     };
-    return this.runner.run({
+    return await this.runner.run({
       executable,
       args,
       cwd: this.paths.installRoot,

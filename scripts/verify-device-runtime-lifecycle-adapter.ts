@@ -119,6 +119,40 @@ try {
     ]
   );
 
+  const asyncInstallRoot = path.join(root, "async-install");
+  const asyncStateRoot = path.join(root, "async-state");
+  const asyncHelperDir = path.join(asyncInstallRoot, "scripts");
+  fs.mkdirSync(asyncHelperDir, { recursive: true });
+  fs.mkdirSync(asyncStateRoot, { recursive: true });
+  const asyncHelperPath = path.join(asyncHelperDir, "macos-manage-local-server.sh");
+  fs.writeFileSync(asyncHelperPath, "#!/bin/sh\nsleep 1\nexit 0\n", { mode: 0o755 });
+  fs.chmodSync(asyncHelperPath, 0o755);
+  const asyncContext = buildDistributionContextForProduct(
+    "chatcockpit",
+    {
+      mode: "source",
+      installRoot: asyncInstallRoot,
+      stateRoot: asyncStateRoot,
+      primaryWorkspaceRoot: repoRoot,
+      nodeExecutable: process.execPath,
+      configPath: path.join(asyncStateRoot, "config.json")
+    },
+    { ...process.env, HOME: home }
+  );
+  const asyncAdapter = new MacOSChatCockpitRuntimeLifecycleAdapter(buildPaths(asyncContext));
+  let asyncRestartResolved = false;
+  const asyncRestart = asyncAdapter.restart().then(() => {
+    asyncRestartResolved = true;
+  });
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    asyncRestartResolved,
+    false,
+    "default lifecycle runner must not block the Supervisor event loop"
+  );
+  await asyncRestart;
+  assert.equal(asyncRestartResolved, true);
+
   runner.next = {
     status: 0,
     stdout: JSON.stringify({
