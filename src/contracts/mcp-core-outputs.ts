@@ -242,12 +242,52 @@ const projectMcpApplicabilityServerSchema = z.object({
   enabled: z.boolean()
 });
 
+const projectDevelopmentProviderCapabilitySchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  observation: z.object({
+    status: z.enum(["ready", "degraded", "not-required"]),
+    reason: z.string().nullable()
+  }),
+  source: z.string().nullable(),
+  configuredCount: z.number().int().nonnegative().nullable(),
+  applicableCount: z.number().int().nonnegative().nullable(),
+  disabledCount: z.number().int().nonnegative().nullable(),
+  items: z.array(z.object({
+    id: z.string(),
+    enabled: z.boolean()
+  })),
+  warnings: z.array(z.string())
+});
+
+const projectDevelopmentProviderSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  runtimeKind: z.string(),
+  runtimeAvailability: z.enum(["available", "unavailable", "unknown"]),
+  observation: z.object({
+    status: z.enum(["ready", "degraded", "not-required"]),
+    reason: z.string().nullable(),
+    latencyBudgetMs: z.number().int().positive()
+  }),
+  continuation: z.object({
+    action: z.enum(["resume", "start", "repair", "unavailable"]),
+    reason: z.string(),
+    actionIds: z.array(z.string()),
+    matchingContext: matchingThreadSchema.nullable()
+  }),
+  capabilities: z.array(projectDevelopmentProviderCapabilitySchema),
+  warnings: z.array(z.string())
+});
+
 const projectDevelopmentCoordinationSchema = z.object({
   projectId: identifierSchema,
   workspaceId: nullableIdentifierSchema,
   repoId: z.string().nullable(),
   modelLoopOwnership: z.object({
     defaultOwner: z.literal("caller"),
+    implicitProviderTurnAllowed: z.literal(false),
+    providerTurnRequiresExplicitTransfer: z.literal(true),
     implicitCodexTurnAllowed: z.literal(false),
     codexTurnRequiresExplicitTransfer: z.literal(true)
   }),
@@ -262,6 +302,7 @@ const projectDevelopmentCoordinationSchema = z.object({
     detached: z.boolean(),
     dirty: z.boolean()
   }),
+  providers: z.array(projectDevelopmentProviderSchema),
   codexContinuity: z.object({
     runtimeAvailable: z.boolean(),
     runtimeAvailability: z.enum(["available", "unavailable", "unknown"]),
