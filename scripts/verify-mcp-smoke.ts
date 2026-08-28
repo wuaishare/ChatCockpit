@@ -105,9 +105,11 @@ async function runMcpSmoke(): Promise<void> {
   const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   const originalToken = process.env.CHATCOCKPIT_API_TOKEN;
   const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  const originalAllowHighTrust = process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_API_TOKEN = "test-token";
   process.env.CHATCOCKPIT_EXPOSED = "true";
+  delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
 
   const app = buildServer(paths);
   let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
@@ -1355,6 +1357,11 @@ async function runMcpSmoke(): Promise<void> {
       delete process.env.CHATCOCKPIT_EXPOSED;
     } else {
       process.env.CHATCOCKPIT_EXPOSED = originalExposed;
+    }
+    if (originalAllowHighTrust === undefined) {
+      delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
+    } else {
+      process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS = originalAllowHighTrust;
     }
   }
 }
