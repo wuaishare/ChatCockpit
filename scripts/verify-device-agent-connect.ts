@@ -17,6 +17,7 @@ import {
 import { updateAccessPolicy } from "../src/security/access-policy.js";
 import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+import { fastifyInjectFetch } from "./test-support/fastify-inject-fetch.ts";
 
 function sessionCookie(headers: Record<string, string | string[] | undefined>): string {
   const value = headers["set-cookie"];
@@ -76,10 +77,9 @@ async function main(): Promise<void> {
   const app = buildServer(paths, { deviceNow: () => currentNow });
 
   try {
-    await app.listen({ host: "127.0.0.1", port: 0 });
-    const address = app.server.address();
-    assert.ok(address && typeof address !== "string");
-    const hubOrigin = `http://127.0.0.1:${address.port}`;
+    await app.ready();
+    const hubOrigin = "http://127.0.0.1:4318";
+    const fetchImpl = fastifyInjectFetch(app);
 
     const login = await app.inject({
       method: "POST",
@@ -116,6 +116,7 @@ async function main(): Promise<void> {
     let pendingId = "";
     const agent = new DeviceAgentService({
       runtimeDir: agentRuntime,
+      fetchImpl,
       sleep: async () => undefined,
       now: () => currentNow
     });
@@ -163,6 +164,7 @@ async function main(): Promise<void> {
 
     const restarted = new DeviceAgentService({
       runtimeDir: agentRuntime,
+      fetchImpl,
       sleep: async () => undefined,
       now: () => currentNow
     });
@@ -199,6 +201,7 @@ async function main(): Promise<void> {
     const deniedRuntime = path.join(root, "denied-runtime");
     const deniedAgent = new DeviceAgentService({
       runtimeDir: deniedRuntime,
+      fetchImpl,
       sleep: async () => undefined,
       now: () => currentNow
     });
@@ -215,6 +218,7 @@ async function main(): Promise<void> {
     const expiredRuntime = path.join(root, "expired-runtime");
     const expiredAgent = new DeviceAgentService({
       runtimeDir: expiredRuntime,
+      fetchImpl,
       sleep: async () => undefined,
       now: () => currentNow
     });

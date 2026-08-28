@@ -359,7 +359,11 @@ function printDeviceStatus(status: DeviceAgentStatus): void {
   process.stdout.write(`Last heartbeat: ${status.lastHeartbeatAt ?? "never"}\n`);
 }
 
-async function main(): Promise<void> {
+export interface CliRuntimeDependencies {
+  createDeviceAgentService?: (runtimeDir: string) => DeviceAgentService;
+}
+
+export async function main(dependencies: CliRuntimeDependencies = {}): Promise<void> {
   const command = process.argv[2];
   const productIdentity = productIdentityFromArgs();
   const paths = buildPaths(buildDistributionContextForProduct(productIdentity));
@@ -705,7 +709,8 @@ async function main(): Promise<void> {
     }
     case "device": {
       const subcommand = process.argv[3];
-      const service = new DeviceAgentService({ runtimeDir: paths.runtimeDir });
+      const service = dependencies.createDeviceAgentService?.(paths.runtimeDir)
+        ?? new DeviceAgentService({ runtimeDir: paths.runtimeDir });
       const json = process.argv.includes("--json");
       switch (subcommand) {
         case "status": {
@@ -1423,7 +1428,18 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack || error.message : String(error)}\n`);
-  process.exit(1);
-});
+const invokedCliPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
+const currentCliPath = fileURLToPath(import.meta.url);
+const isDirectCliInvocation = invokedCliPath !== null && (() => {
+  try {
+    return fs.realpathSync(invokedCliPath) === fs.realpathSync(currentCliPath);
+  } catch {
+    return invokedCliPath === currentCliPath;
+  }
+})();
+if (isDirectCliInvocation) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack || error.message : String(error)}\n`);
+    process.exit(1);
+  });
+}

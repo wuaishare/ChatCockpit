@@ -134,7 +134,11 @@ try {
   assert.equal(failingPublisher.stopCount, 0);
 
   const cliSource = fs.readFileSync(path.resolve(import.meta.dirname, "../src/cli/index.ts"), "utf8");
-  assert.match(cliSource, /buildServer\(paths, \{\s*lanDiscovery: \{ host, port \}/s);
+  assert.match(
+    cliSource,
+    /const app = buildServer\(paths, \{[\s\S]{0,500}?lanDiscovery: \{ host, port \}/,
+    "CLI server wiring must pass LAN discovery host/port into buildServer regardless of other server options"
+  );
   assert.match(cliSource, /await app\.listen\(\{ host, port \}\)/);
 
   process.stdout.write("VERIFY_LAN_DISCOVERY_SERVER_LIFECYCLE_OK\n");

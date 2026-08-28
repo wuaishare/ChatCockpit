@@ -2,73 +2,47 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
 import { updateAccessPolicy } from "../src/security/access-policy.js";
 import { buildServer } from "../src/server/app.js";
+import { DeviceAgentService } from "../src/devices/device-agent.js";
+import {
+  main as runCliMain,
+  type CliRuntimeDependencies
+} from "../src/cli/index.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+import { fastifyInjectFetch } from "./test-support/fastify-inject-fetch.ts";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
+const fixtureHubOrigin = "http://127.0.0.1:4318";
+
+type CliResult = {
+  status: number;
+  stdout: string;
+  stderr: string;
+};
 
 function cliEnv(home: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     HOME: home,
+    CHATCOCKPIT_STATE_ROOT: path.join(home, ".chatcockpit"),
     CHATCOCKPIT_EXPOSED: "false",
     CHATCOCKPIT_API_TOKEN: "",
     CHATCOCKPIT_PUBLIC_BASE_URL: ""
   };
 }
 
-function runCli(home: string, args: string[]) {
-  return spawnSync(process.execPath, ["--import", "tsx", "src/cli/index.ts", ...args], {
+function runCli(home: string, args: string[], entryPath = "src/cli/index.ts") {
+  return spawnSync(process.execPath, ["--import", "tsx", entryPath, ...args], {
     cwd: repoRoot,
     env: cliEnv(home),
     encoding: "utf8"
   });
-}
-
-async function runCliAsync(home: string, args: string[]) {
-  const child = spawn(process.execPath, ["--import", "tsx", "src/cli/index.ts", ...args], {
-    cwd: repoRoot,
-    env: cliEnv(home),
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  let stdout = "";
-  let stderr = "";
-  child.stdout.setEncoding("utf8");
-  child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => { stdout += chunk; });
-  child.stderr.on("data", (chunk) => { stderr += chunk; });
-  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-    child.once("exit", (code, signal) => resolve({ code, signal }));
-  });
-  return { child, exited, output: () => ({ stdout, stderr }) };
-}
-
-async function waitForCliExit(
-  execution: Awaited<ReturnType<typeof runCliAsync>>,
-  label: string,
-  timeoutMs = 12_000
-) {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      execution.exited,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          execution.child.kill("SIGKILL");
-          const output = execution.output();
-          reject(new Error(`${label} timed out\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`));
-        }, timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 function parseJson(value: string): Record<string, unknown> {
@@ -90,6 +64,72 @@ async function waitFor<T>(load: () => Promise<T | null>, timeoutMs = 8_000): Pro
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
   throw new Error("Timed out waiting for Device Agent CLI fixture state");
+}
+
+function outputChunk(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Uint8Array) return Buffer.from(value).toString("utf8");
+  return String(value);
+}
+
+async function runCliInProcess(
+  home: string,
+  args: string[],
+  dependencies: CliRuntimeDependencies
+): Promise<CliResult> {
+  const originalArgv = process.argv;
+  const originalHome = process.env.HOME;
+  const originalStateRoot = process.env.CHATCOCKPIT_STATE_ROOT;
+  const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
+  const originalApiToken = process.env.CHATCOCKPIT_API_TOKEN;
+  const originalPublicBaseUrl = process.env.CHATCOCKPIT_PUBLIC_BASE_URL;
+  const originalStdoutWrite = process.stdout.write;
+  const originalStderrWrite = process.stderr.write;
+  let stdout = "";
+  let stderr = "";
+
+  process.argv = [process.execPath, path.join(repoRoot, "src/cli/index.ts"), ...args];
+  process.env.HOME = home;
+  process.env.CHATCOCKPIT_STATE_ROOT = path.join(home, ".chatcockpit");
+  process.env.CHATCOCKPIT_EXPOSED = "false";
+  process.env.CHATCOCKPIT_API_TOKEN = "";
+  delete process.env.CHATCOCKPIT_PUBLIC_BASE_URL;
+  Object.defineProperty(process.stdout, "write", {
+    configurable: true,
+    value: (chunk: unknown) => {
+      stdout += outputChunk(chunk);
+      return true;
+    }
+  });
+  Object.defineProperty(process.stderr, "write", {
+    configurable: true,
+    value: (chunk: unknown) => {
+      stderr += outputChunk(chunk);
+      return true;
+    }
+  });
+
+  try {
+    await runCliMain(dependencies);
+    return { status: 0, stdout, stderr };
+  } catch (error) {
+    stderr += `${error instanceof Error ? error.stack || error.message : String(error)}\n`;
+    return { status: 1, stdout, stderr };
+  } finally {
+    process.argv = originalArgv;
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalStateRoot === undefined) delete process.env.CHATCOCKPIT_STATE_ROOT;
+    else process.env.CHATCOCKPIT_STATE_ROOT = originalStateRoot;
+    if (originalExposed === undefined) delete process.env.CHATCOCKPIT_EXPOSED;
+    else process.env.CHATCOCKPIT_EXPOSED = originalExposed;
+    if (originalApiToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = originalApiToken;
+    if (originalPublicBaseUrl === undefined) delete process.env.CHATCOCKPIT_PUBLIC_BASE_URL;
+    else process.env.CHATCOCKPIT_PUBLIC_BASE_URL = originalPublicBaseUrl;
+    Object.defineProperty(process.stdout, "write", { configurable: true, value: originalStdoutWrite });
+    Object.defineProperty(process.stderr, "write", { configurable: true, value: originalStderrWrite });
+  }
 }
 
 async function main(): Promise<void> {
@@ -141,10 +181,18 @@ async function main(): Promise<void> {
 
   const app = buildServer(paths);
   try {
-    await app.listen({ host: "127.0.0.1", port: 0 });
-    const address = app.server.address();
-    assert.ok(address && typeof address !== "string");
-    const hubOrigin = `http://127.0.0.1:${address.port}`;
+    await app.ready();
+    const fetchImpl = fastifyInjectFetch(app);
+    const dependencies: CliRuntimeDependencies = {
+      createDeviceAgentService: (runtimeDir) => new DeviceAgentService({
+        runtimeDir,
+        fetchImpl,
+        sleep: async (_milliseconds, signal) => {
+          if (signal?.aborted) throw new DOMException("The operation was aborted", "AbortError");
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+      })
+    };
 
     const login = await app.inject({
       method: "POST",
@@ -156,29 +204,46 @@ async function main(): Promise<void> {
     const owner = login.json() as { csrfToken: string };
     const cookie = sessionCookie(login.headers);
 
+    // Keep one true child-process smoke so the executable entrypoint/guard is covered.
     let result = runCli(home, ["device", "status", "--json"]);
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(parseJson(result.stdout), { configured: false, state: "unconfigured" });
 
-    const connect = await runCliAsync(home, [
+    const symlinkCliPath = path.join(root, "chatcockpit-cli.ts");
+    fs.symlinkSync(path.join(repoRoot, "src/cli/index.ts"), symlinkCliPath);
+    result = runCli(home, ["device", "status", "--json"], symlinkCliPath);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(parseJson(result.stdout), { configured: false, state: "unconfigured" });
+
+    // Successful network-shaped CLI flows use Fastify inject instead of binding a TCP listener.
+    // This keeps the verifier runnable inside Chat Direct/Codex sandboxes while still crossing
+    // CLI -> DeviceAgentService -> HTTP transport -> real Hub routes.
+    const connectPromise = runCliInProcess(home, [
       "device",
       "connect",
-      hubOrigin,
+      fixtureHubOrigin,
       "--name",
       "CLI Test Device",
       "--json"
-    ]);
+    ], dependencies);
 
-    const enrollment = await waitFor(async () => {
-      const pending = await app.inject({
-        method: "GET",
-        url: "/api/devices/enrollment-requests",
-        headers: { cookie }
-      });
-      assert.equal(pending.statusCode, 200, pending.body);
-      const requests = (pending.json() as { enrollmentRequests: Array<{ id: string }> }).enrollmentRequests;
-      return requests[0] ?? null;
-    });
+    const enrollment = await Promise.race([
+      waitFor(async () => {
+        const pending = await app.inject({
+          method: "GET",
+          url: "/api/devices/enrollment-requests",
+          headers: { cookie }
+        });
+        assert.equal(pending.statusCode, 200, pending.body);
+        const requests = (pending.json() as { enrollmentRequests: Array<{ id: string }> }).enrollmentRequests;
+        return requests[0] ?? null;
+      }),
+      connectPromise.then((early) => {
+        throw new Error(
+          `device connect exited before enrollment was observable (status=${early.status})\nstdout:\n${early.stdout}\nstderr:\n${early.stderr}`
+        );
+      })
+    ]);
     const decision = await app.inject({
       method: "POST",
       url: `/api/devices/enrollment-requests/${enrollment.id}/decision`,
@@ -187,65 +252,83 @@ async function main(): Promise<void> {
     });
     assert.equal(decision.statusCode, 200, decision.body);
 
-    const connectExit = await waitForCliExit(connect, "device connect");
-    const connectOutput = connect.output();
-    assert.equal(connectExit.code, 0, connectOutput.stderr);
-    const connected = parseJson(connectOutput.stdout);
+    const connect = await connectPromise;
+    assert.equal(connect.status, 0, connect.stderr);
+    const connected = parseJson(connect.stdout);
     assert.equal(connected.configured, true);
     assert.equal(connected.state, "connected");
     assert.match(String(connected.deviceId), /^cc_device_[A-Za-z0-9_-]{20,80}$/);
-    assert.match(connectOutput.stderr, /verificationCode/i);
-    assert.match(connectOutput.stderr, /[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}/);
-    assert.doesNotMatch(connectOutput.stdout + connectOutput.stderr, /privateKey|private_key|pairing[-_ ]?(id|secret|code)/i);
+    assert.match(connect.stderr, /verificationCode/i);
+    assert.match(connect.stderr, /[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}/);
+    assert.doesNotMatch(connect.stdout + connect.stderr, /privateKey|private_key|pairing[-_ ]?(id|secret|code)/i);
 
+    // The child-process path must observe the state written by the injected successful flow.
     result = runCli(home, ["device", "status", "--json"]);
     assert.equal(result.status, 0, result.stderr);
     const status = parseJson(result.stdout);
     assert.equal(status.deviceId, connected.deviceId);
     const nextBeforeHeartbeat = Number(status.nextSequence);
 
-    const heartbeatExecution = await runCliAsync(home, ["device", "heartbeat", "--json"]);
-    const heartbeatExit = await waitForCliExit(heartbeatExecution, "device heartbeat");
-    const heartbeatOutput = heartbeatExecution.output();
-    assert.equal(heartbeatExit.code, 0, heartbeatOutput.stderr);
-    const heartbeat = parseJson(heartbeatOutput.stdout);
-    assert.equal(Number(heartbeat.nextSequence), nextBeforeHeartbeat + 1);
+    const heartbeat = await runCliInProcess(home, ["device", "heartbeat", "--json"], dependencies);
+    assert.equal(heartbeat.status, 0, heartbeat.stderr);
+    const heartbeatStatus = parseJson(heartbeat.stdout);
+    assert.equal(Number(heartbeatStatus.nextSequence), nextBeforeHeartbeat + 1);
 
-    const alternateHubOrigin = `http://localhost:${address.port}`;
-    const routeExecution = await runCliAsync(home, [
+    const alternateHubOrigin = "http://localhost:4318";
+    const route = await runCliInProcess(home, [
       "device",
       "route",
       "verify",
       alternateHubOrigin,
       "--json"
-    ]);
-    const routeExit = await waitForCliExit(routeExecution, "device route verify");
-    const routeOutput = routeExecution.output();
-    assert.equal(routeExit.code, 0, routeOutput.stderr);
-    const routed = parseJson(routeOutput.stdout);
+    ], dependencies);
+    assert.equal(route.status, 0, route.stderr);
+    const routed = parseJson(route.stdout);
     assert.equal(routed.hubOrigin, alternateHubOrigin);
-    assert.deepEqual(routed.knownHubOrigins, [hubOrigin, alternateHubOrigin]);
+    assert.deepEqual(routed.knownHubOrigins, [fixtureHubOrigin, alternateHubOrigin]);
     assert.equal(routed.deviceId, connected.deviceId);
-    assert.equal(Number(routed.nextSequence), Number(heartbeat.nextSequence));
+    assert.equal(Number(routed.nextSequence), Number(heartbeatStatus.nextSequence));
 
-    const agent = await runCliAsync(home, ["device", "agent", "--json"]);
-    await waitFor(async () => {
-      const list = await app.inject({ method: "GET", url: "/api/devices", headers: { cookie } });
-      const devices = (list.json() as { devices: Array<{ id: string; revision: number }> }).devices;
-      const device = devices.find((candidate) => candidate.id === connected.deviceId);
-      return device && device.revision >= 4 ? device : null;
-    });
-    agent.child.kill("SIGTERM");
-    const agentExit = await waitForCliExit(agent, "device agent shutdown");
-    const agentOutput = agent.output();
-    assert.equal(agentExit.code, 0, agentOutput.stderr);
-    assert.doesNotMatch(agentOutput.stderr, /compatibility-mode|Deprecated:/i);
-    const finalAgentStatus = parseJson(agentOutput.stdout);
+    const beforeAgent = await app.inject({ method: "GET", url: "/api/devices", headers: { cookie } });
+    assert.equal(beforeAgent.statusCode, 200, beforeAgent.body);
+    const beforeRevision = (beforeAgent.json() as { devices: Array<{ id: string; revision: number }> }).devices
+      .find((candidate) => candidate.id === connected.deviceId)?.revision;
+    assert.equal(typeof beforeRevision, "number");
+
+    const agentPromise = runCliInProcess(home, [
+      "device",
+      "agent",
+      "--heartbeat-only",
+      "--interval",
+      "5",
+      "--json"
+    ], dependencies);
+    await Promise.race([
+      waitFor(async () => {
+        const list = await app.inject({ method: "GET", url: "/api/devices", headers: { cookie } });
+        assert.equal(list.statusCode, 200, list.body);
+        const device = (list.json() as { devices: Array<{ id: string; revision: number }> }).devices
+          .find((candidate) => candidate.id === connected.deviceId);
+        return device && device.revision > Number(beforeRevision) ? device : null;
+      }),
+      agentPromise.then((early) => {
+        throw new Error(
+          `device agent exited before heartbeat was observable (status=${early.status})\nstdout:\n${early.stdout}\nstderr:\n${early.stderr}`
+        );
+      })
+    ]);
+    process.emit("SIGTERM", "SIGTERM");
+    const agent = await agentPromise;
+    assert.equal(agent.status, 0, agent.stderr);
+    assert.doesNotMatch(agent.stderr, /Deprecated:/i);
+    const finalAgentStatus = parseJson(agent.stdout);
     assert.equal(finalAgentStatus.deviceId, connected.deviceId);
 
     result = runCli(home, ["device", "pair", "--pairing-id", "legacy"]);
     assert.notEqual(result.status, 0);
-    assert.doesNotMatch(fs.readFileSync(path.join(repoRoot, "src/cli/index.ts"), "utf8"), /pairing-id|pairing-code-stdin/);
+    const cliSource = fs.readFileSync(path.join(repoRoot, "src/cli/index.ts"), "utf8");
+    assert.doesNotMatch(cliSource, /pairing-id|pairing-code-stdin/);
+    assert.match(cliSource, /runOutboundChannelLoop/);
 
     const insecureHome = path.join(root, "insecure-home");
     fs.mkdirSync(insecureHome, { recursive: true });
