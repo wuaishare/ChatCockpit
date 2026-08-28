@@ -112,18 +112,20 @@ export class ProjectService {
 
   list(context: OperationContext, status?: ProjectStatus): ProjectProjection[] {
     this.syncConfiguredProjects(context);
+    const snapshot = this.configStore.snapshot();
     return this.repositories.projects.list(status).map((project) => ({
       project,
-      workspaces: this.repositories.workspaces.listByProject(project.id)
+      workspaces: this.configuredProjectWorkspaces(project, snapshot)
     }));
   }
 
   get(context: OperationContext, projectId: string): ProjectProjection {
     this.syncConfiguredProjects(context);
+    const snapshot = this.configStore.snapshot();
     const project = this.repositories.projects.get(projectId);
     return {
       project,
-      workspaces: this.repositories.workspaces.listByProject(project.id)
+      workspaces: this.configuredProjectWorkspaces(project, snapshot)
     };
   }
 
@@ -283,6 +285,78 @@ export class ProjectService {
     };
   }
 
+  detachRoot(context: OperationContext, input: {
+    projectId: string;
+    rootId: string;
+    expectedConfigRevision: string;
+  }): ProjectRegistryMutationResult {
+    this.syncConfiguredProjects(context);
+    const project = this.repositories.projects.get(input.projectId);
+    const snapshot = this.configStore.snapshot();
+    if (snapshot.revision !== input.expectedConfigRevision) {
+      throw new ServiceError(
+        "WORKSPACE_CONFIG_REVISION_CONFLICT",
+        "Workspace configuration changed before it could be updated",
+        {
+          details: {
+            expectedRevision: input.expectedConfigRevision,
+            actualRevision: snapshot.revision
+          }
+        }
+      );
+    }
+    const configuredProject = snapshot.projects[project.slug];
+    if (!configuredProject?.rootIds.includes(input.rootId)) {
+      throw new ServiceError(
+        "PROJECT_ROOT_NOT_ATTACHED",
+        "ProjectRoot does not belong to the selected Project"
+      );
+    }
+
+    this.repositories.leases.reconcileExpired(context.now);
+    this.repositories.coreWriterAuthorities.reconcileExpired(context.now);
+    const linkedWorkspaces = Object.entries(snapshot.executionWorkspaces)
+      .filter(([, workspace]) => workspace.projectRootId === input.rootId)
+      .map(([repoId]) => this.repositories.workspaces.findPrivateByProjectRepo(project.id, repoId))
+      .filter((workspace): workspace is PrivateWorkspaceRecord => Boolean(workspace));
+    for (const workspace of linkedWorkspaces) {
+      const lease = this.repositories.leases.getActive(workspace.id);
+      const authority = this.repositories.coreWriterAuthorities.getActive(workspace.id);
+      if (lease || authority) {
+        throw new ServiceError(
+          "PROJECT_ROOT_IN_USE",
+          "ProjectRoot cannot be detached while one of its Workspaces has active writer authority",
+          {
+            details: {
+              projectId: project.id,
+              rootId: input.rootId,
+              workspaceId: workspace.id
+            }
+          }
+        );
+      }
+    }
+
+    const updated = this.configStore.detachProjectRoot({
+      projectSlug: project.slug,
+      rootId: input.rootId,
+      expectedRevision: input.expectedConfigRevision
+    });
+    for (const workspace of linkedWorkspaces) {
+      const current = this.repositories.workspaces.getPrivate(workspace.id);
+      if (current.status === "archived") continue;
+      this.repositories.workspaces.archive(current.id, {
+        expectedRevision: current.revision,
+        now: context.now
+      });
+    }
+    this.syncConfiguredProjects(context);
+    return {
+      configRevision: updated.revision,
+      ...this.registryProjection(this.repositories.projects.get(project.id), updated)
+    };
+  }
+
   /** @deprecated Use attachRoot with kind=git-repository. */
   attachWorkspace(context: OperationContext, input: {
     projectId: string;
@@ -390,13 +464,29 @@ export class ProjectService {
     }
   }
 
+  private configuredProjectWorkspaces(
+    project: ProjectRecord,
+    snapshot: WorkspaceConfigSnapshot
+  ): WorkspaceRecord[] {
+    const configured = snapshot.projects[project.slug];
+    if (!configured) return [];
+    const configuredRepoIds = new Set(
+      Object.entries(snapshot.executionWorkspaces)
+        .filter(([, workspace]) => configured.rootIds.includes(workspace.projectRootId))
+        .map(([repoId]) => repoId)
+    );
+    return this.repositories.workspaces
+      .listByProject(project.id)
+      .filter((workspace) => configuredRepoIds.has(workspace.repoId) && workspace.status !== "archived");
+  }
+
   private projectRootEntries(
     project: ProjectRecord,
     snapshot: WorkspaceConfigSnapshot
   ): Array<{ summary: ProjectRootProjection; privatePath: string }> {
     const configured = snapshot.projects[project.slug];
     if (!configured) return [];
-    const workspaces = this.repositories.workspaces.listByProject(project.id);
+    const workspaces = this.configuredProjectWorkspaces(project, snapshot);
     const workspaceByRepoId = new Map(workspaces.map((workspace) => [workspace.repoId, workspace]));
 
     return configured.rootIds.map((rootId) => {
@@ -446,7 +536,7 @@ export class ProjectService {
   ): ProjectRegistryProjectProjection {
     return {
       project,
-      workspaces: this.repositories.workspaces.listByProject(project.id),
+      workspaces: this.configuredProjectWorkspaces(project, snapshot),
       roots: this.projectRootEntries(project, snapshot).map((entry) => entry.summary)
     };
   }
@@ -457,8 +547,7 @@ export class ProjectService {
   ): ProjectRegistryProjectDetailProjection {
     return {
       project,
-      workspaces: this.repositories.workspaces
-        .listByProject(project.id)
+      workspaces: this.configuredProjectWorkspaces(project, snapshot)
         .map((workspace) => this.repositories.workspaces.getPrivate(workspace.id)),
       roots: this.projectRootEntries(project, snapshot).map((entry) => ({
         ...entry.summary,

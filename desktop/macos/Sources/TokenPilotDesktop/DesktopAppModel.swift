@@ -425,6 +425,48 @@ final class DesktopAppModel: ObservableObject {
         }
     }
 
+    func removeProjectRoot(_ rootID: String) {
+        guard let project = selectedPackagedProject,
+              project.roots.contains(where: { $0.id == rootID }) else { return }
+        guard project.roots.count > 1 else {
+            lastUserMessage = DesktopL10n.string(
+                "The last project root cannot be removed from an active project."
+            )
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = DesktopL10n.string("Remove Project Root?")
+        alert.informativeText = DesktopL10n.string(
+            "This only removes the folder from the ChatCockpit project registry. The folder and all files on disk remain unchanged. Linked execution workspaces are archived from this project."
+        )
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: DesktopL10n.string("Remove Root"))
+        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        Task { [weak self] in
+            guard let self,
+                  let project = self.selectedPackagedProject,
+                  let revision = self.projectRegistryRevision else { return }
+            do {
+                let context = try await self.projectRegistryManagementContext()
+                _ = try await self.projectRegistryClient.detachRoot(
+                    projectID: project.id,
+                    rootID: rootID,
+                    expectedRevision: revision,
+                    context: context
+                )
+                try await self.reloadProjectRegistry()
+                self.lastUserMessage = DesktopL10n.string(
+                    "Project root removed. Files on disk were not changed, and Runtime lifecycle was not changed."
+                )
+            } catch {
+                self.lastUserMessage = self.projectRegistryMessage(for: error)
+            }
+        }
+    }
+
     func chooseRoot(_ url: URL) async {
         do {
             let root = try rootValidator.validate(url)
@@ -580,7 +622,13 @@ final class DesktopAppModel: ObservableObject {
         }
     }
 
-    private func openLocalCockpitWithPasswordlessGrant() async {
+    func openProjectCenter() {
+        Task { [weak self] in
+            await self?.openLocalCockpitWithPasswordlessGrant(targetPath: "/ui/projects")
+        }
+    }
+
+    private func openLocalCockpitWithPasswordlessGrant(targetPath: String? = nil) async {
         guard let url = snapshot.localCockpitURL else {
             lastUserMessage = DesktopL10n.string(
                 "ChatCockpit Cockpit is not reachable. Start or repair the local services first."
@@ -589,7 +637,15 @@ final class DesktopAppModel: ObservableObject {
         }
 
         guard operatorSecurityStatus?.configured == true else {
-            NSWorkspace.shared.open(url)
+            if let targetPath,
+               var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+                components.path = targetPath
+                components.query = nil
+                components.fragment = nil
+                NSWorkspace.shared.open(components.url ?? url)
+            } else {
+                NSWorkspace.shared.open(url)
+            }
             return
         }
 
@@ -603,7 +659,7 @@ final class DesktopAppModel: ObservableObject {
                 NSWorkspace.shared.open(url)
                 return
             }
-            components.path = "/ui/local-login"
+            components.path = targetPath ?? "/ui/local-login"
             components.query = nil
             components.fragment = "local-login=\(grant.grantSecret)"
             NSWorkspace.shared.open(components.url ?? url)

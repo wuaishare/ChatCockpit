@@ -267,6 +267,13 @@ public protocol DesktopProjectRegistryManaging: Sendable {
         expectedRevision: String,
         context: DesktopDistributionContext
     ) async throws -> String
+
+    func detachRoot(
+        projectID: String,
+        rootID: String,
+        expectedRevision: String,
+        context: DesktopDistributionContext
+    ) async throws -> String
 }
 
 public struct DesktopProjectRegistryClient: DesktopProjectRegistryManaging, Sendable {
@@ -349,6 +356,24 @@ public struct DesktopProjectRegistryClient: DesktopProjectRegistryManaging, Send
         try await mutation(
             arguments: [
                 "project-registry", "make-primary-root",
+                "--project-id", projectID,
+                "--root-id", rootID,
+                "--expected-revision", expectedRevision,
+                "--json"
+            ],
+            context: context
+        )
+    }
+
+    public func detachRoot(
+        projectID: String,
+        rootID: String,
+        expectedRevision: String,
+        context: DesktopDistributionContext
+    ) async throws -> String {
+        try await mutation(
+            arguments: [
+                "project-registry", "detach-root",
                 "--project-id", projectID,
                 "--root-id", rootID,
                 "--expected-revision", expectedRevision,

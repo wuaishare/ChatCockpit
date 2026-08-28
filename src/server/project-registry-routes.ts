@@ -184,6 +184,25 @@ export function registerProjectRegistryRoutes(
       })
   );
 
+  app.post(
+    "/api/projects/:projectId/roots/:rootId/detach",
+    (request, reply) =>
+      ownerOnly(request, reply, () => {
+        const params = parseOrReply(projectRegistryRootParamsSchema, request.params, reply);
+        if (!params) return;
+        const body = parseOrReply(projectRegistryMutationSchema, request.body, reply);
+        if (!body) return;
+        return {
+          ok: true,
+          ...projects.detachRoot(operationContextFromRequest(request), {
+            projectId: params.projectId,
+            rootId: params.rootId,
+            expectedConfigRevision: body.expectedConfigRevision
+          })
+        };
+      })
+  );
+
   // Compatibility route: a Workspace attach is a git-repository ProjectRoot attach.
   app.post("/api/projects/:projectId/workspaces", (request, reply) =>
     ownerOnly(request, reply, () => {

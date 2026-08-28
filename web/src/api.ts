@@ -789,6 +789,17 @@ export async function makeProjectRootPrimary(
   );
 }
 
+export async function detachProjectRoot(
+  projectId: string,
+  rootId: string,
+  expectedConfigRevision: string
+): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/roots/${encodeURIComponent(rootId)}/detach`,
+    { expectedConfigRevision }
+  );
+}
+
 /** @deprecated Compatibility helper for legacy callers. New Project UI uses ProjectRoot APIs. */
 export async function attachProjectWorkspace(
   projectId: string,

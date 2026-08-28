@@ -114,6 +114,7 @@ Usage:
   ${identity.cliName} project-registry create --slug <slug> --display-name <name> --path <folder> --kind git-repository|directory [--role primary-source|supporting-source|documentation|knowledge|assets] [--access read-write|read-only] [--repo-id <repo-id>] [--expected-revision <sha>] [--json]
   ${identity.cliName} project-registry add-root --project-id <id> --path <folder> --kind git-repository|directory [--role primary-source|supporting-source|documentation|knowledge|assets] [--access read-write|read-only] [--repo-id <repo-id>] --expected-revision <sha> [--json]
   ${identity.cliName} project-registry make-primary-root --project-id <id> --root-id <id> --expected-revision <sha> [--json]
+  ${identity.cliName} project-registry detach-root --project-id <id> --root-id <id> --expected-revision <sha> [--json]
   ${identity.cliName} jobs
   ${identity.cliName} job --id "<job-id>"
   ${identity.cliName} operator status [--json]
@@ -596,7 +597,20 @@ export async function main(dependencies: CliRuntimeDependencies = {}): Promise<v
         return;
       }
 
-      throw new Error("project-registry requires list, create, add-root, or make-primary-root");
+      if (subcommand === "detach-root") {
+        const result = withProjectRegistry(paths, (projects, context) =>
+          projects.detachRoot(context, {
+            projectId: requireFlag("--project-id"),
+            rootId: requireFlag("--root-id"),
+            expectedConfigRevision: requireFlag("--expected-revision")
+          })
+        );
+        if (json) printJson({ ok: true, ...result });
+        else printHumanJson({ ok: true, ...result }, paths.repoRoot);
+        return;
+      }
+
+      throw new Error("project-registry requires list, create, add-root, make-primary-root, or detach-root");
     }
     case "jobs": {
       process.stdout.write(`${JSON.stringify(listJobs(paths), null, 2)}\n`);

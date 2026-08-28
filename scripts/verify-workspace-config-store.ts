@@ -247,6 +247,36 @@ assert.equal(docsPrimary.projects.primary?.primaryRootId, docsRootId);
 assert.equal(docsPrimary.executionWorkspaces.primary?.projectRootId, primaryRootId);
 assert.equal(docsPrimary.executionWorkspaces["attached-repo"]?.projectRootId, attachedRootId);
 
+const withoutDocs = store.detachProjectRoot({
+  projectSlug: "primary",
+  rootId: docsRootId,
+  expectedRevision: docsPrimary.revision
+});
+assert.equal(withoutDocs.projects.primary?.primaryRootId, primaryRootId);
+assert.equal(withoutDocs.projects.primary?.rootIds.includes(docsRootId), false);
+assert.equal(withoutDocs.projectRoots[docsRootId], undefined);
+assert.equal(fs.existsSync(docsRoot), true, "detaching a ProjectRoot must not delete its directory");
+
+const withoutAttached = store.detachProjectRoot({
+  projectSlug: "primary",
+  rootId: attachedRootId,
+  expectedRevision: withoutDocs.revision
+});
+assert.equal(withoutAttached.projects.primary?.rootIds.includes(attachedRootId), false);
+assert.equal(withoutAttached.projectRoots[attachedRootId], undefined);
+assert.equal(withoutAttached.executionWorkspaces["attached-repo"], undefined);
+assert.equal(withoutAttached.workspaceAllowlist.includes(canonical(attachedRepo)), false);
+assert.equal(fs.existsSync(attachedRepo), true, "detaching a Git ProjectRoot must not delete its checkout");
+
+assert.throws(
+  () => store.detachProjectRoot({
+    projectSlug: "imported-repo",
+    rootId: importedRootId,
+    expectedRevision: withoutAttached.revision
+  }),
+  (error) => serviceCode(error) === "PROJECT_ROOT_LAST_ROOT"
+);
+
 const rawAfterImport = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
 assert.equal(rawAfterImport.schemaVersion, 3);
 assert.equal("repoMappings" in rawAfterImport, false);
@@ -259,13 +289,13 @@ assert.throws(
       root: discoveryA,
       repoPath: importedRepo,
       repoId: "duplicate-physical-repo",
-      expectedRevision: docsPrimary.revision
+      expectedRevision: withoutAttached.revision
     }),
   (error) => serviceCode(error) === "PROJECT_ROOT_PATH_CONFLICT"
 );
 
 assert.throws(
-  () => store.addDiscoveryRoot(path.join(root, "missing"), docsPrimary.revision),
+  () => store.addDiscoveryRoot(path.join(root, "missing"), withoutAttached.revision),
   (error) => serviceCode(error) === "WORKSPACE_DISCOVERY_ROOT_NOT_FOUND"
 );
 
@@ -274,7 +304,7 @@ if (process.platform !== "win32") {
   assert.equal(mode, 0o600);
 }
 
-const removed = store.removeDiscoveryRoot(discoveryB, docsPrimary.revision);
+const removed = store.removeDiscoveryRoot(discoveryB, withoutAttached.revision);
 assert.deepEqual(removed.discoveryRoots, [canonical(discoveryA)]);
 
 fs.rmSync(root, { recursive: true, force: true });

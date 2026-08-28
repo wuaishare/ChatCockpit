@@ -539,6 +539,14 @@
   font-size: var(--tp-text-xs);
 }
 
+.project-root-row__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .project-workspace-chip {
   display: inline-flex;
   align-items: center;

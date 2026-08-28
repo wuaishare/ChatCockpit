@@ -369,7 +369,12 @@ async function main(): Promise<void> {
     );
     assert.equal(gitWithoutRepoId.status, 200);
     const autoAttached = (await gitWithoutRepoId.json()) as ProjectMutationBody;
-    assert.equal(autoAttached.workspaces.some((workspace) => workspace.repoId === "auto-attached"), true);
+    const autoAttachedWorkspace = autoAttached.workspaces.find((workspace) => workspace.repoId === "auto-attached");
+    assert.ok(autoAttachedWorkspace);
+    const autoAttachedRoot = autoAttached.roots.find((entry) =>
+      entry.executionWorkspaceIds.includes(autoAttachedWorkspace.id)
+    );
+    assert.ok(autoAttachedRoot);
 
     const directoryWithRepoId = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots`,
@@ -428,6 +433,42 @@ async function main(): Promise<void> {
     assert.equal(plainCreated.roots.length, 1);
     assert.equal(plainCreated.roots[0]?.kind, "directory");
 
+    const lastRootDetachResponse = await fetch(
+      `${server.baseUrl}/api/projects/${encodeURIComponent(created.project.id)}/roots/${encodeURIComponent(created.roots[0]!.id)}/detach`,
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedConfigRevision: plainCreated.configRevision })
+      }
+    );
+    assert.equal(lastRootDetachResponse.status, 409);
+    assert.match(await lastRootDetachResponse.text(), /PROJECT_ROOT_LAST_ROOT/);
+
+    const noCsrfDetachResponse = await fetch(
+      `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots/${encodeURIComponent(autoAttachedRoot.id)}/detach`,
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ expectedConfigRevision: plainCreated.configRevision })
+      }
+    );
+    assert.equal(noCsrfDetachResponse.status, 403);
+    assert.match(await noCsrfDetachResponse.text(), /CSRF_REQUIRED/);
+
+    const detachResponse = await fetch(
+      `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots/${encodeURIComponent(autoAttachedRoot.id)}/detach`,
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedConfigRevision: plainCreated.configRevision })
+      }
+    );
+    assert.equal(detachResponse.status, 200);
+    const detached = (await detachResponse.json()) as ProjectMutationBody;
+    assert.equal(detached.roots.some((entry) => entry.id === autoAttachedRoot.id), false);
+    assert.equal(detached.workspaces.some((workspace) => workspace.repoId === "auto-attached"), false);
+    assert.equal(fs.existsSync(autoAttachedRepo), true, "detaching a ProjectRoot must not delete its checkout");
+
     const duplicateRootResponse = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots`,
       {
@@ -437,7 +478,7 @@ async function main(): Promise<void> {
           path: attachedRepo,
           kind: "git-repository",
           repoId: "duplicate",
-          expectedConfigRevision: plainCreated.configRevision
+          expectedConfigRevision: detached.configRevision
         })
       }
     );
@@ -452,7 +493,7 @@ async function main(): Promise<void> {
       configRevision: string;
       projects: Array<{ project: { displayName: string }; roots: RootSummary[] }>;
     };
-    assert.equal(final.configRevision, plainCreated.configRevision);
+    assert.equal(final.configRevision, detached.configRevision);
     assert.deepEqual(
       final.projects.map((entry) => entry.project.displayName).sort(),
       ["Other Project", "Plain Project", "Renamed Project"]
@@ -469,10 +510,10 @@ async function main(): Promise<void> {
     const rawRoots = rawConfig.projectRoots as Record<string, { path: string; kind: string; role: string; access: string }>;
     const rawWorkspaces = rawConfig.executionWorkspaces as Record<string, { projectRootId: string; path: string; kind: string }>;
     assert.equal(rawProjects.primary?.displayName, "Renamed Project");
-    assert.equal(rawProjects.primary?.rootIds.length, 4);
+    assert.equal(rawProjects.primary?.rootIds.length, 3);
     assert.equal(rawProjects.primary?.primaryRootId, attachedRoot.id);
     assert.equal(rawWorkspaces.attached?.projectRootId, attachedRoot.id);
-    assert.equal(rawWorkspaces["auto-attached"]?.kind, "checkout");
+    assert.equal(rawWorkspaces["auto-attached"], undefined);
     assert.equal(rawWorkspaces.other?.kind, "checkout");
     assert.equal(
       Object.values(rawRoots).some((entry) => entry.path === fs.realpathSync.native(documentationRoot) && entry.kind === "directory"),

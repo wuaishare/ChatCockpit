@@ -159,6 +159,39 @@ try {
   assert.equal(finalProject.roots.find((root) => root.id === docs.id)?.primary, true);
   assert.equal(finalProject.project.defaultWorkspaceId, initialDefaultWorkspaceId);
 
+  result = runCli(home, [
+    "project-registry", "detach-root",
+    "--project-id", finalProject.project.id,
+    "--root-id", docs.id,
+    "--expected-revision", listed.configRevision!,
+    "--json"
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const detached = parseJson<{ ok: true; configRevision: string }>(result.stdout);
+  assert.match(detached.configRevision, /^[a-f0-9]{64}$/);
+  assert.equal(fs.existsSync(docsRoot), true, "CLI detach-root must not delete the folder");
+
+  result = runCli(home, ["project-registry", "list", "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  listed = parseJson<RegistryList>(result.stdout);
+  const afterDetach = listed.projects[0]!;
+  assert.equal(afterDetach.roots.length, 1);
+  assert.equal(afterDetach.roots[0]?.privatePath, fs.realpathSync.native(gitRoot));
+  assert.equal(afterDetach.roots[0]?.primary, true);
+  assert.equal(afterDetach.workspaces.length, 1);
+  assert.equal(afterDetach.workspaces[0]?.repoId, "alpha");
+
+  result = runCli(home, [
+    "project-registry", "detach-root",
+    "--project-id", afterDetach.project.id,
+    "--root-id", afterDetach.roots[0]!.id,
+    "--expected-revision", listed.configRevision!,
+    "--json"
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PROJECT_ROOT_LAST_ROOT|last ProjectRoot/i);
+  assert.equal(fs.existsSync(gitRoot), true, "failed last-root detach must not delete the checkout");
+
   const rawConfig = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
   assert.equal(rawConfig.schemaVersion, 3);
   assert.equal("repoMappings" in rawConfig, false);

@@ -13,6 +13,7 @@ import {
 } from "antd";
 import {
   ArrowLeftOutlined,
+  DeleteOutlined,
   FolderAddOutlined,
   MoreOutlined,
   ReloadOutlined,
@@ -22,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   attachProjectRoot,
+  detachProjectRoot,
   fetchProject,
   fetchWorkspaceContinuitySnapshot,
   makeProjectRootPrimary,
@@ -88,7 +90,7 @@ export function ProjectCockpitView({
   onBack
 }: ProjectCockpitViewProps) {
   const copy = getProjectsCopy(locale);
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const [detail, setDetail] = useState<ProjectRegistryDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +189,30 @@ export function ProjectCockpitView({
     } finally {
       setRootMutation(null);
     }
+  };
+
+  const confirmDetachRoot = (rootId: string) => {
+    if (!detail || detail.roots.length <= 1) return;
+    modal.confirm({
+      title: copy.detachRootConfirmTitle,
+      content: copy.detachRootConfirmDescription,
+      okText: copy.detachRoot,
+      cancelText: copy.cancel,
+      okButtonProps: { danger: true },
+      async onOk() {
+        setRootMutation(rootId);
+        try {
+          await detachProjectRoot(projectId, rootId, detail.configRevision);
+          await loadDetail();
+          message.success(copy.operationSucceeded);
+        } catch (actionError) {
+          message.error(problemMessage(actionError, copy.operationFailed));
+          throw actionError;
+        } finally {
+          setRootMutation(null);
+        }
+      }
+    });
   };
 
   const submitRename = async ({ displayName }: { displayName: string }) => {
@@ -395,14 +421,27 @@ export function ProjectCockpitView({
                     )}
                   </div>
 
-                  {!root.primary ? (
-                    <Button
-                      loading={rootMutation === root.id}
-                      onClick={() => void makePrimaryRoot(root.id)}
-                    >
-                      {copy.makePrimaryRoot}
-                    </Button>
-                  ) : null}
+                  <div className="project-root-row__actions">
+                    {!root.primary ? (
+                      <Button
+                        loading={rootMutation === root.id}
+                        onClick={() => void makePrimaryRoot(root.id)}
+                      >
+                        {copy.makePrimaryRoot}
+                      </Button>
+                    ) : null}
+                    <Tooltip title={detail.roots.length <= 1 ? copy.detachRootConfirmDescription : undefined}>
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        disabled={detail.roots.length <= 1}
+                        loading={rootMutation === root.id}
+                        onClick={() => confirmDetachRoot(root.id)}
+                      >
+                        {copy.detachRoot}
+                      </Button>
+                    </Tooltip>
+                  </div>
                 </article>
               );
             })}

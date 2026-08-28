@@ -208,6 +208,36 @@ try {
   );
   assert.ok(attachedRoot);
   assert.equal(attachedRoot.role, "supporting-source");
+  const attachedWorkspaceBeforeDetach = attached.workspaces.find(
+    (workspace) => workspace.repoId === "attached"
+  );
+  assert.ok(attachedWorkspaceBeforeDetach);
+
+  const writerAuthority = repositories.coreWriterAuthorities.acquire({
+    workspaceId: attachedWorkspaceBeforeDetach.id,
+    holderRequestId: "project-root-detach-writer-test",
+    actorType: "local-ui",
+    actorId: "owner-test",
+    authorizationGrantId: null,
+    expiresAt: "2026-08-28T05:10:00.000Z",
+    now: "2026-08-28T05:03:10.000Z"
+  });
+  assert.throws(
+    () => service.detachRoot(
+      { ...context, now: "2026-08-28T05:03:15.000Z" },
+      {
+        projectId,
+        rootId: attachedRoot.id,
+        expectedConfigRevision: attached.configRevision
+      }
+    ),
+    (error) => error instanceof Error && "code" in error && error.code === "PROJECT_ROOT_IN_USE"
+  );
+  repositories.coreWriterAuthorities.release(writerAuthority.id, {
+    holderRequestId: writerAuthority.holderRequestId,
+    expectedRevision: writerAuthority.revision,
+    now: "2026-08-28T05:03:20.000Z"
+  });
 
   const withKnowledge = service.attachRoot(
     { ...context, now: "2026-08-28T05:03:30.000Z" },

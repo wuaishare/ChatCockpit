@@ -295,6 +295,80 @@ export class WorkspaceConfigStore {
     });
   }
 
+  detachProjectRoot(input: {
+    projectSlug: string;
+    rootId: string;
+    expectedRevision: string;
+  }): WorkspaceConfigSnapshot {
+    const current = this.readAndAssertRevision(input.expectedRevision);
+    const projectSlug = validateProjectSlug(input.projectSlug);
+    const project = current.snapshot.projects[projectSlug];
+    if (!project) throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
+    if (!project.rootIds.includes(input.rootId)) {
+      throw new ServiceError(
+        "PROJECT_ROOT_NOT_ATTACHED",
+        "ProjectRoot does not belong to the selected Project"
+      );
+    }
+    if (project.rootIds.length <= 1) {
+      throw new ServiceError(
+        "PROJECT_ROOT_LAST_ROOT",
+        "The last ProjectRoot cannot be detached from an active Project"
+      );
+    }
+
+    const remainingRootIds = project.rootIds.filter((rootId) => rootId !== input.rootId);
+    const roleRank: Record<TokenPilotProjectRootRole, number> = {
+      "primary-source": 0,
+      "supporting-source": 1,
+      documentation: 2,
+      knowledge: 3,
+      assets: 4
+    };
+    const replacementPrimaryRootId = project.primaryRootId === input.rootId
+      ? [...remainingRootIds].sort((leftId, rightId) => {
+          const left = current.snapshot.projectRoots[leftId]!;
+          const right = current.snapshot.projectRoots[rightId]!;
+          const roleDifference = roleRank[left.role] - roleRank[right.role];
+          if (roleDifference !== 0) return roleDifference;
+          if (left.kind !== right.kind) return left.kind === "git-repository" ? -1 : 1;
+          return leftId.localeCompare(rightId);
+        })[0]!
+      : project.primaryRootId;
+
+    const projectRoots = { ...current.snapshot.projectRoots };
+    delete projectRoots[input.rootId];
+
+    const executionWorkspaces = { ...current.snapshot.executionWorkspaces };
+    const detachedWorkspacePaths = new Set<string>();
+    for (const [repoId, workspace] of Object.entries(executionWorkspaces)) {
+      if (workspace.projectRootId !== input.rootId) continue;
+      detachedWorkspacePaths.add(normalizeAbsolutePath(workspace.path));
+      delete executionWorkspaces[repoId];
+    }
+    const retainedWorkspacePaths = new Set(
+      Object.values(executionWorkspaces).map((workspace) => normalizeAbsolutePath(workspace.path))
+    );
+    const workspaceAllowlist = current.snapshot.workspaceAllowlist.filter((entry) => {
+      const normalized = normalizeAbsolutePath(entry);
+      return !detachedWorkspacePaths.has(normalized) || retainedWorkspacePaths.has(normalized);
+    });
+
+    return this.write(current, {
+      workspaceAllowlist,
+      projects: {
+        ...current.snapshot.projects,
+        [projectSlug]: {
+          ...project,
+          primaryRootId: replacementPrimaryRootId,
+          rootIds: remainingRootIds
+        }
+      },
+      projectRoots,
+      executionWorkspaces
+    });
+  }
+
   setPrimaryRoot(input: {
     projectSlug: string;
     rootId: string;

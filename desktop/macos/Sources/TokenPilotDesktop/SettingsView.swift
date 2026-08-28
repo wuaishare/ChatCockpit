@@ -180,6 +180,10 @@ struct SettingsView: View {
                             Task { await model.refresh() }
                         }
                         .disabled(model.isRefreshing)
+                        Button(DesktopL10n.string("Open Project Center")) {
+                            model.openProjectCenter()
+                        }
+                        .disabled(model.snapshot.localCockpitURL == nil)
                     }
 
                     Text(
@@ -231,12 +235,20 @@ struct SettingsView: View {
                                     .textSelection(.enabled)
                                     .lineLimit(2)
 
-                                if !root.primary {
-                                    Button(DesktopL10n.string("Make Primary")) {
-                                        Task { await model.makeProjectRootPrimary(root.id) }
+                                HStack(spacing: 8) {
+                                    if !root.primary {
+                                        Button(DesktopL10n.string("Make Primary")) {
+                                            Task { await model.makeProjectRootPrimary(root.id) }
+                                        }
+                                        .controlSize(.small)
+                                        .disabled(root.status != "ready" || model.isRefreshing)
+                                    }
+
+                                    Button(DesktopL10n.string("Remove Root"), role: .destructive) {
+                                        model.removeProjectRoot(root.id)
                                     }
                                     .controlSize(.small)
-                                    .disabled(root.status != "ready" || model.isRefreshing)
+                                    .disabled(project.roots.count <= 1 || model.isRefreshing)
                                 }
                             }
                             .padding(.vertical, 4)

@@ -38,9 +38,14 @@ assert.match(api, /export async function attachProjectRoot/);
 assert.match(api, /\/roots`/);
 assert.match(api, /export async function makeProjectRootPrimary/);
 assert.match(api, /\/roots\/\$\{encodeURIComponent\(rootId\)\}\/make-primary/);
+assert.match(api, /export async function detachProjectRoot/);
+assert.match(api, /\/roots\/\$\{encodeURIComponent\(rootId\)\}\/detach/);
 assert.match(center, /attachProjectRoot/);
 assert.match(cockpit, /attachProjectRoot/);
 assert.match(cockpit, /makeProjectRootPrimary/);
+assert.match(cockpit, /detachProjectRoot/);
+assert.match(cockpit, /copy\.detachRootConfirmDescription/);
+assert.match(cockpit, /okButtonProps:\s*\{\s*danger:\s*true\s*\}/);
 assert.doesNotMatch(center, /attachProjectWorkspace|makeProjectWorkspacePrimary/);
 assert.doesNotMatch(cockpit, /attachProjectWorkspace|makeProjectWorkspacePrimary/);
 

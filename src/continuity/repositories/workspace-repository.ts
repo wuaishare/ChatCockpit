@@ -164,6 +164,24 @@ export class WorkspaceRepository {
     return this.getPrivate(id);
   }
 
+  archive(
+    id: string,
+    input: {
+      expectedRevision: number;
+      now?: string;
+    }
+  ): PrivateWorkspaceRecord {
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE workspaces
+        SET status = 'archived', updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ?
+      `)
+      .run(nowIso(input.now), id, input.expectedRevision);
+    assertUpdated(result.changes, "Workspace", id, input.expectedRevision);
+    return this.getPrivate(id);
+  }
+
   updateGitState(
     id: string,
     input: {
