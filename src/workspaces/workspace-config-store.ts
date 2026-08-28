@@ -121,6 +121,40 @@ export class WorkspaceConfigStore {
     return this.read().snapshot;
   }
 
+  initializeEmptyIfMissing(): WorkspaceConfigSnapshot {
+    if (fs.existsSync(this.configPath)) return this.snapshot();
+
+    const emptyConfig: TokenPilotUserConfig = {
+      schemaVersion: 3,
+      workspaceDiscoveryRoots: [],
+      workspaceAllowlist: [],
+      projects: {},
+      projectRoots: {},
+      executionWorkspaces: {},
+      defaultRepoId: "primary",
+      repoMappings: {}
+    };
+    const source = `${JSON.stringify(serializeUserConfigV3(emptyConfig), null, 2)}\n`;
+    fs.mkdirSync(path.dirname(this.configPath), { recursive: true });
+    try {
+      fs.writeFileSync(this.configPath, source, {
+        encoding: "utf8",
+        flag: "wx",
+        mode: 0o600
+      });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") {
+        throw new ServiceError(
+          "WORKSPACE_CONFIG_INITIALIZE_FAILED",
+          "ChatCockpit workspace configuration could not be initialized",
+          { cause: error }
+        );
+      }
+    }
+    return this.snapshot();
+  }
+
   addDiscoveryRoot(root: string, expectedRevision: string): WorkspaceConfigSnapshot {
     const current = this.readAndAssertRevision(
       expectedRevision,

@@ -5,7 +5,7 @@ import TokenPilotDesktopCore
 enum MainAppSection: String, CaseIterable, Identifiable {
     case overview
     case runtime
-    case workspaces
+    case projects
     case accessSecurity
     case integrations
     case updates
@@ -17,7 +17,7 @@ enum MainAppSection: String, CaseIterable, Identifiable {
         switch self {
         case .overview: return DesktopL10n.string("Overview")
         case .runtime: return DesktopL10n.string("Runtime")
-        case .workspaces: return DesktopL10n.string("Workspaces")
+        case .projects: return DesktopL10n.string("Projects")
         case .accessSecurity: return DesktopL10n.string("Access & Security")
         case .integrations: return DesktopL10n.string("Integrations")
         case .updates: return DesktopL10n.string("Updates")
@@ -29,7 +29,7 @@ enum MainAppSection: String, CaseIterable, Identifiable {
         switch self {
         case .overview: return "gauge.with.dots.needle.67percent"
         case .runtime: return "server.rack"
-        case .workspaces: return "folder.badge.gearshape"
+        case .projects: return "folder.badge.gearshape"
         case .accessSecurity: return "lock.shield"
         case .integrations: return "point.3.connected.trianglepath.dotted"
         case .updates: return "arrow.down.circle"
@@ -75,8 +75,8 @@ struct MainAppView: View {
                     StatusView(model: model)
                 case .runtime:
                     SettingsView(model: model, scope: .runtime)
-                case .workspaces:
-                    SettingsView(model: model, scope: .workspaces)
+                case .projects:
+                    SettingsView(model: model, scope: .projects)
                 case .accessSecurity:
                     SettingsView(
                         model: model,

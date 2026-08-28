@@ -8,12 +8,12 @@ enum OperationalSettingsFocus: Hashable {
 
 enum OperationalSettingsScope: Equatable {
     case runtime
-    case workspaces
+    case projects
     case accessSecurity
     case updates
 
     var showsRuntime: Bool { self == .runtime }
-    var showsWorkspaces: Bool { self == .workspaces }
+    var showsProjects: Bool { self == .projects }
     var showsAccessSecurity: Bool { self == .accessSecurity }
     var showsUpdates: Bool { self == .updates }
 }
@@ -120,73 +120,63 @@ struct SettingsView: View {
             }
             }
 
-            if scope.showsWorkspaces {
+            if scope.showsProjects {
             if model.distributionMode == .packaged {
-                Section(DesktopL10n.string("Workspaces")) {
-                    if model.packagedWorkspaces.isEmpty {
-                        LabeledContent(DesktopL10n.string("Primary Workspace")) {
-                            Text(DesktopL10n.string("Not selected"))
+                Section(DesktopL10n.string("Projects")) {
+                    if model.packagedProjects.isEmpty {
+                        LabeledContent(DesktopL10n.string("Project")) {
+                            Text(DesktopL10n.string("No projects yet"))
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        ForEach(model.packagedWorkspaces) { workspace in
-                            VStack(alignment: .leading, spacing: 7) {
-                                HStack(spacing: 8) {
-                                    Text(verbatim: workspace.repoID)
-                                        .font(.system(.body, design: .monospaced))
-                                    if workspace.isPrimary {
-                                        Text(DesktopL10n.string("Primary"))
-                                            .font(.caption2.weight(.semibold))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(.quaternary, in: Capsule())
-                                    }
-                                    if !workspace.isAvailable {
-                                        Label(DesktopL10n.string("Unavailable"), systemImage: "exclamationmark.triangle")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
+                        Picker(
+                            DesktopL10n.string("Project"),
+                            selection: Binding(
+                                get: {
+                                    model.selectedProjectID ?? model.packagedProjects.first?.id ?? ""
+                                },
+                                set: { projectID in
+                                    Task { await model.selectPackagedProject(projectID) }
                                 }
+                            )
+                        ) {
+                            ForEach(model.packagedProjects) { project in
+                                Text(project.project.displayName).tag(project.id)
+                            }
+                        }
 
-                                Text((workspace.url.path as NSString).abbreviatingWithTildeInPath)
-                                    .font(.caption)
-                                    .foregroundStyle(workspace.isAvailable ? .secondary : .tertiary)
-                                    .textSelection(.enabled)
-                                    .lineLimit(2)
+                        if let project = model.selectedPackagedProject {
+                            LabeledContent(DesktopL10n.string("Primary Root")) {
+                                Text(
+                                    project.primaryRoot.map {
+                                        ($0.url.path as NSString).abbreviatingWithTildeInPath
+                                    } ?? DesktopL10n.string("Not selected")
+                                )
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                            }
 
-                                if !workspace.isPrimary {
-                                    HStack(spacing: 8) {
-                                        Button(DesktopL10n.string("Make Primary")) {
-                                            Task { await model.makeWorkspacePrimary(workspace.repoID) }
-                                        }
-                                        .disabled(!workspace.isAvailable || model.isRefreshing)
-
-                                        Button(DesktopL10n.string("Remove"), role: .destructive) {
-                                            model.confirmAndRemoveWorkspace(workspace)
-                                        }
-                                        .disabled(model.isRefreshing)
-                                    }
-                                    .controlSize(.small)
+                            LabeledContent(DesktopL10n.string("Execution Workspace")) {
+                                if let workspace = project.defaultWorkspace {
+                                    Text(verbatim: workspace.repoId)
+                                        .font(.system(.body, design: .monospaced))
+                                } else {
+                                    Text(DesktopL10n.string("None"))
+                                        .foregroundStyle(.secondary)
                                 }
                             }
-                            .padding(.vertical, 4)
                         }
                     }
 
-                    HStack {
-                        Button(
-                            model.packagedWorkspaces.isEmpty
-                                ? DesktopL10n.string("Choose Primary Workspace…")
-                                : DesktopL10n.string("Add Workspace…")
-                        ) {
-                            if model.packagedWorkspaces.isEmpty {
-                                model.chooseWorkspaceFromPanel()
-                            } else {
-                                model.addWorkspaceFromPanel()
-                            }
+                    HStack(spacing: 8) {
+                        Button(DesktopL10n.string("Add Project…")) {
+                            model.chooseProjectFromPanel()
                         }
-                        Button(DesktopL10n.string("Refresh Workspaces")) {
+                        Button(DesktopL10n.string("Add Root…")) {
+                            model.addProjectRootFromPanel()
+                        }
+                        .disabled(model.selectedPackagedProject == nil)
+                        Button(DesktopL10n.string("Refresh")) {
                             Task { await model.refresh() }
                         }
                         .disabled(model.isRefreshing)
@@ -194,12 +184,75 @@ struct SettingsView: View {
 
                     Text(
                         DesktopL10n.string(
-                            "The primary workspace is the default project used to bootstrap Packaged Mode. Additional authorized workspaces keep stable repository IDs. Adding, removing, or changing the primary workspace never starts, stops, or restarts the Runtime automatically."
+                            "A Project is the long-lived identity. Project Roots are the folders that belong to it. Execution Workspaces are created only for executable Git roots, so a documentation or knowledge root can be primary without pretending to be a checkout."
                         )
                     )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let project = model.selectedPackagedProject {
+                    Section(DesktopL10n.string("Project Roots")) {
+                        ForEach(model.selectedPackagedProjectRoots) { root in
+                            VStack(alignment: .leading, spacing: 7) {
+                                HStack(spacing: 7) {
+                                    Text(root.url.lastPathComponent)
+                                        .font(.body.weight(.medium))
+                                    if root.primary {
+                                        Text(DesktopL10n.string("Primary Root"))
+                                            .font(.caption2.weight(.semibold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary, in: Capsule())
+                                    }
+                                    Text(projectRootKindText(root.kind))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(projectRootRoleText(root.role))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    if root.access == .readOnly {
+                                        Label(DesktopL10n.string("Read Only"), systemImage: "lock")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if root.status != "ready" {
+                                        Label(projectRootStatusText(root.status), systemImage: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+
+                                Text((root.url.path as NSString).abbreviatingWithTildeInPath)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                    .lineLimit(2)
+
+                                if !root.primary {
+                                    Button(DesktopL10n.string("Make Primary")) {
+                                        Task { await model.makeProjectRootPrimary(root.id) }
+                                    }
+                                    .controlSize(.small)
+                                    .disabled(root.status != "ready" || model.isRefreshing)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+
+                        if project.defaultWorkspace == nil {
+                            Text(
+                                DesktopL10n.string(
+                                    "This project currently has no executable default workspace. Project metadata and non-code roots remain usable, but Runtime execution requires a registered Git checkout or worktree."
+                                )
+                            )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
 
                 Section(DesktopL10n.string("Existing Setup")) {
@@ -672,6 +725,34 @@ struct SettingsView: View {
             scrollToFocus(using: proxy)
         }
         }
+    }
+
+    private func projectRootKindText(_ kind: DesktopProjectRootKind) -> String {
+        switch kind {
+        case .gitRepository:
+            return DesktopL10n.string("Git Repository")
+        case .directory:
+            return DesktopL10n.string("Directory")
+        }
+    }
+
+    private func projectRootRoleText(_ role: DesktopProjectRootRole) -> String {
+        switch role {
+        case .primarySource:
+            return DesktopL10n.string("Primary Source")
+        case .supportingSource:
+            return DesktopL10n.string("Supporting Source")
+        case .documentation:
+            return DesktopL10n.string("Documentation")
+        case .knowledge:
+            return DesktopL10n.string("Knowledge")
+        case .assets:
+            return DesktopL10n.string("Assets")
+        }
+    }
+
+    private func projectRootStatusText(_ status: String) -> String {
+        status == "ready" ? DesktopL10n.string("Ready") : DesktopL10n.string("Unavailable")
     }
 
     private func scrollToFocus(using proxy: ScrollViewProxy) {

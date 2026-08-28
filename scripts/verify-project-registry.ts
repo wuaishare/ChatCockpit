@@ -173,14 +173,14 @@ try {
   const updatedPrimary = updated[0]?.workspaces.find(
     (workspace) => workspace.id === updated[0]?.project.defaultWorkspaceId
   );
-  assert.equal(updatedPrimary?.repoId, "secondary");
+  assert.equal(updatedPrimary?.repoId, "primary");
 
   writeConfig(paths.configPath, {
     displayName: "ChatCockpit Platform",
     primary: "docs"
   });
   const docsPrimary = service.list({ ...context, now: "2026-08-28T05:01:30.000Z" });
-  assert.equal(docsPrimary[0]?.project.defaultWorkspaceId, null);
+  assert.equal(docsPrimary[0]?.project.defaultWorkspaceId, initialPrimary?.id);
   assert.equal(docsPrimary[0]?.workspaces.length, 2);
 
   const registry = service.registry({ ...context, now: "2026-08-28T05:02:00.000Z" });
@@ -245,7 +245,7 @@ try {
   );
   const attachedWorkspace = reprioritized.workspaces.find((workspace) => workspace.repoId === "attached");
   assert.ok(attachedWorkspace);
-  assert.equal(reprioritized.project.defaultWorkspaceId, attachedWorkspace.id);
+  assert.equal(reprioritized.project.defaultWorkspaceId, initialPrimary?.id);
   assert.equal(reprioritized.roots.find((entry) => entry.id === attachedRoot.id)?.primary, true);
 
   const created = service.createProject(

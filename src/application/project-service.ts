@@ -15,6 +15,7 @@ import type {
 } from "../types.js";
 import type { ContinuityDatabase } from "../continuity/database.js";
 import type {
+  PrivateWorkspaceRecord,
   ProjectRecord,
   ProjectStatus,
   WorkspaceRecord,
@@ -66,7 +67,8 @@ export interface ProjectRegistryProjectProjection extends ProjectProjection {
   roots: ProjectRootProjection[];
 }
 
-export interface ProjectRegistryProjectDetailProjection extends ProjectProjection {
+export interface ProjectRegistryProjectDetailProjection extends Omit<ProjectProjection, "workspaces"> {
+  workspaces: PrivateWorkspaceRecord[];
   roots: ProjectRootPrivateProjection[];
 }
 
@@ -133,6 +135,20 @@ export class ProjectService {
 
   configRevision(): string {
     return this.configStore.snapshot().revision;
+  }
+
+  initializeRegistry(context: OperationContext): ProjectRegistryProjection {
+    const snapshot = this.configStore.initializeEmptyIfMissing();
+    if (Object.keys(snapshot.projects).length === 0) {
+      return { configRevision: snapshot.revision, projects: [] };
+    }
+    this.syncConfiguredProjects(context);
+    return {
+      configRevision: snapshot.revision,
+      projects: this.repositories.projects.list("active").map((project) =>
+        this.registryProjection(project, snapshot)
+      )
+    };
   }
 
   createProject(context: OperationContext, input: {
@@ -395,7 +411,9 @@ export class ProjectService {
   ): ProjectRegistryProjectDetailProjection {
     return {
       project,
-      workspaces: this.repositories.workspaces.listByProject(project.id),
+      workspaces: this.repositories.workspaces
+        .listByProject(project.id)
+        .map((workspace) => this.repositories.workspaces.getPrivate(workspace.id)),
       roots: this.projectRootEntries(project, snapshot).map((entry) => ({
         ...entry.summary,
         pathVisibility: "machine-local-owner" as const,
@@ -475,16 +493,29 @@ export class ProjectService {
           workspaceByRepoId.set(repoId, workspace);
         }
 
-        const primaryCandidates = configuredWorkspaces
-          .filter(([, workspace]) => workspace.projectRootId === configuredProject.primaryRootId)
-          .sort(([, left], [, right]) => {
-            if (left.kind === right.kind) return 0;
-            return left.kind === "checkout" ? -1 : 1;
-          });
-        const primaryWorkspace = primaryCandidates.length > 0
-          ? workspaceByRepoId.get(primaryCandidates[0]![0]) ?? null
+        const workspaceCandidates = configuredWorkspaces.flatMap(([repoId, configuredWorkspace]) => {
+          const workspace = workspaceByRepoId.get(repoId);
+          return workspace ? [{ repoId, configuredWorkspace, workspace }] : [];
+        });
+        const currentDefaultWorkspaceId = project.defaultWorkspaceId;
+        const currentDefaultWorkspace = currentDefaultWorkspaceId
+          ? workspaceCandidates.find(
+              ({ workspace }) =>
+                workspace.id === currentDefaultWorkspaceId && workspace.status === "ready"
+            )?.workspace ?? null
           : null;
-        const nextDefaultWorkspaceId = primaryWorkspace?.id ?? null;
+        const fallbackWorkspace = workspaceCandidates
+          .filter(({ workspace }) => workspace.status === "ready")
+          .sort((left, right) => {
+            const leftPrimary = left.configuredWorkspace.projectRootId === configuredProject.primaryRootId;
+            const rightPrimary = right.configuredWorkspace.projectRootId === configuredProject.primaryRootId;
+            if (leftPrimary !== rightPrimary) return leftPrimary ? -1 : 1;
+            if (left.configuredWorkspace.kind !== right.configuredWorkspace.kind) {
+              return left.configuredWorkspace.kind === "checkout" ? -1 : 1;
+            }
+            return left.repoId.localeCompare(right.repoId);
+          })[0]?.workspace ?? null;
+        const nextDefaultWorkspaceId = currentDefaultWorkspace?.id ?? fallbackWorkspace?.id ?? null;
         if (project.defaultWorkspaceId !== nextDefaultWorkspaceId) {
           project = this.repositories.projects.setDefaultWorkspace(
             project.id,

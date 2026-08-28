@@ -59,6 +59,11 @@ const packagedWorkspaceConfigurationPath = path.join(
   "TokenPilotDesktopCore",
   "PackagedWorkspaceConfiguration.swift"
 );
+const projectRegistryPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "DesktopProjectRegistry.swift"
+);
 const runtimeConflictPath = path.join(
   desktopSourceRoot,
   "TokenPilotDesktopCore",
@@ -98,6 +103,7 @@ for (const required of [
   simplifiedChineseLocalizationPath,
   existingSetupImportPath,
   packagedWorkspaceConfigurationPath,
+  projectRegistryPath,
   runtimeConflictPath,
   buildScriptPath,
   buildProvenanceStampPath,
@@ -124,6 +130,7 @@ const englishLocalization = fs.readFileSync(englishLocalizationPath, "utf8");
 const simplifiedChineseLocalization = fs.readFileSync(simplifiedChineseLocalizationPath, "utf8");
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
 const packagedWorkspaceConfiguration = fs.readFileSync(packagedWorkspaceConfigurationPath, "utf8");
+const projectRegistry = fs.readFileSync(projectRegistryPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
 const buildProvenanceStamp = fs.readFileSync(buildProvenanceStampPath, "utf8");
@@ -159,7 +166,7 @@ assert.match(appModel, /func openLocalCockpit\(\)/);
 assert.match(appModel, /func openPublicCockpit\(\)/);
 assert.match(appModel, /TokenPilotRuntime/);
 assert.match(appModel, /PackagedRuntimeDeployer/);
-assert.match(appModel, /Choose Workspace/);
+assert.match(appModel, /DesktopL10n\.string\("Add Project…"\)/);
 assert.match(appModel, /UserDefaultsDistributionModePreferenceStore/);
 assert.match(appModel, /DesktopInitialDistributionMode\.resolve/);
 assert.match(appModel, /sourceAvailable: discovered != nil/);
@@ -213,7 +220,8 @@ assert.match(appModel, /mainWindow\.makeKeyAndOrderFront\(nil\)/);
 assert.match(appModel, /application\.windowsMenu\?\.item\(withTitle: title\)/);
 assert.match(runtimeCommandRunner, /protocol DesktopOperationalSummaryReading: Sendable/);
 assert.match(runtimeCommandRunner, /struct DesktopOperationalSummaryClient: DesktopOperationalSummaryReading, Sendable/);
-assert.match(runtimeCommandRunner, /private struct DesktopCLITransport: Sendable/);
+assert.match(runtimeCommandRunner, /struct DesktopCLITransport: Sendable/);
+assert.doesNotMatch(runtimeCommandRunner, /public struct DesktopCLITransport: Sendable/);
 assert.match(runtimeCommandRunner, /DesktopOperationalSummaryClient[\s\S]*private let transport = DesktopCLITransport\(\)/s);
 assert.doesNotMatch(runtimeCommandRunner, /DesktopOperationalSummaryClient[\s\S]*private let transport = DesktopAuthorityClient\(\)/s);
 assert.match(runtimeCommandRunner, /arguments: \["desktop-summary", "--json"\]/);
@@ -223,7 +231,7 @@ assert.match(appModel, /@Published private\(set\) var operationalSummary: Deskto
 assert.match(appModel, /private let operationalSummaryClient: any DesktopOperationalSummaryReading/);
 assert.match(appModel, /operationalSummary = try\? await operationalSummaryClient\.summary\(context: context\)/);
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
-for (const section of ["overview", "runtime", "workspaces", "accessSecurity", "integrations", "updates", "diagnostics"]) {
+for (const section of ["overview", "runtime", "projects", "accessSecurity", "integrations", "updates", "diagnostics"]) {
   assert.match(statusView, new RegExp(`case ${section}\\b`));
 }
 assert.match(statusView, /NavigationSplitView/);
@@ -236,7 +244,7 @@ assert.match(statusView, /button\.setAccessibilityHelp\(title\)/);
 assert.match(statusView, /button\.setAccessibilitySelected\(selected\)/);
 assert.match(statusView, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHand : \.arrow\)/);
 assert.match(statusView, /SettingsView\(model: model, scope: \.runtime\)/);
-assert.match(statusView, /SettingsView\(model: model, scope: \.workspaces\)/);
+assert.match(statusView, /SettingsView\(model: model, scope: \.projects\)/);
 assert.match(statusView, /SettingsView\([\s\S]*model: model,[\s\S]*scope: \.accessSecurity,[\s\S]*focus: \$operationalSettingsFocus[\s\S]*\)/s);
 assert.match(statusView, /SettingsView\(model: model, scope: \.updates\)/);
 assert.match(statusView, /NativeIntegrationsBridgeView\(model: model\)/);
@@ -323,7 +331,7 @@ assert.match(settings, /ScrollViewReader \{ proxy in/);
 assert.match(settings, /\.id\(OperationalSettingsFocus\.connectivity\)/);
 assert.match(settings, /proxy\.scrollTo\(requestedFocus, anchor: \.top\)/);
 assert.match(settings, /if scope\.showsRuntime/);
-assert.match(settings, /if scope\.showsWorkspaces/);
+assert.match(settings, /if scope\.showsProjects/);
 assert.match(settings, /if scope\.showsAccessSecurity/);
 assert.match(settings, /if scope\.showsUpdates/);
 assert.match(settings, /\.task\(id: scope\)/);
@@ -380,22 +388,30 @@ assert.doesNotMatch(menuBar, /Access & Security…/);
 assert.match(settings, /Import Existing Setup…/);
 assert.match(settings, /never migrated/);
 assert.match(settings, /DesktopL10n\.string\("Security & Access"\)/);
-assert.match(settings, /Section\(DesktopL10n\.string\("Workspaces"\)\)/);
-assert.match(settings, /ForEach\(model\.packagedWorkspaces\)/);
-assert.match(settings, /workspace\.repoID/);
-assert.match(settings, /DesktopL10n\.string\("Primary"\)/);
-assert.match(settings, /DesktopL10n\.string\("Make Primary"\)/);
-assert.match(settings, /DesktopL10n\.string\("Remove"\)/);
-assert.match(settings, /DesktopL10n\.string\("Add Workspace…"\)/);
-assert.match(settings, /model\.addWorkspaceFromPanel\(\)/);
-assert.match(settings, /model\.makeWorkspacePrimary\(workspace\.repoID\)/);
-assert.match(settings, /model\.confirmAndRemoveWorkspace\(workspace\)/);
-assert.match(appModel, /DesktopL10n\.string\("Remove Workspace\?"\)/);
-assert.match(appModel, /project files will not be deleted/);
+assert.match(settings, /Section\(DesktopL10n\.string\("Projects"\)\)/);
+assert.match(settings, /Picker\([\s\S]*DesktopL10n\.string\("Project"\)[\s\S]*model\.selectPackagedProject\(projectID\)/s);
+assert.match(settings, /Section\(DesktopL10n\.string\("Project Roots"\)\)/);
+assert.match(settings, /ForEach\(model\.selectedPackagedProjectRoots\)/);
+assert.match(settings, /DesktopL10n\.string\("Primary Root"\)/);
+assert.match(settings, /DesktopL10n\.string\("Execution Workspace"\)/);
+assert.match(settings, /DesktopL10n\.string\("Add Project…"\)/);
+assert.match(settings, /DesktopL10n\.string\("Add Root…"\)/);
+assert.match(settings, /model\.addProjectRootFromPanel\(\)/);
+assert.match(settings, /model\.makeProjectRootPrimary\(root\.id\)/);
+assert.match(settings, /documentation or knowledge root can be primary without pretending to be a checkout/);
 assert.doesNotMatch(settings, /model\.clearWorkspace\(\)/);
-assert.match(appModel, /packagedWorkspaces: \[PackagedWorkspaceEntry\]/);
-assert.match(appModel, /PackagedWorkspaceConfigurationManaging/);
-assert.match(appModel, /reloadPackagedWorkspaces\(\)/);
+assert.doesNotMatch(settings, /model\.confirmAndRemoveWorkspace\(/);
+assert.doesNotMatch(appModel, /PackagedWorkspaceConfigurationManaging/);
+assert.doesNotMatch(appModel, /reloadPackagedWorkspaces\(\)/);
+assert.match(appModel, /packagedProjects: \[DesktopProjectRegistryProject\]/);
+assert.match(appModel, /projectRegistryClient: any DesktopProjectRegistryManaging/);
+assert.match(appModel, /syncProjectRegistryState\(/);
+assert.match(appModel, /workspace = project\.defaultWorkspace/);
+assert.match(projectRegistry, /public struct DesktopProjectRoot:/);
+assert.match(projectRegistry, /privatePath: String/);
+assert.match(projectRegistry, /public struct DesktopExecutionWorkspace:/);
+assert.match(projectRegistry, /public let privatePath: String/);
+assert.match(projectRegistry, /DesktopProjectFolderClassifier/);
 assert.match(packagedWorkspaceConfiguration, /workspaceAllowlist/);
 assert.match(packagedWorkspaceConfiguration, /repoMappings/);
 assert.match(packagedWorkspaceConfiguration, /cannotRemovePrimary/);

@@ -97,6 +97,7 @@
     "verify:workspace-config-store": "tsx scripts/verify-workspace-config-store.ts",
     "verify:project-registry": "tsx scripts/verify-project-registry.ts",
     "verify:project-registry-api": "tsx scripts/verify-project-registry-api.ts",
+    "verify:project-registry-cli": "tsx scripts/verify-project-registry-cli.ts",
     "verify:project-root-config-v3": "tsx scripts/verify-project-root-config-v3.ts",
     "verify:project-root-discovery": "tsx scripts/verify-project-root-discovery.ts",
     "verify:project-root-discovery-api": "tsx scripts/verify-project-root-discovery-api.ts",

@@ -165,6 +165,11 @@ public protocol WorkspacePreferenceStoring: Sendable {
     func saveWorkspaceURL(_ url: URL?)
 }
 
+public protocol ProjectPreferenceStoring: Sendable {
+    func loadProjectID() -> String?
+    func saveProjectID(_ projectID: String?)
+}
+
 public protocol DistributionModePreferenceStoring: Sendable {
     func loadMode() -> DistributionMode?
     func saveMode(_ mode: DistributionMode)
@@ -211,6 +216,34 @@ public struct UserDefaultsDistributionModePreferenceStore: DistributionModePrefe
 
     public func saveMode(_ mode: DistributionMode) {
         defaults.set(mode.rawValue, forKey: key)
+    }
+}
+
+public struct UserDefaultsProjectPreferenceStore: ProjectPreferenceStoring, @unchecked Sendable {
+    private let defaults: UserDefaults
+    private let key: String
+
+    public init(
+        defaults: UserDefaults = .standard,
+        key: String = "chatcockpitDesktop.selectedProject"
+    ) {
+        self.defaults = defaults
+        self.key = key
+    }
+
+    public func loadProjectID() -> String? {
+        guard let value = defaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        return value
+    }
+
+    public func saveProjectID(_ projectID: String?) {
+        guard let projectID = projectID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !projectID.isEmpty else {
+            defaults.removeObject(forKey: key)
+            return
+        }
+        defaults.set(projectID, forKey: key)
     }
 }
 

@@ -43,7 +43,9 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
     @Published private(set) var selectedRootURL: URL?
     @Published private(set) var selectedWorkspaceURL: URL?
-    @Published private(set) var packagedWorkspaces: [PackagedWorkspaceEntry] = []
+    @Published private(set) var packagedProjects: [DesktopProjectRegistryProject] = []
+    @Published private(set) var selectedProjectID: String?
+    @Published private(set) var projectRegistryRevision: String?
     @Published private(set) var distributionMode: DistributionMode
     @Published private(set) var deployedRuntime: DeployedRuntime?
     @Published private(set) var runtimeConflict: PackagedRuntimeConflict?
@@ -72,11 +74,12 @@ final class DesktopAppModel: ObservableObject {
     private let rootDiscovery: TokenPilotRootDiscovery
     private let rootPreferenceStore: any TokenPilotRootPreferenceStoring
     private let workspacePreferenceStore: any WorkspacePreferenceStoring
+    private let projectPreferenceStore: any ProjectPreferenceStoring
     private let modePreferenceStore: any DistributionModePreferenceStoring
     private let runtimeController: any RuntimeControlling
     private let packagedRuntimeDeployer: any PackagedRuntimeDeploying
     private let existingSetupImporter: ExistingSetupImporter
-    private let packagedWorkspaceManager: any PackagedWorkspaceConfigurationManaging
+    private let projectRegistryClient: any DesktopProjectRegistryManaging
     private let conflictDetector: any PackagedRuntimeConflictDetecting
     private let applicationSupportRoot: URL
     private let bundlePayloadURL: URL?
@@ -100,11 +103,12 @@ final class DesktopAppModel: ObservableObject {
         rootDiscovery: TokenPilotRootDiscovery = TokenPilotRootDiscovery(),
         rootPreferenceStore: any TokenPilotRootPreferenceStoring = UserDefaultsTokenPilotRootPreferenceStore(),
         workspacePreferenceStore: any WorkspacePreferenceStoring = UserDefaultsWorkspacePreferenceStore(),
+        projectPreferenceStore: any ProjectPreferenceStoring = UserDefaultsProjectPreferenceStore(),
         modePreferenceStore: any DistributionModePreferenceStoring = UserDefaultsDistributionModePreferenceStore(),
         runtimeController: any RuntimeControlling = RuntimeController(),
         packagedRuntimeDeployer: any PackagedRuntimeDeploying = PackagedRuntimeDeployer(),
         existingSetupImporter: ExistingSetupImporter = ExistingSetupImporter(),
-        packagedWorkspaceManager: any PackagedWorkspaceConfigurationManaging = PackagedWorkspaceConfigurationStore(),
+        projectRegistryClient: any DesktopProjectRegistryManaging = DesktopProjectRegistryClient(),
         conflictDetector: any PackagedRuntimeConflictDetecting = PackagedRuntimeConflictDetector(),
         applicationSupportRoot: URL = PackagedRuntimePaths.defaultApplicationSupportRoot,
         bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL(),
@@ -121,11 +125,12 @@ final class DesktopAppModel: ObservableObject {
         self.rootDiscovery = rootDiscovery
         self.rootPreferenceStore = rootPreferenceStore
         self.workspacePreferenceStore = workspacePreferenceStore
+        self.projectPreferenceStore = projectPreferenceStore
         self.modePreferenceStore = modePreferenceStore
         self.runtimeController = runtimeController
         self.packagedRuntimeDeployer = packagedRuntimeDeployer
         self.existingSetupImporter = existingSetupImporter
-        self.packagedWorkspaceManager = packagedWorkspaceManager
+        self.projectRegistryClient = projectRegistryClient
         self.conflictDetector = conflictDetector
         self.applicationSupportRoot = applicationSupportRoot.standardizedFileURL
         self.bundlePayloadURL = bundlePayloadURL?.standardizedFileURL
@@ -148,6 +153,7 @@ final class DesktopAppModel: ObservableObject {
         }
         self.bundleManifest = decodedManifest
         self.selectedWorkspaceURL = workspacePreferenceStore.loadWorkspaceURL()
+        self.selectedProjectID = projectPreferenceStore.loadProjectID()
 
         let savedRoot = rootPreferenceStore.loadRootURL()
         let currentDirectory = URL(
@@ -199,10 +205,21 @@ final class DesktopAppModel: ObservableObject {
         selectedWorkspaceURL?.lastPathComponent ?? DesktopL10n.string("Not selected")
     }
 
-    var packagedWorkspaceConfigURL: URL {
-        applicationSupportRoot
-            .appendingPathComponent("config", isDirectory: true)
-            .appendingPathComponent("config.json", isDirectory: false)
+    var selectedPackagedProject: DesktopProjectRegistryProject? {
+        guard let selectedProjectID else { return nil }
+        return packagedProjects.first(where: { $0.id == selectedProjectID })
+    }
+
+    var selectedPackagedProjectPrimaryRoot: DesktopProjectRoot? {
+        selectedPackagedProject?.primaryRoot
+    }
+
+    var selectedPackagedProjectRoots: [DesktopProjectRoot] {
+        selectedPackagedProject?.roots.sorted { left, right in
+            if left.primary != right.primary { return left.primary }
+            if left.role.rawValue != right.role.rawValue { return left.role.rawValue < right.role.rawValue }
+            return left.privatePath.localizedStandardCompare(right.privatePath) == .orderedAscending
+        } ?? []
     }
 
     var distributionModeText: String {
@@ -288,7 +305,7 @@ final class DesktopAppModel: ObservableObject {
 
     var setupActionTitle: String {
         distributionMode == .packaged
-            ? DesktopL10n.string("Choose Workspace…")
+            ? DesktopL10n.string("Add Project…")
             : DesktopL10n.string("Choose Source…")
     }
 
@@ -303,7 +320,7 @@ final class DesktopAppModel: ObservableObject {
 
         do {
             if distributionMode == .packaged {
-                try reloadPackagedWorkspaces()
+                try await reloadProjectRegistry()
             }
             guard let context = try await currentContext() else {
                 snapshot = .setupRequired
@@ -326,30 +343,27 @@ final class DesktopAppModel: ObservableObject {
         }
     }
 
-    func chooseWorkspace(_ url: URL) async {
-        do {
-            let configuration = try packagedWorkspaceManager.selectPrimary(
-                configURL: packagedWorkspaceConfigURL,
-                workspaceURL: url
-            )
-            distributionMode = .packaged
-            modePreferenceStore.saveMode(.packaged)
-            syncPackagedWorkspaceState(configuration)
-            runtimeConflict = nil
-            lastUserMessage = nil
-            await refresh()
-        } catch {
-            lastUserMessage = workspaceMessage(for: error)
-        }
+    func selectPackagedProject(_ projectID: String) async {
+        guard packagedProjects.contains(where: { $0.id == projectID }) else { return }
+        selectedProjectID = projectID
+        projectPreferenceStore.saveProjectID(projectID)
+        syncSelectedProjectWorkspace()
+        runtimeConflict = nil
+        lastUserMessage = nil
+        await refresh()
     }
 
-    func chooseWorkspaceFromPanel() {
+    func chooseProject(_ url: URL) async {
+        await createPackagedProject(from: url)
+    }
+
+    func chooseProjectFromPanel() {
         let panel = NSOpenPanel()
-        panel.title = DesktopL10n.string("Choose Primary Workspace")
+        panel.title = DesktopL10n.string("Add Project")
         panel.message = DesktopL10n.string(
-            "Select the default project folder for Packaged Mode. Additional workspaces can be added later without changing the primary workspace."
+            "Choose a project folder. Git repositories are registered as executable project roots; other folders remain ordinary project roots and do not become execution workspaces automatically."
         )
-        panel.prompt = DesktopL10n.string("Choose Primary")
+        panel.prompt = DesktopL10n.string("Add Project")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -357,93 +371,57 @@ final class DesktopAppModel: ObservableObject {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { [weak self] in
-            await self?.chooseWorkspace(url)
+            await self?.createPackagedProject(from: url)
         }
     }
 
-    func addWorkspaceFromPanel() {
+    func addProjectRootFromPanel() {
+        guard selectedPackagedProject != nil else {
+            chooseProjectFromPanel()
+            return
+        }
         let panel = NSOpenPanel()
-        panel.title = DesktopL10n.string("Add Workspace")
+        panel.title = DesktopL10n.string("Add Project Root")
         panel.message = DesktopL10n.string(
-            "Add another project folder ChatCockpit may operate on. This does not restart the Runtime or change the primary workspace."
+            "Add another source, documentation, knowledge, asset, or repository folder to the selected project. This does not start, stop, or restart the Runtime."
         )
-        panel.prompt = DesktopL10n.string("Add Workspace")
+        panel.prompt = DesktopL10n.string("Add Root")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try ensurePackagedWorkspaceConfigMaterialized()
-            let configuration = try packagedWorkspaceManager.add(
-                configURL: packagedWorkspaceConfigURL,
-                workspaceURL: url
-            )
-            syncPackagedWorkspaceState(configuration)
-            lastUserMessage = DesktopL10n.string(
-                "Workspace added. Runtime lifecycle was not changed."
-            )
-        } catch {
-            lastUserMessage = workspaceMessage(for: error)
+        Task { [weak self] in
+            await self?.addPackagedProjectRoot(from: url)
         }
     }
 
-    func makeWorkspacePrimary(_ repoID: String) async {
+    func makeProjectRootPrimary(_ rootID: String) async {
+        guard let project = selectedPackagedProject,
+              project.roots.contains(where: { $0.id == rootID }),
+              let revision = projectRegistryRevision else { return }
         do {
-            let configuration = try packagedWorkspaceManager.makePrimary(
-                configURL: packagedWorkspaceConfigURL,
-                repoID: repoID
+            let context = try await projectRegistryManagementContext()
+            _ = try await projectRegistryClient.makePrimaryRoot(
+                projectID: project.id,
+                rootID: rootID,
+                expectedRevision: revision,
+                context: context
             )
             let runtimeWasRunning = snapshot.lifecycle.controlPlane == .running
-            let conflictWasPresent = runtimeConflict != nil
-            syncPackagedWorkspaceState(configuration)
-            await refresh()
-            if conflictWasPresent {
+            try await reloadProjectRegistry()
+            if runtimeWasRunning {
                 lastUserMessage = DesktopL10n.string(
-                    "Primary workspace updated. Packaged services will use it the next time they are explicitly started after the current Runtime conflict is resolved."
-                )
-            } else if runtimeWasRunning {
-                lastUserMessage = DesktopL10n.string(
-                    "Primary workspace updated. Running services were not restarted; use Restart explicitly when you want them to adopt the new primary workspace."
+                    "Primary project root updated. Running services were not restarted, and the default execution workspace was not changed."
                 )
             } else {
                 lastUserMessage = DesktopL10n.string(
-                    "Primary workspace updated. Runtime lifecycle was not changed."
+                    "Primary project root updated. Runtime lifecycle was not changed."
                 )
             }
         } catch {
-            lastUserMessage = workspaceMessage(for: error)
-        }
-    }
-
-    func confirmAndRemoveWorkspace(_ workspace: PackagedWorkspaceEntry) {
-        guard !workspace.isPrimary else { return }
-        let alert = NSAlert()
-        alert.messageText = DesktopL10n.string("Remove Workspace?")
-        alert.informativeText = DesktopL10n.format(
-            "Remove repository mapping '%@' from ChatCockpit? The project files will not be deleted and the Runtime will not be restarted.",
-            workspace.repoID
-        )
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: DesktopL10n.string("Remove Workspace"))
-        alert.addButton(withTitle: DesktopL10n.string("Cancel"))
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        removeWorkspace(workspace.repoID)
-    }
-
-    func removeWorkspace(_ repoID: String) {
-        do {
-            let configuration = try packagedWorkspaceManager.remove(
-                configURL: packagedWorkspaceConfigURL,
-                repoID: repoID
-            )
-            syncPackagedWorkspaceState(configuration)
-            lastUserMessage = DesktopL10n.string(
-                "Workspace removed. Runtime lifecycle was not changed."
-            )
-        } catch {
-            lastUserMessage = workspaceMessage(for: error)
+            lastUserMessage = projectRegistryMessage(for: error)
         }
     }
 
@@ -484,7 +462,7 @@ final class DesktopAppModel: ObservableObject {
 
     func chooseSetupLocationFromPanel() {
         if distributionMode == .packaged {
-            chooseWorkspaceFromPanel()
+            chooseProjectFromPanel()
         } else {
             chooseRootFromPanel()
         }
@@ -531,7 +509,6 @@ final class DesktopAppModel: ObservableObject {
             let result = try existingSetupImporter.apply(preview: preview, paths: paths)
             selectedWorkspaceURL = result.primaryWorkspaceURL
             workspacePreferenceStore.saveWorkspaceURL(result.primaryWorkspaceURL)
-            try reloadPackagedWorkspaces()
             runtimeConflict = nil
             lastUserMessage = result.exposedModeResetToLocal
                 ? DesktopL10n.string(
@@ -1408,32 +1385,145 @@ final class DesktopAppModel: ObservableObject {
         return .source(root: root)
     }
 
-    private func ensurePackagedWorkspaceConfigMaterialized() throws {
-        guard !FileManager.default.fileExists(atPath: packagedWorkspaceConfigURL.path),
-              let selectedWorkspaceURL else { return }
-        _ = try packagedWorkspaceManager.selectPrimary(
-            configURL: packagedWorkspaceConfigURL,
-            workspaceURL: selectedWorkspaceURL
-        )
+    private func createPackagedProject(from url: URL) async {
+        guard distributionMode == .packaged || packagedModeAvailable else {
+            lastUserMessage = DesktopL10n.string(
+                "Add Project is available when the packaged ChatCockpit runtime is installed."
+            )
+            return
+        }
+        do {
+            distributionMode = .packaged
+            modePreferenceStore.saveMode(.packaged)
+            let context = try await projectRegistryManagementContext()
+            let classification = DesktopProjectFolderClassifier.classify(
+                url,
+                existingSlugs: Set(packagedProjects.map { $0.project.slug }),
+                existingRepoIDs: Set(packagedProjects.flatMap { $0.workspaces.map(\.repoId) })
+            )
+            _ = try await projectRegistryClient.createProject(
+                displayName: classification.displayName,
+                slug: classification.slug,
+                rootURL: url,
+                kind: classification.kind,
+                role: .primarySource,
+                access: .readWrite,
+                repoID: classification.repoID,
+                expectedRevision: projectRegistryRevision,
+                context: context
+            )
+            let snapshot = try await projectRegistryClient.list(context: context)
+            syncProjectRegistryState(snapshot, preferredProjectSlug: classification.slug)
+            runtimeConflict = nil
+            lastUserMessage = DesktopL10n.string(
+                "Project added. Runtime lifecycle was not changed."
+            )
+            await refresh()
+        } catch {
+            lastUserMessage = projectRegistryMessage(for: error)
+        }
     }
 
-    private func reloadPackagedWorkspaces() throws {
-        let configuration = try packagedWorkspaceManager.load(
-            configURL: packagedWorkspaceConfigURL,
-            fallbackPrimaryURL: selectedWorkspaceURL
-        )
-        syncPackagedWorkspaceState(configuration)
+    private func addPackagedProjectRoot(from url: URL) async {
+        guard let project = selectedPackagedProject,
+              let revision = projectRegistryRevision else {
+            lastUserMessage = DesktopL10n.string("Select a project before adding another root.")
+            return
+        }
+        do {
+            let context = try await projectRegistryManagementContext()
+            let classification = DesktopProjectFolderClassifier.classify(
+                url,
+                existingSlugs: Set(packagedProjects.map { $0.project.slug }),
+                existingRepoIDs: Set(packagedProjects.flatMap { $0.workspaces.map(\.repoId) })
+            )
+            _ = try await projectRegistryClient.addRoot(
+                projectID: project.id,
+                rootURL: url,
+                kind: classification.kind,
+                role: .supportingSource,
+                access: .readWrite,
+                repoID: classification.repoID,
+                expectedRevision: revision,
+                context: context
+            )
+            try await reloadProjectRegistry()
+            lastUserMessage = DesktopL10n.string(
+                "Project root added. Runtime lifecycle was not changed."
+            )
+        } catch {
+            lastUserMessage = projectRegistryMessage(for: error)
+        }
     }
 
-    private func syncPackagedWorkspaceState(_ configuration: PackagedWorkspaceConfiguration) {
-        packagedWorkspaces = configuration.entries
-        guard let primary = configuration.primary, primary.isAvailable else {
+    private func reloadProjectRegistry() async throws {
+        let context = try await projectRegistryManagementContext()
+        let registry = try await projectRegistryClient.list(context: context)
+        syncProjectRegistryState(registry)
+    }
+
+    private func syncProjectRegistryState(
+        _ registry: DesktopProjectRegistrySnapshot,
+        preferredProjectSlug: String? = nil
+    ) {
+        packagedProjects = registry.projects
+        projectRegistryRevision = registry.configRevision
+
+        let preferredProjectID = preferredProjectSlug.flatMap { slug in
+            registry.projects.first(where: { $0.project.slug == slug })?.id
+        }
+        let selectedExists = selectedProjectID.flatMap { selected in
+            registry.projects.first(where: { $0.id == selected })?.id
+        }
+        let nextProjectID = preferredProjectID ?? selectedExists ?? registry.projects.first?.id
+        selectedProjectID = nextProjectID
+        projectPreferenceStore.saveProjectID(nextProjectID)
+        syncSelectedProjectWorkspace()
+    }
+
+    private func syncSelectedProjectWorkspace() {
+        guard let project = selectedPackagedProject,
+              let workspace = project.defaultWorkspace,
+              workspace.status == "ready" else {
             selectedWorkspaceURL = nil
             workspacePreferenceStore.saveWorkspaceURL(nil)
             return
         }
-        selectedWorkspaceURL = primary.url
-        workspacePreferenceStore.saveWorkspaceURL(primary.url)
+        selectedWorkspaceURL = workspace.url
+        workspacePreferenceStore.saveWorkspaceURL(workspace.url)
+    }
+
+    private func projectRegistryManagementContext() async throws -> DesktopDistributionContext {
+        guard let bundlePayloadURL, let bundleManifest else {
+            throw DesktopAppModelError.invalidBundledRuntime
+        }
+        let runtime: DeployedRuntime
+        if let deployedRuntime, deployedRuntime.runtimeID == bundleManifest.runtimeID {
+            runtime = deployedRuntime
+        } else {
+            let paths = PackagedRuntimePaths(
+                applicationSupportRoot: applicationSupportRoot,
+                runtimeID: bundleManifest.runtimeID
+            )
+            runtime = try await packagedRuntimeDeployer.deploy(
+                bundlePayloadURL: bundlePayloadURL,
+                paths: paths
+            )
+            deployedRuntime = runtime
+        }
+
+        // Project Registry operations are machine-local management calls. They do not execute
+        // project code, so they must not require an already selected ExecutionWorkspace.
+        return DesktopDistributionContext(
+            mode: .packaged,
+            installRootURL: runtime.installRootURL.appendingPathComponent("app", isDirectory: true),
+            stateRootURL: runtime.stateRootURL,
+            primaryWorkspaceURL: selectedWorkspaceURL ?? applicationSupportRoot,
+            nodeExecutableURL: runtime.nodeExecutableURL,
+            nodeVersion: NodeRuntimeChecker.parseVersion(runtime.manifest.node.version),
+            runtimeID: runtime.runtimeID,
+            architecture: runtime.manifest.architecture
+        )
     }
 
     private func validatedSelectedWorkspace() -> URL? {
@@ -1467,25 +1557,15 @@ final class DesktopAppModel: ObservableObject {
         }
     }
 
-    private func workspaceMessage(for error: Error) -> String {
-        switch error {
-        case PackagedWorkspaceConfigurationError.workspaceDoesNotExist:
-            return DesktopL10n.string("Choose an existing project folder for the ChatCockpit workspace.")
-        case PackagedWorkspaceConfigurationError.duplicateWorkspace:
-            return DesktopL10n.string("That folder is already an authorized ChatCockpit workspace.")
-        case PackagedWorkspaceConfigurationError.cannotRemovePrimary:
-            return DesktopL10n.string("Choose another primary workspace before removing the current primary workspace.")
-        case PackagedWorkspaceConfigurationError.unavailableWorkspace:
-            return DesktopL10n.string("That workspace is no longer available on this Mac.")
-        case PackagedWorkspaceConfigurationError.unknownRepoID:
-            return DesktopL10n.string("That workspace mapping no longer exists. Refresh and try again.")
-        case PackagedWorkspaceConfigurationError.unsupportedSchema:
-            return DesktopL10n.string("The packaged workspace configuration uses an unsupported schema and was left unchanged.")
-        case PackagedWorkspaceConfigurationError.malformedConfig:
-            return DesktopL10n.string("The packaged workspace configuration is invalid and was left unchanged.")
-        default:
-            return DesktopL10n.string("The packaged workspace configuration could not be updated.")
+    private func projectRegistryMessage(for error: Error) -> String {
+        if error is DesktopAuthorityClientError {
+            return DesktopL10n.string(
+                "The Project Registry could not be updated. Refresh Projects and try again; existing project configuration was left unchanged."
+            )
         }
+        return DesktopL10n.string(
+            "The selected project folder could not be registered. Choose an existing folder and try again."
+        )
     }
 
     private func importPreviewText(_ preview: ExistingSetupImportPreview) -> String {
@@ -1540,8 +1620,8 @@ final class DesktopAppModel: ObservableObject {
     }
 
     private func userMessage(for error: Error) -> String {
-        if error is PackagedWorkspaceConfigurationError {
-            return workspaceMessage(for: error)
+        if error is DesktopAuthorityClientError {
+            return projectRegistryMessage(for: error)
         }
         if error is PackagedRuntimeDeploymentError {
             return DesktopL10n.string(

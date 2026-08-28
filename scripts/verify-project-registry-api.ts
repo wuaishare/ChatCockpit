@@ -210,6 +210,8 @@ async function main(): Promise<void> {
     assert.doesNotMatch(JSON.stringify(initial), escaped(root));
 
     const projectId = initial.projects[0]!.project.id;
+    const initialDefaultWorkspaceId = initial.projects[0]!.project.defaultWorkspaceId;
+    assert.ok(initialDefaultWorkspaceId);
     const detailResponse = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}`,
       { headers: ownerHeaders }
@@ -217,11 +219,13 @@ async function main(): Promise<void> {
     assert.equal(detailResponse.status, 200);
     const detail = (await detailResponse.json()) as {
       roots: RootDetail[];
-      workspaces: Array<{ repoId: string }>;
+      workspaces: Array<{ repoId: string; privatePath: string }>;
     };
     assert.equal(detail.roots.length, 1);
     assert.equal(detail.roots[0]?.pathVisibility, "machine-local-owner");
     assert.equal(detail.roots[0]?.privatePath, fs.realpathSync.native(primaryRepo));
+    assert.equal(detail.workspaces[0]?.repoId, "primary");
+    assert.equal(detail.workspaces[0]?.privatePath, fs.realpathSync.native(primaryRepo));
 
     const noCsrfAttach = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots`,
@@ -305,7 +309,7 @@ async function main(): Promise<void> {
     );
     assert.equal(docsPrimaryResponse.status, 200);
     const docsPrimary = (await docsPrimaryResponse.json()) as ProjectMutationBody;
-    assert.equal(docsPrimary.project.defaultWorkspaceId, null);
+    assert.equal(docsPrimary.project.defaultWorkspaceId, initialDefaultWorkspaceId);
     assert.equal(docsPrimary.roots.find((entry) => entry.id === docsRoot.id)?.primary, true);
 
     const attachedPrimaryResponse = await fetch(
@@ -318,7 +322,7 @@ async function main(): Promise<void> {
     );
     assert.equal(attachedPrimaryResponse.status, 200);
     const attachedPrimary = (await attachedPrimaryResponse.json()) as ProjectMutationBody;
-    assert.equal(attachedPrimary.project.defaultWorkspaceId, attachedWorkspace.id);
+    assert.equal(attachedPrimary.project.defaultWorkspaceId, initialDefaultWorkspaceId);
 
     const renameResponse = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/rename`,

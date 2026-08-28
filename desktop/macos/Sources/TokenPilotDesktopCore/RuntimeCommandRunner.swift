@@ -747,7 +747,7 @@ public struct DesktopAuthorityClient: Sendable {
     }
 }
 
-private struct DesktopCLITransport: Sendable {
+struct DesktopCLITransport: Sendable {
     func decode<T: Decodable>(
         _ type: T.Type,
         from result: RuntimeCommandResult

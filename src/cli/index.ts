@@ -1,13 +1,21 @@
 import process from "node:process";
 import path from "node:path";
 import os from "node:os";
+import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 
 import { buildPaths, ensureWorkspaceDirs } from "../core/paths.js";
 import {
   buildDistributionContextForProduct,
   buildDistributionContextFromPaths
 } from "../core/distribution-context.js";
-import type { ProductIdentityKey } from "../types.js";
+import type {
+  ProductIdentityKey,
+  TokenPilotPaths,
+  TokenPilotProjectRootAccess,
+  TokenPilotProjectRootKind,
+  TokenPilotProjectRootRole
+} from "../types.js";
 import { readIdentityEnv, runtimeIdentityEnvName } from "../core/identity-env.js";
 import {
   DEFAULT_PRODUCT_IDENTITY,
@@ -60,6 +68,9 @@ import {
   setOperatorOwnerPasswordWithVault
 } from "../security/secure-bootstrap.js";
 import { readDesktopOperationalSummary } from "../application/desktop-operational-summary-service.js";
+import { buildOperationContext } from "../application/operation-context.js";
+import { buildContinuityServices } from "../application/continuity-services.js";
+import { ContinuityDatabase, continuityDatabasePath } from "../continuity/database.js";
 import { probeConnectivityProviders } from "../connectivity/provider-probe.js";
 import {
   CLOUDFLARED_PROVIDER_ID,
@@ -92,6 +103,10 @@ Usage:
   ${identity.cliName} queue-taskpack --title "..." --problem "..."
   ${identity.cliName} queue-codex-run --title "..." --instructions "..." [--repo-id ${identity.defaultRepoId}]
   ${identity.cliName} desktop-summary [--json]
+  ${identity.cliName} project-registry list [--json]
+  ${identity.cliName} project-registry create --slug <slug> --display-name <name> --path <folder> --kind git-repository|directory [--role primary-source|supporting-source|documentation|knowledge|assets] [--access read-write|read-only] [--repo-id <repo-id>] [--expected-revision <sha>] [--json]
+  ${identity.cliName} project-registry add-root --project-id <id> --path <folder> --kind git-repository|directory [--role primary-source|supporting-source|documentation|knowledge|assets] [--access read-write|read-only] [--repo-id <repo-id>] --expected-revision <sha> [--json]
+  ${identity.cliName} project-registry make-primary-root --project-id <id> --root-id <id> --expected-revision <sha> [--json]
   ${identity.cliName} jobs
   ${identity.cliName} job --id "<job-id>"
   ${identity.cliName} operator status [--json]
@@ -150,6 +165,59 @@ function parseBooleanFlag(name: string, value: string | undefined): boolean | un
   if (/^(1|true|yes|on)$/i.test(value)) return true;
   if (/^(0|false|no|off)$/i.test(value)) return false;
   throw new Error(`${name} must be true or false`);
+}
+
+function requireFlag(name: string): string {
+  const value = getFlag(name)?.trim();
+  if (!value) throw new Error(`project-registry requires ${name}`);
+  return value;
+}
+
+function projectRootKind(value: string | undefined): TokenPilotProjectRootKind {
+  if (value === "git-repository" || value === "directory") return value;
+  throw new Error("--kind must be git-repository or directory");
+}
+
+function projectRootRole(value: string | undefined): TokenPilotProjectRootRole | undefined {
+  if (value === undefined) return undefined;
+  if (
+    value === "primary-source" ||
+    value === "supporting-source" ||
+    value === "documentation" ||
+    value === "knowledge" ||
+    value === "assets"
+  ) {
+    return value;
+  }
+  throw new Error("--role must be primary-source, supporting-source, documentation, knowledge, or assets");
+}
+
+function projectRootAccess(value: string | undefined): TokenPilotProjectRootAccess | undefined {
+  if (value === undefined) return undefined;
+  if (value === "read-write" || value === "read-only") return value;
+  throw new Error("--access must be read-write or read-only");
+}
+
+function withProjectRegistry<T>(
+  paths: TokenPilotPaths,
+  callback: (
+    projects: ReturnType<typeof buildContinuityServices>["projects"],
+    context: ReturnType<typeof buildOperationContext>
+  ) => T
+): T {
+  const database = new ContinuityDatabase({ path: continuityDatabasePath(paths.runtimeDir) });
+  try {
+    const services = buildContinuityServices(paths, database);
+    const context = buildOperationContext({
+      requestId: `project-registry-cli-${randomUUID()}`,
+      actorType: "local-cli",
+      actorId: "project-registry-cli",
+      publicProjection: false
+    });
+    return callback(services.projects, context);
+  } finally {
+    database.close();
+  }
 }
 
 function productIdentityFromArgs(): ProductIdentityKey {
@@ -389,6 +457,95 @@ async function main(): Promise<void> {
         );
       }
       return;
+    }
+    case "project-registry": {
+      const subcommand = process.argv[3];
+      const json = process.argv.includes("--json");
+
+      if (subcommand === "list") {
+        if (!fs.existsSync(paths.configPath)) {
+          const empty = { ok: true, initialized: false, configRevision: null, projects: [] };
+          if (json) printJson(empty);
+          else process.stdout.write("Project Registry: not initialized\n");
+          return;
+        }
+        const result = withProjectRegistry(paths, (projects, context) => {
+          const registry = projects.registry(context, "active");
+          return {
+            ok: true,
+            initialized: true,
+            configRevision: registry.configRevision,
+            projects: registry.projects.map((entry) =>
+              projects.registryProject(context, entry.project.id)
+            )
+          };
+        });
+        if (json) printJson(result);
+        else printHumanJson(result, paths.repoRoot);
+        return;
+      }
+
+      if (subcommand === "create") {
+        const kind = projectRootKind(getFlag("--kind"));
+        const repoId = getFlag("--repo-id")?.trim() || undefined;
+        if (kind === "git-repository" && !repoId) {
+          throw new Error("project-registry create requires --repo-id for git-repository roots");
+        }
+        const result = withProjectRegistry(paths, (projects, context) => {
+          const initialized = projects.initializeRegistry(context);
+          return projects.createProject(context, {
+            slug: requireFlag("--slug"),
+            displayName: requireFlag("--display-name"),
+            rootPath: requireFlag("--path"),
+            kind,
+            role: projectRootRole(getFlag("--role")) ?? "primary-source",
+            access: projectRootAccess(getFlag("--access")) ?? "read-write",
+            repoId,
+            expectedConfigRevision: getFlag("--expected-revision")?.trim() || initialized.configRevision
+          });
+        });
+        if (json) printJson({ ok: true, ...result });
+        else printHumanJson({ ok: true, ...result }, paths.repoRoot);
+        return;
+      }
+
+      if (subcommand === "add-root") {
+        const expectedConfigRevision = requireFlag("--expected-revision");
+        const kind = projectRootKind(getFlag("--kind"));
+        const repoId = getFlag("--repo-id")?.trim() || undefined;
+        if (kind === "git-repository" && !repoId) {
+          throw new Error("project-registry add-root requires --repo-id for git-repository roots");
+        }
+        const result = withProjectRegistry(paths, (projects, context) =>
+          projects.attachRoot(context, {
+            projectId: requireFlag("--project-id"),
+            rootPath: requireFlag("--path"),
+            kind,
+            role: projectRootRole(getFlag("--role")) ?? "supporting-source",
+            access: projectRootAccess(getFlag("--access")) ?? "read-write",
+            repoId,
+            expectedConfigRevision
+          })
+        );
+        if (json) printJson({ ok: true, ...result });
+        else printHumanJson({ ok: true, ...result }, paths.repoRoot);
+        return;
+      }
+
+      if (subcommand === "make-primary-root") {
+        const result = withProjectRegistry(paths, (projects, context) =>
+          projects.makePrimaryRoot(context, {
+            projectId: requireFlag("--project-id"),
+            rootId: requireFlag("--root-id"),
+            expectedConfigRevision: requireFlag("--expected-revision")
+          })
+        );
+        if (json) printJson({ ok: true, ...result });
+        else printHumanJson({ ok: true, ...result }, paths.repoRoot);
+        return;
+      }
+
+      throw new Error("project-registry requires list, create, add-root, or make-primary-root");
     }
     case "jobs": {
       process.stdout.write(`${JSON.stringify(listJobs(paths), null, 2)}\n`);
