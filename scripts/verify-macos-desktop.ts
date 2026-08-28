@@ -2,6 +2,35 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+function listSwiftFiles(rootPath: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(rootPath, { withFileTypes: true })) {
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listSwiftFiles(entryPath));
+    } else if (entry.isFile() && entry.name.endsWith(".swift")) {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
+function directLocalizationKeys(source: string): Set<string> {
+  return new Set(
+    [...source.matchAll(/DesktopL10n\.string\(\s*"((?:\\.|[^"\\])*)"/g)].map(
+      (match) => match[1] ?? ""
+    )
+  );
+}
+
+function stringsResourceKeys(source: string): Set<string> {
+  return new Set(
+    [...source.matchAll(/^"((?:\\.|[^"\\])*)"\s*=/gm)].map(
+      (match) => match[1] ?? ""
+    )
+  );
+}
+
 const root = process.cwd();
 const packageManifestPath = path.join(root, "desktop", "macos", "Package.swift");
 const infoPlistPath = path.join(root, "desktop", "macos", "AppBundle", "Info.plist");
@@ -128,6 +157,33 @@ const settings = fs.readFileSync(settingsPath, "utf8");
 const desktopLocalization = fs.readFileSync(desktopLocalizationPath, "utf8");
 const englishLocalization = fs.readFileSync(englishLocalizationPath, "utf8");
 const simplifiedChineseLocalization = fs.readFileSync(simplifiedChineseLocalizationPath, "utf8");
+const referencedLocalizationKeys = new Set<string>();
+for (const swiftPath of listSwiftFiles(desktopSourceRoot)) {
+  const swiftSource = fs.readFileSync(swiftPath, "utf8");
+  for (const key of directLocalizationKeys(swiftSource)) {
+    referencedLocalizationKeys.add(key);
+  }
+}
+const englishLocalizationKeys = stringsResourceKeys(englishLocalization);
+const simplifiedChineseLocalizationKeys = stringsResourceKeys(
+  simplifiedChineseLocalization
+);
+const missingEnglishLocalizationKeys = [...referencedLocalizationKeys]
+  .filter((key) => !englishLocalizationKeys.has(key))
+  .sort();
+const missingSimplifiedChineseLocalizationKeys = [...referencedLocalizationKeys]
+  .filter((key) => !simplifiedChineseLocalizationKeys.has(key))
+  .sort();
+assert.deepEqual(
+  missingEnglishLocalizationKeys,
+  [],
+  `Missing en localization keys: ${missingEnglishLocalizationKeys.join(", ")}`
+);
+assert.deepEqual(
+  missingSimplifiedChineseLocalizationKeys,
+  [],
+  `Missing zh-Hans localization keys: ${missingSimplifiedChineseLocalizationKeys.join(", ")}`
+);
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
 const packagedWorkspaceConfiguration = fs.readFileSync(packagedWorkspaceConfigurationPath, "utf8");
 const projectRegistry = fs.readFileSync(projectRegistryPath, "utf8");

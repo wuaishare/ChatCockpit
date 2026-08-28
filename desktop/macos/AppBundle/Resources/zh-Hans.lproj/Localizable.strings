@@ -38,6 +38,12 @@
 "Add Project" = "添加项目";
 "Add Project Root" = "添加项目目录";
 "Add Root" = "添加目录";
+"Open Project Center" = "打开项目中心";
+"Remove Root" = "移除目录";
+"Remove Project Root?" = "移除项目目录？";
+"The last project root cannot be removed from an active project." = "活动项目至少需要保留一个项目目录，无法移除最后一个项目目录。";
+"This only removes the folder from the ChatCockpit project registry. The folder and all files on disk remain unchanged. Linked execution workspaces are archived from this project." = "此操作只会从 ChatCockpit 项目注册表中移除此目录。磁盘上的目录及其中所有文件均保持不变；与该目录关联的执行工作区会从当前项目中归档。";
+"Project root removed. Files on disk were not changed, and Runtime lifecycle was not changed." = "项目目录已移除。磁盘文件未发生变化，运行环境生命周期也未发生变化。";
 "A Project is the long-lived identity. Project Roots are the folders that belong to it. Execution Workspaces are created only for executable Git roots, so a documentation or knowledge root can be primary without pretending to be a checkout." = "Project 是长期稳定的项目身份；Project Root 是归属于项目的目录；只有可执行的 Git 项目目录才会建立 Execution Workspace。因此文档或知识库目录也可以作为主项目目录，而不会被错误当作代码检出目录。";
 "This project currently has no executable default workspace. Project metadata and non-code roots remain usable, but Runtime execution requires a registered Git checkout or worktree." = "当前项目还没有默认执行工作区。项目元数据和非代码目录仍可正常使用，但运行代码需要已注册的 Git checkout 或 worktree。";
 "Choose a project folder. Git repositories are registered as executable project roots; other folders remain ordinary project roots and do not become execution workspaces automatically." = "选择一个项目目录。Git 仓库会注册为可执行的项目目录；普通目录只作为项目目录管理，不会自动伪装成执行工作区。";

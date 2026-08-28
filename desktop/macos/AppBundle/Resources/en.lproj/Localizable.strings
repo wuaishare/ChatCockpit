@@ -38,6 +38,12 @@
 "Add Project" = "Add Project";
 "Add Project Root" = "Add Project Root";
 "Add Root" = "Add Root";
+"Open Project Center" = "Open Project Center";
+"Remove Root" = "Remove Root";
+"Remove Project Root?" = "Remove Project Root?";
+"The last project root cannot be removed from an active project." = "The last project root cannot be removed from an active project.";
+"This only removes the folder from the ChatCockpit project registry. The folder and all files on disk remain unchanged. Linked execution workspaces are archived from this project." = "This only removes the folder from the ChatCockpit project registry. The folder and all files on disk remain unchanged. Linked execution workspaces are archived from this project.";
+"Project root removed. Files on disk were not changed, and Runtime lifecycle was not changed." = "Project root removed. Files on disk were not changed, and Runtime lifecycle was not changed.";
 "A Project is the long-lived identity. Project Roots are the folders that belong to it. Execution Workspaces are created only for executable Git roots, so a documentation or knowledge root can be primary without pretending to be a checkout." = "A Project is the long-lived identity. Project Roots are the folders that belong to it. Execution Workspaces are created only for executable Git roots, so a documentation or knowledge root can be primary without pretending to be a checkout.";
 "This project currently has no executable default workspace. Project metadata and non-code roots remain usable, but Runtime execution requires a registered Git checkout or worktree." = "This project currently has no executable default workspace. Project metadata and non-code roots remain usable, but Runtime execution requires a registered Git checkout or worktree.";
 "Choose a project folder. Git repositories are registered as executable project roots; other folders remain ordinary project roots and do not become execution workspaces automatically." = "Choose a project folder. Git repositories are registered as executable project roots; other folders remain ordinary project roots and do not become execution workspaces automatically.";
