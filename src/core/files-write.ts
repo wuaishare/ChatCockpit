@@ -34,7 +34,10 @@ const BLOCKED_FILENAMES = [
   "operator-mfa.json"
 ];
 
-export function validateRelativePathForWrite(inputPath: string): string {
+function validateRelativeRepositoryPath(
+  inputPath: string,
+  options: { enforceFileType: boolean }
+): string {
   if (!inputPath || path.isAbsolute(inputPath)) {
     throw new Error("File path must be a non-empty relative path");
   }
@@ -66,12 +69,22 @@ export function validateRelativePathForWrite(inputPath: string): string {
     throw new Error("Requested path is blocked");
   }
 
-  const ext = path.extname(basename).toLowerCase();
-  if (ext && !TEXT_LIKE_EXTENSIONS.has(ext)) {
-    throw new Error(`File type not allowed for write: ${ext}`);
+  if (options.enforceFileType) {
+    const ext = path.extname(basename).toLowerCase();
+    if (ext && !TEXT_LIKE_EXTENSIONS.has(ext)) {
+      throw new Error(`File type not allowed for write: ${ext}`);
+    }
   }
 
   return normalized;
+}
+
+export function validateRelativePathForWrite(inputPath: string): string {
+  return validateRelativeRepositoryPath(inputPath, { enforceFileType: true });
+}
+
+export function validateRelativePathForList(inputPath: string): string {
+  return validateRelativeRepositoryPath(inputPath, { enforceFileType: false });
 }
 
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
@@ -97,6 +110,21 @@ export function resolveWritableRepoPathTarget(
     repoRoot,
     relativePath,
     label
+  ).absolutePath;
+  return { repoRoot, relativePath, absolutePath };
+}
+
+export function resolveListableRepoPathTarget(
+  paths: TokenPilotPaths,
+  repoId: string,
+  inputPath: string
+): WritableRepoPathTarget {
+  const repoRoot = assertRepoAllowed(paths, repoId);
+  const relativePath = validateRelativePathForList(inputPath);
+  const absolutePath = resolvePathInsideRoot(
+    repoRoot,
+    relativePath,
+    "Directory path"
   ).absolutePath;
   return { repoRoot, relativePath, absolutePath };
 }
@@ -189,11 +217,10 @@ export function listRepoDirectory(
   paths: TokenPilotPaths,
   payload: FileListPayload
 ): FileListResponse {
-  const { relativePath, absolutePath: diskPath } = resolveWritableRepoPathTarget(
+  const { relativePath, absolutePath: diskPath } = resolveListableRepoPathTarget(
     paths,
     payload.repoId,
-    payload.path,
-    "Directory path"
+    payload.path
   );
   if (!fs.existsSync(diskPath)) {
     throw new Error(`Directory not found: ${relativePath}`);

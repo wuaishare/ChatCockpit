@@ -352,6 +352,12 @@ async function verifyChatDirectRouting(): Promise<void> {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-chat-direct-"));
   fs.mkdirSync(path.join(repoRoot, "src"), { recursive: true });
   fs.mkdirSync(path.join(repoRoot, "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, "Resources", "en.lproj"), { recursive: true });
+  fs.writeFileSync(
+    path.join(repoRoot, "Resources", "en.lproj", "Localizable.strings"),
+    '"Status" = "Status";\n',
+    "utf8"
+  );
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Chat Direct\n", "utf8");
   fs.writeFileSync(
     path.join(repoRoot, "scripts", "managed.mjs"),
@@ -553,6 +559,20 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.ok(listed.entries.some((entry) => entry.name === "fixture.ts"));
     assert.equal(listed.execution.executor, "codex-app-server-standalone");
+
+    const localizedDirectory = await service.list(context, {
+      repoId: "primary",
+      path: "Resources/en.lproj"
+    });
+    assert.ok(
+      localizedDirectory.entries.some(
+        (entry) => entry.name === "Localizable.strings"
+      )
+    );
+    assert.equal(
+      localizedDirectory.execution.executor,
+      "codex-app-server-standalone"
+    );
 
     const alphaCoreWrite = await service.write(context, {
       repoId: "primary",

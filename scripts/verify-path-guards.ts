@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { resolvePathInsideRoot } from "../src/core/path-guards.ts";
-import { validateRelativePathForWrite } from "../src/core/files-write.ts";
+import {
+  validateRelativePathForList,
+  validateRelativePathForWrite
+} from "../src/core/files-write.ts";
 import { isTextLikeFilePath } from "../src/core/text-file-policy.ts";
 import { isPublicSafeGitPath } from "../src/core/git-public-safety.ts";
 import { isPublicRepoBundleIncludeEntry } from "../src/core/repo-bundle.ts";
@@ -39,6 +42,14 @@ try {
   assert.equal(isTextLikeFilePath(".gitignore"), true);
   assert.equal(isTextLikeFilePath("cover.png"), false);
   assert.throws(() => validateRelativePathForWrite("cover.png"), /File type not allowed/);
+  assert.equal(
+    validateRelativePathForList("desktop/macos/AppBundle/Resources/en.lproj"),
+    "desktop/macos/AppBundle/Resources/en.lproj"
+  );
+  assert.throws(
+    () => validateRelativePathForWrite("desktop/macos/AppBundle/Resources/en.lproj"),
+    /File type not allowed/
+  );
 
   fs.symlinkSync(externalRoot, path.join(repoRoot, ".ops-private"), "dir");
   assert.throws(

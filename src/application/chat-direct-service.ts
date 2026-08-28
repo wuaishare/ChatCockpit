@@ -9,6 +9,7 @@ import {
 import {
   assertWriteContentAllowed,
   listRepoDirectory,
+  resolveListableRepoPathTarget,
   resolveWritableRepoPathTarget
 } from "../core/files-write.js";
 import {
@@ -513,11 +514,10 @@ export class ChatDirectService {
     const selection = this.select("files.list", "read", payload.executorId);
     if (selection.executorId === "codex-app-server-standalone") {
       try {
-        const target = resolveWritableRepoPathTarget(
+        const target = resolveListableRepoPathTarget(
           this.paths,
           payload.repoId,
-          payload.path,
-          "Directory path"
+          payload.path
         );
         await this.runtime.listStandaloneDirectory(target.absolutePath);
         const value = listRepoDirectory(this.paths, payload);
