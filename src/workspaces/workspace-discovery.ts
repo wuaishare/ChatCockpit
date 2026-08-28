@@ -76,10 +76,7 @@ export function workspaceDiscoveryCandidateId(input: {
     .slice(0, 32)}`;
 }
 
-export function inspectWorkspaceGitRoot(candidatePath: string): WorkspaceDiscoveryPrivateCandidate["git"] | null {
-  const topLevel = runGit(candidatePath, ["rev-parse", "--show-toplevel"]);
-  if (!topLevel || canonical(topLevel) !== canonical(candidatePath)) return null;
-
+function gitMetadataForRoot(candidatePath: string): WorkspaceDiscoveryPrivateCandidate["git"] | null {
   const status = runGit(candidatePath, ["status", "--porcelain=v2", "--branch"]);
   if (status === null) return null;
   const head = runGit(candidatePath, ["rev-parse", "HEAD"]);
@@ -98,6 +95,30 @@ export function inspectWorkspaceGitRoot(candidatePath: string): WorkspaceDiscove
     headCommit: head || null,
     dirty
   };
+}
+
+export interface ResolvedProjectRootGitRoot {
+  privatePath: string;
+  git: WorkspaceDiscoveryPrivateCandidate["git"];
+}
+
+export function resolveProjectRootGitRoot(candidatePath: string): ResolvedProjectRootGitRoot | null {
+  const topLevel = runGit(candidatePath, ["rev-parse", "--show-toplevel"]);
+  if (!topLevel) return null;
+  const privatePath = canonical(topLevel);
+  const git = gitMetadataForRoot(privatePath);
+  return git ? { privatePath, git } : null;
+}
+
+/** @deprecated Use resolveProjectRootGitRoot for root discovery. */
+export const resolveWorkspaceGitRoot = resolveProjectRootGitRoot;
+
+export function inspectWorkspaceGitRoot(
+  candidatePath: string
+): WorkspaceDiscoveryPrivateCandidate["git"] | null {
+  const resolved = resolveProjectRootGitRoot(candidatePath);
+  if (!resolved || resolved.privatePath !== canonical(candidatePath)) return null;
+  return resolved.git;
 }
 
 export function scanWorkspaceDiscoveryRoot(input: {

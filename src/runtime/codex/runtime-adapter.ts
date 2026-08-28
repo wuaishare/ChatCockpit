@@ -64,6 +64,24 @@ export interface RuntimeThreadListResult {
   backwardsCursor: string | null;
 }
 
+/**
+ * Machine-local only provider-native session location observation.
+ *
+ * This is raw native history evidence, not a ProjectRoot or Workspace identity.
+ * privatePath must never enter the public runtime/thread MCP projection.
+ */
+export interface RuntimePrivateThreadLocationProjection {
+  threadId: string;
+  privatePath: string;
+  name: string | null;
+  updatedAt: number | null;
+}
+
+export interface RuntimePrivateThreadLocationPage {
+  data: RuntimePrivateThreadLocationProjection[];
+  nextCursor: string | null;
+}
+
 export interface RuntimeThreadReadInput {
   threadId: string;
   includeTurns?: boolean;
@@ -338,6 +356,10 @@ export interface RuntimeEventSink {
 export interface CodingRuntimeAdapter {
   capabilities(): Promise<RuntimeCapabilitySnapshot>;
   listThreads(input?: RuntimeThreadListInput): Promise<RuntimeThreadListResult>;
+  listPrivateThreadLocations?(input?: {
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<RuntimePrivateThreadLocationPage>;
   readThread(input: RuntimeThreadReadInput): Promise<RuntimeThreadProjection>;
   readThreadContext(input: RuntimeThreadContextInput): Promise<RuntimeThreadContextPage>;
   startThread(input: RuntimeThreadStartInput): Promise<RuntimeThreadProjection>;

@@ -71,6 +71,8 @@ import { OperationalActivityService } from "../application/operational-activity-
 import { TrajectoryService } from "../application/trajectory-service.js";
 import { ContinuityCapsuleService } from "../application/continuity-capsule-service.js";
 import { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
+import { ProjectRootDiscoveryService } from "../application/project-root-discovery-service.js";
+import { CodexProjectRootDiscoverySource } from "../application/codex-project-root-discovery-source.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -699,6 +701,9 @@ export function buildServer(
     continuityServices.repositories
   );
   const runtimeService = new RuntimeService(runtimeRouter);
+  const projectRootDiscovery = new ProjectRootDiscoveryService(paths, [
+    new CodexProjectRootDiscoverySource(runtimeService)
+  ]);
   const runtimeLifecycleService = new RuntimeLifecycleService(
     paths,
     continuityServices.repositories
@@ -1067,7 +1072,8 @@ export function buildServer(
   registerProjectRegistryRoutes(
     app,
     continuityServices.projects,
-    projectDevelopmentRouting
+    projectDevelopmentRouting,
+    projectRootDiscovery
   );
   registerContinuityRoutes(
     app,

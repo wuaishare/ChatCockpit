@@ -51,6 +51,7 @@ import type {
   RuntimeThreadForkInput,
   RuntimeThreadListInput,
   RuntimeThreadListResult,
+  RuntimePrivateThreadLocationPage,
   RuntimeThreadProjection,
   RuntimeThreadReadInput,
   RuntimeThreadResumeInput,
@@ -844,6 +845,40 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         typeof response.backwardsCursor === "string"
           ? response.backwardsCursor
           : null
+    };
+  }
+
+  async listPrivateThreadLocations(input: {
+    cursor?: string | null;
+    limit?: number;
+  } = {}): Promise<RuntimePrivateThreadLocationPage> {
+    const client = await this.ensureClient();
+    const response = await client.request<ThreadListResponse>("thread/list", {
+      cursor: input.cursor ?? null,
+      limit: input.limit === undefined ? 100 : Math.max(1, Math.min(100, input.limit)),
+      sortKey: "recency_at",
+      sortDirection: "desc",
+      modelProviders: [],
+      archived: false,
+      sourceKinds: [...PRIMARY_CODEX_THREAD_SOURCE_KINDS]
+    });
+    return {
+      data: (response.data ?? []).flatMap((value) => {
+        const thread = asRecord(value);
+        const threadId = typeof thread.id === "string" ? thread.id.trim() : "";
+        const privatePath = typeof thread.cwd === "string" ? thread.cwd.trim() : "";
+        if (!threadId || !privatePath) return [];
+        return [{
+          threadId,
+          privatePath,
+          name: typeof thread.name === "string" && thread.name.trim() ? thread.name.trim() : null,
+          updatedAt:
+            finiteNumberOrNull(thread.recencyAt) ??
+            finiteNumberOrNull(thread.updatedAt)
+        }];
+      }),
+      nextCursor:
+        typeof response.nextCursor === "string" ? response.nextCursor : null
     };
   }
 

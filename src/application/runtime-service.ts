@@ -7,6 +7,7 @@ import type {
   RuntimeCapabilitySnapshot,
   RuntimeMcpApplicabilityProjection,
   RuntimeNativeContextProjection,
+  RuntimePrivateThreadLocationPage,
   RuntimeThreadListResult,
   RuntimeThreadProjection
 } from "../runtime/codex/runtime-adapter.js";
@@ -39,6 +40,13 @@ export class RuntimeService {
     input: CodexThreadListInput
   ): Promise<RuntimeThreadListResult> {
     return this.runtime.listCodexThreads(input);
+  }
+
+  listPrivateCodexThreadLocations(
+    _context: OperationContext,
+    input: { cursor?: string | null; limit?: number } = {}
+  ): Promise<RuntimePrivateThreadLocationPage> {
+    return this.runtime.listPrivateCodexThreadLocations(input);
   }
 
   readCodexThread(

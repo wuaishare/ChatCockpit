@@ -11,6 +11,7 @@ import type {
   RuntimeNativeContextReadInput,
   RuntimePluginListInput,
   RuntimePluginProjection,
+  RuntimePrivateThreadLocationPage,
   RuntimeResourceConfigSummary,
   RuntimeSkillListInput,
   RuntimeSkillProjection,
@@ -44,6 +45,19 @@ export class RuntimeRouter {
     input?: RuntimeThreadListInput
   ): Promise<RuntimeThreadListResult> {
     return this.codex.listThreads(input);
+  }
+
+  listPrivateCodexThreadLocations(input?: {
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<RuntimePrivateThreadLocationPage> {
+    if (!this.codex.listPrivateThreadLocations) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Codex private native-session location observation is unavailable"
+      );
+    }
+    return this.codex.listPrivateThreadLocations(input);
   }
 
   readCodexThread(

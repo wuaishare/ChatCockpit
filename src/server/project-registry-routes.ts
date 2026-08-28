@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { ProjectService } from "../application/project-service.js";
 import type { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
+import type { ProjectRootDiscoveryService } from "../application/project-root-discovery-service.js";
 import {
   projectRegistryAttachRootSchema,
   projectRegistryAttachWorkspaceSchema,
@@ -52,8 +53,18 @@ function ownerOnly(
 export function registerProjectRegistryRoutes(
   app: FastifyInstance,
   projects: ProjectService,
-  projectDevelopmentRouting?: ProjectDevelopmentRoutingService
+  projectDevelopmentRouting?: ProjectDevelopmentRoutingService,
+  projectRootDiscovery?: ProjectRootDiscoveryService
 ): void {
+  if (projectRootDiscovery) {
+    app.get("/api/projects/discovery", (request, reply) =>
+      ownerOnly(request, reply, async () => ({
+        ok: true,
+        ...(await projectRootDiscovery.listCandidates(operationContextFromRequest(request)))
+      }))
+    );
+  }
+
   app.get("/api/projects", (request, reply) =>
     ownerOnly(request, reply, () => {
       const input = parseOrReply(projectRegistryListSchema, request.query ?? {}, reply);
