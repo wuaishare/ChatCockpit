@@ -62,6 +62,8 @@ let runtimeAvailable = true;
 let capabilityProbeMode: "ok" | "error" | "hang" = "ok";
 let threadProbeMode: "ok" | "error" | "hang" = "ok";
 let mcpProbeMode: "ok" | "error" | "hang" = "ok";
+let capabilityProbeDelayMs = 0;
+let threadProbeDelayMs = 0;
 let threads: RuntimeThreadProjection[] = [];
 let mcpApplicability: RuntimeMcpApplicabilityProjection = {
   workspaceId: "",
@@ -76,6 +78,9 @@ let mcpApplicability: RuntimeMcpApplicabilityProjection = {
 };
 const runtime = {
   capabilities: async () => {
+    if (capabilityProbeDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, capabilityProbeDelayMs));
+    }
     if (capabilityProbeMode === "error") {
       throw new Error("TEST_CAPABILITIES_FAILED");
     }
@@ -105,6 +110,9 @@ const runtime = {
     return { ...mcpApplicability, workspaceId };
   },
   listCodexThreads: async (_context: typeof context, input: { workspaceId?: string }) => {
+    if (threadProbeDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, threadProbeDelayMs));
+    }
     if (threadProbeMode === "error") {
       throw new Error("TEST_THREADS_FAILED");
     }
@@ -278,6 +286,18 @@ try {
     providerObservationBudgetMs: 25,
     providerObservationCacheTtlMs: 0
   });
+
+  const parallelObservationRouting = new ProjectDevelopmentRoutingService(paths, projects, runtime, {
+    providerObservationBudgetMs: 100,
+    providerObservationCacheTtlMs: 0
+  });
+  capabilityProbeDelayMs = 70;
+  threadProbeDelayMs = 70;
+  const parallelObservation = await parallelObservationRouting.coordinate(context, project.id);
+  assert.equal(parallelObservation.codexContinuity.observation.status, "ready");
+  assert.equal(parallelObservation.codexContinuity.observation.reason, null);
+  capabilityProbeDelayMs = 0;
+  threadProbeDelayMs = 0;
 
   capabilityProbeMode = "hang";
   const capabilityTimeoutStartedAt = Date.now();

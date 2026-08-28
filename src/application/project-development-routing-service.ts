@@ -275,10 +275,20 @@ export class ProjectDevelopmentRoutingService {
     const warnings: string[] = [];
     const deadline = Date.now() + this.providerObservationBudgetMs;
     const remainingBudget = () => Math.max(0, deadline - Date.now());
-    const capabilityObservation = await observeWithinBudget(
+    const capabilityObservationPromise = observeWithinBudget(
       () => this.runtime.capabilities(context),
       remainingBudget()
     );
+    const threadObservationPromise = observeWithinBudget(
+      () => this.runtime.listCodexThreads(context, {
+        workspaceId,
+        limit: 50,
+        archived: undefined,
+        sourceKinds: ["cli", "vscode", "exec", "appServer", "unknown"]
+      }),
+      remainingBudget()
+    );
+    const capabilityObservation = await capabilityObservationPromise;
 
     if (capabilityObservation.kind === "timeout") {
       return this.rememberCodexContinuity(workspaceId, {
@@ -335,15 +345,7 @@ export class ProjectDevelopmentRoutingService {
       });
     }
 
-    const threadObservation = await observeWithinBudget(
-      () => this.runtime.listCodexThreads(context, {
-        workspaceId,
-        limit: 50,
-        archived: undefined,
-        sourceKinds: ["cli", "vscode", "exec", "appServer", "unknown"]
-      }),
-      remainingBudget()
-    );
+    const threadObservation = await threadObservationPromise;
 
     if (threadObservation.kind === "timeout") {
       return this.rememberCodexContinuity(workspaceId, {
