@@ -3,6 +3,8 @@ import { z } from "zod";
 import { ServiceError } from "../../application/service-error.js";
 import {
   evidenceRecordSchema,
+  handoffAcceptSchema,
+  handoffPrepareSchema,
   sessionGetSchema,
   sessionStartSchema,
   taskCompleteSchema,
@@ -41,6 +43,8 @@ const continuityInvokeSchema = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("session.start"), input: sessionStartSchema }),
   z.object({ tool: z.literal("session.get"), input: sessionGetSchema }),
   z.object({ tool: z.literal("evidence.record"), input: evidenceRecordSchema }),
+  z.object({ tool: z.literal("handoff.prepare"), input: handoffPrepareSchema }),
+  z.object({ tool: z.literal("handoff.accept"), input: handoffAcceptSchema }),
   z.object({ tool: z.literal("task.submitReview"), input: taskSubmitReviewSchema }),
   z.object({ tool: z.literal("task.complete"), input: taskCompleteSchema })
 ]);

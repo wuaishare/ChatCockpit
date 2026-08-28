@@ -46,7 +46,7 @@ P0.2 必须证明 canonical `/mcp`、`/mcp/full` 与至少一个 specialist Pack
 因此 ADR-004 的“拒绝单一万能路由工具”继续成立，并增加以下约束：
 
 1. canonical `/mcp` 可以提供**域内有界 consolidation action**，但不得提供 `execute(anything)` / `tools.invoke(anything)` 一类跨域万能 dispatcher。
-2. 当前增加 `chatcockpit.continuity.invoke`，仅用于 Continuity Task / Session / Evidence 的 7 个显式操作：`task.create`、`task.get`、`session.start`、`session.get`、`evidence.record`、`task.submitReview`、`task.complete`。
+2. 当前增加 `chatcockpit.continuity.invoke`，仅用于 Continuity Task / Session / Evidence / Handoff 的 9 个显式操作：`task.create`、`task.get`、`session.start`、`session.get`、`evidence.record`、`handoff.prepare`、`handoff.accept`、`task.submitReview`、`task.complete`。`handoff.prepare/accept` 是 `task.complete` 的 accepted-handoff completion policy 所必需的同域依赖，不属于跨域能力扩张。
 3. `continuity.invoke.tool` 必须是公开 JSON Schema 中的固定 enum，而不是自由字符串。任何新增可代理操作都必须修改 public action definition、catalog fingerprint 与验证基线，使 Host/Admin 能在 Refresh/Review 中看到范围变化。
 4. `host-admin`、`runtime-admin`、`device-admin`、`workflow`、`codex-native`、`recovery` 与 capability mutation 不得通过 `continuity.invoke` 间接调用；这些能力继续保持显式 Pack / 专用 action 边界。
 5. `tools.discover(pack, tool)` 可以返回单个 specialist 的 schema/annotations；只有被上述固定 enum 明确允许的 Continuity 工具才标记 `invokeVia=continuity.invoke`，其他 specialist 仍只有显式 Pack 路径。
@@ -56,7 +56,7 @@ P0.2 必须证明 canonical `/mcp`、`/mcp/full` 与至少一个 specialist Pack
 ### Amendment verification
 
 - `/mcp` 必须只暴露 20 个 Core，且 `continuity.invoke` 有正式 `outputSchema`。
-- `continuity.invoke.tool` 的 schema 必须只包含上述 7 个 enum 值。
+- `continuity.invoke.tool` 的 schema 必须只包含上述 9 个 enum 值，并覆盖 `task.complete` 所需的 `handoff.prepare/accept` 同域前置链路。
 - `evidence.record` 必须能通过 `continuity.invoke` 实际写入并验证 idempotent replay。
 - `runtime.restart`、`devices.runtime.lifecycle.execute`、`host.command.execute` 等跨域高风险工具必须在公开输入 schema 层直接被拒绝，不能进入 dispatcher handler。
 - ChatGPT App 工具快照变化仍由 ChatGPT 管理员 Refresh/Review 流程负责；ChatCockpit 不通过私有协议或万能 dispatcher 绕过该治理边界。

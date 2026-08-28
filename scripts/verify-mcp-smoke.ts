@@ -321,6 +321,8 @@ async function runMcpSmoke(): Promise<void> {
       "task.create",
       "session.start",
       "evidence.record",
+      "handoff.prepare",
+      "handoff.accept",
       "expectedTaskRevision",
       "idempotencyKey"
     ]) {

@@ -66,6 +66,8 @@ export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
   "session.start",
   "session.get",
   "evidence.record",
+  "handoff.prepare",
+  "handoff.accept",
   "task.submitReview",
   "task.complete"
 ] as const;

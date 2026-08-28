@@ -47,6 +47,8 @@ assert.deepEqual(
     "session.start",
     "session.get",
     "evidence.record",
+    "handoff.prepare",
+    "handoff.accept",
     "task.submitReview",
     "task.complete"
   ].sort()
