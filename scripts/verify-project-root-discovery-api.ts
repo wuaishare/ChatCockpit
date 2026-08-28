@@ -96,11 +96,15 @@ operatorStore.close();
 const original = {
   configPath: process.env.CHATCOCKPIT_CONFIG_PATH,
   exposed: process.env.CHATCOCKPIT_EXPOSED,
-  token: process.env.CHATCOCKPIT_API_TOKEN
+  token: process.env.CHATCOCKPIT_API_TOKEN,
+  codexHome: process.env.CODEX_HOME
 };
 process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
 process.env.CHATCOCKPIT_EXPOSED = "false";
 process.env.CHATCOCKPIT_API_TOKEN = "test-token";
+const codexHome = path.join(root, "codex-home");
+fs.mkdirSync(codexHome, { recursive: true });
+process.env.CODEX_HOME = codexHome;
 
 const codexAdapter = {
   async listPrivateThreadLocations() {
@@ -188,5 +192,7 @@ try {
   else process.env.CHATCOCKPIT_EXPOSED = original.exposed;
   if (original.token === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
   else process.env.CHATCOCKPIT_API_TOKEN = original.token;
+  if (original.codexHome === undefined) delete process.env.CODEX_HOME;
+  else process.env.CODEX_HOME = original.codexHome;
   fs.rmSync(root, { recursive: true, force: true });
 }

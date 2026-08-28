@@ -1,4 +1,4 @@
-import type { ThemeConfig } from "antd";
+import { theme as antdTheme, type ThemeConfig } from "antd";
 
 export type ThemeMode = "auto" | "dark" | "light";
 export type ChatCockpitAppearance = "dark" | "light";
@@ -62,6 +62,7 @@ export function buildAntdTheme(appearance: ChatCockpitAppearance): ThemeConfig {
   const isDark = appearance === "dark";
 
   return {
+    algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: {
       borderRadius: 8,
       borderRadiusLG: 10,

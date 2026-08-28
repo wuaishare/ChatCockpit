@@ -402,7 +402,7 @@ export function ProjectCenterView({
         destroyOnHidden
       >
         <Text as="p" type="secondary">{copy.discoveryImportDescription}</Text>
-        <SourceStrip sources={sources} locale={locale} />
+        <SourceStrip sources={sources} candidates={candidates} locale={locale} />
         {discoveryTruncated ? <Alert type="warning" showIcon message={copy.discoveryTruncated} /> : null}
         {discoveryError ? <Alert type="error" showIcon message={discoveryError} /> : null}
         <div className="project-discovery-candidates">
@@ -517,23 +517,34 @@ export function ProjectCenterView({
 
 function SourceStrip({
   sources,
+  candidates,
   locale
 }: {
   sources: ProjectRootDiscoverySourceSnapshot[];
+  candidates: ProjectRootDiscoveryCandidate[];
   locale: LocaleCode;
 }) {
   const copy = getProjectsCopy(locale);
   if (sources.length === 0) return null;
   return (
     <div className="project-discovery-sources" aria-label={copy.discoverySources}>
-      {sources.map((source) => (
-        <Tag key={source.id} color={source.status === "ready" ? "success" : "default"}>
-          {source.displayName}
-          {source.status === "ready"
-            ? ` · ${source.inspectedContexts}`
-            : ` · ${copy.sourceUnavailable}`}
-        </Tag>
-      ))}
+      {sources.map((source) => {
+        const candidateCount = candidates.filter((candidate) =>
+          candidate.sources.some((candidateSource) => candidateSource.sourceId === source.id)
+        ).length;
+        return (
+          <Tag
+            key={source.id}
+            color={source.status === "ready" ? "success" : "default"}
+            title={source.status === "ready" ? `${source.inspectedContexts} ${copy.sourceSignals}` : undefined}
+          >
+            {source.displayName}
+            {source.status === "ready"
+              ? ` · ${candidateCount} ${copy.sourceCandidates}`
+              : ` · ${copy.sourceUnavailable}`}
+          </Tag>
+        );
+      })}
     </div>
   );
 }

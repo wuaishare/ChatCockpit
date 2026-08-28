@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { theme as antdThemeApi } from "antd";
+
+import { buildAntdTheme } from "../web/src/theme.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -12,6 +15,7 @@ const types = read("web/src/types.ts");
 const center = read("web/src/components/projects/ProjectCenterView.tsx");
 const cockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
 const copy = read("web/src/i18n/projects.ts");
+const theme = read("web/src/theme.ts");
 
 // Canonical IA: Project Center -> single-page Project Cockpit.
 assert.match(app, /projects:\s*consolePath\("projects"\)/);
@@ -48,6 +52,21 @@ assert.match(types, /export interface ProjectRootDiscoveryCandidate/);
 assert.match(types, /executionWorkspaceIds:/);
 assert.match(types, /ProjectRegistryDetailResponse extends ContinuityProjectProjection/);
 assert.doesNotMatch(types, /ProjectDiscoveryProviderSnapshot|ProjectDiscoveryCandidateSource/);
+
+// Discovery source badges report deduplicated project roots, not opaque inspected-context counts.
+assert.match(center, /candidateCount = candidates\.filter/);
+assert.match(center, /copy\.sourceCandidates/);
+assert.match(center, /source\.inspectedContexts.*copy\.sourceSignals/);
+assert.match(copy, /sourceCandidates:\s*"个项目目录"/);
+
+// Dark appearance must use Ant Design's dark derivative-token algorithm.
+assert.match(theme, /antdTheme\.darkAlgorithm/);
+assert.match(theme, /antdTheme\.defaultAlgorithm/);
+const darkTokens = antdThemeApi.getDesignToken(buildAntdTheme("dark"));
+assert.equal(darkTokens.colorText, "#edf4ff");
+assert.equal(darkTokens.colorBgElevated, "#0e1d39");
+assert.match(String(darkTokens.colorTextTertiary), /255,255,255/);
+assert.match(String(darkTokens.colorTextDisabled), /255,255,255/);
 
 // Alpha Cockpit stays compact: readiness, roots/workspaces, development context, conditional attention.
 assert.match(cockpit, /copy\.readiness/);

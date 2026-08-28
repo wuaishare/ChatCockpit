@@ -14,6 +14,7 @@ import { ServiceError } from "../src/application/service-error.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { rootIdForRepoId } from "../src/core/project-config-identity.ts";
 import type { RuntimePrivateThreadLocationPage } from "../src/runtime/codex/runtime-adapter.ts";
+import { CodexLocalProjectStateReader } from "../src/runtime/codex/local-project-state.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 function runGit(args: string[]): string {
@@ -289,18 +290,56 @@ try {
       nextCursor: null
     }
   ];
+  const codexHome = path.join(root, "codex-home");
+  fs.mkdirSync(codexHome, { recursive: true });
+  fs.writeFileSync(
+    path.join(codexHome, ".codex-global-state.json"),
+    `${JSON.stringify({
+      "local-projects": {
+        "local-shared": {
+          id: "local-shared",
+          name: "Shared project",
+          rootPaths: [sharedRepo],
+          createdAt: 1,
+          updatedAt: 30
+        }
+      },
+      "electron-saved-workspace-roots": [primaryRepo],
+      "active-workspace-roots": [docsRoot],
+      "thread-workspace-root-hints": {
+        "thread-hint": path.join(sharedRepo, "packages", "web")
+      }
+    })}\n`,
+    "utf8"
+  );
+  const localStateReader = new CodexLocalProjectStateReader(codexHome);
+  const localState = localStateReader.readProjectRoots();
+  assert.equal(localState.available, true);
+  assert.equal(localState.inspectedContexts, 4);
+  assert.equal(localState.roots.length, 4);
+  assert.deepEqual(
+    [...new Set(localState.roots.map((entry) => entry.signalKind))].sort(),
+    [
+      "native-active-workspace-root",
+      "native-project-root",
+      "native-saved-workspace-root",
+      "native-thread-workspace-root-hint"
+    ]
+  );
+
   let runtimePage = 0;
   const nativeCodexSource = new CodexProjectRootDiscoverySource({
     async listPrivateCodexThreadLocations() {
       return runtimePages[runtimePage++] ?? { data: [], nextCursor: null };
     }
-  });
+  }, localStateReader);
   const sourceResult = await nativeCodexSource.discover(context);
   assert.equal(nativeCodexSource.id, "codex-native-history");
   assert.equal(nativeCodexSource.displayName, "Codex");
-  assert.equal(sourceResult.inspectedContexts, 3);
-  assert.equal(sourceResult.observations.length, 3);
-  assert.equal(sourceResult.observations.every((entry) => entry.resolution === "git-top-level"), true);
+  assert.equal(sourceResult.inspectedContexts, 7);
+  assert.equal(sourceResult.observations.length, 7);
+  assert.equal(sourceResult.observations.filter((entry) => entry.resolution === "exact-directory").length, 4);
+  assert.equal(sourceResult.observations.filter((entry) => entry.resolution === "git-top-level").length, 3);
   assert.equal(sourceResult.truncated, false);
 
   process.stdout.write("VERIFY_PROJECT_ROOT_DISCOVERY_OK\n");
