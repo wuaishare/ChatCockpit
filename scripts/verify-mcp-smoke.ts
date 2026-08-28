@@ -322,15 +322,24 @@ async function runMcpSmoke(): Promise<void> {
     for (const marker of [
       "task.create",
       "session.start",
+      "lease.acquire",
+      "lease.release",
       "evidence.record",
       "handoff.prepare",
       "handoff.accept",
+      "runtime.restart",
+      "runtime.restart.read",
       "expectedTaskRevision",
       "idempotencyKey"
     ]) {
       assert.equal(continuityInvokeInputSchema.includes(marker), true);
     }
-    for (const forbidden of ["runtime.restart", "host.command.execute", "devices.runtime.lifecycle.execute"]) {
+    for (const forbidden of [
+      "host.command.execute",
+      "devices.runtime.lifecycle.execute",
+      "resources.mutation.execute",
+      "asyncJob.queue"
+    ]) {
       assert.equal(continuityInvokeInputSchema.includes(forbidden), false);
     }
     assert.equal(
@@ -432,6 +441,39 @@ async function runMcpSmoke(): Promise<void> {
       JSON.stringify(discoverEvidenceResult.structuredContent.surface.selectedTool?.inputSchema),
       /expectedTaskRevision/
     );
+
+    for (const [pack, tool] of [
+      ["continuity-governance", "lease.acquire"],
+      ["runtime-admin", "runtime.restart"]
+    ] as const) {
+      const discoveredGovernanceTool = await postMcp(
+        baseUrl,
+        {
+          jsonrpc: "2.0",
+          id: `discover-${tool}`,
+          method: "tools/call",
+          params: {
+            name: "chatcockpit.tools.discover",
+            arguments: { pack, tool }
+          }
+        },
+        { token: "test-token", path: "/mcp" }
+      );
+      assert.equal(discoveredGovernanceTool.response.status, 200);
+      assert.equal(discoveredGovernanceTool.message.error, undefined);
+      const discoveredGovernanceResult = discoveredGovernanceTool.message.result as {
+        structuredContent: {
+          surface: {
+            selectedTool: { suffix: string; invokeVia: "continuity.invoke" | null } | null;
+          };
+        };
+      };
+      assert.equal(discoveredGovernanceResult.structuredContent.surface.selectedTool?.suffix, tool);
+      assert.equal(
+        discoveredGovernanceResult.structuredContent.surface.selectedTool?.invokeVia,
+        "continuity.invoke"
+      );
+    }
 
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
     assert.deepEqual(
@@ -947,9 +989,9 @@ async function runMcpSmoke(): Promise<void> {
     );
 
     for (const blockedTool of [
-      "runtime.restart",
       "devices.runtime.lifecycle.execute",
-      "host.command.execute"
+      "host.command.execute",
+      "resources.mutation.execute"
     ]) {
       const blockedInvoke = await postMcp(
         baseUrl,
@@ -976,6 +1018,39 @@ async function runMcpSmoke(): Promise<void> {
         /Invalid arguments.*Invalid discriminator value.*task\.create.*evidence\.record.*task\.complete/i
       );
     }
+
+    const restartReadInvoke = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-runtime-restart-read-missing",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.continuity.invoke",
+          arguments: {
+            tool: "runtime.restart.read",
+            input: { operationId: "runtime_restart_missing" }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(restartReadInvoke.response.status, 200);
+    assert.equal(restartReadInvoke.message.error, undefined);
+    const restartReadInvokeResult = restartReadInvoke.message.result as {
+      isError: true;
+      structuredContent?: { error?: { code?: string } };
+      content: Array<{ type: "text"; text: string }>;
+    };
+    assert.equal(restartReadInvokeResult.isError, true);
+    assert.notEqual(
+      restartReadInvokeResult.structuredContent?.error?.code,
+      "CONTINUITY_INVOKE_TOOL_UNAVAILABLE"
+    );
+    assert.doesNotMatch(
+      restartReadInvokeResult.content[0]?.text ?? "",
+      /Invalid discriminator value/
+    );
 
     for (const coreCall of [
       {
@@ -1009,12 +1084,41 @@ async function runMcpSmoke(): Promise<void> {
       );
     }
 
-    await restPost("/api/continuity/leases/acquire", {
-      sessionId: sessionResult.session.id,
-      holderId: "mcp-chat-direct-holder",
-      expiresAt: "2099-01-01T00:00:00.000Z",
-      idempotencyKey: "mcp-chat-direct-lease-0001"
-    });
+    const leaseInvoke = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-lease-acquire",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.continuity.invoke",
+          arguments: {
+            tool: "lease.acquire",
+            input: {
+              sessionId: sessionResult.session.id,
+              holderId: "mcp-chat-direct-holder",
+              expiresAt: "2099-01-01T00:00:00.000Z",
+              idempotencyKey: "mcp-chat-direct-lease-0001"
+            }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(leaseInvoke.response.status, 200);
+    assert.equal(leaseInvoke.message.error, undefined);
+    const leaseInvokeResult = leaseInvoke.message.result as {
+      isError?: boolean;
+      structuredContent: {
+        ok: true;
+        tool: string;
+        result: { ok: true; lease: { id: string; revision: number }; replayed: boolean };
+      };
+    };
+    assert.equal(leaseInvokeResult.isError, undefined);
+    assert.equal(leaseInvokeResult.structuredContent.tool, "lease.acquire");
+    assert.equal(leaseInvokeResult.structuredContent.result.replayed, false);
+    assert.match(leaseInvokeResult.structuredContent.result.lease.id, /^lease_/);
     const writeCoreResult = await postMcp(
       baseUrl,
       {

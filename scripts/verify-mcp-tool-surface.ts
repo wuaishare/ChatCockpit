@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 
 import {
   MCP_CONTINUITY_INVOKE_SUFFIXES,
+  MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES,
+  MCP_RUNTIME_INVOKE_SUFFIXES,
   MCP_TOOL_SURFACE_CLASSIFICATION_COUNT,
   MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES,
   assertMcpToolSurfaceClassified,
@@ -46,6 +48,8 @@ assert.deepEqual(
     "task.get",
     "session.start",
     "session.get",
+    "lease.acquire",
+    "lease.release",
     "evidence.record",
     "handoff.prepare",
     "handoff.accept",
@@ -53,10 +57,24 @@ assert.deepEqual(
     "task.complete"
   ].sort()
 );
+assert.deepEqual(
+  [...MCP_RUNTIME_INVOKE_SUFFIXES].sort(),
+  ["runtime.restart", "runtime.restart.read"].sort()
+);
+assert.deepEqual(
+  [...MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES].sort(),
+  [...MCP_CONTINUITY_INVOKE_SUFFIXES, ...MCP_RUNTIME_INVOKE_SUFFIXES].sort()
+);
 for (const suffix of MCP_CONTINUITY_INVOKE_SUFFIXES) {
   assert.deepEqual(classifyMcpToolSurface(`chatcockpit.${suffix}`), {
     disposition: "deferred-pack",
     pack: "continuity-governance"
+  });
+}
+for (const suffix of MCP_RUNTIME_INVOKE_SUFFIXES) {
+  assert.deepEqual(classifyMcpToolSurface(`chatcockpit.${suffix}`), {
+    disposition: "deferred-pack",
+    pack: "runtime-admin"
   });
 }
 

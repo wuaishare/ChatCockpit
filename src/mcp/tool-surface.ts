@@ -65,6 +65,8 @@ export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
   "task.get",
   "session.start",
   "session.get",
+  "lease.acquire",
+  "lease.release",
   "evidence.record",
   "handoff.prepare",
   "handoff.accept",
@@ -72,7 +74,20 @@ export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
   "task.complete"
 ] as const;
 
+export const MCP_RUNTIME_INVOKE_SUFFIXES = [
+  "runtime.restart",
+  "runtime.restart.read"
+] as const;
+
+export const MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES = [
+  ...MCP_CONTINUITY_INVOKE_SUFFIXES,
+  ...MCP_RUNTIME_INVOKE_SUFFIXES
+] as const;
+
 export type McpContinuityInvokeSuffix = (typeof MCP_CONTINUITY_INVOKE_SUFFIXES)[number];
+export type McpRuntimeInvokeSuffix = (typeof MCP_RUNTIME_INVOKE_SUFFIXES)[number];
+export type McpCoreGovernanceInvokeSuffix =
+  (typeof MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES)[number];
 
 const DEFERRED_BY_PACK = {
   "capability-routing": [

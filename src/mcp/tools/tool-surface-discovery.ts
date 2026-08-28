@@ -5,6 +5,8 @@ import {
   evidenceRecordSchema,
   handoffAcceptSchema,
   handoffPrepareSchema,
+  leaseAcquireSchema,
+  leaseReleaseSchema,
   sessionGetSchema,
   sessionStartSchema,
   taskCompleteSchema,
@@ -13,7 +15,8 @@ import {
   taskSubmitReviewSchema
 } from "../../contracts/continuity.js";
 import {
-  MCP_CONTINUITY_INVOKE_SUFFIXES,
+  MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES,
+  MCP_RUNTIME_INVOKE_SUFFIXES,
   MCP_TOOL_SURFACE_PACKS,
   MCP_TOOL_SURFACE_PACK_METADATA,
   classifyMcpToolSurface,
@@ -25,6 +28,10 @@ import {
   readOnlyToolAnnotations,
   type TokenPilotMcpTool
 } from "../tool-definition.js";
+import {
+  runtimeRestartReadSchema,
+  runtimeRestartSchema
+} from "./runtime-lifecycle.js";
 
 const toolSuffixSchema = z
   .string()
@@ -42,11 +49,15 @@ const continuityInvokeSchema = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("task.get"), input: taskGetSchema }),
   z.object({ tool: z.literal("session.start"), input: sessionStartSchema }),
   z.object({ tool: z.literal("session.get"), input: sessionGetSchema }),
+  z.object({ tool: z.literal("lease.acquire"), input: leaseAcquireSchema }),
+  z.object({ tool: z.literal("lease.release"), input: leaseReleaseSchema }),
   z.object({ tool: z.literal("evidence.record"), input: evidenceRecordSchema }),
   z.object({ tool: z.literal("handoff.prepare"), input: handoffPrepareSchema }),
   z.object({ tool: z.literal("handoff.accept"), input: handoffAcceptSchema }),
   z.object({ tool: z.literal("task.submitReview"), input: taskSubmitReviewSchema }),
-  z.object({ tool: z.literal("task.complete"), input: taskCompleteSchema })
+  z.object({ tool: z.literal("task.complete"), input: taskCompleteSchema }),
+  z.object({ tool: z.literal("runtime.restart"), input: runtimeRestartSchema }),
+  z.object({ tool: z.literal("runtime.restart.read"), input: runtimeRestartReadSchema })
 ]);
 
 const packSummarySchema = z.object({
@@ -57,7 +68,10 @@ const packSummarySchema = z.object({
   specialistToolCount: z.number().int().nonnegative(),
   available: z.boolean()
 });
-const continuityInvokeSuffixes = new Set<string>(MCP_CONTINUITY_INVOKE_SUFFIXES);
+const coreGovernanceInvokeSuffixes = new Set<string>(
+  MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES
+);
+const runtimeInvokeSuffixes = new Set<string>(MCP_RUNTIME_INVOKE_SUFFIXES);
 
 const toolAnnotationsSchema = z.object({
   readOnlyHint: z.boolean(),
@@ -110,11 +124,14 @@ function continuityToolBySuffix(
   baseTools: readonly TokenPilotMcpTool[],
   suffix: string
 ): TokenPilotMcpTool | null {
-  if (!continuityInvokeSuffixes.has(suffix)) return null;
+  if (!coreGovernanceInvokeSuffixes.has(suffix)) return null;
+  const expectedPack = runtimeInvokeSuffixes.has(suffix)
+    ? "runtime-admin"
+    : "continuity-governance";
   return baseTools.find((tool) => {
     if (mcpToolSurfaceSuffix(tool.name) !== suffix) return false;
     const classification = classifyMcpToolSurface(tool.name);
-    return classification?.pack === "continuity-governance" &&
+    return classification?.pack === expectedPack &&
       classification.disposition === "deferred-pack";
   }) ?? null;
 }
@@ -129,7 +146,7 @@ function publicToolDescriptor(tool: TokenPilotMcpTool) {
     outputSchema: tool.outputSchema
       ? z.toJSONSchema(tool.outputSchema, { unrepresentable: "any" })
       : null,
-    invokeVia: continuityInvokeSuffixes.has(mcpToolSurfaceSuffix(tool.name))
+    invokeVia: coreGovernanceInvokeSuffixes.has(mcpToolSurfaceSuffix(tool.name))
       ? "continuity.invoke" as const
       : null
   };
@@ -175,7 +192,7 @@ export function buildToolSurfaceDiscoveryMcpTools(
     name: "chatcockpit.tools.discover",
     title: "Discover specialist ChatCockpit tools",
     description:
-      "Inspect the compact MCP surface and specialist capability packs. Pass pack+tool to inspect one deferred tool's schema and annotations. Selected continuity task/evidence tools report continuity.invoke as their bounded core invocation path. Explicit pack endpoints and /mcp/full remain compatibility surfaces.",
+      "Inspect the compact MCP surface and specialist capability packs. Pass pack+tool to inspect one deferred tool's schema and annotations. Explicitly allowlisted continuity, writer-lease, and runtime-restart tools report continuity.invoke as their bounded core governance path. Explicit pack endpoints and /mcp/full remain compatibility surfaces.",
     inputSchema: toolSurfaceDiscoverSchema,
     outputSchema: toolSurfaceDiscoverOutputSchema,
     annotations: readOnlyToolAnnotations,
@@ -234,7 +251,7 @@ export function buildToolSurfaceDiscoveryMcpTools(
     name: "chatcockpit.continuity.invoke",
     title: "Invoke bounded continuity governance action",
     description:
-      "Invoke one explicitly allowlisted continuity task, session, or evidence action. The tool enum is part of this public action schema so any future scope expansion requires a visible action-definition update. Host, runtime, device, workflow, and compatibility tools are never dispatched here.",
+      "Invoke one explicitly allowlisted core governance action. The public discriminated union is limited to continuity task/session/evidence actions, writer-lease acquire/release, and ChatCockpit runtime restart/read; host administration, device lifecycle, workflow, resource mutation, and compatibility tools are never dispatched here. Any future scope expansion requires a visible action-definition update.",
     inputSchema: continuityInvokeSchema,
     outputSchema: continuityInvokeOutputSchema,
     annotations: {

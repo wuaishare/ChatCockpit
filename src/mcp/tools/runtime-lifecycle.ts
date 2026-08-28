@@ -14,13 +14,13 @@ const idempotencyKeySchema = z
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
 
-const runtimeRestartSchema = z.object({
+export const runtimeRestartSchema = z.object({
   repoId: identifierSchema,
   sessionId: identifierSchema,
   idempotencyKey: idempotencyKeySchema
 });
 
-const runtimeRestartReadSchema = z.object({
+export const runtimeRestartReadSchema = z.object({
   operationId: z.string().regex(/^runtime_restart_[A-Za-z0-9_-]{1,160}$/)
 });
 
