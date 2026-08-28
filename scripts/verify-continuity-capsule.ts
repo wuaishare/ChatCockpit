@@ -244,6 +244,44 @@ assert.equal(JSON.stringify(capsule).includes(syntheticHome), false);
 assert.doesNotMatch(JSON.stringify(capsule), /id_ed25519/);
 assert.doesNotMatch(JSON.stringify(capsule), /private summary/);
 
+const completedSnapshot = {
+  ...snapshot,
+  tasks: [{
+    ...taskProjection,
+    task: {
+      ...taskProjection.task,
+      status: "completed" as const,
+      activeSessionId: null
+    },
+    sessions: [{
+      ...session,
+      status: "completed" as const,
+      endedAt: now
+    }],
+    latestHandoff: {
+      ...handoff,
+      status: "accepted" as const,
+      acceptedAt: now
+    }
+  }]
+};
+const completedService = new ContinuityCapsuleService(
+  { snapshot: () => completedSnapshot } as unknown as WorkspaceContinuityService,
+  { find: () => null } as unknown as TrajectoryService
+);
+const completedCapsule = completedService.generate(context, {
+  workspaceId: session.workspaceId,
+  taskId: session.taskId,
+  trajectoryLimit: 20
+});
+assert.deepEqual(completedCapsule.pendingItems, []);
+assert.equal(completedCapsule.nextAction, null);
+assert.doesNotMatch(completedCapsule.markdown, /## Pending/);
+assert.doesNotMatch(completedCapsule.markdown, /## Next action/);
+assert.equal(completedCapsule.verification.state, "verified");
+assert.equal(completedCapsule.source.sessionId, session.id);
+assert.equal(completedCapsule.source.modelLoopOwner, "codex");
+
 const workspaceOnlyCapsule = service.generate(context, {
   workspaceId: session.workspaceId,
   trajectoryLimit: 20

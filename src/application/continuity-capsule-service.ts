@@ -198,9 +198,13 @@ export class ContinuityCapsuleService {
       },
       objective: handoff?.goal ? safeText(handoff.goal) : task?.task.goal ? safeText(task.task.goal) : null,
       completedItems: safeItems(handoff?.completedItems ?? []),
-      pendingItems: safeItems(handoff?.pendingItems ?? []),
+      pendingItems: task?.task.status === "completed"
+        ? []
+        : safeItems(handoff?.pendingItems ?? []),
       risks: safeItems(handoff?.risks ?? []),
-      nextAction: handoff?.nextAction ? safeText(handoff.nextAction) : null,
+      nextAction: task?.task.status === "completed"
+        ? null
+        : handoff?.nextAction ? safeText(handoff.nextAction) : null,
       verification: {
         state: evidence?.verificationState ?? "missing",
         items: (evidence?.items ?? []).slice(0, 50).map((item) => ({
