@@ -295,11 +295,12 @@ async function runMcpSmoke(): Promise<void> {
         "task.get",
         "task.submitReview",
         "tools.discover",
+        "tools.invoke",
         "trajectory.read",
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 90, "Full compatibility surface must retain all 90 configured tools");
+    assert.equal(tools.length, 91, "Full compatibility surface must retain all 91 configured tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -308,9 +309,10 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 19);
+    assert.equal(coreTools.length, 20);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.invoke"), true);
     assert.equal(
       coreTools.every((tool) => Boolean(tool.outputSchema)),
       true,
@@ -337,7 +339,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 30);
+    assert.equal(codexPackTools.length, 31);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -363,14 +365,51 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 19);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 90);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 20);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 91);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.context.read"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.thread.turn.start"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.turn.start"), false);
+
+    const discoverEvidence = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "discover-evidence-record",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.discover",
+          arguments: { pack: "continuity-governance", tool: "evidence.record" }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(discoverEvidence.response.status, 200);
+    assert.equal(discoverEvidence.message.error, undefined);
+    const discoverEvidenceResult = discoverEvidence.message.result as {
+      isError?: boolean;
+      structuredContent: {
+        surface: {
+          selectedTool: {
+            suffix: string;
+            annotations: { readOnlyHint: boolean; destructiveHint: boolean };
+            inputSchema: Record<string, unknown>;
+            outputSchema: Record<string, unknown> | null;
+          } | null;
+        };
+      };
+    };
+    assert.equal(discoverEvidenceResult.isError, undefined);
+    assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.suffix, "evidence.record");
+    assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.annotations.readOnlyHint, false);
+    assert.equal(discoverEvidenceResult.structuredContent.surface.selectedTool?.annotations.destructiveHint, false);
+    assert.match(
+      JSON.stringify(discoverEvidenceResult.structuredContent.surface.selectedTool?.inputSchema),
+      /expectedTaskRevision/
+    );
 
     const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
     assert.deepEqual(
@@ -380,8 +419,8 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       tools.filter((tool) => isDefaultCoreMcpTool(tool.name)).length,
-      19,
-      "The default surface must classify exactly 19 core tools including governed workspace processes"
+      20,
+      "The default surface must classify exactly 20 core tools including governed workspace processes and deferred-tool invocation"
     );
     assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
@@ -803,6 +842,111 @@ async function runMcpSmoke(): Promise<void> {
       expectedTaskRevision: taskResult.task.revision,
       idempotencyKey: "mcp-chat-direct-session-0001"
     });
+
+    const invokeEvidence = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-evidence-record",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.invoke",
+          arguments: {
+            tool: "evidence.record",
+            input: {
+              taskId: taskResult.task.id,
+              sessionId: sessionResult.session.id,
+              kind: "test",
+              label: "Deferred specialist gateway smoke",
+              status: "passed",
+              required: true,
+              summary: "Recorded through compact-core tools.invoke without mounting a second MCP endpoint.",
+              expectedTaskRevision: sessionResult.task.revision,
+              idempotencyKey: "mcp-tools-invoke-evidence-0001"
+            }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(invokeEvidence.response.status, 200);
+    const invokeEvidenceResult = invokeEvidence.message.result as {
+      isError?: boolean;
+      structuredContent: {
+        ok: true;
+        tool: string;
+        result: {
+          ok: true;
+          bundle: { id: string };
+          item: { id: string; status: string };
+          replayed: boolean;
+        };
+      };
+    };
+    assert.equal(invokeEvidenceResult.isError, undefined);
+    assert.equal(invokeEvidenceResult.structuredContent.tool, "evidence.record");
+    assert.equal(invokeEvidenceResult.structuredContent.result.ok, true);
+    assert.equal(invokeEvidenceResult.structuredContent.result.item.status, "passed");
+    assert.equal(invokeEvidenceResult.structuredContent.result.replayed, false);
+    assert.match(invokeEvidenceResult.structuredContent.result.bundle.id, /^evidence_/);
+
+    const replayEvidence = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-evidence-record-replay",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.invoke",
+          arguments: {
+            tool: "evidence.record",
+            input: {
+              taskId: taskResult.task.id,
+              sessionId: sessionResult.session.id,
+              kind: "test",
+              label: "Deferred specialist gateway smoke",
+              status: "passed",
+              required: true,
+              summary: "Recorded through compact-core tools.invoke without mounting a second MCP endpoint.",
+              expectedTaskRevision: sessionResult.task.revision,
+              idempotencyKey: "mcp-tools-invoke-evidence-0001"
+            }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    const replayEvidenceResult = replayEvidence.message.result as typeof invokeEvidenceResult;
+    assert.equal(replayEvidenceResult.isError, undefined);
+    assert.equal(replayEvidenceResult.structuredContent.result.replayed, true);
+    assert.equal(
+      replayEvidenceResult.structuredContent.result.bundle.id,
+      invokeEvidenceResult.structuredContent.result.bundle.id
+    );
+
+    for (const blockedTool of ["project.list", "codex.turn.start"]) {
+      const blockedInvoke = await postMcp(
+        baseUrl,
+        {
+          jsonrpc: "2.0",
+          id: `invoke-blocked-${blockedTool}`,
+          method: "tools/call",
+          params: {
+            name: "chatcockpit.tools.invoke",
+            arguments: { tool: blockedTool, input: {} }
+          }
+        },
+        { token: "test-token", path: "/mcp" }
+      );
+      assert.equal(blockedInvoke.response.status, 200);
+      const blockedInvokeResult = blockedInvoke.message.result as {
+        isError: true;
+        structuredContent: { error: { code: string } };
+      };
+      assert.equal(blockedInvokeResult.isError, true);
+      assert.equal(blockedInvokeResult.structuredContent.error.code, "SPECIALIST_TOOL_NOT_FOUND");
+    }
+
     for (const coreCall of [
       {
         name: "chatcockpit.trajectory.read",

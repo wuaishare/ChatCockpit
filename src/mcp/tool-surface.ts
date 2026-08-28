@@ -56,7 +56,8 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "git.commit",
   "trajectory.read",
   "continuity.capsule",
-  "tools.discover"
+  "tools.discover",
+  "tools.invoke"
 ] as const;
 
 const DEFERRED_BY_PACK = {
