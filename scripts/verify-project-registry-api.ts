@@ -117,7 +117,7 @@ async function main(): Promise<void> {
   const operatorService = new OperatorService({ store: operatorStore });
   await operatorService.setOwnerPassword({
     username: "owner",
-    password: "project-registry-test-password"
+    password: "test-password"
   });
   operatorStore.close();
 
@@ -128,7 +128,7 @@ async function main(): Promise<void> {
   };
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_EXPOSED = "false";
-  process.env.CHATCOCKPIT_API_TOKEN = "project-registry-machine-token";
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token";
 
   const codexAdapter = {
     async capabilities() {
@@ -163,7 +163,7 @@ async function main(): Promise<void> {
   const server = await listenTestServer(buildServer(paths, { codexAdapter }));
   try {
     const machineRead = await fetch(`${server.baseUrl}/api/projects`, {
-      headers: { authorization: "Bearer project-registry-machine-token" }
+      headers: { authorization: "Bearer test-token" }
     });
     assert.equal(machineRead.status, 401);
     assert.match(await machineRead.text(), /OPERATOR_SESSION_REQUIRED/);
@@ -173,7 +173,7 @@ async function main(): Promise<void> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         username: "owner",
-        password: "project-registry-test-password"
+        password: "test-password"
       })
     });
     assert.equal(login.status, 200);

@@ -89,7 +89,7 @@ const operatorStore = new OperatorStore({ path: operatorDatabasePath(paths.runti
 const operatorService = new OperatorService({ store: operatorStore });
 await operatorService.setOwnerPassword({
   username: "owner",
-  password: "project-root-discovery-password"
+  password: "test-password"
 });
 operatorStore.close();
 
@@ -100,7 +100,7 @@ const original = {
 };
 process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
 process.env.CHATCOCKPIT_EXPOSED = "false";
-process.env.CHATCOCKPIT_API_TOKEN = "project-root-discovery-machine-token";
+process.env.CHATCOCKPIT_API_TOKEN = "test-token";
 
 const codexAdapter = {
   async listPrivateThreadLocations() {
@@ -123,7 +123,7 @@ const codexAdapter = {
 const server = await listenTestServer(buildServer(paths, { codexAdapter }));
 try {
   const machineRead = await fetch(`${server.baseUrl}/api/projects/discovery`, {
-    headers: { authorization: "Bearer project-root-discovery-machine-token" }
+    headers: { authorization: "Bearer test-token" }
   });
   assert.equal(machineRead.status, 401);
   assert.match(await machineRead.text(), /OPERATOR_SESSION_REQUIRED/);
@@ -133,7 +133,7 @@ try {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       username: "owner",
-      password: "project-root-discovery-password"
+      password: "test-password"
     })
   });
   assert.equal(login.status, 200);

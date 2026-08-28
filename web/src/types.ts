@@ -651,19 +651,100 @@ export interface ContinuityProjectsResponse {
   projects: ContinuityProjectProjection[];
 }
 
-export interface ProjectRegistryResponse extends ContinuityProjectsResponse {
+export type ProjectRootKind = "git-repository" | "directory";
+export type ProjectRootRole =
+  | "primary-source"
+  | "supporting-source"
+  | "documentation"
+  | "knowledge"
+  | "assets";
+export type ProjectRootAccess = "read-write" | "read-only";
+export type ProjectRootStatus = "ready" | "missing" | "blocked";
+
+export interface ProjectRootSummary {
+  id: string;
+  projectId: string;
+  kind: ProjectRootKind;
+  role: ProjectRootRole;
+  access: ProjectRootAccess;
+  status: ProjectRootStatus;
+  primary: boolean;
+  pathVisibility: "hidden";
+  executionWorkspaceIds: string[];
+}
+
+export interface ProjectRootDetail extends Omit<ProjectRootSummary, "pathVisibility"> {
+  pathVisibility: "machine-local-owner";
+  privatePath: string;
+}
+
+export interface ProjectRegistryProjection extends ContinuityProjectProjection {
+  roots: ProjectRootSummary[];
+}
+
+export interface ProjectRegistryResponse {
+  ok: true;
   configRevision: string;
+  projects: ProjectRegistryProjection[];
 }
 
 export interface ProjectRegistryDetailResponse extends ContinuityProjectProjection {
   ok: true;
   configRevision: string;
+  roots: ProjectRootDetail[];
   developmentCoordination: ProjectDevelopmentCoordination;
 }
 
 export interface ProjectRegistryMutationResponse extends ContinuityProjectProjection {
   ok: true;
   configRevision: string;
+  roots: ProjectRootSummary[];
+}
+
+export interface ProjectRootDiscoverySourceSnapshot {
+  id: string;
+  displayName: string;
+  status: "ready" | "unavailable";
+  inspectedContexts: number;
+  truncated: boolean;
+  errorCode: string | null;
+}
+
+export interface ProjectRootDiscoveryCandidateSource {
+  sourceId: string;
+  sourceDisplayName: string;
+  signalCount: number;
+  signalKinds: string[];
+  latestObservedAt: number | null;
+  latestLabel: string | null;
+}
+
+export interface ProjectRootDiscoveryCandidate {
+  candidateId: string;
+  name: string;
+  kind: ProjectRootKind;
+  privatePath: string;
+  registration: "registered" | "unregistered";
+  existingRootId: string | null;
+  existingProjectSlug: string | null;
+  executionRepoIds: string[];
+  suggestedRepoId: string | null;
+  latestObservedAt: number | null;
+  sources: ProjectRootDiscoveryCandidateSource[];
+  git: {
+    repository: true;
+    branch: string | null;
+    headCommit: string | null;
+    dirty: boolean;
+  } | null;
+}
+
+export interface ProjectRootDiscoveryResponse {
+  ok: true;
+  configRevision: string;
+  sources: ProjectRootDiscoverySourceSnapshot[];
+  candidates: ProjectRootDiscoveryCandidate[];
+  truncated: boolean;
 }
 
 export type ProjectDevelopmentObservationStatus = "ready" | "degraded" | "not-required";
@@ -685,12 +766,46 @@ export interface ProjectDevelopmentMatchingThread {
   status: { type: string; activeFlags?: string[] };
 }
 
+export interface ProjectDevelopmentProviderCapability {
+  id: string;
+  displayName: string;
+  observation: { status: ProjectDevelopmentObservationStatus; reason: string | null };
+  source: string | null;
+  configuredCount: number | null;
+  applicableCount: number | null;
+  disabledCount: number | null;
+  items: Array<{ id: string; enabled: boolean }>;
+  warnings: string[];
+}
+
+export interface ProjectDevelopmentProvider {
+  id: string;
+  displayName: string;
+  runtimeKind: string;
+  runtimeAvailability: ProjectCodexRuntimeAvailability;
+  observation: {
+    status: ProjectDevelopmentObservationStatus;
+    reason: string | null;
+    latencyBudgetMs: number;
+  };
+  continuation: {
+    action: "resume" | "start" | "repair" | "unavailable";
+    reason: string;
+    actionIds: string[];
+    matchingContext: ProjectDevelopmentMatchingThread | null;
+  };
+  capabilities: ProjectDevelopmentProviderCapability[];
+  warnings: string[];
+}
+
 export interface ProjectDevelopmentCoordination {
   projectId: string;
   workspaceId: string | null;
   repoId: string | null;
   modelLoopOwnership: {
     defaultOwner: "caller";
+    implicitProviderTurnAllowed: false;
+    providerTurnRequiresExplicitTransfer: true;
     implicitCodexTurnAllowed: false;
     codexTurnRequiresExplicitTransfer: true;
   };
@@ -705,6 +820,7 @@ export interface ProjectDevelopmentCoordination {
     detached: boolean;
     dirty: boolean;
   };
+  providers: ProjectDevelopmentProvider[];
   codexContinuity: {
     runtimeAvailable: boolean;
     runtimeAvailability: ProjectCodexRuntimeAvailability;

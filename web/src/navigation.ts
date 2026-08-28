@@ -1,5 +1,6 @@
 export type AppViewKey =
   | "dashboard"
+  | "projects"
   | "continuity"
   | "resources"
   | "devices"

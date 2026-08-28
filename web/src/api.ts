@@ -16,9 +16,13 @@ import type {
   ContinuityHandoffMutationResponse,
   ContinuityProjectDetailResponse,
   ContinuityProjectsResponse,
+  ProjectRootDiscoveryResponse,
   ProjectRegistryDetailResponse,
   ProjectRegistryMutationResponse,
   ProjectRegistryResponse,
+  ProjectRootAccess,
+  ProjectRootKind,
+  ProjectRootRole,
   CodexNativeThreadMutationResponse,
   CodexRuntimeAccountStatusResponse,
   CodexRuntimeThreadReadResponse,
@@ -720,6 +724,10 @@ export async function fetchProjects(): Promise<ProjectRegistryResponse> {
   return requestJson<ProjectRegistryResponse>("/api/projects?status=active");
 }
 
+export async function fetchProjectDiscovery(): Promise<ProjectRootDiscoveryResponse> {
+  return requestJson<ProjectRootDiscoveryResponse>("/api/projects/discovery");
+}
+
 export async function fetchProject(
   projectId: string
 ): Promise<ProjectRegistryDetailResponse> {
@@ -731,8 +739,13 @@ export async function fetchProject(
 export async function createProject(input: {
   slug: string;
   displayName: string;
-  repoId: string;
-  path: string;
+  root: {
+    path: string;
+    kind: ProjectRootKind;
+    role?: ProjectRootRole;
+    access?: ProjectRootAccess;
+    repoId?: string;
+  };
   expectedConfigRevision: string;
 }): Promise<ProjectRegistryMutationResponse> {
   return postBodyJson<ProjectRegistryMutationResponse>("/api/projects", input);
@@ -748,6 +761,35 @@ export async function renameProject(
   );
 }
 
+export async function attachProjectRoot(
+  projectId: string,
+  input: {
+    path: string;
+    kind: ProjectRootKind;
+    role?: ProjectRootRole;
+    access?: ProjectRootAccess;
+    repoId?: string;
+    expectedConfigRevision: string;
+  }
+): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/roots`,
+    input
+  );
+}
+
+export async function makeProjectRootPrimary(
+  projectId: string,
+  rootId: string,
+  expectedConfigRevision: string
+): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/roots/${encodeURIComponent(rootId)}/make-primary`,
+    { expectedConfigRevision }
+  );
+}
+
+/** @deprecated Compatibility helper for legacy callers. New Project UI uses ProjectRoot APIs. */
 export async function attachProjectWorkspace(
   projectId: string,
   input: { repoId: string; path: string; expectedConfigRevision: string }
@@ -758,6 +800,7 @@ export async function attachProjectWorkspace(
   );
 }
 
+/** @deprecated Compatibility helper for legacy callers. New Project UI uses ProjectRoot APIs. */
 export async function makeProjectWorkspacePrimary(
   projectId: string,
   workspaceId: string,

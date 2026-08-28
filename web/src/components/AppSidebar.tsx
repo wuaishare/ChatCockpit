@@ -21,7 +21,7 @@ interface AppSidebarLabels {
   workspaceNavigation: string;
   systemNavigation: string;
   dashboard: string;
-  continuity: string;
+  projects: string;
   resources: string;
   devices: string;
   jobs: string;
@@ -73,7 +73,7 @@ export function AppSidebar({
         label: labels.workspaceNavigation,
         children: [
           { key: "dashboard", icon: <DashboardOutlined />, label: labels.dashboard },
-          { key: "continuity", icon: <ApartmentOutlined />, label: labels.continuity },
+          { key: "projects", icon: <ApartmentOutlined />, label: labels.projects },
           { key: "resources", icon: <AppstoreOutlined />, label: labels.resources },
           { key: "devices", icon: <DesktopOutlined />, label: labels.devices },
           { key: "jobs", icon: <UnorderedListOutlined />, label: labels.jobs }

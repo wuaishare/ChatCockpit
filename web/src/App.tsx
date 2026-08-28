@@ -147,6 +147,16 @@ const PublicAccessView = lazy(() =>
 const DevicesView = lazy(() =>
   import("./components/DevicesView").then((module) => ({ default: module.DevicesView }))
 );
+const ProjectCenterView = lazy(() =>
+  import("./components/projects/ProjectCenterView").then((module) => ({
+    default: module.ProjectCenterView
+  }))
+);
+const ProjectCockpitView = lazy(() =>
+  import("./components/projects/ProjectCockpitView").then((module) => ({
+    default: module.ProjectCockpitView
+  }))
+);
 const ContinuityWorkbenchView = lazy(() =>
   import("./components/continuity/ContinuityWorkbenchView").then((module) => ({
     default: module.ContinuityWorkbenchView
@@ -167,6 +177,7 @@ interface AppProps {
 
 const VIEW_PATHS: Record<ViewKey, string> = {
   dashboard: consolePath(),
+  projects: consolePath("projects"),
   continuity: consolePath("continuity"),
   resources: consolePath("resources"),
   devices: consolePath("devices"),
@@ -222,53 +233,71 @@ function ViewLoadingState({
   );
 }
 
-function parseRoute(): {
+interface ParsedRoute {
   view: ViewKey;
   jobId: string | null;
   continuitySection: ContinuitySectionKey;
-} {
-  if (typeof window === "undefined") {
-    return { view: "dashboard", jobId: null, continuitySection: "projects" };
-  }
+  projectId: string | null;
+}
+
+function baseRoute(view: ViewKey = "dashboard"): ParsedRoute {
+  return {
+    view,
+    jobId: null,
+    continuitySection: "projects",
+    projectId: null
+  };
+}
+
+function parseRoute(): ParsedRoute {
+  if (typeof window === "undefined") return baseRoute();
 
   const route = stripConsoleBasePath(window.location.pathname);
-  if (route === null) {
-    return { view: "dashboard", jobId: null, continuitySection: "projects" };
+  if (route === null) return baseRoute();
+
+  if (route === "projects" || route.startsWith("projects/")) {
+    const segments = route.split("/").filter(Boolean);
+    const projectId = segments[1] ? decodeURIComponent(segments[1]) : null;
+    if (projectId && segments.length > 2) {
+      window.history.replaceState(
+        null,
+        "",
+        `${VIEW_PATHS.projects}/${encodeURIComponent(projectId)}`
+      );
+    }
+    return { ...baseRoute("projects"), projectId };
   }
+
   if (route === "jobs" || route.startsWith("jobs/")) {
     const jobId = route.startsWith("jobs/")
       ? decodeURIComponent(route.slice("jobs/".length))
       : null;
-    return { view: "jobs", jobId: jobId || null, continuitySection: "projects" };
+    return { ...baseRoute("jobs"), jobId: jobId || null };
   }
+
   if (route === "continuity" || route.startsWith("continuity/")) {
     const candidate = route.startsWith("continuity/")
       ? decodeURIComponent(route.slice("continuity/".length))
       : "projects";
-    const continuitySection = CONTINUITY_SECTIONS.has(
-      candidate as ContinuitySectionKey
-    )
+    if (candidate === "projects") {
+      window.history.replaceState(null, "", VIEW_PATHS.projects);
+      return baseRoute("projects");
+    }
+    const continuitySection = CONTINUITY_SECTIONS.has(candidate as ContinuitySectionKey)
       ? (candidate as ContinuitySectionKey)
-      : "projects";
-    return { view: "continuity", jobId: null, continuitySection };
+      : "tasks";
+    return { ...baseRoute("continuity"), continuitySection };
   }
-  if (route === "resources") {
-    return { view: "resources", jobId: null, continuitySection: "projects" };
-  }
-  if (route === "devices") {
-    return { view: "devices", jobId: null, continuitySection: "projects" };
-  }
-  if (route === "public-access") {
-    return { view: "publicAccess", jobId: null, continuitySection: "projects" };
-  }
-  if (route === "integrations") {
-    return { view: "integrations", jobId: null, continuitySection: "projects" };
-  }
+
+  if (route === "resources") return baseRoute("resources");
+  if (route === "devices") return baseRoute("devices");
+  if (route === "public-access") return baseRoute("publicAccess");
+  if (route === "integrations") return baseRoute("integrations");
   if (route === "gpt-helper") {
     window.history.replaceState(null, "", VIEW_PATHS.integrations);
-    return { view: "integrations", jobId: null, continuitySection: "projects" };
+    return baseRoute("integrations");
   }
-  return { view: "dashboard", jobId: null, continuitySection: "projects" };
+  return baseRoute();
 }
 
 export default function App({ themeMode, onThemeModeChange }: AppProps) {
@@ -276,6 +305,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [activeView, setActiveView] = useState<ViewKey>(() => parseRoute().view);
   const [activeContinuitySection, setActiveContinuitySection] =
     useState<ContinuitySectionKey>(() => parseRoute().continuitySection);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    () => parseRoute().projectId
+  );
   const [operatorAuthState, setOperatorAuthState] = useState<OperatorAuthState>("loading");
   const [operatorSession, setOperatorSession] = useState<OperatorSessionResponse | null>(null);
   const [operatorAuthError, setOperatorAuthError] = useState<string | null>(null);
@@ -352,6 +384,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setActiveView(route.view);
       setSelectedJobId(route.jobId);
       setActiveContinuitySection(route.continuitySection);
+      setSelectedProjectId(route.projectId);
     }
 
     window.addEventListener("popstate", onPopState);
@@ -969,11 +1002,11 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       nextView === "continuity"
         ? (continuitySection ?? activeContinuitySection)
         : activeContinuitySection;
-    if (nextView === "jobs") {
-      setSelectedJobId(nextJobId ?? null);
-    }
-    if (nextView === "continuity") {
-      setActiveContinuitySection(nextContinuitySection);
+
+    if (nextView === "jobs") setSelectedJobId(nextJobId ?? null);
+    if (nextView === "continuity") setActiveContinuitySection(nextContinuitySection);
+    if (nextView === "projects") {
+      setSelectedProjectId(null);
     }
 
     if (typeof window !== "undefined") {
@@ -984,6 +1017,17 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           : nextView === "continuity"
             ? `${basePath}/${encodeURIComponent(nextContinuitySection)}`
             : basePath;
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState(null, "", nextPath);
+      }
+    }
+  }
+
+  function navigateProject(projectId: string) {
+    setActiveView("projects");
+    setSelectedProjectId(projectId);
+    if (typeof window !== "undefined") {
+      const nextPath = `${VIEW_PATHS.projects}/${encodeURIComponent(projectId)}`;
       if (window.location.pathname !== nextPath) {
         window.history.pushState(null, "", nextPath);
       }
@@ -1060,6 +1104,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     : headerProductVersion;
   const activeViewTitle = {
     dashboard: copy.header.dashboard,
+    projects: copy.header.projects,
     continuity: copy.header.continuity,
     resources: copy.header.resources,
     devices: copy.header.devices,
@@ -1163,7 +1208,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           workspaceNavigation: copy.header.workspaceNavigation,
           systemNavigation: copy.header.systemNavigation,
           dashboard: copy.header.dashboard,
-          continuity: copy.header.continuity,
+          projects: copy.header.projects,
           resources: copy.header.resources,
           devices: copy.header.devices,
           jobs: copy.header.jobs,
@@ -1267,6 +1312,34 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               }}
             />
           </div>
+        ) : null}
+
+        {activeView === "projects" ? (
+          <Suspense
+            fallback={
+              <ViewLoadingState
+                title={copy.header.projects}
+                description={copy.notices.loadingConsoleDescription}
+                retryLabel={copy.common.retry}
+              />
+            }
+          >
+            {selectedProjectId ? (
+              <ProjectCockpitView
+                locale={locale}
+                token={token}
+                projectId={selectedProjectId}
+                onBack={() => navigateView("projects")}
+              />
+            ) : (
+              <ProjectCenterView
+                locale={locale}
+                token={token}
+                authRequired={health.authRequired}
+                onOpenProject={(projectId) => navigateProject(projectId)}
+              />
+            )}
+          </Suspense>
         ) : null}
 
         {activeView === "continuity" ? (

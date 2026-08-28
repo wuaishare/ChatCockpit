@@ -103,6 +103,7 @@ export interface UiCopy {
     refresh: string;
     refreshTooltip: string;
     dashboard: string;
+    projects: string;
     continuity: string;
     resources: string;
     devices: string;
@@ -395,7 +396,8 @@ const zhCN: UiCopy = {
     refresh: "刷新",
     refreshTooltip: "刷新健康状态与任务数据",
     dashboard: "总览",
-    continuity: "连续性",
+    projects: "项目",
+    continuity: "连续性（兼容）",
     resources: "资源中心",
     devices: "设备",
     jobs: "任务",
@@ -750,7 +752,8 @@ const enUS: UiCopy = {
     refresh: "Refresh",
     refreshTooltip: "Refresh health and job data",
     dashboard: "Dashboard",
-    continuity: "Continuity",
+    projects: "Projects",
+    continuity: "Continuity (compatibility)",
     resources: "Resources",
     devices: "Devices",
     jobs: "Jobs",
