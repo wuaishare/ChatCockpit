@@ -651,6 +651,21 @@ export interface ContinuityProjectsResponse {
   projects: ContinuityProjectProjection[];
 }
 
+export interface ProjectRegistryResponse extends ContinuityProjectsResponse {
+  configRevision: string;
+}
+
+export interface ProjectRegistryDetailResponse extends ContinuityProjectProjection {
+  ok: true;
+  configRevision: string;
+  developmentCoordination: ProjectDevelopmentCoordination;
+}
+
+export interface ProjectRegistryMutationResponse extends ContinuityProjectProjection {
+  ok: true;
+  configRevision: string;
+}
+
 export type ProjectDevelopmentObservationStatus = "ready" | "degraded" | "not-required";
 export type ProjectCodexRuntimeAvailability = "available" | "unavailable" | "unknown";
 export type ProjectCodexNextAction =

@@ -76,7 +76,7 @@ export function workspaceDiscoveryCandidateId(input: {
     .slice(0, 32)}`;
 }
 
-function gitMetadata(candidatePath: string): WorkspaceDiscoveryPrivateCandidate["git"] | null {
+export function inspectWorkspaceGitRoot(candidatePath: string): WorkspaceDiscoveryPrivateCandidate["git"] | null {
   const topLevel = runGit(candidatePath, ["rev-parse", "--show-toplevel"]);
   if (!topLevel || canonical(topLevel) !== canonical(candidatePath)) return null;
 
@@ -132,7 +132,7 @@ export function scanWorkspaceDiscoveryRoot(input: {
 
     const canonicalChild = canonical(child);
     if (path.dirname(canonicalChild) !== canonicalRoot) continue;
-    const git = gitMetadata(canonicalChild);
+    const git = inspectWorkspaceGitRoot(canonicalChild);
     if (!git) continue;
 
     const existingRepoId = registeredByPath.get(canonicalChild) ?? null;

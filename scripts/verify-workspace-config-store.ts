@@ -21,8 +21,10 @@ const repoRoot = path.join(root, "repos", "primary");
 const discoveryA = path.join(root, "projects-a");
 const discoveryB = path.join(root, "projects-b");
 const importedRepo = path.join(discoveryA, "imported-repo");
+const attachedRepo = path.join(root, "repos", "attached-repo");
 fs.mkdirSync(repoRoot, { recursive: true });
 fs.mkdirSync(importedRepo, { recursive: true });
+fs.mkdirSync(attachedRepo, { recursive: true });
 fs.mkdirSync(discoveryB, { recursive: true });
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
 
@@ -160,6 +162,31 @@ assert.equal(imported.workspaceAllowlist.includes(canonical(importedRepo)), true
 assert.equal(imported.workspaceAllowlist.includes(canonical(discoveryA)), false);
 assert.equal(imported.discoveryRoots.includes(canonical(discoveryA)), true);
 
+const attached = store.registerRepo({
+  repoPath: attachedRepo,
+  repoId: "attached-repo",
+  projectSlug: "primary",
+  expectedRevision: imported.revision
+});
+assert.equal(attached.repoMappings["attached-repo"]?.path, canonical(attachedRepo));
+assert.deepEqual(attached.projects.primary, {
+  displayName: "primary",
+  primaryRepoId: "primary",
+  repoIds: ["attached-repo", "primary"]
+});
+const renamed = store.renameProject({
+  projectSlug: "primary",
+  displayName: "Primary Project",
+  expectedRevision: attached.revision
+});
+assert.equal(renamed.projects.primary?.displayName, "Primary Project");
+const reprioritized = store.setPrimaryRepo({
+  projectSlug: "primary",
+  repoId: "attached-repo",
+  expectedRevision: renamed.revision
+});
+assert.equal(reprioritized.projects.primary?.primaryRepoId, "attached-repo");
+
 const rawAfterImport = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
 assert.deepEqual(rawAfterImport.futureTopLevelField, { preserve: true });
 assert.equal(
@@ -174,13 +201,13 @@ assert.throws(
       root: discoveryA,
       repoPath: importedRepo,
       repoId: "duplicate-physical-repo",
-      expectedRevision: imported.revision
+      expectedRevision: reprioritized.revision
     }),
   (error) => serviceCode(error) === "WORKSPACE_ALREADY_REGISTERED"
 );
 
 assert.throws(
-  () => store.addDiscoveryRoot(path.join(root, "missing"), imported.revision),
+  () => store.addDiscoveryRoot(path.join(root, "missing"), reprioritized.revision),
   (error) => serviceCode(error) === "WORKSPACE_DISCOVERY_ROOT_NOT_FOUND"
 );
 
@@ -189,7 +216,7 @@ if (process.platform !== "win32") {
   assert.equal(mode, 0o600);
 }
 
-const removed = store.removeDiscoveryRoot(discoveryB, imported.revision);
+const removed = store.removeDiscoveryRoot(discoveryB, reprioritized.revision);
 assert.deepEqual(removed.discoveryRoots, [canonical(discoveryA)]);
 
 fs.rmSync(root, { recursive: true, force: true });

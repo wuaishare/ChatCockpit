@@ -62,6 +62,28 @@ function validateRepoId(repoId: string): string {
   return normalized;
 }
 
+function validateProjectSlug(projectSlug: string): string {
+  const normalized = projectSlug.trim();
+  if (!/^[a-z0-9][a-z0-9._-]{0,79}$/.test(normalized)) {
+    throw new ServiceError(
+      "PROJECT_SLUG_INVALID",
+      "Project slug must use lowercase letters, numbers, dot, underscore, or hyphen"
+    );
+  }
+  return normalized;
+}
+
+function validateProjectDisplayName(displayName: string): string {
+  const normalized = displayName.trim();
+  if (!normalized || normalized.length > 240) {
+    throw new ServiceError(
+      "PROJECT_DISPLAY_NAME_INVALID",
+      "Project display name must contain between 1 and 240 characters"
+    );
+  }
+  return normalized;
+}
+
 interface RawConfigState {
   source: string;
   raw: Record<string, unknown>;
@@ -81,7 +103,10 @@ export class WorkspaceConfigStore {
   }
 
   addDiscoveryRoot(root: string, expectedRevision: string): WorkspaceConfigSnapshot {
-    const current = this.readAndAssertRevision(expectedRevision);
+    const current = this.readAndAssertRevision(
+      expectedRevision,
+      "WORKSPACE_DISCOVERY_REVISION_CONFLICT"
+    );
     const canonicalRoot = requireDirectory(
       root,
       "WORKSPACE_DISCOVERY_ROOT_NOT_FOUND",
@@ -96,7 +121,10 @@ export class WorkspaceConfigStore {
   }
 
   removeDiscoveryRoot(root: string, expectedRevision: string): WorkspaceConfigSnapshot {
-    const current = this.readAndAssertRevision(expectedRevision);
+    const current = this.readAndAssertRevision(
+      expectedRevision,
+      "WORKSPACE_DISCOVERY_REVISION_CONFLICT"
+    );
     const canonicalRoot = normalizeAbsolutePath(root);
     if (!current.snapshot.discoveryRoots.includes(canonicalRoot)) {
       throw new ServiceError(
@@ -115,7 +143,10 @@ export class WorkspaceConfigStore {
     repoId: string;
     expectedRevision: string;
   }): WorkspaceConfigSnapshot {
-    const current = this.readAndAssertRevision(input.expectedRevision);
+    const current = this.readAndAssertRevision(
+      input.expectedRevision,
+      "WORKSPACE_DISCOVERY_REVISION_CONFLICT"
+    );
     const canonicalRoot = requireDirectory(
       input.root,
       "WORKSPACE_DISCOVERY_ROOT_NOT_FOUND",
@@ -140,6 +171,93 @@ export class WorkspaceConfigStore {
       );
     }
 
+    return this.registerRepoOnCurrent(current, {
+      repoPath: canonicalRepo,
+      repoId: input.repoId,
+      projectSlug: input.repoId,
+      projectDisplayName: input.repoId
+    });
+  }
+
+  registerRepo(input: {
+    repoPath: string;
+    repoId: string;
+    projectSlug: string;
+    projectDisplayName?: string;
+    expectedRevision: string;
+  }): WorkspaceConfigSnapshot {
+    const current = this.readAndAssertRevision(input.expectedRevision);
+    const canonicalRepo = requireDirectory(
+      input.repoPath,
+      "WORKSPACE_PATH_NOT_FOUND",
+      "Workspace path must be an existing directory"
+    );
+    return this.registerRepoOnCurrent(current, {
+      repoPath: canonicalRepo,
+      repoId: input.repoId,
+      projectSlug: input.projectSlug,
+      projectDisplayName: input.projectDisplayName
+    });
+  }
+
+  renameProject(input: {
+    projectSlug: string;
+    displayName: string;
+    expectedRevision: string;
+  }): WorkspaceConfigSnapshot {
+    const current = this.readAndAssertRevision(input.expectedRevision);
+    const projectSlug = validateProjectSlug(input.projectSlug);
+    const project = current.snapshot.projects[projectSlug];
+    if (!project) {
+      throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
+    }
+    const displayName = validateProjectDisplayName(input.displayName);
+    if (project.displayName === displayName) return current.snapshot;
+    return this.write(current, {
+      projects: {
+        ...current.snapshot.projects,
+        [projectSlug]: { ...project, displayName }
+      }
+    });
+  }
+
+  setPrimaryRepo(input: {
+    projectSlug: string;
+    repoId: string;
+    expectedRevision: string;
+  }): WorkspaceConfigSnapshot {
+    const current = this.readAndAssertRevision(input.expectedRevision);
+    const projectSlug = validateProjectSlug(input.projectSlug);
+    const repoId = validateRepoId(input.repoId);
+    const project = current.snapshot.projects[projectSlug];
+    if (!project) {
+      throw new ServiceError("PROJECT_NOT_FOUND", "Project is not registered");
+    }
+    if (!project.repoIds.includes(repoId)) {
+      throw new ServiceError(
+        "PROJECT_WORKSPACE_NOT_ATTACHED",
+        "Workspace repository is not attached to the selected Project"
+      );
+    }
+    if (project.primaryRepoId === repoId) return current.snapshot;
+    return this.write(current, {
+      projects: {
+        ...current.snapshot.projects,
+        [projectSlug]: { ...project, primaryRepoId: repoId }
+      }
+    });
+  }
+
+  private registerRepoOnCurrent(
+    current: RawConfigState,
+    input: {
+      repoPath: string;
+      repoId: string;
+      projectSlug: string;
+      projectDisplayName?: string;
+    }
+  ): WorkspaceConfigSnapshot {
+    const canonicalRepo = normalizeAbsolutePath(input.repoPath);
     const duplicateRepo = Object.entries(current.snapshot.repoMappings).find(
       ([, mapping]) => normalizeAbsolutePath(mapping.path) === canonicalRepo
     );
@@ -160,6 +278,19 @@ export class WorkspaceConfigStore {
       );
     }
 
+    const projectSlug = validateProjectSlug(input.projectSlug);
+    const existingProject = current.snapshot.projects[projectSlug];
+    const project = existingProject
+      ? {
+          ...existingProject,
+          repoIds: uniqueSorted([...existingProject.repoIds, repoId])
+        }
+      : {
+          displayName: validateProjectDisplayName(input.projectDisplayName ?? projectSlug),
+          primaryRepoId: repoId,
+          repoIds: [repoId]
+        };
+
     return this.write(current, {
       workspaceAllowlist: [...current.snapshot.workspaceAllowlist, canonicalRepo],
       repoMappings: {
@@ -168,20 +299,19 @@ export class WorkspaceConfigStore {
       },
       projects: {
         ...current.snapshot.projects,
-        [repoId]: {
-          displayName: repoId,
-          primaryRepoId: repoId,
-          repoIds: [repoId]
-        }
+        [projectSlug]: project
       }
     });
   }
 
-  private readAndAssertRevision(expectedRevision: string): RawConfigState {
+  private readAndAssertRevision(
+    expectedRevision: string,
+    conflictCode = "WORKSPACE_CONFIG_REVISION_CONFLICT"
+  ): RawConfigState {
     const current = this.read();
     if (current.revision !== expectedRevision) {
       throw new ServiceError(
-        "WORKSPACE_DISCOVERY_REVISION_CONFLICT",
+        conflictCode,
         "Workspace configuration changed before it could be updated",
         {
           details: {

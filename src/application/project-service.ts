@@ -3,7 +3,8 @@ import fs from "node:fs";
 
 import {
   isWithinWorkspaceAllowlist,
-  loadUserConfigForPaths
+  loadUserConfigForPaths,
+  resolveUserConfigPathForPaths
 } from "../core/config.js";
 import type { TokenPilotPaths } from "../types.js";
 import type { ContinuityDatabase } from "../continuity/database.js";
@@ -17,6 +18,8 @@ import type { ContinuityRepositories } from "../continuity/repositories/index.js
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
+import { WorkspaceConfigStore } from "../workspaces/workspace-config-store.js";
+import { inspectWorkspaceGitRoot } from "../workspaces/workspace-discovery.js";
 
 function stableId(prefix: string, value: string): string {
   const digest = createHash("sha256").update(value).digest("hex").slice(0, 24);
@@ -38,8 +41,18 @@ export interface ProjectProjection {
   workspaces: WorkspaceRecord[];
 }
 
+export interface ProjectRegistryProjection {
+  configRevision: string;
+  projects: ProjectProjection[];
+}
+
+export interface ProjectRegistryMutationResult extends ProjectProjection {
+  configRevision: string;
+}
+
 export class ProjectService {
   private readonly git: GitService;
+  private readonly configStore: WorkspaceConfigStore;
 
   constructor(
     private readonly paths: TokenPilotPaths,
@@ -47,6 +60,9 @@ export class ProjectService {
     private readonly repositories: ContinuityRepositories
   ) {
     this.git = new GitService(paths);
+    this.configStore = new WorkspaceConfigStore({
+      configPath: resolveUserConfigPathForPaths(paths)
+    });
   }
 
   list(
@@ -67,6 +83,131 @@ export class ProjectService {
       project,
       workspaces: this.repositories.workspaces.listByProject(project.id)
     };
+  }
+
+  registry(context: OperationContext, status?: ProjectStatus): ProjectRegistryProjection {
+    const projects = this.list(context, status);
+    return {
+      configRevision: this.configRevision(),
+      projects
+    };
+  }
+
+  configRevision(): string {
+    return this.configStore.snapshot().revision;
+  }
+
+  create(context: OperationContext, input: {
+    slug: string;
+    displayName: string;
+    repoId: string;
+    path: string;
+    expectedConfigRevision: string;
+  }): ProjectRegistryMutationResult {
+    const snapshot = this.configStore.snapshot();
+    if (snapshot.projects[input.slug.trim()]) {
+      throw new ServiceError("PROJECT_SLUG_CONFLICT", "Project slug is already in use");
+    }
+    this.assertGitWorkspace(input.path);
+    const updated = this.configStore.registerRepo({
+      repoPath: input.path,
+      repoId: input.repoId,
+      projectSlug: input.slug,
+      projectDisplayName: input.displayName,
+      expectedRevision: input.expectedConfigRevision
+    });
+    this.syncConfiguredProjects(context);
+    const project = this.repositories.projects.findBySlug(input.slug.trim());
+    if (!project) {
+      throw new ServiceError("PROJECT_NOT_FOUND", "Project could not be materialized");
+    }
+    return {
+      configRevision: updated.revision,
+      project,
+      workspaces: this.repositories.workspaces.listByProject(project.id)
+    };
+  }
+
+  attachWorkspace(context: OperationContext, input: {
+    projectId: string;
+    repoId: string;
+    path: string;
+    expectedConfigRevision: string;
+  }): ProjectRegistryMutationResult {
+    this.syncConfiguredProjects(context);
+    const project = this.repositories.projects.get(input.projectId);
+    this.assertGitWorkspace(input.path);
+    const updated = this.configStore.registerRepo({
+      repoPath: input.path,
+      repoId: input.repoId,
+      projectSlug: project.slug,
+      expectedRevision: input.expectedConfigRevision
+    });
+    this.syncConfiguredProjects(context);
+    const refreshed = this.repositories.projects.get(project.id);
+    return {
+      configRevision: updated.revision,
+      project: refreshed,
+      workspaces: this.repositories.workspaces.listByProject(refreshed.id)
+    };
+  }
+
+  rename(context: OperationContext, input: {
+    projectId: string;
+    displayName: string;
+    expectedConfigRevision: string;
+  }): ProjectRegistryMutationResult {
+    this.syncConfiguredProjects(context);
+    const project = this.repositories.projects.get(input.projectId);
+    const updated = this.configStore.renameProject({
+      projectSlug: project.slug,
+      displayName: input.displayName,
+      expectedRevision: input.expectedConfigRevision
+    });
+    this.syncConfiguredProjects(context);
+    const refreshed = this.repositories.projects.get(project.id);
+    return {
+      configRevision: updated.revision,
+      project: refreshed,
+      workspaces: this.repositories.workspaces.listByProject(refreshed.id)
+    };
+  }
+
+  makePrimaryWorkspace(context: OperationContext, input: {
+    projectId: string;
+    workspaceId: string;
+    expectedConfigRevision: string;
+  }): ProjectRegistryMutationResult {
+    this.syncConfiguredProjects(context);
+    const project = this.repositories.projects.get(input.projectId);
+    const workspace = this.repositories.workspaces.getPrivate(input.workspaceId);
+    if (workspace.projectId !== project.id) {
+      throw new ServiceError(
+        "PROJECT_WORKSPACE_NOT_ATTACHED",
+        "Workspace does not belong to the selected Project"
+      );
+    }
+    const updated = this.configStore.setPrimaryRepo({
+      projectSlug: project.slug,
+      repoId: workspace.repoId,
+      expectedRevision: input.expectedConfigRevision
+    });
+    this.syncConfiguredProjects(context);
+    const refreshed = this.repositories.projects.get(project.id);
+    return {
+      configRevision: updated.revision,
+      project: refreshed,
+      workspaces: this.repositories.workspaces.listByProject(refreshed.id)
+    };
+  }
+
+  private assertGitWorkspace(workspacePath: string): void {
+    if (!inspectWorkspaceGitRoot(workspacePath)) {
+      throw new ServiceError(
+        "WORKSPACE_GIT_ROOT_REQUIRED",
+        "Workspace path must be the top-level directory of a Git repository"
+      );
+    }
   }
 
   private syncConfiguredProjects(context: OperationContext): void {

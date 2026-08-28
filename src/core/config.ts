@@ -219,14 +219,20 @@ export function loadUserConfig(
   return normalized;
 }
 
-export function loadUserConfigForPaths(paths: TokenPilotPaths): TokenPilotUserConfig {
+export function resolveUserConfigPathForPaths(paths: TokenPilotPaths): string {
   const context = buildDistributionContextFromPaths(paths);
   if (context.mode === "source") {
     const envConfigPath = readIdentityEnv("CONFIG_PATH");
     if (envConfigPath) {
-      context.configPath = normalizeAbsolutePath(envConfigPath);
+      return normalizeAbsolutePath(envConfigPath);
     }
   }
+  return normalizeAbsolutePath(context.configPath);
+}
+
+export function loadUserConfigForPaths(paths: TokenPilotPaths): TokenPilotUserConfig {
+  const context = buildDistributionContextFromPaths(paths);
+  context.configPath = resolveUserConfigPathForPaths(paths);
   return loadUserConfig(paths.repoRoot, context);
 }
 

@@ -181,6 +181,7 @@ import {
   validateServerAuthConfig
 } from "./auth.js";
 import { registerContinuityRoutes } from "./continuity-routes.js";
+import { registerProjectRegistryRoutes } from "./project-registry-routes.js";
 import { registerCapabilityRouterMutationRoutes } from "./capability-router-mutation-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
@@ -1063,6 +1064,11 @@ export function buildServer(
     full: buildSurfaceHandler(selectMcpToolsForSurface(mcpTools, { kind: "full" })),
     packs: mcpPackHandlers
   });
+  registerProjectRegistryRoutes(
+    app,
+    continuityServices.projects,
+    projectDevelopmentRouting
+  );
   registerContinuityRoutes(
     app,
     continuityServices,

@@ -77,8 +77,12 @@ function writeConfig(
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-project-registry-"));
 const repoPrimary = path.join(root, "chatcockpit-primary");
 const repoSecondary = path.join(root, "chatcockpit-secondary");
+const repoAttached = path.join(root, "chatcockpit-attached");
+const repoOther = path.join(root, "other-project");
 initRepo(repoPrimary, "primary.txt");
 initRepo(repoSecondary, "secondary.txt");
+initRepo(repoAttached, "attached.txt");
+initRepo(repoOther, "other.txt");
 
 const paths = buildFixturePaths(repoPrimary);
 ensureWorkspaceDirs(paths);
@@ -114,6 +118,59 @@ try {
     (workspace) => workspace.id === updated[0]?.project.defaultWorkspaceId
   );
   assert.equal(updatedPrimary?.repoId, "secondary");
+
+  const registry = service.registry({ ...context, now: "2026-08-28T05:02:00.000Z" });
+  assert.equal(registry.projects.length, 1);
+  const attached = service.attachWorkspace(
+    { ...context, now: "2026-08-28T05:03:00.000Z" },
+    {
+      projectId: registry.projects[0]!.project.id,
+      repoId: "attached",
+      path: repoAttached,
+      expectedConfigRevision: registry.configRevision
+    }
+  );
+  assert.deepEqual(
+    attached.workspaces.map((workspace) => workspace.repoId).sort(),
+    ["attached", "primary", "secondary"]
+  );
+
+  const renamed = service.rename(
+    { ...context, now: "2026-08-28T05:04:00.000Z" },
+    {
+      projectId: attached.project.id,
+      displayName: "ChatCockpit Product",
+      expectedConfigRevision: attached.configRevision
+    }
+  );
+  assert.equal(renamed.project.displayName, "ChatCockpit Product");
+  const attachedWorkspace = renamed.workspaces.find((workspace) => workspace.repoId === "attached");
+  assert.ok(attachedWorkspace);
+
+  const reprioritized = service.makePrimaryWorkspace(
+    { ...context, now: "2026-08-28T05:05:00.000Z" },
+    {
+      projectId: renamed.project.id,
+      workspaceId: attachedWorkspace.id,
+      expectedConfigRevision: renamed.configRevision
+    }
+  );
+  assert.equal(reprioritized.project.defaultWorkspaceId, attachedWorkspace.id);
+
+  const created = service.create(
+    { ...context, now: "2026-08-28T05:06:00.000Z" },
+    {
+      slug: "other-project",
+      displayName: "Other Project",
+      repoId: "other",
+      path: repoOther,
+      expectedConfigRevision: reprioritized.configRevision
+    }
+  );
+  assert.equal(created.project.slug, "other-project");
+  assert.equal(created.project.displayName, "Other Project");
+  assert.deepEqual(created.workspaces.map((workspace) => workspace.repoId), ["other"]);
+  assert.equal(service.list({ ...context, now: "2026-08-28T05:07:00.000Z" }).length, 2);
 
   process.stdout.write("VERIFY_PROJECT_REGISTRY_OK\n");
 } finally {

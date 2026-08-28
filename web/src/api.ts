@@ -16,6 +16,9 @@ import type {
   ContinuityHandoffMutationResponse,
   ContinuityProjectDetailResponse,
   ContinuityProjectsResponse,
+  ProjectRegistryDetailResponse,
+  ProjectRegistryMutationResponse,
+  ProjectRegistryResponse,
   CodexNativeThreadMutationResponse,
   CodexRuntimeAccountStatusResponse,
   CodexRuntimeThreadReadResponse,
@@ -711,6 +714,59 @@ export async function cancelPublicRouteBootstrapProof(
     throw await parseProblem(response);
   }
   return (await response.json()) as PublicRouteBootstrapProofSnapshot;
+}
+
+export async function fetchProjects(): Promise<ProjectRegistryResponse> {
+  return requestJson<ProjectRegistryResponse>("/api/projects?status=active");
+}
+
+export async function fetchProject(
+  projectId: string
+): Promise<ProjectRegistryDetailResponse> {
+  return requestJson<ProjectRegistryDetailResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}`
+  );
+}
+
+export async function createProject(input: {
+  slug: string;
+  displayName: string;
+  repoId: string;
+  path: string;
+  expectedConfigRevision: string;
+}): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>("/api/projects", input);
+}
+
+export async function renameProject(
+  projectId: string,
+  input: { displayName: string; expectedConfigRevision: string }
+): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/rename`,
+    input
+  );
+}
+
+export async function attachProjectWorkspace(
+  projectId: string,
+  input: { repoId: string; path: string; expectedConfigRevision: string }
+): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/workspaces`,
+    input
+  );
+}
+
+export async function makeProjectWorkspacePrimary(
+  projectId: string,
+  workspaceId: string,
+  expectedConfigRevision: string
+): Promise<ProjectRegistryMutationResponse> {
+  return postBodyJson<ProjectRegistryMutationResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/workspaces/${encodeURIComponent(workspaceId)}/make-primary`,
+    { expectedConfigRevision }
+  );
 }
 
 export async function fetchContinuityProjects(
