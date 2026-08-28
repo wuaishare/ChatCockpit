@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { RUNTIME_IDENTITY_ENV } from "../src/core/identity-env.ts";
 import { sleep, waitForValue } from "./test-support/wait.ts";
 
 const repoRoot = process.cwd();
@@ -224,14 +225,20 @@ assert.equal(
 );
 
 const sourceArchiveMachineToken = "source-archive-fixture-machine-token";
-const isolatedEnv: NodeJS.ProcessEnv = {
-  ...process.env,
+const isolatedEnv: NodeJS.ProcessEnv = { ...process.env };
+for (const pair of Object.values(RUNTIME_IDENTITY_ENV)) {
+  delete isolatedEnv[pair.legacy];
+  delete isolatedEnv[pair.target];
+}
+Object.assign(isolatedEnv, {
   HOME: homeRoot,
   CHATCOCKPIT_REPO_ROOT: sourceRoot,
+  CHATCOCKPIT_INSTALL_ROOT: sourceRoot,
+  CHATCOCKPIT_STATE_ROOT: path.join(homeRoot, ".chatcockpit"),
   CHATCOCKPIT_CONFIG_PATH: configPath,
   CHATCOCKPIT_EXPOSED: "false",
   CHATCOCKPIT_API_TOKEN: sourceArchiveMachineToken
-};
+});
 
 run(
   process.platform === "win32" ? "npm.cmd" : "npm",
