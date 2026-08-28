@@ -27,6 +27,10 @@ for (const args of [
 }
 assert.throws(() => evaluateNativeWorkspaceCommand("rg", ["needle", "src"]), /not allowed/);
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");
+assert.throws(
+  () => evaluateNativeWorkspaceCommand("npm", ["run", "mvp:restart"]),
+  /builtin host execution lane/
+);
 assert.equal(evaluateNativeWorkspaceCommand("node", ["scripts/build.mjs"]).effect, "write");
 assert.equal(evaluateNativeWorkspaceCommand("./scripts/check.sh", ["src"]).effect, "write");
 

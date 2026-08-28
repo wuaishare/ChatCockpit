@@ -69,7 +69,22 @@ const NATIVE_WORKSPACE_PROJECT_COMMANDS = new Set(
   Object.keys(WORKSPACE_COMMAND_WHITELIST).filter((command) => command !== "git")
 );
 const NATIVE_WORKSPACE_SCRIPT_COMMANDS = new Set(["node", "python", "python3", "tsx"]);
+const BUILTIN_HOST_NPM_SCRIPTS = new Set([
+  "doctor:runtime",
+  "mvp:start",
+  "start:local",
+  "mvp:stop",
+  "stop:local",
+  "mvp:restart",
+  "mvp:status",
+  "mvp:reset",
+  "reset:local"
+]);
 const MAX_COMMAND_LENGTH = 1024;
+
+export function isBuiltinHostNpmScript(command: string, args: string[]): boolean {
+  return command === "npm" && args[0] === "run" && BUILTIN_HOST_NPM_SCRIPTS.has(args[1] ?? "");
+}
 
 
 const PURE_HOST_GIT_SUBCOMMANDS = READ_ONLY_GIT_SUBCOMMANDS;
@@ -268,6 +283,10 @@ export function evaluateNativeWorkspaceCommand(
   if (commandPath) {
     assertNativeWorkspaceProjectCodeAllowed(command);
     return { command, args: safeArgs, effect: "write", commandPath: true, projectPathArgIndexes: [] };
+  }
+
+  if (isBuiltinHostNpmScript(command, safeArgs)) {
+    throw new Error("Host Runtime npm scripts require the builtin host execution lane");
   }
 
   const allowedSubcommands = WORKSPACE_COMMAND_WHITELIST[command];

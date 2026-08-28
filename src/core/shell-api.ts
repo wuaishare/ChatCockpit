@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import {
   evaluateNativeWorkspaceCommand,
-  evaluateWorkspaceCommand
+  evaluateWorkspaceCommand,
+  isBuiltinHostNpmScript
 } from "./command-policy.js";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
@@ -79,6 +80,7 @@ export interface PreparedShellCommand {
   environment: Record<string, string>;
   standaloneReadOnly: boolean;
   gitMetadataWrite: boolean;
+  hostRuntimeAccess: boolean;
 }
 
 export interface PreparedWorkspaceExecCommand {
@@ -141,7 +143,8 @@ export function prepareShellCommand(
       ...(process.env.NODE_ENV ? { NODE_ENV: process.env.NODE_ENV } : {})
     },
     standaloneReadOnly,
-    gitMetadataWrite: payload.command === "git" && policy.effect === "write"
+    gitMetadataWrite: payload.command === "git" && policy.effect === "write",
+    hostRuntimeAccess: isBuiltinHostNpmScript(payload.command, policy.args)
   };
 }
 

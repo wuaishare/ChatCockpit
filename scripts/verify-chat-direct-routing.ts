@@ -961,6 +961,14 @@ async function verifyChatDirectRouting(): Promise<void> {
     );
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
 
+    const hostRuntimeShell = await service.shell(context, {
+      repoId: "primary",
+      command: "npm",
+      args: ["run", "mvp:status"]
+    });
+    assert.equal(hostRuntimeShell.execution.executor, "builtin-direct");
+    assert.equal(hostRuntimeShell.execution.selectionMode, "automatic");
+
     const managed = await service.workspaceExec(context, {
       repoId: "primary",
       command: "git",

@@ -612,7 +612,7 @@ export class ChatDirectService {
         : null;
     try {
       const selection =
-        !payload.executorId && prepared.gitMetadataWrite
+        !payload.executorId && (prepared.gitMetadataWrite || prepared.hostRuntimeAccess)
           ? this.fallbackSelection("shell.exec", access)
           : this.select("shell.exec", access, payload.executorId);
       if (selection.executorId === "codex-app-server-standalone") {
