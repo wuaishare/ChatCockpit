@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
@@ -22,7 +23,10 @@ import {
   ProcessSupervisorClient,
   ProcessSupervisorClientError
 } from "../src/process-supervisor/client.ts";
-import { ProcessSupervisorIpcServer } from "../src/process-supervisor/server.ts";
+import {
+  ProcessSupervisorIpcServer,
+  containProcessSupervisorSocketTransportErrors
+} from "../src/process-supervisor/server.ts";
 
 const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-ps-ipc-"));
 
@@ -147,17 +151,41 @@ try {
     /large|size|frame/i
   );
 
+  const unguardedSocket = new net.Socket();
+  assert.throws(
+    () => unguardedSocket.emit("error", Object.assign(new Error("fixture EPIPE"), { code: "EPIPE" })),
+    /fixture EPIPE/
+  );
+  const guardedSocket = new net.Socket();
+  containProcessSupervisorSocketTransportErrors(guardedSocket);
+  assert.doesNotThrow(() =>
+    guardedSocket.emit("error", Object.assign(new Error("fixture EPIPE"), { code: "EPIPE" }))
+  );
+  assert.equal(guardedSocket.destroyed, true);
+
   fs.writeFileSync(paths.processSupervisorSocketPath, "not-a-socket", "utf8");
   assert.throws(() => removeStaleProcessSupervisorSocket(paths), /socket|non-socket|refus/i);
   fs.rmSync(paths.processSupervisorSocketPath, { force: true });
   removeStaleProcessSupervisorSocket(paths);
 
+  let releaseDelayedHealth: (() => void) | null = null;
+  let delayedHealthStarted: (() => void) | null = null;
+  const delayedHealthStartedPromise = new Promise<void>((resolve) => {
+    delayedHealthStarted = resolve;
+  });
+  const delayedHealthReleasePromise = new Promise<void>((resolve) => {
+    releaseDelayedHealth = resolve;
+  });
   const server = new ProcessSupervisorIpcServer({
     paths,
     generation: "generation-a",
     authToken: tokenB,
     handler: async (method, params) => {
       if (method === "health") {
+        if ((params as { disconnectDuringHandler?: boolean }).disconnectDuringHandler) {
+          delayedHealthStarted?.();
+          await delayedHealthReleasePromise;
+        }
         return { state: "ready", echo: params };
       }
       if (method === "owned.list") {
@@ -178,6 +206,29 @@ try {
     assert.equal(health.supervisorGeneration, "generation-a");
     assert.equal(health.result.state, "ready");
     assert.deepEqual(health.result.echo, { ping: true });
+
+    const disconnectingClient = net.createConnection(paths.processSupervisorSocketPath);
+    disconnectingClient.setEncoding("utf8");
+    await new Promise<void>((resolve, reject) => {
+      disconnectingClient.once("connect", resolve);
+      disconnectingClient.once("error", reject);
+    });
+    disconnectingClient.write(
+      `${JSON.stringify({
+        protocolVersion: 1,
+        requestId: "request-disconnect-during-handler",
+        authToken: tokenB,
+        method: "health",
+        params: { disconnectDuringHandler: true }
+      })}\n`
+    );
+    await delayedHealthStartedPromise;
+    disconnectingClient.destroy();
+    releaseDelayedHealth?.();
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+
+    const healthAfterDisconnect = await client.request<{ state: string }>("health", {});
+    assert.equal(healthAfterDisconnect.result.state, "ready");
 
     fs.writeFileSync(paths.processSupervisorTokenPath, `${"z".repeat(43)}\n`, {
       encoding: "utf8",

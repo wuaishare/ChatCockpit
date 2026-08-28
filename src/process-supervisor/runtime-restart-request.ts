@@ -29,7 +29,7 @@ export interface LocalRuntimeRestartRequestResult {
 
 export interface LocalRuntimeRestartClient {
   request<T>(
-    method: "runtime.restart",
+    method: "runtime.restart" | "runtime.restart.read",
     params: unknown
   ): Promise<{ supervisorGeneration: string; result: T }>;
 }
@@ -85,6 +85,10 @@ export async function requestLocalRuntimeRestart(
   options: {
     nonce?: string;
     client?: LocalRuntimeRestartClient;
+    waitForCompletion?: boolean;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+    sleep?: (ms: number) => Promise<void>;
   } = {}
 ): Promise<LocalRuntimeRestartRequestResult> {
   const nonce = options.nonce ?? randomUUID();
@@ -106,10 +110,46 @@ export async function requestLocalRuntimeRestart(
     "runtime.restart",
     { operationId, requestHash }
   );
-  return publicResult(
+  const supervisorGeneration = response.supervisorGeneration;
+  let result = publicResult(
     operationId,
     requestHash,
-    response.supervisorGeneration,
+    supervisorGeneration,
     response.result
   );
+  if (!options.waitForCompletion || result.state === "succeeded" || result.state === "failed") {
+    return result;
+  }
+
+  const timeoutMs = Math.max(0, options.timeoutMs ?? 30_000);
+  const pollIntervalMs = Math.max(10, options.pollIntervalMs ?? 100);
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const deadline = Date.now() + timeoutMs;
+
+  while (result.state === "scheduled" || result.state === "running") {
+    if (Date.now() >= deadline) {
+      throw new LocalRuntimeRestartRequestError(
+        "RUNTIME_RESTART_TIMEOUT",
+        "Runtime restart did not reach a terminal state before the local wait timeout"
+      );
+    }
+    await sleep(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
+    const read = await client.request<SupervisorRuntimeRestartRecord>(
+      "runtime.restart.read",
+      { operationId }
+    );
+    if (read.supervisorGeneration !== supervisorGeneration) {
+      throw new LocalRuntimeRestartRequestError(
+        "RUNTIME_RESTART_SUPERVISOR_CHANGED",
+        "Process Supervisor generation changed while waiting for Runtime restart completion"
+      );
+    }
+    result = publicResult(
+      operationId,
+      requestHash,
+      supervisorGeneration,
+      read.result
+    );
+  }
+  return result;
 }

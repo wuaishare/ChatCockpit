@@ -35,6 +35,12 @@ function tokensEqual(actual: string, expected: string): boolean {
   return timingSafeEqual(tokenDigest(actual), tokenDigest(expected));
 }
 
+export function containProcessSupervisorSocketTransportErrors(socket: net.Socket): void {
+  socket.on("error", () => {
+    socket.destroy();
+  });
+}
+
 export class ProcessSupervisorIpcServer {
   private server: net.Server | null = null;
 
@@ -51,6 +57,11 @@ export class ProcessSupervisorIpcServer {
       socket.setEncoding("utf8");
       let buffer = "";
       let settled = false;
+
+      // A client may disconnect while an async handler is still producing its response.
+      // Contain transport errors at the connection boundary so EPIPE/ECONNRESET cannot
+      // become an unhandled Socket error that terminates the Process Supervisor.
+      containProcessSupervisorSocketTransportErrors(socket);
 
       const closeForOversize = () => {
         if (settled) {

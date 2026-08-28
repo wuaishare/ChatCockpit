@@ -2,7 +2,9 @@ import { buildPaths } from "../src/core/paths.ts";
 import { requestLocalRuntimeRestart } from "../src/process-supervisor/runtime-restart-request.ts";
 
 try {
-  const result = await requestLocalRuntimeRestart(buildPaths());
+  const result = await requestLocalRuntimeRestart(buildPaths(), {
+    waitForCompletion: true
+  });
   if (result.state === "failed") {
     process.stderr.write(
       `RUNTIME_RESTART_FAILED ${result.operationId} ${result.errorCode ?? "UNKNOWN"}\n`
