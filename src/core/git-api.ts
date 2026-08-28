@@ -4,9 +4,8 @@ import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import {
   hasStagedPublicUnsafeChanges,
   isPublicSafeGitPath,
-  publicSafeChangedPaths,
   readPublicSafeGitDiff,
-  stagedPublicSafePathCount
+  stagedPublicSafePaths
 } from "./git-public-safety.js";
 import type {
   GitDiffResponse,
@@ -138,46 +137,13 @@ export function gitCommit(
     };
   }
 
-  const safePaths = publicSafeChangedPaths(repoRoot);
+  const safePaths = stagedPublicSafePaths(repoRoot);
   if (!safePaths.length) {
     return {
       ok: false,
       repoId,
       committed: false,
-      error: "Nothing public-safe to commit"
-    };
-  }
-
-  const addResult = spawnSync("git", ["add", "--", ...safePaths], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    timeout: 10_000
-  });
-
-  if (addResult.status !== 0) {
-    return {
-      ok: false,
-      repoId,
-      committed: false,
-      error: addResult.stderr || addResult.stdout || "git add failed"
-    };
-  }
-
-  if (hasStagedPublicUnsafeChanges(repoRoot)) {
-    return {
-      ok: false,
-      repoId,
-      committed: false,
-      error: "Refusing to commit because public-unsafe paths are staged"
-    };
-  }
-
-  if (stagedPublicSafePathCount(repoRoot) === 0) {
-    return {
-      ok: false,
-      repoId,
-      committed: false,
-      error: "Nothing public-safe to commit"
+      error: "Nothing staged and public-safe to commit"
     };
   }
 

@@ -1195,7 +1195,9 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
       /SECRET_SHOULD_NOT_LEAK|\.env\.example|WEBP_BINARY_FIXTURE|hero\.webp|SECRET_NPM_TOKEN|\.npmrc|SECRET_PRIVATE_KEY|private\.pem/
     );
 
-    const commit = gitCommit(paths, "primary", "commit public-safe change");
+    spawnSync("git", ["add", "README.md"], { cwd: paths.repoRoot, encoding: "utf8" });
+
+    const commit = gitCommit(paths, "primary", "commit staged public-safe change");
     assert.equal(commit.ok, true);
     assert.equal(commit.committed, true);
 
@@ -1204,15 +1206,17 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
       encoding: "utf8"
     });
     assert.match(show.stdout, /README\.md/);
-    assert.match(show.stdout, /\.github\/workflows\/ci\.yml/);
-    assert.match(show.stdout, /hero\.webp/);
+    assert.doesNotMatch(show.stdout, /\.github\/workflows\/ci\.yml/);
+    assert.doesNotMatch(show.stdout, /hero\.webp/);
     assert.doesNotMatch(show.stdout, /\.env\.example/);
     assert.doesNotMatch(show.stdout, /private\.pem/);
 
-    const status = spawnSync("git", ["status", "--porcelain"], {
+    const status = spawnSync("git", ["status", "--porcelain", "-uall"], {
       cwd: paths.repoRoot,
       encoding: "utf8"
     });
+    assert.match(status.stdout, /\.github\/workflows\/ci\.yml/);
+    assert.match(status.stdout, /hero\.webp/);
     assert.match(status.stdout, /\.env\.example/);
     assert.match(status.stdout, /\.npmrc/);
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1071,6 +1072,32 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(fs.readFileSync(path.join(repoRoot, "README.md"), "utf8"), "# MCP updated\n");
 
+    fs.writeFileSync(
+      path.join(repoRoot, "src", "catalog-fixture.ts"),
+      "export const catalogFixture = 'unstaged-after-edit';\n",
+      "utf8"
+    );
+    const stageReadme = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "stage-readme-for-core-commit",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.shell.run",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            command: "git",
+            args: ["add", "README.md"],
+            idempotencyKey: "stage-readme-core-commit-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    assert.equal((stageReadme.message.result as { isError?: boolean }).isError, undefined);
+
     const commitCoreResult = await postMcp(
       baseUrl,
       {
@@ -1089,10 +1116,23 @@ async function runMcpSmoke(): Promise<void> {
       },
       { token: "test-token" }
     );
+    const commitCoreStructured = commitCoreResult.message.result as {
+      isError?: boolean;
+      structuredContent: {
+        committed: boolean;
+        changedPaths: string[];
+      };
+    };
     assert.equal(
-      (commitCoreResult.message.result as { isError?: boolean }).isError,
+      commitCoreStructured.isError,
       undefined,
       "chatcockpit.git.commit must satisfy its declared outputSchema"
+    );
+    assert.equal(commitCoreStructured.structuredContent.committed, true);
+    assert.deepEqual(commitCoreStructured.structuredContent.changedPaths, ["README.md"]);
+    assert.match(
+      spawnSync("git", ["status", "--short"], { cwd: repoRoot, encoding: "utf8" }).stdout,
+      /src\/catalog-fixture\.ts/
     );
 
     const blockedShell = await postMcp(

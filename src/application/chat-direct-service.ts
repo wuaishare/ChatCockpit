@@ -884,7 +884,7 @@ export class ChatDirectService {
         execution: selectionMetadata(
           selection,
           before.entries
-            .filter((entry) => entry.status !== "blocked")
+            .filter((entry) => entry.status !== "blocked" && entry.staged)
             .map((entry) => entry.path)
         )
       };

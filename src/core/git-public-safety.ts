@@ -344,6 +344,13 @@ export function hasStagedPublicUnsafeChanges(cwd: string): boolean {
   );
 }
 
+export function stagedPublicSafePaths(cwd: string): string[] {
+  return safeDiffRecords(listDiffNameRecords(cwd, true))
+    .map((record) => record.path)
+    .filter((filePath) => isTextDiffPath(filePath) || isCommitSafeAssetPath(filePath))
+    .sort();
+}
+
 export function stagedPublicSafePathCount(cwd: string): number {
-  return safeDiffRecords(listDiffNameRecords(cwd, true)).length;
+  return stagedPublicSafePaths(cwd).length;
 }

@@ -1047,11 +1047,17 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(terminatedSessionManaged.state, "terminated");
 
+    runGit(repoRoot, ["add", "src/alpha-core.ts"]);
     const alphaCoreCommit = await service.gitCommit(context, {
       repoId: "primary",
       message: "verify alpha core writer authority"
     });
     assert.equal(alphaCoreCommit.committed, true);
+    assert.deepEqual(alphaCoreCommit.execution.changedPaths, ["src/alpha-core.ts"]);
+    assert.match(
+      spawnSync("git", ["status", "--short"], { cwd: repoRoot, encoding: "utf8" }).stdout,
+      /src\/fixture\.ts/
+    );
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
 
     assert.equal(adapter.turnStartCount, 0);

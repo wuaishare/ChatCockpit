@@ -65,6 +65,13 @@ function publicChangedPaths(status: GitStatusResponse): string[] {
     .sort();
 }
 
+function stagedPublicChangedPaths(status: GitStatusResponse): string[] {
+  return status.entries
+    .filter((entry) => entry.status !== "blocked" && entry.staged)
+    .map((entry) => entry.path)
+    .sort();
+}
+
 function mutationValue<T extends Record<string, unknown>>(
   value: T,
   changedPaths: string[],
@@ -316,9 +323,9 @@ export function buildWorkspaceWriteTools(
     }),
     defineMcpTool({
       name: toolName("git.commit"),
-      title: "Commit public-safe repository changes",
+      title: "Commit staged public-safe repository changes",
       description:
-        "Stage and commit only public-safe changes. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+        "Commit only changes that were already staged and are public-safe. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: gitCommitMcpSchema,
       outputSchema: gitCommitToolOutputSchema,
       annotations: reversibleMutationAnnotations,
@@ -339,7 +346,7 @@ export function buildWorkspaceWriteTools(
             );
             return mutationValue(
               value as unknown as Record<string, unknown>,
-              publicChangedPaths(before),
+              stagedPublicChangedPaths(before),
               gitEvidenceHints
             );
           }
