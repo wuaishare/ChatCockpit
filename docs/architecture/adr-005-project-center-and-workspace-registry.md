@@ -1,8 +1,21 @@
 # ADR-005：Project Center 与 Workspace Registry
 
-- 状态：Accepted for implementation
-- 日期：2026-08-28
+- 状态：Accepted；0.2 Alpha 实现于 2026-08-29 收口
+- 日期：2026-08-28；实现收口：2026-08-29
 - 范围：Project / Project Root / Workspace、Codex 本机候选发现、Web Project Center、macOS App
+- 上一版 Gate F release-certified baseline：`e97035e82c467b5b4fa580fd3a0932df718cda99`
+
+## 2026-08-29 实现收口修订
+
+后续实现把本 ADR 的早期 Workspace-first 草案进一步收敛为 **ProjectRoot-first Registry**。以下修订覆盖本文后续与之冲突的早期表述：
+
+1. **持久化真源为 schema v3。** v1 / v2 继续确定性读取迁移；下一次受治理写入持久化为 v3。v3 以 `projects + projectRoots + executionWorkspaces` 为 canonical 数据，`defaultRepoId / repoMappings` 只保留读取期兼容投影，不再写回 canonical 配置。
+2. **Primary 管理语义落在 Project Root。** Project 可以把 Git Root 或非 Git Root 设为 Primary Root；这不会凭空重写 Execution Workspace 选择。Git Root 可拥有对应 Execution Workspace，非 Git Root 不伪装为 Workspace。
+3. **canonical Owner API 为 Root-first。** `/api/projects/:projectId/roots`、`/roots/:rootId/make-primary` 与 `/roots/:rootId/detach` 是新 UI / App 使用的主合同；detach 只解除 Registry/执行授权关联，不删除磁盘目录，并在存在 active ChatCockpit writer authority 时拒绝执行。旧 `/workspaces` attach / make-primary 路由仅作为兼容桥接，其中 Workspace make-primary 的含义是提升其所属 Project Root。
+4. **0.2 Alpha Project Cockpit 采用 compact single-page。** 不在本阶段引入一级 Tabs；Project/Root/Workspace readiness、Development context、Attention/Tasks 等权威事实在一个 Project Cockpit 中渐进呈现。旧 Continuity 非 Projects deep links 继续作为兼容入口，但不再出现在 canonical 顶层导航；`/continuity/projects` 收敛到 `/projects`。
+5. **Codex discovery 保留 provider-native logical grouping。** 同一个 Codex logical project 的多个 `rootPaths` 在 Project Center 中作为一个发现组呈现，同时仍保留每个 physical Project Root 的独立身份与授权边界。
+6. **macOS App 已对齐 Root-first Registry。** Projects surface 通过同一 `project-registry` 合同完成 Add Root、Make Primary 与 Remove Root；Remove 只解绑、不删除文件。App 还可复用 machine-local 一次性登录 grant 直接打开 `/ui/projects` Project Center，而不另造认证通道。
+7. **Gate F 已关闭。** clean committed HEAD `e97035e82c46` 完整 `npm run verify:release` exit 0，并通过 `VERIFY_SOURCE_ARCHIVE_OK`、Build Provenance certified 校验和 `VERIFY_RELEASE_DRY_RUN_OK`。该 commit 是本轮 detach/Open Project Center 收口之前的 release-certified 基线；新增收口改动仍须在 clean committed HEAD 上重新通过完整 release gate。
 
 ## 背景
 
@@ -197,13 +210,17 @@ GET    /api/projects
 POST   /api/projects
 GET    /api/projects/:projectId
 POST   /api/projects/:projectId/rename
+POST   /api/projects/:projectId/roots
+POST   /api/projects/:projectId/roots/:rootId/make-primary
+POST   /api/projects/:projectId/roots/:rootId/detach
+GET    /api/projects/discovery
+
+# 0.2.x compatibility only
 POST   /api/projects/:projectId/workspaces
 POST   /api/projects/:projectId/workspaces/:workspaceId/make-primary
-DELETE /api/projects/:projectId/workspaces/:workspaceId
-GET    /api/projects/discovery/codex
 ```
 
-兼容期可由现有 `/api/continuity/projects` 读取合同转发到同一个 Project Service，但新的 WebUI 不再以 Continuity 命名 Project 管理 API。
+兼容期可由现有 `/api/continuity/projects` 读取合同转发到同一个 Project Service，但新的 WebUI 不再以 Continuity 命名 Project 管理 API。Provider discovery 的 canonical surface 为 provider-neutral `/api/projects/discovery`；Codex 是其中一个本机 discovery source，而不是 API 命名真源。
 
 涉及本机路径的 create/attach/detach/discovery 必须要求 machine-local Owner。纯 public-safe Project read 可继续服务 Remote MCP/REST。
 
