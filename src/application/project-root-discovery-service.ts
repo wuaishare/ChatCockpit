@@ -60,9 +60,21 @@ export interface ProjectRootDiscoveryCandidate {
   } | null;
 }
 
+export interface ProjectRootDiscoveryGroup {
+  groupId: string;
+  name: string;
+  sourceId: string;
+  sourceDisplayName: string;
+  candidateIds: string[];
+  registration: "registered" | "partially-registered" | "unregistered";
+  existingProjectSlug: string | null;
+  latestObservedAt: number | null;
+}
+
 export interface ProjectRootDiscoveryResult {
   configRevision: string;
   sources: ProjectRootDiscoverySourceSnapshot[];
+  groups: ProjectRootDiscoveryGroup[];
   candidates: ProjectRootDiscoveryCandidate[];
   truncated: boolean;
 }
@@ -80,6 +92,15 @@ interface AggregatedCandidate {
   kind: TokenPilotProjectRootKind;
   git: ProjectRootDiscoveryCandidate["git"];
   sources: Map<string, AggregatedSource>;
+}
+
+interface AggregatedProjectGroup {
+  sourceId: string;
+  sourceDisplayName: string;
+  nativeProjectId: string;
+  name: string;
+  latestObservedAt: number | null;
+  rootOrderByPath: Map<string, number>;
 }
 
 interface ResolvedObservationRoot {
@@ -107,6 +128,13 @@ function canonicalExistingDirectory(input: string): string | null {
 function candidateId(privatePath: string): string {
   return `project_root_candidate_${createHash("sha256")
     .update(privatePath)
+    .digest("hex")
+    .slice(0, 32)}`;
+}
+
+function groupId(sourceId: string, nativeProjectId: string): string {
+  return `project_root_group_${createHash("sha256")
+    .update(`${sourceId}\0${nativeProjectId}`)
     .digest("hex")
     .slice(0, 32)}`;
 }
@@ -258,6 +286,7 @@ export class ProjectRootDiscoveryService {
     );
 
     const grouped = new Map<string, AggregatedCandidate>();
+    const groupedProjects = new Map<string, AggregatedProjectGroup>();
     let candidateLimitReached = false;
 
     for (const sourceResult of sourceResults) {
@@ -285,6 +314,32 @@ export class ProjectRootDiscoveryService {
           if (resolved.kind === "git-repository") {
             candidate.kind = "git-repository";
             candidate.git = resolved.git;
+          }
+        }
+
+        if (observation.logicalProject) {
+          const groupKey = `${sourceResult.source.id}\0${observation.logicalProject.id}`;
+          let projectGroup = groupedProjects.get(groupKey);
+          if (!projectGroup) {
+            projectGroup = {
+              sourceId: sourceResult.source.id,
+              sourceDisplayName: sourceResult.source.displayName,
+              nativeProjectId: observation.logicalProject.id,
+              name: observation.logicalProject.label?.trim() || path.basename(resolved.privatePath) || resolved.privatePath,
+              latestObservedAt: observation.observedAt,
+              rootOrderByPath: new Map()
+            };
+            groupedProjects.set(groupKey, projectGroup);
+          }
+          const existingOrder = projectGroup.rootOrderByPath.get(resolved.privatePath);
+          if (existingOrder === undefined || observation.logicalProject.rootIndex < existingOrder) {
+            projectGroup.rootOrderByPath.set(resolved.privatePath, observation.logicalProject.rootIndex);
+          }
+          if (
+            observation.observedAt !== null &&
+            (projectGroup.latestObservedAt === null || observation.observedAt > projectGroup.latestObservedAt)
+          ) {
+            projectGroup.latestObservedAt = observation.observedAt;
           }
         }
 
@@ -357,9 +412,50 @@ export class ProjectRootDiscoveryService {
         left.name.localeCompare(right.name)
       );
 
+    const candidateByPath = new Map(candidates.map((candidate) => [candidate.privatePath, candidate]));
+    const groups = [...groupedProjects.values()]
+      .map((projectGroup): ProjectRootDiscoveryGroup | null => {
+        const members = [...projectGroup.rootOrderByPath.entries()]
+          .sort(([leftPath, leftOrder], [rightPath, rightOrder]) =>
+            leftOrder - rightOrder || leftPath.localeCompare(rightPath)
+          )
+          .map(([privatePath]) => candidateByPath.get(privatePath) ?? null)
+          .filter((candidate): candidate is ProjectRootDiscoveryCandidate => Boolean(candidate));
+        if (members.length === 0) return null;
+        const registeredCount = members.filter((candidate) => candidate.registration === "registered").length;
+        const registeredSlugs = new Set(
+          members
+            .map((candidate) => candidate.existingProjectSlug)
+            .filter((slug): slug is string => Boolean(slug))
+        );
+        const registration: ProjectRootDiscoveryGroup["registration"] =
+          registeredCount === 0
+            ? "unregistered"
+            : registeredCount === members.length && registeredSlugs.size === 1
+              ? "registered"
+              : "partially-registered";
+        return {
+          groupId: groupId(projectGroup.sourceId, projectGroup.nativeProjectId),
+          name: projectGroup.name,
+          sourceId: projectGroup.sourceId,
+          sourceDisplayName: projectGroup.sourceDisplayName,
+          candidateIds: members.map((candidate) => candidate.candidateId),
+          registration,
+          existingProjectSlug:
+            registration === "registered" ? [...registeredSlugs][0] ?? null : null,
+          latestObservedAt: projectGroup.latestObservedAt
+        };
+      })
+      .filter((group): group is ProjectRootDiscoveryGroup => Boolean(group))
+      .sort((left, right) =>
+        (right.latestObservedAt ?? 0) - (left.latestObservedAt ?? 0) ||
+        left.name.localeCompare(right.name)
+      );
+
     return {
       configRevision: snapshot.revision,
       sources: sourceResults.map((result) => result.snapshot),
+      groups,
       candidates,
       truncated:
         candidateLimitReached ||

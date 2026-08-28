@@ -109,7 +109,7 @@ const context = {
 };
 
 const codexSource = new FixtureSource("codex-native-history", "Codex", {
-  inspectedContexts: 5,
+  inspectedContexts: 6,
   truncated: false,
   observations: [
     {
@@ -118,7 +118,8 @@ const codexSource = new FixtureSource("codex-native-history", "Codex", {
       label: "Web work",
       observedAt: 200,
       signalKind: "native-session-cwd",
-      resolution: "git-top-level"
+      resolution: "git-top-level",
+      logicalProject: { id: "codex-daily-hot", label: "DailyHot", rootIndex: 1 }
     },
     {
       sourceContextId: "codex-shared-2",
@@ -135,6 +136,15 @@ const codexSource = new FixtureSource("codex-native-history", "Codex", {
       observedAt: 150,
       signalKind: "native-session-cwd",
       resolution: "git-top-level"
+    },
+    {
+      sourceContextId: "codex-daily-hot-ui",
+      privatePath: docsRoot,
+      label: "DailyHot UI",
+      observedAt: 210,
+      signalKind: "native-project-root",
+      resolution: "exact-directory",
+      logicalProject: { id: "codex-daily-hot", label: "DailyHot", rootIndex: 0 }
     },
     {
       sourceContextId: "codex-non-git",
@@ -239,14 +249,27 @@ try {
   assert.equal(docs.kind, "directory");
   assert.equal(docs.git, null);
   assert.equal(docs.suggestedRepoId, null);
-  assert.deepEqual(docs.sources.map((source) => source.sourceId), ["claude-native-history"]);
+  assert.deepEqual(docs.sources.map((source) => source.sourceId), ["claude-native-history", "codex-native-history"]);
+
+  const dailyHotGroup = result.groups.find((group) => group.name === "DailyHot");
+  assert.ok(dailyHotGroup, "Codex logical project with multiple rootPaths must remain one discovered project group");
+  assert.equal(dailyHotGroup.sourceId, "codex-native-history");
+  assert.equal(dailyHotGroup.registration, "unregistered");
+  assert.equal(dailyHotGroup.existingProjectSlug, null);
+  assert.match(dailyHotGroup.groupId, /^project_root_group_[a-f0-9]{32}$/);
+  assert.deepEqual(
+    dailyHotGroup.candidateIds,
+    [docs, shared].map((candidate) => candidate.candidateId),
+    "provider root order must be preserved without merging distinct physical directories"
+  );
 
   assert.equal(result.candidates.some((candidate) => candidate.privatePath === ignoredNonGitCwd), false);
   assert.equal(result.candidates.some((candidate) => candidate.privatePath === paths.stateRoot), false);
 
   const codexOnly = await service.listCandidates(context, { sourceIds: ["codex-native-history"] });
   assert.deepEqual(codexOnly.sources.map((source) => source.id), ["codex-native-history"]);
-  assert.equal(codexOnly.candidates.some((candidate) => candidate.name === "docs-root"), false);
+  assert.equal(codexOnly.candidates.some((candidate) => candidate.name === "docs-root"), true);
+  assert.equal(codexOnly.groups.some((group) => group.name === "DailyHot" && group.candidateIds.length === 2), true);
 
   await assert.rejects(
     () => service.listCandidates(context, { sourceIds: ["missing-source"] }),
@@ -298,8 +321,8 @@ try {
       "local-projects": {
         "local-shared": {
           id: "local-shared",
-          name: "Shared project",
-          rootPaths: [sharedRepo],
+          name: "DailyHot",
+          rootPaths: [docsRoot, sharedRepo],
           createdAt: 1,
           updatedAt: 30
         }
@@ -315,8 +338,22 @@ try {
   const localStateReader = new CodexLocalProjectStateReader(codexHome);
   const localState = localStateReader.readProjectRoots();
   assert.equal(localState.available, true);
-  assert.equal(localState.inspectedContexts, 4);
-  assert.equal(localState.roots.length, 4);
+  assert.equal(localState.inspectedContexts, 5);
+  assert.equal(localState.roots.length, 5);
+  const localProjectRoots = localState.roots.filter((entry) => entry.signalKind === "native-project-root");
+  assert.equal(localProjectRoots.length, 2);
+  assert.deepEqual(
+    localProjectRoots.map((entry) => [
+      entry.logicalProjectId,
+      entry.logicalProjectLabel,
+      entry.logicalProjectRootIndex,
+      entry.privatePath
+    ]),
+    [
+      ["local-shared", "DailyHot", 0, docsRoot],
+      ["local-shared", "DailyHot", 1, sharedRepo]
+    ]
+  );
   assert.deepEqual(
     [...new Set(localState.roots.map((entry) => entry.signalKind))].sort(),
     [
@@ -336,10 +373,19 @@ try {
   const sourceResult = await nativeCodexSource.discover(context);
   assert.equal(nativeCodexSource.id, "codex-native-history");
   assert.equal(nativeCodexSource.displayName, "Codex");
-  assert.equal(sourceResult.inspectedContexts, 7);
-  assert.equal(sourceResult.observations.length, 7);
-  assert.equal(sourceResult.observations.filter((entry) => entry.resolution === "exact-directory").length, 4);
+  assert.equal(sourceResult.inspectedContexts, 8);
+  assert.equal(sourceResult.observations.length, 8);
+  assert.equal(sourceResult.observations.filter((entry) => entry.resolution === "exact-directory").length, 5);
   assert.equal(sourceResult.observations.filter((entry) => entry.resolution === "git-top-level").length, 3);
+  assert.deepEqual(
+    sourceResult.observations
+      .filter((entry) => entry.logicalProject?.id === "local-shared")
+      .map((entry) => [entry.logicalProject?.label, entry.logicalProject?.rootIndex, entry.privatePath]),
+    [
+      ["DailyHot", 0, docsRoot],
+      ["DailyHot", 1, sharedRepo]
+    ]
+  );
   assert.equal(sourceResult.truncated, false);
 
   process.stdout.write("VERIFY_PROJECT_ROOT_DISCOVERY_OK\n");

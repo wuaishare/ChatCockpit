@@ -26,18 +26,11 @@ export const projectRegistryProjectParamsSchema = z.object({
 
 const projectRegistryRootInputSchema = z.object({
   path: z.string().trim().min(1).max(4096),
-  kind: projectRootKindSchema,
+  kind: projectRootKindSchema.optional(),
   role: projectRootRoleSchema.optional(),
   access: projectRootAccessSchema.optional(),
   repoId: repoIdSchema.optional()
 }).superRefine((value, ctx) => {
-  if (value.kind === "git-repository" && !value.repoId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["repoId"],
-      message: "git-repository ProjectRoot requires repoId for its checkout Workspace"
-    });
-  }
   if (value.kind === "directory" && value.repoId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -48,7 +41,7 @@ const projectRegistryRootInputSchema = z.object({
 });
 
 const projectRegistryCanonicalCreateSchema = z.object({
-  slug: projectSlugSchema,
+  slug: projectSlugSchema.optional(),
   displayName: z.string().trim().min(1).max(240),
   root: projectRegistryRootInputSchema,
   expectedConfigRevision: configRevisionSchema
@@ -96,13 +89,6 @@ export const projectRegistryAttachRootSchema = z.object({
   repoId: repoIdSchema.optional(),
   expectedConfigRevision: configRevisionSchema
 }).superRefine((value, ctx) => {
-  if (value.kind === "git-repository" && !value.repoId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["repoId"],
-      message: "git-repository ProjectRoot requires repoId for its checkout Workspace"
-    });
-  }
   if (value.kind === "directory" && value.repoId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

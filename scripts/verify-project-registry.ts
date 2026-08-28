@@ -251,20 +251,17 @@ try {
   const created = service.createProject(
     { ...context, now: "2026-08-28T05:06:00.000Z" },
     {
-      slug: "other-project",
       displayName: "Other Project",
       rootPath: repoOther,
-      kind: "git-repository",
-      role: "primary-source",
-      access: "read-write",
-      repoId: "other",
       expectedConfigRevision: reprioritized.configRevision
     }
   );
   assert.equal(created.project.slug, "other-project");
   assert.equal(created.project.displayName, "Other Project");
-  assert.deepEqual(created.workspaces.map((workspace) => workspace.repoId), ["other"]);
+  assert.deepEqual(created.workspaces.map((workspace) => workspace.repoId), ["other-project"]);
   assert.equal(created.roots.length, 1);
+  assert.equal(created.roots[0]?.kind, "git-repository");
+  assert.equal(created.roots[0]?.access, "read-write");
   assert.equal(created.roots[0]?.primary, true);
   assert.equal(service.list({ ...context, now: "2026-08-28T05:07:00.000Z" }).length, 2);
 

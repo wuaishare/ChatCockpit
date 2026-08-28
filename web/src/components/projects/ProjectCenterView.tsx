@@ -15,7 +15,9 @@ import {
 import {
   ApartmentOutlined,
   FolderAddOutlined,
+  GlobalOutlined,
   ImportOutlined,
+  LaptopOutlined,
   MoreOutlined,
   ProjectOutlined,
   ReloadOutlined,
@@ -40,6 +42,7 @@ import type {
   ApiProblem,
   ProjectRegistryProjection,
   ProjectRootDiscoveryCandidate,
+  ProjectRootDiscoveryGroup,
   ProjectRootDiscoverySourceSnapshot,
   ProjectRootAccess,
   ProjectRootKind,
@@ -59,11 +62,10 @@ interface ProjectCenterViewProps {
 
 interface AddProjectFormValues {
   displayName: string;
-  slug: string;
-  kind: ProjectRootKind;
-  repoId?: string;
   path: string;
 }
+
+type AddProjectLocation = "local" | "remote";
 
 interface AttachRootFormValues {
   projectId: string;
@@ -108,18 +110,21 @@ export function ProjectCenterView({
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
+  const [addStep, setAddStep] = useState<0 | 1>(0);
+  const [addLocation, setAddLocation] = useState<AddProjectLocation>("local");
   const [importOpen, setImportOpen] = useState(false);
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<ProjectRootDiscoveryCandidate[]>([]);
+  const [groups, setGroups] = useState<ProjectRootDiscoveryGroup[]>([]);
   const [sources, setSources] = useState<ProjectRootDiscoverySourceSnapshot[]>([]);
+  const [groupLoadingId, setGroupLoadingId] = useState<string | null>(null);
   const [discoveryTruncated, setDiscoveryTruncated] = useState(false);
   const [attachCandidate, setAttachCandidate] = useState<ProjectRootDiscoveryCandidate | null>(null);
   const [attachLoading, setAttachLoading] = useState(false);
   const [discoveryLocationsOpen, setDiscoveryLocationsOpen] = useState(false);
   const [addForm] = Form.useForm<AddProjectFormValues>();
   const [attachForm] = Form.useForm<AttachRootFormValues>();
-  const addKind = Form.useWatch("kind", addForm) ?? "git-repository";
   const protectedView = authRequired && !token?.trim();
 
   const loadProjects = useCallback(async () => {
@@ -161,29 +166,23 @@ export function ProjectCenterView({
     addForm.resetFields();
     addForm.setFieldsValue({
       displayName: candidate?.name ?? "",
-      slug: candidate?.suggestedRepoId ?? "",
-      kind: candidate?.kind ?? "git-repository",
-      repoId: candidate?.kind === "git-repository"
-        ? (candidate.suggestedRepoId ?? undefined)
-        : undefined,
       path: candidate?.privatePath ?? ""
     });
+    setAddLocation("local");
+    setAddStep(candidate ? 1 : 0);
     setAddOpen(true);
   }, [addForm]);
 
   const submitAddProject = async (values: AddProjectFormValues) => {
-    if (!configRevision) return;
+    if (!configRevision || addLocation !== "local") return;
     setAddLoading(true);
     try {
       const result = await createProject({
         displayName: values.displayName.trim(),
-        slug: values.slug.trim(),
         root: {
           path: values.path.trim(),
-          kind: values.kind,
           role: "primary-source",
-          access: "read-write",
-          repoId: values.kind === "git-repository" ? values.repoId?.trim() : undefined
+          access: "read-write"
         },
         expectedConfigRevision: configRevision
       });
@@ -206,11 +205,13 @@ export function ProjectCenterView({
     try {
       const response = await fetchProjectDiscovery();
       setCandidates(response.candidates);
+      setGroups(response.groups);
       setSources(response.sources);
       setDiscoveryTruncated(response.truncated);
       setConfigRevision(response.configRevision);
     } catch (loadError) {
       setCandidates([]);
+      setGroups([]);
       setSources([]);
       setDiscoveryError(problemMessage(loadError, copy.requestFailed));
     } finally {
@@ -221,6 +222,54 @@ export function ProjectCenterView({
   const openImport = () => {
     setImportOpen(true);
     void loadDiscovery();
+  };
+
+  const groupedCandidateIds = useMemo(
+    () => new Set(groups.flatMap((group) => group.candidateIds)),
+    [groups]
+  );
+
+  const createDiscoveredGroup = async (group: ProjectRootDiscoveryGroup) => {
+    if (!configRevision || group.registration !== "unregistered") return;
+    const members = group.candidateIds
+      .map((candidateId) => candidates.find((candidate) => candidate.candidateId === candidateId) ?? null)
+      .filter((candidate): candidate is ProjectRootDiscoveryCandidate => Boolean(candidate));
+    if (members.length === 0) return;
+
+    setGroupLoadingId(group.groupId);
+    try {
+      const [primary, ...additional] = members;
+      let result = await createProject({
+        displayName: group.name,
+        root: {
+          path: primary.privatePath,
+          kind: primary.kind,
+          role: "primary-source",
+          access: "read-write"
+        },
+        expectedConfigRevision: configRevision
+      });
+      let revision = result.configRevision;
+      for (const candidate of additional) {
+        result = await attachProjectRoot(result.project.id, {
+          path: candidate.privatePath,
+          kind: candidate.kind,
+          role: "supporting-source",
+          access: "read-write",
+          expectedConfigRevision: revision
+        });
+        revision = result.configRevision;
+      }
+      setConfigRevision(revision);
+      await Promise.all([loadProjects(), loadDiscovery()]);
+      setImportOpen(false);
+      message.success(copy.operationSucceeded);
+      onOpenProject(result.project.id);
+    } catch (actionError) {
+      message.error(problemMessage(actionError, copy.operationFailed));
+    } finally {
+      setGroupLoadingId(null);
+    }
   };
 
   const openAttach = (candidate: ProjectRootDiscoveryCandidate) => {
@@ -358,39 +407,65 @@ export function ProjectCenterView({
       <Modal
         open={addOpen}
         title={copy.addProjectTitle}
-        okText={copy.create}
-        cancelText={copy.cancel}
-        confirmLoading={addLoading}
+        footer={[
+          <Button key="cancel" onClick={() => setAddOpen(false)}>{copy.cancel}</Button>,
+          ...(addStep === 0
+            ? [
+                <Button
+                  key="next"
+                  type="primary"
+                  disabled={addLocation !== "local"}
+                  onClick={() => setAddStep(1)}
+                >
+                  {copy.next}
+                </Button>
+              ]
+            : [
+                <Button key="back" onClick={() => setAddStep(0)}>{copy.back}</Button>,
+                <Button key="create" type="primary" loading={addLoading} onClick={() => void addForm.submit()}>
+                  {copy.create}
+                </Button>
+              ])
+        ]}
         onCancel={() => setAddOpen(false)}
-        onOk={() => void addForm.submit()}
         destroyOnHidden
       >
-        <Text as="p" type="secondary">{copy.addProjectDescription}</Text>
-        <Form form={addForm} layout="vertical" onFinish={submitAddProject}>
-          <Form.Item name="displayName" label={copy.displayName} rules={[{ required: true }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="slug" label={copy.projectSlug} rules={[{ required: true, pattern: /^[a-z0-9][a-z0-9._-]{0,79}$/ }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="kind" label={copy.rootKind} initialValue="git-repository" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { value: "git-repository", label: copy.gitRepository },
-                { value: "directory", label: copy.directory }
-              ]}
-            />
-          </Form.Item>
-          {addKind === "git-repository" ? (
-            <Form.Item name="repoId" label={copy.repoId} rules={[{ required: true, pattern: /^[a-z0-9][a-z0-9._-]{0,79}$/ }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-          ) : null}
-          <Form.Item name="path" label={copy.localPath} rules={[{ required: true }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Alert type="info" showIcon message={copy.manualPathHint} />
-        </Form>
+        {addStep === 0 ? (
+          <div className="project-add-location-grid" aria-label={copy.projectLocation}>
+            <button
+              type="button"
+              className={`project-add-location-card${addLocation === "local" ? " is-selected" : ""}`}
+              onClick={() => setAddLocation("local")}
+            >
+              <span className="project-add-location-card__icon"><LaptopOutlined /></span>
+              <strong>{copy.localProject}</strong>
+              <span>{copy.localProjectDescription}</span>
+            </button>
+            <button
+              type="button"
+              className="project-add-location-card is-disabled"
+              disabled
+            >
+              <span className="project-add-location-card__icon"><GlobalOutlined /></span>
+              <strong>{copy.remoteProject}</strong>
+              <span>{copy.remoteProjectDescription}</span>
+              <small>{copy.remoteProjectUnavailable}</small>
+            </button>
+          </div>
+        ) : (
+          <>
+            <Text as="p" type="secondary">{copy.addProjectDescription}</Text>
+            <Form form={addForm} layout="vertical" onFinish={submitAddProject}>
+              <Form.Item name="displayName" label={copy.displayName} rules={[{ required: true }]}>
+                <Input autoComplete="off" placeholder={copy.projectNamePlaceholder} />
+              </Form.Item>
+              <Form.Item name="path" label={copy.sourceFolder} rules={[{ required: true }]}>
+                <Input autoComplete="off" placeholder={copy.sourceFolderPlaceholder} />
+              </Form.Item>
+              <Alert type="info" showIcon message={copy.manualPathHint} />
+            </Form>
+          </>
+        )}
       </Modal>
 
       <Modal
@@ -402,7 +477,7 @@ export function ProjectCenterView({
         destroyOnHidden
       >
         <Text as="p" type="secondary">{copy.discoveryImportDescription}</Text>
-        <SourceStrip sources={sources} candidates={candidates} locale={locale} />
+        <SourceStrip sources={sources} groups={groups} candidates={candidates} locale={locale} />
         {discoveryTruncated ? <Alert type="warning" showIcon message={copy.discoveryTruncated} /> : null}
         {discoveryError ? <Alert type="error" showIcon message={discoveryError} /> : null}
         <div className="project-discovery-candidates">
@@ -411,7 +486,18 @@ export function ProjectCenterView({
           ) : candidates.length === 0 ? (
             <Empty description={copy.noDiscoveryCandidates} />
           ) : (
-            candidates.map((candidate) => (
+            <>
+              {groups.map((group) => (
+                <DiscoveryProjectGroupCard
+                  key={group.groupId}
+                  locale={locale}
+                  group={group}
+                  candidates={candidates}
+                  loading={groupLoadingId === group.groupId}
+                  onCreate={() => void createDiscoveredGroup(group)}
+                />
+              ))}
+              {candidates.filter((candidate) => !groupedCandidateIds.has(candidate.candidateId)).map((candidate) => (
               <article className="project-discovery-candidate" key={candidate.candidateId}>
                 <div className="project-discovery-candidate__main">
                   <div className="project-discovery-candidate__title-row">
@@ -449,8 +535,9 @@ export function ProjectCenterView({
                     </Button>
                   </div>
                 )}
-              </article>
-            ))
+                </article>
+              ))}
+            </>
           )}
         </div>
       </Modal>
@@ -515,12 +602,86 @@ export function ProjectCenterView({
   );
 }
 
+function DiscoveryProjectGroupCard({
+  locale,
+  group,
+  candidates,
+  loading,
+  onCreate
+}: {
+  locale: LocaleCode;
+  group: ProjectRootDiscoveryGroup;
+  candidates: ProjectRootDiscoveryCandidate[];
+  loading: boolean;
+  onCreate: () => void;
+}) {
+  const copy = getProjectsCopy(locale);
+  const members = group.candidateIds
+    .map((candidateId) => candidates.find((candidate) => candidate.candidateId === candidateId) ?? null)
+    .filter((candidate): candidate is ProjectRootDiscoveryCandidate => Boolean(candidate));
+  const signalCount = members.reduce((total, candidate) => {
+    const source = candidate.sources.find((entry) => entry.sourceId === group.sourceId);
+    return total + (source?.signalCount ?? 0);
+  }, 0);
+  const registrationLabel = group.registration === "registered"
+    ? copy.registered
+    : group.registration === "partially-registered"
+      ? copy.partiallyRegistered
+      : copy.unregistered;
+  const registrationColor = group.registration === "registered"
+    ? "success"
+    : group.registration === "partially-registered"
+      ? "warning"
+      : "processing";
+
+  return (
+    <article className="project-discovery-group">
+      <div className="project-discovery-group__header">
+        <div className="project-discovery-group__identity">
+          <div className="project-discovery-candidate__title-row">
+            <strong>{group.name}</strong>
+            <Tag>{group.sourceDisplayName}</Tag>
+            <Tag color={registrationColor}>{registrationLabel}</Tag>
+          </div>
+          <span className="project-discovery-group__summary">
+            {members.length} {copy.sourceCandidates} · {signalCount} {copy.sourceSignals}
+          </span>
+        </div>
+        {group.registration === "registered" ? (
+          <Tag>{group.existingProjectSlug ?? copy.registered}</Tag>
+        ) : group.registration === "unregistered" ? (
+          <Button type="primary" loading={loading} onClick={onCreate}>
+            {copy.createFromCandidate}
+          </Button>
+        ) : null}
+      </div>
+      <div className="project-discovery-group__roots">
+        {members.map((candidate) => (
+          <div className="project-discovery-group__root" key={candidate.candidateId}>
+            <div className="project-discovery-group__root-title">
+              <strong>{candidate.name}</strong>
+              <Tag>{projectRootKindLabel(locale, candidate.kind)}</Tag>
+              {candidate.git ? <span>{copy.branch}: <code>{candidate.git.branch ?? "—"}</code></span> : null}
+            </div>
+            <code className="project-discovery-candidate__path">{candidate.privatePath}</code>
+          </div>
+        ))}
+      </div>
+      <div className="project-discovery-candidate__meta">
+        <span>{copy.lastObserved}: <strong>{formatObserved(group.latestObservedAt, locale)}</strong></span>
+      </div>
+    </article>
+  );
+}
+
 function SourceStrip({
   sources,
+  groups,
   candidates,
   locale
 }: {
   sources: ProjectRootDiscoverySourceSnapshot[];
+  groups: ProjectRootDiscoveryGroup[];
   candidates: ProjectRootDiscoveryCandidate[];
   locale: LocaleCode;
 }) {
@@ -529,8 +690,13 @@ function SourceStrip({
   return (
     <div className="project-discovery-sources" aria-label={copy.discoverySources}>
       {sources.map((source) => {
-        const candidateCount = candidates.filter((candidate) =>
+        const sourceCandidates = candidates.filter((candidate) =>
           candidate.sources.some((candidateSource) => candidateSource.sourceId === source.id)
+        );
+        const sourceGroups = groups.filter((group) => group.sourceId === source.id);
+        const groupedIds = new Set(sourceGroups.flatMap((group) => group.candidateIds));
+        const projectCount = sourceGroups.length + sourceCandidates.filter(
+          (candidate) => !groupedIds.has(candidate.candidateId)
         ).length;
         return (
           <Tag
@@ -540,7 +706,7 @@ function SourceStrip({
           >
             {source.displayName}
             {source.status === "ready"
-              ? ` · ${candidateCount} ${copy.sourceCandidates}`
+              ? ` · ${projectCount} ${copy.sourceProjects} · ${sourceCandidates.length} ${copy.sourceCandidates}`
               : ` · ${copy.sourceUnavailable}`}
           </Tag>
         );

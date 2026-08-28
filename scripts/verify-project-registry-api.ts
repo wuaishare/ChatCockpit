@@ -74,11 +74,13 @@ async function main(): Promise<void> {
   const primaryRepo = path.join(root, "primary");
   const candidatesRoot = path.join(root, "candidates");
   const attachedRepo = path.join(candidatesRoot, "attached");
+  const autoAttachedRepo = path.join(candidatesRoot, "auto-attached");
   const otherRepo = path.join(candidatesRoot, "other");
   const documentationRoot = path.join(candidatesRoot, "docs");
   const plainProjectRoot = path.join(candidatesRoot, "plain-project");
   initRepo(primaryRepo, "primary.txt");
   initRepo(attachedRepo, "attached.txt");
+  initRepo(autoAttachedRepo, "auto-attached.txt");
   initRepo(otherRepo, "other.txt");
   fs.mkdirSync(documentationRoot, { recursive: true });
   fs.mkdirSync(plainProjectRoot, { recursive: true });
@@ -359,14 +361,15 @@ async function main(): Promise<void> {
         method: "POST",
         headers: mutationHeaders,
         body: JSON.stringify({
-          path: otherRepo,
+          path: autoAttachedRepo,
           kind: "git-repository",
           expectedConfigRevision: renamed.configRevision
         })
       }
     );
-    assert.equal(gitWithoutRepoId.status, 400);
-    assert.match(await gitWithoutRepoId.text(), /VALIDATION_ERROR/);
+    assert.equal(gitWithoutRepoId.status, 200);
+    const autoAttached = (await gitWithoutRepoId.json()) as ProjectMutationBody;
+    assert.equal(autoAttached.workspaces.some((workspace) => workspace.repoId === "auto-attached"), true);
 
     const directoryWithRepoId = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots`,
@@ -377,7 +380,7 @@ async function main(): Promise<void> {
           path: plainProjectRoot,
           kind: "directory",
           repoId: "plain",
-          expectedConfigRevision: renamed.configRevision
+          expectedConfigRevision: autoAttached.configRevision
         })
       }
     );
@@ -388,16 +391,11 @@ async function main(): Promise<void> {
       method: "POST",
       headers: mutationHeaders,
       body: JSON.stringify({
-        slug: "other-project",
         displayName: "Other Project",
         root: {
-          path: otherRepo,
-          kind: "git-repository",
-          role: "primary-source",
-          access: "read-write",
-          repoId: "other"
+          path: otherRepo
         },
-        expectedConfigRevision: renamed.configRevision
+        expectedConfigRevision: autoAttached.configRevision
       })
     });
     assert.equal(createResponse.status, 200);
@@ -471,9 +469,10 @@ async function main(): Promise<void> {
     const rawRoots = rawConfig.projectRoots as Record<string, { path: string; kind: string; role: string; access: string }>;
     const rawWorkspaces = rawConfig.executionWorkspaces as Record<string, { projectRootId: string; path: string; kind: string }>;
     assert.equal(rawProjects.primary?.displayName, "Renamed Project");
-    assert.equal(rawProjects.primary?.rootIds.length, 3);
+    assert.equal(rawProjects.primary?.rootIds.length, 4);
     assert.equal(rawProjects.primary?.primaryRootId, attachedRoot.id);
     assert.equal(rawWorkspaces.attached?.projectRootId, attachedRoot.id);
+    assert.equal(rawWorkspaces["auto-attached"]?.kind, "checkout");
     assert.equal(rawWorkspaces.other?.kind, "checkout");
     assert.equal(
       Object.values(rawRoots).some((entry) => entry.path === fs.realpathSync.native(documentationRoot) && entry.kind === "directory"),

@@ -7,6 +7,9 @@ export interface CodexLocalProjectRootHint {
   privatePath: string;
   label: string | null;
   observedAt: number | null;
+  logicalProjectId: string | null;
+  logicalProjectLabel: string | null;
+  logicalProjectRootIndex: number | null;
   signalKind:
     | "native-project-root"
     | "native-saved-workspace-root"
@@ -63,9 +66,10 @@ export class CodexLocalProjectStateReader implements CodexLocalProjectStateReadi
     const roots: CodexLocalProjectRootHint[] = [];
     let inspectedContexts = 0;
 
-    for (const projectValue of Object.values(asRecord(state["local-projects"]))) {
+    for (const [projectKey, projectValue] of Object.entries(asRecord(state["local-projects"]))) {
       const project = asRecord(projectValue);
-      const projectId = typeof project.id === "string" ? project.id.trim() : "";
+      const explicitProjectId = typeof project.id === "string" ? project.id.trim() : "";
+      const projectId = explicitProjectId || projectKey;
       const label = typeof project.name === "string" && project.name.trim()
         ? project.name.trim()
         : null;
@@ -73,10 +77,13 @@ export class CodexLocalProjectStateReader implements CodexLocalProjectStateReadi
       for (const [index, privatePath] of stringList(project.rootPaths).entries()) {
         inspectedContexts += 1;
         roots.push({
-          sourceContextId: projectId || `local-project-${index}`,
+          sourceContextId: projectId,
           privatePath,
           label,
           observedAt,
+          logicalProjectId: projectId,
+          logicalProjectLabel: label,
+          logicalProjectRootIndex: index,
           signalKind: "native-project-root"
         });
       }
@@ -89,6 +96,9 @@ export class CodexLocalProjectStateReader implements CodexLocalProjectStateReadi
         privatePath,
         label: path.basename(privatePath) || null,
         observedAt: null,
+        logicalProjectId: null,
+        logicalProjectLabel: null,
+        logicalProjectRootIndex: null,
         signalKind: "native-saved-workspace-root"
       });
     }
@@ -100,6 +110,9 @@ export class CodexLocalProjectStateReader implements CodexLocalProjectStateReadi
         privatePath,
         label: path.basename(privatePath) || null,
         observedAt: null,
+        logicalProjectId: null,
+        logicalProjectLabel: null,
+        logicalProjectRootIndex: null,
         signalKind: "native-active-workspace-root"
       });
     }
@@ -112,6 +125,9 @@ export class CodexLocalProjectStateReader implements CodexLocalProjectStateReadi
         privatePath: privatePathValue,
         label: path.basename(privatePathValue) || null,
         observedAt: null,
+        logicalProjectId: null,
+        logicalProjectLabel: null,
+        logicalProjectRootIndex: null,
         signalKind: "native-thread-workspace-root-hint"
       });
     }

@@ -739,10 +739,22 @@ export interface ProjectRootDiscoveryCandidate {
   } | null;
 }
 
+export interface ProjectRootDiscoveryGroup {
+  groupId: string;
+  name: string;
+  sourceId: string;
+  sourceDisplayName: string;
+  candidateIds: string[];
+  registration: "registered" | "partially-registered" | "unregistered";
+  existingProjectSlug: string | null;
+  latestObservedAt: number | null;
+}
+
 export interface ProjectRootDiscoveryResponse {
   ok: true;
   configRevision: string;
   sources: ProjectRootDiscoverySourceSnapshot[];
+  groups: ProjectRootDiscoveryGroup[];
   candidates: ProjectRootDiscoveryCandidate[];
   truncated: boolean;
 }

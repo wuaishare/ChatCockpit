@@ -46,7 +46,16 @@ export class CodexProjectRootDiscoverySource implements ProjectRootDiscoverySour
         label: root.label,
         observedAt: root.observedAt,
         signalKind: root.signalKind,
-        resolution: "exact-directory"
+        resolution: "exact-directory",
+        ...(root.logicalProjectId !== null && root.logicalProjectRootIndex !== null
+          ? {
+              logicalProject: {
+                id: root.logicalProjectId,
+                label: root.logicalProjectLabel,
+                rootIndex: root.logicalProjectRootIndex
+              }
+            }
+          : {})
       });
     }
 

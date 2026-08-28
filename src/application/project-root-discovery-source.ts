@@ -9,6 +9,11 @@ export interface ProjectRootDiscoveryObservation {
   observedAt: number | null;
   signalKind: string;
   resolution: ProjectRootDiscoveryResolution;
+  logicalProject?: {
+    id: string;
+    label: string | null;
+    rootIndex: number;
+  };
 }
 
 export interface ProjectRootDiscoveryObservationSet {

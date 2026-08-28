@@ -737,11 +737,11 @@ export async function fetchProject(
 }
 
 export async function createProject(input: {
-  slug: string;
+  slug?: string;
   displayName: string;
   root: {
     path: string;
-    kind: ProjectRootKind;
+    kind?: ProjectRootKind;
     role?: ProjectRootRole;
     access?: ProjectRootAccess;
     repoId?: string;

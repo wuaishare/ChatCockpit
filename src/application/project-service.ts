@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 
 import {
   isWithinWorkspaceAllowlist,
@@ -29,11 +30,24 @@ import {
   WorkspaceConfigStore,
   type WorkspaceConfigSnapshot
 } from "../workspaces/workspace-config-store.js";
-import { inspectWorkspaceGitRoot } from "../workspaces/workspace-discovery.js";
+import {
+  inspectWorkspaceGitRoot,
+  suggestedWorkspaceRepoId
+} from "../workspaces/workspace-discovery.js";
 
 function stableId(prefix: string, value: string): string {
   const digest = createHash("sha256").update(value).digest("hex").slice(0, 24);
   return `${prefix}_${digest}`;
+}
+
+function availableIdentifier(base: string, isUsed: (candidate: string) => boolean): string {
+  if (!isUsed(base)) return base;
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const suffixText = `-${suffix}`;
+    const candidate = `${base.slice(0, Math.max(1, 80 - suffixText.length))}${suffixText}`;
+    if (!isUsed(candidate)) return candidate;
+  }
+  throw new ServiceError("PROJECT_IDENTIFIER_EXHAUSTED", "Could not allocate a unique project identifier");
 }
 
 function workspaceStatus(repoPath: string, allowlist: string[]): WorkspaceStatus {
@@ -152,33 +166,58 @@ export class ProjectService {
   }
 
   createProject(context: OperationContext, input: {
-    slug: string;
+    slug?: string;
     displayName: string;
     rootPath: string;
-    kind: TokenPilotProjectRootKind;
+    kind?: TokenPilotProjectRootKind;
     role?: TokenPilotProjectRootRole;
     access?: TokenPilotProjectRootAccess;
     repoId?: string;
     expectedConfigRevision: string;
   }): ProjectRegistryMutationResult {
     const snapshot = this.configStore.snapshot();
-    if (snapshot.projects[input.slug.trim()]) {
+    const explicitSlug = input.slug?.trim() || null;
+    if (explicitSlug && snapshot.projects[explicitSlug]) {
       throw new ServiceError("PROJECT_SLUG_CONFLICT", "Project slug is already in use");
     }
-    this.assertRoot(input.rootPath, input.kind);
+
+    const kind = input.kind ?? (inspectWorkspaceGitRoot(input.rootPath) ? "git-repository" : "directory");
+    this.assertRoot(input.rootPath, kind);
+    if (kind === "directory" && input.repoId) {
+      throw new ServiceError(
+        "PROJECT_ROOT_WORKSPACE_KIND_INVALID",
+        "Directory ProjectRoots cannot declare a checkout Workspace repository id"
+      );
+    }
+
+    const projectSlugSource = explicitSlug ?? input.displayName.trim();
+    const projectSlugBase = suggestedWorkspaceRepoId(
+      projectSlugSource || path.basename(input.rootPath)
+    );
+    const projectSlug = explicitSlug ?? availableIdentifier(
+      projectSlugBase,
+      (candidate) => Boolean(snapshot.projects[candidate])
+    );
+    const repoId = kind === "git-repository"
+      ? input.repoId?.trim() || availableIdentifier(
+          suggestedWorkspaceRepoId(path.basename(input.rootPath)),
+          (candidate) => Boolean(snapshot.executionWorkspaces[candidate])
+        )
+      : undefined;
+
     const updated = this.configStore.registerProjectRoot({
       rootPath: input.rootPath,
-      projectSlug: input.slug,
+      projectSlug,
       projectDisplayName: input.displayName,
-      kind: input.kind,
+      kind,
       role: input.role,
       access: input.access,
-      repoId: input.repoId,
-      createCheckoutWorkspace: input.kind === "git-repository",
+      repoId,
+      createCheckoutWorkspace: kind === "git-repository",
       expectedRevision: input.expectedConfigRevision
     });
     this.syncConfiguredProjects(context);
-    const project = this.repositories.projects.findBySlug(input.slug.trim());
+    const project = this.repositories.projects.findBySlug(projectSlug);
     if (!project) {
       throw new ServiceError("PROJECT_NOT_FOUND", "Project could not be materialized");
     }
@@ -219,14 +258,21 @@ export class ProjectService {
   }): ProjectRegistryMutationResult {
     this.syncConfiguredProjects(context);
     const project = this.repositories.projects.get(input.projectId);
+    const snapshot = this.configStore.snapshot();
     this.assertRoot(input.rootPath, input.kind);
+    const repoId = input.kind === "git-repository"
+      ? input.repoId?.trim() || availableIdentifier(
+          suggestedWorkspaceRepoId(path.basename(input.rootPath)),
+          (candidate) => Boolean(snapshot.executionWorkspaces[candidate])
+        )
+      : undefined;
     const updated = this.configStore.registerProjectRoot({
       rootPath: input.rootPath,
       projectSlug: project.slug,
       kind: input.kind,
       role: input.role,
       access: input.access,
-      repoId: input.repoId,
+      repoId,
       createCheckoutWorkspace: input.kind === "git-repository",
       expectedRevision: input.expectedConfigRevision
     });

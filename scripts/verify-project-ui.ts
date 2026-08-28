@@ -53,11 +53,26 @@ assert.match(types, /executionWorkspaceIds:/);
 assert.match(types, /ProjectRegistryDetailResponse extends ContinuityProjectProjection/);
 assert.doesNotMatch(types, /ProjectDiscoveryProviderSnapshot|ProjectDiscoveryCandidateSource/);
 
-// Discovery source badges report deduplicated project roots, not opaque inspected-context counts.
-assert.match(center, /candidateCount = candidates\.filter/);
-assert.match(center, /copy\.sourceCandidates/);
+// Discovery preserves provider-native logical project grouping while keeping physical roots explicit.
+assert.match(types, /export interface ProjectRootDiscoveryGroup/);
+assert.match(types, /groups:\s*ProjectRootDiscoveryGroup\[\]/);
+assert.match(center, /groupedCandidateIds = useMemo/);
+assert.match(center, /createDiscoveredGroup/);
+assert.match(center, /sourceGroups = groups\.filter/);
+assert.match(center, /const projectCount = sourceGroups\.length/);
 assert.match(center, /source\.inspectedContexts.*copy\.sourceSignals/);
-assert.match(copy, /sourceCandidates:\s*"个项目目录"/);
+assert.match(copy, /sourceProjects:\s*"个项目"/);
+assert.match(copy, /sourceCandidates:\s*"个目录"/);
+
+// Manual Add Project is progressive disclosure: location first, then only name + folder.
+assert.match(center, /interface AddProjectFormValues \{\s*displayName: string;\s*path: string;\s*\}/s);
+assert.match(center, /project-add-location-card/);
+assert.match(center, /copy\.localProject/);
+assert.match(center, /copy\.remoteProjectUnavailable/);
+assert.match(center, /className="project-add-location-card is-disabled"\s*disabled/);
+assert.match(center, /displayName: values\.displayName\.trim\(\)[\s\S]*path: values\.path\.trim\(\)[\s\S]*role: "primary-source"[\s\S]*access: "read-write"/);
+assert.doesNotMatch(center, /name="slug"/);
+assert.doesNotMatch(center, /name="kind"/);
 
 // Dark appearance must use Ant Design's dark derivative-token algorithm.
 assert.match(theme, /antdTheme\.darkAlgorithm/);
