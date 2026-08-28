@@ -13,6 +13,7 @@ import {
   LATEST_CONTINUITY_SCHEMA_VERSION
 } from "../src/continuity/database.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import { isolateMachineLocalUnconfiguredAuth } from "./test-support/auth-env.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   DesktopCommanderManagedProcessError,
@@ -1712,6 +1713,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     watchdogIntervalMs: 50
   });
   await processSupervisorDaemon.start();
+  const restoreAuthEnv = isolateMachineLocalUnconfiguredAuth();
   let app = buildServer(paths, {
     directExecutorsConfigPath: directConfigPath
   });
@@ -2059,6 +2061,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
   } finally {
     await app.close();
     await processSupervisorDaemon.close();
+    restoreAuthEnv();
     if (previousConfigPath === undefined) {
       delete process.env.CHATCOCKPIT_CONFIG_PATH;
     } else {

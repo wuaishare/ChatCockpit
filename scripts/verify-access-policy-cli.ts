@@ -12,6 +12,7 @@ function runCli(home: string, args: string[]) {
     env: {
       ...process.env,
       HOME: home,
+      CHATCOCKPIT_STATE_ROOT: path.join(home, ".chatcockpit"),
       CHATCOCKPIT_EXPOSED: "false",
       CHATCOCKPIT_API_TOKEN: ""
     },

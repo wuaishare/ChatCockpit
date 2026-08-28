@@ -15,6 +15,7 @@ import {
 } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import { isolateMachineLocalUnconfiguredAuth } from "./test-support/auth-env.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
 import { DownstreamMcpExecutionRegistry } from "../src/direct/downstream-mcp-executor.ts";
@@ -1499,6 +1500,7 @@ async function verifyHostMutationRestParity(): Promise<void> {
     configPath,
     executorId: DESKTOP_COMMANDER_EXECUTOR_ID
   });
+  const restoreAuthEnv = isolateMachineLocalUnconfiguredAuth();
   const app = buildServer(paths, { directExecutorsConfigPath: configPath });
 
   try {
@@ -1567,6 +1569,7 @@ async function verifyHostMutationRestParity(): Promise<void> {
     assert.doesNotMatch(execute.body, new RegExp(hostRoot));
   } finally {
     await app.close();
+    restoreAuthEnv();
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
 }

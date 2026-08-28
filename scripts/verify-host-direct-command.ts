@@ -29,6 +29,7 @@ import {
   LATEST_CONTINUITY_SCHEMA_VERSION
 } from "../src/continuity/database.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import { isolateMachineLocalUnconfiguredAuth } from "./test-support/auth-env.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   evaluatePureHostCommand,
@@ -1105,6 +1106,7 @@ async function verifyHostCommandRestParity(): Promise<void> {
     configPath,
     executorId: DESKTOP_COMMANDER_EXECUTOR_ID
   });
+  const restoreAuthEnv = isolateMachineLocalUnconfiguredAuth();
   const app = buildServer(paths, { directExecutorsConfigPath: configPath });
 
   try {
@@ -1181,6 +1183,7 @@ async function verifyHostCommandRestParity(): Promise<void> {
     assert.doesNotMatch(execute.body, /"pid"/i);
   } finally {
     await app.close();
+    restoreAuthEnv();
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
 }
