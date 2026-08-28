@@ -11,7 +11,7 @@ export interface CommandPolicyDecision {
 }
 
 const WORKSPACE_COMMAND_WHITELIST: Record<string, string[]> = {
-  npm: ["run", "test", "install", "ci", "build", "lint", "typecheck", "start", "dev"],
+  npm: ["run", "test", "install", "ci", "audit", "build", "lint", "typecheck", "start", "dev"],
   npx: ["*"],
   pnpm: ["run", "test", "install", "build", "lint"],
   yarn: ["run", "test", "install", "build", "lint"],
@@ -86,6 +86,16 @@ export function isBuiltinHostNpmScript(command: string, args: string[]): boolean
   return command === "npm" && args[0] === "run" && BUILTIN_HOST_NPM_SCRIPTS.has(args[1] ?? "");
 }
 
+const NPM_AUDIT_LEVEL_OPTION = /^--audit-level=(?:low|moderate|high|critical)$/;
+
+function assertSafeNpmAuditArgs(args: string[]): void {
+  if (args[0] !== "audit") return;
+  if (args.length === 1) return;
+  if (args.length === 2 && NPM_AUDIT_LEVEL_OPTION.test(args[1] ?? "")) return;
+  throw new Error(
+    "npm audit is limited to a read-only report with optional --audit-level=low|moderate|high|critical"
+  );
+}
 
 const PURE_HOST_GIT_SUBCOMMANDS = READ_ONLY_GIT_SUBCOMMANDS;
 const PURE_HOST_LS_OPTION = /^(?:--|-?[AaCcdFfghiklmnopqrstuvwx1]+)$/;
@@ -176,6 +186,9 @@ export function evaluateWorkspaceCommand(
       );
     }
   }
+  if (command === "npm") {
+    assertSafeNpmAuditArgs(safeArgs);
+  }
   if (command === "git") {
     const subcommand = safeArgs[0] ?? "";
     if (
@@ -197,7 +210,9 @@ export function evaluateWorkspaceCommand(
   const effect: CommandEffect =
     command === "git" && READ_ONLY_GIT_SUBCOMMANDS.has(safeArgs[0] ?? "")
       ? "read"
-      : "write";
+      : command === "npm" && safeArgs[0] === "audit"
+        ? "read"
+        : "write";
   return { command, args: safeArgs, effect };
 }
 
@@ -299,6 +314,16 @@ export function evaluateNativeWorkspaceCommand(
     if (!subcommand || !allowedSubcommands.includes(subcommand)) {
       throw new Error(`Native workspace subcommand is not allowed for ${command}: ${subcommand ?? "<none>"}`);
     }
+  }
+  if (command === "npm" && safeArgs[0] === "audit") {
+    assertSafeNpmAuditArgs(safeArgs);
+    return {
+      command,
+      args: safeArgs,
+      effect: "read",
+      commandPath: false,
+      projectPathArgIndexes: []
+    };
   }
   const projectPathArgIndexes: number[] = [];
   if (NATIVE_WORKSPACE_SCRIPT_COMMANDS.has(command)) {

@@ -27,6 +27,19 @@ for (const args of [
 }
 assert.throws(() => evaluateNativeWorkspaceCommand("rg", ["needle", "src"]), /not allowed/);
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");
+assert.equal(evaluateNativeWorkspaceCommand("npm", ["audit"]).effect, "read");
+assert.equal(
+  evaluateNativeWorkspaceCommand("npm", ["audit", "--audit-level=moderate"]).effect,
+  "read"
+);
+assert.throws(
+  () => evaluateNativeWorkspaceCommand("npm", ["audit", "fix"]),
+  /npm audit/i
+);
+assert.throws(
+  () => evaluateNativeWorkspaceCommand("npm", ["audit", "--audit-level=moderate", "fix"]),
+  /npm audit/i
+);
 assert.throws(
   () => evaluateNativeWorkspaceCommand("npm", ["run", "mvp:restart"]),
   /builtin host execution lane/
@@ -54,6 +67,12 @@ assert.throws(
 assert.equal(evaluateWorkspaceCommand("git", ["fetch", "--prune"]).effect, "write");
 assert.equal(evaluateWorkspaceCommand("git", ["rebase", "@{upstream}"]).effect, "write");
 assert.equal(evaluateWorkspaceCommand("git", ["push"]).effect, "write");
+assert.equal(evaluateWorkspaceCommand("npm", ["audit"]).effect, "read");
+assert.equal(
+  evaluateWorkspaceCommand("npm", ["audit", "--audit-level=moderate"]).effect,
+  "read"
+);
+assert.throws(() => evaluateWorkspaceCommand("npm", ["audit", "fix"]), /npm audit/i);
 assert.throws(() => evaluateWorkspaceCommand("git", ["fetch", "https://example.invalid/repo.git"]));
 assert.throws(() => evaluateWorkspaceCommand("git", ["rebase", "origin/main"]));
 assert.throws(() => evaluateWorkspaceCommand("git", ["push", "--force"]));
