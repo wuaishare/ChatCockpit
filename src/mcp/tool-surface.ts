@@ -47,8 +47,8 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "files.readBatch",
   "files.write",
   "files.edit",
+  "files.mutate",
   "search.code",
-  "shell.run",
   "workspace.exec",
   "workspace.process.read",
   "workspace.process.control",
@@ -198,6 +198,8 @@ const COMPATIBILITY_BY_PACK = {
   ]
 } as const satisfies Partial<Record<McpToolSurfacePack, readonly string[]>>;
 
+const COMPATIBILITY_ONLY_SUFFIXES = ["shell.run"] as const;
+
 const CONSOLIDATION_CANDIDATES_BY_PACK = {
   "capability-routing": [
     "direct.executors.list",
@@ -242,6 +244,9 @@ for (const [pack, suffixes] of Object.entries(COMPATIBILITY_BY_PACK)) {
       pack: pack as McpToolSurfacePack
     });
   }
+}
+for (const suffix of COMPATIBILITY_ONLY_SUFFIXES) {
+  addClassification(suffix, { disposition: "compatibility", pack: null });
 }
 for (const [pack, suffixes] of Object.entries(CONSOLIDATION_CANDIDATES_BY_PACK)) {
   for (const suffix of suffixes) {

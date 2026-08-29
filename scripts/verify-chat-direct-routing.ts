@@ -819,6 +819,94 @@ async function verifyChatDirectRouting(): Promise<void> {
       standaloneWriteCalls
     );
 
+    fs.writeFileSync(
+      path.join(repoRoot, "src", "move-source.ts"),
+      "export const moveSource = true;\n",
+      "utf8"
+    );
+    const moved = await service.mutate(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      action: "move",
+      path: "src/move-source.ts",
+      destinationPath: "src/move-destination.ts"
+    });
+    assert.equal(moved.execution.executor, "builtin-direct");
+    assert.deepEqual(moved.execution.changedPaths, [
+      "src/move-destination.ts",
+      "src/move-source.ts"
+    ]);
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "move-source.ts")), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "move-destination.ts")), true);
+
+    fs.writeFileSync(
+      path.join(repoRoot, "src", "delete-target.ts"),
+      "export const deleteTarget = true;\n",
+      "utf8"
+    );
+    const deleted = await service.mutate(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      action: "delete",
+      path: "src/delete-target.ts"
+    });
+    assert.equal(deleted.execution.executor, "builtin-direct");
+    assert.deepEqual(deleted.execution.changedPaths, ["src/delete-target.ts"]);
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "delete-target.ts")), false);
+
+    fs.writeFileSync(
+      path.join(repoRoot, "src", "collision-source.ts"),
+      "export const collisionSource = true;\n",
+      "utf8"
+    );
+    fs.writeFileSync(
+      path.join(repoRoot, "src", "collision-target.ts"),
+      "export const collisionTarget = true;\n",
+      "utf8"
+    );
+    await assert.rejects(
+      () => service.mutate(context, {
+        repoId: "primary",
+        sessionId: session.id,
+        action: "move",
+        path: "src/collision-source.ts",
+        destinationPath: "src/collision-target.ts"
+      }),
+      (error) => error instanceof ServiceError && error.code === "FILES_MUTATE_BLOCKED"
+    );
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "collision-source.ts")), true);
+    assert.equal(
+      fs.readFileSync(path.join(repoRoot, "src", "collision-target.ts"), "utf8"),
+      "export const collisionTarget = true;\n"
+    );
+
+    fs.symlinkSync(
+      path.join(repoRoot, "src", "fixture.ts"),
+      path.join(repoRoot, "src", "fixture-link.ts")
+    );
+    await assert.rejects(
+      () => service.mutate(context, {
+        repoId: "primary",
+        sessionId: session.id,
+        action: "delete",
+        path: "src/fixture-link.ts"
+      }),
+      (error) => error instanceof ServiceError && error.code === "FILES_MUTATE_BLOCKED"
+    );
+    assert.equal(fs.lstatSync(path.join(repoRoot, "src", "fixture-link.ts")).isSymbolicLink(), true);
+
+    for (const blockedPath of ["src", ".env"]) {
+      await assert.rejects(
+        () => service.mutate(context, {
+          repoId: "primary",
+          sessionId: session.id,
+          action: "delete",
+          path: blockedPath
+        }),
+        (error) => error instanceof ServiceError && error.code === "FILES_MUTATE_BLOCKED"
+      );
+    }
+
     const searched = await service.search(context, {
       repoId: "primary",
       pattern: "standalone",

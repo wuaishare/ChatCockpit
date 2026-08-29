@@ -21,6 +21,7 @@ import { productIdentityForKey } from "../core/product-identity.js";
 import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
 import type {
   FileEditPayload,
+  FileMutatePayload,
   FileListPayload,
   FileReadBatchPayload,
   FileReadPayload,
@@ -653,6 +654,27 @@ export class ChatDirectService {
       return {
         ...value,
         execution: selectionMetadata(selection, [payload.path])
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
+    }
+  }
+
+  async mutate(context: OperationContext, payload: FileMutatePayload) {
+    const authority = this.acquireMutationAuthority(
+      context,
+      payload.repoId,
+      payload.sessionId
+    );
+    try {
+      const selection = this.select("files.mutate", "write", payload.executorId);
+      const value = this.files.mutate(context, payload);
+      const changedPaths = value.destinationPath
+        ? [value.path, value.destinationPath]
+        : [value.path];
+      return {
+        ...value,
+        execution: selectionMetadata(selection, changedPaths)
       };
     } finally {
       this.releaseMutationAuthority(context, authority);

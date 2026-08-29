@@ -433,6 +433,26 @@ export interface FileEditResponse {
   error?: string;
 }
 
+export type FileMutateAction = "delete" | "move";
+
+export interface FileMutatePayload extends DirectExecutorPreference {
+  repoId: string;
+  sessionId?: string;
+  action: FileMutateAction;
+  path: string;
+  destinationPath?: string;
+}
+
+export interface FileMutateResponse {
+  ok: boolean;
+  repoId: string;
+  action: FileMutateAction;
+  path: string;
+  destinationPath?: string;
+  mutated: boolean;
+  error?: string;
+}
+
 export interface FileListPayload extends DirectExecutorPreference {
   repoId: string;
   path: string;

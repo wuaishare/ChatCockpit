@@ -8,7 +8,11 @@ import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts
 import { buildServer } from "../src/server/app.ts";
 import { runGit } from "./test-support/git.ts";
 import { listenTestServer } from "./test-support/server.ts";
-import { classifyMcpToolSurface, isDefaultCoreMcpTool } from "../src/mcp/tool-surface.ts";
+import {
+  MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES,
+  classifyMcpToolSurface,
+  isDefaultCoreMcpTool
+} from "../src/mcp/tool-surface.ts";
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -229,6 +233,7 @@ async function runMcpSmoke(): Promise<void> {
         "document.version.get",
         "evidence.record",
         "files.edit",
+        "files.mutate",
         "files.list",
         "files.read",
         "files.readBatch",
@@ -303,7 +308,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 92, "Full compatibility surface must expose all 92 remotely routable tools");
+    assert.equal(tools.length, 93, "Full compatibility surface must expose all 93 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -315,6 +320,9 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(coreTools.length, 23);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.workspace.exec"), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.files.mutate"), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.shell.run"), false);
     const continuityInvokeTool = coreTools.find(
       (tool) => tool.name === "chatcockpit.continuity.invoke"
     );
@@ -369,6 +377,7 @@ async function runMcpSmoke(): Promise<void> {
       fullTools.map((tool) => tool.name).sort(),
       tools.map((tool) => tool.name).sort()
     );
+    assert.equal(fullTools.some((tool) => tool.name === "chatcockpit.shell.run"), true);
 
     const codexPackList = await postMcp(
       baseUrl,
@@ -404,7 +413,7 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 23);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 92);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 93);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -568,8 +577,8 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       tools.filter((tool) => isDefaultCoreMcpTool(tool.name)).length,
-      23,
-      "The default surface must classify exactly 23 core tools including governed Git staging/synchronization/push, workspace processes and deferred-tool invocation"
+      MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES.length,
+      "The default surface must classify exactly the declared Core tool set"
     );
     assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
@@ -953,16 +962,7 @@ async function runMcpSmoke(): Promise<void> {
         arguments: { repoId: "primary", pattern: "mcpNeedle", path: "src" }
       },
       { name: "chatcockpit.git.status", arguments: { repoId: "primary" } },
-      { name: "chatcockpit.git.diff", arguments: { repoId: "primary", staged: false } },
-      {
-        name: "chatcockpit.shell.run",
-        arguments: {
-          repoId: "primary",
-          command: "git",
-          args: ["status", "--short"],
-          idempotencyKey: "core-read-shell-status-0001"
-        }
-      }
+      { name: "chatcockpit.git.diff", arguments: { repoId: "primary", staged: false } }
     ];
     for (const [index, coreCall] of coreReadCalls.entries()) {
       const result = await postMcp(
@@ -1350,6 +1350,7 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(leaseInvokeResult.structuredContent.tool, "lease.acquire");
     assert.equal(leaseInvokeResult.structuredContent.result.replayed, false);
     assert.match(leaseInvokeResult.structuredContent.result.lease.id, /^lease_/);
+
     const writeCoreResult = await postMcp(
       baseUrl,
       {
@@ -1374,6 +1375,94 @@ async function runMcpSmoke(): Promise<void> {
       undefined,
       "chatcockpit.files.write must satisfy its declared outputSchema"
     );
+
+    const moveCoreResult = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "core-file-move",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.files.mutate",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            action: "move",
+            path: "src/core-output-contract.ts",
+            destinationPath: "src/core-output-contract-renamed.ts",
+            idempotencyKey: "core-files-move-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    assert.equal(
+      (moveCoreResult.message.result as { isError?: boolean }).isError,
+      undefined,
+      "chatcockpit.files.mutate move must satisfy its declared outputSchema"
+    );
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "core-output-contract.ts")), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "core-output-contract-renamed.ts")), true);
+
+    const deleteCoreResult = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "core-file-delete",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.files.mutate",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            action: "delete",
+            path: "src/core-output-contract-renamed.ts",
+            idempotencyKey: "core-files-delete-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    assert.equal(
+      (deleteCoreResult.message.result as { isError?: boolean }).isError,
+      undefined,
+      "chatcockpit.files.mutate delete must satisfy its declared outputSchema"
+    );
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "core-output-contract-renamed.ts")), false);
+
+    fs.writeFileSync(path.join(repoRoot, "src", "rest-mutate.ts"), "export const restMutate = true;\n", "utf8");
+    const restMoved = await restPost<{
+      ok: true;
+      action: "move";
+      path: string;
+      destinationPath: string;
+      mutated: true;
+    }>("/api/files/mutate", {
+      repoId: "primary",
+      sessionId: sessionResult.session.id,
+      action: "move",
+      path: "src/rest-mutate.ts",
+      destinationPath: "src/rest-mutated.ts"
+    });
+    assert.equal(restMoved.action, "move");
+    assert.equal(restMoved.path, "src/rest-mutate.ts");
+    assert.equal(restMoved.destinationPath, "src/rest-mutated.ts");
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "rest-mutate.ts")), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "rest-mutated.ts")), true);
+    const restDeleted = await restPost<{
+      ok: true;
+      action: "delete";
+      path: string;
+      mutated: true;
+    }>("/api/files/mutate", {
+      repoId: "primary",
+      sessionId: sessionResult.session.id,
+      action: "delete",
+      path: "src/rest-mutated.ts"
+    });
+    assert.equal(restDeleted.action, "delete");
+    assert.equal(restDeleted.path, "src/rest-mutated.ts");
+    assert.equal(fs.existsSync(path.join(repoRoot, "src", "rest-mutated.ts")), false);
 
     const competingTaskResult = await restPost<{
       ok: true;
@@ -1431,6 +1520,37 @@ async function runMcpSmoke(): Promise<void> {
       "# MCP fixture\n"
     );
 
+    const competingMutate = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "competing-file-mutate",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.files.mutate",
+          arguments: {
+            repoId: "primary",
+            sessionId: competingSessionResult.session.id,
+            action: "move",
+            path: "README.md",
+            destinationPath: "README-competing.md",
+            idempotencyKey: "mutate-readme-competing-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    const competingMutateResult = competingMutate.message.result as {
+      isError: boolean;
+      structuredContent: { error: { code: string } };
+    };
+    assert.equal(competingMutateResult.isError, true);
+    assert.equal(
+      competingMutateResult.structuredContent.error.code,
+      "WRITER_LEASE_CONFLICT"
+    );
+    assert.equal(fs.existsSync(path.join(repoRoot, "README-competing.md")), false);
+
     const missingLeaseShell = await postMcp(
       baseUrl,
       {
@@ -1447,7 +1567,7 @@ async function runMcpSmoke(): Promise<void> {
           }
         }
       },
-      { token: "test-token" }
+      { token: "test-token", path: "/mcp/full" }
     );
     const missingLeaseShellResult = missingLeaseShell.message.result as {
       isError: boolean;
@@ -1494,7 +1614,7 @@ async function runMcpSmoke(): Promise<void> {
           }
         }
       },
-      { token: "test-token" }
+      { token: "test-token", path: "/mcp/full" }
     );
     const blockedShellStageResult = blockedShellStage.message.result as {
       isError: boolean;
@@ -1868,7 +1988,7 @@ async function runMcpSmoke(): Promise<void> {
           }
         }
       },
-      { token: "test-token" }
+      { token: "test-token", path: "/mcp/full" }
     );
     const blockedShellResult = blockedShell.message.result as {
       isError: boolean;

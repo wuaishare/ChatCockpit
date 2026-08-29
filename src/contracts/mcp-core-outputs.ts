@@ -102,6 +102,16 @@ export const fileEditToolOutputSchema = directBaseSchema
   })
   .merge(mutationEnvelopeSchema);
 
+export const fileMutateToolOutputSchema = directBaseSchema
+  .extend({
+    ok: z.literal(true),
+    action: z.enum(["delete", "move"]),
+    path: z.string().max(1024),
+    destinationPath: z.string().max(1024).optional(),
+    mutated: z.literal(true)
+  })
+  .merge(mutationEnvelopeSchema);
+
 export const shellRunToolOutputSchema = z.object({
   ok: z.boolean(),
   exitCode: z.number().int(),

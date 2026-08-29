@@ -16,8 +16,8 @@ import {
 
 const classifications = listMcpToolSurfaceClassifications();
 
-assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 98);
-assert.equal(classifications.length, 98);
+assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 99);
+assert.equal(classifications.length, 99);
 assert.equal(MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES.length, 23);
 
 const byDisposition = Object.groupBy(
@@ -26,7 +26,7 @@ const byDisposition = Object.groupBy(
 );
 assert.equal(byDisposition.core?.length, 23);
 assert.equal(byDisposition["deferred-pack"]?.length, 62);
-assert.equal(byDisposition.compatibility?.length, 7);
+assert.equal(byDisposition.compatibility?.length, 8);
 assert.equal(byDisposition["consolidation-candidate"]?.length, 3);
 assert.equal(byDisposition["operator-only"]?.length, 3);
 
@@ -115,7 +115,8 @@ assert.deepEqual(
     "codex.session.fork",
     "codex.session.resume",
     "codex.turn.interrupt",
-    "codex.turn.start"
+    "codex.turn.start",
+    "shell.run"
   ].sort()
 );
 
@@ -167,7 +168,7 @@ const productionBaseline = classifications.filter(
     "resources.mutation.execute"
   ].includes(item.suffix)
 );
-assert.equal(productionBaseline.length, 95);
+assert.equal(productionBaseline.length, 96);
 assert.equal(
   productionBaseline.filter((item) => item.disposition === "core").length,
   23
@@ -175,8 +176,12 @@ assert.equal(
 
 const syntheticTools = classifications.map((item) => ({ name: `chatcockpit.${item.suffix}` }));
 assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "core" }).length, 23);
+const coreSurface = selectMcpToolsForSurface(syntheticTools, { kind: "core" });
+assert.equal(coreSurface.some((tool) => tool.name === "chatcockpit.files.mutate"), true);
+assert.equal(coreSurface.some((tool) => tool.name === "chatcockpit.shell.run"), false);
 const fullSurface = selectMcpToolsForSurface(syntheticTools, { kind: "full" });
-assert.equal(fullSurface.length, 95);
+assert.equal(fullSurface.length, 96);
+assert.equal(fullSurface.some((tool) => tool.name === "chatcockpit.shell.run"), true);
 for (const name of [
   "chatcockpit.host.command.decide",
   "chatcockpit.host.mutation.decide",

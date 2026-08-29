@@ -7,6 +7,7 @@ export type DirectCapabilityId =
   | "files.list"
   | "files.write"
   | "files.edit"
+  | "files.mutate"
   | "search.content"
   | "shell.exec"
   | "git.status"

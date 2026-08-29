@@ -41,6 +41,14 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       search: z.string().min(1),
       replace: z.string()
     }),
+    fileMutateSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      action: z.enum(["delete", "move"]),
+      path: z.string().min(1),
+      destinationPath: z.string().min(1).optional()
+    }),
     fileListSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
@@ -151,6 +159,7 @@ const DEFAULT_DIRECT_TOOL_SCHEMAS = buildDirectToolSchemas(DEFAULT_PRODUCT_IDENT
 
 export const fileWriteSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileWriteSchema;
 export const fileEditSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileEditSchema;
+export const fileMutateSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileMutateSchema;
 export const fileListSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.fileListSchema;
 export const searchSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.searchSchema;
 export const shellRunSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.shellRunSchema;
@@ -168,6 +177,7 @@ export type FileReadInput = z.infer<typeof fileReadSchema>;
 export type FileReadBatchInput = z.infer<typeof fileReadBatchSchema>;
 export type FileWriteInput = z.infer<typeof fileWriteSchema>;
 export type FileEditInput = z.infer<typeof fileEditSchema>;
+export type FileMutateInput = z.infer<typeof fileMutateSchema>;
 export type FileListInput = z.infer<typeof fileListSchema>;
 export type SearchInput = z.infer<typeof searchSchema>;
 export type ShellRunInput = z.infer<typeof shellRunSchema>;

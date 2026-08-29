@@ -428,6 +428,7 @@ export function buildServer(
   const {
     fileEditSchema,
     fileListSchema,
+    fileMutateSchema,
     fileWriteSchema,
     gitCommitSchema,
     searchSchema,
@@ -1970,6 +1971,22 @@ export function buildServer(
     }
   };
 
+  const mutateFileHandler = async (request: unknown, reply: unknown) => {
+    const fastifyReply = replyFrom(reply);
+    const parsed = fileMutateSchema.safeParse((request as { body: unknown }).body);
+    if (!parsed.success) {
+      return sendUnknownApiError(fastifyReply, validationError(parsed.error));
+    }
+    try {
+      return await chatDirect.mutate(
+        operationContextFromRequest(request),
+        parsed.data
+      );
+    } catch (error) {
+      return sendUnknownApiError(fastifyReply, error);
+    }
+  };
+
   const listDirectoryHandler = async (request: unknown, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
     const parsed = fileListSchema.safeParse((request as { body: unknown }).body);
@@ -2244,6 +2261,9 @@ export function buildServer(
 
   app.post("/api/files/edit", editFileHandler);
   app.post("/tokenpilot/api/files/edit", editFileHandler);
+
+  app.post("/api/files/mutate", mutateFileHandler);
+  app.post("/tokenpilot/api/files/mutate", mutateFileHandler);
 
   app.post("/api/files/list", listDirectoryHandler);
   app.post("/tokenpilot/api/files/list", listDirectoryHandler);

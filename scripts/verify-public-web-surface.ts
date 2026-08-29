@@ -169,6 +169,11 @@ async function main(): Promise<void> {
       { method: "GET", url: "/api/activities/stream" },
       { method: "GET", url: "/api/jobs/test-job/artifacts" },
       { method: "POST", url: "/api/files/read", payload: {} },
+      {
+        method: "POST",
+        url: "/api/files/mutate",
+        payload: { action: "delete", path: "README.md" }
+      },
       { method: "GET", url: "/api/host/roots" },
       { method: "GET", url: "/api/host/commands/pending" },
       {

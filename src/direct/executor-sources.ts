@@ -38,6 +38,7 @@ const BUILT_IN_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
   capability("files.list", ["read"]),
   capability("files.write", ["write"]),
   capability("files.edit", ["write"]),
+  capability("files.mutate", ["write"]),
   capability("search.content", ["read"]),
   capability("shell.exec", ["read", "write"], WORKSPACE_AND_HOST_SCOPE),
   capability("git.status", ["read"]),

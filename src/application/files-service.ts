@@ -1,7 +1,13 @@
 import { readRepoFile, readRepoFiles } from "../core/files-api.js";
-import { editRepoFile, listRepoDirectory, writeRepoFile } from "../core/files-write.js";
+import {
+  editRepoFile,
+  listRepoDirectory,
+  mutateRepoFile,
+  writeRepoFile
+} from "../core/files-write.js";
 import type {
   FileEditPayload,
+  FileMutatePayload,
   FileListPayload,
   FileReadBatchPayload,
   FileReadPayload,
@@ -60,6 +66,14 @@ export class FilesService {
       "FILES_EDIT_BLOCKED",
       "File edit was blocked or could not be completed.",
       () => editRepoFile(this.paths, payload)
+    );
+  }
+
+  mutate(_context: OperationContext, payload: FileMutatePayload) {
+    return runFileOperation(
+      "FILES_MUTATE_BLOCKED",
+      "File mutation was blocked or could not be completed.",
+      () => mutateRepoFile(this.paths, payload)
     );
   }
 

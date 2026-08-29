@@ -4,12 +4,14 @@ import path from "node:path";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
-import { TEXT_LIKE_EXTENSIONS } from "./text-file-policy.js";
+import { isTextLikeFilePath, TEXT_LIKE_EXTENSIONS } from "./text-file-policy.js";
 import type {
   FileWritePayload,
   FileWriteResponse,
   FileEditPayload,
   FileEditResponse,
+  FileMutatePayload,
+  FileMutateResponse,
   FileListPayload,
   FileListResponse,
   FileListEntry,
@@ -211,6 +213,84 @@ export function editRepoFile(
     path: relativePath,
     applied: true
   };
+}
+
+function assertMutableRepoFile(relativePath: string, absolutePath: string): void {
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`File not found: ${relativePath}`);
+  }
+  const stat = fs.lstatSync(absolutePath);
+  if (stat.isSymbolicLink()) {
+    throw new Error(`Symbolic links cannot be mutated: ${relativePath}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`Only repository files can be mutated: ${relativePath}`);
+  }
+  if (!isTextLikeFilePath(absolutePath)) {
+    throw new Error(`Only text-like repository files can be mutated: ${relativePath}`);
+  }
+}
+
+export function mutateRepoFile(
+  paths: TokenPilotPaths,
+  payload: FileMutatePayload
+): FileMutateResponse {
+  const source = resolveWritableRepoPathTarget(
+    paths,
+    payload.repoId,
+    payload.path,
+    "Source file path"
+  );
+  assertMutableRepoFile(source.relativePath, source.absolutePath);
+
+  if (payload.action === "delete") {
+    if (payload.destinationPath !== undefined) {
+      throw new Error("destinationPath is not allowed for delete");
+    }
+    fs.unlinkSync(source.absolutePath);
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: "delete",
+      path: source.relativePath,
+      mutated: true
+    };
+  }
+
+  if (payload.action === "move") {
+    if (!payload.destinationPath) {
+      throw new Error("destinationPath is required for move");
+    }
+    const destination = resolveWritableRepoPathTarget(
+      paths,
+      payload.repoId,
+      payload.destinationPath,
+      "Destination file path"
+    );
+    if (destination.relativePath === source.relativePath) {
+      throw new Error("Source and destination paths must be different");
+    }
+    if (!isTextLikeFilePath(destination.absolutePath)) {
+      throw new Error(
+        `Only text-like repository files can be mutation targets: ${destination.relativePath}`
+      );
+    }
+    if (fs.existsSync(destination.absolutePath)) {
+      throw new Error(`Destination already exists: ${destination.relativePath}`);
+    }
+    fs.mkdirSync(path.dirname(destination.absolutePath), { recursive: true });
+    fs.renameSync(source.absolutePath, destination.absolutePath);
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: "move",
+      path: source.relativePath,
+      destinationPath: destination.relativePath,
+      mutated: true
+    };
+  }
+
+  throw new Error(`Unsupported file mutation action: ${payload.action}`);
 }
 
 export function listRepoDirectory(

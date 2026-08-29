@@ -5,6 +5,7 @@ import { ServiceError } from "../../application/service-error.js";
 import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
 import {
   fileEditToolOutputSchema,
+  fileMutateToolOutputSchema,
   fileWriteToolOutputSchema,
   gitCommitToolOutputSchema,
   gitPushToolOutputSchema,
@@ -122,6 +123,7 @@ export function buildWorkspaceWriteTools(
   const identity = productIdentityForKey(productIdentity);
   const {
     fileEditSchema,
+    fileMutateSchema,
     fileWriteSchema,
     gitCommitSchema,
     gitPushSchema,
@@ -136,6 +138,9 @@ export function buildWorkspaceWriteTools(
     idempotencyKey: idempotencyKeySchema
   });
   const fileEditMcpSchema = fileEditSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const fileMutateMcpSchema = fileMutateSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
   const shellRunMcpSchema = shellRunSchema.extend({
@@ -217,6 +222,36 @@ export function buildWorkspaceWriteTools(
               [payload.path],
               gitEvidenceHints
             )
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("files.mutate"),
+      title: "Mutate repository file",
+      description:
+        "Delete or move/rename one public-safe text-like repository file without opening a general shell. Directory mutations, symbolic links, protected paths, destination overwrite, and paths outside the mapped repository are refused. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+      inputSchema: fileMutateMcpSchema,
+      outputSchema: fileMutateToolOutputSchema,
+      annotations: destructiveMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("files.mutate"),
+          idempotencyKey,
+          payload,
+          async () => {
+            const value = await services.chatDirect.mutate(context, payload);
+            return mutationValue(
+              value as unknown as Record<string, unknown>,
+              value.execution.changedPaths,
+              gitEvidenceHints
+            );
+          }
         );
         return withIdempotency(
           execution.value,
