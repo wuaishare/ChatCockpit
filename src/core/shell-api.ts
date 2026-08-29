@@ -86,6 +86,36 @@ function resolveWorkspaceExecPath(
   return resolvePathInsideRoot(repoRoot, repoRelative, label).absolutePath;
 }
 
+function governedWorkspaceToolSearchDirectories(): string[] {
+  return process.platform === "darwin"
+    ? ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
+    : process.platform === "linux"
+      ? ["/usr/local/bin", "/usr/bin", "/bin"]
+      : [];
+}
+
+export function resolveGovernedWorkspaceToolCommand(
+  command: string,
+  searchDirectories: string[] = governedWorkspaceToolSearchDirectories()
+): string {
+  if (command !== "php") return command;
+  const executableNames = process.platform === "win32" ? ["php.exe"] : ["php"];
+  for (const directory of searchDirectories) {
+    if (!path.isAbsolute(directory)) continue;
+    for (const executableName of executableNames) {
+      const candidate = path.join(directory, executableName);
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        const canonical = fs.realpathSync.native(candidate);
+        if (fs.statSync(canonical).isFile()) return canonical;
+      } catch {
+        // Keep searching trusted runtime tool locations without exposing local paths.
+      }
+    }
+  }
+  return command;
+}
+
 export interface PreparedShellCommand {
   repoRoot: string;
   command: string;
@@ -134,11 +164,12 @@ export function prepareWorkspaceExecCommand(
       `command argument ${index}`
     );
   }
+  const command = policy.commandPath
+    ? resolveWorkspaceExecPath(repoRoot, workdir, policy.command, "command")
+    : resolveGovernedWorkspaceToolCommand(policy.command);
   return {
     repoRoot,
-    command: policy.commandPath
-      ? resolveWorkspaceExecPath(repoRoot, workdir, policy.command, "command")
-      : policy.command,
+    command,
     args,
     workdir,
     readOnly: policy.effect === "read",
@@ -165,7 +196,7 @@ export function prepareShellCommand(
   const standaloneReadOnly = policy.effect === "read";
   return {
     repoRoot,
-    command: payload.command,
+    command: resolveGovernedWorkspaceToolCommand(policy.command),
     args,
     workdir,
     timeoutMs: resolveShellCommandTimeoutMs(payload.timeoutMs),

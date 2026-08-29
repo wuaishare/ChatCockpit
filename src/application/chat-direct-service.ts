@@ -673,7 +673,10 @@ export class ChatDirectService {
               (result.exitCode === 0 ? "(no output)" : ""),
             stderr: publicSafeShellOutput(result.stderr, prepared.repoRoot),
             truncated: false,
-            executedCommand: `${prepared.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
+            executedCommand: publicSafeShellOutput(
+              `${payload.command} ${prepared.args.join(" ")} (${elapsed}ms)`,
+              prepared.repoRoot
+            ),
             execution: selectionMetadata(
               selection,
               [],

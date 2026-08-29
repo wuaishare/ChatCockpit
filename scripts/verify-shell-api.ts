@@ -7,6 +7,7 @@ import {
   DEFAULT_COMMAND_TIMEOUT_MS,
   MAX_COMMAND_TIMEOUT_MS,
   prepareShellCommand,
+  resolveGovernedWorkspaceToolCommand,
   resolveShellCommandTimeoutMs
 } from "../src/core/shell-api.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
@@ -20,6 +21,17 @@ assert.equal(resolveShellCommandTimeoutMs(120_000), 120_000);
 assert.throws(() => resolveShellCommandTimeoutMs(999), /between 1000 and 120000/);
 assert.throws(() => resolveShellCommandTimeoutMs(120_001), /between 1000 and 120000/);
 assert.throws(() => resolveShellCommandTimeoutMs(1_500.5), /between 1000 and 120000/);
+
+const toolRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-shell-tool-"));
+const phpTool = path.join(toolRoot, process.platform === "win32" ? "php.exe" : "php");
+fs.writeFileSync(phpTool, process.platform === "win32" ? "fixture" : "#!/bin/sh\nexit 0\n");
+fs.chmodSync(phpTool, 0o755);
+assert.equal(
+  resolveGovernedWorkspaceToolCommand("php", [toolRoot]),
+  fs.realpathSync.native(phpTool)
+);
+assert.equal(resolveGovernedWorkspaceToolCommand("git", [toolRoot]), "git");
+assert.equal(resolveGovernedWorkspaceToolCommand("php", []), "php");
 
 const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-shell-api-"));
 const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-shell-api-outside-"));
@@ -76,6 +88,7 @@ try {
   else process.env.CHATCOCKPIT_CONFIG_PATH = previousConfigPath;
   fs.rmSync(repoRoot, { recursive: true, force: true });
   fs.rmSync(outsideRoot, { recursive: true, force: true });
+  fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
 process.stdout.write("VERIFY_SHELL_API_OK\n");

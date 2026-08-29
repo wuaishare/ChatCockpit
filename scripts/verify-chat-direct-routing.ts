@@ -809,6 +809,18 @@ async function verifyChatDirectRouting(): Promise<void> {
       adapter.calls.some((call) => call.method === "command/exec")
     );
 
+    fs.writeFileSync(path.join(repoRoot, "fixture.php"), "<?php\ndeclare(strict_types=1);\n");
+    const phpLintShell = await service.shell(context, {
+      repoId: "primary",
+      command: "php",
+      args: ["-l", "fixture.php"]
+    });
+    assert.match(phpLintShell.executedCommand, /^php -l \[workspace\]\/fixture\.php /);
+    assert.doesNotMatch(
+      phpLintShell.executedCommand,
+      new RegExp(repoRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+
     const commandExecCallsBeforeGitMutation = adapter.calls.filter(
       (call) => call.method === "command/exec"
     ).length;
