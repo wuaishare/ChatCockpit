@@ -34,6 +34,7 @@ import {
   passkeyOriginSupported
 } from "../passkey-support";
 import { OperatorTotpManager } from "./OperatorTotpManager";
+import { HostExecutionPermissionsManager } from "./HostExecutionPermissionsManager";
 
 interface OperatorPasskeyManagerProps {
   locale: LocaleCode;
@@ -143,7 +144,7 @@ export function OperatorPasskeyManager({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={620}
+      width={760}
       destroyOnHidden
     >
       <Typography.Title level={5} style={{ marginTop: 0 }}>
@@ -224,6 +225,7 @@ export function OperatorPasskeyManager({
 
       <Divider />
       <OperatorTotpManager locale={locale} open={open} />
+      <HostExecutionPermissionsManager locale={locale} open={open} />
     </Modal>
   );
 }

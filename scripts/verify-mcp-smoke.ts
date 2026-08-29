@@ -236,7 +236,6 @@ async function runMcpSmoke(): Promise<void> {
         "git.commit",
         "git.diff",
         "git.status",
-        "host.command.decide",
         "host.command.execute",
         "host.command.prepare",
         "host.files.read",
@@ -303,7 +302,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 92, "Full compatibility surface must retain all 92 configured tools");
+    assert.equal(tools.length, 91, "Full compatibility surface must expose all 91 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -429,7 +428,7 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 20);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 92);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 91);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -680,7 +679,6 @@ async function runMcpSmoke(): Promise<void> {
     );
     for (const name of [
       "chatcockpit.host.command.prepare",
-      "chatcockpit.host.command.decide",
       "chatcockpit.host.command.execute",
       "chatcockpit.host.mutation.prepare",
       "chatcockpit.host.mutation.decide",
@@ -749,7 +747,6 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.handoff.cancel",
       "chatcockpit.handoff.fork",
       "chatcockpit.handoff.prepare",
-      "chatcockpit.host.command.decide",
       "chatcockpit.host.command.prepare",
       "chatcockpit.host.mutation.decide",
       "chatcockpit.host.mutation.prepare",

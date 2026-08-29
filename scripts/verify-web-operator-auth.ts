@@ -41,7 +41,10 @@ async function main(): Promise<void> {
   process.env.CHATCOCKPIT_EXPOSED = "false";
   process.env.CHATCOCKPIT_CONFIG_PATH = path.join(paths.runtimeDir, "missing-config.json");
 
-  const server = await listenTestServer(buildServer(paths));
+  const directExecutorsConfigPath = path.join(root, "direct-executors.json");
+  const server = await listenTestServer(
+    buildServer(paths, { directExecutorsConfigPath })
+  );
   try {
     const status = await fetch(`${server.baseUrl}/api/operator/status`);
     assert.equal(status.status, 200);
@@ -104,6 +107,70 @@ async function main(): Promise<void> {
       headers: { cookie }
     });
     assert.equal(cookieJobs.status, 200);
+
+    const anonymousExecutionPermissions = await fetch(
+      `${server.baseUrl}/api/operator/execution-permissions`
+    );
+    assert.equal(anonymousExecutionPermissions.status, 401);
+
+    const executionPermissions = await fetch(
+      `${server.baseUrl}/api/operator/execution-permissions`,
+      { headers: { cookie } }
+    );
+    assert.equal(executionPermissions.status, 200);
+    const executionPermissionsBody = (await executionPermissions.json()) as {
+      hostPermissionProfile: string;
+      approvalPolicy: string;
+      capabilities: { deviceDiagnostics: boolean };
+    };
+    assert.equal(executionPermissionsBody.hostPermissionProfile, "development");
+    assert.equal(executionPermissionsBody.approvalPolicy, "operator-required");
+    assert.equal(executionPermissionsBody.capabilities.deviceDiagnostics, false);
+
+    const noCsrfExecutionPermissionUpdate = await fetch(
+      `${server.baseUrl}/api/operator/execution-permissions`,
+      {
+        method: "PUT",
+        headers: {
+          cookie,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ hostPermissionProfile: "device-maintenance" })
+      }
+    );
+    assert.equal(noCsrfExecutionPermissionUpdate.status, 403);
+    assert.match(await noCsrfExecutionPermissionUpdate.text(), /CSRF_REQUIRED/);
+
+    const executionPermissionUpdate = await fetch(
+      `${server.baseUrl}/api/operator/execution-permissions`,
+      {
+        method: "PUT",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": loginBody.csrfToken
+        },
+        body: JSON.stringify({ hostPermissionProfile: "device-maintenance" })
+      }
+    );
+    assert.equal(executionPermissionUpdate.status, 200);
+    const executionPermissionUpdateBody = (await executionPermissionUpdate.json()) as {
+      hostPermissionProfile: string;
+      capabilities: { deviceDiagnostics: boolean; fullHostCommands: boolean };
+    };
+    assert.equal(executionPermissionUpdateBody.hostPermissionProfile, "device-maintenance");
+    assert.equal(executionPermissionUpdateBody.capabilities.deviceDiagnostics, true);
+    assert.equal(executionPermissionUpdateBody.capabilities.fullHostCommands, false);
+    assert.equal(
+      (fs.statSync(directExecutorsConfigPath).mode & 0o777).toString(8),
+      "600"
+    );
+    assert.equal(
+      (JSON.parse(fs.readFileSync(directExecutorsConfigPath, "utf8")) as {
+        hostPermissionProfile?: string;
+      }).hostPermissionProfile,
+      "device-maintenance"
+    );
 
     const cookieMcp = await fetch(`${server.baseUrl}/mcp`, {
       method: "POST",

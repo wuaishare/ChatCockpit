@@ -10,6 +10,10 @@ import {
   isHostManagedWorkspaceCommand
 } from "./command-policy.js";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
+import {
+  DEFAULT_HOST_PERMISSION_PROFILE,
+  type HostPermissionProfile
+} from "./host-permission-policy.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   ShellRunPayload,
@@ -106,14 +110,15 @@ export interface PreparedWorkspaceExecCommand {
 
 export function prepareWorkspaceExecCommand(
   paths: TokenPilotPaths,
-  payload: WorkspaceExecPayload
+  payload: WorkspaceExecPayload,
+  hostPermissionProfile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE
 ): PreparedWorkspaceExecCommand {
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   const policy = evaluateNativeWorkspaceCommand(payload.command, payload.args);
   const executionMode = payload.executionMode ?? "native-sandbox";
   if (
     executionMode === "host-managed" &&
-    !isHostManagedWorkspaceCommand(policy.command, policy.args)
+    !isHostManagedWorkspaceCommand(policy.command, policy.args, hostPermissionProfile)
   ) {
     throw new Error(
       "Host-managed workspace execution is limited to explicitly allowlisted macOS build scripts"

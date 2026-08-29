@@ -19,20 +19,22 @@ import {
   type CommandPolicyDecision
 } from "../core/command-policy.js";
 import type { TokenPilotPaths } from "../types.js";
-import {
-  DESKTOP_COMMANDER_EXECUTOR_ID
-} from "../direct/adapters/desktop-commander.js";
+import { BuiltinHostCommandProcessAdapter } from "../direct/adapters/builtin-host-command-process.js";
+import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
 import {
   DesktopCommanderProcessAdapter,
   DesktopCommanderProcessError,
   type DesktopCommanderProcessRequest,
   type DesktopCommanderProcessResult
 } from "../direct/adapters/desktop-commander-process.js";
+import { productIdentityForKey } from "../core/product-identity.js";
+import type { HostPermissionProfile } from "../core/host-permission-policy.js";
 import {
   DirectCapabilityBroker,
   DirectCapabilityBrokerError,
   type DirectExecutorSelection
 } from "../direct/capability-broker.js";
+import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
 import {
   assertHostCommandRelativePathsInsideRoot,
   HostPathPolicyError,
@@ -50,11 +52,56 @@ import {
 } from "./workspace-mutation-governance.js";
 
 const HOST_COMMAND_APPROVAL_TTL_MS = 5 * 60 * 1000;
-const HOST_COMMAND_POLICY_VERSION = "host-command-v1";
+const HOST_COMMAND_POLICY_VERSION = "host-command-v2";
 
 export interface HostCommandProcessExecutor {
-  assertReady(access: DirectCommandEffect): unknown;
-  execute(request: DesktopCommanderProcessRequest): Promise<DesktopCommanderProcessResult>;
+  assertReady(executorId: string, access: DirectCommandEffect): unknown;
+  execute(
+    executorId: string,
+    request: DesktopCommanderProcessRequest
+  ): Promise<DesktopCommanderProcessResult>;
+}
+
+class RoutedHostCommandProcessExecutor implements HostCommandProcessExecutor {
+  private readonly builtin = new BuiltinHostCommandProcessAdapter();
+  private readonly desktopCommander: DesktopCommanderProcessAdapter;
+
+  constructor(
+    private readonly builtinExecutorId: string,
+    runtimeDir: string,
+    configPath?: string
+  ) {
+    this.desktopCommander = new DesktopCommanderProcessAdapter(runtimeDir, configPath);
+  }
+
+  assertReady(executorId: string, access: DirectCommandEffect): unknown {
+    if (executorId === this.builtinExecutorId) {
+      return this.builtin.assertReady(access);
+    }
+    if (executorId === DESKTOP_COMMANDER_EXECUTOR_ID) {
+      return this.desktopCommander.assertReady(access);
+    }
+    throw new ServiceError(
+      "HOST_EXECUTOR_UNSUPPORTED",
+      `Host Command does not support executor ${executorId}`
+    );
+  }
+
+  execute(
+    executorId: string,
+    request: DesktopCommanderProcessRequest
+  ): Promise<DesktopCommanderProcessResult> {
+    if (executorId === this.builtinExecutorId) {
+      return this.builtin.execute(request);
+    }
+    if (executorId === DESKTOP_COMMANDER_EXECUTOR_ID) {
+      return this.desktopCommander.execute(request);
+    }
+    throw new ServiceError(
+      "HOST_EXECUTOR_UNSUPPORTED",
+      `Host Command does not support executor ${executorId}`
+    );
+  }
 }
 
 interface PreparedCommandIntent {
@@ -63,6 +110,7 @@ interface PreparedCommandIntent {
   classification: ClassifiedHostTarget;
   policy: CommandPolicyDecision;
   selection: DirectExecutorSelection;
+  hostPermissionProfile: HostPermissionProfile;
   commandHash: string;
   sessionId: string | null;
   workspaceAuthority: WorkspaceMutationAuthority | null;
@@ -136,6 +184,7 @@ function exactCommandHash(input: {
   effect: DirectCommandEffect;
   timeoutMs: number;
   executorId: string;
+  hostPermissionProfile: HostPermissionProfile;
   targetKind: "workspace" | "pure-host";
   workspaceId: string | null;
   repoId: string | null;
@@ -254,6 +303,12 @@ export class HostCommandService {
     approval: DirectCommandApprovalRecord;
     replayed: boolean;
   }> {
+    if (!["local-ui", "local-cli", "rest-api"].includes(context.actorType)) {
+      throw new ServiceError(
+        "HOST_COMMAND_OPERATOR_DECISION_REQUIRED",
+        "Host command approval decisions require an authenticated human operator channel"
+      );
+    }
     const { idempotencyKey, ...decision } = input;
     const execution = this.repositories.idempotency.execute(
       "host.command.decide",
@@ -271,6 +326,22 @@ export class HostCommandService {
       context.now
     );
     return { ...execution.value, replayed: execution.replayed };
+  }
+
+  listPendingApprovals(now = new Date().toISOString()) {
+    return this.repositories.directCommandApprovals.listPending(now).map((approval) => ({
+      id: approval.id,
+      revision: approval.revision,
+      status: approval.status,
+      effect: approval.effect,
+      command: approval.command,
+      args: [...approval.args],
+      workdir: approval.workdir,
+      executorId: approval.executorId,
+      timeoutMs: approval.timeoutMs,
+      expiresAt: approval.expiresAt,
+      publicSummary: approval.publicSummary
+    }));
   }
 
   async execute(
@@ -335,13 +406,16 @@ export class HostCommandService {
         async (prepared) => {
           try {
             return {
-              process: await this.processExecutor.execute({
-                cwd: prepared.intent.target.absolutePath,
-                command: prepared.intent.policy.command,
-                args: prepared.intent.policy.args,
-                timeoutMs: prepared.intent.request.timeoutMs,
-                access: prepared.intent.policy.effect
-              }),
+              process: await this.processExecutor.execute(
+                prepared.intent.selection.executorId,
+                {
+                  cwd: prepared.intent.target.absolutePath,
+                  command: prepared.intent.policy.command,
+                  args: prepared.intent.policy.args,
+                  timeoutMs: prepared.intent.request.timeoutMs,
+                  access: prepared.intent.policy.effect
+                }
+              ),
               errorCode: null
             };
           } catch (error) {
@@ -379,6 +453,9 @@ export class HostCommandService {
       throw error;
     }
 
+    const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
+      this.configPath
+    ).hostPermissionProfile;
     const classification = classifyHostTarget(
       this.repositories,
       target.absolutePath
@@ -389,7 +466,8 @@ export class HostCommandService {
         try {
           const pureHostPolicy = evaluatePureHostCommand(
             request.command,
-            request.args
+            request.args,
+            hostPermissionProfile
           );
           assertHostCommandRelativePathsInsideRoot(
             target,
@@ -494,14 +572,8 @@ export class HostCommandService {
       }
       throw error;
     }
-    if (selection.executorId !== DESKTOP_COMMANDER_EXECUTOR_ID) {
-      throw new ServiceError(
-        "HOST_EXECUTOR_UNSUPPORTED",
-        `Host Command does not support executor ${selection.executorId}`
-      );
-    }
     try {
-      this.processExecutor.assertReady(policy.effect);
+      this.processExecutor.assertReady(selection.executorId, policy.effect);
     } catch (error) {
       if (error instanceof DesktopCommanderProcessError) {
         throw new ServiceError(processErrorCode(error), error.message);
@@ -517,6 +589,7 @@ export class HostCommandService {
       effect: policy.effect,
       timeoutMs: request.timeoutMs,
       executorId: selection.executorId,
+      hostPermissionProfile,
       targetKind: classification.kind,
       workspaceId: classification.workspaceId,
       repoId: classification.repoId,
@@ -529,6 +602,7 @@ export class HostCommandService {
       classification,
       policy,
       selection,
+      hostPermissionProfile,
       commandHash,
       sessionId,
       workspaceAuthority
@@ -835,25 +909,33 @@ export class HostCommandService {
         : {}),
       executorId: intent.selection.executorId,
       selectionMode: intent.selection.selectionMode,
+      hostPermissionProfile: intent.hostPermissionProfile,
       commandHash: intent.commandHash
     };
   }
 }
 
-export function buildDesktopCommanderHostCommandService(options: {
+export function buildConfiguredHostCommandService(options: {
   paths: TokenPilotPaths;
   repositories: ContinuityRepositories;
   broker: DirectCapabilityBroker;
   configPath?: string;
 }): HostCommandService {
+  const builtinExecutorId = productIdentityForKey(
+    options.paths.productIdentity
+  ).builtInDirectExecutorId;
   return new HostCommandService(
     options.paths,
     options.repositories,
     options.broker,
-    new DesktopCommanderProcessAdapter(
+    new RoutedHostCommandProcessExecutor(
+      builtinExecutorId,
       options.paths.runtimeDir,
       options.configPath
     ),
     options.configPath
   );
 }
+
+/** @deprecated Use buildConfiguredHostCommandService. */
+export const buildDesktopCommanderHostCommandService = buildConfiguredHostCommandService;

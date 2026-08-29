@@ -18,14 +18,16 @@ import type {
 } from "./capability-broker.js";
 
 const WORKSPACE_SCOPE: DirectExecutionScope[] = ["workspace"];
+const WORKSPACE_AND_HOST_SCOPE: DirectExecutionScope[] = ["workspace", "host"];
 
 function capability(
   id: DirectCapabilityId,
-  access: DirectCapabilityAccess[]
+  access: DirectCapabilityAccess[],
+  scopes: DirectExecutionScope[] = WORKSPACE_SCOPE
 ): DirectExecutorCapability {
   return {
     id,
-    scopes: [...WORKSPACE_SCOPE],
+    scopes: [...scopes],
     access: [...access]
   };
 }
@@ -37,7 +39,7 @@ const BUILT_IN_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
   capability("files.write", ["write"]),
   capability("files.edit", ["write"]),
   capability("search.content", ["read"]),
-  capability("shell.exec", ["read", "write"]),
+  capability("shell.exec", ["read", "write"], WORKSPACE_AND_HOST_SCOPE),
   capability("git.status", ["read"]),
   capability("git.diff", ["read"]),
   capability("git.commit", ["write"]),
@@ -55,7 +57,7 @@ export function createBuiltInDirectExecutorSource(
         kind: "built-in",
         displayName: `${identity.displayName} Built-in`,
         health: "ready",
-        scopes: [...WORKSPACE_SCOPE],
+        scopes: [...WORKSPACE_AND_HOST_SCOPE],
         capabilities: BUILT_IN_DIRECT_CAPABILITIES.map((entry) => ({
           ...entry,
           scopes: [...entry.scopes],

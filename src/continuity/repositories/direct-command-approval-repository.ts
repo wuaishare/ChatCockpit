@@ -163,6 +163,20 @@ export class DirectCommandApprovalRepository {
     return Number(row.count);
   }
 
+  listPending(now: string, limit = 50): DirectCommandApprovalRecord[] {
+    const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const rows = this.database.sqlite
+      .prepare(`
+        SELECT *
+        FROM direct_command_approvals
+        WHERE status = 'pending' AND expires_at > ?
+        ORDER BY created_at ASC, id ASC
+        LIMIT ?
+      `)
+      .all(now, boundedLimit) as unknown as DirectCommandApprovalRow[];
+    return rows.map(approvalFromRow);
+  }
+
   expireIfNeeded(id: string, now: string): DirectCommandApprovalRecord {
     const current = this.get(id);
     if (["pending", "approved"].includes(current.status) && current.expiresAt <= now) {

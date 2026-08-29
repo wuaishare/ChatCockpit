@@ -10,7 +10,7 @@ import { buildServer } from "../src/server/app.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 interface RequestCase {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT";
   url: string;
   payload?: unknown;
 }
@@ -151,6 +151,12 @@ async function main(): Promise<void> {
     const protectedCases: RequestCase[] = [
       { method: "GET", url: "/api/operator/session" },
       { method: "GET", url: "/api/operator/passkeys" },
+      { method: "GET", url: "/api/operator/execution-permissions" },
+      {
+        method: "PUT",
+        url: "/api/operator/execution-permissions",
+        payload: { hostPermissionProfile: "device-maintenance" }
+      },
       { method: "POST", url: "/api/operator/passkeys/registration/options" },
       { method: "GET", url: "/api/operator/totp" },
       { method: "POST", url: "/api/operator/totp/enrollment" },
@@ -164,6 +170,17 @@ async function main(): Promise<void> {
       { method: "GET", url: "/api/jobs/test-job/artifacts" },
       { method: "POST", url: "/api/files/read", payload: {} },
       { method: "GET", url: "/api/host/roots" },
+      { method: "GET", url: "/api/host/commands/pending" },
+      {
+        method: "POST",
+        url: "/api/host/commands/decision",
+        payload: {
+          approvalId: "direct_command_approval_public_surface",
+          expectedRevision: 1,
+          decision: "approved",
+          idempotencyKey: "public-surface-host-command-decision"
+        }
+      },
       { method: "GET", url: "/api/git/status" },
       { method: "GET", url: "/api/continuity/projects" },
       { method: "GET", url: "/api/resources/providers" },

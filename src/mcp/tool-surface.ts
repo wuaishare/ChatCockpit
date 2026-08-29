@@ -30,7 +30,8 @@ export type McpToolSurfaceDisposition =
   | "core"
   | "deferred-pack"
   | "compatibility"
-  | "consolidation-candidate";
+  | "consolidation-candidate"
+  | "operator-only";
 
 export interface McpToolSurfaceClassification {
   disposition: McpToolSurfaceDisposition;
@@ -118,7 +119,6 @@ const DEFERRED_BY_PACK = {
     "host.mutation.decide",
     "host.mutation.execute",
     "host.command.prepare",
-    "host.command.decide",
     "host.command.execute",
     "host.process.prepare",
     "host.process.decide",
@@ -205,6 +205,8 @@ const CONSOLIDATION_CANDIDATES_BY_PACK = {
   ]
 } as const satisfies Partial<Record<McpToolSurfacePack, readonly string[]>>;
 
+const OPERATOR_ONLY_SUFFIXES = ["host.command.decide"] as const;
+
 const classifications = new Map<string, McpToolSurfaceClassification>();
 
 function addClassification(
@@ -243,6 +245,9 @@ for (const [pack, suffixes] of Object.entries(CONSOLIDATION_CANDIDATES_BY_PACK))
       pack: pack as McpToolSurfacePack
     });
   }
+}
+for (const suffix of OPERATOR_ONLY_SUFFIXES) {
+  addClassification(suffix, { disposition: "operator-only", pack: null });
 }
 
 export const MCP_TOOL_SURFACE_CLASSIFICATION_COUNT = classifications.size;
@@ -295,7 +300,11 @@ export function selectMcpToolsForSurface<T extends Pick<TokenPilotMcpTool, "name
   selection: McpToolSurfaceSelection
 ): T[] {
   assertMcpToolSurfaceClassified(tools);
-  if (selection.kind === "full") return [...tools];
+  if (selection.kind === "full") {
+    return tools.filter(
+      (tool) => classifyMcpToolSurface(tool.name)?.disposition !== "operator-only"
+    );
+  }
   return tools.filter((tool) => {
     const classification = classifyMcpToolSurface(tool.name);
     if (!classification) return false;

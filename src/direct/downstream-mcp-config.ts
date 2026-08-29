@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -5,6 +6,11 @@ import path from "node:path";
 import { z } from "zod";
 
 import { readIdentityEnv } from "../core/identity-env.js";
+import {
+  DEFAULT_HOST_PERMISSION_PROFILE,
+  HOST_PERMISSION_PROFILES,
+  type HostPermissionProfile
+} from "../core/host-permission-policy.js";
 import { DEFAULT_PRODUCT_IDENTITY } from "../core/product-identity.js";
 import type { DownstreamMcpCapabilityMapping } from "./downstream-mcp-types.js";
 
@@ -103,6 +109,7 @@ const hostRootSchema = z.object({
 
 const configSchema = z.object({
   schemaVersion: z.literal(1),
+  hostPermissionProfile: z.enum(HOST_PERMISSION_PROFILES).default(DEFAULT_HOST_PERMISSION_PROFILE),
   hostRoots: z.array(hostRootSchema).default([]),
   executors: z.array(executorSchema).default([])
 });
@@ -166,6 +173,7 @@ export interface DirectHostRootConfig {
 
 export interface DownstreamMcpExecutorsConfig {
   schemaVersion: 1;
+  hostPermissionProfile: HostPermissionProfile;
   hostRoots: DirectHostRootConfig[];
   executors: DownstreamMcpExecutorConfig[];
 }
@@ -181,7 +189,12 @@ export function loadDownstreamMcpExecutorsConfig(
   configPath = getDownstreamMcpExecutorsConfigPath()
 ): DownstreamMcpExecutorsConfig {
   if (!fs.existsSync(configPath)) {
-    return { schemaVersion: 1, hostRoots: [], executors: [] };
+    return {
+      schemaVersion: 1,
+      hostPermissionProfile: DEFAULT_HOST_PERMISSION_PROFILE,
+      hostRoots: [],
+      executors: []
+    };
   }
 
   const raw = JSON.parse(fs.readFileSync(configPath, "utf8")) as unknown;
@@ -221,4 +234,37 @@ export function loadDownstreamMcpExecutorsConfig(
   }
 
   return parsed.data as DownstreamMcpExecutorsConfig;
+}
+
+export function updateHostPermissionProfile(
+  profile: HostPermissionProfile,
+  configPath = getDownstreamMcpExecutorsConfigPath()
+): DownstreamMcpExecutorsConfig {
+  if (!HOST_PERMISSION_PROFILES.includes(profile)) {
+    throw new Error(`Unsupported Host permission profile: ${String(profile)}`);
+  }
+  const current = loadDownstreamMcpExecutorsConfig(configPath);
+  const next: DownstreamMcpExecutorsConfig = {
+    ...current,
+    hostPermissionProfile: profile
+  };
+  const directory = path.dirname(configPath);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const temporaryPath = `${configPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+      flag: "wx"
+    });
+    fs.renameSync(temporaryPath, configPath);
+    fs.chmodSync(configPath, 0o600);
+  } finally {
+    try {
+      fs.rmSync(temporaryPath, { force: true });
+    } catch {
+      // Best-effort cleanup; the canonical config path remains authoritative.
+    }
+  }
+  return next;
 }

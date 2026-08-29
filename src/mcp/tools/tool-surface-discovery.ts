@@ -225,6 +225,9 @@ export function buildToolSurfaceDiscoveryMcpTools(
   const coreBaseCount = baseTools.filter(
     (tool) => classifyMcpToolSurface(tool.name)?.disposition === "core"
   ).length;
+  const remotelyRoutableBaseCount = baseTools.filter(
+    (tool) => classifyMcpToolSurface(tool.name)?.disposition !== "operator-only"
+  ).length;
   const packSummaries = MCP_TOOL_SURFACE_PACKS.map((pack) => {
     const specialistTools = baseTools.filter((tool) => isPackSpecialist(tool, pack));
     return {
@@ -280,7 +283,7 @@ export function buildToolSurfaceDiscoveryMcpTools(
           fullCompatibilityPath: "/mcp/full" as const,
           legacyCompatibilityPath: "/tokenpilot/mcp" as const,
           defaultCoreCount: coreBaseCount + 3,
-          fullToolCount: baseTools.length + 3,
+          fullToolCount: remotelyRoutableBaseCount + 3,
           packs: packSummaries,
           selectedPack: selectedPack
             ? {

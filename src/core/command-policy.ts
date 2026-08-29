@@ -1,6 +1,13 @@
 import path from "node:path";
 
 import { readIdentityEnv } from "./identity-env.js";
+import {
+  DEFAULT_HOST_PERMISSION_PROFILE,
+  fullHostCommandsAllowed,
+  hostDeviceDiagnosticsAllowed,
+  hostManagedWorkspaceAllowed,
+  type HostPermissionProfile
+} from "./host-permission-policy.js";
 
 export type CommandEffect = "read" | "write";
 
@@ -90,8 +97,13 @@ export function isBuiltinHostNpmScript(command: string, args: string[]): boolean
   return command === "npm" && args[0] === "run" && BUILTIN_HOST_NPM_SCRIPTS.has(args[1] ?? "");
 }
 
-export function isHostManagedWorkspaceCommand(command: string, args: string[]): boolean {
+export function isHostManagedWorkspaceCommand(
+  command: string,
+  args: string[],
+  profile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE
+): boolean {
   return (
+    hostManagedWorkspaceAllowed(profile) &&
     command === "npm" &&
     args.length === 2 &&
     args[0] === "run" &&
@@ -353,9 +365,159 @@ export interface PureHostCommandPolicyDecision extends CommandPolicyDecision {
   relativePathArgs: string[];
 }
 
+const HOST_DIAGNOSTIC_DF_OPTION = /^-[hHkmgP]+$/;
+const HOST_DIAGNOSTIC_DU_OPTION = /^-[hksmgxa]+$/;
+const HOST_DIAGNOSTIC_DU_DEPTH_OPTION = /^-d[0-4]$/;
+const HOST_DIAGNOSTIC_UNAME_OPTION = /^-[amnprsv]+$/;
+const HOST_DIAGNOSTIC_SYSTEM_PROFILER_TYPES = new Set([
+  "SPHardwareDataType",
+  "SPMemoryDataType",
+  "SPNVMeDataType",
+  "SPSoftwareDataType",
+  "SPStorageDataType"
+]);
+const FULL_HOST_BLOCKED_COMMANDS = new Set([
+  "bash",
+  "csh",
+  "dash",
+  "env",
+  "fish",
+  "ksh",
+  "node",
+  "osascript",
+  "perl",
+  "php",
+  "python",
+  "python3",
+  "ruby",
+  "sh",
+  "sudo",
+  "tcsh",
+  "zsh"
+]);
+
+function evaluateDeviceDiagnosticCommand(
+  command: string,
+  safeArgs: string[]
+): PureHostCommandPolicyDecision | null {
+  if (command === "df") {
+    const relativePathArgs: string[] = [];
+    for (const arg of safeArgs) {
+      if (arg.startsWith("-")) {
+        if (!HOST_DIAGNOSTIC_DF_OPTION.test(arg)) {
+          throw new Error(`Pure Host df option is not allowed: ${arg}`);
+        }
+      } else {
+        relativePathArgs.push(arg);
+      }
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs };
+  }
+
+  if (command === "du") {
+    const relativePathArgs: string[] = [];
+    let expectsDepth = false;
+    for (const arg of safeArgs) {
+      if (expectsDepth) {
+        if (!/^[0-4]$/.test(arg)) {
+          throw new Error("Pure Host du depth must be an integer between 0 and 4");
+        }
+        expectsDepth = false;
+        continue;
+      }
+      if (arg === "-d") {
+        expectsDepth = true;
+        continue;
+      }
+      if (arg.startsWith("-")) {
+        if (
+          !HOST_DIAGNOSTIC_DU_OPTION.test(arg) &&
+          !HOST_DIAGNOSTIC_DU_DEPTH_OPTION.test(arg)
+        ) {
+          throw new Error(`Pure Host du option is not allowed: ${arg}`);
+        }
+        continue;
+      }
+      relativePathArgs.push(arg);
+    }
+    if (expectsDepth) {
+      throw new Error("Pure Host du -d requires a depth between 0 and 4");
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs };
+  }
+
+  if (command === "diskutil") {
+    const operation = safeArgs[0];
+    if (operation === "list" && safeArgs.length === 1) {
+      return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+    }
+    if (
+      operation === "info" &&
+      safeArgs.length === 2 &&
+      /^[A-Za-z0-9._-]+$/.test(safeArgs[1] ?? "")
+    ) {
+      return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+    }
+    throw new Error("Pure Host diskutil is limited to list and info <disk-identifier>");
+  }
+
+  if (command === "system_profiler") {
+    if (safeArgs.length === 0) {
+      throw new Error("Pure Host system_profiler requires an allowlisted data type");
+    }
+    for (const arg of safeArgs) {
+      if (arg === "-json") continue;
+      if (!HOST_DIAGNOSTIC_SYSTEM_PROFILER_TYPES.has(arg)) {
+        throw new Error(`Pure Host system_profiler data type is not allowed: ${arg}`);
+      }
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+  }
+
+  if (command === "vm_stat") {
+    if (safeArgs.length !== 0) {
+      throw new Error("Pure Host vm_stat does not accept arguments");
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+  }
+
+  if (command === "memory_pressure") {
+    if (!(safeArgs.length === 0 || (safeArgs.length === 1 && safeArgs[0] === "-Q"))) {
+      throw new Error("Pure Host memory_pressure only accepts optional -Q");
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+  }
+
+  if (command === "sw_vers") {
+    if (
+      !(
+        safeArgs.length === 0 ||
+        (safeArgs.length === 1 &&
+          ["-buildVersion", "-productName", "-productVersion"].includes(safeArgs[0] ?? ""))
+      )
+    ) {
+      throw new Error("Pure Host sw_vers accepts at most one standard version selector");
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+  }
+
+  if (command === "uname") {
+    if (
+      safeArgs.length > 1 ||
+      (safeArgs.length === 1 && !HOST_DIAGNOSTIC_UNAME_OPTION.test(safeArgs[0] ?? ""))
+    ) {
+      throw new Error("Pure Host uname options are restricted to standard read-only selectors");
+    }
+    return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
+  }
+
+  return null;
+}
+
 export function evaluatePureHostCommand(
   command: string,
-  args: string[]
+  args: string[],
+  profile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE
 ): PureHostCommandPolicyDecision {
   const safeArgs = validateCommandArgs(args);
 
@@ -393,8 +555,32 @@ export function evaluatePureHostCommand(
     return { command, args: safeArgs, effect: "read", relativePathArgs: [] };
   }
 
+  if (hostDeviceDiagnosticsAllowed(profile)) {
+    const diagnostic = evaluateDeviceDiagnosticCommand(command, safeArgs);
+    if (diagnostic) return diagnostic;
+  }
+
+  if (fullHostCommandsAllowed(profile)) {
+    if (!/^[A-Za-z0-9._+-]+$/.test(command) || FULL_HOST_BLOCKED_COMMANDS.has(command)) {
+      throw new Error(`Full Host command is blocked: ${command}`);
+    }
+    return {
+      command,
+      args: safeArgs,
+      effect: "write",
+      // Full Host is intentionally danger-level: command arguments are not
+      // projected as Host Root paths because many admin commands use non-path
+      // operands (PIDs, service names, volume identifiers, etc.). The Host Root
+      // still governs the working directory, while exact operator approval and
+      // audit govern the command itself.
+      relativePathArgs: []
+    };
+  }
+
   throw new Error(
-    "Pure Host commands are limited to pwd, ls, and read-only git inspection"
+    profile === "device-maintenance"
+      ? "Pure Host command is outside the device-maintenance diagnostic allowlist"
+      : "Pure Host commands are limited by the selected Host permission profile"
   );
 }
 

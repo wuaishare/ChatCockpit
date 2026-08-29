@@ -18,6 +18,7 @@ import {
   publicSafeShellOutput
 } from "../core/shell-api.js";
 import { productIdentityForKey } from "../core/product-identity.js";
+import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
 import type {
   FileEditPayload,
   FileListPayload,
@@ -149,7 +150,8 @@ export class ChatDirectService {
     private readonly paths: TokenPilotPaths,
     private readonly runtime: RuntimeRouter,
     private readonly broker: DirectCapabilityBroker,
-    private readonly repositories: ContinuityRepositories
+    private readonly repositories: ContinuityRepositories,
+    private readonly directExecutorsConfigPath?: string
   ) {
     this.files = new FilesService(paths);
     this.git = new GitService(paths);
@@ -716,7 +718,14 @@ export class ChatDirectService {
   ) {
     let prepared: ReturnType<typeof prepareWorkspaceExecCommand>;
     try {
-      prepared = prepareWorkspaceExecCommand(this.paths, payload);
+      const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
+        this.directExecutorsConfigPath
+      ).hostPermissionProfile;
+      prepared = prepareWorkspaceExecCommand(
+        this.paths,
+        payload,
+        hostPermissionProfile
+      );
     } catch (error) {
       throw serviceError("SHELL_COMMAND_BLOCKED", error);
     }

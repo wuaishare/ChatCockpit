@@ -10,6 +10,7 @@ import { hostCommandPrepareSchema } from "../src/contracts/host-command.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { classifyHostTarget } from "../src/application/workspace-mutation-governance.ts";
 import { ServiceError } from "../src/application/service-error.ts";
+import { BuiltinHostCommandProcessAdapter } from "../src/direct/adapters/builtin-host-command-process.ts";
 import {
   buildDesktopCommanderCommandSource,
   DesktopCommanderProcessAdapter,
@@ -33,7 +34,8 @@ import { isolateMachineLocalUnconfiguredAuth } from "./test-support/auth-env.ts"
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import {
   evaluatePureHostCommand,
-  evaluateWorkspaceCommand
+  evaluateWorkspaceCommand,
+  isHostManagedWorkspaceCommand
 } from "../src/core/command-policy.ts";
 import {
   assertHostCommandRelativePathsInsideRoot,
@@ -41,6 +43,7 @@ import {
   resolveHostCommandWorkdirTarget
 } from "../src/direct/host-path-policy.ts";
 import { buildServer } from "../src/server/app.ts";
+import { productIdentityForKey } from "../src/core/product-identity.ts";
 
 const fixtureServer = fileURLToPath(
   new URL("./fixtures/fake-downstream-mcp-server.mjs", import.meta.url)
@@ -228,6 +231,53 @@ function writeDesktopCommanderProcessFixture(options: {
   return configPath;
 }
 
+async function verifyBuiltinHostCommandProcessAdapter(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "chatcockpit-builtin-host-command-")
+  );
+  try {
+    const adapter = new BuiltinHostCommandProcessAdapter();
+    adapter.assertReady("read");
+
+    const success = await adapter.execute({
+      cwd: sandbox,
+      command: process.execPath,
+      args: ["-e", "process.stdout.write('builtin-host-ok')"],
+      timeoutMs: 5000,
+      access: "read"
+    });
+    assert.equal(success.ok, true);
+    assert.equal(success.exitCode, 0);
+    assert.equal(success.output, "builtin-host-ok");
+    assert.equal(success.truncated, false);
+    assert.equal(success.timedOut, false);
+
+    const bounded = await adapter.execute({
+      cwd: sandbox,
+      command: process.execPath,
+      args: ["-e", "process.stdout.write('x'.repeat(70 * 1024))"],
+      timeoutMs: 5000,
+      access: "read"
+    });
+    assert.equal(bounded.ok, true);
+    assert.equal(bounded.truncated, true);
+    assert.equal(Buffer.byteLength(bounded.output, "utf8"), 64 * 1024);
+
+    const timedOut = await adapter.execute({
+      cwd: sandbox,
+      command: process.execPath,
+      args: ["-e", "setTimeout(() => {}, 5000)"],
+      timeoutMs: 25,
+      access: "read"
+    });
+    assert.equal(timedOut.ok, false);
+    assert.equal(timedOut.timedOut, true);
+    assert.equal(timedOut.terminated, true);
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
   const sandbox = fs.mkdtempSync(
     path.join(os.tmpdir(), "chatcockpit-desktop-process-adapter-")
@@ -413,9 +463,9 @@ async function verifyDesktopCommanderProcessAdapter(): Promise<void> {
 }
 
 class UnknownHostCommandProcessExecutor {
-  assertReady(_access: "read" | "write"): void {}
+  assertReady(_executorId: string, _access: "read" | "write"): void {}
 
-  async execute(): Promise<never> {
+  async execute(_executorId: string): Promise<never> {
     throw new DesktopCommanderProcessError(
       "DESKTOP_COMMANDER_PROCESS_RESULT_UNKNOWN",
       "fixture terminal state is unknown"
@@ -427,11 +477,11 @@ class FakeHostCommandProcessExecutor {
   calls = 0;
   readonly accesses: string[] = [];
 
-  assertReady(access: "read" | "write"): void {
+  assertReady(_executorId: string, access: "read" | "write"): void {
     this.accesses.push(access);
   }
 
-  async execute(input: {
+  async execute(_executorId: string, input: {
     cwd: string;
     command: string;
     args: string[];
@@ -599,6 +649,13 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
     publicProjection: true,
     now: NOW
   });
+  const decisionContext = buildOperationContext({
+    actorType: "local-ui",
+    actorId: "owner-fixture",
+    requestId: "host-command-decision-fixture",
+    publicProjection: true,
+    now: NOW
+  });
 
   try {
     assert.equal(
@@ -642,7 +699,16 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       timeoutMs: 5000,
       idempotencyKey: "host-command-expiring-prepare"
     });
-    const expiringApproved = await service.decide(context, {
+    await expectAsyncCode(
+      service.decide(context, {
+        approvalId: expiringPrepared.approval.id,
+        expectedRevision: expiringPrepared.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-command-remote-self-approval"
+      }),
+      "HOST_COMMAND_OPERATOR_DECISION_REQUIRED"
+    );
+    const expiringApproved = await service.decide(decisionContext, {
       approvalId: expiringPrepared.approval.id,
       expectedRevision: expiringPrepared.approval.revision,
       decision: "approved",
@@ -676,7 +742,7 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       timeoutMs: 5000,
       idempotencyKey: "host-command-denied-prepare"
     });
-    const deniedApproval = await service.decide(context, {
+    const deniedApproval = await service.decide(decisionContext, {
       approvalId: deniedPrepared.approval.id,
       expectedRevision: deniedPrepared.approval.revision,
       decision: "denied",
@@ -708,6 +774,16 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
     assert.equal(purePrepared.approval.effect, "read");
     assert.equal(purePrepared.approval.sessionId, null);
     assert.doesNotMatch(JSON.stringify(purePrepared), new RegExp(hostRoot));
+    const pendingApprovals = service.listPendingApprovals(NOW);
+    const pendingPure = pendingApprovals.find(
+      (approval) => approval.id === purePrepared.approval.id
+    );
+    assert.ok(pendingPure);
+    assert.equal(pendingPure.command, "pwd");
+    assert.deepEqual(pendingPure.args, []);
+    assert.equal(pendingPure.workdir, "notes");
+    assert.equal(pendingPure.executorId, purePrepared.approval.executorId);
+    assert.equal(pendingPure.timeoutMs, 5000);
 
     await expectAsyncCode(
       service.execute(context, {
@@ -735,7 +811,7 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       "IDEMPOTENCY_CONFLICT"
     );
 
-    const pureApproved = await service.decide(context, {
+    const pureApproved = await service.decide(decisionContext, {
       approvalId: purePrepared.approval.id,
       expectedRevision: purePrepared.approval.revision,
       decision: "approved",
@@ -842,7 +918,7 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       timeoutMs: 5000,
       idempotencyKey: "host-command-unknown-prepare"
     });
-    const unknownApproved = await unknownService.decide(context, {
+    const unknownApproved = await unknownService.decide(decisionContext, {
       approvalId: unknownPrepared.approval.id,
       expectedRevision: unknownPrepared.approval.revision,
       decision: "approved",
@@ -1003,7 +1079,7 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
     assert.equal(writePrepared.approval.effect, "write");
     assert.equal(writePrepared.approval.workspaceId, workspace.id);
     assert.equal(writePrepared.approval.sessionId, session.id);
-    const writeApproved = await service.decide(context, {
+    const writeApproved = await service.decide(decisionContext, {
       approvalId: writePrepared.approval.id,
       expectedRevision: writePrepared.approval.revision,
       decision: "approved",
@@ -1110,6 +1186,27 @@ async function verifyHostCommandRestParity(): Promise<void> {
   const app = buildServer(paths, { directExecutorsConfigPath: configPath });
 
   try {
+    const automaticPrepare = await app.inject({
+      method: "POST",
+      url: "/api/host/commands/prepare",
+      payload: {
+        rootId: "fixture",
+        workdir: "notes",
+        command: "pwd",
+        args: [],
+        timeoutMs: 5000,
+        idempotencyKey: "host-command-rest-automatic-prepare"
+      }
+    });
+    assert.equal(automaticPrepare.statusCode, 200, automaticPrepare.body);
+    const automaticPrepareBody = automaticPrepare.json() as {
+      approval: { executorId: string };
+    };
+    assert.equal(
+      automaticPrepareBody.approval.executorId,
+      productIdentityForKey(paths.productIdentity).builtInDirectExecutorId
+    );
+
     const prepare = await app.inject({
       method: "POST",
       url: "/api/host/commands/prepare",
@@ -1146,41 +1243,11 @@ async function verifyHostCommandRestParity(): Promise<void> {
         idempotencyKey: "host-command-rest-decision"
       }
     });
-    assert.equal(decision.statusCode, 200, decision.body);
-    const decisionBody = decision.json() as {
-      approval: { id: string; revision: number; status: string };
-    };
-    assert.equal(decisionBody.approval.status, "approved");
-
-    const execute = await app.inject({
-      method: "POST",
-      url: "/api/host/commands/execute",
-      payload: {
-        rootId: "fixture",
-        workdir: "notes",
-        command: "pwd",
-        args: [],
-        timeoutMs: 5000,
-        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
-        approvalId: decisionBody.approval.id,
-        expectedApprovalRevision: decisionBody.approval.revision,
-        idempotencyKey: "host-command-rest-execute"
-      }
-    });
-    assert.equal(execute.statusCode, 200, execute.body);
-    const executeBody = execute.json() as {
-      ok: boolean;
-      exitCode: number | null;
-      output: string;
-      execution: { executionScope: string; executor: string };
-    };
-    assert.equal(executeBody.ok, true);
-    assert.equal(executeBody.exitCode, 0);
-    assert.equal(executeBody.output, "fixture/notes");
-    assert.equal(executeBody.execution.executionScope, "host");
-    assert.equal(executeBody.execution.executor, DESKTOP_COMMANDER_EXECUTOR_ID);
-    assert.doesNotMatch(execute.body, new RegExp(hostRoot));
-    assert.doesNotMatch(execute.body, /"pid"/i);
+    assert.equal(decision.statusCode, 401, decision.body);
+    assert.equal(
+      (decision.json() as { error?: { code?: string } }).error?.code,
+      "OPERATOR_SESSION_REQUIRED"
+    );
   } finally {
     await app.close();
     restoreAuthEnv();
@@ -1456,6 +1523,32 @@ try {
     assert.throws(() => evaluatePureHostCommand("zsh", ["-c", "pwd"]));
     assert.throws(() => evaluatePureHostCommand("ls", ["../outside"]));
     assert.throws(() => evaluatePureHostCommand("ls", [outsideRoot]));
+    assert.throws(() => evaluatePureHostCommand("df", ["-h"]));
+    assert.equal(
+      evaluatePureHostCommand("df", ["-h"], "device-maintenance").effect,
+      "read"
+    );
+    assert.deepEqual(
+      evaluatePureHostCommand("du", ["-h", "-d", "2", "."], "device-maintenance")
+        .relativePathArgs,
+      ["."]
+    );
+    assert.throws(() =>
+      evaluatePureHostCommand("diskutil", ["eraseDisk", "APFS", "Test", "disk9"], "device-maintenance")
+    );
+    assert.equal(
+      evaluatePureHostCommand("rm", ["cache.tmp"], "full-host").effect,
+      "write"
+    );
+    assert.throws(() => evaluatePureHostCommand("zsh", ["-c", "rm -rf ."], "full-host"));
+    assert.equal(
+      isHostManagedWorkspaceCommand("npm", ["run", "build:macos-desktop"], "restricted"),
+      false
+    );
+    assert.equal(
+      isHostManagedWorkspaceCommand("npm", ["run", "build:macos-desktop"], "development"),
+      true
+    );
 
     assert.equal(evaluateWorkspaceCommand("git", ["status", "--short"]).effect, "read");
     assert.equal(evaluateWorkspaceCommand("npm", ["test"]).effect, "write");
@@ -1505,6 +1598,7 @@ try {
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
 
+  await verifyBuiltinHostCommandProcessAdapter();
   await verifyDesktopCommanderProcessAdapter();
   await verifyHostCommandServiceLifecycle();
   await verifyHostCommandRestParity();

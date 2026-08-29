@@ -158,6 +158,24 @@ async function requestJson<T>(
   return (await response.json()) as T;
 }
 
+async function putBodyJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: {
+      ...buildHeaders(null, { mutation: true }),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw await parseProblem(response);
+  }
+
+  return (await response.json()) as T;
+}
+
 export interface OperatorStatusResponse {
   configured: boolean;
   desktopSetupAvailable: boolean;
@@ -222,6 +240,51 @@ export interface OperatorTotpRecoveryCodesResponse {
   revokedSessionCount: number;
 }
 
+export type HostPermissionProfile =
+  | "restricted"
+  | "development"
+  | "device-maintenance"
+  | "full-host";
+
+export interface HostExecutionPermissionsResponse {
+  ok: true;
+  hostPermissionProfile: HostPermissionProfile;
+  approvalPolicy: "operator-required";
+  capabilities: {
+    hostManagedWorkspace: boolean;
+    deviceDiagnostics: boolean;
+    fullHostCommands: boolean;
+  };
+}
+
+export interface HostCommandPendingApprovalSummary {
+  id: string;
+  revision: number;
+  status: "pending";
+  effect: "read" | "write";
+  command: string;
+  args: string[];
+  workdir: string;
+  executorId: string;
+  timeoutMs: number;
+  expiresAt: string;
+  publicSummary: Record<string, unknown>;
+}
+
+export interface HostCommandPendingApprovalsResponse {
+  ok: true;
+  approvals: HostCommandPendingApprovalSummary[];
+}
+
+export interface HostCommandApprovalDecisionSummary {
+  id: string;
+  revision: number;
+  status: "approved" | "denied";
+  effect: "read" | "write";
+  expiresAt: string;
+  publicSummary: Record<string, unknown>;
+}
+
 export async function fetchOperatorStatus(
   loginGate?: string | null,
   oauthRequestId?: string | null
@@ -237,6 +300,41 @@ export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
   const result = await requestJson<OperatorSessionResponse>("/api/operator/session");
   setOperatorCsrfToken(result.csrfToken);
   return result;
+}
+
+export async function fetchHostExecutionPermissions(): Promise<HostExecutionPermissionsResponse> {
+  return requestJson<HostExecutionPermissionsResponse>(
+    "/api/operator/execution-permissions"
+  );
+}
+
+export async function updateHostExecutionPermissions(
+  hostPermissionProfile: HostPermissionProfile
+): Promise<HostExecutionPermissionsResponse> {
+  return putBodyJson<HostExecutionPermissionsResponse>(
+    "/api/operator/execution-permissions",
+    { hostPermissionProfile }
+  );
+}
+
+export async function fetchPendingHostCommandApprovals(): Promise<HostCommandPendingApprovalsResponse> {
+  return requestJson<HostCommandPendingApprovalsResponse>(
+    "/api/host/commands/pending"
+  );
+}
+
+export async function decideHostCommandApproval(input: {
+  approvalId: string;
+  expectedRevision: number;
+  decision: "approved" | "denied";
+}): Promise<{ ok: true; approval: HostCommandApprovalDecisionSummary; replayed: boolean }> {
+  return postBodyJson(
+    "/api/host/commands/decision",
+    {
+      ...input,
+      idempotencyKey: `web-host-command-${input.approvalId}-${input.expectedRevision}-${input.decision}`
+    }
+  );
 }
 
 export async function fetchPasskeyAuthenticationOptions(

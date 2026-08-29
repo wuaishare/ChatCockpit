@@ -33,7 +33,7 @@ import { DeviceTargetService } from "../application/device-target-service.js";
 import { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
 import { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
-import { buildDesktopCommanderHostCommandService } from "../application/host-command-service.js";
+import { buildConfiguredHostCommandService } from "../application/host-command-service.js";
 import { buildDesktopCommanderHostProcessService } from "../application/host-process-service.js";
 import { HostDirectService } from "../application/host-direct-service.js";
 import { HostMutationService } from "../application/host-mutation-service.js";
@@ -187,6 +187,7 @@ import { registerProjectRegistryRoutes } from "./project-registry-routes.js";
 import { registerCapabilityRouterMutationRoutes } from "./capability-router-mutation-routes.js";
 import { ApiError, sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { operationContextFromRequest } from "./request-context.js";
+import { OPERATOR_CSRF_HEADER } from "./operator-auth-context.js";
 import { registerOAuthGrantManagementRoutes } from "./oauth-grant-management-routes.js";
 import { registerOperationalActivityRoutes } from "./operational-activity-routes.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
@@ -197,6 +198,7 @@ import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import type { RuntimeBuildProvenance } from "../core/build-provenance.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
+import { registerHostPermissionRoutes } from "./host-permission-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
 import { registerDeviceRuntimeLifecycleRoutes } from "./device-runtime-lifecycle-routes.js";
 import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
@@ -311,6 +313,42 @@ type ReplyLike = Parameters<typeof sendApiError>[0];
 
 function replyFrom(value: unknown): ReplyLike {
   return value as ReplyLike;
+}
+
+function operatorRequestError(
+  request: FastifyRequest,
+  reply: ReplyLike,
+  mutation: boolean
+): ReturnType<typeof sendApiError> | null {
+  const auth = request.chatCockpitAuth;
+  if (auth.kind !== "operator-session") {
+    return sendApiError(
+      reply,
+      401,
+      "OPERATOR_SESSION_REQUIRED",
+      "An authenticated console administrator session is required"
+    );
+  }
+  if (!mutation) return null;
+  const value = request.headers[OPERATOR_CSRF_HEADER];
+  const csrf = Array.isArray(value) ? value[0] : value;
+  if (typeof csrf !== "string" || !csrf) {
+    return sendApiError(
+      reply,
+      403,
+      "CSRF_REQUIRED",
+      "Operator session mutation requires a CSRF token"
+    );
+  }
+  if (csrf !== auth.session.csrfToken) {
+    return sendApiError(
+      reply,
+      403,
+      "CSRF_INVALID",
+      "Operator session CSRF token is invalid"
+    );
+  }
+  return null;
 }
 
 function jobProcessControlContextFromRequest(request: FastifyRequest) {
@@ -684,7 +722,7 @@ export function buildServer(
     downstreamMcpExecutionRegistry,
     options.directExecutorsConfigPath
   );
-  const hostCommand = buildDesktopCommanderHostCommandService({
+  const hostCommand = buildConfiguredHostCommandService({
     paths,
     repositories: continuityServices.repositories,
     broker: directCapabilityBroker,
@@ -700,7 +738,8 @@ export function buildServer(
     paths,
     runtimeRouter,
     directCapabilityBroker,
-    continuityServices.repositories
+    continuityServices.repositories,
+    options.directExecutorsConfigPath
   );
   const runtimeService = new RuntimeService(runtimeRouter);
   const projectRootDiscovery = new ProjectRootDiscoveryService(paths, [
@@ -946,6 +985,9 @@ export function buildServer(
     operatorPasskeyService,
     operatorTotpService
   );
+  registerHostPermissionRoutes(app, {
+    configPath: options.directExecutorsConfigPath
+  });
   registerHubIdentityRoutes(app, hubIdentity, {
     getLanTlsIdentity: accessPolicy.trustedLan.enabled
       ? () => ensureLanTlsIdentity(paths.runtimeDir)
@@ -1666,11 +1708,34 @@ export function buildServer(
     }
   };
 
+  const hostCommandPendingHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const operatorError = operatorRequestError(
+      request as FastifyRequest,
+      fastifyReply,
+      false
+    );
+    if (operatorError) return operatorError;
+    return {
+      ok: true as const,
+      approvals: hostCommand.listPendingApprovals()
+    };
+  };
+
   const hostCommandDecisionHandler = async (
     request: unknown,
     reply: unknown
   ) => {
     const fastifyReply = replyFrom(reply);
+    const operatorError = operatorRequestError(
+      request as FastifyRequest,
+      fastifyReply,
+      true
+    );
+    if (operatorError) return operatorError;
     const parsed = hostCommandDecisionSchema.safeParse(
       (request as { body: unknown }).body
     );
@@ -2080,6 +2145,7 @@ export function buildServer(
     "/tokenpilot/api/host/commands/prepare",
     hostCommandPrepareHandler
   );
+  app.get("/api/host/commands/pending", hostCommandPendingHandler);
   app.post("/api/host/commands/decision", hostCommandDecisionHandler);
   app.post(
     "/tokenpilot/api/host/commands/decision",

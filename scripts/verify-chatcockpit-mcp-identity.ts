@@ -10,6 +10,8 @@ import { buildServer } from "../src/server/app.js";
 import { runGit } from "./test-support/git.js";
 import { mcpPathForRequest } from "./test-support/mcp-tool-surface.ts";
 
+const TEST_API_TOKEN = "chatcockpit-mcp-identity-fixture-token";
+
 interface JsonRpcResponse {
   jsonrpc: "2.0";
   id?: number | string;
@@ -27,13 +29,15 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 
 async function postMcp(
   app: ReturnType<typeof buildServer>,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  surfacePath = mcpPathForRequest(payload)
 ): Promise<JsonRpcResponse> {
   const response = await app.inject({
     method: "POST",
-    url: mcpPathForRequest(payload),
+    url: surfacePath,
     headers: {
       accept: "application/json, text/event-stream",
+      authorization: `Bearer ${TEST_API_TOKEN}`,
       "content-type": "application/json",
       "mcp-protocol-version": "2025-06-18"
     },
@@ -64,6 +68,10 @@ async function catalogFor(
   runGit(repoRoot, ["init"]);
   runGit(repoRoot, ["config", "user.email", `${productIdentity}@example.invalid`]);
   runGit(repoRoot, ["config", "user.name", `${productIdentity} fixture`]);
+  runGit(repoRoot, ["config", "commit.gpgsign", "false"]);
+  const fixtureHooksDir = path.join(repoRoot, ".git", "fixture-hooks");
+  fs.mkdirSync(fixtureHooksDir, { recursive: true });
+  runGit(repoRoot, ["config", "core.hooksPath", fixtureHooksDir]);
   runGit(repoRoot, ["add", "README.md"]);
   runGit(repoRoot, ["commit", "-m", "init"]);
 
@@ -123,6 +131,16 @@ async function catalogFor(
 }
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-mcp-identity-"));
+const previousAuthEnv = {
+  chatcockpitToken: process.env.CHATCOCKPIT_API_TOKEN,
+  tokenpilotToken: process.env.TOKENPILOT_API_TOKEN,
+  chatcockpitExposed: process.env.CHATCOCKPIT_EXPOSED,
+  tokenpilotExposed: process.env.TOKENPILOT_EXPOSED
+};
+process.env.CHATCOCKPIT_API_TOKEN = TEST_API_TOKEN;
+process.env.TOKENPILOT_API_TOKEN = TEST_API_TOKEN;
+process.env.CHATCOCKPIT_EXPOSED = "false";
+process.env.TOKENPILOT_EXPOSED = "false";
 try {
   const current = await catalogFor("tokenpilot", root);
   const target = await catalogFor("chatcockpit", root);
@@ -154,6 +172,24 @@ try {
     assert.match(JSON.stringify(currentList.inputSchema), /"default":"tokenpilot"/);
     assert.match(JSON.stringify(targetList.inputSchema), /"default":"primary"/);
 
+    const fullSurface = await postMcp(
+      target.app,
+      {
+        jsonrpc: "2.0",
+        id: "full-tools",
+        method: "tools/list",
+        params: {}
+      },
+      "/mcp/full"
+    );
+    assert.equal(fullSurface.error, undefined);
+    const fullToolNames = (fullSurface.result?.tools as Array<{ name: string }>).map(
+      (tool) => tool.name
+    );
+    assert.equal(fullToolNames.includes("chatcockpit.host.command.prepare"), true);
+    assert.equal(fullToolNames.includes("chatcockpit.host.command.execute"), true);
+    assert.equal(fullToolNames.includes("chatcockpit.host.command.decide"), false);
+
     const targetExecutors = await postMcp(target.app, {
       jsonrpc: "2.0",
       id: 3,
@@ -184,6 +220,14 @@ try {
     await target.app.close();
   }
 } finally {
+  const restore = (name: string, value: string | undefined) => {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  };
+  restore("CHATCOCKPIT_API_TOKEN", previousAuthEnv.chatcockpitToken);
+  restore("TOKENPILOT_API_TOKEN", previousAuthEnv.tokenpilotToken);
+  restore("CHATCOCKPIT_EXPOSED", previousAuthEnv.chatcockpitExposed);
+  restore("TOKENPILOT_EXPOSED", previousAuthEnv.tokenpilotExposed);
   fs.rmSync(root, { recursive: true, force: true });
 }
 
