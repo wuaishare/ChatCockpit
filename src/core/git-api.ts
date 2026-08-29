@@ -4,6 +4,7 @@ import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import {
   hasStagedPublicUnsafeChanges,
   isPublicSafeGitPath,
+  publicSafeChangedPaths,
   readPublicSafeGitDiff,
   stagedPublicSafePaths
 } from "./git-public-safety.js";
@@ -11,6 +12,7 @@ import type {
   GitDiffResponse,
   GitStatusResponse,
   GitStatusEntry,
+  GitStageResponse,
   GitCommitResponse,
   TokenPilotPaths
 } from "../types.js";
@@ -18,6 +20,36 @@ import type {
 function assertRepoAllowed(paths: TokenPilotPaths, repoId: string): string {
   const config = loadUserConfigForPaths(paths);
   return resolveRepoMapping(config, repoId).repoRoot;
+}
+
+function explicitStagePaths(repoRoot: string, requestedPaths: string[]): string[] {
+  if (!requestedPaths.length) {
+    throw new Error("At least one explicit Git path is required for staging");
+  }
+  const eligible = new Set(publicSafeChangedPaths(repoRoot));
+  const paths = Array.from(new Set(requestedPaths));
+  for (const filePath of paths) {
+    const segments = filePath.split("/");
+    if (
+      !filePath ||
+      filePath !== filePath.trim() ||
+      filePath === "." ||
+      filePath.startsWith("/") ||
+      /^[A-Za-z]:[\\/]/.test(filePath) ||
+      filePath.includes("\\") ||
+      filePath.includes("\0") ||
+      filePath.startsWith(":") ||
+      /[*?\[\]]/.test(filePath) ||
+      segments.some((segment) => !segment || segment === "." || segment === "..") ||
+      !isPublicSafeGitPath(filePath)
+    ) {
+      throw new Error(`Git staging path is not an explicit public-safe repository path: ${filePath}`);
+    }
+    if (!eligible.has(filePath)) {
+      throw new Error(`Git staging path is not an eligible public-safe changed path: ${filePath}`);
+    }
+  }
+  return paths.sort();
 }
 
 export function getGitDiff(
@@ -121,6 +153,39 @@ export function getGitStatus(
     repoId,
     branch,
     entries
+  };
+}
+
+export function gitStage(
+  paths: TokenPilotPaths,
+  repoId: string,
+  requestedPaths: string[]
+): GitStageResponse {
+  const repoRoot = assertRepoAllowed(paths, repoId);
+  const stagePaths = explicitStagePaths(repoRoot, requestedPaths);
+  const stageResult = spawnSync(
+    "git",
+    ["--literal-pathspecs", "add", "--", ...stagePaths],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 10_000
+    }
+  );
+  if (stageResult.status !== 0) {
+    return {
+      ok: false,
+      repoId,
+      staged: false,
+      paths: stagePaths,
+      error: stageResult.stderr || stageResult.stdout || "git add failed"
+    };
+  }
+  return {
+    ok: true,
+    repoId,
+    staged: true,
+    paths: stagePaths
   };
 }
 

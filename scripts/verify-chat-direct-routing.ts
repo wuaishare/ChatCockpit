@@ -389,6 +389,11 @@ async function verifyChatDirectRouting(): Promise<void> {
     "export const mode = 'before';\n",
     "utf8"
   );
+  fs.writeFileSync(
+    path.join(repoRoot, "src", "delete-me.ts"),
+    "export const deleteMe = true;\n",
+    "utf8"
+  );
   runGit(repoRoot, ["init"]);
   runGit(repoRoot, ["config", "user.name", "ChatCockpit Test"]);
   runGit(repoRoot, ["config", "user.email", "chatcockpit@example.invalid"]);
@@ -807,20 +812,19 @@ async function verifyChatDirectRouting(): Promise<void> {
     const commandExecCallsBeforeGitMutation = adapter.calls.filter(
       (call) => call.method === "command/exec"
     ).length;
-    const builtinGitMutation = await service.shell(context, {
-      repoId: "primary",
-      sessionId: session.id,
-      command: "git",
-      args: ["add", "--", "src/fixture.ts"]
-    });
-    assert.equal(builtinGitMutation.exitCode, 0);
-    assert.equal(builtinGitMutation.execution.executor, "builtin-direct");
-    assert.equal(builtinGitMutation.execution.selectionMode, "automatic");
+    await assert.rejects(
+      () => service.shell(context, {
+        repoId: "primary",
+        sessionId: session.id,
+        command: "git",
+        args: ["add", "--", "src/fixture.ts"]
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
     assert.equal(
       adapter.calls.filter((call) => call.method === "command/exec").length,
       commandExecCallsBeforeGitMutation
     );
-    runGit(repoRoot, ["restore", "--staged", "src/fixture.ts"]);
 
     const directShell = await service.shell(context, {
       repoId: "primary",
@@ -1217,13 +1221,68 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(terminatedSessionManaged.state, "terminated");
 
-    runGit(repoRoot, ["add", "src/alpha-core.ts"]);
+    fs.rmSync(path.join(repoRoot, "src", "delete-me.ts"));
+    fs.writeFileSync(path.join(repoRoot, ".env"), "SECRET=blocked\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "archive.zip"), Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    await assert.rejects(
+      () => service.gitStage(apiTokenContext, {
+        repoId: "primary",
+        paths: ["src/alpha-core.ts"]
+      }),
+      (error) => error instanceof ServiceError && error.code === "WRITER_LEASE_REQUIRED"
+    );
+    for (const blockedPath of [
+      ".",
+      "../README.md",
+      "/tmp/README.md",
+      "src\\fixture.ts",
+      "src/*.ts",
+      ":(glob)src/*.ts",
+      ".env",
+      "archive.zip"
+    ]) {
+      await assert.rejects(
+        () => service.gitStage(context, {
+          repoId: "primary",
+          paths: [blockedPath]
+        }),
+        (error) => error instanceof ServiceError && error.code === "GIT_STAGE_FAILED"
+      );
+    }
+    await assert.rejects(
+      () => service.gitStage(context, {
+        repoId: "primary",
+        paths: ["src/alpha-core.ts", ".env"]
+      }),
+      (error) => error instanceof ServiceError && error.code === "GIT_STAGE_FAILED"
+    );
+    assert.doesNotMatch(
+      spawnSync("git", ["diff", "--cached", "--name-only"], {
+        cwd: repoRoot,
+        encoding: "utf8"
+      }).stdout,
+      /src\/alpha-core\.ts/
+    );
+    const alphaCoreStage = await service.gitStage(context, {
+      repoId: "primary",
+      paths: ["src/alpha-core.ts", "src/delete-me.ts", "src/alpha-core.ts"]
+    });
+    assert.equal(alphaCoreStage.staged, true);
+    assert.equal(alphaCoreStage.execution.executor, "builtin-direct");
+    assert.deepEqual(alphaCoreStage.paths, ["src/alpha-core.ts", "src/delete-me.ts"]);
+    assert.deepEqual(alphaCoreStage.execution.changedPaths, ["src/alpha-core.ts", "src/delete-me.ts"]);
+    const stagedNames = spawnSync(
+      "git",
+      ["diff", "--cached", "--name-only"],
+      { cwd: repoRoot, encoding: "utf8" }
+    ).stdout.trim().split(/\r?\n/).filter(Boolean).sort();
+    assert.deepEqual(stagedNames, ["src/alpha-core.ts", "src/delete-me.ts"]);
     const alphaCoreCommit = await service.gitCommit(context, {
       repoId: "primary",
       message: "verify alpha core writer authority"
     });
     assert.equal(alphaCoreCommit.committed, true);
-    assert.deepEqual(alphaCoreCommit.execution.changedPaths, ["src/alpha-core.ts"]);
+    assert.deepEqual(alphaCoreCommit.execution.changedPaths, ["src/alpha-core.ts", "src/delete-me.ts"]);
     assert.match(
       spawnSync("git", ["status", "--short"], { cwd: repoRoot, encoding: "utf8" }).stdout,
       /src\/fixture\.ts/

@@ -175,6 +175,15 @@ export const gitDiffToolOutputSchema = directBaseSchema.extend({
   truncated: z.boolean()
 });
 
+export const gitStageToolOutputSchema = z.object({
+  ok: z.boolean(),
+  repoId: z.string().min(1),
+  staged: z.boolean(),
+  paths: z.array(z.string().max(1024)).max(200),
+  error: z.string().optional(),
+  execution: chatDirectExecutionSchema
+}).merge(mutationEnvelopeSchema);
+
 export const gitCommitToolOutputSchema = z.object({
   ok: z.boolean(),
   repoId: z.string().min(1),

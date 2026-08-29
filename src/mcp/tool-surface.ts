@@ -54,6 +54,7 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "workspace.process.control",
   "git.status",
   "git.diff",
+  "git.stage",
   "git.commit",
   "trajectory.read",
   "continuity.invoke",

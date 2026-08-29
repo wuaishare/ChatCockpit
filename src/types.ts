@@ -537,6 +537,20 @@ export interface GitDiffPayload extends DirectExecutorPreference {
   staged?: boolean;
 }
 
+export interface GitStagePayload extends DirectExecutorPreference {
+  repoId: string;
+  sessionId?: string;
+  paths: string[];
+}
+
+export interface GitStageResponse {
+  ok: boolean;
+  repoId: string;
+  staged: boolean;
+  paths: string[];
+  error?: string;
+}
+
 export interface GitDiffResponse {
   ok: boolean;
   repoId: string;

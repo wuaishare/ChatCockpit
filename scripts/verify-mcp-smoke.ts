@@ -235,6 +235,7 @@ async function runMcpSmoke(): Promise<void> {
         "files.write",
         "git.commit",
         "git.diff",
+        "git.stage",
         "git.status",
         "host.command.execute",
         "host.command.prepare",
@@ -302,7 +303,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 91, "Full compatibility surface must expose all 91 remotely routable tools");
+    assert.equal(tools.length, 92, "Full compatibility surface must expose all 92 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -311,7 +312,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 20);
+    assert.equal(coreTools.length, 21);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
     const continuityInvokeTool = coreTools.find(
@@ -401,7 +402,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 31);
+    assert.equal(codexPackTools.length, 32);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -427,8 +428,8 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 20);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 91);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 21);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 92);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -551,8 +552,8 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       tools.filter((tool) => isDefaultCoreMcpTool(tool.name)).length,
-      20,
-      "The default surface must classify exactly 20 core tools including governed workspace processes and deferred-tool invocation"
+      21,
+      "The default surface must classify exactly 21 core tools including governed Git staging, workspace processes and deferred-tool invocation"
     );
     assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
@@ -731,6 +732,8 @@ async function runMcpSmoke(): Promise<void> {
       toolByName.get("chatcockpit.capabilities.mutation.execute")?.annotations.openWorldHint,
       true
     );
+    assert.equal(toolByName.get("chatcockpit.git.stage")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.git.stage")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.git.commit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [
@@ -1368,7 +1371,7 @@ async function runMcpSmoke(): Promise<void> {
           arguments: {
             repoId: "primary",
             command: "git",
-            args: ["add", "README.md"],
+            args: ["restore", "README.md"],
             idempotencyKey: "shell-missing-session-0001"
           }
         }
@@ -1394,7 +1397,7 @@ async function runMcpSmoke(): Promise<void> {
       body: JSON.stringify({
         repoId: "primary",
         command: "git",
-        args: ["add", "README.md"]
+        args: ["restore", "README.md"]
       })
     });
     assert.equal(missingLeaseRestResponse.status, 409);
@@ -1402,6 +1405,35 @@ async function runMcpSmoke(): Promise<void> {
       error: { code: string };
     };
     assert.equal(missingLeaseRest.error.code, "WRITER_LEASE_REQUIRED");
+
+    const blockedShellStage = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "blocked-shell-git-add",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.shell.run",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            command: "git",
+            args: ["add", "README.md"],
+            idempotencyKey: "blocked-shell-git-add-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    const blockedShellStageResult = blockedShellStage.message.result as {
+      isError: boolean;
+      structuredContent: { error: { code: string } };
+    };
+    assert.equal(blockedShellStageResult.isError, true);
+    assert.equal(
+      blockedShellStageResult.structuredContent.error.code,
+      "SHELL_COMMAND_BLOCKED"
+    );
 
     const editPayload = {
       jsonrpc: "2.0",
@@ -1512,6 +1544,26 @@ async function runMcpSmoke(): Promise<void> {
       "export const catalogFixture = 'unstaged-after-edit';\n",
       "utf8"
     );
+    const blockedStage = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "blocked-stage-pathspec",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.git.stage",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            paths: ["."],
+            idempotencyKey: "blocked-stage-pathspec-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    assert.equal((blockedStage.message.result as { isError?: boolean }).isError, true);
+
     const stageReadme = await postMcp(
       baseUrl,
       {
@@ -1519,19 +1571,31 @@ async function runMcpSmoke(): Promise<void> {
         id: "stage-readme-for-core-commit",
         method: "tools/call",
         params: {
-          name: "chatcockpit.shell.run",
+          name: "chatcockpit.git.stage",
           arguments: {
             repoId: "primary",
             sessionId: sessionResult.session.id,
-            command: "git",
-            args: ["add", "README.md"],
+            paths: ["README.md"],
             idempotencyKey: "stage-readme-core-commit-0001"
           }
         }
       },
       { token: "test-token" }
     );
-    assert.equal((stageReadme.message.result as { isError?: boolean }).isError, undefined);
+    const stageReadmeStructured = stageReadme.message.result as {
+      isError?: boolean;
+      structuredContent: {
+        staged: boolean;
+        paths: string[];
+        changedPaths: string[];
+        idempotency: { replayed: boolean };
+      };
+    };
+    assert.equal(stageReadmeStructured.isError, undefined);
+    assert.equal(stageReadmeStructured.structuredContent.staged, true);
+    assert.deepEqual(stageReadmeStructured.structuredContent.paths, ["README.md"]);
+    assert.deepEqual(stageReadmeStructured.structuredContent.changedPaths, ["README.md"]);
+    assert.equal(stageReadmeStructured.structuredContent.idempotency.replayed, false);
 
     const commitCoreResult = await postMcp(
       baseUrl,

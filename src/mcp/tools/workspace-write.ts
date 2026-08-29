@@ -6,6 +6,7 @@ import {
   fileEditToolOutputSchema,
   fileWriteToolOutputSchema,
   gitCommitToolOutputSchema,
+  gitStageToolOutputSchema,
   shellRunToolOutputSchema,
   workspaceExecToolOutputSchema,
   workspaceProcessControlToolOutputSchema,
@@ -113,6 +114,7 @@ export function buildWorkspaceWriteTools(
     fileEditSchema,
     fileWriteSchema,
     gitCommitSchema,
+    gitStageSchema,
     shellRunSchema,
     workspaceExecSchema,
     workspaceProcessControlSchema,
@@ -133,6 +135,9 @@ export function buildWorkspaceWriteTools(
   const workspaceProcessControlMcpSchema = workspaceProcessControlSchema.and(
     z.object({ idempotencyKey: idempotencyKeySchema })
   );
+  const gitStageMcpSchema = gitStageSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
   const gitCommitMcpSchema = gitCommitSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
@@ -304,6 +309,36 @@ export function buildWorkspaceWriteTools(
               value as unknown as Record<string, unknown>,
               publicChangedPaths(status),
               gitEvidenceHints
+            );
+          }
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("git.stage"),
+      title: "Stage explicit public-safe repository paths",
+      description:
+        "Stage only explicitly named, currently changed, public-safe repository paths using literal Git pathspec semantics. Directory-wide adds, glob/pathspec expansion, parent traversal, absolute paths, blocked local state, secrets, and unsupported binary artifacts are refused. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+      inputSchema: gitStageMcpSchema,
+      outputSchema: gitStageToolOutputSchema,
+      annotations: reversibleMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("git.stage"),
+          idempotencyKey,
+          payload,
+          async () => {
+            const value = await services.chatDirect.gitStage(context, payload);
+            return mutationValue(
+              value as unknown as Record<string, unknown>,
+              value.execution.changedPaths,
+              [toolName("git.status"), `${toolName("git.diff")}?staged=true`]
             );
           }
         );

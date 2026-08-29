@@ -2,10 +2,11 @@ import {
   getGitDiff,
   getGitStatus,
   getStagedPublicSafePaths,
-  gitCommit
+  gitCommit,
+  gitStage
 } from "../core/git-api.js";
 import { readRecentGitCommitsForPaths } from "../core/git-history.js";
-import type { GitCommitPayload, TokenPilotPaths } from "../types.js";
+import type { GitCommitPayload, GitStagePayload, TokenPilotPaths } from "../types.js";
 import type { OperationContext } from "./operation-context.js";
 import { wrapServiceOperationError } from "./service-error.js";
 
@@ -62,6 +63,14 @@ export class GitService {
       "GIT_STAGED_PATHS_FAILED",
       "Staged Git paths could not be read.",
       () => getStagedPublicSafePaths(this.paths, repoId)
+    );
+  }
+
+  stage(_context: OperationContext, payload: GitStagePayload) {
+    return runGitOperation(
+      "GIT_STAGE_FAILED",
+      "Git paths could not be staged safely.",
+      () => gitStage(this.paths, payload.repoId, payload.paths)
     );
   }
 

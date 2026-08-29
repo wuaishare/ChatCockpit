@@ -108,6 +108,12 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       repoId: z.string().min(1).default(defaultRepoId),
       staged: z.boolean().default(false)
     }),
+    gitStageSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      paths: z.array(z.string().min(1).max(1024)).min(1).max(200)
+    }),
     gitCommitSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
@@ -130,6 +136,7 @@ export const workspaceProcessReadSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.workspaceP
 export const workspaceProcessControlSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.workspaceProcessControlSchema;
 export const gitStatusSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
 export const gitDiffSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
+export const gitStageSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStageSchema;
 export const gitCommitSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
 
 export type FileReadInput = z.infer<typeof fileReadSchema>;
@@ -144,4 +151,5 @@ export type WorkspaceProcessReadInput = z.infer<typeof workspaceProcessReadSchem
 export type WorkspaceProcessControlInput = z.infer<typeof workspaceProcessControlSchema>;
 export type GitStatusInput = z.infer<typeof gitStatusSchema>;
 export type GitDiffInput = z.infer<typeof gitDiffSchema>;
+export type GitStageInput = z.infer<typeof gitStageSchema>;
 export type GitCommitInput = z.infer<typeof gitCommitSchema>;

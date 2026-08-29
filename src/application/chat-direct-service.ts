@@ -26,6 +26,7 @@ import type {
   FileReadPayload,
   FileWritePayload,
   GitCommitPayload,
+  GitStagePayload,
   SearchPayload,
   ShellRunPayload,
   TokenPilotPaths,
@@ -981,6 +982,24 @@ export class ChatDirectService {
     const selection = this.select("git.diff", "read", executorId);
     const value = this.git.diff(context, repoId, staged);
     return { ...value, execution: selectionMetadata(selection) };
+  }
+
+  async gitStage(context: OperationContext, payload: GitStagePayload) {
+    const authority = this.acquireMutationAuthority(
+      context,
+      payload.repoId,
+      payload.sessionId
+    );
+    try {
+      const selection = this.select("git.stage", "write", payload.executorId);
+      const value = this.git.stage(context, payload);
+      return {
+        ...value,
+        execution: selectionMetadata(selection, value.paths)
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
+    }
   }
 
   async gitCommit(context: OperationContext, payload: GitCommitPayload) {
