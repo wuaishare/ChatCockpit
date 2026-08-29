@@ -9,8 +9,12 @@ import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.
 import { runPack } from "../src/core/pack.ts";
 import { runCodexRunJob } from "../src/core/codex-run.ts";
 import { createJob, getJob } from "../src/core/jobs.ts";
-import { getGitDiff, gitCommit } from "../src/core/git-api.ts";
-import { getGitStatus } from "../src/core/git-api.ts";
+import {
+  getGitDiff,
+  getGitStatus,
+  getStagedPublicSafePaths,
+  gitCommit
+} from "../src/core/git-api.ts";
 import {
   markJobProcessFinished,
   controlJobProcess,
@@ -19,6 +23,7 @@ import {
 } from "../src/core/job-processes.ts";
 import { createTaskPack } from "../src/core/taskpack.ts";
 import { loadUserConfig, resolveRepoMapping } from "../src/core/config.ts";
+import { USER_CONFIG_SCHEMA_VERSION } from "../src/core/user-config-schema.ts";
 import { searchRepo } from "../src/core/search.ts";
 import { runShellCommand } from "../src/core/shell-api.ts";
 import { readRecentGitCommitsForRepo } from "../src/core/git-history.ts";
@@ -40,6 +45,7 @@ import { ChatDirectService } from "../src/application/chat-direct-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import type { RuntimeRouter } from "../src/application/runtime-router.ts";
 import { ServiceError } from "../src/application/service-error.ts";
+import { isolateMachineLocalUnconfiguredAuth } from "./test-support/auth-env.ts";
 import { buildReadOnlyMcpToolCatalog } from "../src/mcp/read-only-catalog.ts";
 import type { HostDirectService } from "../src/application/host-direct-service.ts";
 import { registerMcpTools } from "../src/mcp/register-tools.ts";
@@ -790,6 +796,7 @@ async function verifyUiServing(): Promise<void> {
 
 async function verifyJobProcessProjection(): Promise<void> {
   const paths = buildTempPaths();
+  const restoreAuthEnv = isolateMachineLocalUnconfiguredAuth();
   const app = buildServer(paths);
   await app.ready();
   const sleeper = spawn(
@@ -858,6 +865,7 @@ async function verifyJobProcessProjection(): Promise<void> {
       }
     }
     await app.close();
+    restoreAuthEnv();
   }
 }
 
@@ -904,7 +912,7 @@ function verifyDefaultRepoDiscovery(): void {
     );
     const paths = buildPaths(context);
     const config = loadUserConfig(paths.repoRoot, context);
-    assert.equal(config.schemaVersion, 1);
+    assert.equal(config.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
     assert.equal(config.defaultRepoId, "primary");
     assert.ok(config.repoMappings.primary);
     if (fs.existsSync(path.join(path.dirname(paths.repoRoot), "sourceflow-refactor"))) {
@@ -941,7 +949,7 @@ function verifyCanonicalRepoIdentity(): void {
     );
     const canonical = fs.realpathSync.native(repoRoot);
     const normalized = loadUserConfig(repoRoot);
-    assert.equal(normalized.schemaVersion, 1);
+    assert.equal(normalized.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
     assert.equal(normalized.defaultRepoId, "tokenpilot");
     assert.equal(normalized.repoMappings.tokenpilot.path, canonical);
     assert.deepEqual(normalized.workspaceAllowlist, [canonical]);
@@ -1219,6 +1227,41 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
     assert.match(status.stdout, /hero\.webp/);
     assert.match(status.stdout, /\.env\.example/);
     assert.match(status.stdout, /\.npmrc/);
+
+    const localizationDirectory = path.join(paths.repoRoot, "Resources", "en.lproj");
+    fs.mkdirSync(localizationDirectory, { recursive: true });
+    const localizationRelativePath = "Resources/en.lproj/Localizable.strings";
+    fs.writeFileSync(
+      path.join(paths.repoRoot, localizationRelativePath),
+      '"Status" = "Ready";\n',
+      "utf8"
+    );
+    spawnSync("git", ["add", localizationRelativePath], {
+      cwd: paths.repoRoot,
+      encoding: "utf8"
+    });
+
+    const stagedLocalizationDiff = getGitDiff(paths, "primary", true);
+    assert.match(stagedLocalizationDiff.diff, /Localizable\.strings/);
+    assert.match(stagedLocalizationDiff.diff, /"Status" = "Ready";/);
+    assert.deepEqual(
+      getStagedPublicSafePaths(paths, "primary"),
+      [localizationRelativePath]
+    );
+
+    const localizationCommit = gitCommit(
+      paths,
+      "primary",
+      "commit staged localization resource"
+    );
+    assert.equal(localizationCommit.ok, true);
+    assert.equal(localizationCommit.committed, true);
+    const localizationShow = spawnSync(
+      "git",
+      ["show", "--name-only", "--format=", "HEAD"],
+      { cwd: paths.repoRoot, encoding: "utf8" }
+    );
+    assert.match(localizationShow.stdout, /Resources\/en\.lproj\/Localizable\.strings/);
 
     fs.writeFileSync(path.join(paths.repoRoot, "README.md"), "# Unsafe staged guard\n", "utf8");
     spawnSync("git", ["add", ".env.example"], { cwd: paths.repoRoot, encoding: "utf8" });

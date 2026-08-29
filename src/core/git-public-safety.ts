@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
+import { isTextLikeFilePath } from "./text-file-policy.js";
 
 export const NO_PUBLIC_SAFE_CHANGES = "(no public-safe changes)";
 
@@ -35,41 +36,6 @@ const BLOCKED_DIFF_EXTENSIONS = new Set([
   ".pem",
   ".pfx"
 ]);
-const TEXT_DIFF_EXTENSIONS = new Set([
-  ".c",
-  ".cc",
-  ".conf",
-  ".cpp",
-  ".css",
-  ".csv",
-  ".env",
-  ".example",
-  ".go",
-  ".h",
-  ".html",
-  ".ini",
-  ".js",
-  ".json",
-  ".jsx",
-  ".lock",
-  ".log",
-  ".md",
-  ".mjs",
-  ".php",
-  ".plist",
-  ".py",
-  ".rs",
-  ".sh",
-  ".sql",
-  ".svg",
-  ".toml",
-  ".ts",
-  ".tsx",
-  ".txt",
-  ".yaml",
-  ".yml"
-]);
-
 const COMMIT_SAFE_BINARY_EXTENSIONS = new Set([
   ".avif",
   ".gif",
@@ -204,11 +170,7 @@ function omittedUnsafePathCount(records: Array<{ paths: string[] }>): number {
 }
 
 function isTextDiffPath(filePath: string): boolean {
-  const basename = path.posix.basename(filePath);
-  if (basename.startsWith(".") && basename.includes(".")) {
-    return TEXT_DIFF_EXTENSIONS.has(path.posix.extname(basename));
-  }
-  return TEXT_DIFF_EXTENSIONS.has(path.posix.extname(filePath));
+  return isTextLikeFilePath(filePath);
 }
 
 function isCommitSafeAssetPath(filePath: string): boolean {
