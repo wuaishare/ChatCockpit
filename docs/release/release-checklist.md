@@ -62,7 +62,7 @@ The prerelease package must not include:
 - Continuity Store and Writer Lease invariants;
 - REST/MCP parity;
 - evidence-governed Task Submit Review and Completion blockers;
-- compact 20-tool canonical Core, eight explicit specialist packs, and the strongly typed nine-operation `continuity.invoke` lifecycle including Handoff prepare/accept before Task completion;
+- compact 20-tool canonical Core, eight explicit specialist packs, and the explicitly allowlisted 13-variant `continuity.invoke` governance contract: 11 Continuity/Writer-Lease operations plus Runtime restart/read, including Handoff prepare/accept before Task completion;
 - Continuity-bound Async Job Queue, Runner claim/terminal Evidence, and restart reconciliation;
 - Codex App Server Thread, Turn, Approval, Event, and standalone fixtures;
 - Chat Direct no-Turn/no-Thread behavior;

@@ -60,3 +60,28 @@ P0.2 必须证明 canonical `/mcp`、`/mcp/full` 与至少一个 specialist Pack
 - `evidence.record` 必须能通过 `continuity.invoke` 实际写入并验证 idempotent replay。
 - `runtime.restart`、`devices.runtime.lifecycle.execute`、`host.command.execute` 等跨域高风险工具必须在公开输入 schema 层直接被拒绝，不能进入 dispatcher handler。
 - ChatGPT App 工具快照变化仍由 ChatGPT 管理员 Refresh/Review 流程负责；ChatCockpit 不通过私有协议或万能 dispatcher 绕过该治理边界。
+
+## 2026-08-29 Amendment: 有界自举治理扩展
+
+真实 self-bootstrap dogfood 暴露了 2026-08-28 Amendment 的一个过窄边界：`chatcockpit.runtime.restart` 本身已经是受限、不可传入任意 command/path/launchctl 参数的专用 Runtime lifecycle action，但它要求调用方持有当前 Chat Direct Session 的 Workspace Writer Lease。若 canonical Core 只能发现 `lease.acquire` / `runtime.restart` 而不能通过现有有界治理入口调用它们，ChatGPT 会陷入“能发现、不能完成治理前置条件，也不能重启自身”的鸡生蛋断点。
+
+因此，本 Amendment **仅 supersede 2026-08-28 Amendment 中关于 `continuity.invoke` 必须恰好 9 个 Continuity 操作、以及 Runtime 一律不可经该入口分派的范围约束**；“不得变成跨域万能 dispatcher”“固定公开 schema”“目标 Tool 原治理逻辑必须完整保留”等原则继续有效。
+
+当前合同为：
+
+1. canonical `/mcp` 仍保持 20 个 Core，不为自举额外平铺高权限 Tool。
+2. `chatcockpit.continuity.invoke` 的公开 discriminated union 扩展为 **13 个固定 variant**：
+   - 11 个 Continuity / Writer-Lease 操作：`task.create`、`task.get`、`session.start`、`session.get`、`lease.acquire`、`lease.release`、`evidence.record`、`handoff.prepare`、`handoff.accept`、`task.submitReview`、`task.complete`；
+   - 2 个受限 Runtime lifecycle 操作：`runtime.restart`、`runtime.restart.read`。
+3. `lease.acquire/release` 仍执行原 Writer Lease 业务约束；`runtime.restart` 仍要求 active `chat-direct` Session 持有对应 Workspace Writer Lease，并只能触发 ChatCockpit 自己的受治理 Runtime restart contract。
+4. `host-admin`、Device lifecycle、Workflow、Recovery、Resource mutation、Capability mutation 与 Codex Native 仍不得经该入口分派；不存在任意 tool-name passthrough。
+5. `tools.discover(pack, tool)` 对上述 13 个 allowlisted Tool 返回 `invokeVia=continuity.invoke`；其他 specialist 仍保持显式 Pack 边界。
+6. ChatGPT 已建立连接可能缓存旧 action schema。服务端更新不会绕过客户端的 Refresh/Review/重新握手治理；旧连接在客户端本地校验阶段拒绝新 variant 属预期兼容边界，而不是服务端私自扩大权限。
+
+### 2026-08-29 verification
+
+- `/mcp` 仍只暴露 20 个 Core。
+- `verify:mcp-tool-surface` 固定 11 个 Continuity/Lease + 2 个 Runtime allowlisted variant，并验证它们仍归属于原 specialist pack。
+- `verify:mcp` 通过 canonical Core 实际执行 `lease.acquire`，并让 `runtime.restart.read` 穿过 dispatcher 到达 Runtime lifecycle service；Host/Device/Resource mutation 仍在输入 schema 层被拒绝。
+- live ChatCockpit dogfood 在 fresh build/restart 后由 `tools.discover` 确认 `runtime.restart` 的 `invokeVia=continuity.invoke`。
+- clean HEAD `0c607a5f81c9` 通过完整 `npm run verify:release`，包含 MCP surface、Runtime lifecycle、Source Archive、certified Build Provenance、Web Safety 与 Release Dry Run。
