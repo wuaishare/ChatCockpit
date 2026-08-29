@@ -328,53 +328,28 @@ async function runMcpSmoke(): Promise<void> {
       false
     );
     const continuityInvokeInputSchema = JSON.stringify(continuityInvokeTool.inputSchema);
-    for (const marker of [
-      "continuity.capsule",
-      "task.create",
-      "session.start",
-      "lease.acquire",
-      "lease.release",
-      "evidence.record",
-      "handoff.prepare",
-      "handoff.accept",
-      "runtime.restart",
-      "runtime.restart.read",
-      "expectedTaskRevision",
-      "idempotencyKey"
-    ]) {
-      assert.equal(continuityInvokeInputSchema.includes(marker), true);
-    }
-    for (const forbidden of [
-      "host.command.execute",
-      "devices.runtime.lifecycle.execute",
-      "resources.mutation.execute",
-      "asyncJob.queue",
-      "codex.thread.turn.start"
-    ]) {
-      assert.equal(continuityInvokeInputSchema.includes(forbidden), false);
-    }
     const codexInvokeInputSchema = JSON.stringify(codexInvokeTool.inputSchema);
-    for (const marker of [
-      "codex.context.read",
-      "codex.thread.start",
-      "codex.thread.resume",
-      "codex.thread.turn.start",
-      "codex.thread.turn.interrupt",
-      "codex.thread.approvals.list",
-      "codex.thread.events.read",
-      "modelLoopTransfer",
-      "delegate-codex-model-loop"
-    ]) {
-      assert.equal(codexInvokeInputSchema.includes(marker), true);
-    }
-    for (const forbidden of [
-      "codex.turn.start",
-      "codex.approval.respond",
-      "runtime.restart",
-      "host.command.execute",
-      "devices.runtime.lifecycle.execute"
-    ]) {
-      assert.equal(codexInvokeInputSchema.includes(forbidden), false);
+    for (const stableInvokeSchema of [continuityInvokeInputSchema, codexInvokeInputSchema]) {
+      assert.equal(stableInvokeSchema.includes("\"tool\""), true);
+      assert.equal(stableInvokeSchema.includes("\"input\""), true);
+      assert.equal(
+        stableInvokeSchema.includes("oneOf"),
+        false,
+        "Bounded invoke gateways must not freeze target names into oneOf"
+      );
+      for (const targetSpecificMarker of [
+        "task.create",
+        "runtime.restart",
+        "codex.thread.turn.start",
+        "host.command.execute",
+        "modelLoopTransfer"
+      ]) {
+        assert.equal(
+          stableInvokeSchema.includes(targetSpecificMarker),
+          false,
+          `Stable invoke schema leaked target-specific marker ${targetSpecificMarker}`
+        );
+      }
     }
     assert.equal(
       coreTools.every((tool) => Boolean(tool.outputSchema)),
@@ -436,6 +411,47 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.context.read"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.thread.turn.start"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.turn.start"), false);
+
+    const discoverCoreProcessControl = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "discover-core-process-control",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.discover",
+          arguments: { tool: "workspace.process.control" }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(discoverCoreProcessControl.response.status, 200);
+    assert.equal(discoverCoreProcessControl.message.error, undefined);
+    const discoverCoreProcessControlResult = discoverCoreProcessControl.message.result as {
+      structuredContent: {
+        surface: {
+          selectedPack: null;
+          selectedTool: {
+            suffix: string;
+            invokeVia: null;
+            inputSchema: Record<string, unknown>;
+            outputSchema: Record<string, unknown> | null;
+          } | null;
+        };
+      };
+    };
+    assert.equal(discoverCoreProcessControlResult.structuredContent.surface.selectedPack, null);
+    assert.equal(
+      discoverCoreProcessControlResult.structuredContent.surface.selectedTool?.suffix,
+      "workspace.process.control"
+    );
+    assert.equal(discoverCoreProcessControlResult.structuredContent.surface.selectedTool?.invokeVia, null);
+    const liveProcessControlInputSchema = JSON.stringify(
+      discoverCoreProcessControlResult.structuredContent.surface.selectedTool?.inputSchema
+    );
+    assert.match(liveProcessControlInputSchema, /"action"/);
+    assert.match(liveProcessControlInputSchema, /"params"/);
+    assert.doesNotMatch(liveProcessControlInputSchema, /"oneOf"/);
 
     const discoverCodexTurn = await postMcp(
       baseUrl,
@@ -654,6 +670,16 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.readOnlyHint, false);
     assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.destructiveHint, true);
     assert.equal(toolByName.get("chatcockpit.workspace.process.control")?.annotations.openWorldHint, true);
+    const processControlSchema = JSON.stringify(
+      toolByName.get("chatcockpit.workspace.process.control")?.inputSchema
+    );
+    assert.match(processControlSchema, /"action"/);
+    assert.match(processControlSchema, /"params"/);
+    assert.doesNotMatch(processControlSchema, /"oneOf"/);
+    const gitSyncSchema = JSON.stringify(toolByName.get("chatcockpit.git.sync")?.inputSchema);
+    assert.match(gitSyncSchema, /"action"/);
+    assert.match(gitSyncSchema, /"params"/);
+    assert.doesNotMatch(gitSyncSchema, /"oneOf"/);
     assert.equal(
       toolByName.get("chatcockpit.host.command.execute")?.annotations.readOnlyHint,
       false
@@ -1061,6 +1087,37 @@ async function runMcpSmoke(): Promise<void> {
       invokeEvidenceResult.structuredContent.result.bundle.id
     );
 
+    const invalidTargetInput = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-task-get-invalid-target-input",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.continuity.invoke",
+          arguments: { tool: "task.get", input: {} }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(invalidTargetInput.response.status, 200);
+    assert.equal(invalidTargetInput.message.error, undefined);
+    const invalidTargetInputResult = invalidTargetInput.message.result as {
+      isError: true;
+      structuredContent?: { error?: { code?: string } };
+      content: Array<{ type: "text"; text: string }>;
+    };
+    assert.equal(invalidTargetInputResult.isError, true);
+    assert.equal(
+      invalidTargetInputResult.structuredContent?.error?.code,
+      "VALIDATION_ERROR",
+      "Stable bounded invoke must delegate exact input validation to the selected target tool"
+    );
+    assert.doesNotMatch(
+      invalidTargetInputResult.content[0]?.text ?? "",
+      /Invalid discriminator value/i
+    );
+
     for (const blockedTool of [
       "devices.runtime.lifecycle.execute",
       "host.command.execute",
@@ -1083,12 +1140,17 @@ async function runMcpSmoke(): Promise<void> {
       assert.equal(blockedInvoke.message.error, undefined);
       const blockedInvokeResult = blockedInvoke.message.result as {
         isError: true;
+        structuredContent?: { error?: { code?: string } };
         content: Array<{ type: "text"; text: string }>;
       };
       assert.equal(blockedInvokeResult.isError, true);
-      assert.match(
+      assert.equal(
+        blockedInvokeResult.structuredContent?.error?.code,
+        "CONTINUITY_INVOKE_TOOL_UNAVAILABLE"
+      );
+      assert.doesNotMatch(
         blockedInvokeResult.content[0]?.text ?? "",
-        /Invalid arguments.*Invalid discriminator value.*task\.create.*evidence\.record.*task\.complete/i
+        /Invalid discriminator value/i
       );
     }
 
@@ -1172,12 +1234,17 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(blockedCodexInvoke.message.error, undefined);
     const blockedCodexInvokeResult = blockedCodexInvoke.message.result as {
       isError: true;
+      structuredContent?: { error?: { code?: string } };
       content: Array<{ type: "text"; text: string }>;
     };
     assert.equal(blockedCodexInvokeResult.isError, true);
-    assert.match(
+    assert.equal(
+      blockedCodexInvokeResult.structuredContent?.error?.code,
+      "CODEX_INVOKE_TOOL_UNAVAILABLE"
+    );
+    assert.doesNotMatch(
       blockedCodexInvokeResult.content[0]?.text ?? "",
-      /Invalid arguments.*Invalid discriminator value/i
+      /Invalid discriminator value/i
     );
 
     const restartReadInvoke = await postMcp(
@@ -1437,6 +1504,38 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(
       blockedShellStageResult.structuredContent.error.code,
       "SHELL_COMMAND_BLOCKED"
+    );
+
+    const futureGitSync = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "git-sync-future-action",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.git.sync",
+          arguments: {
+            repoId: "primary",
+            action: "rebase-preview",
+            params: { dryRun: true },
+            idempotencyKey: "git-sync-future-action-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    const futureGitSyncResult = futureGitSync.message.result as {
+      isError: boolean;
+      structuredContent: { error: { code: string; details?: { supportedActions?: string[] } } };
+    };
+    assert.equal(futureGitSyncResult.isError, true);
+    assert.equal(
+      futureGitSyncResult.structuredContent.error.code,
+      "GIT_SYNC_ACTION_UNSUPPORTED"
+    );
+    assert.deepEqual(
+      futureGitSyncResult.structuredContent.error.details?.supportedActions,
+      ["fetch", "fast-forward", "worktree-prune"]
     );
 
     const missingLeaseGitSync = await postMcp(

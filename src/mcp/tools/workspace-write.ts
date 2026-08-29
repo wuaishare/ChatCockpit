@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { ChatDirectService } from "../../application/chat-direct-service.js";
+import { ServiceError } from "../../application/service-error.js";
 import { buildDirectToolSchemas } from "../../contracts/direct-tools.js";
 import {
   fileEditToolOutputSchema,
@@ -266,7 +267,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("workspace.process.control"),
       title: "Control workspace process",
       description:
-        "Control a managed workspace process: send stdin, resize a PTY-backed native process, or terminate it. Access remains bound to the development session or OAuth authorization grant that started the process. Resize is available only for native Codex App Server PTY sessions. An idempotency key is required so retries cannot duplicate control actions.",
+        "Control a managed workspace process through a forward-compatible action envelope. Current actions are input, resize and terminate; future actions may use params without changing the frozen public JSON Schema. Access remains bound to the development session or OAuth authorization grant that started the process. Resize is available only for native Codex App Server PTY sessions. Unsupported actions are rejected server-side, and an idempotency key is required so retries cannot duplicate control actions.",
       inputSchema: workspaceProcessControlMcpSchema,
       outputSchema: workspaceProcessControlToolOutputSchema,
       annotations: openWorldDestructiveMutationAnnotations,
@@ -278,30 +279,64 @@ export function buildWorkspaceWriteTools(
           payload,
           async () => {
             if (payload.action === "input") {
+              if (payload.input === undefined) {
+                throw new ServiceError(
+                  "WORKSPACE_PROCESS_CONTROL_INPUT_INVALID",
+                  "Workspace process input control requires an input string"
+                );
+              }
               return {
-                ...(await services.chatDirect.workspaceProcessInput(
-                  context,
-                  payload
-                )),
+                ...(await services.chatDirect.workspaceProcessInput(context, {
+                  repoId: payload.repoId,
+                  ...(payload.sessionId ? { sessionId: payload.sessionId } : {}),
+                  processId: payload.processId,
+                  input: payload.input,
+                  ...(payload.closeStdin !== undefined
+                    ? { closeStdin: payload.closeStdin }
+                    : {})
+                })),
                 action: "input" as const
               };
             }
             if (payload.action === "resize") {
+              if (payload.rows === undefined || payload.cols === undefined) {
+                throw new ServiceError(
+                  "WORKSPACE_PROCESS_CONTROL_INPUT_INVALID",
+                  "Workspace process resize control requires rows and cols"
+                );
+              }
               return {
-                ...(await services.chatDirect.workspaceProcessResize(
-                  context,
-                  payload
-                )),
+                ...(await services.chatDirect.workspaceProcessResize(context, {
+                  repoId: payload.repoId,
+                  ...(payload.sessionId ? { sessionId: payload.sessionId } : {}),
+                  processId: payload.processId,
+                  rows: payload.rows,
+                  cols: payload.cols
+                })),
                 action: "resize" as const
               };
             }
-            return {
-              ...(await services.chatDirect.workspaceProcessTerminate(
-                context,
-                payload
-              )),
-              action: "terminate" as const
-            };
+            if (payload.action === "terminate") {
+              return {
+                ...(await services.chatDirect.workspaceProcessTerminate(context, {
+                  repoId: payload.repoId,
+                  ...(payload.sessionId ? { sessionId: payload.sessionId } : {}),
+                  processId: payload.processId
+                })),
+                action: "terminate" as const
+              };
+            }
+            throw new ServiceError(
+              "WORKSPACE_PROCESS_CONTROL_ACTION_UNSUPPORTED",
+              `Unsupported workspace process control action: ${payload.action}`,
+              {
+                hint: "Use chatcockpit.tools.discover to inspect the latest Core tool schema and supported controls.",
+                details: {
+                  action: payload.action,
+                  supportedActions: ["input", "resize", "terminate"]
+                }
+              }
+            );
           }
         );
         return withIdempotency(
@@ -379,7 +414,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("git.sync"),
       title: "Synchronize repository with configured upstream",
       description:
-        "Perform one governed Git synchronization action without caller-supplied remotes, refspecs, merge targets, paths, or arbitrary Git options. fetch resolves exactly one configured HTTPS/SSH upstream URL, ignores repository remote.fetch refspecs, disables automatic tag fetching, and updates only the validated standard remote-tracking ref for the configured upstream branch; fast-forward requires a completely clean index/worktree, compares and merges only that exact tracking ref, refuses divergence, unsafe upstream paths, external checkout filters, and non-ff merges; worktree-prune removes only stale worktree metadata. Repository hooks and dangerous inherited Git process settings are disabled or neutralized. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+        "Perform one governed Git synchronization action through a forward-compatible action envelope. Current actions are fetch, fast-forward and worktree-prune; unsupported future action names are rejected server-side. Callers cannot supply remotes, refspecs, merge targets, paths, or arbitrary Git options. fetch resolves exactly one configured HTTPS/SSH upstream URL, ignores repository remote.fetch refspecs, disables automatic tag fetching, and updates only the validated standard remote-tracking ref for the configured upstream branch; fast-forward requires a completely clean index/worktree and refuses divergence; worktree-prune removes only stale worktree metadata. Repository hooks and dangerous inherited Git process settings are disabled or neutralized. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: gitSyncMcpSchema,
       outputSchema: gitSyncToolOutputSchema,
       annotations: openWorldReversibleMutationAnnotations,
@@ -390,7 +425,26 @@ export function buildWorkspaceWriteTools(
           idempotencyKey,
           payload,
           async () => {
-            const value = await services.chatDirect.gitSync(context, payload);
+            if (!["fetch", "fast-forward", "worktree-prune"].includes(payload.action)) {
+              throw new ServiceError(
+                "GIT_SYNC_ACTION_UNSUPPORTED",
+                `Unsupported governed Git synchronization action: ${payload.action}`,
+                {
+                  hint: "Use chatcockpit.tools.discover to inspect the latest Core Git synchronization schema.",
+                  details: {
+                    action: payload.action,
+                    supportedActions: ["fetch", "fast-forward", "worktree-prune"]
+                  }
+                }
+              );
+            }
+            const value = await services.chatDirect.gitSync(context, {
+              ...(payload.executorId ? { executorId: payload.executorId } : {}),
+              repoId: payload.repoId,
+              ...(payload.sessionId ? { sessionId: payload.sessionId } : {}),
+              action: payload.action as "fetch" | "fast-forward" | "worktree-prune",
+              ...(payload.prune !== undefined ? { prune: payload.prune } : {})
+            });
             return mutationValue(
               value as unknown as Record<string, unknown>,
               value.execution.changedPaths,

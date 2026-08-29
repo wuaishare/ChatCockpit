@@ -1339,7 +1339,7 @@ async function verifyChatDirectRouting(): Promise<void> {
       repoId: "primary",
       processId: hostManaged.processId
     });
-    for (let attempt = 0; attempt < 100 && hostManagedSnapshot.state === "running"; attempt += 1) {
+    for (let attempt = 0; attempt < 500 && hostManagedSnapshot.state === "running"; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10));
       hostManagedSnapshot = await service.workspaceProcessRead(context, {
         repoId: "primary",

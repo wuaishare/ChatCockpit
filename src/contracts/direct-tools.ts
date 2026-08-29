@@ -90,30 +90,21 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       cursor: z.number().int().nonnegative().optional(),
       limit: z.number().int().positive().max(200).optional()
     }),
-    workspaceProcessControlSchema: z.discriminatedUnion("action", [
-      z.object({
-        repoId: z.string().min(1).default(defaultRepoId),
-        sessionId: z.string().min(1).max(160).optional(),
-        processId: z.string().min(1).max(200),
-        action: z.literal("input"),
-        input: z.string(),
-        closeStdin: z.boolean().optional()
-      }),
-      z.object({
-        repoId: z.string().min(1).default(defaultRepoId),
-        sessionId: z.string().min(1).max(160).optional(),
-        processId: z.string().min(1).max(200),
-        action: z.literal("resize"),
-        rows: z.number().int().min(1).max(500),
-        cols: z.number().int().min(1).max(1000)
-      }),
-      z.object({
-        repoId: z.string().min(1).default(defaultRepoId),
-        sessionId: z.string().min(1).max(160).optional(),
-        processId: z.string().min(1).max(200),
-        action: z.literal("terminate")
-      })
-    ]),
+    workspaceProcessControlSchema: z.object({
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      processId: z.string().min(1).max(200),
+      action: z
+        .string()
+        .min(1)
+        .max(80)
+        .regex(/^[A-Za-z0-9._-]+$/),
+      input: z.string().optional(),
+      closeStdin: z.boolean().optional(),
+      rows: z.number().int().min(1).max(500).optional(),
+      cols: z.number().int().min(1).max(1000).optional(),
+      params: z.record(z.string(), z.unknown()).optional()
+    }),
     gitStatusSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId)
@@ -129,28 +120,18 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       sessionId: z.string().min(1).max(160).optional(),
       paths: z.array(z.string().min(1).max(1024)).min(1).max(200)
     }),
-    gitSyncSchema: z.discriminatedUnion("action", [
-      z.object({
-        ...directExecutorPreference,
-        repoId: z.string().min(1).default(defaultRepoId),
-        sessionId: z.string().min(1).max(160).optional(),
-        action: z.literal("fetch"),
-        prune: z.boolean().optional()
-      }),
-      z.object({
-        ...directExecutorPreference,
-        repoId: z.string().min(1).default(defaultRepoId),
-        sessionId: z.string().min(1).max(160).optional(),
-        action: z.literal("fast-forward"),
-        prune: z.boolean().optional()
-      }),
-      z.object({
-        ...directExecutorPreference,
-        repoId: z.string().min(1).default(defaultRepoId),
-        sessionId: z.string().min(1).max(160).optional(),
-        action: z.literal("worktree-prune")
-      })
-    ]),
+    gitSyncSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional(),
+      action: z
+        .string()
+        .min(1)
+        .max(80)
+        .regex(/^[A-Za-z0-9._-]+$/),
+      prune: z.boolean().optional(),
+      params: z.record(z.string(), z.unknown()).optional()
+    }),
     gitPushSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),

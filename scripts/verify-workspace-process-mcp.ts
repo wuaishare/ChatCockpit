@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { z } from "zod";
+
 import type { ChatDirectService } from "../src/application/chat-direct-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { McpIdempotencyStore } from "../src/mcp/idempotency-store.ts";
@@ -135,6 +137,17 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.equal(readTool.annotations.openWorldHint, false);
   assert.equal(controlTool.annotations.destructiveHint, true);
   assert.equal(controlTool.annotations.openWorldHint, true);
+  const controlJsonSchema = z.toJSONSchema(controlTool.inputSchema, {
+    unrepresentable: "any"
+  });
+  const serializedControlSchema = JSON.stringify(controlJsonSchema);
+  assert.doesNotMatch(
+    serializedControlSchema,
+    /"oneOf"/,
+    "Process control must keep a stable action envelope instead of freezing action literals in oneOf"
+  );
+  assert.match(serializedControlSchema, /"action"/);
+  assert.match(serializedControlSchema, /"params"/);
 
   const execInput = {
     repoId: "primary",
@@ -215,6 +228,54 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.equal(terminate.structuredContent.action, "terminate");
   assert.equal(terminate.structuredContent.terminationRequested, true);
   assert.equal(terminateCalls, 1);
+
+  const missingInput = await controlTool.execute(context, {
+    repoId: "primary",
+    processId: "process_fixture_1",
+    action: "input",
+    idempotencyKey: "workspace-process-missing-input-0001"
+  });
+  assert.equal(missingInput.isError, true);
+  assert.equal(
+    (missingInput.structuredContent.error as { code?: string }).code,
+    "WORKSPACE_PROCESS_CONTROL_INPUT_INVALID"
+  );
+
+  const missingResizeSize = await controlTool.execute(context, {
+    repoId: "primary",
+    processId: "process_fixture_1",
+    action: "resize",
+    rows: 48,
+    idempotencyKey: "workspace-process-missing-resize-size-0001"
+  });
+  assert.equal(missingResizeSize.isError, true);
+  assert.equal(
+    (missingResizeSize.structuredContent.error as { code?: string }).code,
+    "WORKSPACE_PROCESS_CONTROL_INPUT_INVALID"
+  );
+
+  const futureControl = await controlTool.execute(context, {
+    repoId: "primary",
+    processId: "process_fixture_1",
+    action: "pause",
+    params: { reason: "future-control-fixture" },
+    idempotencyKey: "workspace-process-future-0001"
+  });
+  assert.equal(futureControl.isError, true);
+  const futureError = futureControl.structuredContent.error as {
+    code?: string;
+    details?: { supportedActions?: string[] };
+  };
+  assert.equal(
+    futureError.code,
+    "WORKSPACE_PROCESS_CONTROL_ACTION_UNSUPPORTED",
+    "Future control actions must pass the frozen public schema and be rejected by the live server allowlist"
+  );
+  assert.deepEqual(futureError.details?.supportedActions, [
+    "input",
+    "resize",
+    "terminate"
+  ]);
 
   fs.rmSync(runtimeDir, { recursive: true, force: true });
 }
