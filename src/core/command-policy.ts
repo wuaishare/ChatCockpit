@@ -15,6 +15,7 @@ export interface CommandPolicyDecision {
   command: string;
   args: string[];
   effect: CommandEffect;
+  projectPathArgIndexes?: number[];
 }
 
 const WORKSPACE_COMMAND_WHITELIST: Record<string, string[]> = {
@@ -31,6 +32,7 @@ const WORKSPACE_COMMAND_WHITELIST: Record<string, string[]> = {
   jest: ["--passWithNoTests"],
   python: ["*"],
   python3: ["*"],
+  php: ["-l"],
   make: ["*"],
   cargo: ["build", "test", "check", "clippy", "fmt", "run"],
   go: ["build", "test", "vet", "fmt", "run"],
@@ -115,6 +117,21 @@ function assertSafeNpmAuditArgs(args: string[]): void {
   throw new Error(
     "npm audit is limited to a read-only report with optional --audit-level=low|moderate|high|critical"
   );
+}
+
+function assertSafePhpLintArgs(args: string[]): void {
+  if (args.length !== 2 || args[0] !== "-l") {
+    throw new Error("PHP workspace execution is limited to exact php -l <relative .php file>");
+  }
+  const target = args[1] ?? "";
+  if (
+    target.startsWith("-") ||
+    target.includes("\\") ||
+    nativeWorkspacePathLooksAbsolute(target) ||
+    !/\.php$/i.test(target)
+  ) {
+    throw new Error("PHP lint target must be a workspace-relative .php file");
+  }
 }
 
 const PURE_HOST_GIT_SUBCOMMANDS = READ_ONLY_GIT_SUBCOMMANDS;
@@ -209,6 +226,9 @@ export function evaluateWorkspaceCommand(
   if (command === "npm") {
     assertSafeNpmAuditArgs(safeArgs);
   }
+  if (command === "php") {
+    assertSafePhpLintArgs(safeArgs);
+  }
   if (command === "git") {
     const subcommand = safeArgs[0] ?? "";
     if (
@@ -232,8 +252,15 @@ export function evaluateWorkspaceCommand(
       ? "read"
       : command === "npm" && safeArgs[0] === "audit"
         ? "read"
-        : "write";
-  return { command, args: safeArgs, effect };
+        : command === "php"
+          ? "read"
+          : "write";
+  return {
+    command,
+    args: safeArgs,
+    effect,
+    ...(command === "php" ? { projectPathArgIndexes: [1] } : {})
+  };
 }
 
 function nativeWorkspacePathLooksAbsolute(value: string): boolean {
@@ -328,13 +355,23 @@ export function evaluateNativeWorkspaceCommand(
   if (!NATIVE_WORKSPACE_PROJECT_COMMANDS.has(command) || !allowedSubcommands) {
     throw new Error(`Native workspace command is not allowed: ${command}`);
   }
-  assertNativeWorkspaceProjectCodeAllowed(command);
   if (!allowedSubcommands.includes("*")) {
     const subcommand = safeArgs[0];
     if (!subcommand || !allowedSubcommands.includes(subcommand)) {
       throw new Error(`Native workspace subcommand is not allowed for ${command}: ${subcommand ?? "<none>"}`);
     }
   }
+  if (command === "php") {
+    assertSafePhpLintArgs(safeArgs);
+    return {
+      command,
+      args: safeArgs,
+      effect: "read",
+      commandPath: false,
+      projectPathArgIndexes: [1]
+    };
+  }
+  assertNativeWorkspaceProjectCodeAllowed(command);
   if (command === "npm" && safeArgs[0] === "audit") {
     assertSafeNpmAuditArgs(safeArgs);
     return {

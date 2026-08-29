@@ -1541,6 +1541,11 @@ try {
       "write"
     );
     assert.throws(() => evaluatePureHostCommand("zsh", ["-c", "rm -rf ."], "full-host"));
+    assert.throws(
+      () => evaluatePureHostCommand("php", ["-l", "fixture.php"], "full-host"),
+      /Full Host command is blocked/,
+      "PHP remains blocked in Pure Host/full-host even though exact workspace lint is allowed"
+    );
     assert.equal(
       isHostManagedWorkspaceCommand("npm", ["run", "build:macos-desktop"], "restricted"),
       false

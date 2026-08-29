@@ -61,6 +61,33 @@ assert.throws(
   () => evaluateNativeWorkspaceCommand("npm", ["run", "mvp:restart"]),
   /builtin host execution lane/
 );
+const nativePhpLint = evaluateNativeWorkspaceCommand("php", ["-l", "src/example.php"]);
+assert.equal(nativePhpLint.effect, "read");
+assert.deepEqual(nativePhpLint.projectPathArgIndexes, [1]);
+const shellPhpLint = evaluateWorkspaceCommand("php", ["-l", "src/example.php"]);
+assert.equal(shellPhpLint.effect, "read");
+assert.deepEqual(shellPhpLint.projectPathArgIndexes, [1]);
+for (const args of [
+  ["src/example.php"],
+  ["-r", "echo 1;"],
+  ["-f", "src/example.php"],
+  ["-l"],
+  ["-l", "src/example.php", "extra"],
+  ["-l", "src/example.txt"],
+  ["-l", "/tmp/example.php"],
+  ["-l", "../example.php"],
+  ["-l", "file:///tmp/example.php"],
+  ["-l", "src\\example.php"]
+]) {
+  assert.throws(
+    () => evaluateNativeWorkspaceCommand("php", args),
+    /(?:PHP|workspace-relative|blocked path|Absolute paths)/i
+  );
+  assert.throws(
+    () => evaluateWorkspaceCommand("php", args),
+    /(?:PHP|workspace-relative|blocked path|Absolute paths)/i
+  );
+}
 assert.equal(evaluateNativeWorkspaceCommand("node", ["scripts/build.mjs"]).effect, "write");
 assert.equal(evaluateNativeWorkspaceCommand("./scripts/check.sh", ["src"]).effect, "write");
 assert.equal(
@@ -132,6 +159,15 @@ try {
     /not allowed/,
     "native Git mutations stay blocked even when project-code high-trust execution is enabled separately"
   );
+  assert.equal(
+    evaluateNativeWorkspaceCommand("php", ["-l", "src/example.php"]).effect,
+    "read",
+    "exact PHP lint remains available in exposed mode because it parses one contained file without executing project code"
+  );
+  assert.equal(
+    evaluateWorkspaceCommand("php", ["-l", "src/example.php"]).effect,
+    "read"
+  );
   process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS = "true";
   assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");
 } finally {
@@ -147,9 +183,12 @@ const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
 try {
   fs.mkdirSync(path.join(repoRoot, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "scripts", "inside.mjs"), "console.log('inside');\n");
+  fs.writeFileSync(path.join(repoRoot, "scripts", "inside.php"), "<?php\ndeclare(strict_types=1);\n");
   fs.writeFileSync(path.join(outsideRoot, "outside.mjs"), "console.log('outside');\n");
+  fs.writeFileSync(path.join(outsideRoot, "outside.php"), "<?php\ndeclare(strict_types=1);\n");
   fs.symlinkSync(path.join(outsideRoot, "outside.mjs"), path.join(repoRoot, "scripts", "outside.mjs"));
   fs.symlinkSync(path.join(outsideRoot, "outside.mjs"), path.join(repoRoot, "scripts", "outside-tool"));
+  fs.symlinkSync(path.join(outsideRoot, "outside.php"), path.join(repoRoot, "scripts", "outside.php"));
 
   const paths = buildFixturePaths(repoRoot);
   ensureWorkspaceDirs(paths);
@@ -169,6 +208,16 @@ try {
   });
   assert.equal(prepared.executionMode, "native-sandbox");
   assert.equal(prepared.args[0], fs.realpathSync.native(path.join(repoRoot, "scripts", "inside.mjs")));
+  const preparedPhp = prepareWorkspaceExecCommand(paths, {
+    repoId: "primary",
+    command: "php",
+    args: ["-l", "scripts/inside.php"]
+  });
+  assert.equal(preparedPhp.readOnly, true);
+  assert.equal(
+    preparedPhp.args[1],
+    fs.realpathSync.native(path.join(repoRoot, "scripts", "inside.php"))
+  );
   const hostManaged = prepareWorkspaceExecCommand(paths, {
     repoId: "primary",
     command: "npm",
@@ -190,6 +239,9 @@ try {
   }), /repository root after resolving symlinks/);
   assert.throws(() => prepareWorkspaceExecCommand(paths, {
     repoId: "primary", command: "./scripts/outside-tool", args: []
+  }), /repository root after resolving symlinks/);
+  assert.throws(() => prepareWorkspaceExecCommand(paths, {
+    repoId: "primary", command: "php", args: ["-l", "scripts/outside.php"]
   }), /repository root after resolving symlinks/);
 } finally {
   if (previousConfigPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;

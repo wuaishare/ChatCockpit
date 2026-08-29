@@ -153,11 +153,20 @@ export function prepareShellCommand(
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   const policy = evaluateWorkspaceCommand(payload.command, payload.args);
   const workdir = resolveWorkDir(repoRoot, payload.workdir);
+  const args = [...policy.args];
+  for (const index of policy.projectPathArgIndexes ?? []) {
+    args[index] = resolveWorkspaceExecPath(
+      repoRoot,
+      workdir,
+      args[index],
+      `command argument ${index}`
+    );
+  }
   const standaloneReadOnly = policy.effect === "read";
   return {
     repoRoot,
     command: payload.command,
-    args: [...policy.args],
+    args,
     workdir,
     timeoutMs: resolveShellCommandTimeoutMs(payload.timeoutMs),
     outputBytesCap: MAX_OUTPUT_BYTES,
