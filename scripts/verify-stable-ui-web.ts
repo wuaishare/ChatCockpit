@@ -32,6 +32,10 @@ assert.match(app, /fetchOperatorStatus\(loginGate, oauthBootstrap\?\.requestId\)
 assert.match(app, /loginOperator\(input, loginGate, oauthBootstrap\?\.requestId\)/);
 assert.match(app, /fetchPasskeyAuthenticationOptions\([\s\S]*oauthBootstrap\?\.requestId[\s\S]*\)/);
 assert.match(app, /verifyOperatorTotpLogin\([\s\S]*oauthBootstrap\?\.requestId[\s\S]*\)/);
-assert.match(app, /window\.history\.replaceState\(null, "", `\$\{consolePath\(\)\}\/`\)/);
+assert.match(app, /function localLoginContinuationPath\(\): string \| null/);
+assert.match(app, /target === "projects" \? consolePath\("projects"\) : null/);
+assert.match(app, /localLoginContinuationPath\(\) \?\? `\$\{consolePath\(\)\}\/`/);
+assert.match(app, /window\.dispatchEvent\(new PopStateEvent\("popstate"\)\)/);
+assert.doesNotMatch(app, /window\.location\.(?:assign|replace)\(target\)/);
 
 process.stdout.write("VERIFY_STABLE_UI_WEB_OK\n");

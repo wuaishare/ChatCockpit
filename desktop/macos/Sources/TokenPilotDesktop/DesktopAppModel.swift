@@ -659,8 +659,12 @@ final class DesktopAppModel: ObservableObject {
                 NSWorkspace.shared.open(url)
                 return
             }
-            components.path = targetPath ?? "/ui/local-login"
-            components.query = nil
+            components.path = "/ui/local-login"
+            if targetPath == "/ui/projects" {
+                components.queryItems = [URLQueryItem(name: "target", value: "projects")]
+            } else {
+                components.queryItems = nil
+            }
             components.fragment = "local-login=\(grant.grantSecret)"
             NSWorkspace.shared.open(components.url ?? url)
         } catch {

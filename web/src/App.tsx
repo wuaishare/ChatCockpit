@@ -112,13 +112,29 @@ function continueOAuthApprovalIfRequested(): boolean {
   return true;
 }
 
+function localLoginContinuationPath(): string | null {
+  if (
+    typeof window === "undefined" ||
+    window.location.pathname !== consolePath("local-login")
+  ) {
+    return null;
+  }
+  const target = new URLSearchParams(window.location.search).get("target");
+  return target === "projects" ? consolePath("projects") : null;
+}
+
 function finishOperatorAuthentication(): void {
   if (continueOAuthApprovalIfRequested()) return;
   if (
     typeof window !== "undefined" &&
     [consolePath("login"), consolePath("local-login")].includes(window.location.pathname)
   ) {
-    window.history.replaceState(null, "", `${consolePath()}/`);
+    window.history.replaceState(
+      null,
+      "",
+      localLoginContinuationPath() ?? `${consolePath()}/`
+    );
+    window.dispatchEvent(new PopStateEvent("popstate"));
   }
 }
 

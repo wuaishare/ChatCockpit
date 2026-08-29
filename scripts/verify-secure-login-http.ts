@@ -55,6 +55,22 @@ async function main(): Promise<void> {
   try {
     const concealedUi = await app.inject({ method: "GET", url: "/ui/" });
     assert.equal(concealedUi.statusCode, 404, "stable Cockpit root must remain concealed before login");
+    const concealedProjectDeepLink = await app.inject({ method: "GET", url: "/ui/projects" });
+    assert.equal(
+      concealedProjectDeepLink.statusCode,
+      404,
+      "stable Project Center deep link must remain concealed before login"
+    );
+    const localLoginBootstrap = await app.inject({
+      method: "GET",
+      url: "/ui/local-login?target=projects"
+    });
+    assert.equal(
+      localLoginBootstrap.statusCode,
+      200,
+      "machine-local passwordless bootstrap must serve the SPA before authentication"
+    );
+    assert.match(localLoginBootstrap.body, /chatcockpit-console-base/);
 
     const entry = await app.inject({ method: "GET", url: SECURE_ENTRY });
     assert.equal(entry.statusCode, 303, "secure entry must redirect instead of serving the SPA");
@@ -132,6 +148,12 @@ async function main(): Promise<void> {
       headers: { cookie }
     });
     assert.equal(authenticatedDeepLink.statusCode, 200);
+    const authenticatedProjectCenter = await app.inject({
+      method: "GET",
+      url: "/ui/projects",
+      headers: { cookie }
+    });
+    assert.equal(authenticatedProjectCenter.statusCode, 200);
 
     const entryWithSession = await app.inject({
       method: "GET",
