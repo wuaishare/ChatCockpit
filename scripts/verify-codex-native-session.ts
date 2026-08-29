@@ -235,10 +235,39 @@ try {
   const taskCountBefore = countRows("tasks");
   const sessionCountBefore = countRows("development_sessions");
 
+  await assert.rejects(
+    () =>
+      (
+        nativeTurns.start as unknown as (
+          context: typeof remoteContext,
+          input: Record<string, unknown>
+        ) => Promise<unknown>
+      )(remoteContext, {
+        workspaceId: workspace.id,
+        threadId: started.id,
+        text: "Implicit Codex delegation must be rejected",
+        idempotencyKey: "native-turn-missing-transfer-0001"
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ServiceError);
+      assert.equal(error.code, "CODEX_MODEL_LOOP_TRANSFER_REQUIRED");
+      return true;
+    }
+  );
+  assert.equal(
+    readTrace(tracePath).filter((entry) => entry.method === "turn/start").length,
+    0,
+    "missing model-loop transfer must fail before provider turn/start"
+  );
+
   const nativeTurn = await nativeTurns.start(remoteContext, {
     workspaceId: workspace.id,
     threadId: started.id,
     text: "Continue the provider-native Codex thread",
+    modelLoopTransfer: {
+      kind: "operator-explicit",
+      confirmation: "delegate-codex-model-loop"
+    },
     idempotencyKey: "native-turn-start-0001"
   });
   assert.equal(nativeTurn.threadId, started.id);
@@ -292,10 +321,29 @@ try {
   });
   assert.equal(events.events.some((event) => event.method === "turn/started"), true);
   assert.equal(events.events.some((event) => event.method === "turn/completed"), true);
+  assert.equal(
+    events.events.some(
+      (event) =>
+        event.method === "turn/requested" &&
+        event.publicPayload.modelLoopTransfer === "operator-explicit"
+    ),
+    true
+  );
   assert.equal(events.events.some((event) => event.category === "approval"), true);
   assert.equal(JSON.stringify(events).includes(workspaceRoot), false);
   assert.equal(countRows("tasks"), taskCountBefore);
   assert.equal(countRows("development_sessions"), sessionCountBefore);
+
+  const openapi = fs.readFileSync(
+    path.join(process.cwd(), "openapi", "chatcockpit.openapi.yaml"),
+    "utf8"
+  );
+  assert.match(openapi, /RuntimeNativeTurnStartPayload:[\s\S]*modelLoopTransfer:[\s\S]*const: operator-explicit/);
+  assert.match(openapi, /confirmation:[\s\S]*const: delegate-codex-model-loop/);
+  assert.match(
+    openapi,
+    /required: \[workspaceId, threadId, text, modelLoopTransfer, idempotencyKey\]/
+  );
 
   process.stdout.write("VERIFY_CODEX_NATIVE_SESSION_OK\n");
 } finally {

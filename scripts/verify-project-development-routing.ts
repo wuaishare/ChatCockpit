@@ -178,6 +178,10 @@ try {
   assert.equal(freshCoordination.providers[0]?.runtimeAvailability, "available");
   assert.equal(freshCoordination.providers[0]?.continuation.action, "start");
   assert.equal(freshCoordination.providers[0]?.continuation.reason, "NO_MATCHING_NATIVE_THREAD");
+  assert.equal(
+    freshCoordination.providers[0]?.continuation.invokeVia,
+    "chatcockpit.codex.invoke"
+  );
   assert.equal(freshCoordination.providers[0]?.capabilities[0]?.id, "mcp");
   assert.equal(freshCoordination.providers[0]?.capabilities[0]?.applicableCount, 2);
   assert.equal(freshCoordination.handoff.requiredForModelLoopOwnerChange, true);
@@ -243,6 +247,7 @@ try {
   assert.equal(resumable.codexContinuity.matchingThread?.id, "thread-native-1");
   assert.equal(resumable.codexContinuity.matchingThread?.threadSource, null);
   assert.equal(resumable.providers[0]?.continuation.action, "resume");
+  assert.equal(resumable.providers[0]?.continuation.invokeVia, "chatcockpit.codex.invoke");
   assert.equal(resumable.providers[0]?.continuation.matchingContext?.id, "thread-native-1");
   assert.equal(resumable.mcpApplicability.source, "codex-config");
   assert.equal(resumable.mcpApplicability.applicableServerCount, 2);
@@ -264,6 +269,7 @@ try {
   assert.equal(detachedCoordination.codexContinuity.nextAction, "repair-workspace");
   assert.equal(detachedCoordination.codexContinuity.reason, "WORKSPACE_DETACHED");
   assert.equal(detachedCoordination.providers[0]?.continuation.action, "repair");
+  assert.equal(detachedCoordination.providers[0]?.continuation.invokeVia, null);
   assert.equal(detachedCoordination.providers[0]?.observation.status, "not-required");
   assert.equal(detachedCoordination.workspaceExecution.branch, "HEAD");
   assert.equal(detachedCoordination.mcpApplicability.observation.status, "not-required");

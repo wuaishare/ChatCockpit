@@ -48,10 +48,10 @@ Typical core tools:
 
 ```text
 chatcockpit.tools.discover
-chatcockpit.continuity.capsule
+chatcockpit.continuity.invoke (tool=continuity.capsule)
 ```
 
-For the deeper `chatcockpit.workspace.snapshot` view, connect the `continuity-governance` pack explicitly.
+Direct `chatcockpit.continuity.capsule` remains available on the `continuity-governance` pack and full compatibility surface, but the canonical 20-tool Core reaches it through the fixed `continuity.invoke` variant. For the deeper `chatcockpit.workspace.snapshot` view, connect the `continuity-governance` pack explicitly.
 
 ### Prompt C — Git + file read
 

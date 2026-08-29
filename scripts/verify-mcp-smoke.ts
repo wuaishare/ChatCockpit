@@ -265,6 +265,7 @@ async function runMcpSmoke(): Promise<void> {
         "runtime.restart",
         "runtime.restart.read",
         "search.code",
+        "codex.invoke",
         "codex.account.status",
         "codex.context.read",
         "codex.approval.respond",
@@ -302,7 +303,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 91, "Full compatibility surface must retain all 91 configured tools");
+    assert.equal(tools.length, 92, "Full compatibility surface must retain all 92 configured tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -318,8 +319,17 @@ async function runMcpSmoke(): Promise<void> {
       (tool) => tool.name === "chatcockpit.continuity.invoke"
     );
     assert.ok(continuityInvokeTool);
+    const codexInvokeTool = coreTools.find(
+      (tool) => tool.name === "chatcockpit.codex.invoke"
+    );
+    assert.ok(codexInvokeTool);
+    assert.equal(
+      coreTools.some((tool) => tool.name === "chatcockpit.continuity.capsule"),
+      false
+    );
     const continuityInvokeInputSchema = JSON.stringify(continuityInvokeTool.inputSchema);
     for (const marker of [
+      "continuity.capsule",
       "task.create",
       "session.start",
       "lease.acquire",
@@ -338,9 +348,33 @@ async function runMcpSmoke(): Promise<void> {
       "host.command.execute",
       "devices.runtime.lifecycle.execute",
       "resources.mutation.execute",
-      "asyncJob.queue"
+      "asyncJob.queue",
+      "codex.thread.turn.start"
     ]) {
       assert.equal(continuityInvokeInputSchema.includes(forbidden), false);
+    }
+    const codexInvokeInputSchema = JSON.stringify(codexInvokeTool.inputSchema);
+    for (const marker of [
+      "codex.context.read",
+      "codex.thread.start",
+      "codex.thread.resume",
+      "codex.thread.turn.start",
+      "codex.thread.turn.interrupt",
+      "codex.thread.approvals.list",
+      "codex.thread.events.read",
+      "modelLoopTransfer",
+      "delegate-codex-model-loop"
+    ]) {
+      assert.equal(codexInvokeInputSchema.includes(marker), true);
+    }
+    for (const forbidden of [
+      "codex.turn.start",
+      "codex.approval.respond",
+      "runtime.restart",
+      "host.command.execute",
+      "devices.runtime.lifecycle.execute"
+    ]) {
+      assert.equal(codexInvokeInputSchema.includes(forbidden), false);
     }
     assert.equal(
       coreTools.every((tool) => Boolean(tool.outputSchema)),
@@ -395,13 +429,48 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 20);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 91);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 92);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.context.read"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.thread.turn.start"), true);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.includes("codex.turn.start"), false);
+
+    const discoverCodexTurn = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "discover-codex-turn-start",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.discover",
+          arguments: { pack: "codex-native", tool: "codex.thread.turn.start" }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(discoverCodexTurn.response.status, 200);
+    assert.equal(discoverCodexTurn.message.error, undefined);
+    const discoverCodexTurnResult = discoverCodexTurn.message.result as {
+      structuredContent: {
+        surface: {
+          selectedTool: {
+            suffix: string;
+            invokeVia: "codex.invoke" | null;
+            inputSchema: Record<string, unknown>;
+          } | null;
+        };
+      };
+    };
+    assert.equal(
+      discoverCodexTurnResult.structuredContent.surface.selectedTool?.invokeVia,
+      "codex.invoke"
+    );
+    assert.match(
+      JSON.stringify(discoverCodexTurnResult.structuredContent.surface.selectedTool?.inputSchema),
+      /modelLoopTransfer.*delegate-codex-model-loop/
+    );
 
     const discoverEvidence = await postMcp(
       baseUrl,
@@ -1019,6 +1088,94 @@ async function runMcpSmoke(): Promise<void> {
       );
     }
 
+    const routedCodexRead = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-codex-read-missing-workspace",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.codex.invoke",
+          arguments: {
+            tool: "codex.context.read",
+            input: { workspaceId: "workspace_missing" }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(routedCodexRead.response.status, 200);
+    assert.equal(routedCodexRead.message.error, undefined);
+    const routedCodexReadResult = routedCodexRead.message.result as {
+      isError: true;
+      structuredContent?: { error?: { code?: string } };
+      content: Array<{ type: "text"; text: string }>;
+    };
+    assert.equal(routedCodexReadResult.isError, true);
+    assert.notEqual(
+      routedCodexReadResult.structuredContent?.error?.code,
+      "CODEX_INVOKE_TOOL_UNAVAILABLE"
+    );
+    assert.doesNotMatch(routedCodexReadResult.content[0]?.text ?? "", /Invalid discriminator value/);
+
+    const missingCodexTransfer = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-codex-turn-without-transfer",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.codex.invoke",
+          arguments: {
+            tool: "codex.thread.turn.start",
+            input: {
+              workspaceId: workspace.id,
+              threadId: "thread_missing_transfer",
+              text: "This must be rejected before provider execution",
+              idempotencyKey: "codex-missing-transfer-0001"
+            }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(missingCodexTransfer.response.status, 200);
+    assert.equal(missingCodexTransfer.message.error, undefined);
+    const missingCodexTransferResult = missingCodexTransfer.message.result as {
+      isError: true;
+      content: Array<{ type: "text"; text: string }>;
+    };
+    assert.equal(missingCodexTransferResult.isError, true);
+    assert.match(
+      missingCodexTransferResult.content[0]?.text ?? "",
+      /modelLoopTransfer/i
+    );
+
+    const blockedCodexInvoke = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-codex-blocked-cross-domain",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.codex.invoke",
+          arguments: { tool: "runtime.restart", input: {} }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(blockedCodexInvoke.response.status, 200);
+    assert.equal(blockedCodexInvoke.message.error, undefined);
+    const blockedCodexInvokeResult = blockedCodexInvoke.message.result as {
+      isError: true;
+      content: Array<{ type: "text"; text: string }>;
+    };
+    assert.equal(blockedCodexInvokeResult.isError, true);
+    assert.match(
+      blockedCodexInvokeResult.content[0]?.text ?? "",
+      /Invalid arguments.*Invalid discriminator value/i
+    );
+
     const restartReadInvoke = await postMcp(
       baseUrl,
       {
@@ -1058,12 +1215,15 @@ async function runMcpSmoke(): Promise<void> {
         arguments: { activityId: sessionResult.session.id, limit: 10 }
       },
       {
-        name: "chatcockpit.continuity.capsule",
+        name: "chatcockpit.continuity.invoke",
         arguments: {
-          workspaceId: workspace.id,
-          taskId: taskResult.task.id,
-          activityId: sessionResult.session.id,
-          trajectoryLimit: 10
+          tool: "continuity.capsule",
+          input: {
+            workspaceId: workspace.id,
+            taskId: taskResult.task.id,
+            activityId: sessionResult.session.id,
+            trajectoryLimit: 10
+          }
         }
       }
     ]) {

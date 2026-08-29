@@ -85,3 +85,29 @@ P0.2 必须证明 canonical `/mcp`、`/mcp/full` 与至少一个 specialist Pack
 - `verify:mcp` 通过 canonical Core 实际执行 `lease.acquire`，并让 `runtime.restart.read` 穿过 dispatcher 到达 Runtime lifecycle service；Host/Device/Resource mutation 仍在输入 schema 层被拒绝。
 - live ChatCockpit dogfood 在 fresh build/restart 后由 `tools.discover` 确认 `runtime.restart` 的 `invokeVia=continuity.invoke`。
 - clean HEAD `0c607a5f81c9` 通过完整 `npm run verify:release`，包含 MCP surface、Runtime lifecycle、Source Archive、certified Build Provenance、Web Safety 与 Release Dry Run。
+
+## 2026-08-29 Amendment: 单入口 Codex Native 有界调用
+
+继续以 canonical `/mcp` 做真实 ChatGPT dogfood 后，暴露出另一个入口断点：`project.get` 能投影 Codex Native continuation，`tools.discover` 也能返回 `codex-native` Pack 中 11 个原生动作及其 schema，但这些动作只有 specialist endpoint，没有 canonical Core 调用路径。结果是“ChatGPT → Remote MCP → ChatCockpit → Codex App Server”仍要求额外连接第二个 MCP endpoint，与单一 ChatCockpit 入口的产品目标不一致。
+
+同时审查发现，`project.get` 与 GPT instructions 已长期声明“当前调用方默认持有 model loop，只有用户明确 Delegate/Transfer 到 Codex 才能启动 native Turn”，但原 `codex.thread.turn.start` 的底层执行 schema/service 没有要求任何显式 transfer 声明。这个执行边界漂移必须先于 Core 暴露修复。
+
+因此，本 Amendment **supersede 上一 Amendment 中“生产完整面 91 个工具、`continuity.invoke` 13 个 variant、除 Continuity/Runtime allowlist 外其他 specialist 只能通过独立 Pack 调用”的当前状态描述**；以下“不变原则”继续成立：canonical Core 仍固定 20 个、不得出现任意 tool-name passthrough、目标 Tool 的原 Zod/权限/幂等/审计必须完整执行、ChatGPT action schema 变化仍需客户端 Refresh/Review。
+
+当前合同调整为：
+
+1. canonical `/mcp` **仍保持 20 个 Core**。不增加默认工具预算，而是把原本平铺的只读 `continuity.capsule` 迁回 `continuity-governance` Pack，并让 Core 通过既有 `continuity.invoke` 调用它；腾出的 Core 槽位用于独立 `chatcockpit.codex.invoke`。
+2. `chatcockpit.continuity.invoke` 扩展为 **14 个固定 variant**：12 个 Continuity / Writer-Lease 操作（原 11 个加 `continuity.capsule`）+ 2 个受限 Runtime lifecycle 操作。它继续明确拒绝 Codex Native、Host、Device、Workflow、Recovery、Resource/Capability mutation。
+3. `chatcockpit.codex.invoke` 是**独立 Codex 域内有界入口**，公开 discriminated union 只允许 11 个 provider-native 动作：`codex.context.read`、`codex.thread.list`、`codex.account.status`、`codex.thread.start`、`codex.thread.resume`、`codex.thread.fork`、`codex.thread.turn.start`、`codex.thread.turn.interrupt`、`codex.thread.approvals.list`、`codex.thread.events.read`、`codex.thread.read`。
+4. `codex.invoke` 不包含 `codex.approval.respond`，因为 native approval decision 继续只能由 authenticated local Operator 执行；也不包含 legacy/compatibility `codex.session.*` / `codex.turn.*`，不接收任意 provider method，更不能调用 Host/Device/Runtime/Workflow/Resource 等非 Codex 域动作。
+5. `codex.thread.turn.start` 的正式 public schema 与底层 `CodexNativeTurnService.start()` 都要求 `modelLoopTransfer={kind:"operator-explicit", confirmation:"delegate-codex-model-loop"}`。Runtime availability、可恢复 Thread、`project.get` 的 continuation 建议都不能隐式补出这个字段。
+6. `modelLoopTransfer` 是**显式调用合同声明**：它用于阻止无 transfer 声明的偶发/隐式 Turn start，并让 schema、idempotency fingerprint 与 public event evidence 都记录这次边界选择；它不是本地人工审批 token，也不能被描述成能够密码学证明远端授权客户端背后的人类自然语言意图。恶意或越权客户端仍由 OAuth、MCP action review 与既有权限治理负责。
+7. `tools.discover(pack, tool)` 对上述 11 个 Codex Native allowlist 返回 `invokeVia=codex.invoke`；14 个 Continuity/Runtime allowlist 返回 `invokeVia=continuity.invoke`。其他 specialist 仍返回 `invokeVia=null`。
+8. 当前生产配置完整面变为 **92 个工具**；潜在完整分类为 **95 个**（仍含 3 个条件注册的 Runtime Resource mutation tools）；canonical Core 保持 20 个。
+
+### Single-entry Codex verification
+
+- `verify:mcp-tool-surface` 固定 Core=20、Full classification=95、`continuity.invoke` 14 个 allowlisted variant、`codex.invoke` 11 个 allowlisted variant，并验证被代理目标仍属于原 specialist Pack。
+- `verify:codex-native-session` 必须证明 native Turn start 携带显式 model-loop transfer，并在 public-safe `turn/requested` event 中记录 `modelLoopTransfer=operator-explicit`。
+- `verify:mcp` 必须证明 direct `continuity.capsule` 不再平铺于 Core、Capsule 可经 `continuity.invoke` 调用、Codex Native tool discovery 返回 `invokeVia=codex.invoke`、缺失 `modelLoopTransfer` 的 native Turn 在 provider execution 前被拒绝、跨域 tool name 在 `codex.invoke` 的公开 schema 层被拒绝。
+- `codex-native` specialist Pack 与 `/mcp/full` 继续保留原具体 Tool，确保有界 Core consolidation 不删除高级/兼容调用面。

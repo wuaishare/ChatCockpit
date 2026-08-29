@@ -48,10 +48,10 @@ chatcockpit.project.get
 
 ```text
 chatcockpit.tools.discover
-chatcockpit.continuity.capsule
+chatcockpit.continuity.invoke（tool=continuity.capsule）
 ```
 
-如果需要更深的 `chatcockpit.workspace.snapshot`，应显式连接 `continuity-governance` 能力包。
+直接 `chatcockpit.continuity.capsule` 仍保留在 `continuity-governance` 能力包与 Full compatibility surface；canonical 20-tool Core 改为通过固定的 `continuity.invoke` variant 调用它。如果需要更深的 `chatcockpit.workspace.snapshot`，应显式连接 `continuity-governance` 能力包。
 
 ### Prompt C — Git + 文件读取
 

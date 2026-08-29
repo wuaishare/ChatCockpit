@@ -274,6 +274,7 @@ const projectDevelopmentProviderSchema = z.object({
     action: z.enum(["resume", "start", "repair", "unavailable"]),
     reason: z.string(),
     actionIds: z.array(z.string()),
+    invokeVia: z.literal("chatcockpit.codex.invoke").nullable(),
     matchingContext: matchingThreadSchema.nullable()
   }),
   capabilities: z.array(projectDevelopmentProviderCapabilitySchema),

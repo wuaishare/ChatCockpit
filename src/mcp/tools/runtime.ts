@@ -142,7 +142,7 @@ export function buildRuntimeMcpTools(
       name: "chatcockpit.codex.thread.turn.start",
       title: "Start native Codex turn",
       description:
-        "Start a provider-native Codex turn on an existing registered Thread without creating a ChatCockpit Task, development Session, Handoff, Spec, Plan, or Writer Lease. Codex keeps the authoritative model loop and native configuration.",
+        "Start a provider-native Codex turn on an existing registered Thread only with the explicit operator modelLoopTransfer assertion required by the public input contract. The operation does not infer delegation from Runtime availability, does not create a ChatCockpit Task, development Session, Handoff record, Spec, Plan, or Writer Lease, and keeps Codex as the authoritative provider-native model loop.",
       inputSchema: codexNativeTurnStartSchema,
       annotations: runtimeExecutionAnnotations,
       handler: async (context, input) => ({

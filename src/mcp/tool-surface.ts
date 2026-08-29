@@ -55,12 +55,13 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "git.diff",
   "git.commit",
   "trajectory.read",
-  "continuity.capsule",
   "continuity.invoke",
+  "codex.invoke",
   "tools.discover"
 ] as const;
 
 export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
+  "continuity.capsule",
   "task.create",
   "task.get",
   "session.start",
@@ -77,6 +78,20 @@ export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
 export const MCP_RUNTIME_INVOKE_SUFFIXES = [
   "runtime.restart",
   "runtime.restart.read"
+] as const;
+
+export const MCP_CODEX_INVOKE_SUFFIXES = [
+  "codex.context.read",
+  "codex.thread.list",
+  "codex.account.status",
+  "codex.thread.start",
+  "codex.thread.resume",
+  "codex.thread.fork",
+  "codex.thread.turn.start",
+  "codex.thread.turn.interrupt",
+  "codex.thread.approvals.list",
+  "codex.thread.events.read",
+  "codex.thread.read"
 ] as const;
 
 export const MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES = [
@@ -128,6 +143,7 @@ const DEFERRED_BY_PACK = {
   ],
   "continuity-governance": [
     "continuity.importedContext.read",
+    "continuity.capsule",
     "workspace.snapshot",
     "task.create",
     "task.submitReview",

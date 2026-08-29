@@ -113,6 +113,15 @@ export class CodexNativeTurnService {
     _context: OperationContext,
     input: CodexNativeTurnStartInput
   ): Promise<CodexNativeTurnMutationResult> {
+    if (
+      input.modelLoopTransfer?.kind !== "operator-explicit" ||
+      input.modelLoopTransfer?.confirmation !== "delegate-codex-model-loop"
+    ) {
+      throw new ServiceError(
+        "CODEX_MODEL_LOOP_TRANSFER_REQUIRED",
+        "Starting a native Codex turn requires an explicit operator model-loop transfer"
+      );
+    }
     const workspace = this.repositories.workspaces.get(input.workspaceId);
     if (workspace.status !== "ready") {
       throw new ServiceError(
@@ -134,7 +143,8 @@ export class CodexNativeTurnService {
         {
           workspaceId: workspace.id,
           threadId: input.threadId,
-          textHash: createHash("sha256").update(input.text).digest("hex")
+          textHash: createHash("sha256").update(input.text).digest("hex"),
+          modelLoopTransfer: input.modelLoopTransfer.kind
         },
         () =>
           this.runtime.startCodexTurn({
@@ -156,7 +166,8 @@ export class CodexNativeTurnService {
         turnId: executed.value.turn.id
       });
       this.appendEvent(input.threadId, executed.value.turn.id, "turn/requested", "lifecycle", {
-        status: executed.value.turn.status
+        status: executed.value.turn.status,
+        modelLoopTransfer: input.modelLoopTransfer.kind
       });
       return { ...executed.value, replayed: executed.replayed };
     } finally {

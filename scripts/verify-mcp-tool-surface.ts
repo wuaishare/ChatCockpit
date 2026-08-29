@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import {
+  MCP_CODEX_INVOKE_SUFFIXES,
   MCP_CONTINUITY_INVOKE_SUFFIXES,
   MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES,
   MCP_RUNTIME_INVOKE_SUFFIXES,
@@ -15,8 +16,8 @@ import {
 
 const classifications = listMcpToolSurfaceClassifications();
 
-assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 94);
-assert.equal(classifications.length, 94);
+assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 95);
+assert.equal(classifications.length, 95);
 assert.equal(MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES.length, 20);
 
 const byDisposition = Object.groupBy(
@@ -24,7 +25,7 @@ const byDisposition = Object.groupBy(
   (item) => item.disposition
 );
 assert.equal(byDisposition.core?.length, 20);
-assert.equal(byDisposition["deferred-pack"]?.length, 64);
+assert.equal(byDisposition["deferred-pack"]?.length, 65);
 assert.equal(byDisposition.compatibility?.length, 7);
 assert.equal(byDisposition["consolidation-candidate"]?.length, 3);
 
@@ -36,7 +37,7 @@ assert.equal(byPack["capability-routing"]?.length, 7);
 assert.equal(byPack["host-admin"]?.length, 13);
 assert.equal(byPack["device-admin"]?.length, 3);
 assert.equal(byPack.workflow?.length, 8);
-assert.equal(byPack["continuity-governance"]?.length, 15);
+assert.equal(byPack["continuity-governance"]?.length, 16);
 assert.equal(byPack["codex-native"]?.length, 18);
 assert.equal(byPack["runtime-admin"]?.length, 8);
 assert.equal(byPack.recovery?.length, 2);
@@ -44,6 +45,7 @@ assert.equal(byPack.recovery?.length, 2);
 assert.deepEqual(
   [...MCP_CONTINUITY_INVOKE_SUFFIXES].sort(),
   [
+    "continuity.capsule",
     "task.create",
     "task.get",
     "session.start",
@@ -65,6 +67,22 @@ assert.deepEqual(
   [...MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES].sort(),
   [...MCP_CONTINUITY_INVOKE_SUFFIXES, ...MCP_RUNTIME_INVOKE_SUFFIXES].sort()
 );
+assert.deepEqual(
+  [...MCP_CODEX_INVOKE_SUFFIXES].sort(),
+  [
+    "codex.context.read",
+    "codex.thread.list",
+    "codex.account.status",
+    "codex.thread.start",
+    "codex.thread.resume",
+    "codex.thread.fork",
+    "codex.thread.turn.start",
+    "codex.thread.turn.interrupt",
+    "codex.thread.approvals.list",
+    "codex.thread.events.read",
+    "codex.thread.read"
+  ].sort()
+);
 for (const suffix of MCP_CONTINUITY_INVOKE_SUFFIXES) {
   assert.deepEqual(classifyMcpToolSurface(`chatcockpit.${suffix}`), {
     disposition: "deferred-pack",
@@ -75,6 +93,12 @@ for (const suffix of MCP_RUNTIME_INVOKE_SUFFIXES) {
   assert.deepEqual(classifyMcpToolSurface(`chatcockpit.${suffix}`), {
     disposition: "deferred-pack",
     pack: "runtime-admin"
+  });
+}
+for (const suffix of MCP_CODEX_INVOKE_SUFFIXES) {
+  assert.deepEqual(classifyMcpToolSurface(`chatcockpit.${suffix}`), {
+    disposition: "deferred-pack",
+    pack: "codex-native"
   });
 }
 
@@ -132,7 +156,7 @@ const productionBaseline = classifications.filter(
     "resources.mutation.execute"
   ].includes(item.suffix)
 );
-assert.equal(productionBaseline.length, 91);
+assert.equal(productionBaseline.length, 92);
 assert.equal(
   productionBaseline.filter((item) => item.disposition === "core").length,
   20
@@ -140,7 +164,7 @@ assert.equal(
 
 const syntheticTools = classifications.map((item) => ({ name: `chatcockpit.${item.suffix}` }));
 assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "core" }).length, 20);
-assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "full" }).length, 94);
+assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "full" }).length, 95);
 assert.equal(
   selectMcpToolsForSurface(syntheticTools, { kind: "pack", pack: "codex-native" }).length,
   31

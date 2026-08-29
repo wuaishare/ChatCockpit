@@ -99,10 +99,16 @@ export const codexTurnInterruptSchema = z.object({
     .regex(/^[A-Za-z0-9._:-]+$/)
 });
 
+export const codexNativeModelLoopTransferSchema = z.object({
+  kind: z.literal("operator-explicit"),
+  confirmation: z.literal("delegate-codex-model-loop")
+});
+
 export const codexNativeTurnStartSchema = z.object({
   workspaceId: z.string().min(1).max(160),
   threadId: z.string().min(1).max(240),
   text: z.string().min(1).max(50_000),
+  modelLoopTransfer: codexNativeModelLoopTransferSchema,
   idempotencyKey: z
     .string()
     .min(8)

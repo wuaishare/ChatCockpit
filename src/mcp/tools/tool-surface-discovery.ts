@@ -2,6 +2,19 @@ import { z } from "zod";
 
 import { ServiceError } from "../../application/service-error.js";
 import {
+  codexNativeApprovalListSchema,
+  codexNativeContextReadSchema,
+  codexNativeEventsQuerySchema,
+  codexNativeThreadForkSchema,
+  codexNativeThreadResumeSchema,
+  codexNativeThreadStartSchema,
+  codexNativeTurnInterruptSchema,
+  codexNativeTurnStartSchema,
+  codexThreadListSchema,
+  codexThreadReadSchema
+} from "../../contracts/codex-runtime.js";
+import { continuityCapsuleSchema } from "../../contracts/continuity-observability.js";
+import {
   evidenceRecordSchema,
   handoffAcceptSchema,
   handoffPrepareSchema,
@@ -15,6 +28,7 @@ import {
   taskSubmitReviewSchema
 } from "../../contracts/continuity.js";
 import {
+  MCP_CODEX_INVOKE_SUFFIXES,
   MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES,
   MCP_RUNTIME_INVOKE_SUFFIXES,
   MCP_TOOL_SURFACE_PACKS,
@@ -45,6 +59,7 @@ const toolSurfaceDiscoverSchema = z.object({
 });
 
 const continuityInvokeSchema = z.discriminatedUnion("tool", [
+  z.object({ tool: z.literal("continuity.capsule"), input: continuityCapsuleSchema }),
   z.object({ tool: z.literal("task.create"), input: taskCreateSchema }),
   z.object({ tool: z.literal("task.get"), input: taskGetSchema }),
   z.object({ tool: z.literal("session.start"), input: sessionStartSchema }),
@@ -60,6 +75,20 @@ const continuityInvokeSchema = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("runtime.restart.read"), input: runtimeRestartReadSchema })
 ]);
 
+const codexInvokeSchema = z.discriminatedUnion("tool", [
+  z.object({ tool: z.literal("codex.context.read"), input: codexNativeContextReadSchema }),
+  z.object({ tool: z.literal("codex.thread.list"), input: codexThreadListSchema }),
+  z.object({ tool: z.literal("codex.account.status"), input: z.object({}) }),
+  z.object({ tool: z.literal("codex.thread.start"), input: codexNativeThreadStartSchema }),
+  z.object({ tool: z.literal("codex.thread.resume"), input: codexNativeThreadResumeSchema }),
+  z.object({ tool: z.literal("codex.thread.fork"), input: codexNativeThreadForkSchema }),
+  z.object({ tool: z.literal("codex.thread.turn.start"), input: codexNativeTurnStartSchema }),
+  z.object({ tool: z.literal("codex.thread.turn.interrupt"), input: codexNativeTurnInterruptSchema }),
+  z.object({ tool: z.literal("codex.thread.approvals.list"), input: codexNativeApprovalListSchema }),
+  z.object({ tool: z.literal("codex.thread.events.read"), input: codexNativeEventsQuerySchema }),
+  z.object({ tool: z.literal("codex.thread.read"), input: codexThreadReadSchema })
+]);
+
 const packSummarySchema = z.object({
   id: z.enum(MCP_TOOL_SURFACE_PACKS),
   title: z.string(),
@@ -71,6 +100,7 @@ const packSummarySchema = z.object({
 const coreGovernanceInvokeSuffixes = new Set<string>(
   MCP_CORE_GOVERNANCE_INVOKE_SUFFIXES
 );
+const codexInvokeSuffixes = new Set<string>(MCP_CODEX_INVOKE_SUFFIXES);
 const runtimeInvokeSuffixes = new Set<string>(MCP_RUNTIME_INVOKE_SUFFIXES);
 
 const toolAnnotationsSchema = z.object({
@@ -87,7 +117,10 @@ const selectedToolSchema = z.object({
   annotations: toolAnnotationsSchema,
   inputSchema: jsonObjectSchema,
   outputSchema: jsonObjectSchema.nullable(),
-  invokeVia: z.literal("continuity.invoke").nullable()
+  invokeVia: z.union([
+    z.literal("continuity.invoke"),
+    z.literal("codex.invoke")
+  ]).nullable()
 });
 const toolSurfaceDiscoverOutputSchema = z.object({
   ok: z.literal(true),
@@ -136,6 +169,19 @@ function continuityToolBySuffix(
   }) ?? null;
 }
 
+function codexToolBySuffix(
+  baseTools: readonly TokenPilotMcpTool[],
+  suffix: string
+): TokenPilotMcpTool | null {
+  if (!codexInvokeSuffixes.has(suffix)) return null;
+  return baseTools.find((tool) => {
+    if (mcpToolSurfaceSuffix(tool.name) !== suffix) return false;
+    const classification = classifyMcpToolSurface(tool.name);
+    return classification?.pack === "codex-native" &&
+      classification.disposition === "deferred-pack";
+  }) ?? null;
+}
+
 function publicToolDescriptor(tool: TokenPilotMcpTool) {
   return {
     suffix: mcpToolSurfaceSuffix(tool.name),
@@ -148,7 +194,9 @@ function publicToolDescriptor(tool: TokenPilotMcpTool) {
       : null,
     invokeVia: coreGovernanceInvokeSuffixes.has(mcpToolSurfaceSuffix(tool.name))
       ? "continuity.invoke" as const
-      : null
+      : codexInvokeSuffixes.has(mcpToolSurfaceSuffix(tool.name))
+        ? "codex.invoke" as const
+        : null
   };
 }
 
@@ -192,7 +240,7 @@ export function buildToolSurfaceDiscoveryMcpTools(
     name: "chatcockpit.tools.discover",
     title: "Discover specialist ChatCockpit tools",
     description:
-      "Inspect the compact MCP surface and specialist capability packs. Pass pack+tool to inspect one deferred tool's schema and annotations. Explicitly allowlisted continuity, writer-lease, and runtime-restart tools report continuity.invoke as their bounded core governance path. Explicit pack endpoints and /mcp/full remain compatibility surfaces.",
+      "Inspect the compact MCP surface and specialist capability packs. Pass pack+tool to inspect one deferred tool's schema and annotations. Explicitly allowlisted continuity/runtime tools report continuity.invoke, while provider-native Codex tools report codex.invoke as their bounded Core invocation path. Explicit pack endpoints and /mcp/full remain compatibility surfaces.",
     inputSchema: toolSurfaceDiscoverSchema,
     outputSchema: toolSurfaceDiscoverOutputSchema,
     annotations: readOnlyToolAnnotations,
@@ -231,8 +279,8 @@ export function buildToolSurfaceDiscoveryMcpTools(
           defaultPath: "/mcp" as const,
           fullCompatibilityPath: "/mcp/full" as const,
           legacyCompatibilityPath: "/tokenpilot/mcp" as const,
-          defaultCoreCount: coreBaseCount + 2,
-          fullToolCount: baseTools.length + 2,
+          defaultCoreCount: coreBaseCount + 3,
+          fullToolCount: baseTools.length + 3,
           packs: packSummaries,
           selectedPack: selectedPack
             ? {
@@ -251,7 +299,7 @@ export function buildToolSurfaceDiscoveryMcpTools(
     name: "chatcockpit.continuity.invoke",
     title: "Invoke bounded continuity governance action",
     description:
-      "Invoke one explicitly allowlisted core governance action. The public discriminated union is limited to continuity task/session/evidence actions, writer-lease acquire/release, and ChatCockpit runtime restart/read; host administration, device lifecycle, workflow, resource mutation, and compatibility tools are never dispatched here. Any future scope expansion requires a visible action-definition update.",
+      "Invoke one explicitly allowlisted core governance action. The public discriminated union is limited to Continuity Capsule/task/session/evidence actions, writer-lease acquire/release, and ChatCockpit runtime restart/read; Codex Native, host administration, device lifecycle, workflow, resource mutation, and compatibility tools are never dispatched here. Any future scope expansion requires a visible action-definition update.",
     inputSchema: continuityInvokeSchema,
     outputSchema: continuityInvokeOutputSchema,
     annotations: {
@@ -281,5 +329,39 @@ export function buildToolSurfaceDiscoveryMcpTools(
     }
   });
 
-  return [discover, continuityInvoke];
+  const codexInvoke = defineMcpTool({
+    name: "chatcockpit.codex.invoke",
+    title: "Invoke bounded provider-native Codex action",
+    description:
+      "Invoke one explicitly allowlisted provider-native Codex action without connecting a second MCP endpoint. The fixed public union is limited to Codex context/account/thread reads, native Thread start/resume/fork, native Turn start/interrupt, approval listing, and public-safe event reads. Starting a native Turn requires the explicit modelLoopTransfer assertion defined by that target tool; approval decisions, compatibility Codex Session tools, arbitrary provider methods, host commands, and non-Codex specialist tools are never dispatched here.",
+    inputSchema: codexInvokeSchema,
+    outputSchema: continuityInvokeOutputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true
+    },
+    handler: async (context, input) => {
+      const target = codexToolBySuffix(baseTools, input.tool);
+      if (!target) {
+        throw new ServiceError(
+          "CODEX_INVOKE_TOOL_UNAVAILABLE",
+          "The requested Codex Native action is not available through the bounded core gateway",
+          { details: { tool: input.tool } }
+        );
+      }
+      const result = await target.execute(context, input.input);
+      if (result.isError) {
+        throw specialistFailure(input.tool, result.structuredContent);
+      }
+      return {
+        ok: true,
+        tool: input.tool,
+        result: result.structuredContent
+      };
+    }
+  });
+
+  return [discover, continuityInvoke, codexInvoke];
 }

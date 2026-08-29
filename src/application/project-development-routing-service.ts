@@ -148,6 +148,7 @@ export interface ProjectDevelopmentProviderProjection {
     action: ProjectProviderContinuationAction;
     reason: string;
     actionIds: string[];
+    invokeVia: "chatcockpit.codex.invoke" | null;
     matchingContext: MatchingThread | null;
   };
   capabilities: ProjectDevelopmentProviderCapabilityProjection[];
@@ -271,6 +272,10 @@ function buildCodexProviderProjection(
         ...continuity.sessionToolSequence,
         ...(continuity.nativeTurnTool ? [continuity.nativeTurnTool] : [])
       ],
+      invokeVia:
+        continuity.nextAction === "resume-native" || continuity.nextAction === "start-native"
+          ? "chatcockpit.codex.invoke"
+          : null,
       matchingContext: continuity.matchingThread ? { ...continuity.matchingThread } : null
     },
     capabilities: [

@@ -6172,12 +6172,23 @@ components:
         workspaceId: { type: string, minLength: 1, maxLength: 160 }
         threadId: { type: string, minLength: 1, maxLength: 240 }
         text: { type: string, minLength: 1, maxLength: 50000 }
+        modelLoopTransfer:
+          type: object
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              const: operator-explicit
+            confirmation:
+              type: string
+              const: delegate-codex-model-loop
+          required: [kind, confirmation]
         idempotencyKey:
           type: string
           minLength: 8
           maxLength: 128
           pattern: '^[A-Za-z0-9._:-]+$'
-      required: [workspaceId, threadId, text, idempotencyKey]
+      required: [workspaceId, threadId, text, modelLoopTransfer, idempotencyKey]
     RuntimeNativeTurnInterruptPayload:
       type: object
       additionalProperties: false
@@ -10689,7 +10700,7 @@ paths:
     post:
       operationId: startNativeCodexTurn
       summary: Start a native Turn without a ChatCockpit Development Session
-      description: Starts the Codex provider-native model loop on an existing Thread. No ChatCockpit Task, Development Session, Handoff, Spec, Plan, or Writer Lease is required merely to continue the same provider-native session.
+      description: Starts the Codex provider-native model loop on an existing Thread only when the caller supplies the explicit modelLoopTransfer contract assertion. Runtime availability or a resumable Thread never implies delegation. No ChatCockpit Task, Development Session, Handoff record, Spec, Plan, or Writer Lease is created merely to continue the provider-native session.
       security:
         - bearerAuth: []
       requestBody:
