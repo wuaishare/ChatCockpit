@@ -1,7 +1,7 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { spawnGovernedGit } from "./git-process-policy.js";
 import { PRODUCT_STATE_DIR_NAMES } from "./product-identity.js";
 import { isTextLikeFilePath } from "./text-file-policy.js";
 
@@ -68,10 +68,8 @@ export interface PublicSafeGitDiff {
 }
 
 function runGit(cwd: string, args: string[], timeout = 10_000) {
-  return spawnSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    timeout,
+  return spawnGovernedGit(cwd, args, {
+    timeoutMs: timeout,
     maxBuffer: MAX_DIFF_BYTES * 2
   });
 }
@@ -146,7 +144,7 @@ function parseStatusPorcelain(stdout: string): GitStatusRecord[] {
 }
 
 function listDiffNameRecords(cwd: string, staged = false): GitDiffNameRecord[] {
-  const args = ["diff", "--name-status", "-z"];
+  const args = ["diff", "--no-ext-diff", "--no-textconv", "--name-status", "-z"];
   if (staged) {
     args.push("--cached");
   }
@@ -177,6 +175,13 @@ function isCommitSafeAssetPath(filePath: string): boolean {
   return COMMIT_SAFE_BINARY_EXTENSIONS.has(path.posix.extname(filePath).toLowerCase());
 }
 
+function isCommitSafeGitPath(filePath: string): boolean {
+  return (
+    isPublicSafeGitPath(filePath) &&
+    (isTextDiffPath(filePath) || isCommitSafeAssetPath(filePath))
+  );
+}
+
 function readTrackedPublicSafeDiff(cwd: string, staged = false): {
   diff: string;
   omittedUnsafePathCount: number;
@@ -196,7 +201,7 @@ function readTrackedPublicSafeDiff(cwd: string, staged = false): {
     };
   }
 
-  const args = ["diff", "--binary"];
+  const args = ["diff", "--no-ext-diff", "--no-textconv", "--binary"];
   if (staged) {
     args.push("--cached");
   }
@@ -303,6 +308,15 @@ export function hasStagedPublicUnsafeChanges(cwd: string): boolean {
       record.indexStatus !== " " &&
       record.indexStatus !== "?" &&
       !record.paths.every(isPublicSafeGitPath)
+  );
+}
+
+export function hasStagedNonCommitSafeChanges(cwd: string): boolean {
+  return listStatusRecords(cwd).some(
+    (record) =>
+      record.indexStatus !== " " &&
+      record.indexStatus !== "?" &&
+      !record.paths.every(isCommitSafeGitPath)
   );
 }
 

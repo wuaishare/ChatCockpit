@@ -114,6 +114,28 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       sessionId: z.string().min(1).max(160).optional(),
       paths: z.array(z.string().min(1).max(1024)).min(1).max(200)
     }),
+    gitSyncSchema: z.discriminatedUnion("action", [
+      z.object({
+        ...directExecutorPreference,
+        repoId: z.string().min(1).default(defaultRepoId),
+        sessionId: z.string().min(1).max(160).optional(),
+        action: z.literal("fetch"),
+        prune: z.boolean().optional()
+      }),
+      z.object({
+        ...directExecutorPreference,
+        repoId: z.string().min(1).default(defaultRepoId),
+        sessionId: z.string().min(1).max(160).optional(),
+        action: z.literal("fast-forward"),
+        prune: z.boolean().optional()
+      }),
+      z.object({
+        ...directExecutorPreference,
+        repoId: z.string().min(1).default(defaultRepoId),
+        sessionId: z.string().min(1).max(160).optional(),
+        action: z.literal("worktree-prune")
+      })
+    ]),
     gitCommitSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
@@ -137,6 +159,7 @@ export const workspaceProcessControlSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.workspa
 export const gitStatusSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
 export const gitDiffSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
 export const gitStageSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStageSchema;
+export const gitSyncSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitSyncSchema;
 export const gitCommitSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
 
 export type FileReadInput = z.infer<typeof fileReadSchema>;
@@ -152,4 +175,5 @@ export type WorkspaceProcessControlInput = z.infer<typeof workspaceProcessContro
 export type GitStatusInput = z.infer<typeof gitStatusSchema>;
 export type GitDiffInput = z.infer<typeof gitDiffSchema>;
 export type GitStageInput = z.infer<typeof gitStageSchema>;
+export type GitSyncInput = z.infer<typeof gitSyncSchema>;
 export type GitCommitInput = z.infer<typeof gitCommitSchema>;

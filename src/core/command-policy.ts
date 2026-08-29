@@ -34,7 +34,7 @@ const WORKSPACE_COMMAND_WHITELIST: Record<string, string[]> = {
   make: ["*"],
   cargo: ["build", "test", "check", "clippy", "fmt", "run"],
   go: ["build", "test", "vet", "fmt", "run"],
-  git: ["status", "diff", "log", "branch", "restore", "stash", "show", "rev-parse", "rev-list", "fetch", "rebase", "push"]
+  git: ["status", "diff", "log", "show", "rev-parse", "rev-list"]
 };
 
 const HIGH_TRUST_COMMANDS = new Set([
@@ -56,14 +56,9 @@ const READ_ONLY_GIT_SUBCOMMANDS = new Set([
 ]);
 
 const NATIVE_WORKSPACE_GIT_SUBCOMMANDS = new Set([
-  "am", "apply", "archive", "bisect", "blame", "branch", "bundle",
-  "cat-file", "checkout", "cherry-pick", "clean", "clone", "commit", "describe",
-  "diff", "fetch", "for-each-ref", "format-patch", "gc", "grep", "init", "log",
-  "ls-files", "ls-tree", "maintenance", "merge", "merge-base", "mv", "name-rev",
-  "notes", "prune", "pull", "push", "rebase", "reflog", "remote", "replace",
-  "reset", "restore", "rev-list", "rev-parse", "revert", "rm", "show",
-  "sparse-checkout", "stash", "status", "submodule", "switch", "tag",
-  "update-ref", "worktree"
+  "status", "diff", "log", "show", "rev-parse", "rev-list",
+  "blame", "grep", "ls-files", "ls-tree", "cat-file", "for-each-ref",
+  "describe", "name-rev", "merge-base"
 ]);
 
 const NATIVE_WORKSPACE_READ_ONLY_GIT_SUBCOMMANDS = new Set([

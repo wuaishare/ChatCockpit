@@ -3,10 +3,16 @@ import {
   getGitStatus,
   getStagedPublicSafePaths,
   gitCommit,
-  gitStage
+  gitStage,
+  gitSync
 } from "../core/git-api.js";
 import { readRecentGitCommitsForPaths } from "../core/git-history.js";
-import type { GitCommitPayload, GitStagePayload, TokenPilotPaths } from "../types.js";
+import type {
+  GitCommitPayload,
+  GitStagePayload,
+  GitSyncPayload,
+  TokenPilotPaths
+} from "../types.js";
 import type { OperationContext } from "./operation-context.js";
 import { wrapServiceOperationError } from "./service-error.js";
 
@@ -71,6 +77,14 @@ export class GitService {
       "GIT_STAGE_FAILED",
       "Git paths could not be staged safely.",
       () => gitStage(this.paths, payload.repoId, payload.paths)
+    );
+  }
+
+  sync(_context: OperationContext, payload: GitSyncPayload) {
+    return runGitOperation(
+      "GIT_SYNC_FAILED",
+      "Git synchronization could not be completed safely.",
+      () => gitSync(this.paths, payload)
     );
   }
 

@@ -18,13 +18,29 @@ assert.equal(
   "read"
 );
 for (const args of [
+  ["blame", "README.md"],
+  ["grep", "needle"],
+  ["ls-files"],
+  ["merge-base", "HEAD", "HEAD"]
+]) {
+  assert.equal(evaluateNativeWorkspaceCommand("git", args).effect, "read");
+}
+for (const args of [
   ["switch", "feature/native-exec"],
   ["fetch", "origin"],
   ["push", "origin", "HEAD"],
   ["rebase", "origin/main"],
-  ["worktree", "list"]
+  ["worktree", "list"],
+  ["restore", "README.md"],
+  ["reset", "--hard", "HEAD"],
+  ["clean", "-fd"],
+  ["pull"]
 ]) {
-  assert.equal(evaluateNativeWorkspaceCommand("git", args).effect, "write");
+  assert.throws(
+    () => evaluateNativeWorkspaceCommand("git", args),
+    /not allowed/,
+    `native Git mutation must use a structured Git API: ${args[0]}`
+  );
 }
 assert.throws(() => evaluateNativeWorkspaceCommand("rg", ["needle", "src"]), /not allowed/);
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");
@@ -73,14 +89,21 @@ assert.throws(() => evaluateNativeWorkspaceCommand("unknown-tool", []), /not all
 assert.throws(() => evaluateNativeWorkspaceCommand("", []));
 assert.throws(() => evaluateNativeWorkspaceCommand("git\0bad", ["status"]));
 
-assert.throws(
-  () => evaluateWorkspaceCommand("git", ["switch", "feature/native-exec"]),
-  /Subcommand not allowed/,
-  "legacy shell.run keeps broad Git lifecycle commands blocked"
-);
-assert.equal(evaluateWorkspaceCommand("git", ["fetch", "--prune"]).effect, "write");
-assert.equal(evaluateWorkspaceCommand("git", ["rebase", "@{upstream}"]).effect, "write");
-assert.equal(evaluateWorkspaceCommand("git", ["push"]).effect, "write");
+for (const args of [
+  ["switch", "feature/native-exec"],
+  ["branch", "feature/native-exec"],
+  ["restore", "README.md"],
+  ["stash", "push"],
+  ["fetch", "--prune"],
+  ["rebase", "@{upstream}"],
+  ["push"]
+]) {
+  assert.throws(
+    () => evaluateWorkspaceCommand("git", args),
+    /Subcommand not allowed/,
+    `shell.run Git mutation must use a structured Git API: ${args[0]}`
+  );
+}
 assert.equal(evaluateWorkspaceCommand("npm", ["audit"]).effect, "read");
 assert.equal(
   evaluateWorkspaceCommand("npm", ["audit", "--audit-level=moderate"]).effect,
@@ -104,10 +127,10 @@ try {
     () => evaluateNativeWorkspaceCommand(".\/scripts\/check.sh", ["src"]),
     /project-code command/
   );
-  assert.equal(
-    evaluateNativeWorkspaceCommand("git", ["switch", "feature/native-exec"]).effect,
-    "write",
-    "native Git lifecycle remains separately governed from arbitrary project-code execution"
+  assert.throws(
+    () => evaluateNativeWorkspaceCommand("git", ["switch", "feature/native-exec"]),
+    /not allowed/,
+    "native Git mutations stay blocked even when project-code high-trust execution is enabled separately"
   );
   process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS = "true";
   assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");

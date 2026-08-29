@@ -55,6 +55,7 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "git.status",
   "git.diff",
   "git.stage",
+  "git.sync",
   "git.commit",
   "trajectory.read",
   "continuity.invoke",

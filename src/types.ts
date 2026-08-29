@@ -551,6 +551,31 @@ export interface GitStageResponse {
   error?: string;
 }
 
+export type GitSyncAction = "fetch" | "fast-forward" | "worktree-prune";
+
+export interface GitSyncPayload extends DirectExecutorPreference {
+  repoId: string;
+  sessionId?: string;
+  action: GitSyncAction;
+  prune?: boolean;
+}
+
+export interface GitSyncResponse {
+  ok: boolean;
+  repoId: string;
+  action: GitSyncAction;
+  branch: string | null;
+  upstreamRemote: string | null;
+  headBefore: string;
+  headAfter: string;
+  ahead: number;
+  behind: number;
+  changed: boolean;
+  paths: string[];
+  state: "fetched" | "fast-forwarded" | "up-to-date" | "ahead" | "worktree-pruned";
+  error?: string;
+}
+
 export interface GitDiffResponse {
   ok: boolean;
   repoId: string;

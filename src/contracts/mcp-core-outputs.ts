@@ -184,6 +184,23 @@ export const gitStageToolOutputSchema = z.object({
   execution: chatDirectExecutionSchema
 }).merge(mutationEnvelopeSchema);
 
+export const gitSyncToolOutputSchema = z.object({
+  ok: z.boolean(),
+  repoId: z.string().min(1),
+  action: z.enum(["fetch", "fast-forward", "worktree-prune"]),
+  branch: z.string().nullable(),
+  upstreamRemote: z.string().nullable(),
+  headBefore: z.string(),
+  headAfter: z.string(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  changed: z.boolean(),
+  paths: z.array(z.string().max(1024)).max(500),
+  state: z.enum(["fetched", "fast-forwarded", "up-to-date", "ahead", "worktree-pruned"]),
+  error: z.string().optional(),
+  execution: chatDirectExecutionSchema
+}).merge(mutationEnvelopeSchema);
+
 export const gitCommitToolOutputSchema = z.object({
   ok: z.boolean(),
   repoId: z.string().min(1),

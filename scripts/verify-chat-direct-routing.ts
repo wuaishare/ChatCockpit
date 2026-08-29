@@ -812,15 +812,25 @@ async function verifyChatDirectRouting(): Promise<void> {
     const commandExecCallsBeforeGitMutation = adapter.calls.filter(
       (call) => call.method === "command/exec"
     ).length;
-    await assert.rejects(
-      () => service.shell(context, {
-        repoId: "primary",
-        sessionId: session.id,
-        command: "git",
-        args: ["add", "--", "src/fixture.ts"]
-      }),
-      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
-    );
+    for (const args of [
+      ["add", "--", "src/fixture.ts"],
+      ["branch", "feature/direct-mutation"],
+      ["restore", "src/fixture.ts"],
+      ["stash", "push"],
+      ["fetch"],
+      ["rebase", "@{upstream}"],
+      ["push"]
+    ]) {
+      await assert.rejects(
+        () => service.shell(context, {
+          repoId: "primary",
+          sessionId: session.id,
+          command: "git",
+          args
+        }),
+        (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+      );
+    }
     assert.equal(
       adapter.calls.filter((call) => call.method === "command/exec").length,
       commandExecCallsBeforeGitMutation
@@ -1008,10 +1018,21 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(hostRuntimeShell.execution.executor, "builtin-direct");
     assert.equal(hostRuntimeShell.execution.selectionMode, "automatic");
 
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary",
+        command: "git",
+        args: ["fetch", "origin"],
+        allowStdin: true,
+        networkAccess: true
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
+
     const managed = await service.workspaceExec(context, {
       repoId: "primary",
-      command: "git",
-      args: ["fetch", "origin"],
+      command: "npm",
+      args: ["test"],
       allowStdin: true,
       networkAccess: true
     });
@@ -1027,7 +1048,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     );
     assert.ok(managedCall);
     assert.equal((managedCall.payload as { networkAccess?: boolean }).networkAccess, true);
-    assert.deepEqual((managedCall.payload as { command?: string[] }).command, ["git", "fetch", "origin"]);
+    assert.deepEqual((managedCall.payload as { command?: string[] }).command, ["npm", "test"]);
     await assert.rejects(
       () => service.workspaceExec(context, {
         repoId: "primary", command: "bash", args: ["-lc", "git status"]
@@ -1221,9 +1242,48 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(terminatedSessionManaged.state, "terminated");
 
+    await assert.rejects(
+      () => service.gitSync(apiTokenContext, {
+        repoId: "primary",
+        action: "worktree-prune"
+      }),
+      (error) => error instanceof ServiceError && error.code === "WRITER_LEASE_REQUIRED"
+    );
+    const worktreePrune = await service.gitSync(context, {
+      repoId: "primary",
+      action: "worktree-prune"
+    });
+    assert.equal(worktreePrune.state, "worktree-pruned");
+    assert.equal(worktreePrune.execution.executor, "builtin-direct");
+
     fs.rmSync(path.join(repoRoot, "src", "delete-me.ts"));
     fs.writeFileSync(path.join(repoRoot, ".env"), "SECRET=blocked\n", "utf8");
     fs.writeFileSync(path.join(repoRoot, "archive.zip"), Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    fs.writeFileSync(path.join(repoRoot, ".gitattributes"), "src/filtered.ts filter=unsafe-test\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "src", "filtered.ts"), "export const filtered = true;\n", "utf8");
+    runGit(repoRoot, [
+      "config",
+      "filter.unsafe-test.clean",
+      "sh -c 'touch filter-marker && cat'"
+    ]);
+    await assert.rejects(
+      () => service.gitStage(context, {
+        repoId: "primary",
+        paths: ["src/filtered.ts"]
+      }),
+      (error) => error instanceof ServiceError && error.code === "GIT_STAGE_FAILED"
+    );
+    assert.equal(fs.existsSync(path.join(repoRoot, "filter-marker")), false);
+    assert.doesNotMatch(
+      spawnSync("git", ["diff", "--cached", "--name-only"], {
+        cwd: repoRoot,
+        encoding: "utf8"
+      }).stdout,
+      /src\/filtered\.ts/
+    );
+    fs.rmSync(path.join(repoRoot, ".gitattributes"));
+    fs.rmSync(path.join(repoRoot, "src", "filtered.ts"));
+
     await assert.rejects(
       () => service.gitStage(apiTokenContext, {
         repoId: "primary",
@@ -1277,6 +1337,19 @@ async function verifyChatDirectRouting(): Promise<void> {
       { cwd: repoRoot, encoding: "utf8" }
     ).stdout.trim().split(/\r?\n/).filter(Boolean).sort();
     assert.deepEqual(stagedNames, ["src/alpha-core.ts", "src/delete-me.ts"]);
+
+    runGit(repoRoot, ["add", "--", "archive.zip"]);
+    const blockedUnsafeBinaryCommit = await service.gitCommit(context, {
+      repoId: "primary",
+      message: "must refuse unsupported staged binary"
+    });
+    assert.equal(blockedUnsafeBinaryCommit.committed, false);
+    assert.match(
+      blockedUnsafeBinaryCommit.error ?? "",
+      /non-commit-safe paths/
+    );
+    runGit(repoRoot, ["restore", "--staged", "--", "archive.zip"]);
+
     const alphaCoreCommit = await service.gitCommit(context, {
       repoId: "primary",
       message: "verify alpha core writer authority"

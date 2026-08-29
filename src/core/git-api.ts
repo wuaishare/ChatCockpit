@@ -1,8 +1,14 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import {
-  hasStagedPublicUnsafeChanges,
+  buildGovernedGitEnv,
+  governedGitArgs,
+  spawnGovernedGit
+} from "./git-process-policy.js";
+import {
+  hasStagedNonCommitSafeChanges,
   isPublicSafeGitPath,
   publicSafeChangedPaths,
   readPublicSafeGitDiff,
@@ -13,6 +19,8 @@ import type {
   GitStatusResponse,
   GitStatusEntry,
   GitStageResponse,
+  GitSyncPayload,
+  GitSyncResponse,
   GitCommitResponse,
   TokenPilotPaths
 } from "../types.js";
@@ -52,6 +60,334 @@ function explicitStagePaths(repoRoot: string, requestedPaths: string[]): string[
   return paths.sort();
 }
 
+function assertNoExternalStageFilters(repoRoot: string, stagePaths: string[]): void {
+  const result = spawnGovernedGit(
+    repoRoot,
+    ["--literal-pathspecs", "check-attr", "-z", "filter", "--", ...stagePaths],
+    { timeoutMs: 10_000 }
+  );
+  if (result.status !== 0) {
+    throw new Error("Git staging attributes could not be verified safely");
+  }
+  const fields = (result.stdout ?? "").split("\0").filter(Boolean);
+  if (fields.length % 3 !== 0) {
+    throw new Error("Git staging attributes returned an unexpected result");
+  }
+  for (let index = 0; index < fields.length; index += 3) {
+    const filePath = fields[index] ?? "";
+    const attribute = fields[index + 1] ?? "";
+    const value = fields[index + 2] ?? "";
+    if (
+      attribute === "filter" &&
+      value !== "unspecified" &&
+      value !== "unset"
+    ) {
+      throw new Error(
+        `Git staging refuses paths with external filter attributes: ${filePath}`
+      );
+    }
+  }
+}
+
+export interface GovernedGitCommandRunner {
+  run(input: {
+    repoRoot: string;
+    args: string[];
+    timeoutMs: number;
+    env: NodeJS.ProcessEnv;
+  }): { status: number | null; stdout: string; stderr: string };
+}
+
+const defaultGovernedGitCommandRunner: GovernedGitCommandRunner = {
+  run(input) {
+    const result = spawnSync("git", input.args, {
+      cwd: input.repoRoot,
+      encoding: "utf8",
+      timeout: input.timeoutMs,
+      env: input.env
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? ""
+    };
+  }
+};
+
+function runGitText(
+  repoRoot: string,
+  args: string[],
+  timeout = 10_000,
+  runner: GovernedGitCommandRunner = defaultGovernedGitCommandRunner
+): string {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(args),
+    timeoutMs: timeout,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git operation failed");
+  }
+  return result.stdout.trim();
+}
+
+function assertGitRepositoryRoot(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner = defaultGovernedGitCommandRunner
+): void {
+  const topLevel = runGitText(
+    repoRoot,
+    ["rev-parse", "--show-toplevel"],
+    5_000,
+    runner
+  );
+  let expectedRoot: string;
+  let actualRoot: string;
+  try {
+    expectedRoot = fs.realpathSync.native(repoRoot);
+    actualRoot = fs.realpathSync.native(topLevel);
+  } catch {
+    throw new Error("Governed Git repository root could not be resolved safely");
+  }
+  if (actualRoot !== expectedRoot) {
+    throw new Error("Governed Git repository root does not match the allowlisted workspace root");
+  }
+}
+
+function gitRevision(
+  repoRoot: string,
+  revision: string,
+  runner: GovernedGitCommandRunner
+): string {
+  return runGitText(repoRoot, ["rev-parse", revision], 5_000, runner);
+}
+
+function gitHead(repoRoot: string, runner: GovernedGitCommandRunner): string {
+  return gitRevision(repoRoot, "HEAD", runner);
+}
+
+function gitBranch(repoRoot: string, runner: GovernedGitCommandRunner): string | null {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["symbolic-ref", "--quiet", "--short", "HEAD"]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) return null;
+  const branch = result.stdout.trim();
+  return branch || null;
+}
+
+const ALLOWED_GIT_CREDENTIAL_HELPERS = new Set([
+  "cache",
+  "libsecret",
+  "manager",
+  "manager-core",
+  "osxkeychain",
+  "store",
+  "wincred"
+]);
+
+function assertNoExternalCheckoutFilters(
+  repoRoot: string,
+  changedPaths: string[],
+  runner: GovernedGitCommandRunner
+): void {
+  if (
+    changedPaths.some(
+      (filePath) => filePath === ".gitattributes" || filePath.endsWith("/.gitattributes")
+    )
+  ) {
+    throw new Error("Governed Git fast-forward refuses upstream .gitattributes changes");
+  }
+  if (!changedPaths.length) return;
+
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs([
+      "--literal-pathspecs",
+      "check-attr",
+      "-z",
+      "filter",
+      "--",
+      ...changedPaths
+    ]),
+    timeoutMs: 10_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git fast-forward could not verify checkout attributes safely");
+  }
+  const fields = result.stdout.split("\0").filter(Boolean);
+  if (fields.length % 3 !== 0) {
+    throw new Error("Governed Git fast-forward checkout attributes returned an unexpected result");
+  }
+  for (let index = 0; index < fields.length; index += 3) {
+    const filePath = fields[index] ?? "";
+    const attribute = fields[index + 1] ?? "";
+    const value = fields[index + 2] ?? "";
+    if (
+      attribute === "filter" &&
+      value !== "unspecified" &&
+      value !== "unset"
+    ) {
+      throw new Error(
+        `Governed Git fast-forward refuses paths with external filter attributes: ${filePath}`
+      );
+    }
+  }
+}
+
+function assertHttpsCredentialHelpersSafe(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs([
+      "config",
+      "--get-regexp",
+      "^credential(\\..+)?\\.helper$"
+    ]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 1 && !result.stdout.trim()) return;
+  if (result.status !== 0) {
+    throw new Error("Governed Git sync could not verify credential helpers safely");
+  }
+  for (const line of result.stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const separator = line.search(/\s/);
+    const value = separator < 0 ? "" : line.slice(separator).trim();
+    if (!value) continue;
+    if (
+      value.startsWith("!") ||
+      /[\\/]/.test(value) ||
+      /\s/.test(value) ||
+      !ALLOWED_GIT_CREDENTIAL_HELPERS.has(value)
+    ) {
+      throw new Error("Governed Git sync refuses non-allowlisted credential helpers");
+    }
+  }
+}
+
+function gitUpstreamRemote(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): string {
+  const remote = runGitText(repoRoot, ["config", "--get", `branch.${branch}.remote`], 5_000, runner);
+  const mergeRef = runGitText(repoRoot, ["config", "--get", `branch.${branch}.merge`], 5_000, runner);
+  if (
+    !remote ||
+    remote === "." ||
+    !/^[A-Za-z0-9._-]+$/.test(remote) ||
+    !mergeRef.startsWith("refs/heads/")
+  ) {
+    throw new Error("Governed Git sync requires one configured remote branch upstream");
+  }
+  const remoteUrl = runGitText(repoRoot, ["remote", "get-url", remote], 5_000, runner);
+  const safeRemotePath = "[A-Za-z0-9._~%+/@=-]+";
+  const safeRemote =
+    new RegExp(`^https://[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
+    new RegExp(`^ssh://[A-Za-z0-9._-]+@[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
+    new RegExp(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:${safeRemotePath}$`).test(remoteUrl);
+  if (!safeRemote || remoteUrl.startsWith("ext::") || remoteUrl.startsWith("file:")) {
+    throw new Error("Governed Git sync only supports configured HTTPS or SSH remotes");
+  }
+  if (remoteUrl.startsWith("https://")) {
+    assertHttpsCredentialHelpersSafe(repoRoot, runner);
+  }
+  return remote;
+}
+
+function gitAheadBehind(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner
+): { ahead: number; behind: number } {
+  const output = runGitText(
+    repoRoot,
+    ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+    5_000,
+    runner
+  );
+  const [aheadRaw, behindRaw] = output.split(/\s+/);
+  const ahead = Number.parseInt(aheadRaw ?? "", 10);
+  const behind = Number.parseInt(behindRaw ?? "", 10);
+  if (!Number.isFinite(ahead) || !Number.isFinite(behind)) {
+    throw new Error("Governed Git sync could not compare HEAD with upstream");
+  }
+  return { ahead, behind };
+}
+
+function assertGitWorktreeClean(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const status = runGitText(
+    repoRoot,
+    ["status", "--porcelain", "-uall"],
+    5_000,
+    runner
+  );
+  if (status) {
+    throw new Error("Governed Git fast-forward requires a completely clean worktree and index");
+  }
+}
+
+function gitChangedPathsBetween(
+  repoRoot: string,
+  before: string,
+  after: string,
+  runner: GovernedGitCommandRunner
+): string[] {
+  if (before === after) return [];
+  const output = runGitText(
+    repoRoot,
+    ["diff", "--no-renames", "--name-only", "--diff-filter=ACDMRTUXB", `${before}..${after}`],
+    10_000,
+    runner
+  );
+  return Array.from(
+    new Set(
+      output
+        .split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter((value) => value && isPublicSafeGitPath(value))
+    )
+  ).sort();
+}
+
+function assertFastForwardPathsPublicSafe(
+  repoRoot: string,
+  before: string,
+  after: string,
+  runner: GovernedGitCommandRunner
+): string[] {
+  if (before === after) return [];
+  const output = runGitText(
+    repoRoot,
+    ["diff", "--no-renames", "--name-only", "--diff-filter=ACDMRTUXB", `${before}..${after}`],
+    10_000,
+    runner
+  );
+  const changedPaths = Array.from(
+    new Set(
+      output
+        .split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  ).sort();
+  const unsafePaths = changedPaths.filter((value) => !isPublicSafeGitPath(value));
+  if (unsafePaths.length) {
+    throw new Error("Governed Git fast-forward refuses upstream changes to public-unsafe paths");
+  }
+  return changedPaths;
+}
+
 export function getGitDiff(
   paths: TokenPilotPaths,
   repoId: string,
@@ -83,22 +419,18 @@ export function getGitStatus(
   const repoRoot = assertRepoAllowed(paths, repoId);
 
   // Get current branch
-  const branchResult = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    timeout: 5_000
-  });
+  const branchResult = spawnGovernedGit(
+    repoRoot,
+    ["rev-parse", "--abbrev-ref", "HEAD"],
+    { timeoutMs: 5_000 }
+  );
   const branch = (branchResult.stdout ?? "unknown").trim();
 
   // Get status
-  const statusResult = spawnSync(
-    "git",
+  const statusResult = spawnGovernedGit(
+    repoRoot,
     ["status", "--porcelain", "-u"],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      timeout: 10_000
-    }
+    { timeoutMs: 10_000 }
   );
 
   const entries: GitStatusEntry[] = [];
@@ -162,15 +494,13 @@ export function gitStage(
   requestedPaths: string[]
 ): GitStageResponse {
   const repoRoot = assertRepoAllowed(paths, repoId);
+  assertGitRepositoryRoot(repoRoot);
   const stagePaths = explicitStagePaths(repoRoot, requestedPaths);
-  const stageResult = spawnSync(
-    "git",
+  assertNoExternalStageFilters(repoRoot, stagePaths);
+  const stageResult = spawnGovernedGit(
+    repoRoot,
     ["--literal-pathspecs", "add", "--", ...stagePaths],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      timeout: 10_000
-    }
+    { timeoutMs: 10_000 }
   );
   if (stageResult.status !== 0) {
     return {
@@ -189,6 +519,131 @@ export function gitStage(
   };
 }
 
+export function gitSync(
+  paths: TokenPilotPaths,
+  payload: GitSyncPayload,
+  runner: GovernedGitCommandRunner = defaultGovernedGitCommandRunner
+): GitSyncResponse {
+  const repoRoot = assertRepoAllowed(paths, payload.repoId);
+  assertGitRepositoryRoot(repoRoot, runner);
+  const headBefore = gitHead(repoRoot, runner);
+  const branch = gitBranch(repoRoot, runner);
+
+  if (payload.action === "worktree-prune") {
+    runGitText(
+      repoRoot,
+      ["worktree", "prune"],
+      15_000,
+      runner
+    );
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      branch,
+      upstreamRemote: null,
+      headBefore,
+      headAfter: gitHead(repoRoot, runner),
+      ahead: 0,
+      behind: 0,
+      changed: false,
+      paths: [],
+      state: "worktree-pruned"
+    };
+  }
+
+  if (!branch) {
+    throw new Error("Governed Git sync requires an attached branch");
+  }
+  const upstreamRemote = gitUpstreamRemote(repoRoot, branch, runner);
+  if (payload.action === "fast-forward") {
+    assertGitWorktreeClean(repoRoot, runner);
+  }
+
+  const shouldPrune =
+    payload.action === "fast-forward"
+      ? payload.prune !== false
+      : payload.prune === true;
+  runGitText(
+    repoRoot,
+    [
+      "fetch",
+      "--no-recurse-submodules",
+      ...(shouldPrune ? ["--prune"] : []),
+      upstreamRemote
+    ],
+    60_000,
+    runner
+  );
+
+  let comparison = gitAheadBehind(repoRoot, runner);
+  if (payload.action === "fetch") {
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      branch,
+      upstreamRemote,
+      headBefore,
+      headAfter: gitHead(repoRoot, runner),
+      ...comparison,
+      changed: false,
+      paths: [],
+      state: "fetched"
+    };
+  }
+
+  if (comparison.ahead > 0 && comparison.behind > 0) {
+    throw new Error("Governed Git fast-forward refuses diverged local and upstream history");
+  }
+  if (comparison.behind === 0) {
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      branch,
+      upstreamRemote,
+      headBefore,
+      headAfter: gitHead(repoRoot, runner),
+      ...comparison,
+      changed: false,
+      paths: [],
+      state: comparison.ahead > 0 ? "ahead" : "up-to-date"
+    };
+  }
+
+  const upstreamHead = gitRevision(repoRoot, "@{upstream}", runner);
+  const upstreamPaths = assertFastForwardPathsPublicSafe(
+    repoRoot,
+    headBefore,
+    upstreamHead,
+    runner
+  );
+  assertNoExternalCheckoutFilters(repoRoot, upstreamPaths, runner);
+
+  runGitText(
+    repoRoot,
+    ["merge", "--ff-only", "@{upstream}"],
+    20_000,
+    runner
+  );
+  comparison = gitAheadBehind(repoRoot, runner);
+  const headAfter = gitHead(repoRoot, runner);
+  return {
+    ok: true,
+    repoId: payload.repoId,
+    action: payload.action,
+    branch,
+    upstreamRemote,
+    headBefore,
+    headAfter,
+    ...comparison,
+    changed: true,
+    paths: gitChangedPathsBetween(repoRoot, headBefore, headAfter, runner),
+    state: "fast-forwarded"
+  };
+}
+
 export function gitCommit(
   paths: TokenPilotPaths,
   repoId: string,
@@ -196,17 +651,18 @@ export function gitCommit(
   body?: string
 ): GitCommitResponse {
   const repoRoot = assertRepoAllowed(paths, repoId);
+  assertGitRepositoryRoot(repoRoot);
 
   if (!message || !message.trim()) {
     throw new Error("Commit message must not be empty");
   }
 
-  if (hasStagedPublicUnsafeChanges(repoRoot)) {
+  if (hasStagedNonCommitSafeChanges(repoRoot)) {
     return {
       ok: false,
       repoId,
       committed: false,
-      error: "Refusing to commit because public-unsafe paths are staged"
+      error: "Refusing to commit because staged changes include non-commit-safe paths"
     };
   }
 
@@ -221,10 +677,10 @@ export function gitCommit(
   }
 
   // Check if there's anything to commit
-  const diffCheck = spawnSync(
-    "git",
-    ["diff", "--cached", "--quiet"],
-    { cwd: repoRoot, encoding: "utf8", timeout: 5_000 }
+  const diffCheck = spawnGovernedGit(
+    repoRoot,
+    ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--quiet"],
+    { timeoutMs: 5_000 }
   );
 
   if (diffCheck.status === 0) {
@@ -242,10 +698,9 @@ export function gitCommit(
     commitArgs.push("-m", body.trim());
   }
 
-  const commitResult = spawnSync("git", commitArgs, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    timeout: 15_000
+  const commitResult = spawnGovernedGit(repoRoot, commitArgs, {
+    timeoutMs: 15_000,
+    disableCommitSigning: true
   });
 
   if (commitResult.status !== 0) {
@@ -259,10 +714,8 @@ export function gitCommit(
   }
 
   // Get commit hash
-  const hashResult = spawnSync("git", ["rev-parse", "HEAD"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    timeout: 5_000
+  const hashResult = spawnGovernedGit(repoRoot, ["rev-parse", "HEAD"], {
+    timeoutMs: 5_000
   });
 
   return {

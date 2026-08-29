@@ -7,6 +7,7 @@ import {
   fileWriteToolOutputSchema,
   gitCommitToolOutputSchema,
   gitStageToolOutputSchema,
+  gitSyncToolOutputSchema,
   shellRunToolOutputSchema,
   workspaceExecToolOutputSchema,
   workspaceProcessControlToolOutputSchema,
@@ -50,6 +51,13 @@ const destructiveMutationAnnotations: McpToolAnnotations = {
   destructiveHint: true,
   idempotentHint: true,
   openWorldHint: false
+};
+
+const openWorldReversibleMutationAnnotations: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true
 };
 
 const openWorldDestructiveMutationAnnotations: McpToolAnnotations = {
@@ -115,6 +123,7 @@ export function buildWorkspaceWriteTools(
     fileWriteSchema,
     gitCommitSchema,
     gitStageSchema,
+    gitSyncSchema,
     shellRunSchema,
     workspaceExecSchema,
     workspaceProcessControlSchema,
@@ -138,6 +147,9 @@ export function buildWorkspaceWriteTools(
   const gitStageMcpSchema = gitStageSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
+  const gitSyncMcpSchema = gitSyncSchema.and(
+    z.object({ idempotencyKey: idempotencyKeySchema })
+  );
   const gitCommitMcpSchema = gitCommitSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
@@ -339,6 +351,36 @@ export function buildWorkspaceWriteTools(
               value as unknown as Record<string, unknown>,
               value.execution.changedPaths,
               [toolName("git.status"), `${toolName("git.diff")}?staged=true`]
+            );
+          }
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("git.sync"),
+      title: "Synchronize repository with configured upstream",
+      description:
+        "Perform one governed Git synchronization action without caller-supplied remotes, refspecs, merge targets, paths, or arbitrary Git options. fetch contacts only the current branch's configured HTTPS/SSH upstream; fast-forward requires a completely clean index/worktree, fetches that upstream, refuses divergence, and applies only --ff-only; worktree-prune removes only stale worktree metadata. Repository hooks are disabled. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+      inputSchema: gitSyncMcpSchema,
+      outputSchema: gitSyncToolOutputSchema,
+      annotations: openWorldReversibleMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("git.sync"),
+          idempotencyKey,
+          payload,
+          async () => {
+            const value = await services.chatDirect.gitSync(context, payload);
+            return mutationValue(
+              value as unknown as Record<string, unknown>,
+              value.execution.changedPaths,
+              gitEvidenceHints
             );
           }
         );
