@@ -42,7 +42,17 @@ export const fileReadToolOutputSchema = directBaseSchema.extend({
 
 export const fileReadBatchToolOutputSchema = directBaseSchema.extend({
   ok: z.literal(true),
-  files: z.array(textPreviewSchema).max(10)
+  files: z.array(textPreviewSchema).max(10),
+  errors: z
+    .array(
+      z.object({
+        path: z.string().max(1024),
+        code: z.string().min(1).max(120),
+        message: z.string().min(1).max(500)
+      })
+    )
+    .max(10),
+  partial: z.boolean()
 });
 
 export const fileListToolOutputSchema = directBaseSchema.extend({
@@ -148,6 +158,16 @@ export const workspaceProcessControlToolOutputSchema = z.discriminatedUnion("act
     processId: identifierSchema,
     action: z.literal("input"),
     accepted: z.literal(true),
+    execution: chatDirectExecutionSchema
+  }).merge(idempotencyEnvelopeSchema),
+  z.object({
+    ok: z.literal(true),
+    repoId: z.string().min(1),
+    processId: identifierSchema,
+    action: z.literal("resize"),
+    resized: z.literal(true),
+    rows: z.number().int().min(1).max(500),
+    cols: z.number().int().min(1).max(1000),
     execution: chatDirectExecutionSchema
   }).merge(idempotencyEnvelopeSchema),
   z.object({

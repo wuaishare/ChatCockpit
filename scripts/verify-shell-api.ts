@@ -7,6 +7,7 @@ import {
   DEFAULT_COMMAND_TIMEOUT_MS,
   MAX_COMMAND_TIMEOUT_MS,
   prepareShellCommand,
+  prepareWorkspaceExecCommand,
   resolveGovernedWorkspaceToolCommand,
   resolveShellCommandTimeoutMs
 } from "../src/core/shell-api.ts";
@@ -24,8 +25,17 @@ assert.throws(() => resolveShellCommandTimeoutMs(1_500.5), /between 1000 and 120
 
 const toolRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-shell-tool-"));
 const phpTool = path.join(toolRoot, process.platform === "win32" ? "php.exe" : "php");
+const developmentTool = path.join(
+  toolRoot,
+  process.platform === "win32" ? "chatcockpit-dev-tool.exe" : "chatcockpit-dev-tool"
+);
 fs.writeFileSync(phpTool, process.platform === "win32" ? "fixture" : "#!/bin/sh\nexit 0\n");
+fs.writeFileSync(
+  developmentTool,
+  process.platform === "win32" ? "fixture" : "#!/bin/sh\nprintf 'DEVELOPMENT_TOOL_OK\\n'\n"
+);
 fs.chmodSync(phpTool, 0o755);
+fs.chmodSync(developmentTool, 0o755);
 assert.equal(
   resolveGovernedWorkspaceToolCommand("php", [toolRoot]),
   fs.realpathSync.native(phpTool)
@@ -36,6 +46,7 @@ assert.equal(resolveGovernedWorkspaceToolCommand("php", []), "php");
 const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-shell-api-"));
 const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-shell-api-outside-"));
 const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+const previousPath = process.env.PATH;
 try {
   fs.mkdirSync(path.join(repoRoot, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, "scripts", "inside.php"), "<?php\ndeclare(strict_types=1);\n");
@@ -52,6 +63,31 @@ try {
     repoMappings: { primary: { path: repoRoot } }
   }));
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
+  process.env.PATH = [toolRoot, previousPath ?? ""].filter(Boolean).join(path.delimiter);
+
+  const developmentPrepared = prepareWorkspaceExecCommand(paths, {
+    repoId: "primary",
+    command: "chatcockpit-dev-tool",
+    args: []
+  });
+  assert.equal(
+    developmentPrepared.command,
+    fs.realpathSync.native(developmentTool),
+    "Development profile must discover ordinary developer CLIs from the operator development PATH"
+  );
+  assert.throws(
+    () => prepareWorkspaceExecCommand(
+      paths,
+      {
+        repoId: "primary",
+        command: "chatcockpit-dev-tool",
+        args: []
+      },
+      "restricted"
+    ),
+    /restricted mode/,
+    "Restricted profile must not inherit arbitrary development CLI authority"
+  );
 
   const prepared = prepareShellCommand(paths, {
     repoId: "primary",
@@ -86,6 +122,8 @@ try {
 } finally {
   if (previousConfigPath === undefined) delete process.env.CHATCOCKPIT_CONFIG_PATH;
   else process.env.CHATCOCKPIT_CONFIG_PATH = previousConfigPath;
+  if (previousPath === undefined) delete process.env.PATH;
+  else process.env.PATH = previousPath;
   fs.rmSync(repoRoot, { recursive: true, force: true });
   fs.rmSync(outsideRoot, { recursive: true, force: true });
   fs.rmSync(toolRoot, { recursive: true, force: true });

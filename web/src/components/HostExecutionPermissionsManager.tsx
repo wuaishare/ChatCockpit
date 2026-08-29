@@ -30,20 +30,27 @@ import {
   fetchPendingHostMutationApprovals,
   fetchPendingHostProcessApprovals,
   updateHostExecutionPermissions,
+  updateWorkspaceExecutionPermissions,
   type HostCommandPendingApprovalSummary,
   type HostExecutionPermissionsResponse,
   type HostMutationPendingApprovalSummary,
   type HostPermissionProfile,
-  type HostProcessPendingApprovalSummary
+  type HostProcessPendingApprovalSummary,
+  type WorkspaceExecutionProfile
 } from "../api";
 import type { LocaleCode } from "../i18n";
 
-interface HostExecutionPermissionsManagerProps {
+interface ExecutionPermissionsManagerProps {
   locale: LocaleCode;
   open: boolean;
 }
 
-const PROFILE_ORDER: HostPermissionProfile[] = [
+const WORKSPACE_PROFILE_ORDER: WorkspaceExecutionProfile[] = [
+  "restricted",
+  "development"
+];
+
+const HOST_PROFILE_ORDER: HostPermissionProfile[] = [
   "restricted",
   "development",
   "device-maintenance",
@@ -55,9 +62,16 @@ function copyFor(locale: LocaleCode) {
     return {
       title: "执行权限",
       description:
-        "控制 ChatCockpit 可以越出项目原生沙箱执行到什么程度。权限档位与单次主机命令审批是两条独立边界。",
+        "Workspace 开发权限与 Host/设备管理权限分域控制。普通项目开发不再通过 Host 权限或逐命令白名单治理。",
+      workspaceTitle: "Workspace 开发权限",
+      workspaceDescription:
+        "Development 允许已授权 Workspace 运行通用开发 CLI、shell、解释器与 Git 操作；未知命令默认按写操作治理。网络仍需按任务显式开启，Host/设备能力不会随之开放。",
+      workspaceWarning:
+        "当前原生 Codex sandbox 能可靠限制 Workspace 写入范围和网络开关，但不能宣称把所有读取也严格限制在 Workspace 内。Development 适用于你信任的本机开发项目；不信任的代码请使用受限档或隔离执行环境。",
+      hostTitle: "Host / 设备权限",
       loading: "正在读取执行权限…",
       save: "保存权限档位",
+      saveWorkspace: "保存 Workspace 权限",
       saved: "执行权限已更新",
       refresh: "刷新待审批",
       approvalTitle: "待审批的主机操作",
@@ -76,6 +90,16 @@ function copyFor(locale: LocaleCode) {
         "完整主机访问属于 danger-level 高风险模式。主机命令的实际影响可能超出所选 Host Root；Host Root 只约束工作目录与 Host 文件 API。直接 shell/脚本解释器入口仍被阻止，但启用后仍应视为可影响整台主机，并依赖每条精确人工审批与审计。",
       maintenanceNote:
         "设备维护档只增加只读诊断（如 df、du、diskutil list/info、system_profiler、vm_stat）。清理、删除等优化操作不会被这一档自动放开。",
+      workspaceProfiles: {
+        restricted: {
+          label: "受限",
+          description: "保留保守命令策略，适合不信任项目或临时检查；未知 CLI 与任意 shell 不执行。"
+        },
+        development: {
+          label: "开发（默认）",
+          description: "通用 Coding Runtime：未知 CLI、shell、解释器和 Git 操作均可在 Workspace 治理边界内运行，未知操作默认按 write 处理。"
+        }
+      },
       profiles: {
         restricted: {
           label: "受限",
@@ -99,9 +123,16 @@ function copyFor(locale: LocaleCode) {
   return {
     title: "Execution permissions",
     description:
-      "Controls how far ChatCockpit may execute beyond the native project sandbox. Permission scope and per-command Host approval remain separate boundaries.",
+      "Workspace development permissions and Host/device administration permissions are separate policy domains. Normal coding no longer depends on Host privileges or a per-command source allowlist.",
+    workspaceTitle: "Workspace development permissions",
+    workspaceDescription:
+      "Development allows general development CLIs, shells, interpreters and Git operations in an authorized Workspace; unknown commands default to governed writes. Network remains explicit per task and Host/device access is not implied.",
+    workspaceWarning:
+      "The current native Codex sandbox reliably governs Workspace writes and the network switch, but ChatCockpit does not claim strict Workspace-only read confinement. Use Development for local projects you trust; use Restricted or an isolated environment for untrusted code.",
+    hostTitle: "Host / device permissions",
     loading: "Reading execution permissions…",
     save: "Save permission profile",
+    saveWorkspace: "Save Workspace permissions",
     saved: "Execution permissions updated",
     refresh: "Refresh approvals",
     approvalTitle: "Pending Host operation approvals",
@@ -120,6 +151,16 @@ function copyFor(locale: LocaleCode) {
       "Full Host access is a danger-level mode. A Host command may affect system resources outside the selected Host Root; Host Roots only constrain the working directory and Host file APIs. Direct shell/script interpreter entry points remain blocked, but this profile should still be treated as capable of affecting the whole host and relies on exact human approval and audit for every command.",
     maintenanceNote:
       "Device maintenance only adds bounded read-only diagnostics such as df, du, diskutil list/info, system_profiler and vm_stat. Cleanup or deletion is not automatically enabled by this profile.",
+    workspaceProfiles: {
+      restricted: {
+        label: "Restricted",
+        description: "Keeps the conservative command policy for untrusted projects or temporary inspection; unknown CLIs and arbitrary shells are not executed."
+      },
+      development: {
+        label: "Development (default)",
+        description: "General Coding Runtime: unknown CLIs, shells, interpreters and Git operations may run under Workspace governance; uncertain operations default to writes."
+      }
+    },
     profiles: {
       restricted: {
         label: "Restricted",
@@ -172,13 +213,15 @@ function processApprovalDisplay(approval: HostProcessPendingApprovalSummary): st
   return target ? `${approval.operation} ${target}` : approval.operation;
 }
 
-export function HostExecutionPermissionsManager({
+export function ExecutionPermissionsManager({
   locale,
   open
-}: HostExecutionPermissionsManagerProps) {
+}: ExecutionPermissionsManagerProps) {
   const copy = useMemo(() => copyFor(locale), [locale]);
   const [permissions, setPermissions] =
     useState<HostExecutionPermissionsResponse | null>(null);
+  const [workspaceSelected, setWorkspaceSelected] =
+    useState<WorkspaceExecutionProfile>("development");
   const [selected, setSelected] = useState<HostPermissionProfile>("development");
   const [approvals, setApprovals] = useState<HostCommandPendingApprovalSummary[]>([]);
   const [mutationApprovals, setMutationApprovals] = useState<HostMutationPendingApprovalSummary[]>([]);
@@ -204,6 +247,7 @@ export function HostExecutionPermissionsManager({
         fetchPendingHostProcessApprovals()
       ]);
       setPermissions(permissionResponse);
+      setWorkspaceSelected(permissionResponse.workspaceExecutionProfile);
       setSelected(permissionResponse.hostPermissionProfile);
       setApprovals(commandApprovalResponse.approvals);
       setMutationApprovals(mutationApprovalResponse.approvals);
@@ -218,6 +262,22 @@ export function HostExecutionPermissionsManager({
   useEffect(() => {
     if (open) void refresh();
   }, [open]);
+
+  async function persistWorkspace(profile: WorkspaceExecutionProfile) {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateWorkspaceExecutionPermissions(profile);
+      setPermissions(updated);
+      setWorkspaceSelected(updated.workspaceExecutionProfile);
+      setSelected(updated.hostPermissionProfile);
+      message.success(copy.saved);
+    } catch (cause) {
+      setError(problemMessage(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function persist(profile: HostPermissionProfile) {
     setSaving(true);
@@ -334,6 +394,54 @@ export function HostExecutionPermissionsManager({
         </Space>
       ) : (
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Typography.Title level={5} style={{ margin: 0 }}>
+            {copy.workspaceTitle}
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+            {copy.workspaceDescription}
+          </Typography.Paragraph>
+          <Radio.Group
+            value={workspaceSelected}
+            onChange={(event) =>
+              setWorkspaceSelected(event.target.value as WorkspaceExecutionProfile)
+            }
+            disabled={saving}
+            style={{ width: "100%" }}
+          >
+            <Space direction="vertical" size={10} style={{ width: "100%" }}>
+              {WORKSPACE_PROFILE_ORDER.map((profile) => (
+                <Radio key={profile} value={profile} style={{ alignItems: "flex-start" }}>
+                  <Space direction="vertical" size={0}>
+                    <Typography.Text strong>
+                      {copy.workspaceProfiles[profile].label}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {copy.workspaceProfiles[profile].description}
+                    </Typography.Text>
+                  </Space>
+                </Radio>
+              ))}
+            </Space>
+          </Radio.Group>
+          {workspaceSelected === "development" ? (
+            <Alert type="warning" showIcon message={copy.workspaceWarning} />
+          ) : null}
+          <Button
+            type="primary"
+            loading={saving}
+            disabled={
+              !permissions ||
+              workspaceSelected === permissions.workspaceExecutionProfile
+            }
+            onClick={() => void persistWorkspace(workspaceSelected)}
+          >
+            {copy.saveWorkspace}
+          </Button>
+
+          <Divider style={{ margin: "8px 0" }} />
+          <Typography.Title level={5} style={{ margin: 0 }}>
+            {copy.hostTitle}
+          </Typography.Title>
           <Radio.Group
             value={selected}
             onChange={(event) => setSelected(event.target.value as HostPermissionProfile)}
@@ -341,7 +449,7 @@ export function HostExecutionPermissionsManager({
             style={{ width: "100%" }}
           >
             <Space direction="vertical" size={10} style={{ width: "100%" }}>
-              {PROFILE_ORDER.map((profile) => (
+              {HOST_PROFILE_ORDER.map((profile) => (
                 <Radio key={profile} value={profile} style={{ alignItems: "flex-start" }}>
                   <Space direction="vertical" size={0}>
                     <Typography.Text strong>{copy.profiles[profile].label}</Typography.Text>

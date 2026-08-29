@@ -36,7 +36,7 @@ export function buildFilesReadOnlyTools(
       name: "chatcockpit.files.readBatch",
       title: "Read repository files",
       description:
-        "Read up to ten public-safe text files from an allowlisted repository in one request.",
+        "Read up to ten public-safe text files from an allowlisted repository in one request. Results are itemized: readable files are returned even when another requested path is blocked or unreadable, with public-safe per-path errors so callers can recover without abandoning the batch.",
       inputSchema: fileReadBatchSchema,
       outputSchema: fileReadBatchToolOutputSchema,
       annotations: readOnlyToolAnnotations,

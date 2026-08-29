@@ -393,6 +393,8 @@ export interface CodingRuntimeAdapter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    tty?: boolean;
+    terminalSize?: { rows: number; cols: number };
     networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult>;
   readStandaloneProcess?(
@@ -405,6 +407,11 @@ export interface CodingRuntimeAdapter {
     processId: string,
     input: string,
     closeStdin?: boolean
+  ): Promise<void>;
+  resizeStandaloneProcess?(
+    processId: string,
+    rows: number,
+    cols: number
   ): Promise<void>;
   terminateStandaloneProcess?(processId: string): Promise<void>;
   respondToServerRequest(

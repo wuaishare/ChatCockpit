@@ -11,6 +11,11 @@ import {
   HOST_PERMISSION_PROFILES,
   type HostPermissionProfile
 } from "../core/host-permission-policy.js";
+import {
+  DEFAULT_WORKSPACE_EXECUTION_PROFILE,
+  WORKSPACE_EXECUTION_PROFILES,
+  type WorkspaceExecutionProfile
+} from "../core/workspace-execution-policy.js";
 import { DEFAULT_PRODUCT_IDENTITY } from "../core/product-identity.js";
 import type { DownstreamMcpCapabilityMapping } from "./downstream-mcp-types.js";
 
@@ -112,6 +117,9 @@ const hostRootSchema = z.object({
 
 const configSchema = z.object({
   schemaVersion: z.literal(1),
+  workspaceExecutionProfile: z
+    .enum(WORKSPACE_EXECUTION_PROFILES)
+    .default(DEFAULT_WORKSPACE_EXECUTION_PROFILE),
   hostPermissionProfile: z.enum(HOST_PERMISSION_PROFILES).default(DEFAULT_HOST_PERMISSION_PROFILE),
   hostRoots: z.array(hostRootSchema).default([]),
   executors: z.array(executorSchema).default([])
@@ -176,6 +184,7 @@ export interface DirectHostRootConfig {
 
 export interface DownstreamMcpExecutorsConfig {
   schemaVersion: 1;
+  workspaceExecutionProfile: WorkspaceExecutionProfile;
   hostPermissionProfile: HostPermissionProfile;
   hostRoots: DirectHostRootConfig[];
   executors: DownstreamMcpExecutorConfig[];
@@ -194,6 +203,7 @@ export function loadDownstreamMcpExecutorsConfig(
   if (!fs.existsSync(configPath)) {
     return {
       schemaVersion: 1,
+      workspaceExecutionProfile: DEFAULT_WORKSPACE_EXECUTION_PROFILE,
       hostPermissionProfile: DEFAULT_HOST_PERMISSION_PROFILE,
       hostRoots: [],
       executors: []
@@ -237,6 +247,39 @@ export function loadDownstreamMcpExecutorsConfig(
   }
 
   return parsed.data as DownstreamMcpExecutorsConfig;
+}
+
+export function updateWorkspaceExecutionProfile(
+  profile: WorkspaceExecutionProfile,
+  configPath = getDownstreamMcpExecutorsConfigPath()
+): DownstreamMcpExecutorsConfig {
+  if (!WORKSPACE_EXECUTION_PROFILES.includes(profile)) {
+    throw new Error(`Unsupported Workspace execution profile: ${String(profile)}`);
+  }
+  const current = loadDownstreamMcpExecutorsConfig(configPath);
+  const next: DownstreamMcpExecutorsConfig = {
+    ...current,
+    workspaceExecutionProfile: profile
+  };
+  const directory = path.dirname(configPath);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const temporaryPath = `${configPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+      flag: "wx"
+    });
+    fs.renameSync(temporaryPath, configPath);
+    fs.chmodSync(configPath, 0o600);
+  } finally {
+    try {
+      fs.rmSync(temporaryPath, { force: true });
+    } catch {
+      // Best-effort cleanup; the canonical config path remains authoritative.
+    }
+  }
+  return next;
 }
 
 export function updateHostPermissionProfile(

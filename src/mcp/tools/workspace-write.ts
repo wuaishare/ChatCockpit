@@ -228,7 +228,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("workspace.exec"),
       title: "Start governed workspace process",
       description:
-        "Start a governed long-running command in the selected repository workspace. The default executionMode=native-sandbox uses the verified native backend, whose sandbox constrains writes and can deny network access. For the narrow allowlist of macOS build scripts that must create their own SwiftPM/Xcode child sandbox, executionMode=host-managed explicitly uses ChatCockpit's governed built-in process supervisor and requires networkAccess=true because that lane does not claim OS-level network denial. allowBuiltinFallback remains a compatibility escape hatch only when native execution is unavailable. All modes retain command/path policy, writer authority, streamed output, bounded retention, and idempotent process start.",
+        "Primary Coding Runtime execution primitive for normal project development. In the default Workspace Development profile, use this tool for general CLIs, shells, interpreters, Git commands, tests, builds and long-running processes; unknown commands are governed as writes instead of being rejected by a source allowlist. The default executionMode=native-sandbox constrains Workspace writes and can deny network access; networkAccess remains false unless explicitly requested. The Restricted Workspace profile preserves the conservative command surface for untrusted projects. Host/device administration is a separate permission domain. executionMode=host-managed remains only for explicitly governed compatibility workloads that cannot run in the native sandbox. All modes retain writer authority, path/symlink preflight, public-safe output projection, streamed process control, bounded retention and idempotency.",
       inputSchema: workspaceExecMcpSchema,
       outputSchema: workspaceExecToolOutputSchema,
       annotations: openWorldDestructiveMutationAnnotations,
@@ -266,7 +266,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("workspace.process.control"),
       title: "Control workspace process",
       description:
-        "Send stdin to or terminate a managed workspace process. Access remains bound to the development session or OAuth authorization grant that started the process. An idempotency key is required so retries cannot duplicate stdin writes.",
+        "Control a managed workspace process: send stdin, resize a PTY-backed native process, or terminate it. Access remains bound to the development session or OAuth authorization grant that started the process. Resize is available only for native Codex App Server PTY sessions. An idempotency key is required so retries cannot duplicate control actions.",
       inputSchema: workspaceProcessControlMcpSchema,
       outputSchema: workspaceProcessControlToolOutputSchema,
       annotations: openWorldDestructiveMutationAnnotations,
@@ -284,6 +284,15 @@ export function buildWorkspaceWriteTools(
                   payload
                 )),
                 action: "input" as const
+              };
+            }
+            if (payload.action === "resize") {
+              return {
+                ...(await services.chatDirect.workspaceProcessResize(
+                  context,
+                  payload
+                )),
+                action: "resize" as const
               };
             }
             return {
@@ -306,7 +315,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("shell.run"),
       title: "Run controlled repository command",
       description:
-        `Run a bounded command allowed by ${identity.displayName} policy. The default timeout is 45 seconds and callers may request up to 120 seconds with timeoutMs; use workspace.exec for longer-running or streamed commands. Read-only commands require no writer authority. OAuth MCP callers receive bounded workspace writer authority automatically for mutating commands; callers using an explicit chat-direct session must own its active writer lease. Exposed-mode high-trust controls still apply.`,
+        `Compatibility quick-command surface with a deliberately conservative allowlist. Prefer workspace.exec for normal development commands, arbitrary CLIs, shells, interpreters, Git mutations, tests, builds, networked operations, or anything that may run longer than a short bounded call. The default timeout is 45 seconds and callers may request up to 120 seconds. Read-only commands require no writer authority; mutating compatibility commands remain governed by workspace writer authority and exposed-mode controls.`,
       inputSchema: shellRunMcpSchema,
       outputSchema: shellRunToolOutputSchema,
       annotations: destructiveMutationAnnotations,

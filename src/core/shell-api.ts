@@ -14,6 +14,10 @@ import {
   DEFAULT_HOST_PERMISSION_PROFILE,
   type HostPermissionProfile
 } from "./host-permission-policy.js";
+import {
+  DEFAULT_WORKSPACE_EXECUTION_PROFILE,
+  type WorkspaceExecutionProfile
+} from "./workspace-execution-policy.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
 import type {
   ShellRunPayload,
@@ -86,20 +90,72 @@ function resolveWorkspaceExecPath(
   return resolvePathInsideRoot(repoRoot, repoRelative, label).absolutePath;
 }
 
-function governedWorkspaceToolSearchDirectories(): string[] {
-  return process.platform === "darwin"
-    ? ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
-    : process.platform === "linux"
-      ? ["/usr/local/bin", "/usr/bin", "/bin"]
-      : [];
+function existingWorkspaceArgumentPath(arg: string): string | null {
+  let candidate = arg;
+  if (candidate.startsWith("@") && candidate.length > 1) {
+    candidate = candidate.slice(1);
+  } else if (candidate.startsWith("-") && candidate.includes("=")) {
+    candidate = candidate.slice(candidate.indexOf("=") + 1);
+  } else if (candidate.startsWith("-")) {
+    return null;
+  }
+  if (
+    !candidate ||
+    candidate.includes("://") ||
+    /\s/.test(candidate) ||
+    path.isAbsolute(candidate) ||
+    path.win32.isAbsolute(candidate)
+  ) {
+    return null;
+  }
+  return candidate;
+}
+
+function assertExistingWorkspaceArgumentContainment(
+  repoRoot: string,
+  workdir: string,
+  args: string[]
+): void {
+  args.forEach((arg, index) => {
+    const relativeCandidate = existingWorkspaceArgumentPath(arg);
+    if (!relativeCandidate) return;
+    const candidate = path.resolve(workdir, relativeCandidate);
+    if (!fs.existsSync(candidate)) return;
+    resolveWorkspaceExecPath(
+      repoRoot,
+      workdir,
+      relativeCandidate,
+      `command argument ${index}`
+    );
+  });
+}
+
+function governedWorkspaceToolSearchDirectories(
+  includeDevelopmentPath = false
+): string[] {
+  const platformDefaults =
+    process.platform === "darwin"
+      ? ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+      : process.platform === "linux"
+        ? ["/usr/local/bin", "/usr/bin", "/bin"]
+        : [];
+  const inherited = includeDevelopmentPath
+    ? (process.env.PATH ?? "")
+        .split(path.delimiter)
+        .filter((entry) => entry.length > 0 && path.isAbsolute(entry))
+    : [];
+  return [...new Set([path.dirname(process.execPath), ...platformDefaults, ...inherited])];
 }
 
 export function resolveGovernedWorkspaceToolCommand(
   command: string,
-  searchDirectories: string[] = governedWorkspaceToolSearchDirectories()
+  searchDirectories: string[] = governedWorkspaceToolSearchDirectories(false)
 ): string {
-  if (command !== "php") return command;
-  const executableNames = process.platform === "win32" ? ["php.exe"] : ["php"];
+  if (command.includes("/") || command.includes("\\")) return command;
+  const executableNames =
+    process.platform === "win32" && !/\.[A-Za-z0-9]+$/.test(command)
+      ? [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`]
+      : [command];
   for (const directory of searchDirectories) {
     if (!path.isAbsolute(directory)) continue;
     for (const executableName of executableNames) {
@@ -109,7 +165,7 @@ export function resolveGovernedWorkspaceToolCommand(
         const canonical = fs.realpathSync.native(candidate);
         if (fs.statSync(canonical).isFile()) return canonical;
       } catch {
-        // Keep searching trusted runtime tool locations without exposing local paths.
+        // Continue through the governed development toolchain search path.
       }
     }
   }
@@ -141,10 +197,15 @@ export interface PreparedWorkspaceExecCommand {
 export function prepareWorkspaceExecCommand(
   paths: TokenPilotPaths,
   payload: WorkspaceExecPayload,
+  workspaceExecutionProfile: WorkspaceExecutionProfile = DEFAULT_WORKSPACE_EXECUTION_PROFILE,
   hostPermissionProfile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE
 ): PreparedWorkspaceExecCommand {
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
-  const policy = evaluateNativeWorkspaceCommand(payload.command, payload.args);
+  const policy = evaluateNativeWorkspaceCommand(
+    payload.command,
+    payload.args,
+    workspaceExecutionProfile
+  );
   const executionMode = payload.executionMode ?? "native-sandbox";
   if (
     executionMode === "host-managed" &&
@@ -156,6 +217,7 @@ export function prepareWorkspaceExecCommand(
   }
   const workdir = resolveWorkDir(repoRoot, payload.workdir);
   const args = [...policy.args];
+  assertExistingWorkspaceArgumentContainment(repoRoot, workdir, args);
   for (const index of policy.projectPathArgIndexes) {
     args[index] = resolveWorkspaceExecPath(
       repoRoot,
@@ -164,9 +226,19 @@ export function prepareWorkspaceExecCommand(
       `command argument ${index}`
     );
   }
+  const toolSearchDirectories =
+    workspaceExecutionProfile === "development"
+      ? [
+          path.join(workdir, "node_modules", ".bin"),
+          ...(workdir === repoRoot
+            ? []
+            : [path.join(repoRoot, "node_modules", ".bin")]),
+          ...governedWorkspaceToolSearchDirectories(true)
+        ]
+      : governedWorkspaceToolSearchDirectories(false);
   const command = policy.commandPath
     ? resolveWorkspaceExecPath(repoRoot, workdir, policy.command, "command")
-    : resolveGovernedWorkspaceToolCommand(policy.command);
+    : resolveGovernedWorkspaceToolCommand(policy.command, toolSearchDirectories);
   return {
     repoRoot,
     command,

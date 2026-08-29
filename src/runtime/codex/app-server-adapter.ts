@@ -375,6 +375,7 @@ interface ManagedStandaloneProcessRecord {
   errorCode: string | null;
   chunks: RuntimeStandaloneProcessChunk[];
   allowStdin: boolean;
+  tty: boolean;
   terminationRequested: boolean;
   completion: Promise<void>;
 }
@@ -1181,6 +1182,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    tty?: boolean;
+    terminalSize?: { rows: number; cols: number };
     networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     this.assertStandaloneCapability("command.exec", "command/exec");
@@ -1196,7 +1199,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       exitCode: null,
       errorCode: null,
       chunks: [],
-      allowStdin: input.allowStdin,
+      allowStdin: input.allowStdin || input.tty === true,
+      tty: input.tty === true,
       terminationRequested: false,
       completion: Promise.resolve()
     };
@@ -1211,8 +1215,12 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           processId,
           disableTimeout: true,
           outputBytesCap: MANAGED_COMMAND_OUTPUT_BYTES_CAP,
-          streamStdin: input.allowStdin,
+          tty: input.tty === true,
+          streamStdin: input.allowStdin || input.tty === true,
           streamStdoutStderr: true,
+          ...(input.tty === true && input.terminalSize
+            ? { size: input.terminalSize }
+            : {}),
           ...(invocation.env ? { env: invocation.env } : {}),
           sandboxPolicy: buildCodexStandaloneSandboxPolicy({
             cwd: input.cwd,
@@ -1299,6 +1307,25 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       processId,
       ...(input ? { deltaBase64: Buffer.from(input, "utf8").toString("base64") } : {}),
       closeStdin
+    });
+  }
+
+  async resizeStandaloneProcess(
+    processId: string,
+    rows: number,
+    cols: number
+  ): Promise<void> {
+    const record = this.getStandaloneProcess(processId);
+    if (record.state !== "running" || !record.tty) {
+      throw new ServiceError(
+        "CODEX_STANDALONE_PROCESS_RESIZE_UNAVAILABLE",
+        "Standalone process resize requires a running PTY-backed process"
+      );
+    }
+    const client = await this.ensureClient();
+    await client.request("command/exec/resize", {
+      processId,
+      size: { rows, cols }
     });
   }
 

@@ -505,6 +505,11 @@ export interface WorkspaceExecPayload extends DirectExecutorPreference {
   args: string[];
   workdir?: string;
   allowStdin?: boolean;
+  tty?: boolean;
+  terminalSize?: {
+    rows: number;
+    cols: number;
+  };
   networkAccess?: boolean;
   executionMode?: WorkspaceExecExecutionMode;
   allowBuiltinFallback?: boolean;
@@ -524,6 +529,14 @@ export interface WorkspaceProcessInputPayload {
   processId: string;
   input: string;
   closeStdin?: boolean;
+}
+
+export interface WorkspaceProcessResizePayload {
+  repoId: string;
+  sessionId?: string;
+  processId: string;
+  rows: number;
+  cols: number;
 }
 
 export interface WorkspaceProcessTerminatePayload {

@@ -197,6 +197,8 @@ export class RuntimeRouter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    tty?: boolean;
+    terminalSize?: { rows: number; cols: number };
     networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     if (!this.codex.startStandaloneProcess) {
@@ -246,6 +248,20 @@ export class RuntimeRouter {
       );
     }
     return this.codex.writeStandaloneProcess(processId, input, closeStdin);
+  }
+
+  resizeStandaloneProcess(
+    processId: string,
+    rows: number,
+    cols: number
+  ): Promise<void> {
+    if (!this.codex.resizeStandaloneProcess) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Managed standalone PTY resize is unavailable"
+      );
+    }
+    return this.codex.resizeStandaloneProcess(processId, rows, cols);
   }
 
   terminateStandaloneProcess(processId: string): Promise<void> {

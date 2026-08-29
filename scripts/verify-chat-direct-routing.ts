@@ -191,6 +191,8 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
+    tty?: boolean;
+    terminalSize?: { rows: number; cols: number };
     networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     const processId = `fake_process_${++this.managedProcessCounter}`;
@@ -239,6 +241,18 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
     this.calls.push({
       method: "command/exec/write",
       payload: { processId, input, closeStdin }
+    });
+  }
+
+  async resizeStandaloneProcess(
+    processId: string,
+    rows: number,
+    cols: number
+  ): Promise<void> {
+    this.requireManagedProcess(processId);
+    this.calls.push({
+      method: "command/exec/resize",
+      payload: { processId, size: { rows, cols } }
     });
   }
 
@@ -571,7 +585,24 @@ async function verifyChatDirectRouting(): Promise<void> {
       paths: ["README.md", "src/fixture.ts"]
     });
     assert.equal(batch.files.length, 2);
+    assert.deepEqual(batch.errors, []);
+    assert.equal(batch.partial, false);
     assert.equal(batch.execution.executor, "codex-app-server-standalone");
+
+    const partialBatch = await service.readBatch(context, {
+      repoId: "primary",
+      paths: ["README.md", ".git/config", "src/fixture.ts"]
+    });
+    assert.equal(partialBatch.files.length, 2);
+    assert.equal(partialBatch.partial, true);
+    assert.deepEqual(partialBatch.errors, [
+      {
+        path: ".git/config",
+        code: "FILES_READ_BLOCKED",
+        message: "The requested repository path is blocked or unreadable"
+      }
+    ]);
+    assert.equal(partialBatch.execution.executor, "codex-app-server-standalone");
 
     const listed = await service.list(context, {
       repoId: "primary",
@@ -1030,16 +1061,28 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(hostRuntimeShell.execution.executor, "builtin-direct");
     assert.equal(hostRuntimeShell.execution.selectionMode, "automatic");
 
-    await assert.rejects(
-      () => service.workspaceExec(context, {
-        repoId: "primary",
-        command: "git",
-        args: ["fetch", "origin"],
-        allowStdin: true,
-        networkAccess: true
-      }),
-      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    const nativeGitFetch = await service.workspaceExec(context, {
+      repoId: "primary",
+      command: "git",
+      args: ["fetch", "origin"],
+      allowStdin: true,
+      networkAccess: true
+    });
+    assert.equal(nativeGitFetch.execution.executor, "codex-app-server-standalone");
+    const nativeGitFetchCall = adapter.calls.find(
+      (call) =>
+        call.method === "command/exec:managed" &&
+        typeof call.payload === "object" &&
+        call.payload !== null &&
+        (call.payload as { processId?: string }).processId === nativeGitFetch.processId
     );
+    assert.ok(nativeGitFetchCall);
+    const nativeGitFetchCommand =
+      (nativeGitFetchCall.payload as { command?: string[] }).command ?? [];
+    assert.equal(path.basename(nativeGitFetchCommand[0] ?? ""), "git");
+    assert.deepEqual(nativeGitFetchCommand.slice(1), ["fetch", "origin"]);
+    adapter.completeManagedProcess(nativeGitFetch.processId, "git-fetch-finished");
+    await new Promise<void>((resolve) => setImmediate(resolve));
 
     const managed = await service.workspaceExec(context, {
       repoId: "primary",
@@ -1060,12 +1103,15 @@ async function verifyChatDirectRouting(): Promise<void> {
     );
     assert.ok(managedCall);
     assert.equal((managedCall.payload as { networkAccess?: boolean }).networkAccess, true);
-    assert.deepEqual((managedCall.payload as { command?: string[] }).command, ["npm", "test"]);
+    const managedCommand =
+      (managedCall.payload as { command?: string[] }).command ?? [];
+    assert.equal(managedCommand.length, 2);
+    assert.equal(managedCommand[1], "test");
     await assert.rejects(
       () => service.workspaceExec(context, {
         repoId: "primary", command: "bash", args: ["-lc", "git status"]
       }),
-      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+      (error) => error instanceof ServiceError && error.code === "WRITER_LEASE_CONFLICT"
     );
 
     await assert.rejects(
@@ -1090,6 +1136,96 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(completedManaged.state, "completed");
     assert.equal(completedManaged.chunks[0]?.content, "[workspace]/managed-finished");
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
+    const nativeBash = await service.workspaceExec(context, {
+      repoId: "primary",
+      command: "bash",
+      args: ["-lc", "git status"],
+      networkAccess: false
+    });
+    assert.equal(nativeBash.execution.executor, "codex-app-server-standalone");
+    const nativeBashCall = adapter.calls.find(
+      (call) =>
+        call.method === "command/exec:managed" &&
+        typeof call.payload === "object" &&
+        call.payload !== null &&
+        (call.payload as { processId?: string }).processId === nativeBash.processId
+    );
+    assert.ok(nativeBashCall);
+    const nativeBashCommand =
+      (nativeBashCall.payload as { command?: string[] }).command ?? [];
+    assert.equal(path.basename(nativeBashCommand[0] ?? ""), "bash");
+    assert.deepEqual(nativeBashCommand.slice(1), ["-lc", "git status"]);
+    adapter.completeManagedProcess(nativeBash.processId, "bash-finished");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary",
+        command: "bash",
+        args: ["-i"],
+        terminalSize: { rows: 32, cols: 120 },
+        networkAccess: false
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary",
+        command: "npm",
+        args: ["run", "build:macos-desktop"],
+        tty: true,
+        executionMode: "host-managed",
+        networkAccess: true
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
+
+    const nativePty = await service.workspaceExec(context, {
+      repoId: "primary",
+      command: "bash",
+      args: ["-i"],
+      tty: true,
+      terminalSize: { rows: 32, cols: 120 },
+      networkAccess: false
+    });
+    const nativePtyCall = adapter.calls.find(
+      (call) =>
+        call.method === "command/exec:managed" &&
+        typeof call.payload === "object" &&
+        call.payload !== null &&
+        (call.payload as { processId?: string }).processId === nativePty.processId
+    );
+    assert.ok(nativePtyCall);
+    assert.equal((nativePtyCall.payload as { tty?: boolean }).tty, true);
+    assert.deepEqual(
+      (nativePtyCall.payload as { terminalSize?: { rows: number; cols: number } }).terminalSize,
+      { rows: 32, cols: 120 }
+    );
+    const resizedPty = await service.workspaceProcessResize(context, {
+      repoId: "primary",
+      processId: nativePty.processId,
+      rows: 48,
+      cols: 160
+    });
+    assert.equal(resizedPty.resized, true);
+    assert.ok(
+      adapter.calls.some(
+        (call) =>
+          call.method === "command/exec/resize" &&
+          typeof call.payload === "object" &&
+          call.payload !== null &&
+          (call.payload as { processId?: string }).processId === nativePty.processId
+      )
+    );
+    const ptyInput = await service.workspaceProcessInput(context, {
+      repoId: "primary",
+      processId: nativePty.processId,
+      input: "pwd\n"
+    });
+    assert.equal(ptyInput.accepted, true);
+    adapter.completeManagedProcess(nativePty.processId, "pty-finished");
+    await new Promise<void>((resolve) => setImmediate(resolve));
 
     const apiTokenManaged = await service.workspaceExec(apiTokenContext, {
       repoId: "primary",

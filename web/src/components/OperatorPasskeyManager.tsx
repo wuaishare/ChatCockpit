@@ -34,7 +34,7 @@ import {
   passkeyOriginSupported
 } from "../passkey-support";
 import { OperatorTotpManager } from "./OperatorTotpManager";
-import { HostExecutionPermissionsManager } from "./HostExecutionPermissionsManager";
+import { ExecutionPermissionsManager } from "./HostExecutionPermissionsManager";
 
 interface OperatorPasskeyManagerProps {
   locale: LocaleCode;
@@ -225,7 +225,7 @@ export function OperatorPasskeyManager({
 
       <Divider />
       <OperatorTotpManager locale={locale} open={open} />
-      <HostExecutionPermissionsManager locale={locale} open={open} />
+      <ExecutionPermissionsManager locale={locale} open={open} />
     </Modal>
   );
 }

@@ -9,15 +9,29 @@ import {
   type HostPermissionProfile
 } from "../core/host-permission-policy.js";
 import {
+  WORKSPACE_EXECUTION_PROFILES,
+  workspaceArbitraryCommandsAllowed,
+  type WorkspaceExecutionProfile
+} from "../core/workspace-execution-policy.js";
+import {
   loadDownstreamMcpExecutorsConfig,
-  updateHostPermissionProfile
+  updateHostPermissionProfile,
+  updateWorkspaceExecutionProfile
 } from "../direct/downstream-mcp-config.js";
 import { sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { OPERATOR_CSRF_HEADER } from "./operator-auth-context.js";
 
-const updateSchema = z.object({
-  hostPermissionProfile: z.enum(HOST_PERMISSION_PROFILES)
-});
+const updateSchema = z
+  .object({
+    workspaceExecutionProfile: z.enum(WORKSPACE_EXECUTION_PROFILES).optional(),
+    hostPermissionProfile: z.enum(HOST_PERMISSION_PROFILES).optional()
+  })
+  .refine(
+    (value) =>
+      value.workspaceExecutionProfile !== undefined ||
+      value.hostPermissionProfile !== undefined,
+    { message: "At least one execution permission profile must be provided" }
+  );
 
 function operatorError(
   request: FastifyRequest,
@@ -55,20 +69,29 @@ function operatorError(
   return null;
 }
 
-function projection(profile: HostPermissionProfile) {
+function projection(
+  workspaceExecutionProfile: WorkspaceExecutionProfile,
+  hostPermissionProfile: HostPermissionProfile
+) {
   return {
     ok: true as const,
-    hostPermissionProfile: profile,
-    approvalPolicy: "operator-required" as const,
+    workspaceExecutionProfile,
+    hostPermissionProfile,
+    workspaceApprovalPolicy: "writer-authority" as const,
+    hostApprovalPolicy: "operator-required" as const,
     capabilities: {
-      hostManagedWorkspace: hostManagedWorkspaceAllowed(profile),
-      deviceDiagnostics: hostDeviceDiagnosticsAllowed(profile),
-      fullHostCommands: fullHostCommandsAllowed(profile)
+      workspaceArbitraryCommands: workspaceArbitraryCommandsAllowed(
+        workspaceExecutionProfile
+      ),
+      workspaceNetworkByRequest: true,
+      hostManagedWorkspace: hostManagedWorkspaceAllowed(hostPermissionProfile),
+      deviceDiagnostics: hostDeviceDiagnosticsAllowed(hostPermissionProfile),
+      fullHostCommands: fullHostCommandsAllowed(hostPermissionProfile)
     }
   };
 }
 
-export function registerHostPermissionRoutes(
+export function registerExecutionPermissionRoutes(
   app: FastifyInstance,
   options: { configPath?: string } = {}
 ): void {
@@ -76,8 +99,10 @@ export function registerHostPermissionRoutes(
     const authError = operatorError(request, reply, false);
     if (authError) return authError;
     try {
+      const current = loadDownstreamMcpExecutorsConfig(options.configPath);
       return projection(
-        loadDownstreamMcpExecutorsConfig(options.configPath).hostPermissionProfile
+        current.workspaceExecutionProfile,
+        current.hostPermissionProfile
       );
     } catch (error) {
       return sendUnknownApiError(reply, error);
@@ -92,11 +117,23 @@ export function registerHostPermissionRoutes(
       return sendUnknownApiError(reply, validationError(parsed.error));
     }
     try {
-      const updated = updateHostPermissionProfile(
-        parsed.data.hostPermissionProfile,
-        options.configPath
+      let updated = loadDownstreamMcpExecutorsConfig(options.configPath);
+      if (parsed.data.workspaceExecutionProfile !== undefined) {
+        updated = updateWorkspaceExecutionProfile(
+          parsed.data.workspaceExecutionProfile,
+          options.configPath
+        );
+      }
+      if (parsed.data.hostPermissionProfile !== undefined) {
+        updated = updateHostPermissionProfile(
+          parsed.data.hostPermissionProfile,
+          options.configPath
+        );
+      }
+      return projection(
+        updated.workspaceExecutionProfile,
+        updated.hostPermissionProfile
       );
-      return projection(updated.hostPermissionProfile);
     } catch (error) {
       return sendUnknownApiError(reply, error);
     }

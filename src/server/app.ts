@@ -198,7 +198,7 @@ import { projectJobForUi, sanitizeForApi } from "./job-public-projection.js";
 import type { RuntimeBuildProvenance } from "../core/build-provenance.js";
 import { registerStaticRoutes } from "./static-routes.js";
 import { registerOperatorRoutes } from "./operator-routes.js";
-import { registerHostPermissionRoutes } from "./host-permission-routes.js";
+import { registerExecutionPermissionRoutes } from "./host-permission-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
 import { registerDeviceRuntimeLifecycleRoutes } from "./device-runtime-lifecycle-routes.js";
 import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
@@ -985,7 +985,7 @@ export function buildServer(
     operatorPasskeyService,
     operatorTotpService
   );
-  registerHostPermissionRoutes(app, {
+  registerExecutionPermissionRoutes(app, {
     configPath: options.directExecutorsConfigPath
   });
   registerHubIdentityRoutes(app, hubIdentity, {

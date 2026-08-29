@@ -240,6 +240,8 @@ export interface OperatorTotpRecoveryCodesResponse {
   revokedSessionCount: number;
 }
 
+export type WorkspaceExecutionProfile = "restricted" | "development";
+
 export type HostPermissionProfile =
   | "restricted"
   | "development"
@@ -248,9 +250,13 @@ export type HostPermissionProfile =
 
 export interface HostExecutionPermissionsResponse {
   ok: true;
+  workspaceExecutionProfile: WorkspaceExecutionProfile;
   hostPermissionProfile: HostPermissionProfile;
-  approvalPolicy: "operator-required";
+  workspaceApprovalPolicy: "writer-authority";
+  hostApprovalPolicy: "operator-required";
   capabilities: {
+    workspaceArbitraryCommands: boolean;
+    workspaceNetworkByRequest: boolean;
     hostManagedWorkspace: boolean;
     deviceDiagnostics: boolean;
     fullHostCommands: boolean;
@@ -346,6 +352,15 @@ export async function fetchOperatorSession(): Promise<OperatorSessionResponse> {
 export async function fetchHostExecutionPermissions(): Promise<HostExecutionPermissionsResponse> {
   return requestJson<HostExecutionPermissionsResponse>(
     "/api/operator/execution-permissions"
+  );
+}
+
+export async function updateWorkspaceExecutionPermissions(
+  workspaceExecutionProfile: WorkspaceExecutionProfile
+): Promise<HostExecutionPermissionsResponse> {
+  return putBodyJson<HostExecutionPermissionsResponse>(
+    "/api/operator/execution-permissions",
+    { workspaceExecutionProfile }
   );
 }
 

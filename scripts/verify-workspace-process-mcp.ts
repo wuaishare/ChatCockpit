@@ -28,6 +28,7 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   let execCalls = 0;
   let lastExecNetworkAccess: boolean | undefined;
   let inputCalls = 0;
+  let resizeCalls = 0;
   let terminateCalls = 0;
 
   const fakeChatDirect = {
@@ -75,6 +76,21 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
         execution: execution("op_workspace_input")
       };
     },
+    async workspaceProcessResize(
+      _context: unknown,
+      payload: { repoId: string; processId: string; rows: number; cols: number }
+    ) {
+      resizeCalls += 1;
+      return {
+        ok: true as const,
+        repoId: payload.repoId,
+        processId: payload.processId,
+        resized: true as const,
+        rows: payload.rows,
+        cols: payload.cols,
+        execution: execution("op_workspace_resize")
+      };
+    },
     async workspaceProcessTerminate(_context: unknown, payload: { repoId: string; processId: string }) {
       terminateCalls += 1;
       return {
@@ -113,6 +129,8 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.equal(execTool.annotations.openWorldHint, true);
   assert.match(JSON.stringify(execTool.inputSchema), /executionMode/);
   assert.match(JSON.stringify(execTool.inputSchema), /host-managed/);
+  assert.match(JSON.stringify(execTool.inputSchema), /tty/);
+  assert.match(JSON.stringify(execTool.inputSchema), /terminalSize/);
   assert.equal(readTool.annotations.readOnlyHint, true);
   assert.equal(readTool.annotations.openWorldHint, false);
   assert.equal(controlTool.annotations.destructiveHint, true);
@@ -164,6 +182,28 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.equal(replayInput.isError, undefined);
   assert.equal((replayInput.structuredContent.idempotency as { replayed: boolean }).replayed, true);
   assert.equal(inputCalls, 1);
+
+  const resizeArgs = {
+    repoId: "primary",
+    processId: "process_fixture_1",
+    action: "resize" as const,
+    rows: 48,
+    cols: 160,
+    idempotencyKey: "workspace-process-resize-0001"
+  };
+  const resize = await controlTool.execute(context, resizeArgs);
+  assert.equal(resize.isError, undefined);
+  assert.equal(resize.structuredContent.action, "resize");
+  assert.equal(resize.structuredContent.resized, true);
+  assert.equal(resize.structuredContent.rows, 48);
+  assert.equal(resize.structuredContent.cols, 160);
+  const replayResize = await controlTool.execute(context, resizeArgs);
+  assert.equal(replayResize.isError, undefined);
+  assert.equal(
+    (replayResize.structuredContent.idempotency as { replayed: boolean }).replayed,
+    true
+  );
+  assert.equal(resizeCalls, 1);
 
   const terminate = await controlTool.execute(context, {
     repoId: "primary",

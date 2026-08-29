@@ -36,13 +36,27 @@ for (const args of [
   ["clean", "-fd"],
   ["pull"]
 ]) {
+  assert.equal(
+    evaluateNativeWorkspaceCommand("git", args).effect,
+    "write",
+    `development mode must treat native Git mutation as governed write: ${args[0]}`
+  );
   assert.throws(
-    () => evaluateNativeWorkspaceCommand("git", args),
-    /not allowed/,
-    `native Git mutation must use a structured Git API: ${args[0]}`
+    () => evaluateNativeWorkspaceCommand("git", args, "restricted"),
+    /restricted mode/,
+    `restricted mode must retain the conservative Git surface: ${args[0]}`
   );
 }
-assert.throws(() => evaluateNativeWorkspaceCommand("rg", ["needle", "src"]), /not allowed/);
+assert.equal(
+  evaluateNativeWorkspaceCommand("rg", ["needle", "src"]).effect,
+  "write",
+  "rg supports external pre-processors, so generic development execution must not grant it read-only authority"
+);
+assert.equal(
+  evaluateNativeWorkspaceCommand("find", ["src", "-type", "f"]).effect,
+  "write",
+  "find supports -exec/-delete and therefore stays on the governed write path"
+);
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["audit"]).effect, "read");
 assert.equal(
@@ -67,6 +81,19 @@ assert.deepEqual(nativePhpLint.projectPathArgIndexes, [1]);
 const shellPhpLint = evaluateWorkspaceCommand("php", ["-l", "src/example.php"]);
 assert.equal(shellPhpLint.effect, "read");
 assert.deepEqual(shellPhpLint.projectPathArgIndexes, [1]);
+assert.equal(
+  evaluateNativeWorkspaceCommand("php", ["-r", "echo 1;"]).effect,
+  "write",
+  "development mode must allow ordinary PHP CLI execution as a governed write"
+);
+assert.equal(
+  evaluateNativeWorkspaceCommand("php", ["-f", "src/example.php"]).effect,
+  "write"
+);
+assert.throws(
+  () => evaluateNativeWorkspaceCommand("php", ["-r", "echo 1;"], "restricted"),
+  /(?:restricted|not allowed|PHP workspace execution)/i
+);
 for (const args of [
   ["src/example.php"],
   ["-r", "echo 1;"],
@@ -80,14 +107,18 @@ for (const args of [
   ["-l", "src\\example.php"]
 ]) {
   assert.throws(
-    () => evaluateNativeWorkspaceCommand("php", args),
-    /(?:PHP|workspace-relative|blocked path|Absolute paths)/i
-  );
-  assert.throws(
     () => evaluateWorkspaceCommand("php", args),
     /(?:PHP|workspace-relative|blocked path|Absolute paths)/i
   );
 }
+assert.throws(
+  () => evaluateNativeWorkspaceCommand("php", ["-f", "/tmp/example.php"]),
+  /(?:workspace-relative|Absolute paths)/i
+);
+assert.throws(
+  () => evaluateNativeWorkspaceCommand("php", ["-f", "../example.php"]),
+  /blocked path/i
+);
 assert.equal(evaluateNativeWorkspaceCommand("node", ["scripts/build.mjs"]).effect, "write");
 assert.equal(evaluateNativeWorkspaceCommand("./scripts/check.sh", ["src"]).effect, "write");
 assert.equal(
@@ -104,15 +135,19 @@ assert.equal(
   false
 );
 
-assert.throws(() => evaluateNativeWorkspaceCommand("bash", ["-lc", "git status"]), /not allowed/);
-assert.throws(() => evaluateNativeWorkspaceCommand("node", ["-e", "console.log(1)"]), /relative project script/);
-assert.throws(() => evaluateNativeWorkspaceCommand("python3", ["-c", "print(1)"]), /relative project script/);
+assert.equal(evaluateNativeWorkspaceCommand("bash", ["-lc", "git status"]).effect, "write");
+assert.equal(evaluateNativeWorkspaceCommand("node", ["-e", "console.log(1)"]).effect, "write");
+assert.equal(evaluateNativeWorkspaceCommand("python3", ["-c", "print(1)"]).effect, "write");
 assert.throws(() => evaluateNativeWorkspaceCommand("git", ["-C", "other", "status"]), /global options/);
-assert.throws(() => evaluateNativeWorkspaceCommand("git", ["difftool"]), /not allowed/);
-assert.throws(() => evaluateNativeWorkspaceCommand("git", ["config", "alias.x", "!cat /etc/passwd"]), /not allowed/);
+assert.equal(evaluateNativeWorkspaceCommand("git", ["difftool"]).effect, "write");
+assert.equal(
+  evaluateNativeWorkspaceCommand("git", ["config", "alias.x", "!printf fixture"]).effect,
+  "write"
+);
 assert.throws(() => evaluateNativeWorkspaceCommand("cat", ["/tmp/outside"]), /(?:workspace-relative|Absolute paths)/);
 assert.throws(() => evaluateNativeWorkspaceCommand("cat", ["--file=/tmp/outside"]), /workspace-relative/);
-assert.throws(() => evaluateNativeWorkspaceCommand("unknown-tool", []), /not allowed/);
+assert.equal(evaluateNativeWorkspaceCommand("unknown-tool", []).effect, "write");
+assert.throws(() => evaluateNativeWorkspaceCommand("unknown-tool", [], "restricted"), /restricted mode/);
 assert.throws(() => evaluateNativeWorkspaceCommand("", []));
 assert.throws(() => evaluateNativeWorkspaceCommand("git\0bad", ["status"]));
 
@@ -146,18 +181,22 @@ const previousHighTrust = process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
 try {
   process.env.CHATCOCKPIT_EXPOSED = "true";
   delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
+  assert.equal(
+    evaluateNativeWorkspaceCommand("npm", ["test"]).effect,
+    "write",
+    "an explicitly registered development Workspace must remain usable through Remote MCP"
+  );
+  assert.equal(
+    evaluateNativeWorkspaceCommand(".\/scripts\/check.sh", ["src"]).effect,
+    "write"
+  );
+  assert.equal(
+    evaluateNativeWorkspaceCommand("git", ["switch", "feature/native-exec"]).effect,
+    "write"
+  );
   assert.throws(
-    () => evaluateNativeWorkspaceCommand("npm", ["test"]),
+    () => evaluateNativeWorkspaceCommand("npm", ["test"], "restricted"),
     /project-code command npm is blocked in exposed mode/
-  );
-  assert.throws(
-    () => evaluateNativeWorkspaceCommand(".\/scripts\/check.sh", ["src"]),
-    /project-code command/
-  );
-  assert.throws(
-    () => evaluateNativeWorkspaceCommand("git", ["switch", "feature/native-exec"]),
-    /not allowed/,
-    "native Git mutations stay blocked even when project-code high-trust execution is enabled separately"
   );
   assert.equal(
     evaluateNativeWorkspaceCommand("php", ["-l", "src/example.php"]).effect,
@@ -207,7 +246,11 @@ try {
     args: ["scripts/inside.mjs"]
   });
   assert.equal(prepared.executionMode, "native-sandbox");
-  assert.equal(prepared.args[0], fs.realpathSync.native(path.join(repoRoot, "scripts", "inside.mjs")));
+  assert.equal(
+    prepared.args[0],
+    "scripts/inside.mjs",
+    "generic development execution keeps CLI argv stable after containment preflight"
+  );
   const preparedPhp = prepareWorkspaceExecCommand(paths, {
     repoId: "primary",
     command: "php",

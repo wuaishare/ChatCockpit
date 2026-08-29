@@ -72,6 +72,13 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       args: z.array(z.string()),
       workdir: z.string().optional(),
       allowStdin: z.boolean().optional(),
+      tty: z.boolean().optional(),
+      terminalSize: z
+        .object({
+          rows: z.number().int().min(1).max(500),
+          cols: z.number().int().min(1).max(1000)
+        })
+        .optional(),
       networkAccess: z.boolean().optional(),
       executionMode: z.enum(["native-sandbox", "host-managed"]).optional(),
       allowBuiltinFallback: z.boolean().optional()
@@ -91,6 +98,14 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
         action: z.literal("input"),
         input: z.string(),
         closeStdin: z.boolean().optional()
+      }),
+      z.object({
+        repoId: z.string().min(1).default(defaultRepoId),
+        sessionId: z.string().min(1).max(160).optional(),
+        processId: z.string().min(1).max(200),
+        action: z.literal("resize"),
+        rows: z.number().int().min(1).max(500),
+        cols: z.number().int().min(1).max(1000)
       }),
       z.object({
         repoId: z.string().min(1).default(defaultRepoId),

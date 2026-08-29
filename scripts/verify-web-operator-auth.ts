@@ -119,12 +119,22 @@ async function main(): Promise<void> {
     );
     assert.equal(executionPermissions.status, 200);
     const executionPermissionsBody = (await executionPermissions.json()) as {
+      workspaceExecutionProfile: string;
       hostPermissionProfile: string;
-      approvalPolicy: string;
-      capabilities: { deviceDiagnostics: boolean };
+      workspaceApprovalPolicy: string;
+      hostApprovalPolicy: string;
+      capabilities: {
+        workspaceArbitraryCommands: boolean;
+        workspaceNetworkByRequest: boolean;
+        deviceDiagnostics: boolean;
+      };
     };
+    assert.equal(executionPermissionsBody.workspaceExecutionProfile, "development");
     assert.equal(executionPermissionsBody.hostPermissionProfile, "development");
-    assert.equal(executionPermissionsBody.approvalPolicy, "operator-required");
+    assert.equal(executionPermissionsBody.workspaceApprovalPolicy, "writer-authority");
+    assert.equal(executionPermissionsBody.hostApprovalPolicy, "operator-required");
+    assert.equal(executionPermissionsBody.capabilities.workspaceArbitraryCommands, true);
+    assert.equal(executionPermissionsBody.capabilities.workspaceNetworkByRequest, true);
     assert.equal(executionPermissionsBody.capabilities.deviceDiagnostics, false);
 
     const noCsrfExecutionPermissionUpdate = await fetch(
@@ -171,6 +181,47 @@ async function main(): Promise<void> {
       }).hostPermissionProfile,
       "device-maintenance"
     );
+
+    const workspacePermissionUpdate = await fetch(
+      `${server.baseUrl}/api/operator/execution-permissions`,
+      {
+        method: "PUT",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": loginBody.csrfToken
+        },
+        body: JSON.stringify({ workspaceExecutionProfile: "restricted" })
+      }
+    );
+    assert.equal(workspacePermissionUpdate.status, 200);
+    const workspacePermissionUpdateBody = (await workspacePermissionUpdate.json()) as {
+      workspaceExecutionProfile: string;
+      hostPermissionProfile: string;
+      capabilities: { workspaceArbitraryCommands: boolean };
+    };
+    assert.equal(workspacePermissionUpdateBody.workspaceExecutionProfile, "restricted");
+    assert.equal(workspacePermissionUpdateBody.hostPermissionProfile, "device-maintenance");
+    assert.equal(workspacePermissionUpdateBody.capabilities.workspaceArbitraryCommands, false);
+    assert.equal(
+      (JSON.parse(fs.readFileSync(directExecutorsConfigPath, "utf8")) as {
+        workspaceExecutionProfile?: string;
+      }).workspaceExecutionProfile,
+      "restricted"
+    );
+    const workspacePermissionRestore = await fetch(
+      `${server.baseUrl}/api/operator/execution-permissions`,
+      {
+        method: "PUT",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": loginBody.csrfToken
+        },
+        body: JSON.stringify({ workspaceExecutionProfile: "development" })
+      }
+    );
+    assert.equal(workspacePermissionRestore.status, 200);
 
     const cookieMcp = await fetch(`${server.baseUrl}/mcp`, {
       method: "POST",

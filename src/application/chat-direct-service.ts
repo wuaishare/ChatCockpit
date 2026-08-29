@@ -35,6 +35,7 @@ import type {
   WorkspaceExecPayload,
   WorkspaceProcessInputPayload,
   WorkspaceProcessReadPayload,
+  WorkspaceProcessResizePayload,
   WorkspaceProcessTerminatePayload
 } from "../types.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
@@ -340,6 +341,20 @@ export class ChatDirectService {
       : this.runtime.writeStandaloneProcess(record.processId, input, closeStdin);
   }
 
+  private resizeManagedProcess(
+    record: ManagedChatDirectProcess,
+    rows: number,
+    cols: number
+  ) {
+    if (record.backend === "builtin-direct") {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "PTY resize is unavailable for the built-in managed process fallback"
+      );
+    }
+    return this.runtime.resizeStandaloneProcess(record.processId, rows, cols);
+  }
+
   private terminateManagedProcess(record: ManagedChatDirectProcess) {
     return record.backend === "builtin-direct"
       ? this.builtinManagedProcesses.terminate(record.processId)
@@ -469,27 +484,41 @@ export class ChatDirectService {
     if (selection.executorId === "codex-app-server-standalone") {
       try {
         const files = [];
+        const errors: Array<{ path: string; code: string; message: string }> = [];
         for (const inputPath of payload.paths) {
-          const target = resolveReadableRepoFileTarget(
-            this.paths,
-            payload.repoId,
-            inputPath
-          );
-          const response = await this.runtime.readStandaloneFile(
-            target.absolutePath
-          );
-          files.push(
-            buildTextPreviewFromBuffer(
-              target.relativePath,
-              Buffer.from(response.dataBase64, "base64"),
-              { offset: payload.offset, limit: payload.limit }
-            )
-          );
+          try {
+            const target = resolveReadableRepoFileTarget(
+              this.paths,
+              payload.repoId,
+              inputPath
+            );
+            const response = await this.runtime.readStandaloneFile(
+              target.absolutePath
+            );
+            files.push(
+              buildTextPreviewFromBuffer(
+                target.relativePath,
+                Buffer.from(response.dataBase64, "base64"),
+                { offset: payload.offset, limit: payload.limit }
+              )
+            );
+          } catch (error) {
+            if (this.canFallbackRead(selection, error)) {
+              throw error;
+            }
+            errors.push({
+              path: inputPath,
+              code: error instanceof ServiceError ? error.code : "FILES_READ_BLOCKED",
+              message: "The requested repository path is blocked or unreadable"
+            });
+          }
         }
         return {
           ok: true as const,
           repoId: payload.repoId,
           files,
+          errors,
+          partial: errors.length > 0,
           execution: selectionMetadata(selection)
         };
       } catch (error) {
@@ -500,6 +529,8 @@ export class ChatDirectService {
         const value = this.files.readBatch(context, payload);
         return {
           ...value,
+          errors: [],
+          partial: false,
           execution: selectionMetadata(
             fallback,
             [],
@@ -511,6 +542,8 @@ export class ChatDirectService {
     const value = this.files.readBatch(context, payload);
     return {
       ...value,
+      errors: [],
+      partial: false,
       execution: selectionMetadata(selection)
     };
   }
@@ -724,13 +757,20 @@ export class ChatDirectService {
   ) {
     let prepared: ReturnType<typeof prepareWorkspaceExecCommand>;
     try {
-      const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
+      if (payload.terminalSize && payload.tty !== true) {
+        throw new Error("terminalSize requires tty=true");
+      }
+      if (payload.tty === true && payload.executionMode === "host-managed") {
+        throw new Error("PTY execution is available only with native-sandbox mode");
+      }
+      const executionPermissions = loadDownstreamMcpExecutorsConfig(
         this.directExecutorsConfigPath
-      ).hostPermissionProfile;
+      );
       prepared = prepareWorkspaceExecCommand(
         this.paths,
         payload,
-        hostPermissionProfile
+        executionPermissions.workspaceExecutionProfile,
+        executionPermissions.hostPermissionProfile
       );
     } catch (error) {
       throw serviceError("SHELL_COMMAND_BLOCKED", error);
@@ -757,6 +797,12 @@ export class ChatDirectService {
     const nativeBackend =
       !hostManaged && selection.executorId === "codex-app-server-standalone";
     const builtInBackend = hostManaged || selection.executorId === builtInExecutorId;
+    if (payload.tty === true && !nativeBackend) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "PTY-backed workspace execution requires the native Codex App Server executor"
+      );
+    }
     if (!nativeBackend && !builtInBackend) {
       throw new ServiceError(
         "CAPABILITY_UNAVAILABLE",
@@ -818,7 +864,11 @@ export class ChatDirectService {
             command: [prepared.command, ...prepared.args],
             cwd: prepared.workdir,
             readOnly: access === "read",
-            allowStdin: payload.allowStdin === true,
+            allowStdin: payload.allowStdin === true || payload.tty === true,
+            tty: payload.tty === true,
+            ...(payload.tty === true && payload.terminalSize
+              ? { terminalSize: payload.terminalSize }
+              : {}),
             networkAccess: payload.networkAccess === true
           })
         : this.builtinManagedProcesses.start({
@@ -934,6 +984,41 @@ export class ChatDirectService {
       repoId: payload.repoId,
       processId: payload.processId,
       accepted: true as const,
+      execution: selectionMetadata(
+        record.selection,
+        [],
+        undefined,
+        record.compatibilityMode ?? undefined
+      )
+    };
+  }
+
+  async workspaceProcessResize(
+    context: OperationContext,
+    payload: WorkspaceProcessResizePayload
+  ) {
+    const record = this.getManagedProcess(
+      context,
+      payload.repoId,
+      payload.processId,
+      payload.sessionId
+    );
+    if (record.access === "write" && record.sessionId) {
+      assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        payload.repoId,
+        record.sessionId
+      );
+    }
+    await this.resizeManagedProcess(record, payload.rows, payload.cols);
+    return {
+      ok: true as const,
+      repoId: payload.repoId,
+      processId: payload.processId,
+      resized: true as const,
+      rows: payload.rows,
+      cols: payload.cols,
       execution: selectionMetadata(
         record.selection,
         [],

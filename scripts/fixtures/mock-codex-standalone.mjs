@@ -7,6 +7,7 @@ const root = path.resolve(process.env.CHATCOCKPIT_MOCK_STANDALONE_ROOT || proces
 const tracePath = process.env.CHATCOCKPIT_MOCK_STANDALONE_TRACE;
 const unsupportedMethod = process.env.CHATCOCKPIT_MOCK_UNSUPPORTED_METHOD || "";
 const commandProcesses = new Map();
+const commandPtys = new Set();
 
 function trace(message) {
   if (!tracePath) return;
@@ -212,6 +213,7 @@ lineReader.on("line", (line) => {
         }
         const child = spawn(command[0], command.slice(1), { cwd, stdio: ["pipe", "pipe", "pipe"] });
         commandProcesses.set(processId, child);
+        if (message.params?.tty === true) commandPtys.add(processId);
         child.stdout.on("data", (chunk) => notify("command/exec/outputDelta", {
           processId, stream: "stdout", deltaBase64: Buffer.from(chunk).toString("base64"), capReached: false
         }));
@@ -220,6 +222,7 @@ lineReader.on("line", (line) => {
         }));
         child.on("exit", (code) => {
           commandProcesses.delete(processId);
+          commandPtys.delete(processId);
           respond(message.id, { exitCode: code ?? 1, stdout: "", stderr: "" });
         });
         break;
@@ -232,6 +235,30 @@ lineReader.on("line", (line) => {
           child.stdin.write(Buffer.from(message.params.deltaBase64, "base64"));
         }
         if (message.params?.closeStdin === true) child.stdin.end();
+        respond(message.id, {});
+        break;
+      }
+      case "command/exec/resize": {
+        const processId = String(message.params?.processId || "");
+        const size = message.params?.size;
+        if (!commandProcesses.has(processId)) {
+          fail(message.id, -32602, "process not found");
+          break;
+        }
+        if (!commandPtys.has(processId)) {
+          fail(message.id, -32602, "process is not PTY-backed");
+          break;
+        }
+        if (
+          !size ||
+          !Number.isInteger(size.rows) ||
+          size.rows <= 0 ||
+          !Number.isInteger(size.cols) ||
+          size.cols <= 0
+        ) {
+          fail(message.id, -32602, "invalid PTY size");
+          break;
+        }
         respond(message.id, {});
         break;
       }

@@ -8,6 +8,11 @@ import {
   hostManagedWorkspaceAllowed,
   type HostPermissionProfile
 } from "./host-permission-policy.js";
+import {
+  DEFAULT_WORKSPACE_EXECUTION_PROFILE,
+  workspaceArbitraryCommandsAllowed,
+  type WorkspaceExecutionProfile
+} from "./workspace-execution-policy.js";
 
 export type CommandEffect = "read" | "write";
 
@@ -67,6 +72,19 @@ const NATIVE_WORKSPACE_READ_ONLY_GIT_SUBCOMMANDS = new Set([
   ...READ_ONLY_GIT_SUBCOMMANDS,
   "blame", "grep", "ls-files", "ls-tree", "cat-file", "for-each-ref",
   "describe", "name-rev", "merge-base"
+]);
+
+const NATIVE_WORKSPACE_READ_ONLY_COMMANDS = new Set([
+  "cat",
+  "file",
+  "grep",
+  "head",
+  "ls",
+  "pwd",
+  "stat",
+  "tail",
+  "wc",
+  "which"
 ]);
 
 const NATIVE_WORKSPACE_PROJECT_COMMANDS = new Set(
@@ -306,7 +324,8 @@ export interface NativeWorkspaceCommandPolicyDecision extends CommandPolicyDecis
 
 export function evaluateNativeWorkspaceCommand(
   command: string,
-  args: string[]
+  args: string[],
+  profile: WorkspaceExecutionProfile = DEFAULT_WORKSPACE_EXECUTION_PROFILE
 ): NativeWorkspaceCommandPolicyDecision {
   if (
     typeof command !== "string" ||
@@ -324,11 +343,8 @@ export function evaluateNativeWorkspaceCommand(
     if (!subcommand || subcommand.startsWith("-")) {
       throw new Error("Native workspace git global options are not allowed; use the workspace cwd instead");
     }
-    if (!NATIVE_WORKSPACE_GIT_SUBCOMMANDS.has(subcommand)) {
-      throw new Error(`Native workspace git subcommand is not allowed: ${subcommand}`);
-    }
-    if (subcommand === "submodule" && safeArgs[1] === "foreach") {
-      throw new Error("Native workspace git submodule foreach is not allowed");
+    if (!workspaceArbitraryCommandsAllowed(profile) && !NATIVE_WORKSPACE_GIT_SUBCOMMANDS.has(subcommand)) {
+      throw new Error(`Native workspace git subcommand is not allowed in restricted mode: ${subcommand}`);
     }
     if (subcommand === "apply" && safeArgs.includes("--unsafe-paths")) {
       throw new Error("Native workspace git apply --unsafe-paths is not allowed");
@@ -343,17 +359,53 @@ export function evaluateNativeWorkspaceCommand(
   }
 
   if (commandPath) {
-    assertNativeWorkspaceProjectCodeAllowed(command);
+    if (!workspaceArbitraryCommandsAllowed(profile)) {
+      assertNativeWorkspaceProjectCodeAllowed(command);
+    }
     return { command, args: safeArgs, effect: "write", commandPath: true, projectPathArgIndexes: [] };
+  }
+
+  if (!/^[A-Za-z0-9._+:-]+$/.test(command)) {
+    throw new Error("Native workspace command name must be a plain executable name or a contained relative executable path");
   }
 
   if (isBuiltinHostNpmScript(command, safeArgs)) {
     throw new Error("Host Runtime npm scripts require the builtin host execution lane");
   }
 
+  if (workspaceArbitraryCommandsAllowed(profile)) {
+    if (command === "npm" && safeArgs[0] === "audit") {
+      assertSafeNpmAuditArgs(safeArgs);
+      return {
+        command,
+        args: safeArgs,
+        effect: "read",
+        commandPath: false,
+        projectPathArgIndexes: []
+      };
+    }
+    if (command === "php" && safeArgs.length === 2 && safeArgs[0] === "-l") {
+      assertSafePhpLintArgs(safeArgs);
+      return {
+        command,
+        args: safeArgs,
+        effect: "read",
+        commandPath: false,
+        projectPathArgIndexes: [1]
+      };
+    }
+    return {
+      command,
+      args: safeArgs,
+      effect: NATIVE_WORKSPACE_READ_ONLY_COMMANDS.has(command) ? "read" : "write",
+      commandPath: false,
+      projectPathArgIndexes: []
+    };
+  }
+
   const allowedSubcommands = WORKSPACE_COMMAND_WHITELIST[command];
   if (!NATIVE_WORKSPACE_PROJECT_COMMANDS.has(command) || !allowedSubcommands) {
-    throw new Error(`Native workspace command is not allowed: ${command}`);
+    throw new Error(`Native workspace command is not allowed in restricted mode: ${command}`);
   }
   if (!allowedSubcommands.includes("*")) {
     const subcommand = safeArgs[0];

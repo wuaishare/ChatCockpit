@@ -24,6 +24,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-managed-command-"));
   const probeRoot = path.join(tempRoot, "workspace");
   const runtimeDir = path.join(tempRoot, ".chatcockpit", "runtime");
+  const tracePath = path.join(tempRoot, "standalone-trace.jsonl");
   const fixturePath = path.join(process.cwd(), "scripts", "fixtures", "mock-codex-standalone.mjs");
   fs.mkdirSync(probeRoot, { recursive: true });
 
@@ -36,7 +37,11 @@ async function verifyCodexManagedCommand(): Promise<void> {
   const makeClient = () => new CodexAppServerClient({
     command: process.execPath,
     args: [fixturePath],
-    env: { ...process.env, CHATCOCKPIT_MOCK_STANDALONE_ROOT: probeRoot },
+    env: {
+      ...process.env,
+      CHATCOCKPIT_MOCK_STANDALONE_ROOT: probeRoot,
+      CHATCOCKPIT_MOCK_STANDALONE_TRACE: tracePath
+    },
     requestTimeoutMs: 100
   });
 
@@ -85,6 +90,45 @@ async function verifyCodexManagedCommand(): Promise<void> {
     const interactiveDone = await waitForExit(adapter, interactive.processId);
     assert.equal(interactiveDone.state, "completed");
     assert.match(interactiveDone.chunks.map((chunk) => chunk.content).join(""), /echo:hello/);
+
+    const pty = await adapter.startStandaloneProcess({
+      command: [process.execPath, "-e", "setInterval(() => process.stdout.write('p'), 25)"],
+      cwd: probeRoot,
+      readOnly: true,
+      allowStdin: false,
+      tty: true,
+      terminalSize: { rows: 32, cols: 120 },
+      networkAccess: false
+    });
+    await sleep(60);
+    await adapter.resizeStandaloneProcess(pty.processId, 48, 160);
+    await adapter.writeStandaloneProcess(pty.processId, "fixture-input");
+    await adapter.terminateStandaloneProcess(pty.processId);
+    const ptyStopped = await waitForExit(adapter, pty.processId);
+    assert.equal(ptyStopped.state, "terminated");
+
+    const trace = fs
+      .readFileSync(tracePath, "utf8")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
+    const ptyExec = trace.find(
+      (entry) =>
+        entry.method === "command/exec" &&
+        entry.params?.processId === pty.processId
+    );
+    assert.ok(ptyExec);
+    assert.equal(ptyExec.params?.tty, true);
+    assert.equal(ptyExec.params?.streamStdin, true);
+    assert.deepEqual(ptyExec.params?.size, { rows: 32, cols: 120 });
+    const ptyResize = trace.find(
+      (entry) =>
+        entry.method === "command/exec/resize" &&
+        entry.params?.processId === pty.processId
+    );
+    assert.ok(ptyResize);
+    assert.deepEqual(ptyResize.params?.size, { rows: 48, cols: 160 });
 
     const stoppable = await adapter.startStandaloneProcess({
       command: [process.execPath, "-e", "setInterval(() => process.stdout.write('.'), 25)"],
