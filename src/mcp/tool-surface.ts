@@ -119,12 +119,10 @@ const DEFERRED_BY_PACK = {
     "host.roots.list",
     "host.files.read",
     "host.mutation.prepare",
-    "host.mutation.decide",
     "host.mutation.execute",
     "host.command.prepare",
     "host.command.execute",
     "host.process.prepare",
-    "host.process.decide",
     "host.process.execute",
     "host.process.read",
     "host.process.list"
@@ -208,7 +206,11 @@ const CONSOLIDATION_CANDIDATES_BY_PACK = {
   ]
 } as const satisfies Partial<Record<McpToolSurfacePack, readonly string[]>>;
 
-const OPERATOR_ONLY_SUFFIXES = ["host.command.decide"] as const;
+const OPERATOR_ONLY_SUFFIXES = [
+  "host.command.decide",
+  "host.mutation.decide",
+  "host.process.decide"
+] as const;
 
 const classifications = new Map<string, McpToolSurfaceClassification>();
 

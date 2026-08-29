@@ -27,6 +27,7 @@ import {
   ProcessSupervisorIpcServer,
   containProcessSupervisorSocketTransportErrors
 } from "../src/process-supervisor/server.ts";
+import { ProcessSupervisorRuntimeError } from "../src/process-supervisor/service.ts";
 
 const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-ps-ipc-"));
 
@@ -191,6 +192,12 @@ try {
       if (method === "owned.list") {
         return { processes: [] };
       }
+      if (method === "process.read") {
+        throw new ProcessSupervisorRuntimeError(
+          "DESKTOP_COMMANDER_MANAGED_PROCESS_INVALID",
+          "private fixture detail must not cross IPC"
+        );
+      }
       throw new Error(`fixture does not implement ${method}`);
     }
   });
@@ -206,6 +213,22 @@ try {
     assert.equal(health.supervisorGeneration, "generation-a");
     assert.equal(health.result.state, "ready");
     assert.deepEqual(health.result.echo, { ping: true });
+
+    await assert.rejects(
+      () => client.request("process.read", { processId: "fixture" }),
+      (error: unknown) =>
+        error instanceof ProcessSupervisorClientError &&
+        error.code === "DESKTOP_COMMANDER_MANAGED_PROCESS_INVALID" &&
+        error.message === "Process Supervisor method failed" &&
+        !error.message.includes("private fixture detail")
+    );
+    await assert.rejects(
+      () => client.request("process.stop", { processId: "fixture" }),
+      (error: unknown) =>
+        error instanceof ProcessSupervisorClientError &&
+        error.code === "SUPERVISOR_METHOD_FAILED" &&
+        error.message === "Process Supervisor method failed"
+    );
 
     const disconnectingClient = net.createConnection(paths.processSupervisorSocketPath);
     disconnectingClient.setEncoding("utf8");

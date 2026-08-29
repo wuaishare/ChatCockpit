@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { HostProcessService } from "../src/application/host-process-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
+import { OperatorService } from "../src/auth/operator-service.ts";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { hostProcessPrepareSchema } from "../src/contracts/host-process.ts";
 import {
@@ -654,7 +656,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     configPath
   );
   const context = buildOperationContext({
-    actorType: "remote-mcp",
+    actorType: "local-ui",
     requestId: "host-process-start-governance",
     publicProjection: true,
     now: NOW
@@ -795,6 +797,22 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       startupTimeoutMs: 1000,
       idempotencyKey: "process-denied-prepare"
     });
+    const remoteDecisionContext = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "host-process-remote-decision",
+      publicProjection: true,
+      now: NOW
+    });
+    await expectServiceCode(
+      service.decide(remoteDecisionContext, {
+        approvalId: deniedPrepared.approval.id,
+        expectedRevision: deniedPrepared.approval.revision,
+        decision: "denied",
+        idempotencyKey: "process-remote-decision-blocked"
+      }),
+      "HOST_PROCESS_OPERATOR_DECISION_REQUIRED"
+    );
+
     const deniedApproval = await service.decide(context, {
       approvalId: deniedPrepared.approval.id,
       expectedRevision: deniedPrepared.approval.revision,
@@ -1566,7 +1584,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     );
 
     const laterContext = buildOperationContext({
-      actorType: "remote-mcp",
+      actorType: "local-ui",
       requestId: "host-process-shutdown-fixture",
       publicProjection: true,
       now: "2026-08-09T00:41:00.000Z"
@@ -1663,7 +1681,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
             kind: "stdio",
             command: process.execPath,
             args: [fixtureServer, "desktop-managed-process"],
-            timeoutMs: 1000,
+            timeoutMs: 5000,
             maxBufferBytes: 262144,
             maxStderrBytes: 16384
           },
@@ -1713,15 +1731,37 @@ async function verifyHostProcessRestParity(): Promise<void> {
     watchdogIntervalMs: 50
   });
   await processSupervisorDaemon.start();
+  const operatorStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+  const operatorService = new OperatorService({ store: operatorStore });
+  await operatorService.setOwnerPassword({
+    username: "owner",
+    password: "test-password-host-process"
+  });
+  operatorStore.close();
   const restoreAuthEnv = isolateMachineLocalUnconfiguredAuth();
   let app = buildServer(paths, {
     directExecutorsConfigPath: directConfigPath
   });
 
   try {
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/operator/login",
+      payload: { username: "owner", password: "test-password-host-process" }
+    });
+    assert.equal(login.statusCode, 200, login.body);
+    const operatorSession = login.json() as { csrfToken: string };
+    const setCookie = login.headers["set-cookie"];
+    const operatorCookie = (Array.isArray(setCookie) ? setCookie[0] : setCookie)!.split(";", 1)[0];
+    const operatorMutationHeaders = {
+      cookie: operatorCookie,
+      "x-chatcockpit-csrf": operatorSession.csrfToken
+    };
+
     const projects = await app.inject({
       method: "GET",
-      url: "/api/continuity/projects"
+      url: "/api/continuity/projects",
+      headers: { cookie: operatorCookie }
     });
     assert.equal(projects.statusCode, 200, projects.body);
     const projectsBody = projects.json() as {
@@ -1742,6 +1782,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const task = await app.inject({
       method: "POST",
       url: "/api/continuity/tasks",
+      headers: operatorMutationHeaders,
       payload: {
         projectId: projection.project.id,
         workspaceId: workspace.id,
@@ -1759,6 +1800,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const session = await app.inject({
       method: "POST",
       url: "/api/continuity/sessions/start",
+      headers: operatorMutationHeaders,
       payload: {
         taskId: taskBody.task.id,
         title: "REST Managed Process Session",
@@ -1775,6 +1817,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const lease = await app.inject({
       method: "POST",
       url: "/api/continuity/leases/acquire",
+      headers: operatorMutationHeaders,
       payload: {
         sessionId: sessionBody.session.id,
         holderId: sessionBody.session.id,
@@ -1787,6 +1830,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const prepared = await app.inject({
       method: "POST",
       url: "/api/host/processes/prepare",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "start",
         rootId: "fixture",
@@ -1805,9 +1849,53 @@ async function verifyHostProcessRestParity(): Promise<void> {
       approval: { id: string; revision: number };
     };
 
+    const anonymousPending = await app.inject({
+      method: "GET",
+      url: "/api/host/processes/pending"
+    });
+    assert.equal(anonymousPending.statusCode, 401, anonymousPending.body);
+    const operatorPending = await app.inject({
+      method: "GET",
+      url: "/api/host/processes/pending",
+      headers: { cookie: operatorCookie }
+    });
+    assert.equal(operatorPending.statusCode, 200, operatorPending.body);
+    assert.equal(
+      (operatorPending.json() as { approvals: Array<{ id: string }> }).approvals
+        .some((item) => item.id === preparedBody.approval.id),
+      true
+    );
+    assert.doesNotMatch(operatorPending.body, new RegExp(hostRoot));
+
+    const anonymousDecision = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/decision",
+      payload: {
+        approvalId: preparedBody.approval.id,
+        expectedRevision: preparedBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-process-rest-anonymous-decision"
+      }
+    });
+    assert.equal(anonymousDecision.statusCode, 401, anonymousDecision.body);
+
+    const missingCsrfDecision = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/decision",
+      headers: { cookie: operatorCookie },
+      payload: {
+        approvalId: preparedBody.approval.id,
+        expectedRevision: preparedBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-process-rest-missing-csrf"
+      }
+    });
+    assert.equal(missingCsrfDecision.statusCode, 403, missingCsrfDecision.body);
+
     const approved = await app.inject({
       method: "POST",
       url: "/api/host/processes/decision",
+      headers: operatorMutationHeaders,
       payload: {
         approvalId: preparedBody.approval.id,
         expectedRevision: preparedBody.approval.revision,
@@ -1824,6 +1912,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const started = await app.inject({
       method: "POST",
       url: "/api/host/processes/execute",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "start",
         rootId: "fixture",
@@ -1843,7 +1932,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
       process: { id: string; status: string; workspaceId: string };
     };
     assert.match(startedBody.process.id, /^host_process_/);
-    assert.equal(startedBody.process.status, "running");
+    assert.equal(startedBody.process.status, "running", started.body);
     assert.equal(startedBody.process.workspaceId, workspace.id);
     assert.equal("output" in (started.json() as Record<string, unknown>), false);
     assert.doesNotMatch(started.body, new RegExp(hostRoot));
@@ -1852,6 +1941,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const read = await app.inject({
       method: "POST",
       url: "/api/host/processes/read",
+      headers: operatorMutationHeaders,
       payload: {
         processId: startedBody.process.id,
         offset: 0,
@@ -1869,6 +1959,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const inputPrepared = await app.inject({
       method: "POST",
       url: "/api/host/processes/prepare",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "input",
         processId: startedBody.process.id,
@@ -1887,6 +1978,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const inputApproved = await app.inject({
       method: "POST",
       url: "/api/host/processes/decision",
+      headers: operatorMutationHeaders,
       payload: {
         approvalId: inputPreparedBody.approval.id,
         expectedRevision: inputPreparedBody.approval.revision,
@@ -1901,6 +1993,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const inputExecuted = await app.inject({
       method: "POST",
       url: "/api/host/processes/execute",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "input",
         processId: startedBody.process.id,
@@ -1942,6 +2035,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const readAfterRestart = await app.inject({
       method: "POST",
       url: "/api/host/processes/read",
+      headers: operatorMutationHeaders,
       payload: {
         processId: startedBody.process.id,
         offset: 0,
@@ -1982,7 +2076,8 @@ async function verifyHostProcessRestParity(): Promise<void> {
 
     const listed = await app.inject({
       method: "GET",
-      url: `/api/host/processes?sessionId=${encodeURIComponent(sessionBody.session.id)}`
+      url: `/api/host/processes?sessionId=${encodeURIComponent(sessionBody.session.id)}`,
+      headers: { cookie: operatorCookie }
     });
     assert.equal(listed.statusCode, 200, listed.body);
     const listedBody = listed.json() as {
@@ -1998,6 +2093,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const stopPrepared = await app.inject({
       method: "POST",
       url: "/api/host/processes/prepare",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "stop",
         processId: startedBody.process.id,
@@ -2012,6 +2108,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const stopApproved = await app.inject({
       method: "POST",
       url: "/api/host/processes/decision",
+      headers: operatorMutationHeaders,
       payload: {
         approvalId: stopPreparedBody.approval.id,
         expectedRevision: stopPreparedBody.approval.revision,
@@ -2026,6 +2123,7 @@ async function verifyHostProcessRestParity(): Promise<void> {
     const stopped = await app.inject({
       method: "POST",
       url: "/api/host/processes/execute",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "stop",
         processId: startedBody.process.id,

@@ -54,17 +54,37 @@ function mapClientError(error: unknown): never {
       error.code === "SUPERVISOR_UNAVAILABLE" ||
       error.code === "SUPERVISOR_TIMEOUT" ||
       error.code === "SUPERVISOR_CONNECTION_CLOSED" ||
-      error.code === "SUPERVISOR_AUTH_FAILED"
+      error.code === "SUPERVISOR_AUTH_FAILED" ||
+      error.code === "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE"
     ) {
       throw new DesktopCommanderManagedProcessError(
         "DESKTOP_COMMANDER_MANAGED_PROCESS_UNAVAILABLE",
         "Durable Process Supervisor is unavailable"
       );
     }
-    if (error.code.includes("NOT_FOUND")) {
+    if (
+      error.code === "DESKTOP_COMMANDER_MANAGED_PROCESS_INVALID" ||
+      error.code === "SUPERVISOR_EXECUTOR_UNSUPPORTED" ||
+      error.code === "SUPERVISOR_BAD_REQUEST"
+    ) {
+      throw new DesktopCommanderManagedProcessError(
+        "DESKTOP_COMMANDER_MANAGED_PROCESS_INVALID",
+        "Durable managed process request was rejected"
+      );
+    }
+    if (
+      error.code === "DESKTOP_COMMANDER_MANAGED_PROCESS_NOT_FOUND" ||
+      error.code.includes("NOT_FOUND")
+    ) {
       throw new DesktopCommanderManagedProcessError(
         "DESKTOP_COMMANDER_MANAGED_PROCESS_NOT_FOUND",
         "Durable managed process runtime was not found"
+      );
+    }
+    if (error.code === "DESKTOP_COMMANDER_MANAGED_PROCESS_TERMINATION_FAILED") {
+      throw new DesktopCommanderManagedProcessError(
+        "DESKTOP_COMMANDER_MANAGED_PROCESS_TERMINATION_FAILED",
+        "Durable managed process termination could not be confirmed"
       );
     }
     throw new DesktopCommanderManagedProcessError(

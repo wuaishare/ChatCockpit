@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 import { HostMutationService } from "../src/application/host-mutation-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
+import { OperatorService } from "../src/auth/operator-service.ts";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { classifyHostMutationTarget } from "../src/application/workspace-mutation-governance.ts";
 import {
@@ -589,7 +591,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
     configPath
   );
   const context = buildOperationContext({
-    actorType: "remote-mcp",
+    actorType: "local-ui",
     requestId: "host-mutation-prepare",
     publicProjection: true,
     now: "2026-08-08T12:00:00.000Z"
@@ -659,6 +661,22 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
       "alpha\n"
     );
 
+    const remoteDecisionContext = buildOperationContext({
+      actorType: "remote-mcp",
+      requestId: "host-mutation-remote-decision",
+      publicProjection: true,
+      now: "2026-08-08T12:00:00.000Z"
+    });
+    await expectAsyncServiceCode(
+      service.decide(remoteDecisionContext, {
+        approvalId: preparedWrite.approval.id,
+        expectedRevision: preparedWrite.approval.revision,
+        decision: "approved",
+        idempotencyKey: "remote-approve-write-blocked"
+      }),
+      "HOST_MUTATION_OPERATOR_DECISION_REQUIRED"
+    );
+
     const approved = await service.decide(context, {
       approvalId: preparedWrite.approval.id,
       expectedRevision: preparedWrite.approval.revision,
@@ -714,7 +732,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
       idempotencyKey: "approve-expired-write"
     });
     const expiredContext = buildOperationContext({
-      actorType: "remote-mcp",
+      actorType: "local-ui",
       requestId: "host-mutation-expired",
       publicProjection: true,
       now: "2026-08-08T12:06:00.000Z"
@@ -1067,7 +1085,7 @@ async function verifyHostMutationExecutorDrift(): Promise<void> {
     configPath
   );
   const context = buildOperationContext({
-    actorType: "remote-mcp",
+    actorType: "local-ui",
     requestId: "host-mutation-executor-drift",
     publicProjection: true,
     now: "2026-08-08T12:30:00.000Z"
@@ -1293,7 +1311,7 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
     configPath
   );
   const context = buildOperationContext({
-    actorType: "remote-mcp",
+    actorType: "local-ui",
     requestId: "workspace-host-mutation",
     publicProjection: true,
     now: "2026-08-08T13:00:00.000Z"
@@ -1500,11 +1518,36 @@ async function verifyHostMutationRestParity(): Promise<void> {
     configPath,
     executorId: DESKTOP_COMMANDER_EXECUTOR_ID
   });
+  const operatorStore = new OperatorStore({ path: operatorDatabasePath(paths.runtimeDir) });
+  const operatorService = new OperatorService({ store: operatorStore });
+  await operatorService.setOwnerPassword({
+    username: "owner",
+    password: "test-password-host-mutation"
+  });
+  operatorStore.close();
   const restoreAuthEnv = isolateMachineLocalUnconfiguredAuth();
   const app = buildServer(paths, { directExecutorsConfigPath: configPath });
 
   try {
-    const roots = await app.inject({ method: "GET", url: "/api/host/roots" });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/operator/login",
+      payload: { username: "owner", password: "test-password-host-mutation" }
+    });
+    assert.equal(login.statusCode, 200, login.body);
+    const operatorSession = login.json() as { csrfToken: string };
+    const setCookie = login.headers["set-cookie"];
+    const operatorCookie = (Array.isArray(setCookie) ? setCookie[0] : setCookie)!.split(";", 1)[0];
+    const operatorMutationHeaders = {
+      cookie: operatorCookie,
+      "x-chatcockpit-csrf": operatorSession.csrfToken
+    };
+
+    const roots = await app.inject({
+      method: "GET",
+      url: "/api/host/roots",
+      headers: { cookie: operatorCookie }
+    });
     assert.equal(roots.statusCode, 200);
     const rootsBody = roots.json() as {
       mode: string;
@@ -1517,6 +1560,7 @@ async function verifyHostMutationRestParity(): Promise<void> {
     const prepare = await app.inject({
       method: "POST",
       url: "/api/host/mutations/prepare",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "files.write",
         rootId: "fixture",
@@ -1532,6 +1576,16 @@ async function verifyHostMutationRestParity(): Promise<void> {
     assert.ok(prepareBody.approval.id);
     assert.doesNotMatch(prepare.body, new RegExp(hostRoot));
 
+    const pending = await app.inject({
+      method: "GET",
+      url: "/api/host/mutations/pending"
+    });
+    assert.equal(pending.statusCode, 401, pending.body);
+    assert.equal(
+      (pending.json() as { error?: { code?: string } }).error?.code,
+      "UNAUTHORIZED"
+    );
+
     const decision = await app.inject({
       method: "POST",
       url: "/api/host/mutations/decision",
@@ -1542,26 +1596,72 @@ async function verifyHostMutationRestParity(): Promise<void> {
         idempotencyKey: "rest-decision-001"
       }
     });
-    assert.equal(decision.statusCode, 200);
-    const decisionBody = decision.json() as {
+    assert.equal(decision.statusCode, 401, decision.body);
+    assert.equal(
+      (decision.json() as { error?: { code?: string } }).error?.code,
+      "UNAUTHORIZED"
+    );
+
+    const operatorPending = await app.inject({
+      method: "GET",
+      url: "/api/host/mutations/pending",
+      headers: { cookie: operatorCookie }
+    });
+    assert.equal(operatorPending.statusCode, 200, operatorPending.body);
+    const operatorPendingBody = operatorPending.json() as {
+      approvals: Array<{ id: string; publicSummary: Record<string, unknown> }>;
+    };
+    assert.equal(operatorPendingBody.approvals.some((item) => item.id === prepareBody.approval.id), true);
+    assert.doesNotMatch(operatorPending.body, new RegExp(hostRoot));
+
+    const missingCsrf = await app.inject({
+      method: "POST",
+      url: "/api/host/mutations/decision",
+      headers: { cookie: operatorCookie },
+      payload: {
+        approvalId: prepareBody.approval.id,
+        expectedRevision: prepareBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "rest-decision-missing-csrf"
+      }
+    });
+    assert.equal(missingCsrf.statusCode, 403, missingCsrf.body);
+
+    const operatorDecision = await app.inject({
+      method: "POST",
+      url: "/api/host/mutations/decision",
+      headers: {
+        cookie: operatorCookie,
+        "x-chatcockpit-csrf": operatorSession.csrfToken
+      },
+      payload: {
+        approvalId: prepareBody.approval.id,
+        expectedRevision: prepareBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "rest-decision-operator"
+      }
+    });
+    assert.equal(operatorDecision.statusCode, 200, operatorDecision.body);
+    const operatorDecisionBody = operatorDecision.json() as {
       approval: { id: string; revision: number; status: string };
     };
-    assert.equal(decisionBody.approval.status, "approved");
+    assert.equal(operatorDecisionBody.approval.status, "approved");
 
     const execute = await app.inject({
       method: "POST",
       url: "/api/host/mutations/execute",
+      headers: operatorMutationHeaders,
       payload: {
         operation: "files.write",
         rootId: "fixture",
         path: "notes/rest.txt",
         content: "rest\n",
-        approvalId: decisionBody.approval.id,
-        expectedApprovalRevision: decisionBody.approval.revision,
+        approvalId: operatorDecisionBody.approval.id,
+        expectedApprovalRevision: operatorDecisionBody.approval.revision,
         idempotencyKey: "rest-execute-001"
       }
     });
-    assert.equal(execute.statusCode, 200);
+    assert.equal(execute.statusCode, 200, execute.body);
     assert.equal(
       fs.readFileSync(path.join(hostRoot, "notes", "rest.txt"), "utf8"),
       "rest\n"

@@ -23,12 +23,18 @@ import {
 
 import {
   decideHostCommandApproval,
+  decideHostMutationApproval,
+  decideHostProcessApproval,
   fetchHostExecutionPermissions,
   fetchPendingHostCommandApprovals,
+  fetchPendingHostMutationApprovals,
+  fetchPendingHostProcessApprovals,
   updateHostExecutionPermissions,
   type HostCommandPendingApprovalSummary,
   type HostExecutionPermissionsResponse,
-  type HostPermissionProfile
+  type HostMutationPendingApprovalSummary,
+  type HostPermissionProfile,
+  type HostProcessPendingApprovalSummary
 } from "../api";
 import type { LocaleCode } from "../i18n";
 
@@ -54,10 +60,15 @@ function copyFor(locale: LocaleCode) {
       save: "保存权限档位",
       saved: "执行权限已更新",
       refresh: "刷新待审批",
-      approvalTitle: "待审批的主机命令",
+      approvalTitle: "待审批的主机操作",
       approvalDescription:
-        "远程 MCP 调用方不能批准自己的请求。只有已登录的 Operator 可以批准或拒绝，批准仍只对该条精确命令、参数、目录、执行器和超时生效。",
+        "远程 MCP 调用方不能批准自己的请求。只有已登录的 Operator 可以批准或拒绝；命令、文件变更与托管进程审批都只对已准备的精确操作生效。",
+      commandApprovalTitle: "主机命令",
+      mutationApprovalTitle: "文件变更",
+      processApprovalTitle: "托管进程",
       noApprovals: "当前没有待审批的主机命令。",
+      noMutationApprovals: "当前没有待审批的主机文件变更。",
+      noProcessApprovals: "当前没有待审批的托管进程操作。",
       approve: "批准",
       deny: "拒绝",
       expires: "过期时间",
@@ -93,10 +104,15 @@ function copyFor(locale: LocaleCode) {
     save: "Save permission profile",
     saved: "Execution permissions updated",
     refresh: "Refresh approvals",
-    approvalTitle: "Pending Host command approvals",
+    approvalTitle: "Pending Host operation approvals",
     approvalDescription:
-      "Remote MCP callers cannot approve their own requests. Only a signed-in Operator can approve or deny, and approval remains bound to the exact command, arguments, working directory, executor and timeout.",
+      "Remote MCP callers cannot approve their own requests. Only a signed-in Operator can approve or deny; command, file-mutation and managed-process approvals remain bound to the exact prepared operation.",
+    commandApprovalTitle: "Host commands",
+    mutationApprovalTitle: "File mutations",
+    processApprovalTitle: "Managed processes",
     noApprovals: "There are no pending Host command approvals.",
+    noMutationApprovals: "There are no pending Host file mutations.",
+    noProcessApprovals: "There are no pending managed-process actions.",
     approve: "Approve",
     deny: "Deny",
     expires: "Expires",
@@ -138,6 +154,24 @@ function exactCommandDisplay(approval: HostCommandPendingApprovalSummary): strin
   return [approval.command, ...approval.args.map((arg) => JSON.stringify(arg))].join(" ");
 }
 
+function summaryText(summary: Record<string, unknown>, key: string): string | null {
+  const value = summary[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function mutationApprovalDisplay(approval: HostMutationPendingApprovalSummary): string {
+  return `${approval.operation} ${summaryText(approval.publicSummary, "target") ?? approval.rootId}`;
+}
+
+function processApprovalDisplay(approval: HostProcessPendingApprovalSummary): string {
+  const target =
+    summaryText(approval.publicSummary, "command") ??
+    summaryText(approval.publicSummary, "processId") ??
+    approval.processId ??
+    "";
+  return target ? `${approval.operation} ${target}` : approval.operation;
+}
+
 export function HostExecutionPermissionsManager({
   locale,
   open
@@ -147,6 +181,8 @@ export function HostExecutionPermissionsManager({
     useState<HostExecutionPermissionsResponse | null>(null);
   const [selected, setSelected] = useState<HostPermissionProfile>("development");
   const [approvals, setApprovals] = useState<HostCommandPendingApprovalSummary[]>([]);
+  const [mutationApprovals, setMutationApprovals] = useState<HostMutationPendingApprovalSummary[]>([]);
+  const [processApprovals, setProcessApprovals] = useState<HostProcessPendingApprovalSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [decisionId, setDecisionId] = useState<string | null>(null);
@@ -156,13 +192,22 @@ export function HostExecutionPermissionsManager({
     setLoading(true);
     setError(null);
     try {
-      const [permissionResponse, approvalResponse] = await Promise.all([
+      const [
+        permissionResponse,
+        commandApprovalResponse,
+        mutationApprovalResponse,
+        processApprovalResponse
+      ] = await Promise.all([
         fetchHostExecutionPermissions(),
-        fetchPendingHostCommandApprovals()
+        fetchPendingHostCommandApprovals(),
+        fetchPendingHostMutationApprovals(),
+        fetchPendingHostProcessApprovals()
       ]);
       setPermissions(permissionResponse);
       setSelected(permissionResponse.hostPermissionProfile);
-      setApprovals(approvalResponse.approvals);
+      setApprovals(commandApprovalResponse.approvals);
+      setMutationApprovals(mutationApprovalResponse.approvals);
+      setProcessApprovals(processApprovalResponse.approvals);
     } catch (cause) {
       setError(problemMessage(cause));
     } finally {
@@ -221,6 +266,48 @@ export function HostExecutionPermissionsManager({
       });
       const refreshed = await fetchPendingHostCommandApprovals();
       setApprovals(refreshed.approvals);
+    } catch (cause) {
+      setError(problemMessage(cause));
+    } finally {
+      setDecisionId(null);
+    }
+  }
+
+  async function decideMutation(
+    approval: HostMutationPendingApprovalSummary,
+    decision: "approved" | "denied"
+  ) {
+    setDecisionId(approval.id);
+    setError(null);
+    try {
+      await decideHostMutationApproval({
+        approvalId: approval.id,
+        expectedRevision: approval.revision,
+        decision
+      });
+      const refreshed = await fetchPendingHostMutationApprovals();
+      setMutationApprovals(refreshed.approvals);
+    } catch (cause) {
+      setError(problemMessage(cause));
+    } finally {
+      setDecisionId(null);
+    }
+  }
+
+  async function decideProcess(
+    approval: HostProcessPendingApprovalSummary,
+    decision: "approved" | "denied"
+  ) {
+    setDecisionId(approval.id);
+    setError(null);
+    try {
+      await decideHostProcessApproval({
+        approvalId: approval.id,
+        expectedRevision: approval.revision,
+        decision
+      });
+      const refreshed = await fetchPendingHostProcessApprovals();
+      setProcessApprovals(refreshed.approvals);
     } catch (cause) {
       setError(problemMessage(cause));
     } finally {
@@ -304,6 +391,9 @@ export function HostExecutionPermissionsManager({
         </Button>
       </Space>
 
+      <Typography.Title level={5} style={{ marginBottom: 8 }}>
+        {copy.commandApprovalTitle}
+      </Typography.Title>
       <List
         dataSource={approvals}
         locale={{ emptyText: copy.noApprovals }}
@@ -349,6 +439,116 @@ export function HostExecutionPermissionsManager({
                     </Typography.Text>
                     <Typography.Text type="secondary">
                       {locale === "zh-CN" ? "执行器" : "Executor"}: {approval.executorId} · {locale === "zh-CN" ? "超时" : "Timeout"}: {approval.timeoutMs} ms
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {copy.expires}: {new Date(approval.expiresAt).toLocaleString(locale)}
+                    </Typography.Text>
+                  </Space>
+                }
+              />
+            </List.Item>
+          );
+        }}
+      />
+
+      <Divider />
+      <Typography.Title level={5} style={{ marginBottom: 8 }}>
+        {copy.mutationApprovalTitle}
+      </Typography.Title>
+      <List
+        dataSource={mutationApprovals}
+        locale={{ emptyText: copy.noMutationApprovals }}
+        renderItem={(approval) => {
+          const busy = decisionId === approval.id;
+          return (
+            <List.Item
+              actions={[
+                <Button
+                  key="deny"
+                  danger
+                  icon={<CloseOutlined />}
+                  loading={busy}
+                  onClick={() => void decideMutation(approval, "denied")}
+                >
+                  {copy.deny}
+                </Button>,
+                <Button
+                  key="approve"
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  loading={busy}
+                  onClick={() => void decideMutation(approval, "approved")}
+                >
+                  {copy.approve}
+                </Button>
+              ]}
+            >
+              <List.Item.Meta
+                title={
+                  <Space wrap>
+                    <Typography.Text code>{mutationApprovalDisplay(approval)}</Typography.Text>
+                    <Tag>{approval.targetKind}</Tag>
+                  </Space>
+                }
+                description={
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text type="secondary">
+                      {locale === "zh-CN" ? "执行器" : "Executor"}: {approval.executorId}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {copy.expires}: {new Date(approval.expiresAt).toLocaleString(locale)}
+                    </Typography.Text>
+                  </Space>
+                }
+              />
+            </List.Item>
+          );
+        }}
+      />
+
+      <Divider />
+      <Typography.Title level={5} style={{ marginBottom: 8 }}>
+        {copy.processApprovalTitle}
+      </Typography.Title>
+      <List
+        dataSource={processApprovals}
+        locale={{ emptyText: copy.noProcessApprovals }}
+        renderItem={(approval) => {
+          const busy = decisionId === approval.id;
+          return (
+            <List.Item
+              actions={[
+                <Button
+                  key="deny"
+                  danger
+                  icon={<CloseOutlined />}
+                  loading={busy}
+                  onClick={() => void decideProcess(approval, "denied")}
+                >
+                  {copy.deny}
+                </Button>,
+                <Button
+                  key="approve"
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  loading={busy}
+                  onClick={() => void decideProcess(approval, "approved")}
+                >
+                  {copy.approve}
+                </Button>
+              ]}
+            >
+              <List.Item.Meta
+                title={
+                  <Space wrap>
+                    <Typography.Text code>{processApprovalDisplay(approval)}</Typography.Text>
+                    <Tag>{approval.operation}</Tag>
+                  </Space>
+                }
+                description={
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text type="secondary">
+                      {locale === "zh-CN" ? "执行器" : "Executor"}: {approval.executorId}
                     </Typography.Text>
                     <Typography.Text type="secondary">
                       {copy.expires}: {new Date(approval.expiresAt).toLocaleString(locale)}

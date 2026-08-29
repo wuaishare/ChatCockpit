@@ -1645,11 +1645,34 @@ export function buildServer(
     }
   };
 
+  const hostMutationPendingHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const operatorError = operatorRequestError(
+      request as FastifyRequest,
+      fastifyReply,
+      false
+    );
+    if (operatorError) return operatorError;
+    return {
+      ok: true as const,
+      approvals: hostMutation.listPendingApprovals()
+    };
+  };
+
   const hostMutationDecisionHandler = async (
     request: unknown,
     reply: unknown
   ) => {
     const fastifyReply = replyFrom(reply);
+    const operatorError = operatorRequestError(
+      request as FastifyRequest,
+      fastifyReply,
+      true
+    );
+    if (operatorError) return operatorError;
     const parsed = hostMutationDecisionSchema.safeParse(
       (request as { body: unknown }).body
     );
@@ -1794,11 +1817,34 @@ export function buildServer(
     }
   };
 
+  const hostProcessPendingHandler = async (
+    request: unknown,
+    reply: unknown
+  ) => {
+    const fastifyReply = replyFrom(reply);
+    const operatorError = operatorRequestError(
+      request as FastifyRequest,
+      fastifyReply,
+      false
+    );
+    if (operatorError) return operatorError;
+    return {
+      ok: true as const,
+      approvals: hostProcess.listPendingApprovals()
+    };
+  };
+
   const hostProcessDecisionHandler = async (
     request: unknown,
     reply: unknown
   ) => {
     const fastifyReply = replyFrom(reply);
+    const operatorError = operatorRequestError(
+      request as FastifyRequest,
+      fastifyReply,
+      true
+    );
+    if (operatorError) return operatorError;
     const parsed = hostProcessDecisionSchema.safeParse(
       (request as { body: unknown }).body
     );
@@ -2129,6 +2175,11 @@ export function buildServer(
     "/tokenpilot/api/host/mutations/prepare",
     hostMutationPrepareHandler
   );
+  app.get("/api/host/mutations/pending", hostMutationPendingHandler);
+  app.get(
+    "/tokenpilot/api/host/mutations/pending",
+    hostMutationPendingHandler
+  );
   app.post("/api/host/mutations/decision", hostMutationDecisionHandler);
   app.post(
     "/tokenpilot/api/host/mutations/decision",
@@ -2161,6 +2212,11 @@ export function buildServer(
   app.post(
     "/tokenpilot/api/host/processes/prepare",
     hostProcessPrepareHandler
+  );
+  app.get("/api/host/processes/pending", hostProcessPendingHandler);
+  app.get(
+    "/tokenpilot/api/host/processes/pending",
+    hostProcessPendingHandler
   );
   app.post("/api/host/processes/decision", hostProcessDecisionHandler);
   app.post(

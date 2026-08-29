@@ -197,6 +197,15 @@ function context(label: string) {
   });
 }
 
+function operatorContext(label: string) {
+  return buildOperationContext({
+    actorType: "local-ui",
+    requestId: `durable-process-live:operator:${label}:${randomUUID()}`,
+    publicProjection: true,
+    now: nowIso()
+  });
+}
+
 async function prepareApproveExecute(
   controlPlane: ControlPlaneFixture,
   input: Record<string, unknown>,
@@ -206,7 +215,7 @@ async function prepareApproveExecute(
     ...(input as never),
     idempotencyKey: `${key}:prepare`
   });
-  const approved = await controlPlane.service.decide(context(`${key}:decide`), {
+  const approved = await controlPlane.service.decide(operatorContext(`${key}:decide`), {
     approvalId: prepared.approval.id,
     expectedRevision: prepared.approval.revision,
     decision: "approved",

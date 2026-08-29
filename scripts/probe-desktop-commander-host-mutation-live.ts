@@ -218,15 +218,20 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
       buildHostMutationTools(hostMutation).map((tool) => [tool.name, tool])
     );
     const prepareTool = tools.get("chatcockpit.host.mutation.prepare");
-    const decideTool = tools.get("chatcockpit.host.mutation.decide");
     const executeTool = tools.get("chatcockpit.host.mutation.execute");
     assert.ok(prepareTool, "Host Mutation prepare MCP tool is not registered");
-    assert.ok(decideTool, "Host Mutation decide MCP tool is not registered");
     assert.ok(executeTool, "Host Mutation execute MCP tool is not registered");
 
     const context = buildOperationContext({
       actorType: "remote-mcp",
       requestId: "desktop-commander-host-mutation-live-proof",
+      publicProjection: true,
+      now: "2026-08-08T12:00:00.000Z"
+    });
+    const decisionContext = buildOperationContext({
+      actorType: "local-ui",
+      actorId: "desktop-commander-live-operator",
+      requestId: "desktop-commander-host-mutation-live-approval",
       publicProjection: true,
       now: "2026-08-08T12:00:00.000Z"
     });
@@ -243,16 +248,12 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
         idempotencyKey: "desktop-live-prepare-write"
       })
     );
-    const approvedWrite = structured<{
-      approval: { id: string; revision: number; status: string };
-    }>(
-      await decideTool.execute(context, {
-        approvalId: preparedWrite.approval.id,
-        expectedRevision: preparedWrite.approval.revision,
-        decision: "approved",
-        idempotencyKey: "desktop-live-approve-write"
-      })
-    );
+    const approvedWrite = await hostMutation.decide(decisionContext, {
+      approvalId: preparedWrite.approval.id,
+      expectedRevision: preparedWrite.approval.revision,
+      decision: "approved",
+      idempotencyKey: "desktop-live-approve-write"
+    });
     assert.equal(approvedWrite.approval.status, "approved");
     const writeResult = structured<Record<string, unknown>>(
       await executeTool.execute(context, {
@@ -284,16 +285,12 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
         idempotencyKey: "desktop-live-prepare-edit"
       })
     );
-    const approvedEdit = structured<{
-      approval: { id: string; revision: number; status: string };
-    }>(
-      await decideTool.execute(context, {
-        approvalId: preparedEdit.approval.id,
-        expectedRevision: preparedEdit.approval.revision,
-        decision: "approved",
-        idempotencyKey: "desktop-live-approve-edit"
-      })
-    );
+    const approvedEdit = await hostMutation.decide(decisionContext, {
+      approvalId: preparedEdit.approval.id,
+      expectedRevision: preparedEdit.approval.revision,
+      decision: "approved",
+      idempotencyKey: "desktop-live-approve-edit"
+    });
     assert.equal(approvedEdit.approval.status, "approved");
     const editResult = structured<Record<string, unknown>>(
       await executeTool.execute(context, {

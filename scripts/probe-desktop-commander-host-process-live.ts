@@ -337,15 +337,21 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       buildHostProcessTools(service).map((tool) => [tool.name, tool])
     );
     const prepareTool = tools.get("chatcockpit.host.process.prepare");
-    const decideTool = tools.get("chatcockpit.host.process.decide");
     const executeTool = tools.get("chatcockpit.host.process.execute");
     const readTool = tools.get("chatcockpit.host.process.read");
     const listTool = tools.get("chatcockpit.host.process.list");
-    assert.ok(prepareTool && decideTool && executeTool && readTool && listTool);
+    assert.ok(prepareTool && executeTool && readTool && listTool);
 
     const context = buildOperationContext({
       actorType: "remote-mcp",
       requestId: "desktop-commander-host-process-live-proof",
+      publicProjection: true,
+      now: NOW
+    });
+    const decisionContext = buildOperationContext({
+      actorType: "local-ui",
+      actorId: "desktop-commander-live-operator",
+      requestId: "desktop-commander-host-process-live-approval",
       publicProjection: true,
       now: NOW
     });
@@ -361,14 +367,12 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       approval: { id: string; revision: number },
       key: string
     ) =>
-      structured<{ approval: { id: string; revision: number; status: string } }>(
-        await decideTool.execute(context, {
-          approvalId: approval.id,
-          expectedRevision: approval.revision,
-          decision: "approved",
-          idempotencyKey: `${key}-approve`
-        })
-      );
+      service!.decide(decisionContext, {
+        approvalId: approval.id,
+        expectedRevision: approval.revision,
+        decision: "approved",
+        idempotencyKey: `${key}-approve`
+      });
     const execute = async (
       input: Record<string, unknown>,
       approval: { id: string; revision: number },

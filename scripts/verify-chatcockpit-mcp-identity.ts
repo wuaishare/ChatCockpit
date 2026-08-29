@@ -188,7 +188,13 @@ try {
     );
     assert.equal(fullToolNames.includes("chatcockpit.host.command.prepare"), true);
     assert.equal(fullToolNames.includes("chatcockpit.host.command.execute"), true);
-    assert.equal(fullToolNames.includes("chatcockpit.host.command.decide"), false);
+    for (const name of [
+      "chatcockpit.host.command.decide",
+      "chatcockpit.host.mutation.decide",
+      "chatcockpit.host.process.decide"
+    ]) {
+      assert.equal(fullToolNames.includes(name), false);
+    }
 
     const targetExecutors = await postMcp(target.app, {
       jsonrpc: "2.0",

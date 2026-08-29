@@ -285,6 +285,47 @@ export interface HostCommandApprovalDecisionSummary {
   publicSummary: Record<string, unknown>;
 }
 
+export interface HostMutationPendingApprovalSummary {
+  id: string;
+  revision: number;
+  status: "pending";
+  operation: "files.write" | "files.edit";
+  rootId: string;
+  targetKind: "pure-host" | "workspace";
+  executorId: string;
+  expiresAt: string;
+  publicSummary: Record<string, unknown>;
+}
+
+export interface HostMutationPendingApprovalsResponse {
+  ok: true;
+  approvals: HostMutationPendingApprovalSummary[];
+}
+
+export interface HostProcessPendingApprovalSummary {
+  id: string;
+  revision: number;
+  status: "pending";
+  operation: "start" | "input" | "stop";
+  processId: string | null;
+  executorId: string;
+  expiresAt: string;
+  publicSummary: Record<string, unknown>;
+}
+
+export interface HostProcessPendingApprovalsResponse {
+  ok: true;
+  approvals: HostProcessPendingApprovalSummary[];
+}
+
+export interface HostApprovalDecisionSummary {
+  id: string;
+  revision: number;
+  status: "approved" | "denied";
+  expiresAt: string;
+  publicSummary: Record<string, unknown>;
+}
+
 export async function fetchOperatorStatus(
   loginGate?: string | null,
   oauthRequestId?: string | null
@@ -333,6 +374,46 @@ export async function decideHostCommandApproval(input: {
     {
       ...input,
       idempotencyKey: `web-host-command-${input.approvalId}-${input.expectedRevision}-${input.decision}`
+    }
+  );
+}
+
+export async function fetchPendingHostMutationApprovals(): Promise<HostMutationPendingApprovalsResponse> {
+  return requestJson<HostMutationPendingApprovalsResponse>(
+    "/api/host/mutations/pending"
+  );
+}
+
+export async function decideHostMutationApproval(input: {
+  approvalId: string;
+  expectedRevision: number;
+  decision: "approved" | "denied";
+}): Promise<{ ok: true; approval: HostApprovalDecisionSummary; replayed: boolean }> {
+  return postBodyJson(
+    "/api/host/mutations/decision",
+    {
+      ...input,
+      idempotencyKey: `web-host-mutation-${input.approvalId}-${input.expectedRevision}-${input.decision}`
+    }
+  );
+}
+
+export async function fetchPendingHostProcessApprovals(): Promise<HostProcessPendingApprovalsResponse> {
+  return requestJson<HostProcessPendingApprovalsResponse>(
+    "/api/host/processes/pending"
+  );
+}
+
+export async function decideHostProcessApproval(input: {
+  approvalId: string;
+  expectedRevision: number;
+  decision: "approved" | "denied";
+}): Promise<{ ok: true; approval: HostApprovalDecisionSummary; replayed: boolean }> {
+  return postBodyJson(
+    "/api/host/processes/decision",
+    {
+      ...input,
+      idempotencyKey: `web-host-process-${input.approvalId}-${input.expectedRevision}-${input.decision}`
     }
   );
 }

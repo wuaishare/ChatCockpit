@@ -406,6 +406,12 @@ export class HostProcessService {
     approval: DirectProcessApprovalRecord;
     replayed: boolean;
   }> {
+    if (!["local-ui", "local-cli", "rest-api"].includes(context.actorType)) {
+      throw new ServiceError(
+        "HOST_PROCESS_OPERATOR_DECISION_REQUIRED",
+        "Host process approval decisions require an authenticated human operator channel"
+      );
+    }
     const { idempotencyKey, ...decision } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.decide",
@@ -423,6 +429,19 @@ export class HostProcessService {
       context.now
     );
     return { ...execution.value, replayed: execution.replayed };
+  }
+
+  listPendingApprovals(now = new Date().toISOString()) {
+    return this.repositories.directProcessApprovals.listPending(now).map((approval) => ({
+      id: approval.id,
+      revision: approval.revision,
+      status: approval.status,
+      operation: approval.operation,
+      processId: approval.processId,
+      executorId: approval.executorId,
+      expiresAt: approval.expiresAt,
+      publicSummary: approval.publicSummary
+    }));
   }
 
   async read(

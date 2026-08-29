@@ -15,6 +15,7 @@ import {
   removeStaleProcessSupervisorSocket,
   tightenProcessSupervisorSocketPermissions
 } from "./runtime-files.js";
+import { ProcessSupervisorRuntimeError } from "./service.js";
 
 export interface ProcessSupervisorIpcServerOptions {
   paths: TokenPilotPaths;
@@ -139,7 +140,11 @@ export class ProcessSupervisorIpcServer {
             });
           }
           socket.end(response);
-        } catch {
+        } catch (error) {
+          const errorCode =
+            error instanceof ProcessSupervisorRuntimeError
+              ? error.code
+              : "SUPERVISOR_METHOD_FAILED";
           socket.end(
             encodeSupervisorResponse({
               protocolVersion: PROCESS_SUPERVISOR_PROTOCOL_VERSION,
@@ -147,7 +152,7 @@ export class ProcessSupervisorIpcServer {
               supervisorGeneration: this.options.generation,
               ok: false,
               error: {
-                code: "SUPERVISOR_METHOD_FAILED",
+                code: errorCode,
                 message: "Process Supervisor method failed"
               }
             })

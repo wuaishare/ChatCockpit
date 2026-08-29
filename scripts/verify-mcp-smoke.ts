@@ -242,10 +242,8 @@ async function runMcpSmoke(): Promise<void> {
         "host.command.execute",
         "host.command.prepare",
         "host.files.read",
-        "host.mutation.decide",
         "host.mutation.execute",
         "host.mutation.prepare",
-        "host.process.decide",
         "host.process.execute",
         "host.process.list",
         "host.process.prepare",
@@ -305,7 +303,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 94, "Full compatibility surface must expose all 94 remotely routable tools");
+    assert.equal(tools.length, 92, "Full compatibility surface must expose all 92 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -431,7 +429,7 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 23);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 94);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 92);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -684,10 +682,8 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.host.command.prepare",
       "chatcockpit.host.command.execute",
       "chatcockpit.host.mutation.prepare",
-      "chatcockpit.host.mutation.decide",
       "chatcockpit.host.mutation.execute",
       "chatcockpit.host.process.prepare",
-      "chatcockpit.host.process.decide",
       "chatcockpit.host.process.execute",
       "chatcockpit.host.process.read",
       "chatcockpit.host.process.list",
@@ -761,9 +757,7 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.handoff.fork",
       "chatcockpit.handoff.prepare",
       "chatcockpit.host.command.prepare",
-      "chatcockpit.host.mutation.decide",
       "chatcockpit.host.mutation.prepare",
-      "chatcockpit.host.process.decide",
       "chatcockpit.host.process.prepare",
       "chatcockpit.lease.release",
       "chatcockpit.recovery.assess",

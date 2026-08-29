@@ -181,6 +181,28 @@ async function main(): Promise<void> {
           idempotencyKey: "public-surface-host-command-decision"
         }
       },
+      { method: "GET", url: "/api/host/mutations/pending" },
+      {
+        method: "POST",
+        url: "/api/host/mutations/decision",
+        payload: {
+          approvalId: "direct_mutation_approval_public_surface",
+          expectedRevision: 1,
+          decision: "approved",
+          idempotencyKey: "public-surface-host-mutation-decision"
+        }
+      },
+      { method: "GET", url: "/api/host/processes/pending" },
+      {
+        method: "POST",
+        url: "/api/host/processes/decision",
+        payload: {
+          approvalId: "direct_process_approval_public_surface",
+          expectedRevision: 1,
+          decision: "approved",
+          idempotencyKey: "public-surface-host-process-decision"
+        }
+      },
       { method: "GET", url: "/api/git/status" },
       { method: "GET", url: "/api/continuity/projects" },
       { method: "GET", url: "/api/resources/providers" },
