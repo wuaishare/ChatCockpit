@@ -3,9 +3,7 @@ import { z } from "zod";
 
 import {
   HOST_PERMISSION_PROFILES,
-  fullHostCommandsAllowed,
-  hostDeviceDiagnosticsAllowed,
-  hostManagedWorkspaceAllowed,
+  describeHostPermissionProfile,
   type HostPermissionProfile
 } from "../core/host-permission-policy.js";
 import {
@@ -73,10 +71,12 @@ function projection(
   workspaceExecutionProfile: WorkspaceExecutionProfile,
   hostPermissionProfile: HostPermissionProfile
 ) {
+  const hostPolicy = describeHostPermissionProfile(hostPermissionProfile);
   return {
     ok: true as const,
     workspaceExecutionProfile,
     hostPermissionProfile,
+    hostRiskLevel: hostPolicy.riskLevel,
     workspaceApprovalPolicy: "writer-authority" as const,
     hostApprovalPolicy: "operator-required" as const,
     capabilities: {
@@ -84,9 +84,7 @@ function projection(
         workspaceExecutionProfile
       ),
       workspaceNetworkByRequest: true,
-      hostManagedWorkspace: hostManagedWorkspaceAllowed(hostPermissionProfile),
-      deviceDiagnostics: hostDeviceDiagnosticsAllowed(hostPermissionProfile),
-      fullHostCommands: fullHostCommandsAllowed(hostPermissionProfile)
+      ...hostPolicy.capabilities
     }
   };
 }

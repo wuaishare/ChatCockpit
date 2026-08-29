@@ -37,6 +37,7 @@ import {
   evaluateWorkspaceCommand,
   isHostManagedWorkspaceCommand
 } from "../src/core/command-policy.ts";
+import { describeHostPermissionProfile } from "../src/core/host-permission-policy.ts";
 import {
   assertHostCommandRelativePathsInsideRoot,
   HostPathPolicyError,
@@ -1554,6 +1555,51 @@ try {
       isHostManagedWorkspaceCommand("npm", ["run", "build:macos-desktop"], "development"),
       true
     );
+
+    assert.deepEqual(describeHostPermissionProfile("restricted"), {
+      profile: "restricted",
+      riskLevel: "restricted",
+      capabilities: {
+        hostManagedWorkspace: false,
+        deviceDiagnostics: false,
+        workspaceHostMutations: false,
+        pureHostFileMutations: false,
+        workspaceManagedProcesses: false,
+        pureHostManagedProcesses: false,
+        fullHostCommands: false
+      }
+    });
+    assert.deepEqual(describeHostPermissionProfile("development").capabilities, {
+      hostManagedWorkspace: true,
+      deviceDiagnostics: false,
+      workspaceHostMutations: true,
+      pureHostFileMutations: false,
+      workspaceManagedProcesses: true,
+      pureHostManagedProcesses: false,
+      fullHostCommands: false
+    });
+    assert.deepEqual(describeHostPermissionProfile("device-maintenance").capabilities, {
+      hostManagedWorkspace: true,
+      deviceDiagnostics: true,
+      workspaceHostMutations: true,
+      pureHostFileMutations: false,
+      workspaceManagedProcesses: true,
+      pureHostManagedProcesses: false,
+      fullHostCommands: false
+    });
+    assert.deepEqual(describeHostPermissionProfile("full-host"), {
+      profile: "full-host",
+      riskLevel: "danger",
+      capabilities: {
+        hostManagedWorkspace: true,
+        deviceDiagnostics: true,
+        workspaceHostMutations: true,
+        pureHostFileMutations: true,
+        workspaceManagedProcesses: true,
+        pureHostManagedProcesses: false,
+        fullHostCommands: true
+      }
+    });
 
     assert.equal(evaluateWorkspaceCommand("git", ["status", "--short"]).effect, "read");
     assert.equal(evaluateWorkspaceCommand("npm", ["test"]).effect, "write");

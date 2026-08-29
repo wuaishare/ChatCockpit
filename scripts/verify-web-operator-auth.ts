@@ -121,21 +121,35 @@ async function main(): Promise<void> {
     const executionPermissionsBody = (await executionPermissions.json()) as {
       workspaceExecutionProfile: string;
       hostPermissionProfile: string;
+      hostRiskLevel: string;
       workspaceApprovalPolicy: string;
       hostApprovalPolicy: string;
       capabilities: {
         workspaceArbitraryCommands: boolean;
         workspaceNetworkByRequest: boolean;
+        hostManagedWorkspace: boolean;
         deviceDiagnostics: boolean;
+        workspaceHostMutations: boolean;
+        pureHostFileMutations: boolean;
+        workspaceManagedProcesses: boolean;
+        pureHostManagedProcesses: boolean;
+        fullHostCommands: boolean;
       };
     };
     assert.equal(executionPermissionsBody.workspaceExecutionProfile, "development");
     assert.equal(executionPermissionsBody.hostPermissionProfile, "development");
+    assert.equal(executionPermissionsBody.hostRiskLevel, "elevated");
     assert.equal(executionPermissionsBody.workspaceApprovalPolicy, "writer-authority");
     assert.equal(executionPermissionsBody.hostApprovalPolicy, "operator-required");
     assert.equal(executionPermissionsBody.capabilities.workspaceArbitraryCommands, true);
     assert.equal(executionPermissionsBody.capabilities.workspaceNetworkByRequest, true);
+    assert.equal(executionPermissionsBody.capabilities.hostManagedWorkspace, true);
     assert.equal(executionPermissionsBody.capabilities.deviceDiagnostics, false);
+    assert.equal(executionPermissionsBody.capabilities.workspaceHostMutations, true);
+    assert.equal(executionPermissionsBody.capabilities.pureHostFileMutations, false);
+    assert.equal(executionPermissionsBody.capabilities.workspaceManagedProcesses, true);
+    assert.equal(executionPermissionsBody.capabilities.pureHostManagedProcesses, false);
+    assert.equal(executionPermissionsBody.capabilities.fullHostCommands, false);
 
     const noCsrfExecutionPermissionUpdate = await fetch(
       `${server.baseUrl}/api/operator/execution-permissions`,
@@ -166,10 +180,23 @@ async function main(): Promise<void> {
     assert.equal(executionPermissionUpdate.status, 200);
     const executionPermissionUpdateBody = (await executionPermissionUpdate.json()) as {
       hostPermissionProfile: string;
-      capabilities: { deviceDiagnostics: boolean; fullHostCommands: boolean };
+      hostRiskLevel: string;
+      capabilities: {
+        deviceDiagnostics: boolean;
+        workspaceHostMutations: boolean;
+        pureHostFileMutations: boolean;
+        workspaceManagedProcesses: boolean;
+        pureHostManagedProcesses: boolean;
+        fullHostCommands: boolean;
+      };
     };
     assert.equal(executionPermissionUpdateBody.hostPermissionProfile, "device-maintenance");
+    assert.equal(executionPermissionUpdateBody.hostRiskLevel, "elevated");
     assert.equal(executionPermissionUpdateBody.capabilities.deviceDiagnostics, true);
+    assert.equal(executionPermissionUpdateBody.capabilities.workspaceHostMutations, true);
+    assert.equal(executionPermissionUpdateBody.capabilities.pureHostFileMutations, false);
+    assert.equal(executionPermissionUpdateBody.capabilities.workspaceManagedProcesses, true);
+    assert.equal(executionPermissionUpdateBody.capabilities.pureHostManagedProcesses, false);
     assert.equal(executionPermissionUpdateBody.capabilities.fullHostCommands, false);
     assert.equal(
       (fs.statSync(directExecutorsConfigPath).mode & 0o777).toString(8),

@@ -20,7 +20,12 @@ import type {
 import type { TokenPilotPaths } from "../types.js";
 import type { SupervisorTerminalEvent } from "../process-supervisor/event-journal.js";
 import { evaluateWorkspaceCommand } from "../core/command-policy.js";
+import {
+  workspaceManagedProcessesAllowed,
+  type HostPermissionProfile
+} from "../core/host-permission-policy.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
+import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
 import {
   DesktopCommanderManagedProcessError,
   type ManagedProcessAdapterSnapshot,
@@ -105,6 +110,7 @@ interface PreparedProcessStartIntent {
   args: string[];
   effect: "read" | "write";
   selection: DirectExecutorSelection;
+  hostPermissionProfile: HostPermissionProfile;
   actionHash: string;
 }
 
@@ -232,6 +238,7 @@ function exactStartHash(input: {
   repoId: string;
   sessionId: string;
   writerLeaseId: string;
+  hostPermissionProfile: HostPermissionProfile;
 }): string {
   return createHash("sha256")
     .update(
@@ -522,11 +529,23 @@ export class HostProcessService {
       return;
     }
     this.repositories.leases.reconcileExpired(now);
+    const managedProcessesAllowed = workspaceManagedProcessesAllowed(
+      loadDownstreamMcpExecutorsConfig(this.configPath).hostPermissionProfile
+    );
     const running = this.repositories.directProcessSessions.list({
       status: "running"
     });
     for (const processRecord of running) {
       if (this.actionLocks.has(processRecord.id)) {
+        continue;
+      }
+      if (!managedProcessesAllowed) {
+        await this.cleanupManagedProcess(
+          processRecord,
+          "HOST_PERMISSION_PROFILE_REVOKED",
+          now,
+          "skipped"
+        );
         continue;
       }
       if (!this.supervisor.has(processRecord.id)) {
@@ -723,6 +742,7 @@ export class HostProcessService {
     if (this.supervisor.durable) {
       await this.reconcile(context.now);
     }
+    this.requireWorkspaceManagedProcessProfile();
     const { idempotencyKey, ...request } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.prepare.input",
@@ -845,6 +865,7 @@ export class HostProcessService {
     if (this.supervisor.durable) {
       await this.reconcile(context.now);
     }
+    this.requireWorkspaceManagedProcessProfile();
     const {
       idempotencyKey,
       approvalId,
@@ -1122,6 +1143,9 @@ export class HostProcessService {
       now,
       refresh.supervisorGeneration
     );
+    const managedProcessesAllowed = workspaceManagedProcessesAllowed(
+      loadDownstreamMcpExecutorsConfig(this.configPath).hostPermissionProfile
+    );
     const owned = new Map(
       refresh.owned.map((process) => [process.processId, process] as const)
     );
@@ -1146,6 +1170,20 @@ export class HostProcessService {
         continue;
       }
       owned.delete(processRecord.id);
+      if (!managedProcessesAllowed) {
+        await this.stopDurableRuntimeBestEffort(
+          processRecord.id,
+          refresh.supervisorGeneration,
+          "HOST_PERMISSION_PROFILE_REVOKED"
+        );
+        this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.markDurableProcessStale(
+          processRecord,
+          "HOST_PERMISSION_PROFILE_REVOKED",
+          now
+        );
+        continue;
+      }
 
       let session;
       try {
@@ -1529,7 +1567,10 @@ export class HostProcessService {
       actionHash,
       approvalId: null,
       status: "unknown",
-      errorCode: "HOST_PROCESS_STALE",
+      errorCode:
+        reason === "HOST_PERMISSION_PROFILE_REVOKED"
+          ? "HOST_PROCESS_PROFILE_REVOKED"
+          : "HOST_PROCESS_STALE",
       terminalReason: reason,
       exitCode: stale.exitCode,
       outputBytes: 0,
@@ -1540,7 +1581,7 @@ export class HostProcessService {
     });
     this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
       label: `Host Managed Process durable reconciliation ${stale.command}`,
-      status: "failed",
+      status: reason === "HOST_PERMISSION_PROFILE_REVOKED" ? "skipped" : "failed",
       summary: {
         operation: "cleanup",
         processId: stale.id,
@@ -1599,7 +1640,11 @@ export class HostProcessService {
 
   private async cleanupManagedProcess(
     processRecord: DirectProcessSessionRecord,
-    reason: "WRITER_LEASE_LOST" | "RUNTIME_UNAVAILABLE" | "CONTROL_PLANE_SHUTDOWN",
+    reason:
+      | "WRITER_LEASE_LOST"
+      | "RUNTIME_UNAVAILABLE"
+      | "CONTROL_PLANE_SHUTDOWN"
+      | "HOST_PERMISSION_PROFILE_REVOKED",
     now: string,
     evidenceStatus: "failed" | "skipped"
   ): Promise<DirectProcessSessionRecord> {
@@ -1652,7 +1697,9 @@ export class HostProcessService {
       errorCode:
         reason === "WRITER_LEASE_LOST"
           ? "HOST_PROCESS_WRITER_LEASE_LOST"
-          : errorCode,
+          : reason === "HOST_PERMISSION_PROFILE_REVOKED"
+            ? "HOST_PROCESS_PROFILE_REVOKED"
+            : errorCode,
       terminalReason: reason,
       exitCode: finalized.exitCode,
       outputBytes: snapshot
@@ -1676,7 +1723,9 @@ export class HostProcessService {
         errorCode:
           reason === "WRITER_LEASE_LOST"
             ? "HOST_PROCESS_WRITER_LEASE_LOST"
-            : errorCode
+            : reason === "HOST_PERMISSION_PROFILE_REVOKED"
+              ? "HOST_PROCESS_PROFILE_REVOKED"
+              : errorCode
       },
       startedAt: processRecord.startedAt
     });
@@ -1900,6 +1949,19 @@ export class HostProcessService {
     return stale;
   }
 
+  private requireWorkspaceManagedProcessProfile(): HostPermissionProfile {
+    const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
+      this.configPath
+    ).hostPermissionProfile;
+    if (!workspaceManagedProcessesAllowed(hostPermissionProfile)) {
+      throw new ServiceError(
+        "HOST_PROCESS_PROFILE_BLOCKED",
+        "Managed Host Process requires the Development Host permission profile or higher"
+      );
+    }
+    return hostPermissionProfile;
+  }
+
   private prepareStartIntent(
     context: OperationContext,
     request: HostProcessStartRequest,
@@ -1930,6 +1992,8 @@ export class HostProcessService {
         "Managed Host Process is restricted to registered Workspaces"
       );
     }
+
+    const hostPermissionProfile = this.requireWorkspaceManagedProcessProfile();
 
     let policy;
     try {
@@ -2025,7 +2089,8 @@ export class HostProcessService {
       workspaceId: authority.workspace.id,
       repoId: authority.workspace.repoId,
       sessionId: authority.session.id,
-      writerLeaseId: authority.lease.id
+      writerLeaseId: authority.lease.id,
+      hostPermissionProfile
     });
 
     return {
@@ -2036,6 +2101,7 @@ export class HostProcessService {
       args: policy.args,
       effect: policy.effect,
       selection,
+      hostPermissionProfile,
       actionHash
     };
   }
@@ -2578,7 +2644,8 @@ export class HostProcessService {
       repoId: intent.authority.workspace.repoId,
       sessionId: intent.authority.session.id,
       executorId: intent.selection.executorId,
-      selectionMode: intent.selection.selectionMode
+      selectionMode: intent.selection.selectionMode,
+      hostPermissionProfile: intent.hostPermissionProfile
     };
   }
 }

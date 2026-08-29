@@ -117,6 +117,7 @@ function buildLiveConfig(options: {
     `${JSON.stringify(
       {
         schemaVersion: 1,
+        hostPermissionProfile: "full-host",
         hostRoots: [
           {
             id: LIVE_ROOT_ID,

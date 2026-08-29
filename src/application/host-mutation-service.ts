@@ -12,7 +12,13 @@ import type {
   PrivateWorkspaceRecord
 } from "../continuity/types.js";
 import type { TokenPilotPaths } from "../types.js";
+import {
+  pureHostFileMutationsAllowed,
+  workspaceHostMutationsAllowed,
+  type HostPermissionProfile
+} from "../core/host-permission-policy.js";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
+import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
 import {
   DirectCapabilityBroker,
   DirectCapabilityBrokerError,
@@ -46,6 +52,7 @@ interface PreparedMutationIntent {
   target: HostWritableFileTarget;
   classification: ClassifiedHostTarget;
   selection: DirectExecutorSelection;
+  hostPermissionProfile: HostPermissionProfile;
   beforeHash: string | null;
   expectedAfterHash: string;
   mutationHash: string;
@@ -114,6 +121,7 @@ function exactMutationHash(input: {
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;
+  hostPermissionProfile: HostPermissionProfile;
   beforeHash: string | null;
   content?: string;
   oldText?: string;
@@ -485,6 +493,27 @@ export class HostMutationService {
       this.repositories,
       target.absolutePath
     );
+    const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
+      this.configPath
+    ).hostPermissionProfile;
+    if (
+      classification.kind === "workspace" &&
+      !workspaceHostMutationsAllowed(hostPermissionProfile)
+    ) {
+      throw new ServiceError(
+        "HOST_MUTATION_PROFILE_BLOCKED",
+        "Workspace Host mutation compatibility requires the Development Host permission profile or higher"
+      );
+    }
+    if (
+      classification.kind === "pure-host" &&
+      !pureHostFileMutationsAllowed(hostPermissionProfile)
+    ) {
+      throw new ServiceError(
+        "HOST_MUTATION_PROFILE_BLOCKED",
+        "Pure Host file mutations require the Full Host permission profile"
+      );
+    }
     let sessionId: string | null = null;
     let workspaceAuthority: WorkspaceMutationAuthority | null = null;
     if (classification.kind === "workspace") {
@@ -546,6 +575,7 @@ export class HostMutationService {
       workspaceId: classification.workspaceId,
       repoId: classification.repoId,
       sessionId,
+      hostPermissionProfile,
       beforeHash,
       ...(request.operation === "files.write"
         ? { content: request.content }
@@ -557,6 +587,7 @@ export class HostMutationService {
       target,
       classification,
       selection,
+      hostPermissionProfile,
       beforeHash,
       expectedAfterHash,
       mutationHash,
@@ -794,6 +825,7 @@ export class HostMutationService {
         : {}),
       executorId: prepared.selection.executorId,
       selectionMode: prepared.selection.selectionMode,
+      hostPermissionProfile: prepared.hostPermissionProfile,
       beforeHash: prepared.beforeHash,
       expectedAfterHash: prepared.expectedAfterHash,
       changedPaths: [changedPath]

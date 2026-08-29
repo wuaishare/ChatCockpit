@@ -22,6 +22,7 @@ import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-co
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
 import { DownstreamMcpExecutionRegistry } from "../src/direct/downstream-mcp-executor.ts";
 import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
+import { updateHostPermissionProfile } from "../src/direct/downstream-mcp-config.ts";
 import {
   HostPathPolicyError,
   listPublicHostRoots,
@@ -531,6 +532,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
     configPath,
     JSON.stringify({
       schemaVersion: 1,
+      hostPermissionProfile: "full-host",
       hostRoots: [
         {
           id: "fixture",
@@ -603,6 +605,19 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
       configPath,
       executorId: DESKTOP_COMMANDER_EXECUTOR_ID
     });
+
+    updateHostPermissionProfile("development", configPath);
+    await expectAsyncServiceCode(
+      service.prepare(context, {
+        operation: "files.write",
+        rootId: "fixture",
+        path: "notes/profile-blocked.txt",
+        content: "blocked\n",
+        idempotencyKey: "prepare-profile-blocked-write"
+      }),
+      "HOST_MUTATION_PROFILE_BLOCKED"
+    );
+    updateHostPermissionProfile("full-host", configPath);
 
     const preparedWrite = await service.prepare(context, {
       operation: "files.write",
@@ -1029,6 +1044,7 @@ async function verifyHostMutationExecutorDrift(): Promise<void> {
       configPath,
       JSON.stringify({
         schemaVersion: 1,
+        hostPermissionProfile: "full-host",
         hostRoots: [
           {
             id: "fixture",
@@ -1472,6 +1488,7 @@ async function verifyHostMutationRestParity(): Promise<void> {
     configPath,
     JSON.stringify({
       schemaVersion: 1,
+      hostPermissionProfile: "full-host",
       hostRoots: [
         {
           id: "fixture",

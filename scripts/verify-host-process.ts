@@ -34,6 +34,7 @@ import {
 } from "../src/direct/adapters/desktop-commander.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
 import { probeConfiguredDownstreamMcpExecutors } from "../src/direct/downstream-mcp-operator.ts";
+import { updateHostPermissionProfile } from "../src/direct/downstream-mcp-config.ts";
 import { DownstreamMcpCapabilityStore } from "../src/direct/downstream-mcp-snapshot.ts";
 import { buildServer } from "../src/server/app.ts";
 import { ProcessSupervisorDaemon } from "../src/process-supervisor/index.ts";
@@ -759,6 +760,22 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       now: NOW
     });
 
+    updateHostPermissionProfile("restricted", configPath);
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: session.id,
+        startupTimeoutMs: 1000,
+        idempotencyKey: "process-profile-blocked-start"
+      }),
+      "HOST_PROCESS_PROFILE_BLOCKED"
+    );
+    updateHostPermissionProfile("development", configPath);
+
     await expectServiceCode(
       service.read(context, { processId: "host_process_missing_fixture" }),
       "HOST_PROCESS_NOT_FOUND"
@@ -1000,6 +1017,21 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     assert.doesNotMatch(readResult.output, new RegExp(hostRoot));
     assert.doesNotMatch(JSON.stringify(readResult), /\b7001\b/);
     assert.equal(processSupervisor.readCalls, 1);
+
+    updateHostPermissionProfile("restricted", configPath);
+    await expectServiceCode(
+      service.prepare(context, {
+        operation: "input",
+        processId: started.process.id,
+        sessionId: session.id,
+        input: "blocked-input",
+        waitForPrompt: true,
+        timeoutMs: 1000,
+        idempotencyKey: "process-profile-blocked-input"
+      }),
+      "HOST_PROCESS_PROFILE_BLOCKED"
+    );
+    updateHostPermissionProfile("development", configPath);
 
     const transientInput = "sensitive-transient-input";
     const inputPrepared = await service.prepare(context, {
@@ -1512,6 +1544,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       "HOST_PROCESS_WRITER_LEASE_LOST"
     );
 
+    updateHostPermissionProfile("restricted", configPath);
     const stopPrepared = await service.prepare(context, {
       operation: "stop",
       processId: started.process.id,
@@ -1554,6 +1587,7 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     });
     assert.equal(stopReplay.replayed, true);
     assert.equal(processSupervisor.stopCalls, stopCallsBeforeOwnerStop + 1);
+    updateHostPermissionProfile("development", configPath);
 
     const stopCallsBeforeReconcile = processSupervisor.stopCalls;
     await service.reconcile(LATER);
@@ -1598,6 +1632,62 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       expiresAt: "2026-08-09T01:41:00.000Z",
       now: laterContext.now
     });
+    const revokedPrepared = await service.prepare(laterContext, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-profile-revoked-prepare"
+    });
+    const revokedApproved = await service.decide(laterContext, {
+      approvalId: revokedPrepared.approval.id,
+      expectedRevision: revokedPrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "process-profile-revoked-decision"
+    });
+    const revokedStarted = await service.execute(laterContext, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "npm",
+      args: ["test"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      approvalId: revokedApproved.approval.id,
+      expectedApprovalRevision: revokedApproved.approval.revision,
+      idempotencyKey: "process-profile-revoked-execute"
+    });
+    assert.equal(revokedStarted.process.status, "running");
+    const stopCallsBeforeProfileRevocation = processSupervisor.stopCalls;
+    updateHostPermissionProfile("restricted", configPath);
+    await service.reconcile("2026-08-09T00:41:30.000Z");
+    const revokedRecord = repositories.directProcessSessions.get(
+      revokedStarted.process.id
+    );
+    assert.equal(revokedRecord.status, "terminated");
+    assert.equal(processSupervisor.stopCalls, stopCallsBeforeProfileRevocation + 1);
+    const revokedAudit = repositories.directProcessAudit
+      .listByProcess(revokedStarted.process.id)
+      .find(
+        (item) =>
+          item.operation === "cleanup" &&
+          item.terminalReason === "HOST_PERMISSION_PROFILE_REVOKED"
+      );
+    assert.equal(revokedAudit?.status, "succeeded");
+    assert.equal(revokedAudit?.errorCode, "HOST_PROCESS_PROFILE_REVOKED");
+    const revokedEvidence = repositories.evidence
+      .listItems(revokedStarted.evidence.bundleId)
+      .find(
+        (item) =>
+          item.label === "Host Managed Process cleanup npm" &&
+          item.summary.includes("HOST_PERMISSION_PROFILE_REVOKED")
+      );
+    assert.equal(revokedEvidence?.status, "skipped");
+    updateHostPermissionProfile("development", configPath);
+
     const shutdownPrepared = await service.prepare(laterContext, {
       operation: "start",
       rootId: "fixture",
@@ -2156,6 +2246,110 @@ async function verifyHostProcessRestParity(): Promise<void> {
       null
     );
     ownershipAfterStopDatabase.close();
+
+    const revokedPrepared = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/prepare",
+      headers: operatorMutationHeaders,
+      payload: {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: sessionBody.session.id,
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        startupTimeoutMs: 1000,
+        idempotencyKey: "host-process-rest-profile-revoked-prepare"
+      }
+    });
+    assert.equal(revokedPrepared.statusCode, 200, revokedPrepared.body);
+    const revokedPreparedBody = revokedPrepared.json() as {
+      approval: { id: string; revision: number };
+    };
+    const revokedApproved = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/decision",
+      headers: operatorMutationHeaders,
+      payload: {
+        approvalId: revokedPreparedBody.approval.id,
+        expectedRevision: revokedPreparedBody.approval.revision,
+        decision: "approved",
+        idempotencyKey: "host-process-rest-profile-revoked-decision"
+      }
+    });
+    assert.equal(revokedApproved.statusCode, 200, revokedApproved.body);
+    const revokedApprovedBody = revokedApproved.json() as {
+      approval: { id: string; revision: number };
+    };
+    const revokedStarted = await app.inject({
+      method: "POST",
+      url: "/api/host/processes/execute",
+      headers: operatorMutationHeaders,
+      payload: {
+        operation: "start",
+        rootId: "fixture",
+        workdir: "projects/workspace-a",
+        command: "git",
+        args: ["status", "--short"],
+        sessionId: sessionBody.session.id,
+        executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+        startupTimeoutMs: 1000,
+        approvalId: revokedApprovedBody.approval.id,
+        expectedApprovalRevision: revokedApprovedBody.approval.revision,
+        idempotencyKey: "host-process-rest-profile-revoked-execute"
+      }
+    });
+    assert.equal(revokedStarted.statusCode, 200, revokedStarted.body);
+    const revokedStartedBody = revokedStarted.json() as {
+      process: { id: string; status: string };
+    };
+    assert.equal(revokedStartedBody.process.status, "running");
+
+    updateHostPermissionProfile("restricted", directConfigPath);
+    const listedAfterRevocation = await app.inject({
+      method: "GET",
+      url: `/api/host/processes?sessionId=${encodeURIComponent(sessionBody.session.id)}`,
+      headers: { cookie: operatorCookie }
+    });
+    assert.equal(listedAfterRevocation.statusCode, 200, listedAfterRevocation.body);
+    const listedAfterRevocationBody = listedAfterRevocation.json() as {
+      processes: Array<{ id: string; status: string }>;
+    };
+    assert.equal(
+      listedAfterRevocationBody.processes.find(
+        (item) => item.id === revokedStartedBody.process.id
+      )?.status,
+      "stale"
+    );
+
+    const revocationDatabase = new ContinuityDatabase({
+      path: path.join(paths.runtimeDir, "continuity.sqlite")
+    });
+    const revocationRepositories = buildContinuityRepositories(revocationDatabase);
+    assert.equal(
+      revocationRepositories.directProcessRuntimeOwnership.get(
+        revokedStartedBody.process.id
+      ),
+      null
+    );
+    const revocationRecord = revocationRepositories.directProcessSessions.get(
+      revokedStartedBody.process.id
+    );
+    assert.equal(revocationRecord.status, "stale");
+    assert.equal(
+      revocationRepositories.directProcessAudit
+        .listByProcess(revokedStartedBody.process.id)
+        .some(
+          (item) =>
+            item.operation === "cleanup" &&
+            item.terminalReason === "HOST_PERMISSION_PROFILE_REVOKED" &&
+            item.errorCode === "HOST_PROCESS_PROFILE_REVOKED"
+        ),
+      true
+    );
+    revocationDatabase.close();
+    updateHostPermissionProfile("development", directConfigPath);
   } finally {
     await app.close();
     await processSupervisorDaemon.close();

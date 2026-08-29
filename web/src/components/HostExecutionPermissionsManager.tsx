@@ -87,7 +87,7 @@ function copyFor(locale: LocaleCode) {
       deny: "拒绝",
       expires: "过期时间",
       fullWarning:
-        "完整主机访问属于 danger-level 高风险模式。主机命令的实际影响可能超出所选 Host Root；Host Root 只约束工作目录与 Host 文件 API。直接 shell/脚本解释器入口仍被阻止，但启用后仍应视为可影响整台主机，并依赖每条精确人工审批与审计。",
+        "完整主机访问属于 danger-level 高风险模式。它会开放精确审批的 Pure Host 命令与 Host Root 文件写改；主机命令的实际影响仍可能超出所选 Host Root。直接 shell/脚本解释器与 Pure Host 长期托管进程继续被阻止，但启用后仍应视为可影响整台主机，并依赖每条精确人工审批与审计。",
       maintenanceNote:
         "设备维护档只增加只读诊断（如 df、du、diskutil list/info、system_profiler、vm_stat）。清理、删除等优化操作不会被这一档自动放开。",
       workspaceProfiles: {
@@ -103,19 +103,19 @@ function copyFor(locale: LocaleCode) {
       profiles: {
         restricted: {
           label: "受限",
-          description: "仅保留项目原生沙箱与基础有界 Host 只读检查；禁用 host-managed 构建。"
+          description: "仅保留基础有界 Host 只读检查；禁用 host-managed 构建、Host Direct Workspace 写改与托管进程。"
         },
         development: {
           label: "开发（默认）",
-          description: "项目开发 + 精确 allowlist 的 host-managed 构建；保持当前开发工作流。"
+          description: "保留项目开发所需的精确 host-managed 构建、Host Direct Workspace 兼容写改与托管进程；不开放 Pure Host 文件写改或设备诊断。"
         },
         "device-maintenance": {
           label: "设备维护",
-          description: "在开发档基础上增加有界、只读的磁盘/系统诊断能力。"
+          description: "在开发档基础上增加有界、只读的磁盘/系统诊断；仍不开放 Pure Host 文件写改。"
         },
         "full-host": {
           label: "完整主机访问",
-          description: "高风险：主机命令可影响 Host Root 之外的系统资源；依赖显式启用、精确人工审批、审计与超时治理。"
+          description: "高风险：增加精确审批的 Pure Host 命令与 Host Root 文件写改；直接 shell/解释器及 Pure Host 长期托管进程仍保持禁用。"
         }
       }
     } as const;
@@ -148,7 +148,7 @@ function copyFor(locale: LocaleCode) {
     deny: "Deny",
     expires: "Expires",
     fullWarning:
-      "Full Host access is a danger-level mode. A Host command may affect system resources outside the selected Host Root; Host Roots only constrain the working directory and Host file APIs. Direct shell/script interpreter entry points remain blocked, but this profile should still be treated as capable of affecting the whole host and relies on exact human approval and audit for every command.",
+      "Full Host access is a danger-level mode. It enables exact-approved Pure Host commands and Host Root file mutations; Host commands may still affect system resources outside the selected Host Root. Direct shell/script interpreter entry points and long-lived Pure Host managed processes remain blocked, but this profile should still be treated as capable of affecting the whole host and relies on exact human approval and audit for every operation.",
     maintenanceNote:
       "Device maintenance only adds bounded read-only diagnostics such as df, du, diskutil list/info, system_profiler and vm_stat. Cleanup or deletion is not automatically enabled by this profile.",
     workspaceProfiles: {
@@ -164,19 +164,19 @@ function copyFor(locale: LocaleCode) {
     profiles: {
       restricted: {
         label: "Restricted",
-        description: "Native project sandbox plus bounded basic Host reads; host-managed builds are disabled."
+        description: "Keeps bounded basic Host reads only; host-managed builds, Host Direct Workspace mutations and managed processes are disabled."
       },
       development: {
         label: "Development (default)",
-        description: "Project development plus the exact host-managed build allowlist used by the normal development workflow."
+        description: "Keeps exact host-managed builds plus Host Direct Workspace compatibility mutations and managed processes needed by the development workflow; Pure Host file mutation and device diagnostics remain disabled."
       },
       "device-maintenance": {
         label: "Device maintenance",
-        description: "Development permissions plus bounded read-only disk and system diagnostics."
+        description: "Development permissions plus bounded read-only disk and system diagnostics; Pure Host file mutations remain disabled."
       },
       "full-host": {
         label: "Full Host access",
-        description: "High risk: Host commands may affect system resources outside Host Roots and rely on explicit enablement, exact human approval, audit and timeout governance."
+        description: "High risk: adds exact-approved Pure Host commands and Host Root file mutations. Direct shells/interpreters and long-lived Pure Host managed processes remain disabled."
       }
     }
   } as const;

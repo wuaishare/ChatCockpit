@@ -252,6 +252,7 @@ export interface HostExecutionPermissionsResponse {
   ok: true;
   workspaceExecutionProfile: WorkspaceExecutionProfile;
   hostPermissionProfile: HostPermissionProfile;
+  hostRiskLevel: "restricted" | "elevated" | "danger";
   workspaceApprovalPolicy: "writer-authority";
   hostApprovalPolicy: "operator-required";
   capabilities: {
@@ -259,6 +260,10 @@ export interface HostExecutionPermissionsResponse {
     workspaceNetworkByRequest: boolean;
     hostManagedWorkspace: boolean;
     deviceDiagnostics: boolean;
+    workspaceHostMutations: boolean;
+    pureHostFileMutations: boolean;
+    workspaceManagedProcesses: boolean;
+    pureHostManagedProcesses: boolean;
     fullHostCommands: boolean;
   };
 }
