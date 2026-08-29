@@ -44,6 +44,7 @@ const BUILT_IN_DIRECT_CAPABILITIES: DirectExecutorCapability[] = [
   capability("git.diff", ["read"]),
   capability("git.stage", ["write"]),
   capability("git.sync", ["write"]),
+  capability("git.push", ["write"]),
   capability("git.commit", ["write"]),
   capability("git.log", ["read"])
 ];

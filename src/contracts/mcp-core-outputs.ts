@@ -201,6 +201,24 @@ export const gitSyncToolOutputSchema = z.object({
   execution: chatDirectExecutionSchema
 }).merge(mutationEnvelopeSchema);
 
+export const gitPushToolOutputSchema = z.object({
+  ok: z.boolean(),
+  repoId: z.string().min(1),
+  branch: z.string(),
+  upstreamRemote: z.string(),
+  head: z.string(),
+  upstreamBefore: z.string(),
+  aheadBefore: z.number().int().nonnegative(),
+  behindBefore: z.number().int().nonnegative(),
+  pushed: z.boolean(),
+  paths: z.array(z.string().max(1024)).max(500),
+  pathCount: z.number().int().nonnegative(),
+  pathsTruncated: z.boolean(),
+  state: z.enum(["pushed", "up-to-date"]),
+  error: z.string().optional(),
+  execution: chatDirectExecutionSchema
+}).merge(mutationEnvelopeSchema);
+
 export const gitCommitToolOutputSchema = z.object({
   ok: z.boolean(),
   repoId: z.string().min(1),

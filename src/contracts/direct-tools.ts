@@ -136,6 +136,11 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
         action: z.literal("worktree-prune")
       })
     ]),
+    gitPushSchema: z.object({
+      ...directExecutorPreference,
+      repoId: z.string().min(1).default(defaultRepoId),
+      sessionId: z.string().min(1).max(160).optional()
+    }),
     gitCommitSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
@@ -160,6 +165,7 @@ export const gitStatusSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStatusSchema;
 export const gitDiffSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitDiffSchema;
 export const gitStageSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitStageSchema;
 export const gitSyncSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitSyncSchema;
+export const gitPushSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitPushSchema;
 export const gitCommitSchema = DEFAULT_DIRECT_TOOL_SCHEMAS.gitCommitSchema;
 
 export type FileReadInput = z.infer<typeof fileReadSchema>;
@@ -176,4 +182,5 @@ export type GitStatusInput = z.infer<typeof gitStatusSchema>;
 export type GitDiffInput = z.infer<typeof gitDiffSchema>;
 export type GitStageInput = z.infer<typeof gitStageSchema>;
 export type GitSyncInput = z.infer<typeof gitSyncSchema>;
+export type GitPushInput = z.infer<typeof gitPushSchema>;
 export type GitCommitInput = z.infer<typeof gitCommitSchema>;

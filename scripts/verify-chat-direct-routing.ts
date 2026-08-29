@@ -1256,6 +1256,15 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(worktreePrune.state, "worktree-pruned");
     assert.equal(worktreePrune.execution.executor, "builtin-direct");
 
+    await assert.rejects(
+      () => service.gitPush(apiTokenContext, { repoId: "primary" }),
+      (error) => error instanceof ServiceError && error.code === "WRITER_LEASE_REQUIRED"
+    );
+    await assert.rejects(
+      () => service.gitPush(context, { repoId: "primary" }),
+      (error) => error instanceof ServiceError && error.code === "GIT_PUSH_FAILED"
+    );
+
     fs.rmSync(path.join(repoRoot, "src", "delete-me.ts"));
     fs.writeFileSync(path.join(repoRoot, ".env"), "SECRET=blocked\n", "utf8");
     fs.writeFileSync(path.join(repoRoot, "archive.zip"), Buffer.from([0x50, 0x4b, 0x03, 0x04]));

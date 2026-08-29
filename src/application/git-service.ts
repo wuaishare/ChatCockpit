@@ -3,12 +3,14 @@ import {
   getGitStatus,
   getStagedPublicSafePaths,
   gitCommit,
+  gitPush,
   gitStage,
   gitSync
 } from "../core/git-api.js";
 import { readRecentGitCommitsForPaths } from "../core/git-history.js";
 import type {
   GitCommitPayload,
+  GitPushPayload,
   GitStagePayload,
   GitSyncPayload,
   TokenPilotPaths
@@ -85,6 +87,14 @@ export class GitService {
       "GIT_SYNC_FAILED",
       "Git synchronization could not be completed safely.",
       () => gitSync(this.paths, payload)
+    );
+  }
+
+  push(_context: OperationContext, payload: GitPushPayload) {
+    return runGitOperation(
+      "GIT_PUSH_FAILED",
+      "Git push could not be completed safely.",
+      () => gitPush(this.paths, payload)
     );
   }
 

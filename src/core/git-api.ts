@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import {
@@ -9,6 +10,7 @@ import {
 } from "./git-process-policy.js";
 import {
   hasStagedNonCommitSafeChanges,
+  isCommitSafeGitPath,
   isPublicSafeGitPath,
   publicSafeChangedPaths,
   readPublicSafeGitDiff,
@@ -21,6 +23,8 @@ import type {
   GitStageResponse,
   GitSyncPayload,
   GitSyncResponse,
+  GitPushPayload,
+  GitPushResponse,
   GitCommitResponse,
   TokenPilotPaths
 } from "../types.js";
@@ -273,43 +277,203 @@ function assertHttpsCredentialHelpersSafe(
   }
 }
 
+interface GovernedGitUpstream {
+  remote: string;
+  mergeRef: string;
+  trackingRef: string;
+  fetchUrl: string;
+}
+
+function isSafeGovernedRemoteUrl(remoteUrl: string): boolean {
+  const safeRemotePath = "[A-Za-z0-9._~%+/@=-]+";
+  return (
+    new RegExp(`^https://[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
+    new RegExp(`^ssh://[A-Za-z0-9._-]+@[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
+    new RegExp(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:${safeRemotePath}$`).test(remoteUrl)
+  );
+}
+
+function runOptionalGitConfig(
+  repoRoot: string,
+  args: string[],
+  runner: GovernedGitCommandRunner
+): string[] {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(args),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 1 && !result.stdout.trim()) return [];
+  if (result.status !== 0) {
+    throw new Error("Governed Git could not verify repository configuration safely");
+  }
+  return result.stdout.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+}
+
+function assertValidUpstreamMergeRef(
+  repoRoot: string,
+  mergeRef: string,
+  runner: GovernedGitCommandRunner
+): void {
+  if (!mergeRef.startsWith("refs/heads/")) {
+    throw new Error("Governed Git requires one configured remote branch upstream");
+  }
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["check-ref-format", mergeRef]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git requires one valid configured remote branch upstream");
+  }
+}
+
 function gitUpstreamRemote(
   repoRoot: string,
   branch: string,
   runner: GovernedGitCommandRunner
-): string {
+): GovernedGitUpstream {
   const remote = runGitText(repoRoot, ["config", "--get", `branch.${branch}.remote`], 5_000, runner);
   const mergeRef = runGitText(repoRoot, ["config", "--get", `branch.${branch}.merge`], 5_000, runner);
   if (
     !remote ||
     remote === "." ||
-    !/^[A-Za-z0-9._-]+$/.test(remote) ||
-    !mergeRef.startsWith("refs/heads/")
+    !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(remote)
   ) {
-    throw new Error("Governed Git sync requires one configured remote branch upstream");
+    throw new Error("Governed Git requires one configured remote branch upstream");
   }
-  const remoteUrl = runGitText(repoRoot, ["remote", "get-url", remote], 5_000, runner);
-  const safeRemotePath = "[A-Za-z0-9._~%+/@=-]+";
-  const safeRemote =
-    new RegExp(`^https://[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
-    new RegExp(`^ssh://[A-Za-z0-9._-]+@[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
-    new RegExp(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:${safeRemotePath}$`).test(remoteUrl);
-  if (!safeRemote || remoteUrl.startsWith("ext::") || remoteUrl.startsWith("file:")) {
-    throw new Error("Governed Git sync only supports configured HTTPS or SSH remotes");
+  assertValidUpstreamMergeRef(repoRoot, mergeRef, runner);
+  const trackingRef = `refs/remotes/${remote}/${mergeRef.slice("refs/heads/".length)}`;
+  const trackingRefCheck = runner.run({
+    repoRoot,
+    args: governedGitArgs(["check-ref-format", trackingRef]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (trackingRefCheck.status !== 0) {
+    throw new Error("Governed Git requires one valid standard remote-tracking upstream ref");
   }
-  if (remoteUrl.startsWith("https://")) {
+  const fetchUrls = runGitText(
+    repoRoot,
+    ["remote", "get-url", "--all", remote],
+    5_000,
+    runner
+  ).split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  if (fetchUrls.length !== 1 || !isSafeGovernedRemoteUrl(fetchUrls[0] ?? "")) {
+    throw new Error("Governed Git only supports configured HTTPS or SSH remotes and requires exactly one fetch URL");
+  }
+  const fetchUrl = fetchUrls[0] ?? "";
+  if (fetchUrl.startsWith("https://")) {
     assertHttpsCredentialHelpersSafe(repoRoot, runner);
   }
-  return remote;
+  return { remote, mergeRef, trackingRef, fetchUrl };
 }
 
-function gitAheadBehind(
+function gitPushUrl(
   repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): string {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["remote", "get-url", "--push", "--all", upstream.remote]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git push could not resolve the configured push URL safely");
+  }
+  const pushUrls = result.stdout.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  if (pushUrls.length !== 1 || !isSafeGovernedRemoteUrl(pushUrls[0] ?? "")) {
+    throw new Error("Governed Git push requires exactly one configured HTTPS or SSH push URL");
+  }
+  const pushUrl = pushUrls[0] ?? "";
+  if (pushUrl.startsWith("https://")) {
+    assertHttpsCredentialHelpersSafe(repoRoot, runner);
+  }
+  if (pushUrl !== upstream.fetchUrl) {
+    throw new Error("Governed Git push requires the push URL to match the configured upstream fetch URL");
+  }
+  return pushUrl;
+}
+
+function assertPushConfigurationSafe(
+  repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): void {
+  const mirror = runOptionalGitConfig(
+    repoRoot,
+    ["config", "--get", `remote.${upstream.remote}.mirror`],
+    runner
+  );
+  if (mirror.some((value) => value.toLowerCase() === "true" || value === "1")) {
+    throw new Error("Governed Git push refuses mirror remotes");
+  }
+  if (
+    runOptionalGitConfig(repoRoot, ["config", "--get-all", "push.pushOption"], runner).length ||
+    runOptionalGitConfig(
+      repoRoot,
+      ["config", "--get-all", `remote.${upstream.remote}.pushOption`],
+      runner
+    ).length
+  ) {
+    throw new Error("Governed Git push refuses configured push options");
+  }
+  if (
+    runOptionalGitConfig(
+      repoRoot,
+      ["config", "--get", `remote.${upstream.remote}.receivepack`],
+      runner
+    ).length
+  ) {
+    throw new Error("Governed Git push refuses a configured custom receive-pack command");
+  }
+}
+
+function assertPushHistoryComplete(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const shallow = runGitText(
+    repoRoot,
+    ["rev-parse", "--is-shallow-repository"],
+    5_000,
+    runner
+  );
+  if (shallow !== "false") {
+    throw new Error("Governed Git push refuses shallow repository history");
+  }
+
+  const graftPathRaw = runGitText(
+    repoRoot,
+    ["rev-parse", "--git-path", "info/grafts"],
+    5_000,
+    runner
+  );
+  const graftPath = path.isAbsolute(graftPathRaw)
+    ? graftPathRaw
+    : path.resolve(repoRoot, graftPathRaw);
+  try {
+    const stat = fs.statSync(graftPath);
+    if (stat.isFile() && stat.size > 0) {
+      throw new Error("Governed Git push refuses repository commit grafts");
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+function gitAheadBehindRevision(
+  repoRoot: string,
+  revision: string,
   runner: GovernedGitCommandRunner
 ): { ahead: number; behind: number } {
   const output = runGitText(
     repoRoot,
-    ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+    ["rev-list", "--left-right", "--count", `HEAD...${revision}`],
     5_000,
     runner
   );
@@ -317,9 +481,29 @@ function gitAheadBehind(
   const ahead = Number.parseInt(aheadRaw ?? "", 10);
   const behind = Number.parseInt(behindRaw ?? "", 10);
   if (!Number.isFinite(ahead) || !Number.isFinite(behind)) {
-    throw new Error("Governed Git sync could not compare HEAD with upstream");
+    throw new Error("Governed Git could not compare HEAD with the selected revision");
   }
   return { ahead, behind };
+}
+
+function fetchExactUpstreamToFetchHead(
+  repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): string {
+  runGitText(
+    repoRoot,
+    [
+      "fetch",
+      "--no-recurse-submodules",
+      "--no-tags",
+      upstream.fetchUrl,
+      upstream.mergeRef
+    ],
+    60_000,
+    runner
+  );
+  return gitRevision(repoRoot, "FETCH_HEAD", runner);
 }
 
 function assertGitWorktreeClean(
@@ -333,7 +517,7 @@ function assertGitWorktreeClean(
     runner
   );
   if (status) {
-    throw new Error("Governed Git fast-forward requires a completely clean worktree and index");
+    throw new Error("Governed Git remote mutation requires a completely clean worktree and index");
   }
 }
 
@@ -386,6 +570,45 @@ function assertFastForwardPathsPublicSafe(
     throw new Error("Governed Git fast-forward refuses upstream changes to public-unsafe paths");
   }
   return changedPaths;
+}
+
+function assertOutgoingCommitPathsSafe(
+  repoRoot: string,
+  before: string,
+  after: string,
+  runner: GovernedGitCommandRunner
+): { paths: string[]; pathCount: number; pathsTruncated: boolean } {
+  if (before === after) {
+    return { paths: [], pathCount: 0, pathsTruncated: false };
+  }
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs([
+      "diff",
+      "--no-renames",
+      "--name-only",
+      "-z",
+      "--diff-filter=ACDMRTUXB",
+      `${before}..${after}`
+    ]),
+    timeoutMs: 10_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git push could not inspect outgoing commit paths safely");
+  }
+  const changedPaths = Array.from(new Set(result.stdout.split("\0").filter(Boolean))).sort();
+  const unsafePaths = changedPaths.filter((value) => !isCommitSafeGitPath(value));
+  if (unsafePaths.length) {
+    throw new Error("Governed Git push refuses outgoing commits with non-commit-safe paths");
+  }
+  const pathCount = changedPaths.length;
+  const paths = changedPaths.slice(0, 500);
+  return {
+    paths,
+    pathCount,
+    pathsTruncated: pathCount > paths.length
+  };
 }
 
 export function getGitDiff(
@@ -555,7 +778,8 @@ export function gitSync(
   if (!branch) {
     throw new Error("Governed Git sync requires an attached branch");
   }
-  const upstreamRemote = gitUpstreamRemote(repoRoot, branch, runner);
+  const upstream = gitUpstreamRemote(repoRoot, branch, runner);
+  const upstreamRemote = upstream.remote;
   if (payload.action === "fast-forward") {
     assertGitWorktreeClean(repoRoot, runner);
   }
@@ -569,14 +793,16 @@ export function gitSync(
     [
       "fetch",
       "--no-recurse-submodules",
+      "--no-tags",
       ...(shouldPrune ? ["--prune"] : []),
-      upstreamRemote
+      upstream.fetchUrl,
+      `${upstream.mergeRef}:${upstream.trackingRef}`
     ],
     60_000,
     runner
   );
 
-  let comparison = gitAheadBehind(repoRoot, runner);
+  let comparison = gitAheadBehindRevision(repoRoot, upstream.trackingRef, runner);
   if (payload.action === "fetch") {
     return {
       ok: true,
@@ -612,7 +838,7 @@ export function gitSync(
     };
   }
 
-  const upstreamHead = gitRevision(repoRoot, "@{upstream}", runner);
+  const upstreamHead = gitRevision(repoRoot, upstream.trackingRef, runner);
   const upstreamPaths = assertFastForwardPathsPublicSafe(
     repoRoot,
     headBefore,
@@ -623,11 +849,11 @@ export function gitSync(
 
   runGitText(
     repoRoot,
-    ["merge", "--ff-only", "@{upstream}"],
+    ["merge", "--ff-only", upstream.trackingRef],
     20_000,
     runner
   );
-  comparison = gitAheadBehind(repoRoot, runner);
+  comparison = gitAheadBehindRevision(repoRoot, upstream.trackingRef, runner);
   const headAfter = gitHead(repoRoot, runner);
   return {
     ok: true,
@@ -641,6 +867,105 @@ export function gitSync(
     changed: true,
     paths: gitChangedPathsBetween(repoRoot, headBefore, headAfter, runner),
     state: "fast-forwarded"
+  };
+}
+
+export function gitPush(
+  paths: TokenPilotPaths,
+  payload: GitPushPayload,
+  runner: GovernedGitCommandRunner = defaultGovernedGitCommandRunner
+): GitPushResponse {
+  const repoRoot = assertRepoAllowed(paths, payload.repoId);
+  assertGitRepositoryRoot(repoRoot, runner);
+  assertGitWorktreeClean(repoRoot, runner);
+  assertPushHistoryComplete(repoRoot, runner);
+
+  const branch = gitBranch(repoRoot, runner);
+  if (!branch) {
+    throw new Error("Governed Git push requires an attached branch");
+  }
+  const upstream = gitUpstreamRemote(repoRoot, branch, runner);
+  const pushUrl = gitPushUrl(repoRoot, upstream, runner);
+  assertPushConfigurationSafe(repoRoot, upstream, runner);
+
+  const head = gitHead(repoRoot, runner);
+  if (!/^[0-9a-fA-F]{40,64}$/.test(head)) {
+    throw new Error("Governed Git push could not resolve an immutable HEAD object id safely");
+  }
+  const upstreamBefore = fetchExactUpstreamToFetchHead(repoRoot, upstream, runner);
+  if (!/^[0-9a-fA-F]{40,64}$/.test(upstreamBefore)) {
+    throw new Error("Governed Git push could not resolve the fetched upstream object id safely");
+  }
+  if (gitHead(repoRoot, runner) !== head) {
+    throw new Error("Governed Git push refuses a HEAD that changed during upstream verification");
+  }
+  const comparison = gitAheadBehindRevision(repoRoot, "FETCH_HEAD", runner);
+  if (comparison.behind > 0) {
+    throw new Error("Governed Git push refuses a local branch that is behind or diverged from upstream");
+  }
+
+  if (comparison.ahead === 0) {
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      branch,
+      upstreamRemote: upstream.remote,
+      head,
+      upstreamBefore,
+      aheadBefore: 0,
+      behindBefore: 0,
+      pushed: false,
+      paths: [],
+      pathCount: 0,
+      pathsTruncated: false,
+      state: "up-to-date"
+    };
+  }
+
+  const outgoing = assertOutgoingCommitPathsSafe(
+    repoRoot,
+    upstreamBefore,
+    head,
+    runner
+  );
+  if (gitHead(repoRoot, runner) !== head) {
+    throw new Error("Governed Git push refuses a HEAD that changed during push preparation");
+  }
+
+  runGitText(
+    repoRoot,
+    [
+      "-c",
+      "push.followTags=false",
+      "-c",
+      "push.gpgSign=false",
+      "-c",
+      "push.recurseSubmodules=no",
+      "push",
+      "--porcelain",
+      "--no-verify",
+      "--recurse-submodules=no",
+      pushUrl,
+      `${head}:${upstream.mergeRef}`
+    ],
+    120_000,
+    runner
+  );
+
+  return {
+    ok: true,
+    repoId: payload.repoId,
+    branch,
+    upstreamRemote: upstream.remote,
+    head,
+    upstreamBefore,
+    aheadBefore: comparison.ahead,
+    behindBefore: comparison.behind,
+    pushed: true,
+    paths: outgoing.paths,
+    pathCount: outgoing.pathCount,
+    pathsTruncated: outgoing.pathsTruncated,
+    state: "pushed"
   };
 }
 

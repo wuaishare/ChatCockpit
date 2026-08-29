@@ -576,6 +576,28 @@ export interface GitSyncResponse {
   error?: string;
 }
 
+export interface GitPushPayload extends DirectExecutorPreference {
+  repoId: string;
+  sessionId?: string;
+}
+
+export interface GitPushResponse {
+  ok: boolean;
+  repoId: string;
+  branch: string;
+  upstreamRemote: string;
+  head: string;
+  upstreamBefore: string;
+  aheadBefore: number;
+  behindBefore: number;
+  pushed: boolean;
+  paths: string[];
+  pathCount: number;
+  pathsTruncated: boolean;
+  state: "pushed" | "up-to-date";
+  error?: string;
+}
+
 export interface GitDiffResponse {
   ok: boolean;
   repoId: string;

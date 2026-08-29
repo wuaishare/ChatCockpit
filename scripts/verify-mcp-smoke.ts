@@ -238,6 +238,7 @@ async function runMcpSmoke(): Promise<void> {
         "git.stage",
         "git.status",
         "git.sync",
+        "git.push",
         "host.command.execute",
         "host.command.prepare",
         "host.files.read",
@@ -304,7 +305,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 93, "Full compatibility surface must expose all 93 remotely routable tools");
+    assert.equal(tools.length, 94, "Full compatibility surface must expose all 94 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -313,7 +314,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 22);
+    assert.equal(coreTools.length, 23);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
     const continuityInvokeTool = coreTools.find(
@@ -403,7 +404,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 33);
+    assert.equal(codexPackTools.length, 34);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -429,8 +430,8 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 22);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 93);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 23);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 94);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -553,8 +554,8 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(
       tools.filter((tool) => isDefaultCoreMcpTool(tool.name)).length,
-      22,
-      "The default surface must classify exactly 22 core tools including governed Git staging/synchronization, workspace processes and deferred-tool invocation"
+      23,
+      "The default surface must classify exactly 23 core tools including governed Git staging/synchronization/push, workspace processes and deferred-tool invocation"
     );
     assert.equal(toolByName.has("chatcockpit.capabilities.mutation.decide"), false);
     for (const mutationToolName of [
@@ -739,6 +740,10 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("chatcockpit.git.sync")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.git.sync")?.annotations.idempotentHint, true);
     assert.equal(toolByName.get("chatcockpit.git.sync")?.annotations.openWorldHint, true);
+    assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.readOnlyHint, false);
+    assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.destructiveHint, false);
+    assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.idempotentHint, true);
+    assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.openWorldHint, true);
     assert.equal(toolByName.get("chatcockpit.git.commit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [
@@ -1503,6 +1508,56 @@ async function runMcpSmoke(): Promise<void> {
     assert.deepEqual(worktreePruneResult.structuredContent.changedPaths, []);
     assert.equal(worktreePruneResult.structuredContent.execution.executor, "builtin-direct");
     assert.equal(worktreePruneResult.structuredContent.idempotency.replayed, false);
+
+    const missingLeaseGitPush = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "git-push-missing-session",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.git.push",
+          arguments: {
+            repoId: "primary",
+            idempotencyKey: "git-push-missing-session-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    const missingLeaseGitPushResult = missingLeaseGitPush.message.result as {
+      isError: boolean;
+      structuredContent: { error: { code: string } };
+    };
+    assert.equal(missingLeaseGitPushResult.isError, true);
+    assert.equal(
+      missingLeaseGitPushResult.structuredContent.error.code,
+      "WRITER_LEASE_REQUIRED"
+    );
+
+    const configuredPushFailure = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "git-push-no-upstream",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.git.push",
+          arguments: {
+            repoId: "primary",
+            sessionId: sessionResult.session.id,
+            idempotencyKey: "git-push-no-upstream-0001"
+          }
+        }
+      },
+      { token: "test-token" }
+    );
+    const configuredPushFailureResult = configuredPushFailure.message.result as {
+      isError: boolean;
+      structuredContent: { error: { code: string } };
+    };
+    assert.equal(configuredPushFailureResult.isError, true);
+    assert.equal(configuredPushFailureResult.structuredContent.error.code, "GIT_PUSH_FAILED");
 
     const editPayload = {
       jsonrpc: "2.0",

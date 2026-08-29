@@ -175,7 +175,7 @@ function isCommitSafeAssetPath(filePath: string): boolean {
   return COMMIT_SAFE_BINARY_EXTENSIONS.has(path.posix.extname(filePath).toLowerCase());
 }
 
-function isCommitSafeGitPath(filePath: string): boolean {
+export function isCommitSafeGitPath(filePath: string): boolean {
   return (
     isPublicSafeGitPath(filePath) &&
     (isTextDiffPath(filePath) || isCommitSafeAssetPath(filePath))

@@ -6,6 +6,7 @@ import {
   fileEditToolOutputSchema,
   fileWriteToolOutputSchema,
   gitCommitToolOutputSchema,
+  gitPushToolOutputSchema,
   gitStageToolOutputSchema,
   gitSyncToolOutputSchema,
   shellRunToolOutputSchema,
@@ -122,6 +123,7 @@ export function buildWorkspaceWriteTools(
     fileEditSchema,
     fileWriteSchema,
     gitCommitSchema,
+    gitPushSchema,
     gitStageSchema,
     gitSyncSchema,
     shellRunSchema,
@@ -150,6 +152,9 @@ export function buildWorkspaceWriteTools(
   const gitSyncMcpSchema = gitSyncSchema.and(
     z.object({ idempotencyKey: idempotencyKeySchema })
   );
+  const gitPushMcpSchema = gitPushSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
   const gitCommitMcpSchema = gitCommitSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
@@ -365,7 +370,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("git.sync"),
       title: "Synchronize repository with configured upstream",
       description:
-        "Perform one governed Git synchronization action without caller-supplied remotes, refspecs, merge targets, paths, or arbitrary Git options. fetch contacts only the current branch's configured HTTPS/SSH upstream; fast-forward requires a completely clean index/worktree, fetches that upstream, refuses divergence, and applies only --ff-only; worktree-prune removes only stale worktree metadata. Repository hooks are disabled. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+        "Perform one governed Git synchronization action without caller-supplied remotes, refspecs, merge targets, paths, or arbitrary Git options. fetch resolves exactly one configured HTTPS/SSH upstream URL, ignores repository remote.fetch refspecs, disables automatic tag fetching, and updates only the validated standard remote-tracking ref for the configured upstream branch; fast-forward requires a completely clean index/worktree, compares and merges only that exact tracking ref, refuses divergence, unsafe upstream paths, external checkout filters, and non-ff merges; worktree-prune removes only stale worktree metadata. Repository hooks and dangerous inherited Git process settings are disabled or neutralized. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: gitSyncMcpSchema,
       outputSchema: gitSyncToolOutputSchema,
       annotations: openWorldReversibleMutationAnnotations,
@@ -377,6 +382,36 @@ export function buildWorkspaceWriteTools(
           payload,
           async () => {
             const value = await services.chatDirect.gitSync(context, payload);
+            return mutationValue(
+              value as unknown as Record<string, unknown>,
+              value.execution.changedPaths,
+              gitEvidenceHints
+            );
+          }
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("git.push"),
+      title: "Push current committed HEAD to configured upstream",
+      description:
+        "Push only the exact current committed HEAD object to the current attached branch's configured upstream branch. The operation requires a completely clean worktree/index and complete non-shallow, non-grafted history; resolves exactly one validated upstream HTTPS/SSH URL; requires the push URL to match that fetch URL; fetches only the configured upstream branch with tags and repository remote.fetch refspecs ignored into FETCH_HEAD; refuses HEAD drift, behind or diverged history, unsafe credential helpers and push configuration, and any non-commit-safe outgoing path before pushing. All outgoing paths are audited, while at most 500 are returned together with pathCount and pathsTruncated metadata. The final push uses the immutable HEAD object id and validated refs/heads target and never accepts caller-supplied remotes, refspecs, branches, tags, delete, force, or arbitrary Git options. Hooks, signing, follow-tags, push options, custom receive-pack, mirror semantics, submodule recursion, replacement refs, unsafe TLS overrides, and dangerous inherited Git process settings are disabled or refused. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+      inputSchema: gitPushMcpSchema,
+      outputSchema: gitPushToolOutputSchema,
+      annotations: openWorldReversibleMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("git.push"),
+          idempotencyKey,
+          payload,
+          async () => {
+            const value = await services.chatDirect.gitPush(context, payload);
             return mutationValue(
               value as unknown as Record<string, unknown>,
               value.execution.changedPaths,

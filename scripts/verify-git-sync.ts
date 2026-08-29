@@ -93,7 +93,10 @@ class StatefulGitRunner implements GovernedGitCommandRunner {
     if (args[0] === "rev-parse" && args[1] === "HEAD") {
       return { status: 0, stdout: `${this.head}\n`, stderr: "" };
     }
-    if (args[0] === "rev-parse" && args[1] === "@{upstream}") {
+    if (
+      args[0] === "rev-parse" &&
+      (args[1] === "@{upstream}" || (args[1] ?? "").startsWith("refs/remotes/"))
+    ) {
       return { status: 0, stdout: `${this.upstreamHead}\n`, stderr: "" };
     }
     if (args[0] === "symbolic-ref") {
@@ -101,6 +104,12 @@ class StatefulGitRunner implements GovernedGitCommandRunner {
         return { status: 1, stdout: "", stderr: "detached\n" };
       }
       return { status: 0, stdout: `${this.branch}\n`, stderr: "" };
+    }
+    if (args[0] === "check-ref-format") {
+      const ref = args[1] ?? "";
+      return ref.startsWith("refs/heads/") || ref.startsWith("refs/remotes/")
+        ? { status: 0, stdout: "", stderr: "" }
+        : { status: 1, stdout: "", stderr: "invalid ref\n" };
     }
     if (args[0] === "config" && args[1] === "--get-regexp") {
       const pattern = args[2] ?? "";
@@ -259,8 +268,11 @@ try {
     ...GOVERNED_GIT_CONFIG_ARGS,
     "fetch",
     "--no-recurse-submodules",
-    "origin"
+    "--no-tags",
+    "https://example.invalid/chatcockpit.git",
+    "refs/heads/main:refs/remotes/origin/main"
   ]);
+  assert.equal(fetchCalls[0]?.args.includes("origin"), false);
   assert.equal(fetchCalls[0]?.env.GIT_TERMINAL_PROMPT, "0");
   assert.equal(fetchCalls[0]?.env.GIT_ALLOW_PROTOCOL, "https:ssh");
   assert.equal(fetchCalls[0]?.env.GIT_SSH_COMMAND, governedSshCommand());
@@ -291,14 +303,16 @@ try {
     ...GOVERNED_GIT_CONFIG_ARGS,
     "fetch",
     "--no-recurse-submodules",
+    "--no-tags",
     "--prune",
-    "origin"
+    "https://example.invalid/chatcockpit.git",
+    "refs/heads/main:refs/remotes/origin/main"
   ]);
   assert.deepEqual(callWith(fastForwardRunner, "merge")[0]?.args, [
     ...GOVERNED_GIT_CONFIG_ARGS,
     "merge",
     "--ff-only",
-    "@{upstream}"
+    "refs/remotes/origin/main"
   ]);
 
   const dirtyRunner = new StatefulGitRunner({ behind: 1, dirty: true });

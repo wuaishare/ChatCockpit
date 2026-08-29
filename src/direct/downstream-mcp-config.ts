@@ -26,6 +26,7 @@ const capabilitySchema = z.enum([
   "git.diff",
   "git.stage",
   "git.sync",
+  "git.push",
   "git.commit",
   "git.log"
 ]);
