@@ -286,6 +286,25 @@ try {
   assert.equal(fetchCalls[0]?.env.GIT_CONFIG_VALUE_0, undefined);
   assert.equal(callWith(fetchRunner, "merge").length, 0);
 
+  const sshAliasRunner = new StatefulGitRunner({
+    behind: 1,
+    remoteUrl: "github-work:owner/repo.git"
+  });
+  const sshAliasFetched = gitSync(
+    paths,
+    { repoId: "primary", action: "fetch", prune: false },
+    sshAliasRunner
+  );
+  assert.equal(sshAliasFetched.state, "fetched");
+  assert.deepEqual(callWith(sshAliasRunner, "fetch")[0]?.args, [
+    ...GOVERNED_GIT_CONFIG_ARGS,
+    "fetch",
+    "--no-recurse-submodules",
+    "--no-tags",
+    "github-work:owner/repo.git",
+    "refs/heads/main:refs/remotes/origin/main"
+  ]);
+
   const fastForwardRunner = new StatefulGitRunner({ behind: 2 });
   const fastForwarded = gitSync(
     paths,
@@ -409,6 +428,22 @@ try {
     /only supports configured HTTPS or SSH remotes/
   );
   assert.equal(callWith(unsafeSshPathRunner, "fetch").length, 0);
+
+  const driveLocalRunner = new StatefulGitRunner({ remoteUrl: "C:/tmp/chatcockpit.git" });
+  assert.throws(
+    () => gitSync(paths, { repoId: "primary", action: "fetch" }, driveLocalRunner),
+    /only supports configured HTTPS or SSH remotes/
+  );
+  assert.equal(callWith(driveLocalRunner, "fetch").length, 0);
+
+  const optionLikeRemoteRunner = new StatefulGitRunner({
+    remoteUrl: "-evil@example.invalid:owner/repo.git"
+  });
+  assert.throws(
+    () => gitSync(paths, { repoId: "primary", action: "fetch" }, optionLikeRemoteRunner),
+    /only supports configured HTTPS or SSH remotes/
+  );
+  assert.equal(callWith(optionLikeRemoteRunner, "fetch").length, 0);
 
   const unsafeCredentialRunner = new StatefulGitRunner({
     credentialHelpers: ["!sh -c 'exit 97'"]

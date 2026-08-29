@@ -285,11 +285,14 @@ interface GovernedGitUpstream {
 }
 
 function isSafeGovernedRemoteUrl(remoteUrl: string): boolean {
+  if (remoteUrl.startsWith("-")) return false;
   const safeRemotePath = "[A-Za-z0-9._~%+/@=-]+";
+  const safeAliasRemotePath = "[A-Za-z0-9._~%+@=-][A-Za-z0-9._~%+/@=-]*";
   return (
     new RegExp(`^https://[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
     new RegExp(`^ssh://[A-Za-z0-9._-]+@[A-Za-z0-9.-]+(?::\\d+)?/${safeRemotePath}$`).test(remoteUrl) ||
-    new RegExp(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:${safeRemotePath}$`).test(remoteUrl)
+    new RegExp(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:${safeRemotePath}$`).test(remoteUrl) ||
+    new RegExp(`^[A-Za-z0-9][A-Za-z0-9._-]+:${safeAliasRemotePath}$`).test(remoteUrl)
   );
 }
 

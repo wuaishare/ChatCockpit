@@ -315,6 +315,16 @@ try {
     assert.equal(pushCall.env[key], undefined, `${key} must not reach governed push`);
   }
 
+  const sshAliasUrl = "github-work:owner/repo.git";
+  const sshAliasRunner = new PushGitRunner({
+    fetchUrls: [sshAliasUrl],
+    pushUrls: [sshAliasUrl]
+  });
+  const sshAliasPush = gitPush(paths, { repoId: "primary" }, sshAliasRunner);
+  assert.equal(sshAliasPush.state, "pushed");
+  assert.equal(callsWith(sshAliasRunner, "fetch")[0]?.args.includes(sshAliasUrl), true);
+  assert.equal(callsWith(sshAliasRunner, "push")[0]?.args.includes(sshAliasUrl), true);
+
   const upToDateRunner = new PushGitRunner({ ahead: 0, behind: 0 });
   const upToDate = gitPush(paths, { repoId: "primary" }, upToDateRunner);
   assert.equal(upToDate.state, "up-to-date");
@@ -359,6 +369,26 @@ try {
   const unsafePushUrl = new PushGitRunner({ pushUrls: ["file:///tmp/repo.git"] });
   assert.throws(() => gitPush(paths, { repoId: "primary" }, unsafePushUrl), /exactly one configured HTTPS or SSH push URL/);
   assert.equal(callsWith(unsafePushUrl, "push").length, 0);
+
+  const driveLocalPushUrl = new PushGitRunner({
+    fetchUrls: ["C:/tmp/repo.git"],
+    pushUrls: ["C:/tmp/repo.git"]
+  });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary" }, driveLocalPushUrl),
+    /only supports configured HTTPS or SSH remotes/
+  );
+  assert.equal(callsWith(driveLocalPushUrl, "fetch").length, 0);
+
+  const optionLikePushUrl = new PushGitRunner({
+    fetchUrls: ["-evil@example.invalid:owner/repo.git"],
+    pushUrls: ["-evil@example.invalid:owner/repo.git"]
+  });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary" }, optionLikePushUrl),
+    /only supports configured HTTPS or SSH remotes/
+  );
+  assert.equal(callsWith(optionLikePushUrl, "fetch").length, 0);
 
   const separatePushTarget = new PushGitRunner({
     pushUrls: ["https://push.example.invalid/chatcockpit.git"]
