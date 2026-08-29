@@ -73,6 +73,7 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
       workdir: z.string().optional(),
       allowStdin: z.boolean().optional(),
       networkAccess: z.boolean().optional(),
+      executionMode: z.enum(["native-sandbox", "host-managed"]).optional(),
       allowBuiltinFallback: z.boolean().optional()
     }),
     workspaceProcessReadSchema: z.object({

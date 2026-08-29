@@ -496,6 +496,8 @@ export interface ShellRunResponse {
   error?: string;
 }
 
+export type WorkspaceExecExecutionMode = "native-sandbox" | "host-managed";
+
 export interface WorkspaceExecPayload extends DirectExecutorPreference {
   repoId: string;
   sessionId?: string;
@@ -504,6 +506,7 @@ export interface WorkspaceExecPayload extends DirectExecutorPreference {
   workdir?: string;
   allowStdin?: boolean;
   networkAccess?: boolean;
+  executionMode?: WorkspaceExecExecutionMode;
   allowBuiltinFallback?: boolean;
 }
 

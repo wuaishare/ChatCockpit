@@ -365,6 +365,21 @@ async function verifyChatDirectRouting(): Promise<void> {
     "utf8"
   );
   fs.writeFileSync(
+    path.join(repoRoot, "scripts", "host-managed.mjs"),
+    "process.stdout.write('HOST_MANAGED_BUILD_OK\\n');\n",
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(repoRoot, "package.json"),
+    JSON.stringify({
+      private: true,
+      scripts: {
+        "build:macos-desktop": "node scripts/host-managed.mjs"
+      }
+    }),
+    "utf8"
+  );
+  fs.writeFileSync(
     path.join(repoRoot, "scripts", "public-output-failure.mjs"),
     "throw new Error('public shell output fixture');\n",
     "utf8"
@@ -1115,6 +1130,55 @@ async function verifyChatDirectRouting(): Promise<void> {
     }
     assert.equal(builtInManagedSnapshot.state, "completed");
     assert.equal(builtInManagedSnapshot.exitCode, 0);
+
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary",
+        command: "npm",
+        args: ["run", "test"],
+        executionMode: "host-managed",
+        networkAccess: true
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary",
+        command: "npm",
+        args: ["run", "build:macos-desktop"],
+        executionMode: "host-managed",
+        networkAccess: false
+      }),
+      (error) => error instanceof ServiceError && error.code === "CAPABILITY_UNAVAILABLE"
+    );
+    const hostManaged = await service.workspaceExec(context, {
+      repoId: "primary",
+      command: "npm",
+      args: ["run", "build:macos-desktop"],
+      executionMode: "host-managed",
+      networkAccess: true
+    });
+    assert.equal(hostManaged.state, "running");
+    assert.equal(hostManaged.execution.executor, "builtin-direct");
+    assert.equal(hostManaged.execution.fallbackReason, "explicit-host-managed-execution");
+    assert.equal(hostManaged.execution.compatibilityMode, "builtin-governed-process");
+    let hostManagedSnapshot = await service.workspaceProcessRead(context, {
+      repoId: "primary",
+      processId: hostManaged.processId
+    });
+    for (let attempt = 0; attempt < 100 && hostManagedSnapshot.state === "running"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      hostManagedSnapshot = await service.workspaceProcessRead(context, {
+        repoId: "primary",
+        processId: hostManaged.processId
+      });
+    }
+    assert.equal(hostManagedSnapshot.state, "completed");
+    assert.equal(hostManagedSnapshot.exitCode, 0);
+    assert.match(
+      hostManagedSnapshot.chunks.map((chunk) => chunk.content).join(""),
+      /HOST_MANAGED_BUILD_OK/
+    );
 
     const afterManagedWrite = await service.write(context, {
       repoId: "primary",

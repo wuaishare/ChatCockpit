@@ -721,19 +721,38 @@ export class ChatDirectService {
       throw serviceError("SHELL_COMMAND_BLOCKED", error);
     }
     const access: DirectCapabilityAccess = prepared.readOnly ? "read" : "write";
-    const selection = this.select("shell.exec", access, payload.executorId);
     const builtInExecutorId = productIdentityForKey(
       this.paths.productIdentity
     ).builtInDirectExecutorId;
-    const nativeBackend = selection.executorId === "codex-app-server-standalone";
-    const builtInBackend = selection.executorId === builtInExecutorId;
+    const hostManaged = prepared.executionMode === "host-managed";
+    if (
+      hostManaged &&
+      payload.executorId &&
+      payload.executorId !== builtInExecutorId
+    ) {
+      throw new ServiceError(
+        "CAPABILITY_UNAVAILABLE",
+        "Host-managed workspace execution must use the governed built-in process supervisor",
+        { details: { executorId: payload.executorId, requiredExecutorId: builtInExecutorId } }
+      );
+    }
+    const selection = hostManaged
+      ? this.fallbackSelection("shell.exec", access)
+      : this.select("shell.exec", access, payload.executorId);
+    const nativeBackend =
+      !hostManaged && selection.executorId === "codex-app-server-standalone";
+    const builtInBackend = hostManaged || selection.executorId === builtInExecutorId;
     if (!nativeBackend && !builtInBackend) {
       throw new ServiceError(
         "CAPABILITY_UNAVAILABLE",
         `Managed workspace execution does not support executor ${selection.executorId}`
       );
     }
-    if (builtInBackend && payload.allowBuiltinFallback !== true) {
+    if (
+      !hostManaged &&
+      builtInBackend &&
+      payload.allowBuiltinFallback !== true
+    ) {
       throw new ServiceError(
         "CAPABILITY_UNAVAILABLE",
         "Managed workspace native execution is unavailable. Set allowBuiltinFallback=true only when this authenticated operator explicitly accepts the governed built-in process fallback.",
@@ -748,10 +767,13 @@ export class ChatDirectService {
     if (builtInBackend && payload.networkAccess !== true) {
       throw new ServiceError(
         "CAPABILITY_UNAVAILABLE",
-        "The built-in managed process fallback cannot prove OS-level network denial. Restore the native executor for network-isolated execution, or explicitly allow network access for this trusted task.",
+        hostManaged
+          ? "Host-managed workspace execution cannot prove OS-level network denial. Set networkAccess=true only for an explicitly allowlisted trusted build task."
+          : "The built-in managed process fallback cannot prove OS-level network denial. Restore the native executor for network-isolated execution, or explicitly allow network access for this trusted task.",
         {
           details: {
             executorId: selection.executorId,
+            executionMode: prepared.executionMode,
             networkAccess: false
           }
         }
@@ -819,9 +841,11 @@ export class ChatDirectService {
           selection,
           [],
           builtInBackend
-            ? selection.selectionMode === "automatic"
-              ? "native-managed-executor-unavailable"
-              : "explicit-builtin-managed-executor"
+            ? hostManaged
+              ? "explicit-host-managed-execution"
+              : selection.selectionMode === "automatic"
+                ? "native-managed-executor-unavailable"
+                : "explicit-builtin-managed-executor"
             : undefined,
           started.compatibilityMode
         )

@@ -80,10 +80,23 @@ const BUILTIN_HOST_NPM_SCRIPTS = new Set([
   "mvp:reset",
   "reset:local"
 ]);
+const HOST_MANAGED_WORKSPACE_NPM_SCRIPTS = new Set([
+  "build:macos-desktop",
+  "build:macos-runtime"
+]);
 const MAX_COMMAND_LENGTH = 1024;
 
 export function isBuiltinHostNpmScript(command: string, args: string[]): boolean {
   return command === "npm" && args[0] === "run" && BUILTIN_HOST_NPM_SCRIPTS.has(args[1] ?? "");
+}
+
+export function isHostManagedWorkspaceCommand(command: string, args: string[]): boolean {
+  return (
+    command === "npm" &&
+    args.length === 2 &&
+    args[0] === "run" &&
+    HOST_MANAGED_WORKSPACE_NPM_SCRIPTS.has(args[1] ?? "")
+  );
 }
 
 const NPM_AUDIT_LEVEL_OPTION = /^--audit-level=(?:low|moderate|high|critical)$/;

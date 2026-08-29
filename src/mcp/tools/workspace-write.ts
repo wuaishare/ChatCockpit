@@ -206,7 +206,7 @@ export function buildWorkspaceWriteTools(
       name: toolName("workspace.exec"),
       title: "Start governed workspace process",
       description:
-        "Start a governed long-running command in the selected repository workspace. ChatCockpit prefers the verified native execution backend, whose sandbox constrains writes and can deny network access. If that backend is unavailable, an authenticated operator may explicitly set allowBuiltinFallback=true together with networkAccess=true to use the governed built-in process fallback; that compatibility mode retains command/path policy and writer authority but does not claim native OS sandbox isolation. Long-running commands return a process id immediately, and mutating commands retain writer authority until terminal state. An idempotency key prevents duplicate process starts.",
+        "Start a governed long-running command in the selected repository workspace. The default executionMode=native-sandbox uses the verified native backend, whose sandbox constrains writes and can deny network access. For the narrow allowlist of macOS build scripts that must create their own SwiftPM/Xcode child sandbox, executionMode=host-managed explicitly uses ChatCockpit's governed built-in process supervisor and requires networkAccess=true because that lane does not claim OS-level network denial. allowBuiltinFallback remains a compatibility escape hatch only when native execution is unavailable. All modes retain command/path policy, writer authority, streamed output, bounded retention, and idempotent process start.",
       inputSchema: workspaceExecMcpSchema,
       outputSchema: workspaceExecToolOutputSchema,
       annotations: openWorldDestructiveMutationAnnotations,

@@ -9,7 +9,8 @@ import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 import {
   evaluateNativeWorkspaceCommand,
-  evaluateWorkspaceCommand
+  evaluateWorkspaceCommand,
+  isHostManagedWorkspaceCommand
 } from "../src/core/command-policy.ts";
 
 assert.equal(
@@ -46,6 +47,19 @@ assert.throws(
 );
 assert.equal(evaluateNativeWorkspaceCommand("node", ["scripts/build.mjs"]).effect, "write");
 assert.equal(evaluateNativeWorkspaceCommand("./scripts/check.sh", ["src"]).effect, "write");
+assert.equal(
+  isHostManagedWorkspaceCommand("npm", ["run", "build:macos-desktop"]),
+  true
+);
+assert.equal(
+  isHostManagedWorkspaceCommand("npm", ["run", "build:macos-runtime"]),
+  true
+);
+assert.equal(isHostManagedWorkspaceCommand("npm", ["run", "test"]), false);
+assert.equal(
+  isHostManagedWorkspaceCommand("npm", ["run", "build:macos-desktop", "--", "--unsafe"]),
+  false
+);
 
 assert.throws(() => evaluateNativeWorkspaceCommand("bash", ["-lc", "git status"]), /not allowed/);
 assert.throws(() => evaluateNativeWorkspaceCommand("node", ["-e", "console.log(1)"]), /relative project script/);
@@ -130,7 +144,24 @@ try {
     command: "node",
     args: ["scripts/inside.mjs"]
   });
+  assert.equal(prepared.executionMode, "native-sandbox");
   assert.equal(prepared.args[0], fs.realpathSync.native(path.join(repoRoot, "scripts", "inside.mjs")));
+  const hostManaged = prepareWorkspaceExecCommand(paths, {
+    repoId: "primary",
+    command: "npm",
+    args: ["run", "build:macos-desktop"],
+    executionMode: "host-managed"
+  });
+  assert.equal(hostManaged.executionMode, "host-managed");
+  assert.throws(
+    () => prepareWorkspaceExecCommand(paths, {
+      repoId: "primary",
+      command: "npm",
+      args: ["run", "test"],
+      executionMode: "host-managed"
+    }),
+    /explicitly allowlisted macOS build scripts/
+  );
   assert.throws(() => prepareWorkspaceExecCommand(paths, {
     repoId: "primary", command: "node", args: ["scripts/outside.mjs"]
   }), /repository root after resolving symlinks/);

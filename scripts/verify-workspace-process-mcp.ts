@@ -111,6 +111,8 @@ async function verifyWorkspaceProcessMcp(): Promise<void> {
   assert.ok(controlTool);
   assert.equal(execTool.annotations.destructiveHint, true);
   assert.equal(execTool.annotations.openWorldHint, true);
+  assert.match(JSON.stringify(execTool.inputSchema), /executionMode/);
+  assert.match(JSON.stringify(execTool.inputSchema), /host-managed/);
   assert.equal(readTool.annotations.readOnlyHint, true);
   assert.equal(readTool.annotations.openWorldHint, false);
   assert.equal(controlTool.annotations.destructiveHint, true);

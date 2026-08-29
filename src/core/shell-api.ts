@@ -6,7 +6,8 @@ import { pathToFileURL } from "node:url";
 import {
   evaluateNativeWorkspaceCommand,
   evaluateWorkspaceCommand,
-  isBuiltinHostNpmScript
+  isBuiltinHostNpmScript,
+  isHostManagedWorkspaceCommand
 } from "./command-policy.js";
 import { loadUserConfigForPaths, resolveRepoMapping } from "./config.js";
 import { resolvePathInsideRoot } from "./path-guards.js";
@@ -100,6 +101,7 @@ export interface PreparedWorkspaceExecCommand {
   args: string[];
   workdir: string;
   readOnly: boolean;
+  executionMode: "native-sandbox" | "host-managed";
 }
 
 export function prepareWorkspaceExecCommand(
@@ -108,6 +110,15 @@ export function prepareWorkspaceExecCommand(
 ): PreparedWorkspaceExecCommand {
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   const policy = evaluateNativeWorkspaceCommand(payload.command, payload.args);
+  const executionMode = payload.executionMode ?? "native-sandbox";
+  if (
+    executionMode === "host-managed" &&
+    !isHostManagedWorkspaceCommand(policy.command, policy.args)
+  ) {
+    throw new Error(
+      "Host-managed workspace execution is limited to explicitly allowlisted macOS build scripts"
+    );
+  }
   const workdir = resolveWorkDir(repoRoot, payload.workdir);
   const args = [...policy.args];
   for (const index of policy.projectPathArgIndexes) {
@@ -125,7 +136,8 @@ export function prepareWorkspaceExecCommand(
       : policy.command,
     args,
     workdir,
-    readOnly: policy.effect === "read"
+    readOnly: policy.effect === "read",
+    executionMode
   };
 }
 
