@@ -52,6 +52,7 @@ import type {
   OAuthGrantDeviceAccessMutationResponse,
   OAuthGrantDeviceAccessResponse,
   ManagedDevicesResponse,
+  DeviceOnboardingResponse,
   DeviceEnrollmentRequestsResponse,
   DeviceEnrollmentDecisionResponse,
   DeviceExecutionPolicyMutationResponse,
@@ -498,6 +499,10 @@ export async function fetchOAuthGrantDeviceAccess(
 
 export async function fetchDevices(): Promise<ManagedDevicesResponse> {
   return requestJson<ManagedDevicesResponse>("/api/devices");
+}
+
+export async function fetchDeviceOnboarding(): Promise<DeviceOnboardingResponse> {
+  return requestJson<DeviceOnboardingResponse>("/api/devices/onboarding");
 }
 
 export async function fetchDeviceEnrollmentRequests(): Promise<DeviceEnrollmentRequestsResponse> {

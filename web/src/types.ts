@@ -455,6 +455,57 @@ export interface ManagedDevicesResponse {
   devices: ManagedDeviceSummary[];
 }
 
+export type DeviceOnboardingRecommendedPath = "nearby" | "remote" | "advanced";
+
+export interface DeviceOnboardingResponse {
+  ok: true;
+  schemaVersion: 1;
+  recommendedPath: DeviceOnboardingRecommendedPath;
+  routes: {
+    nearby: {
+      initialEnrollment: false;
+      available: boolean;
+      configured: boolean;
+      discoveryReady: boolean;
+      secureTransportReady: boolean;
+      reason: "ready" | "trusted-lan-disabled" | "secure-transport-unavailable" | "discovery-unavailable";
+    };
+    remote: {
+      initialEnrollment: true;
+      available: boolean;
+      configured: boolean;
+      origin: string | null;
+      verified: boolean;
+      verificationStatus: "verified" | "failed" | "not-attempted";
+      reason: "ready" | "public-route-not-configured" | "public-route-not-https";
+    };
+  };
+  bootstrap: {
+    installedCli: {
+      available: true;
+      requirement: "chatcockpit-cli-installed";
+      discoverCommand: string;
+      verifyLanCommand: string;
+      connectCommand: string | null;
+    };
+    npx: { available: false; reason: "package-not-published" };
+    nativePackage: { available: false; reason: "not-shipped" };
+  };
+  enrollment: {
+    pendingCount: number;
+  };
+  advanced: {
+    hubId: string;
+    publicKeyFingerprint: string;
+    trustedLanEnabled: boolean;
+    stagedPublicRoute: {
+      origin: string;
+      status: "staged-unverified";
+      verificationStatus: "verified" | "failed" | "not-attempted";
+    } | null;
+  };
+}
+
 export interface DeviceEnrollmentRequestSummary {
   id: string;
   displayName: string;

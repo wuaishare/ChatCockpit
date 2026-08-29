@@ -360,23 +360,25 @@ components:
               type: object
               additionalProperties: false
               properties:
+                initialEnrollment: { type: boolean, const: false }
                 available: { type: boolean }
                 configured: { type: boolean }
                 discoveryReady: { type: boolean }
                 secureTransportReady: { type: boolean }
                 reason: { type: string, enum: [ready, trusted-lan-disabled, secure-transport-unavailable, discovery-unavailable] }
-              required: [available, configured, discoveryReady, secureTransportReady, reason]
+              required: [initialEnrollment, available, configured, discoveryReady, secureTransportReady, reason]
             remote:
               type: object
               additionalProperties: false
               properties:
+                initialEnrollment: { type: boolean, const: true }
                 available: { type: boolean }
                 configured: { type: boolean }
                 origin: { oneOf: [{ type: string }, { type: "null" }] }
                 verified: { type: boolean }
                 verificationStatus: { type: string, enum: [verified, failed, not-attempted] }
                 reason: { type: string, enum: [ready, public-route-not-configured, public-route-not-https] }
-              required: [available, configured, origin, verified, verificationStatus, reason]
+              required: [initialEnrollment, available, configured, origin, verified, verificationStatus, reason]
           required: [nearby, remote]
         bootstrap:
           type: object
@@ -389,8 +391,9 @@ components:
                 available: { type: boolean, const: true }
                 requirement: { type: string, const: chatcockpit-cli-installed }
                 discoverCommand: { type: string }
+                verifyLanCommand: { type: string }
                 connectCommand: { oneOf: [{ type: string }, { type: "null" }] }
-              required: [available, requirement, discoverCommand, connectCommand]
+              required: [available, requirement, discoverCommand, verifyLanCommand, connectCommand]
             npx:
               type: object
               additionalProperties: false

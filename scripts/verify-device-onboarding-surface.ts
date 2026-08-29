@@ -58,21 +58,35 @@ function serviceProjection(input: {
 async function main(): Promise<void> {
   const nearby = serviceProjection({ trustedLan: true, discovery: true, secureTransport: true });
   assert.equal(nearby.schemaVersion, DEVICE_ONBOARDING_SCHEMA_VERSION);
-  assert.equal(nearby.recommendedPath, "nearby");
+  assert.equal(nearby.recommendedPath, "advanced");
+  assert.equal(nearby.routes.nearby.initialEnrollment, false);
   assert.equal(nearby.routes.nearby.available, true);
   assert.equal(nearby.bootstrap.installedCli.available, true);
-  assert.match(nearby.bootstrap.installedCli.discoverCommand, /device discover --verify/);
+  assert.match(nearby.bootstrap.installedCli.discoverCommand, /device discover --json/);
+  assert.doesNotMatch(nearby.bootstrap.installedCli.discoverCommand, /--verify/);
+  assert.match(nearby.bootstrap.installedCli.verifyLanCommand, /device discover --verify --json/);
   assert.equal(nearby.bootstrap.npx.available, false);
   assert.equal(nearby.bootstrap.nativePackage.available, false);
 
   const remote = serviceProjection({ publicOrigin: "https://chatcockpit.example.com", pendingCount: 2 });
   assert.equal(remote.recommendedPath, "remote");
+  assert.equal(remote.routes.remote.initialEnrollment, true);
   assert.equal(remote.routes.remote.available, true);
   assert.equal(remote.routes.remote.origin, "https://chatcockpit.example.com");
   assert.equal(remote.routes.remote.verified, false);
   assert.equal(remote.routes.remote.verificationStatus, "not-attempted");
   assert.match(remote.bootstrap.installedCli.connectCommand ?? "", /device connect/);
   assert.equal(remote.enrollment.pendingCount, 2);
+
+  const bothReady = serviceProjection({
+    trustedLan: true,
+    discovery: true,
+    secureTransport: true,
+    publicOrigin: "https://chatcockpit.example.com"
+  });
+  assert.equal(bothReady.routes.nearby.available, true);
+  assert.equal(bothReady.routes.remote.available, true);
+  assert.equal(bothReady.recommendedPath, "remote");
 
   const verifiedRemote = serviceProjection({
     publicOrigin: "https://chatcockpit.example.com",
@@ -195,6 +209,9 @@ async function main(): Promise<void> {
   const openapi = fs.readFileSync(path.resolve(import.meta.dirname, "../openapi/chatcockpit.openapi.yaml"), "utf8");
   assert.match(openapi, /\/api\/devices\/onboarding:/);
   assert.match(openapi, /operationId: getDeviceOnboarding/);
+  assert.match(openapi, /initialEnrollment: \{ type: boolean, const: false \}/);
+  assert.match(openapi, /initialEnrollment: \{ type: boolean, const: true \}/);
+  assert.match(openapi, /verifyLanCommand: \{ type: string \}/);
   const packageJson = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8")) as { private?: boolean };
   assert.equal(packageJson.private, true);
   console.log("VERIFY_DEVICE_ONBOARDING_SURFACE_OK");

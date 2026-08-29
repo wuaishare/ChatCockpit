@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Popconfirm, Spin, Tag } from "antd";
-import { DesktopOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { DesktopOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import {
   decideDeviceEnrollment,
@@ -19,6 +19,8 @@ import type {
 } from "../types";
 import type { LocaleCode } from "../i18n";
 import { getDevicesCopy } from "../i18n/devices";
+import { getDeviceOnboardingCopy } from "../i18n/device-onboarding";
+import { DeviceOnboardingModal } from "./DeviceOnboardingModal";
 import { SectionCard } from "./SectionCard";
 
 interface DevicesViewProps {
@@ -36,6 +38,8 @@ function errorMessage(error: unknown, fallback: string, versionMismatch: string)
 
 export function DevicesView({ locale }: DevicesViewProps) {
   const copy = getDevicesCopy(locale);
+  const onboardingCopy = getDeviceOnboardingCopy(locale);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [devices, setDevices] = useState<ManagedDeviceSummary[]>([]);
   const [requests, setRequests] = useState<DeviceEnrollmentRequestSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,14 +221,24 @@ export function DevicesView({ locale }: DevicesViewProps) {
         title={copy.title}
         description={copy.description}
         extra={
-          <Button
-            size="small"
-            icon={<ReloadOutlined />}
-            onClick={() => void load(true)}
-            loading={loading}
-          >
-            {copy.refresh}
-          </Button>
+          <div className="device-page-actions">
+            <Button
+              size="small"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setOnboardingOpen(true)}
+            >
+              {onboardingCopy.addDevice}
+            </Button>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={() => void load(true)}
+              loading={loading}
+            >
+              {copy.refresh}
+            </Button>
+          </div>
         }
       >
         {error ? <div className="section-note section-note--warning">{error}</div> : null}
@@ -481,6 +495,12 @@ export function DevicesView({ locale }: DevicesViewProps) {
 
         <div className="section-note device-security-note">{copy.securityNote}</div>
       </SectionCard>
+
+      <DeviceOnboardingModal
+        locale={locale}
+        open={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+      />
     </div>
   );
 }

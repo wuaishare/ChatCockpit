@@ -17,6 +17,7 @@ export interface DeviceOnboardingProjection {
   recommendedPath: DeviceOnboardingRecommendedPath;
   routes: {
     nearby: {
+      initialEnrollment: false;
       available: boolean;
       configured: boolean;
       discoveryReady: boolean;
@@ -24,6 +25,7 @@ export interface DeviceOnboardingProjection {
       reason: NearbyOnboardingReason;
     };
     remote: {
+      initialEnrollment: true;
       available: boolean;
       configured: boolean;
       origin: string | null;
@@ -37,6 +39,7 @@ export interface DeviceOnboardingProjection {
       available: true;
       requirement: "chatcockpit-cli-installed";
       discoverCommand: string;
+      verifyLanCommand: string;
       connectCommand: string | null;
     };
     npx: {

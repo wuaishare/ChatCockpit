@@ -93,7 +93,10 @@ export class DeviceOnboardingService {
         ? route.verificationEvidence
         : null;
     const remoteVerificationStatus = matchingCanonicalEvidence?.status ?? "not-attempted";
-    const recommendedPath = nearbyAvailable ? "nearby" : remoteAvailable ? "remote" : "advanced";
+    // Initial enrollment currently requires the canonical HTTPS Hub route.
+    // Nearby discovery is a post-enrollment route optimization because LAN
+    // verification requires an already pinned Hub identity and Device ID.
+    const recommendedPath = remoteAvailable ? "remote" : "advanced";
 
     return {
       ok: true,
@@ -101,6 +104,7 @@ export class DeviceOnboardingService {
       recommendedPath,
       routes: {
         nearby: {
+          initialEnrollment: false,
           available: nearbyAvailable,
           configured: trustedLanEnabled,
           discoveryReady: lan.discoveryAdvertised,
@@ -108,6 +112,7 @@ export class DeviceOnboardingService {
           reason: nearbyReason({ enabled: trustedLanEnabled, discovery: lan.discoveryAdvertised, secure: lan.secureTransportReady })
         },
         remote: {
+          initialEnrollment: true,
           available: remoteAvailable,
           configured: canonicalConfigured,
           origin: canonicalOrigin,
@@ -120,7 +125,8 @@ export class DeviceOnboardingService {
         installedCli: {
           available: true,
           requirement: "chatcockpit-cli-installed",
-          discoverCommand: "chatcockpit device discover --verify --json",
+          discoverCommand: "chatcockpit device discover --json",
+          verifyLanCommand: "chatcockpit device discover --verify --json",
           connectCommand: canonicalOrigin
             ? `chatcockpit device connect ${shellQuoted(canonicalOrigin)} --json`
             : null
