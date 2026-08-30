@@ -193,13 +193,24 @@ lineReader.on("line", (line) => {
           break;
         }
         const cwd = safePath(message.params?.cwd || root);
+        const commandEnv = { ...process.env };
+        if (
+          message.params?.env &&
+          typeof message.params.env === "object" &&
+          !Array.isArray(message.params.env)
+        ) {
+          for (const [key, value] of Object.entries(message.params.env)) {
+            if (value === null) delete commandEnv[key];
+            else if (typeof value === "string") commandEnv[key] = value;
+          }
+        }
         const processId = typeof message.params?.processId === "string"
           ? message.params.processId
           : null;
         const streaming = message.params?.streamStdoutStderr === true && processId;
         if (!streaming) {
           const result = spawnSync(command[0], command.slice(1), {
-            cwd, encoding: "utf8",
+            cwd, env: commandEnv, encoding: "utf8",
             timeout: typeof message.params?.timeoutMs === "number" ? message.params.timeoutMs : 5_000,
             maxBuffer: typeof message.params?.outputBytesCap === "number"
               ? Math.max(message.params.outputBytesCap * 2, 8_192) : 64 * 1_024
@@ -211,9 +222,16 @@ lineReader.on("line", (line) => {
           });
           break;
         }
-        const child = spawn(command[0], command.slice(1), { cwd, stdio: ["pipe", "pipe", "pipe"] });
+        const child = spawn(command[0], command.slice(1), {
+          cwd,
+          env: commandEnv,
+          stdio: ["pipe", "pipe", "pipe"]
+        });
         commandProcesses.set(processId, child);
         if (message.params?.tty === true) commandPtys.add(processId);
+        if (process.env.CHATCOCKPIT_MOCK_STANDALONE_DISCONNECT_AFTER_SPAWN === "1") {
+          setTimeout(() => process.exit(0), 20);
+        }
         child.stdout.on("data", (chunk) => notify("command/exec/outputDelta", {
           processId, stream: "stdout", deltaBase64: Buffer.from(chunk).toString("base64"), capReached: false
         }));
@@ -223,7 +241,9 @@ lineReader.on("line", (line) => {
         child.on("exit", (code) => {
           commandProcesses.delete(processId);
           commandPtys.delete(processId);
-          respond(message.id, { exitCode: code ?? 1, stdout: "", stderr: "" });
+          if (process.env.CHATCOCKPIT_MOCK_STANDALONE_SUPPRESS_FINAL !== "1") {
+            respond(message.id, { exitCode: code ?? 1, stdout: "", stderr: "" });
+          }
         });
         break;
       }
@@ -266,7 +286,9 @@ lineReader.on("line", (line) => {
         const processId = String(message.params?.processId || "");
         const child = commandProcesses.get(processId);
         if (!child) { fail(message.id, -32602, "process not found"); break; }
-        child.kill("SIGTERM");
+        if (process.env.CHATCOCKPIT_MOCK_STANDALONE_TERMINATE_ACK_ONLY !== "1") {
+          child.kill("SIGTERM");
+        }
         respond(message.id, {});
         break;
       }

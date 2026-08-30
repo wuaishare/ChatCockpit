@@ -49,10 +49,12 @@ interface PendingRequest {
   resolve(value: unknown): void;
   reject(error: Error): void;
   timeout: NodeJS.Timeout | null;
+  abortCleanup: (() => void) | null;
 }
 
 export interface CodexAppServerRequestOptions {
   timeoutMs?: number | null;
+  signal?: AbortSignal;
 }
 
 export interface CodexAppServerClientOptions {
@@ -380,6 +382,12 @@ export class CodexAppServerClient {
 
     const id = this.nextRequestId++;
     return new Promise<T>((resolve, reject) => {
+      const cleanupPending = (pending: PendingRequest | undefined) => {
+        if (!pending) return;
+        if (pending.timeout) clearTimeout(pending.timeout);
+        pending.abortCleanup?.();
+        this.pending.delete(id);
+      };
       const requestTimeoutMs =
         options.timeoutMs === undefined
           ? this.options.requestTimeoutMs
@@ -388,7 +396,8 @@ export class CodexAppServerClient {
         requestTimeoutMs === null
           ? null
           : setTimeout(() => {
-              this.pending.delete(id);
+              const pending = this.pending.get(id);
+              cleanupPending(pending);
               reject(
                 new ServiceError(
                   "CODEX_APP_SERVER_TIMEOUT",
@@ -398,18 +407,38 @@ export class CodexAppServerClient {
               );
             }, requestTimeoutMs);
       timeout?.unref();
+      const abortHandler = () => {
+        const pending = this.pending.get(id);
+        if (!pending) return;
+        cleanupPending(pending);
+        reject(
+          new ServiceError(
+            "CODEX_APP_SERVER_REQUEST_ABORTED",
+            `Codex App Server request ${method} was abandoned after terminal process proof`,
+            { details: { method } }
+          )
+        );
+      };
+      const abortCleanup = options.signal
+        ? () => options.signal?.removeEventListener("abort", abortHandler)
+        : null;
       this.pending.set(id, {
         method,
         resolve: (value) => resolve(value as T),
         reject,
-        timeout
+        timeout,
+        abortCleanup
       });
+      if (options.signal?.aborted) {
+        abortHandler();
+        return;
+      }
+      options.signal?.addEventListener("abort", abortHandler, { once: true });
       child.stdin.write(`${JSON.stringify({ id, method, params })}\n`, (error) => {
         if (!error) return;
         const pending = this.pending.get(id);
         if (!pending) return;
-        if (pending.timeout) clearTimeout(pending.timeout);
-        this.pending.delete(id);
+        cleanupPending(pending);
         reject(
           new ServiceError(
             "CODEX_APP_SERVER_DISCONNECTED",
@@ -529,6 +558,7 @@ export class CodexAppServerClient {
       return;
     }
     if (pending.timeout) clearTimeout(pending.timeout);
+    pending.abortCleanup?.();
     this.pending.delete(record.id);
 
     if (record.error) {
@@ -541,6 +571,7 @@ export class CodexAppServerClient {
   private rejectPending(error: Error): void {
     for (const pending of this.pending.values()) {
       if (pending.timeout) clearTimeout(pending.timeout);
+      pending.abortCleanup?.();
       pending.reject(error);
     }
     this.pending.clear();

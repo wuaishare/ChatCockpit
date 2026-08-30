@@ -377,12 +377,42 @@ interface ManagedStandaloneProcessRecord {
   allowStdin: boolean;
   tty: boolean;
   terminationRequested: boolean;
+  client: CodexAppServerClient;
+  terminalPrefix: string;
+  outputCarry: { stdout: string; stderr: string };
+  terminalFenceStarted: boolean;
+  requestAbortController: AbortController;
+  resolveTerminalProof: () => void;
   completion: Promise<void>;
 }
 
 const MANAGED_COMMAND_OUTPUT_BYTES_CAP = 512 * 1024;
 const MANAGED_COMMAND_MAX_CHUNKS = 4_096;
 const MANAGED_COMMAND_RECORD_RETENTION_MS = 30 * 60_000;
+const MANAGED_COMMAND_TERMINAL_FENCE_ATTEMPTS = 50;
+const MANAGED_COMMAND_TERMINAL_FENCE_INTERVAL_MS = 20;
+const MANAGED_COMMAND_TERMINAL_SENTINEL = "\u001e";
+const MANAGED_COMMAND_TERMINAL_LABEL = "CHATCOCKPIT_EXIT";
+const MANAGED_COMMAND_WRAPPER_SCRIPT = [
+  "const { spawn } = require('node:child_process');",
+  "const token = process.env.CHATCOCKPIT_TERMINAL_TOKEN || '';",
+  "delete process.env.CHATCOCKPIT_TERMINAL_TOKEN;",
+  "const [command, ...args] = process.argv.slice(1);",
+  "if (!command || !token) process.exit(127);",
+  "const child = spawn(command, args, { stdio: 'inherit', env: process.env });",
+  "let settled = false;",
+  "const finish = (code) => {",
+  "  if (settled) return;",
+  "  settled = true;",
+  "  const exitCode = Number.isInteger(code) ? code : 1;",
+  "  process.stderr.write('\\u001eCHATCOCKPIT_EXIT:' + token + ':' + exitCode + '\\u001e', () => process.exit(exitCode));",
+  "};",
+  "child.once('error', () => finish(127));",
+  "child.once('exit', (code) => finish(code));",
+  "for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) {",
+  "  process.on(signal, () => { try { child.kill(signal); } catch {} });",
+  "}"
+].join("\n");
 
 export function buildCodexStandaloneSandboxPolicy(input: {
   cwd: string;
@@ -1193,6 +1223,13 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       this.ensureTsxCompatibilityBashEnvPath()
     );
     const processId = `chatcockpit_${randomUUID()}`;
+    const terminalToken = randomUUID().replaceAll("-", "");
+    const terminalPrefix = `${MANAGED_COMMAND_TERMINAL_SENTINEL}${MANAGED_COMMAND_TERMINAL_LABEL}:${terminalToken}:`;
+    const requestAbortController = new AbortController();
+    let resolveTerminalProof: () => void = () => undefined;
+    const terminalProof = new Promise<void>((resolve) => {
+      resolveTerminalProof = resolve;
+    });
     const record: ManagedStandaloneProcessRecord = {
       processId,
       state: "running",
@@ -1202,15 +1239,21 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       allowStdin: input.allowStdin || input.tty === true,
       tty: input.tty === true,
       terminationRequested: false,
+      client,
+      terminalPrefix,
+      outputCarry: { stdout: "", stderr: "" },
+      terminalFenceStarted: false,
+      requestAbortController,
+      resolveTerminalProof,
       completion: Promise.resolve()
     };
     this.standaloneProcesses.set(processId, record);
 
-    record.completion = client
+    const requestCompletion = client
       .request<Record<string, unknown>>(
         "command/exec",
         {
-          command: invocation.command,
+          command: [process.execPath, "-e", MANAGED_COMMAND_WRAPPER_SCRIPT, "--", ...invocation.command],
           cwd: input.cwd,
           processId,
           disableTimeout: true,
@@ -1221,16 +1264,21 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           ...(input.tty === true && input.terminalSize
             ? { size: input.terminalSize }
             : {}),
-          ...(invocation.env ? { env: invocation.env } : {}),
+          env: {
+            ...(invocation.env ?? {}),
+            CHATCOCKPIT_TERMINAL_TOKEN: terminalToken
+          },
           sandboxPolicy: buildCodexStandaloneSandboxPolicy({
             cwd: input.cwd,
             readOnly: input.readOnly,
             networkAccess: input.networkAccess
           })
         },
-        { timeoutMs: null }
+        { timeoutMs: null, signal: requestAbortController.signal }
       )
       .then((response) => {
+        this.flushStandaloneProcessOutput(record);
+        if (record.state !== "running") return;
         if (typeof response.exitCode !== "number") {
           record.state = "failed";
           record.errorCode = "CODEX_STANDALONE_RESPONSE_INVALID";
@@ -1244,16 +1292,34 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
             : "failed";
       })
       .catch((error: unknown) => {
-        record.state = record.terminationRequested ? "terminated" : "failed";
+        if (
+          record.state !== "running" &&
+          error instanceof ServiceError &&
+          error.code === "CODEX_APP_SERVER_REQUEST_ABORTED"
+        ) {
+          return;
+        }
+        if (record.state !== "running") return;
         record.errorCode =
           error instanceof ServiceError ? error.code : "INTERNAL_ERROR";
-      })
-      .finally(() => {
-        const cleanup = setTimeout(() => {
-          this.standaloneProcesses.delete(processId);
-        }, MANAGED_COMMAND_RECORD_RETENTION_MS);
-        cleanup.unref?.();
+        if (
+          error instanceof ServiceError &&
+          ["CODEX_APP_SERVER_RPC_ERROR", "CAPABILITY_UNAVAILABLE"].includes(
+            error.code
+          )
+        ) {
+          record.state = "failed";
+          return;
+        }
+        return terminalProof;
       });
+
+    record.completion = Promise.race([requestCompletion, terminalProof]).finally(() => {
+      const cleanup = setTimeout(() => {
+        this.standaloneProcesses.delete(processId);
+      }, MANAGED_COMMAND_RECORD_RETENTION_MS);
+      cleanup.unref?.();
+    });
 
     return {
       processId,
@@ -1302,8 +1368,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Standalone process stdin is unavailable"
       );
     }
-    const client = await this.ensureClient();
-    await client.request("command/exec/write", {
+    await record.client.request("command/exec/write", {
       processId,
       ...(input ? { deltaBase64: Buffer.from(input, "utf8").toString("base64") } : {}),
       closeStdin
@@ -1322,8 +1387,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         "Standalone process resize requires a running PTY-backed process"
       );
     }
-    const client = await this.ensureClient();
-    await client.request("command/exec/resize", {
+    await record.client.request("command/exec/resize", {
       processId,
       size: { rows, cols }
     });
@@ -1333,8 +1397,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     const record = this.getStandaloneProcess(processId);
     if (record.state !== "running") return;
     record.terminationRequested = true;
-    const client = await this.ensureClient();
-    await client.request("command/exec/terminate", { processId });
+    await record.client.request("command/exec/terminate", { processId });
+    this.confirmStandaloneRequestedTermination(record);
   }
 
   async respondToServerRequest(
@@ -1422,6 +1486,179 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     return record;
   }
 
+  private pushStandaloneProcessOutput(
+    record: ManagedStandaloneProcessRecord,
+    stream: "stdout" | "stderr",
+    content: string,
+    capReached = false
+  ): void {
+    if (!content) return;
+    if (record.chunks.length >= MANAGED_COMMAND_MAX_CHUNKS) {
+      const last = record.chunks.at(-1);
+      if (last) last.capReached = true;
+      return;
+    }
+    record.chunks.push({
+      sequence: record.chunks.length,
+      stream,
+      content,
+      capReached
+    });
+  }
+
+  private flushStandaloneProcessOutput(record: ManagedStandaloneProcessRecord): void {
+    for (const stream of ["stdout", "stderr"] as const) {
+      const carry = record.outputCarry[stream];
+      if (!carry) continue;
+      record.outputCarry[stream] = "";
+      this.pushStandaloneProcessOutput(record, stream, carry);
+    }
+  }
+
+  private terminalFenceProvesAbsence(error: unknown): boolean {
+    return (
+      error instanceof ServiceError &&
+      error.code === "CODEX_APP_SERVER_RPC_ERROR" &&
+      /process.*not found|not.*running/i.test(error.message)
+    );
+  }
+
+  private async proveStandaloneProcessAbsent(
+    record: ManagedStandaloneProcessRecord
+  ): Promise<boolean> {
+    for (
+      let attempt = 0;
+      attempt < MANAGED_COMMAND_TERMINAL_FENCE_ATTEMPTS;
+      attempt += 1
+    ) {
+      if (record.state !== "running") return true;
+      try {
+        await record.client.request(
+          "command/exec/terminate",
+          { processId: record.processId },
+          { timeoutMs: 1_000 }
+        );
+      } catch (error) {
+        return this.terminalFenceProvesAbsence(error);
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, MANAGED_COMMAND_TERMINAL_FENCE_INTERVAL_MS)
+      );
+    }
+    return false;
+  }
+
+  private settleStandaloneTerminalProof(
+    record: ManagedStandaloneProcessRecord,
+    exitCode: number | null
+  ): void {
+    if (record.state !== "running") return;
+    this.flushStandaloneProcessOutput(record);
+    record.exitCode = exitCode;
+    record.errorCode = null;
+    record.state = record.terminationRequested
+      ? "terminated"
+      : exitCode === 0
+        ? "completed"
+        : "failed";
+    record.requestAbortController.abort();
+    record.resolveTerminalProof();
+  }
+
+  private beginStandaloneTerminalFence(
+    record: ManagedStandaloneProcessRecord,
+    exitCode: number | null
+  ): void {
+    if (record.state !== "running" || record.terminalFenceStarted) return;
+    record.terminalFenceStarted = true;
+    void this.proveStandaloneProcessAbsent(record).then((absent) => {
+      if (!absent) {
+        record.terminalFenceStarted = false;
+        return;
+      }
+      this.settleStandaloneTerminalProof(record, exitCode);
+    });
+  }
+
+  private confirmStandaloneRequestedTermination(
+    record: ManagedStandaloneProcessRecord
+  ): void {
+    this.beginStandaloneTerminalFence(record, null);
+  }
+
+  private confirmStandaloneTerminal(
+    record: ManagedStandaloneProcessRecord,
+    exitCode: number
+  ): void {
+    this.beginStandaloneTerminalFence(record, exitCode);
+  }
+
+  private terminalPrefixCarryLength(buffer: string, prefix: string): number {
+    const maximum = Math.min(buffer.length, Math.max(0, prefix.length - 1));
+    for (let length = maximum; length > 0; length -= 1) {
+      if (buffer.endsWith(prefix.slice(0, length))) return length;
+    }
+    return 0;
+  }
+
+  private consumeStandaloneProcessOutput(
+    record: ManagedStandaloneProcessRecord,
+    stream: "stdout" | "stderr",
+    content: string,
+    capReached: boolean
+  ): void {
+    let buffer = record.outputCarry[stream] + content;
+    record.outputCarry[stream] = "";
+    while (buffer) {
+      const prefixIndex = buffer.indexOf(record.terminalPrefix);
+      if (prefixIndex < 0) {
+        const keep = this.terminalPrefixCarryLength(buffer, record.terminalPrefix);
+        const flushLength = buffer.length - keep;
+        if (flushLength > 0) {
+          this.pushStandaloneProcessOutput(
+            record,
+            stream,
+            buffer.slice(0, flushLength),
+            capReached
+          );
+        }
+        record.outputCarry[stream] = buffer.slice(flushLength);
+        return;
+      }
+
+      if (prefixIndex > 0) {
+        this.pushStandaloneProcessOutput(
+          record,
+          stream,
+          buffer.slice(0, prefixIndex),
+          false
+        );
+      }
+      const markerStart = prefixIndex + record.terminalPrefix.length;
+      const suffixIndex = buffer.indexOf(
+        MANAGED_COMMAND_TERMINAL_SENTINEL,
+        markerStart
+      );
+      if (suffixIndex < 0) {
+        record.outputCarry[stream] = buffer.slice(prefixIndex);
+        return;
+      }
+      const exitCodeText = buffer.slice(markerStart, suffixIndex);
+      if (!/^\d{1,3}$/.test(exitCodeText)) {
+        this.pushStandaloneProcessOutput(
+          record,
+          stream,
+          buffer.slice(prefixIndex, prefixIndex + 1),
+          false
+        );
+        buffer = buffer.slice(prefixIndex + 1);
+        continue;
+      }
+      this.confirmStandaloneTerminal(record, Number(exitCodeText));
+      buffer = buffer.slice(suffixIndex + MANAGED_COMMAND_TERMINAL_SENTINEL.length);
+    }
+  }
+
   private recordStandaloneProcessOutput(
     params: Record<string, unknown>
   ): void {
@@ -1432,17 +1669,12 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     if (!processId || !stream || deltaBase64 === null) return;
     const record = this.standaloneProcesses.get(processId);
     if (!record) return;
-    if (record.chunks.length >= MANAGED_COMMAND_MAX_CHUNKS) {
-      const last = record.chunks.at(-1);
-      if (last) last.capReached = true;
-      return;
-    }
-    record.chunks.push({
-      sequence: record.chunks.length,
+    this.consumeStandaloneProcessOutput(
+      record,
       stream,
-      content: Buffer.from(deltaBase64, "base64").toString("utf8"),
-      capReached: params.capReached === true
-    });
+      Buffer.from(deltaBase64, "base64").toString("utf8"),
+      params.capReached === true
+    );
   }
 
   private assertStandaloneCapability(
