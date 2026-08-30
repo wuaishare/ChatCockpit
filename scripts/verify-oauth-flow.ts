@@ -333,6 +333,8 @@ async function main(): Promise<void> {
     assert.match(approvalHtml, /name="device_access_level"/);
     assert.match(approvalHtml, /value="project-exec" selected/);
     assert.match(approvalHtml, /Project execution \(recommended for development\)/);
+    assert.match(approvalHtml, /value="full-access"/);
+    assert.match(approvalHtml, /Full access \(high risk\)/);
     assert.doesNotMatch(
       approvalHtml,
       /owner_secret|CHATCOCKPIT_API_TOKEN|type="password"/i
@@ -743,6 +745,123 @@ async function main(): Promise<void> {
       projectExecAcceptedResult.structuredContent?.error?.code,
       "WORKSPACE_PROCESS_NOT_FOUND",
       "project-exec authority must pass the OAuth gate and reach the workspace service"
+    );
+
+    const projectExecHostAdminDenied = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1084,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.tools.invoke",
+        arguments: {
+          tool: "host.roots.list",
+          input: {}
+        }
+      }
+    });
+    assert.equal(projectExecHostAdminDenied.response.status, 200);
+    const projectExecHostAdminDeniedResult = projectExecHostAdminDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { requiredAccessLevel?: string } };
+      };
+    };
+    assert.equal(projectExecHostAdminDeniedResult.isError, true);
+    assert.equal(
+      projectExecHostAdminDeniedResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED"
+    );
+    assert.equal(
+      projectExecHostAdminDeniedResult.structuredContent?.error?.details?.requiredAccessLevel,
+      "full-access",
+      "project-exec must not silently inherit Host administration authority through tools.invoke"
+    );
+
+    const elevateFullAccess = await fetch(
+      `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerLoginBody.csrfToken
+        },
+        body: JSON.stringify({ accessLevel: "full-access" })
+      }
+    );
+    assert.equal(elevateFullAccess.status, 200, await elevateFullAccess.text());
+
+    const fullAccessHostRoots = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1085,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.tools.invoke",
+        arguments: {
+          tool: "host.roots.list",
+          input: {}
+        }
+      }
+    });
+    assert.equal(fullAccessHostRoots.response.status, 200);
+    const fullAccessHostRootsResult = fullAccessHostRoots.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        result?: { roots?: Array<{ id?: string; access?: string[] }> };
+        error?: { code?: string };
+      };
+    };
+    assert.equal(fullAccessHostRootsResult.isError, undefined);
+    const fullAccessRoot = fullAccessHostRootsResult.structuredContent?.result?.roots?.find(
+      (root) => root.id === "full-access-host"
+    );
+    assert.ok(
+      fullAccessRoot,
+      "Full Access through the single Core connector must expose the synthetic whole-host root"
+    );
+    assert.deepEqual(fullAccessRoot.access, ["read", "write"]);
+
+    const fullAccessPolicyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
+    assert.equal(
+      fullAccessPolicyStore.authorizationGrantDeviceAccessLevel(
+        activeGrantId,
+        LOCAL_DEVICE_TARGET_ID
+      ),
+      "full-access"
+    );
+    fullAccessPolicyStore.close();
+
+    const downgradeFullAccess = await fetch(
+      `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerLoginBody.csrfToken
+        },
+        body: JSON.stringify({ accessLevel: "project-exec" })
+      }
+    );
+    assert.equal(downgradeFullAccess.status, 200, await downgradeFullAccess.text());
+    const downgradedHostAdminDenied = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1086,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.tools.invoke",
+        arguments: { tool: "host.roots.list", input: {} }
+      }
+    });
+    const downgradedHostAdminDeniedResult = downgradedHostAdminDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: { error?: { code?: string } };
+    };
+    assert.equal(downgradedHostAdminDeniedResult.isError, true);
+    assert.equal(
+      downgradedHostAdminDeniedResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED",
+      "downgrading the authorization must revoke Full Access immediately for the next request"
     );
 
     const unauthorizedRemoteTarget = `cc_device_${"Z".repeat(24)}`;

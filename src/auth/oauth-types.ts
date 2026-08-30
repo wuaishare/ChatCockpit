@@ -5,13 +5,19 @@ export const TOKENPILOT_MCP_SCOPE = productIdentityForKey("tokenpilot").oauthMcp
 export const CHATCOCKPIT_MCP_SCOPE = productIdentityForKey("chatcockpit").oauthMcpScope;
 export const OAUTH_OFFLINE_SCOPE = "offline_access";
 
-export const OAUTH_DEVICE_ACCESS_LEVELS = ["read-only", "project-write", "project-exec"] as const;
+export const OAUTH_DEVICE_ACCESS_LEVELS = [
+  "read-only",
+  "project-write",
+  "project-exec",
+  "full-access"
+] as const;
 export type OAuthDeviceAccessLevel = (typeof OAUTH_DEVICE_ACCESS_LEVELS)[number];
 
 const OAUTH_DEVICE_ACCESS_LEVEL_RANK: Record<OAuthDeviceAccessLevel, number> = {
   "read-only": 0,
   "project-write": 1,
-  "project-exec": 2
+  "project-exec": 2,
+  "full-access": 3
 };
 
 export function isOAuthDeviceAccessLevel(value: unknown): value is OAuthDeviceAccessLevel {

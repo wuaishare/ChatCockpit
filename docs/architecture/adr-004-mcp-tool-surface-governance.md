@@ -134,3 +134,26 @@ P0.2 必须证明 canonical `/mcp`、`/mcp/full` 与至少一个 specialist Pack
 - `verify:mcp` 必须证明 `tools.discover` 对新增四个目标返回 `invokeVia=continuity.invoke`，并通过 canonical `/mcp` 实际执行 `workspace.snapshot`。
 - OAuth E2E 继续证明 gateway 会按真实内部目标要求 read-only / project-write / project-exec，而不是按 gateway 名称放行。
 - live ChatGPT dogfood 在 fresh build/restart 后必须能从当前单一 ChatCockpit 连接直接调用 `workspace.snapshot`，无需额外连接 `continuity-governance` Pack。
+
+## 2026-08-30 Amendment: Full Access 与单连接器 Specialist Gateway
+
+持续 dogfood 进一步证明，只有项目级 `read-only / project-write / project-exec` 仍不足以支撑长期独立远程开发：Host / Device 管理属于另一治理域，且大量 specialist 能力只存在于 Pack endpoint。即使 OAuth 项目权限足够，调用方仍可能因为 Host profile、人工 Host Approval 或“工具不在当前 Core schema”而被迫切换连接器。
+
+本 Amendment supersede 上一节关于“Core=24 / Full=94”“Host / Device specialist 必须另接 Pack”“其他 specialist 的 `invokeVia=null`”的当前合同描述。新的当前合同为：
+
+1. canonical `/mcp` 为 **25 个 Core**；生产 `/mcp/full` 为 **95 个远程可路由工具**。新增的唯一 Core 工具是 `chatcockpit.tools.invoke`。
+2. `tools.invoke` 使用稳定 `tool + input` envelope，只允许服务器已分类为 `deferred-pack` 或 `consolidation-candidate` 的 specialist 目标。Core、`operator-only` 与 compatibility-only 工具都不能成为目标，因此它不是任意 tool passthrough。
+3. 目标 Tool 仍执行原始精确 schema、目标设备解析、OAuth 权限、Workspace/Writer Lease、Host policy、Approval、审计与幂等治理；gateway 不替目标 Tool 降权。
+4. `tools.discover` 对可通过 generic gateway 调用的 specialist 返回 `invokeVia=tools.invoke`；Continuity/Runtime 与 Codex 的既有专用 gateway 继续优先返回 `continuity.invoke` / `codex.invoke`。
+5. OAuth 设备权限新增最高档 `full-access`。升级必须由 Owner 显式完成，历史授权不会在 migration 中自动扩大权限；首次授权仍默认 `project-exec` 作为开发推荐档。
+6. Host administration 与 Device lifecycle mutation 明确要求 `full-access`。本机 Full Access 是**授权关系 × 设备 × 当前请求**的动态权限，不会永久修改机器全局 Host profile；撤销或降级授权后下一次请求立即失去最高权限。
+7. Full Access Host 请求保留精确 prepare/approval revision/hash/audit，只是受信 OAuth 的精确 Host command/mutation 与已启用的 Workspace Host Process intent 可自动进入 approved，避免人工 Web 点击成为远程开发阻塞点。普通 OAuth 与普通 `full-host` profile 的审批和命令限制不变。
+8. Full Access 可以获得 public-safe 的 `full-access-host` 根别名来覆盖当前运行用户可访问的 Host 文件系统，绝对本机路径仍不进入 public root list；文件访问仍受根 containment、大小与内容边界约束。
+9. Full Access 可使用通用一次性 Host command/解释器。纯 Host 长驻交互进程仍不通过无租约 PID 逃生口开放；项目长驻执行继续使用 `workspace.exec`，Host Managed Process 仍保持 Workspace/Session/Writer Lease 模型。
+
+### Full Access verification
+
+- OAuth E2E 必须证明 `project-exec → tools.invoke(host.roots.list)` 返回 `requiredAccessLevel=full-access`，Owner 升级后同一 canonical `/mcp` 立即成功并投影 `full-access-host`。
+- `verify:mcp` 必须证明 `tools.invoke` 可以调用合法 specialist，同时拒绝 `host.command.decide` 等 operator-only 与 `shell.run` compatibility target。
+- Host command/mutation/process service tests 必须证明 Full Access 自动批准精确 intent，而普通 remote-mcp 仍不能自行 decision；普通 `full-host` 仍阻止通用 shell interpreter，只有受信 Full Access 请求放开该策略。
+- `verify:mcp-tool-surface` 固定 Core=25；生产 MCP smoke 固定 Full=95。

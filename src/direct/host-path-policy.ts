@@ -9,6 +9,7 @@ import {
 } from "./downstream-mcp-config.js";
 
 export const MAX_HOST_FILE_BYTES = 64 * 1024;
+export const FULL_ACCESS_HOST_ROOT_ID = "full-access-host";
 
 const TEXT_EXTENSIONS = new Set([
   "",
@@ -135,11 +136,24 @@ function publicRoot(root: DirectHostRootConfig): PublicHostRoot {
   };
 }
 
+function fullAccessHostRoot(): DirectHostRootConfig {
+  return {
+    id: FULL_ACCESS_HOST_ROOT_ID,
+    displayName: "Full host filesystem",
+    path: path.parse(process.cwd()).root,
+    access: ["read", "write"]
+  };
+}
+
 function hostRoot(
   rootId: string,
   configPath: string | undefined,
-  access: HostRootAccess
+  access: HostRootAccess,
+  trustedFullAccess = false
 ): DirectHostRootConfig {
+  if (trustedFullAccess && rootId === FULL_ACCESS_HOST_ROOT_ID) {
+    return fullAccessHostRoot();
+  }
   const config = loadDownstreamMcpExecutorsConfig(configPath);
   const root = config.hostRoots.find((candidate) => candidate.id === rootId);
   if (!root) {
@@ -216,8 +230,13 @@ export function assertHostTextContentAllowed(content: string): void {
   }
 }
 
-export function listPublicHostRoots(configPath?: string): PublicHostRoot[] {
-  return loadDownstreamMcpExecutorsConfig(configPath).hostRoots.map(publicRoot);
+export function listPublicHostRoots(
+  configPath?: string,
+  trustedFullAccess = false
+): PublicHostRoot[] {
+  const configured = loadDownstreamMcpExecutorsConfig(configPath).hostRoots.map(publicRoot);
+  if (!trustedFullAccess) return configured;
+  return [publicRoot(fullAccessHostRoot()), ...configured.filter((root) => root.id !== FULL_ACCESS_HOST_ROOT_ID)];
 }
 
 export function resolveHostCommandWorkdirTarget(options: {
@@ -225,11 +244,13 @@ export function resolveHostCommandWorkdirTarget(options: {
   workdir?: string;
   requiredAccess?: HostRootAccess;
   configPath?: string;
+  trustedFullAccess?: boolean;
 }): HostCommandWorkdirTarget {
   const root = hostRoot(
     options.rootId,
     options.configPath,
-    options.requiredAccess ?? "read"
+    options.requiredAccess ?? "read",
+    options.trustedFullAccess ?? false
   );
   let resolved: { absolutePath: string; relativePath: string };
   try {
@@ -245,7 +266,9 @@ export function resolveHostCommandWorkdirTarget(options: {
     );
   }
 
-  assertSensitivePathAllowed(resolved.absolutePath);
+  if (!options.trustedFullAccess) {
+    assertSensitivePathAllowed(resolved.absolutePath);
+  }
   let stat: fs.Stats;
   try {
     stat = fs.lstatSync(resolved.absolutePath);
@@ -309,8 +332,14 @@ export function resolveHostReadableFileTarget(options: {
   rootId: string;
   relativePath: string;
   configPath?: string;
+  trustedFullAccess?: boolean;
 }): HostReadableFileTarget {
-  const root = hostRoot(options.rootId, options.configPath, "read");
+  const root = hostRoot(
+    options.rootId,
+    options.configPath,
+    "read",
+    options.trustedFullAccess ?? false
+  );
 
   let resolved: { absolutePath: string; relativePath: string };
   try {
@@ -326,7 +355,9 @@ export function resolveHostReadableFileTarget(options: {
     );
   }
 
-  assertSensitivePathAllowed(resolved.absolutePath);
+  if (!options.trustedFullAccess) {
+    assertSensitivePathAllowed(resolved.absolutePath);
+  }
 
   let stat: fs.Stats;
   try {
@@ -349,7 +380,9 @@ export function resolveHostReadableFileTarget(options: {
       `Host Direct read is limited to ${MAX_HOST_FILE_BYTES} bytes in this phase`
     );
   }
-  assertTextExtensionAllowed(resolved.absolutePath);
+  if (!options.trustedFullAccess) {
+    assertTextExtensionAllowed(resolved.absolutePath);
+  }
 
   return {
     rootId: root.id,
@@ -365,8 +398,14 @@ export function resolveHostWritableFileTarget(options: {
   relativePath: string;
   content?: string;
   configPath?: string;
+  trustedFullAccess?: boolean;
 }): HostWritableFileTarget {
-  const root = hostRoot(options.rootId, options.configPath, "write");
+  const root = hostRoot(
+    options.rootId,
+    options.configPath,
+    "write",
+    options.trustedFullAccess ?? false
+  );
 
   let resolved: { absolutePath: string; relativePath: string };
   try {
@@ -382,8 +421,10 @@ export function resolveHostWritableFileTarget(options: {
     );
   }
 
-  assertSensitivePathAllowed(resolved.absolutePath);
-  assertTextExtensionAllowed(resolved.absolutePath);
+  if (!options.trustedFullAccess) {
+    assertSensitivePathAllowed(resolved.absolutePath);
+    assertTextExtensionAllowed(resolved.absolutePath);
+  }
   if (options.content !== undefined) {
     assertHostTextContentAllowed(options.content);
   }
@@ -468,6 +509,7 @@ export function resolveHostEditableFileTarget(options: {
   oldText: string;
   newText: string;
   configPath?: string;
+  trustedFullAccess?: boolean;
 }): HostEditableFileTarget {
   if (!options.oldText) {
     throw new HostPathPolicyError(
@@ -481,7 +523,8 @@ export function resolveHostEditableFileTarget(options: {
   const target = resolveHostWritableFileTarget({
     rootId: options.rootId,
     relativePath: options.relativePath,
-    ...(options.configPath ? { configPath: options.configPath } : {})
+    ...(options.configPath ? { configPath: options.configPath } : {}),
+    ...(options.trustedFullAccess ? { trustedFullAccess: true } : {})
   });
   if (!target.exists || target.beforeContent === null) {
     throw new HostPathPolicyError(

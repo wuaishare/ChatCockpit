@@ -769,6 +769,55 @@ async function main(): Promise<void> {
       assert.equal(beforeStatus?.conditions?.runner, "registered");
       assert.equal(beforeStatus?.conditions?.processSupervisor, "ready");
 
+      const projectExecLifecycleDenied = await postMcp(baseUrl, tokens.access_token, {
+        jsonrpc: "2.0",
+        id: 400,
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.devices.runtime.lifecycle.execute",
+          arguments: {
+            idempotencyKey: "phase9-live-stop-project-exec-denied",
+            deviceId,
+            action: "stop"
+          }
+        }
+      });
+      const projectExecLifecycleDeniedResult = projectExecLifecycleDenied.message.result as
+        | {
+            isError?: boolean;
+            structuredContent?: {
+              error?: { code?: string; details?: { requiredAccessLevel?: string } };
+            };
+          }
+        | undefined;
+      assert.equal(projectExecLifecycleDeniedResult?.isError, true);
+      assert.equal(
+        projectExecLifecycleDeniedResult?.structuredContent?.error?.code,
+        "DEVICE_ACCESS_DENIED"
+      );
+      assert.equal(
+        projectExecLifecycleDeniedResult?.structuredContent?.error?.details?.requiredAccessLevel,
+        "full-access"
+      );
+
+      const elevateRemoteFullAccess = await fetch(
+        `${baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices/${encodeURIComponent(deviceId)}/grant`,
+        {
+          method: "POST",
+          headers: {
+            cookie: ownerCookie,
+            "content-type": "application/json",
+            "x-chatcockpit-csrf": ownerCsrf
+          },
+          body: JSON.stringify({ accessLevel: "full-access" })
+        }
+      );
+      assert.equal(
+        elevateRemoteFullAccess.status,
+        200,
+        await elevateRemoteFullAccess.text().catch(() => "")
+      );
+
       const stopped = await postMcp(baseUrl, tokens.access_token, {
         jsonrpc: "2.0",
         id: 41,

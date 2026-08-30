@@ -592,9 +592,28 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
     downstream,
     configPath
   );
+  const fullAccessGrantId = "cc_grant_full_access_mutation_fixture";
+  const fullAccessService = new HostMutationService(
+    paths,
+    repositories,
+    broker,
+    downstream,
+    configPath,
+    {
+      allowsLocalFullAccess: (grantId) => grantId === fullAccessGrantId
+    }
+  );
   const context = buildOperationContext({
     actorType: "local-ui",
     requestId: "host-mutation-prepare",
+    publicProjection: true,
+    now: "2026-08-08T12:00:00.000Z"
+  });
+  const fullAccessContext = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-fixture",
+    authorizationGrantId: fullAccessGrantId,
+    requestId: "host-mutation-full-access",
     publicProjection: true,
     now: "2026-08-08T12:00:00.000Z"
   });
@@ -617,6 +636,19 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
       }),
       "HOST_MUTATION_PROFILE_BLOCKED"
     );
+    const fullAccessPrepared = await fullAccessService.prepare(fullAccessContext, {
+      operation: "files.write",
+      rootId: "fixture",
+      path: "notes/full-access.txt",
+      content: "trusted full access\n",
+      idempotencyKey: "prepare-full-access-write"
+    });
+    assert.equal(
+      fullAccessPrepared.approval.status,
+      "approved",
+      "trusted OAuth Full access must auto-approve the exact Host mutation intent"
+    );
+    assert.equal(fullAccessPrepared.approval.targetKind, "pure-host");
     updateHostPermissionProfile("full-host", configPath);
 
     const preparedWrite = await service.prepare(context, {

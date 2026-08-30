@@ -51,6 +51,7 @@ import {
   DeviceRegistryStore,
   deviceRegistryDatabasePath
 } from "../devices/device-registry.js";
+import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import { DeviceChannelHub } from "../devices/device-channel.js";
 import { DeviceCapabilityRpc } from "../devices/device-capability-rpc.js";
 import { DeviceRuntimeLifecycleRpc } from "../devices/device-runtime-lifecycle-rpc.js";
@@ -470,6 +471,16 @@ export function buildServer(
   const oauthDeviceAccessPolicy = oauthStore
     ? new OAuthDeviceAccessPolicyService(oauthStore, deviceRegistryStore)
     : null;
+  const remoteFullAccessPolicy = oauthDeviceAccessPolicy
+    ? {
+        allowsLocalFullAccess: (grantId: string) =>
+          oauthDeviceAccessPolicy.allowsDevice(
+            grantId,
+            LOCAL_DEVICE_TARGET_ID,
+            "full-access"
+          )
+      }
+    : null;
   const deviceChannelHub = options.deviceChannelHub ?? new DeviceChannelHub();
   const deviceCapabilityRpc = options.deviceCapabilityRpc ?? new DeviceCapabilityRpc(deviceChannelHub);
   const deviceRuntimeLifecycleRpc =
@@ -716,26 +727,30 @@ export function buildServer(
   const hostDirect = new HostDirectService(
     directCapabilityBroker,
     downstreamMcpExecutionRegistry,
-    options.directExecutorsConfigPath
+    options.directExecutorsConfigPath,
+    remoteFullAccessPolicy
   );
   const hostMutation = new HostMutationService(
     paths,
     continuityServices.repositories,
     directCapabilityBroker,
     downstreamMcpExecutionRegistry,
-    options.directExecutorsConfigPath
+    options.directExecutorsConfigPath,
+    remoteFullAccessPolicy
   );
   const hostCommand = buildConfiguredHostCommandService({
     paths,
     repositories: continuityServices.repositories,
     broker: directCapabilityBroker,
-    configPath: options.directExecutorsConfigPath
+    configPath: options.directExecutorsConfigPath,
+    remoteFullAccessPolicy
   });
   const hostProcess = buildDesktopCommanderHostProcessService({
     paths,
     repositories: continuityServices.repositories,
     broker: directCapabilityBroker,
-    configPath: options.directExecutorsConfigPath
+    configPath: options.directExecutorsConfigPath,
+    remoteFullAccessPolicy
   });
   const chatDirect = new ChatDirectService(
     paths,

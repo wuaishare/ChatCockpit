@@ -4235,7 +4235,14 @@ button.continuity-workspace.is-selected {
 
 .oauth-grants {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 12px;
+}
+
+.oauth-grants__filters {
+  max-width: 100%;
+  margin-bottom: 14px;
+  overflow-x: auto;
 }
 
 .oauth-grants__loading {
@@ -4251,6 +4258,10 @@ button.continuity-workspace.is-selected {
   border-radius: 12px;
   padding: 16px;
   background: var(--tp-surface-soft);
+}
+
+.oauth-grant-card--expanded {
+  grid-column: 1 / -1;
 }
 
 .oauth-grant-card__header,
@@ -4636,6 +4647,12 @@ button.continuity-workspace.is-selected {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .oauth-grants {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {

@@ -650,15 +650,27 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
     }
   ]);
   const processSupervisor = new ReadyProcessSupervisor();
+  const fullAccessGrantId = "cc_grant_full_access_process_fixture";
   const service = new HostProcessService(
     repositories,
     broker,
     processSupervisor,
-    configPath
+    configPath,
+    {
+      allowsLocalFullAccess: (grantId) => grantId === fullAccessGrantId
+    }
   );
   const context = buildOperationContext({
     actorType: "local-ui",
     requestId: "host-process-start-governance",
+    publicProjection: true,
+    now: NOW
+  });
+  const fullAccessContext = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-fixture",
+    authorizationGrantId: fullAccessGrantId,
+    requestId: "host-process-full-access",
     publicProjection: true,
     now: NOW
   });
@@ -775,6 +787,21 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
       "HOST_PROCESS_PROFILE_BLOCKED"
     );
     updateHostPermissionProfile("development", configPath);
+    const fullAccessPrepared = await service.prepare(fullAccessContext, {
+      operation: "start",
+      rootId: "fixture",
+      workdir: "projects/workspace-a",
+      command: "git",
+      args: ["status", "--short"],
+      sessionId: session.id,
+      startupTimeoutMs: 1000,
+      idempotencyKey: "process-full-access-start"
+    });
+    assert.equal(
+      fullAccessPrepared.approval.status,
+      "approved",
+      "trusted OAuth Full access must auto-approve the exact Workspace managed-process intent when the Host process lane is enabled"
+    );
 
     await expectServiceCode(
       service.read(context, { processId: "host_process_missing_fixture" }),

@@ -601,9 +601,22 @@ function evaluateDeviceDiagnosticCommand(
 export function evaluatePureHostCommand(
   command: string,
   args: string[],
-  profile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE
+  profile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE,
+  options: { trustedFullAccess?: boolean } = {}
 ): PureHostCommandPolicyDecision {
   const safeArgs = validateCommandArgs(args);
+
+  if (options.trustedFullAccess) {
+    if (!/^[A-Za-z0-9._+-]+$/.test(command)) {
+      throw new Error(`Full Access Host command is invalid: ${command}`);
+    }
+    return {
+      command,
+      args: safeArgs,
+      effect: "write",
+      relativePathArgs: []
+    };
+  }
 
   if (command === "pwd") {
     if (safeArgs.length !== 0) {

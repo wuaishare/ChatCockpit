@@ -91,6 +91,7 @@ interface OAuthApprovalCopy {
   deviceAccessReadOnly: string;
   deviceAccessProjectWrite: string;
   deviceAccessProjectExec: string;
+  deviceAccessFullAccess: string;
   deviceAccessHelp: string;
   authorize: string;
   deny: string;
@@ -109,7 +110,8 @@ const OAUTH_APPROVAL_COPY: Record<OAuthApprovalLocale, OAuthApprovalCopy> = {
     deviceAccessReadOnly: "项目只读",
     deviceAccessProjectWrite: "项目写入",
     deviceAccessProjectExec: "项目执行（开发推荐）",
-    deviceAccessHelp: "项目执行允许在已注册 Workspace 内运行开发命令与进程，但不会自动获得 Host / Device 管理权限。",
+    deviceAccessFullAccess: "完全访问（高风险）",
+    deviceAccessHelp: "项目执行适合常规开发；完全访问还允许受信远程连接调用 Host / Device 管理能力，并对精确 Host 操作自动批准。完全访问仅应授予您明确信任的客户端。",
     authorize: "授权",
     deny: "拒绝",
     authorizing: "授权中…",
@@ -125,7 +127,8 @@ const OAUTH_APPROVAL_COPY: Record<OAuthApprovalLocale, OAuthApprovalCopy> = {
     deviceAccessReadOnly: "Project read-only",
     deviceAccessProjectWrite: "Project write",
     deviceAccessProjectExec: "Project execution (recommended for development)",
-    deviceAccessHelp: "Project execution can run development commands and processes inside registered Workspaces, but does not automatically grant Host / Device administration authority.",
+    deviceAccessFullAccess: "Full access (high risk)",
+    deviceAccessHelp: "Project execution is intended for normal development. Full access also allows trusted remote Host / Device administration and auto-approves exact Host operations. Grant Full access only to a client you explicitly trust.",
     authorize: "Authorize",
     deny: "Deny",
     authorizing: "Authorizing…",
@@ -213,6 +216,7 @@ function approvalPage(input: {
           <option value="read-only">${escapeHtml(copy.deviceAccessReadOnly)}</option>
           <option value="project-write">${escapeHtml(copy.deviceAccessProjectWrite)}</option>
           <option value="project-exec" selected>${escapeHtml(copy.deviceAccessProjectExec)}</option>
+          <option value="full-access">${escapeHtml(copy.deviceAccessFullAccess)}</option>
         </select>
         <small>${escapeHtml(copy.deviceAccessHelp)}</small>
       </div>

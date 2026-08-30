@@ -856,6 +856,7 @@ export class OAuthStore {
     this.migrateAuthorizationGrantDevices();
     this.migrateAuthorizationGrantDeviceAccessLevels();
     this.migrateAuthorizationGrantDeviceAccessCompatibility();
+    this.migrateAuthorizationGrantDeviceFullAccess();
   }
 
   private hasColumn(table: string, column: string): boolean {
@@ -906,6 +907,39 @@ export class OAuthStore {
 
       this.sqlite.prepare(`
         INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (5, ?)
+      `).run(new Date().toISOString());
+    });
+  }
+
+  private migrateAuthorizationGrantDeviceFullAccess(): void {
+    const migrated = this.sqlite
+      .prepare("SELECT 1 AS present FROM oauth_schema_migrations WHERE version = 6")
+      .get() as { present: number } | undefined;
+    if (migrated) return;
+
+    this.transaction(() => {
+      this.sqlite.exec(`
+        CREATE TABLE oauth_authorization_grant_devices_v6 (
+          grant_id TEXT NOT NULL REFERENCES oauth_authorization_grants(grant_id) ON DELETE CASCADE,
+          device_id TEXT NOT NULL,
+          granted_at TEXT NOT NULL,
+          access_level TEXT NOT NULL DEFAULT 'read-only'
+            CHECK (access_level IN ('read-only', 'project-write', 'project-exec', 'full-access')),
+          PRIMARY KEY (grant_id, device_id)
+        ) STRICT;
+        INSERT INTO oauth_authorization_grant_devices_v6 (
+          grant_id, device_id, granted_at, access_level
+        )
+        SELECT grant_id, device_id, granted_at, access_level
+        FROM oauth_authorization_grant_devices;
+        DROP TABLE oauth_authorization_grant_devices;
+        ALTER TABLE oauth_authorization_grant_devices_v6
+          RENAME TO oauth_authorization_grant_devices;
+        CREATE INDEX oauth_authorization_grant_devices_device_idx
+          ON oauth_authorization_grant_devices(device_id);
+      `);
+      this.sqlite.prepare(`
+        INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (6, ?)
       `).run(new Date().toISOString());
     });
   }

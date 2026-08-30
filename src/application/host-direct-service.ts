@@ -18,6 +18,10 @@ import {
 } from "../direct/host-path-policy.js";
 import { buildTextPreviewFromBuffer } from "../core/files-api.js";
 import type { OperationContext } from "./operation-context.js";
+import {
+  hasRemoteFullAccess,
+  type RemoteFullAccessPolicy
+} from "./remote-full-access-policy.js";
 import type { HostFileReadPayload } from "../types.js";
 
 interface DownstreamTextContent {
@@ -81,11 +85,15 @@ export class HostDirectService {
   constructor(
     private readonly broker: DirectCapabilityBroker,
     private readonly downstream: DownstreamMcpExecutionRegistry,
-    private readonly configPath?: string
+    private readonly configPath?: string,
+    private readonly remoteFullAccessPolicy?: RemoteFullAccessPolicy | null
   ) {}
 
-  listRoots() {
-    const roots = listPublicHostRoots(this.configPath);
+  listRoots(context?: OperationContext) {
+    const roots = listPublicHostRoots(
+      this.configPath,
+      context ? hasRemoteFullAccess(context, this.remoteFullAccessPolicy) : false
+    );
     return {
       ok: true as const,
       executionScope: "host" as const,
@@ -97,15 +105,17 @@ export class HostDirectService {
   }
 
   async readFile(
-    _context: OperationContext,
+    context: OperationContext,
     payload: HostFileReadPayload
   ) {
+    const trustedFullAccess = hasRemoteFullAccess(context, this.remoteFullAccessPolicy);
     let target;
     try {
       target = resolveHostReadableFileTarget({
         rootId: payload.rootId,
         relativePath: payload.path,
-        ...(this.configPath ? { configPath: this.configPath } : {})
+        ...(this.configPath ? { configPath: this.configPath } : {}),
+        ...(trustedFullAccess ? { trustedFullAccess: true } : {})
       });
     } catch (error) {
       if (error instanceof HostPathPolicyError) {

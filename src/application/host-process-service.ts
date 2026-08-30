@@ -50,6 +50,10 @@ import {
   type HostCommandWorkdirTarget
 } from "../direct/host-path-policy.js";
 import type { OperationContext } from "./operation-context.js";
+import {
+  hasRemoteFullAccess,
+  type RemoteFullAccessPolicy
+} from "./remote-full-access-policy.js";
 import { ServiceError } from "./service-error.js";
 import {
   assertChatDirectWriterLease,
@@ -348,7 +352,8 @@ export class HostProcessService {
     private readonly repositories: ContinuityRepositories,
     private readonly broker: DirectCapabilityBroker,
     private readonly supervisor: HostProcessRuntimeSupervisor,
-    private readonly configPath?: string
+    private readonly configPath?: string,
+    private readonly remoteFullAccessPolicy?: RemoteFullAccessPolicy | null
   ) {
     if (!this.supervisor.durable) {
       this.reconcileRestartState();
@@ -383,7 +388,7 @@ export class HostProcessService {
       request,
       () => {
         const intent = this.prepareStartIntent(context, request);
-        const approval = this.repositories.directProcessApprovals.create({
+        let approval = this.repositories.directProcessApprovals.create({
           operation: "start",
           actionHash: intent.actionHash,
           rootId: intent.target.rootId,
@@ -398,6 +403,14 @@ export class HostProcessService {
           expiresAt: approvalExpiry(context.now),
           now: context.now
         });
+        if (hasRemoteFullAccess(context, this.remoteFullAccessPolicy)) {
+          approval = this.repositories.directProcessApprovals.decide({
+            id: approval.id,
+            decision: "approved",
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+        }
         return { ok: true as const, approval };
       },
       context.now
@@ -770,7 +783,7 @@ export class HostProcessService {
           processRevision: processRecord.revision,
           writerLeaseId: authority.lease.id
         });
-        const approval = this.repositories.directProcessApprovals.create({
+        let approval = this.repositories.directProcessApprovals.create({
           operation: "input",
           processId: processRecord.id,
           actionHash,
@@ -796,6 +809,14 @@ export class HostProcessService {
           expiresAt: approvalExpiry(context.now),
           now: context.now
         });
+        if (hasRemoteFullAccess(context, this.remoteFullAccessPolicy)) {
+          approval = this.repositories.directProcessApprovals.decide({
+            id: approval.id,
+            decision: "approved",
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+        }
         return { ok: true as const, approval };
       },
       context.now
@@ -831,7 +852,7 @@ export class HostProcessService {
           processRevision: processRecord.revision,
           executorId: processRecord.executorId
         });
-        const approval = this.repositories.directProcessApprovals.create({
+        let approval = this.repositories.directProcessApprovals.create({
           operation: "stop",
           processId: processRecord.id,
           actionHash,
@@ -851,6 +872,14 @@ export class HostProcessService {
           expiresAt: approvalExpiry(context.now),
           now: context.now
         });
+        if (hasRemoteFullAccess(context, this.remoteFullAccessPolicy)) {
+          approval = this.repositories.directProcessApprovals.decide({
+            id: approval.id,
+            decision: "approved",
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+        }
         return { ok: true as const, approval };
       },
       context.now
@@ -2655,11 +2684,13 @@ export function buildDesktopCommanderHostProcessService(options: {
   repositories: ContinuityRepositories;
   broker: DirectCapabilityBroker;
   configPath?: string;
+  remoteFullAccessPolicy?: RemoteFullAccessPolicy | null;
 }): HostProcessService {
   return new HostProcessService(
     options.repositories,
     options.broker,
     new HostProcessSupervisorClient(options.paths),
-    options.configPath
+    options.configPath,
+    options.remoteFullAccessPolicy
   );
 }

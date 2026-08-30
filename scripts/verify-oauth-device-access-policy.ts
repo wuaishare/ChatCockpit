@@ -187,6 +187,25 @@ try {
     store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "project-exec"),
     true
   );
+  assert.equal(
+    store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "full-access"),
+    false
+  );
+  assert.equal(
+    store.grantAuthorizationDeviceAccess(newGrantId, remoteDeviceId, later, "full-access"),
+    true,
+    "Full Access must be an explicit per-device elevation"
+  );
+  assert.equal(store.authorizationGrantDeviceAccessLevel(newGrantId, remoteDeviceId), "full-access");
+  assert.equal(
+    store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "project-exec"),
+    true,
+    "Full Access must include project execution authority"
+  );
+  assert.equal(
+    store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "full-access"),
+    true
+  );
 
   assert.equal(store.revokeAuthorizationDeviceAccess(newGrantId, LOCAL_DEVICE_TARGET_ID), true);
   assert.equal(store.authorizationGrantAllowsDevice(newGrantId, LOCAL_DEVICE_TARGET_ID), false);
@@ -214,7 +233,7 @@ try {
   const migrations = store.sqlite
     .prepare("SELECT version FROM oauth_schema_migrations ORDER BY version")
     .all() as Array<{ version: number }>;
-  assert.deepEqual(migrations.map((row) => Number(row.version)), [2, 3, 4, 5]);
+  assert.deepEqual(migrations.map((row) => Number(row.version)), [2, 3, 4, 5, 6]);
 
   store.close();
 

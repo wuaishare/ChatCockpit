@@ -272,6 +272,8 @@ const oauthAccessDescriptors = [
   { name: "chatcockpit.runtime.restart", annotations: { readOnlyHint: false } },
   { name: "chatcockpit.codex.thread.events.read", annotations: { readOnlyHint: true } },
   { name: "chatcockpit.codex.thread.turn.start", annotations: { readOnlyHint: false } },
+  { name: "chatcockpit.host.command.prepare", annotations: { readOnlyHint: false } },
+  { name: "chatcockpit.devices.runtime.lifecycle.execute", annotations: { readOnlyHint: false } },
   { name: "chatcockpit.future.mutation", annotations: { readOnlyHint: false } }
 ] as const;
 
@@ -290,6 +292,17 @@ assert.equal(
 assert.equal(
   requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.workspace.exec", {}),
   "project-exec"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.host.command.prepare", {}),
+  "full-access"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.devices.runtime.lifecycle.execute",
+    { deviceId: allowedRemoteId }
+  ),
+  "full-access"
 );
 assert.equal(
   requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.devices.workspace.invoke", {
@@ -364,6 +377,45 @@ assert.equal(
   ),
   "project-exec",
   "unknown bounded targets must fail toward project execution authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.tools.invoke",
+    { tool: "task.get", input: { taskId: "fixture" } },
+    oauthAccessDescriptors
+  ),
+  "read-only",
+  "generic specialist dispatch must inherit a known read target's authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.tools.invoke",
+    { tool: "host.command.prepare", input: {} },
+    oauthAccessDescriptors
+  ),
+  "full-access",
+  "Host administration through the generic gateway must require Full Access"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.tools.invoke",
+    { tool: "future.unknown", input: {} },
+    oauthAccessDescriptors
+  ),
+  "full-access",
+  "unknown generic specialist targets must fail toward Full Access"
+);
+assert.equal(
+  resolveMcpToolDeviceTarget(
+    "chatcockpit.tools.invoke",
+    {
+      tool: "devices.runtime.lifecycle.execute",
+      input: { deviceId: allowedRemoteId }
+    },
+    oauthAccessDescriptors
+  ),
+  allowedRemoteId,
+  "generic specialist dispatch must authorize the nested target device instead of local-device"
 );
 assert.equal(
   requiredOAuthDeviceAccessLevelForMcpTool(

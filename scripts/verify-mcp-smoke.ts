@@ -304,12 +304,13 @@ async function runMcpSmoke(): Promise<void> {
         "task.get",
         "task.submitReview",
         "continuity.invoke",
+        "tools.invoke",
         "tools.discover",
         "trajectory.read",
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 94, "Full compatibility surface must expose all 94 remotely routable tools");
+    assert.equal(tools.length, 95, "Full compatibility surface must expose all 95 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -318,9 +319,10 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 24);
+    assert.equal(coreTools.length, 25);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.invoke"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.workspace.exec"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.files.mutate"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.devices.workspace.invoke"), true);
@@ -333,13 +335,22 @@ async function runMcpSmoke(): Promise<void> {
       (tool) => tool.name === "chatcockpit.codex.invoke"
     );
     assert.ok(codexInvokeTool);
+    const toolsInvokeTool = coreTools.find(
+      (tool) => tool.name === "chatcockpit.tools.invoke"
+    );
+    assert.ok(toolsInvokeTool);
     assert.equal(
       coreTools.some((tool) => tool.name === "chatcockpit.continuity.capsule"),
       false
     );
     const continuityInvokeInputSchema = JSON.stringify(continuityInvokeTool.inputSchema);
     const codexInvokeInputSchema = JSON.stringify(codexInvokeTool.inputSchema);
-    for (const stableInvokeSchema of [continuityInvokeInputSchema, codexInvokeInputSchema]) {
+    const toolsInvokeInputSchema = JSON.stringify(toolsInvokeTool.inputSchema);
+    for (const stableInvokeSchema of [
+      continuityInvokeInputSchema,
+      codexInvokeInputSchema,
+      toolsInvokeInputSchema
+    ]) {
       assert.equal(stableInvokeSchema.includes("\"tool\""), true);
       assert.equal(stableInvokeSchema.includes("\"input\""), true);
       assert.equal(
@@ -388,7 +399,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 35);
+    assert.equal(codexPackTools.length, 36);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -414,8 +425,8 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 24);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 94);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 25);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 95);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -537,6 +548,79 @@ async function runMcpSmoke(): Promise<void> {
       JSON.stringify(discoverEvidenceResult.structuredContent.surface.selectedTool?.inputSchema),
       /expectedTaskRevision/
     );
+
+    const discoverHostCommand = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "discover-host-command-prepare",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.discover",
+          arguments: { pack: "host-admin", tool: "host.command.prepare" }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(discoverHostCommand.response.status, 200);
+    const discoverHostCommandResult = discoverHostCommand.message.result as {
+      structuredContent: {
+        surface: {
+          selectedTool: { suffix: string; invokeVia: "tools.invoke" | null } | null;
+        };
+      };
+    };
+    assert.equal(
+      discoverHostCommandResult.structuredContent.surface.selectedTool?.invokeVia,
+      "tools.invoke"
+    );
+
+    const toolsInvokeHostRoots = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-host-roots",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.tools.invoke",
+          arguments: { tool: "host.roots.list", input: {} }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(toolsInvokeHostRoots.response.status, 200);
+    const toolsInvokeHostRootsResult = toolsInvokeHostRoots.message.result as {
+      isError?: boolean;
+      structuredContent?: { result?: { roots?: unknown[] } };
+    };
+    assert.equal(toolsInvokeHostRootsResult.isError, undefined);
+    assert.deepEqual(toolsInvokeHostRootsResult.structuredContent?.result?.roots, []);
+
+    for (const blockedTarget of ["host.command.decide", "shell.run"] as const) {
+      const blockedInvoke = await postMcp(
+        baseUrl,
+        {
+          jsonrpc: "2.0",
+          id: `invoke-blocked-${blockedTarget}`,
+          method: "tools/call",
+          params: {
+            name: "chatcockpit.tools.invoke",
+            arguments: { tool: blockedTarget, input: {} }
+          }
+        },
+        { token: "test-token", path: "/mcp" }
+      );
+      assert.equal(blockedInvoke.response.status, 200);
+      const blockedInvokeResult = blockedInvoke.message.result as {
+        isError?: boolean;
+        structuredContent?: { error?: { code?: string } };
+      };
+      assert.equal(blockedInvokeResult.isError, true);
+      assert.equal(
+        blockedInvokeResult.structuredContent?.error?.code,
+        "TOOLS_INVOKE_TOOL_UNAVAILABLE"
+      );
+    }
 
     for (const [pack, tool] of [
       ["continuity-governance", "lease.acquire"],

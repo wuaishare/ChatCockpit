@@ -150,8 +150,8 @@ async function main(): Promise<void> {
           status: string;
           granted: boolean;
           effective: boolean;
-          accessLevel: "read-only" | "project-write" | "project-exec" | null;
-          effectiveAccessLevel: "read-only" | "project-write" | "project-exec" | null;
+          accessLevel: "read-only" | "project-write" | "project-exec" | "full-access" | null;
+          effectiveAccessLevel: "read-only" | "project-write" | "project-exec" | "full-access" | null;
         }>;
       };
     }).access;

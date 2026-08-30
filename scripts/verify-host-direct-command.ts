@@ -657,6 +657,25 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
     publicProjection: true,
     now: NOW
   });
+  const fullAccessGrantId = "cc_grant_full_access_command_fixture";
+  const fullAccessContext = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-fixture",
+    authorizationGrantId: fullAccessGrantId,
+    requestId: "host-command-full-access-fixture",
+    publicProjection: true,
+    now: NOW
+  });
+  const fullAccessService = new HostCommandService(
+    paths,
+    repositories,
+    broker,
+    processExecutor,
+    directConfigPath,
+    {
+      allowsLocalFullAccess: (grantId) => grantId === fullAccessGrantId
+    }
+  );
 
   try {
     assert.equal(
@@ -691,6 +710,21 @@ async function verifyHostCommandServiceLifecycle(): Promise<void> {
       }),
       "HOST_COMMAND_POLICY_BLOCKED"
     );
+    const fullAccessPrepared = await fullAccessService.prepare(fullAccessContext, {
+      rootId: "fixture",
+      workdir: "notes",
+      command: "zsh",
+      args: ["-c", "pwd"],
+      timeoutMs: 5000,
+      idempotencyKey: "host-command-full-access-shell-interpreter"
+    });
+    assert.equal(
+      fullAccessPrepared.approval.status,
+      "approved",
+      "trusted OAuth Full access must auto-approve the exact Host command intent"
+    );
+    assert.equal(fullAccessPrepared.approval.command, "zsh");
+    assert.equal(processExecutor.accesses.at(-1), "write");
 
     const expiringPrepared = await service.prepare(context, {
       rootId: "fixture",

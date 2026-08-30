@@ -16,15 +16,15 @@ import {
 
 const classifications = listMcpToolSurfaceClassifications();
 
-assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 100);
-assert.equal(classifications.length, 100);
-assert.equal(MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES.length, 24);
+assert.equal(MCP_TOOL_SURFACE_CLASSIFICATION_COUNT, 101);
+assert.equal(classifications.length, 101);
+assert.equal(MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES.length, 25);
 
 const byDisposition = Object.groupBy(
   classifications,
   (item) => item.disposition
 );
-assert.equal(byDisposition.core?.length, 24);
+assert.equal(byDisposition.core?.length, 25);
 assert.equal(byDisposition["deferred-pack"]?.length, 62);
 assert.equal(byDisposition.compatibility?.length, 8);
 assert.equal(byDisposition["consolidation-candidate"]?.length, 3);
@@ -172,20 +172,21 @@ const productionBaseline = classifications.filter(
     "resources.mutation.execute"
   ].includes(item.suffix)
 );
-assert.equal(productionBaseline.length, 97);
+assert.equal(productionBaseline.length, 98);
 assert.equal(
   productionBaseline.filter((item) => item.disposition === "core").length,
-  24
+  25
 );
 
 const syntheticTools = classifications.map((item) => ({ name: `chatcockpit.${item.suffix}` }));
-assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "core" }).length, 24);
+assert.equal(selectMcpToolsForSurface(syntheticTools, { kind: "core" }).length, 25);
 const coreSurface = selectMcpToolsForSurface(syntheticTools, { kind: "core" });
 assert.equal(coreSurface.some((tool) => tool.name === "chatcockpit.files.mutate"), true);
 assert.equal(coreSurface.some((tool) => tool.name === "chatcockpit.devices.workspace.invoke"), true);
+assert.equal(coreSurface.some((tool) => tool.name === "chatcockpit.tools.invoke"), true);
 assert.equal(coreSurface.some((tool) => tool.name === "chatcockpit.shell.run"), false);
 const fullSurface = selectMcpToolsForSurface(syntheticTools, { kind: "full" });
-assert.equal(fullSurface.length, 97);
+assert.equal(fullSurface.length, 98);
 assert.equal(fullSurface.some((tool) => tool.name === "chatcockpit.shell.run"), true);
 for (const name of [
   "chatcockpit.host.command.decide",
@@ -196,11 +197,11 @@ for (const name of [
 }
 assert.equal(
   selectMcpToolsForSurface(syntheticTools, { kind: "pack", pack: "codex-native" }).length,
-  35
+  36
 );
 assert.equal(
   selectMcpToolsForSurface(syntheticTools, { kind: "pack", pack: "capability-routing" }).length,
-  31
+  32
 );
 assert.equal(
   selectMcpToolsForSurface(syntheticTools, { kind: "pack", pack: "codex-native" })

@@ -106,7 +106,7 @@ function main(): void {
   assert.equal(store.listAuthorizationGrants().length, 1);
   assert.equal(
     Number((store.sqlite.prepare("SELECT MAX(version) AS version FROM oauth_schema_migrations").get() as { version: number }).version),
-    5
+    6
   );
   assert.deepEqual(
     store.listAuthorizationGrantDeviceIds(expectedLegacyGrant),

@@ -35,6 +35,7 @@ const boundedInvokeSchema = z.object({
 });
 const continuityInvokeSchema = boundedInvokeSchema;
 const codexInvokeSchema = boundedInvokeSchema;
+const toolsInvokeSchema = boundedInvokeSchema;
 
 const packSummarySchema = z.object({
   id: z.enum(MCP_TOOL_SURFACE_PACKS),
@@ -66,7 +67,8 @@ const selectedToolSchema = z.object({
   outputSchema: jsonObjectSchema.nullable(),
   invokeVia: z.union([
     z.literal("continuity.invoke"),
-    z.literal("codex.invoke")
+    z.literal("codex.invoke"),
+    z.literal("tools.invoke")
   ]).nullable()
 });
 const toolSurfaceDiscoverOutputSchema = z.object({
@@ -129,6 +131,18 @@ function codexToolBySuffix(
   }) ?? null;
 }
 
+function genericToolBySuffix(
+  baseTools: readonly TokenPilotMcpTool[],
+  suffix: string
+): TokenPilotMcpTool | null {
+  return baseTools.find((tool) => {
+    if (mcpToolSurfaceSuffix(tool.name) !== suffix) return false;
+    const classification = classifyMcpToolSurface(tool.name);
+    return classification?.disposition === "deferred-pack" ||
+      classification?.disposition === "consolidation-candidate";
+  }) ?? null;
+}
+
 function publicToolDescriptor(tool: TokenPilotMcpTool) {
   return {
     suffix: mcpToolSurfaceSuffix(tool.name),
@@ -143,7 +157,9 @@ function publicToolDescriptor(tool: TokenPilotMcpTool) {
       ? "continuity.invoke" as const
       : codexInvokeSuffixes.has(mcpToolSurfaceSuffix(tool.name))
         ? "codex.invoke" as const
-        : null
+        : genericToolBySuffix([tool], mcpToolSurfaceSuffix(tool.name))
+          ? "tools.invoke" as const
+          : null
   };
 }
 
@@ -224,8 +240,8 @@ export function buildToolSurfaceDiscoveryMcpTools(
           defaultPath: "/mcp" as const,
           fullCompatibilityPath: "/mcp/full" as const,
           legacyCompatibilityPath: "/tokenpilot/mcp" as const,
-          defaultCoreCount: coreBaseCount + 3,
-          fullToolCount: remotelyRoutableBaseCount + 3,
+          defaultCoreCount: coreBaseCount + 4,
+          fullToolCount: remotelyRoutableBaseCount + 4,
           packs: packSummaries,
           selectedPack: selectedPack
             ? {
@@ -259,6 +275,40 @@ export function buildToolSurfaceDiscoveryMcpTools(
         throw new ServiceError(
           "CONTINUITY_INVOKE_TOOL_UNAVAILABLE",
           "The requested continuity action is not available through the bounded core gateway",
+          { details: { tool: input.tool } }
+        );
+      }
+      const result = await target.execute(context, input.input);
+      if (result.isError) {
+        throw specialistFailure(input.tool, result.structuredContent);
+      }
+      return {
+        ok: true,
+        tool: input.tool,
+        result: result.structuredContent
+      };
+    }
+  });
+
+  const toolsInvoke = defineMcpTool({
+    name: "chatcockpit.tools.invoke",
+    title: "Invoke one governed specialist action",
+    description:
+      "Invoke one server-classified specialist ChatCockpit action through a stable tool+input envelope without connecting a second MCP endpoint. Only deferred-pack and consolidation-candidate tools are eligible; operator-only and compatibility tools are never dispatched here. The target tool still validates its exact schema and all OAuth device, Host, Workspace, approval, audit and idempotency governance remains in force.",
+    inputSchema: toolsInvokeSchema,
+    outputSchema: continuityInvokeOutputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true
+    },
+    handler: async (context, input) => {
+      const target = genericToolBySuffix(baseTools, input.tool);
+      if (!target) {
+        throw new ServiceError(
+          "TOOLS_INVOKE_TOOL_UNAVAILABLE",
+          "The requested specialist action is not available through the governed Core gateway",
           { details: { tool: input.tool } }
         );
       }
@@ -308,5 +358,5 @@ export function buildToolSurfaceDiscoveryMcpTools(
     }
   });
 
-  return [discover, continuityInvoke, codexInvoke];
+  return [discover, continuityInvoke, codexInvoke, toolsInvoke];
 }

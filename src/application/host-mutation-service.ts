@@ -37,6 +37,10 @@ import {
 } from "../direct/host-path-policy.js";
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
+import {
+  hasRemoteFullAccess,
+  type RemoteFullAccessPolicy
+} from "./remote-full-access-policy.js";
 import { ServiceError } from "./service-error.js";
 import {
   assertChatDirectWriterLease,
@@ -53,6 +57,7 @@ interface PreparedMutationIntent {
   classification: ClassifiedHostTarget;
   selection: DirectExecutorSelection;
   hostPermissionProfile: HostPermissionProfile;
+  trustedFullAccess: boolean;
   beforeHash: string | null;
   expectedAfterHash: string;
   mutationHash: string;
@@ -176,7 +181,8 @@ export class HostMutationService {
     private readonly repositories: ContinuityRepositories,
     private readonly broker: DirectCapabilityBroker,
     private readonly downstream: DownstreamMcpExecutionRegistry,
-    private readonly configPath?: string
+    private readonly configPath?: string,
+    private readonly remoteFullAccessPolicy?: RemoteFullAccessPolicy | null
   ) {
     this.git = new GitService(paths);
   }
@@ -196,7 +202,7 @@ export class HostMutationService {
       request,
       () => {
         const prepared = this.prepareIntent(context, request);
-        const approval = this.repositories.directMutationApprovals.create({
+        let approval = this.repositories.directMutationApprovals.create({
           operation: request.operation,
           rootId: prepared.target.rootId,
           relativePath: prepared.target.relativePath,
@@ -210,6 +216,14 @@ export class HostMutationService {
           expiresAt: approvalExpiry(context.now),
           now: context.now
         });
+        if (hasRemoteFullAccess(context, this.remoteFullAccessPolicy)) {
+          approval = this.repositories.directMutationApprovals.decide({
+            id: approval.id,
+            decision: "approved",
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+        }
         return { ok: true as const, approval };
       },
       context.now
@@ -460,6 +474,7 @@ export class HostMutationService {
     request: HostMutationRequest,
     forcedExecutorId?: string
   ): PreparedMutationIntent {
+    const trustedFullAccess = hasRemoteFullAccess(context, this.remoteFullAccessPolicy);
     let target: HostWritableFileTarget;
     let expectedAfterHash: string;
     try {
@@ -468,7 +483,8 @@ export class HostMutationService {
           rootId: request.rootId,
           relativePath: request.path,
           content: request.content,
-          ...(this.configPath ? { configPath: this.configPath } : {})
+          ...(this.configPath ? { configPath: this.configPath } : {}),
+          ...(trustedFullAccess ? { trustedFullAccess: true } : {})
         });
         expectedAfterHash = sha256Text(request.content);
       } else {
@@ -477,7 +493,8 @@ export class HostMutationService {
           relativePath: request.path,
           oldText: request.oldText,
           newText: request.newText,
-          ...(this.configPath ? { configPath: this.configPath } : {})
+          ...(this.configPath ? { configPath: this.configPath } : {}),
+          ...(trustedFullAccess ? { trustedFullAccess: true } : {})
         });
         target = editable;
         expectedAfterHash = editable.afterHash;
@@ -493,9 +510,9 @@ export class HostMutationService {
       this.repositories,
       target.absolutePath
     );
-    const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
-      this.configPath
-    ).hostPermissionProfile;
+    const hostPermissionProfile: HostPermissionProfile = trustedFullAccess
+      ? "full-host"
+      : loadDownstreamMcpExecutorsConfig(this.configPath).hostPermissionProfile;
     if (
       classification.kind === "workspace" &&
       !workspaceHostMutationsAllowed(hostPermissionProfile)
@@ -588,6 +605,7 @@ export class HostMutationService {
       classification,
       selection,
       hostPermissionProfile,
+      trustedFullAccess,
       beforeHash,
       expectedAfterHash,
       mutationHash,
@@ -601,7 +619,8 @@ export class HostMutationService {
       const current = resolveHostWritableFileTarget({
         rootId: intent.target.rootId,
         relativePath: intent.target.relativePath,
-        ...(this.configPath ? { configPath: this.configPath } : {})
+        ...(this.configPath ? { configPath: this.configPath } : {}),
+        ...(intent.trustedFullAccess ? { trustedFullAccess: true } : {})
       });
       if (!current.exists || current.beforeContent === null) {
         throw new Error("mutation result is missing");

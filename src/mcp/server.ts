@@ -286,7 +286,11 @@ export function buildTokenPilotMcpHandlerFromTools(
         (toolName, input) => {
           const grantId = authorizationGrantIdFromRequestContext(requestContext);
           if (!grantId) return null;
-          const targetDeviceId = resolveMcpToolDeviceTarget(toolName, input);
+          const targetDeviceId = resolveMcpToolDeviceTarget(
+            toolName,
+            input,
+            accessCatalog
+          );
           if (!targetDeviceId) return null;
           const requiredAccessLevel = requiredOAuthDeviceAccessLevelForMcpTool(
             toolName,

@@ -51,7 +51,7 @@ chatcockpit.tools.discover
 chatcockpit.continuity.invoke（tool=continuity.capsule）
 ```
 
-直接 `chatcockpit.continuity.capsule` 仍保留在 `continuity-governance` 能力包与 Full compatibility surface；canonical 24-tool Core 现在可通过有界 `continuity.invoke` 网关调用全部 16 个 continuity-governance 操作，包括 `workspace.snapshot`、`continuity.importedContext.read`、`handoff.cancel` 与 `handoff.fork`。因此正常 ChatGPT Continuity 工作不再需要额外挂载第二个 MCP endpoint。
+直接 `chatcockpit.continuity.capsule` 仍保留在 `continuity-governance` 能力包与 Full compatibility surface；canonical 25-tool Core 现在可通过有界 `continuity.invoke` 网关调用全部 16 个 continuity-governance 操作，并提供受治理的 `tools.invoke` specialist 网关，使 Host、Device、Workflow、Recovery 与 Resource 等 specialist 能力仍可从同一个 canonical 连接器触达，而无需把全部具体 schema 平铺进 Core。`workspace.snapshot`、`continuity.importedContext.read`、`handoff.cancel` 与 `handoff.fork` 均可单入口调用；Host/Device 管理额外要求 OAuth「完全访问」。
 
 ### Prompt C — Git + 文件读取
 

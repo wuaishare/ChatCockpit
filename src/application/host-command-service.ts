@@ -43,6 +43,10 @@ import {
 } from "../direct/host-path-policy.js";
 import { GitService } from "./git-service.js";
 import type { OperationContext } from "./operation-context.js";
+import {
+  hasRemoteFullAccess,
+  type RemoteFullAccessPolicy
+} from "./remote-full-access-policy.js";
 import { ServiceError } from "./service-error.js";
 import {
   assertChatDirectWriterLease,
@@ -251,7 +255,8 @@ export class HostCommandService {
     private readonly repositories: ContinuityRepositories,
     private readonly broker: DirectCapabilityBroker,
     private readonly processExecutor: HostCommandProcessExecutor,
-    private readonly configPath?: string
+    private readonly configPath?: string,
+    private readonly remoteFullAccessPolicy?: RemoteFullAccessPolicy | null
   ) {
     this.git = new GitService(paths);
   }
@@ -271,7 +276,7 @@ export class HostCommandService {
       request,
       () => {
         const intent = this.prepareIntent(context, request);
-        const approval = this.repositories.directCommandApprovals.create({
+        let approval = this.repositories.directCommandApprovals.create({
           rootId: intent.target.rootId,
           workdir: intent.target.relativePath,
           command: intent.policy.command,
@@ -288,6 +293,14 @@ export class HostCommandService {
           expiresAt: approvalExpiry(context.now),
           now: context.now
         });
+        if (hasRemoteFullAccess(context, this.remoteFullAccessPolicy)) {
+          approval = this.repositories.directCommandApprovals.decide({
+            id: approval.id,
+            decision: "approved",
+            expectedRevision: approval.revision,
+            now: context.now
+          });
+        }
         return { ok: true as const, approval };
       },
       context.now
@@ -438,13 +451,15 @@ export class HostCommandService {
     request: HostCommandRequest,
     forcedExecutorId?: string
   ): PreparedCommandIntent {
+    const trustedFullAccess = hasRemoteFullAccess(context, this.remoteFullAccessPolicy);
     let target: HostCommandWorkdirTarget;
     try {
       target = resolveHostCommandWorkdirTarget({
         rootId: request.rootId,
         workdir: request.workdir,
         requiredAccess: "read",
-        ...(this.configPath ? { configPath: this.configPath } : {})
+        ...(this.configPath ? { configPath: this.configPath } : {}),
+        ...(trustedFullAccess ? { trustedFullAccess: true } : {})
       });
     } catch (error) {
       if (error instanceof HostPathPolicyError) {
@@ -453,9 +468,9 @@ export class HostCommandService {
       throw error;
     }
 
-    const hostPermissionProfile = loadDownstreamMcpExecutorsConfig(
-      this.configPath
-    ).hostPermissionProfile;
+    const hostPermissionProfile: HostPermissionProfile = trustedFullAccess
+      ? "full-host"
+      : loadDownstreamMcpExecutorsConfig(this.configPath).hostPermissionProfile;
     const classification = classifyHostTarget(
       this.repositories,
       target.absolutePath
@@ -467,7 +482,8 @@ export class HostCommandService {
           const pureHostPolicy = evaluatePureHostCommand(
             request.command,
             request.args,
-            hostPermissionProfile
+            hostPermissionProfile,
+            { trustedFullAccess }
           );
           assertHostCommandRelativePathsInsideRoot(
             target,
@@ -518,7 +534,8 @@ export class HostCommandService {
           rootId: request.rootId,
           workdir: request.workdir,
           requiredAccess: "write",
-          ...(this.configPath ? { configPath: this.configPath } : {})
+          ...(this.configPath ? { configPath: this.configPath } : {}),
+          ...(trustedFullAccess ? { trustedFullAccess: true } : {})
         });
       } catch (error) {
         if (error instanceof HostPathPolicyError) {
@@ -920,6 +937,7 @@ export function buildConfiguredHostCommandService(options: {
   repositories: ContinuityRepositories;
   broker: DirectCapabilityBroker;
   configPath?: string;
+  remoteFullAccessPolicy?: RemoteFullAccessPolicy | null;
 }): HostCommandService {
   const builtinExecutorId = productIdentityForKey(
     options.paths.productIdentity
@@ -933,7 +951,8 @@ export function buildConfiguredHostCommandService(options: {
       options.paths.runtimeDir,
       options.configPath
     ),
-    options.configPath
+    options.configPath,
+    options.remoteFullAccessPolicy
   );
 }
 

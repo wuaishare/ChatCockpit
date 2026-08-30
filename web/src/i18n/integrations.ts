@@ -45,6 +45,12 @@ export interface IntegrationsCopy {
   authorizationGrantsTitle: string;
   authorizationGrantsDescription: string;
   authorizationGrantsEmpty: string;
+  authorizationGrantsFilterEmpty: string;
+  grantFilterActive: string;
+  grantFilterPending: string;
+  grantFilterInactive: string;
+  grantFilterRevoked: string;
+  grantFilterAll: string;
   grantStatusPending: string;
   grantStatusActive: string;
   grantStatusInactive: string;
@@ -78,6 +84,11 @@ export interface IntegrationsCopy {
   deviceAccessLevelReadOnly: string;
   deviceAccessLevelProjectWrite: string;
   deviceAccessLevelProjectExec: string;
+  deviceAccessLevelFullAccess: string;
+  deviceAccessFullAccessTitle: string;
+  deviceAccessFullAccessDescription: string;
+  deviceAccessFullAccessConfirm: string;
+  deviceAccessFullAccessCancel: string;
   deviceAccessGranted: string;
   deviceAccessNotGranted: string;
   deviceAccessGrant: string;
@@ -100,7 +111,7 @@ const zhCN: IntegrationsCopy = {
   advancedTag: "高级",
   compatibilityTag: "兼容方式",
   chatgptTitle: "ChatGPT App / MCP",
-  chatgptDescription: "ChatGPT 连接 ChatCockpit 的首选方式。OAuth 只授予 chatcockpit:mcp，不继承控制台管理员或机器 API 权限。",
+  chatgptDescription: "ChatGPT 连接 ChatCockpit 的首选方式。OAuth 设备权限可独立分级，最高可授予完全访问，但不会继承控制台 Owner 身份或机器 API 凭据。",
   mcpEndpoint: "MCP 地址",
   oauthStatus: "OAuth 状态",
   oauthScope: "OAuth Scope",
@@ -128,11 +139,17 @@ const zhCN: IntegrationsCopy = {
   schemaImportUrl: "Schema 导入地址",
   copyInstructions: "复制兼容说明",
   copyUrl: "复制地址",
-  loadingTitle: "正在读取集成状态",
+  loadingTitle: "正在读取连接与授权状态",
   loadingDescription: "正在从当前控制台管理员会话读取 OAuth、机器接口状态与工具目录。",
   authorizationGrantsTitle: "OAuth 授权关系",
-  authorizationGrantsDescription: "每次控制台管理员批准都会形成独立授权关系。这里可查看当前状态并单独撤销对应的令牌族，不影响其他授权或控制台会话。",
+  authorizationGrantsDescription: "每次控制台管理员批准都会形成独立授权关系。默认只显示有效授权，可按状态切换查看并单独管理对应令牌族与设备权限。",
   authorizationGrantsEmpty: "当前没有 OAuth 授权关系。",
+  authorizationGrantsFilterEmpty: "当前分组没有授权关系。",
+  grantFilterActive: "有效",
+  grantFilterPending: "等待兑换",
+  grantFilterInactive: "无有效令牌",
+  grantFilterRevoked: "已撤销",
+  grantFilterAll: "全部",
   grantStatusPending: "等待客户端兑换",
   grantStatusActive: "有效",
   grantStatusInactive: "无有效令牌",
@@ -155,7 +172,7 @@ const zhCN: IntegrationsCopy = {
   deviceAccessManage: "管理设备权限",
   deviceAccessHide: "收起设备权限",
   deviceAccessTitle: "设备访问权限",
-  deviceAccessDescription: "权限分级上线前已存在的授权会保留原有项目执行能力，避免升级后中断正在进行的开发；新授权若未显式选择项目权限仍按项目只读处理。首次连接的授权页会将项目执行作为开发推荐选项。每台设备都可独立设为项目只读、项目写入或项目执行，新加入的远程设备不会自动继承授权。Host / Device 管理能力仍受独立权限与审批治理。",
+  deviceAccessDescription: "每台设备可独立设为项目只读、项目写入、项目执行或完全访问。项目执行适合常规开发；完全访问还开放受信 Host / Device 管理和精确 Host 操作自动批准。新加入的远程设备不会自动继承权限。",
   deviceAccessLoading: "正在读取设备权限",
   deviceAccessLocal: "本机",
   deviceAccessRemote: "远程设备",
@@ -166,6 +183,11 @@ const zhCN: IntegrationsCopy = {
   deviceAccessLevelReadOnly: "项目只读",
   deviceAccessLevelProjectWrite: "项目写入",
   deviceAccessLevelProjectExec: "项目执行",
+  deviceAccessLevelFullAccess: "完全访问",
+  deviceAccessFullAccessTitle: "授予完全访问？",
+  deviceAccessFullAccessDescription: "完全访问会允许这条 OAuth 授权在该设备上执行项目开发、Host / Device 管理，并自动批准精确 Host 操作。仅应授予您明确信任的客户端。",
+  deviceAccessFullAccessConfirm: "授予完全访问",
+  deviceAccessFullAccessCancel: "取消",
   deviceAccessGranted: "已授权",
   deviceAccessNotGranted: "未授权",
   deviceAccessGrant: "授权访问",
@@ -173,7 +195,7 @@ const zhCN: IntegrationsCopy = {
   deviceAccessLoadFailed: "无法读取设备访问权限",
   deviceAccessMutationFailed: "更新设备访问权限失败",
   deviceAccessRetry: "重新读取",
-  requestFailed: "无法读取集成状态"
+  requestFailed: "无法读取连接与授权状态"
 };
 
 const enUS: IntegrationsCopy = {
@@ -188,7 +210,7 @@ const enUS: IntegrationsCopy = {
   advancedTag: "Advanced",
   compatibilityTag: "Compatibility",
   chatgptTitle: "ChatGPT App / MCP",
-  chatgptDescription: "The preferred way to connect ChatGPT to ChatCockpit. OAuth grants only chatcockpit:mcp and never inherits Web Owner or machine API authority.",
+  chatgptDescription: "The preferred way to connect ChatGPT to ChatCockpit. OAuth access is tiered per device up to Full access, but never inherits the Web Owner identity or machine API credentials.",
   mcpEndpoint: "MCP endpoint",
   oauthStatus: "OAuth status",
   oauthScope: "OAuth scope",
@@ -216,11 +238,17 @@ const enUS: IntegrationsCopy = {
   schemaImportUrl: "Schema import URL",
   copyInstructions: "Copy compatibility instructions",
   copyUrl: "Copy URL",
-  loadingTitle: "Loading integrations",
+  loadingTitle: "Loading connections & access",
   loadingDescription: "Reading OAuth, machine-interface state, and the tool catalog through the current Web Owner session.",
   authorizationGrantsTitle: "OAuth authorizations",
-  authorizationGrantsDescription: "Each Web Owner approval creates an independent authorization. Review its current state here and revoke one token family without affecting other authorizations or Web Owner sessions.",
+  authorizationGrantsDescription: "Each Web Owner approval creates an independent authorization. Active authorizations are shown by default; switch status groups to review token families and per-device access independently.",
   authorizationGrantsEmpty: "There are no OAuth authorizations yet.",
+  authorizationGrantsFilterEmpty: "There are no authorizations in this group.",
+  grantFilterActive: "Active",
+  grantFilterPending: "Awaiting exchange",
+  grantFilterInactive: "No active tokens",
+  grantFilterRevoked: "Revoked",
+  grantFilterAll: "All",
   grantStatusPending: "Awaiting token exchange",
   grantStatusActive: "Active",
   grantStatusInactive: "No active tokens",
@@ -243,7 +271,7 @@ const enUS: IntegrationsCopy = {
   deviceAccessManage: "Manage device access",
   deviceAccessHide: "Hide device access",
   deviceAccessTitle: "Device access",
-  deviceAccessDescription: "Authorizations that existed before project access tiers were introduced preserve their prior project execution authority so upgrades do not interrupt active development; new authorizations without an explicit project level still fall back to project read-only. The first-connect approval page recommends project execution for development. Each device can be set independently to project read-only, project write, or project execution. Newly enrolled remote devices inherit nothing. Host / Device administration remains governed by separate permissions and approvals.",
+  deviceAccessDescription: "Each device can be set independently to project read-only, project write, project execution, or Full access. Project execution is intended for normal development; Full access also enables trusted Host / Device administration and auto-approval of exact Host operations. Newly enrolled remote devices inherit nothing.",
   deviceAccessLoading: "Loading device access",
   deviceAccessLocal: "This device",
   deviceAccessRemote: "Remote device",
@@ -254,6 +282,11 @@ const enUS: IntegrationsCopy = {
   deviceAccessLevelReadOnly: "Project read-only",
   deviceAccessLevelProjectWrite: "Project write",
   deviceAccessLevelProjectExec: "Project execution",
+  deviceAccessLevelFullAccess: "Full access",
+  deviceAccessFullAccessTitle: "Grant Full access?",
+  deviceAccessFullAccessDescription: "Full access allows this OAuth authorization to perform project development and Host / Device administration on this device, including auto-approval of exact Host operations. Grant it only to a client you explicitly trust.",
+  deviceAccessFullAccessConfirm: "Grant Full access",
+  deviceAccessFullAccessCancel: "Cancel",
   deviceAccessGranted: "Allowed",
   deviceAccessNotGranted: "Not allowed",
   deviceAccessGrant: "Allow access",
@@ -261,7 +294,7 @@ const enUS: IntegrationsCopy = {
   deviceAccessLoadFailed: "Unable to load device access",
   deviceAccessMutationFailed: "Unable to update device access",
   deviceAccessRetry: "Retry",
-  requestFailed: "Unable to load integrations"
+  requestFailed: "Unable to load connections & access"
 };
 
 export function getIntegrationsCopy(locale: LocaleCode): IntegrationsCopy {

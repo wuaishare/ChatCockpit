@@ -62,6 +62,7 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "trajectory.read",
   "continuity.invoke",
   "codex.invoke",
+  "tools.invoke",
   "tools.discover"
 ] as const;
 

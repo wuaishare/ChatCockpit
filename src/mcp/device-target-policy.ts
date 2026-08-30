@@ -3,21 +3,21 @@ import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import type { McpToolAnnotations } from "./tool-definition.js";
 import { mcpToolSurfaceSuffix } from "./tool-surface.js";
 
-const CONTROL_PLANE_METADATA_TOOLS = new Set([
-  "chatcockpit.devices.targets.list",
-  "chatcockpit.devices.runtime.operation.get"
+const CONTROL_PLANE_METADATA_TOOL_SUFFIXES = new Set([
+  "devices.targets.list",
+  "devices.runtime.operation.get"
 ]);
 
-const TARGET_AWARE_TOOLS = new Set([
-  "chatcockpit.capabilities.list",
-  "chatcockpit.capabilities.inspect",
-  "chatcockpit.capabilities.read.invoke",
-  "chatcockpit.devices.workspace.invoke"
+const TARGET_AWARE_TOOL_SUFFIXES = new Set([
+  "capabilities.list",
+  "capabilities.inspect",
+  "capabilities.read.invoke",
+  "devices.workspace.invoke"
 ]);
 
-const REMOTE_DEVICE_ID_TOOLS = new Set([
-  "chatcockpit.devices.runtime.status",
-  "chatcockpit.devices.runtime.lifecycle.execute"
+const REMOTE_DEVICE_ID_TOOL_SUFFIXES = new Set([
+  "devices.runtime.status",
+  "devices.runtime.lifecycle.execute"
 ]);
 
 const PROJECT_WRITE_TOOL_SUFFIXES = new Set([
@@ -35,6 +35,20 @@ const PROJECT_EXEC_TOOL_SUFFIXES = new Set([
   "workspace.exec",
   "workspace.process.read",
   "workspace.process.control"
+]);
+
+const FULL_ACCESS_TOOL_SUFFIXES = new Set([
+  "host.roots.list",
+  "host.files.read",
+  "host.mutation.prepare",
+  "host.mutation.execute",
+  "host.command.prepare",
+  "host.command.execute",
+  "host.process.prepare",
+  "host.process.execute",
+  "host.process.read",
+  "host.process.list",
+  "devices.runtime.lifecycle.execute"
 ]);
 
 const DEVICE_WORKSPACE_READ_ACTIONS = new Set([
@@ -85,7 +99,7 @@ function boundedInvokeTarget(
   tools: readonly OAuthAccessToolDescriptor[]
 ): { tool: OAuthAccessToolDescriptor; input: unknown } | null {
   const suffix = mcpToolSurfaceSuffix(toolName);
-  if (suffix !== "continuity.invoke" && suffix !== "codex.invoke") return null;
+  if (!["continuity.invoke", "codex.invoke", "tools.invoke"].includes(suffix)) return null;
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const record = input as Record<string, unknown>;
   if (typeof record.tool !== "string" || !record.tool.trim()) return null;
@@ -112,14 +126,21 @@ export function requiredOAuthDeviceAccessLevelForMcpTool(
       tools
     );
   }
-  if (["continuity.invoke", "codex.invoke"].includes(mcpToolSurfaceSuffix(toolName))) {
+  const suffix = mcpToolSurfaceSuffix(toolName);
+  if (suffix === "tools.invoke") {
+    // Generic specialist dispatch is the broadest stable gateway. Unknown or
+    // malformed targets fail toward Full Access rather than accidentally
+    // inheriting ordinary project authority.
+    return "full-access";
+  }
+  if (["continuity.invoke", "codex.invoke"].includes(suffix)) {
     // Missing, malformed, unknown, or recursively self-targeted envelopes must
     // never inherit read-only authority merely because the stable gateway name
     // itself is forward-compatible.
     return "project-exec";
   }
 
-  const suffix = mcpToolSurfaceSuffix(toolName);
+  if (FULL_ACCESS_TOOL_SUFFIXES.has(suffix)) return "full-access";
   if (PROJECT_EXEC_TOOL_SUFFIXES.has(suffix)) return "project-exec";
   if (PROJECT_WRITE_TOOL_SUFFIXES.has(suffix)) return "project-write";
 
@@ -134,17 +155,28 @@ export function requiredOAuthDeviceAccessLevelForMcpTool(
 
 export function resolveMcpToolDeviceTarget(
   toolName: string,
-  input: unknown
+  input: unknown,
+  tools: readonly OAuthAccessToolDescriptor[] = []
 ): string | null {
-  if (CONTROL_PLANE_METADATA_TOOLS.has(toolName)) return null;
-  if (REMOTE_DEVICE_ID_TOOLS.has(toolName)) {
+  const boundedTarget = boundedInvokeTarget(toolName, input, tools);
+  if (boundedTarget) {
+    return resolveMcpToolDeviceTarget(
+      boundedTarget.tool.name,
+      boundedTarget.input,
+      tools
+    );
+  }
+
+  const suffix = mcpToolSurfaceSuffix(toolName);
+  if (CONTROL_PLANE_METADATA_TOOL_SUFFIXES.has(suffix)) return null;
+  if (REMOTE_DEVICE_ID_TOOL_SUFFIXES.has(suffix)) {
     if (input && typeof input === "object" && !Array.isArray(input)) {
       const deviceId = (input as Record<string, unknown>).deviceId;
       if (typeof deviceId === "string" && deviceId.trim()) return deviceId.trim();
     }
     return null;
   }
-  if (TARGET_AWARE_TOOLS.has(toolName)) {
+  if (TARGET_AWARE_TOOL_SUFFIXES.has(suffix)) {
     if (input && typeof input === "object" && !Array.isArray(input)) {
       const targetDevice = (input as Record<string, unknown>).targetDevice;
       if (typeof targetDevice === "string" && targetDevice.trim()) {

@@ -19,7 +19,7 @@ export function buildHostDirectReadOnlyTools(
         "List public-safe local Host Direct root aliases. Absolute local paths are never returned.",
       inputSchema: z.object({}),
       annotations: readOnlyToolAnnotations,
-      handler: () => hostDirect.listRoots()
+      handler: (context) => hostDirect.listRoots(context)
     }),
     defineMcpTool({
       name: "chatcockpit.host.files.read",

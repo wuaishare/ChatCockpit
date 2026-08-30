@@ -393,7 +393,11 @@ export interface OAuthAuthorizationGrantsResponse {
 }
 
 export type OAuthGrantDeviceAccessStatus = "available" | "revoked" | "missing";
-export type OAuthDeviceAccessLevel = "read-only" | "project-write" | "project-exec";
+export type OAuthDeviceAccessLevel =
+  | "read-only"
+  | "project-write"
+  | "project-exec"
+  | "full-access";
 
 export interface OAuthGrantDeviceAccess {
   deviceId: string;

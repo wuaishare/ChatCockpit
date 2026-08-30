@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Popconfirm, Select, Spin, Tag } from "antd";
+import { Button, Modal, Popconfirm, Segmented, Select, Spin, Tag } from "antd";
 import { CopyButton } from "./CopyButton";
 import { UiText as Text } from "./UiText";
 import {
@@ -21,6 +21,8 @@ import type { LocaleCode } from "../i18n";
 import { getIntegrationsCopy } from "../i18n/integrations";
 import type { OperationalStatusTone } from "../status-language";
 import { SectionCard } from "./SectionCard";
+
+type OAuthGrantFilter = OAuthAuthorizationGrantStatus | "all";
 
 interface IntegrationsViewProps {
   locale: LocaleCode;
@@ -51,6 +53,7 @@ export function IntegrationsView({
   const compatibilityInstructions = config?.instructions ?? "";
   const schemaImportUrl = config?.schemaImportUrl ?? status.openapiUrl;
   const [grants, setGrants] = useState<OAuthAuthorizationGrantSummary[]>([]);
+  const [grantFilter, setGrantFilter] = useState<OAuthGrantFilter>("active");
   const [grantsEnabled, setGrantsEnabled] = useState(true);
   const [grantsLoading, setGrantsLoading] = useState(true);
   const [grantError, setGrantError] = useState<string | null>(null);
@@ -174,6 +177,27 @@ export function IntegrationsView({
     }
   };
 
+  const requestDeviceAccessLevel = (
+    grantId: string,
+    deviceId: string,
+    accessLevel: OAuthDeviceAccessLevel
+  ) => {
+    if (accessLevel !== "full-access") {
+      void setDeviceAccessLevel(grantId, deviceId, accessLevel);
+      return;
+    }
+    Modal.confirm({
+      title: copy.deviceAccessFullAccessTitle,
+      content: copy.deviceAccessFullAccessDescription,
+      okText: copy.deviceAccessFullAccessConfirm,
+      cancelText: copy.deviceAccessFullAccessCancel,
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await setDeviceAccessLevel(grantId, deviceId, accessLevel);
+      }
+    });
+  };
+
   const removeDeviceAccess = async (grantId: string, deviceId: string) => {
     const key = `${grantId}:${deviceId}`;
     if (mutatingDeviceAccessKey) return;
@@ -210,7 +234,24 @@ export function IntegrationsView({
   const deviceAccessLevelOptions: Array<{ value: OAuthDeviceAccessLevel; label: string }> = [
     { value: "read-only", label: copy.deviceAccessLevelReadOnly },
     { value: "project-write", label: copy.deviceAccessLevelProjectWrite },
-    { value: "project-exec", label: copy.deviceAccessLevelProjectExec }
+    { value: "project-exec", label: copy.deviceAccessLevelProjectExec },
+    { value: "full-access", label: copy.deviceAccessLevelFullAccess }
+  ];
+  const grantCounts: Record<OAuthAuthorizationGrantStatus, number> = {
+    active: grants.filter((grant) => grant.status === "active").length,
+    pending: grants.filter((grant) => grant.status === "pending").length,
+    inactive: grants.filter((grant) => grant.status === "inactive").length,
+    revoked: grants.filter((grant) => grant.status === "revoked").length
+  };
+  const visibleGrants = grantFilter === "all"
+    ? grants
+    : grants.filter((grant) => grant.status === grantFilter);
+  const grantFilterOptions = [
+    { value: "active", label: `${copy.grantFilterActive} ${grantCounts.active}` },
+    { value: "pending", label: `${copy.grantFilterPending} ${grantCounts.pending}` },
+    { value: "inactive", label: `${copy.grantFilterInactive} ${grantCounts.inactive}` },
+    { value: "revoked", label: `${copy.grantFilterRevoked} ${grantCounts.revoked}` },
+    { value: "all", label: `${copy.grantFilterAll} ${grants.length}` }
   ];
 
   return (
@@ -272,11 +313,24 @@ export function IntegrationsView({
         ) : !grantsEnabled || grants.length === 0 ? (
           <div className="notes-block">{copy.authorizationGrantsEmpty}</div>
         ) : (
+          <>
+            <Segmented
+              className="oauth-grants__filters"
+              value={grantFilter}
+              options={grantFilterOptions}
+              onChange={(value) => setGrantFilter(value as OAuthGrantFilter)}
+            />
+            {visibleGrants.length === 0 ? (
+              <div className="notes-block">{copy.authorizationGrantsFilterEmpty}</div>
+            ) : (
           <div className="oauth-grants">
-            {grants.map((grant) => {
+            {visibleGrants.map((grant) => {
               const meta = grantStatus(grant.status);
               return (
-                <div className="oauth-grant-card" key={grant.id}>
+                <div
+                  className={`oauth-grant-card${expandedDeviceAccessGrantId === grant.id ? " oauth-grant-card--expanded" : ""}`}
+                  key={grant.id}
+                >
                   <div className="oauth-grant-card__header">
                     <div className="oauth-grant-card__title">
                       <strong>{grant.displayLabel}</strong>
@@ -382,7 +436,7 @@ export function IntegrationsView({
                                     options={deviceAccessLevelOptions}
                                     disabled={!canSetLevel}
                                     loading={mutatingDeviceAccessKey === mutationKey}
-                                    onChange={(accessLevel) => void setDeviceAccessLevel(
+                                    onChange={(accessLevel) => requestDeviceAccessLevel(
                                       grant.id,
                                       device.deviceId,
                                       accessLevel
@@ -414,6 +468,8 @@ export function IntegrationsView({
               );
             })}
           </div>
+            )}
+          </>
         )}
       </SectionCard>
 
