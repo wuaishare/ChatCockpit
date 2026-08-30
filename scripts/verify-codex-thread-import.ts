@@ -29,8 +29,7 @@ function assertServiceError(error: unknown, code: string): boolean {
 }
 
 const database = new ContinuityDatabase({ path: ":memory:" });
-assert.equal(LATEST_CONTINUITY_SCHEMA_VERSION, 21);
-assert.equal(database.schemaVersion(), 21);
+assert.equal(database.schemaVersion(), LATEST_CONTINUITY_SCHEMA_VERSION);
 
 const schemaSql = String(
   (

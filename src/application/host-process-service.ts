@@ -12,6 +12,7 @@ import type {
   HostProcessStopRequest
 } from "../contracts/host-process.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
+import type { HostProcessAuthorityRecord } from "../continuity/repositories/host-process-authority-repository.js";
 import type {
   DirectProcessApprovalRecord,
   DirectProcessSessionRecord,
@@ -19,7 +20,10 @@ import type {
 } from "../continuity/types.js";
 import type { TokenPilotPaths } from "../types.js";
 import type { SupervisorTerminalEvent } from "../process-supervisor/event-journal.js";
-import { evaluateWorkspaceCommand } from "../core/command-policy.js";
+import {
+  evaluatePureHostCommand,
+  evaluateWorkspaceCommand
+} from "../core/command-policy.js";
 import {
   workspaceManagedProcessesAllowed,
   type HostPermissionProfile
@@ -46,6 +50,7 @@ import {
 } from "../direct/capability-broker.js";
 import {
   HostPathPolicyError,
+  assertHostCommandRelativePathsInsideRoot,
   resolveHostCommandWorkdirTarget,
   type HostCommandWorkdirTarget
 } from "../direct/host-path-policy.js";
@@ -62,9 +67,11 @@ import {
 } from "./workspace-mutation-governance.js";
 
 const HOST_PROCESS_APPROVAL_TTL_MS = 5 * 60 * 1000;
-const HOST_PROCESS_POLICY_VERSION = "host-process-v1";
+const HOST_PROCESS_AUTHORITY_TTL_MS = 120_000;
+const HOST_PROCESS_POLICY_VERSION = "host-process-v2";
 const MAX_RUNNING_PER_WORKSPACE = 2;
 const MAX_RUNNING_PER_SESSION = 2;
+const MAX_RUNNING_PURE_HOST = 4;
 const HOST_PROCESS_RECONCILE_INTERVAL_MS = 15_000;
 
 export type HostProcessRuntimeSnapshot = Omit<
@@ -106,10 +113,27 @@ export interface HostProcessRuntimeSupervisor {
   ackEvents?(eventIds: string[]): Promise<number>;
 }
 
-interface PreparedProcessStartIntent {
+type WorkspaceProcessRecord = DirectProcessSessionRecord & {
+  scope: "workspace";
+  workspaceId: string;
+  repoId: string;
+  sessionId: string;
+  writerLeaseId: string;
+  hostAuthorityId: null;
+};
+
+type PureHostProcessRecord = DirectProcessSessionRecord & {
+  scope: "host";
+  workspaceId: null;
+  repoId: null;
+  sessionId: null;
+  writerLeaseId: null;
+  hostAuthorityId: string;
+};
+
+interface PreparedProcessStartIntentBase {
   request: HostProcessStartRequest;
   target: HostCommandWorkdirTarget;
-  authority: WorkspaceMutationAuthority;
   command: string;
   args: string[];
   effect: "read" | "write";
@@ -118,10 +142,55 @@ interface PreparedProcessStartIntent {
   actionHash: string;
 }
 
+interface PreparedWorkspaceProcessStartIntent extends PreparedProcessStartIntentBase {
+  scope: "workspace";
+  authority: WorkspaceMutationAuthority;
+  authorizationGrantId: null;
+}
+
+interface PreparedPureHostProcessStartIntent extends PreparedProcessStartIntentBase {
+  scope: "host";
+  authority: null;
+  authorizationGrantId: string;
+  actorType: "remote-mcp";
+  actorId: string | null;
+}
+
+type PreparedProcessStartIntent =
+  | PreparedWorkspaceProcessStartIntent
+  | PreparedPureHostProcessStartIntent;
+
+type ProcessActionAuthority =
+  | {
+      scope: "workspace";
+      process: WorkspaceProcessRecord;
+      writerAuthority: WorkspaceMutationAuthority;
+      hostAuthority: null;
+    }
+  | {
+      scope: "host";
+      process: PureHostProcessRecord;
+      writerAuthority: null;
+      hostAuthority: HostProcessAuthorityRecord;
+    };
+
+type ProcessStopAuthority =
+  | {
+      scope: "workspace";
+      process: WorkspaceProcessRecord;
+      hostAuthority: null;
+    }
+  | {
+      scope: "host";
+      process: PureHostProcessRecord;
+      hostAuthority: HostProcessAuthorityRecord;
+    };
+
 interface PreparedProcessStartExecution {
   approval: DirectProcessApprovalRecord;
   intent: PreparedProcessStartIntent;
   reservation: DirectProcessSessionRecord;
+  hostAuthority: HostProcessAuthorityRecord | null;
   startedAt: string;
 }
 
@@ -153,13 +222,14 @@ interface ExternalProcessActionOutcome {
 
 export interface HostProcessPublicRecord {
   id: string;
+  scope: "workspace" | "host";
   rootId: string;
   workdir: string;
   command: string;
   status: "starting" | "running" | "exited" | "terminated" | "failed" | "stale";
-  workspaceId: string;
-  repoId: string;
-  sessionId: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
   executorId: string;
   startedAt: string;
   completedAt: string | null;
@@ -184,13 +254,13 @@ export interface HostProcessStartExecutionValue {
     selectionMode: "automatic" | "explicit";
     operationId: string;
     changedPaths: string[];
-    evidenceBundleId: string;
+    evidenceBundleId: string | null;
   };
   evidence: {
     kind: "task-evidence";
     bundleId: string;
     itemId: string;
-  };
+  } | null;
   auditId: string;
 }
 
@@ -200,7 +270,7 @@ export interface HostProcessInputExecutionValue {
   process: HostProcessPublicRecord;
   errorCode: string | null;
   approval: { id: string; status: "consumed" };
-  evidence: { kind: "task-evidence"; bundleId: string; itemId: string };
+  evidence: { kind: "task-evidence"; bundleId: string; itemId: string } | null;
   auditId: string;
 }
 
@@ -210,7 +280,7 @@ export interface HostProcessStopExecutionValue {
   process: HostProcessPublicRecord;
   errorCode: string | null;
   approval: { id: string; status: "consumed" };
-  evidence: { kind: "task-evidence"; bundleId: string; itemId: string };
+  evidence: { kind: "task-evidence"; bundleId: string; itemId: string } | null;
   auditId: string;
 }
 
@@ -231,6 +301,7 @@ function approvalExpiry(now: string): string {
 }
 
 function exactStartHash(input: {
+  scope: "workspace" | "host";
   rootId: string;
   workdir: string;
   command: string;
@@ -238,10 +309,12 @@ function exactStartHash(input: {
   effect: "read" | "write";
   startupTimeoutMs: number;
   executorId: string;
-  workspaceId: string;
-  repoId: string;
-  sessionId: string;
-  writerLeaseId: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  writerLeaseId: string | null;
+  authorizationGrantId: string | null;
+  actorId: string | null;
   hostPermissionProfile: HostPermissionProfile;
 }): string {
   return createHash("sha256")
@@ -258,13 +331,16 @@ function exactStartHash(input: {
 
 function exactInputHash(input: {
   processId: string;
-  sessionId: string;
+  scope: "workspace" | "host";
+  sessionId: string | null;
+  authorizationGrantId: string | null;
+  hostAuthorityId: string | null;
   inputHash: string;
   inputBytes: number;
   waitForPrompt: boolean;
   timeoutMs: number;
   processRevision: number;
-  writerLeaseId: string;
+  writerLeaseId: string | null;
 }): string {
   return createHash("sha256")
     .update(
@@ -280,7 +356,10 @@ function exactInputHash(input: {
 
 function exactStopHash(input: {
   processId: string;
-  sessionId: string;
+  scope: "workspace" | "host";
+  sessionId: string | null;
+  authorizationGrantId: string | null;
+  hostAuthorityId: string | null;
   processRevision: number;
   executorId: string;
 }): string {
@@ -323,13 +402,15 @@ function managedProcessErrorCode(error: unknown): string {
 function projectKnownPrivatePaths(
   output: string,
   target: HostCommandWorkdirTarget,
-  workspace: PrivateWorkspaceRecord
+  workspace: PrivateWorkspaceRecord | null
 ): string {
   const replacements: Array<[string, string]> = [
     [target.absolutePath, target.displayPath],
-    [target.rootAbsolutePath, target.rootId],
-    [workspace.privatePath, workspace.repoId]
+    [target.rootAbsolutePath, target.rootId]
   ];
+  if (workspace) {
+    replacements.push([workspace.privatePath, workspace.repoId]);
+  }
   const home = os.homedir();
   if (home) {
     replacements.push([home, "~"]);
@@ -390,14 +471,16 @@ export class HostProcessService {
         const intent = this.prepareStartIntent(context, request);
         let approval = this.repositories.directProcessApprovals.create({
           operation: "start",
+          scope: intent.scope,
           actionHash: intent.actionHash,
           rootId: intent.target.rootId,
           workdir: intent.target.relativePath,
           command: intent.command,
-          workspaceId: intent.authority.workspace.id,
-          repoId: intent.authority.workspace.repoId,
-          sessionId: intent.authority.session.id,
-          writerLeaseId: intent.authority.lease.id,
+          workspaceId: intent.authority?.workspace.id ?? null,
+          repoId: intent.authority?.workspace.repoId ?? null,
+          sessionId: intent.authority?.session.id ?? null,
+          writerLeaseId: intent.authority?.lease.id ?? null,
+          authorizationGrantId: intent.authorizationGrantId,
           executorId: intent.selection.executorId,
           publicSummary: this.publicStartSummary(intent),
           expiresAt: approvalExpiry(context.now),
@@ -479,6 +562,13 @@ export class HostProcessService {
   ): Promise<HostProcessReadValue> {
     await this.reconcile(context.now);
     let processRecord = this.requireProcess(input.processId);
+    if (processRecord.scope === "host") {
+      if (processRecord.status === "running" || processRecord.status === "starting") {
+        this.requireCurrentHostAuthority(context, processRecord, true);
+      } else {
+        this.assertHostProcessOwner(context, processRecord);
+      }
+    }
     if (processRecord.status === "stale") {
       throw new ServiceError(
         "HOST_PROCESS_STALE",
@@ -523,13 +613,25 @@ export class HostProcessService {
     };
   }
 
-  async list(input: HostProcessListInput = {}): Promise<HostProcessListValue> {
-    await this.reconcile();
+  async list(
+    context: OperationContext,
+    input: HostProcessListInput = {}
+  ): Promise<HostProcessListValue> {
+    await this.reconcile(context.now);
+    const processes = this.repositories.directProcessSessions.list(input).filter((record) => {
+      if (record.scope !== "host" || context.actorType !== "remote-mcp") {
+        return true;
+      }
+      try {
+        this.assertHostProcessOwner(context, record);
+        return true;
+      } catch {
+        return false;
+      }
+    });
     return {
       ok: true,
-      processes: this.repositories.directProcessSessions
-        .list(input)
-        .map((record) => this.publicProcessRecord(record))
+      processes: processes.map((record) => this.publicProcessRecord(record))
     };
   }
 
@@ -552,33 +654,45 @@ export class HostProcessService {
       if (this.actionLocks.has(processRecord.id)) {
         continue;
       }
-      if (!managedProcessesAllowed) {
+      if (processRecord.scope === "host") {
         await this.cleanupManagedProcess(
           processRecord,
+          "HOST_AUTHORITY_LOST",
+          now,
+          "failed"
+        );
+        continue;
+      }
+      const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
+      if (!managedProcessesAllowed) {
+        await this.cleanupManagedProcess(
+          workspaceProcess,
           "HOST_PERMISSION_PROFILE_REVOKED",
           now,
           "skipped"
         );
         continue;
       }
-      if (!this.supervisor.has(processRecord.id)) {
+      if (!this.supervisor.has(workspaceProcess.id)) {
         await this.cleanupManagedProcess(
-          processRecord,
+          workspaceProcess,
           "RUNTIME_UNAVAILABLE",
           now,
           "failed"
         );
         continue;
       }
-      const lease = this.repositories.leases.getActive(processRecord.workspaceId);
+      const lease = this.repositories.leases.getActive(
+        workspaceProcess.workspaceId
+      );
       const ownsLease =
         lease !== null &&
-        lease.id === processRecord.writerLeaseId &&
-        lease.sessionId === processRecord.sessionId &&
+        lease.id === workspaceProcess.writerLeaseId &&
+        lease.sessionId === workspaceProcess.sessionId &&
         lease.holderType === "chat-direct";
       if (!ownsLease) {
         await this.cleanupManagedProcess(
-          processRecord,
+          workspaceProcess,
           "WRITER_LEASE_LOST",
           now,
           "failed"
@@ -684,17 +798,31 @@ export class HostProcessService {
           );
           this.assertStartApprovalMatches(approval, intent);
           const processId = `host_process_${randomUUID()}`;
+          const hostAuthority =
+            intent.scope === "host"
+              ? this.repositories.hostProcessAuthorities.acquire({
+                  authorizationGrantId: intent.authorizationGrantId,
+                  actorType: intent.actorType,
+                  actorId: intent.actorId,
+                  expiresAt: new Date(
+                    Date.parse(context.now) + HOST_PROCESS_AUTHORITY_TTL_MS
+                  ).toISOString(),
+                  now: context.now
+                })
+              : null;
           const reservation = this.repositories.directProcessSessions.createStarting({
             id: processId,
+            scope: intent.scope,
             rootId: intent.target.rootId,
             workdir: intent.target.relativePath,
             command: intent.command,
             commandHash: intent.actionHash,
             executorId: intent.selection.executorId,
-            workspaceId: intent.authority.workspace.id,
-            repoId: intent.authority.workspace.repoId,
-            sessionId: intent.authority.session.id,
-            writerLeaseId: intent.authority.lease.id,
+            workspaceId: intent.authority?.workspace.id ?? null,
+            repoId: intent.authority?.workspace.repoId ?? null,
+            sessionId: intent.authority?.session.id ?? null,
+            writerLeaseId: intent.authority?.lease.id ?? null,
+            hostAuthorityId: hostAuthority?.id ?? null,
             now: context.now
           });
           const consumed = this.repositories.directProcessApprovals.consume({
@@ -706,26 +834,43 @@ export class HostProcessService {
             approval: consumed,
             intent,
             reservation,
+            hostAuthority,
             startedAt: context.now
           };
         },
         async (prepared) => {
           try {
             return {
-              snapshot: await this.supervisor.start({
-                processId: prepared.reservation.id,
-                cwd: prepared.intent.target.absolutePath,
-                command: prepared.intent.command,
-                args: prepared.intent.args,
-                startupTimeoutMs: prepared.intent.request.startupTimeoutMs,
-                workspaceId: prepared.intent.authority.workspace.id,
-                taskId: prepared.intent.authority.task.id,
-                sessionId: prepared.intent.authority.session.id,
-                writerLeaseId: prepared.intent.authority.lease.id,
-                executorId: prepared.intent.selection.executorId,
-                actionId: prepared.approval.id,
-                actionHash: prepared.approval.actionHash
-              }),
+              snapshot: await this.supervisor.start(
+                prepared.intent.scope === "workspace"
+                  ? {
+                      scope: "workspace",
+                      processId: prepared.reservation.id,
+                      cwd: prepared.intent.target.absolutePath,
+                      command: prepared.intent.command,
+                      args: prepared.intent.args,
+                      startupTimeoutMs: prepared.intent.request.startupTimeoutMs,
+                      workspaceId: prepared.intent.authority.workspace.id,
+                      taskId: prepared.intent.authority.task.id,
+                      sessionId: prepared.intent.authority.session.id,
+                      writerLeaseId: prepared.intent.authority.lease.id,
+                      executorId: prepared.intent.selection.executorId,
+                      actionId: prepared.approval.id,
+                      actionHash: prepared.approval.actionHash
+                    }
+                  : {
+                      scope: "host",
+                      processId: prepared.reservation.id,
+                      cwd: prepared.intent.target.absolutePath,
+                      command: prepared.intent.command,
+                      args: prepared.intent.args,
+                      startupTimeoutMs: prepared.intent.request.startupTimeoutMs,
+                      hostAuthorityId: prepared.hostAuthority!.id,
+                      executorId: prepared.intent.selection.executorId,
+                      actionId: prepared.approval.id,
+                      actionHash: prepared.approval.actionHash
+                    }
+              ),
               errorCode: null
             };
           } catch (error) {
@@ -755,47 +900,53 @@ export class HostProcessService {
     if (this.supervisor.durable) {
       await this.reconcile(context.now);
     }
-    this.requireWorkspaceManagedProcessProfile();
     const { idempotencyKey, ...request } = input;
     const execution = this.repositories.idempotency.execute(
       "host.process.prepare.input",
       idempotencyKey,
       request,
       () => {
-        let processRecord = this.requireOwnedRunningProcess(
+        const actionAuthority = this.resolveProcessActionAuthority(
+          context,
           request.processId,
           request.sessionId
         );
-        processRecord = this.requireActiveRuntime(processRecord, context.now);
-        const authority = this.requireCurrentWriterLease(
-          context,
-          processRecord,
-          request.sessionId
+        const processRecord = this.requireActiveRuntime(
+          actionAuthority.process,
+          context.now
         );
         const inputIdentity = this.validateProcessInput(request.input);
         const actionHash = exactInputHash({
           processId: processRecord.id,
-          sessionId: request.sessionId,
+          scope: actionAuthority.scope,
+          sessionId: processRecord.sessionId,
+          authorizationGrantId:
+            actionAuthority.hostAuthority?.authorizationGrantId ?? null,
+          hostAuthorityId: processRecord.hostAuthorityId,
           inputHash: inputIdentity.hash,
           inputBytes: inputIdentity.bytes,
           waitForPrompt: request.waitForPrompt,
           timeoutMs: request.timeoutMs,
           processRevision: processRecord.revision,
-          writerLeaseId: authority.lease.id
+          writerLeaseId: actionAuthority.writerAuthority?.lease.id ?? null
         });
         let approval = this.repositories.directProcessApprovals.create({
           operation: "input",
           processId: processRecord.id,
+          scope: actionAuthority.scope,
           actionHash,
           workspaceId: processRecord.workspaceId,
           repoId: processRecord.repoId,
           sessionId: processRecord.sessionId,
-          writerLeaseId: authority.lease.id,
+          writerLeaseId: actionAuthority.writerAuthority?.lease.id ?? null,
+          authorizationGrantId:
+            actionAuthority.hostAuthority?.authorizationGrantId ?? null,
           executorId: processRecord.executorId,
           inputHash: inputIdentity.hash,
           inputBytes: inputIdentity.bytes,
           publicSummary: {
             operation: "input",
+            scope: actionAuthority.scope,
             processId: processRecord.id,
             inputHash: inputIdentity.hash,
             inputBytes: inputIdentity.bytes,
@@ -841,28 +992,40 @@ export class HostProcessService {
       idempotencyKey,
       request,
       () => {
-        let processRecord = this.requireOwnedRunningProcess(
+        const actionAuthority = this.resolveProcessStopAuthority(
+          context,
           request.processId,
           request.sessionId
         );
-        processRecord = this.requireActiveRuntime(processRecord, context.now);
+        const processRecord = this.requireActiveRuntime(
+          actionAuthority.process,
+          context.now
+        );
         const actionHash = exactStopHash({
           processId: processRecord.id,
-          sessionId: request.sessionId,
+          scope: actionAuthority.scope,
+          sessionId: processRecord.sessionId,
+          authorizationGrantId:
+            actionAuthority.hostAuthority?.authorizationGrantId ?? null,
+          hostAuthorityId: processRecord.hostAuthorityId,
           processRevision: processRecord.revision,
           executorId: processRecord.executorId
         });
         let approval = this.repositories.directProcessApprovals.create({
           operation: "stop",
           processId: processRecord.id,
+          scope: actionAuthority.scope,
           actionHash,
           workspaceId: processRecord.workspaceId,
           repoId: processRecord.repoId,
           sessionId: processRecord.sessionId,
           writerLeaseId: processRecord.writerLeaseId,
+          authorizationGrantId:
+            actionAuthority.hostAuthority?.authorizationGrantId ?? null,
           executorId: processRecord.executorId,
           publicSummary: {
             operation: "stop",
+            scope: actionAuthority.scope,
             processId: processRecord.id,
             workspaceId: processRecord.workspaceId,
             repoId: processRecord.repoId,
@@ -894,7 +1057,6 @@ export class HostProcessService {
     if (this.supervisor.durable) {
       await this.reconcile(context.now);
     }
-    this.requireWorkspaceManagedProcessProfile();
     const {
       idempotencyKey,
       approvalId,
@@ -927,34 +1089,41 @@ export class HostProcessService {
               "Host Process approval is not an input approval"
             );
           }
-          let processRecord = this.requireOwnedRunningProcess(
+          const actionAuthority = this.resolveProcessActionAuthority(
+            context,
             request.processId,
             request.sessionId
           );
-          processRecord = this.requireActiveRuntime(processRecord, context.now);
-          const authority = this.requireCurrentWriterLease(
-            context,
-            processRecord,
-            request.sessionId
+          const processRecord = this.requireActiveRuntime(
+            actionAuthority.process,
+            context.now
           );
           const inputIdentity = this.validateProcessInput(request.input);
           const actionHash = exactInputHash({
             processId: processRecord.id,
-            sessionId: request.sessionId,
+            scope: actionAuthority.scope,
+            sessionId: processRecord.sessionId,
+            authorizationGrantId:
+              actionAuthority.hostAuthority?.authorizationGrantId ?? null,
+            hostAuthorityId: processRecord.hostAuthorityId,
             inputHash: inputIdentity.hash,
             inputBytes: inputIdentity.bytes,
             waitForPrompt: request.waitForPrompt,
             timeoutMs: request.timeoutMs,
             processRevision: processRecord.revision,
-            writerLeaseId: authority.lease.id
+            writerLeaseId: actionAuthority.writerAuthority?.lease.id ?? null
           });
           const mismatch =
             approval.processId !== processRecord.id ||
+            approval.scope !== actionAuthority.scope ||
             approval.actionHash !== actionHash ||
             approval.workspaceId !== processRecord.workspaceId ||
             approval.repoId !== processRecord.repoId ||
             approval.sessionId !== processRecord.sessionId ||
-            approval.writerLeaseId !== authority.lease.id ||
+            approval.writerLeaseId !==
+              (actionAuthority.writerAuthority?.lease.id ?? null) ||
+            approval.authorizationGrantId !==
+              (actionAuthority.hostAuthority?.authorizationGrantId ?? null) ||
             approval.executorId !== processRecord.executorId ||
             approval.inputHash !== inputIdentity.hash ||
             approval.inputBytes !== inputIdentity.bytes;
@@ -1057,23 +1226,34 @@ export class HostProcessService {
               "Host Process approval is not a stop approval"
             );
           }
-          let processRecord = this.requireOwnedRunningProcess(
+          const actionAuthority = this.resolveProcessStopAuthority(
+            context,
             request.processId,
             request.sessionId
           );
-          processRecord = this.requireActiveRuntime(processRecord, context.now);
+          const processRecord = this.requireActiveRuntime(
+            actionAuthority.process,
+            context.now
+          );
           const actionHash = exactStopHash({
             processId: processRecord.id,
-            sessionId: request.sessionId,
+            scope: actionAuthority.scope,
+            sessionId: processRecord.sessionId,
+            authorizationGrantId:
+              actionAuthority.hostAuthority?.authorizationGrantId ?? null,
+            hostAuthorityId: processRecord.hostAuthorityId,
             processRevision: processRecord.revision,
             executorId: processRecord.executorId
           });
           const mismatch =
             approval.processId !== processRecord.id ||
+            approval.scope !== actionAuthority.scope ||
             approval.actionHash !== actionHash ||
             approval.workspaceId !== processRecord.workspaceId ||
             approval.repoId !== processRecord.repoId ||
             approval.sessionId !== processRecord.sessionId ||
+            approval.authorizationGrantId !==
+              (actionAuthority.hostAuthority?.authorizationGrantId ?? null) ||
             approval.executorId !== processRecord.executorId;
           if (mismatch) {
             throw new ServiceError(
@@ -1195,53 +1375,87 @@ export class HostProcessService {
       );
       if (!runtime) {
         this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.releasePureHostAuthorityBestEffort(processRecord, now);
         this.markDurableProcessStale(processRecord, "RUNTIME_UNAVAILABLE", now);
         continue;
       }
       owned.delete(processRecord.id);
-      if (!managedProcessesAllowed) {
-        await this.stopDurableRuntimeBestEffort(
-          processRecord.id,
-          refresh.supervisorGeneration,
-          "HOST_PERMISSION_PROFILE_REVOKED"
-        );
-        this.releaseRuntimeOwnershipBestEffort(ownership);
-        this.markDurableProcessStale(
-          processRecord,
-          "HOST_PERMISSION_PROFILE_REVOKED",
-          now
-        );
-        continue;
-      }
 
-      let session;
-      try {
-        session = this.repositories.sessions.get(processRecord.sessionId);
-      } catch {
-        await this.stopDurableRuntimeBestEffort(
-          processRecord.id,
-          refresh.supervisorGeneration,
-          "SESSION_MISSING"
-        );
-        this.releaseRuntimeOwnershipBestEffort(ownership);
-        this.markDurableProcessStale(processRecord, "RUNTIME_IDENTITY_MISMATCH", now);
-        continue;
-      }
-      const identityMatches =
-        runtime.workspaceId === processRecord.workspaceId &&
-        runtime.taskId === session.taskId &&
-        runtime.sessionId === processRecord.sessionId &&
-        runtime.writerLeaseId === processRecord.writerLeaseId &&
-        runtime.executorId === processRecord.executorId;
-      if (!identityMatches) {
-        await this.stopDurableRuntimeBestEffort(
-          processRecord.id,
-          refresh.supervisorGeneration,
-          "RUNTIME_IDENTITY_MISMATCH"
-        );
-        this.releaseRuntimeOwnershipBestEffort(ownership);
-        this.markDurableProcessStale(processRecord, "RUNTIME_IDENTITY_MISMATCH", now);
-        continue;
+      if (processRecord.scope === "host") {
+        const hostProcess = this.requirePureHostProcessRecord(processRecord);
+        const identityMatches =
+          runtime.scope === "host" &&
+          runtime.hostAuthorityId === hostProcess.hostAuthorityId &&
+          runtime.executorId === hostProcess.executorId;
+        if (!identityMatches) {
+          await this.stopDurableRuntimeBestEffort(
+            processRecord.id,
+            refresh.supervisorGeneration,
+            "RUNTIME_IDENTITY_MISMATCH"
+          );
+          this.releaseRuntimeOwnershipBestEffort(ownership);
+          this.releasePureHostAuthorityBestEffort(processRecord, now);
+          this.markDurableProcessStale(
+            processRecord,
+            "RUNTIME_IDENTITY_MISMATCH",
+            now
+          );
+          continue;
+        }
+      } else {
+        const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
+        if (!managedProcessesAllowed) {
+          await this.stopDurableRuntimeBestEffort(
+            processRecord.id,
+            refresh.supervisorGeneration,
+            "HOST_PERMISSION_PROFILE_REVOKED"
+          );
+          this.releaseRuntimeOwnershipBestEffort(ownership);
+          this.markDurableProcessStale(
+            processRecord,
+            "HOST_PERMISSION_PROFILE_REVOKED",
+            now
+          );
+          continue;
+        }
+        let session;
+        try {
+          session = this.repositories.sessions.get(workspaceProcess.sessionId);
+        } catch {
+          await this.stopDurableRuntimeBestEffort(
+            processRecord.id,
+            refresh.supervisorGeneration,
+            "SESSION_MISSING"
+          );
+          this.releaseRuntimeOwnershipBestEffort(ownership);
+          this.markDurableProcessStale(
+            processRecord,
+            "RUNTIME_IDENTITY_MISMATCH",
+            now
+          );
+          continue;
+        }
+        const identityMatches =
+          runtime.scope === "workspace" &&
+          runtime.workspaceId === workspaceProcess.workspaceId &&
+          runtime.taskId === session.taskId &&
+          runtime.sessionId === workspaceProcess.sessionId &&
+          runtime.writerLeaseId === workspaceProcess.writerLeaseId &&
+          runtime.executorId === workspaceProcess.executorId;
+        if (!identityMatches) {
+          await this.stopDurableRuntimeBestEffort(
+            processRecord.id,
+            refresh.supervisorGeneration,
+            "RUNTIME_IDENTITY_MISMATCH"
+          );
+          this.releaseRuntimeOwnershipBestEffort(ownership);
+          this.markDurableProcessStale(
+            processRecord,
+            "RUNTIME_IDENTITY_MISMATCH",
+            now
+          );
+          continue;
+        }
       }
 
       if (ownership && ownership.supervisorGeneration !== refresh.supervisorGeneration) {
@@ -1251,6 +1465,7 @@ export class HostProcessService {
           "SUPERVISOR_GENERATION_CHANGED"
         );
         this.releaseRuntimeOwnershipBestEffort(ownership);
+        this.releasePureHostAuthorityBestEffort(processRecord, now);
         this.markDurableProcessStale(processRecord, "SUPERVISOR_GENERATION_CHANGED", now);
         continue;
       }
@@ -1262,6 +1477,7 @@ export class HostProcessService {
             refresh.supervisorGeneration,
             "RUNTIME_OWNERSHIP_MISSING"
           );
+          this.releasePureHostAuthorityBestEffort(processRecord, now);
           this.markDurableProcessStale(processRecord, "RUNTIME_OWNERSHIP_MISSING", now);
           continue;
         }
@@ -1283,11 +1499,31 @@ export class HostProcessService {
         });
       }
 
-      const lease = this.repositories.leases.getActive(processRecord.workspaceId);
+      if (processRecord.scope === "host") {
+        if (!this.renewPureHostAuthority(processRecord, now)) {
+          await this.stopDurableRuntimeBestEffort(
+            processRecord.id,
+            refresh.supervisorGeneration,
+            "HOST_AUTHORITY_LOST"
+          );
+          const current = this.repositories.directProcessSessions.get(
+            processRecord.id
+          );
+          this.releaseRuntimeOwnershipBestEffort(
+            this.repositories.directProcessRuntimeOwnership.get(processRecord.id)
+          );
+          this.releasePureHostAuthorityBestEffort(current, now);
+          this.markDurableProcessStale(current, "HOST_AUTHORITY_LOST", now);
+        }
+        continue;
+      }
+
+      const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
+      const lease = this.repositories.leases.getActive(workspaceProcess.workspaceId);
       const ownsLease =
         lease !== null &&
-        lease.id === processRecord.writerLeaseId &&
-        lease.sessionId === processRecord.sessionId &&
+        lease.id === workspaceProcess.writerLeaseId &&
+        lease.sessionId === workspaceProcess.sessionId &&
         lease.holderType === "chat-direct" &&
         lease.expiresAt > now;
       if (!ownsLease) {
@@ -1403,6 +1639,7 @@ export class HostProcessService {
         }
       }
       this.releaseRuntimeOwnershipForProcess(processRecord.id);
+      this.releasePureHostAuthorityBestEffort(processRecord, now);
 
       const existingAudit = this.repositories.directProcessAudit
         .listByProcess(processRecord.id)
@@ -1428,7 +1665,10 @@ export class HostProcessService {
           now
         });
 
-      if (!this.hasSupervisorEventEvidence(processRecord, event.eventId)) {
+      if (
+        processRecord.scope === "workspace" &&
+        !this.hasSupervisorEventEvidence(processRecord, event.eventId)
+      ) {
         this.addProcessEvidence(
           this.internalContext(now, processRecord.id),
           processRecord,
@@ -1508,7 +1748,8 @@ export class HostProcessService {
     processRecord: DirectProcessSessionRecord,
     eventId: string
   ): boolean {
-    const session = this.repositories.sessions.get(processRecord.sessionId);
+    const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
+    const session = this.repositories.sessions.get(workspaceProcess.sessionId);
     const task = this.repositories.tasks.get(session.taskId);
     const bundleId = processRecord.evidenceBundleId ?? task.latestEvidenceBundleId;
     if (!bundleId) {
@@ -1589,6 +1830,7 @@ export class HostProcessService {
       expectedRevision: processRecord.revision,
       now
     });
+    this.releasePureHostAuthorityBestEffort(stale, now);
     const actionHash = this.internalCleanupHash(stale, reason);
     const audit = this.repositories.directProcessAudit.create({
       operation: "cleanup",
@@ -1608,18 +1850,20 @@ export class HostProcessService {
       completedAt: now,
       now
     });
-    this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
-      label: `Host Managed Process durable reconciliation ${stale.command}`,
-      status: reason === "HOST_PERMISSION_PROFILE_REVOKED" ? "skipped" : "failed",
-      summary: {
-        operation: "cleanup",
-        processId: stale.id,
-        reason,
-        auditId: audit.id,
-        processStatus: stale.status
-      },
-      startedAt: stale.startedAt
-    });
+    if (stale.scope === "workspace") {
+      this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
+        label: `Host Managed Process durable reconciliation ${stale.command}`,
+        status: reason === "HOST_PERMISSION_PROFILE_REVOKED" ? "skipped" : "failed",
+        summary: {
+          operation: "cleanup",
+          processId: stale.id,
+          reason,
+          auditId: audit.id,
+          processStatus: stale.status
+        },
+        startedAt: stale.startedAt
+      });
+    }
     return stale;
   }
 
@@ -1636,6 +1880,7 @@ export class HostProcessService {
         expectedRevision: processRecord.revision,
         now
       });
+      this.releasePureHostAuthorityBestEffort(stale, now);
       const actionHash = this.internalCleanupHash(stale, "CONTROL_PLANE_RESTART");
       const audit = this.repositories.directProcessAudit.create({
         operation: "cleanup",
@@ -1652,18 +1897,20 @@ export class HostProcessService {
         completedAt: now,
         now
       });
-      this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
-        label: `Host Managed Process restart reconciliation ${stale.command}`,
-        status: "failed",
-        summary: {
-          operation: "cleanup",
-          processId: stale.id,
-          reason: "CONTROL_PLANE_RESTART",
-          auditId: audit.id,
-          processStatus: stale.status
-        },
-        startedAt: stale.startedAt
-      });
+      if (stale.scope === "workspace") {
+        this.addProcessEvidence(this.internalContext(now, stale.id), stale, {
+          label: `Host Managed Process restart reconciliation ${stale.command}`,
+          status: "failed",
+          summary: {
+            operation: "cleanup",
+            processId: stale.id,
+            reason: "CONTROL_PLANE_RESTART",
+            auditId: audit.id,
+            processStatus: stale.status
+          },
+          startedAt: stale.startedAt
+        });
+      }
     }
   }
 
@@ -1671,6 +1918,7 @@ export class HostProcessService {
     processRecord: DirectProcessSessionRecord,
     reason:
       | "WRITER_LEASE_LOST"
+      | "HOST_AUTHORITY_LOST"
       | "RUNTIME_UNAVAILABLE"
       | "CONTROL_PLANE_SHUTDOWN"
       | "HOST_PERMISSION_PROFILE_REVOKED",
@@ -1713,6 +1961,7 @@ export class HostProcessService {
       });
     }
 
+    this.releasePureHostAuthorityBestEffort(finalized, now);
     const actionHash = this.internalCleanupHash(finalized, reason);
     const audit = this.repositories.directProcessAudit.create({
       operation: "cleanup",
@@ -1726,9 +1975,11 @@ export class HostProcessService {
       errorCode:
         reason === "WRITER_LEASE_LOST"
           ? "HOST_PROCESS_WRITER_LEASE_LOST"
-          : reason === "HOST_PERMISSION_PROFILE_REVOKED"
-            ? "HOST_PROCESS_PROFILE_REVOKED"
-            : errorCode,
+          : reason === "HOST_AUTHORITY_LOST"
+            ? "HOST_PROCESS_AUTHORITY_LOST"
+            : reason === "HOST_PERMISSION_PROFILE_REVOKED"
+              ? "HOST_PROCESS_PROFILE_REVOKED"
+              : errorCode,
       terminalReason: reason,
       exitCode: finalized.exitCode,
       outputBytes: snapshot
@@ -1739,25 +1990,27 @@ export class HostProcessService {
       completedAt: now,
       now
     });
-    this.addProcessEvidence(this.internalContext(now, finalized.id), finalized, {
-      label: `Host Managed Process cleanup ${finalized.command}`,
-      status: evidenceStatus,
-      summary: {
-        operation: "cleanup",
-        processId: finalized.id,
-        reason,
-        auditId: audit.id,
-        processStatus: finalized.status,
-        exitCode: finalized.exitCode,
-        errorCode:
-          reason === "WRITER_LEASE_LOST"
-            ? "HOST_PROCESS_WRITER_LEASE_LOST"
-            : reason === "HOST_PERMISSION_PROFILE_REVOKED"
-              ? "HOST_PROCESS_PROFILE_REVOKED"
-              : errorCode
-      },
-      startedAt: processRecord.startedAt
-    });
+    if (finalized.scope === "workspace") {
+      this.addProcessEvidence(this.internalContext(now, finalized.id), finalized, {
+        label: `Host Managed Process cleanup ${finalized.command}`,
+        status: evidenceStatus,
+        summary: {
+          operation: "cleanup",
+          processId: finalized.id,
+          reason,
+          auditId: audit.id,
+          processStatus: finalized.status,
+          exitCode: finalized.exitCode,
+          errorCode:
+            reason === "WRITER_LEASE_LOST"
+              ? "HOST_PROCESS_WRITER_LEASE_LOST"
+              : reason === "HOST_PERMISSION_PROFILE_REVOKED"
+                ? "HOST_PROCESS_PROFILE_REVOKED"
+                : errorCode
+        },
+        startedAt: processRecord.startedAt
+      });
+    }
     return finalized;
   }
 
@@ -1820,16 +2073,178 @@ export class HostProcessService {
     }
   }
 
-  private requireOwnedRunningProcess(
-    processId: string,
-    sessionId: string
-  ): DirectProcessSessionRecord {
-    const processRecord = this.requireProcess(processId);
-    if (processRecord.sessionId !== sessionId) {
+  private requireWorkspaceProcessRecord(
+    processRecord: DirectProcessSessionRecord
+  ): WorkspaceProcessRecord {
+    if (
+      processRecord.scope !== "workspace" ||
+      !processRecord.workspaceId ||
+      !processRecord.repoId ||
+      !processRecord.sessionId ||
+      !processRecord.writerLeaseId ||
+      processRecord.hostAuthorityId !== null
+    ) {
+      throw new ServiceError(
+        "CONTINUITY_DATA_INVALID",
+        "Stored Workspace Host Process identity is invalid"
+      );
+    }
+    return processRecord as WorkspaceProcessRecord;
+  }
+
+  private requirePureHostProcessRecord(
+    processRecord: DirectProcessSessionRecord
+  ): PureHostProcessRecord {
+    if (
+      processRecord.scope !== "host" ||
+      processRecord.workspaceId !== null ||
+      processRecord.repoId !== null ||
+      processRecord.sessionId !== null ||
+      processRecord.writerLeaseId !== null ||
+      !processRecord.hostAuthorityId
+    ) {
+      throw new ServiceError(
+        "CONTINUITY_DATA_INVALID",
+        "Stored Pure Host Process identity is invalid"
+      );
+    }
+    return processRecord as PureHostProcessRecord;
+  }
+
+  private assertHostProcessOwner(
+    context: OperationContext,
+    processRecord: DirectProcessSessionRecord
+  ): HostProcessAuthorityRecord {
+    const hostProcess = this.requirePureHostProcessRecord(processRecord);
+    const authority = this.repositories.hostProcessAuthorities.get(
+      hostProcess.hostAuthorityId
+    );
+    if (context.actorType === "remote-mcp") {
+      if (
+        !this.remoteFullAccessPolicy?.allowsLocalFullAccess(
+          authority.authorizationGrantId
+        ) ||
+        context.authorizationGrantId !== authority.authorizationGrantId ||
+        (authority.actorId !== null && context.actorId !== authority.actorId)
+      ) {
+        throw new ServiceError(
+          "HOST_PROCESS_OWNERSHIP_MISMATCH",
+          "Pure Host Process belongs to another OAuth authorization"
+        );
+      }
+    } else if (!["local-ui", "local-cli", "rest-api"].includes(context.actorType)) {
       throw new ServiceError(
         "HOST_PROCESS_OWNERSHIP_MISMATCH",
-        "Managed Host Process belongs to another development session"
+        "Pure Host Process requires its OAuth owner or a local Operator channel"
       );
+    }
+    return authority;
+  }
+
+  private requireCurrentHostAuthority(
+    context: OperationContext,
+    processRecord: DirectProcessSessionRecord,
+    renew: boolean
+  ): HostProcessAuthorityRecord {
+    const authority = this.assertHostProcessOwner(context, processRecord);
+    if (authority.status !== "active" || authority.expiresAt <= context.now) {
+      throw new ServiceError(
+        "HOST_PROCESS_AUTHORITY_LOST",
+        "Pure Host Process no longer has an active Full Access authority"
+      );
+    }
+    if (!renew) return authority;
+    return this.repositories.hostProcessAuthorities.renew(authority.id, {
+      authorizationGrantId: authority.authorizationGrantId,
+      expectedRevision: authority.revision,
+      expiresAt: new Date(
+        Date.parse(context.now) + HOST_PROCESS_AUTHORITY_TTL_MS
+      ).toISOString(),
+      now: context.now
+    });
+  }
+
+  private renewPureHostAuthority(
+    processRecord: DirectProcessSessionRecord,
+    now: string
+  ): boolean {
+    if (processRecord.scope !== "host") return true;
+    const hostProcess = this.requirePureHostProcessRecord(processRecord);
+    let authority: HostProcessAuthorityRecord;
+    try {
+      authority = this.repositories.hostProcessAuthorities.get(
+        hostProcess.hostAuthorityId
+      );
+    } catch {
+      return false;
+    }
+    if (
+      authority.status !== "active" ||
+      authority.expiresAt <= now ||
+      !this.remoteFullAccessPolicy?.allowsLocalFullAccess(
+        authority.authorizationGrantId
+      )
+    ) {
+      return false;
+    }
+    try {
+      this.repositories.hostProcessAuthorities.renew(authority.id, {
+        authorizationGrantId: authority.authorizationGrantId,
+        expectedRevision: authority.revision,
+        expiresAt: new Date(
+          Date.parse(now) + HOST_PROCESS_AUTHORITY_TTL_MS
+        ).toISOString(),
+        now
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private releasePureHostAuthorityBestEffort(
+    processRecord: DirectProcessSessionRecord,
+    now: string
+  ): void {
+    if (processRecord.scope !== "host") return;
+    const hostProcess = this.requirePureHostProcessRecord(processRecord);
+    try {
+      const authority = this.repositories.hostProcessAuthorities.get(
+        hostProcess.hostAuthorityId
+      );
+      if (authority.status !== "active") return;
+      this.repositories.hostProcessAuthorities.release(authority.id, {
+        authorizationGrantId: authority.authorizationGrantId,
+        expectedRevision: authority.revision,
+        now
+      });
+    } catch {
+      // Fail-safe: the authority TTL remains bounded and Supervisor will expire it.
+    }
+  }
+
+  private requireOwnedRunningProcess(
+    context: OperationContext,
+    processId: string,
+    sessionId?: string
+  ): DirectProcessSessionRecord {
+    const processRecord = this.requireProcess(processId);
+    if (processRecord.scope === "workspace") {
+      if (!sessionId || processRecord.sessionId !== sessionId) {
+        throw new ServiceError(
+          "HOST_PROCESS_OWNERSHIP_MISMATCH",
+          "Managed Host Process belongs to another development session"
+        );
+      }
+      this.requireWorkspaceProcessRecord(processRecord);
+    } else {
+      if (sessionId) {
+        throw new ServiceError(
+          "HOST_PROCESS_OWNERSHIP_MISMATCH",
+          "Pure Host Process does not belong to a development session"
+        );
+      }
+      this.requireCurrentHostAuthority(context, processRecord, true);
     }
     if (processRecord.status === "stale") {
       throw new ServiceError(
@@ -1846,17 +2261,82 @@ export class HostProcessService {
     return processRecord;
   }
 
+  private resolveProcessActionAuthority(
+    context: OperationContext,
+    processId: string,
+    sessionId?: string
+  ): ProcessActionAuthority {
+    const processRecord = this.requireOwnedRunningProcess(
+      context,
+      processId,
+      sessionId
+    );
+    if (processRecord.scope === "workspace") {
+      if (!sessionId) {
+        throw new ServiceError(
+          "HOST_PROCESS_SESSION_REQUIRED",
+          "Workspace Managed Host Process requires sessionId"
+        );
+      }
+      this.requireWorkspaceManagedProcessProfile();
+      const process = this.requireWorkspaceProcessRecord(processRecord);
+      return {
+        scope: "workspace",
+        process,
+        writerAuthority: this.requireCurrentWriterLease(
+          context,
+          process,
+          sessionId
+        ),
+        hostAuthority: null
+      };
+    }
+    const process = this.requirePureHostProcessRecord(processRecord);
+    return {
+      scope: "host",
+      process,
+      writerAuthority: null,
+      hostAuthority: this.requireCurrentHostAuthority(context, process, false)
+    };
+  }
+
+  private resolveProcessStopAuthority(
+    context: OperationContext,
+    processId: string,
+    sessionId?: string
+  ): ProcessStopAuthority {
+    const processRecord = this.requireOwnedRunningProcess(
+      context,
+      processId,
+      sessionId
+    );
+    if (processRecord.scope === "workspace") {
+      return {
+        scope: "workspace",
+        process: this.requireWorkspaceProcessRecord(processRecord),
+        hostAuthority: null
+      };
+    }
+    const process = this.requirePureHostProcessRecord(processRecord);
+    return {
+      scope: "host",
+      process,
+      hostAuthority: this.requireCurrentHostAuthority(context, process, false)
+    };
+  }
+
   private requireCurrentWriterLease(
     context: OperationContext,
     processRecord: DirectProcessSessionRecord,
     sessionId: string
   ): WorkspaceMutationAuthority {
+    const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
     let authority: WorkspaceMutationAuthority;
     try {
       authority = assertChatDirectWriterLease(
         this.repositories,
         context,
-        processRecord.repoId,
+        workspaceProcess.repoId,
         sessionId
       );
     } catch (error) {
@@ -1869,9 +2349,9 @@ export class HostProcessService {
       throw error;
     }
     if (
-      authority.workspace.id !== processRecord.workspaceId ||
-      authority.session.id !== processRecord.sessionId ||
-      authority.lease.id !== processRecord.writerLeaseId
+      authority.workspace.id !== workspaceProcess.workspaceId ||
+      authority.session.id !== workspaceProcess.sessionId ||
+      authority.lease.id !== workspaceProcess.writerLeaseId
     ) {
       throw new ServiceError(
         "HOST_PROCESS_WRITER_LEASE_LOST",
@@ -1918,8 +2398,24 @@ export class HostProcessService {
     output: string,
     processRecord: DirectProcessSessionRecord
   ): string {
+    if (processRecord.scope === "host") {
+      try {
+        const target = resolveHostCommandWorkdirTarget({
+          rootId: processRecord.rootId,
+          workdir: processRecord.workdir,
+          requiredAccess: "read",
+          ...(this.configPath ? { configPath: this.configPath } : {}),
+          trustedFullAccess: true
+        });
+        return projectKnownPrivatePaths(output, target, null);
+      } catch {
+        const home = os.homedir();
+        return home ? output.split(home).join("~") : output;
+      }
+    }
+    const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
     const workspace = this.repositories.workspaces.getPrivate(
-      processRecord.workspaceId
+      workspaceProcess.workspaceId
     );
     const replacements: Array<[string, string]> = [
       [workspace.privatePath, workspace.repoId]
@@ -1955,6 +2451,7 @@ export class HostProcessService {
         now: context.now
       });
       this.releaseRuntimeOwnershipForProcess(completed.id);
+      this.releasePureHostAuthorityBestEffort(completed, context.now);
       return completed;
     }
     if (snapshot.status === "terminated") {
@@ -1966,6 +2463,7 @@ export class HostProcessService {
         now: context.now
       });
       this.releaseRuntimeOwnershipForProcess(completed.id);
+      this.releasePureHostAuthorityBestEffort(completed, context.now);
       return completed;
     }
     const stale = this.repositories.directProcessSessions.markStale({
@@ -1975,6 +2473,7 @@ export class HostProcessService {
       now: context.now
     });
     this.releaseRuntimeOwnershipForProcess(stale.id);
+    this.releasePureHostAuthorityBestEffort(stale, context.now);
     return stale;
   }
 
@@ -1996,13 +2495,36 @@ export class HostProcessService {
     request: HostProcessStartRequest,
     forcedExecutorId?: string
   ): PreparedProcessStartIntent {
+    const trustedFullAccess = hasRemoteFullAccess(
+      context,
+      this.remoteFullAccessPolicy
+    );
+    if (
+      request.scope === "host" &&
+      (!trustedFullAccess ||
+        context.actorType !== "remote-mcp" ||
+        !context.authorizationGrantId)
+    ) {
+      throw new ServiceError(
+        "HOST_PROCESS_FULL_ACCESS_REQUIRED",
+        "Pure Host Managed Process requires an OAuth Full Access grant"
+      );
+    }
+    if (request.scope === "host" && !this.supervisor.durable) {
+      throw new ServiceError(
+        "HOST_PROCESS_EXECUTOR_UNAVAILABLE",
+        "Pure Host Managed Process requires the durable Process Supervisor"
+      );
+    }
+
     let target: HostCommandWorkdirTarget;
     try {
       target = resolveHostCommandWorkdirTarget({
         rootId: request.rootId,
         workdir: request.workdir,
         requiredAccess: "write",
-        ...(this.configPath ? { configPath: this.configPath } : {})
+        ...(this.configPath ? { configPath: this.configPath } : {}),
+        ...(request.scope === "host" ? { trustedFullAccess: true } : {})
       });
     } catch (error) {
       if (error instanceof HostPathPolicyError) {
@@ -2015,59 +2537,111 @@ export class HostProcessService {
       this.repositories,
       target.absolutePath
     );
-    if (classification.kind !== "workspace" || !classification.repoId) {
-      throw new ServiceError(
-        "HOST_PROCESS_SCOPE_UNSUPPORTED",
-        "Managed Host Process is restricted to registered Workspaces"
-      );
-    }
 
-    const hostPermissionProfile = this.requireWorkspaceManagedProcessProfile();
+    let hostPermissionProfile: HostPermissionProfile;
+    let policy: ReturnType<typeof evaluateWorkspaceCommand>;
+    let authority: WorkspaceMutationAuthority | null = null;
+    let authorizationGrantId: string | null = null;
 
-    let policy;
-    try {
-      policy = evaluateWorkspaceCommand(request.command, request.args);
-    } catch (error) {
-      throw new ServiceError(
-        "HOST_PROCESS_POLICY_BLOCKED",
-        error instanceof Error
-          ? error.message
-          : "Host Process command policy rejected the request"
+    if (request.scope === "host") {
+      if (classification.kind !== "pure-host") {
+        throw new ServiceError(
+          "HOST_PROCESS_SCOPE_UNSUPPORTED",
+          "Pure Host Managed Process cannot target a registered Workspace"
+        );
+      }
+      hostPermissionProfile = "full-host";
+      try {
+        const hostPolicy = evaluatePureHostCommand(
+          request.command,
+          request.args,
+          hostPermissionProfile,
+          { trustedFullAccess: true }
+        );
+        assertHostCommandRelativePathsInsideRoot(
+          target,
+          hostPolicy.relativePathArgs
+        );
+        policy = hostPolicy;
+      } catch (error) {
+        if (error instanceof HostPathPolicyError) {
+          throw new ServiceError(error.code, error.message);
+        }
+        throw new ServiceError(
+          "HOST_PROCESS_POLICY_BLOCKED",
+          error instanceof Error
+            ? error.message
+            : "Pure Host Process command policy rejected the request"
+        );
+      }
+      authorizationGrantId = context.authorizationGrantId;
+      if (
+        this.repositories.directProcessSessions.countActive({ scope: "host" }) >=
+        MAX_RUNNING_PURE_HOST
+      ) {
+        throw new ServiceError(
+          "HOST_PROCESS_LIMIT_REACHED",
+          `Pure Host scope already has the maximum ${MAX_RUNNING_PURE_HOST} managed processes`
+        );
+      }
+    } else {
+      if (classification.kind !== "workspace" || !classification.repoId) {
+        throw new ServiceError(
+          "HOST_PROCESS_SCOPE_UNSUPPORTED",
+          "Workspace Managed Host Process must target a registered Workspace"
+        );
+      }
+      if (!request.sessionId) {
+        throw new ServiceError(
+          "HOST_PROCESS_SESSION_REQUIRED",
+          "Workspace Managed Host Process requires sessionId"
+        );
+      }
+      hostPermissionProfile = this.requireWorkspaceManagedProcessProfile();
+      try {
+        policy = evaluateWorkspaceCommand(request.command, request.args);
+      } catch (error) {
+        throw new ServiceError(
+          "HOST_PROCESS_POLICY_BLOCKED",
+          error instanceof Error
+            ? error.message
+            : "Host Process command policy rejected the request"
+        );
+      }
+      authority = assertChatDirectWriterLease(
+        this.repositories,
+        context,
+        classification.repoId,
+        request.sessionId
       );
-    }
-
-    const authority = assertChatDirectWriterLease(
-      this.repositories,
-      context,
-      classification.repoId,
-      request.sessionId
-    );
-    if (authority.workspace.id !== classification.workspaceId) {
-      throw new ServiceError(
-        "CONTINUITY_RELATION_INVALID",
-        "Managed Host Process Workspace classification changed during governance checks"
-      );
-    }
-
-    if (
-      this.repositories.directProcessSessions.countActive({
-        workspaceId: authority.workspace.id
-      }) >= MAX_RUNNING_PER_WORKSPACE
-    ) {
-      throw new ServiceError(
-        "HOST_PROCESS_LIMIT_REACHED",
-        `Workspace ${authority.workspace.id} already has the maximum ${MAX_RUNNING_PER_WORKSPACE} managed processes`
-      );
-    }
-    if (
-      this.repositories.directProcessSessions.countActive({
-        sessionId: authority.session.id
-      }) >= MAX_RUNNING_PER_SESSION
-    ) {
-      throw new ServiceError(
-        "HOST_PROCESS_LIMIT_REACHED",
-        `Session ${authority.session.id} already has the maximum ${MAX_RUNNING_PER_SESSION} managed processes`
-      );
+      if (authority.workspace.id !== classification.workspaceId) {
+        throw new ServiceError(
+          "CONTINUITY_RELATION_INVALID",
+          "Managed Host Process Workspace classification changed during governance checks"
+        );
+      }
+      if (
+        this.repositories.directProcessSessions.countActive({
+          scope: "workspace",
+          workspaceId: authority.workspace.id
+        }) >= MAX_RUNNING_PER_WORKSPACE
+      ) {
+        throw new ServiceError(
+          "HOST_PROCESS_LIMIT_REACHED",
+          `Workspace ${authority.workspace.id} already has the maximum ${MAX_RUNNING_PER_WORKSPACE} managed processes`
+        );
+      }
+      if (
+        this.repositories.directProcessSessions.countActive({
+          scope: "workspace",
+          sessionId: authority.session.id
+        }) >= MAX_RUNNING_PER_SESSION
+      ) {
+        throw new ServiceError(
+          "HOST_PROCESS_LIMIT_REACHED",
+          `Session ${authority.session.id} already has the maximum ${MAX_RUNNING_PER_SESSION} managed processes`
+        );
+      }
     }
 
     let selection: DirectExecutorSelection;
@@ -2108,6 +2682,7 @@ export class HostProcessService {
     }
 
     const actionHash = exactStartHash({
+      scope: request.scope,
       rootId: target.rootId,
       workdir: target.relativePath,
       command: policy.command,
@@ -2115,17 +2690,39 @@ export class HostProcessService {
       effect: policy.effect,
       startupTimeoutMs: request.startupTimeoutMs,
       executorId: selection.executorId,
-      workspaceId: authority.workspace.id,
-      repoId: authority.workspace.repoId,
-      sessionId: authority.session.id,
-      writerLeaseId: authority.lease.id,
+      workspaceId: authority?.workspace.id ?? null,
+      repoId: authority?.workspace.repoId ?? null,
+      sessionId: authority?.session.id ?? null,
+      writerLeaseId: authority?.lease.id ?? null,
+      authorizationGrantId,
+      actorId: request.scope === "host" ? context.actorId : null,
       hostPermissionProfile
     });
 
+    if (request.scope === "host") {
+      return {
+        scope: "host",
+        request,
+        target,
+        authority: null,
+        authorizationGrantId: authorizationGrantId!,
+        actorType: "remote-mcp",
+        actorId: context.actorId,
+        command: policy.command,
+        args: policy.args,
+        effect: policy.effect,
+        selection,
+        hostPermissionProfile,
+        actionHash
+      };
+    }
+
     return {
+      scope: "workspace",
       request,
       target,
-      authority,
+      authority: authority!,
+      authorizationGrantId: null,
       command: policy.command,
       args: policy.args,
       effect: policy.effect,
@@ -2181,6 +2778,20 @@ export class HostProcessService {
     approval: DirectProcessApprovalRecord,
     intent: PreparedProcessStartIntent
   ): void {
+    const identityMismatch =
+      intent.scope === "workspace"
+        ? approval.scope !== "workspace" ||
+          approval.workspaceId !== intent.authority.workspace.id ||
+          approval.repoId !== intent.authority.workspace.repoId ||
+          approval.sessionId !== intent.authority.session.id ||
+          approval.writerLeaseId !== intent.authority.lease.id ||
+          approval.authorizationGrantId !== null
+        : approval.scope !== "host" ||
+          approval.workspaceId !== null ||
+          approval.repoId !== null ||
+          approval.sessionId !== null ||
+          approval.writerLeaseId !== null ||
+          approval.authorizationGrantId !== intent.authorizationGrantId;
     const mismatch =
       approval.operation !== "start" ||
       approval.processId !== null ||
@@ -2188,10 +2799,7 @@ export class HostProcessService {
       approval.rootId !== intent.target.rootId ||
       approval.workdir !== intent.target.relativePath ||
       approval.command !== intent.command ||
-      approval.workspaceId !== intent.authority.workspace.id ||
-      approval.repoId !== intent.authority.workspace.repoId ||
-      approval.sessionId !== intent.authority.session.id ||
-      approval.writerLeaseId !== intent.authority.lease.id ||
+      identityMismatch ||
       approval.executorId !== intent.selection.executorId;
     if (mismatch) {
       throw new ServiceError(
@@ -2269,7 +2877,9 @@ export class HostProcessService {
     const output = projectKnownPrivatePaths(
       snapshot?.output ?? "",
       prepared.intent.target,
-      prepared.intent.authority.workspace
+      prepared.intent.scope === "workspace"
+        ? prepared.intent.authority.workspace
+        : null
     );
     const auditStatus = !snapshot
       ? "failed"
@@ -2295,6 +2905,39 @@ export class HostProcessService {
       completedAt: context.now,
       now: context.now
     });
+
+    const startSucceeded =
+      (processRecord.status === "running" ||
+        (processRecord.status === "exited" && processRecord.exitCode === 0)) &&
+      outcome.errorCode === null;
+
+    if (prepared.intent.scope === "host") {
+      if (processRecord.status !== "running") {
+        this.releasePureHostAuthorityBestEffort(processRecord, context.now);
+      }
+      return {
+        ok: startSucceeded,
+        operation: "start",
+        process: this.publicProcessRecord(processRecord, prepared.intent.target),
+        errorCode: outcome.errorCode,
+        approval: {
+          id: prepared.approval.id,
+          status: "consumed"
+        },
+        execution: {
+          lane: "chat-direct",
+          modelLoopOwner: "chatgpt",
+          executionScope: "host",
+          executor: prepared.intent.selection.executorId,
+          selectionMode: prepared.intent.selection.selectionMode,
+          operationId: `chat_direct_${randomUUID()}`,
+          changedPaths: [],
+          evidenceBundleId: null
+        },
+        evidence: null,
+        auditId: audit.id
+      };
+    }
 
     let task = this.repositories.tasks.get(prepared.intent.authority.task.id);
     let bundle = task.latestEvidenceBundleId
@@ -2356,7 +2999,7 @@ export class HostProcessService {
     });
 
     return {
-      ok: evidenceStatus === "passed" && outcome.errorCode === null,
+      ok: startSucceeded,
       operation: "start",
       process: this.publicProcessRecord(processRecord, prepared.intent.target),
       errorCode: outcome.errorCode,
@@ -2433,6 +3076,17 @@ export class HostProcessService {
       completedAt: context.now,
       now: context.now
     });
+    if (processRecord.scope === "host") {
+      return {
+        ok: auditStatus === "succeeded" && outcome.errorCode === null,
+        operation: "input",
+        process: this.publicProcessRecord(processRecord),
+        errorCode: outcome.errorCode,
+        approval: { id: prepared.approval.id, status: "consumed" },
+        evidence: null,
+        auditId: audit.id
+      };
+    }
     const evidence = this.addProcessEvidence(context, processRecord, {
       label: `Host Managed Process input ${processRecord.command}`,
       status:
@@ -2514,6 +3168,18 @@ export class HostProcessService {
       completedAt: context.now,
       now: context.now
     });
+    if (processRecord.scope === "host") {
+      this.releasePureHostAuthorityBestEffort(processRecord, context.now);
+      return {
+        ok: succeeded,
+        operation: "stop",
+        process: this.publicProcessRecord(processRecord),
+        errorCode: outcome.errorCode,
+        approval: { id: prepared.approval.id, status: "consumed" },
+        evidence: null,
+        auditId: audit.id
+      };
+    }
     const evidence = this.addProcessEvidence(context, processRecord, {
       label: `Host Managed Process stop ${processRecord.command}`,
       status: succeeded ? "skipped" : "failed",
@@ -2558,7 +3224,8 @@ export class HostProcessService {
     bundleId: string;
     itemId: string;
   } {
-    const session = this.repositories.sessions.get(processRecord.sessionId);
+    const workspaceProcess = this.requireWorkspaceProcessRecord(processRecord);
+    const session = this.repositories.sessions.get(workspaceProcess.sessionId);
     let task = this.repositories.tasks.get(session.taskId);
     let bundle = processRecord.evidenceBundleId
       ? this.repositories.evidence.getBundle(processRecord.evidenceBundleId)
@@ -2568,11 +3235,11 @@ export class HostProcessService {
     if (
       !bundle ||
       bundle.taskId !== task.id ||
-      bundle.sessionId !== processRecord.sessionId
+      bundle.sessionId !== workspaceProcess.sessionId
     ) {
       bundle = this.repositories.evidence.createBundle({
         taskId: task.id,
-        sessionId: processRecord.sessionId,
+        sessionId: workspaceProcess.sessionId,
         now: context.now
       });
       task = this.repositories.tasks.setLatestEvidenceBundle(
@@ -2608,7 +3275,11 @@ export class HostProcessService {
     processRecord: DirectProcessSessionRecord,
     trigger: "read" | "input"
   ): void {
-    if (processRecord.status === "running" || processRecord.status === "starting") {
+    if (
+      processRecord.scope === "host" ||
+      processRecord.status === "running" ||
+      processRecord.status === "starting"
+    ) {
       return;
     }
     const status =
@@ -2640,6 +3311,7 @@ export class HostProcessService {
   ): HostProcessPublicRecord {
     return {
       id: processRecord.id,
+      scope: processRecord.scope,
       rootId: processRecord.rootId,
       workdir:
         target?.displayPath ??
@@ -2664,14 +3336,15 @@ export class HostProcessService {
   ): Record<string, unknown> {
     return {
       operation: "start",
+      scope: intent.scope,
       rootId: intent.target.rootId,
       workdir: intent.target.displayPath,
       command: intent.command,
       argsCount: intent.args.length,
       effect: intent.effect,
-      workspaceId: intent.authority.workspace.id,
-      repoId: intent.authority.workspace.repoId,
-      sessionId: intent.authority.session.id,
+      workspaceId: intent.authority?.workspace.id ?? null,
+      repoId: intent.authority?.workspace.repoId ?? null,
+      sessionId: intent.authority?.session.id ?? null,
       executorId: intent.selection.executorId,
       selectionMode: intent.selection.selectionMode,
       hostPermissionProfile: intent.hostPermissionProfile

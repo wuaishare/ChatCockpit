@@ -12,6 +12,7 @@ import { DirectProcessSessionRepository } from "./direct-process-session-reposit
 import { DirectProcessRuntimeOwnershipRepository } from "./direct-process-runtime-ownership-repository.js";
 import { EvidenceRepository } from "./evidence-repository.js";
 import { HandoffRepository } from "./handoff-repository.js";
+import { HostProcessAuthorityRepository } from "./host-process-authority-repository.js";
 import { IdempotencyRepository } from "./idempotency-repository.js";
 import { LeaseRepository } from "./lease-repository.js";
 import { ProjectRepository } from "./project-repository.js";
@@ -52,6 +53,7 @@ export interface ContinuityRepositories {
   sessions: SessionRepository;
   leases: LeaseRepository;
   handoffs: HandoffRepository;
+  hostProcessAuthorities: HostProcessAuthorityRepository;
   evidence: EvidenceRepository;
   idempotency: IdempotencyRepository;
 }
@@ -92,6 +94,7 @@ export function buildContinuityRepositories(
     sessions: new SessionRepository(database),
     leases: new LeaseRepository(database),
     handoffs: new HandoffRepository(database),
+    hostProcessAuthorities: new HostProcessAuthorityRepository(database),
     evidence: new EvidenceRepository(database),
     idempotency: new IdempotencyRepository(database)
   };
@@ -110,6 +113,7 @@ export { DirectProcessSessionRepository } from "./direct-process-session-reposit
 export { DirectProcessRuntimeOwnershipRepository } from "./direct-process-runtime-ownership-repository.js";
 export { EvidenceRepository } from "./evidence-repository.js";
 export { HandoffRepository } from "./handoff-repository.js";
+export { HostProcessAuthorityRepository } from "./host-process-authority-repository.js";
 export { IdempotencyRepository } from "./idempotency-repository.js";
 export { LeaseRepository } from "./lease-repository.js";
 export { ProjectRepository } from "./project-repository.js";

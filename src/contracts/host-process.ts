@@ -10,25 +10,43 @@ const idempotencyKeySchema = z
 const revisionSchema = z.number().int().positive();
 const processIdSchema = z.string().regex(/^host_process_[A-Za-z0-9_-]{8,160}$/);
 
-export const hostProcessStartRequestSchema = z.object({
-  operation: z.literal("start"),
-  rootId: hostRootIdSchema,
-  workdir: z.string().min(1).max(4096).optional(),
-  command: z
-    .string()
-    .min(1)
-    .max(128)
-    .regex(/^[A-Za-z0-9._+-]+$/),
-  args: z.array(z.string().min(1).max(2048)).max(64).default([]),
-  sessionId: identifierSchema,
-  executorId: identifierSchema.optional(),
-  startupTimeoutMs: z.number().int().min(100).max(5_000).default(1_000)
-});
+export const hostProcessStartRequestSchema = z
+  .object({
+    operation: z.literal("start"),
+    scope: z.enum(["workspace", "host"]).default("workspace"),
+    rootId: hostRootIdSchema,
+    workdir: z.string().min(1).max(4096).optional(),
+    command: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9._+-]+$/),
+    args: z.array(z.string().min(1).max(2048)).max(64).default([]),
+    sessionId: identifierSchema.optional(),
+    executorId: identifierSchema.optional(),
+    startupTimeoutMs: z.number().int().min(100).max(5_000).default(1_000)
+  })
+  .superRefine((value, context) => {
+    if (value.scope === "workspace" && !value.sessionId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sessionId"],
+        message: "Workspace Host Process requires sessionId"
+      });
+    }
+    if (value.scope === "host" && value.sessionId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sessionId"],
+        message: "Pure Host Process must not supply a development session"
+      });
+    }
+  });
 
 export const hostProcessInputRequestSchema = z.object({
   operation: z.literal("input"),
   processId: processIdSchema,
-  sessionId: identifierSchema,
+  sessionId: identifierSchema.optional(),
   input: z.string().min(1).max(8_192),
   waitForPrompt: z.boolean().default(true),
   timeoutMs: z.number().int().min(100).max(8_000).default(2_000)
@@ -37,7 +55,7 @@ export const hostProcessInputRequestSchema = z.object({
 export const hostProcessStopRequestSchema = z.object({
   operation: z.literal("stop"),
   processId: processIdSchema,
-  sessionId: identifierSchema
+  sessionId: identifierSchema.optional()
 });
 
 export const hostProcessRequestSchema = z.discriminatedUnion("operation", [
@@ -75,6 +93,7 @@ export const hostProcessReadSchema = z.object({
 });
 
 export const hostProcessListSchema = z.object({
+  scope: z.enum(["workspace", "host"]).optional(),
   workspaceId: identifierSchema.optional(),
   sessionId: identifierSchema.optional(),
   status: z

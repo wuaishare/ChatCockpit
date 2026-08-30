@@ -2,7 +2,8 @@ import { ServiceError } from "../../application/service-error.js";
 import type { ContinuityDatabase } from "../database.js";
 import type {
   DirectProcessApprovalRecord,
-  DirectProcessOperation
+  DirectProcessOperation,
+  DirectProcessScope
 } from "../types.js";
 import {
   assertUpdated,
@@ -15,14 +16,16 @@ interface DirectProcessApprovalRow {
   id: string;
   operation: DirectProcessOperation;
   process_id: string | null;
+  scope: DirectProcessScope;
   action_hash: string;
   root_id: string | null;
   workdir: string | null;
   command: string | null;
-  workspace_id: string;
-  repo_id: string;
-  session_id: string;
+  workspace_id: string | null;
+  repo_id: string | null;
+  session_id: string | null;
   writer_lease_id: string | null;
+  authorization_grant_id: string | null;
   executor_id: string;
   input_hash: string | null;
   input_bytes: number | null;
@@ -55,6 +58,7 @@ function approvalFromRow(row: DirectProcessApprovalRow): DirectProcessApprovalRe
     id: row.id,
     operation: row.operation,
     processId: row.process_id,
+    scope: row.scope,
     actionHash: row.action_hash,
     rootId: row.root_id,
     workdir: row.workdir,
@@ -63,6 +67,7 @@ function approvalFromRow(row: DirectProcessApprovalRow): DirectProcessApprovalRe
     repoId: row.repo_id,
     sessionId: row.session_id,
     writerLeaseId: row.writer_lease_id,
+    authorizationGrantId: row.authorization_grant_id,
     executorId: row.executor_id,
     inputHash: row.input_hash,
     inputBytes: row.input_bytes === null ? null : Number(row.input_bytes),
@@ -80,14 +85,16 @@ export interface CreateDirectProcessApprovalInput {
   id?: string;
   operation: DirectProcessOperation;
   processId?: string | null;
+  scope?: DirectProcessScope;
   actionHash: string;
   rootId?: string | null;
   workdir?: string | null;
   command?: string | null;
-  workspaceId: string;
-  repoId: string;
-  sessionId: string;
+  workspaceId?: string | null;
+  repoId?: string | null;
+  sessionId?: string | null;
   writerLeaseId?: string | null;
+  authorizationGrantId?: string | null;
   executorId: string;
   inputHash?: string | null;
   inputBytes?: number | null;
@@ -105,24 +112,26 @@ export class DirectProcessApprovalRepository {
     this.database.sqlite
       .prepare(`
         INSERT INTO direct_process_approvals (
-          id, operation, process_id, action_hash, root_id, workdir, command,
-          workspace_id, repo_id, session_id, writer_lease_id, executor_id,
-          input_hash, input_bytes, status, public_summary_json, created_at,
+          id, operation, process_id, scope, action_hash, root_id, workdir, command,
+          workspace_id, repo_id, session_id, writer_lease_id, authorization_grant_id,
+          executor_id, input_hash, input_bytes, status, public_summary_json, created_at,
           expires_at, decided_at, consumed_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, 1)
       `)
       .run(
         id,
         input.operation,
         input.processId ?? null,
+        input.scope ?? "workspace",
         input.actionHash,
         input.rootId ?? null,
         input.workdir ?? null,
         input.command ?? null,
-        input.workspaceId,
-        input.repoId,
-        input.sessionId,
+        input.workspaceId ?? null,
+        input.repoId ?? null,
+        input.sessionId ?? null,
         input.writerLeaseId ?? null,
+        input.authorizationGrantId ?? null,
         input.executorId,
         input.inputHash ?? null,
         input.inputBytes ?? null,

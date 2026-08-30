@@ -12,6 +12,7 @@ import {
 import { initialContinuityMigration } from "../src/continuity/migrations/001-initial.ts";
 import { runtimeBindingsMigration } from "../src/continuity/migrations/002-runtime-bindings.ts";
 import { runtimeExecutionMigration } from "../src/continuity/migrations/003-runtime-execution.ts";
+import { hostProcessScopesMigration } from "../src/continuity/migrations/022-host-process-scopes.ts";
 import { DevelopmentDocumentRepository } from "../src/continuity/repositories/development-document-repository.ts";
 import { EvidenceRepository } from "../src/continuity/repositories/evidence-repository.ts";
 import { HandoffRepository } from "../src/continuity/repositories/handoff-repository.ts";
@@ -27,6 +28,40 @@ function assertServiceError(error: unknown, code: string): boolean {
   assert.ok(error instanceof ServiceError);
   assert.equal(error.code, code);
   return true;
+}
+
+function verifyHostProcessScopeMigrationGuards(): void {
+  const subsystemAbsent = new DatabaseSync(":memory:");
+  try {
+    hostProcessScopesMigration.up(subsystemAbsent);
+    const authorityTable = subsystemAbsent
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'host_process_authorities'"
+      )
+      .get();
+    assert.ok(authorityTable);
+    const processTable = subsystemAbsent
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'direct_process_sessions'"
+      )
+      .get();
+    assert.equal(processTable, undefined);
+  } finally {
+    subsystemAbsent.close();
+  }
+
+  const incompleteSubsystem = new DatabaseSync(":memory:");
+  try {
+    incompleteSubsystem.exec(
+      "CREATE TABLE direct_process_sessions (id TEXT PRIMARY KEY) STRICT"
+    );
+    assert.throws(
+      () => hostProcessScopesMigration.up(incompleteSubsystem),
+      /Host Process schema is incomplete before v22 migration/
+    );
+  } finally {
+    incompleteSubsystem.close();
+  }
 }
 
 function verifyVersionThreeUpgrade(tempRoot: string): void {
@@ -1016,5 +1051,6 @@ async function verifyContinuityStore(): Promise<void> {
   }
 }
 
+verifyHostProcessScopeMigrationGuards();
 await verifyContinuityStore();
 process.stdout.write("VERIFY_CONTINUITY_STORE_OK\n");

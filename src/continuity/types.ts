@@ -411,17 +411,21 @@ export interface DirectCommandAuditRecord {
   createdAt: string;
 }
 
+export type DirectProcessScope = "workspace" | "host";
+
 export interface DirectProcessSessionRecord {
   id: string;
+  scope: DirectProcessScope;
   rootId: string;
   workdir: string;
   command: string;
   commandHash: string;
   executorId: string;
-  workspaceId: string;
-  repoId: string;
-  sessionId: string;
-  writerLeaseId: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  writerLeaseId: string | null;
+  hostAuthorityId: string | null;
   privatePid: number | null;
   status: DirectProcessStatus;
   exitCode: number | null;
@@ -444,14 +448,16 @@ export interface DirectProcessApprovalRecord {
   id: string;
   operation: DirectProcessOperation;
   processId: string | null;
+  scope: DirectProcessScope;
   actionHash: string;
   rootId: string | null;
   workdir: string | null;
   command: string | null;
-  workspaceId: string;
-  repoId: string;
-  sessionId: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
   writerLeaseId: string | null;
+  authorizationGrantId: string | null;
   executorId: string;
   inputHash: string | null;
   inputBytes: number | null;

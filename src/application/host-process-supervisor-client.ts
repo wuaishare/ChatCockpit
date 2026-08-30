@@ -28,15 +28,28 @@ export interface DurableHostProcessRuntimeSnapshot {
   supervisorGeneration: string;
 }
 
-export interface DurableHostProcessStartRequest extends ManagedProcessStartRequest {
-  workspaceId: string;
-  taskId: string;
-  sessionId: string;
-  writerLeaseId: string;
+interface DurableHostProcessStartBase extends ManagedProcessStartRequest {
   executorId: string;
   actionId: string;
   actionHash: string;
 }
+
+export interface DurableWorkspaceProcessStartRequest extends DurableHostProcessStartBase {
+  scope: "workspace";
+  workspaceId: string;
+  taskId: string;
+  sessionId: string;
+  writerLeaseId: string;
+}
+
+export interface DurablePureHostProcessStartRequest extends DurableHostProcessStartBase {
+  scope: "host";
+  hostAuthorityId: string;
+}
+
+export type DurableHostProcessStartRequest =
+  | DurableWorkspaceProcessStartRequest
+  | DurablePureHostProcessStartRequest;
 
 export interface DurableHostProcessActionOptions {
   actionId: string;
@@ -167,13 +180,16 @@ export class HostProcessSupervisorClient {
     request: ManagedProcessStartRequest | DurableHostProcessStartRequest
   ): Promise<DurableHostProcessRuntimeSnapshot> {
     if (
-      !("workspaceId" in request) ||
-      !("taskId" in request) ||
-      !("sessionId" in request) ||
-      !("writerLeaseId" in request) ||
+      !("scope" in request) ||
       !("executorId" in request) ||
       !("actionId" in request) ||
-      !("actionHash" in request)
+      !("actionHash" in request) ||
+      (request.scope === "workspace" &&
+        (!("workspaceId" in request) ||
+          !("taskId" in request) ||
+          !("sessionId" in request) ||
+          !("writerLeaseId" in request))) ||
+      (request.scope === "host" && !("hostAuthorityId" in request))
     ) {
       throw new DesktopCommanderManagedProcessError(
         "DESKTOP_COMMANDER_MANAGED_PROCESS_INVALID",
@@ -188,17 +204,31 @@ export class HostProcessSupervisorClient {
       );
       this.currentGeneration = response.supervisorGeneration;
       if (response.result.status === "running") {
-        this.owned.set(durableRequest.processId, {
-          processId: durableRequest.processId,
-          workspaceId: durableRequest.workspaceId,
-          taskId: durableRequest.taskId,
-          sessionId: durableRequest.sessionId,
-          writerLeaseId: durableRequest.writerLeaseId,
-          executorId: durableRequest.executorId,
-          startActionId: durableRequest.actionId,
-          startActionHash: durableRequest.actionHash,
-          startedAt: new Date().toISOString()
-        });
+        this.owned.set(
+          durableRequest.processId,
+          durableRequest.scope === "workspace"
+            ? {
+                scope: "workspace",
+                processId: durableRequest.processId,
+                workspaceId: durableRequest.workspaceId,
+                taskId: durableRequest.taskId,
+                sessionId: durableRequest.sessionId,
+                writerLeaseId: durableRequest.writerLeaseId,
+                executorId: durableRequest.executorId,
+                startActionId: durableRequest.actionId,
+                startActionHash: durableRequest.actionHash,
+                startedAt: new Date().toISOString()
+              }
+            : {
+                scope: "host",
+                processId: durableRequest.processId,
+                hostAuthorityId: durableRequest.hostAuthorityId,
+                executorId: durableRequest.executorId,
+                startActionId: durableRequest.actionId,
+                startActionHash: durableRequest.actionHash,
+                startedAt: new Date().toISOString()
+              }
+        );
       }
       return this.projectMutation(response.result, response.supervisorGeneration);
     } catch (error) {

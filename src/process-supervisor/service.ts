@@ -21,12 +21,8 @@ const processIdSchema = z.string().regex(/^host_process_[A-Za-z0-9_-]+$/);
 const actionIdSchema = z.string().min(1).max(200);
 const actionHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
-const startSchema = z.object({
+const startCommonSchema = z.object({
   processId: processIdSchema,
-  workspaceId: z.string().min(1).max(200),
-  taskId: z.string().min(1).max(200),
-  sessionId: z.string().min(1).max(200),
-  writerLeaseId: z.string().min(1).max(200),
   executorId: z.string().min(1).max(200),
   actionId: actionIdSchema,
   actionHash: actionHashSchema,
@@ -35,6 +31,25 @@ const startSchema = z.object({
   args: z.array(z.string().max(4096)).max(128),
   startupTimeoutMs: z.number().int().positive().max(120_000)
 });
+
+const workspaceStartSchema = startCommonSchema.extend({
+  scope: z.literal("workspace"),
+  workspaceId: z.string().min(1).max(200),
+  taskId: z.string().min(1).max(200),
+  sessionId: z.string().min(1).max(200),
+  writerLeaseId: z.string().min(1).max(200)
+});
+
+const hostStartSchema = startCommonSchema.extend({
+  scope: z.literal("host"),
+  hostAuthorityId: z.string().min(1).max(200)
+});
+
+const startSchema = z.preprocess((input) => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const record = input as Record<string, unknown>;
+  return record.scope === undefined ? { ...record, scope: "workspace" } : input;
+}, z.discriminatedUnion("scope", [workspaceStartSchema, hostStartSchema]));
 
 const readSchema = z.object({
   processId: processIdSchema,
@@ -146,17 +161,30 @@ export interface ProcessSupervisorEventStore {
   ack(eventIds: string[]): number;
 }
 
-export interface SupervisorOwnedProcess {
+interface SupervisorOwnedProcessBase {
   processId: string;
-  workspaceId: string;
-  taskId: string;
-  sessionId: string;
-  writerLeaseId: string;
   executorId: string;
   startActionId: string;
   startActionHash: string;
   startedAt: string;
 }
+
+export interface SupervisorWorkspaceOwnedProcess extends SupervisorOwnedProcessBase {
+  scope: "workspace";
+  workspaceId: string;
+  taskId: string;
+  sessionId: string;
+  writerLeaseId: string;
+}
+
+export interface SupervisorHostOwnedProcess extends SupervisorOwnedProcessBase {
+  scope: "host";
+  hostAuthorityId: string;
+}
+
+export type SupervisorOwnedProcess =
+  | SupervisorWorkspaceOwnedProcess
+  | SupervisorHostOwnedProcess;
 
 export interface SupervisorProcessMutationResult {
   processId: string;
@@ -378,17 +406,31 @@ export class ProcessSupervisorRuntimeService {
       });
       const result = safeMutationResult(snapshot);
       if (snapshot.status === "running") {
-        this.owned.set(request.processId, {
-          processId: request.processId,
-          workspaceId: request.workspaceId,
-          taskId: request.taskId,
-          sessionId: request.sessionId,
-          writerLeaseId: request.writerLeaseId,
-          executorId: request.executorId,
-          startActionId: request.actionId,
-          startActionHash: request.actionHash,
-          startedAt: this.now()
-        });
+        this.owned.set(
+          request.processId,
+          request.scope === "workspace"
+            ? {
+                scope: "workspace",
+                processId: request.processId,
+                workspaceId: request.workspaceId,
+                taskId: request.taskId,
+                sessionId: request.sessionId,
+                writerLeaseId: request.writerLeaseId,
+                executorId: request.executorId,
+                startActionId: request.actionId,
+                startActionHash: request.actionHash,
+                startedAt: this.now()
+              }
+            : {
+                scope: "host",
+                processId: request.processId,
+                hostAuthorityId: request.hostAuthorityId,
+                executorId: request.executorId,
+                startActionId: request.actionId,
+                startActionHash: request.actionHash,
+                startedAt: this.now()
+              }
+        );
       } else {
         this.appendTerminalSnapshot(
           snapshot,

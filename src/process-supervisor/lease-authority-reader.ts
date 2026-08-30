@@ -14,16 +14,20 @@ export type ProcessSupervisorAuthorityFailureCode =
   | "SESSION_TERMINAL"
   | "WORKSPACE_MISSING"
   | "WORKSPACE_UNAVAILABLE"
+  | "HOST_AUTHORITY_MISSING"
+  | "HOST_AUTHORITY_INACTIVE"
+  | "HOST_AUTHORITY_EXPIRED"
   | "AUTHORITY_DB_UNAVAILABLE";
 
 export type ProcessSupervisorAuthorityCheck =
   | { valid: true; reasonCode: null }
   | { valid: false; reasonCode: ProcessSupervisorAuthorityFailureCode };
 
-interface AuthorityRow {
-  process_workspace_id: string;
-  process_session_id: string;
-  process_writer_lease_id: string;
+interface WorkspaceAuthorityRow {
+  process_scope: string;
+  process_workspace_id: string | null;
+  process_session_id: string | null;
+  process_writer_lease_id: string | null;
   process_status: string;
   session_id: string | null;
   session_task_id: string | null;
@@ -38,6 +42,15 @@ interface AuthorityRow {
   lease_expires_at: string | null;
   workspace_id: string | null;
   workspace_status: string | null;
+}
+
+interface HostAuthorityRow {
+  process_scope: string;
+  process_host_authority_id: string | null;
+  process_status: string;
+  authority_id: string | null;
+  authority_status: string | null;
+  authority_expires_at: string | null;
 }
 
 export class ProcessSupervisorLeaseAuthorityReader {
@@ -55,38 +68,33 @@ export class ProcessSupervisorLeaseAuthorityReader {
     process: SupervisorOwnedProcess,
     now = new Date().toISOString()
   ): ProcessSupervisorAuthorityCheck {
-    let row: AuthorityRow | undefined;
     try {
-      row = this.database
-        .prepare(`
-          SELECT
-            p.workspace_id AS process_workspace_id,
-            p.session_id AS process_session_id,
-            p.writer_lease_id AS process_writer_lease_id,
-            p.status AS process_status,
-            s.id AS session_id,
-            s.task_id AS session_task_id,
-            s.workspace_id AS session_workspace_id,
-            s.status AS session_status,
-            l.id AS lease_id,
-            l.workspace_id AS lease_workspace_id,
-            l.session_id AS lease_session_id,
-            l.holder_type AS lease_holder_type,
-            l.holder_id AS lease_holder_id,
-            l.status AS lease_status,
-            l.expires_at AS lease_expires_at,
-            w.id AS workspace_id,
-            w.status AS workspace_status
-          FROM direct_process_sessions p
-          LEFT JOIN development_sessions s ON s.id = p.session_id
-          LEFT JOIN writer_leases l ON l.id = p.writer_lease_id
-          LEFT JOIN workspaces w ON w.id = p.workspace_id
-          WHERE p.id = ?
-        `)
-        .get(process.processId) as AuthorityRow | undefined;
+      return process.scope === "host"
+        ? this.checkHost(process, now)
+        : this.checkWorkspace(process, now);
     } catch {
       return { valid: false, reasonCode: "AUTHORITY_DB_UNAVAILABLE" };
     }
+  }
+
+  private checkHost(
+    process: Extract<SupervisorOwnedProcess, { scope: "host" }>,
+    now: string
+  ): ProcessSupervisorAuthorityCheck {
+    const row = this.database
+      .prepare(`
+        SELECT
+          p.scope AS process_scope,
+          p.host_authority_id AS process_host_authority_id,
+          p.status AS process_status,
+          a.id AS authority_id,
+          a.status AS authority_status,
+          a.expires_at AS authority_expires_at
+        FROM direct_process_sessions p
+        LEFT JOIN host_process_authorities a ON a.id = p.host_authority_id
+        WHERE p.id = ?
+      `)
+      .get(process.processId) as HostAuthorityRow | undefined;
 
     if (!row) {
       return { valid: false, reasonCode: "PROCESS_RECORD_MISSING" };
@@ -95,6 +103,64 @@ export class ProcessSupervisorLeaseAuthorityReader {
       return { valid: false, reasonCode: "PROCESS_NOT_ACTIVE" };
     }
     if (
+      row.process_scope !== "host" ||
+      row.process_host_authority_id !== process.hostAuthorityId
+    ) {
+      return { valid: false, reasonCode: "PROCESS_IDENTITY_MISMATCH" };
+    }
+    if (!row.authority_id || row.authority_id !== process.hostAuthorityId) {
+      return { valid: false, reasonCode: "HOST_AUTHORITY_MISSING" };
+    }
+    if (row.authority_status !== "active") {
+      return { valid: false, reasonCode: "HOST_AUTHORITY_INACTIVE" };
+    }
+    if (!row.authority_expires_at || row.authority_expires_at <= now) {
+      return { valid: false, reasonCode: "HOST_AUTHORITY_EXPIRED" };
+    }
+    return { valid: true, reasonCode: null };
+  }
+
+  private checkWorkspace(
+    process: Extract<SupervisorOwnedProcess, { scope: "workspace" }>,
+    now: string
+  ): ProcessSupervisorAuthorityCheck {
+    const row = this.database
+      .prepare(`
+        SELECT
+          p.scope AS process_scope,
+          p.workspace_id AS process_workspace_id,
+          p.session_id AS process_session_id,
+          p.writer_lease_id AS process_writer_lease_id,
+          p.status AS process_status,
+          s.id AS session_id,
+          s.task_id AS session_task_id,
+          s.workspace_id AS session_workspace_id,
+          s.status AS session_status,
+          l.id AS lease_id,
+          l.workspace_id AS lease_workspace_id,
+          l.session_id AS lease_session_id,
+          l.holder_type AS lease_holder_type,
+          l.holder_id AS lease_holder_id,
+          l.status AS lease_status,
+          l.expires_at AS lease_expires_at,
+          w.id AS workspace_id,
+          w.status AS workspace_status
+        FROM direct_process_sessions p
+        LEFT JOIN development_sessions s ON s.id = p.session_id
+        LEFT JOIN writer_leases l ON l.id = p.writer_lease_id
+        LEFT JOIN workspaces w ON w.id = p.workspace_id
+        WHERE p.id = ?
+      `)
+      .get(process.processId) as WorkspaceAuthorityRow | undefined;
+
+    if (!row) {
+      return { valid: false, reasonCode: "PROCESS_RECORD_MISSING" };
+    }
+    if (!new Set(["starting", "running"]).has(row.process_status)) {
+      return { valid: false, reasonCode: "PROCESS_NOT_ACTIVE" };
+    }
+    if (
+      row.process_scope !== "workspace" ||
       row.process_workspace_id !== process.workspaceId ||
       row.process_session_id !== process.sessionId ||
       row.process_writer_lease_id !== process.writerLeaseId

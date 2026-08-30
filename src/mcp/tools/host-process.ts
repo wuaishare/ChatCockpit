@@ -80,7 +80,7 @@ export function buildHostProcessTools(
         "List public-safe ChatCockpit Managed Process records, optionally filtered by Workspace, Session, or status. OS PIDs and raw downstream sessions are never returned.",
       inputSchema: hostProcessListSchema,
       annotations: readAnnotations,
-      handler: (_context, input) => service.list(input)
+      handler: (context, input) => service.list(context, input)
     })
   ];
 }

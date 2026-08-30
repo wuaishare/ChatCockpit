@@ -5,6 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HostProcessService } from "../src/application/host-process-service.ts";
+import type {
+  DurableHostProcessRefresh,
+  DurableHostProcessStartRequest
+} from "../src/application/host-process-supervisor-client.ts";
+import type { SupervisorOwnedProcess } from "../src/process-supervisor/service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { OperatorService } from "../src/auth/operator-service.ts";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
@@ -600,6 +605,110 @@ class ReadyProcessSupervisor {
       truncated: false
     };
   }
+}
+
+class DurableReadyProcessSupervisor {
+  readonly durable = true as const;
+  private readonly base = new ReadyProcessSupervisor();
+  private readonly owned = new Map<string, SupervisorOwnedProcess>();
+  private readonly supervisorGeneration = "generation-pure-host-fixture";
+
+  assertReady(): void {
+    this.base.assertReady();
+  }
+
+  has(processId: string): boolean {
+    return this.base.has(processId);
+  }
+
+  activeProcessIds(): string[] {
+    return this.base.activeProcessIds();
+  }
+
+  generation(): string {
+    return this.supervisorGeneration;
+  }
+
+  async refresh(): Promise<DurableHostProcessRefresh> {
+    return {
+      supervisorGeneration: this.supervisorGeneration,
+      owned: [...this.owned.values()].map((process) => ({ ...process }))
+    };
+  }
+
+  async start(request: DurableHostProcessStartRequest) {
+    const snapshot = await this.base.start(request);
+    if (snapshot.status === "running") {
+      const common = {
+        processId: request.processId,
+        executorId: request.executorId,
+        startActionId: request.actionId,
+        startActionHash: request.actionHash,
+        startedAt: NOW
+      };
+      const owned: SupervisorOwnedProcess =
+        request.scope === "host"
+          ? {
+              ...common,
+              scope: "host",
+              hostAuthorityId: request.hostAuthorityId
+            }
+          : {
+              ...common,
+              scope: "workspace",
+              workspaceId: request.workspaceId,
+              taskId: request.taskId,
+              sessionId: request.sessionId,
+              writerLeaseId: request.writerLeaseId
+            };
+      this.owned.set(request.processId, owned);
+    }
+    return { ...snapshot, supervisorGeneration: this.supervisorGeneration };
+  }
+
+  async read(processId: string, options?: ManagedProcessReadOptions) {
+    const snapshot = await this.base.read(processId, options);
+    if (snapshot.status !== "running") {
+      this.owned.delete(processId);
+    }
+    return { ...snapshot, supervisorGeneration: this.supervisorGeneration };
+  }
+
+  async input(processId: string, options: ManagedProcessInputOptions) {
+    const snapshot = await this.base.input(processId, options);
+    if (snapshot.status !== "running") {
+      this.owned.delete(processId);
+    }
+    return { ...snapshot, supervisorGeneration: this.supervisorGeneration };
+  }
+
+  async stop(processId: string) {
+    const snapshot = await this.base.stop(processId);
+    this.owned.delete(processId);
+    return { ...snapshot, supervisorGeneration: this.supervisorGeneration };
+  }
+
+  async closeAll() {
+    const snapshots = await this.base.closeAll();
+    this.owned.clear();
+    return snapshots.map((snapshot) => ({
+      ...snapshot,
+      supervisorGeneration: this.supervisorGeneration
+    }));
+  }
+
+  async listEvents() {
+    return {
+      supervisorGeneration: this.supervisorGeneration,
+      events: []
+    };
+  }
+
+  async ackEvents(_eventIds: string[]): Promise<number> {
+    return 0;
+  }
+
+  async closeClient(): Promise<void> {}
 }
 
 async function verifyHostProcessStartGovernance(): Promise<void> {
@@ -1767,6 +1876,279 @@ async function verifyHostProcessStartGovernance(): Promise<void> {
   }
 }
 
+async function verifyPureHostProcessFullAccess(): Promise<void> {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "chatcockpit-pure-host-process-")
+  );
+  const hostRoot = path.join(sandbox, "host-root");
+  const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
+  const pureHostRoot = path.join(hostRoot, "notes");
+  const configPath = path.join(sandbox, "direct-executors.json");
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(pureHostRoot, { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostRoots: [
+        {
+          id: "fixture",
+          displayName: "Pure Host Process Fixture",
+          path: hostRoot,
+          access: ["read", "write"]
+        }
+      ],
+      executors: []
+    }),
+    "utf8"
+  );
+
+  const database = new ContinuityDatabase({ path: ":memory:" });
+  const repositories = buildContinuityRepositories(database);
+  const broker = new DirectCapabilityBroker([
+    {
+      describe: () => ({
+        id: DESKTOP_COMMANDER_EXECUTOR_ID,
+        kind: "downstream-mcp" as const,
+        displayName: "Desktop Commander Fixture",
+        health: "ready" as const,
+        scopes: ["host" as const],
+        capabilities: [
+          {
+            id: "shell.exec" as const,
+            scopes: ["host" as const],
+            access: ["read" as const, "write" as const]
+          }
+        ]
+      })
+    }
+  ]);
+  const supervisor = new DurableReadyProcessSupervisor();
+  const fullAccessGrantA = "cc_grant_pure_host_a";
+  const fullAccessGrantB = "cc_grant_pure_host_b";
+  const allowedFullAccess = new Set([fullAccessGrantA, fullAccessGrantB]);
+  const service = new HostProcessService(
+    repositories,
+    broker,
+    supervisor,
+    configPath,
+    {
+      allowsLocalFullAccess: (grantId) => allowedFullAccess.has(grantId)
+    }
+  );
+
+  const project = repositories.projects.create({
+    id: "project_pure_host_process",
+    slug: "pure-host-process",
+    displayName: "Pure Host Process",
+    now: NOW
+  });
+  repositories.workspaces.create({
+    id: "workspace_pure_host_process",
+    projectId: project.id,
+    repoId: "pure-host-process-fixture",
+    privatePath: workspaceRoot,
+    now: NOW
+  });
+
+  const fullAccessContextA = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-pure-host-a",
+    authorizationGrantId: fullAccessGrantA,
+    requestId: "pure-host-full-access-a",
+    publicProjection: true,
+    now: NOW
+  });
+  const fullAccessContextB = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-pure-host-b",
+    authorizationGrantId: fullAccessGrantB,
+    requestId: "pure-host-full-access-b",
+    publicProjection: true,
+    now: NOW
+  });
+  const sameGrantDifferentActor = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-pure-host-stolen",
+    authorizationGrantId: fullAccessGrantA,
+    requestId: "pure-host-full-access-stolen",
+    publicProjection: true,
+    now: NOW
+  });
+  const projectExecContext = buildOperationContext({
+    actorType: "remote-mcp",
+    actorId: "oauth-client-project-exec",
+    authorizationGrantId: "cc_grant_project_exec_only",
+    requestId: "pure-host-project-exec",
+    publicProjection: true,
+    now: NOW
+  });
+
+  const startInput = {
+    operation: "start" as const,
+    scope: "host" as const,
+    rootId: "fixture",
+    workdir: "notes",
+    command: "node",
+    args: ["-e", "setInterval(() => {}, 1000)"],
+    startupTimeoutMs: 1000
+  };
+
+  try {
+    assert.equal(
+      hostProcessPrepareSchema.safeParse({
+        ...startInput,
+        idempotencyKey: "pure-host-schema"
+      }).success,
+      true
+    );
+    await expectServiceCode(
+      service.prepare(projectExecContext, {
+        ...startInput,
+        idempotencyKey: "pure-host-project-exec-blocked"
+      }),
+      "HOST_PROCESS_FULL_ACCESS_REQUIRED"
+    );
+    await expectServiceCode(
+      service.prepare(fullAccessContextA, {
+        ...startInput,
+        workdir: "projects/workspace-a",
+        idempotencyKey: "pure-host-workspace-target-blocked"
+      }),
+      "HOST_PROCESS_SCOPE_UNSUPPORTED"
+    );
+
+    const prepared = await service.prepare(fullAccessContextA, {
+      ...startInput,
+      idempotencyKey: "pure-host-start-prepare"
+    });
+    assert.equal(prepared.approval.status, "approved");
+    assert.equal(prepared.approval.scope, "host");
+    assert.equal(prepared.approval.authorizationGrantId, fullAccessGrantA);
+    assert.equal(prepared.approval.workspaceId, null);
+    assert.equal(prepared.approval.sessionId, null);
+    assert.equal(prepared.approval.writerLeaseId, null);
+
+    await expectServiceCode(
+      service.execute(sameGrantDifferentActor, {
+        ...startInput,
+        approvalId: prepared.approval.id,
+        expectedApprovalRevision: prepared.approval.revision,
+        idempotencyKey: "pure-host-start-actor-transfer-blocked"
+      }),
+      "HOST_PROCESS_HASH_MISMATCH"
+    );
+
+    const started = await service.execute(fullAccessContextA, {
+      ...startInput,
+      approvalId: prepared.approval.id,
+      expectedApprovalRevision: prepared.approval.revision,
+      idempotencyKey: "pure-host-start-execute"
+    });
+    assert.equal(started.process.status, "running");
+    assert.equal(started.process.scope, "host");
+    const storedStarted = repositories.directProcessSessions.get(
+      started.process.id
+    );
+    assert.equal(storedStarted.workspaceId, null);
+    assert.equal(storedStarted.repoId, null);
+    assert.equal(storedStarted.sessionId, null);
+    assert.equal(storedStarted.writerLeaseId, null);
+    assert.ok(storedStarted.hostAuthorityId);
+    const initialAuthority = repositories.hostProcessAuthorities.get(
+      storedStarted.hostAuthorityId!
+    );
+    assert.equal(initialAuthority.authorizationGrantId, fullAccessGrantA);
+    assert.equal(initialAuthority.actorId, "oauth-client-pure-host-a");
+    assert.equal(initialAuthority.status, "active");
+
+    const read = await service.read(fullAccessContextA, {
+      processId: started.process.id
+    });
+    assert.equal(read.process.scope, "host");
+    assert.match(read.output, /fixture read/);
+    await expectServiceCode(
+      service.read(fullAccessContextB, { processId: started.process.id }),
+      "HOST_PROCESS_OWNERSHIP_MISMATCH"
+    );
+    await expectServiceCode(
+      service.read(sameGrantDifferentActor, { processId: started.process.id }),
+      "HOST_PROCESS_OWNERSHIP_MISMATCH"
+    );
+    assert.equal(
+      (await service.list(fullAccessContextB, { scope: "host" })).processes.length,
+      0
+    );
+
+    const inputPrepared = await service.prepare(fullAccessContextA, {
+      operation: "input",
+      processId: started.process.id,
+      input: "ping",
+      waitForPrompt: false,
+      timeoutMs: 1000,
+      idempotencyKey: "pure-host-input-prepare"
+    });
+    assert.equal(inputPrepared.approval.status, "approved");
+    assert.equal(inputPrepared.approval.authorizationGrantId, fullAccessGrantA);
+    const inputResult = await service.execute(fullAccessContextA, {
+      operation: "input",
+      processId: started.process.id,
+      input: "ping",
+      waitForPrompt: false,
+      timeoutMs: 1000,
+      approvalId: inputPrepared.approval.id,
+      expectedApprovalRevision: inputPrepared.approval.revision,
+      idempotencyKey: "pure-host-input-execute"
+    });
+    assert.equal(inputResult.process.status, "running");
+    assert.equal(inputResult.ok, true);
+    assert.equal(inputResult.errorCode, null);
+    assert.equal(inputResult.approval.status, "consumed");
+
+    const stopPrepared = await service.prepare(fullAccessContextA, {
+      operation: "stop",
+      processId: started.process.id,
+      idempotencyKey: "pure-host-stop-prepare"
+    });
+    assert.equal(stopPrepared.approval.status, "approved");
+    const stopped = await service.execute(fullAccessContextA, {
+      operation: "stop",
+      processId: started.process.id,
+      approvalId: stopPrepared.approval.id,
+      expectedApprovalRevision: stopPrepared.approval.revision,
+      idempotencyKey: "pure-host-stop-execute"
+    });
+    assert.equal(stopped.process.status, "terminated");
+    assert.equal(
+      repositories.hostProcessAuthorities.get(storedStarted.hostAuthorityId!).status,
+      "released"
+    );
+
+    const revokePrepared = await service.prepare(fullAccessContextA, {
+      ...startInput,
+      idempotencyKey: "pure-host-revoke-start-prepare"
+    });
+    const revokeStarted = await service.execute(fullAccessContextA, {
+      ...startInput,
+      approvalId: revokePrepared.approval.id,
+      expectedApprovalRevision: revokePrepared.approval.revision,
+      idempotencyKey: "pure-host-revoke-start-execute"
+    });
+    allowedFullAccess.delete(fullAccessGrantA);
+    await service.reconcile("2026-08-09T00:31:00.000Z");
+    const revoked = repositories.directProcessSessions.get(
+      revokeStarted.process.id
+    );
+    assert.equal(revoked.status, "stale");
+    assert.equal(revoked.staleReason, "HOST_AUTHORITY_LOST");
+    assert.equal(supervisor.has(revokeStarted.process.id), false);
+  } finally {
+    await service.close();
+    database.close();
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
 async function verifyHostProcessRestParity(): Promise<void> {
   const sandbox = fs.mkdtempSync(path.join("/tmp", "tp-hp-rest-"));
   const runtimeRoot = path.join(sandbox, "runtime-root");
@@ -2816,6 +3198,7 @@ try {
   assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   await verifyManagedProcessSupervisor();
   await verifyHostProcessStartGovernance();
+  await verifyPureHostProcessFullAccess();
   await verifyHostProcessRestParity();
   await verifyHostProcessRestartReconciliation();
 

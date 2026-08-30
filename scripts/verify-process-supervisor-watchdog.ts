@@ -277,6 +277,84 @@ try {
   await service.handle("events.ack", { eventIds: [events[0]!.eventId] });
   assert.equal(journal.list().length, 0);
 
+  const hostAuthorityDatabase = new ContinuityDatabase({ path: databasePath });
+  let hostAuthorityId = "";
+  try {
+    const hostRepositories = buildContinuityRepositories(hostAuthorityDatabase);
+    const hostAuthority = hostRepositories.hostProcessAuthorities.acquire({
+      authorizationGrantId: "cc_grant_watchdog_full_access",
+      actorType: "remote-mcp",
+      actorId: "oauth-client-watchdog",
+      expiresAt: "2026-08-09T07:20:00.000Z",
+      now: NOW
+    });
+    hostAuthorityId = hostAuthority.id;
+    hostRepositories.directProcessSessions.createRunning({
+      id: "host_process_watchdog_host_scope",
+      scope: "host",
+      rootId: "full-access-host",
+      workdir: ".",
+      command: "node",
+      commandHash: "f".repeat(64),
+      executorId: "downstream-mcp:desktop-commander",
+      hostAuthorityId,
+      privatePid: 6101,
+      now: NOW
+    });
+  } finally {
+    hostAuthorityDatabase.close();
+  }
+
+  await service.start({
+    scope: "host",
+    processId: "host_process_watchdog_host_scope",
+    hostAuthorityId,
+    executorId: "downstream-mcp:desktop-commander",
+    actionId: "action-watchdog-host-start",
+    actionHash: "1".repeat(64),
+    cwd: sandbox,
+    command: "node",
+    args: ["fixture.mjs"],
+    startupTimeoutMs: 1000
+  });
+  const hostOwned = service
+    .listOwned()
+    .find((item) => item.processId === "host_process_watchdog_host_scope");
+  assert.ok(hostOwned);
+  assert.equal(hostOwned.scope, "host");
+  assert.equal(authorityReader.check(hostOwned, NOW).valid, true);
+
+  const expireHostAuthorityDatabase = new ContinuityDatabase({ path: databasePath });
+  try {
+    expireHostAuthorityDatabase.sqlite
+      .prepare("UPDATE host_process_authorities SET expires_at = ? WHERE id = ?")
+      .run("2026-08-09T07:09:59.000Z", hostAuthorityId);
+  } finally {
+    expireHostAuthorityDatabase.close();
+  }
+  const expiredHostAuthority = authorityReader.check(hostOwned, NOW);
+  assert.equal(expiredHostAuthority.valid, false);
+  assert.equal(expiredHostAuthority.reasonCode, "HOST_AUTHORITY_EXPIRED");
+
+  await service.reconcileAuthorityOnce(NOW);
+  assert.equal(
+    service
+      .listOwned()
+      .some((item) => item.processId === "host_process_watchdog_host_scope"),
+    false
+  );
+  assert.ok(adapter.closeCalls.includes("host_process_watchdog_host_scope"));
+  const hostAuthorityEvents = journal
+    .list()
+    .filter((event) => event.processId === "host_process_watchdog_host_scope");
+  assert.equal(hostAuthorityEvents.length, 1);
+  assert.equal(hostAuthorityEvents[0]?.kind, "lease-revoked");
+  assert.equal(hostAuthorityEvents[0]?.reasonCode, "HOST_AUTHORITY_EXPIRED");
+  await service.handle("events.ack", {
+    eventIds: hostAuthorityEvents.map((event) => event.eventId)
+  });
+  assert.equal(journal.list().length, 0);
+
   const restoreAuthorityDatabase = new ContinuityDatabase({ path: databasePath });
   try {
     restoreAuthorityDatabase.sqlite

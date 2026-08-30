@@ -32,6 +32,7 @@ class CrashWindowDurableRuntime implements HostProcessRuntimeSupervisor {
 
   constructor(
     private readonly ownedProcess: {
+      scope: "workspace";
       processId: string;
       workspaceId: string;
       taskId: string;
@@ -272,6 +273,7 @@ try {
     now: NOW
   });
   const crashRuntime = new CrashWindowDurableRuntime({
+    scope: "workspace",
     processId: crashReservation.id,
     workspaceId: workspace.id,
     taskId: task.id,
@@ -366,6 +368,7 @@ try {
     now: NOW
   });
   const generationRuntime = new CrashWindowDurableRuntime({
+    scope: "workspace",
     processId: generationRunning.id,
     workspaceId: workspace.id,
     taskId: task.id,
@@ -397,6 +400,7 @@ try {
   assert.equal(generationRuntime.closeAllCalls, 0);
 
   const orphanRuntime = new CrashWindowDurableRuntime({
+    scope: "workspace",
     processId: "host_process_sidecar_orphan",
     workspaceId: workspace.id,
     taskId: task.id,

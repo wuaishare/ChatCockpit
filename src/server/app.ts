@@ -1956,7 +1956,10 @@ export function buildServer(
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
     try {
-      return await hostProcess.list(parsed.data);
+      return await hostProcess.list(
+        operationContextFromRequest(request),
+        parsed.data
+      );
     } catch (error) {
       return sendUnknownApiError(fastifyReply, error);
     }
