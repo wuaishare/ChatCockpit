@@ -14,6 +14,7 @@ import { OAuthStore } from "./oauth-store.js";
 import {
   type OAuthAuthorizationRequestRecord,
   type OAuthClientRecord,
+  type OAuthDeviceAccessLevel,
   type OAuthTokenRecord
 } from "./oauth-types.js";
 
@@ -250,7 +251,10 @@ export class OAuthService {
     }
   }
 
-  approveAuthorizationForOwner(requestId: string): AuthorizationApprovalResult {
+  approveAuthorizationForOwner(
+    requestId: string,
+    localDeviceAccessLevel: OAuthDeviceAccessLevel = "read-only"
+  ): AuthorizationApprovalResult {
     this.getAuthorizationForApproval(requestId);
     const code = opaqueToken(`${this.config.oauthOpaquePrefix}_code`);
     const now = this.now();
@@ -269,7 +273,8 @@ export class OAuthService {
         displayLabel: client.clientName,
         scope: request.scope,
         resource: request.resource,
-        createdAt: iso(now)
+        createdAt: iso(now),
+        localDeviceAccessLevel
       });
       this.store.createAuthorizationCode({
         code,

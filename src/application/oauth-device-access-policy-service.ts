@@ -1,5 +1,11 @@
-import type { OAuthAuthorizationGrantRecord } from "../auth/oauth-types.js";
-import type { OAuthStore } from "../auth/oauth-store.js";
+import type {
+  OAuthAuthorizationGrantRecord,
+  OAuthDeviceAccessLevel
+} from "../auth/oauth-types.js";
+import type {
+  OAuthAuthorizationGrantDeviceAccess,
+  OAuthStore
+} from "../auth/oauth-store.js";
 import {
   buildLocalDeviceTarget,
   LOCAL_DEVICE_TARGET_ID
@@ -15,9 +21,22 @@ const REMOTE_DEVICE_TARGET_PATTERN = /^cc_device_[A-Za-z0-9_-]{20,80}$/;
 
 interface OAuthDeviceAccessStore {
   getAuthorizationGrant(grantId: string): OAuthAuthorizationGrantRecord | null;
-  listAuthorizationGrantDeviceIds(grantId: string): string[];
-  authorizationGrantAllowsDevice(grantId: string, deviceId: string): boolean;
-  grantAuthorizationDeviceAccess(grantId: string, deviceId: string, grantedAt: string): boolean;
+  listAuthorizationGrantDeviceAccess(grantId: string): OAuthAuthorizationGrantDeviceAccess[];
+  authorizationGrantDeviceAccessLevel(
+    grantId: string,
+    deviceId: string
+  ): OAuthDeviceAccessLevel | null;
+  authorizationGrantAllowsDevice(
+    grantId: string,
+    deviceId: string,
+    requiredLevel?: OAuthDeviceAccessLevel
+  ): boolean;
+  grantAuthorizationDeviceAccess(
+    grantId: string,
+    deviceId: string,
+    grantedAt: string,
+    accessLevel?: OAuthDeviceAccessLevel
+  ): boolean;
   revokeAuthorizationDeviceAccess(grantId: string, deviceId: string): boolean;
 }
 
@@ -35,6 +54,8 @@ export interface OAuthGrantDeviceAccessProjection {
   status: "available" | "revoked" | "missing";
   granted: boolean;
   effective: boolean;
+  accessLevel: OAuthDeviceAccessLevel | null;
+  effectiveAccessLevel: OAuthDeviceAccessLevel | null;
 }
 
 export interface OAuthGrantDeviceAccessList {
@@ -65,7 +86,11 @@ export class OAuthDeviceAccessPolicyService {
 
   listGrantDeviceAccess(grantId: string, now = new Date().toISOString()): OAuthGrantDeviceAccessList {
     const grant = this.requireGrant(grantId);
-    const allowed = new Set(this.store.listAuthorizationGrantDeviceIds(grantId));
+    const accessByDevice = new Map(
+      this.store.listAuthorizationGrantDeviceAccess(grantId)
+        .map((item) => [item.deviceId, item] as const)
+    );
+    const localAccess = accessByDevice.get(LOCAL_DEVICE_TARGET_ID) ?? null;
     const localTarget = buildLocalDeviceTarget();
     const devices: OAuthGrantDeviceAccessProjection[] = [
       {
@@ -75,16 +100,20 @@ export class OAuthDeviceAccessPolicyService {
         platform: localTarget.platform,
         architecture: localTarget.architecture,
         status: "available",
-        granted: allowed.has(LOCAL_DEVICE_TARGET_ID),
-        effective: !grant.revokedAt && allowed.has(LOCAL_DEVICE_TARGET_ID)
+        granted: localAccess !== null,
+        effective: !grant.revokedAt && localAccess !== null,
+        accessLevel: localAccess?.accessLevel ?? null,
+        effectiveAccessLevel: !grant.revokedAt ? localAccess?.accessLevel ?? null : null
       }
     ];
 
     const seenRemote = new Set<string>();
     for (const device of this.registry.listDevices(now)) {
       seenRemote.add(device.id);
-      const granted = allowed.has(device.id);
+      const access = accessByDevice.get(device.id) ?? null;
+      const granted = access !== null;
       const available = device.trust === "paired" && device.revokedAt === null;
+      const effective = !grant.revokedAt && granted && available;
       devices.push({
         deviceId: device.id,
         locality: "remote",
@@ -93,11 +122,13 @@ export class OAuthDeviceAccessPolicyService {
         architecture: device.architecture,
         status: available ? "available" : "revoked",
         granted,
-        effective: !grant.revokedAt && granted && available
+        effective,
+        accessLevel: access?.accessLevel ?? null,
+        effectiveAccessLevel: effective ? access?.accessLevel ?? null : null
       });
     }
 
-    for (const deviceId of allowed) {
+    for (const [deviceId, access] of accessByDevice) {
       if (deviceId === LOCAL_DEVICE_TARGET_ID || seenRemote.has(deviceId)) continue;
       devices.push({
         deviceId,
@@ -107,7 +138,9 @@ export class OAuthDeviceAccessPolicyService {
         architecture: null,
         status: "missing",
         granted: true,
-        effective: false
+        effective: false,
+        accessLevel: access.accessLevel,
+        effectiveAccessLevel: null
       });
     }
 
@@ -121,7 +154,8 @@ export class OAuthDeviceAccessPolicyService {
   grantDeviceAccess(
     grantId: string,
     deviceId: string,
-    grantedAt = new Date().toISOString()
+    grantedAt = new Date().toISOString(),
+    accessLevel: OAuthDeviceAccessLevel = "read-only"
   ): boolean {
     const grant = this.requireGrant(grantId);
     if (grant.revokedAt) {
@@ -137,7 +171,12 @@ export class OAuthDeviceAccessPolicyService {
         throw new ServiceError("DEVICE_REVOKED", "Revoked managed device cannot receive OAuth access");
       }
     }
-    return this.store.grantAuthorizationDeviceAccess(grantId, normalizedDeviceId, grantedAt);
+    return this.store.grantAuthorizationDeviceAccess(
+      grantId,
+      normalizedDeviceId,
+      grantedAt,
+      accessLevel
+    );
   }
 
   revokeDeviceAccess(grantId: string, deviceId: string): boolean {
@@ -145,10 +184,22 @@ export class OAuthDeviceAccessPolicyService {
     return this.store.revokeAuthorizationDeviceAccess(grantId, normalizeDeviceId(deviceId));
   }
 
-  assertGrantAllowsDevice(grantId: string, deviceId: string): void {
+  assertGrantAllowsDevice(
+    grantId: string,
+    deviceId: string,
+    requiredLevel: OAuthDeviceAccessLevel = "read-only"
+  ): void {
     const normalizedDeviceId = normalizeDeviceId(deviceId);
     const grant = this.store.getAuthorizationGrant(grantId);
-    if (!grant || grant.revokedAt || !this.store.authorizationGrantAllowsDevice(grantId, normalizedDeviceId)) {
+    if (
+      !grant ||
+      grant.revokedAt ||
+      !this.store.authorizationGrantAllowsDevice(
+        grantId,
+        normalizedDeviceId,
+        requiredLevel
+      )
+    ) {
       throw new ServiceError(
         "DEVICE_ACCESS_DENIED",
         "This OAuth authorization grant is not allowed to access the requested device"
@@ -164,9 +215,13 @@ export class OAuthDeviceAccessPolicyService {
     }
   }
 
-  allowsDevice(grantId: string, deviceId: string): boolean {
+  allowsDevice(
+    grantId: string,
+    deviceId: string,
+    requiredLevel: OAuthDeviceAccessLevel = "read-only"
+  ): boolean {
     try {
-      this.assertGrantAllowsDevice(grantId, deviceId);
+      this.assertGrantAllowsDevice(grantId, deviceId, requiredLevel);
       return true;
     } catch {
       return false;

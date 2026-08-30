@@ -115,9 +115,22 @@ try {
   assert.deepEqual(
     store.listAuthorizationGrantDeviceIds(existingGrantId),
     [LOCAL_DEVICE_TARGET_ID],
-    "v2 -> v3 migration must preserve current behavior with local-device only"
+    "v2 -> v4 migration must preserve current behavior with local-device only"
+  );
+  assert.equal(
+    store.authorizationGrantDeviceAccessLevel(existingGrantId, LOCAL_DEVICE_TARGET_ID),
+    "read-only",
+    "migrated device relations must gain the least-privilege access level"
   );
   assert.equal(store.authorizationGrantAllowsDevice(existingGrantId, LOCAL_DEVICE_TARGET_ID), true);
+  assert.equal(
+    store.authorizationGrantAllowsDevice(existingGrantId, LOCAL_DEVICE_TARGET_ID, "project-write"),
+    false
+  );
+  assert.equal(
+    store.authorizationGrantAllowsDevice(existingGrantId, LOCAL_DEVICE_TARGET_ID, "project-exec"),
+    false
+  );
   assert.equal(store.authorizationGrantAllowsDevice(existingGrantId, remoteDeviceId), false);
 
   store.registerClient({
@@ -135,15 +148,44 @@ try {
     createdAt: later
   });
   assert.deepEqual(store.listAuthorizationGrantDeviceIds(newGrantId), [LOCAL_DEVICE_TARGET_ID]);
+  assert.equal(
+    store.authorizationGrantDeviceAccessLevel(newGrantId, LOCAL_DEVICE_TARGET_ID),
+    "read-only"
+  );
   assert.equal(store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId), false);
 
-  assert.equal(store.grantAuthorizationDeviceAccess(newGrantId, remoteDeviceId, later), true);
-  assert.equal(store.grantAuthorizationDeviceAccess(newGrantId, remoteDeviceId, later), false);
+  assert.equal(
+    store.grantAuthorizationDeviceAccess(newGrantId, remoteDeviceId, later, "project-write"),
+    true
+  );
+  assert.equal(
+    store.grantAuthorizationDeviceAccess(newGrantId, remoteDeviceId, later, "project-write"),
+    false
+  );
   assert.deepEqual(
     store.listAuthorizationGrantDeviceIds(newGrantId),
     [LOCAL_DEVICE_TARGET_ID, remoteDeviceId]
   );
+  assert.equal(store.authorizationGrantDeviceAccessLevel(newGrantId, remoteDeviceId), "project-write");
   assert.equal(store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId), true);
+  assert.equal(
+    store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "project-write"),
+    true
+  );
+  assert.equal(
+    store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "project-exec"),
+    false
+  );
+  assert.equal(
+    store.grantAuthorizationDeviceAccess(newGrantId, remoteDeviceId, later, "project-exec"),
+    true,
+    "upgrading an existing device relation must be a governed state change"
+  );
+  assert.equal(store.authorizationGrantDeviceAccessLevel(newGrantId, remoteDeviceId), "project-exec");
+  assert.equal(
+    store.authorizationGrantAllowsDevice(newGrantId, remoteDeviceId, "project-exec"),
+    true
+  );
 
   assert.equal(store.revokeAuthorizationDeviceAccess(newGrantId, LOCAL_DEVICE_TARGET_ID), true);
   assert.equal(store.authorizationGrantAllowsDevice(newGrantId, LOCAL_DEVICE_TARGET_ID), false);
@@ -171,7 +213,7 @@ try {
   const migrations = store.sqlite
     .prepare("SELECT version FROM oauth_schema_migrations ORDER BY version")
     .all() as Array<{ version: number }>;
-  assert.deepEqual(migrations.map((row) => Number(row.version)), [2, 3]);
+  assert.deepEqual(migrations.map((row) => Number(row.version)), [2, 3, 4]);
 
   store.close();
   process.stdout.write("VERIFY_OAUTH_DEVICE_ACCESS_POLICY_OK\n");

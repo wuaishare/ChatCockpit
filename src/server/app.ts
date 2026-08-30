@@ -42,6 +42,7 @@ import { resolveOAuthPublicConfig } from "../auth/oauth-config.js";
 import { registerOAuthRoutes } from "../auth/oauth-routes.js";
 import { OAuthService } from "../auth/oauth-service.js";
 import { OAuthStore, oauthDatabasePath } from "../auth/oauth-store.js";
+import type { OAuthDeviceAccessLevel } from "../auth/oauth-types.js";
 import { OperatorPasskeyService } from "../auth/operator-passkey-service.js";
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorAuthError, OperatorService } from "../auth/operator-service.js";
@@ -1096,8 +1097,11 @@ export function buildServer(
   const mcpCatalogMetadata = buildMcpToolCatalogMetadata(coreMcpTools);
   const mcpDeviceAccessAuthorizer = oauthDeviceAccessPolicy
     ? {
-        allowsDevice: (grantId: string, deviceId: string) =>
-          oauthDeviceAccessPolicy.allowsDevice(grantId, deviceId)
+        allowsDevice: (
+          grantId: string,
+          deviceId: string,
+          requiredLevel: OAuthDeviceAccessLevel = "read-only"
+        ) => oauthDeviceAccessPolicy.allowsDevice(grantId, deviceId, requiredLevel)
       }
     : null;
   const mcpOnError = (error: Error) => {
@@ -2101,12 +2105,12 @@ export function buildServer(
   app.get("/tokenpilot/api/gpt/config", gptConfigHandler);
   app.get("/api/integrations/status", integrationStatusHandler);
   registerOAuthGrantManagementRoutes(app, oauthStore, oauthDeviceAccessPolicy, {
-    record: ({ action, grantId, deviceId, principalId, createdAt }) => {
+    record: ({ action, grantId, deviceId, accessLevel, principalId, createdAt }) => {
       operatorStore.recordAuditEvent({
         eventType: `oauth.device_access.${action}.requested`,
         principalId,
         createdAt,
-        details: { action, grantId, deviceId }
+        details: { action, grantId, deviceId, ...(accessLevel ? { accessLevel } : {}) }
       });
     }
   });

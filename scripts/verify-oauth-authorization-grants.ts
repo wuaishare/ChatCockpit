@@ -106,12 +106,17 @@ function main(): void {
   assert.equal(store.listAuthorizationGrants().length, 1);
   assert.equal(
     Number((store.sqlite.prepare("SELECT MAX(version) AS version FROM oauth_schema_migrations").get() as { version: number }).version),
-    3
+    4
   );
   assert.deepEqual(
     store.listAuthorizationGrantDeviceIds(expectedLegacyGrant),
     [LOCAL_DEVICE_TARGET_ID],
     "legacy grant migration must preserve only the existing local-device authority"
+  );
+  assert.equal(
+    store.authorizationGrantDeviceAccessLevel(expectedLegacyGrant, LOCAL_DEVICE_TARGET_ID),
+    "read-only",
+    "legacy authorization grants must migrate to least-privilege project access"
   );
 
   const config = resolveOAuthPublicConfig({

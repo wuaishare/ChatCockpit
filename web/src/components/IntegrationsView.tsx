@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Popconfirm, Spin, Tag } from "antd";
+import { Button, Popconfirm, Select, Spin, Tag } from "antd";
 import { CopyButton } from "./CopyButton";
 import { UiText as Text } from "./UiText";
 import {
@@ -14,6 +14,7 @@ import type {
   IntegrationStatusResponse,
   OAuthAuthorizationGrantStatus,
   OAuthAuthorizationGrantSummary,
+  OAuthDeviceAccessLevel,
   OAuthGrantDeviceAccessList
 } from "../types";
 import type { LocaleCode } from "../i18n";
@@ -149,15 +150,37 @@ export function IntegrationsView({
     }
   };
 
-  const updateDeviceAccess = async (grantId: string, deviceId: string, granted: boolean) => {
+  const setDeviceAccessLevel = async (
+    grantId: string,
+    deviceId: string,
+    accessLevel: OAuthDeviceAccessLevel
+  ) => {
     const key = `${grantId}:${deviceId}`;
     if (mutatingDeviceAccessKey) return;
     setMutatingDeviceAccessKey(key);
     setDeviceAccessErrorByGrant((current) => ({ ...current, [grantId]: null }));
     try {
-      const response = granted
-        ? await revokeOAuthDeviceAccess(grantId, deviceId)
-        : await grantOAuthDeviceAccess(grantId, deviceId);
+      const response = await grantOAuthDeviceAccess(grantId, deviceId, accessLevel);
+      setDeviceAccessByGrant((current) => ({ ...current, [grantId]: response.access }));
+    } catch (error) {
+      setDeviceAccessErrorByGrant((current) => ({
+        ...current,
+        [grantId]: typeof error === "object" && error && "message" in error && typeof error.message === "string"
+          ? error.message
+          : copy.deviceAccessMutationFailed
+      }));
+    } finally {
+      setMutatingDeviceAccessKey(null);
+    }
+  };
+
+  const removeDeviceAccess = async (grantId: string, deviceId: string) => {
+    const key = `${grantId}:${deviceId}`;
+    if (mutatingDeviceAccessKey) return;
+    setMutatingDeviceAccessKey(key);
+    setDeviceAccessErrorByGrant((current) => ({ ...current, [grantId]: null }));
+    try {
+      const response = await revokeOAuthDeviceAccess(grantId, deviceId);
       setDeviceAccessByGrant((current) => ({ ...current, [grantId]: response.access }));
     } catch (error) {
       setDeviceAccessErrorByGrant((current) => ({
@@ -183,6 +206,12 @@ export function IntegrationsView({
   const formatTime = (value: string | null) => value
     ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "medium" }).format(new Date(value))
     : "—";
+
+  const deviceAccessLevelOptions: Array<{ value: OAuthDeviceAccessLevel; label: string }> = [
+    { value: "read-only", label: copy.deviceAccessLevelReadOnly },
+    { value: "project-write", label: copy.deviceAccessLevelProjectWrite },
+    { value: "project-exec", label: copy.deviceAccessLevelProjectExec }
+  ];
 
   return (
     <div className="view-stack">
@@ -326,7 +355,7 @@ export function IntegrationsView({
                                 ? copy.deviceAccessRevoked
                                 : copy.deviceAccessMissing;
                             const statusColor: OperationalStatusTone = device.status === "available" ? "success" : "warning";
-                            const canGrant = !deviceAccessByGrant[grant.id].grantRevoked && device.status === "available";
+                            const canSetLevel = !deviceAccessByGrant[grant.id].grantRevoked && device.status === "available";
                             const canRemove = !deviceAccessByGrant[grant.id].grantRevoked && device.granted;
                             return (
                               <div className="oauth-device-access__row" key={device.deviceId}>
@@ -345,17 +374,33 @@ export function IntegrationsView({
                                   </div>
                                 </div>
                                 <div className="oauth-device-access__action">
-                                  <Tag color={device.granted ? "processing" : undefined}>
-                                    {device.granted ? copy.deviceAccessGranted : copy.deviceAccessNotGranted}
-                                  </Tag>
+                                  <Select<OAuthDeviceAccessLevel>
+                                    size="small"
+                                    className="oauth-device-access__level-select"
+                                    value={device.accessLevel ?? undefined}
+                                    placeholder={copy.deviceAccessNotGranted}
+                                    options={deviceAccessLevelOptions}
+                                    disabled={!canSetLevel}
+                                    loading={mutatingDeviceAccessKey === mutationKey}
+                                    onChange={(accessLevel) => void setDeviceAccessLevel(
+                                      grant.id,
+                                      device.deviceId,
+                                      accessLevel
+                                    )}
+                                  />
+                                  {device.effectiveAccessLevel ? (
+                                    <Tag color="processing">
+                                      {deviceAccessLevelOptions.find((option) => option.value === device.effectiveAccessLevel)?.label}
+                                    </Tag>
+                                  ) : null}
                                   <Button
                                     size="small"
-                                    danger={device.granted}
-                                    disabled={device.granted ? !canRemove : !canGrant}
+                                    danger
+                                    disabled={!canRemove}
                                     loading={mutatingDeviceAccessKey === mutationKey}
-                                    onClick={() => void updateDeviceAccess(grant.id, device.deviceId, device.granted)}
+                                    onClick={() => void removeDeviceAccess(grant.id, device.deviceId)}
                                   >
-                                    {device.granted ? copy.deviceAccessRemove : copy.deviceAccessGrant}
+                                    {copy.deviceAccessRemove}
                                   </Button>
                                 </div>
                               </div>

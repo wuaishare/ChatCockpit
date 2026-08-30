@@ -5,6 +5,27 @@ export const TOKENPILOT_MCP_SCOPE = productIdentityForKey("tokenpilot").oauthMcp
 export const CHATCOCKPIT_MCP_SCOPE = productIdentityForKey("chatcockpit").oauthMcpScope;
 export const OAUTH_OFFLINE_SCOPE = "offline_access";
 
+export const OAUTH_DEVICE_ACCESS_LEVELS = ["read-only", "project-write", "project-exec"] as const;
+export type OAuthDeviceAccessLevel = (typeof OAUTH_DEVICE_ACCESS_LEVELS)[number];
+
+const OAUTH_DEVICE_ACCESS_LEVEL_RANK: Record<OAuthDeviceAccessLevel, number> = {
+  "read-only": 0,
+  "project-write": 1,
+  "project-exec": 2
+};
+
+export function isOAuthDeviceAccessLevel(value: unknown): value is OAuthDeviceAccessLevel {
+  return typeof value === "string" &&
+    (OAUTH_DEVICE_ACCESS_LEVELS as readonly string[]).includes(value);
+}
+
+export function oauthDeviceAccessLevelAllows(
+  actual: OAuthDeviceAccessLevel,
+  required: OAuthDeviceAccessLevel
+): boolean {
+  return OAUTH_DEVICE_ACCESS_LEVEL_RANK[actual] >= OAUTH_DEVICE_ACCESS_LEVEL_RANK[required];
+}
+
 export function oauthMcpScopeForProduct(productIdentity: ProductIdentityKey): string {
   return productIdentityForKey(productIdentity).oauthMcpScope;
 }
@@ -97,6 +118,7 @@ export interface CreateAuthorizationGrantInput {
   scope: string;
   resource: string;
   createdAt: string;
+  localDeviceAccessLevel?: OAuthDeviceAccessLevel;
   legacy?: boolean;
 }
 

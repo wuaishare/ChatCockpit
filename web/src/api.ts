@@ -49,6 +49,7 @@ import type {
   IntegrationStatusResponse,
   OAuthAuthorizationGrantsResponse,
   OAuthAuthorizationGrantSummary,
+  OAuthDeviceAccessLevel,
   OAuthGrantDeviceAccessMutationResponse,
   OAuthGrantDeviceAccessResponse,
   ManagedDevicesResponse,
@@ -760,11 +761,12 @@ export async function executeDeviceRuntimeLifecycle(
 
 export async function grantOAuthDeviceAccess(
   grantId: string,
-  deviceId: string
+  deviceId: string,
+  accessLevel: OAuthDeviceAccessLevel
 ): Promise<OAuthGrantDeviceAccessMutationResponse> {
   return postBodyJson<OAuthGrantDeviceAccessMutationResponse>(
     `/api/integrations/oauth/grants/${encodeURIComponent(grantId)}/devices/${encodeURIComponent(deviceId)}/grant`,
-    {}
+    { accessLevel }
   );
 }
 

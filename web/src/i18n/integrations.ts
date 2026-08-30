@@ -75,6 +75,9 @@ export interface IntegrationsCopy {
   deviceAccessRevoked: string;
   deviceAccessMissing: string;
   deviceAccessEffective: string;
+  deviceAccessLevelReadOnly: string;
+  deviceAccessLevelProjectWrite: string;
+  deviceAccessLevelProjectExec: string;
   deviceAccessGranted: string;
   deviceAccessNotGranted: string;
   deviceAccessGrant: string;
@@ -152,7 +155,7 @@ const zhCN: IntegrationsCopy = {
   deviceAccessManage: "管理设备权限",
   deviceAccessHide: "收起设备权限",
   deviceAccessTitle: "设备访问权限",
-  deviceAccessDescription: "OAuth 授权默认只包含本机。新加入的远程设备不会自动继承此授权，必须由控制台管理员明确加入；授权关系或设备被撤销后会立即失效。",
+  deviceAccessDescription: "旧授权与未显式选择权限的授权按项目只读处理；首次连接的授权页会将项目执行作为开发推荐选项。每台设备都可独立设为项目只读、项目写入或项目执行，新加入的远程设备不会自动继承授权。Host / Device 管理能力仍受独立权限与审批治理。",
   deviceAccessLoading: "正在读取设备权限",
   deviceAccessLocal: "本机",
   deviceAccessRemote: "远程设备",
@@ -160,6 +163,9 @@ const zhCN: IntegrationsCopy = {
   deviceAccessRevoked: "设备已撤销",
   deviceAccessMissing: "设备不可用",
   deviceAccessEffective: "当前有效",
+  deviceAccessLevelReadOnly: "项目只读",
+  deviceAccessLevelProjectWrite: "项目写入",
+  deviceAccessLevelProjectExec: "项目执行",
   deviceAccessGranted: "已授权",
   deviceAccessNotGranted: "未授权",
   deviceAccessGrant: "授权访问",
@@ -237,7 +243,7 @@ const enUS: IntegrationsCopy = {
   deviceAccessManage: "Manage device access",
   deviceAccessHide: "Hide device access",
   deviceAccessTitle: "Device access",
-  deviceAccessDescription: "OAuth authorizations include this device by default only. Newly enrolled remote devices never inherit access automatically and must be explicitly allowed by the Web Owner. Revoking either the authorization or device takes effect immediately.",
+  deviceAccessDescription: "Legacy authorizations and authorizations without an explicit project level fall back to project read-only; the first-connect approval page recommends project execution for development. Each device can be set independently to project read-only, project write, or project execution. Newly enrolled remote devices inherit nothing. Host / Device administration remains governed by separate permissions and approvals.",
   deviceAccessLoading: "Loading device access",
   deviceAccessLocal: "This device",
   deviceAccessRemote: "Remote device",
@@ -245,6 +251,9 @@ const enUS: IntegrationsCopy = {
   deviceAccessRevoked: "Device revoked",
   deviceAccessMissing: "Device unavailable",
   deviceAccessEffective: "Effective now",
+  deviceAccessLevelReadOnly: "Project read-only",
+  deviceAccessLevelProjectWrite: "Project write",
+  deviceAccessLevelProjectExec: "Project execution",
   deviceAccessGranted: "Allowed",
   deviceAccessNotGranted: "Not allowed",
   deviceAccessGrant: "Allow access",

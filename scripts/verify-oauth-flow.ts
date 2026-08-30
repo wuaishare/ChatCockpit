@@ -330,6 +330,9 @@ async function main(): Promise<void> {
       approvalHtml,
       new RegExp(`name="csrf_token" value="${ownerLoginBody.csrfToken}"`)
     );
+    assert.match(approvalHtml, /name="device_access_level"/);
+    assert.match(approvalHtml, /value="project-exec" selected/);
+    assert.match(approvalHtml, /Project execution \(recommended for development\)/);
     assert.doesNotMatch(
       approvalHtml,
       /owner_secret|CHATCOCKPIT_API_TOKEN|type="password"/i
@@ -351,7 +354,8 @@ async function main(): Promise<void> {
     const approved = await postForm(`${server.baseUrl}/oauth/authorize`, {
       request_id: requestId,
       csrf_token: ownerLoginBody.csrfToken,
-      decision: "approve"
+      decision: "approve",
+      device_access_level: "project-exec"
     }, { redirect: "manual", cookie: ownerCookie });
     assert.equal(approved.status, 303);
     const location = approved.headers.get("location");
@@ -487,7 +491,34 @@ async function main(): Promise<void> {
     };
     assert.equal(firstTaskResult.structuredContent?.task?.id, taskCreated.task.id);
 
-    const oauthCoreEdit = await postMcp(server.baseUrl, tokens.access_token, {
+    const policyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
+    const activeGrantId = policyStore.findActiveAccessToken(
+      tokens.access_token,
+      new Date().toISOString()
+    )?.grantId;
+    assert.ok(activeGrantId, "issued OAuth access token must remain bound to a grant");
+    assert.equal(
+      policyStore.authorizationGrantDeviceAccessLevel(activeGrantId, LOCAL_DEVICE_TARGET_ID),
+      "project-exec",
+      "Owner-selected project execution authority must persist on the OAuth grant"
+    );
+    policyStore.close();
+
+    const downgradeToReadOnly = await fetch(
+      `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerLoginBody.csrfToken
+        },
+        body: JSON.stringify({ accessLevel: "read-only" })
+      }
+    );
+    assert.equal(downgradeToReadOnly.status, 200, await downgradeToReadOnly.text());
+
+    const oauthCoreEditDenied = await postMcp(server.baseUrl, tokens.access_token, {
       jsonrpc: "2.0",
       id: 108,
       method: "tools/call",
@@ -498,7 +529,51 @@ async function main(): Promise<void> {
           path: "README.md",
           search: "OAuth fixture",
           replace: "OAuth Alpha fixture",
-          idempotencyKey: "oauth-core-edit-no-session-0001"
+          idempotencyKey: "oauth-core-edit-readonly-denied-0001"
+        }
+      }
+    });
+    assert.equal(oauthCoreEditDenied.response.status, 200);
+    const oauthCoreEditDeniedResult = oauthCoreEditDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { requiredAccessLevel?: string } };
+      };
+    };
+    assert.equal(oauthCoreEditDeniedResult.isError, true);
+    assert.equal(oauthCoreEditDeniedResult.structuredContent?.error?.code, "DEVICE_ACCESS_DENIED");
+    assert.equal(
+      oauthCoreEditDeniedResult.structuredContent?.error?.details?.requiredAccessLevel,
+      "project-write"
+    );
+    assert.equal(fs.readFileSync(path.join(root, "README.md"), "utf8"), "# OAuth fixture\n");
+
+    const elevateProjectWrite = await fetch(
+      `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerLoginBody.csrfToken
+        },
+        body: JSON.stringify({ accessLevel: "project-write" })
+      }
+    );
+    assert.equal(elevateProjectWrite.status, 200, await elevateProjectWrite.text());
+
+    const oauthCoreEdit = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1081,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.files.edit",
+        arguments: {
+          repoId: "primary",
+          path: "README.md",
+          search: "OAuth fixture",
+          replace: "OAuth Alpha fixture",
+          idempotencyKey: "oauth-core-edit-project-write-0001"
         }
       }
     });
@@ -512,13 +587,78 @@ async function main(): Promise<void> {
     };
     assert.equal(oauthCoreEditResult.isError, undefined);
     assert.deepEqual(oauthCoreEditResult.structuredContent?.changedPaths, ["README.md"]);
-    assert.equal(
-      oauthCoreEditResult.structuredContent?.execution?.modelLoopOwner,
-      "chatgpt"
-    );
+    assert.equal(oauthCoreEditResult.structuredContent?.execution?.modelLoopOwner, "chatgpt");
     assert.equal(
       fs.readFileSync(path.join(root, "README.md"), "utf8"),
       "# OAuth Alpha fixture\n"
+    );
+
+    const projectWriteExecDenied = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1082,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.workspace.process.read",
+        arguments: {
+          repoId: "primary",
+          processId: "chatcockpit_missing_oauth_fixture",
+          cursor: 0,
+          limit: 20
+        }
+      }
+    });
+    assert.equal(projectWriteExecDenied.response.status, 200);
+    const projectWriteExecDeniedResult = projectWriteExecDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { requiredAccessLevel?: string } };
+      };
+    };
+    assert.equal(projectWriteExecDeniedResult.isError, true);
+    assert.equal(projectWriteExecDeniedResult.structuredContent?.error?.code, "DEVICE_ACCESS_DENIED");
+    assert.equal(
+      projectWriteExecDeniedResult.structuredContent?.error?.details?.requiredAccessLevel,
+      "project-exec"
+    );
+
+    const elevateProjectExec = await fetch(
+      `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
+      {
+        method: "POST",
+        headers: {
+          cookie: ownerCookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": ownerLoginBody.csrfToken
+        },
+        body: JSON.stringify({ accessLevel: "project-exec" })
+      }
+    );
+    assert.equal(elevateProjectExec.status, 200, await elevateProjectExec.text());
+
+    const projectExecAccepted = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1083,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.workspace.process.read",
+        arguments: {
+          repoId: "primary",
+          processId: "chatcockpit_missing_oauth_fixture",
+          cursor: 0,
+          limit: 20
+        }
+      }
+    });
+    assert.equal(projectExecAccepted.response.status, 200);
+    const projectExecAcceptedResult = projectExecAccepted.message.result as {
+      isError?: boolean;
+      structuredContent?: { error?: { code?: string } };
+    };
+    assert.equal(projectExecAcceptedResult.isError, true);
+    assert.equal(
+      projectExecAcceptedResult.structuredContent?.error?.code,
+      "WORKSPACE_PROCESS_NOT_FOUND",
+      "project-exec authority must pass the OAuth gate and reach the workspace service"
     );
 
     const unauthorizedRemoteTarget = `cc_device_${"Z".repeat(24)}`;
@@ -580,17 +720,12 @@ async function main(): Promise<void> {
       unauthorizedRemoteTarget
     );
 
-    const policyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
-    const activeGrantId = policyStore.findActiveAccessToken(
-      tokens.access_token,
-      new Date().toISOString()
-    )?.grantId;
-    assert.ok(activeGrantId, "issued OAuth access token must remain bound to a grant");
+    const revokePolicyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
     assert.equal(
-      policyStore.revokeAuthorizationDeviceAccess(activeGrantId, LOCAL_DEVICE_TARGET_ID),
+      revokePolicyStore.revokeAuthorizationDeviceAccess(activeGrantId, LOCAL_DEVICE_TARGET_ID),
       true
     );
-    policyStore.close();
+    revokePolicyStore.close();
 
     const targetsWithoutLocalAccess = await postMcp(server.baseUrl, tokens.access_token, {
       jsonrpc: "2.0",

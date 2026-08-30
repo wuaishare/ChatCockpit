@@ -4369,6 +4369,10 @@ button.continuity-workspace.is-selected {
   flex: 0 0 auto;
 }
 
+.oauth-device-access__level-select {
+  min-width: 150px;
+}
+
 .device-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

@@ -4,7 +4,10 @@ import { buildOperationContext } from "../src/application/operation-context.js";
 import { ServiceError } from "../src/application/service-error.js";
 import { DeviceTargetService } from "../src/application/device-target-service.js";
 import { buildDeviceTargetMcpTools } from "../src/mcp/tools/device-targets.js";
-import { resolveMcpToolDeviceTarget } from "../src/mcp/device-target-policy.js";
+import {
+  requiredOAuthDeviceAccessLevelForMcpTool,
+  resolveMcpToolDeviceTarget
+} from "../src/mcp/device-target-policy.js";
 import type {
   ManagedDeviceProjection,
   ManagedDeviceRecord
@@ -261,6 +264,48 @@ assert.equal(
   }),
   LOCAL_DEVICE_TARGET_ID,
   "Capability Router mutations remain local-device governed in Phase 8"
+);
+
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.project.list", {}),
+  "read-only"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.files.edit", {}),
+  "project-write"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.workspace.exec", {}),
+  "project-exec"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.devices.workspace.invoke", {
+    action: "files.read",
+    params: {}
+  }),
+  "read-only"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.devices.workspace.invoke", {
+    action: "files.write",
+    params: {}
+  }),
+  "project-write"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.devices.workspace.invoke", {
+    action: "workspace.exec",
+    params: {}
+  }),
+  "project-exec"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.devices.workspace.invoke", {
+    action: "future.unknown.action",
+    params: {}
+  }),
+  "project-exec",
+  "future remote Workspace actions must fail toward the strongest project authority"
 );
 
 process.stdout.write("VERIFY_DEVICE_TARGET_SELECTION_OK\n");

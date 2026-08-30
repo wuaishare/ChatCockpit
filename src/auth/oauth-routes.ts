@@ -6,6 +6,7 @@ import type {
 
 import type { OAuthPublicConfig } from "./oauth-config.js";
 import { OAuthProtocolError, OAuthService } from "./oauth-service.js";
+import { isOAuthDeviceAccessLevel } from "./oauth-types.js";
 import { operatorSessionFromRequest } from "../server/operator-auth-context.js";
 import { buildContentSecurityPolicy } from "../server/security-headers.js";
 
@@ -86,6 +87,11 @@ interface OAuthApprovalCopy {
   scope: string;
   resource: string;
   signedInAs: string;
+  deviceAccessLevel: string;
+  deviceAccessReadOnly: string;
+  deviceAccessProjectWrite: string;
+  deviceAccessProjectExec: string;
+  deviceAccessHelp: string;
   authorize: string;
   deny: string;
   authorizing: string;
@@ -99,6 +105,11 @@ const OAUTH_APPROVAL_COPY: Record<OAuthApprovalLocale, OAuthApprovalCopy> = {
     scope: "权限范围",
     resource: "资源",
     signedInAs: "当前登录账号",
+    deviceAccessLevel: "项目权限",
+    deviceAccessReadOnly: "项目只读",
+    deviceAccessProjectWrite: "项目写入",
+    deviceAccessProjectExec: "项目执行（开发推荐）",
+    deviceAccessHelp: "项目执行允许在已注册 Workspace 内运行开发命令与进程，但不会自动获得 Host / Device 管理权限。",
     authorize: "授权",
     deny: "拒绝",
     authorizing: "授权中…",
@@ -110,6 +121,11 @@ const OAUTH_APPROVAL_COPY: Record<OAuthApprovalLocale, OAuthApprovalCopy> = {
     scope: "Scope",
     resource: "Resource",
     signedInAs: "Signed in as",
+    deviceAccessLevel: "Project access",
+    deviceAccessReadOnly: "Project read-only",
+    deviceAccessProjectWrite: "Project write",
+    deviceAccessProjectExec: "Project execution (recommended for development)",
+    deviceAccessHelp: "Project execution can run development commands and processes inside registered Workspaces, but does not automatically grant Host / Device administration authority.",
     authorize: "Authorize",
     deny: "Deny",
     authorizing: "Authorizing…",
@@ -175,6 +191,10 @@ function approvalPage(input: {
     button[value="deny"] { background: color-mix(in srgb, CanvasText 10%, transparent); color: CanvasText; }
     .meta { font-size: 13px; opacity: .72; }
     .session { margin-top: 18px; padding-top: 16px; border-top: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
+    .permission { display: grid; gap: 8px; margin-top: 18px; }
+    .permission label { font-weight: 700; }
+    .permission select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, CanvasText 22%, transparent); background: Canvas; color: CanvasText; font: inherit; }
+    .permission small { line-height: 1.5; opacity: .72; }
   </style>
 </head>
 <body>
@@ -187,6 +207,15 @@ function approvalPage(input: {
       <input type="hidden" name="request_id" value="${escapeHtml(input.requestId)}">
       <input type="hidden" name="csrf_token" value="${escapeHtml(input.csrfToken)}">
       <input type="hidden" name="decision" value="">
+      <div class="permission">
+        <label for="device_access_level">${escapeHtml(copy.deviceAccessLevel)}</label>
+        <select id="device_access_level" name="device_access_level">
+          <option value="read-only">${escapeHtml(copy.deviceAccessReadOnly)}</option>
+          <option value="project-write">${escapeHtml(copy.deviceAccessProjectWrite)}</option>
+          <option value="project-exec" selected>${escapeHtml(copy.deviceAccessProjectExec)}</option>
+        </select>
+        <small>${escapeHtml(copy.deviceAccessHelp)}</small>
+      </div>
       <div class="actions">
         <button type="submit" name="decision" value="approve" data-pending-label="${escapeHtml(copy.authorizing)}">${escapeHtml(copy.authorize)}</button>
         <button type="submit" name="decision" value="deny" data-pending-label="${escapeHtml(copy.denying)}">${escapeHtml(copy.deny)}</button>
@@ -406,7 +435,17 @@ export function registerOAuthRoutes(
         );
       }
 
-      const result = service.approveAuthorizationForOwner(requestId);
+      const requestedAccessLevel = stringField(body, "device_access_level").trim();
+      const accessLevel = requestedAccessLevel
+        ? isOAuthDeviceAccessLevel(requestedAccessLevel) ? requestedAccessLevel : null
+        : "read-only";
+      if (!accessLevel) {
+        throw new OAuthProtocolError(
+          "invalid_request",
+          "Project access level is invalid"
+        );
+      }
+      const result = service.approveAuthorizationForOwner(requestId, accessLevel);
       const redirect = new URL(result.redirectUri);
       redirect.searchParams.set("code", result.code);
       if (result.state) redirect.searchParams.set("state", result.state);

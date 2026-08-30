@@ -100,19 +100,28 @@ try {
   assert.equal(initial.devices[0]?.deviceId, LOCAL_DEVICE_TARGET_ID);
   assert.equal(initial.devices[0]?.granted, true);
   assert.equal(initial.devices[0]?.effective, true);
+  assert.equal(initial.devices[0]?.accessLevel, "read-only");
+  assert.equal(initial.devices[0]?.effectiveAccessLevel, "read-only");
+  assert.equal(service.allowsDevice(grantId, LOCAL_DEVICE_TARGET_ID, "project-write"), false);
   const initialRemote = initial.devices.find((device) => device.deviceId === remoteDeviceId)!;
   assert.equal(initialRemote.granted, false);
   assert.equal(initialRemote.effective, false);
   assert.equal(service.allowsDevice(grantId, remoteDeviceId), false);
 
-  assert.equal(service.grantDeviceAccess(grantId, remoteDeviceId, later), true);
-  assert.equal(service.grantDeviceAccess(grantId, remoteDeviceId, later), false);
+  assert.equal(service.grantDeviceAccess(grantId, remoteDeviceId, later, "project-write"), true);
+  assert.equal(service.grantDeviceAccess(grantId, remoteDeviceId, later, "project-write"), false);
   assert.equal(service.allowsDevice(grantId, remoteDeviceId), true);
+  assert.equal(service.allowsDevice(grantId, remoteDeviceId, "project-write"), true);
+  assert.equal(service.allowsDevice(grantId, remoteDeviceId, "project-exec"), false);
   const grantedRemote = service.listGrantDeviceAccess(grantId, later).devices
     .find((device) => device.deviceId === remoteDeviceId)!;
   assert.equal(grantedRemote.granted, true);
   assert.equal(grantedRemote.effective, true);
   assert.equal(grantedRemote.status, "available");
+  assert.equal(grantedRemote.accessLevel, "project-write");
+  assert.equal(grantedRemote.effectiveAccessLevel, "project-write");
+  assert.equal(service.grantDeviceAccess(grantId, remoteDeviceId, later, "project-exec"), true);
+  assert.equal(service.allowsDevice(grantId, remoteDeviceId, "project-exec"), true);
 
   registry.revoke();
   assert.equal(

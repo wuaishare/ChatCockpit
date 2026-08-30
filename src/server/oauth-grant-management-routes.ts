@@ -1,12 +1,15 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { z } from "zod";
 
 import type {
   OAuthAuthorizationGrantSummary,
   OAuthStore
 } from "../auth/oauth-store.js";
+import { OAUTH_DEVICE_ACCESS_LEVELS } from "../auth/oauth-types.js";
+import type { OAuthDeviceAccessLevel } from "../auth/oauth-types.js";
 import type { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { ServiceError } from "../application/service-error.js";
-import { sendApiError } from "./errors.js";
+import { sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 
 export type OAuthAuthorizationGrantPublicStatus =
   | "pending"
@@ -14,11 +17,16 @@ export type OAuthAuthorizationGrantPublicStatus =
   | "inactive"
   | "revoked";
 
+const deviceAccessGrantBodySchema = z.object({
+  accessLevel: z.enum(OAUTH_DEVICE_ACCESS_LEVELS).default("read-only")
+}).strict().default({ accessLevel: "read-only" });
+
 export interface OAuthGrantDeviceAccessAuditRecorder {
   record(input: {
     action: "grant" | "revoke";
     grantId: string;
     deviceId: string;
+    accessLevel?: OAuthDeviceAccessLevel;
     principalId: string;
     createdAt: string;
   }): void;
@@ -189,6 +197,11 @@ export function registerOAuthGrantManagementRoutes(
     if (!deviceId) {
       return sendApiError(reply, 400, "DEVICE_ID_INVALID", "Device target ID is invalid");
     }
+    const parsedBody = deviceAccessGrantBodySchema.safeParse(request.body);
+    if (!parsedBody.success) {
+      return sendUnknownApiError(reply, validationError(parsedBody.error));
+    }
+    const { accessLevel } = parsedBody.data;
     if (!deviceAccessAudit) {
       return sendApiError(reply, 500, "DEVICE_ACCESS_AUDIT_UNAVAILABLE", "Device access audit is unavailable");
     }
@@ -197,6 +210,7 @@ export function registerOAuthGrantManagementRoutes(
         action: "grant",
         grantId,
         deviceId,
+        accessLevel,
         principalId: operatorPrincipalId(request),
         createdAt: new Date().toISOString()
       });
@@ -204,7 +218,7 @@ export function registerOAuthGrantManagementRoutes(
       return sendApiError(reply, 500, "DEVICE_ACCESS_AUDIT_FAILED", "Device access audit could not be recorded");
     }
     try {
-      const changed = deviceAccessPolicy.grantDeviceAccess(grantId, deviceId);
+      const changed = deviceAccessPolicy.grantDeviceAccess(grantId, deviceId, new Date().toISOString(), accessLevel);
       return {
         ok: true,
         changed,

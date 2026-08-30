@@ -36,7 +36,11 @@ import type { TrajectoryService } from "../application/trajectory-service.js";
 import type { ContinuityCapsuleService } from "../application/continuity-capsule-service.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
-import { resolveMcpToolDeviceTarget } from "./device-target-policy.js";
+import type { OAuthDeviceAccessLevel } from "../auth/oauth-types.js";
+import {
+  requiredOAuthDeviceAccessLevelForMcpTool,
+  resolveMcpToolDeviceTarget
+} from "./device-target-policy.js";
 import { McpIdempotencyStore } from "./idempotency-store.js";
 import { buildReadOnlyMcpToolCatalog } from "./read-only-catalog.js";
 import { projectMcpToolsForProduct } from "./product-tool-identity.js";
@@ -189,16 +193,23 @@ export interface ContinuityObservabilityMcpServices {
 }
 
 export interface McpDeviceAccessAuthorizer {
-  allowsDevice(grantId: string, deviceId: string): boolean;
+  allowsDevice(
+    grantId: string,
+    deviceId: string,
+    requiredLevel?: OAuthDeviceAccessLevel
+  ): boolean;
 }
 
-function deviceAccessDeniedResult(deviceId: string) {
+function deviceAccessDeniedResult(
+  deviceId: string,
+  requiredAccessLevel: OAuthDeviceAccessLevel
+) {
   const structuredContent = {
     ok: false,
     error: {
       code: "DEVICE_ACCESS_DENIED",
       message: "This OAuth authorization grant is not allowed to access the requested device",
-      details: { deviceId }
+      details: { deviceId, requiredAccessLevel }
     }
   };
   return {
@@ -276,8 +287,12 @@ export function buildTokenPilotMcpHandlerFromTools(
           if (!grantId) return null;
           const targetDeviceId = resolveMcpToolDeviceTarget(toolName, input);
           if (!targetDeviceId) return null;
-          if (!deviceAccessAuthorizer || !deviceAccessAuthorizer.allowsDevice(grantId, targetDeviceId)) {
-            return deviceAccessDeniedResult(targetDeviceId);
+          const requiredAccessLevel = requiredOAuthDeviceAccessLevelForMcpTool(toolName, input);
+          if (
+            !deviceAccessAuthorizer ||
+            !deviceAccessAuthorizer.allowsDevice(grantId, targetDeviceId, requiredAccessLevel)
+          ) {
+            return deviceAccessDeniedResult(targetDeviceId, requiredAccessLevel);
           }
           return null;
         }

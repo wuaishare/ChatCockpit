@@ -14,7 +14,12 @@ import type {
   OAuthAuthorizationGrantRecord,
   OAuthAuthorizationRequestRecord,
   OAuthClientRecord,
+  OAuthDeviceAccessLevel,
   OAuthTokenRecord
+} from "./oauth-types.js";
+import {
+  isOAuthDeviceAccessLevel,
+  oauthDeviceAccessLevelAllows
 } from "./oauth-types.js";
 
 interface OAuthClientRow {
@@ -76,6 +81,18 @@ interface OAuthTokenRow {
   issued_at: string;
   expires_at: string;
   revoked_at: string | null;
+}
+
+interface OAuthAuthorizationGrantDeviceRow {
+  device_id: string;
+  granted_at: string;
+  access_level: string;
+}
+
+export interface OAuthAuthorizationGrantDeviceAccess {
+  deviceId: string;
+  grantedAt: string;
+  accessLevel: OAuthDeviceAccessLevel;
 }
 
 function parseStringArray(value: string): string[] {
@@ -160,6 +177,19 @@ function mapToken(row: OAuthTokenRow): OAuthTokenRecord {
     issuedAt: row.issued_at,
     expiresAt: row.expires_at,
     revokedAt: row.revoked_at
+  };
+}
+
+function mapAuthorizationGrantDeviceAccess(
+  row: OAuthAuthorizationGrantDeviceRow
+): OAuthAuthorizationGrantDeviceAccess {
+  if (!isOAuthDeviceAccessLevel(row.access_level)) {
+    throw new Error("OAuth authorization device access level is invalid");
+  }
+  return {
+    deviceId: row.device_id,
+    grantedAt: row.granted_at,
+    accessLevel: row.access_level
   };
 }
 
@@ -331,6 +361,10 @@ export class OAuthStore {
   createAuthorizationGrant(
     input: CreateAuthorizationGrantInput
   ): OAuthAuthorizationGrantRecord {
+    const localDeviceAccessLevel = input.localDeviceAccessLevel ?? "read-only";
+    if (!isOAuthDeviceAccessLevel(localDeviceAccessLevel)) {
+      throw new Error("OAuth authorization device access level is invalid");
+    }
     return this.transaction(() => {
       this.sqlite
         .prepare(`
@@ -349,9 +383,15 @@ export class OAuthStore {
           input.legacy ? 1 : 0
         );
       this.sqlite.prepare(`
-        INSERT INTO oauth_authorization_grant_devices (grant_id, device_id, granted_at)
-        VALUES (?, ?, ?)
-      `).run(input.grantId, LOCAL_DEVICE_TARGET_ID, input.createdAt);
+        INSERT INTO oauth_authorization_grant_devices (
+          grant_id, device_id, granted_at, access_level
+        ) VALUES (?, ?, ?, ?)
+      `).run(
+        input.grantId,
+        LOCAL_DEVICE_TARGET_ID,
+        input.createdAt,
+        localDeviceAccessLevel
+      );
       return this.getAuthorizationGrant(input.grantId)!;
     });
   }
@@ -403,35 +443,68 @@ export class OAuthStore {
     });
   }
 
-  listAuthorizationGrantDeviceIds(grantId: string): string[] {
+  listAuthorizationGrantDeviceAccess(
+    grantId: string
+  ): OAuthAuthorizationGrantDeviceAccess[] {
     return (this.sqlite.prepare(`
-      SELECT device_id FROM oauth_authorization_grant_devices
+      SELECT device_id, granted_at, access_level
+      FROM oauth_authorization_grant_devices
       WHERE grant_id = ?
       ORDER BY CASE WHEN device_id = 'local-device' THEN 0 ELSE 1 END, device_id ASC
-    `).all(grantId) as Array<{ device_id: string }>).map((row) => row.device_id);
+    `).all(grantId) as unknown as OAuthAuthorizationGrantDeviceRow[])
+      .map(mapAuthorizationGrantDeviceAccess);
   }
 
-  authorizationGrantAllowsDevice(grantId: string, deviceId: string): boolean {
+  listAuthorizationGrantDeviceIds(grantId: string): string[] {
+    return this.listAuthorizationGrantDeviceAccess(grantId).map((item) => item.deviceId);
+  }
+
+  authorizationGrantDeviceAccessLevel(
+    grantId: string,
+    deviceId: string
+  ): OAuthDeviceAccessLevel | null {
     const normalizedDeviceId = normalizeAuthorizationDeviceId(deviceId);
     const row = this.sqlite.prepare(`
-      SELECT 1 AS present
+      SELECT d.device_id, d.granted_at, d.access_level
       FROM oauth_authorization_grant_devices AS d
       JOIN oauth_authorization_grants AS g ON g.grant_id = d.grant_id
       WHERE d.grant_id = ? AND d.device_id = ? AND g.revoked_at IS NULL
-    `).get(grantId, normalizedDeviceId) as { present: number } | undefined;
-    return Boolean(row);
+    `).get(grantId, normalizedDeviceId) as unknown as OAuthAuthorizationGrantDeviceRow | undefined;
+    return row ? mapAuthorizationGrantDeviceAccess(row).accessLevel : null;
   }
 
-  grantAuthorizationDeviceAccess(grantId: string, deviceId: string, grantedAt: string): boolean {
+  authorizationGrantAllowsDevice(
+    grantId: string,
+    deviceId: string,
+    requiredLevel: OAuthDeviceAccessLevel = "read-only"
+  ): boolean {
+    const actualLevel = this.authorizationGrantDeviceAccessLevel(grantId, deviceId);
+    return actualLevel !== null && oauthDeviceAccessLevelAllows(actualLevel, requiredLevel);
+  }
+
+  grantAuthorizationDeviceAccess(
+    grantId: string,
+    deviceId: string,
+    grantedAt: string,
+    accessLevel: OAuthDeviceAccessLevel = "read-only"
+  ): boolean {
     const normalizedDeviceId = normalizeAuthorizationDeviceId(deviceId);
+    if (!isOAuthDeviceAccessLevel(accessLevel)) {
+      throw new Error("OAuth authorization device access level is invalid");
+    }
     const grant = this.getAuthorizationGrant(grantId);
     if (!grant || grant.revokedAt) {
       throw new Error("OAuth authorization grant is missing or revoked and cannot receive device access");
     }
     const result = this.sqlite.prepare(`
-      INSERT OR IGNORE INTO oauth_authorization_grant_devices (grant_id, device_id, granted_at)
-      VALUES (?, ?, ?)
-    `).run(grantId, normalizedDeviceId, grantedAt);
+      INSERT INTO oauth_authorization_grant_devices (
+        grant_id, device_id, granted_at, access_level
+      ) VALUES (?, ?, ?, ?)
+      ON CONFLICT(grant_id, device_id) DO UPDATE SET
+        granted_at = excluded.granted_at,
+        access_level = excluded.access_level
+      WHERE oauth_authorization_grant_devices.access_level <> excluded.access_level
+    `).run(grantId, normalizedDeviceId, grantedAt, accessLevel);
     return Number(result.changes) === 1;
   }
 
@@ -781,11 +854,32 @@ export class OAuthStore {
     `);
     this.migrateAuthorizationGrants();
     this.migrateAuthorizationGrantDevices();
+    this.migrateAuthorizationGrantDeviceAccessLevels();
   }
 
   private hasColumn(table: string, column: string): boolean {
     const rows = this.sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     return rows.some((row) => row.name === column);
+  }
+
+  private migrateAuthorizationGrantDeviceAccessLevels(): void {
+    const migrated = this.sqlite
+      .prepare("SELECT 1 AS present FROM oauth_schema_migrations WHERE version = 4")
+      .get() as { present: number } | undefined;
+    if (migrated) return;
+
+    this.transaction(() => {
+      if (!this.hasColumn("oauth_authorization_grant_devices", "access_level")) {
+        this.sqlite.exec(`
+          ALTER TABLE oauth_authorization_grant_devices
+          ADD COLUMN access_level TEXT NOT NULL DEFAULT 'read-only'
+            CHECK (access_level IN ('read-only', 'project-write', 'project-exec'))
+        `);
+      }
+      this.sqlite.prepare(`
+        INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (4, ?)
+      `).run(new Date().toISOString());
+    });
   }
 
   private migrateAuthorizationGrantDevices(): void {

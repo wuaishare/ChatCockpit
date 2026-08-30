@@ -150,6 +150,8 @@ async function main(): Promise<void> {
           status: string;
           granted: boolean;
           effective: boolean;
+          accessLevel: "read-only" | "project-write" | "project-exec" | null;
+          effectiveAccessLevel: "read-only" | "project-write" | "project-exec" | null;
         }>;
       };
     }).access;
@@ -157,11 +159,15 @@ async function main(): Promise<void> {
     assert.equal(initialAccess.devices[0]?.deviceId, "local-device");
     assert.equal(initialAccess.devices[0]?.granted, true);
     assert.equal(initialAccess.devices[0]?.effective, true);
+    assert.equal(initialAccess.devices[0]?.accessLevel, "read-only");
+    assert.equal(initialAccess.devices[0]?.effectiveAccessLevel, "read-only");
     const initialRemote = initialAccess.devices.find((device) => device.deviceId === remoteDeviceId)!;
     assert.equal(initialRemote.displayName, "Remote Mac fixture");
     assert.equal(initialRemote.status, "available");
     assert.equal(initialRemote.granted, false);
     assert.equal(initialRemote.effective, false);
+    assert.equal(initialRemote.accessLevel, null);
+    assert.equal(initialRemote.effectiveAccessLevel, null);
     assert.equal(deviceAccess.body.includes("fixture-remote-public-key"), false);
     assert.equal(deviceAccess.body.includes("fixture-remote-fingerprint"), false);
     assert.equal(deviceAccess.body.includes("publicKey"), false);
@@ -175,19 +181,34 @@ async function main(): Promise<void> {
     });
     assert.equal(grantMissingCsrf.statusCode, 403, grantMissingCsrf.body);
 
+    const invalidAccessLevel = await app.inject({
+      method: "POST",
+      url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/grant`,
+      headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
+      payload: { accessLevel: "arbitrary-host" }
+    });
+    assert.equal(invalidAccessLevel.statusCode, 400, invalidAccessLevel.body);
+
     const grantedRemote = await app.inject({
       method: "POST",
       url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/grant`,
       headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
-      payload: {}
+      payload: { accessLevel: "project-write" }
     });
     assert.equal(grantedRemote.statusCode, 200, grantedRemote.body);
-    assert.equal((grantedRemote.json() as { changed: boolean }).changed, true);
+    const grantedRemoteBody = grantedRemote.json() as {
+      changed: boolean;
+      access: { devices: Array<{ deviceId: string; accessLevel: string | null; effectiveAccessLevel: string | null }> };
+    };
+    assert.equal(grantedRemoteBody.changed, true);
+    const grantedRemoteProjection = grantedRemoteBody.access.devices.find((device) => device.deviceId === remoteDeviceId)!;
+    assert.equal(grantedRemoteProjection.accessLevel, "project-write");
+    assert.equal(grantedRemoteProjection.effectiveAccessLevel, "project-write");
     const grantedRemoteAgain = await app.inject({
       method: "POST",
       url: `/api/integrations/oauth/grants/${grantId}/devices/${remoteDeviceId}/grant`,
       headers: { cookie, "x-chatcockpit-csrf": session.csrfToken },
-      payload: {}
+      payload: { accessLevel: "project-write" }
     });
     assert.equal(grantedRemoteAgain.statusCode, 200, grantedRemoteAgain.body);
     assert.equal((grantedRemoteAgain.json() as { changed: boolean }).changed, false);
@@ -292,7 +313,8 @@ async function main(): Promise<void> {
       event.eventType === "oauth.device_access.grant.requested" &&
       event.details.grantId === grantId &&
       event.details.deviceId === remoteDeviceId &&
-      event.details.action === "grant"
+      event.details.action === "grant" &&
+      event.details.accessLevel === "project-write"
     ),
     true
   );
