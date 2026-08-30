@@ -178,6 +178,30 @@ async function waitFor<T>(
   throw new Error(`Timed out waiting for ${label}`);
 }
 
+async function waitForChildCondition<T>(
+  execution: ChildExecution,
+  load: () => Promise<T | null>,
+  label: string,
+  timeoutMs = 30_000
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (execution.child.exitCode !== null) {
+      const output = execution.output();
+      throw new Error(
+        `${label} child exited with code ${execution.child.exitCode}\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`
+      );
+    }
+    const value = await load();
+    if (value !== null) return value;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+  const output = execution.output();
+  throw new Error(
+    `Timed out waiting for ${label}\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`
+  );
+}
+
 async function ownerJson<T>(
   baseUrl: string,
   cookie: string,
@@ -503,7 +527,7 @@ async function main(): Promise<void> {
       "--json"
     ]);
 
-    const enrollment = await waitFor(async () => {
+    const enrollment = await waitForChildCondition(connect, async () => {
       const response = await fetch(`${baseUrl}/api/devices/enrollment-requests`, {
         headers: { cookie: ownerCookie }
       });
@@ -537,7 +561,7 @@ async function main(): Promise<void> {
     deviceId = connected.deviceId!;
 
     agent = spawnCli(childEnv, ["device", "agent", "--json"]);
-    await waitFor(async () => {
+    await waitForChildCondition(agent, async () => {
       const response = await fetch(`${baseUrl}/api/devices`, {
         headers: { cookie: ownerCookie }
       });
@@ -647,7 +671,7 @@ async function main(): Promise<void> {
           "content-type": "application/json",
           "x-chatcockpit-csrf": ownerCsrf
         },
-        body: "{}"
+        body: JSON.stringify({ accessLevel: "project-exec" })
       }
     );
     assert.equal(grantRemote.status, 200, await grantRemote.text().catch(() => ""));

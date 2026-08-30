@@ -262,7 +262,8 @@ export function buildTokenPilotMcpHandlerFromTools(
   paths: TokenPilotPaths,
   tools: readonly TokenPilotMcpTool[],
   deviceAccessAuthorizer: McpDeviceAccessAuthorizer | null,
-  onerror?: (error: Error) => void
+  onerror?: (error: Error) => void,
+  accessCatalog: readonly TokenPilotMcpTool[] = tools
 ): McpHttpHandler {
   const identity = productIdentityForKey(paths.productIdentity);
   const catalogMetadata = buildMcpToolCatalogMetadata(tools);
@@ -287,7 +288,11 @@ export function buildTokenPilotMcpHandlerFromTools(
           if (!grantId) return null;
           const targetDeviceId = resolveMcpToolDeviceTarget(toolName, input);
           if (!targetDeviceId) return null;
-          const requiredAccessLevel = requiredOAuthDeviceAccessLevelForMcpTool(toolName, input);
+          const requiredAccessLevel = requiredOAuthDeviceAccessLevelForMcpTool(
+            toolName,
+            input,
+            accessCatalog
+          );
           if (
             !deviceAccessAuthorizer ||
             !deviceAccessAuthorizer.allowsDevice(grantId, targetDeviceId, requiredAccessLevel)

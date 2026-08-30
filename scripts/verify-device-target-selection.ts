@@ -266,8 +266,21 @@ assert.equal(
   "Capability Router mutations remain local-device governed in Phase 8"
 );
 
+const oauthAccessDescriptors = [
+  { name: "chatcockpit.project.list", annotations: { readOnlyHint: true } },
+  { name: "chatcockpit.task.get", annotations: { readOnlyHint: true } },
+  { name: "chatcockpit.runtime.restart", annotations: { readOnlyHint: false } },
+  { name: "chatcockpit.codex.thread.events.read", annotations: { readOnlyHint: true } },
+  { name: "chatcockpit.codex.thread.turn.start", annotations: { readOnlyHint: false } },
+  { name: "chatcockpit.future.mutation", annotations: { readOnlyHint: false } }
+] as const;
+
 assert.equal(
-  requiredOAuthDeviceAccessLevelForMcpTool("chatcockpit.project.list", {}),
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.project.list",
+    {},
+    oauthAccessDescriptors
+  ),
   "read-only"
 );
 assert.equal(
@@ -306,6 +319,60 @@ assert.equal(
   }),
   "project-exec",
   "future remote Workspace actions must fail toward the strongest project authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.continuity.invoke",
+    { tool: "task.get", input: { taskId: "fixture" } },
+    oauthAccessDescriptors
+  ),
+  "read-only",
+  "bounded continuity reads must inherit the target tool's read authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.continuity.invoke",
+    { tool: "runtime.restart", input: {} },
+    oauthAccessDescriptors
+  ),
+  "project-exec",
+  "bounded continuity mutations must inherit the target tool's stronger authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.codex.invoke",
+    { tool: "codex.thread.events.read", input: {} },
+    oauthAccessDescriptors
+  ),
+  "read-only",
+  "bounded Codex reads must inherit the target tool's read authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.codex.invoke",
+    { tool: "codex.thread.turn.start", input: {} },
+    oauthAccessDescriptors
+  ),
+  "project-exec",
+  "bounded Codex execution must inherit the target tool's execution authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.continuity.invoke",
+    { tool: "future.unknown", input: {} },
+    oauthAccessDescriptors
+  ),
+  "project-exec",
+  "unknown bounded targets must fail toward project execution authority"
+);
+assert.equal(
+  requiredOAuthDeviceAccessLevelForMcpTool(
+    "chatcockpit.future.mutation",
+    {},
+    oauthAccessDescriptors
+  ),
+  "project-exec",
+  "future mutating tools must fail closed instead of inheriting read-only authority"
 );
 
 process.stdout.write("VERIFY_DEVICE_TARGET_SELECTION_OK\n");

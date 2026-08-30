@@ -1,5 +1,7 @@
 import type { OAuthDeviceAccessLevel } from "../auth/oauth-types.js";
 import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
+import type { McpToolAnnotations } from "./tool-definition.js";
+import { mcpToolSurfaceSuffix } from "./tool-surface.js";
 
 const CONTROL_PLANE_METADATA_TOOLS = new Set([
   "chatcockpit.devices.targets.list",
@@ -18,21 +20,21 @@ const REMOTE_DEVICE_ID_TOOLS = new Set([
   "chatcockpit.devices.runtime.lifecycle.execute"
 ]);
 
-const PROJECT_WRITE_TOOLS = new Set([
-  "chatcockpit.files.write",
-  "chatcockpit.files.edit",
-  "chatcockpit.files.mutate",
-  "chatcockpit.git.stage",
-  "chatcockpit.git.commit",
-  "chatcockpit.git.sync",
-  "chatcockpit.git.push"
+const PROJECT_WRITE_TOOL_SUFFIXES = new Set([
+  "files.write",
+  "files.edit",
+  "files.mutate",
+  "git.stage",
+  "git.commit",
+  "git.sync",
+  "git.push"
 ]);
 
-const PROJECT_EXEC_TOOLS = new Set([
-  "chatcockpit.shell.run",
-  "chatcockpit.workspace.exec",
-  "chatcockpit.workspace.process.read",
-  "chatcockpit.workspace.process.control"
+const PROJECT_EXEC_TOOL_SUFFIXES = new Set([
+  "shell.run",
+  "workspace.exec",
+  "workspace.process.read",
+  "workspace.process.control"
 ]);
 
 const DEVICE_WORKSPACE_READ_ACTIONS = new Set([
@@ -72,16 +74,62 @@ function deviceWorkspaceActionAccessLevel(input: unknown): OAuthDeviceAccessLeve
   return "project-exec";
 }
 
+export interface OAuthAccessToolDescriptor {
+  name: string;
+  annotations: Pick<McpToolAnnotations, "readOnlyHint">;
+}
+
+function boundedInvokeTarget(
+  toolName: string,
+  input: unknown,
+  tools: readonly OAuthAccessToolDescriptor[]
+): { tool: OAuthAccessToolDescriptor; input: unknown } | null {
+  const suffix = mcpToolSurfaceSuffix(toolName);
+  if (suffix !== "continuity.invoke" && suffix !== "codex.invoke") return null;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const record = input as Record<string, unknown>;
+  if (typeof record.tool !== "string" || !record.tool.trim()) return null;
+  const targetSuffix = record.tool.trim();
+  const target = tools.find((candidate) => mcpToolSurfaceSuffix(candidate.name) === targetSuffix);
+  if (!target || target.name === toolName) return null;
+  return { tool: target, input: record.input };
+}
+
 export function requiredOAuthDeviceAccessLevelForMcpTool(
   toolName: string,
-  input: unknown
+  input: unknown,
+  tools: readonly OAuthAccessToolDescriptor[] = []
 ): OAuthDeviceAccessLevel {
-  if (toolName === "chatcockpit.devices.workspace.invoke") {
+  if (mcpToolSurfaceSuffix(toolName) === "devices.workspace.invoke") {
     return deviceWorkspaceActionAccessLevel(input);
   }
-  if (PROJECT_EXEC_TOOLS.has(toolName)) return "project-exec";
-  if (PROJECT_WRITE_TOOLS.has(toolName)) return "project-write";
-  return "read-only";
+
+  const boundedTarget = boundedInvokeTarget(toolName, input, tools);
+  if (boundedTarget) {
+    return requiredOAuthDeviceAccessLevelForMcpTool(
+      boundedTarget.tool.name,
+      boundedTarget.input,
+      tools
+    );
+  }
+  if (["continuity.invoke", "codex.invoke"].includes(mcpToolSurfaceSuffix(toolName))) {
+    // Missing, malformed, unknown, or recursively self-targeted envelopes must
+    // never inherit read-only authority merely because the stable gateway name
+    // itself is forward-compatible.
+    return "project-exec";
+  }
+
+  const suffix = mcpToolSurfaceSuffix(toolName);
+  if (PROJECT_EXEC_TOOL_SUFFIXES.has(suffix)) return "project-exec";
+  if (PROJECT_WRITE_TOOL_SUFFIXES.has(suffix)) return "project-write";
+
+  const descriptor = tools.find((candidate) => candidate.name === toolName);
+  if (descriptor?.annotations.readOnlyHint === true) return "read-only";
+
+  // Any current or future mutating tool that lacks an explicit lower-risk
+  // classification fails toward project execution instead of silently
+  // inheriting read-only authority.
+  return "project-exec";
 }
 
 export function resolveMcpToolDeviceTarget(

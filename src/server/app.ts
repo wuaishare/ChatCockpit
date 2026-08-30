@@ -1112,7 +1112,8 @@ export function buildServer(
       paths,
       tools,
       mcpDeviceAccessAuthorizer,
-      mcpOnError
+      mcpOnError,
+      mcpTools
     );
   const mcpPackHandlers = Object.fromEntries(
     MCP_TOOL_SURFACE_PACKS.map((pack) => [

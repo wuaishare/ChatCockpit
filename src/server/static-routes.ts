@@ -4,17 +4,19 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { OperatorService } from "../auth/operator-service.js";
 import { readIdentityEnv } from "../core/identity-env.js";
-import {
-  verifyWebBuildGeneration,
-  verifyWebBuildIntegrity,
-  type RuntimeBuildProvenance
-} from "../core/build-provenance.js";
+import type { RuntimeBuildProvenance } from "../core/build-provenance.js";
 import { projectOpenApiForProduct } from "../core/openapi-product-projection.js";
 import { isPathInsideRoot, resolvePathInsideRoot } from "../core/path-guards.js";
 import { productIdentityForKey } from "../core/product-identity.js";
 import type { TokenPilotPaths } from "../types.js";
 import { sendApiError } from "./errors.js";
 import { operatorSessionFromRequest } from "./operator-auth-context.js";
+import {
+  resolveUiBuildRecovery,
+  uiRecoveryLocaleFromAcceptLanguage,
+  type UiBuildRecoveryStatus,
+  type UiRecoveryLocale
+} from "./ui-build-recovery.js";
 
 const UI_DOCUMENT_CACHE_CONTROL = "no-store";
 const UI_HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -67,13 +69,82 @@ function renderOpenApiDocument(
   return projectOpenApiForProduct(source, paths.productIdentity, serverUrl);
 }
 
-function renderUiNotBuiltPage(displayName: string): string {
+interface UiRecoveryCopy {
+  notBuiltTitle: string;
+  notBuiltHeading: string;
+  notBuiltDescription: string;
+  notBuiltAction: string;
+  notBuiltBuildStep: string;
+  notBuiltRestartStep: string;
+  notBuiltOpenStep: string;
+  notBuiltNote: string;
+  restartTitle: string;
+  restartHeading: string;
+  restartDescription: string;
+  restartAction: string;
+  restartNote: string;
+  rebuildTitle: string;
+  rebuildHeading: string;
+  rebuildDescription: string;
+  rebuildAction: string;
+  rebuildNote: string;
+}
+
+const UI_RECOVERY_COPY: Record<UiRecoveryLocale, UiRecoveryCopy> = {
+  "zh-CN": {
+    notBuiltTitle: "Web UI 尚未构建",
+    notBuiltHeading: "Web UI 尚未构建",
+    notBuiltDescription: "本机 Operator Web UI 需要从 web/dist 中的静态构建产物加载。",
+    notBuiltAction: "请完成整套 Runtime 构建，然后重启 Runtime 并重新打开 /ui；不要只单独重建 web/dist。",
+    notBuiltBuildStep: "完整构建",
+    notBuiltRestartStep: "重启 ChatCockpit Runtime",
+    notBuiltOpenStep: "重新打开",
+    notBuiltNote: "诊断期间仍可使用 /api/health 与 /openapi.yaml。",
+    restartTitle: "Runtime 需要重启",
+    restartHeading: "已检测到完整的新构建，Runtime 需要重启",
+    restartDescription: "磁盘上的 Control Plane 与 Web UI 已来自同一完整构建 generation，但当前运行中的 Control Plane 仍使用启动时加载的旧 generation。为避免旧后端与新前端混用，Web UI 已暂时阻止加载。",
+    restartAction: "请重启 ChatCockpit Runtime，然后重新打开 /ui；无需再次执行 npm run build。",
+    restartNote: "/api/health 在重启前仍可用于诊断。",
+    rebuildTitle: "构建产物不同步",
+    rebuildHeading: "构建产物不同步",
+    rebuildDescription: "Control Plane 与 Web UI 没有形成同一个完整且可验证的构建 generation，因此 Web UI 已阻止加载不兼容的客户端。",
+    rebuildAction: "请重新构建并部署完整 Runtime 产物集，然后再打开 /ui。源码 checkout 应运行 npm run build，而不是只重建 web/dist。",
+    rebuildNote: "/api/health 仍可用于诊断。"
+  },
+  "en-US": {
+    notBuiltTitle: "Web UI Not Built",
+    notBuiltHeading: "Web UI is not built yet",
+    notBuiltDescription: "The local-first Operator Web UI is served from built static assets under web/dist.",
+    notBuiltAction: "Build the complete Runtime artifact set, then restart the Runtime and open /ui again; do not rebuild web/dist by itself.",
+    notBuiltBuildStep: "Complete build",
+    notBuiltRestartStep: "Restart the ChatCockpit Runtime",
+    notBuiltOpenStep: "Open",
+    notBuiltNote: "/api/health and /openapi.yaml remain available for diagnostics.",
+    restartTitle: "Runtime Restart Required",
+    restartHeading: "A complete new build is ready; restart the Runtime",
+    restartDescription: "The Control Plane and Web UI on disk now belong to the same complete build generation, but the running Control Plane is still using the generation loaded at startup. The Web UI has been blocked to avoid mixing an old backend with a new client.",
+    restartAction: "Restart the ChatCockpit Runtime, then retry /ui. You do not need to run npm run build again.",
+    restartNote: "/api/health remains available for diagnostics before the restart.",
+    rebuildTitle: "Build Artifacts Out of Sync",
+    rebuildHeading: "Build artifacts are out of sync",
+    rebuildDescription: "The Control Plane and Web UI do not form one complete, verifiable build generation, so the Web UI has been blocked instead of loading an incompatible client.",
+    rebuildAction: "Rebuild and deploy the complete Runtime artifact set, then retry /ui. For a source checkout, run npm run build rather than rebuilding only web/dist.",
+    rebuildNote: "/api/health remains available for diagnostics."
+  }
+};
+
+function htmlLanguage(locale: UiRecoveryLocale): string {
+  return locale === "zh-CN" ? "zh-Hans" : "en";
+}
+
+function renderUiNotBuiltPage(displayName: string, locale: UiRecoveryLocale): string {
+  const copy = UI_RECOVERY_COPY[locale];
   return `<!doctype html>
-<html lang="en">
+<html lang="${htmlLanguage(locale)}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${displayName} Web UI Not Built</title>
+    <title>${displayName} · ${copy.notBuiltTitle}</title>
     <style>
       :root {
         color-scheme: light;
@@ -140,34 +211,45 @@ function renderUiNotBuiltPage(displayName: string): string {
   </head>
   <body>
     <main>
-      <h1>${displayName} Web UI is not built yet</h1>
-      <p>The local-first operator Web UI is served from built static assets under <code>web/dist</code>.</p>
-      <p>Build the frontend first, then restart the server and open <code>/ui</code> again.</p>
+      <h1>${displayName} ${copy.notBuiltHeading}</h1>
+      <p>${copy.notBuiltDescription.replace("web/dist", "<code>web/dist</code>")}</p>
+      <p>${copy.notBuiltAction.replace("/ui", "<code>/ui</code>").replace("web/dist", "<code>web/dist</code>")}</p>
       <ul>
-        <li><code>npm run build:web</code></li>
-        <li><code>npm run server</code></li>
-        <li>Open <code>http://127.0.0.1:4318/ui</code></li>
+        <li>${copy.notBuiltBuildStep}: <code>npm run build</code></li>
+        <li>${copy.notBuiltRestartStep}</li>
+        <li>${copy.notBuiltOpenStep} <code>http://127.0.0.1:4318/ui</code></li>
       </ul>
-      <p class="note">Current public-safe entry points remain <code>/api/health</code> and <code>/openapi.yaml</code>. Full HTTPS / Custom GPT Actions automation loop is still under validation.</p>
+      <p class="note">${copy.notBuiltNote.replace("/api/health", "<code>/api/health</code>").replace("/openapi.yaml", "<code>/openapi.yaml</code>")}</p>
     </main>
   </body>
 </html>`;
 }
 
-function renderUiBuildMismatchPage(displayName: string): string {
+function renderUiBuildRecoveryPage(
+  displayName: string,
+  locale: UiRecoveryLocale,
+  status: Exclude<UiBuildRecoveryStatus, "ok">
+): string {
+  const copy = UI_RECOVERY_COPY[locale];
+  const restartRequired = status === "restart-required";
+  const title = restartRequired ? copy.restartTitle : copy.rebuildTitle;
+  const heading = restartRequired ? copy.restartHeading : copy.rebuildHeading;
+  const description = restartRequired ? copy.restartDescription : copy.rebuildDescription;
+  const action = restartRequired ? copy.restartAction : copy.rebuildAction;
+  const note = restartRequired ? copy.restartNote : copy.rebuildNote;
   return `<!doctype html>
-<html lang="en">
+<html lang="${htmlLanguage(locale)}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${displayName} Build Generation Mismatch</title>
+    <title>${displayName} · ${title}</title>
   </head>
   <body>
     <main style="max-width: 760px; margin: 56px auto; padding: 0 24px; font: 16px/1.7 -apple-system, BlinkMacSystemFont, sans-serif;">
-      <h1>${displayName} build artifacts are out of sync</h1>
-      <p>The Control Plane and Web UI were not produced by the same complete build generation, so the Web UI has been blocked instead of loading an incompatible client.</p>
-      <p>Rebuild and deploy the complete runtime artifact set, then retry <code>/ui</code>. For a source checkout, run <code>npm run build</code> rather than rebuilding only <code>web/dist</code>.</p>
-      <p><code>/api/health</code> remains available for diagnostics.</p>
+      <h1>${displayName} · ${heading}</h1>
+      <p>${description}</p>
+      <p>${action.replace("/ui", "<code>/ui</code>").replace("npm run build", "<code>npm run build</code>").replace("web/dist", "<code>web/dist</code>")}</p>
+      <p>${note.replace("/api/health", "<code>/api/health</code>")}</p>
     </main>
   </body>
 </html>`;
@@ -241,51 +323,64 @@ export function registerStaticRoutes(
     app.get(`${secureEntryPath}/login`, redirectSecureEntry);
   }
 
-  app.get("/ui", async (_request, reply) => {
+  app.get("/ui", async (request, reply) => {
     reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
     reply.type("text/html; charset=utf-8");
+    const locale = uiRecoveryLocaleFromAcceptLanguage(request.headers["accept-language"]);
+    reply.header("Content-Language", locale);
+    reply.header("Vary", "Accept-Language");
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
-      return renderUiNotBuiltPage(identity.displayName);
+      return renderUiNotBuiltPage(identity.displayName, locale);
     }
-    const buildIntegrity = runtimeBuildProvenance
-      ? verifyWebBuildIntegrity(paths.installRoot, runtimeBuildProvenance)
-      : null;
-    if (buildIntegrity && !buildIntegrity.ok) {
+    const recovery = resolveUiBuildRecovery(paths.installRoot, runtimeBuildProvenance);
+    if (recovery.status !== "ok") {
       reply.code(503);
-      return renderUiBuildMismatchPage(identity.displayName);
+      return renderUiBuildRecoveryPage(identity.displayName, locale, recovery.status);
     }
     return renderUiIndex();
   });
 
   app.get("/ui/*", async (request, reply) => {
+    const locale = uiRecoveryLocaleFromAcceptLanguage(request.headers["accept-language"]);
+    reply.header("Content-Language", locale);
+    reply.header("Vary", "Accept-Language");
     const indexPath = path.join(uiDistDir, "index.html");
     if (!hasUiDist || !uiRootRealPath || !fs.existsSync(indexPath)) {
       reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
       reply.type("text/html; charset=utf-8");
-      return renderUiNotBuiltPage(identity.displayName);
+      return renderUiNotBuiltPage(identity.displayName, locale);
     }
 
     const requestUrl = request.url;
     const rawSuffixForIntegrity = requestUrl
       .split("?", 1)[0]
       .slice("/ui/".length);
-    const buildIntegrity = runtimeBuildProvenance
-      ? rawSuffixForIntegrity.startsWith("assets/")
-        ? verifyWebBuildGeneration(paths.installRoot, runtimeBuildProvenance)
-        : verifyWebBuildIntegrity(paths.installRoot, runtimeBuildProvenance)
-      : null;
-    if (buildIntegrity && !buildIntegrity.ok) {
+    const recovery = resolveUiBuildRecovery(
+      paths.installRoot,
+      runtimeBuildProvenance,
+      rawSuffixForIntegrity.startsWith("assets/") ? "generation" : "integrity"
+    );
+    if (recovery.status !== "ok") {
       if (rawSuffixForIntegrity.startsWith("assets/")) {
+        const restartRequired = recovery.status === "restart-required";
         return sendApiError(
           reply,
           503,
-          "UI_BUILD_GENERATION_MISMATCH",
-          "Web UI artifacts do not match the running Control Plane build generation"
+          restartRequired ? "UI_RUNTIME_RESTART_REQUIRED" : "UI_BUILD_GENERATION_MISMATCH",
+          restartRequired
+            ? locale === "zh-CN"
+              ? "已检测到完整的新构建；请重启 ChatCockpit Runtime 后重新加载 Web UI"
+              : "A complete new build is ready; restart the ChatCockpit Runtime before reloading the Web UI"
+            : locale === "zh-CN"
+              ? "Web UI 构建产物与 Control Plane 不属于同一个完整且可验证的构建 generation"
+              : "Web UI artifacts do not form the same complete, verifiable build generation as the Control Plane"
         );
       }
       reply.header("Cache-Control", UI_DOCUMENT_CACHE_CONTROL);
       reply.type("text/html; charset=utf-8");
-      return reply.code(503).send(renderUiBuildMismatchPage(identity.displayName));
+      return reply.code(503).send(
+        renderUiBuildRecoveryPage(identity.displayName, locale, recovery.status)
+      );
     }
 
     const rawSuffix = requestUrl

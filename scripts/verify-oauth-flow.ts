@@ -548,6 +548,90 @@ async function main(): Promise<void> {
     );
     assert.equal(fs.readFileSync(path.join(root, "README.md"), "utf8"), "# OAuth fixture\n");
 
+    const readonlyContinuityRead = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 10801,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.continuity.invoke",
+        arguments: {
+          tool: "task.get",
+          input: { taskId: taskCreated.task.id }
+        }
+      }
+    });
+    assert.equal(readonlyContinuityRead.response.status, 200);
+    const readonlyContinuityReadResult = readonlyContinuityRead.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        result?: { task?: { id?: string } };
+        error?: { code?: string };
+      };
+    };
+    assert.equal(readonlyContinuityReadResult.isError, undefined);
+    assert.equal(
+      readonlyContinuityReadResult.structuredContent?.result?.task?.id,
+      taskCreated.task.id,
+      "read-only OAuth authority must still pass through bounded invoke to a genuinely read-only target"
+    );
+
+    const readonlyContinuityExecDenied = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 10802,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.continuity.invoke",
+        arguments: {
+          tool: "runtime.restart",
+          input: {}
+        }
+      }
+    });
+    assert.equal(readonlyContinuityExecDenied.response.status, 200);
+    const readonlyContinuityExecDeniedResult = readonlyContinuityExecDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { requiredAccessLevel?: string } };
+      };
+    };
+    assert.equal(readonlyContinuityExecDeniedResult.isError, true);
+    assert.equal(
+      readonlyContinuityExecDeniedResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED"
+    );
+    assert.equal(
+      readonlyContinuityExecDeniedResult.structuredContent?.error?.details?.requiredAccessLevel,
+      "project-exec",
+      "bounded continuity mutations must be denied before target validation or execution"
+    );
+
+    const readonlyCodexExecDenied = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 10803,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.codex.invoke",
+        arguments: {
+          tool: "codex.thread.turn.start",
+          input: {}
+        }
+      }
+    });
+    assert.equal(readonlyCodexExecDenied.response.status, 200);
+    const readonlyCodexExecDeniedResult = readonlyCodexExecDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { requiredAccessLevel?: string } };
+      };
+    };
+    assert.equal(readonlyCodexExecDeniedResult.isError, true);
+    assert.equal(readonlyCodexExecDeniedResult.structuredContent?.error?.code, "DEVICE_ACCESS_DENIED");
+    assert.equal(
+      readonlyCodexExecDeniedResult.structuredContent?.error?.details?.requiredAccessLevel,
+      "project-exec",
+      "bounded Codex execution must be denied before nested model-loop validation or provider work"
+    );
+
     const elevateProjectWrite = await fetch(
       `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
       {

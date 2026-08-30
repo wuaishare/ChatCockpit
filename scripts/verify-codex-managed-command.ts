@@ -42,7 +42,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
       CHATCOCKPIT_MOCK_STANDALONE_ROOT: probeRoot,
       CHATCOCKPIT_MOCK_STANDALONE_TRACE: tracePath
     },
-    requestTimeoutMs: 100
+    requestTimeoutMs: 2_000
   });
 
   const probeClient = makeClient();

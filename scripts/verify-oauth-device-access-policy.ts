@@ -9,6 +9,7 @@ import { LOCAL_DEVICE_TARGET_ID } from "../src/devices/local-device.js";
 
 const now = "2026-08-21T16:00:00.000Z";
 const later = "2026-08-21T16:05:00.000Z";
+const v4AppliedAt = "2026-08-21T16:02:00.000Z";
 const remoteDeviceId = `cc_device_${"A".repeat(24)}`;
 
 function createV2Fixture(databasePath: string): void {
@@ -115,21 +116,21 @@ try {
   assert.deepEqual(
     store.listAuthorizationGrantDeviceIds(existingGrantId),
     [LOCAL_DEVICE_TARGET_ID],
-    "v2 -> v4 migration must preserve current behavior with local-device only"
+    "v2 -> v5 migration must preserve current behavior with local-device only"
   );
   assert.equal(
     store.authorizationGrantDeviceAccessLevel(existingGrantId, LOCAL_DEVICE_TARGET_ID),
-    "read-only",
-    "migrated device relations must gain the least-privilege access level"
+    "project-exec",
+    "pre-tier device relations must preserve their historical project execution authority"
   );
   assert.equal(store.authorizationGrantAllowsDevice(existingGrantId, LOCAL_DEVICE_TARGET_ID), true);
   assert.equal(
     store.authorizationGrantAllowsDevice(existingGrantId, LOCAL_DEVICE_TARGET_ID, "project-write"),
-    false
+    true
   );
   assert.equal(
     store.authorizationGrantAllowsDevice(existingGrantId, LOCAL_DEVICE_TARGET_ID, "project-exec"),
-    false
+    true
   );
   assert.equal(store.authorizationGrantAllowsDevice(existingGrantId, remoteDeviceId), false);
 
@@ -213,9 +214,52 @@ try {
   const migrations = store.sqlite
     .prepare("SELECT version FROM oauth_schema_migrations ORDER BY version")
     .all() as Array<{ version: number }>;
-  assert.deepEqual(migrations.map((row) => Number(row.version)), [2, 3, 4]);
+  assert.deepEqual(migrations.map((row) => Number(row.version)), [2, 3, 4, 5]);
 
   store.close();
+
+  const v4DatabasePath = oauthDatabasePath(path.join(root, "runtime-v4"));
+  createV2Fixture(v4DatabasePath);
+  const v4Seed = new OAuthStore({ path: v4DatabasePath });
+  v4Seed.registerClient({
+    clientId: "client-post-v4",
+    clientName: "Post v4 ChatGPT",
+    redirectUris: ["https://chatgpt.com/connector_platform_oauth_redirect"]
+  }, later);
+  const postV4GrantId = "oauth_grant_post_v4_123456";
+  v4Seed.createAuthorizationGrant({
+    grantId: postV4GrantId,
+    clientId: "client-post-v4",
+    displayLabel: "Post v4 read-only authorization",
+    scope: "chatcockpit.mcp offline_access",
+    resource: "https://example.invalid/mcp",
+    createdAt: later,
+    localDeviceAccessLevel: "read-only"
+  });
+  v4Seed.sqlite.prepare(`
+    UPDATE oauth_authorization_grant_devices
+    SET access_level = 'read-only', granted_at = ?
+    WHERE grant_id = ? AND device_id = ?
+  `).run(now, existingGrantId, LOCAL_DEVICE_TARGET_ID);
+  v4Seed.sqlite
+    .prepare("UPDATE oauth_schema_migrations SET applied_at = ? WHERE version = 4")
+    .run(v4AppliedAt);
+  v4Seed.sqlite.prepare("DELETE FROM oauth_schema_migrations WHERE version = 5").run();
+  v4Seed.close();
+
+  const v5Selective = new OAuthStore({ path: v4DatabasePath });
+  assert.equal(
+    v5Selective.authorizationGrantDeviceAccessLevel(existingGrantId, LOCAL_DEVICE_TARGET_ID),
+    "project-exec",
+    "v5 must restore only relations that predate the v4 tier migration"
+  );
+  assert.equal(
+    v5Selective.authorizationGrantDeviceAccessLevel(postV4GrantId, LOCAL_DEVICE_TARGET_ID),
+    "read-only",
+    "v5 must preserve explicit read-only grants created after the v4 tier migration"
+  );
+  v5Selective.close();
+
   process.stdout.write("VERIFY_OAUTH_DEVICE_ACCESS_POLICY_OK\n");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

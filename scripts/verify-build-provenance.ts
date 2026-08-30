@@ -12,6 +12,10 @@ import {
   verifyWebBuildIntegrity
 } from "../src/core/build-provenance.js";
 import { buildHealthStatusSnapshot } from "../src/core/gpt-config.js";
+import {
+  resolveUiBuildRecovery,
+  uiRecoveryLocaleFromAcceptLanguage
+} from "../src/server/ui-build-recovery.js";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const requireClean = process.argv.includes("--require-clean");
@@ -24,6 +28,7 @@ const healthSource = fs.readFileSync(path.join(repoRoot, "src/core/gpt-config.ts
 const dashboardSource = fs.readFileSync(path.join(repoRoot, "web/src/components/DashboardView.tsx"), "utf8");
 const webTypesSource = fs.readFileSync(path.join(repoRoot, "web/src/types.ts"), "utf8");
 const staticRoutesSource = fs.readFileSync(path.join(repoRoot, "src/server/static-routes.ts"), "utf8");
+const uiBuildRecoverySource = fs.readFileSync(path.join(repoRoot, "src/server/ui-build-recovery.ts"), "utf8");
 const cliSource = fs.readFileSync(path.join(repoRoot, "src/cli/index.ts"), "utf8");
 const lifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/macos-manage-local-server.sh"), "utf8");
 
@@ -45,12 +50,16 @@ assert.doesNotMatch(webTypesSource, /webSha256/);
 assert.match(dashboardSource, /health\.build\.buildId/);
 assert.match(dashboardSource, /health\.build\.revision/);
 assert.match(dashboardSource, /summary-build-provenance/);
-assert.match(staticRoutesSource, /verifyWebBuildGeneration/);
-assert.match(staticRoutesSource, /verifyWebBuildIntegrity/);
+assert.match(uiBuildRecoverySource, /verifyWebBuildGeneration/);
+assert.match(uiBuildRecoverySource, /verifyWebBuildIntegrity/);
+assert.match(uiBuildRecoverySource, /verifyRuntimeBuildIntegrity/);
 assert.match(staticRoutesSource, /UI_BUILD_GENERATION_MISMATCH/);
-assert.match(staticRoutesSource, /build artifacts are out of sync/);
+assert.match(staticRoutesSource, /UI_RUNTIME_RESTART_REQUIRED/);
+assert.match(staticRoutesSource, /Build artifacts are out of sync/);
+assert.match(staticRoutesSource, /已检测到完整的新构建，Runtime 需要重启/);
+assert.match(staticRoutesSource, /uiRecoveryLocaleFromAcceptLanguage/);
 assert.match(staticRoutesSource, /runtimeBuildProvenance/);
-assert.match(staticRoutesSource, /verifyWebBuildIntegrity\(paths\.installRoot, runtimeBuildProvenance\)/);
+assert.match(staticRoutesSource, /resolveUiBuildRecovery/);
 assert.match(cliSource, /case "build-provenance"/);
 assert.match(cliSource, /const runtimeBuildProvenance = assertBuiltRuntimeIntegrity\(paths\)/);
 assert.match(cliSource, /runtimeBuildProvenance,/);
@@ -135,6 +144,10 @@ try {
   const startupProvenance = readRuntimeBuildProvenance(fixtureRoot);
   assert.equal(verifyRuntimeBuildIntegrity(fixtureRoot).code, "ok");
   assert.equal(verifyWebBuildGeneration(fixtureRoot, startupProvenance).code, "ok");
+  assert.equal(resolveUiBuildRecovery(fixtureRoot, startupProvenance).status, "ok");
+  assert.equal(uiRecoveryLocaleFromAcceptLanguage("zh-CN,zh;q=0.9,en;q=0.8"), "zh-CN");
+  assert.equal(uiRecoveryLocaleFromAcceptLanguage("zh-Hans-CN,en;q=0.8"), "zh-CN");
+  assert.equal(uiRecoveryLocaleFromAcceptLanguage("ja-JP,en-US;q=0.9"), "en-US");
   assert.equal(
     verifyRuntimeBuildIntegrity(fixtureRoot, {
       requireCleanSource: true,
@@ -154,6 +167,11 @@ try {
   fs.writeFileSync(path.join(fixtureRoot, "web", "dist", "index.html"), "<main>changed</main>\n", "utf8");
   assert.equal(verifyWebBuildIntegrity(fixtureRoot).code, "web-artifact-mismatch");
   assert.equal(verifyRuntimeBuildIntegrity(fixtureRoot).code, "web-artifact-mismatch");
+  assert.equal(
+    resolveUiBuildRecovery(fixtureRoot, startupProvenance).status,
+    "rebuild-required",
+    "a genuinely incomplete artifact set must continue to require a complete rebuild"
+  );
   fs.writeFileSync(path.join(fixtureRoot, "web", "dist", "index.html"), "<main>fixture</main>\n", "utf8");
 
   fs.rmSync(markerPath);
@@ -189,6 +207,11 @@ try {
   assert.equal(
     verifyWebBuildGeneration(fixtureRoot, startupProvenance).code,
     "web-generation-mismatch"
+  );
+  assert.equal(
+    resolveUiBuildRecovery(fixtureRoot, startupProvenance).status,
+    "restart-required",
+    "a complete newer disk generation must ask for Runtime restart instead of another rebuild"
   );
   fs.writeFileSync(canonicalPath, serialized, "utf8");
   fs.writeFileSync(markerPath, serialized, "utf8");

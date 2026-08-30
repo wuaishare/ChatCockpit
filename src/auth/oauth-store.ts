@@ -855,6 +855,7 @@ export class OAuthStore {
     this.migrateAuthorizationGrants();
     this.migrateAuthorizationGrantDevices();
     this.migrateAuthorizationGrantDeviceAccessLevels();
+    this.migrateAuthorizationGrantDeviceAccessCompatibility();
   }
 
   private hasColumn(table: string, column: string): boolean {
@@ -878,6 +879,33 @@ export class OAuthStore {
       }
       this.sqlite.prepare(`
         INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (4, ?)
+      `).run(new Date().toISOString());
+    });
+  }
+
+  private migrateAuthorizationGrantDeviceAccessCompatibility(): void {
+    const migrated = this.sqlite
+      .prepare("SELECT 1 AS present FROM oauth_schema_migrations WHERE version = 5")
+      .get() as { present: number } | undefined;
+    if (migrated) return;
+
+    this.transaction(() => {
+      const versionFour = this.sqlite
+        .prepare("SELECT applied_at FROM oauth_schema_migrations WHERE version = 4")
+        .get() as { applied_at: string } | undefined;
+      if (!versionFour) {
+        throw new Error("OAuth authorization device access compatibility migration requires version 4");
+      }
+
+      this.sqlite.prepare(`
+        UPDATE oauth_authorization_grant_devices
+        SET access_level = 'project-exec'
+        WHERE access_level = 'read-only'
+          AND granted_at < ?
+      `).run(versionFour.applied_at);
+
+      this.sqlite.prepare(`
+        INSERT INTO oauth_schema_migrations (version, applied_at) VALUES (5, ?)
       `).run(new Date().toISOString());
     });
   }
