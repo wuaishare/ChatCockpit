@@ -714,6 +714,7 @@ export class ChatDirectService {
         try {
           const result = await this.runtime.executeStandaloneCommand({
             command: [prepared.command, ...prepared.args],
+            commandIdentity: prepared.commandIdentity,
             cwd: prepared.workdir,
             timeoutMs: prepared.timeoutMs,
             outputBytesCap: prepared.outputBytesCap,
@@ -884,6 +885,7 @@ export class ChatDirectService {
       const started = nativeBackend
         ? await this.runtime.startStandaloneProcess({
             command: [prepared.command, ...prepared.args],
+            commandIdentity: prepared.commandIdentity,
             cwd: prepared.workdir,
             readOnly: access === "read",
             allowStdin: payload.allowStdin === true || payload.tty === true,

@@ -72,8 +72,9 @@ function verifyStandaloneSandboxPolicy(): void {
 
 function verifyStandaloneCommandCompatibility(): void {
   const directTsx = prepareCodexStandaloneCommandInvocation(
-    ["tsx", "/workspace/scripts/check.ts", "--fixture"],
-    "/tmp/chatcockpit-tsx-compat.bash"
+    ["/workspace/node_modules/tsx/dist/cli.mjs", "/workspace/scripts/check.ts", "--fixture"],
+    "/tmp/chatcockpit-tsx-compat.bash",
+    "tsx"
   );
   assert.deepEqual(directTsx.command, [
     process.execPath,
@@ -103,10 +104,15 @@ function verifyStandaloneCommandCompatibility(): void {
   }
 
   const npmRun = prepareCodexStandaloneCommandInvocation(
-    ["npm", "run", "verify:chat-direct"],
-    "/tmp/chatcockpit-tsx-compat.bash"
+    ["/runtime/node_modules/npm/bin/npm-cli.js", "run", "verify:chat-direct"],
+    "/tmp/chatcockpit-tsx-compat.bash",
+    "npm"
   );
-  assert.deepEqual(npmRun.command, ["npm", "run", "verify:chat-direct"]);
+  assert.deepEqual(npmRun.command, [
+    "/runtime/node_modules/npm/bin/npm-cli.js",
+    "run",
+    "verify:chat-direct"
+  ]);
   assert.deepEqual(npmRun.env, {
     BASH_ENV: "/tmp/chatcockpit-tsx-compat.bash",
     npm_config_script_shell: "/bin/bash"

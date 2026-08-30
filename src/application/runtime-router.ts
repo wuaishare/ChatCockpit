@@ -184,6 +184,7 @@ export class RuntimeRouter {
 
   executeStandaloneCommand(input: {
     command: string[];
+    commandIdentity?: string;
     cwd: string;
     timeoutMs: number;
     outputBytesCap: number;
@@ -194,6 +195,7 @@ export class RuntimeRouter {
 
   startStandaloneProcess(input: {
     command: string[];
+    commandIdentity?: string;
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;

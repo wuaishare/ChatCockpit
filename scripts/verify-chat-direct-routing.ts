@@ -1167,6 +1167,10 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.ok(nativeGitFetchCall);
     const nativeGitFetchCommand =
       (nativeGitFetchCall.payload as { command?: string[] }).command ?? [];
+    assert.equal(
+      (nativeGitFetchCall.payload as { commandIdentity?: string }).commandIdentity,
+      "git"
+    );
     assert.equal(path.basename(nativeGitFetchCommand[0] ?? ""), "git");
     assert.deepEqual(nativeGitFetchCommand.slice(1), ["fetch", "origin"]);
     adapter.completeManagedProcess(nativeGitFetch.processId, "git-fetch-finished");
@@ -1191,6 +1195,10 @@ async function verifyChatDirectRouting(): Promise<void> {
     );
     assert.ok(managedCall);
     assert.equal((managedCall.payload as { networkAccess?: boolean }).networkAccess, true);
+    assert.equal(
+      (managedCall.payload as { commandIdentity?: string }).commandIdentity,
+      "npm"
+    );
     const managedCommand =
       (managedCall.payload as { command?: string[] }).command ?? [];
     assert.equal(managedCommand.length, 2);

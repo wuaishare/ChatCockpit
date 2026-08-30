@@ -435,13 +435,14 @@ export type CodexStandaloneCompatibilityMode = "tsx-node-import-hook";
 
 export function prepareCodexStandaloneCommandInvocation(
   command: string[],
-  tsxCompatibilityBashEnvPath?: string | null
+  tsxCompatibilityBashEnvPath?: string | null,
+  commandIdentity?: string
 ): {
   command: string[];
   env: Record<string, string> | undefined;
   compatibilityMode: CodexStandaloneCompatibilityMode | null;
 } {
-  const executable = path.basename(command[0] ?? "");
+  const executable = path.basename(commandIdentity ?? command[0] ?? "");
   const firstArgument = command[1] ?? "";
   const directTsxScript =
     executable === "tsx" &&
@@ -1161,6 +1162,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
 
   async executeStandaloneCommand(input: {
     command: string[];
+    commandIdentity?: string;
     cwd: string;
     timeoutMs: number;
     outputBytesCap: number;
@@ -1170,7 +1172,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     const client = await this.ensureClient();
     const invocation = prepareCodexStandaloneCommandInvocation(
       input.command,
-      this.ensureTsxCompatibilityBashEnvPath()
+      this.ensureTsxCompatibilityBashEnvPath(),
+      input.commandIdentity
     );
     const response = await client.request<Record<string, unknown>>(
       "command/exec",
@@ -1209,6 +1212,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
 
   async startStandaloneProcess(input: {
     command: string[];
+    commandIdentity?: string;
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;
@@ -1220,7 +1224,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     const client = await this.ensureClient();
     const invocation = prepareCodexStandaloneCommandInvocation(
       input.command,
-      this.ensureTsxCompatibilityBashEnvPath()
+      this.ensureTsxCompatibilityBashEnvPath(),
+      input.commandIdentity
     );
     const processId = `chatcockpit_${randomUUID()}`;
     const terminalToken = randomUUID().replaceAll("-", "");

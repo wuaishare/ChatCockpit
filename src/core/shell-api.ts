@@ -175,6 +175,7 @@ export function resolveGovernedWorkspaceToolCommand(
 export interface PreparedShellCommand {
   repoRoot: string;
   command: string;
+  commandIdentity: string;
   args: string[];
   workdir: string;
   timeoutMs: number;
@@ -188,6 +189,7 @@ export interface PreparedShellCommand {
 export interface PreparedWorkspaceExecCommand {
   repoRoot: string;
   command: string;
+  commandIdentity: string;
   args: string[];
   workdir: string;
   readOnly: boolean;
@@ -242,6 +244,7 @@ export function prepareWorkspaceExecCommand(
   return {
     repoRoot,
     command,
+    commandIdentity: path.basename(policy.command),
     args,
     workdir,
     readOnly: policy.effect === "read",
@@ -269,6 +272,7 @@ export function prepareShellCommand(
   return {
     repoRoot,
     command: resolveGovernedWorkspaceToolCommand(policy.command),
+    commandIdentity: path.basename(policy.command),
     args,
     workdir,
     timeoutMs: resolveShellCommandTimeoutMs(payload.timeoutMs),

@@ -383,6 +383,7 @@ export interface CodingRuntimeAdapter {
   listStandaloneDirectory(path: string): Promise<RuntimeStandaloneDirectoryEntry[]>;
   executeStandaloneCommand(input: {
     command: string[];
+    commandIdentity?: string;
     cwd: string;
     timeoutMs: number;
     outputBytesCap: number;
@@ -390,6 +391,7 @@ export interface CodingRuntimeAdapter {
   }): Promise<RuntimeStandaloneCommandResult>;
   startStandaloneProcess?(input: {
     command: string[];
+    commandIdentity?: string;
     cwd: string;
     readOnly: boolean;
     allowStdin: boolean;

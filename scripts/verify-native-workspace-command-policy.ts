@@ -246,6 +246,7 @@ try {
     args: ["scripts/inside.mjs"]
   });
   assert.equal(prepared.executionMode, "native-sandbox");
+  assert.equal(prepared.commandIdentity, "node");
   assert.equal(
     prepared.args[0],
     "scripts/inside.mjs",
@@ -257,6 +258,7 @@ try {
     args: ["-l", "scripts/inside.php"]
   });
   assert.equal(preparedPhp.readOnly, true);
+  assert.equal(preparedPhp.commandIdentity, "php");
   assert.equal(
     preparedPhp.args[1],
     fs.realpathSync.native(path.join(repoRoot, "scripts", "inside.php"))
@@ -268,6 +270,7 @@ try {
     executionMode: "host-managed"
   });
   assert.equal(hostManaged.executionMode, "host-managed");
+  assert.equal(hostManaged.commandIdentity, "npm");
   assert.throws(
     () => prepareWorkspaceExecCommand(paths, {
       repoId: "primary",
