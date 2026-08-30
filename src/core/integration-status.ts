@@ -29,8 +29,12 @@ export interface IntegrationStatusSnapshot {
     activeRefreshTokenCount: number;
     toolCatalogStatus: "ready";
     toolCount: number;
+    coreToolCount: number;
+    fullToolCount: number;
     toolCatalogFingerprint: string;
+    fullToolCatalogFingerprint: string;
     serverVersion: string;
+    toolsInvokeAvailable: boolean;
   };
   runtime: {
     codexStandalone: CodexStandaloneSnapshotStatus;
@@ -53,9 +57,17 @@ export function buildIntegrationStatusSnapshot(input: {
   paths: TokenPilotPaths;
   oauthSummary?: OAuthIntegrationSummary | null;
   toolCatalog: {
-    toolCount: number;
-    fingerprint: string;
-    serverVersion: string;
+    core: {
+      toolCount: number;
+      fingerprint: string;
+      serverVersion: string;
+    };
+    full: {
+      toolCount: number;
+      fingerprint: string;
+      serverVersion: string;
+    };
+    toolsInvokeAvailable: boolean;
   };
   codexStandalone: CodexStandaloneSnapshotStatus;
 }): IntegrationStatusSnapshot {
@@ -99,9 +111,13 @@ export function buildIntegrationStatusSnapshot(input: {
       activeAccessTokenCount: oauthSummary.activeAccessTokenCount,
       activeRefreshTokenCount: oauthSummary.activeRefreshTokenCount,
       toolCatalogStatus: "ready",
-      toolCount: Math.max(0, Math.floor(input.toolCatalog.toolCount)),
-      toolCatalogFingerprint: input.toolCatalog.fingerprint,
-      serverVersion: input.toolCatalog.serverVersion
+      toolCount: Math.max(0, Math.floor(input.toolCatalog.core.toolCount)),
+      coreToolCount: Math.max(0, Math.floor(input.toolCatalog.core.toolCount)),
+      fullToolCount: Math.max(0, Math.floor(input.toolCatalog.full.toolCount)),
+      toolCatalogFingerprint: input.toolCatalog.core.fingerprint,
+      fullToolCatalogFingerprint: input.toolCatalog.full.fingerprint,
+      serverVersion: input.toolCatalog.core.serverVersion,
+      toolsInvokeAvailable: input.toolCatalog.toolsInvokeAvailable
     },
     runtime: {
       codexStandalone: input.codexStandalone

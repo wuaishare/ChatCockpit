@@ -167,8 +167,12 @@ async function main(): Promise<void> {
         activeRefreshTokenCount: number;
         toolCatalogStatus: string;
         toolCount: number;
+        coreToolCount: number;
+        fullToolCount: number;
         toolCatalogFingerprint: string;
+        fullToolCatalogFingerprint: string;
         serverVersion: string;
+        toolsInvokeAvailable: boolean;
       };
       runtime: {
         codexStandalone: {
@@ -200,7 +204,11 @@ async function main(): Promise<void> {
     assert.equal(body.mcp.activeRefreshTokenCount, 1);
     assert.equal(body.mcp.toolCatalogStatus, "ready");
     assert.ok(body.mcp.toolCount > 0);
+    assert.equal(body.mcp.toolCount, body.mcp.coreToolCount);
+    assert.ok(body.mcp.fullToolCount >= body.mcp.coreToolCount);
     assert.match(body.mcp.toolCatalogFingerprint, /^[a-f0-9]{64}$/);
+    assert.match(body.mcp.fullToolCatalogFingerprint, /^[a-f0-9]{64}$/);
+    assert.equal(body.mcp.toolsInvokeAvailable, true);
     assert.equal(
       body.mcp.serverVersion,
       `0.1.0-alpha.${body.mcp.toolCatalogFingerprint.slice(0, 12)}`

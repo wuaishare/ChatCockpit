@@ -292,8 +292,31 @@ export function IntegrationsView({
           </div>
           <div className="gpt-fact">
             <span>{copy.toolCatalog}</span>
-            <strong>{status.mcp.toolCount} {copy.tools}</strong>
+            <strong>{status.mcp.coreToolCount} {copy.coreTools} / {status.mcp.fullToolCount} {copy.fullTools}</strong>
           </div>
+          <div className="gpt-fact">
+            <span>{copy.mcpServerVersion}</span>
+            <strong><code>{status.mcp.serverVersion}</code></strong>
+          </div>
+          <div className="gpt-fact">
+            <span>{copy.catalogFingerprint}</span>
+            <strong>
+              <code title={status.mcp.toolCatalogFingerprint}>{status.mcp.toolCatalogFingerprint.slice(0, 12)}…</code>
+              <CopyButton aria-label={copy.copyUrl} content={status.mcp.toolCatalogFingerprint} />
+            </strong>
+          </div>
+          <div className="gpt-fact">
+            <span>{copy.toolsInvoke}</span>
+            <strong>
+              <Tag color={status.mcp.toolsInvokeAvailable ? "success" : "warning"}>
+                {status.mcp.toolsInvokeAvailable ? copy.published : copy.notPublished}
+              </Tag>
+            </strong>
+          </div>
+        </div>
+        <div className={`section-note ${status.mcp.toolsInvokeAvailable ? "" : "section-note--warning"}`}>
+          <strong>{copy.toolSnapshotGuidance}</strong>
+          <span>{status.mcp.toolsInvokeAvailable ? copy.toolSnapshotReady : copy.toolSnapshotMissingGateway}</span>
         </div>
         <div className={`section-note ${status.mcp.oauthReady ? "" : "section-note--warning"}`}>
           <strong>{copy.reconnectGuidance}</strong>

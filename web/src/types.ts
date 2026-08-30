@@ -625,8 +625,12 @@ export interface IntegrationStatusResponse {
     activeRefreshTokenCount: number;
     toolCatalogStatus: "ready";
     toolCount: number;
+    coreToolCount: number;
+    fullToolCount: number;
     toolCatalogFingerprint: string;
+    fullToolCatalogFingerprint: string;
     serverVersion: string;
+    toolsInvokeAvailable: boolean;
   };
   runtime: {
     codexStandalone: {

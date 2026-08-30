@@ -22,6 +22,16 @@ export interface IntegrationsCopy {
   activeRefreshTokens: string;
   toolCatalog: string;
   tools: string;
+  coreTools: string;
+  fullTools: string;
+  mcpServerVersion: string;
+  catalogFingerprint: string;
+  toolsInvoke: string;
+  published: string;
+  notPublished: string;
+  toolSnapshotGuidance: string;
+  toolSnapshotReady: string;
+  toolSnapshotMissingGateway: string;
   reconnectGuidance: string;
   reconnectReady: string;
   reconnectNeedsAttention: string;
@@ -121,6 +131,16 @@ const zhCN: IntegrationsCopy = {
   activeRefreshTokens: "有效 Refresh Token",
   toolCatalog: "工具目录",
   tools: "个工具",
+  coreTools: "Core",
+  fullTools: "Full",
+  mcpServerVersion: "MCP Server 版本",
+  catalogFingerprint: "Core 目录指纹",
+  toolsInvoke: "tools.invoke 网关",
+  published: "已发布",
+  notPublished: "未发布",
+  toolSnapshotGuidance: "工具快照诊断",
+  toolSnapshotReady: "服务端已发布当前 MCP 工具面。ChatCockpit 无法读取 ChatGPT 当前会话缓存的工具快照；如果当前对话仍看不到 tools.invoke，或工具数量明显少于服务端目录，请在 ChatGPT 中刷新或重新连接该连接器。",
+  toolSnapshotMissingGateway: "当前服务端尚未发布 tools.invoke。请先更新并重启 ChatCockpit Runtime，再刷新 ChatGPT 连接器。",
   reconnectGuidance: "连接建议",
   reconnectReady: "MCP 与 OAuth 已就绪。如需重新授权，请在 ChatGPT 中重新连接；撤销旧授权后不会影响控制台管理员会话。",
   reconnectNeedsAttention: "Remote MCP 尚未完整就绪。请先完成公网地址和控制台管理员配置，再从 ChatGPT 发起连接。机器 API 令牌不是 OAuth 前置条件。",
@@ -220,6 +240,16 @@ const enUS: IntegrationsCopy = {
   activeRefreshTokens: "Active refresh tokens",
   toolCatalog: "Tool catalog",
   tools: "tools",
+  coreTools: "Core",
+  fullTools: "Full",
+  mcpServerVersion: "MCP server version",
+  catalogFingerprint: "Core catalog fingerprint",
+  toolsInvoke: "tools.invoke gateway",
+  published: "Published",
+  notPublished: "Not published",
+  toolSnapshotGuidance: "Tool snapshot diagnostics",
+  toolSnapshotReady: "The server has published the current MCP tool surface. ChatCockpit cannot inspect the tool snapshot cached by the current ChatGPT conversation; if tools.invoke is still missing or the visible tool count is clearly older than the server catalog, refresh or reconnect this connector in ChatGPT.",
+  toolSnapshotMissingGateway: "This server has not published tools.invoke yet. Update and restart the ChatCockpit Runtime before refreshing the ChatGPT connector.",
   reconnectGuidance: "Connection guidance",
   reconnectReady: "MCP and OAuth are ready. Reconnect from ChatGPT when a fresh authorization is needed; revoking OAuth does not revoke Web Owner sessions.",
   reconnectNeedsAttention: "Remote MCP is not fully ready. Configure the public origin and Web Owner before connecting from ChatGPT. A machine API token is optional and is not an OAuth prerequisite.",

@@ -135,7 +135,11 @@ import {
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { registerDeviceOnboardingRoutes } from "./device-onboarding-routes.js";
 import { buildMcpToolCatalogMetadata } from "../mcp/catalog-metadata.js";
-import { MCP_TOOL_SURFACE_PACKS, selectMcpToolsForSurface } from "../mcp/tool-surface.js";
+import {
+  MCP_TOOL_SURFACE_PACKS,
+  mcpToolSurfaceSuffix,
+  selectMcpToolsForSurface
+} from "../mcp/tool-surface.js";
 import {
   buildTokenPilotMcpHandlerFromTools,
   buildTokenPilotMcpToolCatalog
@@ -1110,7 +1114,9 @@ export function buildServer(
     projectDevelopmentRouting
   );
   const coreMcpTools = selectMcpToolsForSurface(mcpTools, { kind: "core" });
+  const fullMcpTools = selectMcpToolsForSurface(mcpTools, { kind: "full" });
   const mcpCatalogMetadata = buildMcpToolCatalogMetadata(coreMcpTools);
+  const fullMcpCatalogMetadata = buildMcpToolCatalogMetadata(fullMcpTools);
   const mcpDeviceAccessAuthorizer = oauthDeviceAccessPolicy
     ? {
         allowsDevice: (
@@ -1139,7 +1145,7 @@ export function buildServer(
   ) as Record<(typeof MCP_TOOL_SURFACE_PACKS)[number], ReturnType<typeof buildSurfaceHandler>>;
   registerMcpHttpRoutes(app, {
     core: buildSurfaceHandler(coreMcpTools),
-    full: buildSurfaceHandler(selectMcpToolsForSurface(mcpTools, { kind: "full" })),
+    full: buildSurfaceHandler(fullMcpTools),
     packs: mcpPackHandlers
   });
   registerProjectRegistryRoutes(
@@ -1199,7 +1205,13 @@ export function buildServer(
     buildIntegrationStatusSnapshot({
       paths,
       oauthSummary: oauthStore?.integrationSummary(new Date().toISOString()) ?? null,
-      toolCatalog: mcpCatalogMetadata,
+      toolCatalog: {
+        core: mcpCatalogMetadata,
+        full: fullMcpCatalogMetadata,
+        toolsInvokeAvailable: coreMcpTools.some(
+          (tool) => mcpToolSurfaceSuffix(tool.name) === "tools.invoke"
+        )
+      },
       codexStandalone: codexStandaloneStatus
     });
 
