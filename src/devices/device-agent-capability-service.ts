@@ -3,6 +3,12 @@ import { z } from "zod";
 import { CapabilityRouterCatalogService } from "../application/capability-router-catalog-service.js";
 import { CapabilityRouterReadInvocationService } from "../application/capability-router-read-invocation-service.js";
 import { ServiceError } from "../application/service-error.js";
+import type { TokenPilotPaths } from "../types.js";
+import {
+  DeviceAgentWorkspaceService,
+  isDeviceWorkspaceReadAction,
+  projectDeviceWorkspaceError
+} from "./device-agent-workspace-service.js";
 import {
   capabilityRouterInspectSchema,
   capabilityRouterListSchema,
@@ -31,8 +37,10 @@ const SAFE_SERVICE_ERROR_CODES = new Set([
 export interface DeviceAgentCapabilityServiceOptions {
   runtimeDir: string;
   configPath?: string;
+  paths?: TokenPilotPaths;
   catalog?: CapabilityRouterCatalogService;
   reads?: CapabilityRouterReadInvocationService;
+  workspace?: DeviceAgentWorkspaceService;
   now?: () => string;
 }
 
@@ -88,6 +96,7 @@ function projectReadOnlyCatalog(
 export class DeviceAgentCapabilityService {
   private readonly catalog: CapabilityRouterCatalogService;
   private readonly reads: CapabilityRouterReadInvocationService;
+  private readonly workspace: DeviceAgentWorkspaceService | null;
   private readonly now: () => string;
 
   constructor(options: DeviceAgentCapabilityServiceOptions) {
@@ -100,6 +109,9 @@ export class DeviceAgentCapabilityService {
         options.runtimeDir,
         options.configPath
       );
+    this.workspace =
+      options.workspace ??
+      (options.paths ? new DeviceAgentWorkspaceService(options.paths) : null);
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
@@ -182,6 +194,38 @@ export class DeviceAgentCapabilityService {
               );
             }
             throw error;
+          }
+        }
+        case "workspace.read.invoke": {
+          if (!this.workspace) {
+            return errorBody(
+              request.requestId,
+              "DEVICE_WORKSPACE_RPC_UNSUPPORTED",
+              "Remote workspace access is unavailable on this Device Agent"
+            );
+          }
+          const payload = z.object({
+            action: z.string().min(1).max(120),
+            params: z.unknown()
+          }).strict().parse(request.payload);
+          if (!isDeviceWorkspaceReadAction(payload.action)) {
+            return errorBody(
+              request.requestId,
+              "DEVICE_WORKSPACE_ACTION_UNSUPPORTED",
+              "Remote workspace action is unsupported"
+            );
+          }
+          try {
+            return boundedSuccess(
+              request.requestId,
+              this.workspace.execute(request.requestId, {
+                action: payload.action,
+                params: payload.params
+              })
+            );
+          } catch (error) {
+            const projected = projectDeviceWorkspaceError(error);
+            return errorBody(request.requestId, projected.code, projected.message);
           }
         }
       }

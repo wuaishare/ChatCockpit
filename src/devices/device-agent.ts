@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import type { TokenPilotPaths } from "../types.js";
 import {
   buildDeviceChannelOpenProof,
   buildDeviceChannelResultProof,
@@ -128,6 +129,7 @@ interface DeviceAgentRuntimeLifecycleExecutor {
 
 interface DeviceAgentServiceOptions {
   runtimeDir: string;
+  paths?: TokenPilotPaths;
   fetchImpl?: FetchLike;
   transport?: DeviceAgentTransport;
   pinnedTransportFactory?: (certificatePem: string) => DeviceAgentTransport;
@@ -498,6 +500,7 @@ export class DeviceAgentService {
   private readonly pinnedTransportFactory: (certificatePem: string) => DeviceAgentTransport;
   private readonly capabilityService: DeviceAgentCapabilityExecutor;
   private readonly runtimeLifecycleService: DeviceAgentRuntimeLifecycleExecutor | null;
+  private readonly workspaceRpcEnabled: boolean;
   private readonly now: () => string;
   private readonly random: () => number;
   private readonly verifiedHubOrigins = new Set<string>();
@@ -513,12 +516,14 @@ export class DeviceAgentService {
       options.capabilityService ??
       new DeviceAgentCapabilityService({
         runtimeDir: options.runtimeDir,
+        ...(options.paths ? { paths: options.paths } : {}),
         ...(options.directExecutorsConfigPath
           ? { configPath: options.directExecutorsConfigPath }
           : {}),
         now: this.now
       });
     this.runtimeLifecycleService = options.runtimeLifecycleService ?? null;
+    this.workspaceRpcEnabled = Boolean(options.paths);
     this.random = options.random ?? Math.random;
   }
 
@@ -1126,7 +1131,11 @@ export class DeviceAgentService {
         await this.ensureRouteIdentity(current, routeTarget);
         const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
         const channelNonce = crypto.randomBytes(18).toString("base64url");
-        const channelProtocolVersion = this.runtimeLifecycleService ? 3 as const : 2 as const;
+        const channelProtocolVersion = this.workspaceRpcEnabled && this.runtimeLifecycleService
+          ? 4 as const
+          : this.runtimeLifecycleService
+            ? 3 as const
+            : 2 as const;
         const signature = sign(
           state,
           buildDeviceChannelOpenProof(
@@ -1184,14 +1193,24 @@ export class DeviceAgentService {
                 "Device Agent capability result transport is unavailable"
               );
             }
-            const result = await this.capabilityService.execute({
-              protocolVersion: event.protocolVersion,
-              requestId: event.requestId,
-              operation: event.operation,
-              issuedAt: event.issuedAt,
-              expiresAt: event.expiresAt,
-              payload: event.payload
-            });
+            const result: DeviceCapabilityResultBody =
+              event.operation === "workspace.read.invoke" && channelProtocolVersion < 4
+                ? {
+                    requestId: event.requestId,
+                    outcome: "error",
+                    error: {
+                      code: "DEVICE_WORKSPACE_RPC_UNSUPPORTED",
+                      message: "Remote workspace requests require Device channel protocol v4"
+                    }
+                  }
+                : await this.capabilityService.execute({
+                    protocolVersion: event.protocolVersion,
+                    requestId: event.requestId,
+                    operation: event.operation,
+                    issuedAt: event.issuedAt,
+                    expiresAt: event.expiresAt,
+                    payload: event.payload
+                  });
             const reserved = reserveDeviceHeartbeatSequence(
               this.runtimeDir,
               this.now()

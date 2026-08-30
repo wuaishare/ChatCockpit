@@ -42,6 +42,7 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
   "project.list",
   "project.get",
   "devices.targets.list",
+  "devices.workspace.invoke",
   "files.list",
   "files.read",
   "files.readBatch",

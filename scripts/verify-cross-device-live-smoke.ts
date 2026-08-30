@@ -185,12 +185,39 @@ async function main(): Promise<void> {
   const hubRoot = path.join(root, "hub");
   const agentStateRoot = path.join(root, "agent-state");
   const agentHome = path.join(root, "agent-home");
+  const agentWorkspaceRoot = path.join(root, "agent-workspace");
+  const agentConfigPath = path.join(agentStateRoot, "config.json");
   const readFixture = path.join(root, "remote-read-fixture.txt");
   const directConfigPath = path.join(root, "agent-direct-executors.json");
   fs.mkdirSync(hubRoot, { recursive: true });
   fs.mkdirSync(agentStateRoot, { recursive: true });
   fs.mkdirSync(agentHome, { recursive: true });
+  fs.mkdirSync(agentWorkspaceRoot, { recursive: true });
   fs.writeFileSync(readFixture, "phase8-cross-device-smoke\n", { encoding: "utf8", mode: 0o600 });
+  fs.writeFileSync(
+    path.join(agentWorkspaceRoot, "README.md"),
+    "# Remote Device Workspace v4\n",
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(agentWorkspaceRoot, ".env"),
+    "SECRET=must-not-cross-device\n",
+    { encoding: "utf8", mode: 0o600 }
+  );
+  fs.writeFileSync(
+    agentConfigPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        defaultRepoId: "primary",
+        workspaceAllowlist: [agentWorkspaceRoot],
+        repoMappings: { primary: { path: agentWorkspaceRoot } }
+      },
+      null,
+      2
+    )}\n`,
+    { encoding: "utf8", mode: 0o600 }
+  );
 
   const hubPaths = buildFixturePaths(hubRoot);
   ensureWorkspaceDirs(hubPaths);
@@ -329,6 +356,7 @@ async function main(): Promise<void> {
       CHATCOCKPIT_INSTALL_ROOT: repoRoot,
       CHATCOCKPIT_REPO_ROOT: repoRoot,
       CHATCOCKPIT_PRIMARY_WORKSPACE_ROOT: repoRoot,
+      CHATCOCKPIT_CONFIG_PATH: agentConfigPath,
       CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH: directConfigPath,
       CHATCOCKPIT_API_TOKEN: "",
       CHATCOCKPIT_EXPOSED: "false",
@@ -567,6 +595,75 @@ async function main(): Promise<void> {
     assert.equal(readProjection?.target?.id, deviceId);
     assert.equal(readProjection?.text, "phase8-cross-device-smoke\n");
 
+    const remoteWorkspaceList = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: "workspace-list",
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.workspace.invoke",
+        arguments: {
+          targetDevice: deviceId,
+          action: "workspaces.list",
+          params: {}
+        }
+      }
+    });
+    assert.equal(remoteWorkspaceList.response.status, 200);
+    const workspaceListProjection = remoteWorkspaceList.message.result?.structuredContent as
+      | {
+          ok?: boolean;
+          action?: string;
+          target?: { id?: string; locality?: string };
+          result?: {
+            pathVisibility?: string;
+            workspaces?: Array<{ repoId?: string; pathVisibility?: string }>;
+          };
+        }
+      | undefined;
+    assert.equal(workspaceListProjection?.ok, true);
+    assert.equal(workspaceListProjection?.action, "workspaces.list");
+    assert.equal(workspaceListProjection?.target?.id, deviceId);
+    assert.equal(workspaceListProjection?.target?.locality, "remote");
+    assert.equal(workspaceListProjection?.result?.pathVisibility, "hidden");
+    const remotePrimaryWorkspace = workspaceListProjection?.result?.workspaces?.find(
+      (workspace) => workspace.repoId === "primary"
+    );
+    assert.ok(remotePrimaryWorkspace, "remote Agent must expose its allowlisted primary repoId");
+    assert.equal(remotePrimaryWorkspace.pathVisibility, "hidden");
+    assert.equal(remoteWorkspaceList.response.url.includes(agentWorkspaceRoot), false);
+    assert.equal(JSON.stringify(workspaceListProjection).includes(agentWorkspaceRoot), false);
+
+    const remoteWorkspaceRead = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: "workspace-read",
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.workspace.invoke",
+        arguments: {
+          targetDevice: deviceId,
+          action: "files.read",
+          params: { repoId: "primary", path: "README.md" }
+        }
+      }
+    });
+    assert.equal(remoteWorkspaceRead.response.status, 200);
+    const workspaceReadProjection = remoteWorkspaceRead.message.result?.structuredContent as
+      | {
+          ok?: boolean;
+          target?: { id?: string };
+          result?: { file?: { path?: string; content?: string } };
+        }
+      | undefined;
+    assert.equal(workspaceReadProjection?.ok, true);
+    assert.equal(workspaceReadProjection?.target?.id, deviceId);
+    assert.equal(workspaceReadProjection?.result?.file?.path, "README.md");
+    assert.equal(
+      workspaceReadProjection?.result?.file?.content,
+      "# Remote Device Workspace v4\n"
+    );
+    assert.equal(JSON.stringify(workspaceReadProjection).includes(agentWorkspaceRoot), false);
+    assert.equal(JSON.stringify(workspaceReadProjection).includes("must-not-cross-device"), false);
+
     const ownerDevicesBeforePause = await ownerJson<{
       devices: Array<{
         id: string;
@@ -665,6 +762,26 @@ async function main(): Promise<void> {
     assert.equal(pausedSameTokenRead.message.result?.isError, true);
     assert.equal(pausedReadProjection?.error?.code, "DEVICE_EXECUTION_PAUSED");
 
+    const pausedWorkspaceRead = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: "workspace-read-paused",
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.workspace.invoke",
+        arguments: {
+          targetDevice: deviceId,
+          action: "files.read",
+          params: { repoId: "primary", path: "README.md" }
+        }
+      }
+    });
+    assert.equal(pausedWorkspaceRead.response.status, 200);
+    const pausedWorkspaceProjection = pausedWorkspaceRead.message.result?.structuredContent as
+      | { error?: { code?: string } }
+      | undefined;
+    assert.equal(pausedWorkspaceRead.message.result?.isError, true);
+    assert.equal(pausedWorkspaceProjection?.error?.code, "DEVICE_EXECUTION_PAUSED");
+
     const grantAccessWhilePaused = await ownerJson<{
       access: {
         devices: Array<{ deviceId: string; granted: boolean }>;
@@ -755,6 +872,27 @@ async function main(): Promise<void> {
       }
     );
     assert.equal(revokeRemote.status, 200, await revokeRemote.text().catch(() => ""));
+
+    const deniedWorkspaceToken = await postMcp(baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: "workspace-read-revoked",
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.workspace.invoke",
+        arguments: {
+          targetDevice: deviceId,
+          action: "files.read",
+          params: { repoId: "primary", path: "README.md" }
+        }
+      }
+    });
+    assert.equal(deniedWorkspaceToken.response.status, 200);
+    const deniedWorkspaceProjection = deniedWorkspaceToken.message.result?.structuredContent as
+      | { error?: { code?: string; details?: { deviceId?: string } } }
+      | undefined;
+    assert.equal(deniedWorkspaceToken.message.result?.isError, true);
+    assert.equal(deniedWorkspaceProjection?.error?.code, "DEVICE_ACCESS_DENIED");
+    assert.equal(deniedWorkspaceProjection?.error?.details?.deviceId, deviceId);
 
     const deniedSameToken = await postMcp(baseUrl, tokens.access_token, {
       jsonrpc: "2.0",

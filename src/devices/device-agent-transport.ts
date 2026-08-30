@@ -126,7 +126,7 @@ export interface DeviceAgentChannelOpenInput {
   deviceId: string;
   sequence: number;
   channelNonce: string;
-  protocolVersion?: 1 | 2 | 3;
+  protocolVersion?: 1 | 2 | 3 | 4;
   signature: string;
   signal?: AbortSignal;
 }
@@ -173,13 +173,17 @@ export type DeviceAgentChannelEvent =
       channelId: string;
       deviceId: string;
       acceptedSequence: number;
-      protocolVersion: 1 | 2 | 3;
+      protocolVersion: 1 | 2 | 3 | 4;
     }
   | {
       type: "capability.request";
       protocolVersion: 1;
       requestId: string;
-      operation: "capabilities.list" | "capabilities.inspect" | "capabilities.read.invoke";
+      operation:
+        | "capabilities.list"
+        | "capabilities.inspect"
+        | "capabilities.read.invoke"
+        | "workspace.read.invoke";
       issuedAt: string;
       expiresAt: string;
       payload: unknown;
@@ -313,7 +317,10 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       !/^cc_device_[A-Za-z0-9_-]{20,80}$/.test(data.deviceId) ||
       !Number.isSafeInteger(data.acceptedSequence) ||
       Number(data.acceptedSequence) <= 0 ||
-      (data.protocolVersion !== 1 && data.protocolVersion !== 2 && data.protocolVersion !== 3)
+      (data.protocolVersion !== 1 &&
+        data.protocolVersion !== 2 &&
+        data.protocolVersion !== 3 &&
+        data.protocolVersion !== 4)
     ) {
       throw channelProtocolError("Hub returned an invalid channel.ready event");
     }
@@ -332,7 +339,8 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       !/^cc_device_request_[A-Za-z0-9_-]{20,80}$/.test(data.requestId) ||
       (data.operation !== "capabilities.list" &&
         data.operation !== "capabilities.inspect" &&
-        data.operation !== "capabilities.read.invoke") ||
+        data.operation !== "capabilities.read.invoke" &&
+        data.operation !== "workspace.read.invoke") ||
       typeof data.issuedAt !== "string" ||
       Number.isNaN(Date.parse(data.issuedAt)) ||
       typeof data.expiresAt !== "string" ||

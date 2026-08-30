@@ -724,7 +724,7 @@ export async function main(dependencies: CliRuntimeDependencies = {}): Promise<v
     case "device": {
       const subcommand = process.argv[3];
       const service = dependencies.createDeviceAgentService?.(paths.runtimeDir)
-        ?? new DeviceAgentService({ runtimeDir: paths.runtimeDir });
+        ?? new DeviceAgentService({ runtimeDir: paths.runtimeDir, paths });
       const json = process.argv.includes("--json");
       switch (subcommand) {
         case "status": {
@@ -967,6 +967,7 @@ export async function main(dependencies: CliRuntimeDependencies = {}): Promise<v
           const agentService = runtimeLifecycleService
             ? new DeviceAgentService({
                 runtimeDir: paths.runtimeDir,
+                paths,
                 runtimeLifecycleService
               })
             : service;

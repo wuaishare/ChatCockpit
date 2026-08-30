@@ -549,6 +549,37 @@ async function main(): Promise<void> {
       unauthorizedRemoteTarget
     );
 
+    const deniedRemoteWorkspace = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 1091,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.devices.workspace.invoke",
+        arguments: {
+          targetDevice: unauthorizedRemoteTarget,
+          action: "workspaces.list",
+          params: {}
+        }
+      }
+    });
+    assert.equal(deniedRemoteWorkspace.response.status, 200);
+    const deniedRemoteWorkspaceResult = deniedRemoteWorkspace.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { deviceId?: string } };
+      };
+    };
+    assert.equal(deniedRemoteWorkspaceResult.isError, true);
+    assert.equal(
+      deniedRemoteWorkspaceResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED",
+      "OAuth device authority must gate the Core workspace envelope before target lookup or RPC dispatch"
+    );
+    assert.equal(
+      deniedRemoteWorkspaceResult.structuredContent?.error?.details?.deviceId,
+      unauthorizedRemoteTarget
+    );
+
     const policyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
     const activeGrantId = policyStore.findActiveAccessToken(
       tokens.access_token,

@@ -323,7 +323,7 @@ function channelOpenMessage(
   deviceId: string,
   sequence: number,
   channelNonce: string,
-  protocolVersion: 1 | 2 | 3 = 1
+  protocolVersion: 1 | 2 | 3 | 4 = 1
 ): Buffer {
   if (protocolVersion === 1) {
     return Buffer.from(
@@ -333,7 +333,9 @@ function channelOpenMessage(
   }
   const domain = protocolVersion === 2
     ? "chatcockpit-device-channel-open-v2"
-    : "chatcockpit-device-channel-open-v3";
+    : protocolVersion === 3
+      ? "chatcockpit-device-channel-open-v3"
+      : "chatcockpit-device-channel-open-v4";
   return Buffer.from(
     [domain, deviceId, String(sequence), channelNonce, String(protocolVersion)].join("\n"),
     "utf8"
@@ -718,7 +720,7 @@ export class DeviceRegistryStore {
       deviceId: string;
       sequence: number;
       channelNonce: string;
-      protocolVersion?: 1 | 2 | 3;
+      protocolVersion?: 1 | 2 | 3 | 4;
       signature: string;
     },
     now: string
@@ -732,7 +734,12 @@ export class DeviceRegistryStore {
     }
     const channelNonce = normalizeChannelNonce(input.channelNonce);
     const protocolVersion = input.protocolVersion ?? 1;
-    if (protocolVersion !== 1 && protocolVersion !== 2 && protocolVersion !== 3) {
+    if (
+      protocolVersion !== 1 &&
+      protocolVersion !== 2 &&
+      protocolVersion !== 3 &&
+      protocolVersion !== 4
+    ) {
       throw new DeviceRegistryError(
         400,
         "DEVICE_CHANNEL_PROTOCOL_UNSUPPORTED",
@@ -1156,7 +1163,7 @@ export function buildDeviceChannelOpenProof(
   deviceId: string,
   sequence: number,
   channelNonce: string,
-  protocolVersion: 1 | 2 | 3 = 1
+  protocolVersion: 1 | 2 | 3 | 4 = 1
 ): Buffer {
   return channelOpenMessage(
     deviceId,

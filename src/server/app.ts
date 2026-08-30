@@ -26,6 +26,7 @@ import { CapabilityRouterReadInvocationService } from "../application/capability
 import { CapabilityRouterMutationService } from "../application/capability-router-mutation-service.js";
 import { CapabilityRouterMutationPublicService } from "../application/capability-router-mutation-public-service.js";
 import { TargetedCapabilityRouterService } from "../application/targeted-capability-router-service.js";
+import { DeviceWorkspaceRoutingService } from "../application/device-workspace-routing-service.js";
 import { jobProcessControlSchema } from "../contracts/job-process.js";
 import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
@@ -887,6 +888,11 @@ export function buildServer(
     deviceTargetService,
     deviceCapabilityRpc
   );
+  const deviceWorkspaceRouting = new DeviceWorkspaceRoutingService(
+    paths,
+    deviceTargetService,
+    deviceCapabilityRpc
+  );
   const capabilityRouterServices = {
     catalog: capabilityRouterCatalog,
     reads: capabilityRouterReads,
@@ -1079,6 +1085,7 @@ export function buildServer(
     runtimeResourceServices,
     capabilityRouterServices,
     deviceTargetService,
+    deviceWorkspaceRouting,
     deviceRuntimeLifecycleService,
     exposedRuntimeResourceMutationService,
     codexThreadImportService,

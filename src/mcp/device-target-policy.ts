@@ -8,7 +8,8 @@ const CONTROL_PLANE_METADATA_TOOLS = new Set([
 const TARGET_AWARE_TOOLS = new Set([
   "chatcockpit.capabilities.list",
   "chatcockpit.capabilities.inspect",
-  "chatcockpit.capabilities.read.invoke"
+  "chatcockpit.capabilities.read.invoke",
+  "chatcockpit.devices.workspace.invoke"
 ]);
 
 const REMOTE_DEVICE_ID_TOOLS = new Set([

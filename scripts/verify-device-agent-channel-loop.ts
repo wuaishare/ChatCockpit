@@ -19,10 +19,15 @@ import {
   type DeviceAgentChannelOpenInput,
   type DeviceAgentTransport
 } from "../src/devices/device-agent-transport.js";
+import type {
+  DeviceRuntimeLifecycleRequestEnvelope,
+  DeviceRuntimeLifecycleResultBody
+} from "../src/devices/device-runtime-lifecycle-rpc.js";
 import {
   createHubIdentity,
   projectHubIdentity
 } from "../src/devices/hub-identity.js";
+import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-device-agent-channel-loop-"));
 const hub = projectHubIdentity(createHubIdentity(path.join(root, "hub"), "2026-08-21T19:10:00.000Z"));
@@ -137,6 +142,64 @@ try {
   assert.equal(cleanResult.state, "connected");
   assert.equal(cleanResult.hubId, hub.hubId);
   assert.equal(readDeviceAgentState(cleanRuntime)?.nextSequence, 2);
+
+  const workspacePaths = buildFixturePaths(root);
+  const workspaceOnlyRuntime = connectedRuntime("channel-workspace-only");
+  const workspaceOnlyController = new AbortController();
+  let workspaceOnlyOpen: DeviceAgentChannelOpenInput | null = null;
+  const workspaceOnlyService = new DeviceAgentService({
+    runtimeDir: workspaceOnlyRuntime,
+    paths: workspacePaths,
+    transport: makeTransport(async (_origin, input) => {
+      workspaceOnlyOpen = input;
+      return connection([
+        ready(input, "cc_channel_workspaceonlyxxxxxxxx"),
+        { type: "channel.ping", at: "2026-08-21T19:13:20.000Z" }
+      ]);
+    })
+  });
+  process.stderr.write("CHANNEL_LOOP_STAGE workspace-only-v2\n");
+  await withTimeout("workspace-only v2 channel loop", workspaceOnlyService.runOutboundChannelLoop({
+    signal: workspaceOnlyController.signal,
+    onEvent: (event) => {
+      if (event.type === "channel.ping") workspaceOnlyController.abort();
+    }
+  }));
+  assert.ok(workspaceOnlyOpen);
+  assert.equal(workspaceOnlyOpen.protocolVersion, 2);
+
+  const workspaceRuntime = connectedRuntime("channel-workspace-v4");
+  const workspaceController = new AbortController();
+  let workspaceOpen: DeviceAgentChannelOpenInput | null = null;
+  const workspaceService = new DeviceAgentService({
+    runtimeDir: workspaceRuntime,
+    paths: workspacePaths,
+    runtimeLifecycleService: {
+      execute: async (
+        request: DeviceRuntimeLifecycleRequestEnvelope
+      ): Promise<DeviceRuntimeLifecycleResultBody> => ({
+        operationId: request.operationId,
+        outcome: "error",
+        error: { code: "TEST_UNUSED", message: "Runtime lifecycle request was not expected" }
+      })
+    },
+    transport: makeTransport(async (_origin, input) => {
+      workspaceOpen = input;
+      return connection([
+        ready(input, "cc_channel_workspacev4xxxxxxxxxx"),
+        { type: "channel.ping", at: "2026-08-21T19:13:30.000Z" }
+      ]);
+    })
+  });
+  process.stderr.write("CHANNEL_LOOP_STAGE workspace-v4\n");
+  await withTimeout("workspace v4 channel loop", workspaceService.runOutboundChannelLoop({
+    signal: workspaceController.signal,
+    onEvent: (event) => {
+      if (event.type === "channel.ping") workspaceController.abort();
+    }
+  }));
+  assert.ok(workspaceOpen);
+  assert.equal(workspaceOpen.protocolVersion, 4);
 
   const retryRuntime = connectedRuntime("channel-retry");
   const retryController = new AbortController();

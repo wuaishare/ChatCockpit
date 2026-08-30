@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-export type DeviceChannelProtocolVersion = 1 | 2 | 3;
+export type DeviceChannelProtocolVersion = 1 | 2 | 3 | 4;
 export type DeviceChannelCloseReason = "superseded" | "revoked" | "server-shutdown";
 export type DeviceChannelLifecycleReason = DeviceChannelCloseReason | "disconnected";
 
@@ -27,6 +27,7 @@ export interface DeviceChannelRegistration {
 
 export interface DeviceCapabilityRpcChannel {
   channelId: string;
+  protocolVersion: DeviceChannelProtocolVersion;
   send(data: unknown): boolean;
 }
 
@@ -97,18 +98,19 @@ export class DeviceChannelHub {
     if (!channel || channel.protocolVersion < 2 || !channel.send) return null;
     return {
       channelId: channel.channelId,
+      protocolVersion: channel.protocolVersion,
       send: (data) => channel.send!("capability.request", data)
     };
   }
 
   isRuntimeLifecycleRpcAvailable(deviceId: string): boolean {
     const channel = this.active.get(deviceId);
-    return channel?.protocolVersion === 3 && channel.send !== null;
+    return Boolean(channel && channel.protocolVersion >= 3 && channel.send !== null);
   }
 
   runtimeLifecycleRpcChannel(deviceId: string): DeviceRuntimeLifecycleRpcChannel | null {
     const channel = this.active.get(deviceId);
-    if (!channel || channel.protocolVersion !== 3 || !channel.send) return null;
+    if (!channel || channel.protocolVersion < 3 || !channel.send) return null;
     return {
       channelId: channel.channelId,
       send: (data) => channel.send!("runtime.lifecycle.request", data)

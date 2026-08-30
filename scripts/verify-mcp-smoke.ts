@@ -221,6 +221,7 @@ async function runMcpSmoke(): Promise<void> {
         "capabilities.mutation.prepare",
         "capabilities.read.invoke",
         "devices.targets.list",
+        "devices.workspace.invoke",
         "devices.runtime.lifecycle.execute",
         "devices.runtime.operation.get",
         "devices.runtime.status",
@@ -308,7 +309,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 93, "Full compatibility surface must expose all 93 remotely routable tools");
+    assert.equal(tools.length, 94, "Full compatibility surface must expose all 94 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -317,11 +318,12 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 23);
+    assert.equal(coreTools.length, 24);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.workspace.exec"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.files.mutate"), true);
+    assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.devices.workspace.invoke"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.shell.run"), false);
     const continuityInvokeTool = coreTools.find(
       (tool) => tool.name === "chatcockpit.continuity.invoke"
@@ -386,7 +388,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 34);
+    assert.equal(codexPackTools.length, 35);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -412,8 +414,8 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 23);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 93);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 24);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 94);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -611,6 +613,7 @@ async function runMcpSmoke(): Promise<void> {
       "chatcockpit.capabilities.mutation.inspect",
       "chatcockpit.capabilities.read.invoke",
       "chatcockpit.devices.targets.list",
+      "chatcockpit.devices.workspace.invoke",
       "chatcockpit.devices.runtime.operation.get",
       "chatcockpit.devices.runtime.status",
       "chatcockpit.direct.executors.list",
@@ -689,6 +692,15 @@ async function runMcpSmoke(): Promise<void> {
     assert.match(processControlSchema, /"action"/);
     assert.match(processControlSchema, /"params"/);
     assert.doesNotMatch(processControlSchema, /"oneOf"/);
+    const deviceWorkspaceSchema = JSON.stringify(
+      toolByName.get("chatcockpit.devices.workspace.invoke")?.inputSchema
+    );
+    assert.match(deviceWorkspaceSchema, /"targetDevice"/);
+    assert.match(deviceWorkspaceSchema, /"action"/);
+    assert.match(deviceWorkspaceSchema, /"params"/);
+    assert.doesNotMatch(deviceWorkspaceSchema, /"oneOf"/);
+    assert.doesNotMatch(deviceWorkspaceSchema, /workspaces\.list/);
+    assert.doesNotMatch(deviceWorkspaceSchema, /files\.read/);
     const gitSyncSchema = JSON.stringify(toolByName.get("chatcockpit.git.sync")?.inputSchema);
     assert.match(gitSyncSchema, /"action"/);
     assert.match(gitSyncSchema, /"params"/);

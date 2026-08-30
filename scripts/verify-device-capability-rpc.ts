@@ -441,6 +441,62 @@ try {
   assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
   assert.equal(channelHub.isRuntimeLifecycleRpcAvailable(deviceId), true);
   await closedPendingRejected;
+  await assert.rejects(
+    rpc.request(deviceId, "workspace.read.invoke", {
+      action: "workspaces.list",
+      params: {}
+    }),
+    (error: unknown) =>
+      error instanceof DeviceCapabilityRpcError &&
+      error.code === "DEVICE_WORKSPACE_RPC_UNSUPPORTED"
+  );
+
+  const v4Nonce = crypto.randomBytes(18).toString("base64url");
+  const v4 = await transport.openChannel(origin, {
+    deviceId,
+    sequence: 8,
+    channelNonce: v4Nonce,
+    protocolVersion: 4,
+    signature: sign(privateKey, buildDeviceChannelOpenProof(deviceId, 8, v4Nonce, 4))
+  });
+  const v4Iterator = v4.events[Symbol.asyncIterator]();
+  const v4Ready = await nextEventOfType(v4Iterator, "channel.ready");
+  assert.equal(v4Ready.protocolVersion, 4);
+  assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
+  assert.equal(channelHub.isRuntimeLifecycleRpcAvailable(deviceId), true);
+  const v3Closed = await nextEventOfType(replacementIterator, "channel.close");
+  assert.equal(v3Closed.reason, "superseded");
+
+  const workspacePending = rpc.request(deviceId, "workspace.read.invoke", {
+    action: "workspaces.list",
+    params: {}
+  });
+  const workspaceRequest = await nextEventOfType(v4Iterator, "capability.request");
+  assert.equal(workspaceRequest.operation, "workspace.read.invoke");
+  assert.deepEqual(workspaceRequest.payload, {
+    action: "workspaces.list",
+    params: {}
+  });
+  const workspaceBody = {
+    requestId: workspaceRequest.requestId,
+    outcome: "ok" as const,
+    result: {
+      ok: true,
+      pathVisibility: "hidden",
+      workspaces: [{ repoId: "primary", pathVisibility: "hidden" }]
+    }
+  };
+  await transport.submitChannelResult(origin, {
+    deviceId,
+    channelId: v4Ready.channelId,
+    sequence: 9,
+    body: workspaceBody,
+    signature: sign(
+      privateKey,
+      buildDeviceChannelResultProof(deviceId, v4Ready.channelId, 9, workspaceBody)
+    )
+  });
+  assert.deepEqual(await workspacePending, workspaceBody);
 
   const revokedPending = rpc.request(deviceId, "capabilities.list", {});
   const revokedPendingRejected = assert.rejects(
@@ -449,7 +505,7 @@ try {
       error instanceof DeviceCapabilityRpcError &&
       error.code === "DEVICE_CAPABILITY_CHANNEL_CLOSED"
   );
-  await nextEventOfType(replacementIterator, "capability.request");
+  await nextEventOfType(v4Iterator, "capability.request");
   const revoked = await app.inject({
     method: "DELETE",
     url: `/api/devices/${deviceId}`,
@@ -457,13 +513,14 @@ try {
   });
   assert.equal(revoked.statusCode, 200, revoked.body);
   await revokedPendingRejected;
-  const revokedClose = await nextEventOfType(replacementIterator, "channel.close");
+  const revokedClose = await nextEventOfType(v4Iterator, "channel.close");
   assert.equal(revokedClose.reason, "revoked");
   assert.equal(channelHub.isActive(deviceId), false);
 
   v1.close();
   v2.close();
   v2Replacement.close();
+  v4.close();
   process.stdout.write("VERIFY_DEVICE_CAPABILITY_RPC_OK\n");
 } finally {
   rpc.close();

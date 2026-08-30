@@ -20,6 +20,7 @@ import type { HostProcessService } from "../application/host-process-service.js"
 import type { ContinuityServices } from "../application/continuity-services.js";
 import { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import type { DeviceTargetService } from "../application/device-target-service.js";
+import type { DeviceWorkspaceRoutingService } from "../application/device-workspace-routing-service.js";
 import type { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import type { RuntimeApprovalService } from "../application/runtime-approval-service.js";
@@ -44,6 +45,7 @@ import type { TokenPilotMcpTool } from "./tool-definition.js";
 import { buildCapabilityRouterMcpTools, type CapabilityRouterMcpServices } from "./tools/capability-router.js";
 import { buildContinuityMcpTools } from "./tools/continuity.js";
 import { buildDeviceTargetMcpTools } from "./tools/device-targets.js";
+import { buildDeviceWorkspaceMcpTools } from "./tools/device-workspace.js";
 import { buildDeviceRuntimeLifecycleMcpTools } from "./tools/device-runtime-lifecycle.js";
 import { buildHostCommandTools } from "./tools/host-command.js";
 import { buildRuntimeLifecycleMcpTools } from "./tools/runtime-lifecycle.js";
@@ -115,6 +117,7 @@ export function buildTokenPilotMcpToolCatalog(
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
   deviceTargetService: DeviceTargetService,
+  deviceWorkspaceRoutingService: DeviceWorkspaceRoutingService,
   deviceRuntimeLifecycleService: DeviceRuntimeLifecycleService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   codexThreadImportService?: CodexThreadImportService,
@@ -134,6 +137,7 @@ export function buildTokenPilotMcpToolCatalog(
     ),
     ...buildCapabilityRouterMcpTools(capabilityRouterServices),
     ...buildDeviceTargetMcpTools(deviceTargetService),
+    ...buildDeviceWorkspaceMcpTools(deviceWorkspaceRoutingService),
     ...buildDeviceRuntimeLifecycleMcpTools(deviceRuntimeLifecycleService),
     ...buildHostMutationTools(hostMutation),
     ...buildHostCommandTools(hostCommand),
@@ -224,6 +228,7 @@ export function buildTokenPilotMcpHandler(
   runtimeResourceServices: RuntimeResourceServices,
   capabilityRouterServices: CapabilityRouterMcpServices,
   deviceTargetService: DeviceTargetService,
+  deviceWorkspaceRoutingService: DeviceWorkspaceRoutingService,
   deviceRuntimeLifecycleService: DeviceRuntimeLifecycleService,
   runtimeResourceMutationService: RuntimeResourceMutationService | null,
   codexThreadImportService: CodexThreadImportService | undefined,
@@ -236,7 +241,8 @@ export function buildTokenPilotMcpHandler(
     runtimeService, runtimeLifecycleService, codexNativeSessionService, codexNativeTurnService, runtimeBindingService,
     runtimeTurnService, runtimeApprovalService, runtimeEventService, runtimeRecoveryServices,
     runtimeResourceServices, capabilityRouterServices, deviceTargetService,
-    deviceRuntimeLifecycleService, runtimeResourceMutationService, codexThreadImportService, observability
+    deviceWorkspaceRoutingService, deviceRuntimeLifecycleService, runtimeResourceMutationService,
+    codexThreadImportService, observability
   );
   return buildTokenPilotMcpHandlerFromTools(paths, tools, deviceAccessAuthorizer, onerror);
 }

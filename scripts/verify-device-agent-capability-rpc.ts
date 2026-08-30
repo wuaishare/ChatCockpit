@@ -227,6 +227,23 @@ function capabilityEvent(
   };
 }
 
+function workspaceCapabilityEvent(
+  requestId: string
+): Extract<DeviceAgentChannelEvent, { type: "capability.request" }> {
+  return {
+    type: "capability.request",
+    protocolVersion: 1,
+    requestId,
+    operation: "workspace.read.invoke",
+    issuedAt: "2026-08-22T01:59:59.000Z",
+    expiresAt: "2026-08-22T02:00:30.000Z",
+    payload: {
+      action: "workspaces.list",
+      params: {}
+    }
+  };
+}
+
 function connectedAgentRuntime(name: string): { runtimeDir: string; deviceId: string } {
   const agentRuntime = path.join(root, name);
   createDeviceAgentState({
@@ -442,7 +459,7 @@ try {
   const successAgent = connectedAgentRuntime("agent-capability-success");
   const successController = new AbortController();
   const successChannelId = "cc_channel_agentcapabilitysuccess";
-  let successSubmitted: DeviceAgentChannelResultInput | null = null;
+  const successSubmitted: DeviceAgentChannelResultInput[] = [];
   const successTransport: DeviceAgentTransport = {
     getHubIdentity: async () => hubResponse,
     proveHubIdentity: async () => ({ ok: true }),
@@ -455,12 +472,13 @@ try {
       assert.equal(input.protocolVersion, 2);
       return connection([
         ready(input, successChannelId),
+        workspaceCapabilityEvent("cc_device_request_agentworkspaceonv2fixture"),
         capabilityEvent("cc_device_request_agentcapabilitysuccess")
       ]);
     },
     submitChannelResult: async (_origin, input) => {
       verifySubmittedResultSignature(successAgent.runtimeDir, input);
-      successSubmitted = structuredClone(input);
+      successSubmitted.push(structuredClone(input));
       return { ok: true, acceptedSequence: input.sequence };
     }
   };
@@ -477,17 +495,39 @@ try {
     signal: successController.signal,
     onEvent: (event) => {
       successDiagnosticEvents.push(event.type);
-      if (event.type === "capability.request") {
-        assert.ok(successSubmitted, "diagnostic hook must run only after result submission succeeds");
+      if (
+        event.type === "capability.request" &&
+        event.operation === "capabilities.read.invoke"
+      ) {
+        assert.equal(
+          successSubmitted.length,
+          2,
+          "diagnostic hook must run only after both signed results were submitted"
+        );
         successController.abort();
       }
     }
   });
-  assert.equal(calls, callsBeforeSuccessLoop + 1);
-  assert.ok(successSubmitted);
-  assert.equal(successSubmitted.channelId, successChannelId);
-  assert.equal(successSubmitted.body.outcome, "ok");
-  assert.deepEqual(successDiagnosticEvents, ["channel.ready", "capability.request"]);
+  assert.equal(
+    calls,
+    callsBeforeSuccessLoop + 1,
+    "workspace.read.invoke on a v2 channel must be rejected before provider execution"
+  );
+  assert.equal(successSubmitted.length, 2);
+  assert.equal(successSubmitted[0]?.channelId, successChannelId);
+  assert.equal(successSubmitted[0]?.body.outcome, "error");
+  if (successSubmitted[0]?.body.outcome === "error") {
+    assert.equal(
+      successSubmitted[0].body.error.code,
+      "DEVICE_WORKSPACE_RPC_UNSUPPORTED"
+    );
+  }
+  assert.equal(successSubmitted[1]?.channelId, successChannelId);
+  assert.equal(successSubmitted[1]?.body.outcome, "ok");
+  assert.deepEqual(
+    successDiagnosticEvents,
+    ["channel.ready", "capability.request", "capability.request"]
+  );
 
   const retryAgent = connectedAgentRuntime("agent-capability-no-replay");
   const retryController = new AbortController();

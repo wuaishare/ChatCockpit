@@ -11,7 +11,8 @@ export const DEVICE_CAPABILITY_DEFAULT_TIMEOUT_MS = 30_000;
 export const DEVICE_CAPABILITY_OPERATIONS = [
   "capabilities.list",
   "capabilities.inspect",
-  "capabilities.read.invoke"
+  "capabilities.read.invoke",
+  "workspace.read.invoke"
 ] as const;
 
 export type DeviceCapabilityOperation = typeof DEVICE_CAPABILITY_OPERATIONS[number];
@@ -132,6 +133,13 @@ export class DeviceCapabilityRpc {
         409,
         "DEVICE_CHANNEL_RPC_UNSUPPORTED",
         "Device does not have an active capability RPC channel"
+      ));
+    }
+    if (operation === "workspace.read.invoke" && channel.protocolVersion < 4) {
+      return Promise.reject(new DeviceCapabilityRpcError(
+        409,
+        "DEVICE_WORKSPACE_RPC_UNSUPPORTED",
+        "Device does not support remote workspace requests"
       ));
     }
     if (this.pending.size >= DEVICE_CAPABILITY_MAX_PENDING_GLOBAL) {
