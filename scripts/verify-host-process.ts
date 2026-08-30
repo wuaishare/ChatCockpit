@@ -612,6 +612,14 @@ class DurableReadyProcessSupervisor {
   private readonly base = new ReadyProcessSupervisor();
   private readonly owned = new Map<string, SupervisorOwnedProcess>();
   private readonly supervisorGeneration = "generation-pure-host-fixture";
+  private startBarrier:
+    | {
+        entered: Promise<void>;
+        enter: () => void;
+        released: Promise<void>;
+        release: () => void;
+      }
+    | null = null;
 
   assertReady(): void {
     this.base.assertReady();
@@ -629,6 +637,19 @@ class DurableReadyProcessSupervisor {
     return this.supervisorGeneration;
   }
 
+  holdNextStart(): { entered: Promise<void>; release: () => void } {
+    let enter!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.startBarrier = { entered, enter, released, release };
+    return { entered, release };
+  }
+
   async refresh(): Promise<DurableHostProcessRefresh> {
     return {
       supervisorGeneration: this.supervisorGeneration,
@@ -637,6 +658,12 @@ class DurableReadyProcessSupervisor {
   }
 
   async start(request: DurableHostProcessStartRequest) {
+    if (this.startBarrier) {
+      const barrier = this.startBarrier;
+      this.startBarrier = null;
+      barrier.enter();
+      await barrier.released;
+    }
     const snapshot = await this.base.start(request);
     if (snapshot.status === "running") {
       const common = {
@@ -2055,12 +2082,31 @@ async function verifyPureHostProcessFullAccess(): Promise<void> {
       "HOST_PROCESS_HASH_MISMATCH"
     );
 
-    const started = await service.execute(fullAccessContextA, {
+    const startBarrier = supervisor.holdNextStart();
+    const startedPromise = service.execute(fullAccessContextA, {
       ...startInput,
       approvalId: prepared.approval.id,
       expectedApprovalRevision: prepared.approval.revision,
       idempotencyKey: "pure-host-start-execute"
     });
+    await startBarrier.entered;
+    const inFlight = repositories.directProcessSessions
+      .list()
+      .filter((record) => record.status === "starting");
+    assert.equal(inFlight.length, 1);
+    const inFlightRevision = inFlight[0]!.revision;
+    await service.reconcile(NOW);
+    const reconciledInFlight = repositories.directProcessSessions.get(
+      inFlight[0]!.id
+    );
+    assert.equal(
+      reconciledInFlight.status,
+      "starting",
+      "durable reconcile must not stale a start reservation while supervisor.start is in flight"
+    );
+    assert.equal(reconciledInFlight.revision, inFlightRevision);
+    startBarrier.release();
+    const started = await startedPromise;
     assert.equal(started.process.status, "running");
     assert.equal(started.process.scope, "host");
     const storedStarted = repositories.directProcessSessions.get(

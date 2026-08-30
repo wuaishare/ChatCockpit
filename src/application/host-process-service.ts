@@ -764,12 +764,15 @@ export class HostProcessService {
       ...request
     };
 
-    const execution =
-      await this.repositories.idempotency.executePreparedExternalMutation<
-        PreparedProcessStartExecution,
-        ExternalProcessStartOutcome,
-        HostProcessStartExecutionValue
-      >(
+    let startProcessId: string | null = null;
+    let execution;
+    try {
+      execution =
+        await this.repositories.idempotency.executePreparedExternalMutation<
+          PreparedProcessStartExecution,
+          ExternalProcessStartOutcome,
+          HostProcessStartExecutionValue
+        >(
         "host.process.execute.start",
         idempotencyKey,
         idempotencyInput,
@@ -825,6 +828,8 @@ export class HostProcessService {
             hostAuthorityId: hostAuthority?.id ?? null,
             now: context.now
           });
+          this.actionLocks.add(reservation.id);
+          startProcessId = reservation.id;
           const consumed = this.repositories.directProcessApprovals.consume({
             id: approval.id,
             expectedRevision: approval.revision,
@@ -882,9 +887,14 @@ export class HostProcessService {
         },
         (prepared, outcome) =>
           this.commitStartExecution(context, prepared, outcome),
-        undefined,
-        context.now
-      );
+          undefined,
+          context.now
+        );
+    } finally {
+      if (startProcessId) {
+        this.actionLocks.delete(startProcessId);
+      }
+    }
 
     return { ...execution.value, replayed: execution.replayed };
   }
