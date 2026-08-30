@@ -1350,6 +1350,16 @@ async function verifyChatDirectRouting(): Promise<void> {
       builtInOnlyBroker,
       repositories
     );
+    const fullAccessBuiltInManagedService = new ChatDirectService(
+      paths,
+      runtime,
+      builtInOnlyBroker,
+      repositories,
+      undefined,
+      {
+        allowsLocalFullAccess: (grantId) => grantId === "grant_chat_direct_alpha"
+      }
+    );
     await assert.rejects(
       () => builtInManagedService.workspaceExec(context, {
         repoId: "primary",
@@ -1409,6 +1419,45 @@ async function verifyChatDirectRouting(): Promise<void> {
         networkAccess: true
       }),
       (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
+    await assert.rejects(
+      () => service.workspaceExec(context, {
+        repoId: "primary",
+        command: "npm",
+        args: ["run", "build:macos-desktop", "--", "--arch", "arm64"],
+        executionMode: "host-managed",
+        networkAccess: true
+      }),
+      (error) => error instanceof ServiceError && error.code === "SHELL_COMMAND_BLOCKED"
+    );
+    const fullAccessHostManaged = await fullAccessBuiltInManagedService.workspaceExec(context, {
+      repoId: "primary",
+      command: "npm",
+      args: ["run", "build:macos-desktop", "--", "--arch", "arm64"],
+      executionMode: "host-managed",
+      networkAccess: true
+    });
+    assert.equal(fullAccessHostManaged.state, "running");
+    let fullAccessHostManagedSnapshot = await fullAccessBuiltInManagedService.workspaceProcessRead(
+      context,
+      { repoId: "primary", processId: fullAccessHostManaged.processId }
+    );
+    for (
+      let attempt = 0;
+      attempt < 500 && fullAccessHostManagedSnapshot.state === "running";
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      fullAccessHostManagedSnapshot = await fullAccessBuiltInManagedService.workspaceProcessRead(
+        context,
+        { repoId: "primary", processId: fullAccessHostManaged.processId }
+      );
+    }
+    assert.equal(fullAccessHostManagedSnapshot.state, "completed");
+    assert.equal(fullAccessHostManagedSnapshot.exitCode, 0);
+    assert.match(
+      fullAccessHostManagedSnapshot.chunks.map((chunk) => chunk.content).join(""),
+      /HOST_MANAGED_BUILD_OK/
     );
     await assert.rejects(
       () => service.workspaceExec(context, {

@@ -280,6 +280,21 @@ try {
     }),
     /explicitly allowlisted macOS build scripts/
   );
+  const fullAccessHostManaged = prepareWorkspaceExecCommand(
+    paths,
+    {
+      repoId: "primary",
+      command: "npm",
+      args: ["run", "test", "--", "--runInBand"],
+      executionMode: "host-managed"
+    },
+    "development",
+    "development",
+    true
+  );
+  assert.equal(fullAccessHostManaged.executionMode, "host-managed");
+  assert.equal(fullAccessHostManaged.commandIdentity, "npm");
+  assert.deepEqual(fullAccessHostManaged.args, ["run", "test", "--", "--runInBand"]);
   assert.throws(() => prepareWorkspaceExecCommand(paths, {
     repoId: "primary", command: "node", args: ["scripts/outside.mjs"]
   }), /repository root after resolving symlinks/);

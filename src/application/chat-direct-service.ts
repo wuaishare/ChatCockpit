@@ -58,6 +58,10 @@ import { SearchService } from "./search-service.js";
 import { ServiceError, wrapServiceOperationError } from "./service-error.js";
 import { ShellService } from "./shell-service.js";
 import { assertChatDirectWriterLease } from "./workspace-mutation-governance.js";
+import {
+  hasRemoteFullAccess,
+  type RemoteFullAccessPolicy
+} from "./remote-full-access-policy.js";
 
 export type { DirectExecutionScope } from "../direct/capability-broker.js";
 export type ChatDirectExecutor = string;
@@ -156,7 +160,8 @@ export class ChatDirectService {
     private readonly runtime: RuntimeRouter,
     private readonly broker: DirectCapabilityBroker,
     private readonly repositories: ContinuityRepositories,
-    private readonly directExecutorsConfigPath?: string
+    private readonly directExecutorsConfigPath?: string,
+    private readonly remoteFullAccessPolicy?: RemoteFullAccessPolicy | null
   ) {
     this.files = new FilesService(paths);
     this.git = new GitService(paths);
@@ -793,7 +798,8 @@ export class ChatDirectService {
         this.paths,
         payload,
         executionPermissions.workspaceExecutionProfile,
-        executionPermissions.hostPermissionProfile
+        executionPermissions.hostPermissionProfile,
+        hasRemoteFullAccess(context, this.remoteFullAccessPolicy)
       );
     } catch (error) {
       throw serviceError("SHELL_COMMAND_BLOCKED", error);

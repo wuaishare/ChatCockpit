@@ -200,7 +200,8 @@ export function prepareWorkspaceExecCommand(
   paths: TokenPilotPaths,
   payload: WorkspaceExecPayload,
   workspaceExecutionProfile: WorkspaceExecutionProfile = DEFAULT_WORKSPACE_EXECUTION_PROFILE,
-  hostPermissionProfile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE
+  hostPermissionProfile: HostPermissionProfile = DEFAULT_HOST_PERMISSION_PROFILE,
+  allowGeneralHostManaged = false
 ): PreparedWorkspaceExecCommand {
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   const policy = evaluateNativeWorkspaceCommand(
@@ -211,6 +212,7 @@ export function prepareWorkspaceExecCommand(
   const executionMode = payload.executionMode ?? "native-sandbox";
   if (
     executionMode === "host-managed" &&
+    !allowGeneralHostManaged &&
     !isHostManagedWorkspaceCommand(policy.command, policy.args, hostPermissionProfile)
   ) {
     throw new Error(

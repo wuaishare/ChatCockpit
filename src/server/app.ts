@@ -757,7 +757,8 @@ export function buildServer(
     runtimeRouter,
     directCapabilityBroker,
     continuityServices.repositories,
-    options.directExecutorsConfigPath
+    options.directExecutorsConfigPath,
+    remoteFullAccessPolicy
   );
   const runtimeService = new RuntimeService(runtimeRouter);
   const projectRootDiscovery = new ProjectRootDiscoveryService(paths, [

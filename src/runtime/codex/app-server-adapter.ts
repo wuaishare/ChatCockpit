@@ -391,6 +391,7 @@ const MANAGED_COMMAND_MAX_CHUNKS = 4_096;
 const MANAGED_COMMAND_RECORD_RETENTION_MS = 30 * 60_000;
 const MANAGED_COMMAND_TERMINAL_FENCE_ATTEMPTS = 50;
 const MANAGED_COMMAND_TERMINAL_FENCE_INTERVAL_MS = 20;
+const MANAGED_COMMAND_TERMINAL_FENCE_GRACE_MS = 100;
 const MANAGED_COMMAND_TERMINAL_SENTINEL = "\u001e";
 const MANAGED_COMMAND_TERMINAL_LABEL = "CHATCOCKPIT_EXIT";
 const MANAGED_COMMAND_WRAPPER_SCRIPT = [
@@ -1576,13 +1577,18 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   ): void {
     if (record.state !== "running" || record.terminalFenceStarted) return;
     record.terminalFenceStarted = true;
-    void this.proveStandaloneProcessAbsent(record).then((absent) => {
+    void (async () => {
+      await new Promise((resolve) =>
+        setTimeout(resolve, MANAGED_COMMAND_TERMINAL_FENCE_GRACE_MS)
+      );
+      if (record.state !== "running") return;
+      const absent = await this.proveStandaloneProcessAbsent(record);
       if (!absent) {
         record.terminalFenceStarted = false;
         return;
       }
       this.settleStandaloneTerminalProof(record, exitCode);
-    });
+    })();
   }
 
   private confirmStandaloneRequestedTermination(

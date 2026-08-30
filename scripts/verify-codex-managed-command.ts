@@ -111,6 +111,22 @@ async function verifyCodexManagedCommand(): Promise<void> {
       normalDone.chunks.map((chunk) => chunk.content).join(""),
       /normal-final/
     );
+    await sleep(150);
+    const normalTrace = fs
+      .readFileSync(tracePath, "utf8")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
+    assert.equal(
+      normalTrace.some(
+        (entry) =>
+          entry.method === "command/exec/terminate" &&
+          entry.params?.processId === normal.processId
+      ),
+      false,
+      "normal final response should win the grace period without a cleanup terminate"
+    );
   } finally {
     await normalAdapter.close();
   }
