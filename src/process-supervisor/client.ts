@@ -26,6 +26,12 @@ export interface ProcessSupervisorClientResult<T> {
   result: T;
 }
 
+export interface ProcessSupervisorClientRequestOptions {
+  timeoutMs?: number;
+}
+
+const MAX_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+
 export class ProcessSupervisorClient {
   private readonly timeoutMs: number;
 
@@ -40,8 +46,20 @@ export class ProcessSupervisorClient {
 
   async request<T>(
     method: ProcessSupervisorMethod,
-    params: unknown
+    params: unknown,
+    requestOptions: ProcessSupervisorClientRequestOptions = {}
   ): Promise<ProcessSupervisorClientResult<T>> {
+    const requestTimeoutMs = requestOptions.timeoutMs ?? this.timeoutMs;
+    if (
+      !Number.isInteger(requestTimeoutMs) ||
+      requestTimeoutMs <= 0 ||
+      requestTimeoutMs > MAX_REQUEST_TIMEOUT_MS
+    ) {
+      throw new ProcessSupervisorClientError(
+        "SUPERVISOR_BAD_REQUEST",
+        "Process Supervisor request timeout is outside the bounded range"
+      );
+    }
     let authToken: string;
     try {
       authToken = readProcessSupervisorToken(this.options.paths);
@@ -64,7 +82,7 @@ export class ProcessSupervisorClient {
     return await new Promise<ProcessSupervisorClientResult<T>>((resolve, reject) => {
       const socket = net.createConnection(this.options.paths.processSupervisorSocketPath);
       socket.setEncoding("utf8");
-      socket.setTimeout(this.timeoutMs);
+      socket.setTimeout(requestTimeoutMs);
       let buffer = "";
       let settled = false;
 

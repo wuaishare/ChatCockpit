@@ -171,6 +171,7 @@ try {
 
   let releaseDelayedHealth: (() => void) | null = null;
   let delayedHealthStarted: (() => void) | null = null;
+  let delayedStartCalls = 0;
   const delayedHealthStartedPromise = new Promise<void>((resolve) => {
     delayedHealthStarted = resolve;
   });
@@ -191,6 +192,16 @@ try {
       }
       if (method === "owned.list") {
         return { processes: [] };
+      }
+      if (method === "process.start") {
+        delayedStartCalls += 1;
+        await new Promise<void>((resolve) => setTimeout(resolve, 5_250));
+        return {
+          processId: "host_process_timeout_budget_fixture",
+          status: "running",
+          exitCode: null,
+          truncated: false
+        };
       }
       if (method === "process.read") {
         throw new ProcessSupervisorRuntimeError(
@@ -213,6 +224,32 @@ try {
     assert.equal(health.supervisorGeneration, "generation-a");
     assert.equal(health.result.state, "ready");
     assert.deepEqual(health.result.echo, { ping: true });
+
+    const longOperationClient = new ProcessSupervisorClient({
+      paths,
+      timeoutMs: 5_000
+    });
+    const delayedStartAt = Date.now();
+    const delayedStart = await longOperationClient.request<{
+      processId: string;
+      status: string;
+      exitCode: number | null;
+      truncated: boolean;
+    }>(
+      "process.start",
+      { processId: "host_process_timeout_budget_fixture" },
+      { timeoutMs: 7_000 }
+    );
+    assert.equal(delayedStart.result.status, "running");
+    assert.equal(delayedStartCalls, 1);
+    assert.ok(Date.now() - delayedStartAt >= 5_000);
+
+    await assert.rejects(
+      () => client.request("health", {}, { timeoutMs: 10 * 60 * 1000 + 1 }),
+      (error: unknown) =>
+        error instanceof ProcessSupervisorClientError &&
+        error.code === "SUPERVISOR_BAD_REQUEST"
+    );
 
     await assert.rejects(
       () => client.request("process.read", { processId: "fixture" }),

@@ -7,6 +7,8 @@ import type {
   ManagedProcessStartRequest
 } from "../direct/adapters/desktop-commander-managed-process.js";
 import { DesktopCommanderManagedProcessError } from "../direct/adapters/desktop-commander-managed-process.js";
+import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../direct/adapters/desktop-commander.js";
+import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
 import type { TokenPilotPaths } from "../types.js";
 import {
   ProcessSupervisorClient,
@@ -59,6 +61,37 @@ export interface DurableHostProcessActionOptions {
 export interface DurableHostProcessRefresh {
   supervisorGeneration: string;
   owned: SupervisorOwnedProcess[];
+}
+
+const DEFAULT_DOWNSTREAM_TIMEOUT_MS = 15_000;
+const SUPERVISOR_IPC_OVERHEAD_MS = 2_000;
+const SUPERVISOR_STOP_CONFIRMATION_BUDGET_MS = 5_000;
+const MAX_SUPERVISOR_OPERATION_TIMEOUT_MS = 10 * 60 * 1000;
+
+function managedProcessRequestTimeoutMs(
+  downstreamCallBudget: number,
+  extraBudgetMs = 0
+): number {
+  let downstreamTimeoutMs = DEFAULT_DOWNSTREAM_TIMEOUT_MS;
+  try {
+    const executor = loadDownstreamMcpExecutorsConfig().executors.find(
+      (candidate) => candidate.id === DESKTOP_COMMANDER_EXECUTOR_ID
+    );
+    if (executor) {
+      downstreamTimeoutMs = executor.transport.timeoutMs;
+    }
+  } catch {
+    // Executor readiness remains authoritative; this only supplies an IPC wait budget.
+  }
+  return Math.min(
+    MAX_SUPERVISOR_OPERATION_TIMEOUT_MS,
+    Math.max(
+      5_000,
+      downstreamTimeoutMs * downstreamCallBudget +
+        extraBudgetMs +
+        SUPERVISOR_IPC_OVERHEAD_MS
+    )
+  );
 }
 
 function mapClientError(error: unknown): never {
@@ -200,7 +233,8 @@ export class HostProcessSupervisorClient {
     try {
       const response = await this.client.request<SupervisorProcessMutationResult>(
         "process.start",
-        durableRequest
+        durableRequest,
+        { timeoutMs: managedProcessRequestTimeoutMs(3) }
       );
       this.currentGeneration = response.supervisorGeneration;
       if (response.result.status === "running") {
@@ -243,7 +277,8 @@ export class HostProcessSupervisorClient {
     try {
       const response = await this.client.request<SupervisorProcessReadResult>(
         "process.read",
-        { processId, ...options }
+        { processId, ...options },
+        { timeoutMs: managedProcessRequestTimeoutMs(1) }
       );
       this.currentGeneration = response.supervisorGeneration;
       if (response.result.status !== "running") {
@@ -275,7 +310,8 @@ export class HostProcessSupervisorClient {
     try {
       const response = await this.client.request<SupervisorProcessMutationResult>(
         "process.input",
-        { processId, ...options }
+        { processId, ...options },
+        { timeoutMs: managedProcessRequestTimeoutMs(1) }
       );
       this.currentGeneration = response.supervisorGeneration;
       if (response.result.status !== "running") {
@@ -298,7 +334,13 @@ export class HostProcessSupervisorClient {
       };
       const response = await this.client.request<SupervisorProcessMutationResult>(
         "process.stop",
-        { processId, ...action }
+        { processId, ...action },
+        {
+          timeoutMs: managedProcessRequestTimeoutMs(
+            2,
+            SUPERVISOR_STOP_CONFIRMATION_BUDGET_MS
+          )
+        }
       );
       this.currentGeneration = response.supervisorGeneration;
       this.owned.delete(processId);
