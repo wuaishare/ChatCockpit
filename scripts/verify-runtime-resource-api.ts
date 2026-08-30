@@ -152,6 +152,15 @@ async function run(): Promise<void> {
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const configPath = path.join(paths.runtimeDir, "resource-api-config.json");
+  const directExecutorsConfigPath = path.join(
+    paths.runtimeDir,
+    "resource-api-direct-executors.json"
+  );
+  fs.writeFileSync(
+    directExecutorsConfigPath,
+    `${JSON.stringify({ schemaVersion: 1, hostRoots: [], executors: [] }, null, 2)}\n`,
+    "utf8"
+  );
   fs.writeFileSync(
     configPath,
     `${JSON.stringify(
@@ -183,7 +192,8 @@ async function run(): Promise<void> {
     codexSkillMutationAdapter: fakeSkillMutationAdapter,
     codexPluginMutationAdapter: fakePluginMutationAdapter,
     runtimeResourceMutationNow: () => mutationNow,
-    acpRegistryAdapter: null
+    acpRegistryAdapter: null,
+    directExecutorsConfigPath
   });
   let server: Awaited<ReturnType<typeof listenTestServer>> | null = null;
   let rpcId = 1;

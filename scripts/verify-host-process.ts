@@ -1908,6 +1908,22 @@ async function verifyPureHostProcessFullAccess(): Promise<void> {
   const broker = new DirectCapabilityBroker([
     {
       describe: () => ({
+        id: "builtin-direct",
+        kind: "built-in" as const,
+        displayName: "ChatCockpit Built-in Fixture",
+        health: "ready" as const,
+        scopes: ["workspace" as const, "host" as const],
+        capabilities: [
+          {
+            id: "shell.exec" as const,
+            scopes: ["workspace" as const, "host" as const],
+            access: ["read" as const, "write" as const]
+          }
+        ]
+      })
+    },
+    {
+      describe: () => ({
         id: DESKTOP_COMMANDER_EXECUTOR_ID,
         kind: "downstream-mcp" as const,
         displayName: "Desktop Commander Fixture",

@@ -2646,7 +2646,7 @@ export class HostProcessService {
 
     let selection: DirectExecutorSelection;
     try {
-      const executorId = forcedExecutorId ?? request.executorId;
+      const executorId = forcedExecutorId ?? request.executorId ?? DESKTOP_COMMANDER_EXECUTOR_ID;
       selection = this.broker.resolve({
         capability: "shell.exec",
         scope: "host",
