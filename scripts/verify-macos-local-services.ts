@@ -17,6 +17,7 @@ assert.match(source, /write_process_supervisor_plist/);
 assert.match(source, /bootstrap_process_supervisor/);
 assert.match(source, /process_supervisor_ready/);
 assert.match(source, /bootout_all_services/);
+assert.match(source, /quiesce_legacy_tokenpilot_launch_agents/);
 assert.match(source, /stop_process_supervisor_process/);
 assert.match(source, /assert_packaged_runtime_ownership/);
 assert.match(source, /assert_runtime_build_integrity/);
@@ -78,12 +79,14 @@ const stopBoundary = source.indexOf("  stop)\n", startStart);
 assert.ok(startStart >= 0 && stopBoundary > startStart);
 const startBlock = source.slice(startStart, stopBoundary);
 assert.match(startBlock, /assert_runtime_build_integrity/);
+assert.match(startBlock, /quiesce_legacy_tokenpilot_launch_agents/);
 
 const restartStart = source.indexOf("  restart)\n");
 const statusStart = source.indexOf("  status)\n", restartStart);
 assert.ok(restartStart >= 0 && statusStart > restartStart);
 const restartBlock = source.slice(restartStart, statusStart);
 assert.match(restartBlock, /assert_runtime_build_integrity/);
+assert.match(restartBlock, /quiesce_legacy_tokenpilot_launch_agents/);
 assert.match(restartBlock, /kickstart_control_plane_and_runner/);
 assert.match(restartBlock, /launchctl_process_supervisor_registered/);
 assert.doesNotMatch(restartBlock, /bootout_process_supervisor/);
@@ -93,6 +96,17 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(restartBlock, /bootout_all_services/);
 assert.doesNotMatch(restartBlock, /"\$\{0\}"\s+stop/);
+
+const legacyQuiesceStart = source.indexOf("quiesce_legacy_tokenpilot_launch_agents() {");
+const bootstrapStart = source.indexOf("bootstrap_control_plane_and_runner() {", legacyQuiesceStart);
+assert.ok(legacyQuiesceStart >= 0 && bootstrapStart > legacyQuiesceStart);
+const legacyQuiesceBlock = source.slice(legacyQuiesceStart, bootstrapStart);
+assert.match(legacyQuiesceBlock, /com\.wuaishare\.tokenpilot\.control-plane/);
+assert.match(legacyQuiesceBlock, /com\.wuaishare\.tokenpilot\.runner/);
+assert.match(legacyQuiesceBlock, /com\.wuaishare\.tokenpilot\.process-supervisor/);
+assert.match(legacyQuiesceBlock, /launchctl bootout/);
+assert.match(legacyQuiesceBlock, /launchctl disable/);
+assert.match(legacyQuiesceBlock, /rm -f/);
 
 const stopStart = source.indexOf("  stop)\n");
 const restartBoundary = source.indexOf("  restart)\n", stopStart);

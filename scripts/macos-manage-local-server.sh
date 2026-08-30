@@ -413,6 +413,22 @@ bootout_all_services() {
   bootout_process_supervisor
 }
 
+quiesce_legacy_tokenpilot_launch_agents() {
+  [[ "${PRODUCT_IDENTITY}" == "chatcockpit" ]] || return 0
+  local legacy_label=""
+  local legacy_plist=""
+  for legacy_label in \
+    com.wuaishare.tokenpilot.control-plane \
+    com.wuaishare.tokenpilot.runner \
+    com.wuaishare.tokenpilot.process-supervisor; do
+    legacy_plist="${LAUNCH_AGENTS_DIR}/${legacy_label}.plist"
+    launchctl bootout "${USER_DOMAIN}/${legacy_label}" >/dev/null 2>&1 || true
+    launchctl bootout "${USER_DOMAIN}" "${legacy_plist}" >/dev/null 2>&1 || true
+    launchctl disable "${USER_DOMAIN}/${legacy_label}" >/dev/null 2>&1 || true
+    rm -f "${legacy_plist}"
+  done
+}
+
 bootstrap_control_plane_and_runner() {
   launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_PLIST_FILE}"
   launchctl bootstrap "${USER_DOMAIN}" "${INSTALLED_RUNNER_PLIST_FILE}"
@@ -681,6 +697,7 @@ case "${ACTION}" in
     cd "${INSTALL_ROOT}"
     assert_runtime_build_integrity
     assert_packaged_runtime_ownership
+    quiesce_legacy_tokenpilot_launch_agents
     assert_port_available_or_owned_runtime
     write_server_plist
     write_runner_plist
@@ -754,6 +771,7 @@ case "${ACTION}" in
     cd "${INSTALL_ROOT}"
     assert_runtime_build_integrity
     assert_packaged_runtime_ownership
+    quiesce_legacy_tokenpilot_launch_agents
     assert_port_available_or_owned_runtime
     write_server_plist
     write_runner_plist

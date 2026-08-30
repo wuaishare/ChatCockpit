@@ -6,6 +6,7 @@ import path from "node:path";
 
 import { loadUserConfig } from "../src/core/config.js";
 import { buildSourceDistributionContext } from "../src/core/distribution-context.js";
+import { USER_CONFIG_SCHEMA_VERSION } from "../src/core/user-config-schema.js";
 import { buildPaths } from "../src/core/paths.js";
 import { DEFAULT_PRODUCT_IDENTITY } from "../src/core/product-identity.js";
 import { initLocalRuntime } from "../src/core/setup.js";
@@ -192,7 +193,7 @@ try {
   assertWithin(paths.runtimeDir, proofRoot);
 
   const config = loadUserConfig(workspaceRoot, context);
-  assert.equal(config.schemaVersion, 1);
+  assert.equal(config.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
   assert.equal(config.defaultRepoId, "primary");
   assert.equal(config.repoMappings.primary?.path, expectedWorkspaceRoot);
   assert.equal(fs.existsSync(expectedConfigPath), true);
