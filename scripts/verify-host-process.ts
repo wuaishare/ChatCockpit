@@ -149,6 +149,17 @@ class ManagedProcessFixtureClient implements DownstreamMcpClient {
     }
     if (name === DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL) {
       const input = String(args.input ?? "");
+      if (args.wait_for_prompt === false) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Input sent to process ${this.pid}. Use read_process_output to get the response.`
+            }
+          ],
+          isError: false
+        };
+      }
       if (input === "quit") {
         this.state = "exited";
       }
@@ -322,6 +333,19 @@ async function verifyManagedProcessSupervisor(): Promise<void> {
       ),
       false
     );
+
+    const noPromptInteraction = await supervisor.input("host_process_adapter_a", {
+      input: "no-prompt",
+      timeoutMs: 2500,
+      waitForPrompt: false
+    });
+    assert.equal(noPromptInteraction.status, "running");
+    assert.match(noPromptInteraction.output, /echo-5100:no-prompt/);
+    const noPromptCall = clients[0]?.calls
+      .filter((call) => call.name === DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL)
+      .at(-1);
+    assert.equal(noPromptCall?.args.wait_for_prompt, true);
+    assert.equal(noPromptCall?.args.timeout_ms, 100);
 
     const stopped = await supervisor.stop("host_process_adapter_a");
     assert.equal(stopped.status, "terminated");

@@ -24,6 +24,7 @@ import { DownstreamMcpCapabilityStore } from "../downstream-mcp-snapshot.js";
 import type { DownstreamMcpClient } from "../downstream-mcp-types.js";
 
 const DEFAULT_READ_TIMEOUT_MS = 250;
+const NO_PROMPT_INPUT_COMPAT_TIMEOUT_MS = 100;
 const DEFAULT_OUTPUT_LINES = 1_000;
 const DEFAULT_TERMINATION_CONFIRM_TIMEOUT_MS = 5_000;
 const DEFAULT_TERMINATION_POLL_INTERVAL_MS = 75;
@@ -300,8 +301,14 @@ export class DesktopCommanderManagedProcessSupervisor {
       await runtime.client.callTool(DESKTOP_COMMANDER_INTERACT_WITH_PROCESS_TOOL, {
         pid: runtime.privatePid,
         input: options.input,
-        timeout_ms: options.timeoutMs,
-        wait_for_prompt: options.waitForPrompt,
+        timeout_ms: options.waitForPrompt
+          ? options.timeoutMs
+          : NO_PROMPT_INPUT_COMPAT_TIMEOUT_MS,
+        // Desktop Commander currently acknowledges wait_for_prompt=false before
+        // the input is reliably observable by the child process. Keep the
+        // ChatCockpit no-prompt contract, but use its reliable interaction
+        // branch with the smallest bounded wait accepted by our public API.
+        wait_for_prompt: true,
         verbose_timing: false
       })
     );
