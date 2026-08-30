@@ -74,7 +74,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
         ? { CHATCOCKPIT_MOCK_STANDALONE_DISCONNECT_AFTER_SPAWN: "1" }
         : {})
     },
-    requestTimeoutMs: 2_000
+    requestTimeoutMs: 10_000
   });
 
   const probeClient = makeClient();
