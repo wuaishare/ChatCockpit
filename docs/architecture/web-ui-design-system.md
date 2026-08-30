@@ -105,11 +105,16 @@ The current accepted direction for ChatCockpit Web UI is:
 Current verification targets:
 
 - `npm run typecheck:web`
-- `npm run build:web`
+- `npm run build:web` — isolated verification build; it must not rewrite the live `web/dist` generation used by a running Source Runtime
 - `npm run verify:web`
 - Browser render at the active local `<console-path>` reported by the App or lifecycle status; fresh initialization randomizes this path rather than assuming `/ui`
 - Desktop dark, desktop light, and mobile dark screenshots
 - Secret/local-path scan for `web/src` and ignored `web/dist`
+
+Runtime artifact rule:
+
+- Only the complete `npm run build` pipeline may publish a new `web/dist` generation, via the internal `build:web:runtime` step followed by backend compilation and one shared provenance marker.
+- A running Runtime snapshots its already-verified Web generation into the private runtime state directory and serves `/ui` from that immutable snapshot. Rebuilding the checkout therefore prepares the next generation without invalidating the UI currently in use.
 
 Known non-blocking follow-up:
 

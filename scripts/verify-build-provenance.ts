@@ -31,9 +31,14 @@ const staticRoutesSource = fs.readFileSync(path.join(repoRoot, "src/server/stati
 const uiBuildRecoverySource = fs.readFileSync(path.join(repoRoot, "src/server/ui-build-recovery.ts"), "utf8");
 const cliSource = fs.readFileSync(path.join(repoRoot, "src/cli/index.ts"), "utf8");
 const lifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/macos-manage-local-server.sh"), "utf8");
+const webBuildSource = fs.readFileSync(path.join(repoRoot, "scripts/build-web.ts"), "utf8");
 
+assert.match(packageJson.scripts.build, /build:web:runtime/);
 assert.match(packageJson.scripts.build, /generate-build-provenance\.ts/);
 assert.match(packageJson.scripts.build, /dist\/cli\/index\.js build-provenance verify --json/);
+assert.match(packageJson.scripts["build:web"], /scripts\/build-web\.ts/);
+assert.doesNotMatch(packageJson.scripts["build:web"], /--runtime-artifact/);
+assert.match(packageJson.scripts["build:web:runtime"], /--runtime-artifact/);
 assert.match(generatorSource, /schemaVersion: 2/);
 assert.match(generatorSource, /git", \["rev-parse", "--short=12", "HEAD"\]/);
 assert.match(generatorSource, /git", \["status", "--porcelain", "--untracked-files=all"\]/);
@@ -65,6 +70,9 @@ assert.match(cliSource, /const runtimeBuildProvenance = assertBuiltRuntimeIntegr
 assert.match(cliSource, /runtimeBuildProvenance,/);
 assert.match(lifecycleSource, /assert_runtime_build_integrity/);
 assert.match(lifecycleSource, /build-provenance verify --json/);
+assert.match(webBuildSource, /mkdtempSync/);
+assert.match(webBuildSource, /runtimeArtifact/);
+assert.match(webBuildSource, /BUILD_WEB_ISOLATED_OK/);
 
 function currentGitRevision(): string | null {
   try {

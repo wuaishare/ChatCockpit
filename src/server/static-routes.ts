@@ -17,6 +17,7 @@ import {
   type UiBuildRecoveryStatus,
   type UiRecoveryLocale
 } from "./ui-build-recovery.js";
+import { prepareUiRuntimeDistribution } from "./ui-runtime-snapshot.js";
 
 const UI_DOCUMENT_CACHE_CONTROL = "no-store";
 const UI_HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -283,7 +284,11 @@ export function registerStaticRoutes(
   runtimeBuildProvenance: RuntimeBuildProvenance | null = null
 ): void {
   const identity = productIdentityForKey(paths.productIdentity);
-  const uiDistDir = path.join(paths.installRoot, "web", "dist");
+  const uiDistribution = prepareUiRuntimeDistribution(
+    paths,
+    runtimeBuildProvenance
+  );
+  const uiDistDir = uiDistribution.uiDistDir;
   const hasUiDist = fs.existsSync(uiDistDir);
   const uiRootRealPath = hasUiDist ? fs.realpathSync(uiDistDir) : null;
 
@@ -332,10 +337,12 @@ export function registerStaticRoutes(
     if (!hasUiDist || !fs.existsSync(path.join(uiDistDir, "index.html"))) {
       return renderUiNotBuiltPage(identity.displayName, locale);
     }
-    const recovery = resolveUiBuildRecovery(paths.installRoot, runtimeBuildProvenance);
-    if (recovery.status !== "ok") {
-      reply.code(503);
-      return renderUiBuildRecoveryPage(identity.displayName, locale, recovery.status);
+    if (!uiDistribution.immutableSnapshot) {
+      const recovery = resolveUiBuildRecovery(paths.installRoot, runtimeBuildProvenance);
+      if (recovery.status !== "ok") {
+        reply.code(503);
+        return renderUiBuildRecoveryPage(identity.displayName, locale, recovery.status);
+      }
     }
     return renderUiIndex();
   });
@@ -355,12 +362,14 @@ export function registerStaticRoutes(
     const rawSuffixForIntegrity = requestUrl
       .split("?", 1)[0]
       .slice("/ui/".length);
-    const recovery = resolveUiBuildRecovery(
-      paths.installRoot,
-      runtimeBuildProvenance,
-      rawSuffixForIntegrity.startsWith("assets/") ? "generation" : "integrity"
-    );
-    if (recovery.status !== "ok") {
+    const recovery = uiDistribution.immutableSnapshot
+      ? null
+      : resolveUiBuildRecovery(
+          paths.installRoot,
+          runtimeBuildProvenance,
+          rawSuffixForIntegrity.startsWith("assets/") ? "generation" : "integrity"
+        );
+    if (recovery && recovery.status !== "ok") {
       if (rawSuffixForIntegrity.startsWith("assets/")) {
         const restartRequired = recovery.status === "restart-required";
         return sendApiError(

@@ -8,8 +8,9 @@
     "chatcockpit": "./dist/cli/index.js"
   },
   "scripts": {
-    "build": "npm run build:web && tsc -p tsconfig.json && tsx scripts/generate-build-provenance.ts && node dist/cli/index.js build-provenance verify --json",
-    "build:web": "vite build --config web/vite.config.ts",
+    "build": "npm run build:web:runtime && tsc -p tsconfig.json && tsx scripts/generate-build-provenance.ts && node dist/cli/index.js build-provenance verify --json",
+    "build:web": "tsx scripts/build-web.ts",
+    "build:web:runtime": "tsx scripts/build-web.ts --runtime-artifact",
     "build:macos-desktop": "bash ./scripts/build-macos-desktop-app.sh",
     "build:macos-xcode": "bash ./scripts/build-macos-xcode-app.sh",
     "build:macos-distribution": "bash ./scripts/build-macos-distribution-app.sh",

@@ -168,6 +168,12 @@ function treeSha256(
   return digest.digest("hex");
 }
 
+export function computeWebArtifactDigest(webDistDir: string): string | null {
+  return treeSha256(path.resolve(webDistDir), {
+    excludedRelativePaths: new Set([PROVENANCE_FILE])
+  });
+}
+
 export function computeRuntimeArtifactDigests(
   installRoot = defaultInstallRoot
 ): { backendSha256: string | null; webSha256: string | null } {
@@ -177,9 +183,7 @@ export function computeRuntimeArtifactDigests(
       excludedRelativePaths: new Set([PROVENANCE_FILE]),
       excludedTopLevel: BACKEND_EXCLUDED_TOP_LEVEL
     }),
-    webSha256: treeSha256(path.join(root, "web", "dist"), {
-      excludedRelativePaths: new Set([PROVENANCE_FILE])
-    })
+    webSha256: computeWebArtifactDigest(path.join(root, "web", "dist"))
   };
 }
 

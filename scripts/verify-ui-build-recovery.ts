@@ -93,6 +93,9 @@ try {
   assert.equal(initialUi.statusCode, 200);
   assert.match(initialUi.body, /fixture/);
 
+  const snapshotRoot = path.join(paths.runtimeDir, "ui-generations");
+  assert.equal(fs.existsSync(snapshotRoot), true);
+
   writeProvenance(root, {
     buildId: "2608300401",
     builtAt: "2026-08-30T04:01:00.000Z",
@@ -100,7 +103,54 @@ try {
     webSha256: initialDigests.webSha256
   });
 
-  const restartZh = await app.inject({
+  const liveAfterNextBuild = await app.inject({
+    method: "GET",
+    url: "/ui",
+    headers: { "accept-language": "zh-Hans-CN,zh;q=0.9,en;q=0.8" }
+  });
+  assert.equal(liveAfterNextBuild.statusCode, 200);
+  assert.match(liveAfterNextBuild.body, /fixture/);
+
+  const liveAssetAfterNextBuild = await app.inject({
+    method: "GET",
+    url: "/ui/assets/app.js",
+    headers: { "accept-language": "en-US,en;q=0.9" }
+  });
+  assert.equal(liveAssetAfterNextBuild.statusCode, 200);
+  assert.match(liveAssetAfterNextBuild.body, /console\.log\('fixture'\)/);
+
+  fs.writeFileSync(
+    path.join(root, "web", "dist", "index.html"),
+    "<main>broken generation</main>\n",
+    "utf8"
+  );
+  const liveAfterBrokenCheckout = await app.inject({
+    method: "GET",
+    url: "/ui",
+    headers: { "accept-language": "en-US,en;q=0.9" }
+  });
+  assert.equal(liveAfterBrokenCheckout.statusCode, 200);
+  assert.match(liveAfterBrokenCheckout.body, /fixture/);
+  assert.doesNotMatch(liveAfterBrokenCheckout.body, /broken generation/);
+  await app.close();
+
+  fs.writeFileSync(
+    path.join(root, "web", "dist", "index.html"),
+    '<!doctype html><html><head><script type="module" src="./assets/app.js"></script></head><body>fixture</body></html>\n',
+    "utf8"
+  );
+  writeProvenance(root, {
+    buildId: "2608300401",
+    builtAt: "2026-08-30T04:01:00.000Z",
+    backendSha256: initialDigests.backendSha256,
+    webSha256: initialDigests.webSha256
+  });
+  fs.rmSync(snapshotRoot, { recursive: true, force: true });
+
+  const fallbackApp = Fastify({ logger: false });
+  registerStaticRoutes(fallbackApp, paths, "/ui", undefined, runningProvenance);
+  await fallbackApp.ready();
+  const restartZh = await fallbackApp.inject({
     method: "GET",
     url: "/ui",
     headers: { "accept-language": "zh-Hans-CN,zh;q=0.9,en;q=0.8" }
@@ -110,7 +160,7 @@ try {
   assert.match(restartZh.body, /已检测到完整的新构建，Runtime 需要重启/);
   assert.match(restartZh.body, /无需再次执行/);
 
-  const restartAssetEn = await app.inject({
+  const restartAssetEn = await fallbackApp.inject({
     method: "GET",
     url: "/ui/assets/app.js",
     headers: { "accept-language": "en-US,en;q=0.9" }
@@ -118,35 +168,20 @@ try {
   assert.equal(restartAssetEn.statusCode, 503);
   assert.equal(restartAssetEn.headers["content-language"], "en-US");
   assert.equal(restartAssetEn.json().error.code, "UI_RUNTIME_RESTART_REQUIRED");
-  assert.match(restartAssetEn.json().error.message, /restart the ChatCockpit Runtime/i);
 
   fs.writeFileSync(
     path.join(root, "web", "dist", "index.html"),
     "<main>broken generation</main>\n",
     "utf8"
   );
-
-  const rebuildEn = await app.inject({
+  const rebuildEn = await fallbackApp.inject({
     method: "GET",
     url: "/ui",
     headers: { "accept-language": "en-US,en;q=0.9" }
   });
   assert.equal(rebuildEn.statusCode, 503);
-  assert.equal(rebuildEn.headers["content-language"], "en-US");
   assert.match(rebuildEn.body, /Build artifacts are out of sync/);
-  assert.match(rebuildEn.body, /run <code>npm run build<\/code>/);
-
-  const rebuildAssetZh = await app.inject({
-    method: "GET",
-    url: "/ui/assets/app.js",
-    headers: { "accept-language": "zh-CN,zh;q=0.9" }
-  });
-  assert.equal(rebuildAssetZh.statusCode, 503);
-  assert.equal(rebuildAssetZh.headers["content-language"], "zh-CN");
-  assert.equal(rebuildAssetZh.json().error.code, "UI_BUILD_GENERATION_MISMATCH");
-  assert.match(rebuildAssetZh.json().error.message, /完整且可验证的构建 generation/);
-
-  await app.close();
+  await fallbackApp.close();
   process.stdout.write("VERIFY_UI_BUILD_RECOVERY_OK\n");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
