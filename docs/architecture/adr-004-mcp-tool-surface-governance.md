@@ -111,3 +111,26 @@ P0.2 必须证明 canonical `/mcp`、`/mcp/full` 与至少一个 specialist Pack
 - `verify:codex-native-session` 必须证明 native Turn start 携带显式 model-loop transfer，并在 public-safe `turn/requested` event 中记录 `modelLoopTransfer=operator-explicit`。
 - `verify:mcp` 必须证明 direct `continuity.capsule` 不再平铺于 Core、Capsule 可经 `continuity.invoke` 调用、Codex Native tool discovery 返回 `invokeVia=codex.invoke`、缺失 `modelLoopTransfer` 的 native Turn 在 provider execution 前被拒绝、跨域 tool name 在 `codex.invoke` 的公开 schema 层被拒绝。
 - `codex-native` specialist Pack 与 `/mcp/full` 继续保留原具体 Tool，确保有界 Core consolidation 不删除高级/兼容调用面。
+
+## 2026-08-30 Amendment: 单入口 Continuity 全域可达与前向兼容 envelope
+
+继续使用 canonical `/mcp` 做真实 ChatGPT 长会话 dogfood 后，发现 `continuity-governance` Pack 仍有四个能力无法从单一 Core 入口调用：`continuity.importedContext.read`、`workspace.snapshot`、`handoff.cancel`、`handoff.fork`。其中 `workspace.snapshot` 是恢复长期任务上下文、审计 active writer/task/session/handoff/evidence 状态的核心只读能力；要求调用方为此额外挂载第二个 MCP endpoint，会重新引入“能力存在但当前 ChatGPT 会话不可达”的路由断点。
+
+与此同时，canonical Core 已演进为 24 个工具，生产 Full compatibility surface 为 94 个远程可路由工具；`continuity.invoke` / `codex.invoke` 的公开输入也已从固定 tool-name enum 改为稳定的 `tool + input` envelope。前向兼容来自**公开 envelope 不随 allowlist 扩展而变化**，但运行时仍只接受源码中固定集合，并继续执行目标 Tool 的精确 schema、权限、幂等、审计和风险治理；这不是任意 tool-name passthrough。
+
+因此，本 Amendment supersede 前述 Amendment 中“canonical Core=20”“continuity.invoke 公开 discriminated union 固定 14 variant”“`workspace.snapshot` 等 Continuity specialist 必须另接 Pack”的当前状态描述。历史决策记录保留，但当前合同调整为：
+
+1. canonical `/mcp` 保持 **24 个 Core**；Full compatibility surface 保持 **94 个远程可路由工具**。本次不增加 Core 工具数量。
+2. `chatcockpit.continuity.invoke` 使用稳定前向兼容 envelope，服务器端固定 allowlist 扩展为 **18 个目标**：`continuity-governance` Pack 的全部 16 个操作，加 `runtime.restart` / `runtime.restart.read` 两个受限 Runtime lifecycle 操作。
+3. 新纳入单入口的四个 Continuity 目标为：`continuity.importedContext.read`、`workspace.snapshot`、`handoff.cancel`、`handoff.fork`。因此正常 Continuity/Writer-Lease/Handoff/Workspace Snapshot 工作不再要求第二个 MCP endpoint。
+4. Host administration、Device lifecycle、Workflow、Recovery、Runtime Resource/Capability mutation、Codex Native 仍不得经 `continuity.invoke` 分派；Codex Native 继续使用独立 `codex.invoke`。
+5. `tools.discover(pack, tool)` 对全部 16 个 `continuity-governance` 目标以及两个 Runtime lifecycle 目标返回 `invokeVia=continuity.invoke`；其他非 allowlisted specialist 继续返回 `invokeVia=null`。
+6. OAuth 设备项目权限按**解析后的真实目标 Tool**递归判定：真正只读目标可使用 read-only；未分类或可变更目标 fail closed 到 project-exec。稳定 gateway 名称本身不能成为权限绕过层。
+7. Pack endpoint 与 `/mcp/full` 继续保留原具体 Tool，单入口可达性不会删除 specialist surface，也不会扩大本地 Operator-only 决策能力。
+
+### 2026-08-30 verification
+
+- `verify:mcp-tool-surface` 固定 Core=24，并验证 16 个 Continuity allowlisted suffix 全部仍属于 `continuity-governance` Pack。
+- `verify:mcp` 必须证明 `tools.discover` 对新增四个目标返回 `invokeVia=continuity.invoke`，并通过 canonical `/mcp` 实际执行 `workspace.snapshot`。
+- OAuth E2E 继续证明 gateway 会按真实内部目标要求 read-only / project-write / project-exec，而不是按 gateway 名称放行。
+- live ChatGPT dogfood 在 fresh build/restart 后必须能从当前单一 ChatCockpit 连接直接调用 `workspace.snapshot`，无需额外连接 `continuity-governance` Pack。

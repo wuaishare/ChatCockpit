@@ -66,7 +66,9 @@ export const MCP_TOOL_SURFACE_DEFAULT_CORE_SUFFIXES = [
 ] as const;
 
 export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
+  "continuity.importedContext.read",
   "continuity.capsule",
+  "workspace.snapshot",
   "task.create",
   "task.get",
   "session.start",
@@ -75,6 +77,8 @@ export const MCP_CONTINUITY_INVOKE_SUFFIXES = [
   "lease.release",
   "evidence.record",
   "handoff.prepare",
+  "handoff.cancel",
+  "handoff.fork",
   "handoff.accept",
   "task.submitReview",
   "task.complete"

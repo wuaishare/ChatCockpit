@@ -540,6 +540,10 @@ async function runMcpSmoke(): Promise<void> {
 
     for (const [pack, tool] of [
       ["continuity-governance", "lease.acquire"],
+      ["continuity-governance", "continuity.importedContext.read"],
+      ["continuity-governance", "workspace.snapshot"],
+      ["continuity-governance", "handoff.cancel"],
+      ["continuity-governance", "handoff.fork"],
       ["runtime-admin", "runtime.restart"]
     ] as const) {
       const discoveredGovernanceTool = await postMcp(
@@ -1068,6 +1072,41 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(invokeEvidenceResult.structuredContent.result.item.status, "passed");
     assert.equal(invokeEvidenceResult.structuredContent.result.replayed, false);
     assert.match(invokeEvidenceResult.structuredContent.result.bundle.id, /^evidence_/);
+
+    const invokeWorkspaceSnapshot = await postMcp(
+      baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "invoke-workspace-snapshot",
+        method: "tools/call",
+        params: {
+          name: "chatcockpit.continuity.invoke",
+          arguments: {
+            tool: "workspace.snapshot",
+            input: { workspaceId: workspace.id }
+          }
+        }
+      },
+      { token: "test-token", path: "/mcp" }
+    );
+    assert.equal(invokeWorkspaceSnapshot.response.status, 200);
+    const invokeWorkspaceSnapshotResult = invokeWorkspaceSnapshot.message.result as {
+      isError?: boolean;
+      structuredContent: {
+        ok: true;
+        tool: string;
+        result: {
+          ok: true;
+          snapshot: { workspace: { id: string } };
+        };
+      };
+    };
+    assert.equal(invokeWorkspaceSnapshotResult.isError, undefined);
+    assert.equal(invokeWorkspaceSnapshotResult.structuredContent.tool, "workspace.snapshot");
+    assert.equal(
+      invokeWorkspaceSnapshotResult.structuredContent.result.snapshot.workspace.id,
+      workspace.id
+    );
 
     const replayEvidence = await postMcp(
       baseUrl,

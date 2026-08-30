@@ -51,7 +51,7 @@ chatcockpit.tools.discover
 chatcockpit.continuity.invoke (tool=continuity.capsule)
 ```
 
-Direct `chatcockpit.continuity.capsule` remains available on the `continuity-governance` pack and full compatibility surface, but the canonical 20-tool Core reaches it through the fixed `continuity.invoke` variant. For the deeper `chatcockpit.workspace.snapshot` view, connect the `continuity-governance` pack explicitly.
+Direct `chatcockpit.continuity.capsule` remains available on the `continuity-governance` pack and full compatibility surface, while the canonical 24-tool Core reaches all 16 continuity-governance operations through the bounded `continuity.invoke` gateway. This includes `workspace.snapshot`, `continuity.importedContext.read`, `handoff.cancel`, and `handoff.fork`, so normal ChatGPT continuity work no longer requires mounting a second MCP endpoint.
 
 ### Prompt C — Git + file read
 

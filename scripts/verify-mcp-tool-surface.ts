@@ -46,7 +46,9 @@ assert.equal(byPack.recovery?.length, 2);
 assert.deepEqual(
   [...MCP_CONTINUITY_INVOKE_SUFFIXES].sort(),
   [
+    "continuity.importedContext.read",
     "continuity.capsule",
+    "workspace.snapshot",
     "task.create",
     "task.get",
     "session.start",
@@ -55,6 +57,8 @@ assert.deepEqual(
     "lease.release",
     "evidence.record",
     "handoff.prepare",
+    "handoff.cancel",
+    "handoff.fork",
     "handoff.accept",
     "task.submitReview",
     "task.complete"
