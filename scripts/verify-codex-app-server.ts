@@ -16,6 +16,7 @@ import {
 } from "../src/runtime/codex/app-server-adapter.ts";
 import { CodexAppServerClient } from "../src/runtime/codex/app-server-client.ts";
 import {
+  classifyConfiguredCodexBinarySource,
   resolveCodexBinary,
   type CodexBinaryResolution
 } from "../src/runtime/codex/binary.ts";
@@ -159,6 +160,60 @@ async function verifyCodexAppServerAdapter(): Promise<void> {
     "utf8"
   );
   fs.chmodSync(resolverShim, 0o755);
+  const fixtureHome = path.join(path.parse(process.cwd()).root, "fixture-home");
+  const fixtureApplications = path.join(path.parse(fixtureHome).root, "Applications");
+  assert.equal(
+    classifyConfiguredCodexBinarySource({
+      command: path.join(
+        fixtureApplications,
+        "ChatGPT.app",
+        "Contents",
+        "Resources",
+        "codex"
+      ),
+      platform: "darwin",
+      homeDir: fixtureHome
+    }),
+    "chatgpt-app"
+  );
+  assert.equal(
+    classifyConfiguredCodexBinarySource({
+      command: path.join(
+        fixtureApplications,
+        "Codex.app",
+        "Contents",
+        "Resources",
+        "codex"
+      ),
+      platform: "darwin",
+      homeDir: fixtureHome
+    }),
+    "codex-app"
+  );
+  assert.equal(
+    classifyConfiguredCodexBinarySource({
+      command: path.join(fixtureHome, ".local", "bin", "codex"),
+      platform: "darwin",
+      homeDir: fixtureHome
+    }),
+    "local-bin"
+  );
+  assert.equal(
+    classifyConfiguredCodexBinarySource({
+      command: "codex",
+      platform: "darwin",
+      homeDir: fixtureHome
+    }),
+    "path"
+  );
+  assert.equal(
+    classifyConfiguredCodexBinarySource({
+      command: resolverShim,
+      platform: "darwin",
+      homeDir: fixtureHome
+    }),
+    "configured"
+  );
   const resolved = resolveCodexBinary({
     env: {
       ...process.env,

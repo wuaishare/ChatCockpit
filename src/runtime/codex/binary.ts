@@ -47,6 +47,37 @@ interface Candidate {
   explicit: boolean;
 }
 
+// Keep the executable origin stable across explicit LaunchAgent pinning and
+// ordinary discovery so capability snapshots describe the binary itself, not
+// merely the mechanism that happened to locate it.
+export function classifyConfiguredCodexBinarySource(input: {
+  command: string;
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+}): CodexBinarySource {
+  const platform = input.platform ?? process.platform;
+  const homeDir = input.homeDir ?? os.homedir();
+  if (input.command === "codex") return "path";
+
+  const configuredPath = path.resolve(input.command);
+  const localBinPath = path.resolve(path.join(homeDir, ".local", "bin", "codex"));
+  if (configuredPath === localBinPath) return "local-bin";
+
+  if (platform === "darwin") {
+    const applicationsDir = path.join(path.parse(homeDir).root, "Applications");
+    const codexAppPath = path.resolve(
+      path.join(applicationsDir, "Codex.app", "Contents", "Resources", "codex")
+    );
+    const chatgptAppPath = path.resolve(
+      path.join(applicationsDir, "ChatGPT.app", "Contents", "Resources", "codex")
+    );
+    if (configuredPath === codexAppPath) return "codex-app";
+    if (configuredPath === chatgptAppPath) return "chatgpt-app";
+  }
+
+  return "configured";
+}
+
 function candidateList(options: ResolveCodexBinaryOptions): Candidate[] {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
@@ -57,7 +88,11 @@ function candidateList(options: ResolveCodexBinaryOptions): Candidate[] {
   if (configured) {
     candidates.push({
       command: configured,
-      source: "configured",
+      source: classifyConfiguredCodexBinarySource({
+        command: configured,
+        platform,
+        homeDir
+      }),
       explicit: true
     });
     return candidates;
