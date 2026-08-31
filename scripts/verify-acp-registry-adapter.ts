@@ -43,6 +43,20 @@ const registryPayload = {
         }
       }
     }
+  ],
+  extensions: [
+    {
+      id: "fixture-extension",
+      name: "Fixture Extension",
+      version: "0.1.0",
+      description: "Fixture ACP extension",
+      distribution: {
+        npx: {
+          package: "@fixture/extension@0.1.0",
+          args: ["--private-extension-arg"]
+        }
+      }
+    }
   ]
 };
 
@@ -72,7 +86,7 @@ assert.equal(profile.compatibilityStatus, "ready");
 const first = await adapter.inventory({ profile });
 const second = await adapter.inventory({ profile });
 assert.equal(fetchCalls, 1, "ACP Registry catalog must honor in-memory TTL cache");
-assert.equal(first.resources.length, 2);
+assert.equal(first.resources.length, 2, "ACP extensions must not be projected as agent resources");
 assert.deepEqual(second.resources, first.resources);
 assert.equal(first.diagnostics[0]?.status, "ready");
 
@@ -97,7 +111,9 @@ for (const resource of first.resources) {
 const publicJson = JSON.stringify(first);
 for (const forbidden of [
   "@fixture/agent@1.2.3",
+  "@fixture/extension@0.1.0",
   "python-agent==0.4.0",
+  "--private-extension-arg",
   "--private-arg",
   "secret-auth-token",
   "private-agent-command",
@@ -140,6 +156,26 @@ const invalidSchema = new AcpRegistryAdapter({
 });
 await assert.rejects(
   () => invalidSchema.listProfiles(),
+  (error: unknown) =>
+    error instanceof Error &&
+    "code" in error &&
+    (error as { code?: string }).code === "ACP_REGISTRY_INVALID"
+);
+
+const unknownTopLevel = new AcpRegistryAdapter({
+  fetchImpl: async () =>
+    new Response(
+      JSON.stringify({
+        version: "1.0.0",
+        agents: [],
+        extensions: [],
+        unexpected: true
+      }),
+      { status: 200 }
+    )
+});
+await assert.rejects(
+  () => unknownTopLevel.listProfiles(),
   (error: unknown) =>
     error instanceof Error &&
     "code" in error &&

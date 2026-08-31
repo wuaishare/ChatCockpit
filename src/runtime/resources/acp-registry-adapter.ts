@@ -102,7 +102,8 @@ const agentSchema = z
 const registrySchema = z
   .object({
     version: z.string().regex(/^[0-9]+\.[0-9]+\.[0-9]+/).max(100),
-    agents: z.array(agentSchema).max(MAX_REGISTRY_AGENTS)
+    agents: z.array(agentSchema).max(MAX_REGISTRY_AGENTS),
+    extensions: z.array(agentSchema).max(MAX_REGISTRY_AGENTS).optional()
   })
   .strict();
 
