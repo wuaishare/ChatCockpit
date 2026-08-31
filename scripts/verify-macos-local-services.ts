@@ -38,6 +38,10 @@ assert.match(source, /PRODUCT_IDENTITY.*chatcockpit[\s\S]*STATE_ROOT="\$\{HOME\}
 assert.match(source, /STATE_ROOT="\$\{INSTALL_ROOT\}\/\$\{STATE_DIR_NAME\}"/);
 assert.match(source, /PRIMARY_WORKSPACE_ROOT="\$\(identity_env_value PRIMARY_WORKSPACE_ROOT\)"/);
 assert.match(source, /resolve_direct_node_bin\(\)/);
+assert.match(source, /resolve_launchagent_codex_bin\(\)/);
+assert.match(source, /dist\/runtime\/codex\/binary\.js/);
+assert.match(source, /resolveCodexBinaryAsync/);
+assert.match(source, /pathToFileURL/);
 assert.match(source, /process\.execPath/);
 assert.match(source, /NODE_BIN_CANDIDATE="\$\(identity_env_value NODE_BIN\)"/);
 assert.match(source, /NODE_BIN_FALLBACK="\$\(command -v node \|\| true\)"/);
@@ -80,6 +84,11 @@ assert.ok(startStart >= 0 && stopBoundary > startStart);
 const startBlock = source.slice(startStart, stopBoundary);
 assert.match(startBlock, /assert_runtime_build_integrity/);
 assert.match(startBlock, /quiesce_legacy_tokenpilot_launch_agents/);
+assert.match(startBlock, /resolve_launchagent_codex_bin/);
+assert.ok(
+  startBlock.indexOf("resolve_launchagent_codex_bin") < startBlock.indexOf("write_server_plist"),
+  "start must resolve a working Codex binary before rendering LaunchAgent plists"
+);
 
 const restartStart = source.indexOf("  restart)\n");
 const statusStart = source.indexOf("  status)\n", restartStart);
@@ -87,6 +96,11 @@ assert.ok(restartStart >= 0 && statusStart > restartStart);
 const restartBlock = source.slice(restartStart, statusStart);
 assert.match(restartBlock, /assert_runtime_build_integrity/);
 assert.match(restartBlock, /quiesce_legacy_tokenpilot_launch_agents/);
+assert.match(restartBlock, /resolve_launchagent_codex_bin/);
+assert.ok(
+  restartBlock.indexOf("resolve_launchagent_codex_bin") < restartBlock.indexOf("write_server_plist"),
+  "restart must resolve a working Codex binary before rendering LaunchAgent plists"
+);
 assert.match(restartBlock, /kickstart_control_plane_and_runner/);
 assert.match(restartBlock, /launchctl_process_supervisor_registered/);
 assert.doesNotMatch(restartBlock, /bootout_process_supervisor/);

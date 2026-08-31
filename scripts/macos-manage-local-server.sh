@@ -73,6 +73,29 @@ resolve_direct_node_bin() {
   printf '%s' "${resolved}"
 }
 
+resolve_launchagent_codex_bin() {
+  local resolver_module="${INSTALL_ROOT}/dist/runtime/codex/binary.js"
+  local resolved=""
+  if [[ -n "${CODEX_BIN}" || ! -f "${resolver_module}" ]]; then
+    return 0
+  fi
+  resolved="$(
+    "${NODE_BIN}" --input-type=module -e '
+      import { pathToFileURL } from "node:url";
+      const module = await import(pathToFileURL(process.argv[1]).href);
+      try {
+        const value = await module.resolveCodexBinaryAsync();
+        process.stdout.write(value.command);
+      } catch {
+        process.exitCode = 1;
+      }
+    ' "${resolver_module}" 2>/dev/null
+  )" || return 0
+  if [[ -n "${resolved}" && -x "${resolved}" ]]; then
+    CODEX_BIN="${resolved}"
+  fi
+}
+
 SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_ROOT="$(identity_env_value INSTALL_ROOT)"
 INSTALL_ROOT="${INSTALL_ROOT:-${SCRIPT_ROOT}}"
@@ -699,6 +722,7 @@ case "${ACTION}" in
     assert_packaged_runtime_ownership
     quiesce_legacy_tokenpilot_launch_agents
     assert_port_available_or_owned_runtime
+    resolve_launchagent_codex_bin
     write_server_plist
     write_runner_plist
     write_process_supervisor_plist
@@ -773,6 +797,7 @@ case "${ACTION}" in
     assert_packaged_runtime_ownership
     quiesce_legacy_tokenpilot_launch_agents
     assert_port_available_or_owned_runtime
+    resolve_launchagent_codex_bin
     write_server_plist
     write_runner_plist
     write_process_supervisor_plist
