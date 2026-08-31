@@ -84,11 +84,11 @@ A mixed DNS answer containing even one non-public destination fails before any H
 
 Verification failure leaves the canonical origin untouched. Restaging or discarding a candidate makes older artifacts inapplicable because artifact projection requires the exact current candidate ID.
 
-## Implemented Cutover Intent / Required Later Machine Execution
+## Implemented Cutover Intent / Machine Execution
 
 Web/Operator can now prepare a 15-minute Cutover Intent that binds the still-current candidate, its exact successful Verification Artifact, and the expected existing canonical origin. Candidate, verification, canonical, or expiry drift invalidates the intent. Initial local-only → public bootstrap is deliberately rejected and requires its own proof contract.
 
-Actual cutover execution remains a later Machine Authority capability. It must consume an exact still-applicable intent, update canonical Runtime configuration transactionally, preserve the prior Runtime service state, perform post-cutover verification, and rollback both config and service state on failure.
+Actual cutover execution is implemented as a Machine Authority capability in the macOS App / CLI, not as a Web execution endpoint. It consumes an exact still-applicable intent, updates canonical Runtime configuration transactionally, preserves the prior Runtime service state, performs post-cutover verification, and rolls back both config and service state on failure.
 
 The required lifecycle is now:
 

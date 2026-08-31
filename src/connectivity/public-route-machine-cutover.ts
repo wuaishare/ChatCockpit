@@ -323,7 +323,7 @@ export class PublicRouteMachineCutoverExecutor {
     try {
       await this.lifecycle.restart();
     } catch {
-      return this.rollback(intent, "restart-failed-rolled-back", true, "not-run", null);
+      return this.rollback(intent, "restart-failed-rolled-back", true, false, "not-run", null);
     }
 
     let postVerification: PublicRoutePostCutoverVerificationResult;
@@ -340,6 +340,7 @@ export class PublicRouteMachineCutoverExecutor {
       return this.rollback(
         intent,
         "post-verification-failed-rolled-back",
+        true,
         true,
         "failed",
         postVerification.verificationId
@@ -363,10 +364,12 @@ export class PublicRouteMachineCutoverExecutor {
     intent: PublicRouteCutoverIntent,
     successfulOutcome: "restart-failed-rolled-back" | "post-verification-failed-rolled-back",
     runtimeWasRunning: boolean,
+    initialRestartSucceeded: boolean,
     postVerificationStatus: "failed" | "not-run",
     postVerificationId: string | null
   ): Promise<PublicRouteMachineCutoverResult> {
     let configRestored = false;
+    let runtimeRestarted = initialRestartSucceeded;
     try {
       this.environmentStore.updatePublicBaseUrl(
         intent.candidateOrigin,
@@ -375,6 +378,7 @@ export class PublicRouteMachineCutoverExecutor {
       configRestored = true;
       if (runtimeWasRunning) {
         await this.lifecycle.restart();
+        runtimeRestarted = true;
       }
     } catch {
       return this.result(intent, {
@@ -383,7 +387,7 @@ export class PublicRouteMachineCutoverExecutor {
           ? intent.expectedCanonicalOrigin
           : intent.candidateOrigin,
         runtimeWasRunning,
-        runtimeRestarted: true,
+        runtimeRestarted,
         postVerificationStatus,
         postVerificationId,
         rollbackAttempted: true,

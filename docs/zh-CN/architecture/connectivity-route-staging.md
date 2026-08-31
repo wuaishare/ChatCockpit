@@ -84,11 +84,11 @@ Verifier 消费一个精确的 current candidate ID，并在 Runtime state 目�
 
 Verification 失败必须保持 canonical origin 不变。重新暂存或丢弃 candidate 后，旧 Artifact 因 candidate ID 不再匹配而不会继续投影为当前验证结果。
 
-## 已实现 Cutover Intent / 后续仍需 Machine Execution
+## 已实现 Cutover Intent / Machine Execution
 
 Web/Operator 现在可以准备一个 15 分钟有效的 Cutover Intent，它会绑定 still-current candidate、exact successful Verification Artifact 与 expected existing canonical origin。candidate、verification、canonical 或 expiry 任一漂移都会让 Intent 失效。首次 local-only → public bootstrap 被明确拒绝，必须使用独立证明合同。
 
-真正的 Cutover Execution 仍属于后续 Machine Authority。它必须消费一个 exact 且仍适用的 Intent，通过事务方式更新 canonical Runtime 配置，保留旧 Runtime Service 状态，执行 post-cutover Verification，并在失败时同时 rollback 配置与服务状态。
+真正的 Cutover Execution 已作为 macOS App / CLI 的 Machine Authority 能力实现，而不是 Web 执行端点。它消费一个 exact 且仍适用的 Intent，通过事务方式更新 canonical Runtime 配置，保留旧 Runtime Service 状态，执行 post-cutover Verification，并在失败时同时 rollback 配置与服务状态。
 
 完整生命周期现在是：
 

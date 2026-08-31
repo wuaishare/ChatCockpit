@@ -232,7 +232,20 @@ function fixture(runtimeRunning: boolean) {
   assert.equal(result.canonicalOrigin, "https://candidate.example.com");
   assert.equal(result.rollbackAttempted, true);
   assert.equal(result.rollbackSucceeded, false);
+  assert.equal(result.runtimeRestarted, true, "a successful initial restart remains observable when later rollback config restoration fails");
   assert.equal(result.postVerificationStatus, "failed");
+}
+
+{
+  const f = fixture(true);
+  f.failNextRestart();
+  f.failNextRestart();
+  const result = await f.executor.execute(f.proof.id);
+  assert.equal(result.outcome, "rollback-failed");
+  assert.equal(result.runtimeRestarted, false, "failed initial and rollback restarts must not claim a successful Runtime restart");
+  assert.equal(result.rollbackAttempted, true);
+  assert.equal(result.rollbackSucceeded, false);
+  assert.equal(f.restarts(), 2);
 }
 
 {

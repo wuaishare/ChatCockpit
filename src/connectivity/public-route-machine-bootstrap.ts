@@ -183,7 +183,7 @@ export class PublicRouteMachineBootstrapExecutor {
     try {
       await this.lifecycle.restart();
     } catch {
-      return this.rollback(proof, "restart-failed-rolled-back", "not-run", null);
+      return this.rollback(proof, "restart-failed-rolled-back", false, "not-run", null);
     }
 
     let postVerification: PublicRoutePostCutoverVerificationResult;
@@ -203,6 +203,7 @@ export class PublicRouteMachineBootstrapExecutor {
       return this.rollback(
         proof,
         "post-verification-failed-rolled-back",
+        true,
         "failed",
         postVerification.verificationId
       );
@@ -227,21 +228,24 @@ export class PublicRouteMachineBootstrapExecutor {
     successfulOutcome:
       | "restart-failed-rolled-back"
       | "post-verification-failed-rolled-back",
+    initialRestartSucceeded: boolean,
     postVerificationStatus: "failed" | "not-run",
     postVerificationId: string | null
   ): Promise<PublicRouteMachineBootstrapResult> {
     let configRestored = false;
+    let runtimeRestarted = initialRestartSucceeded;
     try {
       this.environmentStore.updatePublicBaseUrl(proof.candidateOrigin, null);
       configRestored = true;
       this.verificationStore.clear();
       await this.lifecycle.restart();
+      runtimeRestarted = true;
     } catch {
       return this.result(proof, {
         outcome: "rollback-failed",
         canonicalOrigin: configRestored ? null : proof.candidateOrigin,
         runtimeWasRunning: true,
-        runtimeRestarted: true,
+        runtimeRestarted,
         postVerificationStatus,
         postVerificationId,
         rollbackAttempted: true,
