@@ -206,10 +206,26 @@ try {
   fs.writeFileSync(path.join(fixtureRoot, "dist", "cli", "index.js"), "console.log('fixture');\n", "utf8");
 
   const backendBeforePackaging = computeRuntimeArtifactDigests(fixtureRoot).backendSha256;
-  const distributionArtifact = path.join(fixtureRoot, "dist", "macos-distribution", "Generated.app");
-  fs.mkdirSync(path.dirname(distributionArtifact), { recursive: true });
-  fs.writeFileSync(distributionArtifact, "packaging output\n", "utf8");
-  assert.equal(computeRuntimeArtifactDigests(fixtureRoot).backendSha256, backendBeforePackaging);
+  for (const packagingRoot of [
+    "device-agent",
+    "macos",
+    "macos-distribution",
+    "macos-dmg",
+    "macos-runtime",
+    "macos-xcode",
+    "release",
+    "runtime-cache",
+    "xcode-derived"
+  ]) {
+    const packagingArtifact = path.join(fixtureRoot, "dist", packagingRoot, "Generated.artifact");
+    fs.mkdirSync(path.dirname(packagingArtifact), { recursive: true });
+    fs.writeFileSync(packagingArtifact, "packaging output\n", "utf8");
+    assert.equal(
+      computeRuntimeArtifactDigests(fixtureRoot).backendSha256,
+      backendBeforePackaging,
+      `packaging output under dist/${packagingRoot} must not invalidate runtime provenance`
+    );
+  }
 
   const nextGeneration = {
     ...fixtureProvenance,

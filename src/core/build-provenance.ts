@@ -39,6 +39,7 @@ const defaultInstallRoot = path.resolve(path.dirname(fileURLToPath(import.meta.u
 const PROVENANCE_FILE = "build-provenance.json";
 const WEB_PROVENANCE_RELATIVE_PATH = path.join("web", "dist", PROVENANCE_FILE);
 const BACKEND_EXCLUDED_TOP_LEVEL = new Set([
+  "device-agent",
   "macos",
   "macos-distribution",
   "macos-dmg",
