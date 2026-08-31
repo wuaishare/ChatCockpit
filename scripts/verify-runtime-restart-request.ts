@@ -14,8 +14,26 @@ const localRestartEntry = fs.readFileSync(
   path.join(process.cwd(), "scripts", "request-runtime-restart.ts"),
   "utf8"
 );
+const cliEntry = fs.readFileSync(
+  path.join(process.cwd(), "src", "cli", "index.ts"),
+  "utf8"
+);
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+) as { scripts?: Record<string, string> };
 assert.match(localRestartEntry, /waitForCompletion:\s*true/);
 assert.match(localRestartEntry, /RUNTIME_RESTART_\$\{result\.state\.toUpperCase\(\)\}/);
+assert.match(cliEntry, /case "runtime-restart"/);
+assert.match(
+  cliEntry,
+  /requestLocalRuntimeRestart\(paths,\s*\{[\s\S]*waitForCompletion:\s*process\.argv\.includes\("--wait"\)/
+);
+assert.equal(packageJson.scripts?.["mvp:restart"], "node dist/cli/index.js runtime-restart");
+assert.equal(
+  packageJson.scripts?.["mvp:restart:wait"],
+  "node dist/cli/index.js runtime-restart --wait"
+);
+assert.doesNotMatch(packageJson.scripts?.["mvp:restart"] ?? "", /tsx|request-runtime-restart/);
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-restart-request-"));
 const paths = buildFixturePaths(root);

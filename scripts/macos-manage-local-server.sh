@@ -405,20 +405,21 @@ install_plists() {
   cp "${PROCESS_SUPERVISOR_PLIST_FILE}" "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"
 }
 
+control_plane_plists_current() {
+  [[ -f "${INSTALLED_PLIST_FILE}" ]] || return 1
+  [[ -f "${INSTALLED_RUNNER_PLIST_FILE}" ]] || return 1
+  cmp -s "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}" &&
+    cmp -s "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
+}
+
 sync_control_plane_plists_if_needed() {
   ensure_launch_agents_dir
-  local changed=1
-  if [[ -f "${INSTALLED_PLIST_FILE}" ]] && [[ -f "${INSTALLED_RUNNER_PLIST_FILE}" ]]; then
-    if cmp -s "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}" && cmp -s "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"; then
-      changed=0
-    fi
+  if control_plane_plists_current; then
+    return 0
   fi
-  if (( changed != 0 )); then
-    cp "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}"
-    cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
-    return 1
-  fi
-  return 0
+  cp "${PLIST_FILE}" "${INSTALLED_PLIST_FILE}"
+  cp "${RUNNER_PLIST_FILE}" "${INSTALLED_RUNNER_PLIST_FILE}"
+  return 1
 }
 
 sync_process_supervisor_plist_if_needed() {
@@ -951,6 +952,26 @@ wait_for_process_supervisor_ready() {
   return 1
 }
 
+schedule_runtime_restart_via_supervisor() {
+  local result=""
+  if ! result="$(
+    env \
+      "${ENV_PREFIX}_INSTALL_ROOT=${INSTALL_ROOT}" \
+      "${ENV_PREFIX}_STATE_ROOT=${STATE_ROOT}" \
+      "${ENV_PREFIX}_PRIMARY_WORKSPACE_ROOT=${PRIMARY_WORKSPACE_ROOT}" \
+      "${ENV_PREFIX}_NODE_BIN=${NODE_BIN}" \
+      "${ENV_PREFIX}_DISTRIBUTION_MODE=${DISTRIBUTION_MODE}" \
+      "${NODE_BIN}" "${INSTALL_ROOT}/dist/cli/index.js" runtime-restart \
+        --product-identity "${PRODUCT_IDENTITY}" --json
+  )"; then
+    echo "Failed to schedule ${DISPLAY_NAME} Runtime restart through Process Supervisor" >&2
+    [[ -n "${result}" ]] && printf '%s\n' "${result}" >&2
+    return 1
+  fi
+  echo "control plane: restart scheduled through durable Process Supervisor"
+  printf '%s\n' "${result}"
+}
+
 print_startup_log_tail() {
   local file_path="$1"
   [[ -f "${file_path}" ]] || return 0
@@ -986,10 +1007,10 @@ case "${ACTION}" in
     if launchctl_service_registered &&
        { [[ "${installed_launch_build_id}" != "${RUNTIME_BUILD_ID}" ]] || [[ "${installed_launch_build_revision}" != "${RUNTIME_BUILD_REVISION}" ]]; }; then
       control_plane_generation_changed=1
-      echo "control plane: launch build generation changed; restarting Control Plane and Runner"
+      echo "control plane: launch build generation changed; scheduling durable Control Plane and Runner restart"
     fi
     control_plane_plist_changed=0
-    if ! sync_control_plane_plists_if_needed; then
+    if ! control_plane_plists_current; then
       control_plane_plist_changed=1
     fi
     process_supervisor_plist_changed=0
@@ -997,19 +1018,26 @@ case "${ACTION}" in
       process_supervisor_plist_changed=1
     fi
 
+    ensure_process_supervisor_generation "${process_supervisor_plist_changed}"
+
     if launchctl_service_registered && launchctl_runner_registered; then
       if (( control_plane_plist_changed != 0 || control_plane_generation_changed != 0 )); then
-        bootout_control_plane_and_runner
-        bootstrap_control_plane_and_runner
+        if ! wait_for_process_supervisor_ready "${STARTUP_READY_TIMEOUT_SECONDS}"; then
+          print_startup_log_tail "${PROCESS_SUPERVISOR_LOG_FILE}"
+          echo "Failed to schedule ${DISPLAY_NAME} Runtime convergence because Process Supervisor is not ready" >&2
+          exit 1
+        fi
+        schedule_runtime_restart_via_supervisor || exit 1
+        echo "next action: re-check npm run mvp:status or npm run doctor:runtime after Runtime reconnects"
+        exit 0
       elif ! is_running; then
         kickstart_control_plane_and_runner
       fi
     else
+      sync_control_plane_plists_if_needed || true
       bootout_control_plane_and_runner
       bootstrap_control_plane_and_runner
     fi
-
-    ensure_process_supervisor_generation "${process_supervisor_plist_changed}"
 
     if ! wait_for_listen "${STARTUP_READY_TIMEOUT_SECONDS}" || \
        ! wait_for_runner_registration "${STARTUP_READY_TIMEOUT_SECONDS}" || \

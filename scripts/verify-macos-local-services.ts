@@ -49,7 +49,9 @@ assert.match(source, /npm_bin.*command -v npm/);
 assert.match(source, /run build/);
 assert.match(source, /--expected-revision/);
 assert.match(source, /assert_source_checkout_still_current\(\)/);
-assert.match(source, /launch build generation changed; restarting Control Plane and Runner/);
+assert.match(source, /launch build generation changed; scheduling durable Control Plane and Runner restart/);
+assert.match(source, /schedule_runtime_restart_via_supervisor\(\)/);
+assert.match(source, /runtime-restart[\s\S]*--product-identity[\s\S]*--json/);
 assert.match(source, /plist_runtime_ownership_matches\(\)/);
 assert.match(source, /INSTALLED_RUNNER_PLIST_FILE/);
 assert.match(source, /INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE/);
@@ -140,6 +142,9 @@ assert.match(startBlock, /ensure_source_runtime_current/);
 assert.match(startBlock, /assert_runtime_build_integrity/);
 assert.match(startBlock, /assert_source_checkout_still_current/);
 assert.match(startBlock, /control_plane_generation_changed/);
+assert.match(startBlock, /control_plane_plists_current/);
+assert.match(startBlock, /schedule_runtime_restart_via_supervisor/);
+assert.match(startBlock, /re-check npm run mvp:status or npm run doctor:runtime after Runtime reconnects/);
 assert.match(startBlock, /quiesce_legacy_tokenpilot_launch_agents/);
 assert.match(startBlock, /resolve_launchagent_codex_bin/);
 assert.ok(
@@ -162,10 +167,25 @@ assert.match(startBlock, /wait_for_listen "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/
 assert.match(startBlock, /wait_for_runner_registration "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
 assert.match(startBlock, /ensure_process_supervisor_generation "\$\{process_supervisor_plist_changed\}"/);
 assert.match(startBlock, /wait_for_process_supervisor_ready "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.ok(
+  startBlock.indexOf("ensure_process_supervisor_generation") <
+    startBlock.lastIndexOf("schedule_runtime_restart_via_supervisor"),
+  "existing Runtime convergence must be delegated only after durable Process Supervisor is prepared"
+);
+assert.ok(
+  startBlock.indexOf("schedule_runtime_restart_via_supervisor") <
+    startBlock.indexOf("re-check npm run mvp:status"),
+  "deferred convergence must return a reconnect-oriented next action instead of synchronously waiting through self-restart"
+);
+assert.ok(
+  startBlock.indexOf("schedule_runtime_restart_via_supervisor") <
+    startBlock.indexOf("sync_control_plane_plists_if_needed"),
+  "an already-running Runtime must not overwrite installed Control Plane plists before the durable Supervisor owns the restart"
+);
 assert.doesNotMatch(startBlock, /wait_for_(?:listen|runner_registration|process_supervisor_ready) 30/);
 assert.ok(
-  startBlock.indexOf("bootstrap_process_supervisor") < startBlock.indexOf("wait_for_listen"),
-  "start should bring up Process Supervisor before waiting for the slower Control Plane"
+  startBlock.indexOf("ensure_process_supervisor_generation") < startBlock.indexOf("wait_for_listen"),
+  "start should prepare Process Supervisor before waiting for the slower Control Plane"
 );
 assert.match(startBlock, /cleanup_failed_start/);
 assert.match(startBlock, /cleaning up managed services/);

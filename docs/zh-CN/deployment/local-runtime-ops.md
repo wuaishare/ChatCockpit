@@ -184,8 +184,13 @@ npm run mvp:status   # 使用 UI: 行中的随机安全入口检查 Web Cockpit
 ```bash
 npm run stop:local
 npm run mvp:restart
+npm run mvp:restart:wait   # 仅本机维护：同步等待重启终态
 npm run reset:local
 ```
+
+`mvp:restart` 是适合自举场景的安全路径：它把受限 Runtime restart operation 提交给独立、持久的 Process Supervisor，并在操作进入 scheduled 后立即返回，从而避免当前 Control Plane 在响应尚未送达时先把自己的 MCP/Host transport 杀掉。连接恢复后使用 `npm run mvp:status` 或 `npm run doctor:runtime` 验证新代际。只有在本机维护终端确实需要同步终态时才使用 `mvp:restart:wait`。
+
+底层 `macos-manage-local-server.sh restart` 仍是由 Process Supervisor 执行的生命周期 executor；不要通过即将被它重启的 Control Plane 同步调用这个底层 action。
 
 `reset:local` 会移除 LaunchAgent 和 pid/plist 运行文件，但保留源码和 `~/.chatcockpit/runtime/server.env`。
 

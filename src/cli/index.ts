@@ -37,6 +37,7 @@ import { buildServer } from "../server/app.js";
 import { runRunner } from "../runner/index.js";
 import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
 import { runProcessSupervisorUntilSignal } from "../process-supervisor/index.js";
+import { requestLocalRuntimeRestart } from "../process-supervisor/runtime-restart-request.js";
 import { OperatorStore, operatorDatabasePath } from "../auth/operator-store.js";
 import { OperatorService } from "../auth/operator-service.js";
 import {
@@ -148,6 +149,7 @@ Usage:
   ${identity.cliName} runner [--once]
   ${identity.cliName} runner --watch --interval 3
   ${identity.cliName} process-supervisor
+  ${identity.cliName} runtime-restart [--wait] [--json]
   ${identity.cliName} probe-direct-executors [--executor-id "downstream-mcp:..."]
 `);
 }
@@ -1397,6 +1399,23 @@ export async function main(dependencies: CliRuntimeDependencies = {}): Promise<v
     case "process-supervisor": {
       assertBuiltRuntimeIntegrity(paths);
       await runProcessSupervisorUntilSignal(paths);
+      return;
+    }
+    case "runtime-restart": {
+      assertBuiltRuntimeIntegrity(paths);
+      const result = await requestLocalRuntimeRestart(paths, {
+        waitForCompletion: process.argv.includes("--wait")
+      });
+      if (process.argv.includes("--json")) {
+        printJson(result);
+      } else {
+        process.stdout.write(
+          `RUNTIME_RESTART_${result.state.toUpperCase()} ${result.operationId}\n`
+        );
+      }
+      if (result.state === "failed") {
+        process.exitCode = 1;
+      }
       return;
     }
     case "probe-direct-executors": {

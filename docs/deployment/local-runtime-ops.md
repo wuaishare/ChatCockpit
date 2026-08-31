@@ -242,10 +242,15 @@ Important operational boundary:
 ## Stop Or Restart
 
 ```bash
-./scripts/macos-manage-local-server.sh stop
-./scripts/macos-manage-local-server.sh restart
-./scripts/macos-manage-local-server.sh reset
+npm run mvp:stop
+npm run mvp:restart
+npm run mvp:restart:wait   # local maintenance only: wait for terminal restart state
+npm run mvp:reset
 ```
+
+`mvp:restart` is the self-bootstrap-safe path: it submits a bounded restart operation to the durable Process Supervisor and returns after the operation is scheduled, before the active Control Plane transport is intentionally replaced. Reconnect and verify with `npm run mvp:status` or `npm run doctor:runtime`. Use `mvp:restart:wait` only from a local maintenance shell when a synchronous terminal result is useful.
+
+The lower-level `macos-manage-local-server.sh restart` action remains the Supervisor-owned lifecycle executor. Do not use that synchronous action through the Control Plane that it is about to restart.
 
 `reset` removes LaunchAgent registration and pid/plist runtime files while keeping source code and `server.env`.
 
