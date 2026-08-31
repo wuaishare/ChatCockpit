@@ -777,6 +777,44 @@ async function main(): Promise<void> {
       "project-exec must not silently inherit Host administration authority through tools.invoke"
     );
 
+    const projectExecHostProcessDenied = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 10841,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.tools.invoke",
+        arguments: {
+          tool: "host.process.prepare",
+          input: {
+            operation: "start",
+            scope: "host",
+            rootId: "full-access-host",
+            command: "node",
+            args: ["-e", "setInterval(() => {}, 1000)"],
+            startupTimeoutMs: 1000,
+            idempotencyKey: "oauth-host-process-project-exec-denied"
+          }
+        }
+      }
+    });
+    assert.equal(projectExecHostProcessDenied.response.status, 200);
+    const projectExecHostProcessDeniedResult = projectExecHostProcessDenied.message.result as {
+      isError?: boolean;
+      structuredContent?: {
+        error?: { code?: string; details?: { requiredAccessLevel?: string } };
+      };
+    };
+    assert.equal(projectExecHostProcessDeniedResult.isError, true);
+    assert.equal(
+      projectExecHostProcessDeniedResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED"
+    );
+    assert.equal(
+      projectExecHostProcessDeniedResult.structuredContent?.error?.details?.requiredAccessLevel,
+      "full-access",
+      "Pure Host managed process must require explicit OAuth Full Access"
+    );
+
     const elevateFullAccess = await fetch(
       `${server.baseUrl}/api/integrations/oauth/grants/${encodeURIComponent(activeGrantId)}/devices/${encodeURIComponent(LOCAL_DEVICE_TARGET_ID)}/grant`,
       {
@@ -820,6 +858,43 @@ async function main(): Promise<void> {
       "Full Access through the single Core connector must expose the synthetic whole-host root"
     );
     assert.deepEqual(fullAccessRoot.access, ["read", "write"]);
+
+    const fullAccessHostProcess = await postMcp(server.baseUrl, tokens.access_token, {
+      jsonrpc: "2.0",
+      id: 10851,
+      method: "tools/call",
+      params: {
+        name: "chatcockpit.tools.invoke",
+        arguments: {
+          tool: "host.process.prepare",
+          input: {
+            operation: "start",
+            scope: "host",
+            rootId: "full-access-host",
+            command: "node",
+            args: ["-e", "setInterval(() => {}, 1000)"],
+            startupTimeoutMs: 1000,
+            idempotencyKey: "oauth-host-process-full-access-reaches-service"
+          }
+        }
+      }
+    });
+    assert.equal(fullAccessHostProcess.response.status, 200);
+    const fullAccessHostProcessResult = fullAccessHostProcess.message.result as {
+      isError?: boolean;
+      structuredContent?: { error?: { code?: string } };
+    };
+    assert.equal(fullAccessHostProcessResult.isError, true);
+    assert.notEqual(
+      fullAccessHostProcessResult.structuredContent?.error?.code,
+      "DEVICE_ACCESS_DENIED",
+      "Full Access must pass the OAuth device gate and reach HostProcessService"
+    );
+    assert.equal(
+      fullAccessHostProcessResult.structuredContent?.error?.code,
+      "HOST_PROCESS_EXECUTOR_UNAVAILABLE",
+      "Full Access must reach HostProcessService and stop only at the fixture's intentionally absent durable Process Supervisor"
+    );
 
     const fullAccessPolicyStore = new OAuthStore({ path: oauthDatabasePath(paths.runtimeDir) });
     assert.equal(

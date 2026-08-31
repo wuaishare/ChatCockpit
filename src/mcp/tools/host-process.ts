@@ -41,7 +41,7 @@ export function buildHostProcessTools(
       name: "chatcockpit.host.process.prepare",
       title: "Prepare governed Host managed-process action",
       description:
-        "Prepare one exact Managed Workspace Process start, input, or stop action. Start/input require current Workspace governance; stop remains available to the owning Session for cleanup. No external process action happens here.",
+        "Prepare one exact ChatCockpit-owned managed-process start, input, or stop action. Workspace scope requires current Session/Writer governance. Pure Host scope requires an explicit OAuth Full Access grant and the durable Process Supervisor; its authority stays bound to the exact grant and actor. No external process action happens here.",
       inputSchema: hostProcessPrepareSchema,
       annotations: approvalAnnotations,
       handler: (context, input) => service.prepare(context, input)
@@ -59,7 +59,7 @@ export function buildHostProcessTools(
       name: "chatcockpit.host.process.execute",
       title: "Execute approved Host managed-process action",
       description:
-        "Execute one approved Managed Workspace Process start, input, or stop action. ChatCockpit owns the public process identity; downstream PID/session handles stay private and mutation results do not persist process output.",
+        "Execute one approved ChatCockpit-owned managed-process start, input, or stop action. Workspace and Pure Host scopes retain their original authority binding. ChatCockpit owns the public process identity; downstream PID/session handles stay private and mutation results do not persist process output.",
       inputSchema: hostProcessExecuteSchema,
       annotations: executeAnnotations,
       handler: (context, input) => service.execute(context, input)
@@ -77,7 +77,7 @@ export function buildHostProcessTools(
       name: "chatcockpit.host.process.list",
       title: "List Host managed processes",
       description:
-        "List public-safe ChatCockpit Managed Process records, optionally filtered by Workspace, Session, or status. OS PIDs and raw downstream sessions are never returned.",
+        "List public-safe ChatCockpit Managed Process records, optionally filtered by scope, Workspace, Session, or status. Pure Host records remain visible only to their exact Full Access grant/actor owner. OS PIDs and raw downstream sessions are never returned.",
       inputSchema: hostProcessListSchema,
       annotations: readAnnotations,
       handler: (context, input) => service.list(context, input)

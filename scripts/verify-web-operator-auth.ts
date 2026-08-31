@@ -796,6 +796,33 @@ async function main(): Promise<void> {
     else process.env.CHATCOCKPIT_PUBLIC_BASE_URL = original.publicBaseUrl;
   }
 
+  const permissionsUiSource = fs.readFileSync(
+    path.join(
+      import.meta.dirname,
+      "../web/src/components/HostExecutionPermissionsManager.tsx"
+    ),
+    "utf8"
+  );
+  assert.match(permissionsUiSource, /OAuth Full Access/);
+  assert.match(permissionsUiSource, /OAuth Full Access[^\n]+Pure Host[^\n]+托管进程/s);
+  assert.match(permissionsUiSource, /durable Process Supervisor/);
+  assert.match(
+    permissionsUiSource,
+    /System-wide arbitrary PID attach\/list\/kill remains unavailable/
+  );
+  assert.match(
+    permissionsUiSource,
+    /系统级任意 PID attach\/list\/kill 仍不会开放/
+  );
+  assert.doesNotMatch(
+    permissionsUiSource,
+    /Direct shell\/script interpreter entry points and long-lived Pure Host managed processes remain blocked/
+  );
+  assert.doesNotMatch(
+    permissionsUiSource,
+    /直接 shell\/脚本解释器与 Pure Host 长期托管进程继续被阻止/
+  );
+
   process.stdout.write("WEB_OPERATOR_AUTH_OK\n");
 }
 

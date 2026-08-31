@@ -87,7 +87,7 @@ function copyFor(locale: LocaleCode) {
       deny: "拒绝",
       expires: "过期时间",
       fullWarning:
-        "完整主机访问属于 danger-level 高风险模式。它会开放精确审批的 Pure Host 命令与 Host Root 文件写改；主机命令的实际影响仍可能超出所选 Host Root。直接 shell/脚本解释器与 Pure Host 长期托管进程继续被阻止，但启用后仍应视为可影响整台主机，并依赖每条精确人工审批与审计。",
+        "本机 Full Host 是 danger-level 高风险策略：开放精确审批的 Pure Host 命令与 Host Root 文件写改，命令影响可能超出所选 Root。它本身仍保持保守的 shell/解释器限制；但某个 OAuth 授权关系若由 Owner 明确升级为 Full Access，该授权可额外执行通用一次性 Host 解释器/命令，并使用由 durable Process Supervisor 托管、绑定到该授权与调用方的 Pure Host 长期进程。系统级任意 PID attach/list/kill 仍不会开放。",
       maintenanceNote:
         "设备维护档只增加只读诊断（如 df、du、diskutil list/info、system_profiler、vm_stat）。清理、删除等优化操作不会被这一档自动放开。",
       workspaceProfiles: {
@@ -115,7 +115,7 @@ function copyFor(locale: LocaleCode) {
         },
         "full-host": {
           label: "完整主机访问",
-          description: "高风险：增加精确审批的 Pure Host 命令与 Host Root 文件写改；直接 shell/解释器及 Pure Host 长期托管进程仍保持禁用。"
+          description: "高风险的本机 Host 策略：增加精确审批的 Pure Host 命令与 Host Root 文件写改；本档本身仍保持保守 shell/解释器限制。单独由 Owner 授予的 OAuth Full Access 可进一步开放通用一次性 Host 解释器/命令和受治理的 Pure Host 托管进程。"
         }
       }
     } as const;
@@ -148,7 +148,7 @@ function copyFor(locale: LocaleCode) {
     deny: "Deny",
     expires: "Expires",
     fullWarning:
-      "Full Host access is a danger-level mode. It enables exact-approved Pure Host commands and Host Root file mutations; Host commands may still affect system resources outside the selected Host Root. Direct shell/script interpreter entry points and long-lived Pure Host managed processes remain blocked, but this profile should still be treated as capable of affecting the whole host and relies on exact human approval and audit for every operation.",
+      "The local Full Host profile is a danger-level policy: it enables exact-approved Pure Host commands and Host Root file mutations, and commands may affect resources outside the selected Root. The profile itself keeps conservative shell/interpreter restrictions; however, an OAuth authorization relation explicitly upgraded by the Owner to Full Access may additionally run general one-shot Host interpreters/commands and grant-bound Pure Host long-lived processes through the durable Process Supervisor. System-wide arbitrary PID attach/list/kill remains unavailable.",
     maintenanceNote:
       "Device maintenance only adds bounded read-only diagnostics such as df, du, diskutil list/info, system_profiler and vm_stat. Cleanup or deletion is not automatically enabled by this profile.",
     workspaceProfiles: {
@@ -176,7 +176,7 @@ function copyFor(locale: LocaleCode) {
       },
       "full-host": {
         label: "Full Host access",
-        description: "High risk: adds exact-approved Pure Host commands and Host Root file mutations. Direct shells/interpreters and long-lived Pure Host managed processes remain disabled."
+        description: "High-risk local Host policy: adds exact-approved Pure Host commands and Host Root file mutations while keeping conservative shell/interpreter restrictions for this profile itself. Separately granted OAuth Full Access can add general one-shot Host interpreters/commands and governed Pure Host managed processes."
       }
     }
   } as const;

@@ -695,6 +695,14 @@ async function runMcpSmoke(): Promise<void> {
     ]) {
       assert.equal(toolByName.has(rawDownstreamName), false);
     }
+    assert.match(
+      toolByName.get("chatcockpit.host.process.prepare")?.description ?? "",
+      /Pure Host scope requires an explicit OAuth Full Access grant and the durable Process Supervisor/
+    );
+    assert.match(
+      toolByName.get("chatcockpit.host.process.list")?.description ?? "",
+      /Pure Host records remain visible only to their exact Full Access grant\/actor owner/
+    );
     for (const name of [
       "chatcockpit.capabilities.inspect",
       "chatcockpit.capabilities.list",
