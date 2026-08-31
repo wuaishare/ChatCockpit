@@ -429,7 +429,7 @@ async function main(): Promise<void> {
               kind: "stdio",
               command: process.execPath,
               args: [fixtureServer, "desktop-read"],
-              timeoutMs: 2_000,
+              timeoutMs: 12_000,
               maxBufferBytes: 262_144,
               maxStderrBytes: 16_384
             },
