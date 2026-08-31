@@ -101,7 +101,38 @@ assert.equal(recoveredStatus.lastFailureError, "database is locked");
 assert.equal(recoveredStatus.lastFailureAt, failureAt);
 assert.ok(recoveredStatus.lastHealthyAt);
 
+const legacyRecoveryRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "chatcockpit-runner-legacy-recovery-")
+);
+const legacyRecoveryPaths = buildFixturePaths(legacyRecoveryRoot);
+ensureWorkspaceDirs(legacyRecoveryPaths);
+markRunnerStarted(legacyRecoveryPaths, "watch");
+const legacyFailureAt = "2026-08-31T17:48:23.562Z";
+const legacyFailureStatus = runnerStatus(legacyRecoveryPaths.runnerStatusPath);
+fs.writeFileSync(
+  legacyRecoveryPaths.runnerStatusPath,
+  `${JSON.stringify(
+    {
+      ...legacyFailureStatus,
+      lastJobFailedAt: legacyFailureAt,
+      lastError: "database is locked",
+      lastFailureAt: undefined,
+      lastFailureError: undefined
+    },
+    null,
+    2
+  )}\n`,
+  "utf8"
+);
+markRunnerStarted(legacyRecoveryPaths, "watch");
+const migratedLegacyStatus = runnerStatus(legacyRecoveryPaths.runnerStatusPath);
+assert.equal(migratedLegacyStatus.lastError, undefined);
+assert.equal(migratedLegacyStatus.lastFailureError, "database is locked");
+assert.equal(migratedLegacyStatus.lastFailureAt, legacyFailureAt);
+assert.ok(migratedLegacyStatus.lastHealthyAt);
+
 fs.rmSync(governedRoot, { recursive: true, force: true });
 fs.rmSync(legacyRoot, { recursive: true, force: true });
 fs.rmSync(recoveryRoot, { recursive: true, force: true });
+fs.rmSync(legacyRecoveryRoot, { recursive: true, force: true });
 process.stdout.write("VERIFY_RUNNER_ACTIVITY_PROVENANCE_OK\n");

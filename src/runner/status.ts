@@ -38,6 +38,23 @@ function writeStatus(paths: TokenPilotPaths, value: RunnerStatusRecord): void {
   fs.writeFileSync(paths.runnerPidPath, `${process.pid}\n`, "utf8");
 }
 
+function preserveFailureHistory(
+  current: RunnerStatusRecord,
+  fallbackAt: string
+): RunnerStatusRecord {
+  const lastFailureError = current.lastFailureError ?? current.lastError;
+  if (!lastFailureError) {
+    return current;
+  }
+
+  return {
+    ...current,
+    lastFailureAt:
+      current.lastFailureAt ?? current.lastJobFailedAt ?? current.heartbeatAt ?? fallbackAt,
+    lastFailureError
+  };
+}
+
 export function markRunnerStarted(
   paths: TokenPilotPaths,
   mode: RunnerMode
@@ -45,7 +62,7 @@ export function markRunnerStarted(
   const now = new Date().toISOString();
   const current = readStatus(paths);
   const next: RunnerStatusRecord = {
-    ...(current ?? {}),
+    ...(current ? preserveFailureHistory(current, now) : {}),
     startedAt: now,
     heartbeatAt: now,
     lastHealthyAt: now,
@@ -101,7 +118,7 @@ export function markRunnerCompleted(paths: TokenPilotPaths): void {
     return;
   }
   writeStatus(paths, {
-    ...current,
+    ...preserveFailureHistory(current, now),
     heartbeatAt: now,
     lastJobCompletedAt: now,
     lastHealthyAt: now,
@@ -117,7 +134,7 @@ export function markRunnerRecovered(paths: TokenPilotPaths): void {
   }
   const now = new Date().toISOString();
   writeStatus(paths, {
-    ...current,
+    ...preserveFailureHistory(current, now),
     heartbeatAt: now,
     lastHealthyAt: now,
     lastError: undefined
