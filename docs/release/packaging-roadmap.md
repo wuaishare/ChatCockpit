@@ -33,7 +33,15 @@ ChatCockpit remains source-friendly, while the macOS desktop path now has a self
    - public update metadata contract plus explicit Manual Verified Update v1 UI;
    - tag-only credentialed GitHub release workflow contract with ephemeral keychain cleanup;
    - **real Developer ID / Gatekeeper / notarization / production DMG proof remains deferred until Apple Developer Program credentials are available.**
-5. **Later Windows/Linux equivalents** after the macOS packaging and distribution contract is stable.
+5. **Headless Device Agent packaging — Phase 11.1 implemented for macOS.**
+   - self-contained portable bundle reuses the verified macOS Runtime payload and exact bundled Node `24.18.1`;
+   - target Macs do not require system Node/npm or a ChatCockpit source checkout;
+   - one restricted `chatcockpit-device` entrypoint exposes Device Agent enrollment/routing plus bounded Device Agent and Runtime service lifecycle operations;
+   - headless persistent Agent/Runtime start is fail-closed until a canonical external development workspace is explicitly configured; the embedded Runtime cannot silently become the workspace;
+   - package manifest binds the entrypoint and embedded Runtime manifest by SHA-256 and remains `distributionTrust=development`, `releaseEligible=false`;
+   - native-architecture live proof executes from a freshly extracted archive with an isolated HOME and no system Node path;
+   - public one-click/bootstrap metadata remains deferred to Phase 11.2, so the Web onboarding projection must not advertise a download that is not actually published.
+6. **Later Windows/Linux equivalents** after the macOS packaging and distribution contract is stable.
 
 ## Architecture rule
 
