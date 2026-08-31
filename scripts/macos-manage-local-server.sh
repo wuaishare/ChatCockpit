@@ -876,10 +876,42 @@ wait_for_runner_registration() {
   return 1
 }
 
+process_supervisor_ipc_ready() {
+  local token_size=""
+  local token_mode=""
+  [[ -S "${RUNTIME_DIR}/process-supervisor.sock" ]] || return 1
+  [[ -f "${RUNTIME_DIR}/process-supervisor.token" ]] || return 1
+  [[ ! -L "${RUNTIME_DIR}/process-supervisor.token" ]] || return 1
+  [[ -r "${RUNTIME_DIR}/process-supervisor.token" ]] || return 1
+  token_size="$(wc -c < "${RUNTIME_DIR}/process-supervisor.token" 2>/dev/null | tr -d '[:space:]')"
+  [[ "${token_size}" =~ ^[0-9]+$ ]] || return 1
+  (( token_size >= 32 )) || return 1
+  token_mode="$(stat -f '%Lp' "${RUNTIME_DIR}/process-supervisor.token" 2>/dev/null || true)"
+  [[ "${token_mode}" == "600" ]]
+}
+
 process_supervisor_ready() {
   launchctl_process_supervisor_registered || return 1
   [[ -f "${PROCESS_SUPERVISOR_STATUS_FILE}" ]] || return 1
-  grep -q '"state": "ready"' "${PROCESS_SUPERVISOR_STATUS_FILE}"
+  grep -q '"state": "ready"' "${PROCESS_SUPERVISOR_STATUS_FILE}" || return 1
+  process_supervisor_ipc_ready
+}
+
+ensure_process_supervisor_generation() {
+  local plist_changed="${1:-0}"
+  if launchctl_process_supervisor_registered; then
+    if ! process_supervisor_ipc_ready; then
+      echo "process supervisor: IPC credentials unavailable; restarting Supervisor generation"
+      bootout_process_supervisor
+      sleep 1
+      bootstrap_process_supervisor
+    elif (( plist_changed != 0 )); then
+      echo "process supervisor: plist updated; current healthy generation preserved (full stop/start required to apply it)"
+    fi
+    return
+  fi
+  bootout_process_supervisor
+  bootstrap_process_supervisor
 }
 
 assert_runtime_build_integrity() {
@@ -977,14 +1009,7 @@ case "${ACTION}" in
       bootstrap_control_plane_and_runner
     fi
 
-    if launchctl_process_supervisor_registered; then
-      if (( process_supervisor_plist_changed != 0 )); then
-        echo "process supervisor: plist updated; current generation preserved (full stop/start required to apply it)"
-      fi
-    else
-      bootout_process_supervisor
-      bootstrap_process_supervisor
-    fi
+    ensure_process_supervisor_generation "${process_supervisor_plist_changed}"
 
     if ! wait_for_listen "${STARTUP_READY_TIMEOUT_SECONDS}" || \
        ! wait_for_runner_registration "${STARTUP_READY_TIMEOUT_SECONDS}" || \
@@ -1052,18 +1077,14 @@ case "${ACTION}" in
       bootstrap_control_plane_and_runner
     fi
 
-    if ! launchctl_process_supervisor_registered; then
-      bootstrap_process_supervisor
-    elif (( process_supervisor_plist_changed != 0 )); then
-      echo "process supervisor: plist updated but running generation intentionally preserved"
-    fi
+    ensure_process_supervisor_generation "${process_supervisor_plist_changed}"
 
     if wait_for_listen "${STARTUP_READY_TIMEOUT_SECONDS}" && \
        wait_for_runner_registration "${STARTUP_READY_TIMEOUT_SECONDS}" && \
        wait_for_process_supervisor_ready "${STARTUP_READY_TIMEOUT_SECONDS}"; then
       echo "control plane: running (pid $(cat "${PID_FILE}"))"
       echo "runner: registered"
-      echo "process supervisor: ready (not restarted)"
+      echo "process supervisor: ready"
       echo "Cockpit: $(cockpit_url)"
       echo "Secure login entry: $(secure_login_entry_url)"
       echo "next action: run npm run doctor:runtime"
@@ -1073,7 +1094,7 @@ case "${ACTION}" in
     print_startup_log_tail "${LOG_FILE}"
     print_startup_log_tail "${RUNNER_LOG_FILE}"
     print_startup_log_tail "${PROCESS_SUPERVISOR_LOG_FILE}"
-    echo "Failed to restart ${DISPLAY_NAME} control plane within ${STARTUP_READY_TIMEOUT_SECONDS}s without disturbing Process Supervisor"
+    echo "Failed to restart ${DISPLAY_NAME} managed Runtime within ${STARTUP_READY_TIMEOUT_SECONDS}s"
     exit 1
     ;;
   status)

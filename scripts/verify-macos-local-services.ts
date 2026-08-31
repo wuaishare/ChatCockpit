@@ -20,7 +20,14 @@ const processSupervisorPlistBlock = source.slice(processSupervisorPlistStart, in
 assert.doesNotMatch(processSupervisorPlistBlock, /LAUNCH_BUILD_ID|LAUNCH_BUILD_REVISION/);
 assert.match(source, /write_process_supervisor_plist/);
 assert.match(source, /bootstrap_process_supervisor/);
+assert.match(source, /process_supervisor_ipc_ready/);
 assert.match(source, /process_supervisor_ready/);
+assert.match(source, /ensure_process_supervisor_generation/);
+assert.match(source, /\[\[ -S "\$\{RUNTIME_DIR\}\/process-supervisor\.sock" \]\]/);
+assert.match(source, /\[\[ -f "\$\{RUNTIME_DIR\}\/process-supervisor\.token" \]\]/);
+assert.match(source, /\[\[ ! -L "\$\{RUNTIME_DIR\}\/process-supervisor\.token" \]\]/);
+assert.match(source, /token_size >= 32/);
+assert.match(source, /token_mode.*600/s);
 assert.match(source, /bootout_all_services/);
 assert.match(source, /quiesce_legacy_tokenpilot_launch_agents/);
 assert.match(source, /stop_process_supervisor_process/);
@@ -53,6 +60,17 @@ assert.match(source, /HTTP reachability alone is never enough/);
 assert.match(source, /identity_env_value\(\)/);
 assert.match(source, /variable_name="\$\{ENV_PREFIX\}_\$\{suffix\}"/);
 assert.match(source, /refusing automatic takeover/i);
+
+const ensureSupervisorStart = source.indexOf("ensure_process_supervisor_generation() {");
+const waitSupervisorStart = source.indexOf("wait_for_process_supervisor_ready() {", ensureSupervisorStart);
+assert.ok(ensureSupervisorStart >= 0 && waitSupervisorStart > ensureSupervisorStart);
+const ensureSupervisorBlock = source.slice(ensureSupervisorStart, waitSupervisorStart);
+assert.match(ensureSupervisorBlock, /! process_supervisor_ipc_ready/);
+assert.ok(
+  ensureSupervisorBlock.indexOf("bootout_process_supervisor") < ensureSupervisorBlock.indexOf("bootstrap_process_supervisor"),
+  "unhealthy Supervisor IPC must be booted out before a replacement generation is bootstrapped"
+);
+assert.match(ensureSupervisorBlock, /current healthy generation preserved/);
 
 assert.match(source, /INSTALL_ROOT="\$\(identity_env_value INSTALL_ROOT\)"/);
 assert.match(source, /INSTALL_ROOT="\$\{INSTALL_ROOT:-\$\{SCRIPT_ROOT\}\}"/);
@@ -142,6 +160,7 @@ assert.ok(
 );
 assert.match(startBlock, /wait_for_listen "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
 assert.match(startBlock, /wait_for_runner_registration "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.match(startBlock, /ensure_process_supervisor_generation "\$\{process_supervisor_plist_changed\}"/);
 assert.match(startBlock, /wait_for_process_supervisor_ready "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
 assert.doesNotMatch(startBlock, /wait_for_(?:listen|runner_registration|process_supervisor_ready) 30/);
 assert.ok(
@@ -178,7 +197,7 @@ assert.ok(
   "restart must re-check the source fingerprint before rendering LaunchAgent plists"
 );
 assert.match(restartBlock, /kickstart_control_plane_and_runner/);
-assert.match(restartBlock, /launchctl_process_supervisor_registered/);
+assert.match(restartBlock, /ensure_process_supervisor_generation "\$\{process_supervisor_plist_changed\}"/);
 assert.doesNotMatch(restartBlock, /bootout_process_supervisor/);
 assert.doesNotMatch(
   restartBlock,
