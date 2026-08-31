@@ -56,6 +56,55 @@ try {
   const terminated = await supervisor.wait(terminable.processId);
   assert.equal(terminated.state, "terminated");
 
+  if (process.platform !== "win32") {
+    const terminateMarker = path.join(root, "terminate-descendant-marker.txt");
+    const terminableTree = supervisor.start({
+      command: process.execPath,
+      args: [
+        "-e",
+        [
+          "const { spawn } = require('node:child_process');",
+          `spawn(process.execPath, ['-e', ${JSON.stringify(`setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(terminateMarker)}, 'orphan\n'), 700); setInterval(() => {}, 1000);`)}], { stdio: 'ignore' });`,
+          "setInterval(() => {}, 1000);"
+        ].join(" ")
+      ],
+      cwd: root,
+      allowStdin: false
+    });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    await supervisor.terminate(terminableTree.processId);
+    const treeTerminal = await supervisor.wait(terminableTree.processId);
+    assert.equal(treeTerminal.state, "terminated");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    assert.equal(
+      fs.existsSync(terminateMarker),
+      false,
+      "terminating a built-in managed process must contain descendant side effects"
+    );
+
+    const naturalMarker = path.join(root, "natural-descendant-marker.txt");
+    const naturalTree = supervisor.start({
+      command: process.execPath,
+      args: [
+        "-e",
+        [
+          "const { spawn } = require('node:child_process');",
+          `spawn(process.execPath, ['-e', ${JSON.stringify(`setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(naturalMarker)}, 'orphan\n'), 700); setInterval(() => {}, 1000);`)}], { stdio: 'ignore' });`
+        ].join(" ")
+      ],
+      cwd: root,
+      allowStdin: false
+    });
+    const naturalTerminal = await supervisor.wait(naturalTree.processId);
+    assert.equal(naturalTerminal.state, "completed");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    assert.equal(
+      fs.existsSync(naturalMarker),
+      false,
+      "a completed built-in managed group must not leave descendants running"
+    );
+  }
+
   process.stdout.write("VERIFY_BUILTIN_MANAGED_PROCESS_OK\n");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

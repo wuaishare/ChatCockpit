@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
@@ -40,6 +40,30 @@ function commandEnvironment(): NodeJS.ProcessEnv {
   };
 }
 
+function signalProcessTree(
+  child: ChildProcessWithoutNullStreams,
+  signal: NodeJS.Signals
+): void {
+  const pid = child.pid;
+  if (!pid || pid <= 0) return;
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true
+      });
+    } else {
+      process.kill(-pid, signal);
+    }
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      // The process may already be gone; terminal observation remains authoritative.
+    }
+  }
+}
+
 function boundedChunkText(
   value: Buffer,
   remainingBytes: number
@@ -76,6 +100,8 @@ export class BuiltinManagedProcessSupervisor {
     const child = spawn(input.command, input.args, {
       cwd: input.cwd,
       env: commandEnvironment(),
+      detached: process.platform !== "win32",
+      windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
     let resolveCompletion: () => void = () => {};
@@ -132,6 +158,9 @@ export class BuiltinManagedProcessSupervisor {
     });
     child.once("close", (code, signal) => {
       if (record.settled) return;
+      // A managed command owns its whole process group. If the group leader exits
+      // while descendants remain, contain them before publishing terminal state.
+      signalProcessTree(child, "SIGKILL");
       record.exitCode = typeof code === "number" ? code : null;
       record.state = record.terminationRequested || signal
         ? "terminated"
@@ -191,9 +220,9 @@ export class BuiltinManagedProcessSupervisor {
     const record = this.require(processId);
     if (record.state !== "running") return;
     record.terminationRequested = true;
-    record.child.kill("SIGTERM");
+    signalProcessTree(record.child, "SIGTERM");
     const force = setTimeout(() => {
-      if (record.state === "running") record.child.kill("SIGKILL");
+      if (record.state === "running") signalProcessTree(record.child, "SIGKILL");
     }, FORCE_TERMINATE_AFTER_MS);
     force.unref?.();
   }
