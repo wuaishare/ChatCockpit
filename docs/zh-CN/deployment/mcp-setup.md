@@ -260,7 +260,7 @@ CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander
 CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC='@wonderwhy-er/desktop-commander@latest' npm run probe:desktop-commander-host-process-live
 ```
 
-该 live proof 通过真正的 ChatGPT-facing Host Process 工具驱动 `start → read → input → list → stop`。它会验证 start/input 的新输出只在 Supervisor 内存中做 bounded 暂存并通过 `process.read` 读取，不会被 mutation idempotency 持久化；raw input 不进入 SQLite；PID/私有绝对路径不出现在公共结果；stop 必须取得 Desktop Commander 的明确 terminal state；停止后也不能产生预设的延迟副作用。默认 protocol gate 通过确定性的 `verify:desktop-commander-host-process-live-harness` 跑同一 driver。
+该 live proof 会通过真正的 ChatGPT-facing Host Process 工具，对 Workspace scope 与 OAuth Full Access Pure Host scope 都驱动 `start → read → input → list → stop`。它会验证 Workspace Session/Writer Lease/Evidence、Pure Host grant/actor 隔离且不伪造 Task Evidence、bounded 内存输出与 raw input 不落库、PID/私有路径不进入公共结果、stop 取得明确 terminal state，并且两种 scope 停止后都不能产生延迟子进程副作用。默认 protocol gate 通过确定性的 `verify:desktop-commander-host-process-live-harness` 跑同一个双 scope driver。
 
 对于 Durable Managed Process Supervisor 路径，ChatCockpit 会把私有 Desktop Commander stdio/PID namespace 移到独立本机 sidecar。普通 Control Plane restart 必须保持 sidecar generation 与同一个公共 `host_process_*` 身份；Control Plane 离线期间，sidecar 仍通过只读 Continuity Database 独立检查 scope-specific authority：Workspace scope 校验 Session / Writer Lease / Workspace identity，Pure Host scope 校验 Host Process Authority。Downstream MCP 进程由私有 process-group guardian 包裹，因此 sidecar 异常断开时可以收敛 Desktop Commander 进程树，而不需要持久化 PID 或根据旧 PID 重新 attach。运行最终 operator-only durability proof：
 

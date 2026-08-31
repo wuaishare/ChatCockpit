@@ -66,6 +66,10 @@ try {
   assert.equal(summary.stopTerminated, true);
   assert.equal(summary.delayedMarkerAbsent, true);
   assert.equal(summary.workspaceEvidence, "task-evidence");
+  assert.equal(summary.workspaceProcessVerified, true);
+  assert.equal(summary.pureHostProcessVerified, true);
+  assert.equal(summary.pureHostGrantIsolation, true);
+  assert.equal(summary.pureHostEvidenceAbsent, true);
 
   process.stdout.write("VERIFY_DESKTOP_COMMANDER_HOST_PROCESS_LIVE_HARNESS_OK\n");
 } finally {

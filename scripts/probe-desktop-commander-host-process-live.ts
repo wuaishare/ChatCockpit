@@ -27,7 +27,19 @@ import { DesktopCommanderManagedProcessSupervisor } from "../src/direct/adapters
 
 const LIVE_ROOT_ID = "desktop-commander-process-live-proof";
 const WORKSPACE_RELATIVE = "projects/workspace-a";
+const PURE_HOST_RELATIVE = "pure-host";
 const LATE_MARKER = "late-marker.txt";
+const PURE_HOST_LATE_MARKER = "pure-host-late-marker.txt";
+const FULL_ACCESS_GRANT_A = "cc_grant_host_process_live_a";
+const FULL_ACCESS_GRANT_B = "cc_grant_host_process_live_b";
+const PURE_HOST_CHILD_SOURCE = `import fs from "node:fs";
+import readline from "node:readline";
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+process.stdout.write("PURE_HOST_PROCESS_READY\\n");
+rl.on("line", (line) => {
+  process.stdout.write(\`PURE_HOST_PROCESS_REPLY:\${line}\\n\`);
+  setTimeout(() => fs.writeFileSync(${JSON.stringify(PURE_HOST_LATE_MARKER)}, "orphan\\n", "utf8"), 2500);
+});`;
 const NOW = new Date().toISOString();
 const LEASE_EXPIRES_AT = new Date(Date.parse(NOW) + 10 * 60 * 1000).toISOString();
 
@@ -200,6 +212,10 @@ export interface DesktopCommanderHostProcessLiveProofSummary {
   stopTerminated: true;
   delayedMarkerAbsent: true;
   workspaceEvidence: "task-evidence";
+  workspaceProcessVerified: true;
+  pureHostProcessVerified: true;
+  pureHostGrantIsolation: true;
+  pureHostEvidenceAbsent: true;
 }
 
 export async function runDesktopCommanderHostProcessLiveProof(options: {
@@ -217,10 +233,12 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, WORKSPACE_RELATIVE);
+  const pureHostRoot = path.join(hostRoot, PURE_HOST_RELATIVE);
   const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
   const previousUserConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   fs.mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 });
   fs.mkdirSync(workspaceRoot, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(pureHostRoot, { recursive: true, mode: 0o700 });
   writeWorkspaceFixture(workspaceRoot);
 
   fs.writeFileSync(
@@ -331,7 +349,11 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       paths,
       repositories,
       broker,
-      configPath: liveConfigPath
+      configPath: liveConfigPath,
+      remoteFullAccessPolicy: {
+        allowsLocalFullAccess: (grantId) =>
+          grantId === FULL_ACCESS_GRANT_A || grantId === FULL_ACCESS_GRANT_B
+      }
     });
     const tools = new Map(
       buildHostProcessTools(service).map((tool) => [tool.name, tool])
@@ -355,7 +377,34 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       publicProjection: true,
       now: NOW
     });
+    const fullAccessContextA = buildOperationContext({
+      actorType: "remote-mcp",
+      actorId: "desktop-commander-full-access-a",
+      authorizationGrantId: FULL_ACCESS_GRANT_A,
+      requestId: "desktop-commander-pure-host-live-a",
+      publicProjection: true,
+      now: NOW
+    });
+    const fullAccessContextB = buildOperationContext({
+      actorType: "remote-mcp",
+      actorId: "desktop-commander-full-access-b",
+      authorizationGrantId: FULL_ACCESS_GRANT_B,
+      requestId: "desktop-commander-pure-host-live-b",
+      publicProjection: true,
+      now: NOW
+    });
 
+    const prepareFor = async (
+      toolContext: ReturnType<typeof buildOperationContext>,
+      input: Record<string, unknown>,
+      key: string
+    ) =>
+      structured<{ approval: { id: string; revision: number; status: string } }>(
+        await prepareTool.execute(toolContext, {
+          ...input,
+          idempotencyKey: `${key}-prepare`
+        })
+      );
     const prepare = async (input: Record<string, unknown>, key: string) =>
       structured<{ approval: { id: string; revision: number } }>(
         await prepareTool.execute(context, {
@@ -389,6 +438,25 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
         auditId: string;
       }>(
         await executeTool.execute(context, {
+          ...input,
+          approvalId: approval.id,
+          expectedApprovalRevision: approval.revision,
+          idempotencyKey: `${key}-execute`
+        })
+      );
+    const executeFor = async (
+      toolContext: ReturnType<typeof buildOperationContext>,
+      input: Record<string, unknown>,
+      approval: { id: string; revision: number },
+      key: string
+    ) =>
+      structured<{
+        ok: boolean;
+        process: { id: string; status: string; exitCode: number | null };
+        evidence: { kind: string; bundleId: string; itemId: string } | null;
+        auditId: string;
+      }>(
+        await executeTool.execute(toolContext, {
           ...input,
           approvalId: approval.id,
           expectedApprovalRevision: approval.revision,
@@ -538,17 +606,178 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       true
     );
 
+    const pureStartInput = {
+      operation: "start",
+      scope: "host",
+      rootId: LIVE_ROOT_ID,
+      workdir: PURE_HOST_RELATIVE,
+      command: "node",
+      args: ["-e", PURE_HOST_CHILD_SOURCE],
+      executorId: DESKTOP_COMMANDER_EXECUTOR_ID,
+      startupTimeoutMs: 1000
+    };
+    const pureStartPrepared = await prepareFor(
+      fullAccessContextA,
+      pureStartInput,
+      "desktop-pure-host-start"
+    );
+    assert.equal(pureStartPrepared.approval.status, "approved");
+    const pureStartResult = await executeFor(
+      fullAccessContextA,
+      pureStartInput,
+      pureStartPrepared.approval,
+      "desktop-pure-host-start"
+    );
+    assert.equal(pureStartResult.ok, true, JSON.stringify(pureStartResult));
+    assert.equal(pureStartResult.process.status, "running");
+    assert.equal(pureStartResult.evidence, null);
+    const pureProcessId = pureStartResult.process.id;
+
+    const readPureOutput = async () => {
+      const result = structured<{
+        process: { status: string };
+        output: string;
+        truncated: boolean;
+      }>(
+        await readTool.execute(fullAccessContextA, {
+          processId: pureProcessId,
+          offset: 0,
+          length: 1000,
+          waitMs: 250
+        })
+      );
+      assert.equal(result.truncated, false);
+      return result.output;
+    };
+    const pureReadyOutput = await pollUntil(
+      readPureOutput,
+      /(?:PURE_HOST_PROCESS_READY|managed-ready)/,
+      5_000
+    );
+
+    const unauthorizedPureRead = await readTool.execute(fullAccessContextB, {
+      processId: pureProcessId
+    });
+    assert.equal(unauthorizedPureRead.isError, true);
+    assert.equal(
+      (unauthorizedPureRead.structuredContent as { error?: { code?: string } }).error?.code,
+      "HOST_PROCESS_OWNERSHIP_MISMATCH"
+    );
+    const pureListOwner = structured<{
+      processes: Array<{ id: string; status: string }>;
+    }>(await listTool.execute(fullAccessContextA, { scope: "host" }));
+    const pureListOtherGrant = structured<{
+      processes: Array<{ id: string; status: string }>;
+    }>(await listTool.execute(fullAccessContextB, { scope: "host" }));
+    assert.equal(
+      pureListOwner.processes.some((process) => process.id === pureProcessId),
+      true
+    );
+    assert.equal(
+      pureListOtherGrant.processes.some((process) => process.id === pureProcessId),
+      false
+    );
+
+    const pureTransientInput = `chatcockpit-pure-host-input-${randomUUID()}\n`;
+    const pureExpectedReply = pureTransientInput.trimEnd();
+    const pureInputRequest = {
+      operation: "input",
+      processId: pureProcessId,
+      input: pureTransientInput,
+      waitForPrompt: true,
+      timeoutMs: 2000
+    };
+    const pureInputPrepared = await prepareFor(
+      fullAccessContextA,
+      pureInputRequest,
+      "desktop-pure-host-input"
+    );
+    assert.equal(pureInputPrepared.approval.status, "approved");
+    const pureInputResult = await executeFor(
+      fullAccessContextA,
+      pureInputRequest,
+      pureInputPrepared.approval,
+      "desktop-pure-host-input"
+    );
+    assert.equal(pureInputResult.ok, true);
+    assert.equal(pureInputResult.evidence, null);
+    const pureReplyOutput = await pollUntil(
+      readPureOutput,
+      new RegExp(`(?:PURE_HOST_PROCESS_REPLY:|managed-input:)${pureExpectedReply}`),
+      5_000
+    );
+
+    const pureStopRequest = { operation: "stop", processId: pureProcessId };
+    const pureStopPrepared = await prepareFor(
+      fullAccessContextA,
+      pureStopRequest,
+      "desktop-pure-host-stop"
+    );
+    assert.equal(pureStopPrepared.approval.status, "approved");
+    const pureStopResult = await executeFor(
+      fullAccessContextA,
+      pureStopRequest,
+      pureStopPrepared.approval,
+      "desktop-pure-host-stop"
+    );
+    assert.equal(pureStopResult.ok, true, JSON.stringify(pureStopResult));
+    assert.equal(pureStopResult.evidence, null);
+    assert.ok(["terminated", "exited"].includes(pureStopResult.process.status));
+    await sleep(3_000);
+    assert.equal(
+      fs.existsSync(path.join(pureHostRoot, PURE_HOST_LATE_MARKER)),
+      false,
+      "Stopped Pure Host managed process left a delayed child side effect"
+    );
+
+    const pureStored = repositories.directProcessSessions.get(pureProcessId);
+    assert.ok(pureStored.hostAuthorityId);
+    assert.equal(
+      repositories.hostProcessAuthorities.get(pureStored.hostAuthorityId!).status,
+      "released"
+    );
+    assert.equal(
+      pureStored.evidenceBundleId,
+      null,
+      "Pure Host managed process must never bind a Workspace Evidence bundle"
+    );
+    const evidenceRowsAfterPure = database.sqlite
+      .prepare("SELECT label, summary FROM evidence_items ORDER BY created_at ASC, id ASC")
+      .all() as Array<{ label: string; summary: string }>;
+    assert.equal(
+      evidenceRowsAfterPure.some(
+        (row) =>
+          row.label.includes(pureProcessId) || row.summary.includes(pureProcessId)
+      ),
+      false,
+      "Pure Host managed-process identity must never appear in Workspace Task Evidence"
+    );
+    const purePersisted = JSON.stringify({
+      approvals: database.sqlite.prepare("SELECT * FROM direct_process_approvals").all(),
+      audit: database.sqlite.prepare("SELECT * FROM direct_process_audit").all(),
+      idempotency: database.sqlite.prepare("SELECT * FROM idempotency_results").all()
+    });
+    assert.equal(purePersisted.includes(pureExpectedReply), false);
+
     const publicResults = JSON.stringify({
       startResult,
       inputResult,
       stopResult,
       listed,
       readyOutput,
-      replyOutput
+      replyOutput,
+      pureStartResult,
+      pureInputResult,
+      pureStopResult,
+      pureListOwner,
+      pureListOtherGrant,
+      pureReadyOutput,
+      pureReplyOutput
     });
     assert.doesNotMatch(publicResults, new RegExp(sandbox));
     assert.doesNotMatch(publicResults, new RegExp(hostRoot));
     assert.doesNotMatch(publicResults, new RegExp(workspaceRoot));
+    assert.doesNotMatch(publicResults, new RegExp(pureHostRoot));
     assert.doesNotMatch(publicResults, /"(?:privatePid|pid)"/i);
     assert.doesNotMatch(publicResults, /list_processes|kill_process/);
 
@@ -570,7 +799,11 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       inputNotPersisted: true,
       stopTerminated: true,
       delayedMarkerAbsent: true,
-      workspaceEvidence: "task-evidence"
+      workspaceEvidence: "task-evidence",
+      workspaceProcessVerified: true,
+      pureHostProcessVerified: true,
+      pureHostGrantIsolation: true,
+      pureHostEvidenceAbsent: true
     };
   } finally {
     await service?.close().catch(() => undefined);
