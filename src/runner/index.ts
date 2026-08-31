@@ -18,6 +18,7 @@ import {
   markRunnerCompleted,
   markRunnerFailed,
   markRunnerHeartbeat,
+  markRunnerRecovered,
   markRunnerStarted,
   markRunnerStopped
 } from "./status.js";
@@ -68,6 +69,11 @@ export interface RunnerOptions {
   watch?: boolean;
 }
 
+interface RunnerReconciliationSummary {
+  reconciled: number;
+  errors: number;
+}
+
 async function sleep(seconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
@@ -75,9 +81,10 @@ async function sleep(seconds: number): Promise<void> {
 function reconcileTerminalRunningJobs(
   paths: TokenPilotPaths,
   reconciliation: AsyncJobReconciliationService
-): number {
+): RunnerReconciliationSummary {
   const identity = productIdentityForKey(paths.productIdentity);
   let reconciled = 0;
+  let errors = 0;
 
   for (const job of listJobs(paths)) {
     if (job.status !== "running") {
@@ -103,8 +110,10 @@ function reconcileTerminalRunningJobs(
       const reconciliationError =
         error instanceof Error ? error.message : String(error);
       markRunnerFailed(paths, reconciliationError);
+      errors += 1;
     }
     markRunnerFailed(paths, message);
+    errors += 1;
     reconciled += 1;
 
     process.stdout.write(
@@ -117,14 +126,15 @@ function reconcileTerminalRunningJobs(
     );
   }
 
-  return reconciled;
+  return { reconciled, errors };
 }
 
 function reconcilePersistedTerminalJobs(
   paths: TokenPilotPaths,
   reconciliation: AsyncJobReconciliationService
-): number {
+): RunnerReconciliationSummary {
   let reconciled = 0;
+  let errors = 0;
   for (const job of listJobs(paths)) {
     if (job.status !== "completed" && job.status !== "failed") continue;
     try {
@@ -138,9 +148,10 @@ function reconcilePersistedTerminalJobs(
         paths,
         error instanceof Error ? error.message : String(error)
       );
+      errors += 1;
     }
   }
-  return reconciled;
+  return { reconciled, errors };
 }
 
 async function runNextJob(
@@ -151,12 +162,18 @@ async function runNextJob(
 ): Promise<boolean> {
   const identity = productIdentityForKey(paths.productIdentity);
   const startedAt = new Date().toISOString();
+  const runningReconciliation = reconcileTerminalRunningJobs(paths, reconciliation);
+  const persistedReconciliation = reconcilePersistedTerminalJobs(paths, reconciliation);
   const reconciledCount =
-    reconcileTerminalRunningJobs(paths, reconciliation) +
-    reconcilePersistedTerminalJobs(paths, reconciliation);
+    runningReconciliation.reconciled + persistedReconciliation.reconciled;
+  const reconciliationErrorCount =
+    runningReconciliation.errors + persistedReconciliation.errors;
   const job = claimNextQueuedJob(paths);
 
   if (!job) {
+    if (reconciliationErrorCount === 0) {
+      markRunnerRecovered(paths);
+    }
     return reconciledCount > 0;
   }
 

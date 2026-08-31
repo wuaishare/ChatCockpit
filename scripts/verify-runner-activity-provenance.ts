@@ -10,7 +10,12 @@ import { ensureWorkspaceDirs } from "../src/core/paths.js";
 import { GovernanceDatabase, governanceDatabasePath } from "../src/governance/database.js";
 import { OperationalActivityProvenanceRepository } from "../src/governance/operational-activity-provenance-repository.js";
 import { runRunner } from "../src/runner/index.js";
-import type { RunnerStatusRecord } from "../src/runner/status.js";
+import {
+  markRunnerFailed,
+  markRunnerRecovered,
+  markRunnerStarted,
+  type RunnerStatusRecord
+} from "../src/runner/status.js";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
 
 function runnerStatus(filePath: string): RunnerStatusRecord {
@@ -79,6 +84,24 @@ const legacyRead = new ContinuityDatabase({
 assert.equal(new OperationalActivityProvenanceRepository(legacyRead).get(legacyJob.id), null);
 legacyRead.close();
 
+const recoveryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runner-recovery-"));
+const recoveryPaths = buildFixturePaths(recoveryRoot);
+ensureWorkspaceDirs(recoveryPaths);
+markRunnerStarted(recoveryPaths, "watch");
+markRunnerFailed(recoveryPaths, "database is locked");
+const failedStatus = runnerStatus(recoveryPaths.runnerStatusPath);
+assert.equal(failedStatus.lastError, "database is locked");
+assert.equal(failedStatus.lastFailureError, "database is locked");
+assert.ok(failedStatus.lastFailureAt);
+const failureAt = failedStatus.lastFailureAt;
+markRunnerRecovered(recoveryPaths);
+const recoveredStatus = runnerStatus(recoveryPaths.runnerStatusPath);
+assert.equal(recoveredStatus.lastError, undefined);
+assert.equal(recoveredStatus.lastFailureError, "database is locked");
+assert.equal(recoveredStatus.lastFailureAt, failureAt);
+assert.ok(recoveredStatus.lastHealthyAt);
+
 fs.rmSync(governedRoot, { recursive: true, force: true });
 fs.rmSync(legacyRoot, { recursive: true, force: true });
+fs.rmSync(recoveryRoot, { recursive: true, force: true });
 process.stdout.write("VERIFY_RUNNER_ACTIVITY_PROVENANCE_OK\n");

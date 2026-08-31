@@ -16,6 +16,9 @@ export interface RunnerStatusRecord {
   lastJobId?: string;
   lastJobType?: string;
   lastError?: string;
+  lastFailureAt?: string;
+  lastFailureError?: string;
+  lastHealthyAt?: string;
   mode: RunnerMode;
   pid: number;
   workerInstanceId: string;
@@ -45,6 +48,7 @@ export function markRunnerStarted(
     ...(current ?? {}),
     startedAt: now,
     heartbeatAt: now,
+    lastHealthyAt: now,
     mode,
     pid: process.pid,
     workerInstanceId: `worker_${randomUUID()}`,
@@ -100,7 +104,22 @@ export function markRunnerCompleted(paths: TokenPilotPaths): void {
     ...current,
     heartbeatAt: now,
     lastJobCompletedAt: now,
+    lastHealthyAt: now,
     state: "idle",
+    lastError: undefined
+  });
+}
+
+export function markRunnerRecovered(paths: TokenPilotPaths): void {
+  const current = readStatus(paths);
+  if (!current) {
+    return;
+  }
+  const now = new Date().toISOString();
+  writeStatus(paths, {
+    ...current,
+    heartbeatAt: now,
+    lastHealthyAt: now,
     lastError: undefined
   });
 }
@@ -117,6 +136,8 @@ export function markRunnerFailed(paths: TokenPilotPaths, error: string): void {
     }),
     heartbeatAt: now,
     lastJobFailedAt: now,
+    lastFailureAt: now,
+    lastFailureError: error,
     state: "idle",
     lastError: error
   });
