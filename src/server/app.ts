@@ -146,8 +146,7 @@ import {
 } from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
 import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
-import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
-import { probeConfiguredDownstreamMcpExecutors } from "../direct/downstream-mcp-operator.js";
+import { DownstreamMcpObservationSource } from "../direct/downstream-mcp-observation-source.js";
 import {
   hostCommandDecisionSchema,
   hostCommandExecuteSchema,
@@ -821,17 +820,12 @@ export function buildServer(
     runtimeBindingService,
     handoffService: continuityServices.handoffs
   });
-  const downstreamResourceSource = {
-    loadConfig: () =>
-      loadDownstreamMcpExecutorsConfig(options.directExecutorsConfigPath),
-    probe: () =>
-      probeConfiguredDownstreamMcpExecutors({
-        paths,
-        ...(options.directExecutorsConfigPath
-          ? { configPath: options.directExecutorsConfigPath }
-          : {})
-      })
-  };
+  const downstreamResourceSource = new DownstreamMcpObservationSource({
+    paths,
+    ...(options.directExecutorsConfigPath
+      ? { configPath: options.directExecutorsConfigPath }
+      : {})
+  });
   const acpRegistryAdapter =
     options.acpRegistryAdapter === null
       ? null

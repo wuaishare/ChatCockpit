@@ -1,5 +1,8 @@
 import type { TokenPilotPaths } from "../types.js";
-import { loadDownstreamMcpExecutorsConfig } from "./downstream-mcp-config.js";
+import {
+  loadDownstreamMcpExecutorsConfig,
+  type DownstreamMcpExecutorsConfig
+} from "./downstream-mcp-config.js";
 import {
   createDownstreamMcpClient,
   downstreamMcpProtocolFamily
@@ -23,8 +26,9 @@ export async function probeConfiguredDownstreamMcpExecutors(options: {
   paths: TokenPilotPaths;
   executorId?: string;
   configPath?: string;
+  config?: DownstreamMcpExecutorsConfig;
 }): Promise<DownstreamMcpProbeSummary[]> {
-  const config = loadDownstreamMcpExecutorsConfig(options.configPath);
+  const config = options.config ?? loadDownstreamMcpExecutorsConfig(options.configPath);
   const executors = options.executorId
     ? config.executors.filter((executor) => executor.id === options.executorId)
     : config.executors;

@@ -232,7 +232,7 @@
     "verify:capability-router-mcp-surface": "tsx scripts/verify-capability-router-mcp-surface.ts",
     "verify:capability-router-mutation-service": "tsx scripts/verify-capability-router-mutation-service.ts",
     "verify:direct-broker": "tsx scripts/verify-direct-capability-broker.ts",
-    "verify:downstream-mcp": "tsx scripts/verify-downstream-mcp.ts && tsx scripts/verify-downstream-mcp-streamable-http.ts",
+    "verify:downstream-mcp": "tsx scripts/verify-downstream-mcp.ts && tsx scripts/verify-downstream-mcp-streamable-http.ts && tsx scripts/verify-downstream-mcp-observation-source.ts",
     "verify:host-direct-read": "tsx scripts/verify-host-direct-read.ts",
     "verify:host-direct-mutation": "tsx scripts/verify-host-direct-mutation.ts",
     "verify:host-direct-command": "tsx scripts/verify-host-direct-command.ts",
