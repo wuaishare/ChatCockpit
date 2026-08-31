@@ -53,6 +53,12 @@ assert.match(
   source,
   /RUNTIME_PATH="\$\{NODE_BIN_DIR\}:\/usr\/bin:\/bin:\/usr\/sbin:\/sbin"/
 );
+assert.match(source, /STARTUP_READY_TIMEOUT_SECONDS="\$\(identity_env_value STARTUP_READY_TIMEOUT_SECONDS\)"/);
+assert.match(source, /STARTUP_READY_TIMEOUT_SECONDS="\$\{STARTUP_READY_TIMEOUT_SECONDS:-120\}"/);
+assert.match(source, /STARTUP_READY_TIMEOUT_SECONDS must be a positive integer/);
+assert.match(source, /print_startup_log_tail\(\)/);
+assert.match(source, /tail -n 120/);
+assert.match(source, /cleanup_failed_start\(\)/);
 assert.equal((source.match(/<key>PATH<\/key>/g) ?? []).length, 3);
 assert.equal((source.match(/<string>\$\{RUNTIME_PATH\}<\/string>/g) ?? []).length, 3);
 assert.match(source, /DISTRIBUTION_MODE="\$\(identity_env_value DISTRIBUTION_MODE\)"/);
@@ -89,6 +95,16 @@ assert.ok(
   startBlock.indexOf("resolve_launchagent_codex_bin") < startBlock.indexOf("write_server_plist"),
   "start must resolve a working Codex binary before rendering LaunchAgent plists"
 );
+assert.match(startBlock, /wait_for_listen "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.match(startBlock, /wait_for_runner_registration "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.match(startBlock, /wait_for_process_supervisor_ready "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.doesNotMatch(startBlock, /wait_for_(?:listen|runner_registration|process_supervisor_ready) 30/);
+assert.ok(
+  startBlock.indexOf("bootstrap_process_supervisor") < startBlock.indexOf("wait_for_listen"),
+  "start should bring up Process Supervisor before waiting for the slower Control Plane"
+);
+assert.match(startBlock, /cleanup_failed_start/);
+assert.match(startBlock, /cleaning up managed services/);
 
 const restartStart = source.indexOf("  restart)\n");
 const statusStart = source.indexOf("  status)\n", restartStart);
@@ -110,6 +126,11 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(restartBlock, /bootout_all_services/);
 assert.doesNotMatch(restartBlock, /"\$\{0\}"\s+stop/);
+assert.match(restartBlock, /wait_for_listen "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.match(restartBlock, /wait_for_runner_registration "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.match(restartBlock, /wait_for_process_supervisor_ready "\$\{STARTUP_READY_TIMEOUT_SECONDS\}"/);
+assert.doesNotMatch(restartBlock, /wait_for_(?:listen|runner_registration|process_supervisor_ready) 30/);
+assert.match(restartBlock, /print_startup_log_tail/);
 
 const legacyQuiesceStart = source.indexOf("quiesce_legacy_tokenpilot_launch_agents() {");
 const bootstrapStart = source.indexOf("bootstrap_control_plane_and_runner() {", legacyQuiesceStart);
@@ -149,6 +170,29 @@ const bootoutStart = source.indexOf("bootout_control_plane_and_runner() {", remo
 assert.ok(removeInstalledStart >= 0 && bootoutStart > removeInstalledStart);
 const removeInstalledBlock = source.slice(removeInstalledStart, bootoutStart);
 assert.match(removeInstalledBlock, /INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE/);
+
+const invalidTimeoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-macos-startup-timeout-"));
+try {
+  const invalidTimeout = spawnSync(
+    "bash",
+    [scriptPath, "status"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: invalidTimeoutRoot,
+        CHATCOCKPIT_INSTALL_ROOT: process.cwd(),
+        CHATCOCKPIT_STATE_ROOT: path.join(invalidTimeoutRoot, "state"),
+        CHATCOCKPIT_STARTUP_READY_TIMEOUT_SECONDS: "0"
+      }
+    }
+  );
+  assert.equal(invalidTimeout.status, 2, invalidTimeout.stderr || invalidTimeout.stdout);
+  assert.match(invalidTimeout.stderr, /STARTUP_READY_TIMEOUT_SECONDS must be a positive integer/);
+} finally {
+  fs.rmSync(invalidTimeoutRoot, { recursive: true, force: true });
+}
 
 const fallbackRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-macos-health-fallback-"));
 try {

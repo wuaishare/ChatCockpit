@@ -159,6 +159,12 @@ PORT="$(identity_env_value PORT)"
 PORT="${PORT:-4318}"
 RUNNER_INTERVAL="$(identity_env_value RUNNER_INTERVAL)"
 RUNNER_INTERVAL="${RUNNER_INTERVAL:-3}"
+STARTUP_READY_TIMEOUT_SECONDS="$(identity_env_value STARTUP_READY_TIMEOUT_SECONDS)"
+STARTUP_READY_TIMEOUT_SECONDS="${STARTUP_READY_TIMEOUT_SECONDS:-120}"
+if ! [[ "${STARTUP_READY_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "${ENV_PREFIX}_STARTUP_READY_TIMEOUT_SECONDS must be a positive integer" >&2
+  exit 2
+fi
 API_TOKEN="$(identity_env_value API_TOKEN)"
 EXPOSED="$(identity_env_value EXPOSED)"
 EXPOSED="${EXPOSED:-false}"
@@ -715,6 +721,21 @@ wait_for_process_supervisor_ready() {
   return 1
 }
 
+print_startup_log_tail() {
+  local file_path="$1"
+  [[ -f "${file_path}" ]] || return 0
+  tail -n 120 "${file_path}" 2>/dev/null || true
+}
+
+cleanup_failed_start() {
+  bootout_all_services
+  sleep 1
+  stop_port_process
+  stop_runner_process
+  stop_process_supervisor_process
+  rm -f "${PID_FILE}" "${RUNNER_PID_FILE}" "${PROCESS_SUPERVISOR_PID_FILE}"
+}
+
 case "${ACTION}" in
   start)
     cd "${INSTALL_ROOT}"
@@ -748,13 +769,6 @@ case "${ACTION}" in
       bootstrap_control_plane_and_runner
     fi
 
-    if ! wait_for_listen 30 || ! wait_for_runner_registration 30; then
-      cat "${LOG_FILE}" 2>/dev/null || true
-      cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
-      echo "Failed to start ${DISPLAY_NAME} control plane or runner"
-      exit 1
-    fi
-
     if launchctl_process_supervisor_registered; then
       if (( process_supervisor_plist_changed != 0 )); then
         echo "process supervisor: plist updated; current generation preserved (full stop/start required to apply it)"
@@ -764,15 +778,20 @@ case "${ACTION}" in
       bootstrap_process_supervisor
     fi
 
-    if ! wait_for_process_supervisor_ready 30; then
-      cat "${PROCESS_SUPERVISOR_LOG_FILE}" 2>/dev/null || true
-      echo "Failed to start ${DISPLAY_NAME} Process Supervisor"
+    if ! wait_for_listen "${STARTUP_READY_TIMEOUT_SECONDS}" || \
+       ! wait_for_runner_registration "${STARTUP_READY_TIMEOUT_SECONDS}" || \
+       ! wait_for_process_supervisor_ready "${STARTUP_READY_TIMEOUT_SECONDS}"; then
+      print_startup_log_tail "${LOG_FILE}"
+      print_startup_log_tail "${RUNNER_LOG_FILE}"
+      print_startup_log_tail "${PROCESS_SUPERVISOR_LOG_FILE}"
+      echo "Failed to start ${DISPLAY_NAME} full stack within ${STARTUP_READY_TIMEOUT_SECONDS}s; cleaning up managed services"
+      cleanup_failed_start
       exit 1
     fi
 
     echo "control plane: running (pid $(cat "${PID_FILE}"))"
     echo "runner: registered"
-    echo "process supervisor: ready (generation preserved across control-plane restart)"
+    echo "process supervisor: ready"
     echo "Cockpit: $(cockpit_url)"
     echo "Secure login entry: $(secure_login_entry_url)"
     echo "next action: open the Cockpit or run npm run doctor:runtime"
@@ -829,7 +848,9 @@ case "${ACTION}" in
       echo "process supervisor: plist updated but running generation intentionally preserved"
     fi
 
-    if wait_for_listen 30 && wait_for_runner_registration 30 && wait_for_process_supervisor_ready 30; then
+    if wait_for_listen "${STARTUP_READY_TIMEOUT_SECONDS}" && \
+       wait_for_runner_registration "${STARTUP_READY_TIMEOUT_SECONDS}" && \
+       wait_for_process_supervisor_ready "${STARTUP_READY_TIMEOUT_SECONDS}"; then
       echo "control plane: running (pid $(cat "${PID_FILE}"))"
       echo "runner: registered"
       echo "process supervisor: ready (not restarted)"
@@ -839,10 +860,10 @@ case "${ACTION}" in
       exit 0
     fi
 
-    cat "${LOG_FILE}" 2>/dev/null || true
-    cat "${RUNNER_LOG_FILE}" 2>/dev/null || true
-    cat "${PROCESS_SUPERVISOR_LOG_FILE}" 2>/dev/null || true
-    echo "Failed to restart ${DISPLAY_NAME} control plane without disturbing Process Supervisor"
+    print_startup_log_tail "${LOG_FILE}"
+    print_startup_log_tail "${RUNNER_LOG_FILE}"
+    print_startup_log_tail "${PROCESS_SUPERVISOR_LOG_FILE}"
+    echo "Failed to restart ${DISPLAY_NAME} control plane within ${STARTUP_READY_TIMEOUT_SECONDS}s without disturbing Process Supervisor"
     exit 1
     ;;
   status)
