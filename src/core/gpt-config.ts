@@ -8,7 +8,10 @@ import type {
   TokenPilotHealthStatus,
   TokenPilotRepoGovernanceRecord
 } from "../types.js";
-import { readRuntimeBuildProvenance } from "./build-provenance.js";
+import {
+  readRuntimeBuildProvenance,
+  type RuntimeBuildProvenance
+} from "./build-provenance.js";
 import { buildRepoGovernance } from "./config.js";
 import { buildSourceDistributionContext } from "./distribution-context.js";
 import { readIdentityEnv } from "./identity-env.js";
@@ -110,11 +113,12 @@ function projectGptIdentityText(
 }
 
 export function buildHealthStatusSnapshot(
-  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key
+  productIdentity: ProductIdentityKey = DEFAULT_PRODUCT_IDENTITY.key,
+  runtimeBuildProvenance: RuntimeBuildProvenance | null = null
 ): TokenPilotHealthStatus {
   const publicBaseUrl = resolvePublicBaseUrl();
   const exposed = /^(1|true|yes|on)$/i.test(readIdentityEnv("EXPOSED") ?? "");
-  const provenance = readRuntimeBuildProvenance();
+  const provenance = runtimeBuildProvenance ?? readRuntimeBuildProvenance();
   return {
     ok: true,
     mode: "phase2-dual-mode",

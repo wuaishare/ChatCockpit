@@ -177,6 +177,9 @@ CODEX_BIN="$(identity_env_value CODEX_BIN)"
 CODEX_MODEL="$(identity_env_value CODEX_MODEL)"
 DIRECT_EXECUTORS_CONFIG_PATH="$(identity_env_value DIRECT_EXECUTORS_CONFIG_PATH)"
 ACCESS_POLICY_FILE="${RUNTIME_DIR}/access-policy.json"
+SOURCE_RUNTIME_FINGERPRINT=""
+RUNTIME_BUILD_ID=""
+RUNTIME_BUILD_REVISION=""
 
 console_path_prefix() {
   if [[ ! -f "${ACCESS_POLICY_FILE}" ]]; then
@@ -260,6 +263,10 @@ write_server_plist() {
     <string>${NODE_BIN}</string>
     <key>${ENV_PREFIX}_DISTRIBUTION_MODE</key>
     <string>${DISTRIBUTION_MODE}</string>
+    <key>${ENV_PREFIX}_LAUNCH_BUILD_ID</key>
+    <string>${RUNTIME_BUILD_ID}</string>
+    <key>${ENV_PREFIX}_LAUNCH_BUILD_REVISION</key>
+    <string>${RUNTIME_BUILD_REVISION}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
@@ -322,6 +329,10 @@ write_runner_plist() {
     <string>${NODE_BIN}</string>
     <key>${ENV_PREFIX}_DISTRIBUTION_MODE</key>
     <string>${DISTRIBUTION_MODE}</string>
+    <key>${ENV_PREFIX}_LAUNCH_BUILD_ID</key>
+    <string>${RUNTIME_BUILD_ID}</string>
+    <key>${ENV_PREFIX}_LAUNCH_BUILD_REVISION</key>
+    <string>${RUNTIME_BUILD_REVISION}</string>
   </dict>
   <key>ProgramArguments</key>
   <array>
@@ -522,39 +533,216 @@ canonical_directory() {
   printf '%s\n' "${input}"
 }
 
-installed_plist_environment_value() {
-  local key="$1"
-  if [[ ! -f "${INSTALLED_PLIST_FILE}" ]]; then
-    return 0
-  fi
-  /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${key}" "${INSTALLED_PLIST_FILE}" 2>/dev/null || true
+source_checkout_is_git_root() {
+  [[ "${DISTRIBUTION_MODE}" == "source" ]] || return 1
+  command -v git >/dev/null 2>&1 || return 1
+  local git_root=""
+  git_root="$(git -C "${INSTALL_ROOT}" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ "$(canonical_directory "${git_root}")" == "$(canonical_directory "${INSTALL_ROOT}")" ]]
 }
 
-installed_runtime_ownership_matches() {
-  [[ -f "${INSTALLED_PLIST_FILE}" ]] || return 1
+source_checkout_revision() {
+  git -C "${INSTALL_ROOT}" rev-parse --short=12 HEAD 2>/dev/null
+}
+
+source_checkout_dirty() {
+  [[ -n "$(git -C "${INSTALL_ROOT}" status --porcelain --untracked-files=all 2>/dev/null)" ]]
+}
+
+source_checkout_fingerprint() {
+  {
+    printf 'HEAD\n'
+    git -C "${INSTALL_ROOT}" rev-parse HEAD
+    printf 'TRACKED-DIFF\n'
+    git -C "${INSTALL_ROOT}" diff --binary --no-ext-diff HEAD --
+    printf 'UNTRACKED\n'
+    while IFS= read -r -d '' relative_path; do
+      printf '%s\n' "${relative_path}"
+      git -C "${INSTALL_ROOT}" hash-object --no-filters -- "${relative_path}"
+    done < <(git -C "${INSTALL_ROOT}" ls-files --others --exclude-standard -z)
+  } | shasum -a 256 | awk '{ print $1 }'
+}
+
+assert_source_checkout_still_current() {
+  [[ "${DISTRIBUTION_MODE}" == "source" ]] || return 0
+  [[ -n "${SOURCE_RUNTIME_FINGERPRINT}" ]] || return 0
+  local current_fingerprint=""
+  current_fingerprint="$(source_checkout_fingerprint)" || return 1
+  if [[ "${current_fingerprint}" != "${SOURCE_RUNTIME_FINGERPRINT}" ]]; then
+    echo "ChatCockpit source checkout changed after the runtime build; retry start/restart so artifacts cannot drift from source." >&2
+    return 1
+  fi
+}
+
+build_generation_from_json() {
+  "${NODE_BIN}" -e '
+    const fs = require("node:fs");
+    const value = JSON.parse(fs.readFileSync(0, "utf8"));
+    const build = value.provenance ?? value.build;
+    if (!build || typeof build.buildId !== "string" || !build.buildId || typeof build.revision !== "string" || !build.revision) {
+      process.exit(2);
+    }
+    process.stdout.write(`${build.buildId}|${build.revision}`);
+  '
+}
+
+ensure_source_runtime_current() {
+  [[ "${DISTRIBUTION_MODE}" == "source" ]] || return 0
+  source_checkout_is_git_root || return 0
+
+  local cli_entry="${INSTALL_ROOT}/dist/cli/index.js"
+  local revision_before=""
+  local revision_after=""
+  local dirty_before="false"
+  local dirty_after="false"
+  local fingerprint_before=""
+  local fingerprint_after=""
+  local needs_rebuild=0
+  local npm_bin=""
+  local verify_result=""
+  local provenance_dirty=""
+
+  revision_before="$(source_checkout_revision)"
+  [[ -n "${revision_before}" ]] || {
+    echo "ChatCockpit source checkout revision could not be resolved; refusing to start an unverifiable Developer Mode runtime." >&2
+    return 1
+  }
+  fingerprint_before="$(source_checkout_fingerprint)" || {
+    echo "ChatCockpit source checkout fingerprint could not be computed; refusing to start an unverifiable Developer Mode runtime." >&2
+    return 1
+  }
+  if source_checkout_dirty; then
+    dirty_before="true"
+    needs_rebuild=1
+  elif [[ ! -f "${cli_entry}" ]] || ! "${NODE_BIN}" "${cli_entry}" build-provenance verify --json --require-clean --expected-revision "${revision_before}" >/dev/null 2>&1; then
+    needs_rebuild=1
+  fi
+
+  if (( needs_rebuild != 0 )); then
+    npm_bin="$(command -v npm || true)"
+    if [[ -z "${npm_bin}" || ! -x "${npm_bin}" ]]; then
+      echo "ChatCockpit Developer Mode needs a complete runtime rebuild, but npm is unavailable." >&2
+      return 1
+    fi
+    echo "source runtime: rebuilding complete runtime for current checkout"
+    (cd "${INSTALL_ROOT}" && "${npm_bin}" run build)
+  fi
+
+  revision_after="$(source_checkout_revision)"
+  if [[ "${revision_after}" != "${revision_before}" ]]; then
+    echo "ChatCockpit source revision changed while preparing the runtime; retry start/restart from the new HEAD." >&2
+    return 1
+  fi
+  if source_checkout_dirty; then
+    dirty_after="true"
+  fi
+  fingerprint_after="$(source_checkout_fingerprint)" || return 1
+  if [[ "${fingerprint_after}" != "${fingerprint_before}" ]]; then
+    echo "ChatCockpit source checkout changed while preparing the runtime; retry start/restart after the checkout settles." >&2
+    return 1
+  fi
+
+  local verify_args=(build-provenance verify --json --expected-revision "${revision_after}")
+  if [[ "${dirty_after}" == "false" ]]; then
+    verify_args+=(--require-clean)
+  fi
+  if ! verify_result="$("${NODE_BIN}" "${cli_entry}" "${verify_args[@]}" 2>&1)"; then
+    echo "ChatCockpit source runtime did not converge to the current checkout after rebuild." >&2
+    printf '%s\n' "${verify_result}" >&2
+    return 1
+  fi
+  provenance_dirty="$(
+    printf '%s' "${verify_result}" | "${NODE_BIN}" -e '
+      const fs = require("node:fs");
+      const value = JSON.parse(fs.readFileSync(0, "utf8"));
+      process.stdout.write(String(value.provenance?.sourceDirty));
+    '
+  )" || return 1
+  if [[ "${provenance_dirty}" != "${dirty_after}" ]]; then
+    echo "ChatCockpit source dirty-state changed across the runtime build; retry start/restart after the checkout settles." >&2
+    return 1
+  fi
+
+  if [[ "${dirty_before}" == "true" && "${dirty_after}" == "false" ]]; then
+    echo "ChatCockpit source checkout became clean during runtime preparation; retry to certify the clean generation." >&2
+    return 1
+  fi
+  SOURCE_RUNTIME_FINGERPRINT="${fingerprint_after}"
+}
+
+plist_environment_value() {
+  local plist_file="$1"
+  local key="$2"
+  if [[ ! -f "${plist_file}" ]]; then
+    return 0
+  fi
+  /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${key}" "${plist_file}" 2>/dev/null || true
+}
+
+installed_plist_environment_value() {
+  plist_environment_value "${INSTALLED_PLIST_FILE}" "$1"
+}
+
+plist_runtime_ownership_matches() {
+  local plist_file="$1"
   local installed_mode=""
   local installed_root=""
-  installed_mode="$(installed_plist_environment_value "${ENV_PREFIX}_DISTRIBUTION_MODE")"
-  installed_root="$(installed_plist_environment_value "${ENV_PREFIX}_INSTALL_ROOT")"
-  [[ "${installed_mode}" == "packaged" ]] || return 1
+  [[ -f "${plist_file}" ]] || return 1
+  installed_mode="$(plist_environment_value "${plist_file}" "${ENV_PREFIX}_DISTRIBUTION_MODE")"
+  installed_root="$(plist_environment_value "${plist_file}" "${ENV_PREFIX}_INSTALL_ROOT")"
+  [[ "${installed_mode}" == "${DISTRIBUTION_MODE}" ]] || return 1
   [[ -n "${installed_root}" ]] || return 1
   [[ "$(canonical_directory "${installed_root}")" == "$(canonical_directory "${INSTALL_ROOT}")" ]]
 }
 
-assert_packaged_runtime_ownership() {
-  [[ "${DISTRIBUTION_MODE}" == "packaged" ]] || return 0
-
-  if launchctl_service_registered || launchctl_runner_registered || launchctl_process_supervisor_registered || [[ -f "${INSTALLED_PLIST_FILE}" ]]; then
-    if installed_runtime_ownership_matches; then
-      return 0
+installed_runtime_ownership_matches() {
+  local saw_installed_plist=0
+  local plist_file=""
+  for plist_file in \
+    "${INSTALLED_PLIST_FILE}" \
+    "${INSTALLED_RUNNER_PLIST_FILE}" \
+    "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}"; do
+    if [[ -f "${plist_file}" ]]; then
+      saw_installed_plist=1
+      plist_runtime_ownership_matches "${plist_file}" || return 1
     fi
-    echo "Existing ${DISPLAY_NAME} LaunchAgent belongs to another runtime; packaged mode will not take over it automatically. Stop it explicitly in its current mode first."
-    exit 3
+  done
+  (( saw_installed_plist != 0 ))
+}
+
+assert_runtime_ownership() {
+  if ! launchctl_service_registered &&
+     ! launchctl_runner_registered &&
+     ! launchctl_process_supervisor_registered &&
+     [[ ! -f "${INSTALLED_PLIST_FILE}" ]] &&
+     [[ ! -f "${INSTALLED_RUNNER_PLIST_FILE}" ]] &&
+     [[ ! -f "${INSTALLED_PROCESS_SUPERVISOR_PLIST_FILE}" ]]; then
+    return 0
   fi
+
+  if installed_runtime_ownership_matches; then
+    return 0
+  fi
+
+  local installed_mode=""
+  local installed_root=""
+  installed_mode="$(installed_plist_environment_value "${ENV_PREFIX}_DISTRIBUTION_MODE")"
+  installed_root="$(installed_plist_environment_value "${ENV_PREFIX}_INSTALL_ROOT")"
+  if [[ -z "${installed_mode}" ]]; then
+    installed_mode="unknown"
+  fi
+  if [[ -z "${installed_root}" ]]; then
+    installed_root="unknown"
+  fi
+  echo "Existing ${DISPLAY_NAME} LaunchAgent ownership does not match this ${DISTRIBUTION_MODE} runtime; refusing automatic takeover. Stop it explicitly from its owning runtime first. Installed mode=${installed_mode}, requested mode=${DISTRIBUTION_MODE}, installed root=${installed_root}." >&2
+  exit 3
 }
 
 is_running() {
   local port_pid=""
+  if (launchctl_service_registered || [[ -f "${INSTALLED_PLIST_FILE}" ]]) && ! installed_runtime_ownership_matches; then
+    return 1
+  fi
   port_pid="$(lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
   if [[ -n "${port_pid}" ]]; then
     if [[ "${DISTRIBUTION_MODE}" == "packaged" ]]; then
@@ -697,6 +885,7 @@ process_supervisor_ready() {
 assert_runtime_build_integrity() {
   local cli_entry="${INSTALL_ROOT}/dist/cli/index.js"
   local result=""
+  local generation=""
   if [[ ! -f "${cli_entry}" ]]; then
     echo "ChatCockpit compiled runtime is missing; refusing to start mixed or incomplete artifacts." >&2
     return 1
@@ -704,6 +893,15 @@ assert_runtime_build_integrity() {
   if ! result="$("${NODE_BIN}" "${cli_entry}" build-provenance verify --json 2>&1)"; then
     echo "ChatCockpit build integrity check failed; refusing to start or restart mixed-generation artifacts." >&2
     printf '%s\n' "${result}" >&2
+    return 1
+  fi
+  generation="$(printf '%s' "${result}" | build_generation_from_json)" || {
+    echo "ChatCockpit build provenance does not contain a launchable build generation." >&2
+    return 1
+  }
+  IFS='|' read -r RUNTIME_BUILD_ID RUNTIME_BUILD_REVISION <<< "${generation}"
+  if [[ -z "${RUNTIME_BUILD_ID}" || -z "${RUNTIME_BUILD_REVISION}" ]]; then
+    echo "ChatCockpit build provenance does not contain a complete launch generation." >&2
     return 1
   fi
 }
@@ -739,15 +937,25 @@ cleanup_failed_start() {
 case "${ACTION}" in
   start)
     cd "${INSTALL_ROOT}"
+    assert_runtime_ownership
+    ensure_source_runtime_current
     assert_runtime_build_integrity
-    assert_packaged_runtime_ownership
     quiesce_legacy_tokenpilot_launch_agents
     assert_port_available_or_owned_runtime
     resolve_launchagent_codex_bin
+    assert_source_checkout_still_current
     write_server_plist
     write_runner_plist
     write_process_supervisor_plist
 
+    installed_launch_build_id="$(installed_plist_environment_value "${ENV_PREFIX}_LAUNCH_BUILD_ID")"
+    installed_launch_build_revision="$(installed_plist_environment_value "${ENV_PREFIX}_LAUNCH_BUILD_REVISION")"
+    control_plane_generation_changed=0
+    if launchctl_service_registered &&
+       { [[ "${installed_launch_build_id}" != "${RUNTIME_BUILD_ID}" ]] || [[ "${installed_launch_build_revision}" != "${RUNTIME_BUILD_REVISION}" ]]; }; then
+      control_plane_generation_changed=1
+      echo "control plane: launch build generation changed; restarting Control Plane and Runner"
+    fi
     control_plane_plist_changed=0
     if ! sync_control_plane_plists_if_needed; then
       control_plane_plist_changed=1
@@ -758,7 +966,7 @@ case "${ACTION}" in
     fi
 
     if launchctl_service_registered && launchctl_runner_registered; then
-      if (( control_plane_plist_changed != 0 )); then
+      if (( control_plane_plist_changed != 0 || control_plane_generation_changed != 0 )); then
         bootout_control_plane_and_runner
         bootstrap_control_plane_and_runner
       elif ! is_running; then
@@ -797,7 +1005,7 @@ case "${ACTION}" in
     echo "next action: open the Cockpit or run npm run doctor:runtime"
     ;;
   stop)
-    assert_packaged_runtime_ownership
+    assert_runtime_ownership
     bootout_all_services
     sleep 2
     stop_port_process
@@ -812,11 +1020,13 @@ case "${ACTION}" in
     ;;
   restart)
     cd "${INSTALL_ROOT}"
+    assert_runtime_ownership
+    ensure_source_runtime_current
     assert_runtime_build_integrity
-    assert_packaged_runtime_ownership
     quiesce_legacy_tokenpilot_launch_agents
     assert_port_available_or_owned_runtime
     resolve_launchagent_codex_bin
+    assert_source_checkout_still_current
     write_server_plist
     write_runner_plist
     write_process_supervisor_plist
@@ -939,7 +1149,7 @@ case "${ACTION}" in
     exit 1
     ;;
   reset|uninstall)
-    assert_packaged_runtime_ownership
+    assert_runtime_ownership
     bootout_all_services
     stop_port_process
     stop_runner_process

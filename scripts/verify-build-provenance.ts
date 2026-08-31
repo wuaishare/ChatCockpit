@@ -28,6 +28,7 @@ const healthSource = fs.readFileSync(path.join(repoRoot, "src/core/gpt-config.ts
 const dashboardSource = fs.readFileSync(path.join(repoRoot, "web/src/components/DashboardView.tsx"), "utf8");
 const webTypesSource = fs.readFileSync(path.join(repoRoot, "web/src/types.ts"), "utf8");
 const staticRoutesSource = fs.readFileSync(path.join(repoRoot, "src/server/static-routes.ts"), "utf8");
+const serverSource = fs.readFileSync(path.join(repoRoot, "src/server/app.ts"), "utf8");
 const uiBuildRecoverySource = fs.readFileSync(path.join(repoRoot, "src/server/ui-build-recovery.ts"), "utf8");
 const cliSource = fs.readFileSync(path.join(repoRoot, "src/cli/index.ts"), "utf8");
 const lifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/macos-manage-local-server.sh"), "utf8");
@@ -46,7 +47,7 @@ assert.match(generatorSource, /dist", "build-provenance\.json"/);
 assert.match(generatorSource, /web", "dist", "build-provenance\.json"/);
 assert.match(generatorSource, /backendSha256: artifacts\.backendSha256/);
 assert.match(generatorSource, /webSha256: artifacts\.webSha256/);
-assert.match(healthSource, /const provenance = readRuntimeBuildProvenance\(\)/);
+assert.match(healthSource, /runtimeBuildProvenance \?\? readRuntimeBuildProvenance\(\)/);
 assert.match(healthSource, /version: provenance\.version/);
 assert.match(healthSource, /builtAt: provenance\.builtAt/);
 assert.doesNotMatch(webTypesSource, /sourceDirty/);
@@ -65,6 +66,7 @@ assert.match(staticRoutesSource, /已检测到完整的新构建，Runtime 需�
 assert.match(staticRoutesSource, /uiRecoveryLocaleFromAcceptLanguage/);
 assert.match(staticRoutesSource, /runtimeBuildProvenance/);
 assert.match(staticRoutesSource, /resolveUiBuildRecovery/);
+assert.match(serverSource, /buildPublicHealthStatus\(paths, options\.runtimeBuildProvenance \?\? null\)/);
 assert.match(cliSource, /case "build-provenance"/);
 assert.match(cliSource, /const runtimeBuildProvenance = assertBuiltRuntimeIntegrity\(paths\)/);
 assert.match(cliSource, /runtimeBuildProvenance,/);
@@ -150,6 +152,13 @@ try {
   fs.writeFileSync(markerPath, serialized, "utf8");
 
   const startupProvenance = readRuntimeBuildProvenance(fixtureRoot);
+  const startupHealth = buildHealthStatusSnapshot("chatcockpit", startupProvenance);
+  assert.deepEqual(startupHealth.build, {
+    version: startupProvenance.version,
+    buildId: startupProvenance.buildId,
+    revision: startupProvenance.revision,
+    builtAt: startupProvenance.builtAt
+  });
   assert.equal(verifyRuntimeBuildIntegrity(fixtureRoot).code, "ok");
   assert.equal(verifyWebBuildGeneration(fixtureRoot, startupProvenance).code, "ok");
   assert.equal(resolveUiBuildRecovery(fixtureRoot, startupProvenance).status, "ok");
@@ -212,6 +221,7 @@ try {
   fs.writeFileSync(markerPath, nextSerialized, "utf8");
   assert.equal(verifyRuntimeBuildIntegrity(fixtureRoot).code, "ok");
   assert.equal(verifyWebBuildGeneration(fixtureRoot).code, "ok");
+  assert.deepEqual(buildHealthStatusSnapshot("chatcockpit", startupProvenance).build, startupHealth.build);
   assert.equal(
     verifyWebBuildGeneration(fixtureRoot, startupProvenance).code,
     "web-generation-mismatch"

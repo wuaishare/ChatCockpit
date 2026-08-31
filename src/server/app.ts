@@ -374,12 +374,18 @@ function jobProcessControlContextFromRequest(request: FastifyRequest) {
   });
 }
 
-function buildHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
-  return buildHealthStatusSnapshot(paths.productIdentity);
+function buildHealthStatus(
+  paths: TokenPilotPaths,
+  runtimeBuildProvenance: RuntimeBuildProvenance | null = null
+): TokenPilotHealthStatus {
+  return buildHealthStatusSnapshot(paths.productIdentity, runtimeBuildProvenance);
 }
 
-function buildPublicHealthStatus(paths: TokenPilotPaths): TokenPilotHealthStatus {
-  return buildHealthStatus(paths);
+function buildPublicHealthStatus(
+  paths: TokenPilotPaths,
+  runtimeBuildProvenance: RuntimeBuildProvenance | null = null
+): TokenPilotHealthStatus {
+  return buildHealthStatus(paths, runtimeBuildProvenance);
 }
 
 export interface BuildServerOptions {
@@ -1177,7 +1183,7 @@ export function buildServer(
     runtimeResourceMutationService
   );
   const healthHandler = async () => {
-    return buildPublicHealthStatus(paths);
+    return buildPublicHealthStatus(paths, options.runtimeBuildProvenance ?? null);
   };
 
   const gptConfigHandler = async (request: unknown) => {
@@ -2174,7 +2180,7 @@ export function buildServer(
     return {
       ok: true,
       service: `${identity.packageName}-control-plane`,
-      health: buildPublicHealthStatus(paths),
+      health: buildPublicHealthStatus(paths, options.runtimeBuildProvenance ?? null),
       ui: accessPolicy.consolePathPrefix === "/ui" ? "/ui" : null,
       openapi: "/openapi.yaml"
     };
