@@ -1225,13 +1225,17 @@ async function verifyChatDirectRouting(): Promise<void> {
 
     adapter.completeManagedProcess(managed.processId, `${repoRoot}/managed-finished`);
     await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(
+      repositories.coreWriterAuthorities.getActive(workspace.id),
+      null,
+      "native managed process must release writer authority before process.read observes terminal state"
+    );
     const completedManaged = await service.workspaceProcessRead(context, {
       repoId: "primary",
       processId: managed.processId
     });
     assert.equal(completedManaged.state, "completed");
     assert.equal(completedManaged.chunks[0]?.content, "[workspace]/managed-finished");
-    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
 
     const nativeBash = await service.workspaceExec(context, {
       repoId: "primary",
@@ -1480,6 +1484,16 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(hostManaged.execution.executor, "builtin-direct");
     assert.equal(hostManaged.execution.fallbackReason, "explicit-host-managed-execution");
     assert.equal(hostManaged.execution.compatibilityMode, "builtin-governed-process");
+    let hostManagedAuthority = repositories.coreWriterAuthorities.getActive(workspace.id);
+    for (let attempt = 0; attempt < 500 && hostManagedAuthority; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      hostManagedAuthority = repositories.coreWriterAuthorities.getActive(workspace.id);
+    }
+    assert.equal(
+      hostManagedAuthority,
+      null,
+      "host-managed process must release writer authority before process.read observes terminal state"
+    );
     let hostManagedSnapshot = await service.workspaceProcessRead(context, {
       repoId: "primary",
       processId: hostManaged.processId
