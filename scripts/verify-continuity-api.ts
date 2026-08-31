@@ -6,6 +6,12 @@ import path from "node:path";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import { classifyMcpToolSurface } from "../src/mcp/tool-surface.ts";
+import type {
+  CodingRuntimeAdapter,
+  RuntimeCapabilitySnapshot,
+  RuntimeMcpApplicabilityProjection,
+  RuntimeThreadListResult
+} from "../src/runtime/codex/runtime-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
 import { listenTestServer } from "./test-support/server.ts";
 
@@ -27,6 +33,52 @@ function parseMcpResponse(body: string): JsonRpcResponse {
     .map((line) => line.slice("data:".length).trim());
   return JSON.parse(dataLines.length ? dataLines.join("\n") : body) as JsonRpcResponse;
 }
+
+const unusedCodexMethod = async (): Promise<never> => {
+  throw new Error("Continuity API fixture Codex method is not used");
+};
+
+const continuityFixtureCodex: CodingRuntimeAdapter = {
+  capabilities: async (): Promise<RuntimeCapabilitySnapshot> => ({
+    available: true,
+    runtime: "codex-app-server",
+    binarySource: "chatgpt-app",
+    binaryVersion: "codex-cli continuity-api-fixture",
+    protocolFamily: "app-server-v2",
+    serverProtocolVersion: "2.0",
+    stableMethods: ["thread/list", "thread/read", "thread/resume", "thread/fork"],
+    experimentalApiEnabled: false,
+    standaloneExecution: null
+  }),
+  listThreads: async (): Promise<RuntimeThreadListResult> => ({
+    data: [],
+    nextCursor: null,
+    backwardsCursor: null
+  }),
+  readMcpApplicability: async (input): Promise<RuntimeMcpApplicabilityProjection> => ({
+    workspaceId: input.workspaceId,
+    configuredServerCount: 0,
+    applicableServerCount: 0,
+    disabledServerCount: 0,
+    servers: []
+  }),
+  readThread: unusedCodexMethod,
+  readThreadContext: unusedCodexMethod,
+  startThread: unusedCodexMethod,
+  resumeThread: unusedCodexMethod,
+  forkThread: unusedCodexMethod,
+  startTurn: unusedCodexMethod,
+  interruptTurn: unusedCodexMethod,
+  readAccountStatus: unusedCodexMethod,
+  readStandaloneFile: unusedCodexMethod,
+  writeStandaloneFile: unusedCodexMethod,
+  listStandaloneDirectory: unusedCodexMethod,
+  executeStandaloneCommand: unusedCodexMethod,
+  respondToServerRequest: unusedCodexMethod,
+  rejectServerRequest: unusedCodexMethod,
+  setEventSink: () => undefined,
+  close: async () => undefined
+};
 
 async function runContinuityApiVerification(): Promise<void> {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-continuity-api-"));
@@ -66,7 +118,7 @@ async function runContinuityApiVerification(): Promise<void> {
   process.env.CHATCOCKPIT_API_TOKEN = "test-token";
   process.env.CHATCOCKPIT_EXPOSED = "true";
 
-  const app = buildServer(paths);
+  const app = buildServer(paths, { codexAdapter: continuityFixtureCodex });
   let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
   let requestId = 1;
 
