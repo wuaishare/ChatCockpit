@@ -588,9 +588,13 @@ export class PublicRouteVerifier {
       schemaVersion: PUBLIC_ROUTE_VERIFICATION_SCHEMA_VERSION,
       canonical: route.canonical,
       candidate: route.candidate,
-      verification: route.candidate && stored?.candidateId === route.candidate.id
-        ? stored
-        : null
+      verification: route.candidate
+        ? stored?.candidateId === route.candidate.id
+          ? stored
+          : null
+        : stored?.status === "verified" && stored.candidateOrigin === route.canonical.origin
+          ? stored
+          : null
     };
   }
 

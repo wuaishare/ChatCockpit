@@ -336,6 +336,33 @@ function successResponses(): PublicRouteHttpResponse[] {
   assert.equal(result.candidate, null, "same-origin existing-environment verification must complete the temporary candidate");
   assert.equal(candidateStore.snapshot().candidate, null);
   assert.equal(verificationStore.read()?.id, "verification-canonical-recheck");
+  assert.equal(
+    verifier.snapshot().verification?.id,
+    "verification-canonical-recheck",
+    "verified evidence for the current canonical origin must remain operator-visible after the temporary candidate clears"
+  );
+
+  verificationStore.write({
+    ...result.verification,
+    id: "verification-stale-origin",
+    candidateOrigin: "https://old.example.com"
+  });
+  assert.equal(
+    verifier.snapshot().verification,
+    null,
+    "verified evidence from a different origin must not project as canonical evidence"
+  );
+
+  verificationStore.write({
+    ...result.verification,
+    id: "verification-failed-canonical",
+    status: "failed"
+  });
+  assert.equal(
+    verifier.snapshot().verification,
+    null,
+    "failed evidence must not project as canonical verification after the candidate clears"
+  );
 }
 
 {

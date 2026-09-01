@@ -46,7 +46,7 @@ Verification 只产出证据，不会晋升 candidate，也不会改变 canonica
 - `GET /api/connectivity/routes` —— 读取当前 canonical 投影与候选状态；
 - `POST /api/connectivity/routes/candidate` —— 暂存或替换候选 Route Intent；
 - `DELETE /api/connectivity/routes/candidate` —— 丢弃候选；
-- `GET /api/connectivity/routes/verification` —— 读取当前 candidate 对应的 public-safe Verification Artifact（如果存在）；
+- `GET /api/connectivity/routes/verification` —— 当前 candidate 存在时读取其对应的 public-safe Verification Artifact；candidate 不存在时，仅当保留 Artifact 为 `verified` 且其 origin 与当前 canonical origin 完全一致，才投影为当前 canonical Verification 证据；
 - `POST /api/connectivity/routes/candidate/verify` —— 对一个精确的 current candidate ID 执行显式验证。
 
 Operator Session 的写操作继续强制使用既有 CSRF 防护。成功 Verification 之后现在已经实现独立的短期 **Cutover Intent**，但仍然**不存在 Machine cutover execution endpoint**；详见 [Public Route Cutover Intent 合同](./connectivity-route-cutover.md)。
@@ -82,7 +82,7 @@ Verifier 消费一个精确的 current candidate ID，并在 Runtime state 目�
 
 只有当系统 resolver 无法给出全公网答案时才使用公共递归 fallback；它不会让 private、loopback、benchmark/Fake-IP 或其他非公网目标获得探测资格。最终选定的验证答案只要混入一个非公网地址，仍会在任何 HTTPS 请求前失败。如果公共 fallback 本身不可用，Verifier 会保留原系统结果/错误并继续 fail-closed，而不是去探测该非公网目标。Verifier 在持久化 Artifact 前还会重新检查 candidate ID；如果验证过程中 candidate 已被替换，则按 stale 失败且不写入 Artifact。
 
-Verification 失败必须保持 canonical origin 不变。重新暂存或丢弃 candidate 后，旧 Artifact 因 candidate ID 不再匹配而不会继续投影为当前验证结果。
+Verification 失败必须保持 canonical origin 不变。candidate 存在时，Artifact 投影仍要求精确匹配当前 candidate ID。candidate 不存在时，只有 `status=verified` 且 origin 与当前 canonical origin 完全一致的保留 Artifact 才允许作为 canonical Verification 证据继续投影；失败证据和旧 origin 证据仍然失效。这样既能在 same-origin 重新验证的临时 candidate 自动完成后继续向管理员展示可信证据，也不会让陈旧 Artifact 建立信任。
 
 ## 已实现 Cutover Intent / Machine Execution
 

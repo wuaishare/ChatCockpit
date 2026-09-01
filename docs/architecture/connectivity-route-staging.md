@@ -46,7 +46,7 @@ The protected Web/Operator surface exposes:
 - `GET /api/connectivity/routes` — read current canonical projection and candidate state;
 - `POST /api/connectivity/routes/candidate` — stage or replace candidate Route intent;
 - `DELETE /api/connectivity/routes/candidate` — discard the candidate;
-- `GET /api/connectivity/routes/verification` — read the current candidate's public-safe Verification Artifact, when one exists;
+- `GET /api/connectivity/routes/verification` — read the current candidate's public-safe Verification Artifact when one exists; when there is no candidate, a retained `verified` artifact is exposed only if its origin exactly matches the current canonical origin;
 - `POST /api/connectivity/routes/candidate/verify` — explicitly verify one exact current candidate ID.
 
 Operator-session mutations require the existing CSRF protection. A separate short-lived **Cutover Intent** is now implemented after successful verification, but there is still **no Machine cutover execution endpoint**; see [Public Route Cutover Intent Contract](./connectivity-route-cutover.md).
@@ -82,7 +82,7 @@ The network boundary is fail-closed:
 
 The public recursive fallback is used only when the system resolver cannot provide an all-public answer; it does not make any private, loopback, benchmark/Fake-IP, or otherwise non-public destination eligible for probing. A selected verification answer containing even one non-public destination still fails before any HTTPS request. If public fallback itself is unavailable, the verifier preserves the fail-closed system result/error instead of probing it. The verifier re-checks the candidate ID immediately before persistence; if the candidate was replaced while verification ran, the operation fails as stale and writes no artifact.
 
-Verification failure leaves the canonical origin untouched. Restaging or discarding a candidate makes older artifacts inapplicable because artifact projection requires the exact current candidate ID.
+Verification failure leaves the canonical origin untouched. While a candidate exists, artifact projection still requires the exact current candidate ID. When no candidate exists, the operator status may expose retained canonical evidence only when that artifact is `verified` and its origin exactly equals the current canonical origin; failed evidence and evidence for older origins remain inapplicable. This keeps same-origin re-verification evidence observable after its temporary candidate is completed without allowing stale artifacts to establish trust.
 
 ## Implemented Cutover Intent / Machine Execution
 
