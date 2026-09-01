@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		200000000000000000000001 /* DesktopConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000001 /* DesktopConfiguration.swift */; };
 		200000000000000000000002 /* DistributionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* DistributionContext.swift */; };
+		20000000000000000000001C /* DesktopProjectRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001C /* DesktopProjectRegistry.swift */; };
 		200000000000000000000003 /* ExistingSetupImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000003 /* ExistingSetupImport.swift */; };
 		200000000000000000000004 /* LifecycleStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000004 /* LifecycleStatus.swift */; };
 		200000000000000000000005 /* LocalHealthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000005 /* LocalHealthClient.swift */; };
@@ -23,7 +24,6 @@
 		200000000000000000000014 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000014 /* UpdateChecker.swift */; };
 		200000000000000000000015 /* UpdateManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* UpdateManifest.swift */; };
 		200000000000000000000016 /* ProductIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* ProductIdentity.swift */; };
-		20000000000000000000001A /* PackagedWorkspaceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001A /* PackagedWorkspaceConfiguration.swift */; };
 		20000000000000000000000E /* DesktopAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* DesktopAppModel.swift */; };
 		20000000000000000000000F /* MenuBarContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* MenuBarContentView.swift */; };
 		20000000000000000000001B /* NativeStatusComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001B /* NativeStatusComponents.swift */; };
@@ -66,6 +66,7 @@
 		040000000000000000000002 /* TokenPilotDesktopCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = TokenPilotDesktopCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000001 /* DesktopConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopConfiguration.swift; sourceTree = "<group>"; };
 		100000000000000000000002 /* DistributionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DistributionContext.swift; sourceTree = "<group>"; };
+		10000000000000000000001C /* DesktopProjectRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopProjectRegistry.swift; sourceTree = "<group>"; };
 		100000000000000000000003 /* ExistingSetupImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/ExistingSetupImport.swift; sourceTree = "<group>"; };
 		100000000000000000000004 /* LifecycleStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/LifecycleStatus.swift; sourceTree = "<group>"; };
 		100000000000000000000005 /* LocalHealthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/LocalHealthClient.swift; sourceTree = "<group>"; };
@@ -80,7 +81,6 @@
 		100000000000000000000014 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/UpdateChecker.swift; sourceTree = "<group>"; };
 		100000000000000000000015 /* UpdateManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/UpdateManifest.swift; sourceTree = "<group>"; };
 		100000000000000000000016 /* ProductIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/ProductIdentity.swift; sourceTree = "<group>"; };
-		10000000000000000000001A /* PackagedWorkspaceConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/PackagedWorkspaceConfiguration.swift; sourceTree = "<group>"; };
 		10000000000000000000000E /* DesktopAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/DesktopAppModel.swift; sourceTree = "<group>"; };
 		10000000000000000000000F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/MenuBarContentView.swift; sourceTree = "<group>"; };
 		10000000000000000000001B /* NativeStatusComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/NativeStatusComponents.swift; sourceTree = "<group>"; };
@@ -134,6 +134,7 @@
 			children = (
 				100000000000000000000001 /* DesktopConfiguration.swift */,
 				100000000000000000000002 /* DistributionContext.swift */,
+				10000000000000000000001C /* DesktopProjectRegistry.swift */,
 				100000000000000000000003 /* ExistingSetupImport.swift */,
 				100000000000000000000004 /* LifecycleStatus.swift */,
 				100000000000000000000005 /* LocalHealthClient.swift */,
@@ -148,7 +149,6 @@
 				100000000000000000000014 /* UpdateChecker.swift */,
 				100000000000000000000015 /* UpdateManifest.swift */,
 				100000000000000000000016 /* ProductIdentity.swift */,
-				10000000000000000000001A /* PackagedWorkspaceConfiguration.swift */,
 				10000000000000000000000E /* DesktopAppModel.swift */,
 				10000000000000000000000F /* MenuBarContentView.swift */,
 				10000000000000000000001B /* NativeStatusComponents.swift */,
@@ -314,6 +314,7 @@
 			files = (
 				200000000000000000000001 /* DesktopConfiguration.swift in Sources */,
 				200000000000000000000002 /* DistributionContext.swift in Sources */,
+				20000000000000000000001C /* DesktopProjectRegistry.swift in Sources */,
 				200000000000000000000003 /* ExistingSetupImport.swift in Sources */,
 				200000000000000000000004 /* LifecycleStatus.swift in Sources */,
 				200000000000000000000005 /* LocalHealthClient.swift in Sources */,
@@ -328,7 +329,6 @@
 				200000000000000000000014 /* UpdateChecker.swift in Sources */,
 				200000000000000000000015 /* UpdateManifest.swift in Sources */,
 				200000000000000000000016 /* ProductIdentity.swift in Sources */,
-				20000000000000000000001A /* PackagedWorkspaceConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

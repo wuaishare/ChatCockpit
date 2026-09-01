@@ -117,11 +117,13 @@ notarization: not performed
 
 ## Packaged Mode 首次启动
 
-打开本地构建：
+本地 dogfood 必须通过 canonical 单实例入口安装并启动：
 
 ```bash
-open dist/macos/ChatCockpit.app
+npm run dogfood:macos-desktop
 ```
+
+该命令会用已验证的构建产物替换系统 Applications 目录中的 canonical `ChatCockpit.app`，并且只启动这个正式安装副本。禁止直接运行 `dist` App，也禁止使用 `open -n` / `open -na`，否则本地测试时可能出现两个拥有相同 Bundle ID 的 ChatCockpit 实例。
 
 只要 App 中存在合法的 Runtime Payload，Packaged Mode 就可用。App 的 **项目** 页面是 Machine Authority 下管理本机 Project Registry 的主入口：可从本机目录创建 Project、附加 Project Root、变更 **Primary Root**，以及仅解除 Registry 关联而不删除磁盘文件。普通非 Git 目录仍可以成为 Project Root，但不会伪装成可执行 checkout。
 
@@ -129,7 +131,7 @@ Git Project Root 可以拥有带稳定本地 `repoId` 的 **Execution Workspace*
 
 App 会校验内嵌 Runtime，并通过 staging → verify → atomic promote 的方式部署到 Application Support。新的 Payload 如果损坏或部署失败，不会覆盖此前已经有效的 Runtime。
 
-工作区集合以 ChatCockpit 私有配置为 canonical 真源；macOS 用户偏好只缓存当前主工作区选择。机器绝对路径不会提交到公共仓库。
+Project Registry 以 ChatCockpit 私有配置中的 schema v3 `projects + projectRoots + executionWorkspaces` 为 canonical 真源；macOS 用户偏好只缓存本机 UI / Runtime 选择，不拥有 Project identity、Primary Root 或 Root membership。机器绝对路径不会提交到公共仓库。
 
 真实启动、Developer Mode、Packaged Mode conflict guard 与 standalone Packaged Runtime 的可重复验收步骤见 [`../testing/macos-desktop-smoke.md`](../testing/macos-desktop-smoke.md)。
 
@@ -141,7 +143,9 @@ Packaged Mode 提供显式 **Import Existing Setup…** 操作。
 
 - Source checkout 只读；
 - 应用前先展示 Preview；
-- 可导入 Workspace allowlist / repo mapping 与安全的本地 endpoint 设置；
+- 当前 schema v3 Project Registry 会按原模型保留；旧 Workspace mapping 只作为只读兼容输入，在写入前确定性迁移为 Project / Project Root / Execution Workspace；
+- Packaged 目标配置始终以 canonical schema v3 持久化，不再写回 `defaultRepoId` / `repoMappings` 旧模型；
+- 可导入安全的本机 endpoint 设置；
 - 不迁移 API bearer token；
 - 不迁移 OAuth access / refresh token；
 - 不迁移 Process Supervisor token；

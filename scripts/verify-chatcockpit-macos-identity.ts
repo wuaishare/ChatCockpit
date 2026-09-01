@@ -101,10 +101,17 @@ assert.match(packagedPaths, /identity\.applicationSupportName/);
 assert.match(packagedConflict, /productIdentity\.controlPlaneServiceLabel/);
 assert.match(packagedConflict, /productIdentity\.environmentName\("DISTRIBUTION_MODE"\)/);
 
-// Import reads historical state but writes only canonical target state.
+// Import reads historical state as compatibility input but persists only the canonical v3 Project Registry.
+assert.match(existingSetupImport, /ProductIdentity\.current\.sourceStateRootURL/);
 assert.match(existingSetupImport, /\.appendingPathComponent\("\.tokenpilot"/);
-assert.match(existingSetupImport, /"schemaVersion": 1/);
-assert.match(existingSetupImport, /"defaultRepoId": "primary"/);
+assert.match(existingSetupImport, /"schemaVersion": 3/);
+assert.match(existingSetupImport, /"projects": projectObject/);
+assert.match(existingSetupImport, /"projectRoots": rootObject/);
+assert.match(existingSetupImport, /"executionWorkspaces": workspaceObject/);
+assert.match(existingSetupImport, /object\["defaultRepoId"\]/);
+assert.match(existingSetupImport, /object\["repoMappings"\]/);
+assert.doesNotMatch(existingSetupImport, /"defaultRepoId"\s*:/);
+assert.doesNotMatch(existingSetupImport, /"repoMappings"\s*:/);
 assert.match(existingSetupImport, /CHATCOCKPIT_HOST=/);
 assert.match(existingSetupImport, /CHATCOCKPIT_EXPOSED=false/);
 assert.doesNotMatch(existingSetupImport, /"TOKENPILOT_HOST=/);
@@ -129,10 +136,12 @@ assert.match(desktopApp, /Window\(ProductIdentity\.current\.displayName, id: "ma
 assert.doesNotMatch(desktopApp, /Window\(DesktopL10n\.string\("ChatCockpit Status"\)/);
 assert.match(menuBar, /snapshot\.localCockpitURL/);
 assert.match(menuBar, /snapshot\.publicCockpitURL/);
-assert.match(menuBar, /title: DesktopL10n\.string\("Local Cockpit"\)[\s\S]*openAction: model\.openLocalCockpit/s);
-assert.match(menuBar, /title: DesktopL10n\.string\("Public Cockpit"\)[\s\S]*fallback: DesktopL10n\.string\("Not configured"\)[\s\S]*openAction: model\.openPublicCockpit/s);
-assert.match(menuBar, /private func endpointRow[\s\S]*if let url[\s\S]*model\.copyMachineEndpoint\(url\)[\s\S]*openAction\(\)/s);
-assert.match(menuBar, /DesktopL10n\.string\("Open Local Cockpit"\)/);
+assert.match(menuBar, /title: DesktopL10n\.string\("Local Cockpit"\)[\s\S]*fallback: DesktopL10n\.string\("Unavailable"\)/s);
+assert.match(menuBar, /title: DesktopL10n\.string\("Public Cockpit"\)[\s\S]*fallback: DesktopL10n\.string\("Not configured"\)/s);
+assert.match(menuBar, /private func endpointSummary[\s\S]*let semantic: NativeStatusSemantic = available \? \.healthy : \.inactive/s);
+assert.doesNotMatch(menuBar, /model\.copyMachineEndpoint\(url\)/);
+assert.doesNotMatch(menuBar, /model\.openPublicCockpit/);
+assert.match(menuBar, /DesktopL10n\.string\("Open Local Cockpit"\)[\s\S]*model\.openLocalCockpit\(\)/s);
 assert.match(statusView, /DesktopL10n\.string/);
 assert.match(settingsView, /DesktopL10n\.string/);
 assert.match(appModel, /DesktopL10n\.string/);

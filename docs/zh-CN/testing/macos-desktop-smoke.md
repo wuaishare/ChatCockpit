@@ -10,13 +10,15 @@
 dist/macos/ChatCockpit.app
 ```
 
-启动：
+本地 dogfood 必须通过 canonical 单实例入口安装并启动：
 
 ```bash
-open dist/macos/ChatCockpit.app
+npm run dogfood:macos-desktop
 ```
 
-正常情况下会立即出现唯一的 **ChatCockpit** 主窗口，左侧导航包含 **概览 / 运行环境 / 工作区 / 访问与安全 / 集成 / 更新 / 诊断**；Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。**概览**承担高密度本机摘要：整体状态、Control Plane / Runner / Process Supervisor 健康度、authoritative 本机活动计数、本机/公网控制台访问、访问与安全摘要、运行环境信息、App 版本与更新状态。活动数据来自 machine-local、只读的 `desktop-summary` 投影，包括运行任务、排队任务、保留的失败记录和真正待人工决策的待审批；某个数据源不可读取时必须显示 **— / 不可用**，绝不能伪造 0。失败记录是保留的历史 failed Job，不应渲染成“Runtime 当前正在故障”。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。系统 **设置…** 只保留 App 自身偏好入口，不再复制 Runtime、Workspace 或 Security 运维界面。
+禁止直接启动 `dist/macos/ChatCockpit.app`，也禁止使用 `open -n` / `open -na`。dogfood 命令会校验构建 provenance、退出所有既有 ChatCockpit 实例、原子替换系统 Applications 目录中的 canonical `ChatCockpit.app`、只启动这一个正式安装副本，并在运行进程不是唯一 canonical App 时直接失败。
+
+正常情况下会立即出现唯一的 **ChatCockpit** 主窗口，左侧导航包含 **概览 / 运行环境 / 项目 / 访问与安全 / 集成 / 更新 / 诊断**；Dock 中可见 ChatCockpit，同时菜单栏保留 ChatCockpit 状态项。**概览**承担高密度本机摘要：整体状态、Control Plane / Runner / Process Supervisor 健康度、authoritative 本机活动计数、本机/公网控制台访问、访问与安全摘要、运行环境信息、App 版本与更新状态。活动数据来自 machine-local、只读的 `desktop-summary` 投影，包括运行任务、排队任务、保留的失败记录和真正待人工决策的待审批；某个数据源不可读取时必须显示 **— / 不可用**，绝不能伪造 0。失败记录是保留的历史 failed Job，不应渲染成“Runtime 当前正在故障”。Desktop 默认跟随 macOS 的系统/单独应用语言设置；当前完整支持简体中文与 English。关闭主窗口不会停止 Runtime，App 仍可从 Dock 或菜单栏重新进入。系统 **设置…** 只保留 App 自身偏好入口，不再复制 Runtime、项目或 Security 运维界面。
 
 如果还没有本地 App，可构建当前架构：
 
@@ -75,7 +77,7 @@ Desktop App 是这台 Mac 上的人类控制台管理员与机器 API 凭据管�
 
 1. 保持 Developer Mode services 运行；
 2. 在主窗口 **运行环境** 中切到 **Packaged Mode**；
-3. 点击 **选择主工作区…**，选择一个真实项目目录；
+3. 打开 **项目**，选择或添加一个真实 Project，并确保至少有一个 ready 的 Git Project Root / Execution Workspace；
 4. Refresh / Revalidate；
 5. 应看到 **Runtime Conflict**，说明 Developer Mode 已拥有当前 ChatCockpit service identity。
 
@@ -106,15 +108,15 @@ npm run mvp:stop
 
 1. 打开 `ChatCockpit.app`；
 2. 主窗口 **运行环境** → **Packaged Mode**；
-3. **选择主工作区…** 选择测试项目；
-4. 在 **工作区** 区域添加第二个测试项目，确认两个目录分别显示稳定 repo ID，且只有一个带 **主工作区** 标记；
-5. 将第二个项目 **设为主工作区**，确认 App 明确提示不会自动启动/停止/重启 Runtime；再将预期项目恢复为主工作区；
-6. 移除非主工作区，确认弹窗明确说明只移除 ChatCockpit 映射、不删除项目文件；
+3. 打开 **项目** 并添加/选择一个测试 Project。确认首次选择的目录被建模为 Project Root；如果它是 Git 仓库，则同时拥有带稳定 repo ID 的 Execution Workspace；
+4. 添加第二个 Project Root。确认普通目录可以成为合法 Root，但不会伪造 Execution Workspace；Git Root 则可以暴露对应的 Execution Workspace；
+5. 将第二个 ready Root 设为 **Primary Root**，确认 Runtime lifecycle 不发生变化，并确认仍然有效的已选 Execution Workspace 不会被静默替换；随后恢复预期的 Primary Root；
+6. 移除一个非 Primary Root，确认弹窗明确说明只解除 ChatCockpit Registry 关联、不删除磁盘文件，关联的 Execution Workspace 会归档，且 Runtime 不会自动重启；
 7. App 校验并部署内嵌 Runtime Payload；
 8. 点击 **Start Services**；
 9. 等待状态进入 **Ready**；
 10. 点击 Runtime 区域中的 **本机控制台** URL；如果当前已配置并启用公网入口，再单独测试 **公网控制台** URL；
-11. 验证 Web UI、health、多 Workspace mapping 与基础只读操作。
+11. 验证 Web UI、health、canonical Project Registry / Execution Workspace 投影与基础只读操作。
 
 Packaged Mode 使用独立路径：
 
@@ -124,7 +126,7 @@ Packaged Mode 使用独立路径：
 ~/Library/Application Support/ChatCockpit/config/
 ```
 
-它不会把 Runtime 目录当作用户 Workspace。工作区集合的 canonical 真源是 `config/config.json` 中现有的 `defaultRepoId + workspaceAllowlist + repoMappings`，不是 Desktop 自己另建一套数据库；macOS 偏好只缓存当前主工作区选择。
+部署后的 Runtime 永远不会被当作 Project Root 或 Execution Workspace。Project 状态的 canonical 真源是私有 `config/config.json` 中的 schema v3：`projects + projectRoots + executionWorkspaces`；Desktop 不另建第二套 Registry。macOS 偏好只缓存本机 UI / Runtime 选择，不拥有 Project identity、Primary Root 或 Root membership。
 
 ## 4. Import Existing Setup
 
@@ -135,7 +137,7 @@ Packaged Mode 使用独立路径：
 3. 先看 Preview；
 4. 确认后再 Apply。
 
-Import 只迁移可安全复用的 Workspace mapping 和非秘密本地设置。
+Import 会直接保留 canonical schema v3 Project Registry；旧 Workspace mapping 只作为只读兼容输入，在写入前确定性迁移为 Project / Project Root / Execution Workspace，并且 Packaged 目标必须以 schema v3 持久化。除此之外只迁移可安全复用的非秘密本机设置。
 
 不会迁移：
 

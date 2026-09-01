@@ -275,7 +275,7 @@ struct SettingsView: View {
 
                     Text(
                         DesktopL10n.string(
-                            "Import previews only workspace mappings and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only."
+                            "Import previews the canonical Project Registry and non-secret local runtime settings. Bearer tokens, OAuth tokens, Process Supervisor tokens, provider credentials, and cookies are never migrated. Existing source files are read only."
                         )
                     )
                         .font(.caption)

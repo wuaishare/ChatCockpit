@@ -117,11 +117,13 @@ Do not describe this as a signed public macOS release.
 
 ## First launch in Packaged Mode
 
-Open the locally built app:
+Install and launch the local dogfood build through the canonical single-instance path:
 
 ```bash
-open dist/macos/ChatCockpit.app
+npm run dogfood:macos-desktop
 ```
+
+This command replaces the canonical system Applications copy of `ChatCockpit.app` with the verified build output and launches only that installed copy. Do not run the `dist` app directly or use `open -n` / `open -na`, because multiple instances with the same bundle identifier can otherwise appear during local testing.
 
 When a valid embedded runtime payload is present, Packaged Mode is available. The App's **Projects** surface is the machine-authority entry for creating a Project from a local folder, attaching additional Project Roots, changing the **Primary Root**, and removing an attachment without deleting files. A non-Git Project Root remains a valid Project root but does not pretend to be an executable checkout.
 
@@ -129,7 +131,7 @@ Git Project Roots can own stable local `repoId` **Execution Workspaces**. The Pr
 
 The app then verifies and atomically deploys the embedded runtime into Application Support. A failed or corrupt new deployment does not replace a previously valid deployed runtime.
 
-Workspace mappings are stored in private ChatCockpit configuration; macOS preferences only remember the current Primary selection as a local UX cache. Machine-specific paths are not committed to the public repository.
+The Project Registry is canonically stored in private ChatCockpit configuration using schema v3 `projects + projectRoots + executionWorkspaces`; macOS preferences cache only local UI/runtime selections and are not the authority for Project identity, Primary Root, or root membership. Machine-specific paths are not committed to the public repository.
 
 For a reproducible real-user launch, Developer Mode check, Packaged Mode conflict guard, and standalone Packaged Runtime test, see [`../testing/macos-desktop-smoke.md`](../testing/macos-desktop-smoke.md).
 
@@ -141,7 +143,9 @@ The import flow is deliberately non-destructive:
 
 - the source checkout is read only;
 - the app presents a preview before applying anything;
-- workspace allowlist/repo mappings and safe local endpoint settings can be imported;
+- current schema v3 Project Registry data is preserved directly; legacy workspace mappings are accepted only as read-only compatibility input and are deterministically projected into Project / Project Root / Execution Workspace records before writing;
+- the packaged destination is always persisted as canonical schema v3, never as `defaultRepoId` / `repoMappings` legacy state;
+- safe local endpoint settings can be imported;
 - API bearer tokens are not migrated;
 - OAuth access or refresh tokens are not migrated;
 - Process Supervisor tokens are not migrated;

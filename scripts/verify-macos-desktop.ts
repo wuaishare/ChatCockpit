@@ -83,11 +83,6 @@ const existingSetupImportPath = path.join(
   "TokenPilotDesktopCore",
   "ExistingSetupImport.swift"
 );
-const packagedWorkspaceConfigurationPath = path.join(
-  desktopSourceRoot,
-  "TokenPilotDesktopCore",
-  "PackagedWorkspaceConfiguration.swift"
-);
 const projectRegistryPath = path.join(
   desktopSourceRoot,
   "TokenPilotDesktopCore",
@@ -131,7 +126,6 @@ for (const required of [
   englishLocalizationPath,
   simplifiedChineseLocalizationPath,
   existingSetupImportPath,
-  packagedWorkspaceConfigurationPath,
   projectRegistryPath,
   runtimeConflictPath,
   buildScriptPath,
@@ -185,7 +179,6 @@ assert.deepEqual(
   `Missing zh-Hans localization keys: ${missingSimplifiedChineseLocalizationKeys.join(", ")}`
 );
 const existingSetupImport = fs.readFileSync(existingSetupImportPath, "utf8");
-const packagedWorkspaceConfiguration = fs.readFileSync(packagedWorkspaceConfigurationPath, "utf8");
 const projectRegistry = fs.readFileSync(projectRegistryPath, "utf8");
 const runtimeConflict = fs.readFileSync(runtimeConflictPath, "utf8");
 const buildScript = fs.readFileSync(buildScriptPath, "utf8");
@@ -489,10 +482,14 @@ assert.match(projectRegistry, /privatePath: String/);
 assert.match(projectRegistry, /public struct DesktopExecutionWorkspace:/);
 assert.match(projectRegistry, /public let privatePath: String/);
 assert.match(projectRegistry, /DesktopProjectFolderClassifier/);
-assert.match(packagedWorkspaceConfiguration, /workspaceAllowlist/);
-assert.match(packagedWorkspaceConfiguration, /repoMappings/);
-assert.match(packagedWorkspaceConfiguration, /cannotRemovePrimary/);
-assert.match(packagedWorkspaceConfiguration, /data\.write\(to: configURL, options: \.atomic\)/);
+assert.equal(
+  fs.existsSync(path.join(desktopSourceRoot, "TokenPilotDesktopCore", "PackagedWorkspaceConfiguration.swift")),
+  false,
+  "Legacy PackagedWorkspaceConfiguration writer must stay retired; Project Registry is canonical"
+);
+assert.match(existingSetupImport, /"schemaVersion": 3/);
+assert.doesNotMatch(existingSetupImport, /"defaultRepoId"\s*:/);
+assert.doesNotMatch(existingSetupImport, /"repoMappings"\s*:/);
 assert.match(settings, /DesktopL10n\.string\("Open Local Cockpit"\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Public Cockpit"\)/);
 assert.match(settings, /model\.setOwnerPasswordFromPanel\(\)/);
@@ -699,8 +696,10 @@ assert.match(desktopLocalization, /Bundle\.preferredLocalizations/);
 assert.match(desktopLocalization, /UserDefaults\.standard\.stringArray\(forKey: "AppleLanguages"\)/);
 assert.match(desktopLocalization, /Locale\.preferredLanguages/);
 assert.match(desktopLocalization, /localizedString\(forKey: key/);
-assert.match(englishLocalization, /"ChatCockpit Status" = "ChatCockpit Status";/);
-assert.match(simplifiedChineseLocalization, /"ChatCockpit Status" = "ChatCockpit 状态";/);
+assert.doesNotMatch(englishLocalization, /"ChatCockpit Status"\s*=/);
+assert.doesNotMatch(simplifiedChineseLocalization, /"ChatCockpit Status"\s*=/);
+assert.match(englishLocalization, /"Projects" = "Projects";/);
+assert.match(simplifiedChineseLocalization, /"Projects" = "项目";/);
 assert.match(simplifiedChineseLocalization, /"Ready" = "就绪";/);
 assert.match(englishLocalization, /"Verified Public Route Bootstrap" = "Verified Public Route Bootstrap";/);
 assert.match(simplifiedChineseLocalization, /"Verified Public Route Bootstrap" = "已验证首次公网 Route";/);

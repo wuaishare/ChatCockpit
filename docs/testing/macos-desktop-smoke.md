@@ -10,13 +10,15 @@ A source build produces:
 dist/macos/ChatCockpit.app
 ```
 
-Launch it with:
+Install and launch the local dogfood build through the canonical single-instance path:
 
 ```bash
-open dist/macos/ChatCockpit.app
+npm run dogfood:macos-desktop
 ```
 
-A normal launch should immediately present the single **ChatCockpit** main window with **Overview / Runtime / Projects / Access & Security / Integrations / Updates / Diagnostics** in the sidebar, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. **Overview** is the high-density machine summary: overall state, Control Plane / Runner / Process Supervisor health, authoritative local Activity counts, Local/Public Cockpit access, access/security summary, environment/runtime details, app version and update state. Activity is read from the machine-local read-only `desktop-summary` projection: Running Jobs, Queued Jobs, retained Failed Records, and truly Pending Approvals. A source group that cannot be read must display **— / Unavailable**, never a fabricated zero. Failed Records are historical retained failed-job records and must not be presented as an active Runtime failure. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar. The system **Settings…** scene is reserved for app-only preferences and must not duplicate Runtime, Workspace, or Security administration.
+Do not launch `dist/macos/ChatCockpit.app` directly and do not use `open -n` / `open -na`. The dogfood command verifies build provenance, quits any existing ChatCockpit instance, atomically replaces the canonical system Applications copy of `ChatCockpit.app`, launches only that installed copy, and fails unless exactly one ChatCockpit process is running from the canonical app path.
+
+A normal launch should immediately present the single **ChatCockpit** main window with **Overview / Runtime / Projects / Access & Security / Integrations / Updates / Diagnostics** in the sidebar, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. **Overview** is the high-density machine summary: overall state, Control Plane / Runner / Process Supervisor health, authoritative local Activity counts, Local/Public Cockpit access, access/security summary, environment/runtime details, app version and update state. Activity is read from the machine-local read-only `desktop-summary` projection: Running Jobs, Queued Jobs, retained Failed Records, and truly Pending Approvals. A source group that cannot be read must display **— / Unavailable**, never a fabricated zero. Failed Records are historical retained failed-job records and must not be presented as an active Runtime failure. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar. The system **Settings…** scene is reserved for app-only preferences and must not duplicate Runtime, Projects, or Security administration.
 
 If the local app has not been built yet:
 
@@ -112,7 +114,7 @@ Verify the Source services are stopped before continuing.
 8. Click **Start Services**.
 9. Wait for **Ready**.
 10. Click the **Local Cockpit** URL in the Runtime section. If a public origin is configured and exposed, test the **Public Cockpit** URL separately.
-11. Verify Web UI, health, multi-workspace mappings, and basic read-only operations.
+11. Verify Web UI, health, the canonical Project Registry / Execution Workspace projection, and basic read-only operations.
 
 Packaged Mode uses separate roots:
 
@@ -133,7 +135,7 @@ To import safe Source setup into Packaged Mode:
 3. Review the Preview.
 4. Apply only after the preview is correct.
 
-Import can carry safe Workspace mappings and non-secret local settings. It does not migrate:
+Import preserves canonical schema v3 Project Registry data directly. Legacy workspace mappings are accepted only as read-only compatibility input, projected deterministically into Project / Project Root / Execution Workspace records, and the packaged destination must be written as schema v3. Import also carries safe non-secret local settings. It does not migrate:
 
 - API bearer tokens;
 - OAuth access/refresh tokens;

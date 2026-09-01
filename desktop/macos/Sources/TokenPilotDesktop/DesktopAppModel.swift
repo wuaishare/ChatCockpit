@@ -519,9 +519,9 @@ final class DesktopAppModel: ObservableObject {
         }
 
         let panel = NSOpenPanel()
-        panel.title = DesktopL10n.string("Import Existing TokenPilot Setup")
+        panel.title = DesktopL10n.string("Import Existing ChatCockpit Setup")
         panel.message = DesktopL10n.string(
-            "Select the existing TokenPilot source checkout. The source files will be read only and will not be modified."
+            "Select the existing ChatCockpit source checkout. Project Registry data and non-secret local runtime settings will be previewed; source files remain read only."
         )
         panel.prompt = DesktopL10n.string("Preview Import")
         panel.canChooseFiles = false
@@ -549,8 +549,10 @@ final class DesktopAppModel: ObservableObject {
                 runtimeID: bundleManifest.runtimeID
             )
             let result = try existingSetupImporter.apply(preview: preview, paths: paths)
-            selectedWorkspaceURL = result.primaryWorkspaceURL
-            workspacePreferenceStore.saveWorkspaceURL(result.primaryWorkspaceURL)
+            selectedWorkspaceURL = result.preferredExecutionWorkspaceURL
+            workspacePreferenceStore.saveWorkspaceURL(result.preferredExecutionWorkspaceURL)
+            selectedProjectID = nil
+            projectPreferenceStore.saveProjectID(nil)
             runtimeConflict = nil
             lastUserMessage = result.exposedModeResetToLocal
                 ? DesktopL10n.string(
@@ -565,7 +567,7 @@ final class DesktopAppModel: ObservableObject {
             }
         } catch {
             lastUserMessage = DesktopL10n.string(
-                "The existing TokenPilot setup could not be imported. No source files were changed."
+                "The existing ChatCockpit setup could not be imported. No source files were changed."
             )
         }
     }
