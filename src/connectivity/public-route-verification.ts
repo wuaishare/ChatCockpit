@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { lookup as dnsLookup } from "node:dns/promises";
+import { Resolver, lookup as dnsLookup } from "node:dns/promises";
 import fs from "node:fs";
 import https from "node:https";
 import { isIP, type LookupFunction } from "node:net";
@@ -21,6 +21,7 @@ const OAUTH_METADATA_PATH = "/.well-known/oauth-protected-resource/mcp";
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_BYTES = 64 * 1024;
 const MAX_RESOLVED_ADDRESSES = 16;
+const PUBLIC_ROUTE_FALLBACK_DNS_SERVERS = ["1.1.1.1", "8.8.8.8"] as const;
 
 export type PublicRouteVerificationStatus = "verified" | "failed";
 
@@ -146,23 +147,99 @@ function normalizeVerificationHostname(hostname: string): string {
     : hostname;
 }
 
+function dedupeNetworkDestinations(
+  entries: Iterable<PublicRouteResolvedAddress>
+): PublicRouteResolvedAddress[] {
+  const unique = new Map<string, PublicRouteResolvedAddress>();
+  for (const entry of entries) {
+    unique.set(`${entry.family}:${entry.address}`, entry);
+  }
+  return [...unique.values()];
+}
+
+class NodeSystemPublicRouteResolver implements PublicRouteResolver {
+  async resolve(hostname: string): Promise<PublicRouteResolvedAddress[]> {
+    const resolved = await dnsLookup(hostname, { all: true, verbatim: true });
+    const addresses: PublicRouteResolvedAddress[] = [];
+    for (const entry of resolved) {
+      if (entry.family !== 4 && entry.family !== 6) continue;
+      addresses.push({ address: entry.address, family: entry.family });
+    }
+    return dedupeNetworkDestinations(addresses);
+  }
+}
+
+class NodeRecursivePublicDnsResolver implements PublicRouteResolver {
+  private readonly resolver: Resolver;
+
+  constructor(servers: readonly string[] = PUBLIC_ROUTE_FALLBACK_DNS_SERVERS) {
+    this.resolver = new Resolver();
+    this.resolver.setServers([...servers]);
+  }
+
+  async resolve(hostname: string): Promise<PublicRouteResolvedAddress[]> {
+    const [ipv4, ipv6] = await Promise.allSettled([
+      this.resolver.resolve4(hostname),
+      this.resolver.resolve6(hostname)
+    ]);
+    const addresses: PublicRouteResolvedAddress[] = [];
+    if (ipv4.status === "fulfilled") {
+      addresses.push(...ipv4.value.map((address) => ({ address, family: 4 as const })));
+    }
+    if (ipv6.status === "fulfilled") {
+      addresses.push(...ipv6.value.map((address) => ({ address, family: 6 as const })));
+    }
+    const deduped = dedupeNetworkDestinations(addresses);
+    if (deduped.length > 0) return deduped;
+    if (ipv4.status === "rejected") throw ipv4.reason;
+    if (ipv6.status === "rejected") throw ipv6.reason;
+    return [];
+  }
+}
+
+export interface NodePublicRouteResolverOptions {
+  systemResolver?: PublicRouteResolver;
+  publicResolver?: PublicRouteResolver;
+}
+
 export class NodePublicRouteResolver implements PublicRouteResolver {
+  private readonly systemResolver: PublicRouteResolver;
+  private readonly publicResolver: PublicRouteResolver;
+
+  constructor(options: NodePublicRouteResolverOptions = {}) {
+    this.systemResolver = options.systemResolver ?? new NodeSystemPublicRouteResolver();
+    this.publicResolver = options.publicResolver ?? new NodeRecursivePublicDnsResolver();
+  }
+
   async resolve(hostname: string): Promise<PublicRouteResolvedAddress[]> {
     const normalizedHostname = normalizeVerificationHostname(hostname);
     const literalFamily = isIP(normalizedHostname);
     if (literalFamily === 4 || literalFamily === 6) {
       return [{ address: normalizedHostname, family: literalFamily }];
     }
-    const resolved = await dnsLookup(normalizedHostname, { all: true, verbatim: true });
-    const unique = new Map<string, PublicRouteResolvedAddress>();
-    for (const entry of resolved) {
-      if (entry.family !== 4 && entry.family !== 6) continue;
-      unique.set(`${entry.family}:${entry.address}`, {
-        address: entry.address,
-        family: entry.family
-      });
+
+    let systemAddresses: PublicRouteResolvedAddress[] | null = null;
+    let systemError: unknown = null;
+    try {
+      systemAddresses = await this.systemResolver.resolve(normalizedHostname);
+    } catch (error) {
+      systemError = error;
     }
-    return [...unique.values()];
+
+    if (
+      systemAddresses &&
+      systemAddresses.length > 0 &&
+      systemAddresses.every((entry) => isPublicRouteNetworkAddress(entry.address))
+    ) {
+      return systemAddresses;
+    }
+
+    try {
+      return await this.publicResolver.resolve(normalizedHostname);
+    } catch (publicError) {
+      if (systemAddresses !== null) return systemAddresses;
+      throw systemError ?? publicError;
+    }
   }
 }
 

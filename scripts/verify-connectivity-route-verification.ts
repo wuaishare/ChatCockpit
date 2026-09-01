@@ -34,6 +34,9 @@ assert.match(verifierSource, /const OAUTH_METADATA_PATH = "\/\.well-known\/oauth
 assert.match(verifierSource, /const DEFAULT_TIMEOUT_MS = 5_000/);
 assert.match(verifierSource, /const DEFAULT_MAX_BYTES = 64 \* 1024/);
 assert.match(verifierSource, /const MAX_RESOLVED_ADDRESSES = 16/);
+assert.match(verifierSource, /PUBLIC_ROUTE_FALLBACK_DNS_SERVERS = \["1\.1\.1\.1", "8\.8\.8\.8"\]/);
+assert.match(verifierSource, /resolver\.setServers\(\[\.\.\.servers\]\)/);
+assert.match(verifierSource, /Promise\.allSettled/);
 assert.match(verifierSource, /normalizeVerificationHostname/);
 assert.match(verifierSource, /const literalFamily = isIP\(normalizedHostname\)/);
 assert.match(verifierSource, /parsed\.range\(\) === "unicast"/);
@@ -61,6 +64,15 @@ class FakeResolver implements PublicRouteResolver {
   async resolve(hostname: string): Promise<PublicRouteResolvedAddress[]> {
     this.calls.push(hostname);
     return this.addresses;
+  }
+}
+
+class ThrowingResolver implements PublicRouteResolver {
+  calls: string[] = [];
+
+  async resolve(hostname: string): Promise<PublicRouteResolvedAddress[]> {
+    this.calls.push(hostname);
+    throw new Error("dns failed");
   }
 }
 
@@ -140,6 +152,7 @@ function successResponses(): PublicRouteHttpResponse[] {
     "169.254.1.1",
     "100.64.0.1",
     "192.0.2.1",
+    "198.18.37.57",
     "::1",
     "fc00::1",
     "fe80::1"
@@ -149,13 +162,66 @@ function successResponses(): PublicRouteHttpResponse[] {
 }
 
 {
-  const resolver = new NodePublicRouteResolver();
-  assert.deepEqual(await resolver.resolve("93.184.216.34"), [
+  const systemResolver = new FakeResolver([{ address: "93.184.216.34", family: 4 }]);
+  const publicResolver = new FakeResolver([{ address: "104.16.0.1", family: 4 }]);
+  const resolver = new NodePublicRouteResolver({ systemResolver, publicResolver });
+  assert.deepEqual(await resolver.resolve("candidate.example.com"), [
     { address: "93.184.216.34", family: 4 }
+  ]);
+  assert.deepEqual(systemResolver.calls, ["candidate.example.com"]);
+  assert.deepEqual(publicResolver.calls, [], "all-public system DNS must not trigger public fallback");
+}
+
+{
+  const systemResolver = new FakeResolver([{ address: "127.0.0.1", family: 4 }]);
+  const publicResolver = new FakeResolver([
+    { address: "104.16.0.1", family: 4 },
+    { address: "2606:4700::6810:1", family: 6 }
+  ]);
+  const resolver = new NodePublicRouteResolver({ systemResolver, publicResolver });
+  assert.deepEqual(await resolver.resolve("candidate.example.com"), publicResolver.addresses);
+  assert.deepEqual(publicResolver.calls, ["candidate.example.com"]);
+}
+
+{
+  const systemResolver = new FakeResolver([
+    { address: "93.184.216.34", family: 4 },
+    { address: "198.18.37.57", family: 4 }
+  ]);
+  const publicResolver = new FakeResolver([{ address: "104.16.0.1", family: 4 }]);
+  const resolver = new NodePublicRouteResolver({ systemResolver, publicResolver });
+  assert.deepEqual(await resolver.resolve("candidate.example.com"), publicResolver.addresses);
+  assert.deepEqual(publicResolver.calls, ["candidate.example.com"]);
+}
+
+{
+  const systemResolver = new ThrowingResolver();
+  const publicResolver = new FakeResolver([{ address: "104.16.0.1", family: 4 }]);
+  const resolver = new NodePublicRouteResolver({ systemResolver, publicResolver });
+  assert.deepEqual(await resolver.resolve("candidate.example.com"), publicResolver.addresses);
+  assert.deepEqual(systemResolver.calls, ["candidate.example.com"]);
+  assert.deepEqual(publicResolver.calls, ["candidate.example.com"]);
+}
+
+{
+  const systemResolver = new FakeResolver([{ address: "127.0.0.1", family: 4 }]);
+  const publicResolver = new ThrowingResolver();
+  const resolver = new NodePublicRouteResolver({ systemResolver, publicResolver });
+  assert.deepEqual(await resolver.resolve("candidate.example.com"), systemResolver.addresses);
+}
+
+{
+  const systemResolver = new FakeResolver([{ address: "93.184.216.34", family: 4 }]);
+  const publicResolver = new FakeResolver([{ address: "104.16.0.1", family: 4 }]);
+  const resolver = new NodePublicRouteResolver({ systemResolver, publicResolver });
+  assert.deepEqual(await resolver.resolve("127.0.0.1"), [
+    { address: "127.0.0.1", family: 4 }
   ]);
   assert.deepEqual(await resolver.resolve("[2606:4700:4700::1111]"), [
     { address: "2606:4700:4700::1111", family: 6 }
   ]);
+  assert.deepEqual(systemResolver.calls, []);
+  assert.deepEqual(publicResolver.calls, [], "literal IPs must never trigger DNS fallback");
 }
 
 {
@@ -270,6 +336,34 @@ function successResponses(): PublicRouteHttpResponse[] {
   assert.equal(result.candidate, null, "same-origin existing-environment verification must complete the temporary candidate");
   assert.equal(candidateStore.snapshot().candidate, null);
   assert.equal(verificationStore.read()?.id, "verification-canonical-recheck");
+}
+
+{
+  const runtimeDir = tempRuntimeDir();
+  const candidateStore = fixtureCandidateStore(runtimeDir);
+  const verificationStore = new PublicRouteVerificationStore({ runtimeDir });
+  const staged = candidateStore.stage({
+    origin: "https://candidate.example.com",
+    source: "existing-environment"
+  }).candidate!;
+  const resolver = new NodePublicRouteResolver({
+    systemResolver: new FakeResolver([{ address: "127.0.0.1", family: 4 }]),
+    publicResolver: new FakeResolver([{ address: "198.18.37.57", family: 4 }])
+  });
+  const probe = new FakeProbe(successResponses());
+  const verifier = new PublicRouteVerifier({
+    candidateStore,
+    verificationStore,
+    resolver,
+    probe,
+    now: () => "2026-08-18T00:05:30.000Z",
+    createId: () => "verification-fallback-private"
+  });
+
+  const result = await verifier.verify(staged.id);
+  assert.equal(result.verification.status, "failed");
+  assert.equal(result.verification.checks.dns.reason, "non-public-address");
+  assert.equal(probe.calls.length, 0, "public DNS fallback output must still pass public-unicast validation");
 }
 
 {

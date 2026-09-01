@@ -71,8 +71,8 @@ Verifier 消费一个精确的 current candidate ID，并在 Runtime state 目�
 
 网络边界采用 fail-closed 策略：
 
-- 只解析一次 candidate hostname，并检查 DNS 返回的**全部**地址；
-- 未解析到地址、地址数量超过 16，或任一结果不是 public unicast 时直接失败；loopback、private、link-local、CGNAT、reserved、multicast、unique-local 等都被拒绝；
+- 先通过系统 resolver 解析 candidate hostname；当系统解析失败、无结果，或包含任一非公网 / split-DNS / Fake-IP 目标时，改用固定且受限的公共递归 DNS servers（`1.1.1.1` 与 `8.8.8.8`）重新解析，避免公网路由验证被错误固定到本机代理 DNS 视角；
+- 检查最终选定验证答案中的**全部**地址；未解析到地址、地址数量超过 16，或任一结果不是 public unicast 时直接失败；loopback、private、link-local、CGNAT、reserved、benchmark/Fake-IP、multicast、unique-local 等都被拒绝；literal IP candidate 永远不会触发 DNS fallback；
 - HTTPS 连接固定到已经通过检查的解析 IP，同时保留原始 candidate hostname 用于 TLS hostname verification/SNI，防止第二次 DNS 查询把请求改送到其他地址；
 - 保持正常 CA/证书验证（`rejectUnauthorized` 始终启用）；
 - 只允许固定 GET 目标：`/api/health` 与 `/.well-known/oauth-protected-resource/mcp`；
@@ -80,7 +80,7 @@ Verifier 消费一个精确的 current candidate ID，并在 Runtime state 目�
 - 每个请求最多 5 秒、响应正文最多 64 KiB；
 - 只有同时满足预期 ChatCockpit Health contract 与 OAuth protected-resource metadata，Artifact 才能进入 `verified`；两者都必须继续指向实时的 current canonical Runtime origin，通用的“仿 ChatCockpit”响应不能通过 identity verification。
 
-只要 DNS 答案中混入一个非公网地址，就会在任何 HTTPS 请求前失败。Verifier 在持久化 Artifact 前还会重新检查 candidate ID；如果验证过程中 candidate 已被替换，则按 stale 失败且不写入 Artifact。
+只有当系统 resolver 无法给出全公网答案时才使用公共递归 fallback；它不会让 private、loopback、benchmark/Fake-IP 或其他非公网目标获得探测资格。最终选定的验证答案只要混入一个非公网地址，仍会在任何 HTTPS 请求前失败。如果公共 fallback 本身不可用，Verifier 会保留原系统结果/错误并继续 fail-closed，而不是去探测该非公网目标。Verifier 在持久化 Artifact 前还会重新检查 candidate ID；如果验证过程中 candidate 已被替换，则按 stale 失败且不写入 Artifact。
 
 Verification 失败必须保持 canonical origin 不变。重新暂存或丢弃 candidate 后，旧 Artifact 因 candidate ID 不再匹配而不会继续投影为当前验证结果。
 

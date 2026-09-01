@@ -71,8 +71,8 @@ The verifier consumes one exact current candidate ID and produces a private `060
 
 The network boundary is fail-closed:
 
-- resolve the candidate hostname once and inspect **all** returned addresses;
-- reject zero addresses, more than 16 addresses, or any address that is not public unicast, including loopback, private, link-local, carrier-grade NAT, reserved, multicast, and unique-local ranges;
+- resolve the candidate hostname through the system resolver first; when that resolver fails, returns no addresses, or returns any non-public/split-DNS/Fake-IP destination, retry through fixed bounded public recursive DNS servers (`1.1.1.1` and `8.8.8.8`) so public-route verification is not accidentally pinned to a local proxy view;
+- inspect **all** addresses from the selected verification answer and reject zero addresses, more than 16 addresses, or any address that is not public unicast, including loopback, private, link-local, carrier-grade NAT, reserved, benchmark/Fake-IP, multicast, and unique-local ranges; literal IP candidates never use the DNS fallback;
 - pin each HTTPS connection to an already-approved resolved IP while preserving the original candidate hostname for TLS hostname verification/SNI, preventing a second DNS lookup from changing the destination;
 - require normal CA/certificate verification (`rejectUnauthorized` remains enabled);
 - use fixed GET targets only: `/api/health` and `/.well-known/oauth-protected-resource/mcp`;
@@ -80,7 +80,7 @@ The network boundary is fail-closed:
 - cap each request at 5 seconds and each response body at 64 KiB;
 - require the expected ChatCockpit Health contract and OAuth protected-resource metadata before the artifact can be `verified`; both must still reference the live current canonical Runtime origin, so a generic look-alike response does not satisfy identity verification.
 
-A mixed DNS answer containing even one non-public destination fails before any HTTPS request. The verifier re-checks the candidate ID immediately before persistence; if the candidate was replaced while verification ran, the operation fails as stale and writes no artifact.
+The public recursive fallback is used only when the system resolver cannot provide an all-public answer; it does not make any private, loopback, benchmark/Fake-IP, or otherwise non-public destination eligible for probing. A selected verification answer containing even one non-public destination still fails before any HTTPS request. If public fallback itself is unavailable, the verifier preserves the fail-closed system result/error instead of probing it. The verifier re-checks the candidate ID immediately before persistence; if the candidate was replaced while verification ran, the operation fails as stale and writes no artifact.
 
 Verification failure leaves the canonical origin untouched. Restaging or discarding a candidate makes older artifacts inapplicable because artifact projection requires the exact current candidate ID.
 
