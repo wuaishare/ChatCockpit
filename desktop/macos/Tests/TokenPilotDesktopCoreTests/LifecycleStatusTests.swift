@@ -10,8 +10,8 @@ struct LifecycleStatusTests {
         control plane: running (pid 123)
         runner: registered
         process supervisor: ready
-        UI: http://127.0.0.1:4318/ui
-        next action: open UI or run npm run doctor:runtime
+        Cockpit: http://127.0.0.1:4318/ui
+        next action: open Cockpit or run npm run doctor:runtime
         """
 
         let status = LifecycleStatusParser.parse(output)
@@ -19,6 +19,20 @@ struct LifecycleStatusTests {
         #expect(status.controlPlane == .running)
         #expect(status.runner == .running)
         #expect(status.processSupervisor == .ready)
+        #expect(status.uiURL == URL(string: "http://127.0.0.1:4318/ui"))
+    }
+
+    @Test("legacy UI lifecycle label remains readable")
+    func parsesLegacyUiLabel() {
+        let output = """
+        control plane: running (pid 123)
+        runner: registered
+        process supervisor: ready
+        UI: http://127.0.0.1:4318/ui
+        """
+
+        let status = LifecycleStatusParser.parse(output)
+
         #expect(status.uiURL == URL(string: "http://127.0.0.1:4318/ui"))
     }
 

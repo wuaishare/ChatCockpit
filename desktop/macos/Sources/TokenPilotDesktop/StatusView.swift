@@ -96,6 +96,7 @@ struct MainAppView: View {
         .task {
             await model.refresh()
             await model.refreshSecurity()
+            await model.monitorRuntimeStatus()
         }
     }
 }

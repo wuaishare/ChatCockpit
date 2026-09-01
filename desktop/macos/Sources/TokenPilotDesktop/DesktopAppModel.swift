@@ -50,6 +50,7 @@ final class DesktopAppModel: ObservableObject {
     @Published private(set) var deployedRuntime: DeployedRuntime?
     @Published private(set) var runtimeConflict: PackagedRuntimeConflict?
     @Published private(set) var isRefreshing = false
+    private var isRuntimeStatusRefreshing = false
     @Published private(set) var isCheckingForUpdates = false
     @Published private(set) var updateCheckResult: MacOSUpdateCheckResult?
     @Published private(set) var operatorSecurityStatus: DesktopOperatorStatus?
@@ -340,6 +341,37 @@ final class DesktopAppModel: ObservableObject {
             runtimeConflict = nil
             operationalSummary = nil
             lastUserMessage = userMessage(for: error)
+        }
+    }
+
+    func monitorRuntimeStatus() async {
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(for: .seconds(5))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await refreshRuntimeStatus()
+        }
+    }
+
+    private func refreshRuntimeStatus() async {
+        guard !isRefreshing, !isRuntimeStatusRefreshing else { return }
+        isRuntimeStatusRefreshing = true
+        defer { isRuntimeStatusRefreshing = false }
+
+        do {
+            guard let context = try await currentContext() else { return }
+            let refreshedSnapshot = await runtimeController.snapshot(context: context)
+            snapshot = refreshedSnapshot
+            runtimeConflict = await conflictDetector.detect(
+                context: context,
+                configuration: refreshedSnapshot.configuration,
+                lifecycle: refreshedSnapshot.lifecycle
+            )
+        } catch {
+            // Automatic observation is deliberately quiet. Explicit refresh/actions still surface errors.
         }
     }
 

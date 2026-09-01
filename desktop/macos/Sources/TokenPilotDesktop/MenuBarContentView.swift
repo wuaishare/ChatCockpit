@@ -26,6 +26,7 @@ struct MenuBarContentView: View {
         .frame(width: 370)
         .task {
             await model.refresh()
+            await model.monitorRuntimeStatus()
         }
     }
 

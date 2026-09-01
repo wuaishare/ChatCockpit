@@ -151,9 +151,17 @@ public enum LifecycleStatusParser {
                 continue
             }
 
-            if line.hasPrefix("UI: ") {
-                let value = String(line.dropFirst("UI: ".count)).trimmingCharacters(in: .whitespaces)
-                if value.lowercased() != "unavailable" {
+            let cockpitPrefix: String?
+            if line.hasPrefix("Cockpit: ") {
+                cockpitPrefix = "Cockpit: "
+            } else if line.hasPrefix("UI: ") {
+                cockpitPrefix = "UI: "
+            } else {
+                cockpitPrefix = nil
+            }
+            if let cockpitPrefix {
+                let value = String(line.dropFirst(cockpitPrefix.count)).trimmingCharacters(in: .whitespaces)
+                if value.lowercased() != "unavailable" && value.lowercased() != "unavailable until start" {
                     uiURL = URL(string: value)
                 }
             }
