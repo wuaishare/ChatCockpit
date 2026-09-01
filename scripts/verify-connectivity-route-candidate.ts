@@ -79,10 +79,19 @@ async function main(): Promise<void> {
   }
 
   assert.throws(
-    () => store.stage({ origin: "https://current-v2.example.com", source: "existing-environment" }),
+    () => store.stage({ origin: "https://current-v2.example.com", source: "cloudflare-tunnel" }),
     (error: unknown) =>
       error instanceof PublicRouteCandidateValidationError && error.code === "candidate-already-canonical"
   );
+
+  const canonicalReverification = store.stage({
+    origin: "https://current-v2.example.com",
+    source: "existing-environment"
+  });
+  assert.equal(canonicalReverification.candidate?.id, "candidate-2");
+  assert.equal(canonicalReverification.candidate?.origin, "https://current-v2.example.com");
+  assert.equal(canonicalReverification.candidate?.source, "existing-environment");
+  assert.equal(canonicalReverification.candidate?.status, "staged-unverified");
 
   assert.throws(
     () => store.stage({ origin: "https://another.example.com", source: "unknown" as never }),
@@ -95,7 +104,7 @@ async function main(): Promise<void> {
     origin: "https://replacement.example.com",
     source: "existing-environment"
   });
-  assert.equal(replaced.candidate?.id, "candidate-2", "restaging must create a fresh candidate identity");
+  assert.equal(replaced.candidate?.id, "candidate-3", "restaging must create a fresh candidate identity");
   assert.equal(replaced.candidate?.origin, "https://replacement.example.com");
   assert.equal(replaced.candidate?.status, "staged-unverified");
 

@@ -253,6 +253,30 @@ function successResponses(): PublicRouteHttpResponse[] {
   const candidateStore = fixtureCandidateStore(runtimeDir);
   const verificationStore = new PublicRouteVerificationStore({ runtimeDir });
   const staged = candidateStore.stage({
+    origin: "https://current.example.com",
+    source: "existing-environment"
+  }).candidate!;
+  const verifier = new PublicRouteVerifier({
+    candidateStore,
+    verificationStore,
+    resolver: new FakeResolver([{ address: "93.184.216.34", family: 4 }]),
+    probe: new FakeProbe(successResponses()),
+    now: () => "2026-08-18T00:07:30.000Z",
+    createId: () => "verification-canonical-recheck"
+  });
+  const result = await verifier.verify(staged.id);
+  assert.equal(result.verification.status, "verified");
+  assert.equal(result.verification.candidateOrigin, "https://current.example.com");
+  assert.equal(result.candidate, null, "same-origin existing-environment verification must complete the temporary candidate");
+  assert.equal(candidateStore.snapshot().candidate, null);
+  assert.equal(verificationStore.read()?.id, "verification-canonical-recheck");
+}
+
+{
+  const runtimeDir = tempRuntimeDir();
+  const candidateStore = fixtureCandidateStore(runtimeDir);
+  const verificationStore = new PublicRouteVerificationStore({ runtimeDir });
+  const staged = candidateStore.stage({
     origin: "https://candidate.example.com",
     source: "cloudflare-tunnel"
   }).candidate!;

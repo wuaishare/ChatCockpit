@@ -210,7 +210,6 @@ export class PublicRouteMachineBootstrapExecutor {
     }
 
     this.candidateStore.clear();
-    this.verificationStore.clear();
     return this.result(proof, {
       outcome: "succeeded",
       canonicalOrigin: proof.candidateOrigin,

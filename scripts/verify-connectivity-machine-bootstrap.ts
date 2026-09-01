@@ -38,6 +38,27 @@ function verifiedRouteArtifact(candidateId: string, origin: string): PublicRoute
   };
 }
 
+function successfulPostVerificationArtifact(
+  candidateId: string,
+  origin: string
+): PublicRouteVerificationArtifact {
+  const ok = { ok: true as const, reason: null };
+  return {
+    id: "post-bootstrap-verification",
+    candidateId,
+    candidateOrigin: origin,
+    status: "verified",
+    checkedAt: "2026-08-18T03:02:30.000Z",
+    checks: {
+      dns: { ...ok, publicAddressCount: 1 },
+      tls: ok,
+      reachability: { ...ok, statusCode: 200 },
+      identity: ok,
+      oauth: { ...ok, statusCode: 200 }
+    }
+  };
+}
+
 function fixture(runtimeRunning: boolean) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-machine-bootstrap-"));
   const runtimeDir = path.join(root, "runtime");
@@ -124,6 +145,9 @@ function fixture(runtimeRunning: boolean) {
     async verify(input) {
       assert.equal(input.candidateId, candidate.id);
       assert.equal(input.expectedCanonicalOrigin, candidate.origin);
+      if (postStatus === "verified") {
+        verificationStore.write(successfulPostVerificationArtifact(candidate.id, candidate.origin));
+      }
       return {
         status: postStatus,
         verificationId: postStatus === "verified"
@@ -179,6 +203,9 @@ function fixture(runtimeRunning: boolean) {
   assert.equal(f.environmentStore.readPublicBaseUrl(), "https://candidate.example.com");
   assert.equal(f.proofStore.snapshot().proof, null);
   assert.equal(f.candidateStore.snapshot().candidate, null);
+  assert.equal(f.verificationStore.read()?.id, "post-bootstrap-verification");
+  assert.equal(f.verificationStore.read()?.status, "verified");
+  assert.equal(f.verificationStore.read()?.candidateOrigin, "https://candidate.example.com");
   assert.match(fs.readFileSync(f.envPath, "utf8"), /CHATCOCKPIT_RUNNER_INTERVAL=3/);
   assert.equal(fs.statSync(f.envPath).mode & 0o777, 0o600);
 }

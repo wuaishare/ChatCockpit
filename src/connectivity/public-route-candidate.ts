@@ -216,7 +216,7 @@ export class PublicRouteCandidateStore {
     const origin = normalizeCandidateOrigin(input.origin);
     const source = requireSource(input.source);
     const canonical = normalizeCanonicalForComparison(this.canonicalOrigin());
-    if (canonical && canonical === origin) {
+    if (canonical && canonical === origin && source !== "existing-environment") {
       throw new PublicRouteCandidateValidationError(
         "candidate-already-canonical",
         "Candidate Public Route already matches the canonical Runtime origin"
