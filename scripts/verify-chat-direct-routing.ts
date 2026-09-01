@@ -1176,6 +1176,31 @@ async function verifyChatDirectRouting(): Promise<void> {
     adapter.completeManagedProcess(nativeGitFetch.processId, "git-fetch-finished");
     await new Promise<void>((resolve) => setImmediate(resolve));
 
+    const nativeTypecheck = await service.workspaceExec(context, {
+      repoId: "primary",
+      command: "npm",
+      args: ["run", "typecheck"],
+      networkAccess: false
+    });
+    assert.equal(nativeTypecheck.execution.executor, "codex-app-server-standalone");
+    assert.equal(
+      repositories.coreWriterAuthorities.getActive(workspace.id),
+      null,
+      "read-only typecheck must not acquire Workspace writer authority"
+    );
+    const nativeTypecheckCall = adapter.calls.find(
+      (call) =>
+        call.method === "command/exec:managed" &&
+        typeof call.payload === "object" &&
+        call.payload !== null &&
+        (call.payload as { processId?: string }).processId === nativeTypecheck.processId
+    );
+    assert.ok(nativeTypecheckCall);
+    assert.equal((nativeTypecheckCall.payload as { readOnly?: boolean }).readOnly, true);
+    assert.equal((nativeTypecheckCall.payload as { networkAccess?: boolean }).networkAccess, false);
+    adapter.completeManagedProcess(nativeTypecheck.processId, "typecheck-finished");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
     const managed = await service.workspaceExec(context, {
       repoId: "primary",
       command: "npm",

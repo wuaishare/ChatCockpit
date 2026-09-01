@@ -87,6 +87,20 @@ const NATIVE_WORKSPACE_READ_ONLY_COMMANDS = new Set([
   "which"
 ]);
 
+const NATIVE_WORKSPACE_READ_ONLY_NPM_SCRIPT = /^typecheck(?::[A-Za-z0-9._-]+)*$/;
+
+function isNativeWorkspaceReadOnlyTypecheck(command: string, args: string[]): boolean {
+  if (command === "tsc") {
+    return args.includes("--noEmit");
+  }
+  return (
+    command === "npm" &&
+    args.length === 2 &&
+    args[0] === "run" &&
+    NATIVE_WORKSPACE_READ_ONLY_NPM_SCRIPT.test(args[1] ?? "")
+  );
+}
+
 const NATIVE_WORKSPACE_PROJECT_COMMANDS = new Set(
   Object.keys(WORKSPACE_COMMAND_WHITELIST).filter((command) => command !== "git")
 );
@@ -374,6 +388,15 @@ export function evaluateNativeWorkspaceCommand(
   }
 
   if (workspaceArbitraryCommandsAllowed(profile)) {
+    if (isNativeWorkspaceReadOnlyTypecheck(command, safeArgs)) {
+      return {
+        command,
+        args: safeArgs,
+        effect: "read",
+        commandPath: false,
+        projectPathArgIndexes: []
+      };
+    }
     if (command === "npm" && safeArgs[0] === "audit") {
       assertSafeNpmAuditArgs(safeArgs);
       return {
@@ -424,6 +447,15 @@ export function evaluateNativeWorkspaceCommand(
     };
   }
   assertNativeWorkspaceProjectCodeAllowed(command);
+  if (isNativeWorkspaceReadOnlyTypecheck(command, safeArgs)) {
+    return {
+      command,
+      args: safeArgs,
+      effect: "read",
+      commandPath: false,
+      projectPathArgIndexes: []
+    };
+  }
   if (command === "npm" && safeArgs[0] === "audit") {
     assertSafeNpmAuditArgs(safeArgs);
     return {

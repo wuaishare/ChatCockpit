@@ -58,6 +58,19 @@ assert.equal(
   "find supports -exec/-delete and therefore stays on the governed write path"
 );
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["test"]).effect, "write");
+assert.equal(evaluateNativeWorkspaceCommand("npm", ["run", "typecheck"]).effect, "read");
+assert.equal(evaluateNativeWorkspaceCommand("npm", ["run", "typecheck:web"]).effect, "read");
+assert.equal(
+  evaluateNativeWorkspaceCommand("npm", ["run", "typecheck", "--", "--watch"]).effect,
+  "write",
+  "typecheck scripts are read-only only for the exact bounded npm run form"
+);
+assert.equal(evaluateNativeWorkspaceCommand("tsc", ["--noEmit", "-p", "tsconfig.json"]).effect, "read");
+assert.equal(
+  evaluateNativeWorkspaceCommand("tsc", ["--noEmitOnError", "-p", "tsconfig.json"]).effect,
+  "write",
+  "--noEmitOnError can still emit successful outputs and must not receive read-only authority"
+);
 assert.equal(evaluateNativeWorkspaceCommand("npm", ["audit"]).effect, "read");
 assert.equal(
   evaluateNativeWorkspaceCommand("npm", ["audit", "--audit-level=moderate"]).effect,
@@ -252,6 +265,20 @@ try {
     "scripts/inside.mjs",
     "generic development execution keeps CLI argv stable after containment preflight"
   );
+  const preparedTypecheck = prepareWorkspaceExecCommand(paths, {
+    repoId: "primary",
+    command: "npm",
+    args: ["run", "typecheck"]
+  });
+  assert.equal(preparedTypecheck.readOnly, true);
+  assert.equal(preparedTypecheck.commandIdentity, "npm");
+  const preparedTsc = prepareWorkspaceExecCommand(paths, {
+    repoId: "primary",
+    command: "tsc",
+    args: ["--noEmit", "-p", "tsconfig.json"]
+  });
+  assert.equal(preparedTsc.readOnly, true);
+  assert.equal(preparedTsc.commandIdentity, "tsc");
   const preparedPhp = prepareWorkspaceExecCommand(paths, {
     repoId: "primary",
     command: "php",
