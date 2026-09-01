@@ -61,7 +61,7 @@ export CHATCOCKPIT_EXPOSED=false
 
 pushd "${extract_dir}" >/dev/null
 npm ci
-npm audit --audit-level=moderate
+bash ./scripts/npm-audit-with-retry.sh --audit-level=moderate
 CHATCOCKPIT_BUILD_REVISION="${source_revision}" CHATCOCKPIT_BUILD_SOURCE_DIRTY=false npm run build
 CHATCOCKPIT_EXPECTED_BUILD_REVISION="${source_revision}" npm run verify:build-provenance:certified
 npm run verify:web:safety
