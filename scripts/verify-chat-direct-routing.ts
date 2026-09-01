@@ -766,6 +766,30 @@ async function verifyChatDirectRouting(): Promise<void> {
       now: "2026-08-06T04:00:07.000Z"
     });
 
+    const interruptedRuntimeAuthority = repositories.coreWriterAuthorities.acquire({
+      workspaceId: workspace.id,
+      holderRequestId: "interrupted-runtime-core",
+      actorType: "remote-mcp",
+      actorId: "restart-fixture",
+      authorizationGrantId: "grant_interrupted_runtime_core",
+      expiresAt: "2026-08-06T04:30:00.000Z",
+      now: "2026-08-06T04:00:08.000Z"
+    });
+    assert.equal(
+      repositories.coreWriterAuthorities.reconcileInterruptedRuntime(
+        "2026-08-06T04:00:09.000Z"
+      ),
+      1
+    );
+    const reconciledInterruptedRuntimeAuthority =
+      repositories.coreWriterAuthorities.get(interruptedRuntimeAuthority.id);
+    assert.equal(reconciledInterruptedRuntimeAuthority.status, "expired");
+    assert.equal(
+      reconciledInterruptedRuntimeAuthority.releasedAt,
+      "2026-08-06T04:00:09.000Z"
+    );
+    assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
+
     const lease = repositories.leases.acquire({
       id: "lease_chat_direct",
       workspaceId: workspace.id,

@@ -656,6 +656,14 @@ export function buildServer(
   const continuityServices = buildContinuityServices(paths, continuityDatabase, {
     activityProvenance: operationalActivityProvenance
   });
+  const interruptedCoreWriterAuthorities =
+    continuityServices.repositories.coreWriterAuthorities.reconcileInterruptedRuntime();
+  if (interruptedCoreWriterAuthorities > 0) {
+    app.log.info(
+      { count: interruptedCoreWriterAuthorities },
+      "Recovered Core writer authorities orphaned by a previous Runtime instance"
+    );
+  }
   const operationalActivityControlEvents = new OperationalActivityControlEventRepository(
     continuityDatabase
   );

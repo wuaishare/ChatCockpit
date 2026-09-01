@@ -216,4 +216,16 @@ export class CoreWriterAuthorityRepository {
       .run(now, now);
     return Number(result.changes);
   }
+
+  reconcileInterruptedRuntime(now = new Date().toISOString()): number {
+    const reconciledAt = nowIso(now);
+    const result = this.database.sqlite
+      .prepare(`
+        UPDATE core_writer_authorities
+        SET status = 'expired', released_at = ?, revision = revision + 1
+        WHERE status = 'active'
+      `)
+      .run(reconciledAt);
+    return Number(result.changes);
+  }
 }

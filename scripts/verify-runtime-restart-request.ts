@@ -18,6 +18,10 @@ const cliEntry = fs.readFileSync(
   path.join(process.cwd(), "src", "cli", "index.ts"),
   "utf8"
 );
+const serverApp = fs.readFileSync(
+  path.join(process.cwd(), "src", "server", "app.ts"),
+  "utf8"
+);
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
 ) as { scripts?: Record<string, string> };
@@ -34,6 +38,12 @@ assert.equal(
   "node dist/cli/index.js runtime-restart --wait"
 );
 assert.doesNotMatch(packageJson.scripts?.["mvp:restart"] ?? "", /tsx|request-runtime-restart/);
+const interruptedAuthorityRecoveryIndex = serverApp.indexOf(
+  "coreWriterAuthorities.reconcileInterruptedRuntime()"
+);
+const chatDirectConstructionIndex = serverApp.indexOf("new ChatDirectService(");
+assert.ok(interruptedAuthorityRecoveryIndex >= 0);
+assert.ok(chatDirectConstructionIndex > interruptedAuthorityRecoveryIndex);
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-runtime-restart-request-"));
 const paths = buildFixturePaths(root);
