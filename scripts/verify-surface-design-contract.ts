@@ -18,6 +18,11 @@ const contract = read("docs/architecture/surface-design-contract.md");
 const zhContract = read("docs/zh-CN/architecture/surface-design-contract.md");
 const productPrinciples = read("docs/governance/product-principles.md");
 const zhProductPrinciples = read("docs/zh-CN/governance/product-principles.md");
+const adr006 = read("docs/architecture/adr-006-unified-surfaces-and-host-capabilities.md");
+const actionAvailabilityService = read("src/application/product-action-availability-service.ts");
+const actionAvailabilityRoutes = read("src/server/product-action-availability-routes.ts");
+const projectCenter = read("web/src/components/projects/ProjectCenterView.tsx");
+const projectCockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
 const webDesignSystem = read("docs/architecture/web-ui-design-system.md");
 const macosDeployment = read("docs/deployment/macos-desktop.md");
 const nativeStatus = read("desktop/macos/Sources/TokenPilotDesktop/NativeStatusComponents.swift");
@@ -33,15 +38,16 @@ assertIncludesAll(
   contract,
   [
     "Menu Bar — Operational HUD",
-    "macOS App — Local Runtime Manager + Secure Machine Gateway",
-    "Web Cockpit — Operator Workspace",
+    "macOS App — Full Cockpit Host + Native Capability Provider",
+    "Web Cockpit — Full Cockpit Browser Host",
     "Runtime — Single Source of Truth and Execution Layer",
-    "Read projections may cross surfaces; mutation authority does not.",
-    "Bridge instead of duplicate.",
+    "Surface is presentation, not authority.",
+    "Core Product Actions remain recognizable across Hosts.",
+    "Host-only preferences stay host-only.",
+    "Resolve before execute.",
+    "Do not invent a bridge.",
     "Secrets stay machine-local.",
-    "No Web lifecycle takeover.",
-    "No workflow clone in the App.",
-    "No WKWebView shortcut.",
+    "Share workflow truth, not necessarily renderer technology.",
     "Canonical console routing applies everywhere.",
     "Unavailable is not zero.",
     "Connectivity is provider-neutral.",
@@ -64,15 +70,16 @@ assertIncludesAll(
   zhContract,
   [
     "Menu Bar — Operational HUD",
-    "macOS App — Local Runtime Manager + Secure Machine Gateway",
-    "Web Cockpit — Operator Workspace",
+    "macOS App — Full Cockpit Host + Native Capability Provider",
+    "Web Cockpit — Full Cockpit Browser Host",
     "Runtime — 唯一业务真源与执行层",
-    "只读投影可以跨 Surface，Mutation 权限不能跨。",
-    "优先 Bridge，不重复实现。",
+    "Surface 是呈现层，不是 Authority。",
+    "核心 Product Action 跨 Host 保持同一心智。",
+    "Host-only Preference 保持 Host-only。",
+    "执行前先解析。",
+    "不得编造 Bridge。",
     "秘密保持 machine-local。",
-    "Web 不接管本机生命周期。",
-    "App 不复制工作流工作台。",
-    "不使用 WKWebView 套壳解决一致性。",
+    "共享工作流真相，不强绑 Renderer 技术。",
     "Unavailable 不是 0。",
     "Connectivity 必须 Provider-neutral。",
     "默认不安装任何 Provider。",
@@ -119,25 +126,58 @@ assertIncludesAll(
 );
 
 const requiredCapabilityRows = [
-  "| Overall Runtime health | Observe | Observe | Observe | Runtime |",
-  "| Start / stop / restart local Runtime | Act | Act | Observe | Machine |",
-  "| Listener / port / console path / Trusted LAN | Observe | Act | Observe | Machine |",
-  "| Machine API token plaintext / rotation | None | Act | Observe configured-state only | Machine |",
-  "| Local Web Owner bootstrap credential | None | Act | None | Machine |",
-  "| Web Owner session / Passkey / password+TOTP authentication | None | Bridge | Act | Operator |",
-  "| Jobs / queue / failures | Observe summary | Observe summary + Bridge | Act | Operator |",
-  "| Approvals | Observe summary | Observe summary + Bridge | Act | Operator |",
-  "| Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |",
-  "| Integrations / ChatGPT OAuth / Passkeys | None | Observe status + Bridge | Act | Operator |",
-  "| Public Endpoint / reachability / TLS / DNS | Observe summary | Observe summary + Bridge | Act | Operator |",
-  "| Connectivity provider selection / domain / route intent | None | Observe status + Bridge | Act | Operator |",
-  "| Connectivity provider install / update / uninstall | None | Act | Bridge | Machine |",
-  "| Connectivity provider machine service lifecycle | Observe summary | Act | Observe | Machine |",
-  "| Connectivity provider credential plaintext | None | Act | None | Machine |",
-  "| Tunnel route health / logs / diagnostics | Observe summary | Observe summary + Bridge | Act | Runtime |",
-  "| App / Runtime update management | Observe status + Bridge | Act | None | Machine |"
+  "| Overall Runtime health | Summary | Full | Full | Runtime truth |",
+  "| Start / stop / restart Runtime | Quick action | Full | Full, target-aware | Machine + target capability |",
+  "| Listener / port / console path / Trusted LAN | Summary | Full | Full when target executor exists | Machine + target capability |",
+  "| Machine API token plaintext / rotation | None | Host-only | Configured-state only | Machine secret authority |",
+  "| Local Web Owner bootstrap credential | None | Host-only | None | Machine secret authority |",
+  "| Web Owner session / Passkey / password+TOTP authentication | None | Full/shared flow | Full | Operator auth |",
+  "| Project catalog / project metadata | Summary | Full | Full | Operator/project authority |",
+  "| Project Root / Primary Root / Execution Workspace management | None | Full | Full, target-aware | Machine filesystem + target capability |",
+  "| Jobs / queue / failures | Summary | Full | Full | Operator/governance |",
+  "| Approvals | Summary | Full | Full | Approval policy |",
+  "| Continuity / Tasks / Sessions / Handoffs / Evidence | Open / summary when useful | Full | Full | Operator/governance |",
+  "| Integrations / ChatGPT OAuth / Passkeys | None | Full | Full | Operator auth/integration policy |",
+  "| Public Endpoint / reachability / TLS / DNS | Summary | Full | Full | Runtime + network truth |",
+  "| Connectivity provider install / update / uninstall | None | Full | Full availability, target-aware | Machine + target capability |",
+  "| Connectivity provider credential plaintext | None | Host-only | None | Machine secret authority |",
+  "| Desktop app update / Launch at Login / Menu Bar preferences | Host-only | Host-only | None | Desktop Host |",
+  "| Audit and workflow history | None | Full | Full | Operator/governance |"
 ];
 assertIncludesAll(contract, requiredCapabilityRows, "Capability Placement Matrix");
+
+assertIncludesAll(
+  adr006,
+  [
+    "One ChatCockpit, Multiple Hosts",
+    "Parity-first, Native-enhanced",
+    "Product Action",
+    "Host Capability Resolution",
+    "Authority / Policy Evaluation",
+    "Execution Target",
+    "requires-local-host",
+    "Device Agent 当前已有 Runtime Lifecycle RPC"
+  ],
+  "ADR-006"
+);
+assert.match(actionAvailabilityService, /audience: "operator"/);
+assert.match(adr006, /Operator audience/);
+assert.match(actionAvailabilityService, /"project\.root\.manage"/);
+assert.match(actionAvailabilityService, /"project\.discovery"/);
+assert.match(actionAvailabilityService, /"runtime\.lifecycle"/);
+assert.match(actionAvailabilityService, /"available-targeted"/);
+assert.match(actionAvailabilityService, /"requires-local-host"/);
+assert.match(actionAvailabilityService, /isRuntimeLifecycleRpcAvailable/);
+assert.match(actionAvailabilityRoutes, /app\.get\("\/api\/product-actions"/);
+assert.match(actionAvailabilityRoutes, /isMachineLocalRequest\(request\)/);
+assert.match(projectCenter, /fetchProductActions/);
+assert.match(projectCenter, /project\.root\.manage/);
+assert.match(projectCenter, /project\.discovery/);
+assert.match(projectCenter, /localProjectAvailable/);
+assert.match(projectCockpit, /fetchProductActions/);
+assert.match(projectCockpit, /rootManagementAvailable/);
+assert.match(projectCockpit, /root\.pathVisibility === "machine-local-owner"/);
+assert.doesNotMatch(projectCockpit, /<code className="project-root-row__path">\{root\.privatePath\}<\/code>/);
 
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
 for (const section of [

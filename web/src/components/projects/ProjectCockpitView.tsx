@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   attachProjectRoot,
   detachProjectRoot,
+  fetchProductActions,
   fetchProject,
   fetchWorkspaceContinuitySnapshot,
   makeProjectRootPrimary,
@@ -39,6 +40,7 @@ import {
 import type {
   ApiProblem,
   ContinuityWorkspaceSnapshot,
+  ProductActionTargetAvailability,
   ProjectDevelopmentObservationStatus,
   ProjectDevelopmentProvider,
   ProjectRegistryDetailResponse,
@@ -92,6 +94,7 @@ export function ProjectCockpitView({
   const copy = getProjectsCopy(locale);
   const { message, modal } = AntApp.useApp();
   const [detail, setDetail] = useState<ProjectRegistryDetailResponse | null>(null);
+  const [projectRootTargets, setProjectRootTargets] = useState<ProductActionTargetAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
@@ -110,8 +113,14 @@ export function ProjectCockpitView({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchProject(projectId);
+      const [response, actionResponse] = await Promise.all([
+        fetchProject(projectId),
+        fetchProductActions().catch(() => null)
+      ]);
       setDetail(response);
+      setProjectRootTargets(
+        actionResponse?.actions.find((action) => action.id === "project.root.manage")?.targets ?? []
+      );
       setSelectedWorkspaceId((current) => {
         if (current && response.workspaces.some((workspace) => workspace.id === current)) {
           return current;
@@ -124,6 +133,7 @@ export function ProjectCockpitView({
       renameForm.setFieldsValue({ displayName: response.project.displayName });
     } catch (loadError) {
       setDetail(null);
+      setProjectRootTargets([]);
       setError(problemMessage(loadError, copy.requestFailed));
     } finally {
       setLoading(false);
@@ -154,8 +164,18 @@ export function ProjectCockpitView({
     void loadSnapshot();
   }, [loadSnapshot]);
 
+  const localProjectRootTarget = projectRootTargets.find((target) => target.locality === "local") ?? null;
+  const rootManagementAvailable = localProjectRootTarget?.availability === "available-local";
+  const rootManagementHint = !localProjectRootTarget
+    ? copy.actionAvailabilityUnknown
+    : localProjectRootTarget.availability === "requires-local-host"
+      ? copy.localHostRequired
+      : localProjectRootTarget.availability === "available-local"
+        ? null
+        : copy.actionUnavailable;
+
   const submitAddRoot = async (values: AddRootValues) => {
-    if (!detail) return;
+    if (!detail || !rootManagementAvailable) return;
     setAddRootLoading(true);
     try {
       await attachProjectRoot(projectId, {
@@ -178,7 +198,7 @@ export function ProjectCockpitView({
   };
 
   const makePrimaryRoot = async (rootId: string) => {
-    if (!detail) return;
+    if (!detail || !rootManagementAvailable) return;
     setRootMutation(rootId);
     try {
       await makeProjectRootPrimary(projectId, rootId, detail.configRevision);
@@ -192,7 +212,7 @@ export function ProjectCockpitView({
   };
 
   const confirmDetachRoot = (rootId: string) => {
-    if (!detail || detail.roots.length <= 1) return;
+    if (!detail || !rootManagementAvailable || detail.roots.length <= 1) return;
     modal.confirm({
       title: copy.detachRootConfirmTitle,
       content: copy.detachRootConfirmDescription,
@@ -366,7 +386,12 @@ export function ProjectCockpitView({
             <Text as="h2" id="project-roots-title">{copy.projectRoots}</Text>
             <Text as="p" type="secondary">{copy.addRootDescription}</Text>
           </div>
-          <Button type="primary" icon={<FolderAddOutlined />} onClick={() => {
+          <Button
+            type="primary"
+            icon={<FolderAddOutlined />}
+            disabled={!rootManagementAvailable}
+            title={!rootManagementAvailable ? rootManagementHint ?? undefined : undefined}
+            onClick={() => {
             addRootForm.resetFields();
             addRootForm.setFieldsValue({
               kind: "git-repository",
@@ -378,6 +403,10 @@ export function ProjectCockpitView({
             {copy.addRoot}
           </Button>
         </header>
+
+        {!rootManagementAvailable && rootManagementHint ? (
+          <Alert type="info" showIcon message={copy.rootManagementUnavailable} description={rootManagementHint} />
+        ) : null}
 
         {detail.roots.length === 0 ? (
           <Empty description={copy.addRootDescription} />
@@ -399,7 +428,9 @@ export function ProjectCockpitView({
                         {root.status === "ready" ? copy.ready : root.status === "missing" ? copy.missing : copy.blocked}
                       </Tag>
                     </div>
-                    <code className="project-root-row__path">{root.privatePath}</code>
+                    <code className="project-root-row__path">
+                      {root.pathVisibility === "machine-local-owner" ? root.privatePath : copy.rootPathHidden}
+                    </code>
                   </div>
 
                   <div className="project-root-row__workspaces">
@@ -424,6 +455,7 @@ export function ProjectCockpitView({
                   <div className="project-root-row__actions">
                     {!root.primary ? (
                       <Button
+                        disabled={!rootManagementAvailable}
                         loading={rootMutation === root.id}
                         onClick={() => void makePrimaryRoot(root.id)}
                       >
@@ -434,7 +466,7 @@ export function ProjectCockpitView({
                       <Button
                         danger
                         icon={<DeleteOutlined />}
-                        disabled={detail.roots.length <= 1}
+                        disabled={!rootManagementAvailable || detail.roots.length <= 1}
                         loading={rootMutation === root.id}
                         onClick={() => confirmDetachRoot(root.id)}
                       >

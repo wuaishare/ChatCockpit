@@ -75,14 +75,18 @@ Development Continuity 仍然是重要且已实现的能力，但不再定义整
 
 这些仍然是实现合同，只是不再承担顶层产品定位。
 
-## 产品 Surface
+## 产品 Host 与 Surface
 
-- **Menu Bar：** 有界 Operational HUD。
-- **macOS App：** Local Runtime Manager + Secure Machine Gateway。
-- **Web Cockpit：** Operator Workspace + Resource Center。
-- **Runtime / Control Plane：** 所有 Surface 共用的真源与执行 Authority。
+ChatCockpit 采用 **One Product, Multiple Hosts**。Browser 与 Desktop 不是领域职责互相割裂的两个产品；它们呈现同一套核心 Cockpit 模型，并通过 Host Capability、Authority/Governance 与明确的 Device/Provider Target 解析真实执行路径。
 
-只读 Projection 可以跨 Surface，共享显示不能自动转移高权限 Mutation Authority。Capability 归属、状态语义与 Bridge 规则继续以 [Surface 设计合同](../architecture/surface-design-contract.md) 为准。
+- **Menu Bar：** Desktop Host 的有界 Operational HUD。
+- **Desktop Host：** 完整 Cockpit + 本机 Runtime 生命周期、安全 Secret、文件系统授权、系统通知、后台驻留与 OS Integration 等 Native Capability。
+- **Browser Host：** 面向 Headless Linux、远程管理、第二设备与免安装访问的完整 Cockpit。
+- **Device Agent Host：** 无完整 GUI 的远程 Machine Executor / Capability Provider，不是另一套产品 UI。
+- **CLI / API：** 基于同一 Application/Governance Contract 的自动化 Host。
+- **Runtime / Control Plane：** 共享真源、Capability Routing、Governance 与 Execution Coordination。
+
+Surface 中出现某个动作并不等于获得 Authority。核心 Product Action 可以同时出现在多个 Host，但真实状态可能是 local、remote-targeted、approval-gated、unsupported 或 unavailable；纯 Host Preference 则保留在对应 Host。Capability 放置与状态语义以 [Surface 设计合同](../architecture/surface-design-contract.md) 和 [ADR-006](../../architecture/adr-006-unified-surfaces-and-host-capabilities.md) 为准。
 
 ## 明确非目标
 

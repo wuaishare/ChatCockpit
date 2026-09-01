@@ -2,7 +2,7 @@
 
 ChatCockpit Desktop is a native SwiftUI operator shell around the existing ChatCockpit Node control plane. Phase 2 adds a self-contained packaged runtime while keeping the Node/TypeScript Control Plane, Runner, Process Supervisor, Web Cockpit, MCP, OAuth, Continuity, Codex, approvals, and Resource Center as the single implementation of those product capabilities.
 
-The native App is the **Local Runtime Manager + Secure Machine Gateway** defined by the [Surface Design Contract](../architecture/surface-design-contract.md). It owns machine-local privilege and bridges data-heavy Operator work to Web Cockpit instead of duplicating the Web workbench.
+The native App is a **Full Cockpit Host + Native Capability Provider** under the [Surface Design Contract](../architecture/surface-design-contract.md) and ADR-006. It presents the same core ChatCockpit product model as Browser while adding machine-local capabilities such as Runtime lifecycle, filesystem authorization, secure local secrets, Menu Bar presence, notifications, and OS integration. Surface placement does not itself grant authority; privileged actions remain governed by Host capability, policy, approval, and execution target.
 
 ## Current Phase 2 Boundary
 
@@ -17,7 +17,7 @@ Packaged Mode is the normal self-contained desktop path:
 - first use deploys the embedded payload into a versioned runtime under `~/Library/Application Support/ChatCockpit/runtimes/`;
 - writable ChatCockpit state lives separately under `~/Library/Application Support/ChatCockpit/state/`;
 - local private configuration lives under `~/Library/Application Support/ChatCockpit/config/`;
-- the operator selects one **Primary Workspace** for Packaged Mode bootstrap and may authorize additional project workspaces with stable repository IDs;
+- the operator manages **Projects** with one Primary Root each; Git Project Roots can provide stable-ID **Execution Workspaces**, and Packaged Mode selects a ready Execution Workspace for runtime bootstrap without conflating it with the Project's Primary Root;
 - the runtime directory is never treated as the user workspace;
 - starting ChatCockpit does not require a system `node` or `npm` executable;
 - running the packaged app does not require a ChatCockpit source checkout.
@@ -54,11 +54,11 @@ ChatCockpit.app
 ├── state/                                      writable local runtime state
 └── config/                                     local private configuration
 
-<primary project>/                              primary ChatCockpit workspace
-<additional authorized projects>/               optional additional workspaces
+<project root A>/                              Project Root (may or may not be Git)
+<project root B>/                              optional additional Project Root
 ```
 
-The deployed runtime and Application Support state are not automatically added to the workspace allowlist. Packaged workspace governance is persisted in the existing private `config/config.json` using `defaultRepoId`, `workspaceAllowlist`, and `repoMappings`; Desktop does not create a second workspace registry.
+The deployed runtime and Application Support state are never Project Roots and are not automatically authorized for execution. Packaged project governance is persisted in private `config/config.json` using canonical schema v3: `projects + projectRoots + executionWorkspaces`. A Project owns one Primary Root; only executable Git roots create Execution Workspaces. Compatibility projections such as `defaultRepoId` / `repoMappings` may still be read during migration but are not the canonical persistence model. Desktop and Runtime consume the same registry rather than maintaining a second workspace database.
 
 ## Bundled Node supply-chain contract
 
@@ -123,9 +123,9 @@ Open the locally built app:
 open dist/macos/ChatCockpit.app
 ```
 
-When a valid embedded runtime payload is present, Packaged Mode is available. Choose the **Primary Workspace**, which is the default project used to bootstrap Packaged Mode. Settings then exposes a **Workspaces** manager where additional project directories can be authorized, promoted to Primary, or removed from ChatCockpit without deleting project files.
+When a valid embedded runtime payload is present, Packaged Mode is available. The App's **Projects** surface is the machine-authority entry for creating a Project from a local folder, attaching additional Project Roots, changing the **Primary Root**, and removing an attachment without deleting files. A non-Git Project Root remains a valid Project root but does not pretend to be an executable checkout.
 
-Each authorized workspace has a stable local `repoId`. Exactly one mapping is primary at a time; additional mappings remain available to ChatCockpit operations. Adding/removing workspaces never starts, stops, or restarts Runtime automatically. Changing Primary updates canonical configuration immediately, while already-running services adopt the new bootstrap workspace only after an explicit restart.
+Git Project Roots can own stable local `repoId` **Execution Workspaces**. The Project's Primary Root and the Runtime's selected/default Execution Workspace are related but distinct concepts: changing the Primary Root does not silently rewrite a still-valid execution selection, and a non-Git Primary Root cannot become an Execution Workspace. Root authorization changes never start, stop, or restart Runtime automatically; already-running services change lifecycle state only after an explicit operator action.
 
 The app then verifies and atomically deploys the embedded runtime into Application Support. A failed or corrupt new deployment does not replace a previously valid deployed runtime.
 
@@ -199,7 +199,7 @@ The helper manages:
 - `com.wuaishare.chatcockpit.runner`;
 - `com.wuaishare.chatcockpit.process-supervisor`.
 
-Packaged Mode passes explicit install root, state root, primary workspace, bundled Node path, and distribution mode to this lifecycle contract. LaunchAgents use the bundled Node absolute path rather than relying on `command -v node`.
+Packaged Mode passes explicit install root, state root, the selected bootstrap Execution Workspace, bundled Node path, and distribution mode to this lifecycle contract. LaunchAgents use the bundled Node absolute path rather than relying on `command -v node`.
 
 Normal restart continues to preserve the existing Process Supervisor generation semantics.
 

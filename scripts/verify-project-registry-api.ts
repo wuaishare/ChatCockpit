@@ -184,6 +184,49 @@ async function main(): Promise<void> {
     assert.match(loginBody.csrfToken, /^[A-Za-z0-9_-]{43}$/);
 
     const ownerHeaders = { cookie };
+
+    const anonymousActions = await fetch(`${server.baseUrl}/api/product-actions`);
+    assert.equal(anonymousActions.status, 401);
+    assert.match(await anonymousActions.text(), /UNAUTHORIZED/);
+
+    const localActionsResponse = await fetch(`${server.baseUrl}/api/product-actions`, {
+      headers: ownerHeaders
+    });
+    assert.equal(localActionsResponse.status, 200);
+    const localActions = (await localActionsResponse.json()) as {
+      schemaVersion: 1;
+      audience: "operator";
+      actions: Array<{
+        id: string;
+        targets: Array<{ locality: string; availability: string; executionMode: string }>;
+      }>;
+    };
+    assert.equal(localActions.schemaVersion, 1);
+    assert.equal(localActions.audience, "operator");
+    assert.equal(
+      localActions.actions.find((action) => action.id === "project.root.manage")
+        ?.targets.find((target) => target.locality === "local")?.availability,
+      "available-local"
+    );
+
+    const remoteActionsResponse = await server.app.inject({
+      method: "GET",
+      url: "/api/product-actions",
+      headers: { cookie, host: "chatcockpit.example.invalid" }
+    });
+    assert.equal(remoteActionsResponse.statusCode, 200);
+    const remoteActions = remoteActionsResponse.json() as typeof localActions;
+    assert.equal(
+      remoteActions.actions.find((action) => action.id === "project.root.manage")
+        ?.targets.find((target) => target.locality === "local")?.availability,
+      "requires-local-host"
+    );
+    assert.equal(
+      remoteActions.actions.find((action) => action.id === "runtime.lifecycle")
+        ?.targets.find((target) => target.locality === "local")?.availability,
+      "requires-local-host"
+    );
+
     const mutationHeaders = {
       cookie,
       "content-type": "application/json",
@@ -228,6 +271,40 @@ async function main(): Promise<void> {
     assert.equal(detail.roots[0]?.privatePath, fs.realpathSync.native(primaryRepo));
     assert.equal(detail.workspaces[0]?.repoId, "primary");
     assert.equal(detail.workspaces[0]?.privatePath, fs.realpathSync.native(primaryRepo));
+
+    const remoteDetailResponse = await server.app.inject({
+      method: "GET",
+      url: `/api/projects/${encodeURIComponent(projectId)}`,
+      headers: { cookie, host: "chatcockpit.example.invalid" }
+    });
+    assert.equal(remoteDetailResponse.statusCode, 200);
+    const remoteDetail = remoteDetailResponse.json() as {
+      roots: RootSummary[];
+      workspaces: Array<{ repoId: string }>;
+    };
+    assert.equal(remoteDetail.roots[0]?.pathVisibility, "hidden");
+    assert.equal("privatePath" in (remoteDetail.roots[0] ?? {}), false);
+    assert.equal("privatePath" in (remoteDetail.workspaces[0] ?? {}), false);
+    assert.doesNotMatch(JSON.stringify(remoteDetail), escaped(root));
+
+    const remoteAttach = await server.app.inject({
+      method: "POST",
+      url: `/api/projects/${encodeURIComponent(projectId)}/roots`,
+      headers: {
+        ...mutationHeaders,
+        host: "chatcockpit.example.invalid"
+      },
+      payload: {
+        path: attachedRepo,
+        kind: "git-repository",
+        role: "supporting-source",
+        access: "read-write",
+        repoId: "remote-blocked",
+        expectedConfigRevision: initial.configRevision
+      }
+    });
+    assert.equal(remoteAttach.statusCode, 403);
+    assert.match(remoteAttach.body, /MACHINE_LOCAL_AUTHORITY_REQUIRED/);
 
     const noCsrfAttach = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots`,

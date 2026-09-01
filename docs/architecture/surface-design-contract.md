@@ -1,8 +1,8 @@
 # ChatCockpit Surface Design Contract
 
-ChatCockpit exposes the same Runtime through several product surfaces, but those surfaces are **not interchangeable copies of one another**. This contract defines which surface owns which responsibility, how status and actions stay visually consistent, and where a capability must bridge to another surface instead of being duplicated.
+ChatCockpit exposes one product through several Hosts and presentation surfaces. Web and Desktop share the same core domain model, information architecture, Product Actions, state language, and workflow semantics; platform-specific Hosts may add native capabilities without creating a second product model.
 
-The goal is a coherent product without collapsing machine administration, operator workflow, and quick controls into one oversized UI.
+The goal is **Parity-first, Native-enhanced**: keep the core Cockpit experience coherent across Browser and Desktop while resolving execution through Host Capability, Authority/Governance, and an explicit Device/Provider target. Surface placement is a presentation decision; it is not itself an authorization boundary. See ADR-006.
 
 ## Surface Roles
 
@@ -19,38 +19,38 @@ It answers four questions quickly:
 
 It may expose safe quick actions such as refresh, start, stop, restart, open Local/Public Cockpit, and navigation to the main App. It must not grow into a complete settings editor, secret-management console, or workflow workbench.
 
-### macOS App — Local Runtime Manager + Secure Machine Gateway
+### macOS App — Full Cockpit Host + Native Capability Provider
 
-The native App owns **Machine Authority** for the current Mac.
+The native App presents the core ChatCockpit experience while also supplying **native Host Capabilities** for the current Mac.
 
-It is the canonical place for operations that depend on local OS privilege, local filesystem access, native secret handling, or Runtime ownership, including:
+It can execute operations that depend on local OS privilege, local filesystem access, native secret handling, or Runtime ownership when Authority/Governance allows them, including:
 
 - Runtime start / stop / restart;
 - Developer / Packaged Mode;
 - listener, port, console path, and Trusted LAN policy;
 - local Runtime install and update state;
-- Primary Workspace and local workspace authorization;
+- Project Root selection, Primary Root changes, local filesystem authorization, and Execution Workspace mapping;
 - machine API token reveal / copy / rotation;
 - local Web Owner bootstrap credentials;
 - one-time loopback passwordless Cockpit entry;
 - machine diagnostics and native setup flows.
 
-The App may project selected operator information, but it should bridge to Web Cockpit rather than reimplement data-heavy workflow management.
+The App should not fork Product Actions or workflow state machines merely because it can execute additional native capabilities. Core Project / Runtime / Device / Job / Resource / Public Access workflows should remain semantically aligned with Web Cockpit; Host-only preferences such as Menu Bar behavior, Launch at Login, Keychain handling, and Desktop update settings may remain native-only.
 
-### Web Cockpit — Operator Workspace
+### Web Cockpit — Full Cockpit Browser Host
 
-Web Cockpit owns **Operator Authority** and the data-heavy workbench.
+Web Cockpit is the complete browser-hosted ChatCockpit experience and remains first-class for headless Linux, remote administration, mobile/secondary-device access, and environments where installing a Desktop client is undesirable or impossible.
 
-It is the canonical surface for:
+It presents the same core product domains as Desktop, including:
 
-- Projects, Tasks, Sessions, Handoffs, and Evidence;
+- Project catalog, project metadata, Tasks, Sessions, Handoffs, and Evidence;
 - Jobs and approval workflows;
 - Runtime Profiles and Resource Center;
 - Integrations, ChatGPT OAuth, and Passkeys;
-- governed workspace usage after a machine has authorized the workspace;
+- public-safe Project Root / Execution Workspace status and governed execution after the machine has authorized those local roots;
 - audit history and workflow inspection.
 
-Web Cockpit may display public-safe machine state, but it must not reveal machine secrets or become a second implementation of native Runtime ownership.
+Web Cockpit may expose machine-oriented Product Actions when a legitimate execution path exists, including a selected Device Agent or local Host context. Showing the action never grants Machine Authority: secrets, absolute-path/private projections, Host permission, approval, and execution remain enforced by the target-side service. When no legal path exists, Web must project an explicit unavailable/requires-local-host/unsupported state rather than simulate success.
 
 Public network exposure belongs to a dedicated **Public Access / Connectivity** workbench in Web Cockpit. Web owns provider selection, domain/route intent, canonical Public Endpoint selection, reachability/TLS/DNS inspection, and staged cutover workflows. It does not install local binaries, mutate OS services, or render provider credentials in plaintext. The implemented workbench consumes a protected public-safe machine-provider projection and stages Candidate Public Routes separately from the canonical Runtime origin. When a canonical origin already exists, Web explicitly verifies the exact candidate through bounded public-unicast DNS plus pinned-address HTTPS checks and can prepare/cancel a short-lived replacement Cutover Intent bound to that successful Verification Artifact. When the Runtime is still local-only, Web instead prepares and verifies a short-lived Bootstrap Identity Proof whose random challenge stays machine-local and is destroyed immediately after successful same-Runtime proof. Verification, Bootstrap Proof, and Intent projections expose only bounded public-safe state; challenge values, resolved IPs, raw TLS/network errors, response bodies, Runtime service execution, internal adapter identity, executable paths, raw provider output, mutation commands, and secrets remain outside Web. Replacement cutover and first-public Machine Bootstrap execution are implemented only in macOS App / CLI Machine Authority. Web has no execution endpoint and cannot write Runtime configuration or restart services. First-public Bootstrap remains a distinct proof-and-execution contract: it consumes an exact verified Bootstrap Proof, never auto-starts a stopped Runtime, and rolls failed running-Runtime transactions back to local-only.
 
@@ -62,18 +62,20 @@ A surface may change presentation, density, or interaction style for its platfor
 
 ## Cross-Surface Rules
 
-1. **Read projections may cross surfaces; mutation authority does not.** A surface can summarize state owned elsewhere without inheriting that surface's privileged actions.
-2. **Bridge instead of duplicate.** When a task belongs to another surface, use a native navigation/deep-link action rather than recreating a smaller second implementation. The implemented Web → App connectivity bridge uses the fixed navigation-only URL `chatcockpit://settings/connectivity`; it carries no provider, action, mutation-plan, or secret parameters and must never execute a machine mutation merely by opening the link.
-3. **Secrets stay machine-local.** Plaintext machine API tokens and bootstrap Owner passwords are never rendered by Web Cockpit or the Menu Bar.
-4. **No Web lifecycle takeover.** Web Cockpit can report Runtime state but does not own native service start/stop/restart or LaunchAgent mutation.
-5. **No workflow clone in the App.** The native App can summarize jobs, approvals, integrations, or Continuity state, then open the canonical Web surface for detailed work.
-6. **No WKWebView shortcut.** Native and Web surfaces should share product semantics and visual language, not implementation technology.
-7. **Canonical console routing applies everywhere.** Any bridge to Web Cockpit uses the configured console path instead of assuming `/ui`.
-8. **Unavailable is not zero.** A missing operational projection is shown as unknown/unavailable, never fabricated as `0` or healthy.
-9. **Connectivity is provider-neutral.** Public Access models endpoint, route, provider, health, and diagnostics without making ServBay, FRP, Cloudflare Tunnel, ngrok, Pinggy, or any other provider part of the core product identity.
-10. **Nothing is installed by default.** Connectivity providers are optional. Existing environments may be detected and reused; installation, upgrade, removal, and machine service mutation require explicit Machine Authority.
-11. **Public endpoint changes use staged cutover.** A candidate route is configured and verified before it becomes the canonical Public Endpoint. Failed candidates must not destroy the currently working route.
-12. **Provider secrets remain machine-local.** Web may show configured/missing state and initiate a Machine bridge, but plaintext tunnel tokens, FRP credentials, provider auth tokens, and equivalent secrets never cross into Web rendering.
+1. **Surface is presentation, not authority.** A Product Action can be visible in Web and Desktop without granting the current client permission to execute it. Authority/Governance is evaluated independently.
+2. **Core Product Actions remain recognizable across Hosts.** Project, Runtime, Device, Job, Resource, Public Access, Integration, Approval, and Continuity workflows should preserve the same domain model, action vocabulary, and state semantics where the Host can meaningfully present them.
+3. **Host-only preferences stay host-only.** Menu Bar configuration, Launch at Login, Keychain behavior, Desktop update policy, Dock/window preferences, and comparable OS integrations need not be mirrored into Browser UI merely for visual parity.
+4. **Resolve before execute.** Machine-oriented actions resolve Host capability, authority/policy, and execution target before side effects. A Browser may request an action that is executed by a paired Device Agent; a Desktop Host may execute the same Product Action locally.
+5. **Do not invent a bridge.** A `requires-local-host` state may become a native bridge only when a real Desktop/Agent capability has been detected or attested. UI must not infer installed native software from the fact that it is useful.
+6. **Secrets stay machine-local.** Plaintext machine API tokens, bootstrap Owner passwords, provider credentials, and other private Host material are never exposed merely to achieve UI parity.
+7. **Share workflow truth, not necessarily renderer technology.** Native and Web surfaces should share product semantics, application contracts, and ideally reusable UI where it is safe and economical; the Desktop renderer technology remains an independent implementation decision governed by ADR-006.
+8. **Canonical console routing applies everywhere.** Any bridge to Web Cockpit uses the configured console path instead of assuming `/ui`.
+9. **Unavailable is not zero.** A missing operational projection is shown as unknown/unavailable, never fabricated as `0` or healthy.
+10. **Connectivity is provider-neutral.** Public Access models endpoint, route, provider, health, and diagnostics without making ServBay, FRP, Cloudflare Tunnel, ngrok, Pinggy, or any other provider part of the core product identity.
+11. **Nothing is installed by default.** Connectivity providers are optional. Existing environments may be detected and reused; installation, upgrade, removal, and machine service mutation require explicit Machine Authority.
+12. **Public endpoint changes use staged cutover.** A candidate route is configured and verified before it becomes the canonical Public Endpoint. Failed candidates must not destroy the currently working route.
+13. **Provider secrets remain machine-local.** Web may show configured/missing state and action availability, but plaintext tunnel tokens, FRP credentials, provider auth tokens, and equivalent secrets never cross into public rendering.
+14. **Project identity and filesystem authority are separate concerns, not separate products.** Project / Project Root / Primary Root / Execution Workspace remain shared product concepts across Web and Desktop. Root discovery, absolute paths, and filesystem mutation still require an authorized execution Host/Device; Web may drive the same Product Action through a valid target-aware executor when one exists.
 
 ## Shared Status Semantics
 
@@ -109,45 +111,46 @@ Interactive icon-only controls must expose an accessible name, keyboard focus, a
 
 ## Capability Placement Matrix
 
-`Observe` means a surface may display a bounded read projection. `Act` means the surface owns the mutation. `Bridge` means it should navigate to the canonical owner. `None` means the capability should not appear there.
+The matrix describes **product visibility and execution requirements**, not Surface-owned authority. `Full` means the core workflow should be available on that Host where practical; `Summary` is a bounded HUD projection; `Host-only` is intentionally platform-specific; `Target-aware` means execution may occur locally or on another authorized Device. Authority is always evaluated independently.
 
-| Capability | Menu Bar | macOS App | Web Cockpit | Authority |
+| Capability | Menu Bar | Desktop Host | Browser Host | Execution / Authority |
 | --- | --- | --- | --- | --- |
-| Overall Runtime health | Observe | Observe | Observe | Runtime |
-| Start / stop / restart local Runtime | Act | Act | Observe | Machine |
-| Developer / Packaged Mode and Runtime install | Bridge | Act | Observe | Machine |
-| Listener / port / console path / Trusted LAN | Observe | Act | Observe | Machine |
-| Machine API token plaintext / rotation | None | Act | Observe configured-state only | Machine |
-| Local Web Owner bootstrap credential | None | Act | None | Machine |
-| Web Owner session / Passkey / password+TOTP authentication | None | Bridge | Act | Operator |
-| One-time local passwordless Cockpit entry | Act | Act | Consume only | Machine |
-| Local workspace authorization / Primary Workspace | None | Act | Observe authorized workspaces | Machine |
-| Governed workspace workflow usage | Observe summary | Bridge | Act | Operator |
-| Jobs / queue / failures | Observe summary | Observe summary + Bridge | Act | Operator |
-| Approvals | Observe summary | Observe summary + Bridge | Act | Operator |
-| Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |
-| Integrations / ChatGPT OAuth / Passkeys | None | Observe status + Bridge | Act | Operator |
-| Public Endpoint / reachability / TLS / DNS | Observe summary | Observe summary + Bridge | Act | Operator |
-| Connectivity provider selection / domain / route intent | None | Observe status + Bridge | Act | Operator |
-| Connectivity provider install / update / uninstall | None | Act | Bridge | Machine |
-| Connectivity provider machine service lifecycle | Observe summary | Act | Observe | Machine |
-| Connectivity provider credential plaintext | None | Act | None | Machine |
-| Tunnel route health / logs / diagnostics | Observe summary | Observe summary + Bridge | Act | Runtime |
-| App / Runtime update management | Observe status + Bridge | Act | None | Machine |
-| Native diagnostics / ownership conflicts | Observe summary + Bridge | Act | None | Machine |
-| Audit and workflow history | None | Bridge | Act | Operator |
+| Overall Runtime health | Summary | Full | Full | Runtime truth |
+| Start / stop / restart Runtime | Quick action | Full | Full, target-aware | Machine + target capability |
+| Developer / Packaged Mode and Runtime install | Summary / open | Full | Status + actionable availability | Local Host capability |
+| Listener / port / console path / Trusted LAN | Summary | Full | Full when target executor exists | Machine + target capability |
+| Machine API token plaintext / rotation | None | Host-only | Configured-state only | Machine secret authority |
+| Local Web Owner bootstrap credential | None | Host-only | None | Machine secret authority |
+| Web Owner session / Passkey / password+TOTP authentication | None | Full/shared flow | Full | Operator auth |
+| One-time local passwordless Cockpit entry | Quick open | Full | Consume only | Machine-local grant |
+| Project catalog / project metadata | Summary | Full | Full | Operator/project authority |
+| Project Root / Primary Root / Execution Workspace management | None | Full | Full, target-aware | Machine filesystem + target capability |
+| Governed Execution Workspace workflow usage | Summary | Full | Full | Workspace governance |
+| Jobs / queue / failures | Summary | Full | Full | Operator/governance |
+| Approvals | Summary | Full | Full | Approval policy |
+| Continuity / Tasks / Sessions / Handoffs / Evidence | Open / summary when useful | Full | Full | Operator/governance |
+| Integrations / ChatGPT OAuth / Passkeys | None | Full | Full | Operator auth/integration policy |
+| Public Endpoint / reachability / TLS / DNS | Summary | Full | Full | Runtime + network truth |
+| Connectivity provider selection / domain / route intent | None | Full | Full | Operator intent |
+| Connectivity provider install / update / uninstall | None | Full | Full availability, target-aware | Machine + target capability |
+| Connectivity provider machine service lifecycle | Summary | Full | Full availability, target-aware | Machine + target capability |
+| Connectivity provider credential plaintext | None | Host-only | None | Machine secret authority |
+| Tunnel route health / logs / diagnostics | Summary | Full | Full | Runtime/provider projection |
+| Desktop app update / Launch at Login / Menu Bar preferences | Host-only | Host-only | None | Desktop Host |
+| Native diagnostics / ownership conflicts | Summary / open | Full | Status + target-aware diagnostics where safe | Machine + target capability |
+| Audit and workflow history | None | Full | Full | Operator/governance |
 
-A new capability must be added to this matrix before it is implemented on more than one product surface. If the ownership is ambiguous, resolve the authority boundary first instead of shipping duplicate controls.
+Before adding a capability to multiple Hosts, define its Product Action, required Host capabilities, authority/policy, target semantics, public-safe projection, and unavailable-state behavior. Do not create separate business workflows solely because the renderer or operating system differs.
 
 ## Information-Density Rules
 
 Consistency does not require equal density.
 
 - **Menu Bar:** bounded first-screen summary; no scrolling workbench or large configuration forms.
-- **macOS App:** dense native management center with a stable sidebar, compact cards/rows, and local machine controls.
-- **Web Cockpit:** highest data density for workflow tables, history, resources, approvals, and multi-object operations.
+- **Desktop Host:** complete Cockpit with desktop-appropriate density plus native controls and Host-only preferences.
+- **Browser Host:** complete Cockpit optimized for remote/headless access, responsive layouts, and data-heavy workflows.
 
-Repeated information is acceptable only when it serves a different decision speed. The detailed source remains canonical in its owning surface.
+Repeated information is acceptable when it serves a different decision speed or Host affordance. The Runtime/Application layer remains canonical; neither renderer becomes an independent business-truth owner.
 
 ## Canonical Terminology
 
@@ -161,6 +164,10 @@ User-visible product language should converge on the same concepts across surfac
 - Console path
 - Trusted LAN
 - Web Owner / 控制台管理员
+- Project / 项目
+- Project Root / 项目目录
+- Primary Root / 主项目目录
+- Execution Workspace / 执行工作区
 - Machine API Token / 机器 API 令牌
 - Passkey / 通用密钥
 - TOTP two-factor authentication / TOTP 双重认证
@@ -176,13 +183,13 @@ Translations may adapt grammar for the locale, but must not invent a second prod
 
 Before adding or moving a UI capability:
 
-1. Identify whether the capability is Runtime, Machine, or Operator authority.
-2. Check the Capability Placement Matrix.
-3. Reuse an authoritative projection/service instead of inferring state in the surface.
-4. Use the shared seven-state semantics.
-5. Prefer Bridge when another surface owns the task.
-6. Keep machine secrets outside Web and Menu Bar.
-7. Preserve canonical console-path routing and localization.
-8. Add or update verification when a boundary becomes implementation-visible.
+1. Define the Product Action and domain object before choosing a renderer-specific control.
+2. Identify required Host capabilities, authority/policy, execution target, and executor.
+3. Check the Capability Placement Matrix and ADR-006.
+4. Reuse authoritative Runtime/Application projections instead of inferring state in a Surface.
+5. Use shared status/action semantics and expose truthful unavailable states.
+6. Keep machine secrets and private path material outside public/browser projections.
+7. Preserve canonical console routing, localization, target identity, idempotency, revision, approval, and audit contracts.
+8. Add or update verification for Host parity, target resolution, and negative-state behavior whenever a boundary becomes implementation-visible.
 
 This contract complements the [product principles](../governance/product-principles.md), the [macOS Desktop contract](../deployment/macos-desktop.md), the [Connectivity Provider Machine Mutation contract](./connectivity-provider-machine-mutation.md), the [Connectivity Candidate Route Staging contract](./connectivity-route-staging.md), the [Public Route Cutover Intent contract](./connectivity-route-cutover.md), the [Initial Public Route Bootstrap Identity Proof contract](./connectivity-route-bootstrap.md), and the [Design System](./design-system.md), and the [Web UI design system](./web-ui-design-system.md).

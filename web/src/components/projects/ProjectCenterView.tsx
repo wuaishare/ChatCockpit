@@ -29,6 +29,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   attachProjectRoot,
   createProject,
+  fetchProductActions,
   fetchProjectDiscovery,
   fetchProjects
 } from "../../api";
@@ -40,6 +41,7 @@ import {
 } from "../../i18n/projects";
 import type {
   ApiProblem,
+  ProductActionTargetAvailability,
   ProjectRegistryProjection,
   ProjectRootDiscoveryCandidate,
   ProjectRootDiscoveryGroup,
@@ -105,6 +107,8 @@ export function ProjectCenterView({
   const { message } = AntApp.useApp();
   const [projects, setProjects] = useState<ProjectRegistryProjection[]>([]);
   const [configRevision, setConfigRevision] = useState<string | null>(null);
+  const [projectRootTargets, setProjectRootTargets] = useState<ProductActionTargetAvailability[]>([]);
+  const [projectDiscoveryTargets, setProjectDiscoveryTargets] = useState<ProductActionTargetAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -137,12 +141,23 @@ export function ProjectCenterView({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchProjects();
+      const [response, actionResponse] = await Promise.all([
+        fetchProjects(),
+        fetchProductActions().catch(() => null)
+      ]);
       setProjects(response.projects);
       setConfigRevision(response.configRevision);
+      setProjectRootTargets(
+        actionResponse?.actions.find((action) => action.id === "project.root.manage")?.targets ?? []
+      );
+      setProjectDiscoveryTargets(
+        actionResponse?.actions.find((action) => action.id === "project.discovery")?.targets ?? []
+      );
     } catch (loadError) {
       setProjects([]);
       setConfigRevision(null);
+      setProjectRootTargets([]);
+      setProjectDiscoveryTargets([]);
       setError(problemMessage(loadError, copy.requestFailed));
     } finally {
       setLoading(false);
@@ -162,6 +177,23 @@ export function ProjectCenterView({
     );
   }, [projects, query]);
 
+  const localProjectTarget = projectRootTargets.find((target) => target.locality === "local") ?? null;
+  const remoteProjectTargets = projectRootTargets.filter((target) => target.locality === "remote");
+  const localProjectAvailable = localProjectTarget?.availability === "available-local";
+  const localProjectAvailabilityHint = !localProjectTarget
+    ? copy.actionAvailabilityUnknown
+    : localProjectTarget.availability === "requires-local-host"
+      ? copy.localHostRequired
+      : localProjectTarget.availability === "available-local"
+        ? null
+        : copy.actionUnavailable;
+  const remoteProjectAvailabilityHint = remoteProjectTargets.length === 0
+    ? copy.noRemoteTargets
+    : copy.remoteProjectUnavailable;
+  const localDiscoveryAvailable = projectDiscoveryTargets.some(
+    (target) => target.locality === "local" && target.availability === "available-local"
+  );
+
   const openAddProject = useCallback((candidate?: ProjectRootDiscoveryCandidate) => {
     addForm.resetFields();
     addForm.setFieldsValue({
@@ -174,7 +206,7 @@ export function ProjectCenterView({
   }, [addForm]);
 
   const submitAddProject = async (values: AddProjectFormValues) => {
-    if (!configRevision || addLocation !== "local") return;
+    if (!configRevision || addLocation !== "local" || !localProjectAvailable) return;
     setAddLoading(true);
     try {
       const result = await createProject({
@@ -220,6 +252,7 @@ export function ProjectCenterView({
   }, [copy.requestFailed]);
 
   const openImport = () => {
+    if (!localDiscoveryAvailable) return;
     setImportOpen(true);
     void loadDiscovery();
   };
@@ -346,7 +379,13 @@ export function ProjectCenterView({
           <Button icon={<FolderAddOutlined />} onClick={() => openAddProject()}>
             {copy.addProject}
           </Button>
-          <Button type="primary" icon={<ImportOutlined />} onClick={openImport}>
+          <Button
+            type="primary"
+            icon={<ImportOutlined />}
+            disabled={!localDiscoveryAvailable}
+            title={!localDiscoveryAvailable ? copy.localHostRequired : undefined}
+            onClick={openImport}
+          >
             {copy.importExisting}
           </Button>
           <Dropdown
@@ -356,6 +395,7 @@ export function ProjectCenterView({
                 key: "discovery-locations",
                 icon: <SettingOutlined />,
                 label: copy.discoveryLocations,
+                disabled: !localDiscoveryAvailable,
                 onClick: () => setDiscoveryLocationsOpen(true)
               }]
             }}
@@ -387,7 +427,15 @@ export function ProjectCenterView({
           {!query ? (
             <div className="project-center__empty-actions">
               <Button icon={<FolderAddOutlined />} onClick={() => openAddProject()}>{copy.addProject}</Button>
-              <Button type="primary" icon={<ImportOutlined />} onClick={openImport}>{copy.importExisting}</Button>
+              <Button
+                type="primary"
+                icon={<ImportOutlined />}
+                disabled={!localDiscoveryAvailable}
+                title={!localDiscoveryAvailable ? copy.localHostRequired : undefined}
+                onClick={openImport}
+              >
+                {copy.importExisting}
+              </Button>
             </div>
           ) : null}
         </div>
@@ -414,7 +462,7 @@ export function ProjectCenterView({
                 <Button
                   key="next"
                   type="primary"
-                  disabled={addLocation !== "local"}
+                  disabled={addLocation !== "local" || !localProjectAvailable}
                   onClick={() => setAddStep(1)}
                 >
                   {copy.next}
@@ -434,12 +482,14 @@ export function ProjectCenterView({
           <div className="project-add-location-grid" aria-label={copy.projectLocation}>
             <button
               type="button"
-              className={`project-add-location-card${addLocation === "local" ? " is-selected" : ""}`}
+              className={`project-add-location-card${addLocation === "local" ? " is-selected" : ""}${!localProjectAvailable ? " is-disabled" : ""}`}
+              disabled={!localProjectAvailable}
               onClick={() => setAddLocation("local")}
             >
               <span className="project-add-location-card__icon"><LaptopOutlined /></span>
               <strong>{copy.localProject}</strong>
               <span>{copy.localProjectDescription}</span>
+              {localProjectAvailabilityHint ? <small>{localProjectAvailabilityHint}</small> : null}
             </button>
             <button
               type="button"
@@ -449,7 +499,7 @@ export function ProjectCenterView({
               <span className="project-add-location-card__icon"><GlobalOutlined /></span>
               <strong>{copy.remoteProject}</strong>
               <span>{copy.remoteProjectDescription}</span>
-              <small>{copy.remoteProjectUnavailable}</small>
+              <small>{remoteProjectAvailabilityHint}</small>
             </button>
           </div>
         ) : (

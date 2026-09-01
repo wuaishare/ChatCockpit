@@ -2,7 +2,7 @@
 
 ChatCockpit Desktop 是现有 ChatCockpit Node Control Plane 之上的原生 SwiftUI 操作壳层。Phase 2 在保持 Node/TypeScript Control Plane、Runner、Process Supervisor、Web Cockpit、MCP、OAuth、Continuity、Codex、Approval 与 Resource Center 单一业务真源的前提下，加入了 Self-contained Packaged Runtime。
 
-原生 App 的长期职责是 [Surface 设计合同](../architecture/surface-design-contract.md) 定义的 **Local Runtime Manager + Secure Machine Gateway**：它拥有本机 Machine Authority，并把数据密集型 Operator 工作桥接到 Web Cockpit，而不是复制一套 Web 工作台。
+原生 App 按 [Surface 设计合同](../architecture/surface-design-contract.md) 与 ADR-006 定义为 **Full Cockpit Host + Native Capability Provider**：它与 Browser 呈现同一套核心 ChatCockpit 产品模型，同时增加 Runtime 生命周期、文件系统授权、本机 Secret、Menu Bar、系统通知与 OS Integration 等 Native Capability。Surface 所在位置本身不授予 Authority；高权限动作仍必须经过 Host Capability、Policy、Approval 与 Execution Target 治理。
 
 ## Phase 2 当前边界
 
@@ -17,7 +17,7 @@ Packaged Mode 是普通桌面使用场景的 Self-contained 路径：
 - 首次使用时把内嵌 Payload 部署到 `~/Library/Application Support/ChatCockpit/runtimes/` 下的版本化 Runtime；
 - 可写 ChatCockpit 状态独立放在 `~/Library/Application Support/ChatCockpit/state/`；
 - 本机私有配置独立放在 `~/Library/Application Support/ChatCockpit/config/`；
-- 用户选择一个 **主工作区** 作为 Packaged Mode 默认启动项目，并可继续授权多个带稳定 repo ID 的项目工作区；
+- 用户通过 **项目** 管理 Project 与 Project Root；每个 Project 有一个 Primary Root，Git Project Root 可提供带稳定 repo ID 的 **Execution Workspace**，Packaged Mode 从可执行工作区中选择 Runtime bootstrap，而不会把它与 Primary Root 混为一谈；
 - Runtime 目录不会冒充用户 Workspace；
 - 启动 ChatCockpit 不要求系统安装 `node` 或 `npm`；
 - Packaged App 运行时不要求存在 ChatCockpit 源码 checkout。
@@ -54,11 +54,11 @@ ChatCockpit.app
 ├── state/                                      可写本机 Runtime State
 └── config/                                     本机私有配置
 
-<主项目>/                                       ChatCockpit 主工作区
-<其他已授权项目>/                               可选的额外工作区
+<项目目录 A>/                                   Project Root（可以是 Git，也可以是普通目录）
+<项目目录 B>/                                   可选的附加 Project Root
 ```
 
-部署后的 Runtime 与 Application Support State 不会自动加入 Workspace allowlist。Packaged 工作区治理继续使用私有 `config/config.json` 中现有的 `defaultRepoId + workspaceAllowlist + repoMappings`，Desktop 不会另建第二套工作区数据库。
+部署后的 Runtime 与 Application Support State 永远不是 Project Root，也不会自动获得执行授权。Packaged 项目治理持久化在私有 `config/config.json` 的 canonical schema v3：`projects + projectRoots + executionWorkspaces`。Project 拥有一个 Primary Root；只有可执行的 Git Root 才建立 Execution Workspace。`defaultRepoId / repoMappings` 等仅作为迁移期兼容投影读取，不再是 canonical 持久化模型；Desktop 与 Runtime 消费同一 Registry，不另建第二套工作区数据库。
 
 ## Bundled Node 供应链合同
 
@@ -123,9 +123,9 @@ notarization: not performed
 open dist/macos/ChatCockpit.app
 ```
 
-只要 App 中存在合法的 Runtime Payload，Packaged Mode 就可用。首次先选择 **主工作区**，它是 Packaged Mode 默认启动的项目。随后 Settings 的 **工作区** 管理器可继续添加其他项目目录、将任一可用工作区设为主工作区，或移除非主工作区的 ChatCockpit 映射，而不会删除项目文件。
+只要 App 中存在合法的 Runtime Payload，Packaged Mode 就可用。App 的 **项目** 页面是 Machine Authority 下管理本机 Project Registry 的主入口：可从本机目录创建 Project、附加 Project Root、变更 **Primary Root**，以及仅解除 Registry 关联而不删除磁盘文件。普通非 Git 目录仍可以成为 Project Root，但不会伪装成可执行 checkout。
 
-每个已授权工作区都有稳定的本地 `repoId`，同时始终只有一个 mapping 是主工作区。添加/移除工作区绝不会自动启动、停止或重启 Runtime；切换主工作区会立即更新 canonical 配置，但当前已经运行的服务只会在用户下一次显式 Restart 后采用新的 bootstrap workspace。
+Git Project Root 可以拥有带稳定本地 `repoId` 的 **Execution Workspace**。Project 的 Primary Root 与 Runtime 当前选择/默认的 Execution Workspace 是相关但不同的概念：变更 Primary Root 不会静默重写仍然有效的执行选择，非 Git Primary Root 也不能变成 Execution Workspace。项目目录授权变化绝不会自动启动、停止或重启 Runtime；运行中的服务只有经过显式生命周期动作才会改变状态。
 
 App 会校验内嵌 Runtime，并通过 staging → verify → atomic promote 的方式部署到 Application Support。新的 Payload 如果损坏或部署失败，不会覆盖此前已经有效的 Runtime。
 
@@ -206,7 +206,7 @@ Lifecycle Helper 管理：
 - `com.wuaishare.chatcockpit.runner`；
 - `com.wuaishare.chatcockpit.process-supervisor`。
 
-Packaged Mode 会显式向这条 lifecycle contract 传入 Install Root、State Root、Primary Workspace、Bundled Node 绝对路径与 Distribution Mode。LaunchAgent 使用 bundled Node 的绝对路径，不再依赖 `command -v node`。
+Packaged Mode 会显式向这条 lifecycle contract 传入 Install Root、State Root、当前用于 bootstrap 的 Execution Workspace、Bundled Node 绝对路径与 Distribution Mode。LaunchAgent 使用 bundled Node 的绝对路径，不再依赖 `command -v node`。
 
 普通 Restart 继续保持既有 Process Supervisor generation 语义。
 

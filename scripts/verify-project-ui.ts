@@ -49,6 +49,26 @@ assert.match(cockpit, /okButtonProps:\s*\{\s*danger:\s*true\s*\}/);
 assert.doesNotMatch(center, /attachProjectWorkspace|makeProjectWorkspacePrimary/);
 assert.doesNotMatch(cockpit, /attachProjectWorkspace|makeProjectWorkspacePrimary/);
 
+// Project surfaces consume Product Action availability rather than deriving mutation rights from Web/Desktop identity.
+assert.match(api, /export async function fetchProductActions\(\)/);
+assert.match(api, /requestJson<ProductActionsResponse>\("\/api\/product-actions"\)/);
+assert.match(types, /export type ProductActionAvailability/);
+assert.match(types, /"available-local"/);
+assert.match(types, /"available-targeted"/);
+assert.match(types, /"requires-local-host"/);
+assert.match(types, /"target-capability-not-implemented"/);
+assert.match(center, /fetchProductActions/);
+assert.match(center, /action\.id === "project\.root\.manage"/);
+assert.match(center, /action\.id === "project\.discovery"/);
+assert.match(center, /localProjectAvailable/);
+assert.match(center, /localDiscoveryAvailable/);
+assert.match(cockpit, /fetchProductActions/);
+assert.match(cockpit, /rootManagementAvailable/);
+assert.match(cockpit, /rootManagementHint/);
+assert.match(cockpit, /root\.pathVisibility === "machine-local-owner"/);
+assert.match(cockpit, /copy\.rootPathHidden/);
+assert.doesNotMatch(cockpit, /<code className="project-root-row__path">\{root\.privatePath\}<\/code>/);
+
 // Root discovery is provider-neutral and the Web contract models Root + ExecutionWorkspace separately.
 assert.match(api, /requestJson<ProjectRootDiscoveryResponse>\("\/api\/projects\/discovery"\)/);
 assert.match(types, /export interface ProjectRootSummary/);

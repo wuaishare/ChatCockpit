@@ -16,7 +16,7 @@ Launch it with:
 open dist/macos/ChatCockpit.app
 ```
 
-A normal launch should immediately present the single **ChatCockpit** main window with **Overview / Runtime / Workspaces / Access & Security / Integrations / Updates / Diagnostics** in the sidebar, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. **Overview** is the high-density machine summary: overall state, Control Plane / Runner / Process Supervisor health, authoritative local Activity counts, Local/Public Cockpit access, access/security summary, environment/runtime details, app version and update state. Activity is read from the machine-local read-only `desktop-summary` projection: Running Jobs, Queued Jobs, retained Failed Records, and truly Pending Approvals. A source group that cannot be read must display **— / Unavailable**, never a fabricated zero. Failed Records are historical retained failed-job records and must not be presented as an active Runtime failure. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar. The system **Settings…** scene is reserved for app-only preferences and must not duplicate Runtime, Workspace, or Security administration.
+A normal launch should immediately present the single **ChatCockpit** main window with **Overview / Runtime / Projects / Access & Security / Integrations / Updates / Diagnostics** in the sidebar, show ChatCockpit in the Dock, and keep the ChatCockpit status item in the menu bar. **Overview** is the high-density machine summary: overall state, Control Plane / Runner / Process Supervisor health, authoritative local Activity counts, Local/Public Cockpit access, access/security summary, environment/runtime details, app version and update state. Activity is read from the machine-local read-only `desktop-summary` projection: Running Jobs, Queued Jobs, retained Failed Records, and truly Pending Approvals. A source group that cannot be read must display **— / Unavailable**, never a fabricated zero. Failed Records are historical retained failed-job records and must not be presented as an active Runtime failure. Desktop follows the macOS system/per-app language setting by default and currently provides complete Simplified Chinese and English localization. Closing the main window does not stop the runtime; the app remains available from the Dock or menu bar. The system **Settings…** scene is reserved for app-only preferences and must not duplicate Runtime, Workspace, or Security administration.
 
 If the local app has not been built yet:
 
@@ -73,7 +73,7 @@ When Developer Mode LaunchAgents are active, Packaged Mode must not silently tak
 
 1. Keep Developer Mode services running.
 2. Switch the main window **Runtime** page to **Packaged Mode**.
-3. Click **Choose Primary Workspace…** and select a real project directory.
+3. Open **Projects** and select or add a real Project with at least one ready Git Project Root / Execution Workspace.
 4. Refresh / Revalidate.
 5. Confirm **Runtime Conflict** reports that Developer Mode already owns the ChatCockpit service identity.
 
@@ -104,10 +104,10 @@ Verify the Source services are stopped before continuing.
 
 1. Launch `ChatCockpit.app`.
 2. Main window **Runtime** → **Packaged Mode**.
-3. **Choose Primary Workspace…** and select a test project.
-4. In **Workspaces**, add a second test project. Verify both directories have stable repo IDs and exactly one carries the **Primary** badge.
-5. Make the second project Primary and verify the app says Runtime lifecycle was not changed; then restore the intended Primary project.
-6. Remove the non-primary workspace and verify the confirmation explains that only the ChatCockpit mapping is removed, project files are not deleted, and Runtime is not restarted.
+3. Open **Projects** and add/select a test Project. Verify the first selected folder is represented as a Project Root and, when it is a Git repository, has an Execution Workspace with a stable repo ID.
+4. Add a second Project Root. Verify ordinary directories remain valid roots without fabricating an Execution Workspace, while Git roots may expose one.
+5. Make the second ready root the **Primary Root** and verify Runtime lifecycle is unchanged. Confirm this does not silently replace a still-valid selected Execution Workspace; then restore the intended Primary Root.
+6. Remove a non-primary Project Root and verify the confirmation explains that only the ChatCockpit registry attachment is removed, disk files are not deleted, linked execution workspaces are archived, and Runtime is not restarted.
 7. Allow the app to validate/deploy the bundled Runtime Payload.
 8. Click **Start Services**.
 9. Wait for **Ready**.
@@ -122,7 +122,7 @@ Packaged Mode uses separate roots:
 ~/Library/Application Support/ChatCockpit/config/
 ```
 
-The deployed Runtime is never treated as a user Workspace. The workspace set is canonically stored in `config/config.json` through the existing `defaultRepoId + workspaceAllowlist + repoMappings` model; Desktop does not create a second workspace database, and macOS preferences only cache the current Primary selection.
+The deployed Runtime is never treated as a Project Root or Execution Workspace. Project state is canonically stored in private `config/config.json` using schema v3 `projects + projectRoots + executionWorkspaces`; Desktop does not create a second registry. macOS preferences cache only local UI/runtime selections and are not the authority for Project identity, Primary Root, or root membership.
 
 ## 4. Import Existing Setup
 

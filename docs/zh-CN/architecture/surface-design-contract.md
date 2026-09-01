@@ -1,8 +1,8 @@
 # ChatCockpit Surface 设计合同
 
-ChatCockpit 会通过多个产品 Surface 展示同一套 Runtime，但这些界面**不是彼此的复制品**。本合同明确每个 Surface 的职责、状态和动作如何保持一致，以及哪些能力应该跳转到真正的归属界面，而不是重复实现。
+ChatCockpit 通过多个 Host 与展示 Surface 提供同一个产品。Web 与 Desktop 默认共享同一套核心 Domain Model、Information Architecture、Product Action、状态语言与工作流语义；不同平台 Host 可以增加 Native Capability，但不能因此制造第二套产品模型。
 
-目标是在保持统一产品体验的同时，避免把本机管理、Operator 工作流和高频快捷操作全部堆进同一个界面。
+目标是 **Parity-first, Native-enhanced**：Browser 与 Desktop 保持统一的核心 Cockpit 体验，同时把真实执行交给 Host Capability、Authority/Governance 与明确的 Device/Provider Target 解析。Surface 是呈现层，不是权限边界。详见 ADR-006。
 
 ## Surface 职责
 
@@ -19,38 +19,38 @@ ChatCockpit 会通过多个产品 Surface 展示同一套 Runtime，但这些界
 
 它可以提供刷新、启动、停止、重启、打开本机/公网控制台以及进入主 App 等安全高频动作，但不能膨胀成完整设置中心、秘密管理控制台或工作流工作台。
 
-### macOS App — Local Runtime Manager + Secure Machine Gateway
+### macOS App — Full Cockpit Host + Native Capability Provider
 
-原生 App 持有当前 Mac 的 **Machine Authority（机器权限）**。
+原生 App 提供完整 ChatCockpit 核心体验，同时为当前 Mac 提供额外的 **Native Host Capability**。
 
-凡是依赖本机系统权限、本地文件系统、原生秘密处理或 Runtime 所有权的操作，都应由 App 作为主入口，包括：
+凡是依赖本机系统权限、本地文件系统、原生秘密处理或 Runtime 所有权的操作，只要 Authority/Governance 允许，都可以由 Desktop Host 作为执行端，包括：
 
 - Runtime 启动 / 停止 / 重启；
 - Developer / Packaged Mode；
 - listener、端口、控制台入口路径和 Trusted LAN；
 - 本机 Runtime 安装与更新状态；
-- Primary Workspace 与本机工作区授权；
+- Project Root 选择、Primary Root 变更、本机文件系统授权与 Execution Workspace 映射；
 - 机器 API Token 明文显示 / 复制 / 轮换；
 - 本机 Web Owner 初始化凭据；
 - 一次性 loopback 免密进入控制台；
 - 本机诊断与原生初始化流程。
 
-App 可以投影少量 Operator 信息，但对数据密集型工作流应跳转 Web Cockpit，而不是再实现一套缩小版管理后台。
+App 不应因为拥有更多本机权限就分叉 Product Action 或工作流状态机。Project / Runtime / Device / Job / Resource / Public Access 等核心流程应与 Web Cockpit 保持同一产品语义；Menu Bar 行为、Launch at Login、Keychain、Desktop 更新策略等纯 Host Preference 可以保留为 Native-only。
 
-### Web Cockpit — Operator Workspace
+### Web Cockpit — Full Cockpit Browser Host
 
-Web Cockpit 持有 **Operator Authority（操作员权限）**，承担完整的数据密集型工作台。
+Web Cockpit 是完整的浏览器版 ChatCockpit，也是 Headless Linux、跨设备远程管理、移动/第二设备访问以及不适合安装 Desktop 客户端环境中的第一等入口。
 
-它是以下能力的主界面：
+它应呈现与 Desktop 一致的核心产品域，包括：
 
-- Project、Task、Session、Handoff 与 Evidence；
+- Project 目录、项目元数据、Task、Session、Handoff 与 Evidence；
 - Job 与 Approval 工作流；
 - Runtime Profile 与 Resource Center；
 - Integrations、ChatGPT OAuth 与 Passkey；
-- 机器已授权 Workspace 之后的受治理工作流使用；
+- public-safe 的 Project Root / Execution Workspace 状态，以及机器完成本机目录授权后的受治理执行；
 - 审计历史与工作流检查。
 
-Web Cockpit 可以显示 public-safe 的机器状态，但不能展示本机秘密，也不能成为第二套本机 Runtime 所有权实现。
+当存在合法执行路径时，Web Cockpit 可以呈现 Machine-oriented Product Action，例如通过已配对 Device Agent 或本机 Host Context 请求执行。动作可见绝不等于获得 Machine Authority：Secret、绝对路径/private projection、Host Permission、Approval 与真实执行都必须由目标侧服务继续强制校验。没有合法路径时必须明确显示 unavailable / requires-local-host / unsupported，而不能伪造成功。
 
 公网暴露能力在 Web Cockpit 中归入独立的 **公网接入 / Public Access（Connectivity）** 工作台。Web 负责 Provider 选择、域名/路由意图、Canonical Public Endpoint 选择、可达性/TLS/DNS 检查以及 staged cutover 工作流；它不负责安装本机二进制、修改 OS Service，也不渲染 Provider 凭据明文。当前已实现的工作台会消费受保护的 public-safe 机器 Provider 投影，并将 Candidate Public Route 与 canonical Runtime origin 分离暂存。当 canonical 已存在时，Web 会对 exact candidate 执行受限的 public-unicast DNS + 固定 IP HTTPS 显式验证，并允许基于成功 Verification Artifact 准备或取消短期 replacement Cutover Intent；当 Runtime 仍是 local-only 时，Web 改用短期 Bootstrap Identity Proof，其中随机 challenge 只保存在本机，并在 same-Runtime 身份验证成功后立即销毁。Verification、Bootstrap Proof 与 Intent 只向 Web 投影受限 public-safe 状态；challenge 值、解析 IP、原始 TLS/网络错误、响应正文、Runtime Service 执行、内部 Adapter identity、可执行文件路径、Provider 原始输出、Mutation 命令与 Secret 继续严格留在 Web 之外。Replacement Cutover 与首次公网 Machine Bootstrap Execution 都只在 macOS App / CLI Machine Authority 中实现；Web 不存在执行 endpoint，也不能写 Runtime 配置或 restart 服务。首次公网 Bootstrap 继续保持独立的 Proof + Execution 合同：只消费 exact verified Bootstrap Proof，绝不自动启动已停止的 Runtime，并在 running Runtime 事务失败时 rollback 回 local-only。
 
@@ -62,18 +62,20 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 
 ## 跨 Surface 规则
 
-1. **只读投影可以跨 Surface，Mutation 权限不能跨。** 一个界面可以摘要展示别处拥有的状态，但不能因此继承对方的高权限动作。
-2. **优先 Bridge，不重复实现。** 任务明确属于另一 Surface 时，应通过原生导航或 Deep Link 前往主界面，而不是再做一套简化实现。当前 Web → App 的 Connectivity Bridge 使用固定的纯导航 URL `chatcockpit://settings/connectivity`；它不携带 Provider、Action、Mutation Plan 或 Secret 参数，也绝不能因为打开链接本身就执行任何机器 Mutation。
-3. **秘密保持 machine-local。** 机器 API Token 明文和初始化 Owner 密码绝不能出现在 Web Cockpit 或 Menu Bar。
-4. **Web 不接管本机生命周期。** Web Cockpit 可以显示 Runtime 状态，但不负责原生服务 start / stop / restart 或 LaunchAgent Mutation。
-5. **App 不复制工作流工作台。** App 可以摘要 Jobs、Approvals、Integrations 或 Continuity 状态，再打开 Web Cockpit 处理详情。
-6. **不使用 WKWebView 套壳解决一致性。** Native 与 Web 共享的是产品语义和视觉语言，不是实现技术。
-7. **所有 Web 跳转都使用真实控制台入口。** 不得假设固定 `/ui`。
-8. **Unavailable 不是 0。** 读不到运维投影时必须显示 unknown / unavailable，不能伪造为 `0` 或健康。
-9. **Connectivity 必须 Provider-neutral。** 公网接入围绕 Endpoint、Route、Provider、Health 与 Diagnostics 建模，不能让 ServBay、FRP、Cloudflare Tunnel、ngrok、Pinggy 或任何其他 Provider 变成核心产品身份的一部分。
-10. **默认不安装任何 Provider。** Connectivity Provider 全部可选；已有环境可以检测并复用。安装、升级、卸载以及本机 Service Mutation 必须经过明确的 Machine Authority。
-11. **公网端点切换必须 staged cutover。** 先配置并验证候选 Route，再将其提升为 Canonical Public Endpoint；候选失败不能破坏当前仍然可用的公网入口。
-12. **Provider Secret 必须保持 machine-local。** Web 可以显示已配置/缺失状态并发起 Machine Bridge，但 Tunnel Token、FRP 凭据、Provider Auth Token 等明文绝不能进入 Web 渲染层。
+1. **Surface 是呈现层，不是 Authority。** Product Action 可以同时出现在 Web 与 Desktop，但当前 Client 是否有资格执行必须由独立的 Authority/Governance 判断。
+2. **核心 Product Action 跨 Host 保持同一心智。** Project、Runtime、Device、Job、Resource、Public Access、Integration、Approval 与 Continuity 应尽量共享同一 Domain Model、动作词汇和状态语义。
+3. **Host-only Preference 保持 Host-only。** Menu Bar 设置、Launch at Login、Keychain、Desktop 更新策略、Dock/Window Preference 等 OS Integration 不需要为了视觉一致而复制到 Browser。
+4. **执行前先解析。** Machine-oriented Action 必须先解析 Host Capability、Authority/Policy 与 Execution Target；Browser 可以请求由已配对 Device Agent 执行，Desktop 也可以在本机执行同一 Product Action。
+5. **不得编造 Bridge。** 只有真实检测/Attest 到 Desktop/Agent Capability 后，`requires-local-host` 才能升级成 Native Bridge；UI 不能因为“理论上装 App 会有帮助”就假装本机已安装。
+6. **秘密保持 machine-local。** Machine API Token、初始化 Owner 密码、Provider Credential 与其它 Host Private Material 绝不能因为 UI parity 进入公开投影。
+7. **共享工作流真相，不强绑 Renderer 技术。** Native 与 Web 应共享产品语义、Application Contract，并在安全和经济性成立时复用 UI；Desktop Renderer 技术路线是 ADR-006 约束下的独立实现决策。
+8. **所有 Web 跳转都使用真实控制台入口。** 不得假设固定 `/ui`。
+9. **Unavailable 不是 0。** 读不到运维投影时必须显示 unknown / unavailable，不能伪造为 `0` 或健康。
+10. **Connectivity 必须 Provider-neutral。** 公网接入围绕 Endpoint、Route、Provider、Health 与 Diagnostics 建模，不能让 ServBay、FRP、Cloudflare Tunnel、ngrok、Pinggy 或任何其他 Provider 变成核心产品身份的一部分。
+11. **默认不安装任何 Provider。** Connectivity Provider 全部可选；已有环境可以检测并复用。安装、升级、卸载以及本机 Service Mutation 必须经过明确的 Machine Authority。
+12. **公网端点切换必须 staged cutover。** 先配置并验证候选 Route，再将其提升为 Canonical Public Endpoint；候选失败不能破坏当前仍然可用的公网入口。
+13. **Provider Secret 必须保持 machine-local。** Web 可以显示已配置/缺失状态与 Action Availability，但 Tunnel Token、FRP 凭据、Provider Auth Token 等明文绝不能进入 public rendering。
+14. **Project 身份与文件系统 Authority 是两个关注点，不是两个产品。** Project / Project Root / Primary Root / Execution Workspace 在 Web 与 Desktop 中保持同一产品概念；Root Discovery、绝对路径和文件系统 Mutation 仍要求已授权 Execution Host/Device，Web 只有在存在合法 target-aware executor 时才能驱动同一个 Product Action。
 
 ## 统一状态语义
 
@@ -109,45 +111,46 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 
 ## Capability Placement Matrix
 
-`Observe` 表示可以显示受限只读投影；`Act` 表示该 Surface 拥有 Mutation；`Bridge` 表示应该导航到真正归属界面；`None` 表示不应该出现此能力。
+Matrix 描述的是**产品可见性与执行要求**，不是某个 Surface 独占 Authority。`Full` 表示核心工作流在条件允许时应完整可用；`Summary` 是有界 HUD；`Host-only` 是有意保留的平台能力；`Target-aware` 表示执行可以发生在本机或另一台已授权 Device。Authority 始终独立判断。
 
-| Capability | Menu Bar | macOS App | Web Cockpit | Authority |
+| Capability | Menu Bar | Desktop Host | Browser Host | Execution / Authority |
 | --- | --- | --- | --- | --- |
-| Runtime 整体健康 | Observe | Observe | Observe | Runtime |
-| 启动 / 停止 / 重启本机 Runtime | Act | Act | Observe | Machine |
-| Developer / Packaged Mode 与 Runtime 安装 | Bridge | Act | Observe | Machine |
-| Listener / 端口 / 控制台入口 / Trusted LAN | Observe | Act | Observe | Machine |
-| 机器 API Token 明文 / 轮换 | None | Act | 仅 Observe 已配置状态 | Machine |
-| 本机 Web Owner 初始化凭据 | None | Act | None | Machine |
-| Web Owner Session / Passkey / 密码+TOTP 登录 | None | Bridge | Act | Operator |
-| 一次性本机免密进入控制台 | Act | Act | 仅 Consume | Machine |
-| 本机 Workspace 授权 / Primary Workspace | None | Act | Observe 已授权 Workspace | Machine |
-| 受治理 Workspace 工作流使用 | Observe 摘要 | Bridge | Act | Operator |
-| Jobs / Queue / Failures | Observe 摘要 | Observe 摘要 + Bridge | Act | Operator |
-| Approvals | Observe 摘要 | Observe 摘要 + Bridge | Act | Operator |
-| Continuity / Tasks / Sessions / Handoffs / Evidence | None | Bridge | Act | Operator |
-| Integrations / ChatGPT OAuth / Passkeys | None | Observe 状态 + Bridge | Act | Operator |
-| Public Endpoint / 可达性 / TLS / DNS | Observe 摘要 | Observe 摘要 + Bridge | Act | Operator |
-| Connectivity Provider 选择 / 域名 / Route 意图 | None | Observe 状态 + Bridge | Act | Operator |
-| Connectivity Provider 安装 / 更新 / 卸载 | None | Act | Bridge | Machine |
-| Connectivity Provider 本机 Service 生命周期 | Observe 摘要 | Act | Observe | Machine |
-| Connectivity Provider 凭据明文 | None | Act | None | Machine |
-| Tunnel Route 健康 / 日志 / 诊断 | Observe 摘要 | Observe 摘要 + Bridge | Act | Runtime |
-| App / Runtime 更新管理 | Observe 状态 + Bridge | Act | None | Machine |
-| 本机诊断 / Ownership Conflict | Observe 摘要 + Bridge | Act | None | Machine |
-| Audit 与工作流历史 | None | Bridge | Act | Operator |
+| Runtime 整体健康 | Summary | Full | Full | Runtime truth |
+| 启动 / 停止 / 重启 Runtime | Quick action | Full | Full，target-aware | Machine + target capability |
+| Developer / Packaged Mode 与 Runtime 安装 | Summary / open | Full | Status + actionable availability | Local Host capability |
+| Listener / 端口 / 控制台入口 / Trusted LAN | Summary | Full | 有合法 target executor 时 Full | Machine + target capability |
+| 机器 API Token 明文 / 轮换 | None | Host-only | 仅配置状态 | Machine secret authority |
+| 本机 Web Owner 初始化凭据 | None | Host-only | None | Machine secret authority |
+| Web Owner Session / Passkey / 密码+TOTP 登录 | None | Full/shared flow | Full | Operator auth |
+| 一次性本机免密进入控制台 | Quick open | Full | 仅 Consume | Machine-local grant |
+| Project 目录 / 项目元数据 | Summary | Full | Full | Operator/project authority |
+| Project Root / Primary Root / Execution Workspace 管理 | None | Full | Full，target-aware | Machine filesystem + target capability |
+| 受治理 Execution Workspace 工作流使用 | Summary | Full | Full | Workspace governance |
+| Jobs / Queue / Failures | Summary | Full | Full | Operator/governance |
+| Approvals | Summary | Full | Full | Approval policy |
+| Continuity / Tasks / Sessions / Handoffs / Evidence | Open / useful summary | Full | Full | Operator/governance |
+| Integrations / ChatGPT OAuth / Passkeys | None | Full | Full | Operator auth/integration policy |
+| Public Endpoint / 可达性 / TLS / DNS | Summary | Full | Full | Runtime + network truth |
+| Connectivity Provider 选择 / 域名 / Route 意图 | None | Full | Full | Operator intent |
+| Connectivity Provider 安装 / 更新 / 卸载 | None | Full | Full availability，target-aware | Machine + target capability |
+| Connectivity Provider 本机 Service 生命周期 | Summary | Full | Full availability，target-aware | Machine + target capability |
+| Connectivity Provider 凭据明文 | None | Host-only | None | Machine secret authority |
+| Tunnel Route 健康 / 日志 / 诊断 | Summary | Full | Full | Runtime/provider projection |
+| Desktop App 更新 / Launch at Login / Menu Bar Preference | Host-only | Host-only | None | Desktop Host |
+| 本机诊断 / Ownership Conflict | Summary / open | Full | public-safe status + target-aware diagnostics | Machine + target capability |
+| Audit 与工作流历史 | None | Full | Full | Operator/governance |
 
-一个新能力如果要出现在多个 Surface，必须先进入这张 Matrix。若 Authority 仍然不清楚，应先解决权限边界，而不是先把重复按钮做出来。
+一个能力要扩展到多个 Host 前，必须先定义 Product Action、所需 Host Capability、Authority/Policy、Target 语义、public-safe Projection 与 unavailable-state 行为。不得仅因为 Renderer 或操作系统不同就创造第二套业务工作流。
 
 ## 信息密度原则
 
 一致并不等于信息量完全相同。
 
 - **Menu Bar：** 第一屏可扫读摘要，不做滚动型工作台，也不放大型配置表单。
-- **macOS App：** 高密度原生管理中心，保持稳定 Sidebar、紧凑卡片/行与本机管理动作。
-- **Web Cockpit：** 承担最高数据密度，适合工作流表格、历史、资源、审批和多对象操作。
+- **Desktop Host：** 完整 Cockpit，采用适合桌面的信息密度，同时承载 Native Control 与 Host-only Preference。
+- **Browser Host：** 完整 Cockpit，重点适配远程/Headless 场景、响应式布局以及数据密集型工作流。
 
-同一信息可以因为“决策速度不同”而在不同 Surface 重复摘要，但详细真源仍属于能力的主 Surface。
+同一信息可以因为决策速度或 Host Affordance 不同而重复摘要；Runtime/Application Layer 才是 canonical truth，任何 Renderer 都不能变成第二套业务真源。
 
 ## Canonical 术语
 
@@ -161,6 +164,10 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 - Console path / 控制台入口路径
 - Trusted LAN / 可信局域网
 - Web Owner / 控制台管理员
+- Project / 项目
+- Project Root / 项目目录
+- Primary Root / 主项目目录
+- Execution Workspace / 执行工作区
 - Machine API Token / 机器 API 令牌
 - Passkey / 通用密钥
 - TOTP two-factor authentication / TOTP 双重认证
@@ -176,14 +183,14 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 
 新增或移动 UI 能力之前：
 
-1. 明确它属于 Runtime、Machine 还是 Operator Authority。
-2. 检查 Capability Placement Matrix。
-3. 复用权威 Projection / Service，不要在 Surface 内自行推断状态。
-4. 使用统一七态语义。
-5. 其他 Surface 已拥有该任务时优先 Bridge。
-6. 机器秘密不得进入 Web 与 Menu Bar。
-7. 保持真实 Console Path 路由与本地化。
-8. 当边界在实现层可被自动验证时，同步增加或更新门禁。
+1. 先定义 Product Action 与 Domain Object，再决定 Renderer 上使用什么控件。
+2. 明确所需 Host Capability、Authority/Policy、Execution Target 与 Executor。
+3. 检查 Capability Placement Matrix 与 ADR-006。
+4. 复用权威 Runtime/Application Projection，不要在 Surface 内自行推断状态。
+5. 使用统一状态/动作语义，并真实展示 unavailable / requires-local-host / unsupported 等状态。
+6. 机器 Secret 与 private path material 不得进入 public/browser projection。
+7. 保持真实 Console Path、Localization、Target Identity、Idempotency、Revision、Approval 与 Audit Contract。
+8. 当边界可自动验证时，同步增加 Host parity、target resolution 与 negative-state 门禁。
 
 本合同与[产品原则](../governance/product-principles.md)、[macOS Desktop 合同](../deployment/macos-desktop.md)、[Connectivity Provider 机器变更合同](./connectivity-provider-machine-mutation.md)、[Connectivity 候选 Route 暂存合同](./connectivity-route-staging.md)、[Public Route Cutover Intent 合同](./connectivity-route-cutover.md)、[首次公网 Route Bootstrap Identity Proof 合同](./connectivity-route-bootstrap.md)以及英文版 [Web UI Design System](../../architecture/web-ui-design-system.md)共同构成公开的 Surface 设计约束。
 

@@ -427,6 +427,47 @@ export interface OAuthGrantDeviceAccessMutationResponse extends OAuthGrantDevice
   changed: boolean;
 }
 
+export type ProductActionId =
+  | "project.root.manage"
+  | "project.discovery"
+  | "runtime.lifecycle"
+  | "workspace.read"
+  | "capability.read";
+
+export type ProductActionAvailability =
+  | "available-local"
+  | "available-targeted"
+  | "requires-local-host"
+  | "offline"
+  | "unsupported";
+
+export interface ProductActionTargetAvailability {
+  deviceId: string;
+  displayName: string;
+  locality: "local" | "remote";
+  platform: string;
+  architecture: string;
+  presence: "online" | "offline";
+  availability: ProductActionAvailability;
+  executionMode: "local-runtime" | "remote-device-rpc" | "none";
+  reason:
+    | "ready"
+    | "machine-local-context-required"
+    | "device-offline"
+    | "device-agent-update-required"
+    | "target-capability-not-implemented";
+}
+
+export interface ProductActionsResponse {
+  ok: true;
+  schemaVersion: 1;
+  audience: "operator";
+  actions: Array<{
+    id: ProductActionId;
+    targets: ProductActionTargetAvailability[];
+  }>;
+}
+
 export type ManagedDevicePresence = "online" | "offline";
 export type ManagedDeviceTrust = "local" | "paired" | "revoked";
 export type ManagedDeviceExecutionPolicy = "active" | "paused";
@@ -782,6 +823,8 @@ export interface ProjectRootDetail extends Omit<ProjectRootSummary, "pathVisibil
   privatePath: string;
 }
 
+export type ProjectRootContextProjection = ProjectRootSummary | ProjectRootDetail;
+
 export interface ProjectRegistryProjection extends ContinuityProjectProjection {
   roots: ProjectRootSummary[];
 }
@@ -795,7 +838,7 @@ export interface ProjectRegistryResponse {
 export interface ProjectRegistryDetailResponse extends ContinuityProjectProjection {
   ok: true;
   configRevision: string;
-  roots: ProjectRootDetail[];
+  roots: ProjectRootContextProjection[];
   developmentCoordination: ProjectDevelopmentCoordination;
 }
 

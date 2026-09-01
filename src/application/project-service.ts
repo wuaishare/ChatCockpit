@@ -140,6 +140,15 @@ export class ProjectService {
     };
   }
 
+  registryProjectPublic(
+    context: OperationContext,
+    projectId: string
+  ): ProjectRegistryProjectProjection {
+    this.syncConfiguredProjects(context);
+    const snapshot = this.configStore.snapshot();
+    return this.registryProjection(this.repositories.projects.get(projectId), snapshot);
+  }
+
   registryProject(
     context: OperationContext,
     projectId: string

@@ -76,14 +76,18 @@ The current Development solution layer continues to preserve:
 
 These remain implementation contracts even though they are no longer the top-level product positioning.
 
-## Product surfaces
+## Product Hosts and surfaces
 
-- **Menu Bar:** bounded operational HUD.
-- **macOS App:** local runtime manager and secure machine gateway.
-- **Web Cockpit:** operator workspace and Resource Center.
-- **Runtime / Control Plane:** shared source of truth and execution authority.
+ChatCockpit follows **One Product, Multiple Hosts**. Browser and Desktop are not separate products with disjoint domain ownership; they present the same core Cockpit model and resolve execution through Host capability, Authority/Governance, and an explicit Device/Provider target.
 
-Read-only projections may cross those boundaries. Privileged mutation authority does not move merely because the same state is visible on another surface. Capability placement, status semantics, and bridge rules remain governed by the [Surface Design Contract](../architecture/surface-design-contract.md).
+- **Menu Bar:** bounded Desktop operational HUD.
+- **Desktop Host:** full Cockpit experience plus native capabilities such as local Runtime lifecycle, secure secrets, filesystem authorization, notifications, background presence, and OS integration.
+- **Browser Host:** full Cockpit experience for headless Linux, remote administration, secondary devices, and zero-install access.
+- **Device Agent Host:** headless remote Machine executor/capability provider, not a second product UI.
+- **CLI / API:** automation Hosts over the same Application/Governance contracts.
+- **Runtime / Control Plane:** shared source of truth, capability routing, governance, and execution coordination.
+
+Surface visibility never grants authority. A core Product Action may appear in multiple Hosts while its execution is local, remote-targeted, approval-gated, unsupported, or unavailable. Host-only preferences remain Host-only. Capability placement and state semantics are governed by the [Surface Design Contract](../architecture/surface-design-contract.md) and [ADR-006](../architecture/adr-006-unified-surfaces-and-host-capabilities.md).
 
 ## Explicit non-goals
 

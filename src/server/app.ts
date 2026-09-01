@@ -32,6 +32,7 @@ import { ChatDirectService } from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
 import { DeviceTargetService } from "../application/device-target-service.js";
 import { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
+import { ProductActionAvailabilityService } from "../application/product-action-availability-service.js";
 import { OAuthDeviceAccessPolicyService } from "../application/oauth-device-access-policy-service.js";
 import { buildOperationContext } from "../application/operation-context.js";
 import { buildConfiguredHostCommandService } from "../application/host-command-service.js";
@@ -209,6 +210,7 @@ import { registerOperatorRoutes } from "./operator-routes.js";
 import { registerExecutionPermissionRoutes } from "./host-permission-routes.js";
 import { registerDeviceRoutes } from "./device-routes.js";
 import { registerDeviceRuntimeLifecycleRoutes } from "./device-runtime-lifecycle-routes.js";
+import { registerProductActionAvailabilityRoutes } from "./product-action-availability-routes.js";
 import { registerDeviceChannelRoutes } from "./device-channel-routes.js";
 import { buildDeviceLanTlsServer } from "./device-lan-tls-server.js";
 import { registerHubIdentityRoutes } from "./hub-identity-routes.js";
@@ -501,6 +503,10 @@ export function buildServer(
     deviceRegistryStore,
     deviceChannelHub,
     oauthDeviceAccessPolicy
+  );
+  const productActionAvailabilityService = new ProductActionAvailabilityService(
+    deviceTargetService,
+    deviceChannelHub
   );
   let hubIdentity: HubIdentityRecord;
   try {
@@ -1045,6 +1051,7 @@ export function buildServer(
     }
   });
   registerDeviceRuntimeLifecycleRoutes(app, deviceRuntimeLifecycleService);
+  registerProductActionAvailabilityRoutes(app, productActionAvailabilityService);
   registerDeviceChannelRoutes(
     app,
     deviceRegistryStore,
