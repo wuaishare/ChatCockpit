@@ -419,11 +419,11 @@ assert.match(menuBar, /approvals\?\.available == true \? approvals\?\.pending : 
 assert.doesNotMatch(menuBar, /operationalSummary[\s\S]*\?\?\s*0/s);
 assert.match(menuBar, /snapshot\.localCockpitURL/);
 assert.match(menuBar, /snapshot\.publicCockpitURL/);
-assert.match(menuBar, /model\.copyMachineEndpoint\(url\)/);
-assert.match(menuBar, /openAction: model\.openLocalCockpit/);
-assert.match(menuBar, /openAction: model\.openPublicCockpit/);
-assert.match(menuBar, /DesktopL10n\.format\("Copy %@ address", title\)/);
-assert.match(menuBar, /DesktopL10n\.format\("Open %@ in Browser", title\)/);
+assert.match(menuBar, /private func endpointSummary/);
+assert.match(menuBar, /let semantic: NativeStatusSemantic = available \? \.healthy : \.inactive/);
+assert.match(menuBar, /DesktopL10n\.string\("Available"\)/);
+assert.doesNotMatch(menuBar, /model\.copyMachineEndpoint\(url\)/);
+assert.doesNotMatch(menuBar, /openAction: model\.openPublicCockpit/);
 assert.match(menuBar, /model\.updateStatusText/);
 assert.match(menuBar, /openMainWindow\(\.updates\)/);
 assert.match(menuBar, /openMainWindow\(\.diagnostics\)/);

@@ -53,14 +53,6 @@ export default defineConfig(() => {
               return;
             }
 
-            if (
-              id.includes("/antd/") ||
-              id.includes("/@ant-design/") ||
-              id.includes("/@rc-component/")
-            ) {
-              return "ui-core";
-            }
-
             if (id.includes("react") || id.includes("scheduler")) {
               return "react-vendor";
             }

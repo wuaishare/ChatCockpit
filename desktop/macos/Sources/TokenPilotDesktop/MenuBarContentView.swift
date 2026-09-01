@@ -121,18 +121,20 @@ struct MenuBarContentView: View {
             title: DesktopL10n.string("Access"),
             systemImage: "lock.shield"
         ) {
-            VStack(spacing: 8) {
-                endpointRow(
+            HStack(spacing: 10) {
+                endpointSummary(
                     title: DesktopL10n.string("Local Cockpit"),
                     url: model.snapshot.localCockpitURL,
-                    fallback: DesktopL10n.string("Unavailable"),
-                    openAction: model.openLocalCockpit
+                    fallback: DesktopL10n.string("Unavailable")
                 )
-                endpointRow(
+
+                Divider()
+                    .frame(height: 30)
+
+                endpointSummary(
                     title: DesktopL10n.string("Public Cockpit"),
                     url: model.snapshot.publicCockpitURL,
-                    fallback: DesktopL10n.string("Not configured"),
-                    openAction: model.openPublicCockpit
+                    fallback: DesktopL10n.string("Not configured")
                 )
             }
         }
@@ -388,61 +390,33 @@ struct MenuBarContentView: View {
         .accessibilityLabel("\(title): \(count.map(String.init) ?? DesktopL10n.string("Unavailable"))")
     }
 
-    private func endpointRow(
+    private func endpointSummary(
         title: String,
         url: URL?,
-        fallback: String,
-        openAction: @escaping () -> Void
+        fallback: String
     ) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+        let available = url != nil
+        let semantic: NativeStatusSemantic = available ? .healthy : .inactive
+        let status = available ? DesktopL10n.string("Available") : fallback
+
+        return HStack(spacing: 7) {
+            Image(systemName: semantic.systemImage)
+                .foregroundStyle(semantic.tint)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                if let url {
-                    Text(verbatim: url.absoluteString)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                } else {
-                    Text(fallback)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    .lineLimit(1)
+                Text(status)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
             }
-
-            Spacer(minLength: 8)
-
-            if let url {
-                let copied = model.securityFeedback?.target == .apiEndpoint(url.absoluteString)
-                    && model.securityFeedback?.kind == .copied
-
-                AccessibleIconButton(
-                    systemName: copied ? "checkmark" : "doc.on.doc",
-                    title: copied
-                        ? DesktopL10n.format("%@ address copied", title)
-                        : DesktopL10n.format("Copy %@ address", title),
-                    disabled: false,
-                    destructive: false
-                ) {
-                    model.copyMachineEndpoint(url)
-                }
-                .id("menu-copy|\(title)|\(copied)")
-                .frame(width: 22, height: 22)
-
-                AccessibleIconButton(
-                    systemName: "arrow.up.right.square",
-                    title: DesktopL10n.format("Open %@ in Browser", title),
-                    disabled: false,
-                    destructive: false
-                ) {
-                    openAction()
-                }
-                .frame(width: 22, height: 22)
-            }
+            Spacer(minLength: 0)
         }
-        .accessibilityElement(children: .contain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(status)")
     }
 
     private func attentionRow(

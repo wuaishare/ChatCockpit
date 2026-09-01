@@ -116,6 +116,8 @@ Runtime artifact rule:
 - Only the complete `npm run build` pipeline may publish a new `web/dist` generation, via the internal `build:web:runtime` step followed by backend compilation and one shared provenance marker.
 - A running Runtime snapshots its already-verified Web generation into the private runtime state directory and serves `/ui` from that immutable snapshot. Rebuilding the checkout therefore prepares the next generation without invalidating the UI currently in use.
 
-Known non-blocking follow-up:
+Web chunking baseline:
 
-- Ant Design and its RC component dependencies are grouped into the Web `ui-core` vendor chunk. Continue monitoring startup cost and prefer route-level lazy loading before introducing another general-purpose UI framework.
+- Route-level lazy loading must remain effective. Do not force all Ant Design / `@ant-design` / RC dependencies into one global vendor chunk, because that collapses lazy routes back into the initial dependency graph.
+- `scripts/build-web.ts` enforces a 500 KiB maximum emitted JavaScript chunk budget for both isolated verification builds and Runtime artifacts. Exceeding the budget is a build failure rather than a warning-threshold adjustment.
+- Continue preferring route-level lazy loading before introducing another general-purpose UI framework.
