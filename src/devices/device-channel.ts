@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 
-export type DeviceChannelProtocolVersion = 1 | 2 | 3 | 4;
+import {
+  normalizeDeviceChannelCapabilities,
+  type DeviceChannelCapability
+} from "./device-channel-capabilities.js";
+
+export type DeviceChannelProtocolVersion = 1 | 2 | 3 | 4 | 5;
 export type DeviceChannelCloseReason = "superseded" | "revoked" | "server-shutdown";
 export type DeviceChannelLifecycleReason = DeviceChannelCloseReason | "disconnected";
 
@@ -15,6 +20,7 @@ export interface DeviceChannelServerEventSender {
 interface ActiveDeviceChannel {
   channelId: string;
   protocolVersion: DeviceChannelProtocolVersion;
+  capabilities: ReadonlySet<DeviceChannelCapability> | null;
   close(reason: DeviceChannelCloseReason): void;
   send: DeviceChannelServerEventSender | null;
 }
@@ -28,6 +34,7 @@ export interface DeviceChannelRegistration {
 export interface DeviceCapabilityRpcChannel {
   channelId: string;
   protocolVersion: DeviceChannelProtocolVersion;
+  workspaceRpcAvailable: boolean;
   send(data: unknown): boolean;
 }
 
@@ -51,6 +58,7 @@ export class DeviceChannelHub {
     close: (reason: DeviceChannelCloseReason) => void,
     options: {
       protocolVersion?: DeviceChannelProtocolVersion;
+      capabilities?: readonly DeviceChannelCapability[];
       send?: DeviceChannelServerEventSender;
     } = {}
   ): DeviceChannelRegistration {
@@ -69,6 +77,9 @@ export class DeviceChannelHub {
     this.active.set(deviceId, {
       channelId,
       protocolVersion,
+      capabilities: options.capabilities === undefined
+        ? null
+        : new Set(normalizeDeviceChannelCapabilities(options.capabilities)),
       close,
       send: options.send ?? null
     });
@@ -90,27 +101,33 @@ export class DeviceChannelHub {
 
   isCapabilityRpcAvailable(deviceId: string): boolean {
     const channel = this.active.get(deviceId);
-    return Boolean(channel && channel.protocolVersion >= 2 && channel.send !== null);
+    return Boolean(channel && this.supports(channel, "capability-rpc") && channel.send !== null);
+  }
+
+  isWorkspaceRpcAvailable(deviceId: string): boolean {
+    const channel = this.active.get(deviceId);
+    return Boolean(channel && this.supports(channel, "workspace-rpc") && channel.send !== null);
   }
 
   capabilityRpcChannel(deviceId: string): DeviceCapabilityRpcChannel | null {
     const channel = this.active.get(deviceId);
-    if (!channel || channel.protocolVersion < 2 || !channel.send) return null;
+    if (!channel || !this.supports(channel, "capability-rpc") || !channel.send) return null;
     return {
       channelId: channel.channelId,
       protocolVersion: channel.protocolVersion,
+      workspaceRpcAvailable: this.supports(channel, "workspace-rpc"),
       send: (data) => channel.send!("capability.request", data)
     };
   }
 
   isRuntimeLifecycleRpcAvailable(deviceId: string): boolean {
     const channel = this.active.get(deviceId);
-    return Boolean(channel && channel.protocolVersion >= 3 && channel.send !== null);
+    return Boolean(channel && this.supports(channel, "runtime-lifecycle") && channel.send !== null);
   }
 
   runtimeLifecycleRpcChannel(deviceId: string): DeviceRuntimeLifecycleRpcChannel | null {
     const channel = this.active.get(deviceId);
-    if (!channel || channel.protocolVersion < 3 || !channel.send) return null;
+    if (!channel || !this.supports(channel, "runtime-lifecycle") || !channel.send) return null;
     return {
       channelId: channel.channelId,
       send: (data) => channel.send!("runtime.lifecycle.request", data)
@@ -142,6 +159,16 @@ export class DeviceChannelHub {
       this.notifyLifecycle({ deviceId, channelId: channel.channelId, reason });
       channel.close(reason);
     }
+  }
+
+  private supports(
+    channel: ActiveDeviceChannel,
+    capability: DeviceChannelCapability
+  ): boolean {
+    if (channel.capabilities !== null) return channel.capabilities.has(capability);
+    if (capability === "capability-rpc") return channel.protocolVersion >= 2;
+    if (capability === "runtime-lifecycle") return channel.protocolVersion >= 3;
+    return channel.protocolVersion >= 4;
   }
 
   private notifyLifecycle(event: DeviceChannelLifecycleEvent): void {

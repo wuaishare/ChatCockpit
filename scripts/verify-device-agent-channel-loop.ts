@@ -137,7 +137,8 @@ try {
     }
   }));
   assert.ok(cleanOpen);
-  assert.equal(cleanOpen.protocolVersion, 2);
+  assert.equal(cleanOpen.protocolVersion, 5);
+  assert.deepEqual(cleanOpen.capabilities, ["capability-rpc"]);
   assert.deepEqual(cleanEvents, ["channel.ready", "channel.ping"]);
   assert.equal(cleanResult.state, "connected");
   assert.equal(cleanResult.hubId, hub.hubId);
@@ -158,15 +159,16 @@ try {
       ]);
     })
   });
-  process.stderr.write("CHANNEL_LOOP_STAGE workspace-only-v2\n");
-  await withTimeout("workspace-only v2 channel loop", workspaceOnlyService.runOutboundChannelLoop({
+  process.stderr.write("CHANNEL_LOOP_STAGE workspace-only-v5\n");
+  await withTimeout("workspace-only v5 channel loop", workspaceOnlyService.runOutboundChannelLoop({
     signal: workspaceOnlyController.signal,
     onEvent: (event) => {
       if (event.type === "channel.ping") workspaceOnlyController.abort();
     }
   }));
   assert.ok(workspaceOnlyOpen);
-  assert.equal(workspaceOnlyOpen.protocolVersion, 2);
+  assert.equal(workspaceOnlyOpen.protocolVersion, 5);
+  assert.deepEqual(workspaceOnlyOpen.capabilities, ["capability-rpc", "workspace-rpc"]);
 
   const workspaceRuntime = connectedRuntime("channel-workspace-v4");
   const workspaceController = new AbortController();
@@ -191,15 +193,20 @@ try {
       ]);
     })
   });
-  process.stderr.write("CHANNEL_LOOP_STAGE workspace-v4\n");
-  await withTimeout("workspace v4 channel loop", workspaceService.runOutboundChannelLoop({
+  process.stderr.write("CHANNEL_LOOP_STAGE workspace-runtime-v5\n");
+  await withTimeout("workspace runtime v5 channel loop", workspaceService.runOutboundChannelLoop({
     signal: workspaceController.signal,
     onEvent: (event) => {
       if (event.type === "channel.ping") workspaceController.abort();
     }
   }));
   assert.ok(workspaceOpen);
-  assert.equal(workspaceOpen.protocolVersion, 4);
+  assert.equal(workspaceOpen.protocolVersion, 5);
+  assert.deepEqual(workspaceOpen.capabilities, [
+    "capability-rpc",
+    "runtime-lifecycle",
+    "workspace-rpc"
+  ]);
 
   const retryRuntime = connectedRuntime("channel-retry");
   const retryController = new AbortController();

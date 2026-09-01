@@ -83,6 +83,10 @@ class FakeChannels {
     return deviceId === capableId || deviceId === readOnlyId || deviceId === pausedId;
   }
 
+  isWorkspaceRpcAvailable(deviceId: string): boolean {
+    return deviceId === capableId || deviceId === pausedId;
+  }
+
   isRuntimeLifecycleRpcAvailable(deviceId: string): boolean {
     return deviceId === capableId || deviceId === pausedId;
   }
@@ -145,6 +149,11 @@ assert.equal(
   target(remoteBrowser, "project.root.manage", capableId).reason,
   "target-capability-not-implemented",
   "an unimplemented Product Action must not be misreported as an Agent upgrade problem"
+);
+assert.equal(
+  target(remoteBrowser, "workspace.read", readOnlyId).availability,
+  "unsupported",
+  "generic capability RPC must not imply remote Workspace RPC support"
 );
 assert.equal(
   target(remoteBrowser, "workspace.read", offlineId).availability,

@@ -163,6 +163,8 @@ Restart/Start/Stop Runtime 在 Desktop 与 Web 中属于同一个产品动作：
 
 现有 `TargetedCapabilityRouterService`、`DeviceTargetService`、Device Capability RPC、Device Runtime Lifecycle RPC、Host Permission、Governance Ledger 不废弃。
 
+Device Channel 的 **wire protocol version 与 capability set 必须正交**。Legacy v1-v4 channel 为兼容旧 Agent 继续按历史版本语义读取；v5 channel-open 必须把 canonical capability attestation 纳入设备 Ed25519 签名 proof，Hub 只按已签名的 `capability-rpc`、`workspace-rpc`、`runtime-lifecycle` 等能力事实决定可用性。平台名称、连接在线、通用 RPC 可达或较高 protocol version 都不能替代 capability attestation，也不能通过剥离 attestation 降级成更宽权限。
+
 新增的 Host Capability Resolution 层应优先组合这些已有事实，而不是创建第二个远程执行系统。
 
 ## 迁移顺序

@@ -10,6 +10,7 @@ import {
 } from "./device-runtime-lifecycle.js";
 
 export interface DeviceRuntimeLifecycleAdapter {
+  readonly support: "managed-macos" | "unsupported";
   status(): Promise<DeviceRuntimeConditions>;
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -128,6 +129,8 @@ function parseConditions(value: string): DeviceRuntimeConditions {
 export class MacOSChatCockpitRuntimeLifecycleAdapter
   implements DeviceRuntimeLifecycleAdapter
 {
+  readonly support = "managed-macos" as const;
+
   constructor(
     private readonly paths: TokenPilotPaths,
     private readonly runner: DeviceRuntimeLifecycleCommandRunner = defaultCommandRunner
@@ -208,6 +211,8 @@ export class MacOSChatCockpitRuntimeLifecycleAdapter
 export class UnsupportedDeviceRuntimeLifecycleAdapter
   implements DeviceRuntimeLifecycleAdapter
 {
+  readonly support = "unsupported" as const;
+
   async status(): Promise<DeviceRuntimeConditions> {
     return this.unsupported();
   }

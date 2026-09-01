@@ -469,7 +469,8 @@ try {
     pollEnrollment: async () => ({ ok: true }),
     heartbeat: async () => ({ ok: true }),
     openChannel: async (_origin, input) => {
-      assert.equal(input.protocolVersion, 2);
+      assert.equal(input.protocolVersion, 5);
+      assert.deepEqual(input.capabilities, ["capability-rpc"]);
       return connection([
         ready(input, successChannelId),
         workspaceCapabilityEvent("cc_device_request_agentworkspaceonv2fixture"),
@@ -511,7 +512,7 @@ try {
   assert.equal(
     calls,
     callsBeforeSuccessLoop + 1,
-    "workspace.read.invoke on a v2 channel must be rejected before provider execution"
+    "workspace.read.invoke without the workspace-rpc capability must be rejected before provider execution"
   );
   assert.equal(successSubmitted.length, 2);
   assert.equal(successSubmitted[0]?.channelId, successChannelId);

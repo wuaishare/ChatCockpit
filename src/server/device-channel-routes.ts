@@ -10,6 +10,10 @@ import {
   type DeviceChannelProtocolVersion
 } from "../devices/device-channel.js";
 import {
+  parseDeviceChannelCapabilities,
+  type DeviceChannelCapability
+} from "../devices/device-channel-capabilities.js";
+import {
   DEVICE_CAPABILITY_RESULT_MAX_BYTES,
   DeviceCapabilityRpc,
   DeviceCapabilityRpcError,
@@ -85,11 +89,49 @@ function optionalProtocolVersion(request: FastifyRequest): DeviceChannelProtocol
   if (value === "2") return 2;
   if (value === "3") return 3;
   if (value === "4") return 4;
+  if (value === "5") return 5;
   throw new DeviceRegistryError(
     400,
     "DEVICE_CHANNEL_PROTOCOL_UNSUPPORTED",
     "Device channel protocol version is unsupported"
   );
+}
+
+function channelCapabilities(
+  request: FastifyRequest,
+  protocolVersion: DeviceChannelProtocolVersion
+): DeviceChannelCapability[] | undefined {
+  const value = headerValue(request, "x-chatcockpit-channel-capabilities");
+  if (protocolVersion !== 5) {
+    if (value !== null) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_CHANNEL_CAPABILITY_ATTESTATION_UNEXPECTED",
+        "Device channel capability attestation requires protocol v5"
+      );
+    }
+    return undefined;
+  }
+  if (value === null || value.length > 256) {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_CHANNEL_CAPABILITY_ATTESTATION_REQUIRED",
+      "Device channel protocol v5 requires a capability attestation"
+    );
+  }
+  try {
+    const capabilities = parseDeviceChannelCapabilities(value);
+    if (capabilities.length === 0) {
+      throw new Error("empty capability attestation");
+    }
+    return capabilities;
+  } catch {
+    throw new DeviceRegistryError(
+      400,
+      "DEVICE_CHANNEL_CAPABILITY_ATTESTATION_INVALID",
+      "Device channel capability attestation is invalid"
+    );
+  }
 }
 
 function requiredChannelId(request: FastifyRequest): string {
@@ -326,6 +368,7 @@ export function registerDeviceChannelRoutes(
       const deviceId = requiredDeviceId(request);
       const sequence = requiredSequence(request);
       const protocolVersion = optionalProtocolVersion(request);
+      const capabilities = channelCapabilities(request, protocolVersion);
       const channelNonce = requiredHeader(
         request,
         "x-chatcockpit-channel-nonce",
@@ -341,7 +384,14 @@ export function registerDeviceChannelRoutes(
         256
       );
       store.recordChannelOpen(
-        { deviceId, sequence, channelNonce, protocolVersion, signature },
+        {
+          deviceId,
+          sequence,
+          channelNonce,
+          protocolVersion,
+          ...(capabilities === undefined ? {} : { capabilities }),
+          signature
+        },
         now()
       );
 
@@ -374,6 +424,7 @@ export function registerDeviceChannelRoutes(
 
       registration = channelHub.register(deviceId, close, {
         protocolVersion,
+        ...(capabilities === undefined ? {} : { capabilities }),
         ...(protocolVersion >= 2
           ? {
               send: (event, data) =>

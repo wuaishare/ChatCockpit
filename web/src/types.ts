@@ -438,8 +438,11 @@ export type ProductActionAvailability =
   | "available-local"
   | "available-targeted"
   | "requires-local-host"
+  | "approval-required"
   | "offline"
-  | "unsupported";
+  | "unsupported"
+  | "forbidden"
+  | "unavailable";
 
 export interface ProductActionTargetAvailability {
   deviceId: string;
@@ -453,9 +456,12 @@ export interface ProductActionTargetAvailability {
   reason:
     | "ready"
     | "machine-local-context-required"
+    | "approval-required"
     | "device-offline"
     | "device-agent-update-required"
-    | "target-capability-not-implemented";
+    | "target-capability-not-implemented"
+    | "policy-forbidden"
+    | "no-valid-execution-path";
 }
 
 export interface ProductActionsResponse {

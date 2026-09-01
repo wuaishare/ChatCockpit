@@ -194,11 +194,11 @@ private struct NativeIntegrationsBridgeView: View {
                     .padding(.vertical, 4)
                 }
 
-                GroupBox(DesktopL10n.string("Web Integrations")) {
+                GroupBox(DesktopL10n.string("Cockpit Integrations")) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(
                             DesktopL10n.string(
-                                "ChatGPT OAuth, Passkeys, API/OpenAPI integration details, and other operator workflows stay in the Web Cockpit. The native App shows machine-local status and opens the precise Web destination without taking over Web authority."
+                                "ChatGPT OAuth, Passkeys, API/OpenAPI details, and other shared operator workflows belong to the ChatCockpit product experience rather than to a Web-only authority. This native shell currently opens the canonical Cockpit destination while machine-local secrets and OS-specific controls remain on this Host."
                             )
                         )
                         .foregroundStyle(.secondary)

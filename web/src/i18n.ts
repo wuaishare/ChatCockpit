@@ -572,7 +572,7 @@ const zhCN: UiCopy = {
     gptPreviewDescription: "仅用于兼容旧版 Actions 工作流的可复制指引。",
     gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址；新连接优先使用 ChatGPT App / MCP。",
     repoGovernanceTitle: "执行工作区治理",
-    repoGovernanceDescription: "当前可供受治理执行使用的公开 repoId。项目目录与执行工作区授权由 ChatCockpit App 的“项目”页面管理。",
+    repoGovernanceDescription: "当前可供受治理执行使用的公开 repoId。项目目录与执行工作区授权属于共享 Project 工作流；是否可编辑由当前 Host、Target Capability 与 Authority 决定。",
     repoGovernanceConfigScope:
       "授权来源：当前机器的 ChatCockpit 项目/执行工作区配置；Web Cockpit 仅使用已授权 repo 映射，不显示本机路径。",
     repoGovernancePathHidden: "路径已隐藏",
@@ -589,7 +589,7 @@ const zhCN: UiCopy = {
   continuity: zhCNContinuityCopy,
   setup: {
     title: "首次设置",
-    description: "检查 Machine 与 Operator 两侧的前置条件。机器侧配置在 ChatCockpit App 管理，连接、授权与工作流在 Web Cockpit 完成。",
+    description: "检查 Host Capability、Runtime 与 Operator 前置条件。共享工作流由 Cockpit 统一呈现；本机秘密与操作系统专属设置留在对应 Host，机器动作按 Authority 与 Execution Target 解析。",
     readyTag: "已就绪",
     pendingTag: "待处理",
     openIntegrations: "打开连接与授权",
@@ -930,7 +930,7 @@ const enUS: UiCopy = {
     gptPreviewDescription: "Copy-safe guidance for legacy Actions workflows.",
     gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL. Prefer ChatGPT App / MCP for new connections.",
     repoGovernanceTitle: "Execution Workspace Governance",
-    repoGovernanceDescription: "Public repoIds available to governed execution. Project roots and execution-workspace authorization are managed from Projects in the ChatCockpit App.",
+    repoGovernanceDescription: "Public repoIds available to governed execution. Project roots and execution-workspace authorization are a shared Project workflow; editability is resolved from the current Host, target capability, and authority.",
     repoGovernanceConfigScope:
       "Authorization source: this machine's ChatCockpit project/execution-workspace configuration. Web Cockpit consumes authorized repo mappings without exposing local paths.",
     repoGovernancePathHidden: "Path hidden",
@@ -947,7 +947,7 @@ const enUS: UiCopy = {
   continuity: enUSContinuityCopy,
   setup: {
     title: "First-run setup",
-    description: "Check prerequisites across Machine and Operator surfaces. Machine configuration stays in the ChatCockpit App; connections, authorization, and workflows stay in Web Cockpit.",
+    description: "Check Host capability, Runtime, and Operator prerequisites. Shared workflows belong to the Cockpit experience; machine-local secrets and OS-specific preferences remain on their Host, while machine actions resolve authority and execution target before running.",
     readyTag: "Ready",
     pendingTag: "Pending",
     openIntegrations: "Open Connections & Access",

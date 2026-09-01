@@ -91,6 +91,10 @@ export class DeviceAgentRuntimeLifecycleService {
   private readonly store: DeviceRuntimeOperationStore;
   private readonly now: () => string;
 
+  get support(): "managed-macos" | "unsupported" {
+    return this.options.adapter.support;
+  }
+
   constructor(private readonly options: DeviceAgentRuntimeLifecycleServiceOptions) {
     this.store = new DeviceRuntimeOperationStore({ runtimeDir: options.runtimeDir });
     this.now = options.now ?? (() => new Date().toISOString());

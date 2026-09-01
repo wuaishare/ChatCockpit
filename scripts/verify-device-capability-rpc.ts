@@ -498,6 +498,78 @@ try {
   });
   assert.deepEqual(await workspacePending, workspaceBody);
 
+  const v5Nonce = crypto.randomBytes(18).toString("base64url");
+  await assert.rejects(
+    transport.openChannel(origin, {
+      deviceId,
+      sequence: 10,
+      channelNonce: v5Nonce,
+      protocolVersion: 5,
+      signature: sign(
+        privateKey,
+        buildDeviceChannelOpenProof(deviceId, 10, v5Nonce, 5, [])
+      )
+    }),
+    (error: unknown) =>
+      error instanceof DeviceAgentTransportError &&
+      error.code === "DEVICE_CHANNEL_CAPABILITY_ATTESTATION_REQUIRED" &&
+      error.statusCode === 400
+  );
+
+  await assert.rejects(
+    transport.openChannel(origin, {
+      deviceId,
+      sequence: 10,
+      channelNonce: v5Nonce,
+      protocolVersion: 5,
+      capabilities: ["capability-rpc"],
+      signature: sign(
+        privateKey,
+        buildDeviceChannelOpenProof(
+          deviceId,
+          10,
+          v5Nonce,
+          5,
+          ["capability-rpc", "workspace-rpc"]
+        )
+      )
+    }),
+    (error: unknown) =>
+      error instanceof DeviceAgentTransportError &&
+      error.code === "DEVICE_SIGNATURE_INVALID" &&
+      error.statusCode === 401
+  );
+
+  const v5 = await transport.openChannel(origin, {
+    deviceId,
+    sequence: 10,
+    channelNonce: v5Nonce,
+    protocolVersion: 5,
+    capabilities: ["capability-rpc", "workspace-rpc"],
+    signature: sign(
+      privateKey,
+      buildDeviceChannelOpenProof(
+        deviceId,
+        10,
+        v5Nonce,
+        5,
+        ["capability-rpc", "workspace-rpc"]
+      )
+    )
+  });
+  const v5Iterator = v5.events[Symbol.asyncIterator]();
+  const v5Ready = await nextEventOfType(v5Iterator, "channel.ready");
+  assert.equal(v5Ready.protocolVersion, 5);
+  assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
+  assert.equal(channelHub.isWorkspaceRpcAvailable(deviceId), true);
+  assert.equal(
+    channelHub.isRuntimeLifecycleRpcAvailable(deviceId),
+    false,
+    "signed v5 capability attestation must not infer Runtime lifecycle from Workspace RPC"
+  );
+  const v4Closed = await nextEventOfType(v4Iterator, "channel.close");
+  assert.equal(v4Closed.reason, "superseded");
+
   const revokedPending = rpc.request(deviceId, "capabilities.list", {});
   const revokedPendingRejected = assert.rejects(
     revokedPending,
@@ -505,7 +577,7 @@ try {
       error instanceof DeviceCapabilityRpcError &&
       error.code === "DEVICE_CAPABILITY_CHANNEL_CLOSED"
   );
-  await nextEventOfType(v4Iterator, "capability.request");
+  await nextEventOfType(v5Iterator, "capability.request");
   const revoked = await app.inject({
     method: "DELETE",
     url: `/api/devices/${deviceId}`,
@@ -513,7 +585,7 @@ try {
   });
   assert.equal(revoked.statusCode, 200, revoked.body);
   await revokedPendingRejected;
-  const revokedClose = await nextEventOfType(v4Iterator, "channel.close");
+  const revokedClose = await nextEventOfType(v5Iterator, "channel.close");
   assert.equal(revokedClose.reason, "revoked");
   assert.equal(channelHub.isActive(deviceId), false);
 

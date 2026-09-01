@@ -28,6 +28,10 @@ import {
   type DeviceAgentStateRecord
 } from "./device-agent-state.js";
 import { DeviceAgentCapabilityService } from "./device-agent-capability-service.js";
+import {
+  normalizeDeviceChannelCapabilities,
+  type DeviceChannelCapability
+} from "./device-channel-capabilities.js";
 import type {
   DeviceCapabilityRequestEnvelope,
   DeviceCapabilityResultBody
@@ -124,6 +128,7 @@ interface DeviceAgentCapabilityExecutor {
 }
 
 interface DeviceAgentRuntimeLifecycleExecutor {
+  readonly support: "managed-macos" | "unsupported";
   execute(request: DeviceRuntimeLifecycleRequestEnvelope): Promise<DeviceRuntimeLifecycleResultBody>;
 }
 
@@ -1131,18 +1136,25 @@ export class DeviceAgentService {
         await this.ensureRouteIdentity(current, routeTarget);
         const { sequence, state } = reserveDeviceHeartbeatSequence(this.runtimeDir, this.now());
         const channelNonce = crypto.randomBytes(18).toString("base64url");
-        const channelProtocolVersion = this.workspaceRpcEnabled && this.runtimeLifecycleService
-          ? 4 as const
-          : this.runtimeLifecycleService
-            ? 3 as const
-            : 2 as const;
+        const channelCapabilities = normalizeDeviceChannelCapabilities([
+          "capability-rpc",
+          ...(this.workspaceRpcEnabled ? ["workspace-rpc"] : []),
+          ...(
+            this.runtimeLifecycleService &&
+            this.runtimeLifecycleService.support !== "unsupported"
+              ? ["runtime-lifecycle"]
+              : []
+          )
+        ] as DeviceChannelCapability[]);
+        const channelProtocolVersion = 5 as const;
         const signature = sign(
           state,
           buildDeviceChannelOpenProof(
             current.deviceId,
             sequence,
             channelNonce,
-            channelProtocolVersion
+            channelProtocolVersion,
+            channelCapabilities
           )
         );
         connection = await this.transportCall(() =>
@@ -1151,6 +1163,7 @@ export class DeviceAgentService {
             sequence,
             channelNonce,
             protocolVersion: channelProtocolVersion,
+            capabilities: channelCapabilities,
             signature,
             signal: options.signal
           })
@@ -1194,13 +1207,13 @@ export class DeviceAgentService {
               );
             }
             const result: DeviceCapabilityResultBody =
-              event.operation === "workspace.read.invoke" && channelProtocolVersion < 4
+              event.operation === "workspace.read.invoke" && !this.workspaceRpcEnabled
                 ? {
                     requestId: event.requestId,
                     outcome: "error",
                     error: {
                       code: "DEVICE_WORKSPACE_RPC_UNSUPPORTED",
-                      message: "Remote workspace requests require Device channel protocol v4"
+                      message: "Remote workspace requests require the workspace-rpc Device capability"
                     }
                   }
                 : await this.capabilityService.execute({

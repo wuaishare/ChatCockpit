@@ -69,7 +69,7 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 5. **不得编造 Bridge。** 只有真实检测/Attest 到 Desktop/Agent Capability 后，`requires-local-host` 才能升级成 Native Bridge；UI 不能因为“理论上装 App 会有帮助”就假装本机已安装。
 6. **秘密保持 machine-local。** Machine API Token、初始化 Owner 密码、Provider Credential 与其它 Host Private Material 绝不能因为 UI parity 进入公开投影。
 7. **共享工作流真相，不强绑 Renderer 技术。** Native 与 Web 应共享产品语义、Application Contract，并在安全和经济性成立时复用 UI；Desktop Renderer 技术路线是 ADR-006 约束下的独立实现决策。
-8. **所有 Web 跳转都使用真实控制台入口。** 不得假设固定 `/ui`。
+8. **安全登录入口与稳定 Cockpit 路由必须分开建模。** `consolePathPrefix` 是新的未认证 Web 登录所经过的可配置安全入口；认证后的 Cockpit 导航使用稳定的 `/ui/*` 路由族。Host 不得用安全登录入口替代认证后的 deep link，也不能把稳定 Cockpit 路由误当成秘密地址。
 9. **Unavailable 不是 0。** 读不到运维投影时必须显示 unknown / unavailable，不能伪造为 `0` 或健康。
 10. **Connectivity 必须 Provider-neutral。** 公网接入围绕 Endpoint、Route、Provider、Health 与 Diagnostics 建模，不能让 ServBay、FRP、Cloudflare Tunnel、ngrok、Pinggy 或任何其他 Provider 变成核心产品身份的一部分。
 11. **默认不安装任何 Provider。** Connectivity Provider 全部可选；已有环境可以检测并复用。安装、升级、卸载以及本机 Service Mutation 必须经过明确的 Machine Authority。

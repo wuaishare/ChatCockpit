@@ -70,13 +70,13 @@
 "Diagnostics" = "诊断";
 "Integration Status" = "集成状态";
 "Available" = "可用";
-"Web Integrations" = "Web 集成";
+"Cockpit Integrations" = "Cockpit 集成";
 "Local Integrations" = "本机集成";
 "Public Integrations" = "公网集成";
 "Overall status" = "总体状态";
 "Runtime Diagnostics" = "运行环境诊断";
 "App Preferences" = "应用偏好设置";
-"ChatGPT OAuth, Passkeys, API/OpenAPI integration details, and other operator workflows stay in the Web Cockpit. The native App shows machine-local status and opens the precise Web destination without taking over Web authority." = "ChatGPT OAuth、通用密钥、API/OpenAPI 集成详情及其他管理员工作流继续由 Web 控制台负责。原生 App 只展示本机状态并打开精确的 Web 目标，不接管 Web 管理员权限。";
+"ChatGPT OAuth, Passkeys, API/OpenAPI details, and other shared operator workflows belong to the ChatCockpit product experience rather than to a Web-only authority. This native shell currently opens the canonical Cockpit destination while machine-local secrets and OS-specific controls remain on this Host." = "ChatGPT OAuth、通用密钥、API/OpenAPI 等共享管理员工作流属于统一的 ChatCockpit 产品体验，而不是 Web 独占的 Authority。当前原生壳会打开规范的 Cockpit 目标；本机秘密与操作系统专属控制仍保留在当前 Host。";
 "Runtime, workspace, access, security, integrations, updates, and diagnostics now live in the main ChatCockpit window. This Settings window is reserved for app-only preferences." = "运行环境、工作区、访问与安全、集成、更新和诊断现在统一位于 ChatCockpit 主窗口中。此“设置”窗口仅保留应用自身的偏好设置。";
 "Quit ChatCockpit" = "退出 ChatCockpit";
 "Packaged" = "独立应用模式";

@@ -3,6 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import {
+  normalizeDeviceChannelCapabilities,
+  serializeDeviceChannelCapabilities,
+  type DeviceChannelCapability
+} from "./device-channel-capabilities.js";
+
 export const DEVICE_PRESENCE_WINDOW_MS = 90_000;
 export const DEVICE_ENROLLMENT_TTL_MS = 5 * 60_000;
 export const DEVICE_ENROLLMENT_POLL_AFTER_SECONDS = 3;
@@ -323,7 +329,8 @@ function channelOpenMessage(
   deviceId: string,
   sequence: number,
   channelNonce: string,
-  protocolVersion: 1 | 2 | 3 | 4 = 1
+  protocolVersion: 1 | 2 | 3 | 4 | 5 = 1,
+  capabilities: readonly DeviceChannelCapability[] = []
 ): Buffer {
   if (protocolVersion === 1) {
     return Buffer.from(
@@ -331,13 +338,26 @@ function channelOpenMessage(
       "utf8"
     );
   }
-  const domain = protocolVersion === 2
-    ? "chatcockpit-device-channel-open-v2"
-    : protocolVersion === 3
-      ? "chatcockpit-device-channel-open-v3"
-      : "chatcockpit-device-channel-open-v4";
+  if (protocolVersion <= 4) {
+    const domain = protocolVersion === 2
+      ? "chatcockpit-device-channel-open-v2"
+      : protocolVersion === 3
+        ? "chatcockpit-device-channel-open-v3"
+        : "chatcockpit-device-channel-open-v4";
+    return Buffer.from(
+      [domain, deviceId, String(sequence), channelNonce, String(protocolVersion)].join("\n"),
+      "utf8"
+    );
+  }
   return Buffer.from(
-    [domain, deviceId, String(sequence), channelNonce, String(protocolVersion)].join("\n"),
+    [
+      "chatcockpit-device-channel-open-v5",
+      deviceId,
+      String(sequence),
+      channelNonce,
+      "5",
+      serializeDeviceChannelCapabilities(capabilities)
+    ].join("\n"),
     "utf8"
   );
 }
@@ -720,7 +740,8 @@ export class DeviceRegistryStore {
       deviceId: string;
       sequence: number;
       channelNonce: string;
-      protocolVersion?: 1 | 2 | 3 | 4;
+      protocolVersion?: 1 | 2 | 3 | 4 | 5;
+      capabilities?: readonly DeviceChannelCapability[];
       signature: string;
     },
     now: string
@@ -738,12 +759,30 @@ export class DeviceRegistryStore {
       protocolVersion !== 1 &&
       protocolVersion !== 2 &&
       protocolVersion !== 3 &&
-      protocolVersion !== 4
+      protocolVersion !== 4 &&
+      protocolVersion !== 5
     ) {
       throw new DeviceRegistryError(
         400,
         "DEVICE_CHANNEL_PROTOCOL_UNSUPPORTED",
         "Device channel protocol version is unsupported"
+      );
+    }
+    const capabilities = input.capabilities === undefined
+      ? null
+      : normalizeDeviceChannelCapabilities(input.capabilities);
+    if (protocolVersion === 5 && capabilities === null) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_CHANNEL_CAPABILITY_ATTESTATION_REQUIRED",
+        "Device channel protocol v5 requires a signed capability attestation"
+      );
+    }
+    if (protocolVersion !== 5 && capabilities !== null) {
+      throw new DeviceRegistryError(
+        400,
+        "DEVICE_CHANNEL_CAPABILITY_ATTESTATION_UNEXPECTED",
+        "Device channel capability attestation requires protocol v5"
       );
     }
     const row = this.sqlite.prepare(`
@@ -763,7 +802,13 @@ export class DeviceRegistryStore {
     if (
       !crypto.verify(
         null,
-        channelOpenMessage(input.deviceId, input.sequence, channelNonce, protocolVersion),
+        channelOpenMessage(
+          input.deviceId,
+          input.sequence,
+          channelNonce,
+          protocolVersion,
+          capabilities ?? []
+        ),
         publicKey,
         decodeSignature(input.signature)
       )
@@ -1163,13 +1208,15 @@ export function buildDeviceChannelOpenProof(
   deviceId: string,
   sequence: number,
   channelNonce: string,
-  protocolVersion: 1 | 2 | 3 | 4 = 1
+  protocolVersion: 1 | 2 | 3 | 4 | 5 = 1,
+  capabilities: readonly DeviceChannelCapability[] = []
 ): Buffer {
   return channelOpenMessage(
     deviceId,
     sequence,
     normalizeChannelNonce(channelNonce),
-    protocolVersion
+    protocolVersion,
+    capabilities
   );
 }
 

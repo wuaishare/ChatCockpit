@@ -48,7 +48,7 @@ assertIncludesAll(
     "Do not invent a bridge.",
     "Secrets stay machine-local.",
     "Share workflow truth, not necessarily renderer technology.",
-    "Canonical console routing applies everywhere.",
+    "Secure login entry and stable Cockpit routes are distinct.",
     "Unavailable is not zero.",
     "Connectivity is provider-neutral.",
     "Nothing is installed by default.",
@@ -80,6 +80,7 @@ assertIncludesAll(
     "不得编造 Bridge。",
     "秘密保持 machine-local。",
     "共享工作流真相，不强绑 Renderer 技术。",
+    "安全登录入口与稳定 Cockpit 路由必须分开建模。",
     "Unavailable 不是 0。",
     "Connectivity 必须 Provider-neutral。",
     "默认不安装任何 Provider。",
@@ -156,7 +157,9 @@ assertIncludesAll(
     "Authority / Policy Evaluation",
     "Execution Target",
     "requires-local-host",
-    "Device Agent 当前已有 Runtime Lifecycle RPC"
+    "Device Agent 当前已有 Runtime Lifecycle RPC",
+    "wire protocol version 与 capability set 必须正交",
+    "v5 channel-open 必须把 canonical capability attestation 纳入设备 Ed25519 签名 proof"
   ],
   "ADR-006"
 );
@@ -167,6 +170,10 @@ assert.match(actionAvailabilityService, /"project\.discovery"/);
 assert.match(actionAvailabilityService, /"runtime\.lifecycle"/);
 assert.match(actionAvailabilityService, /"available-targeted"/);
 assert.match(actionAvailabilityService, /"requires-local-host"/);
+assert.match(actionAvailabilityService, /"approval-required"/);
+assert.match(actionAvailabilityService, /"forbidden"/);
+assert.match(actionAvailabilityService, /"unavailable"/);
+assert.match(actionAvailabilityService, /isWorkspaceRpcAvailable/);
 assert.match(actionAvailabilityService, /isRuntimeLifecycleRpcAvailable/);
 assert.match(actionAvailabilityRoutes, /app\.get\("\/api\/product-actions"/);
 assert.match(actionAvailabilityRoutes, /isMachineLocalRequest\(request\)/);

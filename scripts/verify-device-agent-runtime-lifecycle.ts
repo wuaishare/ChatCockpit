@@ -55,6 +55,7 @@ const running = (): DeviceRuntimeConditions => ({
   observedAt: "2026-08-23T15:00:01.000Z"
 });
 class FixtureAdapter {
+  readonly support = "managed-macos" as const;
   startCalls = 0;
   stopCalls = 0;
   restartCalls = 0;
@@ -273,7 +274,8 @@ try {
     runtimeLifecycleService: channelLifecycle
   });
   await agent.runOutboundChannelLoop({ signal: channelController.signal });
-  assert.equal(channelOpen?.protocolVersion, 3);
+  assert.equal(channelOpen?.protocolVersion, 5);
+  assert.deepEqual(channelOpen?.capabilities, ["capability-rpc", "runtime-lifecycle"]);
   assert.equal(channelAdapter.restartCalls, 1);
   assert.ok(submitted);
   assert.equal(submitted.sequence, 2, "lifecycle result must reserve a fresh sequence");

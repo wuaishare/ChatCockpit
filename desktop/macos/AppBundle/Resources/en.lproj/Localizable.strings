@@ -70,13 +70,13 @@
 "Diagnostics" = "Diagnostics";
 "Integration Status" = "Integration Status";
 "Available" = "Available";
-"Web Integrations" = "Web Integrations";
+"Cockpit Integrations" = "Cockpit Integrations";
 "Local Integrations" = "Local Integrations";
 "Public Integrations" = "Public Integrations";
 "Overall status" = "Overall status";
 "Runtime Diagnostics" = "Runtime Diagnostics";
 "App Preferences" = "App Preferences";
-"ChatGPT OAuth, Passkeys, API/OpenAPI integration details, and other operator workflows stay in the Web Cockpit. The native App shows machine-local status and opens the precise Web destination without taking over Web authority." = "ChatGPT OAuth, Passkeys, API/OpenAPI integration details, and other operator workflows stay in the Web Cockpit. The native App shows machine-local status and opens the precise Web destination without taking over Web authority.";
+"ChatGPT OAuth, Passkeys, API/OpenAPI details, and other shared operator workflows belong to the ChatCockpit product experience rather than to a Web-only authority. This native shell currently opens the canonical Cockpit destination while machine-local secrets and OS-specific controls remain on this Host." = "ChatGPT OAuth, Passkeys, API/OpenAPI details, and other shared operator workflows belong to the ChatCockpit product experience rather than to a Web-only authority. This native shell currently opens the canonical Cockpit destination while machine-local secrets and OS-specific controls remain on this Host.";
 "Runtime, workspace, access, security, integrations, updates, and diagnostics now live in the main ChatCockpit window. This Settings window is reserved for app-only preferences." = "Runtime, workspace, access, security, integrations, updates, and diagnostics now live in the main ChatCockpit window. This Settings window is reserved for app-only preferences.";
 "Quit ChatCockpit" = "Quit ChatCockpit";
 "Packaged" = "Packaged";

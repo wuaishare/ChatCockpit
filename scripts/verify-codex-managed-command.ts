@@ -37,6 +37,22 @@ async function waitForOutput(
   throw new Error(`process ${processId} did not stream expected output`);
 }
 
+async function waitForErrorCode(
+  adapter: CodexAppServerAdapter,
+  processId: string,
+  errorCode: string
+) {
+  let lastSnapshot = await adapter.readStandaloneProcess(processId, 0, 100);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (lastSnapshot.errorCode === errorCode) return lastSnapshot;
+    await sleep(20);
+    lastSnapshot = await adapter.readStandaloneProcess(processId, 0, 100);
+  }
+  throw new Error(
+    `process ${processId} did not expose ${errorCode}: ${JSON.stringify(lastSnapshot)}`
+  );
+}
+
 async function verifyCodexManagedCommand(): Promise<void> {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-managed-command-"));
   const probeRoot = path.join(tempRoot, "workspace");
@@ -190,11 +206,10 @@ async function verifyCodexManagedCommand(): Promise<void> {
       allowStdin: false,
       networkAccess: false
     });
-    await sleep(100);
-    const unknownState = await disconnectedAdapter.readStandaloneProcess(
+    const unknownState = await waitForErrorCode(
+      disconnectedAdapter,
       disconnected.processId,
-      0,
-      100
+      "CODEX_APP_SERVER_DISCONNECTED"
     );
     assert.equal(
       unknownState.state,

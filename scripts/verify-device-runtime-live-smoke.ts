@@ -292,6 +292,7 @@ function runFixtureRuntimeHelper(
 }
 
 class LostResultFixtureAdapter implements DeviceRuntimeLifecycleAdapter {
+  readonly support = "managed-macos" as const;
   restartCalls = 0;
   async status(): Promise<DeviceRuntimeConditions> {
     return {

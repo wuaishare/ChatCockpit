@@ -3,6 +3,11 @@ import https from "node:https";
 import type { IncomingHttpHeaders } from "node:http";
 import { Readable } from "node:stream";
 
+import {
+  serializeDeviceChannelCapabilities,
+  type DeviceChannelCapability
+} from "./device-channel-capabilities.js";
+
 export const DEVICE_AGENT_TRANSPORT_MAX_JSON_BYTES = 64 * 1024;
 export const DEVICE_AGENT_CHANNEL_MAX_EVENT_BYTES = 72 * 1024;
 
@@ -126,7 +131,8 @@ export interface DeviceAgentChannelOpenInput {
   deviceId: string;
   sequence: number;
   channelNonce: string;
-  protocolVersion?: 1 | 2 | 3 | 4;
+  protocolVersion?: 1 | 2 | 3 | 4 | 5;
+  capabilities?: readonly DeviceChannelCapability[];
   signature: string;
   signal?: AbortSignal;
 }
@@ -173,7 +179,7 @@ export type DeviceAgentChannelEvent =
       channelId: string;
       deviceId: string;
       acceptedSequence: number;
-      protocolVersion: 1 | 2 | 3 | 4;
+      protocolVersion: 1 | 2 | 3 | 4 | 5;
     }
   | {
       type: "capability.request";
@@ -320,7 +326,8 @@ function parseChannelEvent(frame: string): DeviceAgentChannelEvent {
       (data.protocolVersion !== 1 &&
         data.protocolVersion !== 2 &&
         data.protocolVersion !== 3 &&
-        data.protocolVersion !== 4)
+        data.protocolVersion !== 4 &&
+        data.protocolVersion !== 5)
     ) {
       throw channelProtocolError("Hub returned an invalid channel.ready event");
     }
@@ -569,6 +576,12 @@ export class HttpDeviceAgentTransport implements DeviceAgentTransport {
           ...(input.protocolVersion === undefined
             ? {}
             : { "x-chatcockpit-channel-protocol": String(input.protocolVersion) }),
+          ...(input.capabilities === undefined
+            ? {}
+            : {
+                "x-chatcockpit-channel-capabilities":
+                  serializeDeviceChannelCapabilities(input.capabilities)
+              }),
           "x-chatcockpit-channel-signature": input.signature
         }
       });

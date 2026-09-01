@@ -135,7 +135,7 @@ export class DeviceCapabilityRpc {
         "Device does not have an active capability RPC channel"
       ));
     }
-    if (operation === "workspace.read.invoke" && channel.protocolVersion < 4) {
+    if (operation === "workspace.read.invoke" && !channel.workspaceRpcAvailable) {
       return Promise.reject(new DeviceCapabilityRpcError(
         409,
         "DEVICE_WORKSPACE_RPC_UNSUPPORTED",

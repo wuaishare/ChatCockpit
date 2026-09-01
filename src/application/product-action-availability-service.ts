@@ -16,8 +16,11 @@ export type ProductActionAvailability =
   | "available-local"
   | "available-targeted"
   | "requires-local-host"
+  | "approval-required"
   | "offline"
-  | "unsupported";
+  | "unsupported"
+  | "forbidden"
+  | "unavailable";
 
 export type ProductActionExecutionMode =
   | "local-runtime"
@@ -27,9 +30,12 @@ export type ProductActionExecutionMode =
 export type ProductActionReason =
   | "ready"
   | "machine-local-context-required"
+  | "approval-required"
   | "device-offline"
   | "device-agent-update-required"
-  | "target-capability-not-implemented";
+  | "target-capability-not-implemented"
+  | "policy-forbidden"
+  | "no-valid-execution-path";
 
 export interface ProductActionTargetProjection {
   deviceId: string;
@@ -89,7 +95,9 @@ export class ProductActionAvailabilityService {
     private readonly targets: DeviceTargetService,
     private readonly channels: Pick<
       DeviceChannelHub,
-      "isCapabilityRpcAvailable" | "isRuntimeLifecycleRpcAvailable"
+      | "isCapabilityRpcAvailable"
+      | "isWorkspaceRpcAvailable"
+      | "isRuntimeLifecycleRpcAvailable"
     >
   ) {}
 
@@ -135,7 +143,10 @@ export class ProductActionAvailabilityService {
     }
 
     if (action === "workspace.read" || action === "capability.read") {
-      return this.channels.isCapabilityRpcAvailable(target.id)
+      const available = action === "workspace.read"
+        ? this.channels.isWorkspaceRpcAvailable(target.id)
+        : this.channels.isCapabilityRpcAvailable(target.id);
+      return available
         ? {
             ...targetBase(target),
             availability: "available-targeted",
