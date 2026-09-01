@@ -9,15 +9,8 @@
 "Architecture" = "Architecture";
 "Node" = "Node";
 "Local Setup" = "Local Setup";
-"Workspace" = "Workspace";
-"Primary Workspace" = "Primary Workspace";
-"Workspaces" = "Workspaces";
-"Primary" = "Primary";
 "Make Primary" = "Make Primary";
 "Remove" = "Remove";
-"Add Workspace…" = "Add Workspace…";
-"Choose Primary Workspace…" = "Choose Primary Workspace…";
-"Refresh Workspaces" = "Refresh Workspaces";
 "Projects" = "Projects";
 "Project" = "Project";
 "No projects yet" = "No projects yet";
@@ -63,6 +56,7 @@
 "API Token" = "API Token";
 "API token" = "API token";
 "Refresh" = "Refresh";
+"Runtime Settings" = "Runtime Settings";
 "Settings…" = "Settings…";
 "Runtime Conflict" = "Runtime Conflict";
 "Start Services" = "Start Services";
@@ -127,7 +121,6 @@
 "Update checks are explicit and read public release metadata only. ChatCockpit never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution." = "Update checks are explicit and read public release metadata only. ChatCockpit never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution.";
 "Current project" = "Current project";
 "Primary project" = "Primary project";
-"Choose Workspace…" = "Choose Workspace…";
 "Revalidate" = "Revalidate";
 "Forget" = "Forget";
 "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace." = "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace.";
@@ -212,12 +205,6 @@
 "Attention" = "Attention";
 "Packaged Mode" = "Packaged Mode";
 "Developer Mode" = "Developer Mode";
-"Choose Workspace" = "Choose Workspace";
-"Choose Primary Workspace" = "Choose Primary Workspace";
-"Choose Primary" = "Choose Primary";
-"Add Workspace" = "Add Workspace";
-"Remove Workspace" = "Remove Workspace";
-"Remove Workspace?" = "Remove Workspace?";
 "Select the project folder ChatCockpit should operate on. The packaged runtime remains separate from this workspace." = "Select the project folder ChatCockpit should operate on. The packaged runtime remains separate from this workspace.";
 "Choose ChatCockpit Source Folder" = "Choose ChatCockpit Source Folder";
 "Developer Mode uses an existing ChatCockpit source or built checkout with the system Node runtime." = "Developer Mode uses an existing ChatCockpit source or built checkout with the system Node runtime.";
@@ -237,10 +224,10 @@
 "The existing TokenPilot setup could not be imported. No source files were changed." = "The existing TokenPilot setup could not be imported. No source files were changed.";
 "This app build does not contain a valid packaged ChatCockpit runtime." = "This app build does not contain a valid packaged ChatCockpit runtime.";
 "ChatCockpit Cockpit is not reachable. Start or repair the local services first." = "ChatCockpit Cockpit is not reachable. Start or repair the local services first.";
-"Choose a workspace before controlling packaged ChatCockpit services." = "Choose a workspace before controlling packaged ChatCockpit services.";
+"Choose a project with an execution workspace before controlling packaged ChatCockpit services." = "Choose a project with an execution workspace before controlling packaged ChatCockpit services.";
 "Choose a valid ChatCockpit source folder before controlling services." = "Choose a valid ChatCockpit source folder before controlling services.";
 "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry." = "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry.";
-"The saved workspace is no longer available. Choose it again." = "The saved workspace is no longer available. Choose it again.";
+"The saved execution workspace is no longer available. Refresh Projects or choose the project again." = "The saved execution workspace is no longer available. Refresh Projects or choose the project again.";
 "The saved ChatCockpit source folder is no longer valid. Choose it again." = "The saved ChatCockpit source folder is no longer valid. Choose it again.";
 "The packaged ChatCockpit runtime could not be verified or deployed. The previous active runtime was kept unchanged." = "The packaged ChatCockpit runtime could not be verified or deployed. The previous active runtime was kept unchanged.";
 "A Developer Mode ChatCockpit LaunchAgent already owns the local service labels. Stop it explicitly in Developer Mode before starting Packaged Mode." = "A Developer Mode ChatCockpit LaunchAgent already owns the local service labels. Stop it explicitly in Developer Mode before starting Packaged Mode.";
@@ -250,7 +237,7 @@
 "ChatCockpit setup could not be completed. Review the local runtime details and retry." = "ChatCockpit setup could not be completed. Review the local runtime details and retry.";
 "Source mode is exposed. Because bearer tokens are not migrated, Packaged Mode will be imported as Local only." = "Source mode is exposed. Because bearer tokens are not migrated, Packaged Mode will be imported as Local only.";
 "Source mode is Local only." = "Source mode is Local only.";
-"Workspaces:" = "Workspaces:";
+"Execution Workspaces:" = "Execution Workspaces:";
 "Public base URL:" = "Public base URL:";
 "Secrets not imported:" = "Secrets not imported:";
 "The source checkout will not be modified." = "The source checkout will not be modified.";

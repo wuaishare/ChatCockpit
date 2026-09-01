@@ -1373,7 +1373,7 @@ final class DesktopAppModel: ObservableObject {
                 runtimeConflict = nil
                 lastUserMessage = distributionMode == .packaged
                     ? DesktopL10n.string(
-                        "Choose a workspace before controlling packaged ChatCockpit services."
+                        "Choose a project with an execution workspace before controlling packaged ChatCockpit services."
                     )
                     : DesktopL10n.string(
                         "Choose a valid ChatCockpit source folder before controlling services."
@@ -1596,7 +1596,7 @@ final class DesktopAppModel: ObservableObject {
             workspacePreferenceStore.saveWorkspaceURL(nil)
             self.selectedWorkspaceURL = nil
             lastUserMessage = DesktopL10n.string(
-                "The saved workspace is no longer available. Choose it again."
+                "The saved execution workspace is no longer available. Refresh Projects or choose the project again."
             )
             return nil
         }
@@ -1645,7 +1645,7 @@ final class DesktopAppModel: ObservableObject {
             : DesktopL10n.string("Source mode is Local only.")
 
         return """
-        \(DesktopL10n.string("Workspaces:"))
+        \(DesktopL10n.string("Execution Workspaces:"))
         \(workspaceSummary)
 
         \(DesktopL10n.string("Endpoint")): \(preview.host):\(preview.port)

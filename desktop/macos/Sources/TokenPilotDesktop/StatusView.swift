@@ -275,7 +275,7 @@ private struct NativeDiagnosticsView: View {
                         diagnosticRow(DesktopL10n.string("State"), model.stateLocationText)
                         diagnosticRow(
                             model.distributionMode == .packaged
-                                ? DesktopL10n.string("Primary Workspace")
+                                ? DesktopL10n.string("Execution Workspace")
                                 : DesktopL10n.string("Source Checkout"),
                             model.distributionMode == .packaged
                                 ? model.selectedWorkspaceDisplayPath
@@ -521,7 +521,7 @@ struct StatusView: View {
             VStack(spacing: 0) {
                 compactValueRow(
                     model.distributionMode == .packaged
-                        ? DesktopL10n.string("Primary Workspace")
+                        ? DesktopL10n.string("Execution Workspace")
                         : DesktopL10n.string("Source Checkout"),
                     value: model.distributionMode == .packaged
                         ? model.selectedWorkspaceDisplayPath

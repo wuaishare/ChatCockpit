@@ -111,7 +111,9 @@ export interface UiCopy {
     publicAccess: string;
     integrations: string;
     workspaceNavigation: string;
+    operationsNavigation: string;
     systemNavigation: string;
+    openNavigation: string;
     collapseNavigation: string;
     expandNavigation: string;
     closeNavigation: string;
@@ -403,8 +405,10 @@ const zhCN: UiCopy = {
     jobs: "任务",
     publicAccess: "公网连接",
     integrations: "连接与授权",
-    workspaceNavigation: "工作区",
+    workspaceNavigation: "项目与资源",
+    operationsNavigation: "运行与设备",
     systemNavigation: "系统能力",
+    openNavigation: "打开主导航",
     collapseNavigation: "收起菜单",
     expandNavigation: "展开菜单",
     closeNavigation: "关闭菜单",
@@ -567,10 +571,10 @@ const zhCN: UiCopy = {
     gptPreviewTitle: "Custom GPT Actions 兼容预览",
     gptPreviewDescription: "仅用于兼容旧版 Actions 工作流的可复制指引。",
     gptPreviewCompact: "包含模式、鉴权、OpenAPI 地址与 API 基址；新连接优先使用 ChatGPT App / MCP。",
-    repoGovernanceTitle: "工作区治理",
-    repoGovernanceDescription: "当前可供受治理工作流使用的公开 repoId。本机路径授权与 Primary Workspace 由 ChatCockpit App 管理。",
+    repoGovernanceTitle: "执行工作区治理",
+    repoGovernanceDescription: "当前可供受治理执行使用的公开 repoId。项目目录与执行工作区授权由 ChatCockpit App 的“项目”页面管理。",
     repoGovernanceConfigScope:
-      "授权来源：当前机器的 ChatCockpit Workspace 配置；Web Cockpit 仅使用已授权映射，不显示本机路径。",
+      "授权来源：当前机器的 ChatCockpit 项目/执行工作区配置；Web Cockpit 仅使用已授权 repo 映射，不显示本机路径。",
     repoGovernancePathHidden: "路径已隐藏",
     repoGovernanceDefaultLabel: "默认",
     repoGovernanceMissingHint: "未发现对应仓库目录，当前不可执行。",
@@ -617,7 +621,7 @@ const zhCN: UiCopy = {
         detailReady: "默认 repoId 可以在本地解析。",
         detailPending: "默认仓库根目录不可用。",
         nextReady: "继续下一步",
-        nextPending: "在 ChatCockpit App → 工作区中授权或修复本机 Workspace"
+        nextPending: "在 ChatCockpit App → 项目中授权或修复执行工作区"
       },
       runner: {
         label: "本地 Runner",
@@ -759,8 +763,10 @@ const enUS: UiCopy = {
     jobs: "Jobs",
     publicAccess: "Public Connectivity",
     integrations: "Connections & Access",
-    workspaceNavigation: "Workspace",
+    workspaceNavigation: "Projects & Resources",
+    operationsNavigation: "Operations & Devices",
     systemNavigation: "System",
+    openNavigation: "Open main navigation",
     collapseNavigation: "Collapse navigation",
     expandNavigation: "Expand navigation",
     closeNavigation: "Close navigation",
@@ -923,10 +929,10 @@ const enUS: UiCopy = {
     gptPreviewTitle: "Custom GPT Actions compatibility preview",
     gptPreviewDescription: "Copy-safe guidance for legacy Actions workflows.",
     gptPreviewCompact: "Includes mode, auth, OpenAPI URL, and API base URL. Prefer ChatGPT App / MCP for new connections.",
-    repoGovernanceTitle: "Workspace Governance",
-    repoGovernanceDescription: "Public repoIds available to governed workflows. Local path authorization and the Primary Workspace are managed in the ChatCockpit App.",
+    repoGovernanceTitle: "Execution Workspace Governance",
+    repoGovernanceDescription: "Public repoIds available to governed execution. Project roots and execution-workspace authorization are managed from Projects in the ChatCockpit App.",
     repoGovernanceConfigScope:
-      "Authorization source: this machine's ChatCockpit Workspace configuration. Web Cockpit consumes authorized mappings without exposing local paths.",
+      "Authorization source: this machine's ChatCockpit project/execution-workspace configuration. Web Cockpit consumes authorized repo mappings without exposing local paths.",
     repoGovernancePathHidden: "Path hidden",
     repoGovernanceDefaultLabel: "Default",
     repoGovernanceMissingHint: "Repository directory was not found; execution is unavailable.",
@@ -973,7 +979,7 @@ const enUS: UiCopy = {
         detailReady: "The default repoId resolves locally.",
         detailPending: "The default repository root is unavailable.",
         nextReady: "Continue",
-        nextPending: "Authorize or repair the local Workspace in ChatCockpit App → Workspaces"
+        nextPending: "Authorize or repair the execution workspace in ChatCockpit App → Projects"
       },
       runner: {
         label: "Runner",

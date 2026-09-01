@@ -19,6 +19,7 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = "chatcockpit-sidebar-collapsed";
 interface AppSidebarLabels {
   title: string;
   workspaceNavigation: string;
+  operationsNavigation: string;
   systemNavigation: string;
   dashboard: string;
   projects: string;
@@ -68,13 +69,19 @@ export function AppSidebar({
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
   const menuItems = useMemo<MenuProps["items"]>(
     () => [
+      { key: "dashboard", icon: <DashboardOutlined />, label: labels.dashboard },
       {
         type: "group",
         label: labels.workspaceNavigation,
         children: [
-          { key: "dashboard", icon: <DashboardOutlined />, label: labels.dashboard },
           { key: "projects", icon: <ApartmentOutlined />, label: labels.projects },
-          { key: "resources", icon: <AppstoreOutlined />, label: labels.resources },
+          { key: "resources", icon: <AppstoreOutlined />, label: labels.resources }
+        ]
+      },
+      {
+        type: "group",
+        label: labels.operationsNavigation,
+        children: [
           { key: "devices", icon: <DesktopOutlined />, label: labels.devices },
           { key: "jobs", icon: <UnorderedListOutlined />, label: labels.jobs }
         ]

@@ -1222,6 +1222,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         labels={{
           title: copy.header.title,
           workspaceNavigation: copy.header.workspaceNavigation,
+          operationsNavigation: copy.header.operationsNavigation,
           systemNavigation: copy.header.systemNavigation,
           dashboard: copy.header.dashboard,
           projects: copy.header.projects,
@@ -1243,7 +1244,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 <Button
                   type="text"
                   className="app-sidebar-mobile-trigger"
-                  aria-label={copy.header.workspaceNavigation}
+                  aria-label={copy.header.openNavigation}
                   icon={<MenuOutlined />}
                   onClick={() => setMobileNavigationOpen(true)}
                 />

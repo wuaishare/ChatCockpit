@@ -306,7 +306,7 @@ struct MenuBarContentView: View {
             .frame(height: 28)
 
             AccessibleMenuBarNavigationButton(
-                title: DesktopL10n.string("Settings…"),
+                title: DesktopL10n.string("Runtime Settings"),
                 systemName: "gearshape"
             ) {
                 openMainWindow(.runtime)

@@ -9,15 +9,8 @@
 "Architecture" = "架构";
 "Node" = "Node";
 "Local Setup" = "本机配置";
-"Workspace" = "工作区";
-"Primary Workspace" = "主工作区";
-"Workspaces" = "工作区";
-"Primary" = "主工作区";
-"Make Primary" = "设为主工作区";
+"Make Primary" = "设为主项目目录";
 "Remove" = "移除";
-"Add Workspace…" = "添加工作区…";
-"Choose Primary Workspace…" = "选择主工作区…";
-"Refresh Workspaces" = "刷新工作区";
 "Projects" = "项目";
 "Project" = "项目";
 "No projects yet" = "暂无项目";
@@ -63,6 +56,7 @@
 "API Token" = "API 令牌";
 "API token" = "API 令牌";
 "Refresh" = "刷新";
+"Runtime Settings" = "运行环境设置";
 "Settings…" = "设置…";
 "Runtime Conflict" = "运行环境冲突";
 "Start Services" = "启动服务";
@@ -127,7 +121,6 @@
 "Update checks are explicit and read public release metadata only. ChatCockpit never replaces the app, stops services, or restarts the runtime automatically. Download Update is shown only for a certified release marked eligible for distribution." = "更新检查只读取公开发布元数据，并且只会在你主动操作时执行。ChatCockpit 不会自动替换应用、停止服务或重启运行环境。只有通过发行资格验证的正式版本才会显示“下载更新”。";
 "Current project" = "当前项目";
 "Primary project" = "主项目";
-"Choose Workspace…" = "选择工作区…";
 "Revalidate" = "重新验证";
 "Forget" = "忘记";
 "The packaged ChatCockpit runtime and Application Support state remain separate from the selected project workspace." = "独立应用模式下的 ChatCockpit 运行环境和 Application Support 状态目录与所选项目工作区彼此独立。";
@@ -212,12 +205,6 @@
 "Attention" = "提示";
 "Packaged Mode" = "独立应用模式";
 "Developer Mode" = "开发者模式";
-"Choose Workspace" = "选择工作区";
-"Choose Primary Workspace" = "选择主工作区";
-"Choose Primary" = "选择为主工作区";
-"Add Workspace" = "添加工作区";
-"Remove Workspace" = "移除工作区";
-"Remove Workspace?" = "移除工作区？";
 "Select the project folder ChatCockpit should operate on. The packaged runtime remains separate from this workspace." = "选择 ChatCockpit 要操作的项目目录。独立应用运行环境会与该工作区保持分离。";
 "Choose ChatCockpit Source Folder" = "选择 ChatCockpit 源码目录";
 "Developer Mode uses an existing ChatCockpit source or built checkout with the system Node runtime." = "开发者模式使用现有 ChatCockpit 源码或已构建目录，并使用系统 Node 运行环境。";
@@ -237,10 +224,10 @@
 "The existing TokenPilot setup could not be imported. No source files were changed." = "无法导入现有 TokenPilot 配置，源文件未被修改。";
 "This app build does not contain a valid packaged ChatCockpit runtime." = "当前应用构建中没有有效的 ChatCockpit 独立运行环境。";
 "ChatCockpit Cockpit is not reachable. Start or repair the local services first." = "ChatCockpit 控制台当前不可访问。请先启动或修复本机服务。";
-"Choose a workspace before controlling packaged ChatCockpit services." = "请先选择工作区，再管理 ChatCockpit 独立应用服务。";
+"Choose a project with an execution workspace before controlling packaged ChatCockpit services." = "请先选择一个包含执行工作区的项目，再管理 ChatCockpit 独立应用服务。";
 "Choose a valid ChatCockpit source folder before controlling services." = "请先选择有效的 ChatCockpit 源码目录，再管理服务。";
 "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry." = "ChatCockpit 服务操作未完成。请检查本机运行诊断后重试。";
-"The saved workspace is no longer available. Choose it again." = "已保存的工作区当前不可用，请重新选择。";
+"The saved execution workspace is no longer available. Refresh Projects or choose the project again." = "已保存的执行工作区当前不可用。请刷新“项目”，或重新选择该项目。";
 "The saved ChatCockpit source folder is no longer valid. Choose it again." = "已保存的 ChatCockpit 源码目录已失效，请重新选择。";
 "The packaged ChatCockpit runtime could not be verified or deployed. The previous active runtime was kept unchanged." = "无法验证或部署 ChatCockpit 独立运行环境，之前的有效运行环境已保持不变。";
 "A Developer Mode ChatCockpit LaunchAgent already owns the local service labels. Stop it explicitly in Developer Mode before starting Packaged Mode." = "开发者模式下的 ChatCockpit LaunchAgent 已占用本机服务标识。请先在开发者模式中明确停止它，再启动独立应用模式。";
@@ -250,7 +237,7 @@
 "ChatCockpit setup could not be completed. Review the local runtime details and retry." = "ChatCockpit 设置未能完成，请检查本机运行环境详情后重试。";
 "Source mode is exposed. Because bearer tokens are not migrated, Packaged Mode will be imported as Local only." = "当前源码模式已开放公网。由于 Bearer 令牌不会迁移，导入到独立应用模式后将重置为仅本机访问。";
 "Source mode is Local only." = "当前源码模式仅允许本机访问。";
-"Workspaces:" = "工作区：";
+"Execution Workspaces:" = "执行工作区：";
 "Public base URL:" = "公网地址：";
 "Secrets not imported:" = "未导入的敏感信息：";
 "The source checkout will not be modified." = "源码目录不会被修改。";

@@ -86,11 +86,11 @@ assert.match(dashboard, /target="_blank"/);
 assert.match(i18n, /Operator Workspace 边界/);
 assert.match(i18n, /Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理/);
 assert.match(i18n, /在 ChatCockpit App → 运行环境中启动或诊断 Runtime 服务/);
-assert.match(i18n, /在 ChatCockpit App → 工作区中授权或修复本机 Workspace/);
+assert.match(i18n, /在 ChatCockpit App → 项目中授权或修复执行工作区/);
 assert.doesNotMatch(i18n, /Run npm run init|Run npm run start:local|运行 npm run init|运行 npm run start:local|CHATCOCKPIT_REPO_ROOT|~\/\.chatcockpit\/config\.json/);
 assert.doesNotMatch(setupStatus, /Run npm run init|Run npm run start:local|CHATCOCKPIT_REPO_ROOT/);
 assert.match(setupStatus, /ChatCockpit App → Runtime/);
-assert.match(setupStatus, /ChatCockpit App → Workspaces/);
+assert.match(setupStatus, /ChatCockpit App → Projects/);
 assert.match(setupStatus, /ChatCockpit App → Access & Security/);
 
 assert.match(app, /integrations:\s*consolePath\("integrations"\)/);

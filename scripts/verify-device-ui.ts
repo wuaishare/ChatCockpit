@@ -110,7 +110,13 @@ assert.match(onboardingModal, /projection\.bootstrap\.installedCli\.verifyLanCom
 assert.match(onboardingModal, /projection\.enrollment\.pendingCount/);
 assert.doesNotMatch(onboardingModal, /pendingCount > 0\) return 2/);
 assert.match(onboardingModal, /copy\.nearbyDescription/);
-assert.match(onboardingModal, /copy\.distributionUnavailable/);
+assert.match(onboardingModal, /nativePackageUnavailableText/);
+assert.match(onboardingModal, /copy\.nativePackageUnavailableNotConfigured/);
+assert.match(onboardingModal, /copy\.nativePackageUnavailableInvalid/);
+assert.match(onboardingModal, /copy\.nativePackageUnavailableNotPublished/);
+assert.match(onboardingModal, /copy\.nativePackageUnavailableRouteNotHttps/);
+assert.match(onboardingModal, /copy\.nativePackageUnavailableRouteUnverified/);
+assert.match(onboardingModal, /availableNativePackage\.architectures\[architecture\]/);
 assert.doesNotMatch(onboardingModal, /device discover --verify/);
 assert.doesNotMatch(onboardingModal, /npx @|curl .*install|brew install/i);
 
@@ -137,7 +143,8 @@ assert.match(copy, /Restart Runtime/);
 assert.match(onboardingCopy, /添加远端设备/);
 assert.match(onboardingCopy, /首次授权必须先通过当前 ChatCockpit Hub 的 HTTPS 公网入口/);
 assert.match(onboardingCopy, /局域网发现只用于设备已授权后的 LAN 路由优化/);
-assert.match(onboardingCopy, /尚未发布 npx bootstrap 或原生 Device Agent 安装包/);
+assert.match(onboardingCopy, /自包含 Device Agent 安装包/);
+assert.match(onboardingCopy, /尚未发布通过 release eligibility 校验的 Device Agent 安装包/);
 assert.match(onboardingCopy, /Add remote device/);
 assert.match(onboardingCopy, /LAN discovery is only a post-authorization route optimization/);
 

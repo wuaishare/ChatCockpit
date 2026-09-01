@@ -143,7 +143,7 @@ assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiabl
 for (const section of [
   "overview",
   "runtime",
-  "workspaces",
+  "projects",
   "accessSecurity",
   "integrations",
   "updates",

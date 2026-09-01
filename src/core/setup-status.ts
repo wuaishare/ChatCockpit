@@ -86,7 +86,7 @@ export function buildSetupStatus(paths: TokenPilotPaths): SetupStatus {
       detail: repoReady ? "Default repoId can resolve locally" : "Repository root is unavailable",
       nextAction: repoReady
         ? "Continue"
-        : "Authorize or repair the local Workspace in ChatCockpit App → Workspaces"
+        : "Authorize or repair the execution workspace in ChatCockpit App → Projects"
     },
     {
       key: "runner",
