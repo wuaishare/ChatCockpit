@@ -78,8 +78,12 @@ assert.equal(manifest.productIdentity, "chatcockpit");
 assert.equal(manifest.packageKind, "device-agent-portable");
 assert.equal(manifest.platform, "darwin");
 assert(["arm64", "x64"].includes(manifest.architecture));
-assert.equal(manifest.distributionTrust, "development");
-assert.equal(manifest.releaseEligible, false);
+assert(["development", "release"].includes(manifest.distributionTrust));
+assert.equal(
+  manifest.releaseEligible,
+  manifest.distributionTrust === "release",
+  "release eligibility must match the package distribution trust"
+);
 assertRelativePath(manifest.entrypoint, "entrypoint");
 assertRelativePath(manifest.runtime.directory, "runtime.directory");
 
@@ -90,8 +94,22 @@ assert.equal(sha256File(entrypointPath), manifest.entrypointSha256, "device entr
 
 const runtimeRoot = path.join(packageRoot, manifest.runtime.directory);
 const runtimeManifestPath = path.join(runtimeRoot, "manifest.json");
+const buildProvenancePath = path.join(runtimeRoot, "app", "dist", "build-provenance.json");
 assert(fs.existsSync(runtimeManifestPath), "embedded runtime manifest is missing");
 assert.equal(sha256File(runtimeManifestPath), manifest.runtime.manifestSha256, "embedded runtime manifest checksum mismatch");
+assert(fs.existsSync(buildProvenancePath), "embedded build provenance is missing");
+const buildProvenance = JSON.parse(fs.readFileSync(buildProvenancePath, "utf8")) as {
+  buildId?: unknown;
+  revision?: unknown;
+  sourceDirty?: unknown;
+};
+if (manifest.releaseEligible) {
+  assert.equal(buildProvenance.sourceDirty, false, "release-eligible package embeds dirty build provenance");
+  assert.equal(typeof buildProvenance.buildId, "string");
+  assert((buildProvenance.buildId as string).trim().length > 0, "release-eligible package build id is missing");
+  assert.equal(typeof buildProvenance.revision, "string");
+  assert((buildProvenance.revision as string).trim().length > 0, "release-eligible package revision is missing");
+}
 
 const runtimeManifest = JSON.parse(fs.readFileSync(runtimeManifestPath, "utf8")) as RuntimeManifest;
 assert.equal(runtimeManifest.schemaVersion, 1);

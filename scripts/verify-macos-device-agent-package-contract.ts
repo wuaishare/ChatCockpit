@@ -12,6 +12,24 @@ if (process.platform === "win32") {
 const repoRoot = process.cwd();
 const launcherSource = path.join(repoRoot, "scripts", "macos-device-agent-entry.sh");
 assert(fs.existsSync(launcherSource), "Device Agent package launcher source is missing");
+const runtimeBuilderSource = fs.readFileSync(
+  path.join(repoRoot, "scripts", "build-macos-runtime-payload.sh"),
+  "utf8"
+);
+const runtimeVerifierSource = fs.readFileSync(
+  path.join(repoRoot, "scripts", "verify-macos-runtime-payload.ts"),
+  "utf8"
+);
+assert.match(
+  runtimeBuilderSource,
+  /--exclude\s+"device-agent"/,
+  "Runtime payload builder must exclude generated Device Agent artifacts"
+);
+assert.match(
+  runtimeVerifierSource,
+  /generated Device Agent artifacts/,
+  "Runtime payload verifier must reject generated Device Agent artifacts"
+);
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-device-agent-contract-"));
 const packageRoot = path.join(tempRoot, "ChatCockpitDeviceAgent");

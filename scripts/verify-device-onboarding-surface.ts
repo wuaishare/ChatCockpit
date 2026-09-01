@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +8,7 @@ import { OperatorService } from "../src/auth/operator-service.js";
 import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.js";
 import { DeviceOnboardingService } from "../src/application/device-onboarding-service.js";
 import { DEVICE_ONBOARDING_SCHEMA_VERSION } from "../src/contracts/device-onboarding.js";
+import type { DeviceAgentDistributionSnapshot } from "../src/devices/device-agent-distribution.js";
 import { ensureWorkspaceDirs } from "../src/core/paths.js";
 import { DeviceRegistryStore, deviceRegistryDatabasePath } from "../src/devices/device-registry.js";
 import { PublicRouteVerificationStore } from "../src/connectivity/public-route-verification.js";
@@ -28,6 +30,7 @@ function serviceProjection(input: {
     verificationStatus?: "verified" | "failed" | "not-attempted";
   } | null;
   pendingCount?: number;
+  distribution?: DeviceAgentDistributionSnapshot;
 }) {
   const service = new DeviceOnboardingService({
     accessPolicy: { trustedLan: { enabled: input.trustedLan ?? false, cidrs: [] } },
@@ -50,9 +53,92 @@ function serviceProjection(input: {
     lanRuntimeSnapshot: () => ({
       discoveryAdvertised: input.discovery ?? false,
       secureTransportReady: input.secureTransport ?? false
-    })
+    }),
+    deviceAgentDistributionSnapshot: () =>
+      input.distribution ?? { available: false, reason: "not-configured" }
   });
   return service.read();
+}
+
+function availableDistribution(): DeviceAgentDistributionSnapshot {
+  const artifact = (architecture: "arm64" | "x64") => ({
+    architecture,
+    fileName: `ChatCockpit-Device-Agent-0.2.0-alpha-macos-${architecture}.tar.gz`,
+    sha256: (architecture === "arm64" ? "a" : "b").repeat(64),
+    sizeBytes: architecture === "arm64" ? 123 : 456,
+    packageManifestSha256: (architecture === "arm64" ? "c" : "d").repeat(64),
+    runtimeId: `0.2.0-alpha-node24.18.1-darwin-${architecture}`,
+    nodeVersion: "24.18.1",
+    build: {
+      buildId: architecture === "arm64" ? "2609011001" : "2609011002",
+      revision: "fixture123456",
+      builtAt: "2026-09-01T01:00:00.000Z"
+    }
+  });
+  return {
+    available: true,
+    schemaVersion: 1,
+    productIdentity: "chatcockpit",
+    packageKind: "device-agent-distribution",
+    version: "0.2.0-alpha",
+    platform: "darwin",
+    distributionTrust: "release",
+    releaseEligible: true,
+    manifestSha256: "e".repeat(64),
+    architectures: {
+      arm64: artifact("arm64"),
+      x64: artifact("x64")
+    }
+  };
+}
+
+function createDistributionFixture(root: string): string {
+  const distributionDir = path.join(root, "device-agent-distribution");
+  fs.mkdirSync(distributionDir, { recursive: true });
+  const records = Object.fromEntries(
+    (["arm64", "x64"] as const).map((architecture) => {
+      const fileName = `ChatCockpit-Device-Agent-0.2.0-alpha-macos-${architecture}.tar.gz`;
+      const bytes = Buffer.from(`fixture-device-agent-${architecture}`);
+      fs.writeFileSync(path.join(distributionDir, fileName), bytes);
+      return [
+        architecture,
+        {
+          architecture,
+          fileName,
+          sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+          sizeBytes: bytes.length,
+          packageManifestSha256: (architecture === "arm64" ? "c" : "d").repeat(64),
+          runtimeId: `0.2.0-alpha-node24.18.1-darwin-${architecture}`,
+          nodeVersion: "24.18.1",
+          build: {
+            buildId: architecture === "arm64" ? "2609011001" : "2609011002",
+            revision: "fixture123456",
+            builtAt: "2026-09-01T01:00:00.000Z"
+          }
+        }
+      ];
+    })
+  );
+  const manifest = {
+    schemaVersion: 1,
+    productIdentity: "chatcockpit",
+    packageKind: "device-agent-distribution",
+    version: "0.2.0-alpha",
+    platform: "darwin",
+    distributionTrust: "release",
+    releaseEligible: true,
+    architectures: records
+  };
+  const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
+  fs.writeFileSync(path.join(distributionDir, "manifest.json"), manifestBytes);
+  const manifestSha256 = crypto.createHash("sha256").update(manifestBytes).digest("hex");
+  fs.writeFileSync(
+    path.join(distributionDir, "manifest.json.sha256"),
+    `${manifestSha256}  manifest.json\n`,
+    "utf8"
+  );
+  fs.writeFileSync(path.join(distributionDir, "not-declared.txt"), "blocked\n", "utf8");
+  return distributionDir;
 }
 
 async function main(): Promise<void> {
@@ -67,6 +153,7 @@ async function main(): Promise<void> {
   assert.match(nearby.bootstrap.installedCli.verifyLanCommand, /device discover --verify --json/);
   assert.equal(nearby.bootstrap.npx.available, false);
   assert.equal(nearby.bootstrap.nativePackage.available, false);
+  assert.equal(nearby.bootstrap.nativePackage.reason, "distribution-not-configured");
 
   const remote = serviceProjection({ publicOrigin: "https://chatcockpit.example.com", pendingCount: 2 });
   assert.equal(remote.recommendedPath, "remote");
@@ -94,6 +181,31 @@ async function main(): Promise<void> {
   });
   assert.equal(verifiedRemote.routes.remote.verified, true);
   assert.equal(verifiedRemote.routes.remote.verificationStatus, "verified");
+
+  const distributionUnverified = serviceProjection({
+    publicOrigin: "https://chatcockpit.example.com",
+    distribution: availableDistribution()
+  });
+  assert.equal(distributionUnverified.bootstrap.nativePackage.available, false);
+  assert.equal(distributionUnverified.bootstrap.nativePackage.reason, "public-route-unverified");
+
+  const distributionReady = serviceProjection({
+    publicOrigin: "https://chatcockpit.example.com",
+    verificationEvidence: { origin: "https://chatcockpit.example.com", status: "verified" },
+    distribution: availableDistribution()
+  });
+  assert.equal(distributionReady.bootstrap.nativePackage.available, true);
+  if (!distributionReady.bootstrap.nativePackage.available) {
+    throw new Error("release distribution unexpectedly unavailable");
+  }
+  assert.equal(
+    distributionReady.bootstrap.nativePackage.manifestUrl,
+    "https://chatcockpit.example.com/downloads/device-agent/manifest.json"
+  );
+  assert.match(distributionReady.bootstrap.nativePackage.connectCommand, /ChatCockpitDeviceAgent\/bin\/chatcockpit-device connect/);
+  assert.equal(distributionReady.bootstrap.nativePackage.architectures.arm64.architecture, "arm64");
+  assert.match(distributionReady.bootstrap.nativePackage.architectures.arm64.downloadUrl, /macos\/arm64\/ChatCockpit-Device-Agent/);
+  assert.equal(distributionReady.bootstrap.nativePackage.architectures.x64.architecture, "x64");
 
   const staleEvidence = serviceProjection({
     publicOrigin: "https://chatcockpit.example.com",
@@ -124,6 +236,7 @@ async function main(): Promise<void> {
   fs.copyFileSync(path.resolve(import.meta.dirname, "../openapi/chatcockpit.openapi.yaml"), path.join(root, "openapi/chatcockpit.openapi.yaml"));
   const configPath = path.join(paths.runtimeDir, "fixture-config.json");
   fs.writeFileSync(configPath, JSON.stringify({ schemaVersion: 1, defaultRepoId: "primary", workspaceAllowlist: [root], repoMappings: { primary: { path: root } } }), "utf8");
+  const distributionDir = createDistributionFixture(root);
   const syntheticLanCidr = ["192", "168", "0", "0"].join(".") + "/16";
   updateAccessPolicy(paths, { trustedLan: { enabled: true, cidrs: [syntheticLanCidr] } });
 
@@ -140,7 +253,7 @@ async function main(): Promise<void> {
   process.env.CHATCOCKPIT_EXPOSED = "true";
   process.env.CHATCOCKPIT_PUBLIC_BASE_URL = "https://chatcockpit.example.com";
 
-  const app = buildServer(paths);
+  const app = buildServer(paths, { deviceAgentDistributionDir: distributionDir });
   const deviceStore = new DeviceRegistryStore({ path: deviceRegistryDatabasePath(paths.runtimeDir) });
   deviceStore.sqlite.prepare(`
     INSERT INTO device_enrollment_requests (
@@ -157,6 +270,38 @@ async function main(): Promise<void> {
   try {
     const anonymous = await app.inject({ method: "GET", url: "/api/devices/onboarding" });
     assert.equal(anonymous.statusCode, 401, anonymous.body);
+
+    const publicManifest = await app.inject({
+      method: "GET",
+      url: "/downloads/device-agent/manifest.json"
+    });
+    assert.equal(publicManifest.statusCode, 200, publicManifest.body);
+    assert.match(publicManifest.headers["cache-control"] ?? "", /public/);
+    const publicManifestRecord = publicManifest.json() as {
+      architectures?: Record<string, { fileName?: string; sha256?: string }>;
+    };
+    const arm64FileName = publicManifestRecord.architectures?.arm64?.fileName;
+    assert(arm64FileName);
+    const publicArchive = await app.inject({
+      method: "GET",
+      url: `/downloads/device-agent/macos/arm64/${encodeURIComponent(arm64FileName)}`
+    });
+    assert.equal(publicArchive.statusCode, 200, publicArchive.body);
+    assert.equal(
+      crypto.createHash("sha256").update(publicArchive.rawPayload).digest("hex"),
+      publicManifestRecord.architectures?.arm64?.sha256
+    );
+    const undeclaredArchive = await app.inject({
+      method: "GET",
+      url: "/downloads/device-agent/macos/arm64/not-declared.tar.gz"
+    });
+    assert.equal(undeclaredArchive.statusCode, 404, undeclaredArchive.body);
+    const unrelatedDistributionFile = await app.inject({
+      method: "GET",
+      url: "/downloads/device-agent/not-declared.txt"
+    });
+    assert.equal(unrelatedDistributionFile.statusCode, 401, unrelatedDistributionFile.body);
+
     const machine = await app.inject({ method: "GET", url: "/api/devices/onboarding", headers: { authorization: ["Bearer", "test-machine-token-device-onboarding"].join(" ") } });
     assert.equal(machine.statusCode, 401, machine.body);
 
@@ -174,6 +319,7 @@ async function main(): Promise<void> {
     assert.equal(projection.routes.remote.verificationStatus, "not-attempted");
     assert.equal(projection.bootstrap.npx.available, false);
     assert.equal(projection.bootstrap.nativePackage.available, false);
+    assert.equal(projection.bootstrap.nativePackage.reason, "public-route-unverified");
     assert.equal(projection.enrollment.pendingCount, 1);
     assert.equal(projection.advanced.trustedLanEnabled, true);
     for (const forbidden of ["test-machine-token-device-onboarding", "test-password-device-onboarding", root, "privateKey", "refreshToken", "csrfToken"]) {
@@ -200,6 +346,19 @@ async function main(): Promise<void> {
     const verifiedProjection = verifiedResponse.json() as ReturnType<DeviceOnboardingService["read"]>;
     assert.equal(verifiedProjection.routes.remote.verified, true);
     assert.equal(verifiedProjection.routes.remote.verificationStatus, "verified");
+    assert.equal(verifiedProjection.bootstrap.nativePackage.available, true);
+    if (!verifiedProjection.bootstrap.nativePackage.available) {
+      throw new Error("verified release distribution unexpectedly unavailable");
+    }
+    assert.equal(
+      verifiedProjection.bootstrap.nativePackage.manifestUrl,
+      "https://chatcockpit.example.com/downloads/device-agent/manifest.json"
+    );
+    assert.match(
+      verifiedProjection.bootstrap.nativePackage.architectures.arm64.downloadUrl,
+      /^https:\/\/chatcockpit\.example\.com\/downloads\/device-agent\/macos\/arm64\//
+    );
+    assert.equal(verifiedResponse.body.includes(distributionDir), false);
   } finally {
     await app.close();
     process.env = original;

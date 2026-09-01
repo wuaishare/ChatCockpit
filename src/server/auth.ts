@@ -66,6 +66,9 @@ function isDeviceProtocolPath(url: string, method: string): boolean {
 function isPublicPath(url: string, secureEntryPath: string): boolean {
   const pathname = requestPath(url);
   const isBootstrapProofPath = pathname.startsWith("/.well-known/chatcockpit-bootstrap-proof/");
+  const isDeviceAgentDistribution =
+    pathname === "/downloads/device-agent/manifest.json" ||
+    /^\/downloads\/device-agent\/macos\/(?:arm64|x64)\/[^/]+\.tar\.gz$/.test(pathname);
   const isStableUiAsset = pathname.startsWith("/ui/assets/");
   const isSecureEntry =
     secureEntryPath !== "/ui" &&
@@ -73,6 +76,7 @@ function isPublicPath(url: string, secureEntryPath: string): boolean {
   return (
     OAUTH_PUBLIC_PATHS.has(pathname) ||
     isBootstrapProofPath ||
+    isDeviceAgentDistribution ||
     isStableUiAsset ||
     isSecureEntry ||
     pathname === "/" ||

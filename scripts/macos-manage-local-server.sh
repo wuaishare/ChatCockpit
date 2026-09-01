@@ -173,6 +173,7 @@ ALLOW_HIGH_TRUST_COMMANDS="${ALLOW_HIGH_TRUST_COMMANDS:-false}"
 HOST="$(identity_env_value HOST)"
 HOST="${HOST:-127.0.0.1}"
 PUBLIC_BASE_URL="$(identity_env_value PUBLIC_BASE_URL)"
+DEVICE_AGENT_DISTRIBUTION_DIR="$(identity_env_value DEVICE_AGENT_DISTRIBUTION_DIR)"
 CODEX_BIN="$(identity_env_value CODEX_BIN)"
 CODEX_MODEL="$(identity_env_value CODEX_MODEL)"
 DIRECT_EXECUTORS_CONFIG_PATH="$(identity_env_value DIRECT_EXECUTORS_CONFIG_PATH)"
@@ -249,6 +250,8 @@ write_server_plist() {
     <string>${PORT}</string>
     <key>${ENV_PREFIX}_PUBLIC_BASE_URL</key>
     <string>${PUBLIC_BASE_URL}</string>
+    <key>${ENV_PREFIX}_DEVICE_AGENT_DISTRIBUTION_DIR</key>
+    <string>${DEVICE_AGENT_DISTRIBUTION_DIR}</string>
     <key>${ENV_PREFIX}_CODEX_BIN</key>
     <string>${CODEX_BIN}</string>
     <key>${ENV_PREFIX}_CODEX_MODEL</key>

@@ -1,4 +1,4 @@
-export const DEVICE_ONBOARDING_SCHEMA_VERSION = 1 as const;
+export const DEVICE_ONBOARDING_SCHEMA_VERSION = 2 as const;
 
 export type DeviceOnboardingRecommendedPath = "nearby" | "remote" | "advanced";
 export type NearbyOnboardingReason =
@@ -10,6 +10,44 @@ export type RemoteOnboardingReason =
   | "ready"
   | "public-route-not-configured"
   | "public-route-not-https";
+
+export type NativePackageUnavailableReason =
+  | "distribution-not-configured"
+  | "distribution-invalid"
+  | "release-not-published"
+  | "public-route-not-https"
+  | "public-route-unverified";
+
+export interface DeviceOnboardingNativePackageArtifact {
+  architecture: "arm64" | "x64";
+  fileName: string;
+  downloadUrl: string;
+  sha256: string;
+  sizeBytes: number;
+  runtimeId: string;
+  nodeVersion: string;
+  buildId: string;
+  revision: string;
+}
+
+export type DeviceOnboardingNativePackage =
+  | {
+      available: false;
+      reason: NativePackageUnavailableReason;
+    }
+  | {
+      available: true;
+      platform: "darwin";
+      version: string;
+      distributionTrust: "release";
+      manifestUrl: string;
+      manifestSha256: string;
+      connectCommand: string;
+      architectures: {
+        arm64: DeviceOnboardingNativePackageArtifact;
+        x64: DeviceOnboardingNativePackageArtifact;
+      };
+    };
 
 export interface DeviceOnboardingProjection {
   ok: true;
@@ -46,10 +84,7 @@ export interface DeviceOnboardingProjection {
       available: false;
       reason: "package-not-published";
     };
-    nativePackage: {
-      available: false;
-      reason: "not-shipped";
-    };
+    nativePackage: DeviceOnboardingNativePackage;
   };
   enrollment: {
     pendingCount: number;

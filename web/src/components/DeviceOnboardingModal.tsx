@@ -1,4 +1,4 @@
-import { ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { DownloadOutlined, ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { Alert, Button, Modal, Spin, Steps, Tag } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
@@ -19,6 +19,29 @@ function errorText(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function nativePackageUnavailableText(
+  copy: ReturnType<typeof getDeviceOnboardingCopy>,
+  reason: Extract<DeviceOnboardingResponse["bootstrap"]["nativePackage"], { available: false }>["reason"]
+): string {
+  switch (reason) {
+    case "distribution-not-configured":
+      return copy.nativePackageUnavailableNotConfigured;
+    case "distribution-invalid":
+      return copy.nativePackageUnavailableInvalid;
+    case "release-not-published":
+      return copy.nativePackageUnavailableNotPublished;
+    case "public-route-not-https":
+      return copy.nativePackageUnavailableRouteNotHttps;
+    case "public-route-unverified":
+      return copy.nativePackageUnavailableRouteUnverified;
+  }
 }
 
 export function DeviceOnboardingModal({ locale, open, onClose }: DeviceOnboardingModalProps) {
@@ -75,6 +98,10 @@ export function DeviceOnboardingModal({ locale, open, onClose }: DeviceOnboardin
       ? copy.remoteNotConfigured
       : copy.remoteNotHttps;
   }, [copy, projection]);
+  const availableNativePackage =
+    projection?.bootstrap.nativePackage.available === true
+      ? projection.bootstrap.nativePackage
+      : null;
 
   return (
     <Modal
@@ -154,9 +181,86 @@ export function DeviceOnboardingModal({ locale, open, onClose }: DeviceOnboardin
 
               <div className="device-onboarding__notes">
                 <span>{copy.installedCliRequirement}</span>
-                <span>{copy.distributionUnavailable}</span>
+                {!projection.bootstrap.nativePackage.available ? (
+                  <span>
+                    {nativePackageUnavailableText(
+                      copy,
+                      projection.bootstrap.nativePackage.reason
+                    )}
+                  </span>
+                ) : null}
               </div>
             </section>
+
+            {availableNativePackage ? (
+              <section className="device-onboarding__card">
+                <div className="device-onboarding__card-header">
+                  <div>
+                    <strong>{copy.nativePackageTitle}</strong>
+                    <span>v{availableNativePackage.version}</span>
+                  </div>
+                  <Tag color="success">release</Tag>
+                </div>
+                <p>{copy.nativePackageReadyDescription}</p>
+
+                <div className="device-onboarding__command">
+                  <span>{copy.nativePackageManifest}</span>
+                  <div>
+                    <code>{availableNativePackage.manifestSha256}</code>
+                    <Button
+                      type="link"
+                      size="small"
+                      href={availableNativePackage.manifestUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {copy.nativePackageManifest}
+                    </Button>
+                  </div>
+                </div>
+
+                {(["arm64", "x64"] as const).map((architecture) => {
+                  const artifact = availableNativePackage.architectures[architecture];
+                  return (
+                    <div className="device-onboarding__command" key={architecture}>
+                      <span>
+                        {architecture === "arm64" ? copy.nativePackageArm64 : copy.nativePackageX64}
+                        {` · ${formatBytes(artifact.sizeBytes)}`}
+                      </span>
+                      <div>
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          href={artifact.downloadUrl}
+                        >
+                          {artifact.fileName}
+                        </Button>
+                      </div>
+                      <div>
+                        <span>{copy.nativePackageChecksum}</span>
+                        <code>{artifact.sha256}</code>
+                        <CopyButton
+                          aria-label={`${copy.copyCommand} ${architecture} SHA256`}
+                          content={artifact.sha256}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="device-onboarding__command">
+                  <span>{copy.nativePackageConnect}</span>
+                  <div>
+                    <code>{availableNativePackage.connectCommand}</code>
+                    <CopyButton
+                      aria-label={copy.copyCommand}
+                      content={availableNativePackage.connectCommand}
+                    />
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="device-onboarding__card device-onboarding__card--approval">
               <div className="device-onboarding__card-header">

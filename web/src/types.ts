@@ -466,7 +466,7 @@ export type DeviceOnboardingRecommendedPath = "nearby" | "remote" | "advanced";
 
 export interface DeviceOnboardingResponse {
   ok: true;
-  schemaVersion: 1;
+  schemaVersion: 2;
   recommendedPath: DeviceOnboardingRecommendedPath;
   routes: {
     nearby: {
@@ -496,7 +496,49 @@ export interface DeviceOnboardingResponse {
       connectCommand: string | null;
     };
     npx: { available: false; reason: "package-not-published" };
-    nativePackage: { available: false; reason: "not-shipped" };
+    nativePackage:
+      | {
+          available: false;
+          reason:
+            | "distribution-not-configured"
+            | "distribution-invalid"
+            | "release-not-published"
+            | "public-route-not-https"
+            | "public-route-unverified";
+        }
+      | {
+          available: true;
+          platform: "darwin";
+          version: string;
+          distributionTrust: "release";
+          manifestUrl: string;
+          manifestSha256: string;
+          connectCommand: string;
+          architectures: {
+            arm64: {
+              architecture: "arm64";
+              fileName: string;
+              downloadUrl: string;
+              sha256: string;
+              sizeBytes: number;
+              runtimeId: string;
+              nodeVersion: string;
+              buildId: string;
+              revision: string;
+            };
+            x64: {
+              architecture: "x64";
+              fileName: string;
+              downloadUrl: string;
+              sha256: string;
+              sizeBytes: number;
+              runtimeId: string;
+              nodeVersion: string;
+              buildId: string;
+              revision: string;
+            };
+          };
+        };
   };
   enrollment: {
     pendingCount: number;

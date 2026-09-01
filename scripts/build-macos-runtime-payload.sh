@@ -66,6 +66,7 @@ mkdir -p "${APP_DIR}/dist"
 rsync -a \
   --exclude "macos-runtime" \
   --exclude "runtime-cache" \
+  --exclude "device-agent" \
   --exclude "macos" \
   "${ROOT}/dist/" "${APP_DIR}/dist/"
 cp -R "${ROOT}/web/dist" "${APP_DIR}/web-dist-staging"

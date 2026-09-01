@@ -94,6 +94,7 @@ const forbiddenPatterns: Array<[string, RegExp]> = [
   ["server.env", /(^|\/)server\.env$/],
   ["source tree", /^app\/src\//],
   ["web source tree", /^app\/web\/src\//],
+  ["generated Device Agent artifacts", /^app\/dist\/device-agent(?:\/|$)/],
   ["Swift tests", /(^|\/)Tests(\/|$)/],
   ["node cache", /(^|\/)node_modules\/\.cache(\/|$)/]
 ];

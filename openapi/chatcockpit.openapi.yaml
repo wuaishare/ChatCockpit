@@ -345,12 +345,65 @@ components:
         certificateFingerprint: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
         signature: { type: string, description: Hub Ed25519 signature binding the nonce to the LAN TLS certificate fingerprint. }
       required: [ok, hubId, nonce, certificateFingerprint, signature]
+    DeviceAgentDistributionArtifact:
+      type: object
+      additionalProperties: false
+      properties:
+        architecture: { type: string, enum: [arm64, x64] }
+        fileName: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*\\.tar\\.gz$' }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        sizeBytes: { type: integer, minimum: 1 }
+        packageManifestSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        runtimeId: { type: string, minLength: 1 }
+        nodeVersion: { type: string, minLength: 1 }
+        build:
+          type: object
+          additionalProperties: false
+          properties:
+            buildId: { type: string, minLength: 1 }
+            revision: { type: string, minLength: 1 }
+            builtAt: { type: string, minLength: 1 }
+          required: [buildId, revision, builtAt]
+      required: [architecture, fileName, sha256, sizeBytes, packageManifestSha256, runtimeId, nodeVersion, build]
+    DeviceAgentDistributionManifest:
+      type: object
+      additionalProperties: false
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        productIdentity: { type: string, const: chatcockpit }
+        packageKind: { type: string, const: device-agent-distribution }
+        version: { type: string, minLength: 1 }
+        platform: { type: string, const: darwin }
+        distributionTrust: { type: string, const: release }
+        releaseEligible: { type: boolean, const: true }
+        architectures:
+          type: object
+          additionalProperties: false
+          properties:
+            arm64: { $ref: '#/components/schemas/DeviceAgentDistributionArtifact' }
+            x64: { $ref: '#/components/schemas/DeviceAgentDistributionArtifact' }
+          required: [arm64, x64]
+      required: [schemaVersion, productIdentity, packageKind, version, platform, distributionTrust, releaseEligible, architectures]
+    DeviceOnboardingNativePackageArtifact:
+      type: object
+      additionalProperties: false
+      properties:
+        architecture: { type: string, enum: [arm64, x64] }
+        fileName: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*\\.tar\\.gz$' }
+        downloadUrl: { type: string, format: uri }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        sizeBytes: { type: integer, minimum: 1 }
+        runtimeId: { type: string, minLength: 1 }
+        nodeVersion: { type: string, minLength: 1 }
+        buildId: { type: string, minLength: 1 }
+        revision: { type: string, minLength: 1 }
+      required: [architecture, fileName, downloadUrl, sha256, sizeBytes, runtimeId, nodeVersion, buildId, revision]
     DeviceOnboardingResponse:
       type: object
       additionalProperties: false
       properties:
         ok: { type: boolean, const: true }
-        schemaVersion: { type: integer, const: 1 }
+        schemaVersion: { type: integer, const: 2 }
         recommendedPath: { type: string, enum: [nearby, remote, advanced] }
         routes:
           type: object
@@ -402,12 +455,33 @@ components:
                 reason: { type: string, const: package-not-published }
               required: [available, reason]
             nativePackage:
-              type: object
-              additionalProperties: false
-              properties:
-                available: { type: boolean, const: false }
-                reason: { type: string, const: not-shipped }
-              required: [available, reason]
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  properties:
+                    available: { type: boolean, const: false }
+                    reason:
+                      type: string
+                      enum: [distribution-not-configured, distribution-invalid, release-not-published, public-route-not-https, public-route-unverified]
+                  required: [available, reason]
+                - type: object
+                  additionalProperties: false
+                  properties:
+                    available: { type: boolean, const: true }
+                    platform: { type: string, const: darwin }
+                    version: { type: string, minLength: 1 }
+                    distributionTrust: { type: string, const: release }
+                    manifestUrl: { type: string, format: uri }
+                    manifestSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+                    connectCommand: { type: string, minLength: 1 }
+                    architectures:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        arm64: { $ref: '#/components/schemas/DeviceOnboardingNativePackageArtifact' }
+                        x64: { $ref: '#/components/schemas/DeviceOnboardingNativePackageArtifact' }
+                      required: [arm64, x64]
+                  required: [available, platform, version, distributionTrust, manifestUrl, manifestSha256, connectCommand, architectures]
           required: [installedCli, npx, nativePackage]
         enrollment:
           type: object
@@ -7375,6 +7449,57 @@ paths:
                 $ref: '#/components/schemas/ApiErrorResponse'
         "503":
           description: LAN TLS identity is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /downloads/device-agent/manifest.json:
+    get:
+      operationId: getDeviceAgentDistributionManifest
+      summary: Download the public Device Agent release manifest
+      description: Anonymous checksum-bound distribution metadata. This route is available only when a release-eligible dual-architecture distribution is configured and validates successfully.
+      security: []
+      responses:
+        "200":
+          description: Release-eligible Device Agent distribution manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceAgentDistributionManifest'
+        "404":
+          description: No valid release distribution is configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /downloads/device-agent/macos/{architecture}/{fileName}:
+    get:
+      operationId: downloadMacosDeviceAgentPackage
+      summary: Download one checksum-bound macOS Device Agent archive
+      description: Anonymous artifact route restricted to the exact arm64/x64 filenames declared by the validated release distribution manifest. Other files in the distribution directory are never exposed.
+      security: []
+      parameters:
+        - in: path
+          name: architecture
+          required: true
+          schema: { type: string, enum: [arm64, x64] }
+        - in: path
+          name: fileName
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*\\.tar\\.gz$' }
+      responses:
+        "200":
+          description: Device Agent archive
+          headers:
+            ETag:
+              schema: { type: string }
+            Content-Length:
+              schema: { type: integer, minimum: 1 }
+          content:
+            application/gzip:
+              schema: { type: string, format: binary }
+        "404":
+          description: Artifact is not declared by the current release manifest
           content:
             application/json:
               schema:

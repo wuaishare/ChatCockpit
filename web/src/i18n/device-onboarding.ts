@@ -22,7 +22,18 @@ export interface DeviceOnboardingCopy {
   commandLabel: string;
   copyCommand: string;
   installedCliRequirement: string;
-  distributionUnavailable: string;
+  nativePackageTitle: string;
+  nativePackageReadyDescription: string;
+  nativePackageManifest: string;
+  nativePackageArm64: string;
+  nativePackageX64: string;
+  nativePackageChecksum: string;
+  nativePackageConnect: string;
+  nativePackageUnavailableNotConfigured: string;
+  nativePackageUnavailableInvalid: string;
+  nativePackageUnavailableNotPublished: string;
+  nativePackageUnavailableRouteNotHttps: string;
+  nativePackageUnavailableRouteUnverified: string;
   waitingTitle: string;
   waitingDescription: string;
   pendingCount: string;
@@ -61,8 +72,19 @@ const zhCN: DeviceOnboardingCopy = {
   remoteNotHttps: "当前公网入口不是可接受的 HTTPS origin。",
   commandLabel: "在目标设备运行",
   copyCommand: "复制连接命令",
-  installedCliRequirement: "当前流程要求目标设备已经安装 chatcockpit CLI。",
-  distributionUnavailable: "当前版本尚未发布 npx bootstrap 或原生 Device Agent 安装包，因此这里不会展示不可执行的一键安装命令。",
+  installedCliRequirement: "如果目标设备已经安装 chatcockpit CLI，也可以继续直接使用上面的连接命令。",
+  nativePackageTitle: "自包含 Device Agent 安装包",
+  nativePackageReadyDescription: "目标 Mac 不需要预装 Node.js、npm 或 ChatCockpit 源码。请选择与 CPU 架构匹配的发布包，下载后先核对 SHA256，再解压并运行连接命令。",
+  nativePackageManifest: "发布清单",
+  nativePackageArm64: "Apple Silicon · arm64",
+  nativePackageX64: "Intel Mac · x64",
+  nativePackageChecksum: "SHA256",
+  nativePackageConnect: "解压后运行",
+  nativePackageUnavailableNotConfigured: "Hub 尚未配置 Device Agent 发布目录，当前继续使用已安装 CLI 接入。",
+  nativePackageUnavailableInvalid: "Device Agent 发布目录或校验信息无效，已停止展示下载入口。",
+  nativePackageUnavailableNotPublished: "尚未发布通过 release eligibility 校验的 Device Agent 安装包。",
+  nativePackageUnavailableRouteNotHttps: "需要先配置 canonical HTTPS 公网入口，才能发布 Device Agent 下载地址。",
+  nativePackageUnavailableRouteUnverified: "HTTPS 公网入口尚未验证，ChatCockpit 不会提前宣告原生安装包可远程下载。",
   waitingTitle: "运行命令后回到这里批准",
   waitingDescription: "目标设备会显示一次人工核对码并等待 Owner 批准。新的请求会出现在本页“待批准设备”区域；请同时核对目标设备上的核对码与设备指纹。",
   pendingCount: "当前待批准请求",
@@ -101,8 +123,19 @@ const enUS: DeviceOnboardingCopy = {
   remoteNotHttps: "The configured public route is not an acceptable HTTPS origin.",
   commandLabel: "Run on the target device",
   copyCommand: "Copy connect command",
-  installedCliRequirement: "The current flow requires the chatcockpit CLI to already be installed on the target device.",
-  distributionUnavailable: "This version does not ship an npx bootstrap or native Device Agent package, so the wizard does not advertise a non-runnable one-click install command.",
+  installedCliRequirement: "If the target already has the chatcockpit CLI, you can continue to use the direct connect command above.",
+  nativePackageTitle: "Self-contained Device Agent package",
+  nativePackageReadyDescription: "The target Mac does not need Node.js, npm, or a ChatCockpit source checkout. Choose the package for its CPU architecture, verify SHA256 after download, then extract it and run the connect command.",
+  nativePackageManifest: "Release manifest",
+  nativePackageArm64: "Apple Silicon · arm64",
+  nativePackageX64: "Intel Mac · x64",
+  nativePackageChecksum: "SHA256",
+  nativePackageConnect: "Run after extracting",
+  nativePackageUnavailableNotConfigured: "This Hub has no Device Agent distribution directory configured; use an already installed CLI for now.",
+  nativePackageUnavailableInvalid: "The Device Agent distribution or its integrity metadata is invalid, so download links are hidden.",
+  nativePackageUnavailableNotPublished: "No Device Agent package has passed release eligibility and been published yet.",
+  nativePackageUnavailableRouteNotHttps: "Configure a canonical HTTPS public route before publishing Device Agent download URLs.",
+  nativePackageUnavailableRouteUnverified: "The HTTPS public route has not been verified, so ChatCockpit will not advertise the native package as remotely downloadable yet.",
   waitingTitle: "Return here to approve after running the command",
   waitingDescription: "The target device shows a human verification code and waits for Owner approval. New requests appear in the Pending Devices section on this page; compare both the code and device fingerprint before approval.",
   pendingCount: "Pending requests",

@@ -2,20 +2,55 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ARCH="${1:-}"
-if [[ "${ARCH}" == "--arch" ]]; then
-  ARCH="${2:-}"
-fi
+ARCH=""
+RELEASE_MODE=0
+
+usage() {
+  echo "Usage: $0 [--arch {arm64|x64}] [--release]" >&2
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --arch)
+      ARCH="${2:-}"
+      shift 2
+      ;;
+    --release)
+      RELEASE_MODE=1
+      shift
+      ;;
+    arm64|x64)
+      if [[ -n "${ARCH}" ]]; then
+        usage
+        exit 2
+      fi
+      ARCH="$1"
+      shift
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+
 if [[ -z "${ARCH}" ]]; then
   ARCH="$(node -p 'process.arch')"
 fi
 case "${ARCH}" in
   arm64|x64) ;;
   *)
-    echo "Usage: $0 [--arch {arm64|x64}]" >&2
+    usage
     exit 2
     ;;
 esac
+
+DISTRIBUTION_TRUST="development"
+RELEASE_ELIGIBLE="false"
+if (( RELEASE_MODE != 0 )); then
+  DISTRIBUTION_TRUST="release"
+  RELEASE_ELIGIBLE="true"
+fi
 
 VERSION="$(node -p "require('${ROOT}/package.json').version")"
 OUTPUT_BASE="${ROOT}/dist/device-agent/macos/${ARCH}"
@@ -48,15 +83,31 @@ fi
 rsync -a "${RUNTIME_SOURCE}/" "${RUNTIME_DEST}/"
 install -m 755 "${ROOT}/scripts/macos-device-agent-entry.sh" "${ENTRY_DEST}"
 
-node - "${STAGING_DIR}" "${VERSION}" "${ARCH}" <<'NODE'
+node - "${STAGING_DIR}" "${VERSION}" "${ARCH}" "${DISTRIBUTION_TRUST}" "${RELEASE_ELIGIBLE}" <<'NODE'
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const [packageRoot, version, architecture] = process.argv.slice(2);
+const [packageRoot, version, architecture, distributionTrust, releaseEligibleRaw] = process.argv.slice(2);
+const releaseEligible = releaseEligibleRaw === "true";
 const runtimeManifestPath = path.join(packageRoot, "runtime", "TokenPilotRuntime", "manifest.json");
 const runtimeManifestBytes = fs.readFileSync(runtimeManifestPath);
 const runtimeManifest = JSON.parse(runtimeManifestBytes.toString("utf8"));
+const buildProvenancePath = path.join(packageRoot, "runtime", "TokenPilotRuntime", "app", "dist", "build-provenance.json");
+const buildProvenance = JSON.parse(fs.readFileSync(buildProvenancePath, "utf8"));
+if (releaseEligible) {
+  if (distributionTrust !== "release") {
+    throw new Error("release-eligible Device Agent package requires distributionTrust=release");
+  }
+  if (buildProvenance.sourceDirty !== false) {
+    throw new Error("release-eligible Device Agent package requires clean build provenance");
+  }
+  if (!String(buildProvenance.buildId ?? "").trim() || !String(buildProvenance.revision ?? "").trim()) {
+    throw new Error("release-eligible Device Agent package requires build id and revision provenance");
+  }
+} else if (distributionTrust !== "development") {
+  throw new Error("non-release Device Agent package must use development distribution trust");
+}
 const entrypoint = "bin/chatcockpit-device";
 const entrypointBytes = fs.readFileSync(path.join(packageRoot, entrypoint));
 const sha256 = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
@@ -68,8 +119,8 @@ const manifest = {
   version,
   platform: "darwin",
   architecture,
-  distributionTrust: "development",
-  releaseEligible: false,
+  distributionTrust,
+  releaseEligible,
   entrypoint,
   entrypointSha256: sha256(entrypointBytes),
   runtime: {
@@ -111,4 +162,4 @@ printf '%s  %s\n' "${ARCHIVE_SHA256}" "${ARCHIVE_NAME}" > "${CHECKSUM_PATH}"
 printf 'created macOS Device Agent bundle: %s\n' "${BUNDLE_DIR#${ROOT}/}"
 printf 'created archive: %s\n' "${ARCHIVE_PATH#${ROOT}/}"
 printf 'archive sha256: %s\n' "${ARCHIVE_SHA256}"
-printf 'distribution trust: development (releaseEligible=false)\n'
+printf 'distribution trust: %s (releaseEligible=%s)\n' "${DISTRIBUTION_TRUST}" "${RELEASE_ELIGIBLE}"

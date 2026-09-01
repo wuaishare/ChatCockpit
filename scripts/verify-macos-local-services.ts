@@ -109,6 +109,9 @@ assert.match(source, /DISTRIBUTION_MODE="\$\(identity_env_value DISTRIBUTION_MOD
 assert.match(source, /DISTRIBUTION_MODE="\$\{DISTRIBUTION_MODE:-source\}"/);
 assert.match(source, /ALLOW_HIGH_TRUST_COMMANDS="\$\(identity_env_value ALLOW_HIGH_TRUST_COMMANDS\)"/);
 assert.match(source, /ALLOW_HIGH_TRUST_COMMANDS="\$\{ALLOW_HIGH_TRUST_COMMANDS:-false\}"/);
+assert.match(source, /DEVICE_AGENT_DISTRIBUTION_DIR="\$\(identity_env_value DEVICE_AGENT_DISTRIBUTION_DIR\)"/);
+assert.equal((source.match(/<key>\$\{ENV_PREFIX\}_DEVICE_AGENT_DISTRIBUTION_DIR<\/key>/g) ?? []).length, 1);
+assert.equal((source.match(/<string>\$\{DEVICE_AGENT_DISTRIBUTION_DIR\}<\/string>/g) ?? []).length, 1);
 assert.equal((source.match(/<key>\$\{ENV_PREFIX\}_ALLOW_HIGH_TRUST_COMMANDS<\/key>/g) ?? []).length, 2);
 assert.equal((source.match(/<key>\$\{ENV_PREFIX\}_LAUNCH_BUILD_ID<\/key>/g) ?? []).length, 2);
 assert.equal((source.match(/<key>\$\{ENV_PREFIX\}_LAUNCH_BUILD_REVISION<\/key>/g) ?? []).length, 2);

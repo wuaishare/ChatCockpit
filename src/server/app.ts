@@ -94,6 +94,7 @@ import {
 import { GovernedExternalActionRepository } from "../governance/governed-external-action-repository.js";
 import { DeviceRuntimeOperationRepository } from "../governance/device-runtime-operation-repository.js";
 import { DeviceOnboardingService } from "../application/device-onboarding-service.js";
+import { DeviceAgentDistributionCatalog } from "../devices/device-agent-distribution.js";
 import { OperationalActivityProvenanceRepository } from "../governance/operational-activity-provenance-repository.js";
 import { OperationalActivityControlEventRepository } from "../governance/operational-activity-control-event-repository.js";
 import { buildGptConfig, buildHealthStatusSnapshot } from "../core/gpt-config.js";
@@ -134,6 +135,7 @@ import {
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
 import { registerDeviceOnboardingRoutes } from "./device-onboarding-routes.js";
+import { registerDeviceAgentDistributionRoutes } from "./device-agent-distribution-routes.js";
 import { buildMcpToolCatalogMetadata } from "../mcp/catalog-metadata.js";
 import {
   MCP_TOOL_SURFACE_PACKS,
@@ -411,6 +413,7 @@ export interface BuildServerOptions {
   deviceCapabilityRpc?: DeviceCapabilityRpc;
   deviceRuntimeLifecycleRpc?: DeviceRuntimeLifecycleRpc;
   deviceChannelPingIntervalMs?: number;
+  deviceAgentDistributionDir?: string;
   runtimeBuildProvenance?: RuntimeBuildProvenance | null;
   lanDiscovery?: {
     host: string;
@@ -942,6 +945,9 @@ export function buildServer(
         : {})
     }
   );
+  const deviceAgentDistributionCatalog = new DeviceAgentDistributionCatalog(
+    options.deviceAgentDistributionDir ?? readIdentityEnv("DEVICE_AGENT_DISTRIBUTION_DIR")
+  );
   const deviceOnboardingService = new DeviceOnboardingService({
     accessPolicy,
     hubIdentity,
@@ -972,7 +978,8 @@ export function buildServer(
     lanRuntimeSnapshot: () => ({
       discoveryAdvertised: lanDiscoveryPublication?.advertised === true,
       secureTransportReady: deviceLanTlsPort !== null
-    })
+    }),
+    deviceAgentDistributionSnapshot: () => deviceAgentDistributionCatalog.snapshot()
   });
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
@@ -1021,6 +1028,7 @@ export function buildServer(
       ? () => ensureLanTlsIdentity(paths.runtimeDir)
       : null
   });
+  registerDeviceAgentDistributionRoutes(app, deviceAgentDistributionCatalog);
   registerDeviceOnboardingRoutes(app, deviceOnboardingService);
   registerDeviceRoutes(app, deviceRegistryStore, {
     ...(options.deviceNow ? { now: options.deviceNow } : {}),
