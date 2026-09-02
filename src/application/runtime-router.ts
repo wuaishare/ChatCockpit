@@ -186,6 +186,7 @@ export class RuntimeRouter {
     command: string[];
     commandIdentity?: string;
     cwd: string;
+    workspaceRoot: string;
     timeoutMs: number;
     outputBytesCap: number;
     readOnly: boolean;
@@ -197,6 +198,7 @@ export class RuntimeRouter {
     command: string[];
     commandIdentity?: string;
     cwd: string;
+    workspaceRoot: string;
     readOnly: boolean;
     allowStdin: boolean;
     tty?: boolean;

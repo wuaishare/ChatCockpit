@@ -8,6 +8,7 @@ import { CodexAppServerClient } from "../src/runtime/codex/app-server-client.ts"
 import { CodexStandaloneCapabilityProbe } from "../src/runtime/codex/standalone-probe.ts";
 import { CodexStandaloneCapabilityStore } from "../src/runtime/codex/standalone-capabilities.ts";
 import type { CodexBinaryResolution } from "../src/runtime/codex/binary.ts";
+import { CODEX_STANDALONE_PERMISSION_PROFILES } from "../src/runtime/codex/standalone-security.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -56,7 +57,8 @@ async function waitForErrorCode(
 async function verifyCodexManagedCommand(): Promise<void> {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-managed-command-"));
   const probeRoot = path.join(tempRoot, "workspace");
-  const runtimeDir = path.join(tempRoot, ".chatcockpit", "runtime");
+  const stateRoot = path.join(tempRoot, ".chatcockpit");
+  const runtimeDir = path.join(stateRoot, "runtime");
   const tracePath = path.join(tempRoot, "standalone-trace.jsonl");
   const fixturePath = path.join(process.cwd(), "scripts", "fixtures", "mock-codex-standalone.mjs");
   fs.mkdirSync(probeRoot, { recursive: true });
@@ -90,7 +92,8 @@ async function verifyCodexManagedCommand(): Promise<void> {
         ? { CHATCOCKPIT_MOCK_STANDALONE_DISCONNECT_AFTER_SPAWN: "1" }
         : {})
     },
-    requestTimeoutMs: 10_000
+    requestTimeoutMs: 10_000,
+    experimentalApi: true
   });
 
   const probeClient = makeClient();
@@ -108,6 +111,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
 
   const normalAdapter = new CodexAppServerAdapter({
     workspaces: {} as never,
+    stateRoot,
     resolveBinary: () => resolution,
     createClient: () => makeClient(),
     standaloneCapabilityStore: store
@@ -116,6 +120,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
     const normal = await normalAdapter.startStandaloneProcess({
       command: [process.execPath, "-e", "process.stdout.write('normal-final')"],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: false,
       networkAccess: false
@@ -149,6 +154,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
 
   const ackOnlyAdapter = new CodexAppServerAdapter({
     workspaces: {} as never,
+    stateRoot,
     resolveBinary: () => resolution,
     createClient: () => makeClient({ terminateAckOnly: true }),
     standaloneCapabilityStore: store
@@ -161,6 +167,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
         "setTimeout(() => process.stdout.write('ack-only-finished'), 300)"
       ],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: false,
       networkAccess: false
@@ -190,6 +197,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
 
   const disconnectedAdapter = new CodexAppServerAdapter({
     workspaces: {} as never,
+    stateRoot,
     resolveBinary: () => resolution,
     createClient: () => makeClient({ disconnectAfterSpawn: true }),
     standaloneCapabilityStore: store
@@ -202,6 +210,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
         "setTimeout(() => process.stdout.write('disconnected-child-finished'), 180)"
       ],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: false,
       networkAccess: false
@@ -224,6 +233,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
 
   const adapter = new CodexAppServerAdapter({
     workspaces: {} as never,
+    stateRoot,
     resolveBinary: () => resolution,
     createClient: () => makeClient({ suppressManagedFinalResponse: true }),
     standaloneCapabilityStore: store
@@ -233,6 +243,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
     const slow = await adapter.startStandaloneProcess({
       command: [process.execPath, "-e", "setTimeout(() => process.stdout.write('slow-done'), 300)"],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: false,
       networkAccess: false
@@ -248,6 +259,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
     const interactive = await adapter.startStandaloneProcess({
       command: [process.execPath, "-e", "process.stdin.once('data', d => { process.stdout.write('echo:' + d.toString()); process.exit(0); })"],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: true,
       networkAccess: false
@@ -260,6 +272,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
     const pty = await adapter.startStandaloneProcess({
       command: [process.execPath, "-e", "setInterval(() => process.stdout.write('p'), 25)"],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: false,
       tty: true,
@@ -291,6 +304,12 @@ async function verifyCodexManagedCommand(): Promise<void> {
     );
     assert.ok(slowFence, "terminal sentinel must trigger a provider cleanup fence");
 
+    const initialize = trace.find((entry) => entry.method === "initialize");
+    assert.equal(
+      (initialize?.params?.capabilities as { experimentalApi?: boolean } | undefined)?.experimentalApi,
+      true,
+      "ChatCockpit standalone command clients must opt into permissionProfile support"
+    );
     const ptyExec = trace.find(
       (entry) =>
         entry.method === "command/exec" &&
@@ -300,6 +319,15 @@ async function verifyCodexManagedCommand(): Promise<void> {
     assert.equal(ptyExec.params?.tty, true);
     assert.equal(ptyExec.params?.streamStdin, true);
     assert.deepEqual(ptyExec.params?.size, { rows: 32, cols: 120 });
+    assert.equal(
+      ptyExec.params?.permissionProfile,
+      CODEX_STANDALONE_PERMISSION_PROFILES.readOffline
+    );
+    assert.equal(
+      "sandboxPolicy" in (ptyExec.params ?? {}),
+      false,
+      "ChatCockpit standalone commands must not fall back to legacy write-only sandboxPolicy"
+    );
     const ptyResize = trace.find(
       (entry) =>
         entry.method === "command/exec/resize" &&
@@ -311,6 +339,7 @@ async function verifyCodexManagedCommand(): Promise<void> {
     const stoppable = await adapter.startStandaloneProcess({
       command: [process.execPath, "-e", "setInterval(() => process.stdout.write('.'), 25)"],
       cwd: probeRoot,
+      workspaceRoot: probeRoot,
       readOnly: true,
       allowStdin: false,
       networkAccess: false

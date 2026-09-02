@@ -5,6 +5,10 @@ import path from "node:path";
 
 import { DeviceRuntimeLifecycleService } from "../src/application/device-runtime-lifecycle-service.js";
 import { buildOperationContext } from "../src/application/operation-context.js";
+import {
+  oauthDeviceAccessLevelAllows,
+  type OAuthDeviceAccessLevel
+} from "../src/auth/oauth-types.js";
 import { ServiceError } from "../src/application/service-error.js";
 import { ContinuityDatabase } from "../src/continuity/database.js";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.js";
@@ -70,9 +74,20 @@ try {
       return deviceId === DEVICE_ID && channelAvailable;
     }
   };
+  let grantAccessLevel: OAuthDeviceAccessLevel = "full-access";
+  const accessChecks: OAuthDeviceAccessLevel[] = [];
   const accessPolicy = {
-    assertGrantAllowsDevice(grantId: string, deviceId: string) {
-      if (grantId !== GRANT_ID || deviceId !== DEVICE_ID) {
+    assertGrantAllowsDevice(
+      grantId: string,
+      deviceId: string,
+      requiredLevel: OAuthDeviceAccessLevel
+    ) {
+      accessChecks.push(requiredLevel);
+      if (
+        grantId !== GRANT_ID ||
+        deviceId !== DEVICE_ID ||
+        !oauthDeviceAccessLevelAllows(grantAccessLevel, requiredLevel)
+      ) {
         throw new ServiceError("DEVICE_ACCESS_DENIED", "fixture grant denied");
       }
     }
@@ -131,6 +146,32 @@ try {
     now: "2026-08-24T01:00:00.000Z"
   });
 
+  grantAccessLevel = "read-only";
+  const readOnlyStatus = await service.status(chatgpt, { deviceId: DEVICE_ID });
+  assert.equal(readOnlyStatus.conditions.controlPlane, "running");
+  const callsAfterReadOnlyStatus = calls.length;
+  await assert.rejects(
+    () => service.execute(chatgpt, {
+      idempotencyKey: "lifecycle.execute.read-only-denied.1",
+      deviceId: DEVICE_ID,
+      action: "restart"
+    }),
+    (error: unknown) => error instanceof ServiceError && error.code === "DEVICE_ACCESS_DENIED"
+  );
+  assert.equal(calls.length, callsAfterReadOnlyStatus);
+
+  grantAccessLevel = "project-exec";
+  await assert.rejects(
+    () => service.execute(chatgpt, {
+      idempotencyKey: "lifecycle.execute.project-exec-denied.1",
+      deviceId: DEVICE_ID,
+      action: "restart"
+    }),
+    (error: unknown) => error instanceof ServiceError && error.code === "DEVICE_ACCESS_DENIED"
+  );
+  assert.equal(calls.length, callsAfterReadOnlyStatus);
+
+  grantAccessLevel = "full-access";
   const first = await service.execute(chatgpt, {
     idempotencyKey: "lifecycle.execute.success.1",
     deviceId: DEVICE_ID,
@@ -138,7 +179,12 @@ try {
   });
   assert.equal(first.replayed, false);
   assert.equal(first.operation.state, "succeeded");
-  assert.deepEqual(calls.map((entry) => entry.action), ["status", "restart"]);
+  assert.deepEqual(calls.map((entry) => entry.action), ["status", "status", "restart"]);
+  assert.deepEqual(
+    accessChecks.slice(0, 4),
+    ["read-only", "full-access", "full-access", "full-access"],
+    "Runtime status must stay read-only while every remote lifecycle mutation requires Full Access at the application-service boundary"
+  );
   assert.equal("approvalId" in first.operation, false);
   assert.equal("authorizationGrantId" in first.operation, false);
   assert.equal("requestedActor" in first.operation, false);

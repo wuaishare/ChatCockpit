@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
+import type { OAuthDeviceAccessLevel } from "../auth/oauth-types.js";
 import type { ResolvedDeviceTarget } from "../devices/device-target.js";
 import type { DeviceRuntimeConditions } from "../devices/device-runtime-lifecycle.js";
 import type { DeviceRuntimeLifecycleResultBody } from "../devices/device-runtime-lifecycle-rpc.js";
@@ -20,7 +21,11 @@ export interface DeviceRuntimeTargetPort {
 }
 
 export interface DeviceRuntimeAccessPolicyPort {
-  assertGrantAllowsDevice(grantId: string, deviceId: string): void;
+  assertGrantAllowsDevice(
+    grantId: string,
+    deviceId: string,
+    requiredLevel: OAuthDeviceAccessLevel
+  ): void;
 }
 
 export interface DeviceRuntimeLifecycleChannelPort {
@@ -238,7 +243,11 @@ export class DeviceRuntimeLifecycleService {
           "Device access policy is unavailable"
         );
       }
-      this.accessPolicy.assertGrantAllowsDevice(context.authorizationGrantId, target.id);
+      this.accessPolicy.assertGrantAllowsDevice(
+        context.authorizationGrantId,
+        target.id,
+        options.mutation ? "full-access" : "read-only"
+      );
     }
     if (options.mutation && isAiActor(context) && target.executionPolicy === "paused") {
       throw new ServiceError(
@@ -283,7 +292,8 @@ export class DeviceRuntimeLifecycleService {
       }
       this.accessPolicy.assertGrantAllowsDevice(
         context.authorizationGrantId,
-        operation.deviceId
+        operation.deviceId,
+        "read-only"
       );
     }
   }

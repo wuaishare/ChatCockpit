@@ -734,6 +734,7 @@ export function buildServer(
     new CodexAppServerAdapter({
       workspaces: continuityServices.repositories.workspaces,
       productIdentity: paths.productIdentity,
+      stateRoot: paths.stateRoot,
       standaloneCapabilityStore,
       resolveBinary: () => codexBinaryAuthority.resolve()
     });

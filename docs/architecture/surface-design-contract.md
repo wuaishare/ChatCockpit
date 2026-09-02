@@ -76,6 +76,7 @@ A surface may change presentation, density, or interaction style for its platfor
 12. **Public endpoint changes use staged cutover.** A candidate route is configured and verified before it becomes the canonical Public Endpoint. Failed candidates must not destroy the currently working route.
 13. **Provider secrets remain machine-local.** Web may show configured/missing state and action availability, but plaintext tunnel tokens, FRP credentials, provider auth tokens, and equivalent secrets never cross into public rendering.
 14. **Project identity and filesystem authority are separate concerns, not separate products.** Project / Project Root / Primary Root / Execution Workspace remain shared product concepts across Web and Desktop. Root discovery, absolute paths, and filesystem mutation still require an authorized execution Host/Device; Web may drive the same Product Action through a valid target-aware executor when one exists.
+15. **Project execution is not Machine Authority.** Native workspace execution may read/write the selected Workspace according to the resolved effect and may read only the explicit toolchain/runtime roots required to execute that project. It must use a dedicated per-Workspace scratch area and must deny ChatCockpit state, Home secret roots, global temporary directories, and secret-bearing Control Plane environment. Machine-local secret or Host administration access requires a separate Host/Device capability contract; running project code on the same machine does not grant it implicitly.
 
 ## Shared Status Semantics
 

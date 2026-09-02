@@ -20,6 +20,11 @@ import {
   assessCodexStandaloneSnapshot,
   type CodexStandaloneCapabilityStore
 } from "./standalone-capabilities.js";
+import {
+  buildCodexStandaloneAppServerArgs,
+  codexStandalonePermissionProfile,
+  ensureCodexStandaloneScratchRoot
+} from "./standalone-security.js";
 import { projectCodexThreadContext } from "./thread-context-projection.js";
 import {
   projectCodexThread,
@@ -484,8 +489,13 @@ export function prepareCodexStandaloneCommandInvocation(
 export interface CodexAppServerAdapterOptions {
   workspaces: WorkspaceRepository;
   productIdentity?: ProductIdentityKey;
+  stateRoot?: string;
   resolveBinary?: () => CodexBinaryResolution | Promise<CodexBinaryResolution>;
   createClient?: (resolution: CodexBinaryResolution) => CodexAppServerClient;
+  createStandaloneClient?: (
+    resolution: CodexBinaryResolution,
+    workspaceRoot: string
+  ) => CodexAppServerClient;
   standaloneCapabilityStore?: CodexStandaloneCapabilityStore;
 }
 
@@ -497,14 +507,23 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
   private readonly clientFactory: (
     resolution: CodexBinaryResolution
   ) => CodexAppServerClient;
+  private readonly standaloneClientFactory: (
+    resolution: CodexBinaryResolution,
+    workspaceRoot: string
+  ) => CodexAppServerClient;
   private readonly standaloneCapabilityStore: CodexStandaloneCapabilityStore | null;
+  private readonly standaloneStateRoot: string | null;
   private resolution: CodexBinaryResolution | null = null;
   private client: CodexAppServerClient | null = null;
+  private readonly standaloneClients = new Map<string, CodexAppServerClient>();
   private initialization: CodexAppServerInitialization | null = null;
   private connecting: Promise<CodexAppServerClient> | null = null;
+  private readonly standaloneConnecting = new Map<
+    string,
+    Promise<CodexAppServerClient>
+  >();
   private eventSink: RuntimeEventSink | null = null;
-  private tsxCompatibilityRoot: string | null = null;
-  private tsxCompatibilityBashEnvPath: string | null = null;
+  private readonly tsxCompatibilityBashEnvPaths = new Map<string, string>();
   private readonly standaloneProcesses = new Map<
     string,
     ManagedStandaloneProcessRecord
@@ -515,6 +534,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     this.productIdentity = options.productIdentity ?? DEFAULT_PRODUCT_IDENTITY.key;
     this.binaryResolver = options.resolveBinary ?? (() => resolveCodexBinary());
     this.standaloneCapabilityStore = options.standaloneCapabilityStore ?? null;
+    this.standaloneStateRoot = options.stateRoot ?? null;
     this.clientFactory =
       options.createClient ??
       ((resolution) =>
@@ -522,21 +542,38 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
           command: resolution.command,
           productIdentity: this.productIdentity
         }));
+    this.standaloneClientFactory =
+      options.createStandaloneClient ??
+      options.createClient ??
+      ((resolution, workspaceRoot) =>
+        new CodexAppServerClient({
+          command: resolution.command,
+          args: buildCodexStandaloneAppServerArgs({
+            stateRoot: options.stateRoot,
+            workspaceRoot,
+            nodeExecutable: process.execPath
+          }),
+          productIdentity: this.productIdentity,
+          experimentalApi: true
+        }));
   }
 
-  private ensureTsxCompatibilityBashEnvPath(): string | null {
+  private ensureTsxCompatibilityBashEnvPath(workspaceRoot: string): string | null {
     if (process.platform === "win32" || !fs.existsSync("/bin/bash")) {
       return null;
     }
-    if (this.tsxCompatibilityBashEnvPath) {
-      return this.tsxCompatibilityBashEnvPath;
+    const key = this.standaloneWorkspaceKey(workspaceRoot);
+    const existing = this.tsxCompatibilityBashEnvPaths.get(key);
+    if (existing) {
+      return existing;
     }
 
-    const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), `${this.productIdentity}-codex-tsx-compat-`)
-    );
-    fs.chmodSync(root, 0o700);
-    const bashEnvPath = path.join(root, "bash-env");
+    const root = ensureCodexStandaloneScratchRoot({
+      homeDir: os.homedir(),
+      stateRoot: this.standaloneStateRoot,
+      workspaceRoot: key
+    });
+    const bashEnvPath = path.join(root, "tsx-bash-env");
     fs.writeFileSync(
       bashEnvPath,
       [
@@ -551,8 +588,8 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       ].join("\n"),
       { encoding: "utf8", mode: 0o600 }
     );
-    this.tsxCompatibilityRoot = root;
-    this.tsxCompatibilityBashEnvPath = bashEnvPath;
+    fs.chmodSync(bashEnvPath, 0o600);
+    this.tsxCompatibilityBashEnvPaths.set(key, bashEnvPath);
     return bashEnvPath;
   }
 
@@ -1165,15 +1202,16 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     command: string[];
     commandIdentity?: string;
     cwd: string;
+    workspaceRoot: string;
     timeoutMs: number;
     outputBytesCap: number;
     readOnly: boolean;
   }): Promise<RuntimeStandaloneCommandResult> {
     this.assertStandaloneCapability("command.exec", "command/exec");
-    const client = await this.ensureClient();
+    const client = await this.ensureStandaloneClient(input.workspaceRoot);
     const invocation = prepareCodexStandaloneCommandInvocation(
       input.command,
-      this.ensureTsxCompatibilityBashEnvPath(),
+      this.ensureTsxCompatibilityBashEnvPath(input.workspaceRoot),
       input.commandIdentity
     );
     const response = await client.request<Record<string, unknown>>(
@@ -1184,8 +1222,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
         timeoutMs: input.timeoutMs,
         outputBytesCap: input.outputBytesCap,
         ...(invocation.env ? { env: invocation.env } : {}),
-        sandboxPolicy: buildCodexStandaloneSandboxPolicy({
-          cwd: input.cwd,
+        permissionProfile: codexStandalonePermissionProfile({
           readOnly: input.readOnly,
           networkAccess: false
         })
@@ -1215,6 +1252,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     command: string[];
     commandIdentity?: string;
     cwd: string;
+    workspaceRoot: string;
     readOnly: boolean;
     allowStdin: boolean;
     tty?: boolean;
@@ -1222,10 +1260,10 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
     networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
     this.assertStandaloneCapability("command.exec", "command/exec");
-    const client = await this.ensureClient();
+    const client = await this.ensureStandaloneClient(input.workspaceRoot);
     const invocation = prepareCodexStandaloneCommandInvocation(
       input.command,
-      this.ensureTsxCompatibilityBashEnvPath(),
+      this.ensureTsxCompatibilityBashEnvPath(input.workspaceRoot),
       input.commandIdentity
     );
     const processId = `chatcockpit_${randomUUID()}`;
@@ -1274,8 +1312,7 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
             ...(invocation.env ?? {}),
             CHATCOCKPIT_TERMINAL_TOKEN: terminalToken
           },
-          sandboxPolicy: buildCodexStandaloneSandboxPolicy({
-            cwd: input.cwd,
+          permissionProfile: codexStandalonePermissionProfile({
             readOnly: input.readOnly,
             networkAccess: input.networkAccess
           })
@@ -1433,18 +1470,30 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
 
   async close(): Promise<void> {
     const client = this.client;
+    const standaloneClients = new Set(this.standaloneClients.values());
+    const standaloneConnecting = [...this.standaloneConnecting.values()];
     this.client = null;
+    this.standaloneClients.clear();
     this.initialization = null;
     this.connecting = null;
+    this.standaloneConnecting.clear();
     this.standaloneProcesses.clear();
     if (client) {
       await client.close();
     }
-    if (this.tsxCompatibilityRoot) {
-      fs.rmSync(this.tsxCompatibilityRoot, { recursive: true, force: true });
-      this.tsxCompatibilityRoot = null;
-      this.tsxCompatibilityBashEnvPath = null;
+    for (const pending of standaloneConnecting) {
+      try {
+        standaloneClients.add(await pending);
+      } catch {
+        // Failed connection attempts already close their own client.
+      }
     }
+    for (const standaloneClient of standaloneClients) {
+      if (standaloneClient !== client) {
+        await standaloneClient.close().catch(() => undefined);
+      }
+    }
+    this.tsxCompatibilityBashEnvPaths.clear();
   }
 
   private async ensureClient(): Promise<CodexAppServerClient> {
@@ -1477,6 +1526,54 @@ export class CodexAppServerAdapter implements CodingRuntimeAdapter {
       await client.close().catch(() => undefined);
       this.client = null;
       this.initialization = null;
+      throw error;
+    }
+  }
+
+  private standaloneWorkspaceKey(workspaceRoot: string): string {
+    try {
+      return fs.realpathSync.native(workspaceRoot);
+    } catch {
+      return path.resolve(workspaceRoot);
+    }
+  }
+
+  private async ensureStandaloneClient(
+    workspaceRoot: string
+  ): Promise<CodexAppServerClient> {
+    const key = this.standaloneWorkspaceKey(workspaceRoot);
+    const existing = this.standaloneClients.get(key);
+    if (existing) {
+      return existing;
+    }
+    const connecting = this.standaloneConnecting.get(key);
+    if (connecting) {
+      return connecting;
+    }
+
+    const pending = this.connectStandalone(key);
+    this.standaloneConnecting.set(key, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.standaloneConnecting.get(key) === pending) {
+        this.standaloneConnecting.delete(key);
+      }
+    }
+  }
+
+  private async connectStandalone(workspaceRoot: string): Promise<CodexAppServerClient> {
+    const resolution = this.resolution ?? await this.binaryResolver();
+    this.resolution = resolution;
+    const client = this.standaloneClientFactory(resolution, workspaceRoot);
+    this.configureClientEvents(client);
+    try {
+      await client.start();
+      this.standaloneClients.set(workspaceRoot, client);
+      return client;
+    } catch (error) {
+      await client.close().catch(() => undefined);
+      this.standaloneClients.delete(workspaceRoot);
       throw error;
     }
   }

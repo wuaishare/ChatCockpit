@@ -70,6 +70,8 @@ Product Action
 
 同一个 Product Action 可以同时出现在 Web 与 App；可用性、执行方式和目标可以不同。
 
+**Project Authority 不是 Machine Authority。** `workspace.exec` / `shell` 这类项目执行即使由本机 Runtime 承载，也只能继承当前 Workspace 所需的项目读写权、显式工具链只读权与受治理 scratch；不得因此获得 ChatCockpit state、Owner/OAuth/Provider secret、用户 Home 私有文件、全局临时目录或 Control Plane secret environment 的读取能力。真正的机器级读取/变更必须走独立 Host/Device Capability 与 Authority Contract，不能借“项目代码已经在本机运行”绕过。
+
 ### 3. Host 类型
 
 当前产品按 Host 能力理解入口，而不是按“主端/辅端”理解：
@@ -182,6 +184,7 @@ Device Channel 的 **wire protocol version 与 capability set 必须正交**。L
 统一体验不能降低既有安全边界：
 
 - machine secret 不因 UI parity 进入 Web public projection；
+- Project execution sandbox 必须把 Workspace Authority 与 Machine Authority 分离：Workspace 显式读写、必要工具链只读、每 Workspace dedicated scratch 可用；ChatCockpit state、Home secret roots、全局 temp 与 Control Plane secret-bearing env 默认拒绝；
 - remote browser 不能因为显示 Machine Action 就获得 Machine Authority；
 - Device Agent 必须独立重验本地 containment/policy；
 - mutation 必须保留 CSRF、approval、idempotency、revision、actor provenance 与 audit contract；

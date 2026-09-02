@@ -65,6 +65,7 @@ export interface CodexAppServerClientOptions {
   requestTimeoutMs?: number;
   clientVersion?: string;
   productIdentity?: ProductIdentityKey;
+  experimentalApi?: boolean;
 }
 
 export interface CodexAppServerInitialization {
@@ -350,7 +351,7 @@ export class CodexAppServerClient {
           version: this.options.clientVersion
         },
         capabilities: {
-          experimentalApi: false
+          experimentalApi: this.options.experimentalApi ?? false
         }
       })
     );

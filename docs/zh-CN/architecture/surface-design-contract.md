@@ -76,6 +76,7 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 12. **公网端点切换必须 staged cutover。** 先配置并验证候选 Route，再将其提升为 Canonical Public Endpoint；候选失败不能破坏当前仍然可用的公网入口。
 13. **Provider Secret 必须保持 machine-local。** Web 可以显示已配置/缺失状态与 Action Availability，但 Tunnel Token、FRP 凭据、Provider Auth Token 等明文绝不能进入 public rendering。
 14. **Project 身份与文件系统 Authority 是两个关注点，不是两个产品。** Project / Project Root / Primary Root / Execution Workspace 在 Web 与 Desktop 中保持同一产品概念；Root Discovery、绝对路径和文件系统 Mutation 仍要求已授权 Execution Host/Device，Web 只有在存在合法 target-aware executor 时才能驱动同一个 Product Action。
+15. **Project Execution 不是 Machine Authority。** Native Workspace Execution 只能按已解析 effect 读写当前 Workspace，并只读执行该项目所必需的显式 Toolchain/Runtime Root；临时文件必须使用每 Workspace 独立的 dedicated scratch。ChatCockpit state、Home Secret Root、全局临时目录以及携带 Secret 的 Control Plane Environment 默认拒绝。Machine-local Secret 或 Host Administration 必须走独立 Host/Device Capability Contract；“项目代码恰好运行在同一台机器”本身绝不授予 Machine Authority。
 
 ## 统一状态语义
 

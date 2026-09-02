@@ -721,6 +721,7 @@ export class ChatDirectService {
             command: [prepared.command, ...prepared.args],
             commandIdentity: prepared.commandIdentity,
             cwd: prepared.workdir,
+            workspaceRoot: prepared.repoRoot,
             timeoutMs: prepared.timeoutMs,
             outputBytesCap: prepared.outputBytesCap,
             readOnly: access === "read"
@@ -893,6 +894,7 @@ export class ChatDirectService {
             command: [prepared.command, ...prepared.args],
             commandIdentity: prepared.commandIdentity,
             cwd: prepared.workdir,
+            workspaceRoot: prepared.repoRoot,
             readOnly: access === "read",
             allowStdin: payload.allowStdin === true || payload.tty === true,
             tty: payload.tty === true,
