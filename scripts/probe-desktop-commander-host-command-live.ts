@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -10,6 +8,11 @@ import { buildOperationContext } from "../src/application/operation-context.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import {
+  createHermeticGitFixtureEnv,
+  initializeGitFixture,
+  runGit
+} from "./test-support/git.ts";
 import {
   DESKTOP_COMMANDER_DISPLAY_NAME,
   DESKTOP_COMMANDER_EXECUTOR_ID
@@ -126,7 +129,10 @@ function buildLiveConfig(options: {
   return configPath;
 }
 
-function writeWorkspaceFixture(workspaceRoot: string): void {
+function writeWorkspaceFixture(
+  workspaceRoot: string,
+  gitEnv: NodeJS.ProcessEnv
+): void {
   fs.mkdirSync(path.join(workspaceRoot, "src"), { recursive: true, mode: 0o700 });
   fs.mkdirSync(path.join(workspaceRoot, "scripts"), {
     recursive: true,
@@ -164,18 +170,11 @@ function writeWorkspaceFixture(workspaceRoot: string): void {
     "utf8"
   );
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "live fixture\n", "utf8");
-  execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
-  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
-    cwd: workspaceRoot
-  });
-  execFileSync("git", ["config", "user.name", "ChatCockpit Live Fixture"], {
-    cwd: workspaceRoot
-  });
-  execFileSync("git", ["add", "."], { cwd: workspaceRoot });
-  execFileSync("git", ["commit", "-m", "fixture"], {
-    cwd: workspaceRoot,
-    stdio: "ignore"
-  });
+  initializeGitFixture(
+    workspaceRoot,
+    { name: "ChatCockpit Live Fixture" },
+    gitEnv
+  );
 }
 
 function structured<T>(result: {
@@ -217,7 +216,7 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
     process.env.CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC ??
     process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-desktop-commander-command-live-")
+    path.join(process.cwd(), "chatcockpit-desktop-commander-command-live-")
   );
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
@@ -226,19 +225,17 @@ export async function runDesktopCommanderHostCommandLiveProof(options: {
   const workspaceRoot = path.join(hostRoot, WORKSPACE_RELATIVE);
   const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
   const previousUserConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
+  const gitEnv = createHermeticGitFixtureEnv(path.join(sandbox, "git-env"));
   fs.mkdirSync(runtimeRoot, { recursive: true, mode: 0o700 });
   fs.mkdirSync(pureHostRoot, { recursive: true, mode: 0o700 });
-  writeWorkspaceFixture(workspaceRoot);
+  writeWorkspaceFixture(workspaceRoot, gitEnv);
 
-  const initialHead = execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: workspaceRoot,
-    encoding: "utf8"
-  }).trim();
-  const initialBranch = execFileSync(
-    "git",
+  const initialHead = runGit(workspaceRoot, ["rev-parse", "HEAD"], gitEnv).stdout.trim();
+  const initialBranch = runGit(
+    workspaceRoot,
     ["rev-parse", "--abbrev-ref", "HEAD"],
-    { cwd: workspaceRoot, encoding: "utf8" }
-  ).trim();
+    gitEnv
+  ).stdout.trim();
 
   fs.writeFileSync(
     userConfigPath,

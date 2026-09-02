@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -26,6 +25,10 @@ import {
   runCodexRuntimeRecoveryLiveProof,
   type CodexRecoveryLiveIdentity
 } from "./probe-codex-runtime-recovery-live.ts";
+import {
+  createHermeticGitFixtureEnv,
+  initializeGitFixture
+} from "./test-support/git.ts";
 
 class FixtureCodingRuntimeAdapter implements CodingRuntimeAdapter {
   private readonly threads = new Map<string, RuntimeThreadProjection>();
@@ -171,22 +174,17 @@ class FixtureCodingRuntimeAdapter implements CodingRuntimeAdapter {
 
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "tp-codex-recovery-harness-"));
 const workspaceRoot = path.join(sandbox, "workspace");
+const gitEnv = createHermeticGitFixtureEnv(path.join(sandbox, "git-env"));
 fs.mkdirSync(workspaceRoot, { recursive: true });
 fs.writeFileSync(path.join(workspaceRoot, "README.md"), "recovery harness\n", "utf8");
-execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
-execFileSync("git", ["config", "user.name", "ChatCockpit Test"], {
-  cwd: workspaceRoot,
-  stdio: "ignore"
-});
-execFileSync("git", ["config", "user.email", "chatcockpit@example.invalid"], {
-  cwd: workspaceRoot,
-  stdio: "ignore"
-});
-execFileSync("git", ["add", "README.md"], { cwd: workspaceRoot, stdio: "ignore" });
-execFileSync("git", ["commit", "-m", "fixture"], {
-  cwd: workspaceRoot,
-  stdio: "ignore"
-});
+initializeGitFixture(
+  workspaceRoot,
+  {
+    email: "chatcockpit@example.invalid",
+    name: "ChatCockpit Test"
+  },
+  gitEnv
+);
 
 try {
   const summary = await runCodexRuntimeRecoveryLiveProof({

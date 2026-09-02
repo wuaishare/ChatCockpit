@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -76,7 +75,7 @@ export async function runDesktopCommanderLiveProof(options: {
   const sourceConfigPath =
     options.sourceConfigPath ?? getDownstreamMcpExecutorsConfigPath();
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-desktop-commander-live-")
+    path.join(process.cwd(), "chatcockpit-desktop-commander-live-")
   );
   fs.chmodSync(sandbox, 0o700);
 

@@ -231,7 +231,9 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
   const sandbox = fs.mkdtempSync(path.join("/tmp", "chatcockpit-dc-hp-live-"));
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");
-  const hostRoot = path.join(sandbox, "host-root");
+  const hostRoot = fs.mkdtempSync(
+    path.join(process.cwd(), "chatcockpit-dc-hp-host-")
+  );
   const workspaceRoot = path.join(hostRoot, WORKSPACE_RELATIVE);
   const pureHostRoot = path.join(hostRoot, PURE_HOST_RELATIVE);
   const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
@@ -815,6 +817,7 @@ export async function runDesktopCommanderHostProcessLiveProof(options: {
       process.env.CHATCOCKPIT_CONFIG_PATH = previousUserConfigPath;
     }
     fs.rmSync(sandbox, { recursive: true, force: true });
+    fs.rmSync(hostRoot, { recursive: true, force: true });
   }
 }
 

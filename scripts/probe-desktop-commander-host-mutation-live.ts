@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -170,7 +169,7 @@ export async function runDesktopCommanderHostMutationLiveProof(options: {
     process.env.CHATCOCKPIT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC ??
     process.env.TOKENPILOT_DESKTOP_COMMANDER_LIVE_PACKAGE_SPEC;
   const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-desktop-commander-mutation-live-")
+    path.join(process.cwd(), "chatcockpit-desktop-commander-mutation-live-")
   );
   fs.chmodSync(sandbox, 0o700);
   const runtimeRoot = path.join(sandbox, "runtime-root");

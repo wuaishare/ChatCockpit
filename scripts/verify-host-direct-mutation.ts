@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +15,11 @@ import {
 } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import {
+  createHermeticGitFixtureEnv,
+  initializeGitFixture,
+  runGit
+} from "./test-support/git.ts";
 import { isolateMachineLocalUnconfiguredAuth } from "./test-support/auth-env.ts";
 import { DESKTOP_COMMANDER_EXECUTOR_ID } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
@@ -36,6 +39,10 @@ const fixtureServer = fileURLToPath(
   new URL("./fixtures/fake-downstream-mcp-server.mjs", import.meta.url)
 );
 
+function createHostFixtureSandbox(prefix: string): string {
+  return fs.mkdtempSync(path.join(process.cwd(), prefix));
+}
+
 function expectServiceCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error) => {
     assert.ok(error instanceof ServiceError);
@@ -45,9 +52,7 @@ function expectServiceCode(operation: () => unknown, code: string): void {
 }
 
 function verifyDirectMutationPersistence(): void {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-host-mutation-")
-  );
+  const sandbox = createHostFixtureSandbox("chatcockpit-host-mutation-");
   const database = new ContinuityDatabase({
     path: path.join(sandbox, "continuity.sqlite")
   });
@@ -221,9 +226,7 @@ function expectHostPathCode(operation: () => unknown, code: string): void {
 }
 
 function verifyHostMutationPathPolicy(): void {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-host-mutation-policy-")
-  );
+  const sandbox = createHostFixtureSandbox("chatcockpit-host-mutation-policy-");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
   const outsideRoot = path.join(sandbox, "outside");
@@ -515,9 +518,7 @@ function verifyHostMutationPathPolicy(): void {
 }
 
 async function verifyHostMutationPrepareAndDecision(): Promise<void> {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-host-mutation-prepare-")
-  );
+  const sandbox = createHostFixtureSandbox("chatcockpit-host-mutation-prepare-");
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const configPath = path.join(sandbox, "direct-executors.json");
@@ -1062,9 +1063,7 @@ async function verifyHostMutationPrepareAndDecision(): Promise<void> {
 }
 
 async function verifyHostMutationExecutorDrift(): Promise<void> {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-host-mutation-executor-drift-")
-  );
+  const sandbox = createHostFixtureSandbox("chatcockpit-host-mutation-executor-drift-");
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const configPath = path.join(sandbox, "direct-executors.json");
@@ -1194,9 +1193,7 @@ async function verifyHostMutationExecutorDrift(): Promise<void> {
 }
 
 async function verifyWorkspaceMutationReentry(): Promise<void> {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-host-mutation-workspace-")
-  );
+  const sandbox = createHostFixtureSandbox("chatcockpit-host-mutation-workspace-");
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const workspaceRoot = path.join(hostRoot, "projects", "workspace-a");
@@ -1204,30 +1201,17 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
   const userConfigPath = path.join(sandbox, "chatcockpit-config.json");
   const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
 
+  const gitEnv = createHermeticGitFixtureEnv(path.join(sandbox, "git-env"));
   fs.mkdirSync(path.join(workspaceRoot, "src"), { recursive: true });
   fs.mkdirSync(runtimeRoot, { recursive: true });
   fs.writeFileSync(path.join(workspaceRoot, "README.md"), "fixture\n", "utf8");
-  execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
-  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
-    cwd: workspaceRoot
-  });
-  execFileSync("git", ["config", "user.name", "ChatCockpit Fixture"], {
-    cwd: workspaceRoot
-  });
-  execFileSync("git", ["add", "README.md"], { cwd: workspaceRoot });
-  execFileSync("git", ["commit", "-m", "fixture"], {
-    cwd: workspaceRoot,
-    stdio: "ignore"
-  });
-  const initialHead = execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: workspaceRoot,
-    encoding: "utf8"
-  }).trim();
-  const initialBranch = execFileSync(
-    "git",
+  initializeGitFixture(workspaceRoot, {}, gitEnv);
+  const initialHead = runGit(workspaceRoot, ["rev-parse", "HEAD"], gitEnv).stdout.trim();
+  const initialBranch = runGit(
+    workspaceRoot,
     ["rev-parse", "--abbrev-ref", "HEAD"],
-    { cwd: workspaceRoot, encoding: "utf8" }
-  ).trim();
+    gitEnv
+  ).stdout.trim();
 
   fs.writeFileSync(
     userConfigPath,
@@ -1508,9 +1492,7 @@ async function verifyWorkspaceMutationReentry(): Promise<void> {
 }
 
 async function verifyHostMutationRestParity(): Promise<void> {
-  const sandbox = fs.mkdtempSync(
-    path.join(os.tmpdir(), "chatcockpit-host-mutation-rest-")
-  );
+  const sandbox = createHostFixtureSandbox("chatcockpit-host-mutation-rest-");
   const runtimeRoot = path.join(sandbox, "runtime-root");
   const hostRoot = path.join(sandbox, "host-root");
   const configPath = path.join(sandbox, "direct-executors.json");
