@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { buildOperationContext } from "../src/application/operation-context.ts";
+import { OperatorService } from "../src/auth/operator-service.ts";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import type { RuntimeResourceMutationPublicService } from "../src/application/runtime-resource-mutation-public-service.ts";
 import type { RuntimeResourceMutationService } from "../src/application/runtime-resource-mutation-service.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
@@ -79,7 +81,17 @@ async function catalogFor(exposureEnabled: boolean, repoRoot: string): Promise<L
     delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
   }
   const paths = buildPaths(repoRoot);
-  const app = buildServer(paths);
+  ensureWorkspaceDirs(paths);
+  const directExecutorsConfigPath = path.join(
+    paths.runtimeDir,
+    `resource-mcp-catalog-direct-executors-${exposureEnabled ? "enabled" : "closed"}.json`
+  );
+  fs.writeFileSync(
+    directExecutorsConfigPath,
+    `${JSON.stringify({ schemaVersion: 1, hostRoots: [], executors: [] }, null, 2)}\n`,
+    "utf8"
+  );
+  const app = buildServer(paths, { directExecutorsConfigPath });
   const server = await listenTestServer(app);
   try {
     return await listTools(server.baseUrl);
@@ -165,20 +177,78 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
     }
   } as unknown as CodexPluginMutationAdapter;
 
-  const app = buildServer(buildPaths(repoRoot), {
+  const paths = buildPaths(repoRoot);
+  const bootstrapStore = new OperatorStore({
+    path: operatorDatabasePath(paths.runtimeDir)
+  });
+  const bootstrapOperator = new OperatorService({ store: bootstrapStore });
+  await bootstrapOperator.setOwnerPassword({
+    username: "Owner",
+    password: "runtime-resource-mcp-operator-password-correct-horse-battery-staple"
+  });
+  bootstrapStore.close();
+
+  const directExecutorsConfigPath = path.join(
+    paths.runtimeDir,
+    "resource-mcp-cross-surface-direct-executors.json"
+  );
+  fs.writeFileSync(
+    directExecutorsConfigPath,
+    `${JSON.stringify({ schemaVersion: 1, hostRoots: [], executors: [] }, null, 2)}\n`,
+    "utf8"
+  );
+
+  const app = buildServer(paths, {
     codexAdapter: fakeCodex,
     codexSkillMutationAdapter: fakeSkillMutation,
     codexPluginMutationAdapter: fakePluginMutation,
-    acpRegistryAdapter: null
+    acpRegistryAdapter: null,
+    directExecutorsConfigPath
   });
   const server = await listenTestServer(app);
   let rpcId = 100;
   try {
+    const loginResponse = await fetch(`${server.baseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "runtime-resource-mcp-operator-password-correct-horse-battery-staple"
+      })
+    });
+    if (!loginResponse.ok) {
+      assert.fail(`Operator login failed: ${await loginResponse.text()}`);
+    }
+    const operatorCookie = loginResponse.headers.get("set-cookie")?.split(";", 1)[0];
+    assert.ok(operatorCookie);
+    const operatorSession = (await loginResponse.json()) as { csrfToken: string };
+    assert.ok(operatorSession.csrfToken);
+
     const rest = async <T>(method: "GET" | "POST", route: string, body?: unknown) => {
       const response = await fetch(`${server.baseUrl}${route}`, {
         method,
         headers: {
           authorization: `Bearer ${API_TOKEN}`,
+          ...(body === undefined ? {} : { "content-type": "application/json" })
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) })
+      });
+      const payload = (await response.json()) as T & {
+        error?: { code: string; message: string };
+      };
+      assert.equal(
+        response.ok,
+        true,
+        `${method} ${route} failed: ${JSON.stringify(payload)}`
+      );
+      return payload;
+    };
+    const operatorRest = async <T>(method: "GET" | "POST", route: string, body?: unknown) => {
+      const response = await fetch(`${server.baseUrl}${route}`, {
+        method,
+        headers: {
+          cookie: operatorCookie,
+          "x-chatcockpit-csrf": operatorSession.csrfToken,
           ...(body === undefined ? {} : { "content-type": "application/json" })
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -276,7 +346,29 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
     assert.equal(prepared.approval.decidedActor, null);
     assert.equal(skillMutationCalls, 0);
 
-    const decision = await rest<{
+    const machineDecision = await fetch(`${server.baseUrl}/api/resources/mutations/decision`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${API_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        approvalId: prepared.approval.id,
+        expectedRevision: prepared.approval.revision,
+        decision: "approved",
+        idempotencyKey: "mcp-cross-surface-machine-decision-0001"
+      })
+    });
+    assert.equal(machineDecision.status, 403);
+    const machineDecisionBody = (await machineDecision.json()) as {
+      error?: { code?: string };
+    };
+    assert.equal(
+      machineDecisionBody.error?.code,
+      "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN"
+    );
+
+    const decision = await operatorRest<{
       approval: {
         id: string;
         status: string;
@@ -292,7 +384,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
     });
     assert.equal(decision.approval.status, "approved");
     assert.equal(decision.approval.requestedActor?.type, "remote-mcp");
-    assert.equal(decision.approval.decidedActor?.type, "rest-api");
+    assert.equal(decision.approval.decidedActor?.type, "local-ui");
     assert.equal(skillMutationCalls, 0);
 
     const executeBody = {

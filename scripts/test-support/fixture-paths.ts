@@ -38,7 +38,8 @@ export function buildFixturePaths(repoRoot: string): ReturnType<typeof buildPath
   const normalizedRepoRoot = canonical(repoRoot);
   let homeRoot = fixtureHomes.get(normalizedRepoRoot);
   if (!homeRoot) {
-    const fixtureBase = fs.existsSync("/tmp") ? "/tmp" : os.tmpdir();
+    const configuredTempRoot = process.env.TMPDIR?.trim() || os.tmpdir();
+    const fixtureBase = fs.existsSync(configuredTempRoot) ? configuredTempRoot : os.tmpdir();
     const fixtureRoot = fs.mkdtempSync(path.join(fixtureBase, "cc-"));
     homeRoot = fixtureRoot;
     fixtureHomes.set(normalizedRepoRoot, homeRoot);

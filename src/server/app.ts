@@ -148,6 +148,7 @@ import {
   buildTokenPilotMcpToolCatalog
 } from "../mcp/server.js";
 import { buildConfiguredDirectCapabilityBroker } from "../direct/broker-factory.js";
+import { getDownstreamMcpExecutorsConfigPath } from "../direct/downstream-mcp-config.js";
 import { DownstreamMcpExecutionRegistry } from "../direct/downstream-mcp-executor.js";
 import { DownstreamMcpObservationSource } from "../direct/downstream-mcp-observation-source.js";
 import {
@@ -739,22 +740,23 @@ export function buildServer(
       resolveBinary: () => codexBinaryAuthority.resolve()
     });
   const runtimeRouter = new RuntimeRouter(codexAdapter);
+  const directExecutorsConfigPath =
+    options.directExecutorsConfigPath ??
+    getDownstreamMcpExecutorsConfigPath(paths.stateRoot);
   const directCapabilityBroker = buildConfiguredDirectCapabilityBroker({
     paths,
     codexStandaloneStore: standaloneCapabilityStore,
     currentCodexBinary: () => codexBinaryAuthority.currentIdentity(),
-    ...(options.directExecutorsConfigPath
-      ? { downstreamConfigPath: options.directExecutorsConfigPath }
-      : {})
+    downstreamConfigPath: directExecutorsConfigPath
   });
   const downstreamMcpExecutionRegistry = new DownstreamMcpExecutionRegistry(
     paths.runtimeDir,
-    options.directExecutorsConfigPath
+    directExecutorsConfigPath
   );
   const hostDirect = new HostDirectService(
     directCapabilityBroker,
     downstreamMcpExecutionRegistry,
-    options.directExecutorsConfigPath,
+    directExecutorsConfigPath,
     remoteFullAccessPolicy
   );
   const hostMutation = new HostMutationService(
@@ -762,21 +764,21 @@ export function buildServer(
     continuityServices.repositories,
     directCapabilityBroker,
     downstreamMcpExecutionRegistry,
-    options.directExecutorsConfigPath,
+    directExecutorsConfigPath,
     remoteFullAccessPolicy
   );
   const hostCommand = buildConfiguredHostCommandService({
     paths,
     repositories: continuityServices.repositories,
     broker: directCapabilityBroker,
-    configPath: options.directExecutorsConfigPath,
+    configPath: directExecutorsConfigPath,
     remoteFullAccessPolicy
   });
   const hostProcess = buildDesktopCommanderHostProcessService({
     paths,
     repositories: continuityServices.repositories,
     broker: directCapabilityBroker,
-    configPath: options.directExecutorsConfigPath,
+    configPath: directExecutorsConfigPath,
     remoteFullAccessPolicy
   });
   const chatDirect = new ChatDirectService(
@@ -784,7 +786,7 @@ export function buildServer(
     runtimeRouter,
     directCapabilityBroker,
     continuityServices.repositories,
-    options.directExecutorsConfigPath,
+    directExecutorsConfigPath,
     remoteFullAccessPolicy
   );
   const runtimeService = new RuntimeService(runtimeRouter);
@@ -846,9 +848,7 @@ export function buildServer(
   });
   const downstreamResourceSource = new DownstreamMcpObservationSource({
     paths,
-    ...(options.directExecutorsConfigPath
-      ? { configPath: options.directExecutorsConfigPath }
-      : {})
+    configPath: directExecutorsConfigPath
   });
   const acpRegistryAdapter =
     options.acpRegistryAdapter === null
@@ -908,18 +908,18 @@ export function buildServer(
   const capabilityRouterMutations = new CapabilityRouterMutationService(
     paths.runtimeDir,
     governanceLedger,
-    options.directExecutorsConfigPath
+    directExecutorsConfigPath
   );
   const capabilityRouterPublicMutations = new CapabilityRouterMutationPublicService(
     governanceLedger
   );
   const capabilityRouterCatalog = new CapabilityRouterCatalogService(
     paths.runtimeDir,
-    options.directExecutorsConfigPath
+    directExecutorsConfigPath
   );
   const capabilityRouterReads = new CapabilityRouterReadInvocationService(
     paths.runtimeDir,
-    options.directExecutorsConfigPath
+    directExecutorsConfigPath
   );
   const capabilityRouterTargeted = new TargetedCapabilityRouterService(
     capabilityRouterCatalog,
@@ -945,9 +945,7 @@ export function buildServer(
     adapters: runtimeResourceAdapterRegistry,
     pluginMutationAvailable: true,
     runtimeDir: paths.runtimeDir,
-    ...(options.directExecutorsConfigPath
-      ? { downstreamConfigPath: options.directExecutorsConfigPath }
-      : {})
+    downstreamConfigPath: directExecutorsConfigPath
   });
   const runtimeResourceMutationService = new RuntimeResourceMutationService(
     governanceLedger,
@@ -1036,7 +1034,7 @@ export function buildServer(
     operatorTotpService
   );
   registerExecutionPermissionRoutes(app, {
-    configPath: options.directExecutorsConfigPath
+    configPath: directExecutorsConfigPath
   });
   registerHubIdentityRoutes(app, hubIdentity, {
     getLanTlsIdentity: accessPolicy.trustedLan.enabled

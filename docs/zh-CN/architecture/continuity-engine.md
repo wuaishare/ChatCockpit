@@ -203,7 +203,7 @@ chatcockpit.workspace.snapshot
 | Public-safe Projection | 已实现 |
 | Runtime Recovery Center：Native Codex + Runner/Chat Direct projection | 已实现基础 |
 | Runtime & Resource Center：Native Codex + Downstream MCP + ACP Registry Inventory | 已实现 |
-| 受治理 Resource mutation：Codex Skill enable/disable + Codex Plugin install/uninstall | 已实现；Operator REST/Resource Center 可 decide，Remote MCP 仅 prepare/inspect/execute，exposed mode 需显式 opt-in |
+| 受治理 Resource mutation：Codex Skill enable/disable + Codex Plugin install/uninstall | 已实现；Approve/Deny 只接受已认证 Operator Session + Session-bound CSRF（含 receive-compatible `/tokenpilot/api/...` 兼容路径）；Operator Authority 与浏览器网络位置无关，不等同于 localhost 限制，Machine API Bearer、MCP OAuth 与 Remote MCP 都不能 Decide；Remote MCP 仅 prepare/inspect/execute，exposed mode 需显式 opt-in |
 | 覆盖所有 Provider 的通用 Recovery Adapter / Timeline | 目标扩展 |
 
 英文完整实体契约见 [`../../architecture/continuity-engine.md`](../../architecture/continuity-engine.md)。

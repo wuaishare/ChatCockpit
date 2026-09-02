@@ -249,7 +249,7 @@ export class CapabilityRouterMutationService {
     if (context.actorType !== "local-ui") {
       throw new ServiceError(
         "CAPABILITY_ROUTER_MUTATION_DECISION_FORBIDDEN",
-        "Only an authenticated local operator can decide Capability Router mutation approvals",
+        "Capability Router mutation decisions require operator authority",
       );
     }
     const decidedActor = buildGovernanceActorProvenance(context);
@@ -634,7 +634,7 @@ export class CapabilityRouterMutationService {
     ) {
       throw new ServiceError(
         "CAPABILITY_ROUTER_MUTATION_LOCAL_APPROVAL_REQUIRED",
-        "Capability Router mutation requires an authenticated local operator decision",
+        "Capability Router mutation requires an authenticated operator decision",
       );
     }
     if (approval.argumentsHash !== argumentsHash) {

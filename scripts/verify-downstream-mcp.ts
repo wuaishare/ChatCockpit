@@ -16,7 +16,10 @@ import {
 } from "../src/direct/adapters/desktop-commander.ts";
 import { buildConfiguredDirectCapabilityBroker } from "../src/direct/broker-factory.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
-import { loadDownstreamMcpExecutorsConfig } from "../src/direct/downstream-mcp-config.ts";
+import {
+  getDownstreamMcpExecutorsConfigPath,
+  loadDownstreamMcpExecutorsConfig
+} from "../src/direct/downstream-mcp-config.ts";
 import {
   DownstreamMcpExecutionError,
   DownstreamMcpExecutionRegistry
@@ -92,6 +95,42 @@ async function verifyDownstreamMcp(): Promise<void> {
   assert.doesNotMatch(stdioClientSource, /JSONRPCMessageSchema/);
   assert.doesNotMatch(stdioClientSource, /ReadBuffer/);
   assert.doesNotMatch(stdioClientSource, /serializeMessage/);
+
+  const originalDirectConfigPath = process.env.CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH;
+  const originalLegacyDirectConfigPath = process.env.TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH;
+  const directConfigRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "chatcockpit-direct-config-path-")
+  );
+  try {
+    delete process.env.CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH;
+    delete process.env.TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH;
+    assert.equal(
+      getDownstreamMcpExecutorsConfigPath(directConfigRoot),
+      path.join(directConfigRoot, "direct-executors.json")
+    );
+
+    const explicitDirectConfigPath = path.join(
+      directConfigRoot,
+      "explicit-direct-executors.json"
+    );
+    process.env.CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH = explicitDirectConfigPath;
+    assert.equal(
+      getDownstreamMcpExecutorsConfigPath(directConfigRoot),
+      explicitDirectConfigPath
+    );
+  } finally {
+    if (originalDirectConfigPath === undefined) {
+      delete process.env.CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH;
+    } else {
+      process.env.CHATCOCKPIT_DIRECT_EXECUTORS_CONFIG_PATH = originalDirectConfigPath;
+    }
+    if (originalLegacyDirectConfigPath === undefined) {
+      delete process.env.TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH;
+    } else {
+      process.env.TOKENPILOT_DIRECT_EXECUTORS_CONFIG_PATH = originalLegacyDirectConfigPath;
+    }
+    fs.rmSync(directConfigRoot, { recursive: true, force: true });
+  }
 
   const desktopCommanderConfig = buildDesktopCommanderExecutorConfig({
     packageSpec: "@wonderwhy-er/desktop-commander@1.2.3-test"

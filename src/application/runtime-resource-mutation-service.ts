@@ -31,10 +31,9 @@ const PRE_WRITE_STALE_CODES = new Set([
   "RUNTIME_RESOURCE_MUTATION_NOT_FOUND",
   "RUNTIME_RESOURCE_MUTATION_TARGET_AMBIGUOUS"
 ]);
-const REMOTE_EXECUTE_DECISION_ACTORS = new Set<ActorType>([
+const OPERATOR_DECISION_ACTORS = new Set<ActorType>([
   "local-cli",
-  "local-ui",
-  "rest-api"
+  "local-ui"
 ]);
 
 export interface RuntimeResourceMutationPrepareInput {
@@ -277,10 +276,10 @@ export class RuntimeResourceMutationService {
   }
 
   decide(context: OperationContext, input: RuntimeResourceMutationDecisionInput) {
-    if (context.actorType === "remote-mcp") {
+    if (!OPERATOR_DECISION_ACTORS.has(context.actorType)) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN",
-        "Remote MCP callers cannot decide Runtime Resource mutation approvals"
+        "Runtime Resource mutation decisions require operator authority"
       );
     }
     const decidedActor = buildRuntimeResourceMutationProvenance(context);
@@ -453,7 +452,7 @@ export class RuntimeResourceMutationService {
   ): void {
     if (
       approval.decidedActorType === null ||
-      !REMOTE_EXECUTE_DECISION_ACTORS.has(approval.decidedActorType)
+      !OPERATOR_DECISION_ACTORS.has(approval.decidedActorType)
     ) {
       throw new ServiceError(
         "RUNTIME_RESOURCE_MUTATION_EXECUTION_FORBIDDEN",

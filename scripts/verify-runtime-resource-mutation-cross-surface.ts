@@ -203,9 +203,17 @@ const remoteContext = (stage: string) =>
   });
 const operatorContext = (stage: string) =>
   buildOperationContext({
+    requestId: `local-ui:${stage}:request`,
+    actorType: "local-ui",
+    actorId: "operator-session-principal",
+    publicProjection: true,
+    now: NOW
+  });
+const machineBearerContext = (stage: string) =>
+  buildOperationContext({
     requestId: `rest-api:${stage}:request`,
     actorType: "rest-api",
-    actorId: "operator-api-token",
+    actorId: "machine-bearer",
     publicProjection: true,
     now: NOW
   });
@@ -249,13 +257,30 @@ assert.equal(
 );
 assert.equal(providerWrites, 0);
 
+assert.throws(
+  () =>
+    mutation.decide(machineBearerContext("forbidden-machine-decision"), {
+      approvalId: prepared.approval.id,
+      expectedRevision: prepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "cross-surface-machine-decision-0001"
+    }),
+  (error: unknown) =>
+    error instanceof ServiceError &&
+    error.code === "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN"
+);
+assert.equal(
+  repositories.runtimeResourceMutations.getApproval(prepared.approval.id).status,
+  "pending"
+);
+
 const approved = mutation.decide(operatorContext("decision"), {
   approvalId: prepared.approval.id,
   expectedRevision: prepared.approval.revision,
   decision: "approved",
   idempotencyKey: "cross-surface-operator-decision-0001"
 });
-assert.equal(approved.approval.decidedActorType, "rest-api");
+assert.equal(approved.approval.decidedActorType, "local-ui");
 
 const executed = await mutation.execute(remoteContext("execute"), {
   approvalId: approved.approval.id,
@@ -293,14 +318,16 @@ const executionProjection = publicMutations.getExecution({
   executionId: executed.execution.id
 });
 assert.equal(approvalProjection.requestedActor?.type, "remote-mcp");
-assert.equal(approvalProjection.decidedActor?.type, "rest-api");
+assert.equal(approvalProjection.decidedActor?.type, "local-ui");
 assert.equal(executionProjection.executedActor?.type, "remote-mcp");
 const publicJson = JSON.stringify({ approvalProjection, executionProjection });
 for (const forbidden of [
   "remote-client-subject",
-  "operator-api-token",
+  "operator-session-principal",
+  "machine-bearer",
   "remote-mcp:prepare:request",
-  "rest-api:decision:request",
+  "local-ui:decision:request",
+  "rest-api:forbidden-machine-decision:request",
   "requestedRequestIdentityHash",
   "decidedRequestIdentityHash",
   "executedRequestIdentityHash"
@@ -322,19 +349,24 @@ const wrongProvenancePrepared = await mutation.prepare(remoteContext("prepare-wr
   expectedFingerprint: restoreBefore.fingerprint,
   idempotencyKey: "cross-surface-prepare-wrong-0001"
 });
-const wrongProvenanceApproved = mutation.decide(runnerContext("decision-wrong"), {
-  approvalId: wrongProvenancePrepared.approval.id,
-  expectedRevision: wrongProvenancePrepared.approval.revision,
-  decision: "approved",
-  idempotencyKey: "cross-surface-runner-decision-0001"
-});
-assert.equal(wrongProvenanceApproved.approval.decidedActorType, "runner");
+assert.throws(
+  () =>
+    mutation.decide(runnerContext("decision-wrong"), {
+      approvalId: wrongProvenancePrepared.approval.id,
+      expectedRevision: wrongProvenancePrepared.approval.revision,
+      decision: "approved",
+      idempotencyKey: "cross-surface-runner-decision-0001"
+    }),
+  (error: unknown) =>
+    error instanceof ServiceError &&
+    error.code === "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN"
+);
 const targetReadsBeforeForbiddenExecute = targetReadCalls;
 await assert.rejects(
   () =>
     mutation.execute(remoteContext("execute-wrong"), {
-      approvalId: wrongProvenanceApproved.approval.id,
-      expectedApprovalRevision: wrongProvenanceApproved.approval.revision,
+      approvalId: wrongProvenancePrepared.approval.id,
+      expectedApprovalRevision: wrongProvenancePrepared.approval.revision,
       runtimeProfileId: profileId,
       workspaceId,
       resourceId,

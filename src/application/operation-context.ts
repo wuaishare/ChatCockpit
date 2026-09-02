@@ -1,3 +1,5 @@
+// `local-ui` is a legacy provenance label for an interactive Operator UI surface.
+// It describes authority/source semantics, not network locality or a localhost-only requirement.
 export type ActorType =
   | "local-cli"
   | "local-ui"

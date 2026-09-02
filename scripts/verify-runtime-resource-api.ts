@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { OperatorService } from "../src/auth/operator-service.ts";
+import { OperatorStore, operatorDatabasePath } from "../src/auth/operator-store.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
 import type {
@@ -187,6 +189,16 @@ async function run(): Promise<void> {
   process.env.CHATCOCKPIT_EXPOSED = "true";
   delete process.env.CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED;
 
+  const bootstrapStore = new OperatorStore({
+    path: operatorDatabasePath(paths.runtimeDir)
+  });
+  const bootstrapOperator = new OperatorService({ store: bootstrapStore });
+  await bootstrapOperator.setOwnerPassword({
+    username: "Owner",
+    password: "runtime-resource-api-operator-password-correct-horse-battery-staple"
+  });
+  bootstrapStore.close();
+
   const app = buildServer(paths, {
     codexAdapter: fakeCodex,
     codexSkillMutationAdapter: fakeSkillMutationAdapter,
@@ -201,6 +213,22 @@ async function run(): Promise<void> {
   try {
     server = await listenTestServer(app);
     const baseUrl = server.baseUrl;
+    const loginResponse = await fetch(`${baseUrl}/api/operator/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        password: "runtime-resource-api-operator-password-correct-horse-battery-staple"
+      })
+    });
+    if (!loginResponse.ok) {
+      assert.fail(`Operator login failed: ${await loginResponse.text()}`);
+    }
+    const operatorCookie = loginResponse.headers.get("set-cookie")?.split(";", 1)[0];
+    assert.ok(operatorCookie);
+    const operatorSession = (await loginResponse.json()) as { csrfToken: string };
+    assert.ok(operatorSession.csrfToken);
+
     const rawRest = async (
       method: "GET" | "POST",
       route: string,
@@ -215,12 +243,43 @@ async function run(): Promise<void> {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) })
       });
+    const rawOperatorRest = async (
+      method: "GET" | "POST",
+      route: string,
+      body?: unknown,
+      csrf = true
+    ) =>
+      fetch(`${baseUrl}${route}`, {
+        method,
+        headers: {
+          cookie: operatorCookie,
+          ...(csrf ? { "x-chatcockpit-csrf": operatorSession.csrfToken } : {}),
+          ...(body === undefined ? {} : { "content-type": "application/json" })
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) })
+      });
     const rest = async <T>(
       method: "GET" | "POST",
       route: string,
       body?: unknown
     ): Promise<T> => {
       const response = await rawRest(method, route, body);
+      const payload = (await response.json()) as T & {
+        error?: { code: string; message: string };
+      };
+      assert.equal(
+        response.ok,
+        true,
+        `${method} ${route} failed: ${JSON.stringify(payload)}`
+      );
+      return payload;
+    };
+    const operatorRest = async <T>(
+      method: "GET" | "POST",
+      route: string,
+      body?: unknown
+    ): Promise<T> => {
+      const response = await rawOperatorRest(method, route, body);
       const payload = (await response.json()) as T & {
         error?: { code: string; message: string };
       };
@@ -564,7 +623,30 @@ async function run(): Promise<void> {
       decision: "approved" as const,
       idempotencyKey: "resource-api-mutation-decision-0001"
     };
-    const decision = await rest<{
+    const machineDecision = await rawRest(
+      "POST",
+      "/api/resources/mutations/decision",
+      decisionBody
+    );
+    assert.equal(machineDecision.status, 403);
+    assert.equal(
+      ((await machineDecision.json()) as { error: { code: string } }).error.code,
+      "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN"
+    );
+
+    const aliasWithoutCsrf = await rawOperatorRest(
+      "POST",
+      "/tokenpilot/api/resources/mutations/decision",
+      decisionBody,
+      false
+    );
+    assert.equal(aliasWithoutCsrf.status, 403);
+    assert.equal(
+      ((await aliasWithoutCsrf.json()) as { error: { code: string } }).error.code,
+      "CSRF_REQUIRED"
+    );
+
+    const decision = await operatorRest<{
       ok: true;
       approval: {
         id: string;
@@ -575,10 +657,15 @@ async function run(): Promise<void> {
       replayed: boolean;
     }>("POST", "/api/resources/mutations/decision", decisionBody);
     assert.equal(decision.approval.status, "approved");
-    assert.equal(decision.approval.decidedActor?.type, "rest-api");
+    assert.equal(decision.approval.decidedActor?.type, "local-ui");
     assert.equal(
-      (await rest<typeof decision>("POST", "/api/resources/mutations/decision", decisionBody))
-        .replayed,
+      (
+        await operatorRest<typeof decision>(
+          "POST",
+          "/api/resources/mutations/decision",
+          decisionBody
+        )
+      ).replayed,
       true
     );
 
@@ -680,7 +767,7 @@ async function run(): Promise<void> {
     });
     assert.equal(expiring.approval.status, "pending");
     mutationNow = "2026-08-11T00:07:00.000Z";
-    const expiredDecision = await rawRest("POST", "/api/resources/mutations/decision", {
+    const expiredDecision = await rawOperatorRest("POST", "/api/resources/mutations/decision", {
       approvalId: expiring.approval.id,
       expectedRevision: expiring.approval.revision,
       decision: "approved",
@@ -758,6 +845,25 @@ async function run(): Promise<void> {
     assert.match(openapiText, /allowedLifecycleOperations/);
     assert.match(openapiText, /desiredState/);
     assert.match(openapiText, /observedState/);
+    const resourceDecisionStart = openapiText.indexOf(
+      "  /api/resources/mutations/decision:"
+    );
+    const resourceExecuteStart = openapiText.indexOf(
+      "  /api/resources/mutations/execute:",
+      resourceDecisionStart
+    );
+    assert.ok(resourceDecisionStart >= 0 && resourceExecuteStart > resourceDecisionStart);
+    const resourceDecisionContract = openapiText.slice(
+      resourceDecisionStart,
+      resourceExecuteStart
+    );
+    assert.match(resourceDecisionContract, /- operatorSession: \[\]/);
+    assert.match(resourceDecisionContract, /name: x-chatcockpit-csrf/);
+    assert.match(
+      resourceDecisionContract,
+      /machine Bearer, MCP OAuth, and Remote MCP cannot decide/
+    );
+    assert.doesNotMatch(resourceDecisionContract, /- bearerAuth: \[\]/);
     for (const forbidden of [
       "remotePluginId",
       "remoteMarketplaceName",

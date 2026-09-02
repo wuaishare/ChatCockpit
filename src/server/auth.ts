@@ -164,7 +164,8 @@ function requireOperatorCsrf(
   context: Extract<RequestAuthContext, { kind: "operator-session" }>
 ): void {
   if (SAFE_METHODS.has(request.method.toUpperCase())) return;
-  if (!requestPath(request.url).startsWith("/api/")) return;
+  const pathname = requestPath(request.url);
+  if (!pathname.startsWith("/api/") && !pathname.startsWith("/tokenpilot/api/")) return;
 
   const provided = csrfHeader(request);
   if (!provided) {

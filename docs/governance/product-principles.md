@@ -42,7 +42,7 @@ Development Continuity remains a major implemented capability, but it does not d
 
 - Authentication does not imply mutation authority.
 - Remote MCP cannot self-approve meaningful governed mutations.
-- Provider-native mutation uses `prepare -> local operator decide -> execute` when the capability requires explicit approval.
+- Provider-native mutation uses `prepare -> Operator decide -> execute` when the capability requires explicit approval. Operator authority is an authenticated human-control boundary, not a localhost/browser-network-locality constraint.
 - Approval binding, idempotency, actor provenance, and bounded evidence are server-side contracts, not client UI conventions.
 - A broader execution scope never weakens Workspace, path, Git, Writer Lease, or Evidence rules when the target resolves into a governed Workspace.
 

@@ -190,10 +190,13 @@ export interface DownstreamMcpExecutorsConfig {
   executors: DownstreamMcpExecutorConfig[];
 }
 
-export function getDownstreamMcpExecutorsConfigPath(): string {
+export function getDownstreamMcpExecutorsConfigPath(stateRoot?: string): string {
   return (
     readIdentityEnv("DIRECT_EXECUTORS_CONFIG_PATH") ??
-    path.join(os.homedir(), DEFAULT_PRODUCT_IDENTITY.stateDirName, "direct-executors.json")
+    path.join(
+      stateRoot ?? path.join(os.homedir(), DEFAULT_PRODUCT_IDENTITY.stateDirName),
+      "direct-executors.json"
+    )
   );
 }
 

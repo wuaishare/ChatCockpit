@@ -10381,7 +10381,7 @@ paths:
     post:
       operationId: decideCapabilityRouterMutation
       summary: Decide a governed Capability Router mutation approval
-      description: Approves or denies one pending provider-native mutation. Requires an authenticated local operator session plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Public responses omit raw arguments, hashes, transport configuration, and provider results.
+      description: Approves or denies one pending provider-native mutation. Requires an authenticated operator session plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Operator authority is independent of browser network locality. Public responses omit raw arguments, hashes, transport configuration, and provider results.
       security:
         - operatorSession: []
       parameters:
@@ -10477,9 +10477,17 @@ paths:
     post:
       operationId: decideRuntimeResourceMutation
       summary: Decide a governed runtime resource mutation approval
-      description: Approves or denies one pending short-lived Resource mutation approval using optimistic revision control. The authenticated REST API token is an operator credential. Raw actor ids and request ids are hashed internally and never returned.
+      description: Approves or denies one pending short-lived Resource mutation approval using optimistic revision control. Requires an authenticated operator session plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Operator authority is independent of browser network locality. Raw actor ids and request ids are hashed internally and never returned.
       security:
-        - bearerAuth: []
+        - operatorSession: []
+      parameters:
+        - name: x-chatcockpit-csrf
+          in: header
+          required: true
+          description: CSRF token issued with the authenticated operator session.
+          schema:
+            type: string
+            minLength: 1
       requestBody:
         required: true
         content:
@@ -10499,8 +10507,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+        "401":
+          description: Authenticated operator session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
         "403":
-          description: Resource mutation writes are disabled for this exposed deployment
+          description: Resource mutation writes are disabled, caller is not an operator session, or CSRF validation failed
           content:
             application/json:
               schema:

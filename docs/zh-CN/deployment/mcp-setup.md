@@ -115,18 +115,18 @@ curl -sS http://127.0.0.1:4318/mcp \
 
 ## 4. 工具面与能力分类
 
-canonical `/mcp` 不再把全部内部能力平铺给模型。当前配置下完整目录为 84 个工具，默认 Core 只有 16 个面向常规开发流程的工具，并且 16/16 都声明且由服务端实际校验 `outputSchema`。专业能力通过 8 个显式能力包提供：`capability-routing`、`host-admin`、`device-admin`、`workflow`、`continuity-governance`、`codex-native`、`runtime-admin`、`recovery`。仅为历史兼容保留的旧别名继续留在完整面，不进入专业能力包。
+canonical `/mcp` 不再把全部内部能力平铺给模型。当前配置下完整目录为 95 个工具，默认 Core 为 25 个面向常规开发流程的工具，并且全部声明且由服务端实际校验 `outputSchema`。专业能力通过 8 个显式能力包提供：`capability-routing`、`host-admin`、`device-admin`、`workflow`、`continuity-governance`、`codex-native`、`runtime-admin`、`recovery`。仅为历史兼容保留的旧别名继续留在完整面，不进入专业能力包。
 
 `chatcockpit.tools.discover` 只负责报告能力包、endpoint、专业工具数量与工具后缀，不伪造“调用后动态改变 tools/list”的非标准 MCP 行为。支持 Tool Search / allowed-tools 的客户端仍可在客户端一侧进一步延迟或过滤工具定义。
 
 底层能力继续复用同一套 Application Services。Runtime Resource mutation 的 3 个工具仅在本地非 exposed 模式，或 exposed deployment 显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 时注册：
 
 - Direct Drive Executor / Capability Discovery、public-safe Host Root Alias Discovery、受治理的 Host Direct 文件读取、审批式 Host Write / Exact Edit、审批式 bounded Host Command、ChatCockpit-owned Managed Process `prepare/decide/execute/read/list`（Workspace scope + 显式 OAuth Full Access Pure Host scope），以及 Workspace Files、Search、Shell、Git；
-- Capability Router 固定注册 `chatcockpit.capabilities.list`、`inspect`、`read.invoke` 与 `mutation.prepare`、`mutation.inspect`、`mutation.execute`。Provider-native Tool Name 只作为 Catalog 数据返回；MCP 不注册 Router `decide`。Mutation approve/deny 只能由已认证本地 Operator Session 通过 `/api/capabilities/mutations/decision` + CSRF 完成；
+- Capability Router 固定注册 `chatcockpit.capabilities.list`、`inspect`、`read.invoke` 与 `mutation.prepare`、`mutation.inspect`、`mutation.execute`。Provider-native Tool Name 只作为 Catalog 数据返回；MCP 不注册 Router `decide`。Mutation approve/deny 只能由已认证 Operator Session 通过 `/api/capabilities/mutations/decision` + CSRF 完成；Operator Authority 与浏览器网络位置无关，不等同于 localhost 限制；
 - Project、Workspace Snapshot、Task、Session、Writer Lease、Handoff、Evidence、Submit Review、受治理的 Completion 与 Continuity-bound Async Job Queue；
 - Spec/Plan 创建、列表、读取、不可变历史版本读取、追加版本、生命周期与 Task 绑定；
 - Codex Runtime Capability 与 Thread Metadata；
-- Runtime Resource Center Inventory / Inspect，覆盖 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP 资源与 ACP Registry Agents；受治理的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 已通过共享 approval kernel 开放。MCP mutation surface 只包含 `chatcockpit.resources.mutation.prepare`、`chatcockpit.resources.mutation.inspect`、`chatcockpit.resources.mutation.execute`，明确不注册 MCP `decide` / `reconcile`。在 exposed mode 下，只有显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这 3 个工具；Remote MCP OAuth access token 也不能作为普通 REST mutation decision 的凭据复用；
+- Runtime Resource Center Inventory / Inspect，覆盖 Native Codex Skills/MCP/Plugins/config 摘要、Downstream MCP 资源与 ACP Registry Agents；受治理的 Codex Skill enable/disable 与 Codex Plugin install/uninstall 已通过共享 approval kernel 开放。MCP mutation surface 只包含 `chatcockpit.resources.mutation.prepare`、`chatcockpit.resources.mutation.inspect`、`chatcockpit.resources.mutation.execute`，明确不注册 MCP `decide` / `reconcile`。在 exposed mode 下，只有显式设置 `CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED=true` 才注册这 3 个工具。Approve/Deny 只能由已认证 Operator Session 通过 `/api/resources/mutations/decision` + Session-bound CSRF 完成；Operator Authority 与浏览器网络位置无关，不等同于 localhost 限制，receive-compatible 的 `/tokenpilot/api/...` 兼容路径也必须经过同一 CSRF 边界；Machine API Bearer、MCP OAuth 与 Remote MCP 都不能 Decide。已经由 Operator 批准的 Intent 仍可由具备独立执行权限的 Machine / MCP Actor 按各自 Execution Policy 执行；
 - Codex Session Bind、Resume、Fork；
 - 显式 Codex Turn、Interrupt、Approval Response 与 Event Read；
 - Runtime Recovery 的 `chatcockpit.recovery.assess` 与 `chatcockpit.recovery.execute`。Assessment 会持久化五分钟 public-safe Recovery Attempt，但不会触发 Provider mutation；Execute 会重新验证同一 `assessmentHash` 后只执行一个显式动作。Recovery 不会隐式 `turn/start`、不会自动切换 Provider，也不会模糊选择外部 Thread。

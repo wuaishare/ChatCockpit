@@ -201,7 +201,7 @@ const service = new RuntimeResourceMutationService(
 const context = (stage: string) =>
   buildOperationContext({
     requestId: `target-read:${stage}:request`,
-    actorType: "rest-api",
+    actorType: "local-ui",
     actorId: "target-read-operator",
     now: NOW
   });

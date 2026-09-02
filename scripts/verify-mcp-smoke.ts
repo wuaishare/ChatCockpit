@@ -87,6 +87,15 @@ async function runMcpSmoke(): Promise<void> {
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
   const configPath = path.join(paths.runtimeDir, "mcp-smoke-config.json");
+  const directExecutorsConfigPath = path.join(
+    paths.runtimeDir,
+    "mcp-smoke-direct-executors.json"
+  );
+  fs.writeFileSync(
+    directExecutorsConfigPath,
+    `${JSON.stringify({ schemaVersion: 1, hostRoots: [], executors: [] }, null, 2)}\n`,
+    "utf8"
+  );
   fs.writeFileSync(
     configPath,
     JSON.stringify(
@@ -110,12 +119,19 @@ async function runMcpSmoke(): Promise<void> {
   const originalToken = process.env.CHATCOCKPIT_API_TOKEN;
   const originalExposed = process.env.CHATCOCKPIT_EXPOSED;
   const originalAllowHighTrust = process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
+  const originalHome = process.env.HOME;
+  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+  const fixtureHome = path.dirname(paths.stateRoot);
+  const fixtureXdgConfigHome = path.join(fixtureHome, ".config");
+  fs.mkdirSync(fixtureXdgConfigHome, { recursive: true });
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_API_TOKEN = "test-token";
   process.env.CHATCOCKPIT_EXPOSED = "true";
+  process.env.HOME = fixtureHome;
+  process.env.XDG_CONFIG_HOME = fixtureXdgConfigHome;
   delete process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS;
 
-  const app = buildServer(paths);
+  const app = buildServer(paths, { directExecutorsConfigPath });
   let testServer: Awaited<ReturnType<typeof listenTestServer>> | null = null;
 
   try {
@@ -2172,6 +2188,10 @@ async function runMcpSmoke(): Promise<void> {
     } else {
       process.env.CHATCOCKPIT_ALLOW_HIGH_TRUST_COMMANDS = originalAllowHighTrust;
     }
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
   }
 }
 

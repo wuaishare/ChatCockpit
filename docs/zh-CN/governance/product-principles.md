@@ -41,7 +41,7 @@ Development Continuity 仍然是重要且已实现的能力，但不再定义整
 
 - Authentication 不等于 Mutation Authority。
 - Remote MCP 不能自行批准重要的受治理变更。
-- Provider-native mutation 在需要显式审批时使用 `prepare -> local operator decide -> execute`。
+- Provider-native mutation 在需要显式审批时使用 `prepare -> Operator decide -> execute`。Operator Authority 是已认证的人类控制边界，不等同于 localhost 或浏览器网络位置限制。
 - Approval Binding、Idempotency、Actor Provenance 与有界 Evidence 是服务端合同，不依赖客户端确认 UI。
 - Host 范围变大不能削弱治理：目标一旦落入受治理 Workspace，仍必须遵守 Path、Git、Writer Lease 与 Evidence 规则。
 

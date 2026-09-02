@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import { buildOperationContext } from "../application/operation-context.js";
 import type { CapabilityRouterMutationService } from "../application/capability-router-mutation-service.js";
+import { operationContextFromRequest } from "./request-context.js";
 import type { CapabilityRouterMutationPublicService } from "../application/capability-router-mutation-public-service.js";
 import { capabilityRouterMutationDecisionSchema } from "../contracts/capability-router.js";
 import {
@@ -40,7 +40,7 @@ export function registerCapabilityRouterMutationRoutes(
           reply,
           403,
           "CAPABILITY_ROUTER_MUTATION_DECISION_FORBIDDEN",
-          "Capability Router mutation decisions require an authenticated local operator session",
+          "Capability Router mutation decisions require an authenticated operator session",
         );
       }
 
@@ -72,12 +72,7 @@ export function registerCapabilityRouterMutationRoutes(
 
       try {
         const decided = mutations.decide(
-          buildOperationContext({
-            actorType: "local-ui",
-            actorId: auth.session.principalId,
-            requestId: request.id,
-            publicProjection: true,
-          }),
+          operationContextFromRequest(request),
           parsed.data,
         );
         return {

@@ -213,6 +213,14 @@ export function registerRuntimeResourceRoutes(
     (request, reply) => {
       const blocked = mutationWriteBlocked(reply);
       if (blocked) return blocked;
+      if (request.chatCockpitAuth.kind !== "operator-session") {
+        return sendApiError(
+          reply,
+          403,
+          "RUNTIME_RESOURCE_MUTATION_DECISION_FORBIDDEN",
+          "Runtime Resource mutation decisions require an authenticated operator session"
+        );
+      }
       const input = parseOrReply(runtimeResourceMutationDecisionSchema, request.body, reply);
       if (!input) return;
       try {
