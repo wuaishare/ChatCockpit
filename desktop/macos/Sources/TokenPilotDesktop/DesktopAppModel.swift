@@ -1078,10 +1078,7 @@ final class DesktopAppModel: ObservableObject {
             alert.addButton(withTitle: DesktopL10n.string("Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-            guard plan.requiresConfirmation,
-                  plan.changesPublicRoute == false,
-                  plan.startsTunnel == false,
-                  plan.startsRuntime == false else {
+            guard DesktopMachineMutationPolicy.acceptsConnectivityProviderPlan(plan) else {
                 lastUserMessage = DesktopL10n.string("The prepared provider action did not satisfy the ChatCockpit machine safety contract.")
                 return
             }
@@ -1126,11 +1123,7 @@ final class DesktopAppModel: ObservableObject {
               let intent = publicRouteCutoverIntent else {
             return
         }
-        guard intent.requiresMachineAuthority,
-              intent.changesCanonicalOrigin,
-              intent.startsStoppedRuntime == false,
-              intent.startsProviderTunnel == false,
-              intent.writesProviderSecrets == false else {
+        guard DesktopMachineMutationPolicy.acceptsPublicRouteCutoverIntent(intent) else {
             lastUserMessage = DesktopL10n.string(
                 "The pending Public Route Cutover Intent did not satisfy the ChatCockpit machine safety contract."
             )
@@ -1152,7 +1145,9 @@ final class DesktopAppModel: ObservableObject {
         isPublicRouteCutoverRunning = true
         defer { isPublicRouteCutoverRunning = false }
         do {
-            let requiresRuntimeRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            let requiresRuntimeRestart = DesktopMachineMutationPolicy.requiresRuntimeRestart(
+                for: snapshot.overallState
+            )
             guard let context = try await machineMutationContext(
                 requiresRuntimeRestart: requiresRuntimeRestart
             ) else { return }
@@ -1203,16 +1198,10 @@ final class DesktopAppModel: ObservableObject {
 
     func runPublicRouteBootstrap() async {
         guard !isPublicRouteBootstrapRunning,
-              let proof = publicRouteBootstrapProof,
-              let verification = proof.verification else {
+              let proof = publicRouteBootstrapProof else {
             return
         }
-        guard proof.status == "verified",
-              verification.status == "verified",
-              verification.checks.dns.ok,
-              verification.checks.tls.ok,
-              verification.checks.reachability.ok,
-              verification.checks.identity.ok else {
+        guard DesktopMachineMutationPolicy.acceptsPublicRouteBootstrapProof(proof) else {
             lastUserMessage = DesktopL10n.string(
                 "The pending Public Route Bootstrap Proof did not satisfy the ChatCockpit machine safety contract."
             )
@@ -1233,7 +1222,9 @@ final class DesktopAppModel: ObservableObject {
         isPublicRouteBootstrapRunning = true
         defer { isPublicRouteBootstrapRunning = false }
         do {
-            let requiresRuntimeRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            let requiresRuntimeRestart = DesktopMachineMutationPolicy.requiresRuntimeRestart(
+                for: snapshot.overallState
+            )
             guard let context = try await machineMutationContext(
                 requiresRuntimeRestart: requiresRuntimeRestart
             ) else { return }
@@ -1288,7 +1279,9 @@ final class DesktopAppModel: ObservableObject {
         trustedLanCidrs: [String]
     ) async {
         do {
-            let shouldRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            let shouldRestart = DesktopMachineMutationPolicy.requiresRuntimeRestart(
+                for: snapshot.overallState
+            )
             guard let context = try await machineMutationContext(
                 requiresRuntimeRestart: shouldRestart
             ) else { return }
@@ -1341,7 +1334,9 @@ final class DesktopAppModel: ObservableObject {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         do {
-            let shouldRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            let shouldRestart = DesktopMachineMutationPolicy.requiresRuntimeRestart(
+                for: snapshot.overallState
+            )
             guard let context = try await machineMutationContext(
                 requiresRuntimeRestart: shouldRestart
             ) else { return }

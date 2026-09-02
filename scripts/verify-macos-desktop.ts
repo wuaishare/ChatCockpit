@@ -45,6 +45,11 @@ const runtimeCommandRunnerPath = path.join(
   "TokenPilotDesktopCore",
   "RuntimeCommandRunner.swift"
 );
+const machineMutationPolicyPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "DesktopMachineMutationPolicy.swift"
+);
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const appEntryPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "TokenPilotDesktopApp.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
@@ -116,6 +121,7 @@ for (const required of [
   infoPlistPath,
   lifecycleSourcePath,
   runtimeCommandRunnerPath,
+  machineMutationPolicyPath,
   appModelPath,
   appEntryPath,
   menuBarPath,
@@ -142,6 +148,7 @@ const packageManifest = fs.readFileSync(packageManifestPath, "utf8");
 const infoPlist = fs.readFileSync(infoPlistPath, "utf8");
 const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
 const runtimeCommandRunner = fs.readFileSync(runtimeCommandRunnerPath, "utf8");
+const machineMutationPolicy = fs.readFileSync(machineMutationPolicyPath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const appEntry = fs.readFileSync(appEntryPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
@@ -333,6 +340,22 @@ assert.match(menuBar, /snapshot\.executionWorkspaceAvailable[\s\S]*Start Service
 assert.match(menuBar, /snapshot\.executionWorkspaceAvailable[\s\S]*Restart Services/s);
 assert.match(appModel, /private func machineManagementContext\(\)[\s\S]*packagedMachineManagementContext\(\)/s);
 assert.match(appModel, /private func machineMutationContext\([\s\S]*requiresRuntimeRestart: Bool[\s\S]*currentContext\(\)[\s\S]*machineManagementContext\(\)/s);
+assert.match(machineMutationPolicy, /public enum DesktopMachineMutationPolicy/);
+assert.match(machineMutationPolicy, /func requiresRuntimeRestart\(for state: DesktopOverallState\)/);
+assert.match(machineMutationPolicy, /func acceptsConnectivityProviderPlan/);
+assert.match(machineMutationPolicy, /func acceptsPublicRouteCutoverIntent/);
+assert.match(machineMutationPolicy, /func acceptsPublicRouteBootstrapProof/);
+assert.match(appModel, /DesktopMachineMutationPolicy\.acceptsConnectivityProviderPlan\(plan\)/);
+assert.match(appModel, /DesktopMachineMutationPolicy\.acceptsPublicRouteCutoverIntent\(intent\)/);
+assert.match(appModel, /DesktopMachineMutationPolicy\.acceptsPublicRouteBootstrapProof\(proof\)/);
+assert.ok(
+  (appModel.match(/DesktopMachineMutationPolicy\.requiresRuntimeRestart\(/g) ?? []).length >= 4,
+  "Runtime restart policy must remain centralized in TokenPilotDesktopCore"
+);
+assert.doesNotMatch(appModel, /plan\.requiresConfirmation[\s\S]{0,240}plan\.startsRuntime/s);
+assert.doesNotMatch(appModel, /intent\.requiresMachineAuthority[\s\S]{0,320}intent\.writesProviderSecrets/s);
+assert.doesNotMatch(appModel, /proof\.status == "verified"[\s\S]{0,360}verification\.checks\.identity\.ok/s);
+assert.doesNotMatch(appModel, /snapshot\.overallState == \.ready \|\| snapshot\.overallState == \.degraded/);
 assert.ok((appModel.match(/machineMutationContext\(/g) ?? []).length >= 5);
 assert.match(appModel, /case \.status, \.stop:[\s\S]*machineManagementContext\(\)/s);
 assert.match(appModel, /case \.start, \.restart:[\s\S]*currentContext\(\)/s);
@@ -641,10 +664,10 @@ assert.match(appModel, /@Published private\(set\) var isConnectivityMutationRunn
 assert.match(appModel, /authorityClient\.connectivityProviders\(context: context\)/);
 assert.match(appModel, /authorityClient\.connectivityProviderCapabilities/);
 assert.match(appModel, /authorityClient\.prepareConnectivityProviderAction/);
-assert.match(appModel, /guard plan\.requiresConfirmation/);
-assert.match(appModel, /plan\.changesPublicRoute == false/);
-assert.match(appModel, /plan\.startsTunnel == false/);
-assert.match(appModel, /plan\.startsRuntime == false/);
+assert.match(machineMutationPolicy, /plan\.requiresConfirmation/);
+assert.match(machineMutationPolicy, /plan\.changesPublicRoute == false/);
+assert.match(machineMutationPolicy, /plan\.startsTunnel == false/);
+assert.match(machineMutationPolicy, /plan\.startsRuntime == false/);
 assert.match(appModel, /authorityClient\.executeConnectivityProviderPlan/);
 assert.match(appModel, /does not sign in to Cloudflare, install or start a tunnel service, create a tunnel, or change the current Public Access route/);
 assert.match(appModel, /@Published private\(set\) var publicRouteCutoverIntent: DesktopPublicRouteCutoverIntent\?/);
@@ -653,21 +676,21 @@ assert.match(appModel, /@Published private\(set\) var isPublicRouteCutoverRunnin
 assert.match(appModel, /@Published private\(set\) var isPublicRouteBootstrapRunning = false/);
 assert.match(appModel, /authorityClient\.publicRouteBootstrapProof\([\s\S]*context: context[\s\S]*\)\.proof/s);
 assert.match(appModel, /func runPublicRouteBootstrap\(\) async/);
-assert.match(appModel, /proof\.status == "verified"/);
-assert.match(appModel, /verification\.status == "verified"/);
-assert.match(appModel, /verification\.checks\.dns\.ok/);
-assert.match(appModel, /verification\.checks\.tls\.ok/);
-assert.match(appModel, /verification\.checks\.reachability\.ok/);
-assert.match(appModel, /verification\.checks\.identity\.ok/);
+assert.match(machineMutationPolicy, /proof\.status == "verified"/);
+assert.match(machineMutationPolicy, /verification\.status == "verified"/);
+assert.match(machineMutationPolicy, /verification\.checks\.dns\.ok/);
+assert.match(machineMutationPolicy, /verification\.checks\.tls\.ok/);
+assert.match(machineMutationPolicy, /verification\.checks\.reachability\.ok/);
+assert.match(machineMutationPolicy, /verification\.checks\.identity\.ok/);
 assert.match(appModel, /Establish verified Public Route\?/);
 assert.match(appModel, /executePublicRouteBootstrap\([\s\S]*proofId: proof\.id/s);
 assert.match(appModel, /authorityClient\.publicRouteCutoverIntent\([\s\S]*context: context[\s\S]*\)\.intent/s);
 assert.match(appModel, /func runPublicRouteCutover\(\) async/);
-assert.match(appModel, /intent\.requiresMachineAuthority/);
-assert.match(appModel, /intent\.changesCanonicalOrigin/);
-assert.match(appModel, /intent\.startsStoppedRuntime == false/);
-assert.match(appModel, /intent\.startsProviderTunnel == false/);
-assert.match(appModel, /intent\.writesProviderSecrets == false/);
+assert.match(machineMutationPolicy, /intent\.requiresMachineAuthority/);
+assert.match(machineMutationPolicy, /intent\.changesCanonicalOrigin/);
+assert.match(machineMutationPolicy, /intent\.startsStoppedRuntime == false/);
+assert.match(machineMutationPolicy, /intent\.startsProviderTunnel == false/);
+assert.match(machineMutationPolicy, /intent\.writesProviderSecrets == false/);
 assert.match(appModel, /Apply verified Public Route\?/);
 assert.match(appModel, /intent\.expectedCanonicalOrigin[\s\S]*intent\.candidateOrigin/s);
 assert.match(appModel, /executePublicRouteCutover\([\s\S]*intentId: intent\.id/s);
@@ -707,7 +730,7 @@ assert.match(runtimeCommandRunner, /timeoutSeconds: 240/);
 assert.match(appModel, /@Published private\(set\) var isGeneratingConsolePath = false/);
 assert.match(appModel, /func generateRandomConsolePathCandidate\(\) async -> String\?/);
 assert.match(appModel, /authorityClient\.generateConsolePath\(context: context\)/);
-assert.match(appModel, /shouldRestart = snapshot\.overallState == \.ready \|\| snapshot\.overallState == \.degraded/);
+assert.match(machineMutationPolicy, /state == \.ready \|\| state == \.degraded/);
 assert.match(appModel, /Apply Access Policy and Restart Services\?/);
 assert.match(appModel, /guard alert\.runModal\(\) == \.alertFirstButtonReturn else \{ return \}/);
 assert.match(appModel, /Access policy updated\. Stopped services remain stopped\./);
