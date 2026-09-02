@@ -19,7 +19,7 @@ const previous = {
 
 try {
   process.env.CHATCOCKPIT_EXPOSED = "true";
-  process.env.CHATCOCKPIT_API_TOKEN = "request-context-machine-token";
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token-request-context-machine";
 
   const store = new OperatorStore({
     path: operatorDatabasePath(path.join(root, "runtime"))
@@ -27,11 +27,11 @@ try {
   const operator = new OperatorService({ store });
   await operator.setOwnerPassword({
     username: "Owner",
-    password: "request-context-test-password-correct-horse-battery-staple"
+    password: "test-password-request-context-correct-horse-battery-staple"
   });
   const session = await operator.login({
     username: "owner",
-    password: "request-context-test-password-correct-horse-battery-staple",
+    password: "test-password-request-context-correct-horse-battery-staple",
     source: "127.0.0.1",
     userAgent: "Request Context Auth Surface Verifier"
   });
@@ -92,7 +92,7 @@ try {
       method: "POST",
       url: "/tokenpilot/api/request-context-proof",
       headers: {
-        authorization: "Bearer request-context-machine-token"
+        authorization: "Bearer test-token-request-context-machine"
       }
     });
     assert.equal(machineAlias.statusCode, 200);
@@ -102,7 +102,7 @@ try {
       method: "GET",
       url: "/api/request-context-proof",
       headers: {
-        authorization: "Bearer request-context-machine-token"
+        authorization: "Bearer test-token-request-context-machine"
       }
     });
     assert.equal(machineResponse.statusCode, 200);

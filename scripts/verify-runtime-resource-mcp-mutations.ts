@@ -184,7 +184,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
   const bootstrapOperator = new OperatorService({ store: bootstrapStore });
   await bootstrapOperator.setOwnerPassword({
     username: "Owner",
-    password: "runtime-resource-mcp-operator-password-correct-horse-battery-staple"
+    password: "test-password-runtime-resource-mcp-correct-horse-battery-staple"
   });
   bootstrapStore.close();
 
@@ -213,7 +213,7 @@ async function runHttpCrossSurfaceFixture(repoRoot: string): Promise<void> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         username: "owner",
-        password: "runtime-resource-mcp-operator-password-correct-horse-battery-staple"
+        password: "test-password-runtime-resource-mcp-correct-horse-battery-staple"
       })
     });
     if (!loginResponse.ok) {
