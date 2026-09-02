@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_TERMINAL_PROMPT=0
+
+temp_root="${TMPDIR:-${TMP:-/tmp}}"
+
 ROOT="$(git rev-parse --show-toplevel)"
 cd "${ROOT}"
 
@@ -12,7 +19,7 @@ fi
 
 source_revision="$(git rev-parse --short=12 HEAD)"
 
-tmp_dir="$(mktemp -d)"
+tmp_dir="$(mktemp -d "${temp_root%/}/chatcockpit-release-dry-run.XXXXXX")"
 cleanup() {
   rm -rf "${tmp_dir}"
 }

@@ -10,6 +10,7 @@ import { RuntimeRouter } from "../src/application/runtime-router.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import { hermeticGitEnv } from "./test-support/git.ts";
 import { ContinuityDatabase } from "../src/continuity/database.ts";
 import { buildContinuityRepositories } from "../src/continuity/repositories/index.ts";
 import { DirectCapabilityBroker } from "../src/direct/capability-broker.ts";
@@ -353,7 +354,8 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
 function runGit(repoRoot: string, args: string[]): void {
   const result = spawnSync("git", args, {
     cwd: repoRoot,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: hermeticGitEnv()
   });
   assert.equal(
     result.status,
@@ -431,10 +433,22 @@ async function verifyChatDirectRouting(): Promise<void> {
     )}\n`,
     "utf8"
   );
+  const fixtureHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-chat-direct-home-"));
+  const fixtureXdgConfigHome = path.join(fixtureHome, ".config");
+  const fixtureXdgCacheHome = path.join(fixtureHome, ".cache");
+  fs.mkdirSync(fixtureXdgConfigHome, { recursive: true });
+  fs.mkdirSync(fixtureXdgCacheHome, { recursive: true });
+
   const previousConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
   const previousExposed = process.env.CHATCOCKPIT_EXPOSED;
+  const previousHome = process.env.HOME;
+  const previousXdgConfigHome = process.env.XDG_CONFIG_HOME;
+  const previousXdgCacheHome = process.env.XDG_CACHE_HOME;
   process.env.CHATCOCKPIT_CONFIG_PATH = configPath;
   process.env.CHATCOCKPIT_EXPOSED = "false";
+  process.env.HOME = fixtureHome;
+  process.env.XDG_CONFIG_HOME = fixtureXdgConfigHome;
+  process.env.XDG_CACHE_HOME = fixtureXdgCacheHome;
 
   const database = new ContinuityDatabase({
     path: path.join(paths.runtimeDir, "continuity.sqlite")
@@ -1642,7 +1656,8 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.doesNotMatch(
       spawnSync("git", ["diff", "--cached", "--name-only"], {
         cwd: repoRoot,
-        encoding: "utf8"
+        encoding: "utf8",
+        env: hermeticGitEnv()
       }).stdout,
       /src\/filtered\.ts/
     );
@@ -1684,7 +1699,8 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.doesNotMatch(
       spawnSync("git", ["diff", "--cached", "--name-only"], {
         cwd: repoRoot,
-        encoding: "utf8"
+        encoding: "utf8",
+        env: hermeticGitEnv()
       }).stdout,
       /src\/alpha-core\.ts/
     );
@@ -1699,7 +1715,7 @@ async function verifyChatDirectRouting(): Promise<void> {
     const stagedNames = spawnSync(
       "git",
       ["diff", "--cached", "--name-only"],
-      { cwd: repoRoot, encoding: "utf8" }
+      { cwd: repoRoot, encoding: "utf8", env: hermeticGitEnv() }
     ).stdout.trim().split(/\r?\n/).filter(Boolean).sort();
     assert.deepEqual(stagedNames, ["src/alpha-core.ts", "src/delete-me.ts"]);
 
@@ -1722,7 +1738,11 @@ async function verifyChatDirectRouting(): Promise<void> {
     assert.equal(alphaCoreCommit.committed, true);
     assert.deepEqual(alphaCoreCommit.execution.changedPaths, ["src/alpha-core.ts", "src/delete-me.ts"]);
     assert.match(
-      spawnSync("git", ["status", "--short"], { cwd: repoRoot, encoding: "utf8" }).stdout,
+      spawnSync("git", ["status", "--short"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: hermeticGitEnv()
+      }).stdout,
       /src\/fixture\.ts/
     );
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
@@ -1747,6 +1767,22 @@ async function verifyChatDirectRouting(): Promise<void> {
     } else {
       process.env.CHATCOCKPIT_EXPOSED = previousExposed;
     }
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+    if (previousXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME;
+    } else {
+      process.env.XDG_CONFIG_HOME = previousXdgConfigHome;
+    }
+    if (previousXdgCacheHome === undefined) {
+      delete process.env.XDG_CACHE_HOME;
+    } else {
+      process.env.XDG_CACHE_HOME = previousXdgCacheHome;
+    }
+    fs.rmSync(fixtureHome, { recursive: true, force: true });
   }
 }
 

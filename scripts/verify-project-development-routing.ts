@@ -15,6 +15,7 @@ import type {
   RuntimeThreadProjection
 } from "../src/runtime/codex/runtime-adapter.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+import { hermeticGitEnv } from "./test-support/git.ts";
 
 const context = {
   requestId: "project-development-routing-test",
@@ -25,7 +26,10 @@ const context = {
 };
 
 function runGit(args: string[]): string {
-  const result = spawnSync("git", args, { encoding: "utf8" });
+  const result = spawnSync("git", args, {
+    encoding: "utf8",
+    env: hermeticGitEnv()
+  });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return String(result.stdout ?? "").trim();
 }

@@ -6,17 +6,23 @@ export interface GitCommandResult {
   stderr: string;
 }
 
+export function hermeticGitEnv(
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  return {
+    ...env,
+    GIT_CONFIG_GLOBAL: os.devNull,
+    GIT_CONFIG_SYSTEM: os.devNull,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0"
+  };
+}
+
 export function runGit(cwd: string, args: string[]): GitCommandResult {
   const result = spawnSync("git", args, {
     cwd,
     encoding: "utf8",
-    env: {
-      ...process.env,
-      GIT_CONFIG_GLOBAL: os.devNull,
-      GIT_CONFIG_SYSTEM: os.devNull,
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_TERMINAL_PROMPT: "0"
-    }
+    env: hermeticGitEnv()
   });
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";

@@ -12,6 +12,7 @@ import { buildContinuityRepositories } from "../src/continuity/repositories/inde
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { rootIdForRepoId } from "../src/core/project-config-identity.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+import { hermeticGitEnv } from "./test-support/git.ts";
 
 const NOW = "2026-08-22T00:00:00.000Z";
 const context = {
@@ -23,7 +24,10 @@ const context = {
 };
 
 function runGit(args: string[]): string {
-  const result = spawnSync("git", args, { encoding: "utf8" });
+  const result = spawnSync("git", args, {
+    encoding: "utf8",
+    env: hermeticGitEnv()
+  });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return String(result.stdout ?? "").trim();
 }

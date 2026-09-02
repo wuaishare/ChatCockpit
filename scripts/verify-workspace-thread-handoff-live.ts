@@ -15,6 +15,7 @@ import type {
 } from "../src/runtime/codex/runtime-adapter.ts";
 import { buildServer } from "../src/server/app.ts";
 import { buildFixturePaths } from "./test-support/fixture-paths.ts";
+import { hermeticGitEnv } from "./test-support/git.ts";
 import { listenTestServer } from "./test-support/server.ts";
 import { mcpPathForTool } from "./test-support/mcp-tool-surface.ts";
 
@@ -34,7 +35,10 @@ function parseMcpResponse(body: string): JsonRpcResponse {
 }
 
 function runGit(args: string[]): void {
-  const result = spawnSync("git", args, { encoding: "utf8" });
+  const result = spawnSync("git", args, {
+    encoding: "utf8",
+    env: hermeticGitEnv()
+  });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 }
 
