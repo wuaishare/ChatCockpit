@@ -19,12 +19,25 @@ import { buildContinuityRepositories } from "../src/continuity/repositories/inde
 import { listJobs } from "../src/core/jobs.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
+import { hermeticGitEnv } from "./test-support/git.ts";
 import type {
   CodingRuntimeAdapter,
   RuntimeEventSink
 } from "../src/runtime/codex/runtime-adapter.ts";
 
 const NOW = "2026-08-07T05:30:00.000Z";
+
+function runGit(
+  repoRoot: string,
+  args: string[],
+  env: NodeJS.ProcessEnv
+): string {
+  return execFileSync("git", args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env
+  }).trim();
+}
 
 function context() {
   return buildOperationContext({
@@ -121,12 +134,26 @@ function createRequiredTask(
 
 async function verifySpecPlanPolicy(): Promise<void> {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-spec-plan-policy-"));
+  const fixtureHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-spec-plan-home-"));
+  const fixtureXdgConfigHome = path.join(fixtureHome, ".config");
+  const fixtureXdgCacheHome = path.join(fixtureHome, ".cache");
+  const fixtureTmpDir = path.join(fixtureHome, "tmp");
+  fs.mkdirSync(fixtureXdgConfigHome, { recursive: true });
+  fs.mkdirSync(fixtureXdgCacheHome, { recursive: true });
+  fs.mkdirSync(fixtureTmpDir, { recursive: true });
+  const gitEnv = hermeticGitEnv({
+    ...process.env,
+    HOME: fixtureHome,
+    XDG_CONFIG_HOME: fixtureXdgConfigHome,
+    XDG_CACHE_HOME: fixtureXdgCacheHome,
+    TMPDIR: fixtureTmpDir
+  });
   fs.writeFileSync(path.join(repoRoot, "README.md"), "# Policy fixture\n", "utf8");
-  execFileSync("git", ["init", "-q"], { cwd: repoRoot });
-  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: repoRoot });
-  execFileSync("git", ["config", "user.name", "ChatCockpit Fixture"], { cwd: repoRoot });
-  execFileSync("git", ["add", "README.md"], { cwd: repoRoot });
-  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: repoRoot });
+  runGit(repoRoot, ["init", "-q"], gitEnv);
+  runGit(repoRoot, ["config", "user.email", "fixture@example.invalid"], gitEnv);
+  runGit(repoRoot, ["config", "user.name", "ChatCockpit Fixture"], gitEnv);
+  runGit(repoRoot, ["add", "README.md"], gitEnv);
+  runGit(repoRoot, ["commit", "-qm", "fixture"], gitEnv);
 
   const paths = buildPaths(repoRoot);
   ensureWorkspaceDirs(paths);
@@ -208,10 +235,7 @@ async function verifySpecPlanPolicy(): Promise<void> {
       repoId: "primary",
       privatePath: repoRoot,
       branch: "main",
-      headCommit: execFileSync("git", ["rev-parse", "HEAD"], {
-        cwd: repoRoot,
-        encoding: "utf8"
-      }).trim(),
+      headCommit: runGit(repoRoot, ["rev-parse", "HEAD"], gitEnv),
       now: NOW
     });
 
@@ -409,6 +433,7 @@ async function verifySpecPlanPolicy(): Promise<void> {
     assert.deepEqual(database.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
   } finally {
     database.close();
+    fs.rmSync(fixtureHome, { recursive: true, force: true });
   }
 }
 
