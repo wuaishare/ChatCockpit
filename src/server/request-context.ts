@@ -25,6 +25,7 @@ export function operationContextFromRequest(request: unknown) {
     return buildOperationContext({
       requestId,
       actorType: "rest-api",
+      actorId: auth.credentialFingerprint,
       publicProjection: true
     });
   }

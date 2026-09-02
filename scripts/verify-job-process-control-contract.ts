@@ -370,7 +370,8 @@ async function verifyHttpContract(): Promise<void> {
     assert.equal(events[0]?.actorType, "local-ui");
     assert.match(events[0]?.actorIdentityHash ?? "", /^[0-9a-f]{64}$/);
     assert.equal(events[1]?.actorType, "rest-api");
-    assert.equal(events[1]?.actorIdentityHash, null);
+    assert.match(events[1]?.actorIdentityHash ?? "", /^[0-9a-f]{64}$/);
+    assert.notEqual(events[1]?.actorIdentityHash, "test-token-job-control-machine");
     assert.notEqual(events[0]?.requestIdentityHash, events[1]?.requestIdentityHash);
   } finally {
     auditDatabase.close();

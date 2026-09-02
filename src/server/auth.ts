@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import fp from "fastify-plugin";
 import type { FastifyRequest } from "fastify";
 
@@ -190,6 +192,13 @@ export function validateServerAuthConfig(_env: EnvLike = process.env): void {
   // CHATCOCKPIT_API_TOKEN remains an optional machine-to-machine credential.
 }
 
+function machineBearerCredentialFingerprint(token: string): string {
+  return createHash("sha256")
+    .update("chatcockpit:machine-bearer:v1\0", "utf8")
+    .update(token, "utf8")
+    .digest("hex");
+}
+
 export interface McpOAuthAccessIdentity {
   authorizationGrantId: string;
   clientRegistrationId: string;
@@ -295,7 +304,10 @@ export function createTokenPilotAuthPlugin(
       const configured = readIdentityEnv("API_TOKEN");
       const provided = readBearerToken(request);
       if (configured && provided === configured) {
-        request.chatCockpitAuth = { kind: "machine-bearer" };
+        request.chatCockpitAuth = {
+          kind: "machine-bearer",
+          credentialFingerprint: machineBearerCredentialFingerprint(configured)
+        };
         return;
       }
 

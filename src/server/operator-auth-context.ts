@@ -9,7 +9,7 @@ export const OPERATOR_OAUTH_REQUEST_HEADER = "x-chatcockpit-oauth-request-id";
 
 export type RequestAuthContext =
   | { kind: "anonymous" }
-  | { kind: "machine-bearer" }
+  | { kind: "machine-bearer"; credentialFingerprint: string }
   | { kind: "operator-session"; session: OperatorSessionContext }
   | {
       kind: "mcp-oauth";

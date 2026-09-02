@@ -600,6 +600,7 @@ async function run(): Promise<void> {
     assert.equal(prepared.replayed, false);
     assert.equal(prepared.approval.status, "pending");
     assert.equal(prepared.approval.requestedActor?.type, "rest-api");
+    assert.match(prepared.approval.requestedActor?.identityHash ?? "", /^[0-9a-f]{64}$/);
     const preparedReplay = await rest<typeof prepared>(
       "POST",
       "/api/resources/mutations/prepare",
@@ -683,12 +684,16 @@ async function run(): Promise<void> {
       execution: {
         id: string;
         verificationStatus: string;
-        executedActor: { type: string } | null;
+        executedActor: { type: string; identityHash: string | null } | null;
       };
       replayed: boolean;
     }>("POST", "/api/resources/mutations/execute", executeBody);
     assert.equal(executed.execution.verificationStatus, "verified");
     assert.equal(executed.execution.executedActor?.type, "rest-api");
+    assert.equal(
+      executed.execution.executedActor?.identityHash,
+      prepared.approval.requestedActor?.identityHash
+    );
     assert.equal(skillMutationCalls, 1);
     const executeReplay = await rest<typeof executed>(
       "POST",

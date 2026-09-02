@@ -375,6 +375,7 @@ function jobProcessControlContextFromRequest(request: FastifyRequest) {
   return buildOperationContext({
     requestId: request.id,
     actorType: auth.kind === "machine-bearer" ? "rest-api" : "local-ui",
+    actorId: auth.kind === "machine-bearer" ? auth.credentialFingerprint : null,
     publicProjection: true
   });
 }

@@ -21,10 +21,13 @@ try {
 
   const machineBearer = operationContextFromRequest({
     id: "request-machine",
-    chatCockpitAuth: { kind: "machine-bearer" }
+    chatCockpitAuth: {
+      kind: "machine-bearer",
+      credentialFingerprint: "machine-credential-fingerprint-fixture"
+    }
   });
   assert.equal(machineBearer.actorType, "rest-api");
-  assert.equal(machineBearer.actorId, null);
+  assert.equal(machineBearer.actorId, "machine-credential-fingerprint-fixture");
   assert.equal(machineBearer.authorizationGrantId, null);
 
   const mcpOauth = operationContextFromRequest({

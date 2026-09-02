@@ -97,6 +97,7 @@ try {
     });
     assert.equal(machineAlias.statusCode, 200);
     assert.equal(machineAlias.json().context.actorType, "rest-api");
+    assert.equal(typeof machineAlias.json().context.actorId, "string");
 
     const machineResponse = await app.inject({
       method: "GET",
@@ -112,7 +113,9 @@ try {
       authorizationGrantId: string | null;
     };
     assert.equal(machineContext.actorType, "rest-api");
-    assert.equal(machineContext.actorId, null);
+    assert.equal(typeof machineContext.actorId, "string");
+    assert.equal(machineContext.actorId, machineAlias.json().context.actorId);
+    assert.notEqual(machineContext.actorId, "test-token-request-context-machine");
     assert.equal(machineContext.authorizationGrantId, null);
 
     const anonymousResponse = await app.inject({
