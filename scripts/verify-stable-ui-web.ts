@@ -33,7 +33,21 @@ assert.match(app, /loginOperator\(input, loginGate, oauthBootstrap\?\.requestId\
 assert.match(app, /fetchPasskeyAuthenticationOptions\([\s\S]*oauthBootstrap\?\.requestId[\s\S]*\)/);
 assert.match(app, /verifyOperatorTotpLogin\([\s\S]*oauthBootstrap\?\.requestId[\s\S]*\)/);
 assert.match(app, /function localLoginContinuationPath\(\): string \| null/);
-assert.match(app, /target === "projects" \? consolePath\("projects"\) : null/);
+assert.match(app, /const LOCAL_LOGIN_CONTINUATION_TARGETS =/);
+for (const [target, route] of [
+  ["projects", "projects"],
+  ["work", "continuity\/tasks"],
+  ["runtime", "runtime"],
+  ["resources", "resources"],
+  ["devices", "devices"],
+  ["publicAccess", "public-access"],
+  ["integrations", "integrations"]
+] as const) {
+  assert.match(app, new RegExp(`${target}: consolePath\\("${route}"\\)`));
+}
+assert.match(app, /if \(!target \|\| !\(target in LOCAL_LOGIN_CONTINUATION_TARGETS\)\) return null/);
+assert.match(app, /return LOCAL_LOGIN_CONTINUATION_TARGETS\[target as LocalLoginContinuationTarget\]/);
+assert.doesNotMatch(app, /consolePath\(target\)/);
 assert.match(app, /localLoginContinuationPath\(\) \?\? `\$\{consolePath\(\)\}\/`/);
 assert.match(app, /window\.dispatchEvent\(new PopStateEvent\("popstate"\)\)/);
 assert.doesNotMatch(app, /window\.location\.(?:assign|replace)\(target\)/);

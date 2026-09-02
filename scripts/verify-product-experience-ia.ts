@@ -12,6 +12,9 @@ const runtime = read("web/src/components/RuntimeView.tsx");
 const runtimeCopy = read("web/src/i18n/runtime.ts");
 const i18n = read("web/src/i18n.ts");
 const api = read("web/src/api.ts");
+const macStatus = read("desktop/macos/Sources/TokenPilotDesktop/StatusView.swift");
+const macSettings = read("desktop/macos/Sources/TokenPilotDesktop/SettingsView.swift");
+const macModel = read("desktop/macos/Sources/TokenPilotDesktop/DesktopAppModel.swift");
 
 // Canonical Product destinations are user-goal IA, separate from stable route/view keys.
 for (const destination of [
@@ -50,6 +53,35 @@ assert.doesNotMatch(sidebar, /workspaceNavigation|operationsNavigation|systemNav
 assert.match(sidebar, /selectedKeys=\{\[activeNavigationKey\]\}/);
 assert.match(app, /resolveBrowserNavigationTarget/);
 assert.match(app, /selectedBrowserNavigationKey\(activeView, activeContinuitySection\)/);
+
+// macOS main window exposes the same shared user goals, while machine-only controls are bounded under This Mac.
+for (const section of [
+  "overview",
+  "projects",
+  "work",
+  "runtime",
+  "resources",
+  "devices",
+  "connections",
+  "thisMac"
+]) {
+  assert.match(macStatus, new RegExp(`case ${section}\\b`));
+}
+assert.match(macStatus, /NativeSharedCockpitBridgeView\(model: model, destination: \.work\)/);
+assert.match(macStatus, /NativeSharedCockpitBridgeView\(model: model, destination: \.resources\)/);
+assert.match(macStatus, /NativeSharedCockpitBridgeView\(model: model, destination: \.devices\)/);
+assert.match(macStatus, /NativeConnectionsBridgeView/);
+assert.match(macStatus, /NativeThisMacView/);
+assert.match(macSettings, /case thisMac/);
+assert.match(macSettings, /var showsDistribution: Bool \{ self == \.thisMac \}/);
+assert.match(macSettings, /var showsAccessSecurity: Bool \{ self == \.thisMac \}/);
+assert.match(macSettings, /var showsUpdates: Bool \{ self == \.thisMac \}/);
+assert.match(macSettings, /var showsRuntime: Bool \{ self == \.runtime \}/);
+assert.match(macModel, /enum DesktopCockpitDestination: String, Equatable/);
+for (const destination of ["projects", "work", "runtime", "resources", "devices", "publicAccess", "integrations"]) {
+  assert.match(macModel, new RegExp(`case ${destination}\\b`));
+}
+assert.match(macModel, /openLocalCockpitDestination/);
 
 // Runtime is now a real Browser destination, not a disabled placeholder.
 assert.match(navigation, /\| "runtime"/);

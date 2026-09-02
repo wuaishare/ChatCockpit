@@ -74,7 +74,7 @@ struct TokenPilotDesktopApp: App {
                 .onOpenURL { url in
                     guard let destination = model.handleDeepLink(url) else { return }
                     if destination == .connectivity {
-                        mainSection = .accessSecurity
+                        mainSection = .thisMac
                         operationalSettingsFocus = .connectivity
                         DesktopScenePresentation.presentMainWindow()
                     }
@@ -107,7 +107,7 @@ private struct AppPreferencesView: View {
 
             Text(
                 DesktopL10n.string(
-                    "Runtime, workspace, access, security, integrations, updates, and diagnostics now live in the main ChatCockpit window. This Settings window is reserved for app-only preferences."
+                    "Shared ChatCockpit workflows now use the main product destinations, while machine security, distribution, updates, and diagnostics live under This Mac. This Settings window is reserved for app-only preferences."
                 )
             )
             .foregroundStyle(.secondary)

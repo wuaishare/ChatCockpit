@@ -240,7 +240,7 @@ assert.match(appModel, /return \.operatorSetup/);
 assert.match(appModel, /return \.connectivity/);
 assert.match(appModel, /return nil/);
 assert.match(appEntry, /\.onOpenURL \{ url in[\s\S]*guard let destination = model\.handleDeepLink\(url\) else \{ return \}/s);
-assert.match(appEntry, /destination == \.connectivity[\s\S]*mainSection = \.accessSecurity[\s\S]*operationalSettingsFocus = \.connectivity/s);
+assert.match(appEntry, /destination == \.connectivity[\s\S]*mainSection = \.thisMac[\s\S]*operationalSettingsFocus = \.connectivity/s);
 assert.match(appEntry, /DesktopScenePresentation\.presentMainWindow\(\)/);
 assert.match(appEntry, /Window\(ProductIdentity\.current\.displayName, id: "main"\)/);
 assert.match(appEntry, /@NSApplicationDelegateAdaptor\(DesktopApplicationDelegate\.self\)/);
@@ -256,7 +256,7 @@ assert.match(appEntry, /MenuBarContentView\(model: model, mainSection: \$mainSec
 assert.match(appEntry, /Settings \{\s*AppPreferencesView\(mainSection: \$mainSection\)\s*\}/s);
 assert.doesNotMatch(appEntry, /id: "status"/);
 assert.doesNotMatch(appEntry, /Settings \{\s*SettingsView\(/s);
-assert.match(appEntry, /Runtime, workspace, access, security, integrations, updates, and diagnostics now live in the main ChatCockpit window/);
+assert.match(appEntry, /Shared ChatCockpit workflows now use the main product destinations[\s\S]*machine security, distribution, updates, and diagnostics live under This Mac/s);
 assert.match(appEntry, /struct AccessibleTextActionButton: NSViewRepresentable/);
 assert.match(appEntry, /let disabled: Bool/);
 assert.match(appEntry, /button\.isEnabled = !disabled/);
@@ -280,7 +280,7 @@ assert.match(appModel, /@Published private\(set\) var operationalSummary: Deskto
 assert.match(appModel, /private let operationalSummaryClient: any DesktopOperationalSummaryReading/);
 assert.match(appModel, /operationalSummary = try\? await operationalSummaryClient\.summary\(context: context\)/);
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
-for (const section of ["overview", "runtime", "projects", "accessSecurity", "integrations", "updates", "diagnostics"]) {
+for (const section of ["overview", "projects", "work", "runtime", "resources", "devices", "connections", "thisMac"]) {
   assert.match(statusView, new RegExp(`case ${section}\\b`));
 }
 assert.match(statusView, /NavigationSplitView/);
@@ -297,10 +297,14 @@ assert.match(statusView, /button\.setAccessibilitySelected\(selected\)/);
 assert.match(statusView, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHand : \.arrow\)/);
 assert.match(statusView, /SettingsView\(model: model, scope: \.runtime\)/);
 assert.match(statusView, /SettingsView\(model: model, scope: \.projects\)/);
-assert.match(statusView, /SettingsView\([\s\S]*model: model,[\s\S]*scope: \.accessSecurity,[\s\S]*focus: \$operationalSettingsFocus[\s\S]*\)/s);
-assert.match(statusView, /SettingsView\(model: model, scope: \.updates\)/);
-assert.match(statusView, /NativeIntegrationsBridgeView\(model: model\)/);
+assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.work\)/);
+assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.resources\)/);
+assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.devices\)/);
+assert.match(statusView, /NativeConnectionsBridgeView\([\s\S]*mainSection: \$selection[\s\S]*operationalSettingsFocus: \$operationalSettingsFocus[\s\S]*\)/s);
+assert.match(statusView, /NativeThisMacView\([\s\S]*operationalSettingsFocus: \$operationalSettingsFocus[\s\S]*\)/s);
+assert.match(statusView, /SettingsView\([\s\S]*scope: \.thisMac,[\s\S]*focus: \$operationalSettingsFocus[\s\S]*\)/s);
 assert.match(statusView, /NativeDiagnosticsView\(model: model\)/);
+assert.doesNotMatch(statusView, /NativeIntegrationsBridgeView/);
 assert.match(statusView, /DesktopL10n\.string\("Execution Workspace"\)/);
 assert.doesNotMatch(statusView, /DesktopL10n\.string\("Primary Workspace"\)/);
 assert.match(statusView, /ScrollView/);
@@ -431,8 +435,8 @@ assert.match(menuBar, /DesktopL10n\.string\("Available"\)/);
 assert.doesNotMatch(menuBar, /model\.copyMachineEndpoint\(url\)/);
 assert.doesNotMatch(menuBar, /openAction: model\.openPublicCockpit/);
 assert.match(menuBar, /model\.updateStatusText/);
-assert.match(menuBar, /openMainWindow\(\.updates\)/);
-assert.match(menuBar, /openMainWindow\(\.diagnostics\)/);
+assert.match(menuBar, /openMainWindow\(\.thisMac\)/);
+assert.doesNotMatch(menuBar, /openMainWindow\(\.(?:updates|diagnostics|accessSecurity|integrations)\)/);
 assert.match(menuBar, /AccessibleMenuBarNavigationButton/);
 assert.match(menuBar, /final class PointerButton: NSButton/);
 assert.match(menuBar, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHand : \.arrow\)/);
@@ -471,10 +475,16 @@ assert.match(settings, /model\.removeProjectRoot\(root\.id\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Project Center"\)/);
 assert.match(settings, /model\.openProjectCenter\(\)/);
 assert.match(appModel, /func openProjectCenter\(\)/);
-assert.match(appModel, /targetPath: "\/ui\/projects"/);
+assert.match(appModel, /enum DesktopCockpitDestination: String, Equatable/);
+for (const destination of ["projects", "work", "runtime", "resources", "devices", "publicAccess", "integrations"]) {
+  assert.match(appModel, new RegExp(`case ${destination}\\b`));
+}
+assert.match(appModel, /func openLocalCockpitDestination\(_ destination: DesktopCockpitDestination\)/);
+assert.match(appModel, /targetPath: destination\.targetPath/);
+assert.match(appModel, /targetKey: destination\.rawValue/);
 assert.match(appModel, /components\.path = "\/ui\/local-login"/);
-assert.match(appModel, /if targetPath == "\/ui\/projects"/);
-assert.match(appModel, /URLQueryItem\(name: "target", value: "projects"\)/);
+assert.match(appModel, /components\.queryItems = targetKey\.map/);
+assert.match(appModel, /URLQueryItem\(name: "target", value: \$0\)/);
 assert.doesNotMatch(appModel, /components\.path = targetPath \?\? "\/ui\/local-login"/);
 assert.match(appModel, /func removeProjectRoot\(_ rootID: String\)/);
 assert.match(appModel, /projectRegistryClient\.detachRoot\(/);

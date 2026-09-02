@@ -9,13 +9,13 @@ enum OperationalSettingsFocus: Hashable {
 enum OperationalSettingsScope: Equatable {
     case runtime
     case projects
-    case accessSecurity
-    case updates
+    case thisMac
 
+    var showsDistribution: Bool { self == .thisMac }
     var showsRuntime: Bool { self == .runtime }
     var showsProjects: Bool { self == .projects }
-    var showsAccessSecurity: Bool { self == .accessSecurity }
-    var showsUpdates: Bool { self == .updates }
+    var showsAccessSecurity: Bool { self == .thisMac }
+    var showsUpdates: Bool { self == .thisMac }
 }
 
 struct SettingsView: View {
@@ -39,7 +39,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollViewReader { proxy in
         Form {
-            if scope.showsRuntime {
+            if scope.showsDistribution {
                 Section(DesktopL10n.string("Distribution")) {
                 LabeledContent(DesktopL10n.string("Mode")) {
                     Text(model.distributionModeText)

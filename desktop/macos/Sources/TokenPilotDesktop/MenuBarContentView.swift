@@ -156,9 +156,9 @@ struct MenuBarContentView: View {
                 attentionRow(
                     text: message,
                     semantic: .warning,
-                    actionTitle: DesktopL10n.string("Diagnostics")
+                    actionTitle: DesktopL10n.string("This Mac")
                 ) {
-                    openMainWindow(.diagnostics)
+                    openMainWindow(.thisMac)
                 }
             }
 
@@ -176,11 +176,11 @@ struct MenuBarContentView: View {
                     .truncationMode(.middle)
                 AccessibleIconButton(
                     systemName: "chevron.right",
-                    title: DesktopL10n.string("Updates"),
+                    title: DesktopL10n.string("This Mac"),
                     disabled: false,
                     destructive: false
                 ) {
-                    openMainWindow(.updates)
+                    openMainWindow(.thisMac)
                 }
                 .frame(width: 22, height: 22)
             }
@@ -325,10 +325,10 @@ struct MenuBarContentView: View {
             .frame(height: 28)
 
             AccessibleMenuBarNavigationButton(
-                title: DesktopL10n.string("Diagnostics"),
-                systemName: "stethoscope"
+                title: DesktopL10n.string("This Mac"),
+                systemName: "gearshape.2"
             ) {
-                openMainWindow(.diagnostics)
+                openMainWindow(.thisMac)
             }
             .frame(height: 28)
 

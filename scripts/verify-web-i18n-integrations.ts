@@ -121,7 +121,12 @@ assert.match(app, /readAndClearLocalLoginGrant/);
 assert.match(app, /redeemLocalLoginGrant\(localLoginGrant\)/);
 assert.match(app, /function localLoginContinuationPath\(\)/);
 assert.match(app, /window\.location\.pathname !== consolePath\("local-login"\)/);
-assert.match(app, /target === "projects" \? consolePath\("projects"\) : null/);
+assert.match(app, /const LOCAL_LOGIN_CONTINUATION_TARGETS =/);
+for (const target of ["projects", "work", "runtime", "resources", "devices", "publicAccess", "integrations"]) {
+  assert.match(app, new RegExp(`${target}:\\s*consolePath`));
+}
+assert.match(app, /target in LOCAL_LOGIN_CONTINUATION_TARGETS/);
+assert.doesNotMatch(app, /window\.location\.(?:assign|replace)\(target\)/);
 assert.match(app, /localLoginContinuationPath\(\) \?\? `\$\{consolePath\(\)\}\/`/);
 assert.match(app, /window\.dispatchEvent\(new PopStateEvent\("popstate"\)\)/);
 assert.doesNotMatch(app, /window\.location\.(?:assign|replace)\(target\)/);

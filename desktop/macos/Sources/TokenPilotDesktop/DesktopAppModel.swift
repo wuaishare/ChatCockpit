@@ -38,6 +38,28 @@ enum DesktopDeepLinkDestination: Equatable {
     case connectivity
 }
 
+enum DesktopCockpitDestination: String, Equatable {
+    case projects
+    case work
+    case runtime
+    case resources
+    case devices
+    case publicAccess
+    case integrations
+
+    var targetPath: String {
+        switch self {
+        case .projects: return "/ui/projects"
+        case .work: return "/ui/continuity/tasks"
+        case .runtime: return "/ui/runtime"
+        case .resources: return "/ui/resources"
+        case .devices: return "/ui/devices"
+        case .publicAccess: return "/ui/public-access"
+        case .integrations: return "/ui/integrations"
+        }
+    }
+}
+
 @MainActor
 final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
@@ -657,12 +679,22 @@ final class DesktopAppModel: ObservableObject {
     }
 
     func openProjectCenter() {
+        openLocalCockpitDestination(.projects)
+    }
+
+    func openLocalCockpitDestination(_ destination: DesktopCockpitDestination) {
         Task { [weak self] in
-            await self?.openLocalCockpitWithPasswordlessGrant(targetPath: "/ui/projects")
+            await self?.openLocalCockpitWithPasswordlessGrant(
+                targetPath: destination.targetPath,
+                targetKey: destination.rawValue
+            )
         }
     }
 
-    private func openLocalCockpitWithPasswordlessGrant(targetPath: String? = nil) async {
+    private func openLocalCockpitWithPasswordlessGrant(
+        targetPath: String? = nil,
+        targetKey: String? = nil
+    ) async {
         guard let url = snapshot.localCockpitURL else {
             lastUserMessage = DesktopL10n.string(
                 "ChatCockpit Cockpit is not reachable. Start or repair the local services first."
@@ -694,10 +726,8 @@ final class DesktopAppModel: ObservableObject {
                 return
             }
             components.path = "/ui/local-login"
-            if targetPath == "/ui/projects" {
-                components.queryItems = [URLQueryItem(name: "target", value: "projects")]
-            } else {
-                components.queryItems = nil
+            components.queryItems = targetKey.map {
+                [URLQueryItem(name: "target", value: $0)]
             }
             components.fragment = "local-login=\(grant.grantSecret)"
             NSWorkspace.shared.open(components.url ?? url)

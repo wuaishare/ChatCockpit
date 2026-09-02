@@ -116,6 +116,18 @@ function continueOAuthApprovalIfRequested(): boolean {
   return true;
 }
 
+const LOCAL_LOGIN_CONTINUATION_TARGETS = {
+  projects: consolePath("projects"),
+  work: consolePath("continuity/tasks"),
+  runtime: consolePath("runtime"),
+  resources: consolePath("resources"),
+  devices: consolePath("devices"),
+  publicAccess: consolePath("public-access"),
+  integrations: consolePath("integrations")
+} as const;
+
+type LocalLoginContinuationTarget = keyof typeof LOCAL_LOGIN_CONTINUATION_TARGETS;
+
 function localLoginContinuationPath(): string | null {
   if (
     typeof window === "undefined" ||
@@ -124,7 +136,8 @@ function localLoginContinuationPath(): string | null {
     return null;
   }
   const target = new URLSearchParams(window.location.search).get("target");
-  return target === "projects" ? consolePath("projects") : null;
+  if (!target || !(target in LOCAL_LOGIN_CONTINUATION_TARGETS)) return null;
+  return LOCAL_LOGIN_CONTINUATION_TARGETS[target as LocalLoginContinuationTarget];
 }
 
 function finishOperatorAuthentication(): void {

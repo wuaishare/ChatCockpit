@@ -209,13 +209,17 @@ assert.match(projectCockpit, /root\.pathVisibility === "machine-local-owner"/);
 assert.doesNotMatch(projectCockpit, /<code className="project-root-row__path">\{root\.privatePath\}<\/code>/);
 
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
-assert.match(statusView, /case overview\b/);
-assert.match(statusView, /case runtime\b/);
-assert.match(statusView, /case projects\b/);
-// Gate B owns Desktop IA convergence; this contract must not freeze the historical
-// Access & Security / Updates / Diagnostics section layout as canonical Product IA.
-assert.match(statusView, /NativeIntegrationsBridgeView\(model: model\)/);
+for (const section of ["overview", "projects", "work", "runtime", "resources", "devices", "connections", "thisMac"]) {
+  assert.match(statusView, new RegExp(`case ${section}\\b`));
+}
+assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.work\)/);
+assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.resources\)/);
+assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.devices\)/);
+assert.match(statusView, /NativeConnectionsBridgeView/);
+assert.match(statusView, /NativeThisMacView/);
+assert.match(statusView, /scope: \.thisMac/);
 assert.match(statusView, /NativeDiagnosticsView\(model: model\)/);
+assert.doesNotMatch(statusView, /NativeIntegrationsBridgeView/);
 assert.match(statusView, /jobs\?\.available == true \? jobs\?\.running : nil/);
 assert.match(statusView, /approvals\?\.available == true \? approvals\?\.pending : nil/);
 assert.doesNotMatch(statusView, /operationalSummary[\s\S]*\?\?\s*0/s);
@@ -226,8 +230,8 @@ assert.match(menuBar, /model\.operationalSummary/);
 assert.match(menuBar, /model\.snapshot\.localCockpitURL/);
 assert.match(menuBar, /model\.snapshot\.publicCockpitURL/);
 assert.match(menuBar, /openMainWindow\(\.overview\)/);
-assert.match(menuBar, /openMainWindow\(\.diagnostics\)/);
-assert.match(menuBar, /openMainWindow\(\.updates\)/);
+assert.match(menuBar, /openMainWindow\(\.thisMac\)/);
+assert.doesNotMatch(menuBar, /openMainWindow\(\.(?:updates|diagnostics|accessSecurity|integrations)\)/);
 assert.doesNotMatch(menuBar, /revealMachineApiToken|rotateMachineApiToken|revealOwnerPassword|copyOwnerPassword|setOwnerPasswordFromPanel|setAccessPolicy/);
 assert.doesNotMatch(menuBar, /operationalSummary[\s\S]*\?\?\s*0/s);
 

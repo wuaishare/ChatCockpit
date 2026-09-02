@@ -4,36 +4,39 @@ import TokenPilotDesktopCore
 
 enum MainAppSection: String, CaseIterable, Identifiable {
     case overview
-    case runtime
     case projects
-    case accessSecurity
-    case integrations
-    case updates
-    case diagnostics
+    case work
+    case runtime
+    case resources
+    case devices
+    case connections
+    case thisMac
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .overview: return DesktopL10n.string("Overview")
-        case .runtime: return DesktopL10n.string("Runtime")
         case .projects: return DesktopL10n.string("Projects")
-        case .accessSecurity: return DesktopL10n.string("Access & Security")
-        case .integrations: return DesktopL10n.string("Integrations")
-        case .updates: return DesktopL10n.string("Updates")
-        case .diagnostics: return DesktopL10n.string("Diagnostics")
+        case .work: return DesktopL10n.string("Work")
+        case .runtime: return DesktopL10n.string("Runtime")
+        case .resources: return DesktopL10n.string("Resources")
+        case .devices: return DesktopL10n.string("Devices")
+        case .connections: return DesktopL10n.string("Connections")
+        case .thisMac: return DesktopL10n.string("This Mac")
         }
     }
 
     var systemImage: String {
         switch self {
         case .overview: return "gauge.with.dots.needle.67percent"
-        case .runtime: return "server.rack"
         case .projects: return "folder.badge.gearshape"
-        case .accessSecurity: return "lock.shield"
-        case .integrations: return "point.3.connected.trianglepath.dotted"
-        case .updates: return "arrow.down.circle"
-        case .diagnostics: return "stethoscope"
+        case .work: return "checklist"
+        case .runtime: return "server.rack"
+        case .resources: return "shippingbox"
+        case .devices: return "desktopcomputer"
+        case .connections: return "point.3.connected.trianglepath.dotted"
+        case .thisMac: return "gearshape.2"
         }
     }
 }
@@ -73,22 +76,27 @@ struct MainAppView: View {
                 switch activeSection {
                 case .overview:
                     StatusView(model: model)
-                case .runtime:
-                    SettingsView(model: model, scope: .runtime)
                 case .projects:
                     SettingsView(model: model, scope: .projects)
-                case .accessSecurity:
-                    SettingsView(
+                case .work:
+                    NativeSharedCockpitBridgeView(model: model, destination: .work)
+                case .runtime:
+                    SettingsView(model: model, scope: .runtime)
+                case .resources:
+                    NativeSharedCockpitBridgeView(model: model, destination: .resources)
+                case .devices:
+                    NativeSharedCockpitBridgeView(model: model, destination: .devices)
+                case .connections:
+                    NativeConnectionsBridgeView(
                         model: model,
-                        scope: .accessSecurity,
-                        focus: $operationalSettingsFocus
+                        mainSection: $selection,
+                        operationalSettingsFocus: $operationalSettingsFocus
                     )
-                case .integrations:
-                    NativeIntegrationsBridgeView(model: model)
-                case .updates:
-                    SettingsView(model: model, scope: .updates)
-                case .diagnostics:
-                    NativeDiagnosticsView(model: model)
+                case .thisMac:
+                    NativeThisMacView(
+                        model: model,
+                        operationalSettingsFocus: $operationalSettingsFocus
+                    )
                 }
             }
         }
@@ -168,55 +176,163 @@ private struct AccessibleSidebarButton: NSViewRepresentable {
     }
 }
 
-private struct NativeIntegrationsBridgeView: View {
+private enum NativeSharedCockpitBridgeDestination {
+    case work
+    case resources
+    case devices
+
+    var title: String {
+        switch self {
+        case .work: return DesktopL10n.string("Work")
+        case .resources: return DesktopL10n.string("Resources")
+        case .devices: return DesktopL10n.string("Devices")
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .work:
+            return DesktopL10n.string(
+                "Tasks, Jobs, Approvals, Sessions, Handoffs, and Evidence are one shared work experience. This native shell shows a bounded summary and opens the canonical Cockpit workflow instead of duplicating its state machine."
+            )
+        case .resources:
+            return DesktopL10n.string(
+                "Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, approvals, and resource mutations remain authoritative in the shared Resource Center."
+            )
+        case .devices:
+            return DesktopL10n.string(
+                "Device trust, presence, capabilities, execution policy, and target-aware Runtime management remain authoritative in the shared Devices workbench."
+            )
+        }
+    }
+
+    var cockpitDestination: DesktopCockpitDestination {
+        switch self {
+        case .work: return .work
+        case .resources: return .resources
+        case .devices: return .devices
+        }
+    }
+}
+
+private struct NativeSharedCockpitBridgeView: View {
     @ObservedObject var model: DesktopAppModel
+    let destination: NativeSharedCockpitBridgeDestination
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                GroupBox(DesktopL10n.string("Integration Status")) {
-                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                        summaryRow(
-                            DesktopL10n.string("Web Owner"),
-                            value: model.operatorSecurityStatus?.configured == true
-                                ? DesktopL10n.string("Configured")
-                                : DesktopL10n.string("Not configured")
+                GroupBox(destination.title) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(destination.description)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        cockpitActions
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+
+                if destination == .work {
+                    workSummary
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 760, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var cockpitActions: some View {
+        HStack(spacing: 10) {
+            Button(DesktopL10n.string("Open in Local Cockpit")) {
+                model.openLocalCockpitDestination(destination.cockpitDestination)
+            }
+            .disabled(model.snapshot.localCockpitURL == nil)
+
+            if let url = routedCockpitURL(
+                model.snapshot.publicCockpitURL,
+                destination: destination.cockpitDestination
+            ) {
+                Link(DesktopL10n.string("Open in Public Cockpit"), destination: url)
+            }
+        }
+    }
+
+    private var workSummary: some View {
+        let jobs = model.operationalSummary?.jobs
+        let approvals = model.operationalSummary?.approvals
+
+        return GroupBox(DesktopL10n.string("Operational Summary")) {
+            HStack(spacing: 10) {
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Running jobs"),
+                    count: jobs?.available == true ? jobs?.running : nil,
+                    positiveSemantic: .active
+                )
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Queued jobs"),
+                    count: jobs?.available == true ? jobs?.queued : nil,
+                    positiveSemantic: .pending
+                )
+                OperationalMetricTile(
+                    title: DesktopL10n.string("Pending approvals"),
+                    count: approvals?.available == true ? approvals?.pending : nil,
+                    positiveSemantic: .pending
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+private struct NativeConnectionsBridgeView: View {
+    @ObservedObject var model: DesktopAppModel
+    @Binding var mainSection: MainAppSection?
+    @Binding var operationalSettingsFocus: OperationalSettingsFocus?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                GroupBox(DesktopL10n.string("Connections")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(
+                            DesktopL10n.string(
+                                "Public Access and Integrations are shared ChatCockpit workflows. Use the canonical Cockpit destinations for route intent, OAuth, Passkeys, API/OpenAPI, and client authorization."
+                            )
                         )
-                        summaryRow(
-                            DesktopL10n.string("Machine API token"),
-                            value: model.machineApiTokenStatus?.configured == true
-                                ? DesktopL10n.string("Configured")
-                                : DesktopL10n.string("Not configured")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        connectionRow(
+                            title: DesktopL10n.string("Public Access"),
+                            destination: .publicAccess
                         )
-                        summaryRow(
-                            DesktopL10n.string("Public Cockpit"),
-                            value: model.snapshot.publicCockpitURL == nil
-                                ? DesktopL10n.string("Not configured")
-                                : DesktopL10n.string("Available")
+                        connectionRow(
+                            title: DesktopL10n.string("Integrations & Access"),
+                            destination: .integrations
                         )
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
                 }
 
-                GroupBox(DesktopL10n.string("Cockpit Integrations")) {
-                    VStack(alignment: .leading, spacing: 12) {
+                GroupBox(DesktopL10n.string("This Mac")) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text(
                             DesktopL10n.string(
-                                "ChatGPT OAuth, Passkeys, API/OpenAPI details, and other shared operator workflows belong to the ChatCockpit product experience rather than to a Web-only authority. This native shell currently opens the canonical Cockpit destination while machine-local secrets and OS-specific controls remain on this Host."
+                                "Provider installation, machine credentials, listener policy, and verified Public Route execution require this Mac's native Machine Authority. They stay separate from shared connection intent."
                             )
                         )
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                        webDestination(
-                            DesktopL10n.string("Local Integrations"),
-                            cockpitURL: model.snapshot.localCockpitURL
-                        )
-                        webDestination(
-                            DesktopL10n.string("Public Integrations"),
-                            cockpitURL: model.snapshot.publicCockpitURL
-                        )
+                        Button(DesktopL10n.string("Manage machine connectivity on This Mac")) {
+                            operationalSettingsFocus = .connectivity
+                            mainSection = .thisMac
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
@@ -228,40 +344,95 @@ private struct NativeIntegrationsBridgeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func summaryRow(_ title: String, value: String) -> some View {
-        GridRow {
+    private func connectionRow(
+        title: String,
+        destination: DesktopCockpitDestination
+    ) -> some View {
+        HStack(spacing: 10) {
             Text(title)
-                .foregroundStyle(.secondary)
-            Text(value)
+                .frame(minWidth: 150, alignment: .leading)
+
+            Button(DesktopL10n.string("Open Local")) {
+                model.openLocalCockpitDestination(destination)
+            }
+            .disabled(model.snapshot.localCockpitURL == nil)
+
+            if let url = routedCockpitURL(model.snapshot.publicCockpitURL, destination: destination) {
+                Link(DesktopL10n.string("Open Public"), destination: url)
+            }
         }
     }
+}
 
-    @ViewBuilder
-    private func webDestination(_ title: String, cockpitURL: URL?) -> some View {
-        if let cockpitURL {
-            let url = cockpitURL.appendingPathComponent("integrations", isDirectory: false)
-            Link(destination: url) {
-                HStack(spacing: 8) {
-                    Text(title)
-                    Spacer()
-                    Text(verbatim: url.absoluteString)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "arrow.up.right.square")
+private enum NativeThisMacTab: String, CaseIterable, Identifiable {
+    case machine
+    case diagnostics
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .machine: return DesktopL10n.string("Machine Settings")
+        case .diagnostics: return DesktopL10n.string("Diagnostics")
+        }
+    }
+}
+
+private struct NativeThisMacView: View {
+    @ObservedObject var model: DesktopAppModel
+    @Binding var operationalSettingsFocus: OperationalSettingsFocus?
+    @State private var selectedTab: NativeThisMacTab = .machine
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                ForEach(NativeThisMacTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
                 }
             }
-            .contentShape(Rectangle())
-            .focusable(true)
-            .onHover { hovering in
-                (hovering ? NSCursor.pointingHand : NSCursor.arrow).set()
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            switch selectedTab {
+            case .machine:
+                SettingsView(
+                    model: model,
+                    scope: .thisMac,
+                    focus: $operationalSettingsFocus
+                )
+            case .diagnostics:
+                NativeDiagnosticsView(model: model)
             }
-            .accessibilityLabel("\(title): \(url.absoluteString)")
-            .accessibilityHint(DesktopL10n.string("Open in Browser"))
-            .help("\(DesktopL10n.string("Open in Browser")): \(url.absoluteString)")
+        }
+        .onAppear {
+            if operationalSettingsFocus != nil {
+                selectedTab = .machine
+            }
+        }
+        .onChange(of: operationalSettingsFocus) { _, focus in
+            if focus != nil {
+                selectedTab = .machine
+            }
         }
     }
+}
+
+private func routedCockpitURL(
+    _ baseURL: URL?,
+    destination: DesktopCockpitDestination
+) -> URL? {
+    guard let baseURL,
+          var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+        return nil
+    }
+    components.path = destination.targetPath
+    components.query = nil
+    components.fragment = nil
+    return components.url
 }
 
 private struct NativeDiagnosticsView: View {
