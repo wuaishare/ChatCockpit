@@ -195,19 +195,21 @@ public struct RuntimeController: RuntimeControlling, Sendable {
         let configuration = configurationReader.read(stateRootURL: context.stateRootURL)
         async let node = nodeResolver.inspect(context: context)
 
-        let lifecycleStatus: LifecycleStatus
+        let observedLifecycleStatus: LifecycleStatus
         do {
-            lifecycleStatus = try await lifecycle.status(context: context.lifecycleContext)
+            observedLifecycleStatus = try await lifecycle.status(context: context.lifecycleContext)
         } catch {
-            lifecycleStatus = .unknown
+            observedLifecycleStatus = .unknown
         }
 
-        let localHealth: LocalHealthStatus
-        if lifecycleStatus.controlPlane == .running {
-            localHealth = await health.probe(configuration: configuration)
-        } else {
-            localHealth = .unreachable
-        }
+        // The direct loopback health endpoint is deployed-runtime truth. Lifecycle status can
+        // briefly lag during a managed restart, so always probe it instead of suppressing the
+        // probe when launchd/status files transiently report the Control Plane as stopped.
+        let localHealth = await health.probe(configuration: configuration)
+        let lifecycleStatus = reconcileLifecycleStatus(
+            observedLifecycleStatus,
+            localHealth: localHealth
+        )
 
         let nodeStatus = await node
         var workspaceIsDirectory: ObjCBool = false
@@ -233,6 +235,23 @@ public struct RuntimeController: RuntimeControlling, Sendable {
             lifecycle: lifecycleStatus,
             healthReachable: localHealth.healthReachable,
             uiReachable: localHealth.uiReachable
+        )
+    }
+
+
+    private func reconcileLifecycleStatus(
+        _ lifecycleStatus: LifecycleStatus,
+        localHealth: LocalHealthStatus
+    ) -> LifecycleStatus {
+        guard localHealth.healthReachable,
+              lifecycleStatus.controlPlane != .running else {
+            return lifecycleStatus
+        }
+        return LifecycleStatus(
+            controlPlane: .running,
+            runner: lifecycleStatus.runner,
+            processSupervisor: lifecycleStatus.processSupervisor,
+            uiURL: lifecycleStatus.uiURL
         )
     }
 

@@ -149,11 +149,16 @@ private struct AccessibleSidebarButton: NSViewRepresentable {
 
     private func configure(_ button: NSButton, coordinator: Coordinator) {
         coordinator.action = action
-        button.title = title
+        button.attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [.foregroundColor: NSColor.labelColor]
+        )
         button.image = NSImage(
             systemSymbolName: systemName,
             accessibilityDescription: nil
         )
+        button.image?.isTemplate = true
+        button.contentTintColor = .labelColor
         button.toolTip = title
         button.setAccessibilityLabel(title)
         button.setAccessibilityHelp(title)

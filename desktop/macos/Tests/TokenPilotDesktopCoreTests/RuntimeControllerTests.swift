@@ -162,6 +162,52 @@ struct RuntimeControllerTests {
         #expect(snapshot.lifecycle == .unknown)
     }
 
+    @Test("reachable ChatCockpit health corrects a stale stopped Control Plane projection")
+    func reachableHealthCorrectsStaleStoppedControlPlane() async {
+        let staleLifecycle = LifecycleStatus(
+            controlPlane: .stopped,
+            runner: .running,
+            processSupervisor: .ready,
+            uiURL: nil
+        )
+        let controller = RuntimeController(
+            configurationReader: FixtureConfigurationReader(),
+            nodeResolver: FixtureNodeResolver(supported: true),
+            lifecycle: FixtureLifecycleController(status: staleLifecycle),
+            health: FixtureHealthChecker(
+                status: LocalHealthStatus(healthReachable: true, uiReachable: true)
+            )
+        )
+
+        let snapshot = await controller.snapshot(root: root)
+
+        #expect(snapshot.lifecycle.controlPlane == .running)
+        #expect(snapshot.overallState == .ready)
+        #expect(snapshot.localCockpitURL?.absoluteString == "http://127.0.0.1:4318/ui/")
+    }
+
+    @Test("stopped Control Plane remains stopped when ChatCockpit health is unreachable")
+    func unreachableHealthPreservesStoppedControlPlane() async {
+        let stoppedLifecycle = LifecycleStatus(
+            controlPlane: .stopped,
+            runner: .running,
+            processSupervisor: .ready,
+            uiURL: nil
+        )
+        let controller = RuntimeController(
+            configurationReader: FixtureConfigurationReader(),
+            nodeResolver: FixtureNodeResolver(supported: true),
+            lifecycle: FixtureLifecycleController(status: stoppedLifecycle),
+            health: FixtureHealthChecker(status: .unreachable)
+        )
+
+        let snapshot = await controller.snapshot(root: root)
+
+        #expect(snapshot.lifecycle.controlPlane == .stopped)
+        #expect(snapshot.overallState == .stopped)
+        #expect(snapshot.localCockpitURL == nil)
+    }
+
     @Test("perform delegates one action then refreshes")
     func performDelegatesAndRefreshes() async throws {
         let lifecycle = RecordingLifecycleController(status: readyLifecycle)
