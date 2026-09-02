@@ -332,7 +332,7 @@ Bind、Resume、Fork 本身不会启动 Turn。
 
 ### Async Agent Job
 
-更长的排队任务使用 Continuity-bound Async Job Queue。Queue 创建会固定 Task/Session/Binding 身份，Runner Claim 会校验关系，终态会记录 Evidence 并释放 Binding，重启对账可幂等修复中断的 SQLite 交接。
+更长的排队作业使用 Continuity-bound Async Job Queue。Queue 创建会固定 Task/Session/Binding 身份，Runner Claim 会校验关系，终态会记录 Evidence 并释放 Binding，重启对账可幂等修复中断的 SQLite 交接。
 
 ### Spec/Plan Continuity
 
@@ -369,16 +369,16 @@ chatcockpit.workspace.snapshot
 
 绝对路径和原始 Runtime Request Body 不会返回。
 
-### Workspace 接入与已有 Codex Thread 交接
+### Project 接入与已有 Codex Thread 交接
 
-本机 Owner 可以在 `<安全入口>/continuity/projects` 使用“管理工作区 / 添加项目”：
+本机 Owner 统一在 `<安全入口>/projects` 的**项目中心**管理本机项目权限：
 
-1. 添加一个 **Workspace Discovery Root**，例如某个集中存放 Git 项目的父目录；
-2. ChatCockpit 只做 depth-1、有上限、不跟随 symlink escape 的只读 Git 发现；
-3. 从候选中显式选择一个子项目加入 ChatCockpit；
-4. 只有这个精确 checkout 会进入 `workspaceAllowlist + repoMappings`，同级兄弟项目不会因为父目录获批而自动获得 AI 执行权限。
+1. 已知项目目录可直接使用“**添加项目**”；一个父目录包含多个 Git 项目时，使用“**授权发现位置**”；
+2. 授权发现位置只允许有上限的 depth-1 只读发现，不跟随 symlink escape，也不会自动授权全部子项目；
+3. 只显式导入真正需要 ChatCockpit 管理的候选项目。选中的 Git 目录会成为受治理的 Project Root，并可提供带公开 repoId 的 Execution Workspace；
+4. 同一发现位置中的其他项目仍不可被 AI 操作，直到被明确添加或导入；无需手工编辑 Repo Mapping。
 
-Discovery Root 是 machine-local path authority，因此添加、删除、扫描与项目导入只能从目标机器的 Owner Web 会话执行；Remote MCP 不提供本机路径管理工具。
+发现位置与本机 Project Root 变更属于 machine-local path authority，因此添加、删除、扫描与项目导入只能从目标机器的 Owner Web 会话执行；Remote MCP 不提供本机路径管理工具。
 
 对于已经存在的 Codex 会话，可以在目标 Workspace 的 Sessions 页面选择“导入 Codex 会话”，输入裸 Thread ID 或：
 

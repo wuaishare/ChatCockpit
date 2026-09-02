@@ -370,16 +370,16 @@ The snapshot includes public-safe:
 
 Local absolute paths and raw runtime request bodies are not returned.
 
-### Workspace onboarding and existing Codex Thread handoff
+### Project onboarding and existing Codex Thread handoff
 
-A machine-local Owner can use **Manage workspaces / Add project** from `<secure-entry>/continuity/projects`:
+A machine-local Owner manages local project authority from `<secure-entry>/projects` in **Project Center**:
 
-1. Add a **Workspace Discovery Root**, usually a parent directory that contains Git projects.
-2. ChatCockpit performs a bounded depth-1, read-only Git discovery and does not follow symlink escapes.
-3. Explicitly choose one candidate child repository to add to ChatCockpit.
-4. Only that exact checkout is added to `workspaceAllowlist + repoMappings`; sibling projects do not receive AI execution authority merely because their parent directory is approved for discovery.
+1. Use **Add project** for a known local project folder, or **Authorized discovery locations** when a parent directory contains multiple Git projects.
+2. An authorized discovery location grants only bounded depth-1, read-only discovery; ChatCockpit does not follow symlink escapes and does not authorize every child project.
+3. Explicitly import only the candidate project that ChatCockpit should manage. The selected Git root becomes a governed Project Root and can provide an Execution Workspace with a public repoId.
+4. Sibling projects remain unavailable to AI operations until they are explicitly imported or added. No manual Repo Mapping edit is required.
 
-Discovery Roots are machine-path authority, so add/remove/scan/import operations require an Owner Web session on the target machine. Remote MCP exposes no local path-management tool.
+Discovery locations and local Project Root mutations are machine-path authority, so add/remove/scan/import operations require an Owner Web session on the target machine. Remote MCP exposes no local path-management tool.
 
 For an existing Codex conversation, open the target Workspace Sessions view and choose **Import Codex session**. Supply either a raw Thread ID or:
 

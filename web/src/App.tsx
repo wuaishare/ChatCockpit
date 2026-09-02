@@ -203,7 +203,6 @@ const VIEW_PATHS: Record<ViewKey, string> = {
 };
 
 const CONTINUITY_SECTIONS = new Set<ContinuitySectionKey>([
-  "projects",
   "documents",
   "tasks",
   "sessions",
@@ -260,7 +259,7 @@ function baseRoute(view: ViewKey = "dashboard"): ParsedRoute {
   return {
     view,
     jobId: null,
-    continuitySection: "projects",
+    continuitySection: "tasks",
     projectId: null
   };
 }
@@ -294,7 +293,7 @@ function parseRoute(): ParsedRoute {
   if (route === "continuity" || route.startsWith("continuity/")) {
     const candidate = route.startsWith("continuity/")
       ? decodeURIComponent(route.slice("continuity/".length))
-      : "projects";
+      : "tasks";
     if (candidate === "projects") {
       window.history.replaceState(null, "", VIEW_PATHS.projects);
       return baseRoute("projects");
@@ -1051,6 +1050,10 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   }
 
   function navigateContinuitySection(section: ContinuitySectionKey) {
+    if (section === "projects") {
+      navigateView("projects");
+      return;
+    }
     navigateView("continuity", null, section);
   }
 
@@ -1375,6 +1378,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               authRequired={health.authRequired}
               activeSection={activeContinuitySection}
               onSectionChange={navigateContinuitySection}
+              onOpenProjects={() => navigateView("projects")}
             />
           </Suspense>
         ) : null}

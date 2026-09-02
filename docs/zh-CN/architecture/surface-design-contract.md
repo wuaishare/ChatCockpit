@@ -158,7 +158,7 @@ Matrix 描述的是**产品可见性与执行要求**，不是某个 Surface 独
 用户可见语言应围绕同一套概念收口：
 
 - Control Plane / 控制平面
-- Runner / 任务运行器
+- Runner / 作业运行器
 - Process Supervisor / 进程监控器
 - Local Cockpit / 本机控制台
 - Public Cockpit / 公网控制台
@@ -169,6 +169,9 @@ Matrix 描述的是**产品可见性与执行要求**，不是某个 Surface 独
 - Project Root / 项目目录
 - Primary Root / 主项目目录
 - Execution Workspace / 执行工作区
+- Task / 任务 —— 持久化的 Continuity 工作项，承载目标、状态以及 Session / Handoff / Evidence 关系
+- Job / 作业 —— 由 Runner 消费、具有 queued / running / terminal 状态的异步执行记录
+- Runtime Provider / 运行时 Provider —— 模型、Agent Runtime 等执行/运行时集成
 - Machine API Token / 机器 API 令牌
 - Passkey / 通用密钥
 - TOTP two-factor authentication / TOTP 双重认证
@@ -178,7 +181,7 @@ Matrix 描述的是**产品可见性与执行要求**，不是某个 Surface 独
 - Connectivity Provider / 接入组件
 - Public Endpoint / 公网端点
 
-不同语言可以调整语序与表达，但不能针对同一个 Authority 或 Endpoint 再造第二套产品概念。
+不同语言可以调整语序与表达，但不能针对同一个 Authority 或 Endpoint 再造第二套产品概念。尤其是 **Task 与 Job 绝不是同义词**：中文 UI 中 Task 固定为“任务”，Job 固定为“作业”。**Runtime Provider 与 Connectivity Provider / 接入组件属于不同 Provider 类别**；只有上下文已经明确所属领域时，才允许单独显示“Provider”。`repo mapping`、`workspaceAllowlist` 与 `/continuity/projects` 仅保留为兼容/内部术语，不得重新成为主产品导航或项目接入文案。“Operator”描述 Authority/Workflow 角色；浏览器中的人类账户仍统一称为 **Web Owner / 控制台管理员**。
 
 ## 贡献者检查清单
 

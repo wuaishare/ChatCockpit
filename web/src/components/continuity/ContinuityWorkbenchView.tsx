@@ -1,4 +1,4 @@
-import { Button, Menu, Select, Tag } from "antd";
+import { Button, Menu, Select } from "antd";
 import type { MenuProps } from "antd";
 import { UiText as Text } from "../UiText";
 import {
@@ -7,34 +7,27 @@ import {
   CheckSquareOutlined,
   CodeOutlined,
   FileTextOutlined,
-  ProjectOutlined,
+  FolderOpenOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
-  SettingOutlined,
   SyncOutlined,
   SwapOutlined
 } from "@ant-design/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  fetchContinuityProject,
   fetchContinuityProjects,
   fetchWorkspaceContinuitySnapshot
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
-import type { OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
-  ContinuityProjectDetailResponse,
   ContinuityProjectProjection,
   ContinuitySectionKey,
-  ContinuityWorkspaceSnapshot,
-  ContinuityWorkspaceStatus
+  ContinuityWorkspaceSnapshot
 } from "../../types";
 import { StateNotice } from "../StateNotice";
-import { ProjectCockpitOverview } from "./ProjectCockpitOverview";
 import { WorkspaceContinuityPanel } from "./WorkspaceContinuityPanel";
-import { WorkspaceOnboardingDrawer } from "./WorkspaceOnboardingDrawer";
 
 interface ContinuityWorkbenchViewProps {
   locale: LocaleCode;
@@ -42,10 +35,11 @@ interface ContinuityWorkbenchViewProps {
   authRequired: boolean;
   activeSection: ContinuitySectionKey;
   onSectionChange: (section: ContinuitySectionKey) => void;
+  onOpenProjects: () => void;
 }
 
 const SECTION_ICONS: Record<ContinuitySectionKey, React.ReactNode> = {
-  projects: <ProjectOutlined />,
+  projects: <FolderOpenOutlined />,
   documents: <FileTextOutlined />,
   tasks: <CheckSquareOutlined />,
   sessions: <CodeOutlined />,
@@ -63,46 +57,28 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function shortCommit(value: string | null): string {
-  return value ? value.slice(0, 12) : "—";
-}
-
 export function ContinuityWorkbenchView({
   locale,
   token,
   authRequired,
   activeSection,
-  onSectionChange
+  onSectionChange,
+  onOpenProjects
 }: ContinuityWorkbenchViewProps) {
   const copy = getUiCopy(locale).continuity;
   const [projects, setProjects] = useState<ContinuityProjectProjection[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-  const [projectDetail, setProjectDetail] = useState<ContinuityProjectDetailResponse | null>(null);
-  const [projectDetailLoading, setProjectDetailLoading] = useState(false);
-  const [projectDetailError, setProjectDetailError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ContinuityWorkspaceSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
-  const [workspaceManagerOpen, setWorkspaceManagerOpen] = useState(false);
   const protectedView = authRequired && !token?.trim();
-  const selectedProjectId = useMemo(() => {
-    if (!selectedWorkspaceId) return null;
-    return (
-      projects.find(({ workspaces }) =>
-        workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
-      )?.project.id ?? null
-    );
-  }, [projects, selectedWorkspaceId]);
 
   const loadProjects = useCallback(async () => {
     if (protectedView) {
       setProjects([]);
       setSelectedWorkspaceId(null);
-      setProjectDetail(null);
-      setProjectDetailError(null);
-      setProjectDetailLoading(false);
       setSnapshot(null);
       setError(null);
       setSnapshotError(null);
@@ -148,31 +124,9 @@ export function ContinuityWorkbenchView({
     void loadProjects();
   }, [loadProjects]);
 
-  const loadProjectDetail = useCallback(async () => {
-    if (activeSection !== "projects" || protectedView || !selectedProjectId) {
-      setProjectDetail(null);
-      setProjectDetailError(null);
-      setProjectDetailLoading(false);
-      return;
-    }
-    setProjectDetail(null);
-    setProjectDetailLoading(true);
-    setProjectDetailError(null);
-    try {
-      setProjectDetail(await fetchContinuityProject(selectedProjectId, token));
-    } catch (loadError) {
-      setProjectDetailError(errorMessage(loadError, copy.requestFailedTitle));
-    } finally {
-      setProjectDetailLoading(false);
-    }
-  }, [activeSection, copy.requestFailedTitle, protectedView, selectedProjectId, token]);
-
-  useEffect(() => {
-    void loadProjectDetail();
-  }, [loadProjectDetail]);
 
   const loadSnapshot = useCallback(async () => {
-    if (activeSection === "projects" || protectedView || !selectedWorkspaceId) {
+    if (protectedView || !selectedWorkspaceId) {
       setSnapshot(null);
       setSnapshotError(null);
       setSnapshotLoading(false);
@@ -192,7 +146,7 @@ export function ContinuityWorkbenchView({
     } finally {
       setSnapshotLoading(false);
     }
-  }, [activeSection, copy.requestFailedTitle, protectedView, selectedWorkspaceId, token]);
+  }, [copy.requestFailedTitle, protectedView, selectedWorkspaceId, token]);
 
   useEffect(() => {
     void loadSnapshot();
@@ -200,23 +154,16 @@ export function ContinuityWorkbenchView({
 
   const menuItems = useMemo<MenuProps["items"]>(
     () =>
-      (Object.keys(copy.sections) as ContinuitySectionKey[]).map((section) => ({
-        key: section,
-        icon: SECTION_ICONS[section],
-        label: copy.sections[section].label
-      })),
+      (Object.keys(copy.sections) as ContinuitySectionKey[])
+        .filter((section) => section !== "projects")
+        .map((section) => ({
+          key: section,
+          icon: SECTION_ICONS[section],
+          label: copy.sections[section].label
+        })),
     [copy.sections]
   );
 
-  const workspaceCount = projects.reduce(
-    (total, projection) => total + projection.workspaces.length,
-    0
-  );
-  const readyWorkspaceCount = projects.reduce(
-    (total, projection) =>
-      total + projection.workspaces.filter((workspace) => workspace.status === "ready").length,
-    0
-  );
   const workspaceOptions = useMemo(
     () =>
       projects.flatMap(({ project, workspaces }) =>
@@ -228,16 +175,6 @@ export function ContinuityWorkbenchView({
     [projects]
   );
   const sectionCopy = copy.sections[activeSection];
-
-  const handleWorkspaceImported = useCallback(
-    async (workspaceId: string) => {
-      await loadProjects();
-      setSelectedWorkspaceId(workspaceId);
-      setWorkspaceManagerOpen(false);
-      onSectionChange("projects");
-    },
-    [loadProjects, onSectionChange]
-  );
 
   return (
     <section className="continuity-workbench" aria-labelledby="continuity-workbench-title">
@@ -255,7 +192,7 @@ export function ContinuityWorkbenchView({
         </div>
         <Button
           icon={<ReloadOutlined />}
-          onClick={() => void Promise.all([loadProjects(), loadProjectDetail()])}
+          onClick={() => void Promise.all([loadProjects(), loadSnapshot()])}
           loading={loading}
           disabled={protectedView}
         >
@@ -299,11 +236,11 @@ export function ContinuityWorkbenchView({
                   disabled={workspaceOptions.length === 0}
                 />
                 <Button
-                  icon={<SettingOutlined />}
-                  onClick={() => setWorkspaceManagerOpen(true)}
+                  icon={<FolderOpenOutlined />}
+                  onClick={onOpenProjects}
                   disabled={protectedView}
                 >
-                  {copy.manageWorkspaces}
+                  {copy.openProjectCenter}
                 </Button>
               </div>
             </div>
@@ -338,36 +275,6 @@ export function ContinuityWorkbenchView({
               description={copy.selectWorkspaceHint}
               retryLabel={copy.refresh}
             />
-          ) : activeSection === "projects" ? (
-            <>
-              {projectDetailLoading ? (
-                <StateNotice
-                  kind="loading"
-                  title={copy.projectDetailLoadingTitle}
-                  description={copy.projectDetailLoadingDescription}
-                  retryLabel={copy.refresh}
-                />
-              ) : projectDetailError ? (
-                <StateNotice
-                  kind="error"
-                  title={copy.requestFailedTitle}
-                  description={projectDetailError}
-                  retryLabel={copy.refresh}
-                  onRetry={() => void loadProjectDetail()}
-                />
-              ) : projectDetail ? (
-                <ProjectCockpitOverview locale={locale} detail={projectDetail} />
-              ) : null}
-              <ProjectsSection
-                locale={locale}
-                projects={projects}
-                workspaceCount={workspaceCount}
-                readyWorkspaceCount={readyWorkspaceCount}
-                selectedWorkspaceId={selectedWorkspaceId}
-                onSelectWorkspace={setSelectedWorkspaceId}
-                onManageWorkspaces={() => setWorkspaceManagerOpen(true)}
-              />
-            </>
           ) : snapshotLoading ? (
             <StateNotice
               kind="loading"
@@ -395,162 +302,6 @@ export function ContinuityWorkbenchView({
           ) : null}
         </main>
       </div>
-
-      <WorkspaceOnboardingDrawer
-        open={workspaceManagerOpen}
-        locale={locale}
-        token={token}
-        projects={projects}
-        onClose={() => setWorkspaceManagerOpen(false)}
-        onImported={handleWorkspaceImported}
-      />
     </section>
   );
 }
-
-function ProjectsSection({
-  locale,
-  projects,
-  workspaceCount,
-  readyWorkspaceCount,
-  selectedWorkspaceId,
-  onSelectWorkspace,
-  onManageWorkspaces
-}: {
-  locale: LocaleCode;
-  projects: ContinuityProjectProjection[];
-  workspaceCount: number;
-  readyWorkspaceCount: number;
-  selectedWorkspaceId: string;
-  onSelectWorkspace: (workspaceId: string) => void;
-  onManageWorkspaces: () => void;
-}) {
-  const copy = getUiCopy(locale).continuity;
-
-  if (projects.length === 0) {
-    return (
-      <StateNotice
-        kind="empty"
-        title={copy.noProjectsTitle}
-        description={copy.noProjectsDescription}
-        retryLabel={copy.refresh}
-      />
-    );
-  }
-
-  return (
-    <div className="continuity-projects">
-      <div className="continuity-projects__actions">
-        <Button type="primary" icon={<ProjectOutlined />} onClick={onManageWorkspaces}>
-          {copy.addProject}
-        </Button>
-      </div>
-      <div className="continuity-summary" aria-label={copy.sections.projects.title}>
-        <SummaryMetric value={projects.length} label={copy.projectCount} />
-        <SummaryMetric value={workspaceCount} label={copy.workspaceCount} />
-        <SummaryMetric value={readyWorkspaceCount} label={copy.readyWorkspaceCount} />
-      </div>
-
-      <div className="continuity-project-list">
-        {projects.map(({ project, workspaces }) => (
-          <article className="continuity-project" key={project.id}>
-            <header className="continuity-project__header">
-              <div>
-                <div className="continuity-project__name-row">
-                  <Text as="h3" className="continuity-project__name">
-                    {project.displayName}
-                  </Text>
-                  <Tag>{copy.statusActive}</Tag>
-                </div>
-                <code className="continuity-project__slug">{project.slug}</code>
-              </div>
-              <div className="continuity-project__revision">
-                <span>{copy.revision}</span>
-                <strong>{project.revision}</strong>
-              </div>
-            </header>
-
-            <div className="continuity-project__workspace-heading">
-              <span>{copy.workspaces}</span>
-              <strong>{workspaces.length}</strong>
-            </div>
-            <div className="continuity-workspace-list">
-              {workspaces.map((workspace) => {
-                const isDefault = workspace.id === project.defaultWorkspaceId;
-                return (
-                  <button
-                    type="button"
-                    className={`continuity-workspace ${
-                      selectedWorkspaceId === workspace.id ? "is-selected" : ""
-                    }`}
-                    key={workspace.id}
-                    onClick={() => onSelectWorkspace(workspace.id)}
-                  >
-                    <div className="continuity-workspace__main">
-                      <div className="continuity-workspace__name-row">
-                        <strong>{workspace.repoId}</strong>
-                        <WorkspaceStatusTag status={workspace.status} locale={locale} />
-                        {isDefault ? <Tag color="processing">{copy.defaultWorkspace}</Tag> : null}
-                      </div>
-                      <div className="continuity-workspace__meta">
-                        <span>
-                          {copy.branch}: <code>{workspace.branch || "—"}</code>
-                        </span>
-                        <span>
-                          {copy.headCommit}: <code>{shortCommit(workspace.headCommit)}</code>
-                        </span>
-                        <span>
-                          {copy.revision}: <strong>{workspace.revision}</strong>
-                        </span>
-                      </div>
-                    </div>
-                    <span
-                      className={`continuity-workspace__cleanliness ${
-                        workspace.dirty ? "is-dirty" : "is-clean"
-                      }`}
-                    >
-                      {workspace.dirty ? copy.dirty : copy.clean}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SummaryMetric({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="continuity-summary__metric">
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function WorkspaceStatusTag({
-  status,
-  locale
-}: {
-  status: ContinuityWorkspaceStatus;
-  locale: LocaleCode;
-}) {
-  const copy = getUiCopy(locale).continuity;
-  const labelByStatus: Record<ContinuityWorkspaceStatus, string> = {
-    ready: copy.statusReady,
-    missing: copy.statusMissing,
-    blocked: copy.statusBlocked,
-    archived: copy.statusArchived
-  };
-  const colorByStatus: Record<ContinuityWorkspaceStatus, OperationalStatusTone> = {
-    ready: "success",
-    missing: "warning",
-    blocked: "error",
-    archived: "default"
-  };
-  return <Tag color={colorByStatus[status]}>{labelByStatus[status]}</Tag>;
-}
-

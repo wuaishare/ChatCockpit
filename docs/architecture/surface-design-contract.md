@@ -169,6 +169,9 @@ User-visible product language should converge on the same concepts across surfac
 - Project Root / 项目目录
 - Primary Root / 主项目目录
 - Execution Workspace / 执行工作区
+- Task / 任务 — a durable Continuity work item with goal, state, Session/Handoff/Evidence relationships
+- Job / 作业 — a queued/running/terminal asynchronous execution record consumed by the Runner
+- Runtime Provider / 运行时 Provider — an execution/runtime integration such as a model or agent runtime
 - Machine API Token / 机器 API 令牌
 - Passkey / 通用密钥
 - TOTP two-factor authentication / TOTP 双重认证
@@ -178,7 +181,7 @@ User-visible product language should converge on the same concepts across surfac
 - Connectivity Provider / 接入组件
 - Public Endpoint / 公网端点
 
-Translations may adapt grammar for the locale, but must not invent a second product concept for the same authority or endpoint.
+Translations may adapt grammar for the locale, but must not invent a second product concept for the same authority or endpoint. In particular, **Task and Job are never synonyms**: Chinese UI uses “任务” for Task and “作业” for Job. **Runtime Provider and Connectivity Provider are separate provider classes**; a generic “Provider” label is acceptable only when the surrounding domain already makes the class unambiguous. `repo mapping`, `workspaceAllowlist`, and `/continuity/projects` remain compatibility/internal terms and must not reappear as primary product navigation or onboarding language. “Operator” describes an authority/workflow role; the human browser account remains **Web Owner / 控制台管理员**.
 
 ## Contributor Checklist
 

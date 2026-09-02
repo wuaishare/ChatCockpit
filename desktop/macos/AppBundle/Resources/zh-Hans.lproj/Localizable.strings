@@ -1,6 +1,6 @@
 "Runtime" = "运行环境";
 "Control Plane" = "控制平面";
-"Runner" = "任务运行器";
+"Runner" = "作业运行器";
 "Process Supervisor" = "进程监控器";
 "Local Cockpit" = "本机控制台";
 "Public Cockpit" = "公网控制台";
@@ -243,11 +243,11 @@
 "Runtime controls" = "运行控制";
 "Runtime Health" = "运行环境健康";
 "Activity" = "活动";
-"Running jobs" = "运行任务";
-"Queued jobs" = "排队任务";
+"Running jobs" = "运行作业";
+"Queued jobs" = "排队作业";
 "Failed records" = "失败记录";
 "Pending approvals" = "待审批";
-"Stored failed job records are historical records, not active Runtime failures." = "失败记录是当前保留的历史 failed Job 记录，不代表 Runtime 正在发生故障。";
+"Stored failed job records are historical records, not active Runtime failures." = "失败记录是当前保留的历史失败作业记录，不代表 Runtime 正在发生故障。";
 "Access" = "访问";
 "Environment" = "环境";
 "Trusted LAN" = "可信局域网";

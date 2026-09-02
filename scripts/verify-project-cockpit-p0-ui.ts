@@ -1,80 +1,43 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const view = fs.readFileSync("web/src/components/continuity/ContinuityWorkbenchView.tsx", "utf8");
+const app = fs.readFileSync("web/src/App.tsx", "utf8");
+const continuity = fs.readFileSync("web/src/components/continuity/ContinuityWorkbenchView.tsx", "utf8");
+const center = fs.readFileSync("web/src/components/projects/ProjectCenterView.tsx", "utf8");
+const cockpit = fs.readFileSync("web/src/components/projects/ProjectCockpitView.tsx", "utf8");
 const api = fs.readFileSync("web/src/api.ts", "utf8");
-const types = fs.readFileSync("web/src/types.ts", "utf8");
-const copy = fs.readFileSync("web/src/i18n/continuity.ts", "utf8");
 const styles = fs.readFileSync("web/src/styles.css", "utf8");
 const responsive = fs.readFileSync("web/src/styles/continuity-responsive.css", "utf8");
-const workspacePanel = fs.readFileSync("web/src/components/continuity/WorkspaceContinuityPanel.tsx", "utf8");
-const componentPath = "web/src/components/continuity/ProjectCockpitOverview.tsx";
+const legacyComponent = "web/src/components/continuity/ProjectCockpitOverview.tsx";
 
-assert.equal(fs.existsSync(componentPath), true, "ProjectCockpitOverview must be a dedicated component");
-const cockpit = fs.readFileSync(componentPath, "utf8");
+// Project Center / Project Cockpit is the single current project-management surface.
+assert.match(app, /projects:\s*consolePath\("projects"\)/);
+assert.match(app, /candidate === "projects"[\s\S]*VIEW_PATHS\.projects/);
+assert.match(app, /continuitySection:\s*"tasks"/);
+assert.match(app, /onOpenProjects=\{\(\) => navigateView\("projects"\)\}/);
+assert.match(center, /WorkspaceOnboardingDrawer/);
+assert.match(center, /fetchProjectDiscovery/);
+assert.match(center, /createProject/);
+assert.match(center, /attachProjectRoot/);
+assert.match(cockpit, /fetchProject/);
+assert.match(cockpit, /attachProjectRoot/);
+assert.match(cockpit, /makeProjectRootPrimary/);
+assert.match(cockpit, /detachProjectRoot/);
 
-assert.match(api, /fetchContinuityProject\(/);
-assert.match(api, /\/api\/continuity\/projects\/\$\{encodeURIComponent\(projectId\)\}/);
-assert.match(types, /interface ContinuityProjectDetailResponse/);
-assert.match(types, /developmentCoordination:/);
-assert.match(types, /mcpApplicability:/);
+// Continuity keeps coordination workflows only; it must not own a second Project cockpit/onboarding state machine.
+assert.equal(fs.existsSync(legacyComponent), false, "legacy Continuity ProjectCockpitOverview must stay removed");
+assert.match(continuity, /\.filter\(\(section\) => section !== "projects"\)/);
+assert.match(continuity, /copy\.openProjectCenter/);
+assert.match(continuity, /onOpenProjects/);
+assert.doesNotMatch(continuity, /WorkspaceOnboardingDrawer/);
+assert.doesNotMatch(continuity, /ProjectCockpitOverview/);
+assert.doesNotMatch(continuity, /\bfetchContinuityProject\b/);
+assert.doesNotMatch(continuity, /activeSection === "projects"/);
+assert.doesNotMatch(styles, /\.project-cockpit-grid|\.continuity-projects\s*\{/);
+assert.doesNotMatch(responsive, /\.project-cockpit-grid/);
 
-assert.match(view, /fetchContinuityProject/);
-assert.match(view, /ProjectCockpitOverview/);
-assert.match(view, /selectedProjectId/);
-assert.match(view, /activeSection === "projects"/);
-assert.match(view, /projectDetailError/);
-assert.match(view, /projectDetailLoading/);
-const projectRenderGate = view.indexOf('activeSection === "projects" ?');
-const snapshotRenderGate = view.indexOf('snapshotLoading ?');
-assert.ok(projectRenderGate >= 0 && snapshotRenderGate > projectRenderGate, "Projects must render before the Workspace snapshot gate");
-assert.match(view, /if \(activeSection === "projects" \|\| protectedView \|\| !selectedWorkspaceId\)/);
-assert.match(view, /if \(activeSection !== "projects" \|\| protectedView \|\| !selectedProjectId\)/);
-assert.doesNotMatch(workspacePanel, /projectsContent/);
-
-for (const authority of [
-  "developmentCoordination.modelLoopOwnership",
-  "developmentCoordination.workspaceExecution",
-  "developmentCoordination.codexContinuity",
-  "developmentCoordination.mcpApplicability",
-  "developmentCoordination.handoff"
-]) {
-  assert.ok(cockpit.includes(authority), `Cockpit must consume authoritative ${authority}`);
-}
-assert.doesNotMatch(cockpit, /nativeDevelopment/);
-assert.doesNotMatch(cockpit, /runtimeAvailable\s*\?\s*["']caller/);
-assert.doesNotMatch(cockpit, /defaultOwner\s*=|nextAction\s*=/);
-assert.doesNotMatch(cockpit, /\{\s*codexContinuity\.nextAction\s*\}/);
-assert.doesNotMatch(cockpit, /\{\s*codexContinuity\.runtimeAvailability\s*\}/);
-assert.doesNotMatch(cockpit, /thread\.preview/);
-assert.equal((cockpit.match(/<article className="project-cockpit-card">/g) ?? []).length, 3);
-
-assert.match(cockpit, /project-cockpit-grid/);
-assert.match(cockpit, /project-cockpit-card/);
-assert.match(cockpit, /configuredServerCount/);
-assert.match(cockpit, /applicableServerCount/);
-assert.match(cockpit, /disabledServerCount/);
-assert.match(cockpit, /matchingThread/);
-
-for (const requiredCopy of [
-  "projectCockpitTitle",
-  "projectWorkspaceCard",
-  "developmentControlCard",
-  "projectCapabilitiesCard",
-  "projectName",
-  "projectSlug",
-  "detachedHead",
-  "modelLoopOwner",
-  "codexContinuity",
-  "handoffPolicy",
-  "mcpApplicability"
-]) {
-  assert.match(copy, new RegExp(`${requiredCopy}:`));
-}
-
-assert.match(styles, /\.project-cockpit-grid/);
-assert.match(styles, /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
-assert.match(responsive, /\.project-cockpit-grid/);
-assert.match(responsive, /grid-template-columns:\s*1fr/);
+// Compatibility read APIs remain available for Continuity/Resource projections.
+assert.match(api, /export async function fetchContinuityProjects/);
+assert.match(api, /export async function fetchContinuityProject/);
 
 process.stdout.write("VERIFY_PROJECT_COCKPIT_P0_UI_OK\n");

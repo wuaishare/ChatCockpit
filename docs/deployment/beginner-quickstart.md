@@ -54,7 +54,7 @@ For full setup, prefer MCP first:
 - [`gpt-builder-setup.md`](./gpt-builder-setup.md) — compatibility/advanced Custom GPT Actions path
 - [`public-https-tunnel.md`](./public-https-tunnel.md)
 
-If a Git checkout is not yet visible in Continuity, open `<secure-entry>/continuity/projects` and use **Manage workspaces / Add project**. Add a discovery-only parent directory, scan its direct Git children, then explicitly add only the project you want ChatCockpit to operate. Sibling repositories do not become AI-operable merely because their parent is approved for discovery.
+If a Git checkout is not yet available to ChatCockpit, open `<secure-entry>/projects` in **Project Center**. Use **Add project** for a known folder, or **Authorized discovery locations** to scan a parent directory and explicitly import only the required Git project. Discovery alone does not grant sibling repositories AI execution authority.
 
 To continue an existing Codex conversation in ChatGPT, open the target Workspace Sessions view, choose **Import Codex session**, enter a Thread ID or `codex://threads/<thread-id>`, verify the Workspace match, then choose **Handoff to ChatGPT (Chat Direct)**. The handoff itself does not start a new Codex Turn.
 
@@ -80,7 +80,7 @@ npm run reset:local
 | --- | --- | --- |
 | Port already in use | Another process owns `4318` | Stop that process or set `CHATCOCKPIT_PORT` |
 | Codex jobs stay queued | Runner is not active | Run `npm run start:local` then `npm run doctor:runtime` |
-| Continuity page has no project | The target Git checkout has not been explicitly added to ChatCockpit | On the target machine, open `<secure-entry>/continuity/projects`, use **Manage workspaces / Add project**, add a Discovery Root, scan, and explicitly add only the required child repository; no manual Repo Mapping edit is required |
+| Continuity has no selectable execution workspace | The target Git project has not been explicitly added to ChatCockpit | On the target machine, open `<secure-entry>/projects` in **Project Center**. Use **Add project** or **Authorized discovery locations**, then explicitly add/import only the required project; no manual Repo Mapping edit is required |
 | Workspace is read-only | Another Session holds the Writer Lease | Inspect the Writer banner and prepare or consume a Handoff instead of forcing a write |
 | Handoff is not verified | Required Evidence is missing, incomplete, skipped, or failed | Record and finalize the required verification checks |
 | UI asks you to sign in | Web Owner authentication is enabled | Use the generated Owner credential from **Access & Security** in the App, or reset it locally if needed. Do not use the machine API token as a Web password |
