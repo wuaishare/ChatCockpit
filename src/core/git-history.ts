@@ -1,4 +1,6 @@
-import { spawnSync } from "node:child_process";
+import {
+  spawnGovernedGit
+} from "./git-process-policy.js";
 
 import {
   loadUserConfig,
@@ -12,8 +14,8 @@ export function readRecentGitCommits(
   limit = 10
 ): TokenPilotCommitSummary[] {
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
-  const result = spawnSync(
-    "git",
+  const result = spawnGovernedGit(
+    repoRoot,
     [
       "log",
       `-n${safeLimit}`,
@@ -21,8 +23,8 @@ export function readRecentGitCommits(
       "--pretty=format:%H%x1f%h%x1f%s%x1f%cI"
     ],
     {
-      cwd: repoRoot,
-      encoding: "utf8"
+      timeoutMs: 10_000,
+      disableUserConfig: true
     }
   );
 

@@ -70,7 +70,8 @@ export interface PublicSafeGitDiff {
 function runGit(cwd: string, args: string[], timeout = 10_000) {
   return spawnGovernedGit(cwd, args, {
     timeoutMs: timeout,
-    maxBuffer: MAX_DIFF_BYTES * 2
+    maxBuffer: MAX_DIFF_BYTES * 2,
+    disableUserConfig: true
   });
 }
 

@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+import { spawnGovernedGit } from "../core/git-process-policy.js";
 
 export const WORKSPACE_DISCOVERY_MAX_CHILDREN = 200;
 export const WORKSPACE_DISCOVERY_MAX_CANDIDATES = 100;
@@ -40,11 +41,10 @@ function canonical(input: string): string {
 }
 
 function runGit(cwd: string, args: string[]): string | null {
-  const result = spawnSync("git", ["-C", cwd, ...args], {
-    encoding: "utf8",
-    timeout: 2_000,
+  const result = spawnGovernedGit(cwd, args, {
+    timeoutMs: 2_000,
     maxBuffer: 128 * 1024,
-    windowsHide: true
+    disableUserConfig: true
   });
   if (result.error || result.status !== 0) return null;
   return String(result.stdout ?? "").trim();

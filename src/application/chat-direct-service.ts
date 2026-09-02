@@ -18,7 +18,10 @@ import {
   publicSafeShellOutput
 } from "../core/shell-api.js";
 import { productIdentityForKey } from "../core/product-identity.js";
-import { loadDownstreamMcpExecutorsConfig } from "../direct/downstream-mcp-config.js";
+import {
+  getDownstreamMcpExecutorsConfigPath,
+  loadDownstreamMcpExecutorsConfig
+} from "../direct/downstream-mcp-config.js";
 import type {
   FileEditPayload,
   FileMutatePayload,
@@ -152,6 +155,7 @@ export class ChatDirectService {
   private readonly git: GitService;
   private readonly searchService: SearchService;
   private readonly shellService: ShellService;
+  private readonly directExecutorsConfigPath: string;
   private readonly managedProcesses = new Map<string, ManagedChatDirectProcess>();
   private readonly builtinManagedProcesses = new BuiltinManagedProcessSupervisor();
 
@@ -160,9 +164,11 @@ export class ChatDirectService {
     private readonly runtime: RuntimeRouter,
     private readonly broker: DirectCapabilityBroker,
     private readonly repositories: ContinuityRepositories,
-    private readonly directExecutorsConfigPath?: string,
+    directExecutorsConfigPath?: string,
     private readonly remoteFullAccessPolicy?: RemoteFullAccessPolicy | null
   ) {
+    this.directExecutorsConfigPath =
+      directExecutorsConfigPath ?? getDownstreamMcpExecutorsConfigPath(paths.stateRoot);
     this.files = new FilesService(paths);
     this.git = new GitService(paths);
     this.searchService = new SearchService(paths);
@@ -907,7 +913,9 @@ export class ChatDirectService {
             command: prepared.command,
             args: prepared.args,
             cwd: prepared.workdir,
-            allowStdin: payload.allowStdin === true
+            allowStdin: payload.allowStdin === true,
+            disableGitUserConfig:
+              access === "read" && prepared.commandIdentity === "git"
           });
       const backend: ManagedChatDirectProcess["backend"] = nativeBackend
         ? "codex-standalone"

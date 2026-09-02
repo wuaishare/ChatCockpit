@@ -2,6 +2,7 @@ import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:chil
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
+import { buildGovernedGitEnv } from "./git-process-policy.js";
 import type {
   RuntimeStandaloneProcessChunk,
   RuntimeStandaloneProcessSnapshot,
@@ -28,8 +29,8 @@ interface BuiltinManagedProcessRecord {
   settled: boolean;
 }
 
-function commandEnvironment(): NodeJS.ProcessEnv {
-  return {
+function commandEnvironment(options: { disableGitUserConfig?: boolean } = {}): NodeJS.ProcessEnv {
+  const base = {
     HOME: process.env.HOME || "",
     PATH: [path.dirname(process.execPath), process.env.PATH || ""]
       .filter(Boolean)
@@ -38,6 +39,9 @@ function commandEnvironment(): NodeJS.ProcessEnv {
     NODE: process.execPath,
     ...(process.env.NODE_ENV ? { NODE_ENV: process.env.NODE_ENV } : {})
   };
+  return options.disableGitUserConfig
+    ? buildGovernedGitEnv(base, { disableUserConfig: true })
+    : base;
 }
 
 function signalProcessTree(
@@ -95,11 +99,14 @@ export class BuiltinManagedProcessSupervisor {
     args: string[];
     cwd: string;
     allowStdin: boolean;
+    disableGitUserConfig?: boolean;
   }): RuntimeStandaloneProcessStartResult {
     const processId = `builtin_process_${randomUUID()}`;
     const child = spawn(input.command, input.args, {
       cwd: input.cwd,
-      env: commandEnvironment(),
+      env: commandEnvironment({
+        disableGitUserConfig: input.disableGitUserConfig
+      }),
       detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]

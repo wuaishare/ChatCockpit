@@ -1,5 +1,6 @@
 import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
 import { spawnSync } from "node:child_process";
+import os from "node:os";
 
 const BLOCKED_GIT_ENV_KEYS = new Set([
   "EMAIL",
@@ -71,7 +72,8 @@ export function governedSshCommand(
 }
 
 export function buildGovernedGitEnv(
-  base: NodeJS.ProcessEnv = process.env
+  base: NodeJS.ProcessEnv = process.env,
+  options: { disableUserConfig?: boolean } = {}
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   for (const key of Object.keys(env)) {
@@ -89,6 +91,10 @@ export function buildGovernedGitEnv(
   env.GIT_SSH_VARIANT = "ssh";
   env.GIT_ATTR_NOSYSTEM = "1";
   env.GIT_CONFIG_NOSYSTEM = "1";
+  if (options.disableUserConfig) {
+    env.GIT_CONFIG_GLOBAL = os.devNull;
+    env.GIT_CONFIG_SYSTEM = os.devNull;
+  }
   env.GIT_NO_REPLACE_OBJECTS = "1";
   return env;
 }
@@ -113,13 +119,16 @@ export function spawnGovernedGit(
     timeoutMs?: number;
     maxBuffer?: number;
     disableCommitSigning?: boolean;
+    disableUserConfig?: boolean;
   } = {}
 ): SpawnSyncReturns<string> {
   const spawnOptions: SpawnSyncOptionsWithStringEncoding = {
     cwd,
     encoding: "utf8",
     timeout: options.timeoutMs ?? 10_000,
-    env: buildGovernedGitEnv()
+    env: buildGovernedGitEnv(process.env, {
+      disableUserConfig: options.disableUserConfig
+    })
   };
   if (options.maxBuffer !== undefined) {
     spawnOptions.maxBuffer = options.maxBuffer;

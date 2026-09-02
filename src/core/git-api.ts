@@ -648,7 +648,7 @@ export function getGitStatus(
   const branchResult = spawnGovernedGit(
     repoRoot,
     ["rev-parse", "--abbrev-ref", "HEAD"],
-    { timeoutMs: 5_000 }
+    { timeoutMs: 5_000, disableUserConfig: true }
   );
   const branch = (branchResult.stdout ?? "unknown").trim();
 
@@ -656,7 +656,7 @@ export function getGitStatus(
   const statusResult = spawnGovernedGit(
     repoRoot,
     ["status", "--porcelain", "-u"],
-    { timeoutMs: 10_000 }
+    { timeoutMs: 10_000, disableUserConfig: true }
   );
 
   const entries: GitStatusEntry[] = [];
