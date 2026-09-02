@@ -124,10 +124,41 @@ async function main(): Promise<void> {
   operatorStore.close();
 
   canonicalOrigin = "https://current.example.com";
+  const previousApiToken = process.env.CHATCOCKPIT_API_TOKEN;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token-route-candidate-machine";
   const app = buildServer(paths, { publicRouteCandidateStore: store });
   try {
     const anonymous = await app.inject({ method: "GET", url: "/api/connectivity/routes" });
     assert.equal(anonymous.statusCode, 401);
+
+    const machineHeaders = { authorization: "Bearer test-token-route-candidate-machine" };
+    const machineRead = await app.inject({
+      method: "GET",
+      url: "/api/connectivity/routes",
+      headers: machineHeaders
+    });
+    assert.equal(machineRead.statusCode, 200, "machine API compatibility may retain public-safe route reads");
+    const machineStage = await app.inject({
+      method: "POST",
+      url: "/api/connectivity/routes/candidate",
+      headers: machineHeaders,
+      payload: { origin: "https://machine.example.com", source: "existing-environment" }
+    });
+    assert.equal(machineStage.statusCode, 401);
+    assert.equal(machineStage.json().error.code, "OPERATOR_SESSION_REQUIRED");
+    const machineVerify = await app.inject({
+      method: "POST",
+      url: "/api/connectivity/routes/candidate/verify",
+      headers: machineHeaders,
+      payload: { candidateId: "machine-candidate" }
+    });
+    assert.equal(machineVerify.statusCode, 401);
+    const machineDiscard = await app.inject({
+      method: "DELETE",
+      url: "/api/connectivity/routes/candidate",
+      headers: machineHeaders
+    });
+    assert.equal(machineDiscard.statusCode, 401);
 
     const login = await app.inject({
       method: "POST",
@@ -194,6 +225,8 @@ async function main(): Promise<void> {
     assert.equal(cutover.statusCode, 404, "cutover must not exist in the staging-only slice");
   } finally {
     await app.close();
+    if (previousApiToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = previousApiToken;
     fs.rmSync(root, { recursive: true, force: true });
   }
 

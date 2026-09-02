@@ -254,10 +254,28 @@ function fixture(options: { canonical?: string | null } = {}) {
   await operatorService.setOwnerPassword({ username: "owner", password: "test-password-cutover-intent" });
   operatorStore.close();
 
+  const previousApiToken = process.env.CHATCOCKPIT_API_TOKEN;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token-cutover-intent-machine";
   const app = buildServer(paths, { publicRouteCandidateStore: candidateStore, publicRouteCutoverIntentStore: intentStore });
   try {
     const anonymous = await app.inject({ method: "GET", url: "/api/connectivity/routes/cutover-intent" });
     assert.equal(anonymous.statusCode, 401);
+
+    const machineHeaders = { authorization: "Bearer test-token-cutover-intent-machine" };
+    const machinePrepare = await app.inject({
+      method: "POST",
+      url: "/api/connectivity/routes/cutover-intent",
+      headers: machineHeaders,
+      payload: { candidateId: candidate.id, verificationId: verification.id }
+    });
+    assert.equal(machinePrepare.statusCode, 401);
+    assert.equal(machinePrepare.json().error.code, "OPERATOR_SESSION_REQUIRED");
+    const machineCancel = await app.inject({
+      method: "DELETE",
+      url: "/api/connectivity/routes/cutover-intent",
+      headers: machineHeaders
+    });
+    assert.equal(machineCancel.statusCode, 401);
 
     const login = await app.inject({
       method: "POST",
@@ -320,6 +338,8 @@ function fixture(options: { canonical?: string | null } = {}) {
     assert.equal(cancelled.json().intent, null);
   } finally {
     await app.close();
+    if (previousApiToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = previousApiToken;
     fs.rmSync(root, { recursive: true, force: true });
   }
 }

@@ -362,6 +362,8 @@ class FakeProbe implements PublicRouteBootstrapProofHttpProbe {
   });
   operatorStore.close();
 
+  const previousApiToken = process.env.CHATCOCKPIT_API_TOKEN;
+  process.env.CHATCOCKPIT_API_TOKEN = "test-token-bootstrap-proof-machine";
   const app = buildServer(paths, {
     publicRouteCandidateStore: candidateStore,
     publicRouteBootstrapProofStore: proofStore,
@@ -373,6 +375,29 @@ class FakeProbe implements PublicRouteBootstrapProofHttpProbe {
       url: "/api/connectivity/routes/bootstrap-proof"
     });
     assert.equal(anonymous.statusCode, 401);
+
+    const machineHeaders = { authorization: "Bearer test-token-bootstrap-proof-machine" };
+    const machinePrepare = await app.inject({
+      method: "POST",
+      url: "/api/connectivity/routes/bootstrap-proof",
+      headers: machineHeaders,
+      payload: { candidateId: candidate.id }
+    });
+    assert.equal(machinePrepare.statusCode, 401);
+    assert.equal(machinePrepare.json().error.code, "OPERATOR_SESSION_REQUIRED");
+    const machineVerify = await app.inject({
+      method: "POST",
+      url: "/api/connectivity/routes/bootstrap-proof/verify",
+      headers: machineHeaders,
+      payload: { candidateId: candidate.id, proofId: "machine-proof" }
+    });
+    assert.equal(machineVerify.statusCode, 401);
+    const machineCancel = await app.inject({
+      method: "DELETE",
+      url: "/api/connectivity/routes/bootstrap-proof",
+      headers: machineHeaders
+    });
+    assert.equal(machineCancel.statusCode, 401);
 
     const login = await app.inject({
       method: "POST",
@@ -469,6 +494,8 @@ class FakeProbe implements PublicRouteBootstrapProofHttpProbe {
     assert.equal(cancelled.json().proof, null);
   } finally {
     await app.close();
+    if (previousApiToken === undefined) delete process.env.CHATCOCKPIT_API_TOKEN;
+    else process.env.CHATCOCKPIT_API_TOKEN = previousApiToken;
     fs.rmSync(root, { recursive: true, force: true });
   }
 }

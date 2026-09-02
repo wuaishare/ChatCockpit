@@ -1245,11 +1245,11 @@ export function buildServer(
   const publicRouteCandidateStatusHandler = async () =>
     publicRouteCandidateStore.snapshot();
 
-  const stagePublicRouteCandidateHandler = async (request: unknown, reply: unknown) => {
-    const parsed = publicRouteCandidateStageSchema.safeParse(
-      (request as { body?: unknown }).body ?? {}
-    );
+  const stagePublicRouteCandidateHandler = async (request: FastifyRequest, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    const parsed = publicRouteCandidateStageSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
@@ -1271,17 +1271,21 @@ export function buildServer(
     }
   };
 
-  const discardPublicRouteCandidateHandler = async () =>
-    publicRouteCandidateStore.clear();
+  const discardPublicRouteCandidateHandler = async (request: FastifyRequest, reply: unknown) => {
+    const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    return publicRouteCandidateStore.clear();
+  };
 
   const publicRouteVerificationStatusHandler = async () =>
     publicRouteVerifier.snapshot();
 
-  const verifyPublicRouteCandidateHandler = async (request: unknown, reply: unknown) => {
-    const parsed = publicRouteCandidateVerifySchema.safeParse(
-      (request as { body?: unknown }).body ?? {}
-    );
+  const verifyPublicRouteCandidateHandler = async (request: FastifyRequest, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    const parsed = publicRouteCandidateVerifySchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
@@ -1303,11 +1307,11 @@ export function buildServer(
   const publicRouteCutoverIntentStatusHandler = async () =>
     publicRouteCutoverIntentStore.snapshot();
 
-  const preparePublicRouteCutoverIntentHandler = async (request: unknown, reply: unknown) => {
-    const parsed = publicRouteCutoverIntentPrepareSchema.safeParse(
-      (request as { body?: unknown }).body ?? {}
-    );
+  const preparePublicRouteCutoverIntentHandler = async (request: FastifyRequest, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    const parsed = publicRouteCutoverIntentPrepareSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
@@ -1326,17 +1330,21 @@ export function buildServer(
     }
   };
 
-  const cancelPublicRouteCutoverIntentHandler = async () =>
-    publicRouteCutoverIntentStore.cancel();
+  const cancelPublicRouteCutoverIntentHandler = async (request: FastifyRequest, reply: unknown) => {
+    const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    return publicRouteCutoverIntentStore.cancel();
+  };
 
   const publicRouteBootstrapProofStatusHandler = async () =>
     publicRouteBootstrapProofStore.snapshot();
 
-  const preparePublicRouteBootstrapProofHandler = async (request: unknown, reply: unknown) => {
-    const parsed = publicRouteBootstrapProofPrepareSchema.safeParse(
-      (request as { body?: unknown }).body ?? {}
-    );
+  const preparePublicRouteBootstrapProofHandler = async (request: FastifyRequest, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    const parsed = publicRouteBootstrapProofPrepareSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
@@ -1355,11 +1363,11 @@ export function buildServer(
     }
   };
 
-  const verifyPublicRouteBootstrapProofHandler = async (request: unknown, reply: unknown) => {
-    const parsed = publicRouteBootstrapProofVerifySchema.safeParse(
-      (request as { body?: unknown }).body ?? {}
-    );
+  const verifyPublicRouteBootstrapProofHandler = async (request: FastifyRequest, reply: unknown) => {
     const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    const parsed = publicRouteBootstrapProofVerifySchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       return sendUnknownApiError(fastifyReply, validationError(parsed.error));
     }
@@ -1378,8 +1386,12 @@ export function buildServer(
     }
   };
 
-  const cancelPublicRouteBootstrapProofHandler = async () =>
-    publicRouteBootstrapProofStore.cancel();
+  const cancelPublicRouteBootstrapProofHandler = async (request: FastifyRequest, reply: unknown) => {
+    const fastifyReply = replyFrom(reply);
+    const authError = operatorRequestError(request, fastifyReply, true);
+    if (authError) return authError;
+    return publicRouteBootstrapProofStore.cancel();
+  };
 
   const recentCommitsHandler = async (request: unknown, reply: unknown) => {
     const parsed = recentCommitsQuerySchema.safeParse(
