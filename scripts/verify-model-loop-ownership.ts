@@ -1,13 +1,22 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { asyncJobQueueSchema } from "../src/contracts/async-job.ts";
+import { buildSourceDistributionContext } from "../src/core/distribution-context.ts";
 import { buildGptConfig } from "../src/core/gpt-config.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const gpt = buildGptConfig("zh-CN", root);
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-model-loop-ownership-"));
+process.on("exit", () => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
+const distributionContext = buildSourceDistributionContext(root, {
+  stateRoot: path.join(fixtureRoot, "state"),
+  configPath: path.join(fixtureRoot, "config.json"),
+  primaryWorkspaceRoot: root
+});
+const gpt = buildGptConfig("zh-CN", root, distributionContext);
 
 assert.match(gpt.instructions, /当前 (?:ChatGPT|调用方).*持有模型循环/);
 assert.match(gpt.instructions, /只有用户明确.*(?:Delegate|Transfer|委派|转交)/);
