@@ -110,6 +110,26 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 
 纯图标交互必须同时具备 Accessible Name、键盘焦点以及平台适合的 pointer / hover 反馈。
 
+## 共享 Product Experience 的 Canonical IA
+
+Browser 与 Desktop 共享一套以**用户目标**为轴的信息架构。Canonical IA 不能反向照抄 React 组件边界、SwiftUI Settings scope、API route family 或历史实现结构。不同 Host 可以调整密度和原生交互方式，但必须保持可识别的同一入口与 Domain ownership。
+
+共享 Product Experience 按以下目标组织：
+
+- **Overview / 总览** — 回答“现在什么最值得关注”：Runtime / Device 健康、进行中的工作、待审批事项、关键失败与下一步动作。它是决策面，不是设置项堆积页。
+- **Projects / 项目** — 选择并管理 Project、ProjectRoot / Primary Root、Execution Workspace 与项目上下文。原生目录选择器只是 Host affordance，不构成另一套 Desktop 产品概念。
+- **Work / 工作** — 推进和追踪持久工作：Tasks、Jobs、Approvals、Sessions、Handoffs、Evidence，以及相关 Recovery / Document 上下文。`Task` 与 `Job` 仍是不同 Domain Object；**Work 只是 IA 分组，不合并持久化模型**。
+- **Runtime / 运行时** — 查看和控制执行环境健康、生命周期、目标可用性、Runtime mode/profile 状态、冲突与恢复。Desktop 可以增加原生安装/服务控制，但 Runtime 不能因此退化为 Desktop-only Domain。
+- **Resources / 资源** — 发现、检查、授权、更新与治理 Skills、MCP Servers、Plugins、Runtime Adapters、ACP Agents 等执行能力。Resources 可以在视觉上靠近 Runtime，但仍保持独立 Domain 与审批/变更工作流。
+- **Devices / 设备** — 理解执行可以发生在哪里，包括 Device trust/presence/capabilities、execution policy，以及目标设备上的 Runtime / Workspace 可用性。
+- **Connections / 连接** — 把 ChatCockpit 接给用户、客户端与网络。该入口统一承载 **Public Access** 与 **Integrations / OAuth / 共享账户访问流程** 的可发现性，但不能合并两者各自独立的 Authority 与 workflow model。
+
+Desktop 额外拥有受限的 **This Host / 本机** 区域，只容纳真正 Host-only 的机器管理：distribution mode、机器密钥明文恢复、App 更新策略、原生诊断、Launch at Login、Menu Bar、Keychain 等 OS integration。ProjectRoot 管理、Runtime lifecycle、Public Access intent、Device workflow 等共享 Product Action 不能仅因为当前 executor 在本机，就被永久藏进 This Host。
+
+迁移期间可以继续保留 `/ui/jobs`、`/ui/resources`、`/ui/public-access`、`/ui/integrations` 以及受限 `/ui/continuity/*` 等稳定/兼容路由。**路由稳定不代表该 route family 就是 canonical 一级产品概念。** 收敛过程中页面可以暂时保持拆分，但导航必须逐步迁移到统一心智模型。
+
+不同 Host 可以根据窗口尺寸对上述目标做分组或嵌套，但相同用户目标必须使用同一 Product vocabulary 且保持可发现。Renderer 技术选型不是 IA 决策。
+
 ## Capability Placement Matrix
 
 Matrix 描述的是**产品可见性与执行要求**，不是某个 Surface 独占 Authority。`Full` 表示核心工作流在条件允许时应完整可用；`Summary` 是有界 HUD；`Host-only` 是有意保留的平台能力；`Target-aware` 表示执行可以发生在本机或另一台已授权 Device。Authority 始终独立判断。

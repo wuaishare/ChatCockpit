@@ -110,6 +110,26 @@ Actions use a stable product vocabulary even when native and Web icon libraries 
 
 Interactive icon-only controls must expose an accessible name, keyboard focus, and pointer/hover affordance appropriate to the platform.
 
+## Canonical Shared Product Experience IA
+
+Browser and Desktop share one **user-goal information architecture**. The canonical IA is not a mirror of React component boundaries, SwiftUI settings scopes, API route families, or current implementation history. Hosts may vary density and native affordances, but they should preserve the same recognizable destinations and domain ownership.
+
+The shared Product Experience is organized around these destinations:
+
+- **Overview** — what needs attention now: Runtime/Device health, active work, pending approvals, important failures, and the next useful action. It is a decision surface, not a settings dump.
+- **Projects** — choose and manage the Project, ProjectRoot / Primary Root, Execution Workspace, and project-scoped context in which work happens. Native pickers are Host affordances inside this workflow, not a separate Desktop product concept.
+- **Work** — coordinate and follow through on durable work: Tasks, Jobs, Approvals, Sessions, Handoffs, Evidence, and related recovery/document context. `Task` and `Job` remain separate domain objects; **Work is an IA grouping, not a merged persistence model**.
+- **Runtime** — understand and control execution-environment health, lifecycle, target availability, Runtime mode/profile state, conflicts, and recovery. A Host may add native Runtime install/service controls without turning Runtime into a Desktop-only domain.
+- **Resources** — discover, inspect, authorize, update, and govern Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, and other execution capabilities. Resources may be visually grouped near Runtime, but they remain a distinct domain and approval/mutation workflow.
+- **Devices** — understand where execution can happen, Device trust/presence/capabilities, execution policy, and target-specific Runtime/workspace availability.
+- **Connections** — connect ChatCockpit to people, clients, and networks. This destination groups discoverability for **Public Access** and **Integrations / OAuth / shared account-access flows** without collapsing their separate authority or workflow models.
+
+Desktop additionally owns a bounded **This Host / This Mac** area for genuinely Host-only administration such as distribution mode, plaintext machine-secret recovery, app update policy, native diagnostics, Launch at Login, Menu Bar, Keychain, and comparable OS integration. Shared Product Actions such as ProjectRoot management, Runtime lifecycle, Public Access intent, or Device workflows must not be hidden exclusively inside This Host merely because the current executor is local.
+
+Migration may retain stable routes such as `/ui/jobs`, `/ui/resources`, `/ui/public-access`, `/ui/integrations`, and bounded `/ui/continuity/*` compatibility paths. **Route stability does not make a route family a canonical top-level Product concept.** During convergence, existing pages may remain separate while navigation progressively adopts the shared mental model.
+
+A Host may group or nest these destinations differently for screen size, but the same user goal must remain discoverable under the same Product vocabulary. Renderer technology is not an IA decision.
+
 ## Capability Placement Matrix
 
 The matrix describes **product visibility and execution requirements**, not Surface-owned authority. `Full` means the core workflow should be available on that Host where practical; `Summary` is a bounded HUD projection; `Host-only` is intentionally platform-specific; `Target-aware` means execution may occur locally or on another authorized Device. Authority is always evaluated independently.
