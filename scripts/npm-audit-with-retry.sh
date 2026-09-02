@@ -20,9 +20,11 @@ is_transient_registry_failure() {
     "${log_file}"
 }
 
+temp_root="${TMPDIR:-${TMP:-/tmp}}"
+
 attempt=1
 while (( attempt <= max_attempts )); do
-  attempt_log="$(mktemp)"
+  attempt_log="$(mktemp "${temp_root%/}/chatcockpit-npm-audit.XXXXXX")"
   set +e
   npm audit "$@" 2>&1 | tee "${attempt_log}"
   audit_status=${PIPESTATUS[0]}
