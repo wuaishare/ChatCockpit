@@ -61,6 +61,12 @@ async function main(): Promise<void> {
       404,
       "stable Project Center deep link must remain concealed before login"
     );
+    const concealedRuntimeDeepLink = await app.inject({ method: "GET", url: "/ui/runtime" });
+    assert.equal(
+      concealedRuntimeDeepLink.statusCode,
+      404,
+      "stable Runtime deep link must remain concealed before login"
+    );
     const localLoginBootstrap = await app.inject({
       method: "GET",
       url: "/ui/local-login?target=projects"
@@ -176,6 +182,12 @@ async function main(): Promise<void> {
       headers: { cookie }
     });
     assert.equal(authenticatedProjectCenter.statusCode, 200);
+    const authenticatedRuntime = await app.inject({
+      method: "GET",
+      url: "/ui/runtime",
+      headers: { cookie }
+    });
+    assert.equal(authenticatedRuntime.statusCode, 200);
 
     const entryWithSession = await app.inject({
       method: "GET",

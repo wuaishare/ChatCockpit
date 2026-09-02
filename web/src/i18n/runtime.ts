@@ -1,0 +1,149 @@
+import type { LocaleCode } from "../i18n";
+
+export interface RuntimeCopy {
+  title: string;
+  description: string;
+  currentTitle: string;
+  currentDescription: string;
+  health: string;
+  mode: string;
+  build: string;
+  exposure: string;
+  healthy: string;
+  unavailable: string;
+  public: string;
+  localOnly: string;
+  targetsTitle: string;
+  targetsDescription: string;
+  refresh: string;
+  platform: string;
+  local: string;
+  remote: string;
+  lifecycle: string;
+  runtimeState: string;
+  running: string;
+  stopped: string;
+  unknown: string;
+  unsupported: string;
+  start: string;
+  stop: string;
+  restart: string;
+  stopTitle: string;
+  stopDescription: string;
+  restartTitle: string;
+  restartDescription: string;
+  confirm: string;
+  cancel: string;
+  noTargets: string;
+  loadFailed: string;
+  actionFailed: string;
+  reasonReady: string;
+  reasonLocalHost: string;
+  reasonOffline: string;
+  reasonAgentUpdate: string;
+  reasonNotAttested: string;
+  reasonNotImplemented: string;
+  reasonForbidden: string;
+  reasonNoPath: string;
+  reasonApproval: string;
+}
+
+const zhCN: RuntimeCopy = {
+  title: "运行时",
+  description: "查看当前 Runtime 健康状态，并从同一工作台管理具备合法执行路径的目标 Runtime。",
+  currentTitle: "当前 Runtime",
+  currentDescription: "这里显示当前控制台连接到的 Runtime API 事实；本机生命周期执行仍需要真实的本机 Host 能力。",
+  health: "API 健康",
+  mode: "模式",
+  build: "构建",
+  exposure: "网络暴露",
+  healthy: "健康",
+  unavailable: "不可用",
+  public: "已公网暴露",
+  localOnly: "未公网暴露",
+  targetsTitle: "Runtime 目标",
+  targetsDescription: "可用性来自 Product Action / Device capability 真源；页面不会因为运行在浏览器里而伪造机器权限。",
+  refresh: "刷新",
+  platform: "平台",
+  local: "本机",
+  remote: "远端",
+  lifecycle: "生命周期可用性",
+  runtimeState: "Runtime 状态",
+  running: "运行中",
+  stopped: "已停止",
+  unknown: "未知",
+  unsupported: "不支持",
+  start: "启动",
+  stop: "停止",
+  restart: "重启",
+  stopTitle: "停止目标 Runtime？",
+  stopDescription: "这会停止所选设备上的受管 Runtime。",
+  restartTitle: "重启目标 Runtime？",
+  restartDescription: "这会通过目标 Device Agent 的受治理 lifecycle RPC 重启 Runtime。",
+  confirm: "确认",
+  cancel: "取消",
+  noTargets: "当前没有可投影的 Runtime 目标。",
+  loadFailed: "Runtime 状态加载失败",
+  actionFailed: "Runtime 生命周期操作失败",
+  reasonReady: "可执行",
+  reasonLocalHost: "需要本机 ChatCockpit Host",
+  reasonOffline: "目标设备离线",
+  reasonAgentUpdate: "需要更新 Device Agent",
+  reasonNotAttested: "当前 Agent 未证明 Runtime 管理能力",
+  reasonNotImplemented: "目标尚未实现 Runtime 管理能力",
+  reasonForbidden: "当前策略不允许",
+  reasonNoPath: "当前没有合法执行路径",
+  reasonApproval: "需要审批"
+};
+
+const enUS: RuntimeCopy = {
+  title: "Runtime",
+  description: "Inspect current Runtime health and manage target Runtimes that have a legitimate execution path from one workbench.",
+  currentTitle: "Current Runtime",
+  currentDescription: "This is the Runtime API truth for the current Cockpit connection; local lifecycle execution still requires a real local Host capability.",
+  health: "API health",
+  mode: "Mode",
+  build: "Build",
+  exposure: "Network exposure",
+  healthy: "Healthy",
+  unavailable: "Unavailable",
+  public: "Publicly exposed",
+  localOnly: "Not publicly exposed",
+  targetsTitle: "Runtime targets",
+  targetsDescription: "Availability comes from Product Action and Device capability truth; the Browser never fabricates Machine Authority.",
+  refresh: "Refresh",
+  platform: "Platform",
+  local: "Local",
+  remote: "Remote",
+  lifecycle: "Lifecycle availability",
+  runtimeState: "Runtime state",
+  running: "Running",
+  stopped: "Stopped",
+  unknown: "Unknown",
+  unsupported: "Unsupported",
+  start: "Start",
+  stop: "Stop",
+  restart: "Restart",
+  stopTitle: "Stop target Runtime?",
+  stopDescription: "This stops the managed Runtime on the selected Device.",
+  restartTitle: "Restart target Runtime?",
+  restartDescription: "This restarts Runtime through the target Device Agent's governed lifecycle RPC.",
+  confirm: "Confirm",
+  cancel: "Cancel",
+  noTargets: "No Runtime targets are currently projected.",
+  loadFailed: "Failed to load Runtime status",
+  actionFailed: "Runtime lifecycle action failed",
+  reasonReady: "Executable",
+  reasonLocalHost: "Requires a local ChatCockpit Host",
+  reasonOffline: "Target Device is offline",
+  reasonAgentUpdate: "Device Agent update required",
+  reasonNotAttested: "Current Agent did not attest Runtime management capability",
+  reasonNotImplemented: "Target does not implement Runtime management yet",
+  reasonForbidden: "Current policy forbids this action",
+  reasonNoPath: "No legitimate execution path is available",
+  reasonApproval: "Approval required"
+};
+
+export function getRuntimeCopy(locale: LocaleCode): RuntimeCopy {
+  return locale === "zh-CN" ? zhCN : enUS;
+}

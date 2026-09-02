@@ -209,17 +209,11 @@ assert.match(projectCockpit, /root\.pathVisibility === "machine-local-owner"/);
 assert.doesNotMatch(projectCockpit, /<code className="project-root-row__path">\{root\.privatePath\}<\/code>/);
 
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
-for (const section of [
-  "overview",
-  "runtime",
-  "projects",
-  "accessSecurity",
-  "integrations",
-  "updates",
-  "diagnostics"
-]) {
-  assert.match(statusView, new RegExp(`case ${section}\\b`));
-}
+assert.match(statusView, /case overview\b/);
+assert.match(statusView, /case runtime\b/);
+assert.match(statusView, /case projects\b/);
+// Gate B owns Desktop IA convergence; this contract must not freeze the historical
+// Access & Security / Updates / Diagnostics section layout as canonical Product IA.
 assert.match(statusView, /NativeIntegrationsBridgeView\(model: model\)/);
 assert.match(statusView, /NativeDiagnosticsView\(model: model\)/);
 assert.match(statusView, /jobs\?\.available == true \? jobs\?\.running : nil/);

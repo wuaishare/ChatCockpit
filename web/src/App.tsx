@@ -76,7 +76,11 @@ import { getIntegrationsCopy } from "./i18n/integrations";
 import { getPublicAccessCopy } from "./i18n/public-access";
 import type { ApiProblem } from "./types";
 import { consolePath, stripConsoleBasePath } from "./console-path";
-import type { AppViewKey } from "./navigation";
+import {
+  resolveBrowserNavigationTarget,
+  selectedBrowserNavigationKey,
+  type AppViewKey
+} from "./navigation";
 
 type OperatorAuthState = "loading" | "setup-required" | "login-required" | "authenticated";
 
@@ -183,6 +187,9 @@ const ResourceCenterView = lazy(() =>
     default: module.ResourceCenterView
   }))
 );
+const RuntimeView = lazy(() =>
+  import("./components/RuntimeView").then((module) => ({ default: module.RuntimeView }))
+);
 
 type ViewKey = AppViewKey;
 
@@ -195,6 +202,7 @@ const VIEW_PATHS: Record<ViewKey, string> = {
   dashboard: consolePath(),
   projects: consolePath("projects"),
   continuity: consolePath("continuity"),
+  runtime: consolePath("runtime"),
   resources: consolePath("resources"),
   devices: consolePath("devices"),
   jobs: consolePath("jobs"),
@@ -304,6 +312,7 @@ function parseRoute(): ParsedRoute {
     return { ...baseRoute("continuity"), continuitySection };
   }
 
+  if (route === "runtime") return baseRoute("runtime");
   if (route === "resources") return baseRoute("resources");
   if (route === "devices") return baseRoute("devices");
   if (route === "public-access") return baseRoute("publicAccess");
@@ -1125,6 +1134,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     dashboard: copy.header.dashboard,
     projects: copy.header.projects,
     continuity: copy.header.continuity,
+    runtime: copy.header.runtime,
     resources: copy.header.resources,
     devices: copy.header.devices,
     jobs: copy.header.jobs,
@@ -1218,20 +1228,26 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   return (
     <Layout hasSider className="app-shell">
       <AppSidebar
-        activeView={activeView}
+        activeNavigationKey={selectedBrowserNavigationKey(activeView, activeContinuitySection)}
         mobileOpen={mobileNavigationOpen}
         onMobileClose={() => setMobileNavigationOpen(false)}
-        onNavigate={(view) => navigateView(view)}
+        onNavigate={(key) => {
+          const target = resolveBrowserNavigationTarget(key);
+          navigateView(target.view, null, target.continuitySection);
+        }}
         labels={{
           title: copy.header.title,
-          workspaceNavigation: copy.header.workspaceNavigation,
-          operationsNavigation: copy.header.operationsNavigation,
-          systemNavigation: copy.header.systemNavigation,
           dashboard: copy.header.dashboard,
           projects: copy.header.projects,
+          workNavigation: copy.header.workNavigation,
+          workCoordination: copy.header.workCoordination,
+          jobs: copy.header.jobs,
+          approvals: copy.header.approvals,
+          executionNavigation: copy.header.executionNavigation,
+          runtime: copy.header.runtime,
           resources: copy.header.resources,
           devices: copy.header.devices,
-          jobs: copy.header.jobs,
+          connectionsNavigation: copy.header.connectionsNavigation,
           publicAccess: copy.header.publicAccess,
           integrations: copy.header.integrations,
           collapseNavigation: copy.header.collapseNavigation,
@@ -1380,6 +1396,20 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               onSectionChange={navigateContinuitySection}
               onOpenProjects={() => navigateView("projects")}
             />
+          </Suspense>
+        ) : null}
+
+        {activeView === "runtime" ? (
+          <Suspense
+            fallback={
+              <ViewLoadingState
+                title={copy.header.runtime}
+                description={copy.notices.loadingConsoleDescription}
+                retryLabel={copy.common.retry}
+              />
+            }
+          >
+            <RuntimeView locale={locale} health={health} />
           </Suspense>
         ) : null}
 

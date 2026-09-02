@@ -163,7 +163,7 @@ const zhCN: PublicAccessCopy = {
   mcpEndpoint: "MCP 端点",
   oauthStatus: "OAuth 状态",
   localProtocolNote: "当前尚无公网 API 基址，因此 OpenAPI 地址仍是本机端点；不会把它标记成公网可用。",
-  workflowTitle: "公网连接流程",
+  workflowTitle: "公网接入流程",
   workflowDescription: "按准备、验证、切换、在线四个阶段推进。Web 负责接入意图与公网验证，真正的机器执行仍由 ChatCockpit App / CLI 完成。",
   workflowSetup: "准备",
   workflowVerify: "验证",
@@ -171,7 +171,7 @@ const zhCN: PublicAccessCopy = {
   workflowLive: "在线",
   workflowBootstrapMode: "首次公网",
   workflowReplacementMode: "替换现有公网",
-  changePublicAccess: "更换公网连接",
+  changePublicAccess: "更换公网接入",
   closePublicAccessMaintenance: "收起维护流程",
   existingEnvironment: "现有环境",
   existingEnvironmentDescription: "如果你已经通过反向代理、隧道或其他基础设施提供公网入口，继续沿用现有环境；配置 Runtime 的公网基址后回到这里核对真实结果。",
@@ -191,11 +191,11 @@ const zhCN: PublicAccessCopy = {
   providerUseAppCli: "请在 ChatCockpit App / CLI 执行",
   providerHomebrewRequired: "需要先在此 Mac 安装 Homebrew；ChatCockpit 不会自动安装 Homebrew",
   providerNoMachineAction: "当前没有可用的 ChatCockpit 机器操作",
-  providerStatusUnavailable: "暂时无法读取本机连接组件状态；这不会改变当前 Runtime 公网连接结果。",
+  providerStatusUnavailable: "暂时无法读取本机连接组件状态；这不会改变当前 Runtime 公网接入结果。",
   openConnectivityInApp: "在 ChatCockpit App 中打开",
   connectivityBridgeDescription: "只导航到 App 的「访问与安全 → 接入组件」区域；不会自动执行安装、升级、卸载或启动 Tunnel。",
   routeIntentTitle: "候选公网 Route",
-  routeIntentDescription: "暂存候选 HTTPS origin 时不会改写 Runtime 公网基址。已有 canonical 时使用公网 DNS、TLS、Runtime Health 与 OAuth identity 验证 replacement Route；首次公网连接时改用 machine-local challenge 的 Bootstrap Identity Proof。",
+  routeIntentDescription: "暂存候选 HTTPS origin 时不会改写 Runtime 公网基址。已有 canonical 时使用公网 DNS、TLS、Runtime Health 与 OAuth identity 验证 replacement Route；首次公网接入时改用 machine-local challenge 的 Bootstrap Identity Proof。",
   currentCanonicalRoute: "当前 canonical",
   candidateRoute: "候选 Route",
   candidateSource: "候选来源",
@@ -277,13 +277,13 @@ const zhCN: PublicAccessCopy = {
   publicEndpoint: "公网端点",
   httpsRequired: "HTTPS",
   httpsReady: "公网 API 使用 HTTPS",
-  httpsMissing: "当前公网 API 不是 HTTPS，不能作为安全的公网连接地址",
-  oauthGuidance: "OAuth 尚未就绪，请前往「连接与授权」检查授权关系。公网连接页只负责域名、HTTPS、Tunnel 与 Runtime 可达性。",
-  openIntegrations: "查看连接与授权",
+  httpsMissing: "当前公网 API 不是 HTTPS，不能作为安全的公网接入地址",
+  oauthGuidance: "OAuth 尚未就绪，请前往「集成与授权」检查授权关系。公网接入页只负责域名、HTTPS、Tunnel 与 Runtime 可达性。",
+  openIntegrations: "查看集成与授权",
   copyUrl: "复制地址",
-  loadingTitle: "正在加载公网连接状态",
+  loadingTitle: "正在加载公网接入状态",
   loadingDescription: "正在读取 Runtime 的可达性与公开协议端点。",
-  requestFailed: "无法读取公网连接状态"
+  requestFailed: "无法读取公网接入状态"
 };
 
 const enUS: PublicAccessCopy = {
@@ -317,7 +317,7 @@ const enUS: PublicAccessCopy = {
   mcpEndpoint: "MCP endpoint",
   oauthStatus: "OAuth status",
   localProtocolNote: "No public API base is configured yet, so the OpenAPI URL is still local. It is not presented as publicly reachable.",
-  workflowTitle: "Public Connectivity workflow",
+  workflowTitle: "Public Access workflow",
   workflowDescription: "Move through Setup, Verify, Cutover, and Live. Web owns route intent and public verification; machine execution stays in the ChatCockpit App / CLI.",
   workflowSetup: "Setup",
   workflowVerify: "Verify",
@@ -325,7 +325,7 @@ const enUS: PublicAccessCopy = {
   workflowLive: "Live",
   workflowBootstrapMode: "First public route",
   workflowReplacementMode: "Replace current route",
-  changePublicAccess: "Change Public Connectivity",
+  changePublicAccess: "Change Public Access",
   closePublicAccessMaintenance: "Collapse maintenance workflow",
   existingEnvironment: "Existing environment",
   existingEnvironmentDescription: "If a reverse proxy, tunnel, or other infrastructure already provides your public entry, keep that environment. Configure the Runtime public base URL and return here to verify the resulting projection.",
@@ -432,12 +432,12 @@ const enUS: PublicAccessCopy = {
   httpsRequired: "HTTPS",
   httpsReady: "Public API uses HTTPS",
   httpsMissing: "The configured public API is not HTTPS and cannot be treated as a secure public endpoint",
-  oauthGuidance: "OAuth is not ready. Open Connections & Access to inspect authorization. Public Connectivity is limited to domains, HTTPS, tunnels, and Runtime reachability.",
-  openIntegrations: "Open Connections & Access",
+  oauthGuidance: "OAuth is not ready. Open Integrations & Access to inspect authorization. Public Access is limited to domains, HTTPS, tunnels, and Runtime reachability.",
+  openIntegrations: "Open Integrations & Access",
   copyUrl: "Copy URL",
-  loadingTitle: "Loading Public Connectivity",
+  loadingTitle: "Loading Public Access",
   loadingDescription: "Reading Runtime reachability and public protocol endpoints.",
-  requestFailed: "Unable to load Public Connectivity"
+  requestFailed: "Unable to load Public Access"
 };
 
 export function getPublicAccessCopy(locale: LocaleCode): PublicAccessCopy {

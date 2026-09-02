@@ -105,14 +105,17 @@ export interface UiCopy {
     dashboard: string;
     projects: string;
     continuity: string;
+    runtime: string;
     resources: string;
     devices: string;
     jobs: string;
+    approvals: string;
     publicAccess: string;
     integrations: string;
-    workspaceNavigation: string;
-    operationsNavigation: string;
-    systemNavigation: string;
+    workNavigation: string;
+    workCoordination: string;
+    executionNavigation: string;
+    connectionsNavigation: string;
     openNavigation: string;
     collapseNavigation: string;
     expandNavigation: string;
@@ -400,14 +403,17 @@ const zhCN: UiCopy = {
     dashboard: "总览",
     projects: "项目",
     continuity: "连续性（兼容）",
-    resources: "资源中心",
+    runtime: "运行时",
+    resources: "资源",
     devices: "设备",
     jobs: "作业",
-    publicAccess: "公网连接",
-    integrations: "连接与授权",
-    workspaceNavigation: "项目与资源",
-    operationsNavigation: "运行与设备",
-    systemNavigation: "系统能力",
+    approvals: "审批",
+    publicAccess: "公网接入",
+    integrations: "集成与授权",
+    workNavigation: "工作",
+    workCoordination: "任务与协作",
+    executionNavigation: "执行环境",
+    connectionsNavigation: "连接",
     openNavigation: "打开主导航",
     collapseNavigation: "收起菜单",
     expandNavigation: "展开菜单",
@@ -551,7 +557,7 @@ const zhCN: UiCopy = {
     unavailableStateTitle: "暂时无法读取作业状态",
     unavailableStateDescription: "当前队列真值不可用，因此统计保持为“--”。请刷新后重试。",
     emptyStateTitle: "当前本地队列为空",
-    emptyStateDescription: "可以先前往“连接与授权”完成 ChatGPT App / MCP 接入，或在接入后刷新当前状态。",
+    emptyStateDescription: "可以先前往“集成与授权”完成 ChatGPT App / MCP 接入，或在接入后刷新当前状态。",
     protectedStateTitle: "作业数据受保护",
     protectedStateDescription: "当前接口需要控制台管理员会话；请重新登录后读取真实队列状态。",
     queued: "排队",
@@ -561,11 +567,11 @@ const zhCN: UiCopy = {
     completionRatio: "完成率",
     recentJobsTitle: "最近作业",
     recentJobsDescription: "最近的队列活动。",
-    recentJobsEmptyHint: "当前本地队列为空，可先前往“连接与授权”完成 ChatGPT App / MCP 接入。",
-    openIntegrations: "前往连接与授权",
+    recentJobsEmptyHint: "当前本地队列为空，可先前往“集成与授权”完成 ChatGPT App / MCP 接入。",
+    openIntegrations: "前往集成与授权",
     quickActionsTitle: "下一步",
     quickActionToken: "检查操作员会话",
-    quickActionIntegrations: "查看连接与授权",
+    quickActionIntegrations: "查看集成与授权",
     quickActionRefresh: "刷新当前状态",
     recentJobUpdatedPrefix: "最近更新于",
     gptPreviewTitle: "Custom GPT Actions 兼容预览",
@@ -592,7 +598,7 @@ const zhCN: UiCopy = {
     description: "检查 Host Capability、Runtime 与 Operator 前置条件。共享工作流由 Cockpit 统一呈现；本机秘密与操作系统专属设置留在对应 Host，机器动作按 Authority 与 Execution Target 解析。",
     readyTag: "已就绪",
     pendingTag: "待处理",
-    openIntegrations: "打开连接与授权",
+    openIntegrations: "打开集成与授权",
     refresh: "刷新设置状态",
     steps: {
       runtime: {
@@ -614,7 +620,7 @@ const zhCN: UiCopy = {
         detailReady: "OAuth 已就绪，或当前本地模式无需远程 OAuth。",
         detailPending: "ChatGPT Remote MCP OAuth 尚未满足公网地址、控制台管理员账户或持久化条件。",
         nextReady: "继续下一步",
-        nextPending: "打开“连接与授权”查看 OAuth 就绪状态；需要机器侧调整时回到 ChatCockpit App"
+        nextPending: "打开“集成与授权”查看 OAuth 就绪状态；需要机器侧调整时回到 ChatCockpit App"
       },
       repo: {
         label: "仓库授权",
@@ -631,11 +637,11 @@ const zhCN: UiCopy = {
         nextPending: "在 ChatCockpit App → 运行环境中启动或诊断 Runtime 服务"
       },
       gpt: {
-        label: "ChatGPT 连接与授权",
-        detailReady: "ChatGPT App / MCP 连接与授权信息可用。",
-        detailPending: "ChatGPT 连接与授权信息尚未准备好。",
-        nextReady: "打开“连接与授权”查看连接状态",
-        nextPending: "打开“连接与授权”检查接入信息"
+        label: "ChatGPT 集成与授权",
+        detailReady: "ChatGPT App / MCP 集成与授权信息可用。",
+        detailPending: "ChatGPT 集成与授权信息尚未准备好。",
+        nextReady: "打开“集成与授权”查看连接状态",
+        nextPending: "打开“集成与授权”检查接入信息"
       },
       firstTask: {
         label: "首个安全作业",
@@ -758,14 +764,17 @@ const enUS: UiCopy = {
     dashboard: "Dashboard",
     projects: "Projects",
     continuity: "Continuity (compatibility)",
+    runtime: "Runtime",
     resources: "Resources",
     devices: "Devices",
     jobs: "Jobs",
-    publicAccess: "Public Connectivity",
-    integrations: "Connections & Access",
-    workspaceNavigation: "Projects & Resources",
-    operationsNavigation: "Operations & Devices",
-    systemNavigation: "System",
+    approvals: "Approvals",
+    publicAccess: "Public Access",
+    integrations: "Integrations & Access",
+    workNavigation: "Work",
+    workCoordination: "Tasks & continuity",
+    executionNavigation: "Execution",
+    connectionsNavigation: "Connections",
     openNavigation: "Open main navigation",
     collapseNavigation: "Collapse navigation",
     expandNavigation: "Expand navigation",
@@ -909,7 +918,7 @@ const enUS: UiCopy = {
     unavailableStateTitle: "Job state is temporarily unavailable",
     unavailableStateDescription: "Live queue truth could not be read, so metrics remain “--”. Refresh to retry.",
     emptyStateTitle: "The local queue is currently empty",
-    emptyStateDescription: "Open Connections & Access to connect ChatGPT App / MCP, or refresh again after connecting a workflow.",
+    emptyStateDescription: "Open Integrations & Access to connect ChatGPT App / MCP, or refresh again after connecting a workflow.",
     protectedStateTitle: "Job data is protected",
     protectedStateDescription: "A Web Owner session is required. Sign in again before reading the live queue state.",
     queued: "Queued",
@@ -919,11 +928,11 @@ const enUS: UiCopy = {
     completionRatio: "Completion ratio",
     recentJobsTitle: "Recent Jobs",
     recentJobsDescription: "Latest queue activity.",
-    recentJobsEmptyHint: "The local queue is empty. Open Connections & Access to connect ChatGPT App / MCP first.",
-    openIntegrations: "Open Connections & Access",
+    recentJobsEmptyHint: "The local queue is empty. Open Integrations & Access to connect ChatGPT App / MCP first.",
+    openIntegrations: "Open Integrations & Access",
     quickActionsTitle: "Next steps",
     quickActionToken: "Configure session token",
-    quickActionIntegrations: "Open Connections & Access",
+    quickActionIntegrations: "Open Integrations & Access",
     quickActionRefresh: "Refresh status",
     recentJobUpdatedPrefix: "updated",
     gptPreviewTitle: "Custom GPT Actions compatibility preview",
@@ -950,7 +959,7 @@ const enUS: UiCopy = {
     description: "Check Host capability, Runtime, and Operator prerequisites. Shared workflows belong to the Cockpit experience; machine-local secrets and OS-specific preferences remain on their Host, while machine actions resolve authority and execution target before running.",
     readyTag: "Ready",
     pendingTag: "Pending",
-    openIntegrations: "Open Connections & Access",
+    openIntegrations: "Open Integrations & Access",
     refresh: "Refresh setup",
     steps: {
       runtime: {
@@ -972,7 +981,7 @@ const enUS: UiCopy = {
         detailReady: "OAuth is ready, or remote OAuth is not required in local-only mode.",
         detailPending: "Remote MCP OAuth is missing a valid public origin, Web Owner account, or writable runtime state.",
         nextReady: "Continue",
-        nextPending: "Open Connections & Access to inspect OAuth readiness; return to the ChatCockpit App when a machine-side prerequisite needs attention"
+        nextPending: "Open Integrations & Access to inspect OAuth readiness; return to the ChatCockpit App when a machine-side prerequisite needs attention"
       },
       repo: {
         label: "Repository allowlist",
@@ -992,8 +1001,8 @@ const enUS: UiCopy = {
         label: "ChatGPT connection & access",
         detailReady: "ChatGPT App / MCP connection and authorization metadata are available.",
         detailPending: "ChatGPT connection and authorization metadata are not ready yet.",
-        nextReady: "Open Connections & Access to inspect connection status",
-        nextPending: "Open Connections & Access to inspect setup details"
+        nextReady: "Open Integrations & Access to inspect connection status",
+        nextPending: "Open Integrations & Access to inspect setup details"
       },
       firstTask: {
         label: "First safe job",

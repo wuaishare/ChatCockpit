@@ -2,6 +2,9 @@ import {
   ApiOutlined,
   ApartmentOutlined,
   AppstoreOutlined,
+  AuditOutlined,
+  CheckSquareOutlined,
+  CloudServerOutlined,
   DashboardOutlined,
   DesktopOutlined,
   DoubleLeftOutlined,
@@ -12,20 +15,23 @@ import {
 import { Button, Drawer, Menu, type MenuProps } from "antd";
 import { useMemo, useState } from "react";
 import chatCockpitLogo from "../../../assets/brand/chatcockpit-app-icon.svg";
-import type { AppViewKey } from "../navigation";
+import type { BrowserNavigationLeafKey } from "../navigation";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "chatcockpit-sidebar-collapsed";
 
 interface AppSidebarLabels {
   title: string;
-  workspaceNavigation: string;
-  operationsNavigation: string;
-  systemNavigation: string;
   dashboard: string;
   projects: string;
+  workNavigation: string;
+  workCoordination: string;
+  jobs: string;
+  approvals: string;
+  executionNavigation: string;
+  runtime: string;
   resources: string;
   devices: string;
-  jobs: string;
+  connectionsNavigation: string;
   publicAccess: string;
   integrations: string;
   collapseNavigation: string;
@@ -34,11 +40,11 @@ interface AppSidebarLabels {
 }
 
 interface AppSidebarProps {
-  activeView: AppViewKey;
+  activeNavigationKey: BrowserNavigationLeafKey;
   labels: AppSidebarLabels;
   mobileOpen: boolean;
   onMobileClose: () => void;
-  onNavigate: (view: AppViewKey) => void;
+  onNavigate: (key: BrowserNavigationLeafKey) => void;
 }
 
 function readInitialCollapsed(): boolean {
@@ -60,7 +66,7 @@ function persistCollapsed(collapsed: boolean): void {
 }
 
 export function AppSidebar({
-  activeView,
+  activeNavigationKey,
   labels,
   mobileOpen,
   onMobileClose,
@@ -69,29 +75,32 @@ export function AppSidebar({
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
   const menuItems = useMemo<MenuProps["items"]>(
     () => [
-      { key: "dashboard", icon: <DashboardOutlined />, label: labels.dashboard },
+      { key: "overview", icon: <DashboardOutlined />, label: labels.dashboard },
+      { key: "projects", icon: <ApartmentOutlined />, label: labels.projects },
       {
         type: "group",
-        label: labels.workspaceNavigation,
+        label: labels.workNavigation,
         children: [
-          { key: "projects", icon: <ApartmentOutlined />, label: labels.projects },
-          { key: "resources", icon: <AppstoreOutlined />, label: labels.resources }
+          { key: "workTasks", icon: <CheckSquareOutlined />, label: labels.workCoordination },
+          { key: "workJobs", icon: <UnorderedListOutlined />, label: labels.jobs },
+          { key: "workApprovals", icon: <AuditOutlined />, label: labels.approvals }
         ]
       },
       {
         type: "group",
-        label: labels.operationsNavigation,
+        label: labels.executionNavigation,
         children: [
-          { key: "devices", icon: <DesktopOutlined />, label: labels.devices },
-          { key: "jobs", icon: <UnorderedListOutlined />, label: labels.jobs }
+          { key: "runtime", icon: <CloudServerOutlined />, label: labels.runtime },
+          { key: "resources", icon: <AppstoreOutlined />, label: labels.resources },
+          { key: "devices", icon: <DesktopOutlined />, label: labels.devices }
         ]
       },
       {
         type: "group",
-        label: labels.systemNavigation,
+        label: labels.connectionsNavigation,
         children: [
-          { key: "publicAccess", icon: <GlobalOutlined />, label: labels.publicAccess },
-          { key: "integrations", icon: <ApiOutlined />, label: labels.integrations }
+          { key: "connectionsPublicAccess", icon: <GlobalOutlined />, label: labels.publicAccess },
+          { key: "connectionsIntegrations", icon: <ApiOutlined />, label: labels.integrations }
         ]
       }
     ],
@@ -99,7 +108,7 @@ export function AppSidebar({
   );
 
   const navigate = (key: string) => {
-    onNavigate(key as AppViewKey);
+    onNavigate(key as BrowserNavigationLeafKey);
     onMobileClose();
   };
 
@@ -113,7 +122,7 @@ export function AppSidebar({
         className="app-sidebar__menu"
         mode="inline"
         inlineCollapsed={compact}
-        selectedKeys={[activeView]}
+        selectedKeys={[activeNavigationKey]}
         items={menuItems}
         onClick={({ key }) => navigate(String(key))}
       />

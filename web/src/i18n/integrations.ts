@@ -159,7 +159,7 @@ const zhCN: IntegrationsCopy = {
   schemaImportUrl: "Schema 导入地址",
   copyInstructions: "复制兼容说明",
   copyUrl: "复制地址",
-  loadingTitle: "正在读取连接与授权状态",
+  loadingTitle: "正在读取集成与授权状态",
   loadingDescription: "正在从当前控制台管理员会话读取 OAuth、机器接口状态与工具目录。",
   authorizationGrantsTitle: "OAuth 授权关系",
   authorizationGrantsDescription: "每次控制台管理员批准都会形成独立授权关系。默认只显示有效授权，可按状态切换查看并单独管理对应令牌族与设备权限。",
@@ -215,7 +215,7 @@ const zhCN: IntegrationsCopy = {
   deviceAccessLoadFailed: "无法读取设备访问权限",
   deviceAccessMutationFailed: "更新设备访问权限失败",
   deviceAccessRetry: "重新读取",
-  requestFailed: "无法读取连接与授权状态"
+  requestFailed: "无法读取集成与授权状态"
 };
 
 const enUS: IntegrationsCopy = {
