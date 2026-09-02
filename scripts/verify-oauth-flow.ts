@@ -228,6 +228,20 @@ async function main(): Promise<void> {
       `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="chatcockpit:mcp"`
     );
 
+    const preAuthDiscoveryProbe = await fetch(`${server.baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/octet-stream"
+      },
+      body: "{}"
+    });
+    assert.equal(preAuthDiscoveryProbe.status, 401);
+    assert.equal(
+      preAuthDiscoveryProbe.headers.get("www-authenticate"),
+      `Bearer resource_metadata="${publicOrigin}/.well-known/oauth-protected-resource", scope="chatcockpit:mcp"`
+    );
+
     const blockedRegistration = await fetch(`${server.baseUrl}/oauth/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -401,6 +415,21 @@ async function main(): Promise<void> {
     assert.equal(tokens.token_type, "Bearer");
     assert.equal(tokens.expires_in, 3600);
     assert.match(tokens.scope, /chatcockpit:mcp/);
+
+    const authenticatedUnsupportedMedia = await fetch(`${server.baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${tokens.access_token}`,
+        accept: "application/json, text/event-stream",
+        "content-type": "application/octet-stream"
+      },
+      body: "{}"
+    });
+    assert.equal(authenticatedUnsupportedMedia.status, 415);
+    assert.equal(
+      ((await authenticatedUnsupportedMedia.json()) as { error: { code: string } }).error.code,
+      "UNSUPPORTED_MEDIA_TYPE"
+    );
 
     const reusedCode = await postForm(`${server.baseUrl}/oauth/token`, {
       grant_type: "authorization_code",

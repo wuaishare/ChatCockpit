@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import fp from "fastify-plugin";
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 
 import type { OperatorService } from "../auth/operator-service.js";
 import { readIdentityEnv, type EnvLike } from "../core/identity-env.js";
@@ -211,6 +211,46 @@ export interface McpOAuthAccessVerifier {
   isAuthorizationRequestPending(requestId: string): boolean;
 }
 
+function authenticateMcpRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  oauth: McpOAuthAccessVerifier | null
+): void {
+  request.chatCockpitAuth = { kind: "anonymous" };
+
+  const configured = readIdentityEnv("API_TOKEN");
+  const provided = readBearerToken(request);
+  if (configured && provided === configured) {
+    request.chatCockpitAuth = {
+      kind: "machine-bearer",
+      credentialFingerprint: machineBearerCredentialFingerprint(configured)
+    };
+    return;
+  }
+
+  const oauthIdentity = provided && oauth ? oauth.verifyAccessToken(provided) : null;
+  if (oauthIdentity) {
+    request.chatCockpitAuth = {
+      kind: "mcp-oauth",
+      authorizationGrantId: oauthIdentity.authorizationGrantId,
+      clientRegistrationId: oauthIdentity.clientRegistrationId
+    };
+    return;
+  }
+
+  if (!configured && !isExposedMode() && isMachineLocalRequest(request)) {
+    return;
+  }
+
+  if (oauth) {
+    reply.header(
+      "www-authenticate",
+      `Bearer resource_metadata="${oauth.protectedResourceMetadataUrl}", scope="${oauth.scope}"`
+    );
+  }
+  throw new ApiError(401, "UNAUTHORIZED", "Bearer token is missing or invalid");
+}
+
 export function createTokenPilotAuthPlugin(
   oauth: McpOAuthAccessVerifier | null = null,
   operator: OperatorService | null = null,
@@ -221,7 +261,13 @@ export function createTokenPilotAuthPlugin(
       app.decorateRequest("chatCockpitAuth");
     }
 
+    app.addHook("onRequest", async (request, reply) => {
+      if (!isMcpPath(request.url)) return;
+      authenticateMcpRequest(request, reply, oauth);
+    });
+
     app.addHook("preHandler", async (request, reply) => {
+      if (isMcpPath(request.url)) return;
       request.chatCockpitAuth = { kind: "anonymous" };
 
       const sessionSecret = operator ? readOperatorSessionCookie(request) : null;
@@ -309,30 +355,6 @@ export function createTokenPilotAuthPlugin(
           credentialFingerprint: machineBearerCredentialFingerprint(configured)
         };
         return;
-      }
-
-      if (isMcpPath(request.url)) {
-        const oauthIdentity = provided && oauth ? oauth.verifyAccessToken(provided) : null;
-        if (oauthIdentity) {
-          request.chatCockpitAuth = {
-            kind: "mcp-oauth",
-            authorizationGrantId: oauthIdentity.authorizationGrantId,
-            clientRegistrationId: oauthIdentity.clientRegistrationId
-          };
-          return;
-        }
-
-        if (!configured && !isExposedMode() && isMachineLocalRequest(request)) {
-          return;
-        }
-
-        if (oauth) {
-          reply.header(
-            "www-authenticate",
-            `Bearer resource_metadata="${oauth.protectedResourceMetadataUrl}", scope="${oauth.scope}"`
-          );
-        }
-        throw new ApiError(401, "UNAUTHORIZED", "Bearer token is missing or invalid");
       }
 
       if (request.chatCockpitAuth.kind === "operator-session") {

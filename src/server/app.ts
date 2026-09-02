@@ -997,6 +997,19 @@ export function buildServer(
   });
   runtimeEventService.attach();
   app.setErrorHandler((error, _request, reply) => {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE"
+    ) {
+      return sendApiError(
+        reply,
+        415,
+        "UNSUPPORTED_MEDIA_TYPE",
+        "Request Content-Type is not supported"
+      );
+    }
     if (error instanceof OperatorAuthError) {
       return sendApiError(reply, error.statusCode, error.code, error.message);
     }
