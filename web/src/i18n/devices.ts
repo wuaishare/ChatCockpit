@@ -27,6 +27,8 @@ export interface DevicesCopy {
   localPresence: string;
   remoteReadReady: string;
   remoteReadAgentUpdate: string;
+  remoteReadCapabilityNotAttested: string;
+  remoteReadUnavailable: string;
   remoteReadOffline: string;
   remoteControlPending: string;
   runtime: string;
@@ -37,6 +39,10 @@ export interface DevicesCopy {
   runtimeUnknown: string;
   runtimeUnsupported: string;
   runtimeAgentUpdate: string;
+  runtimeCapabilityNotAttested: string;
+  runtimeChannelUnavailable: string;
+  runtimeLocalHostRequired: string;
+  manageRuntime: string;
   startRuntime: string;
   startingRuntime: string;
   stopRuntime: string;
@@ -111,6 +117,8 @@ const zhCN: DevicesCopy = {
   localPresence: "本机可用",
   remoteReadReady: "远程读取可用",
   remoteReadAgentUpdate: "远程读取需更新 Agent",
+  remoteReadCapabilityNotAttested: "当前 Agent 未证明远程读取能力",
+  remoteReadUnavailable: "远程读取通道暂不可用",
   remoteReadOffline: "远程读取离线",
   remoteControlPending: "远程启停尚未开放",
   runtime: "Runtime 状态",
@@ -121,6 +129,10 @@ const zhCN: DevicesCopy = {
   runtimeUnknown: "Runtime 状态未知",
   runtimeUnsupported: "此设备不支持受管 Runtime",
   runtimeAgentUpdate: "Runtime 管理需更新 Agent",
+  runtimeCapabilityNotAttested: "当前 Agent 未证明 Runtime 管理能力",
+  runtimeChannelUnavailable: "Runtime 管理通道暂不可用",
+  runtimeLocalHostRequired: "需要本机 ChatCockpit Host 执行 Runtime 管理",
+  manageRuntime: "管理 Runtime",
   startRuntime: "启动 Runtime",
   startingRuntime: "正在启动…",
   stopRuntime: "停止 Runtime",
@@ -195,6 +207,8 @@ const enUS: DevicesCopy = {
   localPresence: "Available locally",
   remoteReadReady: "Remote reads ready",
   remoteReadAgentUpdate: "Remote reads require an Agent update",
+  remoteReadCapabilityNotAttested: "The current Agent did not attest remote-read capability",
+  remoteReadUnavailable: "Remote-read channel is currently unavailable",
   remoteReadOffline: "Remote reads offline",
   remoteControlPending: "Remote start/stop not enabled yet",
   runtime: "Runtime status",
@@ -205,6 +219,10 @@ const enUS: DevicesCopy = {
   runtimeUnknown: "Runtime unknown",
   runtimeUnsupported: "Managed Runtime unsupported",
   runtimeAgentUpdate: "Runtime management requires an Agent update",
+  runtimeCapabilityNotAttested: "The current Agent did not attest Runtime management capability",
+  runtimeChannelUnavailable: "Runtime management channel is currently unavailable",
+  runtimeLocalHostRequired: "Runtime management requires a local ChatCockpit Host",
+  manageRuntime: "Manage Runtime",
   startRuntime: "Start Runtime",
   startingRuntime: "Starting…",
   stopRuntime: "Stop Runtime",

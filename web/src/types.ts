@@ -459,6 +459,7 @@ export interface ProductActionTargetAvailability {
     | "approval-required"
     | "device-offline"
     | "device-agent-update-required"
+    | "target-capability-not-attested"
     | "target-capability-not-implemented"
     | "policy-forbidden"
     | "no-valid-execution-path";

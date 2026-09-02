@@ -16,6 +16,7 @@ const capableId = `cc_device_${"A".repeat(24)}`;
 const readOnlyId = `cc_device_${"B".repeat(24)}`;
 const offlineId = `cc_device_${"C".repeat(24)}`;
 const pausedId = `cc_device_${"D".repeat(24)}`;
+const legacyId = `cc_device_${"E".repeat(24)}`;
 
 function record(id: string, displayName: string, pausedAt: string | null = null): ManagedDeviceRecord {
   return {
@@ -40,7 +41,8 @@ class FakeRegistry {
     [capableId, record(capableId, "Capable Mac")],
     [readOnlyId, record(readOnlyId, "Read-only Mac")],
     [offlineId, record(offlineId, "Offline Mac")],
-    [pausedId, record(pausedId, "Paused Mac", now)]
+    [pausedId, record(pausedId, "Paused Mac", now)],
+    [legacyId, record(legacyId, "Legacy Mac")]
   ]);
 
   getDevice(deviceId: string): ManagedDeviceRecord | null {
@@ -79,16 +81,30 @@ class FakeChannels {
     return deviceId !== offlineId;
   }
 
+  capabilityAvailability(
+    deviceId: string,
+    capability: "capability-rpc" | "workspace-rpc" | "runtime-lifecycle"
+  ): "available" | "channel-unavailable" | "legacy-update-required" | "not-attested" {
+    if (deviceId === offlineId) return "channel-unavailable";
+    if (deviceId === legacyId && capability !== "capability-rpc") {
+      return "legacy-update-required";
+    }
+    if (deviceId === readOnlyId && capability !== "capability-rpc") {
+      return "not-attested";
+    }
+    return "available";
+  }
+
   isCapabilityRpcAvailable(deviceId: string): boolean {
-    return deviceId === capableId || deviceId === readOnlyId || deviceId === pausedId;
+    return this.capabilityAvailability(deviceId, "capability-rpc") === "available";
   }
 
   isWorkspaceRpcAvailable(deviceId: string): boolean {
-    return deviceId === capableId || deviceId === pausedId;
+    return this.capabilityAvailability(deviceId, "workspace-rpc") === "available";
   }
 
   isRuntimeLifecycleRpcAvailable(deviceId: string): boolean {
-    return deviceId === capableId || deviceId === pausedId;
+    return this.capabilityAvailability(deviceId, "runtime-lifecycle") === "available";
   }
 }
 
@@ -138,7 +154,17 @@ assert.equal(
 assert.equal(
   target(remoteBrowser, "runtime.lifecycle", readOnlyId).availability,
   "unsupported",
-  "protocol-v2 style remote read must not imply Runtime lifecycle support"
+  "an explicit v5 capability set must not imply Runtime lifecycle support"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.lifecycle", readOnlyId).reason,
+  "target-capability-not-attested",
+  "an explicit current capability omission must not be misreported as an Agent upgrade requirement"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.lifecycle", legacyId).reason,
+  "device-agent-update-required",
+  "a legacy protocol gap should retain the bounded Agent-update recovery reason"
 );
 assert.equal(
   target(remoteBrowser, "project.root.manage", capableId).availability,
@@ -154,6 +180,10 @@ assert.equal(
   target(remoteBrowser, "workspace.read", readOnlyId).availability,
   "unsupported",
   "generic capability RPC must not imply remote Workspace RPC support"
+);
+assert.equal(
+  target(remoteBrowser, "workspace.read", readOnlyId).reason,
+  "target-capability-not-attested"
 );
 assert.equal(
   target(remoteBrowser, "workspace.read", offlineId).availability,

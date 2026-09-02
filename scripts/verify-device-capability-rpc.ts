@@ -150,6 +150,10 @@ try {
   const v1Ready = await nextEventOfType(v1Iterator, "channel.ready");
   assert.equal(v1Ready.protocolVersion, 1);
   assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), false);
+  assert.equal(
+    channelHub.capabilityAvailability(deviceId, "capability-rpc"),
+    "legacy-update-required"
+  );
   await assert.rejects(
     rpc.request(deviceId, "capabilities.list", {}),
     (error: unknown) =>
@@ -187,6 +191,10 @@ try {
   const v2Ready = await nextEventOfType(v2Iterator, "channel.ready");
   assert.equal(v2Ready.protocolVersion, 2);
   assert.equal(channelHub.isCapabilityRpcAvailable(deviceId), true);
+  assert.equal(
+    channelHub.capabilityAvailability(deviceId, "workspace-rpc"),
+    "legacy-update-required"
+  );
   const devicesWithV2 = await app.inject({
     method: "GET",
     url: "/api/devices",
@@ -566,6 +574,11 @@ try {
     channelHub.isRuntimeLifecycleRpcAvailable(deviceId),
     false,
     "signed v5 capability attestation must not infer Runtime lifecycle from Workspace RPC"
+  );
+  assert.equal(
+    channelHub.capabilityAvailability(deviceId, "runtime-lifecycle"),
+    "not-attested",
+    "explicit v5 capability omission is not evidence that the Agent merely needs an update"
   );
   const v4Closed = await nextEventOfType(v4Iterator, "channel.close");
   assert.equal(v4Closed.reason, "superseded");

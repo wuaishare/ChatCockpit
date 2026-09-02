@@ -8,6 +8,7 @@ import {
   fetchDeviceEnrollmentRequests,
   fetchDeviceRuntimeStatus,
   fetchDevices,
+  fetchProductActions,
   revokeDevice,
   setDeviceExecutionPolicy
 } from "../api";
@@ -15,7 +16,8 @@ import type {
   DeviceEnrollmentRequestSummary,
   DeviceRuntimeConditions,
   DeviceRuntimeLifecycleAction,
-  ManagedDeviceSummary
+  ManagedDeviceSummary,
+  ProductActionTargetAvailability
 } from "../types";
 import type { LocaleCode } from "../i18n";
 import { getDevicesCopy } from "../i18n/devices";
@@ -49,6 +51,8 @@ export function DevicesView({ locale }: DevicesViewProps) {
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
   const [runtimeByDevice, setRuntimeByDevice] = useState<Record<string, DeviceRuntimeConditions | null>>({});
   const [runtimeLoading, setRuntimeLoading] = useState<Record<string, boolean>>({});
+  const [runtimeLifecycleTargets, setRuntimeLifecycleTargets] = useState<ProductActionTargetAvailability[]>([]);
+  const [workspaceReadTargets, setWorkspaceReadTargets] = useState<ProductActionTargetAvailability[]>([]);
   const [runtimeActionKey, setRuntimeActionKey] = useState<string | null>(null);
 
   const remoteDevices = useMemo(
@@ -67,17 +71,29 @@ export function DevicesView({ locale }: DevicesViewProps) {
     if (showLoading) setLoading(true);
     setError(null);
     try {
-      const [deviceResponse, requestResponse] = await Promise.all([
+      const [deviceResponse, requestResponse, actionResponse] = await Promise.all([
         fetchDevices(),
-        fetchDeviceEnrollmentRequests()
+        fetchDeviceEnrollmentRequests(),
+        fetchProductActions().catch(() => null)
       ]);
       setDevices(deviceResponse.devices);
       setRequests(requestResponse.enrollmentRequests);
+      const nextRuntimeTargets = actionResponse?.actions.find(
+        (action) => action.id === "runtime.lifecycle"
+      )?.targets ?? [];
+      const nextWorkspaceReadTargets = actionResponse?.actions.find(
+        (action) => action.id === "workspace.read"
+      )?.targets ?? [];
+      setRuntimeLifecycleTargets(nextRuntimeTargets);
+      setWorkspaceReadTargets(nextWorkspaceReadTargets);
       const runtimeCandidates = deviceResponse.devices.filter((device) =>
         device.locality === "remote" &&
         device.trust === "paired" &&
-        device.presence === "online" &&
-        device.management.runtimeLifecycle
+        nextRuntimeTargets.some((target) =>
+          target.deviceId === device.id &&
+          target.availability === "available-targeted" &&
+          target.executionMode === "remote-device-rpc"
+        )
       );
       setRuntimeLoading(Object.fromEntries(runtimeCandidates.map((device) => [device.id, true])));
       const runtimeEntries = await Promise.all(runtimeCandidates.map(async (device) => {
@@ -187,9 +203,29 @@ export function DevicesView({ locale }: DevicesViewProps) {
   };
 
   const runtimeMeta = (device: ManagedDeviceSummary) => {
-    if (device.locality !== "remote") return { state: "local" as const, label: copy.runtimeLocal };
-    if (device.presence !== "online") return { state: "unknown" as const, label: copy.runtimeUnknown };
-    if (!device.management.runtimeLifecycle) return { state: "unavailable" as const, label: copy.runtimeAgentUpdate };
+    const target = runtimeLifecycleTargets.find((candidate) => candidate.deviceId === device.id) ?? null;
+    if (device.locality === "local") {
+      return { state: "local" as const, label: copy.runtimeLocal };
+    }
+    if (!target) return { state: "unknown" as const, label: copy.runtimeUnknown };
+    if (target.availability === "offline") {
+      return { state: "unknown" as const, label: copy.runtimeUnknown };
+    }
+    if (target.reason === "device-agent-update-required") {
+      return { state: "unsupported" as const, label: copy.runtimeAgentUpdate };
+    }
+    if (target.reason === "target-capability-not-attested") {
+      return { state: "unsupported" as const, label: copy.runtimeCapabilityNotAttested };
+    }
+    if (target.availability === "unsupported") {
+      return { state: "unsupported" as const, label: copy.runtimeUnsupported };
+    }
+    if (target.availability === "unavailable") {
+      return { state: "unavailable" as const, label: copy.runtimeChannelUnavailable };
+    }
+    if (target.availability !== "available-targeted") {
+      return { state: "unknown" as const, label: copy.runtimeUnknown };
+    }
     if (runtimeLoading[device.id]) return { state: "loading" as const, label: copy.runtimeLoading };
     const conditions = runtimeByDevice[device.id];
     if (!conditions) return { state: "unknown" as const, label: copy.runtimeUnknown };
@@ -207,12 +243,23 @@ export function DevicesView({ locale }: DevicesViewProps) {
     return { state: "unknown" as const, label: copy.runtimeUnknown };
   };
 
+  const runtimeActionHint = (target: ProductActionTargetAvailability): string => {
+    if (target.availability === "requires-local-host") return copy.runtimeLocalHostRequired;
+    if (target.availability === "offline") return copy.runtimeUnknown;
+    if (target.reason === "device-agent-update-required") return copy.runtimeAgentUpdate;
+    if (target.reason === "target-capability-not-attested") return copy.runtimeCapabilityNotAttested;
+    if (target.availability === "unsupported") return copy.runtimeUnsupported;
+    return copy.runtimeChannelUnavailable;
+  };
+
   const remoteReadLabel = (device: ManagedDeviceSummary) => {
-    if (device.executionPolicy === "paused") return copy.aiPaused;
-    if (device.management.remoteRead) return copy.remoteReadReady;
-    return device.presence === "online"
-      ? copy.remoteReadAgentUpdate
-      : copy.remoteReadOffline;
+    const target = workspaceReadTargets.find((candidate) => candidate.deviceId === device.id) ?? null;
+    if (!target) return copy.remoteReadUnavailable;
+    if (target.availability === "available-targeted") return copy.remoteReadReady;
+    if (target.availability === "offline") return copy.remoteReadOffline;
+    if (target.reason === "device-agent-update-required") return copy.remoteReadAgentUpdate;
+    if (target.reason === "target-capability-not-attested") return copy.remoteReadCapabilityNotAttested;
+    return copy.remoteReadUnavailable;
   };
 
   return (
@@ -249,6 +296,14 @@ export function DevicesView({ locale }: DevicesViewProps) {
             {devices.map((device) => {
               const presence = presenceMeta(device);
               const runtime = runtimeMeta(device);
+              const runtimeTarget = runtimeLifecycleTargets.find(
+                (candidate) => candidate.deviceId === device.id
+              ) ?? null;
+              const runtimeActionAvailable =
+                runtimeTarget?.availability === "available-targeted" &&
+                runtimeTarget.executionMode === "remote-device-rpc";
+              const runtimeActionUnavailable =
+                Boolean(runtimeTarget) && !runtimeActionAvailable;
               return (
                 <article className="device-card" key={device.id}>
                   <div className="device-card__header">
@@ -309,9 +364,9 @@ export function DevicesView({ locale }: DevicesViewProps) {
                     </div>
                   </div>
 
-                  {device.locality === "remote" && device.trust !== "revoked" ? (
+                  {(device.locality === "local" || device.trust !== "revoked") && runtimeTarget ? (
                     <div className="device-card__actions">
-                      {device.executionPolicy === "paused" ? (
+                      {device.locality === "remote" && device.executionPolicy === "paused" ? (
                         <Button
                           size="small"
                           loading={policyActionKey === `${device.id}:resume`}
@@ -319,7 +374,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                         >
                           {policyActionKey === `${device.id}:resume` ? copy.resuming : copy.resume}
                         </Button>
-                      ) : (
+                      ) : device.locality === "remote" ? (
                         <Popconfirm
                           title={copy.pauseTitle}
                           description={copy.pauseDescription}
@@ -331,8 +386,8 @@ export function DevicesView({ locale }: DevicesViewProps) {
                             {policyActionKey === `${device.id}:pause` ? copy.pausing : copy.pause}
                           </Button>
                         </Popconfirm>
-                      )}
-                      {runtime.state === "stopped" ? (
+                      ) : null}
+                      {runtimeActionAvailable && runtime.state === "stopped" ? (
                         <Button
                           size="small"
                           loading={runtimeActionKey === `${device.id}:start`}
@@ -342,7 +397,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           {runtimeActionKey === `${device.id}:start` ? copy.startingRuntime : copy.startRuntime}
                         </Button>
                       ) : null}
-                      {runtime.state === "ready" ? (
+                      {runtimeActionAvailable && runtime.state === "ready" ? (
                         <Popconfirm
                           title={copy.stopRuntimeTitle}
                           description={copy.stopRuntimeDescription}
@@ -361,7 +416,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           </Button>
                         </Popconfirm>
                       ) : null}
-                      {runtime.state === "ready" ? (
+                      {runtimeActionAvailable && runtime.state === "ready" ? (
                         <Popconfirm
                           title={copy.restartRuntimeTitle}
                           description={copy.restartRuntimeDescription}
@@ -378,18 +433,26 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           </Button>
                         </Popconfirm>
                       ) : null}
-                      <Popconfirm
-                        title={copy.revokeTitle}
-                        description={copy.revokeDescription}
-                        okText={copy.confirm}
-                        cancelText={copy.cancel}
-                        okButtonProps={{ danger: true }}
-                        onConfirm={() => void revoke(device.id)}
-                      >
-                        <Button danger size="small" loading={revokingDeviceId === device.id}>
-                          {revokingDeviceId === device.id ? copy.revoking : copy.revoke}
-                        </Button>
-                      </Popconfirm>
+                      {runtimeActionUnavailable ? (
+                        <>
+                          <Button size="small" disabled>{copy.manageRuntime}</Button>
+                          <span className="device-card__action-hint">{runtimeActionHint(runtimeTarget)}</span>
+                        </>
+                      ) : null}
+                      {device.locality === "remote" ? (
+                        <Popconfirm
+                          title={copy.revokeTitle}
+                          description={copy.revokeDescription}
+                          okText={copy.confirm}
+                          cancelText={copy.cancel}
+                          okButtonProps={{ danger: true }}
+                          onConfirm={() => void revoke(device.id)}
+                        >
+                          <Button danger size="small" loading={revokingDeviceId === device.id}>
+                            {revokingDeviceId === device.id ? copy.revoking : copy.revoke}
+                          </Button>
+                        </Popconfirm>
+                      ) : null}
                     </div>
                   ) : null}
                 </article>

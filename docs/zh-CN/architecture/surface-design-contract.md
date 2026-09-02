@@ -66,7 +66,7 @@ Runtime 仍然是权威实现层。Menu Bar、App 与 Web Cockpit 应消费同�
 2. **核心 Product Action 跨 Host 保持同一心智。** Project、Runtime、Device、Job、Resource、Public Access、Integration、Approval 与 Continuity 应尽量共享同一 Domain Model、动作词汇和状态语义。
 3. **Host-only Preference 保持 Host-only。** Menu Bar 设置、Launch at Login、Keychain、Desktop 更新策略、Dock/Window Preference 等 OS Integration 不需要为了视觉一致而复制到 Browser。
 4. **执行前先解析。** Machine-oriented Action 必须先解析 Host Capability、Authority/Policy 与 Execution Target；Browser 可以请求由已配对 Device Agent 执行，Desktop 也可以在本机执行同一 Product Action。
-5. **不得编造 Bridge。** 只有真实检测/Attest 到 Desktop/Agent Capability 后，`requires-local-host` 才能升级成 Native Bridge；UI 不能因为“理论上装 App 会有帮助”就假装本机已安装。
+5. **不得编造 Bridge。** 只有真实检测/Attest 到 Desktop/Agent Capability 后，`requires-local-host` 才能升级成 Native Bridge；UI 不能因为“理论上装 App 会有帮助”就假装本机已安装。同样不得编造恢复原因：对于 v5 已签名 capability set，缺少某项能力只表示当前 Agent 没有 attestation 该能力；只有 legacy 协议本身无法表达该能力时，才可以提示需要升级 Agent。
 6. **秘密保持 machine-local。** Machine API Token、初始化 Owner 密码、Provider Credential 与其它 Host Private Material 绝不能因为 UI parity 进入公开投影。
 7. **共享工作流真相，不强绑 Renderer 技术。** Native 与 Web 应共享产品语义、Application Contract，并在安全和经济性成立时复用 UI；Desktop Renderer 技术路线是 ADR-006 约束下的独立实现决策。
 8. **安全登录入口与稳定 Cockpit 路由必须分开建模。** `consolePathPrefix` 是新的未认证 Web 登录所经过的可配置安全入口；认证后的 Cockpit 导航使用稳定的 `/ui/*` 路由族。Host 不得用安全登录入口替代认证后的 deep link，也不能把稳定 Cockpit 路由误当成秘密地址。

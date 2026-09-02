@@ -4477,10 +4477,18 @@ button.continuity-workspace.is-selected {
 
 .device-card__actions {
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--tp-line);
+}
+
+.device-card__action-hint {
+  max-width: 320px;
+  color: var(--tp-text-muted);
+  font-size: var(--tp-text-xs);
+  line-height: 1.4;
 }
 
 .device-card__actions--decision {

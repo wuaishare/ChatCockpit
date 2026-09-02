@@ -111,7 +111,7 @@ UI 不应使用“Web 所以隐藏”“Desktop 所以显示”作为核心产�
 - `requires-local-host`：动作真实存在，但当前请求上下文不具备本机 Host 能力；
 - `approval-required`：Host 可执行，但需要受治理审批；
 - `offline`：目标存在但当前离线；
-- `unsupported`：目标当前 Agent/Runtime 版本不支持；
+- `unsupported`：目标当前没有证明该能力；恢复原因必须继续区分 legacy 协议确需升级、当前 v5 capability set 未 attestation、平台/实现本身不支持等情况，不能把所有缺失能力都猜成“需要升级 Agent”；
 - `forbidden`：Authority/Policy 不允许；
 - `unavailable`：当前没有任何合法执行路径。
 
@@ -163,7 +163,7 @@ Restart/Start/Stop Runtime 在 Desktop 与 Web 中属于同一个产品动作：
 
 现有 `TargetedCapabilityRouterService`、`DeviceTargetService`、Device Capability RPC、Device Runtime Lifecycle RPC、Host Permission、Governance Ledger 不废弃。
 
-Device Channel 的 **wire protocol version 与 capability set 必须正交**。Legacy v1-v4 channel 为兼容旧 Agent 继续按历史版本语义读取；v5 channel-open 必须把 canonical capability attestation 纳入设备 Ed25519 签名 proof，Hub 只按已签名的 `capability-rpc`、`workspace-rpc`、`runtime-lifecycle` 等能力事实决定可用性。平台名称、连接在线、通用 RPC 可达或较高 protocol version 都不能替代 capability attestation，也不能通过剥离 attestation 降级成更宽权限。
+Device Channel 的 **wire protocol version 与 capability set 必须正交**。Legacy v1-v4 channel 为兼容旧 Agent 继续按历史版本语义读取；v5 channel-open 必须把 canonical capability attestation 纳入设备 Ed25519 签名 proof，Hub 只按已签名的 `capability-rpc`、`workspace-rpc`、`runtime-lifecycle` 等能力事实决定可用性。平台名称、连接在线、通用 RPC 可达或较高 protocol version 都不能替代 capability attestation，也不能通过剥离 attestation 降级成更宽权限。对于 legacy channel，历史协议本身无法表达所需 capability 时可以给出 `device-agent-update-required`；对于 v5 明确签名的 capability set，某项 capability 缺失只能说明“当前 Agent 未证明该能力”，不得反推出升级、平台或配置原因。
 
 新增的 Host Capability Resolution 层应优先组合这些已有事实，而不是创建第二个远程执行系统。
 

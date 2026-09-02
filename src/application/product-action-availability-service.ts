@@ -1,5 +1,9 @@
 import type { DeviceTargetService } from "./device-target-service.js";
-import type { DeviceChannelHub } from "../devices/device-channel.js";
+import type {
+  DeviceChannelCapabilityAvailability,
+  DeviceChannelHub
+} from "../devices/device-channel.js";
+import type { DeviceChannelCapability } from "../devices/device-channel-capabilities.js";
 import type { ResolvedDeviceTarget } from "../devices/device-target.js";
 
 export const PRODUCT_ACTION_IDS = [
@@ -33,6 +37,7 @@ export type ProductActionReason =
   | "approval-required"
   | "device-offline"
   | "device-agent-update-required"
+  | "target-capability-not-attested"
   | "target-capability-not-implemented"
   | "policy-forbidden"
   | "no-valid-execution-path";
@@ -98,6 +103,7 @@ export class ProductActionAvailabilityService {
       | "isCapabilityRpcAvailable"
       | "isWorkspaceRpcAvailable"
       | "isRuntimeLifecycleRpcAvailable"
+      | "capabilityAvailability"
     >
   ) {}
 
@@ -127,38 +133,22 @@ export class ProductActionAvailabilityService {
     if (unavailable) return unavailable;
 
     if (action === "runtime.lifecycle") {
-      return this.channels.isRuntimeLifecycleRpcAvailable(target.id)
-        ? {
-            ...targetBase(target),
-            availability: "available-targeted",
-            executionMode: "remote-device-rpc",
-            reason: "ready"
-          }
-        : {
-            ...targetBase(target),
-            availability: "unsupported",
-            executionMode: "none",
-            reason: "device-agent-update-required"
-          };
+      return this.resolveRemoteCapability(
+        target,
+        "runtime-lifecycle",
+        this.channels.capabilityAvailability(target.id, "runtime-lifecycle")
+      );
     }
 
     if (action === "workspace.read" || action === "capability.read") {
-      const available = action === "workspace.read"
-        ? this.channels.isWorkspaceRpcAvailable(target.id)
-        : this.channels.isCapabilityRpcAvailable(target.id);
-      return available
-        ? {
-            ...targetBase(target),
-            availability: "available-targeted",
-            executionMode: "remote-device-rpc",
-            reason: "ready"
-          }
-        : {
-            ...targetBase(target),
-            availability: "unsupported",
-            executionMode: "none",
-            reason: "device-agent-update-required"
-          };
+      const capability: DeviceChannelCapability = action === "workspace.read"
+        ? "workspace-rpc"
+        : "capability-rpc";
+      return this.resolveRemoteCapability(
+        target,
+        capability,
+        this.channels.capabilityAvailability(target.id, capability)
+      );
     }
 
     return {
@@ -166,6 +156,43 @@ export class ProductActionAvailabilityService {
       availability: "unsupported",
       executionMode: "none",
       reason: "target-capability-not-implemented"
+    };
+  }
+
+  private resolveRemoteCapability(
+    target: ResolvedDeviceTarget,
+    _capability: DeviceChannelCapability,
+    availability: DeviceChannelCapabilityAvailability
+  ): ProductActionTargetProjection {
+    if (availability === "available") {
+      return {
+        ...targetBase(target),
+        availability: "available-targeted",
+        executionMode: "remote-device-rpc",
+        reason: "ready"
+      };
+    }
+    if (availability === "legacy-update-required") {
+      return {
+        ...targetBase(target),
+        availability: "unsupported",
+        executionMode: "none",
+        reason: "device-agent-update-required"
+      };
+    }
+    if (availability === "not-attested") {
+      return {
+        ...targetBase(target),
+        availability: "unsupported",
+        executionMode: "none",
+        reason: "target-capability-not-attested"
+      };
+    }
+    return {
+      ...targetBase(target),
+      availability: "unavailable",
+      executionMode: "none",
+      reason: "no-valid-execution-path"
     };
   }
 

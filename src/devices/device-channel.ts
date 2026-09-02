@@ -43,6 +43,12 @@ export interface DeviceRuntimeLifecycleRpcChannel {
   send(data: unknown): boolean;
 }
 
+export type DeviceChannelCapabilityAvailability =
+  | "available"
+  | "channel-unavailable"
+  | "legacy-update-required"
+  | "not-attested";
+
 export interface DeviceChannelLifecycleEvent {
   deviceId: string;
   channelId: string;
@@ -100,13 +106,11 @@ export class DeviceChannelHub {
   }
 
   isCapabilityRpcAvailable(deviceId: string): boolean {
-    const channel = this.active.get(deviceId);
-    return Boolean(channel && this.supports(channel, "capability-rpc") && channel.send !== null);
+    return this.capabilityAvailability(deviceId, "capability-rpc") === "available";
   }
 
   isWorkspaceRpcAvailable(deviceId: string): boolean {
-    const channel = this.active.get(deviceId);
-    return Boolean(channel && this.supports(channel, "workspace-rpc") && channel.send !== null);
+    return this.capabilityAvailability(deviceId, "workspace-rpc") === "available";
   }
 
   capabilityRpcChannel(deviceId: string): DeviceCapabilityRpcChannel | null {
@@ -121,8 +125,21 @@ export class DeviceChannelHub {
   }
 
   isRuntimeLifecycleRpcAvailable(deviceId: string): boolean {
+    return this.capabilityAvailability(deviceId, "runtime-lifecycle") === "available";
+  }
+
+  capabilityAvailability(
+    deviceId: string,
+    capability: DeviceChannelCapability
+  ): DeviceChannelCapabilityAvailability {
     const channel = this.active.get(deviceId);
-    return Boolean(channel && this.supports(channel, "runtime-lifecycle") && channel.send !== null);
+    if (!channel) return "channel-unavailable";
+    if (channel.capabilities !== null) {
+      if (!channel.capabilities.has(capability)) return "not-attested";
+      return channel.send === null ? "channel-unavailable" : "available";
+    }
+    if (!this.supports(channel, capability)) return "legacy-update-required";
+    return channel.send === null ? "channel-unavailable" : "available";
   }
 
   runtimeLifecycleRpcChannel(deviceId: string): DeviceRuntimeLifecycleRpcChannel | null {
