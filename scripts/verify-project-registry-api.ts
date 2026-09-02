@@ -306,6 +306,27 @@ async function main(): Promise<void> {
     assert.equal(remoteAttach.statusCode, 403);
     assert.match(remoteAttach.body, /MACHINE_LOCAL_AUTHORITY_REQUIRED/);
 
+    const forwardedAttach = await server.app.inject({
+      method: "POST",
+      url: `/api/projects/${encodeURIComponent(projectId)}/roots`,
+      headers: {
+        ...mutationHeaders,
+        host: "localhost",
+        "x-forwarded-host": "localhost",
+        "x-forwarded-for": "198.51.100.77"
+      },
+      payload: {
+        path: attachedRepo,
+        kind: "git-repository",
+        role: "supporting-source",
+        access: "read-write",
+        repoId: "forwarded-blocked",
+        expectedConfigRevision: initial.configRevision
+      }
+    });
+    assert.equal(forwardedAttach.statusCode, 403);
+    assert.match(forwardedAttach.body, /MACHINE_LOCAL_AUTHORITY_REQUIRED/);
+
     const noCsrfAttach = await fetch(
       `${server.baseUrl}/api/projects/${encodeURIComponent(projectId)}/roots`,
       {

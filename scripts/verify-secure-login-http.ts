@@ -72,6 +72,28 @@ async function main(): Promise<void> {
     );
     assert.match(localLoginBootstrap.body, /chatcockpit-console-base/);
 
+    const forwardedLocalLogin = await app.inject({
+      method: "GET",
+      url: "/ui/local-login?target=projects",
+      headers: { "x-forwarded-host": "localhost" }
+    });
+    assert.equal(
+      forwardedLocalLogin.statusCode,
+      404,
+      "a loopback reverse proxy must not turn forwarded Host metadata into Machine-local authority"
+    );
+
+    const forwardedForLocalLogin = await app.inject({
+      method: "GET",
+      url: "/ui/local-login?target=projects",
+      headers: { "x-forwarded-for": "198.51.100.77" }
+    });
+    assert.equal(
+      forwardedForLocalLogin.statusCode,
+      404,
+      "forwarded requests must fail closed even when the direct proxy peer is loopback"
+    );
+
     const entry = await app.inject({ method: "GET", url: SECURE_ENTRY });
     assert.equal(entry.statusCode, 303, "secure entry must redirect instead of serving the SPA");
     const location = entry.headers.location;
