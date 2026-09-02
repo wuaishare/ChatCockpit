@@ -9,7 +9,7 @@ struct RuntimeControllerTests {
     @Test("missing root is setup required")
     func missingRootIsSetupRequired() {
         let state = DesktopOverallStateResolver.resolve(
-            rootAvailable: false,
+            runtimeContextAvailable: false,
             nodeSupported: false,
             lifecycle: .unknown,
             healthReachable: false,
@@ -21,7 +21,7 @@ struct RuntimeControllerTests {
     @Test("unsupported Node is setup required")
     func unsupportedNodeIsSetupRequired() {
         let state = DesktopOverallStateResolver.resolve(
-            rootAvailable: true,
+            runtimeContextAvailable: true,
             nodeSupported: false,
             lifecycle: readyLifecycle,
             healthReachable: true,
@@ -39,7 +39,7 @@ struct RuntimeControllerTests {
             uiURL: nil
         )
         let state = DesktopOverallStateResolver.resolve(
-            rootAvailable: true,
+            runtimeContextAvailable: true,
             nodeSupported: true,
             lifecycle: lifecycle,
             healthReachable: false,
@@ -57,7 +57,7 @@ struct RuntimeControllerTests {
             uiURL: URL(string: "http://127.0.0.1:4318/ui")
         )
         let state = DesktopOverallStateResolver.resolve(
-            rootAvailable: true,
+            runtimeContextAvailable: true,
             nodeSupported: true,
             lifecycle: lifecycle,
             healthReachable: true,
@@ -69,7 +69,7 @@ struct RuntimeControllerTests {
     @Test("all authoritative signals are required for ready")
     func allSignalsProduceReady() {
         let state = DesktopOverallStateResolver.resolve(
-            rootAvailable: true,
+            runtimeContextAvailable: true,
             nodeSupported: true,
             lifecycle: readyLifecycle,
             healthReachable: true,
@@ -83,6 +83,7 @@ struct RuntimeControllerTests {
         let snapshot = DesktopRuntimeSnapshot(
             overallState: .ready,
             context: nil,
+            executionWorkspaceAvailable: true,
             node: NodeRuntimeStatus(executableURL: nil, version: nil),
             configuration: DesktopRuntimeConfiguration(
                 host: "0.0.0.0",
@@ -108,6 +109,7 @@ struct RuntimeControllerTests {
         let snapshot = DesktopRuntimeSnapshot(
             overallState: .ready,
             context: nil,
+            executionWorkspaceAvailable: true,
             node: NodeRuntimeStatus(executableURL: nil, version: nil),
             configuration: DesktopRuntimeConfiguration(
                 host: "0.0.0.0",
@@ -175,6 +177,36 @@ struct RuntimeControllerTests {
 
         #expect(actions == [.restart])
         #expect(snapshot.overallState == .ready)
+    }
+
+    @Test("packaged runtime truth remains visible when execution workspace is unavailable")
+    func packagedRuntimeTruthDoesNotCollapseIntoSetupState() async {
+        let missingWorkspace = URL(
+            fileURLWithPath: "/tmp/chatcockpit-missing-execution-workspace",
+            isDirectory: true
+        )
+        let context = DesktopDistributionContext(
+            mode: .packaged,
+            installRootURL: URL(fileURLWithPath: "/tmp/runtime/app", isDirectory: true),
+            stateRootURL: URL(fileURLWithPath: "/tmp/runtime-state", isDirectory: true),
+            primaryWorkspaceURL: missingWorkspace,
+            nodeExecutableURL: URL(fileURLWithPath: "/tmp/runtime/node/bin/node"),
+            nodeVersion: SemanticVersion(major: 24, minor: 18, patch: 1),
+            runtimeID: "0.2.0-alpha-node24.18.1-darwin-arm64",
+            architecture: "arm64"
+        )
+        let controller = RuntimeController(
+            configurationReader: FixtureConfigurationReader(),
+            nodeResolver: FixtureNodeResolver(supported: true, source: .bundled),
+            lifecycle: FixtureLifecycleController(status: readyLifecycle),
+            health: FixtureHealthChecker(status: LocalHealthStatus(healthReachable: true, uiReachable: true))
+        )
+
+        let snapshot = await controller.snapshot(context: context)
+
+        #expect(snapshot.overallState == .ready)
+        #expect(snapshot.executionWorkspaceAvailable == false)
+        #expect(snapshot.lifecycle.controlPlane == .running)
     }
 
     @Test("packaged snapshot keeps workspace separate and reports bundled Node")

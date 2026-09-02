@@ -197,6 +197,7 @@
 "This app build does not contain a valid packaged ChatCockpit runtime." = "当前应用构建中没有有效的 ChatCockpit 独立运行环境。";
 "ChatCockpit Cockpit is not reachable. Start or repair the local services first." = "ChatCockpit 控制台当前不可访问。请先启动或修复本机服务。";
 "Choose a project with an execution workspace before controlling packaged ChatCockpit services." = "请先选择一个包含执行工作区的项目，再管理 ChatCockpit 独立应用服务。";
+"Choose a project with an execution workspace before starting or restarting packaged ChatCockpit services." = "请先选择一个包含执行工作区的项目，再启动或重启 ChatCockpit 独立应用服务。";
 "Choose a valid ChatCockpit source folder before controlling services." = "请先选择有效的 ChatCockpit 源码目录，再管理服务。";
 "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry." = "ChatCockpit 服务操作未完成。请检查本机运行诊断后重试。";
 "The saved execution workspace is no longer available. Refresh Projects or choose the project again." = "已保存的执行工作区当前不可用。请刷新“项目”，或重新选择该项目。";

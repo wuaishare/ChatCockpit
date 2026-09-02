@@ -323,7 +323,7 @@ final class DesktopAppModel: ObservableObject {
             if distributionMode == .packaged {
                 try await reloadProjectRegistry()
             }
-            guard let context = try await currentContext() else {
+            guard let context = try await machineManagementContext() else {
                 snapshot = .setupRequired
                 runtimeConflict = nil
                 operationalSummary = nil
@@ -362,7 +362,7 @@ final class DesktopAppModel: ObservableObject {
         defer { isRuntimeStatusRefreshing = false }
 
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             let refreshedSnapshot = await runtimeController.snapshot(context: context)
             snapshot = refreshedSnapshot
             runtimeConflict = await conflictDetector.detect(
@@ -434,7 +434,7 @@ final class DesktopAppModel: ObservableObject {
               project.roots.contains(where: { $0.id == rootID }),
               let revision = projectRegistryRevision else { return }
         do {
-            let context = try await projectRegistryManagementContext()
+            let context = try await packagedMachineManagementContext()
             _ = try await projectRegistryClient.makePrimaryRoot(
                 projectID: project.id,
                 rootID: rootID,
@@ -482,7 +482,7 @@ final class DesktopAppModel: ObservableObject {
                   let project = self.selectedPackagedProject,
                   let revision = self.projectRegistryRevision else { return }
             do {
-                let context = try await self.projectRegistryManagementContext()
+                let context = try await self.packagedMachineManagementContext()
                 _ = try await self.projectRegistryClient.detachRoot(
                     projectID: project.id,
                     rootID: rootID,
@@ -684,7 +684,7 @@ final class DesktopAppModel: ObservableObject {
         }
 
         do {
-            guard let context = try await currentContext() else {
+            guard let context = try await machineManagementContext() else {
                 NSWorkspace.shared.open(url)
                 return
             }
@@ -746,7 +746,7 @@ final class DesktopAppModel: ObservableObject {
         defer { isSecurityRefreshing = false }
 
         do {
-            guard let context = try await currentContext() else {
+            guard let context = try await machineManagementContext() else {
                 operatorSecurityStatus = nil
                 machineApiTokenStatus = nil
                 accessPolicyStatus = nil
@@ -808,7 +808,7 @@ final class DesktopAppModel: ObservableObject {
 
     func revealOwnerPassword() async {
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             let credential = try await authorityClient.ownerCredential(context: context)
             guard credential.available, let password = credential.password else {
                 revealedOwnerPassword = nil
@@ -852,7 +852,7 @@ final class DesktopAppModel: ObservableObject {
 
     func copyOwnerPassword() async {
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             let credential = try await authorityClient.ownerCredential(context: context)
             guard credential.available, let password = credential.password else {
                 lastUserMessage = DesktopL10n.string(
@@ -925,7 +925,7 @@ final class DesktopAppModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             do {
-                guard let context = try await self.currentContext() else { return }
+                guard let context = try await self.machineManagementContext() else { return }
                 self.operatorSecurityStatus = try await self.authorityClient.setOwnerPassword(
                     username: ownerUsername,
                     password: password,
@@ -945,7 +945,7 @@ final class DesktopAppModel: ObservableObject {
 
     func revokeOwnerSessions() async {
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             operatorSecurityStatus = try await authorityClient.revokeOwnerSessions(context: context)
             presentSecurityFeedback(
                 DesktopL10n.string("All Web Owner sessions were revoked."),
@@ -959,7 +959,7 @@ final class DesktopAppModel: ObservableObject {
 
     func revealMachineApiToken() async {
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             let token = try await authorityClient.revealMachineToken(context: context)
             keepMachineApiTokenVisibleTemporarily(token)
         } catch {
@@ -980,7 +980,7 @@ final class DesktopAppModel: ObservableObject {
 
     func copyMachineApiToken() async {
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             let token = try await authorityClient.revealMachineToken(context: context)
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
@@ -1007,7 +1007,7 @@ final class DesktopAppModel: ObservableObject {
         isGeneratingConsolePath = true
         defer { isGeneratingConsolePath = false }
         do {
-            guard let context = try await currentContext() else { return nil }
+            guard let context = try await machineManagementContext() else { return nil }
             return try await authorityClient.generateConsolePath(context: context)
         } catch {
             lastUserMessage = DesktopL10n.string("A new secure login entry could not be generated.")
@@ -1022,7 +1022,7 @@ final class DesktopAppModel: ObservableObject {
         guard !isConnectivityMutationRunning else { return }
 
         do {
-            guard let context = try await currentContext() else { return }
+            guard let context = try await machineManagementContext() else { return }
             let plan = try await authorityClient.prepareConnectivityProviderAction(
                 providerId: providerId,
                 action: action,
@@ -1122,7 +1122,10 @@ final class DesktopAppModel: ObservableObject {
         isPublicRouteCutoverRunning = true
         defer { isPublicRouteCutoverRunning = false }
         do {
-            guard let context = try await currentContext() else { return }
+            let requiresRuntimeRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            guard let context = try await machineMutationContext(
+                requiresRuntimeRestart: requiresRuntimeRestart
+            ) else { return }
             let result = try await authorityClient.executePublicRouteCutover(
                 intentId: intent.id,
                 context: context
@@ -1200,7 +1203,10 @@ final class DesktopAppModel: ObservableObject {
         isPublicRouteBootstrapRunning = true
         defer { isPublicRouteBootstrapRunning = false }
         do {
-            guard let context = try await currentContext() else { return }
+            let requiresRuntimeRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            guard let context = try await machineMutationContext(
+                requiresRuntimeRestart: requiresRuntimeRestart
+            ) else { return }
             let result = try await authorityClient.executePublicRouteBootstrap(
                 proofId: proof.id,
                 context: context
@@ -1252,8 +1258,10 @@ final class DesktopAppModel: ObservableObject {
         trustedLanCidrs: [String]
     ) async {
         do {
-            guard let context = try await currentContext() else { return }
             let shouldRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            guard let context = try await machineMutationContext(
+                requiresRuntimeRestart: shouldRestart
+            ) else { return }
             if shouldRestart {
                 let alert = NSAlert()
                 alert.messageText = DesktopL10n.string("Apply Access Policy and Restart Services?")
@@ -1303,8 +1311,10 @@ final class DesktopAppModel: ObservableObject {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         do {
-            guard let context = try await currentContext() else { return }
             let shouldRestart = snapshot.overallState == .ready || snapshot.overallState == .degraded
+            guard let context = try await machineMutationContext(
+                requiresRuntimeRestart: shouldRestart
+            ) else { return }
             let rotated = try await authorityClient.rotateMachineToken(context: context)
             keepMachineApiTokenVisibleTemporarily(rotated.token)
             machineApiTokenStatus = DesktopMachineApiTokenStatus(
@@ -1402,12 +1412,19 @@ final class DesktopAppModel: ObservableObject {
         defer { isRefreshing = false }
 
         do {
-            guard let context = try await currentContext() else {
+            let context: DesktopDistributionContext?
+            switch action {
+            case .status, .stop:
+                context = try await machineManagementContext()
+            case .start, .restart:
+                context = try await currentContext()
+            }
+            guard let context else {
                 snapshot = .setupRequired
                 runtimeConflict = nil
                 lastUserMessage = distributionMode == .packaged
                     ? DesktopL10n.string(
-                        "Choose a project with an execution workspace before controlling packaged ChatCockpit services."
+                        "Choose a project with an execution workspace before starting or restarting packaged ChatCockpit services."
                     )
                     : DesktopL10n.string(
                         "Choose a valid ChatCockpit source folder before controlling services."
@@ -1438,7 +1455,7 @@ final class DesktopAppModel: ObservableObject {
             )
             lastUserMessage = nil
         } catch {
-            if let context = try? await currentContext() {
+            if let context = try? await machineManagementContext() {
                 snapshot = await runtimeController.snapshot(context: context)
             } else {
                 snapshot = .setupRequired
@@ -1447,6 +1464,22 @@ final class DesktopAppModel: ObservableObject {
                 "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry."
             )
         }
+    }
+
+    private func machineManagementContext() async throws -> DesktopDistributionContext? {
+        if distributionMode == .source {
+            return try await currentContext()
+        }
+        return try await packagedMachineManagementContext()
+    }
+
+    private func machineMutationContext(
+        requiresRuntimeRestart: Bool
+    ) async throws -> DesktopDistributionContext? {
+        if requiresRuntimeRestart {
+            return try await currentContext()
+        }
+        return try await machineManagementContext()
     }
 
     private func currentContext() async throws -> DesktopDistributionContext? {
@@ -1489,7 +1522,7 @@ final class DesktopAppModel: ObservableObject {
         do {
             distributionMode = .packaged
             modePreferenceStore.saveMode(.packaged)
-            let context = try await projectRegistryManagementContext()
+            let context = try await packagedMachineManagementContext()
             let classification = DesktopProjectFolderClassifier.classify(
                 url,
                 existingSlugs: Set(packagedProjects.map { $0.project.slug }),
@@ -1525,7 +1558,7 @@ final class DesktopAppModel: ObservableObject {
             return
         }
         do {
-            let context = try await projectRegistryManagementContext()
+            let context = try await packagedMachineManagementContext()
             let classification = DesktopProjectFolderClassifier.classify(
                 url,
                 existingSlugs: Set(packagedProjects.map { $0.project.slug }),
@@ -1551,7 +1584,7 @@ final class DesktopAppModel: ObservableObject {
     }
 
     private func reloadProjectRegistry() async throws {
-        let context = try await projectRegistryManagementContext()
+        let context = try await packagedMachineManagementContext()
         let registry = try await projectRegistryClient.list(context: context)
         syncProjectRegistryState(registry)
     }
@@ -1587,7 +1620,7 @@ final class DesktopAppModel: ObservableObject {
         workspacePreferenceStore.saveWorkspaceURL(workspace.url)
     }
 
-    private func projectRegistryManagementContext() async throws -> DesktopDistributionContext {
+    private func packagedMachineManagementContext() async throws -> DesktopDistributionContext {
         guard let bundlePayloadURL, let bundleManifest else {
             throw DesktopAppModelError.invalidBundledRuntime
         }
@@ -1606,13 +1639,16 @@ final class DesktopAppModel: ObservableObject {
             deployedRuntime = runtime
         }
 
-        // Project Registry operations are machine-local management calls. They do not execute
-        // project code, so they must not require an already selected ExecutionWorkspace.
+        // Machine-local management calls do not execute project code, so they must not
+        // require an already selected Execution Workspace. The fallback path is deliberately
+        // not created and must never be treated as execution-ready by Runtime lifecycle UI.
+        let machineOnlyWorkspaceURL = validatedSelectedWorkspace() ?? applicationSupportRoot
+            .appendingPathComponent("machine-context-no-execution-workspace", isDirectory: true)
         return DesktopDistributionContext(
             mode: .packaged,
             installRootURL: runtime.installRootURL.appendingPathComponent("app", isDirectory: true),
             stateRootURL: runtime.stateRootURL,
-            primaryWorkspaceURL: selectedWorkspaceURL ?? applicationSupportRoot,
+            primaryWorkspaceURL: machineOnlyWorkspaceURL,
             nodeExecutableURL: runtime.nodeExecutableURL,
             nodeVersion: NodeRuntimeChecker.parseVersion(runtime.manifest.node.version),
             runtimeID: runtime.runtimeID,

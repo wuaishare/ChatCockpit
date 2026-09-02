@@ -129,6 +129,8 @@ When a valid embedded runtime payload is present, Packaged Mode is available. Th
 
 Git Project Roots can own stable local `repoId` **Execution Workspaces**. The Project's Primary Root and the Runtime's selected/default Execution Workspace are related but distinct concepts: changing the Primary Root does not silently rewrite a still-valid execution selection, and a non-Git Primary Root cannot become an Execution Workspace. Root authorization changes never start, stop, or restart Runtime automatically; already-running services change lifecycle state only after an explicit operator action.
 
+Packaged Runtime machine truth is independent from Execution Workspace readiness. The App may still inspect Runtime lifecycle/health, stop an already-running Runtime, open a machine-local login grant, and perform machine-only security/provider management when no valid Execution Workspace is selected. **Start** and **Restart** remain fail-closed until a real Execution Workspace is available; the App must never substitute Application Support or another machine directory as a fake project workspace.
+
 The app then verifies and atomically deploys the embedded runtime into Application Support. A failed or corrupt new deployment does not replace a previously valid deployed runtime.
 
 The Project Registry is canonically stored in private ChatCockpit configuration using schema v3 `projects + projectRoots + executionWorkspaces`; macOS preferences cache only local UI/runtime selections and are not the authority for Project identity, Primary Root, or root membership. Machine-specific paths are not committed to the public repository.

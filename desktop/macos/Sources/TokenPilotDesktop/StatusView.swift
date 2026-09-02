@@ -598,21 +598,41 @@ struct StatusView: View {
                 }
                 .fixedSize()
             case .stopped:
-                AccessibleTextActionButton(
-                    title: DesktopL10n.string("Start Services"),
-                    disabled: model.isRefreshing
-                ) {
-                    Task { await model.start() }
+                if model.snapshot.executionWorkspaceAvailable {
+                    AccessibleTextActionButton(
+                        title: DesktopL10n.string("Start Services"),
+                        disabled: model.isRefreshing
+                    ) {
+                        Task { await model.start() }
+                    }
+                    .fixedSize()
+                } else {
+                    AccessibleTextActionButton(
+                        title: model.setupActionTitle,
+                        disabled: model.isRefreshing
+                    ) {
+                        model.chooseSetupLocationFromPanel()
+                    }
+                    .fixedSize()
                 }
-                .fixedSize()
             case .degraded, .ready:
-                AccessibleTextActionButton(
-                    title: DesktopL10n.string("Restart Services"),
-                    disabled: model.isRefreshing
-                ) {
-                    Task { await model.restart() }
+                if model.snapshot.executionWorkspaceAvailable {
+                    AccessibleTextActionButton(
+                        title: DesktopL10n.string("Restart Services"),
+                        disabled: model.isRefreshing
+                    ) {
+                        Task { await model.restart() }
+                    }
+                    .fixedSize()
+                } else {
+                    AccessibleTextActionButton(
+                        title: model.setupActionTitle,
+                        disabled: model.isRefreshing
+                    ) {
+                        model.chooseSetupLocationFromPanel()
+                    }
+                    .fixedSize()
                 }
-                .fixedSize()
 
                 AccessibleTextActionButton(
                     title: DesktopL10n.string("Stop Services"),

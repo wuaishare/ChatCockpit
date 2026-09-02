@@ -257,15 +257,27 @@ struct MenuBarContentView: View {
                 }
                 .frame(width: 24, height: 24)
             case .stopped:
-                AccessibleIconButton(
-                    systemName: "play.fill",
-                    title: DesktopL10n.string("Start Services"),
-                    disabled: model.isRefreshing,
-                    destructive: false
-                ) {
-                    Task { await model.start() }
+                if model.snapshot.executionWorkspaceAvailable {
+                    AccessibleIconButton(
+                        systemName: "play.fill",
+                        title: DesktopL10n.string("Start Services"),
+                        disabled: model.isRefreshing,
+                        destructive: false
+                    ) {
+                        Task { await model.start() }
+                    }
+                    .frame(width: 24, height: 24)
+                } else {
+                    AccessibleIconButton(
+                        systemName: "folder.badge.plus",
+                        title: model.setupActionTitle,
+                        disabled: model.isRefreshing,
+                        destructive: false
+                    ) {
+                        model.chooseSetupLocationFromPanel()
+                    }
+                    .frame(width: 24, height: 24)
                 }
-                .frame(width: 24, height: 24)
             case .degraded, .ready:
                 AccessibleIconButton(
                     systemName: "stop.fill",
@@ -277,15 +289,27 @@ struct MenuBarContentView: View {
                 }
                 .frame(width: 24, height: 24)
 
-                AccessibleIconButton(
-                    systemName: "arrow.clockwise",
-                    title: DesktopL10n.string("Restart Services"),
-                    disabled: model.isRefreshing,
-                    destructive: false
-                ) {
-                    Task { await model.restart() }
+                if model.snapshot.executionWorkspaceAvailable {
+                    AccessibleIconButton(
+                        systemName: "arrow.clockwise",
+                        title: DesktopL10n.string("Restart Services"),
+                        disabled: model.isRefreshing,
+                        destructive: false
+                    ) {
+                        Task { await model.restart() }
+                    }
+                    .frame(width: 24, height: 24)
+                } else {
+                    AccessibleIconButton(
+                        systemName: "folder.badge.plus",
+                        title: model.setupActionTitle,
+                        disabled: model.isRefreshing,
+                        destructive: false
+                    ) {
+                        model.chooseSetupLocationFromPanel()
+                    }
+                    .frame(width: 24, height: 24)
                 }
-                .frame(width: 24, height: 24)
             }
         }
     }

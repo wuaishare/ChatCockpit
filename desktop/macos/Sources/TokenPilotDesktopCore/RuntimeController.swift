@@ -25,13 +25,13 @@ public enum DesktopOverallState: String, Equatable, Sendable {
 
 public enum DesktopOverallStateResolver {
     public static func resolve(
-        rootAvailable: Bool,
+        runtimeContextAvailable: Bool,
         nodeSupported: Bool,
         lifecycle: LifecycleStatus,
         healthReachable: Bool,
         uiReachable: Bool
     ) -> DesktopOverallState {
-        guard rootAvailable, nodeSupported else {
+        guard runtimeContextAvailable, nodeSupported else {
             return .setupRequired
         }
 
@@ -53,6 +53,7 @@ public enum DesktopOverallStateResolver {
 public struct DesktopRuntimeSnapshot: Equatable, Sendable {
     public let overallState: DesktopOverallState
     public let context: DesktopDistributionContext?
+    public let executionWorkspaceAvailable: Bool
     public let node: NodeRuntimeStatus
     public let configuration: DesktopRuntimeConfiguration
     public let lifecycle: LifecycleStatus
@@ -62,6 +63,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
     public init(
         overallState: DesktopOverallState,
         context: DesktopDistributionContext?,
+        executionWorkspaceAvailable: Bool,
         node: NodeRuntimeStatus,
         configuration: DesktopRuntimeConfiguration,
         lifecycle: LifecycleStatus,
@@ -70,6 +72,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
     ) {
         self.overallState = overallState
         self.context = context
+        self.executionWorkspaceAvailable = executionWorkspaceAvailable
         self.node = node
         self.configuration = configuration
         self.lifecycle = lifecycle
@@ -80,6 +83,7 @@ public struct DesktopRuntimeSnapshot: Equatable, Sendable {
     public static let setupRequired = DesktopRuntimeSnapshot(
         overallState: .setupRequired,
         context: nil,
+        executionWorkspaceAvailable: false,
         node: NodeRuntimeStatus(executableURL: nil, version: nil),
         configuration: DesktopRuntimeConfiguration(),
         lifecycle: .unknown,
@@ -211,8 +215,9 @@ public struct RuntimeController: RuntimeControlling, Sendable {
             atPath: context.primaryWorkspaceURL.path,
             isDirectory: &workspaceIsDirectory
         ) && workspaceIsDirectory.boolValue
+        let runtimeContextAvailable = context.mode == .packaged || workspaceAvailable
         let overallState = DesktopOverallStateResolver.resolve(
-            rootAvailable: workspaceAvailable,
+            runtimeContextAvailable: runtimeContextAvailable,
             nodeSupported: nodeStatus.supported,
             lifecycle: lifecycleStatus,
             healthReachable: localHealth.healthReachable,
@@ -222,6 +227,7 @@ public struct RuntimeController: RuntimeControlling, Sendable {
         return DesktopRuntimeSnapshot(
             overallState: overallState,
             context: context,
+            executionWorkspaceAvailable: workspaceAvailable,
             node: nodeStatus,
             configuration: configuration,
             lifecycle: lifecycleStatus,

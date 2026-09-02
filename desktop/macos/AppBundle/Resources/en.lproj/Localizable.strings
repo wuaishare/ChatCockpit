@@ -197,6 +197,7 @@
 "This app build does not contain a valid packaged ChatCockpit runtime." = "This app build does not contain a valid packaged ChatCockpit runtime.";
 "ChatCockpit Cockpit is not reachable. Start or repair the local services first." = "ChatCockpit Cockpit is not reachable. Start or repair the local services first.";
 "Choose a project with an execution workspace before controlling packaged ChatCockpit services." = "Choose a project with an execution workspace before controlling packaged ChatCockpit services.";
+"Choose a project with an execution workspace before starting or restarting packaged ChatCockpit services." = "Choose a project with an execution workspace before starting or restarting packaged ChatCockpit services.";
 "Choose a valid ChatCockpit source folder before controlling services." = "Choose a valid ChatCockpit source folder before controlling services.";
 "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry." = "The ChatCockpit service action did not complete. Check local runtime diagnostics and retry.";
 "The saved execution workspace is no longer available. Refresh Projects or choose the project again." = "The saved execution workspace is no longer available. Refresh Projects or choose the project again.";
