@@ -10381,7 +10381,7 @@ paths:
     post:
       operationId: decideCapabilityRouterMutation
       summary: Decide a governed Capability Router mutation approval
-      description: Approves or denies one pending provider-native mutation. Requires an authenticated operator session plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Operator authority is independent of browser network locality. Public responses omit raw arguments, hashes, transport configuration, and provider results.
+      description: Approves or denies one pending provider-native mutation. Requires operator authentication plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Public responses omit raw arguments, hashes, transport configuration, and provider results.
       security:
         - operatorSession: []
       parameters:
@@ -10477,7 +10477,7 @@ paths:
     post:
       operationId: decideRuntimeResourceMutation
       summary: Decide a governed runtime resource mutation approval
-      description: Approves or denies one pending short-lived Resource mutation approval using optimistic revision control. Requires an authenticated operator session plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Operator authority is independent of browser network locality. Raw actor ids and request ids are hashed internally and never returned.
+      description: Approves or denies one pending Resource mutation with optimistic revision control. Requires operator authentication plus CSRF; machine Bearer, MCP OAuth, and Remote MCP cannot decide. Raw actor and request ids are hashed internally and never returned.
       security:
         - operatorSession: []
       parameters:
@@ -10839,7 +10839,7 @@ paths:
     post:
       operationId: startNativeCodexTurn
       summary: Start a native Turn without a ChatCockpit Development Session
-      description: Starts the Codex provider-native model loop on an existing Thread only when the caller supplies the explicit modelLoopTransfer contract assertion. Runtime availability or a resumable Thread never implies delegation. No ChatCockpit Task, Development Session, Handoff record, Spec, Plan, or Writer Lease is created merely to continue the provider-native session.
+      description: Starts the Codex provider-native model loop on an existing Thread only with an explicit modelLoopTransfer assertion. A resumable Thread never implies delegation. Continuing the native session creates no ChatCockpit Task, Development Session, Handoff, Spec, Plan, or Writer Lease.
       security:
         - bearerAuth: []
       requestBody:

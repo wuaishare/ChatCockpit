@@ -11,6 +11,7 @@ import {
   buildSourceDistributionContextForProduct
 } from "../src/core/distribution-context.js";
 import { runtimeIdentityEnvName } from "../src/core/identity-env.js";
+import { USER_CONFIG_SCHEMA_VERSION } from "../src/core/user-config-schema.js";
 import { buildPaths } from "../src/core/paths.js";
 import { initLocalRuntime } from "../src/core/setup.js";
 import {
@@ -56,7 +57,7 @@ try {
   );
 
   const defaultConfig = loadUserConfig(repoRoot, defaultSource);
-  assert.equal(defaultConfig.schemaVersion, 1);
+  assert.equal(defaultConfig.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
   assert.equal(defaultConfig.defaultRepoId, "primary");
   assert.equal(defaultConfig.repoMappings.primary?.path, canonical(repoRoot));
   assert.equal(defaultConfig.repoMappings.tokenpilot, undefined);
