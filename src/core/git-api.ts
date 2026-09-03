@@ -1196,11 +1196,36 @@ export function gitPush(
       ["config", "--get", `branch.${branch}.merge`],
       runner
     );
-    if (configuredRemote.length || configuredMerge.length) {
-      throw new Error("Governed Git first publish requires a branch without configured upstream");
+    if (configuredRemote.length > 1 || configuredMerge.length > 1) {
+      throw new Error("Governed Git first publish refuses ambiguous branch upstream configuration");
+    }
+    const hasConfiguredRemote = configuredRemote.length === 1;
+    const hasConfiguredMerge = configuredMerge.length === 1;
+    if (hasConfiguredRemote !== hasConfiguredMerge) {
+      throw new Error("Governed Git first publish refuses a partially configured branch upstream");
     }
 
-    const upstream = gitFirstPublishRemote(repoRoot, branch, runner);
+    const canonicalUpstream = gitFirstPublishRemote(repoRoot, branch, runner);
+    const recoveredUpstream = hasConfiguredRemote
+      ? resolveGovernedGitRemote(
+          repoRoot,
+          configuredRemote[0] ?? "",
+          configuredMerge[0] ?? "",
+          runner
+        )
+      : null;
+    if (
+      recoveredUpstream &&
+      (
+        recoveredUpstream.remote !== canonicalUpstream.remote ||
+        recoveredUpstream.mergeRef !== canonicalUpstream.mergeRef ||
+        recoveredUpstream.fetchUrl !== canonicalUpstream.fetchUrl
+      )
+    ) {
+      throw new Error("Governed Git first publish retry requires the canonical same-name upstream");
+    }
+
+    const upstream = recoveredUpstream ?? canonicalUpstream;
     const pushUrl = gitPushUrl(repoRoot, upstream, runner);
     assertPushConfigurationSafe(repoRoot, upstream, runner);
 
@@ -1237,12 +1262,15 @@ export function gitPush(
     }
 
     const existingRemoteHead = gitRemoteBranchHead(repoRoot, upstream, runner);
-    if (existingRemoteHead !== null && existingRemoteHead !== head) {
+    if (recoveredUpstream && existingRemoteHead !== head) {
+      throw new Error("Governed Git first publish retry requires the same-name remote branch at the exact current HEAD");
+    }
+    if (!recoveredUpstream && existingRemoteHead !== null && existingRemoteHead !== head) {
       throw new Error("Governed Git first publish refuses an existing same-name remote branch at a different commit");
     }
 
     let pushed = false;
-    if (existingRemoteHead === null) {
+    if (!recoveredUpstream && existingRemoteHead === null) {
       runGitText(
         repoRoot,
         [
@@ -1286,12 +1314,14 @@ export function gitPush(
       throw new Error("Governed Git first publish could not verify the published remote-tracking commit");
     }
 
-    runGitText(
-      repoRoot,
-      ["branch", `--set-upstream-to=${upstream.remote}/${branch}`, "--", branch],
-      5_000,
-      runner
-    );
+    if (!recoveredUpstream) {
+      runGitText(
+        repoRoot,
+        ["branch", `--set-upstream-to=${upstream.remote}/${branch}`, "--", branch],
+        5_000,
+        runner
+      );
+    }
     const configured = gitUpstreamRemote(repoRoot, branch, runner);
     if (
       configured.remote !== upstream.remote ||

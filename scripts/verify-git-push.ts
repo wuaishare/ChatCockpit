@@ -399,9 +399,33 @@ try {
   const alreadyTrackedPublishRunner = new PushGitRunner();
   assert.throws(
     () => gitPush(paths, { repoId: "primary", publishCurrentBranch: true }, alreadyTrackedPublishRunner),
-    /branch without configured upstream/
+    /retry requires the same-name remote branch at the exact current HEAD/
   );
   assert.equal(callsWith(alreadyTrackedPublishRunner, "push").length, 0);
+
+  const completedPublishRetryRunner = new PushGitRunner({
+    branch: "feature/completed-publish-retry",
+    hasUpstream: true,
+    mergeRef: "refs/heads/feature/completed-publish-retry",
+    remoteBranchHead: "1111111111111111111111111111111111111111",
+    ahead: 1,
+    behind: 0,
+    outgoingPaths: ["src/publish-safe.ts"]
+  });
+  const completedPublishRetry = gitPush(
+    paths,
+    { repoId: "primary", publishCurrentBranch: true },
+    completedPublishRetryRunner
+  );
+  assert.equal(completedPublishRetry.state, "published");
+  assert.equal(completedPublishRetry.pushed, false);
+  assert.equal(completedPublishRetry.upstreamBefore, null);
+  assert.equal(completedPublishRetry.upstreamRemote, "origin");
+  assert.equal(completedPublishRetry.aheadBefore, 1);
+  assert.equal(completedPublishRetry.behindBefore, 0);
+  assert.deepEqual(completedPublishRetry.paths, ["src/publish-safe.ts"]);
+  assert.equal(callsWith(completedPublishRetryRunner, "push").length, 0);
+  assert.equal(callsWith(completedPublishRetryRunner, "branch").length, 0);
 
   const firstPublishRunner = new PushGitRunner({
     branch: "feature/selfboot-publish",
