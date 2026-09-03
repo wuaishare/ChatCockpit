@@ -137,7 +137,7 @@ export class RuntimeExecutionObservabilityService {
       };
     });
 
-    const tasks = registry.projects
+    const allTasks = registry.projects
       .flatMap((entry) => this.repositories.tasks.listByProject(entry.project.id).map((task) => {
         const workspace = workspaceMeta.get(task.workspaceId);
         return {
@@ -152,10 +152,10 @@ export class RuntimeExecutionObservabilityService {
           ...projectRef(entry.project)
         } satisfies RuntimeExecutionTaskProjection;
       }))
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))
-      .slice(0, 100);
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id));
+    const tasks = allTasks.slice(0, 100);
 
-    const processes = this.repositories.directProcessSessions.list()
+    const allProcesses = this.repositories.directProcessSessions.list()
       .map((process): RuntimeExecutionProcessProjection => ({
         id: process.id,
         workspaceId: process.workspaceId,
@@ -174,8 +174,8 @@ export class RuntimeExecutionObservabilityService {
         const rightActive = right.status === "starting" || right.status === "running";
         if (leftActive !== rightActive) return leftActive ? -1 : 1;
         return right.startedAt.localeCompare(left.startedAt) || left.id.localeCompare(right.id);
-      })
-      .slice(0, 100);
+      });
+    const processes = allProcesses.slice(0, 100);
 
     const connections = this.connections.list(context.now).map((connection) => {
       const { authorizationGrantId: _grant, clientRegistrationId: _client, ...safe } = connection;
@@ -192,8 +192,8 @@ export class RuntimeExecutionObservabilityService {
         activeActivities: activities.filter((activity) => !TERMINAL_ACTIVITY.has(activity.status)).length,
         runningActivities: activities.filter((activity) => activity.status === "running").length,
         waitingApproval: activities.filter((activity) => activity.status === "waiting-approval").length,
-        activeTasks: tasks.filter((task) => !TERMINAL_TASKS.has(task.status)).length,
-        runningProcesses: processes.filter((process) => process.status === "running").length,
+        activeTasks: allTasks.filter((task) => !TERMINAL_TASKS.has(task.status)).length,
+        runningProcesses: allProcesses.filter((process) => process.status === "running").length,
         activeConnections: connections.filter((connection) => connection.state === "active").length
       }
     };

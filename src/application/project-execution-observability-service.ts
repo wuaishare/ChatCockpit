@@ -141,7 +141,7 @@ export class ProjectExecutionObservabilityService {
       };
     });
 
-    const processes = project.workspaces
+    const allProcesses = project.workspaces
       .flatMap((workspace) => this.repositories.directProcessSessions.list({ workspaceId: workspace.id }))
       .map((process): ProjectExecutionProcessProjection => ({
         id: process.id,
@@ -161,8 +161,8 @@ export class ProjectExecutionObservabilityService {
         const rightActive = right.status === "starting" || right.status === "running";
         if (leftActive !== rightActive) return leftActive ? -1 : 1;
         return right.startedAt.localeCompare(left.startedAt) || left.id.localeCompare(right.id);
-      })
-      .slice(0, 100);
+      });
+    const processes = allProcesses.slice(0, 100);
 
     return {
       projectId,
@@ -176,7 +176,7 @@ export class ProjectExecutionObservabilityService {
         runningActivities: activities.filter((activity) => activity.status === "running").length,
         waitingApproval: activities.filter((activity) => activity.status === "waiting-approval").length,
         activeTasks: tasks.filter((task) => !TERMINAL_TASKS.has(task.status)).length,
-        runningProcesses: processes.filter((process) => process.status === "running").length,
+        runningProcesses: allProcesses.filter((process) => process.status === "running").length,
         activeConnections: connections.filter((connection) => connection.state === "active").length
       }
     };
