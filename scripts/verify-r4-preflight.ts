@@ -159,7 +159,7 @@ const currentCompatible = await report();
 assert.equal(currentCompatible.state, "ready-to-migrate");
 assert.deepEqual(currentCompatible.blockers, []);
 assert.equal(currentCompatible.database.schemaVersion, LATEST_CONTINUITY_SCHEMA_VERSION);
-assert.equal(currentCompatible.database.sourceContract, "v22-compatible");
+assert.equal(currentCompatible.database.sourceContract, "current-compatible");
 assert.equal(currentCompatible.database.targetIdentityMarkerPresent, false);
 
 fs.writeFileSync(path.join(legacyStateRoot, "runtime", "unknown-authority.bin"), "x", "utf8");

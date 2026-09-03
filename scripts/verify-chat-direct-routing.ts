@@ -4,7 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ChatDirectService } from "../src/application/chat-direct-service.ts";
+import {
+  ChatDirectService,
+  reconcileInterruptedChatDirectProcesses
+} from "../src/application/chat-direct-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { RuntimeRouter } from "../src/application/runtime-router.ts";
 import { ServiceError } from "../src/application/service-error.ts";
@@ -476,6 +479,54 @@ async function verifyChatDirectRouting(): Promise<void> {
     project.revision,
     "2026-08-06T04:00:00.000Z"
   );
+
+  for (const [processId, executorId, privatePid] of [
+    ["chatcockpit_restart_orphan", "codex-app-server-standalone", 7101],
+    ["builtin_process_restart_orphan", "builtin-direct", 7102],
+    ["host_process_restart_foreign", "desktop-commander", 7103]
+  ] as const) {
+    repositories.directProcessSessions.createRunning({
+      id: processId,
+      rootId: workspace.id,
+      workdir: ".",
+      command: "node",
+      commandHash: processId.padEnd(64, "0").slice(0, 64),
+      executorId,
+      workspaceId: workspace.id,
+      repoId: workspace.repoId,
+      privatePid,
+      now: "2026-08-06T04:00:00.000Z"
+    });
+  }
+  assert.equal(
+    reconcileInterruptedChatDirectProcesses(
+      repositories,
+      "2026-08-06T04:00:01.000Z"
+    ),
+    2
+  );
+  for (const processId of [
+    "chatcockpit_restart_orphan",
+    "builtin_process_restart_orphan"
+  ]) {
+    const recovered = repositories.directProcessSessions.get(processId);
+    assert.equal(recovered.status, "stale");
+    assert.equal(recovered.staleReason, "CONTROL_PLANE_RESTART");
+    assert.equal(recovered.completedAt, "2026-08-06T04:00:01.000Z");
+  }
+  const hostProcessForeign = repositories.directProcessSessions.get(
+    "host_process_restart_foreign"
+  );
+  assert.equal(hostProcessForeign.status, "running");
+  assert.equal(hostProcessForeign.staleReason, null);
+  repositories.directProcessSessions.complete({
+    id: hostProcessForeign.id,
+    status: "exited",
+    exitCode: 0,
+    expectedRevision: hostProcessForeign.revision,
+    now: "2026-08-06T04:00:01.000Z"
+  });
+
   const task = repositories.tasks.create({
     id: "task_chat_direct",
     projectId: project.id,
@@ -1248,6 +1299,12 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(managed.state, "running");
     assert.equal(managed.execution.executor, "codex-app-server-standalone");
+    const managedObservation = repositories.directProcessSessions.get(managed.processId);
+    assert.equal(managedObservation.status, "running");
+    assert.equal(managedObservation.workspaceId, workspace.id);
+    assert.equal(managedObservation.repoId, "primary");
+    assert.equal(managedObservation.executorId, "codex-app-server-standalone");
+    assert.equal(managedObservation.command, "npm test");
     assert.ok(repositories.coreWriterAuthorities.getActive(workspace.id));
     const managedCall = adapter.calls.find(
       (call) =>
@@ -1299,6 +1356,9 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(completedManaged.state, "completed");
     assert.equal(completedManaged.chunks[0]?.content, "[workspace]/managed-finished");
+    const completedManagedObservation = repositories.directProcessSessions.get(managed.processId);
+    assert.equal(completedManagedObservation.status, "exited");
+    assert.equal(completedManagedObservation.exitCode, 0);
 
     const nativeBash = await service.workspaceExec(context, {
       repoId: "primary",
@@ -1463,6 +1523,11 @@ async function verifyChatDirectRouting(): Promise<void> {
       builtInManaged.execution.fallbackReason,
       "native-managed-executor-unavailable"
     );
+    const builtInManagedObservation = repositories.directProcessSessions.get(builtInManaged.processId);
+    assert.equal(builtInManagedObservation.status, "running");
+    assert.equal(builtInManagedObservation.workspaceId, workspace.id);
+    assert.equal(builtInManagedObservation.repoId, "primary");
+    assert.equal(builtInManagedObservation.executorId, "builtin-direct");
     let builtInManagedSnapshot = await builtInManagedService.workspaceProcessRead(
       context,
       { repoId: "primary", processId: builtInManaged.processId }
@@ -1476,6 +1541,10 @@ async function verifyChatDirectRouting(): Promise<void> {
     }
     assert.equal(builtInManagedSnapshot.state, "completed");
     assert.equal(builtInManagedSnapshot.exitCode, 0);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const completedBuiltInManagedObservation = repositories.directProcessSessions.get(builtInManaged.processId);
+    assert.equal(completedBuiltInManagedObservation.status, "exited");
+    assert.equal(completedBuiltInManagedObservation.exitCode, 0);
 
     await assert.rejects(
       () => service.workspaceExec(context, {

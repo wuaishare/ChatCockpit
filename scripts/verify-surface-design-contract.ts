@@ -212,17 +212,19 @@ assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiabl
 for (const section of ["overview", "projects", "work", "runtime", "resources", "devices", "connections", "thisMac"]) {
   assert.match(statusView, new RegExp(`case ${section}\\b`));
 }
-assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.work\)/);
-assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.resources\)/);
-assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.devices\)/);
-assert.match(statusView, /NativeConnectionsBridgeView/);
+assert.match(statusView, /SharedCockpitView\(/);
+assert.match(statusView, /destination: activeSection\.cockpitDestination/);
+assert.match(statusView, /case \.overview: return nil/);
+assert.match(statusView, /case \.work: return \.work/);
+assert.match(statusView, /case \.resources: return \.resources/);
+assert.match(statusView, /case \.devices: return \.devices/);
+assert.match(statusView, /case \.connections: return \.integrations/);
+assert.doesNotMatch(statusView, /NativeSharedCockpitBridgeView|NativeConnectionsBridgeView|NavigationSplitView/);
 assert.match(statusView, /NativeThisMacView/);
 assert.match(statusView, /scope: \.thisMac/);
 assert.match(statusView, /NativeDiagnosticsView\(model: model\)/);
 assert.doesNotMatch(statusView, /NativeIntegrationsBridgeView/);
-assert.match(statusView, /jobs\?\.available == true \? jobs\?\.running : nil/);
-assert.match(statusView, /approvals\?\.available == true \? approvals\?\.pending : nil/);
-assert.doesNotMatch(statusView, /operationalSummary[\s\S]*\?\?\s*0/s);
+assert.doesNotMatch(statusView, /operationalSummary/);
 
 assert.match(menuBar, /@ObservedObject var model: DesktopAppModel/);
 assert.match(menuBar, /model\.snapshot\.overallState\.nativeSemantic/);

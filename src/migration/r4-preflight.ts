@@ -470,7 +470,8 @@ export async function buildR4PreflightReport(input: R4PreflightInput): Promise<R
     database.sourceContract !== "v19-compatible" &&
     database.sourceContract !== "v20-compatible" &&
     database.sourceContract !== "v21-compatible" &&
-    database.sourceContract !== "v22-compatible"
+    database.sourceContract !== "v22-compatible" &&
+    database.sourceContract !== "current-compatible"
   ) {
     blockers.push("legacy-continuity-source-contract-invalid");
   }

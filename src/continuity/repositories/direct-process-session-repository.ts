@@ -23,6 +23,7 @@ interface DirectProcessSessionRow {
   repo_id: string | null;
   session_id: string | null;
   writer_lease_id: string | null;
+  core_writer_authority_id: string | null;
   host_authority_id: string | null;
   private_pid: number | null;
   status: DirectProcessStatus;
@@ -47,6 +48,7 @@ function sessionFromRow(row: DirectProcessSessionRow): DirectProcessSessionRecor
     repoId: row.repo_id,
     sessionId: row.session_id,
     writerLeaseId: row.writer_lease_id,
+    coreWriterAuthorityId: row.core_writer_authority_id,
     hostAuthorityId: row.host_authority_id,
     privatePid: row.private_pid === null ? null : Number(row.private_pid),
     status: row.status,
@@ -71,6 +73,7 @@ export interface CreateDirectProcessSessionInput {
   repoId?: string | null;
   sessionId?: string | null;
   writerLeaseId?: string | null;
+  coreWriterAuthorityId?: string | null;
   hostAuthorityId?: string | null;
   evidenceBundleId?: string | null;
   now?: string;
@@ -93,10 +96,10 @@ export class DirectProcessSessionRepository {
       .prepare(`
         INSERT INTO direct_process_sessions (
           id, scope, root_id, workdir, command, command_hash, executor_id,
-          workspace_id, repo_id, session_id, writer_lease_id, host_authority_id,
-          private_pid, status, exit_code, stale_reason, evidence_bundle_id,
+          workspace_id, repo_id, session_id, writer_lease_id, core_writer_authority_id,
+          host_authority_id, private_pid, status, exit_code, stale_reason, evidence_bundle_id,
           started_at, completed_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'starting', NULL, NULL, ?, ?, NULL, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'starting', NULL, NULL, ?, ?, NULL, 1)
       `)
       .run(
         id,
@@ -110,6 +113,7 @@ export class DirectProcessSessionRepository {
         input.repoId ?? null,
         input.sessionId ?? null,
         input.writerLeaseId ?? null,
+        input.coreWriterAuthorityId ?? null,
         input.hostAuthorityId ?? null,
         input.evidenceBundleId ?? null,
         now
@@ -126,10 +130,10 @@ export class DirectProcessSessionRepository {
       .prepare(`
         INSERT INTO direct_process_sessions (
           id, scope, root_id, workdir, command, command_hash, executor_id,
-          workspace_id, repo_id, session_id, writer_lease_id, host_authority_id,
-          private_pid, status, exit_code, stale_reason, evidence_bundle_id,
+          workspace_id, repo_id, session_id, writer_lease_id, core_writer_authority_id,
+          host_authority_id, private_pid, status, exit_code, stale_reason, evidence_bundle_id,
           started_at, completed_at, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', NULL, NULL, ?, ?, NULL, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', NULL, NULL, ?, ?, NULL, 1)
       `)
       .run(
         id,
@@ -143,6 +147,7 @@ export class DirectProcessSessionRepository {
         input.repoId ?? null,
         input.sessionId ?? null,
         input.writerLeaseId ?? null,
+        input.coreWriterAuthorityId ?? null,
         input.hostAuthorityId ?? null,
         input.privatePid,
         input.evidenceBundleId ?? null,

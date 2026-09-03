@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 
+import { LATEST_CONTINUITY_SCHEMA_VERSION } from "../continuity/database.js";
 import { CHATCOCKPIT_TARGET_IDENTITY_MIGRATION } from "./chatcockpit-target-continuity.js";
 
 export type R4LegacyContinuitySourceContract =
@@ -8,6 +9,7 @@ export type R4LegacyContinuitySourceContract =
   | "v20-compatible"
   | "v21-compatible"
   | "v22-compatible"
+  | "current-compatible"
   | "invalid";
 
 export interface R4LegacyContinuitySourceInspection {
@@ -76,14 +78,17 @@ export function inspectR4LegacyContinuitySource(
   ) {
     sourceContract = "v18";
   } else if (
-    (schemaVersion === 19 || schemaVersion === 20 || schemaVersion === 21 || schemaVersion === 22) &&
+    schemaVersion >= 19 &&
+    schemaVersion <= LATEST_CONTINUITY_SCHEMA_VERSION &&
     !targetIdentityTablePresent &&
     runtimeBindingAcceptsLegacy &&
     runtimeBindingAcceptsTarget &&
     runtimeResourceAcceptsLegacy &&
     runtimeResourceAcceptsTarget
   ) {
-    if (schemaVersion === 22) {
+    if (schemaVersion >= 23) {
+      sourceContract = "current-compatible";
+    } else if (schemaVersion === 22) {
       sourceContract = "v22-compatible";
     } else if (schemaVersion === 21) {
       sourceContract = "v21-compatible";
