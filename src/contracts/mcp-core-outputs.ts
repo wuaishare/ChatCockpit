@@ -253,14 +253,14 @@ export const gitPushToolOutputSchema = z.object({
   branch: z.string(),
   upstreamRemote: z.string(),
   head: z.string(),
-  upstreamBefore: z.string(),
+  upstreamBefore: z.string().nullable(),
   aheadBefore: z.number().int().nonnegative(),
   behindBefore: z.number().int().nonnegative(),
   pushed: z.boolean(),
   paths: z.array(z.string().max(1024)).max(500),
   pathCount: z.number().int().nonnegative(),
   pathsTruncated: z.boolean(),
-  state: z.enum(["pushed", "up-to-date"]),
+  state: z.enum(["pushed", "up-to-date", "published"]),
   error: z.string().optional(),
   execution: chatDirectExecutionSchema
 }).merge(mutationEnvelopeSchema);

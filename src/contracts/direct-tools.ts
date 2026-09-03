@@ -151,7 +151,8 @@ export function buildDirectToolSchemas(defaultRepoId: string) {
     gitPushSchema: z.object({
       ...directExecutorPreference,
       repoId: z.string().min(1).default(defaultRepoId),
-      sessionId: z.string().min(1).max(160).optional()
+      sessionId: z.string().min(1).max(160).optional(),
+      publishCurrentBranch: z.boolean().optional()
     }),
     gitCommitSchema: z.object({
       ...directExecutorPreference,

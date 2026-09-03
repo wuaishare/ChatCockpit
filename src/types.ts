@@ -637,6 +637,7 @@ export interface GitSyncResponse {
 export interface GitPushPayload extends DirectExecutorPreference {
   repoId: string;
   sessionId?: string;
+  publishCurrentBranch?: boolean;
 }
 
 export interface GitPushResponse {
@@ -645,14 +646,14 @@ export interface GitPushResponse {
   branch: string;
   upstreamRemote: string;
   head: string;
-  upstreamBefore: string;
+  upstreamBefore: string | null;
   aheadBefore: number;
   behindBefore: number;
   pushed: boolean;
   paths: string[];
   pathCount: number;
   pathsTruncated: boolean;
-  state: "pushed" | "up-to-date";
+  state: "pushed" | "up-to-date" | "published";
   error?: string;
 }
 

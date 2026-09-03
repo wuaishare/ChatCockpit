@@ -27,6 +27,11 @@ interface RunnerOptions {
   branch?: string | null;
   remote?: string;
   mergeRef?: string;
+  hasUpstream?: boolean;
+  remotes?: string[];
+  remoteDefaultRef?: string | null;
+  remoteBranchHead?: string | null;
+  defaultAncestor?: boolean;
   fetchUrls?: string[];
   pushUrls?: string[];
   ahead?: number;
@@ -51,6 +56,11 @@ class PushGitRunner implements GovernedGitCommandRunner {
   branch: string | null;
   remote: string;
   mergeRef: string;
+  hasUpstream: boolean;
+  remotes: string[];
+  remoteDefaultRef: string | null;
+  remoteBranchHead: string | null;
+  defaultAncestor: boolean;
   fetchUrls: string[];
   pushUrls: string[];
   ahead: number;
@@ -75,6 +85,11 @@ class PushGitRunner implements GovernedGitCommandRunner {
     this.branch = options.branch === undefined ? "main" : options.branch;
     this.remote = options.remote ?? "origin";
     this.mergeRef = options.mergeRef ?? "refs/heads/main";
+    this.hasUpstream = options.hasUpstream ?? true;
+    this.remotes = options.remotes ?? [this.remote];
+    this.remoteDefaultRef = options.remoteDefaultRef === undefined ? "refs/heads/main" : options.remoteDefaultRef;
+    this.remoteBranchHead = options.remoteBranchHead ?? null;
+    this.defaultAncestor = options.defaultAncestor ?? true;
     this.fetchUrls = options.fetchUrls ?? ["https://example.invalid/chatcockpit.git"];
     this.pushUrls = options.pushUrls ?? [...this.fetchUrls];
     this.ahead = options.ahead ?? 2;
@@ -113,8 +128,14 @@ class PushGitRunner implements GovernedGitCommandRunner {
     if (args[0] === "rev-parse" && args[1] === "--git-path" && args[2] === "info/grafts") {
       return { status: 0, stdout: ".git/info/grafts\n", stderr: "" };
     }
-    if (args[0] === "rev-parse" && (args[1] === "@{upstream}" || args[1] === "FETCH_HEAD")) {
+    if (args[0] === "rev-parse" && args[1] === "FETCH_HEAD") {
       return { status: 0, stdout: `${this.upstreamHead}\n`, stderr: "" };
+    }
+    if (args[0] === "rev-parse" && args[1] === "@{upstream}") {
+      return { status: 0, stdout: `${this.remoteBranchHead ?? this.upstreamHead}\n`, stderr: "" };
+    }
+    if (args[0] === "rev-parse" && (args[1] ?? "").startsWith("refs/remotes/")) {
+      return { status: 0, stdout: `${this.remoteBranchHead ?? this.upstreamHead}\n`, stderr: "" };
     }
     if (args[0] === "symbolic-ref") {
       return this.branch
@@ -146,8 +167,16 @@ class PushGitRunner implements GovernedGitCommandRunner {
     }
     if (args[0] === "config" && args[1] === "--get") {
       const key = args[2] ?? "";
-      if (key === `branch.${this.branch}.remote`) return { status: 0, stdout: `${this.remote}\n`, stderr: "" };
-      if (key === `branch.${this.branch}.merge`) return { status: 0, stdout: `${this.mergeRef}\n`, stderr: "" };
+      if (key === `branch.${this.branch}.remote`) {
+        return this.hasUpstream
+          ? { status: 0, stdout: `${this.remote}\n`, stderr: "" }
+          : { status: 1, stdout: "", stderr: "" };
+      }
+      if (key === `branch.${this.branch}.merge`) {
+        return this.hasUpstream
+          ? { status: 0, stdout: `${this.mergeRef}\n`, stderr: "" }
+          : { status: 1, stdout: "", stderr: "" };
+      }
       if (key === `remote.${this.remote}.mirror`) {
         return this.mirror === null
           ? { status: 1, stdout: "", stderr: "" }
@@ -170,11 +199,40 @@ class PushGitRunner implements GovernedGitCommandRunner {
         ? { status: 0, stdout: values.join("\n") + "\n", stderr: "" }
         : { status: 1, stdout: "", stderr: "" };
     }
+    if (args[0] === "remote" && args.length === 1) {
+      return this.remotes.length
+        ? { status: 0, stdout: this.remotes.join("\n") + "\n", stderr: "" }
+        : { status: 0, stdout: "", stderr: "" };
+    }
     if (args[0] === "remote" && args[1] === "get-url") {
       const urls = args.includes("--push") ? this.pushUrls : this.fetchUrls;
       return urls.length
         ? { status: 0, stdout: urls.join("\n") + "\n", stderr: "" }
         : { status: 1, stdout: "", stderr: "missing url\n" };
+    }
+    if (args[0] === "ls-remote" && args.includes("--symref")) {
+      return this.remoteDefaultRef
+        ? {
+            status: 0,
+            stdout: `ref: ${this.remoteDefaultRef}\tHEAD\n${this.upstreamHead}\tHEAD\n`,
+            stderr: ""
+          }
+        : { status: 0, stdout: `${this.upstreamHead}\tHEAD\n`, stderr: "" };
+    }
+    if (args[0] === "ls-remote" && args.includes("--exit-code") && args.includes("--refs")) {
+      return this.remoteBranchHead
+        ? { status: 0, stdout: `${this.remoteBranchHead}\trefs/heads/${this.branch}\n`, stderr: "" }
+        : { status: 2, stdout: "", stderr: "" };
+    }
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+      return this.defaultAncestor
+        ? { status: 0, stdout: "", stderr: "" }
+        : { status: 1, stdout: "", stderr: "not ancestor\n" };
+    }
+    if (args[0] === "branch" && (args[1] ?? "").startsWith("--set-upstream-to=")) {
+      this.hasUpstream = true;
+      this.mergeRef = `refs/heads/${this.branch}`;
+      return { status: 0, stdout: "", stderr: "" };
     }
     if (args[0] === "status" && args[1] === "--porcelain") {
       return { status: 0, stdout: this.dirty ? " M src/dirty.ts\n" : "", stderr: "" };
@@ -196,9 +254,15 @@ class PushGitRunner implements GovernedGitCommandRunner {
       return { status: 0, stdout, stderr: "" };
     }
     if (args[0] === "push") {
-      return this.failPush
-        ? { status: 1, stdout: "", stderr: "remote rejected\n" }
-        : { status: 0, stdout: "ok\n", stderr: "" };
+      if (this.failPush) {
+        return { status: 1, stdout: "", stderr: "remote rejected\n" };
+      }
+      const firstPublishLease = args.find((value) => value.startsWith("--force-with-lease=refs/heads/"));
+      if (firstPublishLease && this.remoteBranchHead) {
+        return { status: 1, stdout: "", stderr: "stale info\n" };
+      }
+      if (firstPublishLease) this.remoteBranchHead = this.head;
+      return { status: 0, stdout: "ok\n", stderr: "" };
     }
     return { status: 1, stdout: "", stderr: `unexpected: ${args.join(" ")}\n` };
   }
@@ -324,6 +388,134 @@ try {
   assert.equal(sshAliasPush.state, "pushed");
   assert.equal(callsWith(sshAliasRunner, "fetch")[0]?.args.includes(sshAliasUrl), true);
   assert.equal(callsWith(sshAliasRunner, "push")[0]?.args.includes(sshAliasUrl), true);
+
+  const noUpstreamRunner = new PushGitRunner({ hasUpstream: false });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary" }, noUpstreamRunner),
+    /Governed Git operation failed|configured remote branch upstream/
+  );
+  assert.equal(callsWith(noUpstreamRunner, "push").length, 0);
+
+  const alreadyTrackedPublishRunner = new PushGitRunner();
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary", publishCurrentBranch: true }, alreadyTrackedPublishRunner),
+    /branch without configured upstream/
+  );
+  assert.equal(callsWith(alreadyTrackedPublishRunner, "push").length, 0);
+
+  const firstPublishRunner = new PushGitRunner({
+    branch: "feature/selfboot-publish",
+    hasUpstream: false,
+    ahead: 1,
+    behind: 0,
+    outgoingPaths: ["src/publish-safe.ts"]
+  });
+  const published = gitPush(
+    paths,
+    { repoId: "primary", publishCurrentBranch: true },
+    firstPublishRunner
+  );
+  assert.equal(published.state, "published");
+  assert.equal(published.pushed, true);
+  assert.equal(published.upstreamBefore, null);
+  assert.equal(published.upstreamRemote, "origin");
+  assert.equal(published.aheadBefore, 1);
+  assert.equal(published.behindBefore, 0);
+  assert.deepEqual(published.paths, ["src/publish-safe.ts"]);
+  assert.equal(firstPublishRunner.hasUpstream, true);
+  assert.equal(firstPublishRunner.mergeRef, "refs/heads/feature/selfboot-publish");
+  const publishFetchCalls = callsWith(firstPublishRunner, "fetch");
+  assert.equal(publishFetchCalls.length, 2);
+  assert.equal(publishFetchCalls[0]?.args.includes("refs/heads/main"), true);
+  assert.equal(
+    publishFetchCalls[1]?.args.includes(
+      "refs/heads/feature/selfboot-publish:refs/remotes/origin/feature/selfboot-publish"
+    ),
+    true
+  );
+  const publishPushCall = callsWith(firstPublishRunner, "push")[0];
+  assert.ok(publishPushCall);
+  assert.equal(
+    publishPushCall.args.includes("--force-with-lease=refs/heads/feature/selfboot-publish:"),
+    true
+  );
+  assert.equal(
+    publishPushCall.args.includes(
+      "1111111111111111111111111111111111111111:refs/heads/feature/selfboot-publish"
+    ),
+    true
+  );
+  assert.equal(publishPushCall.args.includes("--force"), false);
+  assert.equal(publishPushCall.args.includes("--tags"), false);
+  assert.equal(publishPushCall.args.includes("--set-upstream"), false);
+  const upstreamSetupCall = callsWith(firstPublishRunner, "branch")[0];
+  assert.ok(upstreamSetupCall);
+  assert.equal(
+    upstreamSetupCall.args.includes("--set-upstream-to=origin/feature/selfboot-publish"),
+    true
+  );
+
+  const recoveredPublishRunner = new PushGitRunner({
+    branch: "feature/recover-publish",
+    hasUpstream: false,
+    remoteBranchHead: "1111111111111111111111111111111111111111",
+    ahead: 1,
+    behind: 0
+  });
+  const recoveredPublish = gitPush(
+    paths,
+    { repoId: "primary", publishCurrentBranch: true },
+    recoveredPublishRunner
+  );
+  assert.equal(recoveredPublish.state, "published");
+  assert.equal(recoveredPublish.pushed, false);
+  assert.equal(recoveredPublishRunner.hasUpstream, true);
+  assert.equal(callsWith(recoveredPublishRunner, "push").length, 0);
+
+  const conflictingRemoteBranchRunner = new PushGitRunner({
+    branch: "feature/conflict-publish",
+    hasUpstream: false,
+    remoteBranchHead: "4444444444444444444444444444444444444444"
+  });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary", publishCurrentBranch: true }, conflictingRemoteBranchRunner),
+    /same-name remote branch at a different commit/
+  );
+  assert.equal(conflictingRemoteBranchRunner.hasUpstream, false);
+  assert.equal(callsWith(conflictingRemoteBranchRunner, "push").length, 0);
+
+  const multipleRemotePublishRunner = new PushGitRunner({
+    branch: "feature/multi-remote",
+    hasUpstream: false,
+    remotes: ["origin", "backup"]
+  });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary", publishCurrentBranch: true }, multipleRemotePublishRunner),
+    /exactly one configured remote/
+  );
+  assert.equal(callsWith(multipleRemotePublishRunner, "push").length, 0);
+
+  const unrelatedPublishRunner = new PushGitRunner({
+    branch: "feature/unrelated",
+    hasUpstream: false,
+    defaultAncestor: false
+  });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary", publishCurrentBranch: true }, unrelatedPublishRunner),
+    /descend from the remote default branch/
+  );
+  assert.equal(callsWith(unrelatedPublishRunner, "push").length, 0);
+
+  const missingDefaultPublishRunner = new PushGitRunner({
+    branch: "feature/no-default",
+    hasUpstream: false,
+    remoteDefaultRef: null
+  });
+  assert.throws(
+    () => gitPush(paths, { repoId: "primary", publishCurrentBranch: true }, missingDefaultPublishRunner),
+    /exactly one symbolic remote default branch/
+  );
+  assert.equal(callsWith(missingDefaultPublishRunner, "push").length, 0);
 
   const upToDateRunner = new PushGitRunner({ ahead: 0, behind: 0 });
   const upToDate = gitPush(paths, { repoId: "primary" }, upToDateRunner);

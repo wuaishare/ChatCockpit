@@ -335,13 +335,12 @@ function assertValidUpstreamMergeRef(
   }
 }
 
-function gitUpstreamRemote(
+function resolveGovernedGitRemote(
   repoRoot: string,
-  branch: string,
+  remote: string,
+  mergeRef: string,
   runner: GovernedGitCommandRunner
 ): GovernedGitUpstream {
-  const remote = runGitText(repoRoot, ["config", "--get", `branch.${branch}.remote`], 5_000, runner);
-  const mergeRef = runGitText(repoRoot, ["config", "--get", `branch.${branch}.merge`], 5_000, runner);
   if (
     !remote ||
     remote === "." ||
@@ -376,6 +375,36 @@ function gitUpstreamRemote(
   return { remote, mergeRef, trackingRef, fetchUrl };
 }
 
+function gitUpstreamRemote(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): GovernedGitUpstream {
+  const remote = runGitText(repoRoot, ["config", "--get", `branch.${branch}.remote`], 5_000, runner);
+  const mergeRef = runGitText(repoRoot, ["config", "--get", `branch.${branch}.merge`], 5_000, runner);
+  return resolveGovernedGitRemote(repoRoot, remote, mergeRef, runner);
+}
+
+function gitFirstPublishRemote(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): GovernedGitUpstream {
+  const remotes = runGitText(repoRoot, ["remote"], 5_000, runner)
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (remotes.length !== 1) {
+    throw new Error("Governed Git first publish requires exactly one configured remote");
+  }
+  return resolveGovernedGitRemote(
+    repoRoot,
+    remotes[0] ?? "",
+    `refs/heads/${branch}`,
+    runner
+  );
+}
+
 function gitPushUrl(
   repoRoot: string,
   upstream: GovernedGitUpstream,
@@ -402,6 +431,84 @@ function gitPushUrl(
     throw new Error("Governed Git push requires the push URL to match the configured upstream fetch URL");
   }
   return pushUrl;
+}
+
+function gitRemoteDefaultBranchRef(
+  repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): string {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["ls-remote", "--symref", upstream.fetchUrl, "HEAD"]),
+    timeoutMs: 30_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git first publish could not resolve the remote default branch safely");
+  }
+  const defaultRefs = result.stdout
+    .split(/\r?\n/)
+    .map((line) => /^ref:\s+(\S+)\s+HEAD$/.exec(line.trim())?.[1] ?? null)
+    .filter((value): value is string => Boolean(value));
+  if (defaultRefs.length !== 1) {
+    throw new Error("Governed Git first publish requires exactly one symbolic remote default branch");
+  }
+  const defaultRef = defaultRefs[0] ?? "";
+  assertValidUpstreamMergeRef(repoRoot, defaultRef, runner);
+  return defaultRef;
+}
+
+function gitRemoteBranchHead(
+  repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): string | null {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs([
+      "ls-remote",
+      "--exit-code",
+      "--refs",
+      upstream.fetchUrl,
+      upstream.mergeRef
+    ]),
+    timeoutMs: 30_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 2 && !result.stdout.trim()) return null;
+  if (result.status !== 0) {
+    throw new Error("Governed Git first publish could not inspect the remote branch safely");
+  }
+  const rows = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (rows.length !== 1) {
+    throw new Error("Governed Git first publish requires one exact same-name remote branch result");
+  }
+  const match = /^([0-9a-fA-F]{40,64})\s+(refs\/heads\/\S+)$/.exec(rows[0] ?? "");
+  if (!match || match[2] !== upstream.mergeRef) {
+    throw new Error("Governed Git first publish received an unexpected remote branch result");
+  }
+  return match[1] ?? null;
+}
+
+function assertRemoteDefaultAncestor(
+  repoRoot: string,
+  baselineHead: string,
+  head: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["merge-base", "--is-ancestor", baselineHead, head]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 1) {
+    throw new Error("Governed Git first publish requires the current branch to descend from the remote default branch");
+  }
+  if (result.status !== 0) {
+    throw new Error("Governed Git first publish could not verify remote ancestry safely");
+  }
 }
 
 function assertPushConfigurationSafe(
@@ -1077,6 +1184,143 @@ export function gitPush(
   if (!branch) {
     throw new Error("Governed Git push requires an attached branch");
   }
+
+  if (payload.publishCurrentBranch === true) {
+    const configuredRemote = runOptionalGitConfig(
+      repoRoot,
+      ["config", "--get", `branch.${branch}.remote`],
+      runner
+    );
+    const configuredMerge = runOptionalGitConfig(
+      repoRoot,
+      ["config", "--get", `branch.${branch}.merge`],
+      runner
+    );
+    if (configuredRemote.length || configuredMerge.length) {
+      throw new Error("Governed Git first publish requires a branch without configured upstream");
+    }
+
+    const upstream = gitFirstPublishRemote(repoRoot, branch, runner);
+    const pushUrl = gitPushUrl(repoRoot, upstream, runner);
+    assertPushConfigurationSafe(repoRoot, upstream, runner);
+
+    const head = gitHead(repoRoot, runner);
+    if (!/^[0-9a-fA-F]{40,64}$/.test(head)) {
+      throw new Error("Governed Git first publish could not resolve an immutable HEAD object id safely");
+    }
+    const defaultRef = gitRemoteDefaultBranchRef(repoRoot, upstream, runner);
+    const baselineHead = fetchExactUpstreamToFetchHead(
+      repoRoot,
+      { ...upstream, mergeRef: defaultRef },
+      runner
+    );
+    if (!/^[0-9a-fA-F]{40,64}$/.test(baselineHead)) {
+      throw new Error("Governed Git first publish could not resolve the remote default branch object id safely");
+    }
+    if (gitHead(repoRoot, runner) !== head) {
+      throw new Error("Governed Git first publish refuses a HEAD that changed during remote baseline verification");
+    }
+    assertRemoteDefaultAncestor(repoRoot, baselineHead, head, runner);
+    const comparison = gitAheadBehindRevision(repoRoot, "FETCH_HEAD", runner);
+    if (comparison.behind > 0) {
+      throw new Error("Governed Git first publish refuses history that is behind the remote default branch");
+    }
+
+    const outgoing = assertOutgoingCommitPathsSafe(
+      repoRoot,
+      baselineHead,
+      head,
+      runner
+    );
+    if (gitHead(repoRoot, runner) !== head) {
+      throw new Error("Governed Git first publish refuses a HEAD that changed during publication preparation");
+    }
+
+    const existingRemoteHead = gitRemoteBranchHead(repoRoot, upstream, runner);
+    if (existingRemoteHead !== null && existingRemoteHead !== head) {
+      throw new Error("Governed Git first publish refuses an existing same-name remote branch at a different commit");
+    }
+
+    let pushed = false;
+    if (existingRemoteHead === null) {
+      runGitText(
+        repoRoot,
+        [
+          "-c",
+          "push.followTags=false",
+          "-c",
+          "push.gpgSign=false",
+          "-c",
+          "push.recurseSubmodules=no",
+          "push",
+          "--porcelain",
+          "--no-verify",
+          "--recurse-submodules=no",
+          `--force-with-lease=${upstream.mergeRef}:`,
+          pushUrl,
+          `${head}:${upstream.mergeRef}`
+        ],
+        120_000,
+        runner
+      );
+      pushed = true;
+    }
+
+    if (gitHead(repoRoot, runner) !== head || gitCurrentBranch(repoRoot, runner) !== branch) {
+      throw new Error("Governed Git first publish refuses local branch drift after remote publication");
+    }
+
+    runGitText(
+      repoRoot,
+      [
+        "fetch",
+        "--no-recurse-submodules",
+        "--no-tags",
+        upstream.fetchUrl,
+        `${upstream.mergeRef}:${upstream.trackingRef}`
+      ],
+      60_000,
+      runner
+    );
+    if (gitRevision(repoRoot, upstream.trackingRef, runner) !== head) {
+      throw new Error("Governed Git first publish could not verify the published remote-tracking commit");
+    }
+
+    runGitText(
+      repoRoot,
+      ["branch", `--set-upstream-to=${upstream.remote}/${branch}`, "--", branch],
+      5_000,
+      runner
+    );
+    const configured = gitUpstreamRemote(repoRoot, branch, runner);
+    if (
+      configured.remote !== upstream.remote ||
+      configured.mergeRef !== upstream.mergeRef ||
+      configured.fetchUrl !== upstream.fetchUrl
+    ) {
+      throw new Error("Governed Git first publish did not establish the expected same-name upstream");
+    }
+    if (gitHead(repoRoot, runner) !== head || gitCurrentBranch(repoRoot, runner) !== branch) {
+      throw new Error("Governed Git first publish refuses local branch drift during upstream setup");
+    }
+
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      branch,
+      upstreamRemote: upstream.remote,
+      head,
+      upstreamBefore: null,
+      aheadBefore: comparison.ahead,
+      behindBefore: comparison.behind,
+      pushed,
+      paths: outgoing.paths,
+      pathCount: outgoing.pathCount,
+      pathsTruncated: outgoing.pathsTruncated,
+      state: "published"
+    };
+  }
+
   const upstream = gitUpstreamRemote(repoRoot, branch, runner);
   const pushUrl = gitPushUrl(repoRoot, upstream, runner);
   assertPushConfigurationSafe(repoRoot, upstream, runner);
