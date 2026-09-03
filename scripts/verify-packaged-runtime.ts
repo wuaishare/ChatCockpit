@@ -6,6 +6,9 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import { rootIdForRepoId } from "../src/core/project-config-identity.js";
+import { USER_CONFIG_SCHEMA_VERSION } from "../src/core/user-config-schema.js";
+
 interface RuntimeManifest {
   schemaVersion: number;
   tokenPilotVersion: string;
@@ -291,14 +294,38 @@ try {
 
   const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
     schemaVersion: number;
-    defaultRepoId: string;
     workspaceAllowlist: string[];
-    repoMappings: Record<string, { path: string }>;
+    projects: Record<string, { displayName: string; primaryRootId: string; rootIds: string[] }>;
+    projectRoots: Record<string, { path: string; kind: string; role: string; access: string }>;
+    executionWorkspaces: Record<
+      string,
+      { projectRootId: string; path: string; kind: string; provenance: string }
+    >;
+    defaultRepoId?: unknown;
+    repoMappings?: unknown;
   };
-  assert.equal(config.schemaVersion, 1);
-  assert.equal(config.defaultRepoId, "primary");
-  assert.equal(fs.realpathSync.native(config.repoMappings.primary.path), fs.realpathSync.native(workspaceRoot));
-  assert.equal(config.repoMappings.tokenpilot, undefined);
+  const primaryRootId = rootIdForRepoId("primary");
+  assert.equal(config.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
+  assert.equal(config.defaultRepoId, undefined);
+  assert.equal(config.repoMappings, undefined);
+  assert.equal(config.projects.primary?.displayName, "primary");
+  assert.equal(config.projects.primary?.primaryRootId, primaryRootId);
+  assert.deepEqual(config.projects.primary?.rootIds, [primaryRootId]);
+  assert.equal(
+    fs.realpathSync.native(config.projectRoots[primaryRootId].path),
+    fs.realpathSync.native(workspaceRoot)
+  );
+  assert.equal(config.projectRoots[primaryRootId].kind, "git-repository");
+  assert.equal(config.projectRoots[primaryRootId].role, "primary-source");
+  assert.equal(config.projectRoots[primaryRootId].access, "read-write");
+  assert.equal(config.executionWorkspaces.primary?.projectRootId, primaryRootId);
+  assert.equal(
+    fs.realpathSync.native(config.executionWorkspaces.primary.path),
+    fs.realpathSync.native(workspaceRoot)
+  );
+  assert.equal(config.executionWorkspaces.primary.kind, "checkout");
+  assert.equal(config.executionWorkspaces.primary.provenance, "registered");
+  assert.equal(config.executionWorkspaces.tokenpilot, undefined);
   assert.equal(
     config.workspaceAllowlist.some((entry) => fs.realpathSync.native(entry) === fs.realpathSync.native(runtimeRoot)),
     false
