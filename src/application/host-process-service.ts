@@ -73,6 +73,11 @@ const MAX_RUNNING_PER_WORKSPACE = 2;
 const MAX_RUNNING_PER_SESSION = 2;
 const MAX_RUNNING_PURE_HOST = 4;
 const HOST_PROCESS_RECONCILE_INTERVAL_MS = 15_000;
+const HOST_PROCESS_ID_PREFIX = "host_process_";
+
+function isHostProcessRecord(record: Pick<DirectProcessSessionRecord, "id">): boolean {
+  return record.id.startsWith(HOST_PROCESS_ID_PREFIX);
+}
 
 export type HostProcessRuntimeSnapshot = Omit<
   ManagedProcessAdapterSnapshot,
@@ -619,6 +624,7 @@ export class HostProcessService {
   ): Promise<HostProcessListValue> {
     await this.reconcile(context.now);
     const processes = this.repositories.directProcessSessions.list(input).filter((record) => {
+      if (!isHostProcessRecord(record)) return false;
       if (record.scope !== "host" || context.actorType !== "remote-mcp") {
         return true;
       }
@@ -649,7 +655,7 @@ export class HostProcessService {
     );
     const running = this.repositories.directProcessSessions.list({
       status: "running"
-    });
+    }).filter(isHostProcessRecord);
     for (const processRecord of running) {
       if (this.actionLocks.has(processRecord.id)) {
         continue;
@@ -1371,7 +1377,9 @@ export class HostProcessService {
     const active = this.repositories.directProcessSessions
       .list()
       .filter(
-        (record) => record.status === "starting" || record.status === "running"
+        (record) =>
+          isHostProcessRecord(record) &&
+          (record.status === "starting" || record.status === "running")
       );
 
     for (let processRecord of active) {
@@ -1881,7 +1889,9 @@ export class HostProcessService {
     const active = this.repositories.directProcessSessions
       .list()
       .filter(
-        (record) => record.status === "starting" || record.status === "running"
+        (record) =>
+          isHostProcessRecord(record) &&
+          (record.status === "starting" || record.status === "running")
       );
     for (const processRecord of active) {
       const stale = this.repositories.directProcessSessions.markStale({
@@ -2071,9 +2081,19 @@ export class HostProcessService {
 
   private requireProcess(processId: string): DirectProcessSessionRecord {
     try {
-      return this.repositories.directProcessSessions.get(processId);
+      const processRecord = this.repositories.directProcessSessions.get(processId);
+      if (!isHostProcessRecord(processRecord)) {
+        throw new ServiceError(
+          "HOST_PROCESS_NOT_FOUND",
+          "Managed Host Process was not found"
+        );
+      }
+      return processRecord;
     } catch (error) {
-      if (error instanceof ServiceError && error.code === "CONTINUITY_RECORD_NOT_FOUND") {
+      if (
+        error instanceof ServiceError &&
+        (error.code === "CONTINUITY_RECORD_NOT_FOUND" || error.code === "HOST_PROCESS_NOT_FOUND")
+      ) {
         throw new ServiceError(
           "HOST_PROCESS_NOT_FOUND",
           "Managed Host Process was not found"

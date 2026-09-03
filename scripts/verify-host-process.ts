@@ -2937,6 +2937,20 @@ async function verifyHostProcessRestartReconciliation(): Promise<void> {
     writerLeaseId: lease.id,
     now: NOW
   });
+  repositories.directProcessSessions.createRunning({
+    id: "builtin_process_restart_foreign",
+    rootId: "fixture",
+    workdir: ".",
+    command: "node",
+    commandHash: "9".repeat(64),
+    executorId: "builtin-direct",
+    workspaceId: workspace.id,
+    repoId: workspace.repoId,
+    sessionId: session.id,
+    writerLeaseId: lease.id,
+    privatePid: 9992,
+    now: NOW
+  });
   database.close();
 
   database = new ContinuityDatabase({ path: databasePath });
@@ -2962,6 +2976,30 @@ async function verifyHostProcessRestartReconciliation(): Promise<void> {
       assert.equal(audit?.terminalReason, "CONTROL_PLANE_RESTART");
       assert.equal(audit?.approvalId, null);
     }
+    await service.reconcile(LATER);
+    const foreignProcess = repositories.directProcessSessions.get(
+      "builtin_process_restart_foreign"
+    );
+    assert.equal(foreignProcess.status, "running");
+    assert.equal(foreignProcess.staleReason, null);
+    assert.equal(foreignProcess.completedAt, null);
+
+    const context = buildOperationContext({
+      actorType: "local-ui",
+      requestId: "host-process-producer-boundary",
+      publicProjection: true,
+      now: LATER
+    });
+    const listed = await service.list(context);
+    assert.equal(
+      listed.processes.some((process) => process.id === "builtin_process_restart_foreign"),
+      false
+    );
+    await expectServiceCode(
+      service.read(context, { processId: "builtin_process_restart_foreign" }),
+      "HOST_PROCESS_NOT_FOUND"
+    );
+
     assert.equal(restartSupervisor.stopCalls, 0);
     assert.equal(restartSupervisor.activeProcessIds().length, 0);
   } finally {

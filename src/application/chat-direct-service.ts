@@ -126,6 +126,38 @@ const CORE_WRITER_AUTHORITY_TTL_MS = 120_000;
 const MANAGED_PROCESS_WRITER_AUTHORITY_TTL_MS = 10 * 60_000;
 const MANAGED_PROCESS_LEASE_GUARD_INTERVAL_MS = 1_000;
 const MANAGED_PROCESS_RECORD_RETENTION_MS = 30 * 60_000;
+const CHAT_DIRECT_MANAGED_PROCESS_ID_PREFIXES = [
+  "chatcockpit_",
+  "builtin_process_"
+] as const;
+
+function isChatDirectManagedProcessId(processId: string): boolean {
+  return CHAT_DIRECT_MANAGED_PROCESS_ID_PREFIXES.some((prefix) =>
+    processId.startsWith(prefix)
+  );
+}
+
+export function reconcileInterruptedChatDirectProcesses(
+  repositories: ContinuityRepositories,
+  now = new Date().toISOString()
+): number {
+  const active = repositories.directProcessSessions
+    .list()
+    .filter(
+      (record) =>
+        isChatDirectManagedProcessId(record.id) &&
+        (record.status === "starting" || record.status === "running")
+    );
+  for (const processRecord of active) {
+    repositories.directProcessSessions.markStale({
+      id: processRecord.id,
+      reason: "CONTROL_PLANE_RESTART",
+      expectedRevision: processRecord.revision,
+      now
+    });
+  }
+  return active.length;
+}
 
 interface ManagedChatDirectProcess {
   repoId: string;

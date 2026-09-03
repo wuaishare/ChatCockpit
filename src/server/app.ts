@@ -28,7 +28,10 @@ import { CapabilityRouterMutationPublicService } from "../application/capability
 import { TargetedCapabilityRouterService } from "../application/targeted-capability-router-service.js";
 import { DeviceWorkspaceRoutingService } from "../application/device-workspace-routing-service.js";
 import { jobProcessControlSchema } from "../contracts/job-process.js";
-import { ChatDirectService } from "../application/chat-direct-service.js";
+import {
+  ChatDirectService,
+  reconcileInterruptedChatDirectProcesses
+} from "../application/chat-direct-service.js";
 import { JobProcessControlService } from "../application/job-process-control-service.js";
 import { DeviceTargetService } from "../application/device-target-service.js";
 import { DeviceRuntimeLifecycleService } from "../application/device-runtime-lifecycle-service.js";
@@ -669,6 +672,15 @@ export function buildServer(
     app.log.info(
       { count: interruptedCoreWriterAuthorities },
       "Recovered Core writer authorities orphaned by a previous Runtime instance"
+    );
+  }
+  const interruptedChatDirectProcesses = reconcileInterruptedChatDirectProcesses(
+    continuityServices.repositories
+  );
+  if (interruptedChatDirectProcesses > 0) {
+    app.log.info(
+      { count: interruptedChatDirectProcesses },
+      "Recovered Chat Direct managed processes orphaned by a previous Runtime instance"
     );
   }
   const operationalActivityControlEvents = new OperationalActivityControlEventRepository(
