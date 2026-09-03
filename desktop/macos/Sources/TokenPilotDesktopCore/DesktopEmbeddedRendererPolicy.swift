@@ -1,16 +1,5 @@
 import Foundation
 
-public struct DesktopSharedRendererPrototypeConfiguration: Equatable, Sendable {
-    public static let environmentKey = "CHATCOCKPIT_DESKTOP_SHARED_RENDERER_M2"
-
-    public let enabled: Bool
-
-    public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
-        let value = environment[Self.environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        self.enabled = value == "1" || value == "true"
-    }
-}
-
 public enum DesktopEmbeddedNavigationDecision: Equatable, Sendable {
     case allow
     case openExternally

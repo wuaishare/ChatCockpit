@@ -4,14 +4,6 @@ import Testing
 
 @Suite("Desktop embedded renderer policy")
 struct DesktopEmbeddedRendererPolicyTests {
-    @Test("prototype is explicit opt-in")
-    func prototypeFlag() {
-        #expect(DesktopSharedRendererPrototypeConfiguration(environment: [:]).enabled == false)
-        #expect(DesktopSharedRendererPrototypeConfiguration(environment: ["CHATCOCKPIT_DESKTOP_SHARED_RENDERER_M2": "1"]).enabled)
-        #expect(DesktopSharedRendererPrototypeConfiguration(environment: ["CHATCOCKPIT_DESKTOP_SHARED_RENDERER_M2": "true"]).enabled)
-        #expect(DesktopSharedRendererPrototypeConfiguration(environment: ["CHATCOCKPIT_DESKTOP_SHARED_RENDERER_M2": "0"]).enabled == false)
-    }
-
     @Test("policy requires canonical IPv4 loopback origin")
     func policyOrigin() {
         #expect(DesktopEmbeddedNavigationPolicy(baseURL: URL(string: "http://127.0.0.1:4318/ui/")!) != nil)

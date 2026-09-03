@@ -331,14 +331,14 @@
 "Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, approvals, and resource mutations remain authoritative in the shared Resource Center." = "Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, approvals, and resource mutations remain authoritative in the shared Resource Center.";
 "Tasks, Jobs, Approvals, Sessions, Handoffs, and Evidence are one shared work experience. This native shell shows a bounded summary and opens the canonical Cockpit workflow instead of duplicating its state machine." = "Tasks, Jobs, Approvals, Sessions, Handoffs, and Evidence are one shared work experience. This native shell shows a bounded summary and opens the canonical Cockpit workflow instead of duplicating its state machine.";
 
-"Shared Renderer Prototype" = "Shared Renderer Prototype";
-"Open the opt-in local shared renderer prototype" = "Open the opt-in local shared renderer prototype";
-"Preparing shared renderer…" = "Preparing shared renderer…";
+"Preparing ChatCockpit…" = "Preparing ChatCockpit…";
 "Local Runtime is unavailable" = "Local Runtime is unavailable";
-"Start or repair the local Runtime before opening the shared renderer prototype." = "Start or repair the local Runtime before opening the shared renderer prototype.";
-"Embedded session bootstrap failed" = "Embedded session bootstrap failed";
-"The prototype could not obtain a bounded local sign-in session. Native ChatCockpit remains available." = "The prototype could not obtain a bounded local sign-in session. Native ChatCockpit remains available.";
-"Shared renderer failed to load" = "Shared renderer failed to load";
-"The local Runtime is reachable, but the embedded page failed to load." = "The local Runtime is reachable, but the embedded page failed to load.";
+"Start or repair the local Runtime from This Mac before opening ChatCockpit." = "Start or repair the local Runtime from This Mac before opening ChatCockpit.";
+"Embedded sign-in bootstrap failed" = "Embedded sign-in bootstrap failed";
+"ChatCockpit could not obtain a bounded local sign-in session. You can retry, inspect This Mac, or use the normal browser sign-in flow." = "ChatCockpit could not obtain a bounded local sign-in session. You can retry, inspect This Mac, or use the normal browser sign-in flow.";
+"ChatCockpit failed to load" = "ChatCockpit failed to load";
+"The local Runtime is reachable, but the embedded Cockpit page failed to load." = "The local Runtime is reachable, but the embedded Cockpit page failed to load.";
+"Return to the shared ChatCockpit workspace" = "Return to the shared ChatCockpit workspace";
+"Open machine-local settings and diagnostics" = "Open machine-local settings and diagnostics";
 "Open in browser" = "Open in browser";
 "Retry" = "Retry";

@@ -676,7 +676,7 @@ final class DesktopAppModel: ObservableObject {
     }
 
     func prepareEmbeddedCockpit(
-        destination: DesktopCockpitDestination = .projects
+        destination: DesktopCockpitDestination? = nil
     ) async -> DesktopEmbeddedCockpitBootstrap {
         guard let baseURL = snapshot.localCockpitURL,
               DesktopEmbeddedNavigationPolicy(baseURL: baseURL) != nil,

@@ -3,40 +3,54 @@ import SwiftUI
 import TokenPilotDesktopCore
 import WebKit
 
-private enum SharedCockpitPrototypeState {
+private enum SharedCockpitState {
     case preparing
     case runtimeUnavailable
-    case sessionUnavailable
+    case sessionUnavailable(URL)
     case web(URL, URL, isLoading: Bool)
     case loadFailed(URL)
 }
 
-struct SharedCockpitPrototypeView: View {
+struct SharedCockpitView: View {
     @ObservedObject var model: DesktopAppModel
-    @State private var state: SharedCockpitPrototypeState = .preparing
+    let destination: DesktopCockpitDestination?
+    let onOpenThisMac: () -> Void
+
+    @State private var state: SharedCockpitState = .preparing
     @State private var attempt = 0
+
+    private var preparationID: String {
+        "\(attempt):\(destination?.rawValue ?? "overview")"
+    }
 
     var body: some View {
         Group {
             switch state {
             case .preparing:
-                prototypeStatus(
-                    title: DesktopL10n.string("Preparing shared renderer…"),
+                rendererStatus(
+                    title: DesktopL10n.string("Preparing ChatCockpit…"),
                     systemImage: "hourglass"
                 )
             case .runtimeUnavailable:
-                prototypeStatus(
+                rendererStatus(
                     title: DesktopL10n.string("Local Runtime is unavailable"),
-                    detail: DesktopL10n.string("Start or repair the local Runtime before opening the shared renderer prototype."),
+                    detail: DesktopL10n.string(
+                        "Start or repair the local Runtime from This Mac before opening ChatCockpit."
+                    ),
                     systemImage: "bolt.slash",
-                    retry: true
+                    retry: true,
+                    showThisMac: true
                 )
-            case .sessionUnavailable:
-                prototypeStatus(
-                    title: DesktopL10n.string("Embedded session bootstrap failed"),
-                    detail: DesktopL10n.string("The prototype could not obtain a bounded local sign-in session. Native ChatCockpit remains available."),
+            case let .sessionUnavailable(baseURL):
+                rendererStatus(
+                    title: DesktopL10n.string("Embedded sign-in bootstrap failed"),
+                    detail: DesktopL10n.string(
+                        "ChatCockpit could not obtain a bounded local sign-in session. You can retry, inspect This Mac, or use the normal browser sign-in flow."
+                    ),
                     systemImage: "person.crop.circle.badge.exclamationmark",
-                    retry: true
+                    retry: true,
+                    showThisMac: true,
+                    browserBaseURL: baseURL
                 )
             case let .web(url, baseURL, isLoading):
                 ZStack(alignment: .topTrailing) {
@@ -48,37 +62,32 @@ struct SharedCockpitPrototypeView: View {
                     }
                 }
             case let .loadFailed(baseURL):
-                prototypeStatus(
-                    title: DesktopL10n.string("Shared renderer failed to load"),
-                    detail: DesktopL10n.string("The local Runtime is reachable, but the embedded page failed to load."),
+                rendererStatus(
+                    title: DesktopL10n.string("ChatCockpit failed to load"),
+                    detail: DesktopL10n.string(
+                        "The local Runtime is reachable, but the embedded Cockpit page failed to load."
+                    ),
                     systemImage: "exclamationmark.triangle",
-                    retry: true
+                    retry: true,
+                    showThisMac: true,
+                    browserBaseURL: baseURL
                 )
-                .overlay(alignment: .bottomTrailing) {
-                    Button(DesktopL10n.string("Open in browser")) {
-                        let safeURL = DesktopCockpitSessionBuilder().directURL(
-                            baseURL: baseURL,
-                            destination: .projects
-                        ) ?? baseURL
-                        NSWorkspace.shared.open(safeURL)
-                    }
-                    .padding()
-                    .help(baseURL.absoluteString)
-                }
             }
         }
-        .frame(minWidth: 760, minHeight: 520)
-        .task(id: attempt) {
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: preparationID) {
             await prepare()
         }
     }
 
     @ViewBuilder
-    private func prototypeStatus(
+    private func rendererStatus(
         title: String,
         detail: String? = nil,
         systemImage: String,
-        retry: Bool = false
+        retry: Bool = false,
+        showThisMac: Bool = false,
+        browserBaseURL: URL? = nil
     ) -> some View {
         VStack(spacing: 12) {
             Image(systemName: systemImage)
@@ -90,11 +99,26 @@ struct SharedCockpitPrototypeView: View {
                 Text(detail)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 520)
+                    .frame(maxWidth: 560)
             }
-            if retry {
-                Button(DesktopL10n.string("Retry")) {
-                    attempt += 1
+
+            if retry || showThisMac || browserBaseURL != nil {
+                HStack(spacing: 10) {
+                    if retry {
+                        Button(DesktopL10n.string("Retry")) {
+                            attempt += 1
+                        }
+                    }
+                    if showThisMac {
+                        Button(DesktopL10n.string("This Mac")) {
+                            onOpenThisMac()
+                        }
+                    }
+                    if let browserBaseURL {
+                        Button(DesktopL10n.string("Open in browser")) {
+                            openInBrowser(baseURL: browserBaseURL)
+                        }
+                    }
                 }
             }
         }
@@ -103,16 +127,10 @@ struct SharedCockpitPrototypeView: View {
 
     private func webView(url: URL, baseURL: URL) -> some View {
         SharedCockpitWebView(
-            initialURL: url,
+            requestedURL: url,
             baseURL: baseURL,
             onLoadingChanged: { loading in
-                let stateURL = loading
-                    ? url
-                    : (DesktopCockpitSessionBuilder().directURL(
-                        baseURL: baseURL,
-                        destination: .projects
-                    ) ?? baseURL)
-                state = .web(stateURL, baseURL, isLoading: loading)
+                state = .web(url, baseURL, isLoading: loading)
             },
             onLoadFailed: {
                 state = .loadFailed(baseURL)
@@ -120,16 +138,30 @@ struct SharedCockpitPrototypeView: View {
         )
     }
 
+    private func openInBrowser(baseURL: URL) {
+        let safeURL = DesktopCockpitSessionBuilder().directURL(
+            baseURL: baseURL,
+            destination: destination
+        ) ?? baseURL
+        NSWorkspace.shared.open(safeURL)
+    }
+
     @MainActor
     private func prepare() async {
         state = .preparing
         await model.refresh()
         await model.refreshSecurity()
-        switch await model.prepareEmbeddedCockpit(destination: .projects) {
+
+        let baseURL = model.snapshot.localCockpitURL
+        switch await model.prepareEmbeddedCockpit(destination: destination) {
         case .runtimeUnavailable:
             state = .runtimeUnavailable
         case .sessionUnavailable:
-            state = .sessionUnavailable
+            if let baseURL {
+                state = .sessionUnavailable(baseURL)
+            } else {
+                state = .runtimeUnavailable
+            }
         case let .ready(url, baseURL):
             state = .web(url, baseURL, isLoading: true)
         }
@@ -137,22 +169,25 @@ struct SharedCockpitPrototypeView: View {
 }
 
 private struct SharedCockpitWebView: NSViewRepresentable {
-    let initialURL: URL
+    let requestedURL: URL
     let baseURL: URL
     let onLoadingChanged: (Bool) -> Void
     let onLoadFailed: () -> Void
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         let policy: DesktopEmbeddedNavigationPolicy
+        var requestedURL: URL
         var onLoadingChanged: (Bool) -> Void
         var onLoadFailed: () -> Void
 
         init(
             policy: DesktopEmbeddedNavigationPolicy,
+            requestedURL: URL,
             onLoadingChanged: @escaping (Bool) -> Void,
             onLoadFailed: @escaping () -> Void
         ) {
             self.policy = policy
+            self.requestedURL = requestedURL
             self.onLoadingChanged = onLoadingChanged
             self.onLoadFailed = onLoadFailed
         }
@@ -207,6 +242,7 @@ private struct SharedCockpitWebView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             policy: DesktopEmbeddedNavigationPolicy(baseURL: baseURL)!,
+            requestedURL: requestedURL,
             onLoadingChanged: onLoadingChanged,
             onLoadFailed: onLoadFailed
         )
@@ -216,14 +252,21 @@ private struct SharedCockpitWebView: NSViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
-        webView.load(URLRequest(url: initialURL))
+        webView.load(URLRequest(url: requestedURL))
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onLoadingChanged = onLoadingChanged
         context.coordinator.onLoadFailed = onLoadFailed
+
+        guard context.coordinator.requestedURL != requestedURL else { return }
+        context.coordinator.requestedURL = requestedURL
+        if webView.url != requestedURL {
+            webView.load(URLRequest(url: requestedURL))
+        }
     }
 }

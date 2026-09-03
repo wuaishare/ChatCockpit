@@ -68,16 +68,20 @@ for (const section of [
 ]) {
   assert.match(macStatus, new RegExp(`case ${section}\\b`));
 }
-assert.match(macStatus, /NativeSharedCockpitBridgeView\(model: model, destination: \.work\)/);
-assert.match(macStatus, /NativeSharedCockpitBridgeView\(model: model, destination: \.resources\)/);
-assert.match(macStatus, /NativeSharedCockpitBridgeView\(model: model, destination: \.devices\)/);
-assert.match(macStatus, /NativeConnectionsBridgeView/);
+assert.match(macStatus, /SharedCockpitView\(/);
+assert.match(macStatus, /destination: activeSection\.cockpitDestination/);
+assert.match(macStatus, /case \.overview: return nil/);
+assert.match(macStatus, /case \.work: return \.work/);
+assert.match(macStatus, /case \.resources: return \.resources/);
+assert.match(macStatus, /case \.devices: return \.devices/);
+assert.match(macStatus, /case \.connections: return \.integrations/);
+assert.doesNotMatch(macStatus, /NativeSharedCockpitBridgeView|NativeConnectionsBridgeView|NavigationSplitView/);
 assert.match(macStatus, /NativeThisMacView/);
 assert.match(macSettings, /case thisMac/);
-assert.match(macSettings, /var showsDistribution: Bool \{ self == \.thisMac \}/);
-assert.match(macSettings, /var showsAccessSecurity: Bool \{ self == \.thisMac \}/);
-assert.match(macSettings, /var showsUpdates: Bool \{ self == \.thisMac \}/);
-assert.match(macSettings, /var showsRuntime: Bool \{ self == \.runtime \}/);
+assert.doesNotMatch(macSettings, /case runtime\b|case projects\b|showsRuntime|showsProjects/);
+assert.match(macSettings, /var showsDistribution: Bool \{ true \}/);
+assert.match(macSettings, /var showsAccessSecurity: Bool \{ true \}/);
+assert.match(macSettings, /var showsUpdates: Bool \{ true \}/);
 assert.match(macCockpitSession, /public enum DesktopCockpitDestination: String, CaseIterable, Equatable, Sendable/);
 for (const destination of ["projects", "work", "runtime", "resources", "devices", "publicAccess", "integrations"]) {
   assert.match(macCockpitSession, new RegExp(`case ${destination}\\b`));
