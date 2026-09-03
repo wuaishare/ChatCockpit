@@ -425,6 +425,7 @@ export interface DirectProcessSessionRecord {
   repoId: string | null;
   sessionId: string | null;
   writerLeaseId: string | null;
+  coreWriterAuthorityId: string | null;
   hostAuthorityId: string | null;
   privatePid: number | null;
   status: DirectProcessStatus;

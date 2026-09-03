@@ -1248,6 +1248,12 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(managed.state, "running");
     assert.equal(managed.execution.executor, "codex-app-server-standalone");
+    const managedObservation = repositories.directProcessSessions.get(managed.processId);
+    assert.equal(managedObservation.status, "running");
+    assert.equal(managedObservation.workspaceId, workspace.id);
+    assert.equal(managedObservation.repoId, "primary");
+    assert.equal(managedObservation.executorId, "codex-app-server-standalone");
+    assert.equal(managedObservation.command, "npm test");
     assert.ok(repositories.coreWriterAuthorities.getActive(workspace.id));
     const managedCall = adapter.calls.find(
       (call) =>
@@ -1299,6 +1305,9 @@ async function verifyChatDirectRouting(): Promise<void> {
     });
     assert.equal(completedManaged.state, "completed");
     assert.equal(completedManaged.chunks[0]?.content, "[workspace]/managed-finished");
+    const completedManagedObservation = repositories.directProcessSessions.get(managed.processId);
+    assert.equal(completedManagedObservation.status, "exited");
+    assert.equal(completedManagedObservation.exitCode, 0);
 
     const nativeBash = await service.workspaceExec(context, {
       repoId: "primary",
@@ -1463,6 +1472,11 @@ async function verifyChatDirectRouting(): Promise<void> {
       builtInManaged.execution.fallbackReason,
       "native-managed-executor-unavailable"
     );
+    const builtInManagedObservation = repositories.directProcessSessions.get(builtInManaged.processId);
+    assert.equal(builtInManagedObservation.status, "running");
+    assert.equal(builtInManagedObservation.workspaceId, workspace.id);
+    assert.equal(builtInManagedObservation.repoId, "primary");
+    assert.equal(builtInManagedObservation.executorId, "builtin-direct");
     let builtInManagedSnapshot = await builtInManagedService.workspaceProcessRead(
       context,
       { repoId: "primary", processId: builtInManaged.processId }
@@ -1476,6 +1490,10 @@ async function verifyChatDirectRouting(): Promise<void> {
     }
     assert.equal(builtInManagedSnapshot.state, "completed");
     assert.equal(builtInManagedSnapshot.exitCode, 0);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const completedBuiltInManagedObservation = repositories.directProcessSessions.get(builtInManaged.processId);
+    assert.equal(completedBuiltInManagedObservation.status, "exited");
+    assert.equal(completedBuiltInManagedObservation.exitCode, 0);
 
     await assert.rejects(
       () => service.workspaceExec(context, {

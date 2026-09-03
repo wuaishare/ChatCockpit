@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 
 import { BuiltinManagedProcessSupervisor } from "../core/builtin-managed-process.js";
 import {
@@ -344,6 +345,45 @@ export class ChatDirectService {
       : this.runtime.waitStandaloneProcess(record.processId);
   }
 
+  private completeManagedProcessObservation(
+    record: ManagedChatDirectProcess,
+    snapshot: { state: string; exitCode: number | null }
+  ): void {
+    try {
+      const current = this.repositories.directProcessSessions.get(record.processId);
+      if (current.status !== "starting" && current.status !== "running") return;
+      const status = snapshot.state === "completed"
+        ? "exited"
+        : snapshot.state === "terminated"
+          ? "terminated"
+          : "failed";
+      this.repositories.directProcessSessions.complete({
+        id: record.processId,
+        status,
+        exitCode: snapshot.exitCode,
+        expectedRevision: current.revision,
+        now: new Date().toISOString()
+      });
+    } catch {
+      // Process control remains authoritative even if observability persistence races during shutdown.
+    }
+  }
+
+  private markManagedProcessObservationStale(record: ManagedChatDirectProcess): void {
+    try {
+      const current = this.repositories.directProcessSessions.get(record.processId);
+      if (current.status !== "starting" && current.status !== "running") return;
+      this.repositories.directProcessSessions.markStale({
+        id: record.processId,
+        reason: "managed-process-terminal-state-unavailable",
+        expectedRevision: current.revision,
+        now: new Date().toISOString()
+      });
+    } catch {
+      // A missing or concurrently finalized observation record requires no further recovery here.
+    }
+  }
+
   private inputManagedProcess(
     record: ManagedChatDirectProcess,
     input: string,
@@ -425,7 +465,8 @@ export class ChatDirectService {
     leaseGuard?.unref?.();
 
     void this.waitManagedProcess(record)
-      .catch(() => undefined)
+      .then((snapshot) => this.completeManagedProcessObservation(record, snapshot))
+      .catch(() => this.markManagedProcessObservationStale(record))
       .finally(() => {
         if (heartbeat) clearInterval(heartbeat);
         if (leaseGuard) clearInterval(leaseGuard);
@@ -921,6 +962,47 @@ export class ChatDirectService {
       const backend: ManagedChatDirectProcess["backend"] = nativeBackend
         ? "codex-standalone"
         : "builtin-direct";
+      try {
+        const workspace = this.repositories.workspaces.findPrivateByRepoId(payload.repoId);
+        const command = publicSafeShellOutput(
+          [payload.command, ...payload.args].join(" "),
+          prepared.repoRoot
+        );
+        const commandHash = createHash("sha256")
+          .update(JSON.stringify({
+            command: prepared.command,
+            args: prepared.args,
+            workdir: prepared.workdir
+          }))
+          .digest("hex");
+        const startingObservation = this.repositories.directProcessSessions.createStarting({
+          id: started.processId,
+          scope: "workspace",
+          rootId: workspace?.id ?? `repo:${payload.repoId}`,
+          workdir: path.relative(prepared.repoRoot, prepared.workdir) || ".",
+          command,
+          commandHash,
+          executorId: selection.executorId,
+          workspaceId: workspace?.id ?? null,
+          repoId: payload.repoId,
+          sessionId: payload.sessionId ?? null,
+          writerLeaseId: continuityLease?.id ?? null,
+          coreWriterAuthorityId: authority?.id ?? null,
+          hostAuthorityId: null,
+          now: context.now
+        });
+        this.repositories.directProcessSessions.attachManaged({
+          id: started.processId,
+          expectedRevision: startingObservation.revision
+        });
+      } catch (error) {
+        if (nativeBackend) {
+          await this.runtime.terminateStandaloneProcess(started.processId).catch(() => undefined);
+        } else {
+          await this.builtinManagedProcesses.terminate(started.processId).catch(() => undefined);
+        }
+        throw error;
+      }
       const record: ManagedChatDirectProcess = {
         repoId: payload.repoId,
         repoRoot: prepared.repoRoot,
