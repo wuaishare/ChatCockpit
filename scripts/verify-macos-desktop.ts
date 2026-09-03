@@ -50,6 +50,11 @@ const machineMutationPolicyPath = path.join(
   "TokenPilotDesktopCore",
   "DesktopMachineMutationPolicy.swift"
 );
+const cockpitSessionPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "DesktopCockpitSession.swift"
+);
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const appEntryPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "TokenPilotDesktopApp.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
@@ -122,6 +127,7 @@ for (const required of [
   lifecycleSourcePath,
   runtimeCommandRunnerPath,
   machineMutationPolicyPath,
+  cockpitSessionPath,
   appModelPath,
   appEntryPath,
   menuBarPath,
@@ -149,6 +155,7 @@ const infoPlist = fs.readFileSync(infoPlistPath, "utf8");
 const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
 const runtimeCommandRunner = fs.readFileSync(runtimeCommandRunnerPath, "utf8");
 const machineMutationPolicy = fs.readFileSync(machineMutationPolicyPath, "utf8");
+const cockpitSession = fs.readFileSync(cockpitSessionPath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const appEntry = fs.readFileSync(appEntryPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
@@ -503,17 +510,35 @@ assert.match(settings, /model\.removeProjectRoot\(root\.id\)/);
 assert.match(settings, /DesktopL10n\.string\("Open Project Center"\)/);
 assert.match(settings, /model\.openProjectCenter\(\)/);
 assert.match(appModel, /func openProjectCenter\(\)/);
-assert.match(appModel, /enum DesktopCockpitDestination: String, Equatable/);
+assert.match(cockpitSession, /public enum DesktopCockpitDestination: String, CaseIterable, Equatable, Sendable/);
 for (const destination of ["projects", "work", "runtime", "resources", "devices", "publicAccess", "integrations"]) {
-  assert.match(appModel, new RegExp(`case ${destination}\\b`));
+  assert.match(cockpitSession, new RegExp(`case ${destination}\\b`));
 }
+for (const targetPath of ["/ui/projects", "/ui/continuity/tasks", "/ui/runtime", "/ui/resources", "/ui/devices", "/ui/public-access", "/ui/integrations"]) {
+  assert.match(cockpitSession, new RegExp(targetPath.replaceAll("/", "\\/")));
+}
+assert.match(cockpitSession, /public struct DesktopCockpitSessionBuilder: Sendable/);
+assert.match(cockpitSession, /func directURL\(/);
+assert.match(cockpitSession, /func localLoginURL\(/);
+assert.match(cockpitSession, /components\.path = "\/ui\/local-login"/);
+assert.match(cockpitSession, /URLQueryItem\(name: "target", value: \$0\.rawValue\)/);
+assert.match(cockpitSession, /components\.fragment = "local-login=\\\(grantSecret\)"/);
+assert.match(appModel, /private let cockpitSessionBuilder: DesktopCockpitSessionBuilder/);
+assert.match(appModel, /cockpitSessionBuilder: DesktopCockpitSessionBuilder = DesktopCockpitSessionBuilder\(\)/);
 assert.match(appModel, /func openLocalCockpitDestination\(_ destination: DesktopCockpitDestination\)/);
-assert.match(appModel, /targetPath: destination\.targetPath/);
-assert.match(appModel, /targetKey: destination\.rawValue/);
-assert.match(appModel, /components\.path = "\/ui\/local-login"/);
-assert.match(appModel, /components\.queryItems = targetKey\.map/);
-assert.match(appModel, /URLQueryItem\(name: "target", value: \$0\)/);
-assert.doesNotMatch(appModel, /components\.path = targetPath \?\? "\/ui\/local-login"/);
+assert.match(appModel, /openLocalCockpitWithPasswordlessGrant\(destination: destination\)/);
+assert.match(appModel, /cockpitSessionBuilder\.directURL\(/);
+assert.match(appModel, /cockpitSessionBuilder\.localLoginURL\(/);
+assert.match(appModel, /authorityClient\.createLocalLoginGrant\(context: context\)/);
+assert.doesNotMatch(appModel, /URLQueryItem\(name: "target"/);
+assert.doesNotMatch(appModel, /components\.fragment = "local-login=/);
+assert.match(statusView, /DesktopCockpitSessionBuilder\(\)\.directURL\(/);
+assert.doesNotMatch(statusView, /components\.path = destination\.targetPath/);
+for (const swiftPath of listSwiftFiles(desktopSourceRoot)) {
+  const swiftSource = fs.readFileSync(swiftPath, "utf8");
+  assert.doesNotMatch(swiftSource, /\b(?:WKWebView|WKNavigationDelegate|WKScriptMessageHandler)\b/);
+  assert.doesNotMatch(swiftSource, /^import WebKit$/m);
+}
 assert.match(appModel, /func removeProjectRoot\(_ rootID: String\)/);
 assert.match(appModel, /projectRegistryClient\.detachRoot\(/);
 assert.match(appModel, /The folder and all files on disk remain unchanged/);

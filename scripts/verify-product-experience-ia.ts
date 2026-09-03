@@ -15,6 +15,7 @@ const api = read("web/src/api.ts");
 const macStatus = read("desktop/macos/Sources/TokenPilotDesktop/StatusView.swift");
 const macSettings = read("desktop/macos/Sources/TokenPilotDesktop/SettingsView.swift");
 const macModel = read("desktop/macos/Sources/TokenPilotDesktop/DesktopAppModel.swift");
+const macCockpitSession = read("desktop/macos/Sources/TokenPilotDesktopCore/DesktopCockpitSession.swift");
 
 // Canonical Product destinations are user-goal IA, separate from stable route/view keys.
 for (const destination of [
@@ -77,11 +78,13 @@ assert.match(macSettings, /var showsDistribution: Bool \{ self == \.thisMac \}/)
 assert.match(macSettings, /var showsAccessSecurity: Bool \{ self == \.thisMac \}/);
 assert.match(macSettings, /var showsUpdates: Bool \{ self == \.thisMac \}/);
 assert.match(macSettings, /var showsRuntime: Bool \{ self == \.runtime \}/);
-assert.match(macModel, /enum DesktopCockpitDestination: String, Equatable/);
+assert.match(macCockpitSession, /public enum DesktopCockpitDestination: String, CaseIterable, Equatable, Sendable/);
 for (const destination of ["projects", "work", "runtime", "resources", "devices", "publicAccess", "integrations"]) {
-  assert.match(macModel, new RegExp(`case ${destination}\\b`));
+  assert.match(macCockpitSession, new RegExp(`case ${destination}\\b`));
 }
+assert.match(macCockpitSession, /public struct DesktopCockpitSessionBuilder: Sendable/);
 assert.match(macModel, /openLocalCockpitDestination/);
+assert.match(macModel, /cockpitSessionBuilder\.localLoginURL/);
 
 // Runtime is now a real Browser destination, not a disabled placeholder.
 assert.match(navigation, /\| "runtime"/);

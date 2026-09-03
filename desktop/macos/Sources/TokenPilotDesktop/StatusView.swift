@@ -378,14 +378,11 @@ private func routedCockpitURL(
     _ baseURL: URL?,
     destination: DesktopCockpitDestination
 ) -> URL? {
-    guard let baseURL,
-          var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-        return nil
-    }
-    components.path = destination.targetPath
-    components.query = nil
-    components.fragment = nil
-    return components.url
+    guard let baseURL else { return nil }
+    return DesktopCockpitSessionBuilder().directURL(
+        baseURL: baseURL,
+        destination: destination
+    )
 }
 
 private struct NativeDiagnosticsView: View {

@@ -38,28 +38,6 @@ enum DesktopDeepLinkDestination: Equatable {
     case connectivity
 }
 
-enum DesktopCockpitDestination: String, Equatable {
-    case projects
-    case work
-    case runtime
-    case resources
-    case devices
-    case publicAccess
-    case integrations
-
-    var targetPath: String {
-        switch self {
-        case .projects: return "/ui/projects"
-        case .work: return "/ui/continuity/tasks"
-        case .runtime: return "/ui/runtime"
-        case .resources: return "/ui/resources"
-        case .devices: return "/ui/devices"
-        case .publicAccess: return "/ui/public-access"
-        case .integrations: return "/ui/integrations"
-        }
-    }
-}
-
 @MainActor
 final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
@@ -109,6 +87,7 @@ final class DesktopAppModel: ObservableObject {
     private let bundleManifest: RuntimeManifest?
     private let updateChecker: any MacOSUpdateChecking
     private let authorityClient: DesktopAuthorityClient
+    private let cockpitSessionBuilder: DesktopCockpitSessionBuilder
     private let operationalSummaryClient: any DesktopOperationalSummaryReading
     private var ownerPasswordRevealTask: Task<Void, Never>?
     private var ownerClipboardClearTask: Task<Void, Never>?
@@ -137,6 +116,7 @@ final class DesktopAppModel: ObservableObject {
         bundlePayloadURL: URL? = discoverDefaultBundlePayloadURL(),
         updateChecker: any MacOSUpdateChecking = MacOSUpdateChecker(),
         authorityClient: DesktopAuthorityClient = DesktopAuthorityClient(),
+        cockpitSessionBuilder: DesktopCockpitSessionBuilder = DesktopCockpitSessionBuilder(),
         operationalSummaryClient: any DesktopOperationalSummaryReading = DesktopOperationalSummaryClient(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
         appBuildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
@@ -159,6 +139,7 @@ final class DesktopAppModel: ObservableObject {
         self.bundlePayloadURL = bundlePayloadURL?.standardizedFileURL
         self.updateChecker = updateChecker
         self.authorityClient = authorityClient
+        self.cockpitSessionBuilder = cockpitSessionBuilder
         self.operationalSummaryClient = operationalSummaryClient
         self.appVersion = appVersion
         self.appBuildNumber = appBuildNumber
@@ -684,16 +665,12 @@ final class DesktopAppModel: ObservableObject {
 
     func openLocalCockpitDestination(_ destination: DesktopCockpitDestination) {
         Task { [weak self] in
-            await self?.openLocalCockpitWithPasswordlessGrant(
-                targetPath: destination.targetPath,
-                targetKey: destination.rawValue
-            )
+            await self?.openLocalCockpitWithPasswordlessGrant(destination: destination)
         }
     }
 
     private func openLocalCockpitWithPasswordlessGrant(
-        targetPath: String? = nil,
-        targetKey: String? = nil
+        destination: DesktopCockpitDestination? = nil
     ) async {
         guard let url = snapshot.localCockpitURL else {
             lastUserMessage = DesktopL10n.string(
@@ -702,37 +679,34 @@ final class DesktopAppModel: ObservableObject {
             return
         }
 
+        let fallbackURL = cockpitSessionBuilder.directURL(baseURL: url) ?? url
+
         guard operatorSecurityStatus?.configured == true else {
-            if let targetPath,
-               var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
-                components.path = targetPath
-                components.query = nil
-                components.fragment = nil
-                NSWorkspace.shared.open(components.url ?? url)
-            } else {
-                NSWorkspace.shared.open(url)
-            }
+            let directURL = cockpitSessionBuilder.directURL(
+                baseURL: url,
+                destination: destination
+            ) ?? fallbackURL
+            NSWorkspace.shared.open(directURL)
             return
         }
 
         do {
             guard let context = try await machineManagementContext() else {
-                NSWorkspace.shared.open(url)
+                NSWorkspace.shared.open(fallbackURL)
                 return
             }
             let grant = try await authorityClient.createLocalLoginGrant(context: context)
-            guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-                NSWorkspace.shared.open(url)
+            guard let bootstrapURL = cockpitSessionBuilder.localLoginURL(
+                baseURL: url,
+                destination: destination,
+                grantSecret: grant.grantSecret
+            ) else {
+                NSWorkspace.shared.open(fallbackURL)
                 return
             }
-            components.path = "/ui/local-login"
-            components.queryItems = targetKey.map {
-                [URLQueryItem(name: "target", value: $0)]
-            }
-            components.fragment = "local-login=\(grant.grantSecret)"
-            NSWorkspace.shared.open(components.url ?? url)
+            NSWorkspace.shared.open(bootstrapURL)
         } catch {
-            NSWorkspace.shared.open(url)
+            NSWorkspace.shared.open(fallbackURL)
             lastUserMessage = DesktopL10n.string(
                 "Local passwordless sign-in was unavailable, so ChatCockpit opened the normal local sign-in page instead."
             )
