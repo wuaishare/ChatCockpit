@@ -330,3 +330,15 @@
 "Shared ChatCockpit workflows now use the main product destinations, while machine security, distribution, updates, and diagnostics live under This Mac. This Settings window is reserved for app-only preferences." = "Shared ChatCockpit workflows now use the main product destinations, while machine security, distribution, updates, and diagnostics live under This Mac. This Settings window is reserved for app-only preferences.";
 "Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, approvals, and resource mutations remain authoritative in the shared Resource Center." = "Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, approvals, and resource mutations remain authoritative in the shared Resource Center.";
 "Tasks, Jobs, Approvals, Sessions, Handoffs, and Evidence are one shared work experience. This native shell shows a bounded summary and opens the canonical Cockpit workflow instead of duplicating its state machine." = "Tasks, Jobs, Approvals, Sessions, Handoffs, and Evidence are one shared work experience. This native shell shows a bounded summary and opens the canonical Cockpit workflow instead of duplicating its state machine.";
+
+"Shared Renderer Prototype" = "Shared Renderer Prototype";
+"Open the opt-in local shared renderer prototype" = "Open the opt-in local shared renderer prototype";
+"Preparing shared renderer…" = "Preparing shared renderer…";
+"Local Runtime is unavailable" = "Local Runtime is unavailable";
+"Start or repair the local Runtime before opening the shared renderer prototype." = "Start or repair the local Runtime before opening the shared renderer prototype.";
+"Embedded session bootstrap failed" = "Embedded session bootstrap failed";
+"The prototype could not obtain a bounded local sign-in session. Native ChatCockpit remains available." = "The prototype could not obtain a bounded local sign-in session. Native ChatCockpit remains available.";
+"Shared renderer failed to load" = "Shared renderer failed to load";
+"The local Runtime is reachable, but the embedded page failed to load." = "The local Runtime is reachable, but the embedded page failed to load.";
+"Open in browser" = "Open in browser";
+"Retry" = "Retry";

@@ -24,11 +24,15 @@
 		200000000000000000000014 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000014 /* UpdateChecker.swift */; };
 		200000000000000000000015 /* UpdateManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* UpdateManifest.swift */; };
 		200000000000000000000016 /* ProductIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* ProductIdentity.swift */; };
+		20000000000000000000001D /* DesktopMachineMutationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001D /* DesktopMachineMutationPolicy.swift */; };
+		20000000000000000000001E /* DesktopCockpitSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001E /* DesktopCockpitSession.swift */; };
+		20000000000000000000001F /* DesktopEmbeddedRendererPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001F /* DesktopEmbeddedRendererPolicy.swift */; };
 		20000000000000000000000E /* DesktopAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* DesktopAppModel.swift */; };
 		20000000000000000000000F /* MenuBarContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* MenuBarContentView.swift */; };
 		20000000000000000000001B /* NativeStatusComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000001B /* NativeStatusComponents.swift */; };
 		200000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* SettingsView.swift */; };
 		200000000000000000000011 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* StatusView.swift */; };
+		200000000000000000000020 /* SharedCockpitWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000020 /* SharedCockpitWebView.swift */; };
 		200000000000000000000012 /* TokenPilotDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* TokenPilotDesktopApp.swift */; };
 		200000000000000000000013 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* main.swift */; };
 		200000000000000000000017 /* DesktopLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* DesktopLocalization.swift */; };
@@ -81,11 +85,15 @@
 		100000000000000000000014 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/UpdateChecker.swift; sourceTree = "<group>"; };
 		100000000000000000000015 /* UpdateManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/UpdateManifest.swift; sourceTree = "<group>"; };
 		100000000000000000000016 /* ProductIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/ProductIdentity.swift; sourceTree = "<group>"; };
+		10000000000000000000001D /* DesktopMachineMutationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopMachineMutationPolicy.swift; sourceTree = "<group>"; };
+		10000000000000000000001E /* DesktopCockpitSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopCockpitSession.swift; sourceTree = "<group>"; };
+		10000000000000000000001F /* DesktopEmbeddedRendererPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktopCore/DesktopEmbeddedRendererPolicy.swift; sourceTree = "<group>"; };
 		10000000000000000000000E /* DesktopAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/DesktopAppModel.swift; sourceTree = "<group>"; };
 		10000000000000000000000F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/MenuBarContentView.swift; sourceTree = "<group>"; };
 		10000000000000000000001B /* NativeStatusComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/NativeStatusComponents.swift; sourceTree = "<group>"; };
 		100000000000000000000010 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/SettingsView.swift; sourceTree = "<group>"; };
 		100000000000000000000011 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/StatusView.swift; sourceTree = "<group>"; };
+		100000000000000000000020 /* SharedCockpitWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/SharedCockpitWebView.swift; sourceTree = "<group>"; };
 		100000000000000000000012 /* TokenPilotDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/TokenPilotDesktopApp.swift; sourceTree = "<group>"; };
 		100000000000000000000013 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/main.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* DesktopLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TokenPilotDesktop/DesktopLocalization.swift; sourceTree = "<group>"; };
@@ -149,11 +157,15 @@
 				100000000000000000000014 /* UpdateChecker.swift */,
 				100000000000000000000015 /* UpdateManifest.swift */,
 				100000000000000000000016 /* ProductIdentity.swift */,
+				10000000000000000000001D /* DesktopMachineMutationPolicy.swift */,
+				10000000000000000000001E /* DesktopCockpitSession.swift */,
+				10000000000000000000001F /* DesktopEmbeddedRendererPolicy.swift */,
 				10000000000000000000000E /* DesktopAppModel.swift */,
 				10000000000000000000000F /* MenuBarContentView.swift */,
 				10000000000000000000001B /* NativeStatusComponents.swift */,
 				100000000000000000000010 /* SettingsView.swift */,
 				100000000000000000000011 /* StatusView.swift */,
+				100000000000000000000020 /* SharedCockpitWebView.swift */,
 				100000000000000000000012 /* TokenPilotDesktopApp.swift */,
 				100000000000000000000013 /* main.swift */,
 				100000000000000000000017 /* DesktopLocalization.swift */,
@@ -302,6 +314,7 @@
 				20000000000000000000001B /* NativeStatusComponents.swift in Sources */,
 				200000000000000000000010 /* SettingsView.swift in Sources */,
 				200000000000000000000011 /* StatusView.swift in Sources */,
+				200000000000000000000020 /* SharedCockpitWebView.swift in Sources */,
 				200000000000000000000012 /* TokenPilotDesktopApp.swift in Sources */,
 				200000000000000000000013 /* main.swift in Sources */,
 				200000000000000000000017 /* DesktopLocalization.swift in Sources */,
@@ -329,6 +342,9 @@
 				200000000000000000000014 /* UpdateChecker.swift in Sources */,
 				200000000000000000000015 /* UpdateManifest.swift in Sources */,
 				200000000000000000000016 /* ProductIdentity.swift in Sources */,
+				20000000000000000000001D /* DesktopMachineMutationPolicy.swift in Sources */,
+				20000000000000000000001E /* DesktopCockpitSession.swift in Sources */,
+				20000000000000000000001F /* DesktopEmbeddedRendererPolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

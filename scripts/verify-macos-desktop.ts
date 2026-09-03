@@ -55,6 +55,11 @@ const cockpitSessionPath = path.join(
   "TokenPilotDesktopCore",
   "DesktopCockpitSession.swift"
 );
+const embeddedRendererPolicyPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktopCore",
+  "DesktopEmbeddedRendererPolicy.swift"
+);
 const appModelPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "DesktopAppModel.swift");
 const appEntryPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "TokenPilotDesktopApp.swift");
 const menuBarPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "MenuBarContentView.swift");
@@ -64,6 +69,11 @@ const nativeStatusComponentsPath = path.join(
   "NativeStatusComponents.swift"
 );
 const statusViewPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "StatusView.swift");
+const sharedCockpitWebViewPath = path.join(
+  desktopSourceRoot,
+  "TokenPilotDesktop",
+  "SharedCockpitWebView.swift"
+);
 const settingsPath = path.join(desktopSourceRoot, "TokenPilotDesktop", "SettingsView.swift");
 const desktopLocalizationPath = path.join(
   desktopSourceRoot,
@@ -128,11 +138,13 @@ for (const required of [
   runtimeCommandRunnerPath,
   machineMutationPolicyPath,
   cockpitSessionPath,
+  embeddedRendererPolicyPath,
   appModelPath,
   appEntryPath,
   menuBarPath,
   nativeStatusComponentsPath,
   statusViewPath,
+  sharedCockpitWebViewPath,
   settingsPath,
   desktopLocalizationPath,
   englishLocalizationPath,
@@ -156,11 +168,13 @@ const lifecycleSource = fs.readFileSync(lifecycleSourcePath, "utf8");
 const runtimeCommandRunner = fs.readFileSync(runtimeCommandRunnerPath, "utf8");
 const machineMutationPolicy = fs.readFileSync(machineMutationPolicyPath, "utf8");
 const cockpitSession = fs.readFileSync(cockpitSessionPath, "utf8");
+const embeddedRendererPolicy = fs.readFileSync(embeddedRendererPolicyPath, "utf8");
 const appModel = fs.readFileSync(appModelPath, "utf8");
 const appEntry = fs.readFileSync(appEntryPath, "utf8");
 const menuBar = fs.readFileSync(menuBarPath, "utf8");
 const nativeStatusComponents = fs.readFileSync(nativeStatusComponentsPath, "utf8");
 const statusView = fs.readFileSync(statusViewPath, "utf8");
+const sharedCockpitWebView = fs.readFileSync(sharedCockpitWebViewPath, "utf8");
 const settings = fs.readFileSync(settingsPath, "utf8");
 const desktopLocalization = fs.readFileSync(desktopLocalizationPath, "utf8");
 const englishLocalization = fs.readFileSync(englishLocalizationPath, "utf8");
@@ -534,7 +548,37 @@ assert.doesNotMatch(appModel, /URLQueryItem\(name: "target"/);
 assert.doesNotMatch(appModel, /components\.fragment = "local-login=/);
 assert.match(statusView, /DesktopCockpitSessionBuilder\(\)\.directURL\(/);
 assert.doesNotMatch(statusView, /components\.path = destination\.targetPath/);
+assert.match(embeddedRendererPolicy, /CHATCOCKPIT_DESKTOP_SHARED_RENDERER_M2/);
+assert.match(embeddedRendererPolicy, /host == "127\.0\.0\.1"/);
+assert.match(embeddedRendererPolicy, /candidateScheme == scheme/);
+assert.match(embeddedRendererPolicy, /url\.port == port/);
+assert.match(embeddedRendererPolicy, /case openExternally/);
+assert.match(appModel, /func prepareEmbeddedCockpit\(/);
+assert.match(appModel, /DesktopEmbeddedNavigationPolicy\(baseURL: baseURL\)/);
+assert.match(appModel, /authorityClient\.createLocalLoginGrant\(context: context\)/);
+assert.match(appModel, /guard let operatorSecurityStatus else \{[\s\S]*return \.sessionUnavailable/);
+assert.match(appModel, /guard operatorSecurityStatus\.configured else \{[\s\S]*return \.ready\(url: directURL, baseURL: baseURL\)/);
+assert.match(statusView, /DesktopSharedRendererPrototypeConfiguration\(\)\.enabled/);
+assert.match(statusView, /SharedCockpitPrototypeView\(model: model\)/);
+assert.match(sharedCockpitWebView, /^import WebKit$/m);
+assert.match(sharedCockpitWebView, /WKWebViewConfiguration\(\)/);
+assert.match(sharedCockpitWebView, /websiteDataStore = \.nonPersistent\(\)/);
+assert.match(sharedCockpitWebView, /WKNavigationDelegate/);
+assert.match(sharedCockpitWebView, /DesktopEmbeddedNavigationPolicy/);
+assert.match(sharedCockpitWebView, /navigationAction\.navigationType == \.linkActivated/);
+assert.match(sharedCockpitWebView, /NSWorkspace\.shared\.open\(url\)/);
+assert.doesNotMatch(sharedCockpitWebView, /WKScriptMessageHandler/);
+assert.doesNotMatch(sharedCockpitWebView, /userContentController\.add/);
+assert.doesNotMatch(sharedCockpitWebView, /evaluateJavaScript/);
+assert.doesNotMatch(sharedCockpitWebView, /WKUserScript/);
+assert.match(sharedCockpitWebView, /DesktopCockpitSessionBuilder\(\)\.directURL\([\s\S]*destination: \.projects/);
+assert.match(sharedCockpitWebView, /case loadFailed\(URL\)/);
+assert.doesNotMatch(sharedCockpitWebView, /case loadFailed\(URL, URL\)/);
+assert.match(sharedCockpitWebView, /let stateURL = loading[\s\S]*DesktopCockpitSessionBuilder\(\)\.directURL/);
+assert.doesNotMatch(sharedCockpitWebView, /NSWorkspace\.shared\.open\(initialURL\)/);
+assert.doesNotMatch(sharedCockpitWebView, /NSWorkspace\.shared\.open\(url\)[\s\S]*loadFailed/s);
 for (const swiftPath of listSwiftFiles(desktopSourceRoot)) {
+  if (path.resolve(swiftPath) === path.resolve(sharedCockpitWebViewPath)) continue;
   const swiftSource = fs.readFileSync(swiftPath, "utf8");
   assert.doesNotMatch(swiftSource, /\b(?:WKWebView|WKNavigationDelegate|WKScriptMessageHandler)\b/);
   assert.doesNotMatch(swiftSource, /^import WebKit$/m);
@@ -845,6 +889,15 @@ assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = cn\.wuaishare\.ChatCockp
 assert.match(xcodeProject, /PRODUCT_NAME = ChatCockpit;/);
 assert.match(xcodeProject, /ENABLE_HARDENED_RUNTIME = YES;/);
 assert.match(xcodeProject, /CODE_SIGN_ENTITLEMENTS = ChatCockpit\.entitlements;/);
+for (const sourceDirectory of [
+  path.join(desktopSourceRoot, "TokenPilotDesktopCore"),
+  path.join(desktopSourceRoot, "TokenPilotDesktop")
+]) {
+  for (const swiftPath of listSwiftFiles(sourceDirectory)) {
+    const fileName = path.basename(swiftPath);
+    assert.match(xcodeProject, new RegExp(`${fileName.replaceAll(".", "\\.")} in Sources`));
+  }
+}
 assert.match(xcodeProject, /name = "Embed Frameworks";/);
 assert.match(xcodeBuildScript, /FULL_XCODE_REQUIRED/);
 assert.match(xcodeBuildScript, /PRODUCT_IDENTITY="chatcockpit"/);

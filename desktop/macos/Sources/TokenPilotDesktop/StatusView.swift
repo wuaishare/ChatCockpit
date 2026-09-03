@@ -45,6 +45,7 @@ struct MainAppView: View {
     @ObservedObject var model: DesktopAppModel
     @Binding var selection: MainAppSection?
     @Binding var operationalSettingsFocus: OperationalSettingsFocus?
+    @State private var sharedRendererPrototypePresented = false
 
     private var activeSection: MainAppSection {
         selection ?? .overview
@@ -101,6 +102,22 @@ struct MainAppView: View {
             }
         }
         .frame(minWidth: 920, minHeight: 640)
+        .toolbar {
+            if DesktopSharedRendererPrototypeConfiguration().enabled {
+                Button {
+                    sharedRendererPrototypePresented = true
+                } label: {
+                    Label(
+                        DesktopL10n.string("Shared Renderer Prototype"),
+                        systemImage: "safari"
+                    )
+                }
+                .help(DesktopL10n.string("Open the opt-in local shared renderer prototype"))
+            }
+        }
+        .sheet(isPresented: $sharedRendererPrototypePresented) {
+            SharedCockpitPrototypeView(model: model)
+        }
         .task {
             await model.refresh()
             await model.refreshSecurity()

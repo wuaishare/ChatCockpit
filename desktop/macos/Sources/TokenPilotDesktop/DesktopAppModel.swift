@@ -38,6 +38,12 @@ enum DesktopDeepLinkDestination: Equatable {
     case connectivity
 }
 
+enum DesktopEmbeddedCockpitBootstrap: Equatable {
+    case runtimeUnavailable
+    case sessionUnavailable
+    case ready(url: URL, baseURL: URL)
+}
+
 @MainActor
 final class DesktopAppModel: ObservableObject {
     @Published private(set) var snapshot: DesktopRuntimeSnapshot = .setupRequired
@@ -666,6 +672,43 @@ final class DesktopAppModel: ObservableObject {
     func openLocalCockpitDestination(_ destination: DesktopCockpitDestination) {
         Task { [weak self] in
             await self?.openLocalCockpitWithPasswordlessGrant(destination: destination)
+        }
+    }
+
+    func prepareEmbeddedCockpit(
+        destination: DesktopCockpitDestination = .projects
+    ) async -> DesktopEmbeddedCockpitBootstrap {
+        guard let baseURL = snapshot.localCockpitURL,
+              DesktopEmbeddedNavigationPolicy(baseURL: baseURL) != nil,
+              let directURL = cockpitSessionBuilder.directURL(
+                  baseURL: baseURL,
+                  destination: destination
+              ) else {
+            return .runtimeUnavailable
+        }
+
+        guard let operatorSecurityStatus else {
+            return .sessionUnavailable
+        }
+        guard operatorSecurityStatus.configured else {
+            return .ready(url: directURL, baseURL: baseURL)
+        }
+
+        do {
+            guard let context = try await machineManagementContext() else {
+                return .sessionUnavailable
+            }
+            let grant = try await authorityClient.createLocalLoginGrant(context: context)
+            guard let bootstrapURL = cockpitSessionBuilder.localLoginURL(
+                baseURL: baseURL,
+                destination: destination,
+                grantSecret: grant.grantSecret
+            ) else {
+                return .sessionUnavailable
+            }
+            return .ready(url: bootstrapURL, baseURL: baseURL)
+        } catch {
+            return .sessionUnavailable
         }
     }
 

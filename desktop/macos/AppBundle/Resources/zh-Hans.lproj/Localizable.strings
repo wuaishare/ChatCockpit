@@ -330,3 +330,15 @@
 "Shared ChatCockpit workflows now use the main product destinations, while machine security, distribution, updates, and diagnostics live under This Mac. This Settings window is reserved for app-only preferences." = "共享 ChatCockpit 工作流现在统一使用主产品入口；机器安全、运行方式、更新与诊断集中在“此 Mac”。此“设置”窗口仅保留应用自身的偏好设置。";
 "Skills, MCP Servers, Plugins, Runtime Adapters, ACP Agents, approvals, and resource mutations remain authoritative in the shared Resource Center." = "Skills、MCP Servers、Plugins、Runtime Adapters、ACP Agents、审批与资源变更，仍以共享“资源中心”为权威入口。";
 "Tasks, Jobs, Approvals, Sessions, Handoffs, and Evidence are one shared work experience. This native shell shows a bounded summary and opens the canonical Cockpit workflow instead of duplicating its state machine." = "Tasks、Jobs、Approvals、Sessions、Handoffs 与 Evidence 属于统一的共享工作体验。原生壳仅展示受限摘要并打开规范 Cockpit 工作流，不复制其状态机。";
+
+"Shared Renderer Prototype" = "共享渲染器原型";
+"Open the opt-in local shared renderer prototype" = "打开显式启用的本机共享渲染器原型";
+"Preparing shared renderer…" = "正在准备共享渲染器…";
+"Local Runtime is unavailable" = "本机 Runtime 不可用";
+"Start or repair the local Runtime before opening the shared renderer prototype." = "请先启动或修复本机 Runtime，再打开共享渲染器原型。";
+"Embedded session bootstrap failed" = "嵌入式会话初始化失败";
+"The prototype could not obtain a bounded local sign-in session. Native ChatCockpit remains available." = "原型无法获取受限的本机登录会话；原生 ChatCockpit 仍可继续使用。";
+"Shared renderer failed to load" = "共享渲染器加载失败";
+"The local Runtime is reachable, but the embedded page failed to load." = "本机 Runtime 可达，但嵌入页面加载失败。";
+"Open in browser" = "在浏览器中打开";
+"Retry" = "重试";
