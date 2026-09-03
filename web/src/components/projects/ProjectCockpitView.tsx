@@ -50,6 +50,7 @@ import type {
 } from "../../types";
 import { StateNotice } from "../StateNotice";
 import { UiText as Text } from "../UiText";
+import { ProjectLiveExecutionPanel } from "./ProjectLiveExecutionPanel";
 import "./projects.css";
 
 interface ProjectCockpitViewProps {
@@ -379,6 +380,8 @@ export function ProjectCockpitView({
           />
         </div>
       </section>
+
+      <ProjectLiveExecutionPanel locale={locale} projectId={projectId} />
 
       <section className="project-section panel" aria-labelledby="project-roots-title">
         <header className="project-section__heading">

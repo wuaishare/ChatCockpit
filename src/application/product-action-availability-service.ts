@@ -9,6 +9,7 @@ import type { ResolvedDeviceTarget } from "../devices/device-target.js";
 export const PRODUCT_ACTION_IDS = [
   "project.root.manage",
   "project.discovery",
+  "project.native.associate",
   "runtime.lifecycle",
   "workspace.read",
   "capability.read"
@@ -210,7 +211,11 @@ export class ProductActionAvailabilityService {
       };
     }
 
-    if (action === "project.root.manage" || action === "project.discovery") {
+    if (
+      action === "project.root.manage" ||
+      action === "project.discovery" ||
+      action === "project.native.associate"
+    ) {
       return machineLocalRequest
         ? {
             ...targetBase(target),

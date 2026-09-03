@@ -135,6 +135,11 @@ assert.equal(
   "public/remote browser must not pretend it can mutate the local filesystem"
 );
 assert.equal(
+  target(remoteBrowser, "project.native.associate", LOCAL_DEVICE_TARGET_ID).availability,
+  "requires-local-host",
+  "native Project association must remain machine-local because it mutates ProjectRoot authority"
+);
+assert.equal(
   target(remoteBrowser, "runtime.lifecycle", LOCAL_DEVICE_TARGET_ID).availability,
   "requires-local-host",
   "local Runtime lifecycle must remain unavailable until a real local-host executor/bridge is attested"
@@ -177,6 +182,11 @@ assert.equal(
   "an unimplemented Product Action must not be misreported as an Agent upgrade problem"
 );
 assert.equal(
+  target(remoteBrowser, "project.native.associate", capableId).reason,
+  "target-capability-not-implemented",
+  "native Project association is not a remote Device Agent RPC in this bounded P1"
+);
+assert.equal(
   target(remoteBrowser, "workspace.read", readOnlyId).availability,
   "unsupported",
   "generic capability RPC must not imply remote Workspace RPC support"
@@ -208,6 +218,10 @@ assert.equal(
 assert.equal(
   target(loopbackBrowser, "project.discovery", LOCAL_DEVICE_TARGET_ID).executionMode,
   "local-runtime"
+);
+assert.equal(
+  target(loopbackBrowser, "project.native.associate", LOCAL_DEVICE_TARGET_ID).availability,
+  "available-local"
 );
 assert.equal(
   target(loopbackBrowser, "runtime.lifecycle", LOCAL_DEVICE_TARGET_ID).availability,

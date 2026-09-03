@@ -17,6 +17,7 @@ import type {
   ContinuityProjectDetailResponse,
   ContinuityProjectsResponse,
   ProjectRootDiscoveryResponse,
+  ProjectExecutionObservabilityResponse,
   ProjectRegistryDetailResponse,
   ProjectRegistryMutationResponse,
   ProjectRegistryResponse,
@@ -53,6 +54,7 @@ import type {
   OAuthGrantDeviceAccessMutationResponse,
   OAuthGrantDeviceAccessResponse,
   ManagedDevicesResponse,
+  NativeProjectAssociationResponse,
   ProductActionsResponse,
   DeviceOnboardingResponse,
   DeviceEnrollmentRequestsResponse,
@@ -939,11 +941,26 @@ export async function fetchProjectDiscovery(): Promise<ProjectRootDiscoveryRespo
   return requestJson<ProjectRootDiscoveryResponse>("/api/projects/discovery");
 }
 
+export async function reconcileNativeProjects(): Promise<NativeProjectAssociationResponse> {
+  return postBodyJson<NativeProjectAssociationResponse>(
+    "/api/projects/discovery/reconcile-native",
+    {}
+  );
+}
+
 export async function fetchProject(
   projectId: string
 ): Promise<ProjectRegistryDetailResponse> {
   return requestJson<ProjectRegistryDetailResponse>(
     `/api/projects/${encodeURIComponent(projectId)}`
+  );
+}
+
+export async function fetchProjectExecutionObservability(
+  projectId: string
+): Promise<ProjectExecutionObservabilityResponse> {
+  return requestJson<ProjectExecutionObservabilityResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/executions`
   );
 }
 

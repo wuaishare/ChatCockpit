@@ -77,6 +77,8 @@ import { ContinuityCapsuleService } from "../application/continuity-capsule-serv
 import { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import { ProjectRootDiscoveryService } from "../application/project-root-discovery-service.js";
 import { CodexProjectRootDiscoverySource } from "../application/codex-project-root-discovery-source.js";
+import { NativeProjectAssociationService } from "../application/native-project-association-service.js";
+import { ProjectExecutionObservabilityService } from "../application/project-execution-observability-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -135,6 +137,7 @@ import {
   continuityDatabasePath
 } from "../continuity/database.js";
 import { registerMcpHttpRoutes } from "../mcp/http-adapter.js";
+import { McpConnectionRegistry } from "../mcp/connection-registry.js";
 import { registerDeviceOnboardingRoutes } from "./device-onboarding-routes.js";
 import { registerDeviceAgentDistributionRoutes } from "./device-agent-distribution-routes.js";
 import { buildMcpToolCatalogMetadata } from "../mcp/catalog-metadata.js";
@@ -669,6 +672,7 @@ export function buildServer(
   const operationalActivityControlEvents = new OperationalActivityControlEventRepository(
     continuityDatabase
   );
+  const mcpConnections = new McpConnectionRegistry();
   const operationalActivityService = new OperationalActivityService(
     paths,
     continuityServices.repositories,
@@ -794,6 +798,17 @@ export function buildServer(
   const projectRootDiscovery = new ProjectRootDiscoveryService(paths, [
     new CodexProjectRootDiscoverySource(runtimeService)
   ]);
+  const nativeProjectAssociation = new NativeProjectAssociationService(
+    projectRootDiscovery,
+    continuityServices.projects,
+    ["codex-native-history"]
+  );
+  const projectExecutionObservability = new ProjectExecutionObservabilityService(
+    continuityServices.projects,
+    operationalActivityService,
+    continuityServices.repositories,
+    mcpConnections
+  );
   const runtimeLifecycleService = new RuntimeLifecycleService(
     paths,
     continuityServices.repositories
@@ -1183,12 +1198,14 @@ export function buildServer(
     core: buildSurfaceHandler(coreMcpTools),
     full: buildSurfaceHandler(fullMcpTools),
     packs: mcpPackHandlers
-  });
+  }, mcpConnections);
   registerProjectRegistryRoutes(
     app,
     continuityServices.projects,
     projectDevelopmentRouting,
-    projectRootDiscovery
+    projectRootDiscovery,
+    nativeProjectAssociation,
+    projectExecutionObservability
   );
   registerContinuityRoutes(
     app,

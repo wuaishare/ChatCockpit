@@ -46,8 +46,10 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-project-root-dis
 const primaryRepo = path.join(root, "primary");
 const discoveredRepo = path.join(root, "discovered");
 const discoveredSubdir = path.join(discoveredRepo, "packages", "web");
+const nativeProjectRepo = path.join(root, "native-project");
 initRepo(primaryRepo, "primary.txt");
 initRepo(discoveredRepo, "discovered.txt");
+initRepo(nativeProjectRepo, "native-project.txt");
 fs.mkdirSync(discoveredSubdir, { recursive: true });
 
 const paths = buildFixturePaths(primaryRepo);
@@ -104,6 +106,29 @@ process.env.CHATCOCKPIT_EXPOSED = "false";
 process.env.CHATCOCKPIT_API_TOKEN = "test-token";
 const codexHome = path.join(root, "codex-home");
 fs.mkdirSync(codexHome, { recursive: true });
+fs.writeFileSync(
+  path.join(codexHome, ".codex-global-state.json"),
+  `${JSON.stringify({
+    "local-projects": {
+      "local-native-project": {
+        id: "local-native-project",
+        name: "Native Project",
+        rootPaths: [nativeProjectRepo],
+        createdAt: 50,
+        updatedAt: 150
+      },
+      "local-native-project-alias": {
+        id: "local-native-project-alias",
+        name: "Native Project Alias",
+        rootPaths: [nativeProjectRepo],
+        createdAt: 60,
+        updatedAt: 140
+      }
+    },
+    "electron-saved-workspace-roots": [nativeProjectRepo]
+  })}\n`,
+  "utf8"
+);
 process.env.CODEX_HOME = codexHome;
 
 const codexAdapter = {
@@ -142,6 +167,7 @@ try {
   });
   assert.equal(login.status, 200);
   const cookie = cookiePair(login);
+  const loginBody = (await login.json()) as { csrfToken: string };
 
   const before = fs.readFileSync(configPath, "utf8");
   const response = await fetch(`${server.baseUrl}/api/projects/discovery`, {
@@ -166,13 +192,16 @@ try {
   assert.deepEqual(body.sources.map((source) => [source.id, source.status]), [
     ["codex-native-history", "ready"]
   ]);
-  assert.equal(body.candidates.length, 1);
-  assert.equal(body.candidates[0]?.kind, "git-repository");
-  assert.equal(body.candidates[0]?.privatePath, fs.realpathSync.native(discoveredRepo));
-  assert.equal(body.candidates[0]?.registration, "unregistered");
-  assert.equal(body.candidates[0]?.existingRootId, null);
-  assert.match(body.candidates[0]?.candidateId ?? "", /^project_root_candidate_[a-f0-9]{32}$/);
-  assert.deepEqual(body.candidates[0]?.sources, [
+  assert.equal(body.candidates.length, 2);
+  const threadOnly = body.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(discoveredRepo)
+  );
+  assert.ok(threadOnly);
+  assert.equal(threadOnly.kind, "git-repository");
+  assert.equal(threadOnly.registration, "unregistered");
+  assert.equal(threadOnly.existingRootId, null);
+  assert.match(threadOnly.candidateId, /^project_root_candidate_[a-f0-9]{32}$/);
+  assert.deepEqual(threadOnly.sources, [
     {
       sourceId: "codex-native-history",
       sourceDisplayName: "Codex",
@@ -182,6 +211,136 @@ try {
       latestLabel: "Discovered work"
     }
   ]);
+
+  const nativeProject = body.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(nativeProjectRepo)
+  );
+  assert.ok(nativeProject);
+  assert.equal(nativeProject.kind, "git-repository");
+  assert.equal(nativeProject.registration, "unregistered");
+  assert.equal(body.groups.length, 2);
+  assert.deepEqual(
+    body.groups.map((group) => [group.name, group.candidateIds]),
+    [
+      ["Native Project", [nativeProject.candidateId]],
+      ["Native Project Alias", [nativeProject.candidateId]]
+    ],
+    "distinct native logical projects may share one physical Git root candidate"
+  );
+
+  const missingCsrf = await fetch(`${server.baseUrl}/api/projects/discovery/reconcile-native`, {
+    method: "POST",
+    headers: { cookie }
+  });
+  assert.equal(missingCsrf.status, 403);
+  assert.match(await missingCsrf.text(), /CSRF_REQUIRED/);
+
+  const reconcile = await fetch(`${server.baseUrl}/api/projects/discovery/reconcile-native`, {
+    method: "POST",
+    headers: {
+      cookie,
+      "x-chatcockpit-csrf": loginBody.csrfToken
+    }
+  });
+  assert.equal(reconcile.status, 200);
+  const reconcileBody = (await reconcile.json()) as {
+    ok: true;
+    created: Array<{ projectSlug: string; repoId: string; sourceId: string; groupId: string }>;
+    reused: Array<{ projectSlug: string; repoId: string; sourceId: string; groupId: string }>;
+    skipped: Array<{ groupId: string; reason: string }>;
+  };
+  assert.equal(reconcileBody.created.length, 1);
+  assert.equal(reconcileBody.created[0]?.projectSlug, "native-project");
+  assert.equal(reconcileBody.created[0]?.repoId, "native-project");
+  assert.equal(reconcileBody.created[0]?.sourceId, "codex-native-history");
+  assert.equal(reconcileBody.reused.length, 1);
+  assert.equal(reconcileBody.reused[0]?.projectSlug, "native-project");
+  assert.equal(
+    reconcileBody.reused[0]?.repoId,
+    reconcileBody.created[0]?.repoId,
+    "a duplicate native logical project must reuse the physical root materialized earlier in the same reconcile"
+  );
+
+  const projectsAfter = await fetch(`${server.baseUrl}/api/projects?status=active`, {
+    headers: { cookie }
+  });
+  assert.equal(projectsAfter.status, 200);
+  const projectsAfterBody = (await projectsAfter.json()) as {
+    projects: Array<{ project: { id: string; slug: string }; workspaces: Array<{ repoId: string }> }>;
+  };
+  const materialized = projectsAfterBody.projects.find((entry) => entry.project.slug === "native-project");
+  assert.ok(materialized);
+  assert.deepEqual(materialized.workspaces.map((workspace) => workspace.repoId), ["native-project"]);
+  assert.equal(
+    projectsAfterBody.projects.some((entry) => entry.project.slug === "discovered"),
+    false,
+    "thread-cwd-only evidence must not auto-materialize a Project"
+  );
+
+  const bearerExecution = await fetch(
+    `${server.baseUrl}/api/projects/${encodeURIComponent(materialized.project.id)}/executions`,
+    { headers: { authorization: "Bearer test-token" } }
+  );
+  assert.equal(bearerExecution.status, 401);
+  assert.match(await bearerExecution.text(), /OPERATOR_SESSION_REQUIRED/);
+
+  const execution = await fetch(
+    `${server.baseUrl}/api/projects/${encodeURIComponent(materialized.project.id)}/executions`,
+    { headers: { cookie } }
+  );
+  assert.equal(execution.status, 200);
+  const executionBody = (await execution.json()) as {
+    ok: true;
+    projectId: string;
+    activities: unknown[];
+    tasks: unknown[];
+    processes: unknown[];
+    connections: unknown[];
+    counts: { activeActivities: number; runningProcesses: number; activeConnections: number };
+  };
+  assert.equal(executionBody.projectId, materialized.project.id);
+  assert.deepEqual(executionBody.activities, []);
+  assert.deepEqual(executionBody.tasks, []);
+  assert.deepEqual(executionBody.processes, []);
+  assert.deepEqual(executionBody.connections, []);
+  assert.deepEqual(executionBody.counts, {
+    activeActivities: 0,
+    runningActivities: 0,
+    waitingApproval: 0,
+    activeTasks: 0,
+    runningProcesses: 0,
+    activeConnections: 0
+  });
+
+  const discoveryAfter = await fetch(`${server.baseUrl}/api/projects/discovery`, {
+    headers: { cookie }
+  });
+  assert.equal(discoveryAfter.status, 200);
+  const discoveryAfterBody = (await discoveryAfter.json()) as typeof body;
+  const registeredNative = discoveryAfterBody.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(nativeProjectRepo)
+  );
+  const stillUnregisteredThread = discoveryAfterBody.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(discoveredRepo)
+  );
+  assert.equal(registeredNative?.registration, "registered");
+  assert.equal(stillUnregisteredThread?.registration, "unregistered");
+
+  const replay = await fetch(`${server.baseUrl}/api/projects/discovery/reconcile-native`, {
+    method: "POST",
+    headers: {
+      cookie,
+      "x-chatcockpit-csrf": loginBody.csrfToken
+    }
+  });
+  assert.equal(replay.status, 200);
+  const replayBody = (await replay.json()) as typeof reconcileBody;
+  assert.equal(replayBody.created.length, 0);
+  assert.equal(replayBody.reused.length, 2);
+  assert.deepEqual(
+    [...new Set(replayBody.reused.map((entry) => entry.projectSlug))],
+    ["native-project"]
+  );
 
   process.stdout.write("VERIFY_PROJECT_ROOT_DISCOVERY_API_OK\n");
 } finally {
