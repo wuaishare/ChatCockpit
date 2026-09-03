@@ -51,7 +51,7 @@ const parsed = new Date(builtAt);
 const buildId = process.env.CHATCOCKPIT_BUILD_ID?.trim() || (
   Number.isNaN(parsed.getTime())
     ? null
-    : `${String(parsed.getUTCFullYear()).slice(-2)}${String(parsed.getUTCMonth() + 1).padStart(2, "0")}${String(parsed.getUTCDate()).padStart(2, "0")}${String(parsed.getUTCHours()).padStart(2, "0")}${String(parsed.getUTCMinutes()).padStart(2, "0")}`
+    : `${String(parsed.getUTCFullYear()).slice(-2)}${String(parsed.getUTCMonth() + 1).padStart(2, "0")}${String(parsed.getUTCDate()).padStart(2, "0")}${String(parsed.getUTCHours()).padStart(2, "0")}${String(parsed.getUTCMinutes()).padStart(2, "0")}${String(parsed.getUTCSeconds()).padStart(2, "0")}`
 );
 const artifacts = computeRuntimeArtifactDigests(repoRoot);
 if (!artifacts.backendSha256 || !artifacts.webSha256) {

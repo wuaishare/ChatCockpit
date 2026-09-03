@@ -41,6 +41,7 @@ assert.match(packageJson.scripts["build:web"], /scripts\/build-web\.ts/);
 assert.doesNotMatch(packageJson.scripts["build:web"], /--runtime-artifact/);
 assert.match(packageJson.scripts["build:web:runtime"], /--runtime-artifact/);
 assert.match(generatorSource, /schemaVersion: 2/);
+assert.match(generatorSource, /getUTCSeconds\(\)/);
 assert.match(generatorSource, /git", \["rev-parse", "--short=12", "HEAD"\]/);
 assert.match(generatorSource, /git", \["status", "--porcelain", "--untracked-files=all"\]/);
 assert.match(generatorSource, /dist", "build-provenance\.json"/);
@@ -90,7 +91,7 @@ function currentGitRevision(): string | null {
 
 const provenance = readRuntimeBuildProvenance(repoRoot);
 assert.equal(provenance.version, packageJson.version);
-if (provenance.buildId !== null) assert.match(provenance.buildId, /^\d{10}$/);
+if (provenance.buildId !== null) assert.match(provenance.buildId, /^\d{10}(?:\d{2})?$/);
 if (provenance.revision !== null) assert.match(provenance.revision, /^[a-f0-9]{7,40}$/i);
 if (provenance.builtAt !== null) assert.equal(Number.isNaN(Date.parse(provenance.builtAt)), false);
 if (provenance.sourceDirty !== null) assert.equal(typeof provenance.sourceDirty, "boolean");
