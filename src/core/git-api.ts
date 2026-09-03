@@ -21,6 +21,8 @@ import type {
   GitStatusResponse,
   GitStatusEntry,
   GitStageResponse,
+  GitBranchPayload,
+  GitBranchResponse,
   GitSyncPayload,
   GitSyncResponse,
   GitPushPayload,
@@ -171,7 +173,7 @@ function gitHead(repoRoot: string, runner: GovernedGitCommandRunner): string {
   return gitRevision(repoRoot, "HEAD", runner);
 }
 
-function gitBranch(repoRoot: string, runner: GovernedGitCommandRunner): string | null {
+function gitCurrentBranch(repoRoot: string, runner: GovernedGitCommandRunner): string | null {
   const result = runner.run({
     repoRoot,
     args: governedGitArgs(["symbolic-ref", "--quiet", "--short", "HEAD"]),
@@ -524,6 +526,63 @@ function assertGitWorktreeClean(
   }
 }
 
+function assertGitBranchWorktreeClean(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const status = runGitText(
+    repoRoot,
+    ["status", "--porcelain", "-uall"],
+    5_000,
+    runner
+  );
+  if (status) {
+    throw new Error("Governed Git branch mutation requires a completely clean worktree and index");
+  }
+}
+
+function assertValidLocalBranchName(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): string {
+  if (
+    !branch ||
+    branch !== branch.trim() ||
+    branch.startsWith("-") ||
+    branch.includes("\0") ||
+    branch.includes("@{")
+  ) {
+    throw new Error("Governed Git branch name is invalid");
+  }
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["check-ref-format", "--branch", branch]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git branch name is invalid");
+  }
+  return branch;
+}
+
+function localGitBranchExists(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): boolean {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 0) return true;
+  if (result.status === 1) return false;
+  throw new Error("Governed Git could not inspect local branch state safely");
+}
+
 function gitChangedPathsBetween(
   repoRoot: string,
   before: string,
@@ -745,6 +804,137 @@ export function gitStage(
   };
 }
 
+export function gitBranch(
+  paths: TokenPilotPaths,
+  payload: GitBranchPayload,
+  runner: GovernedGitCommandRunner = defaultGovernedGitCommandRunner
+): GitBranchResponse {
+  const repoRoot = assertRepoAllowed(paths, payload.repoId);
+  assertGitRepositoryRoot(repoRoot, runner);
+  const targetBranch = assertValidLocalBranchName(repoRoot, payload.branch, runner);
+  const branchBefore = gitCurrentBranch(repoRoot, runner);
+  const headBefore = gitHead(repoRoot, runner);
+
+  if (!branchBefore) {
+    throw new Error("Governed Git branch mutation requires an attached current branch");
+  }
+  if (
+    payload.expectedCurrentBranch !== undefined &&
+    payload.expectedCurrentBranch !== branchBefore
+  ) {
+    throw new Error("Governed Git branch mutation detected current-branch drift");
+  }
+
+  if (payload.action === "create") {
+    assertGitBranchWorktreeClean(repoRoot, runner);
+    if (localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch create refuses an existing local branch");
+    }
+    runGitText(repoRoot, ["switch", "-c", targetBranch], 10_000, runner);
+    const branchAfter = gitCurrentBranch(repoRoot, runner);
+    const headAfter = gitHead(repoRoot, runner);
+    if (branchAfter !== targetBranch || headAfter !== headBefore) {
+      throw new Error("Governed Git branch create produced an unexpected repository state");
+    }
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      targetBranch,
+      branchBefore,
+      branchAfter,
+      headBefore,
+      headAfter,
+      changed: true,
+      paths: [],
+      state: "created-and-switched"
+    };
+  }
+
+  if (payload.action === "switch") {
+    if (targetBranch === branchBefore) {
+      return {
+        ok: true,
+        repoId: payload.repoId,
+        action: payload.action,
+        targetBranch,
+        branchBefore,
+        branchAfter: branchBefore,
+        headBefore,
+        headAfter: headBefore,
+        changed: false,
+        paths: [],
+        state: "already-current"
+      };
+    }
+    assertGitBranchWorktreeClean(repoRoot, runner);
+    if (!localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch switch requires an existing local branch");
+    }
+    const targetHead = gitRevision(repoRoot, `refs/heads/${targetBranch}`, runner);
+    const changedPaths = assertFastForwardPathsPublicSafe(
+      repoRoot,
+      headBefore,
+      targetHead,
+      runner
+    );
+    assertNoExternalCheckoutFilters(repoRoot, changedPaths, runner);
+    runGitText(repoRoot, ["switch", "--no-guess", targetBranch], 15_000, runner);
+    const branchAfter = gitCurrentBranch(repoRoot, runner);
+    const headAfter = gitHead(repoRoot, runner);
+    if (branchAfter !== targetBranch || headAfter !== targetHead) {
+      throw new Error("Governed Git branch switch produced an unexpected repository state");
+    }
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      targetBranch,
+      branchBefore,
+      branchAfter,
+      headBefore,
+      headAfter,
+      changed: true,
+      paths: changedPaths,
+      state: "switched"
+    };
+  }
+
+  if (payload.action === "delete") {
+    assertGitBranchWorktreeClean(repoRoot, runner);
+    if (targetBranch === branchBefore) {
+      throw new Error("Governed Git branch delete refuses the current branch");
+    }
+    if (!localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch delete requires an existing local branch");
+    }
+    runGitText(repoRoot, ["branch", "-d", "--", targetBranch], 10_000, runner);
+    if (localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch delete did not remove the requested local branch");
+    }
+    const branchAfter = gitCurrentBranch(repoRoot, runner);
+    const headAfter = gitHead(repoRoot, runner);
+    if (branchAfter !== branchBefore || headAfter !== headBefore) {
+      throw new Error("Governed Git branch delete changed the current checkout unexpectedly");
+    }
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      targetBranch,
+      branchBefore,
+      branchAfter,
+      headBefore,
+      headAfter,
+      changed: true,
+      paths: [],
+      state: "deleted"
+    };
+  }
+
+  throw new Error(`Unsupported governed Git branch action: ${String(payload.action)}`);
+}
+
 export function gitSync(
   paths: TokenPilotPaths,
   payload: GitSyncPayload,
@@ -753,7 +943,7 @@ export function gitSync(
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   assertGitRepositoryRoot(repoRoot, runner);
   const headBefore = gitHead(repoRoot, runner);
-  const branch = gitBranch(repoRoot, runner);
+  const branch = gitCurrentBranch(repoRoot, runner);
 
   if (payload.action === "worktree-prune") {
     runGitText(
@@ -883,7 +1073,7 @@ export function gitPush(
   assertGitWorktreeClean(repoRoot, runner);
   assertPushHistoryComplete(repoRoot, runner);
 
-  const branch = gitBranch(repoRoot, runner);
+  const branch = gitCurrentBranch(repoRoot, runner);
   if (!branch) {
     throw new Error("Governed Git push requires an attached branch");
   }

@@ -7,6 +7,7 @@ import {
   fileEditToolOutputSchema,
   fileMutateToolOutputSchema,
   fileWriteToolOutputSchema,
+  gitBranchToolOutputSchema,
   gitCommitToolOutputSchema,
   gitPushToolOutputSchema,
   gitStageToolOutputSchema,
@@ -125,6 +126,7 @@ export function buildWorkspaceWriteTools(
     fileEditSchema,
     fileMutateSchema,
     fileWriteSchema,
+    gitBranchSchema,
     gitCommitSchema,
     gitPushSchema,
     gitStageSchema,
@@ -153,6 +155,9 @@ export function buildWorkspaceWriteTools(
     z.object({ idempotencyKey: idempotencyKeySchema })
   );
   const gitStageMcpSchema = gitStageSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const gitBranchMcpSchema = gitBranchSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
   const gitSyncMcpSchema = gitSyncSchema.and(
@@ -435,6 +440,36 @@ export function buildWorkspaceWriteTools(
               value as unknown as Record<string, unknown>,
               value.execution.changedPaths,
               [toolName("git.status"), `${toolName("git.diff")}?staged=true`]
+            );
+          }
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
+      name: toolName("git.branch"),
+      title: "Create, switch, or delete a governed local branch",
+      description:
+        "Perform one governed local branch lifecycle action. create starts a new local branch at the exact current HEAD and switches to it; switch accepts only an existing local branch and validates all checkout paths and filter attributes before changing the worktree; delete refuses the current branch and uses merge-safe git branch -d only, never force deletion. All mutations require a clean worktree/index, an attached current branch, optional expected-current-branch drift protection, workspace writer authority, and an idempotency key. Remote branch DWIM, arbitrary revisions, caller-supplied Git options and shell execution are not exposed.",
+      inputSchema: gitBranchMcpSchema,
+      outputSchema: gitBranchToolOutputSchema,
+      annotations: destructiveMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("git.branch"),
+          idempotencyKey,
+          payload,
+          async () => {
+            const value = await services.chatDirect.gitBranch(context, payload);
+            return mutationValue(
+              value as unknown as Record<string, unknown>,
+              value.execution.changedPaths,
+              gitEvidenceHints
             );
           }
         );

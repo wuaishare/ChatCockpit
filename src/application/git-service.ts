@@ -2,6 +2,7 @@ import {
   getGitDiff,
   getGitStatus,
   getStagedPublicSafePaths,
+  gitBranch,
   gitCommit,
   gitPush,
   gitStage,
@@ -9,6 +10,7 @@ import {
 } from "../core/git-api.js";
 import { readRecentGitCommitsForPaths } from "../core/git-history.js";
 import type {
+  GitBranchPayload,
   GitCommitPayload,
   GitPushPayload,
   GitStagePayload,
@@ -79,6 +81,14 @@ export class GitService {
       "GIT_STAGE_FAILED",
       "Git paths could not be staged safely.",
       () => gitStage(this.paths, payload.repoId, payload.paths)
+    );
+  }
+
+  branch(_context: OperationContext, payload: GitBranchPayload) {
+    return runGitOperation(
+      "GIT_BRANCH_FAILED",
+      "Git branch mutation could not be completed safely.",
+      () => gitBranch(this.paths, payload)
     );
   }
 

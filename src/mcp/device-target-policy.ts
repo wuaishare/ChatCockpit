@@ -25,6 +25,7 @@ const PROJECT_WRITE_TOOL_SUFFIXES = new Set([
   "files.edit",
   "files.mutate",
   "git.stage",
+  "git.branch",
   "git.commit",
   "git.sync",
   "git.push"
@@ -66,6 +67,7 @@ const DEVICE_WORKSPACE_WRITE_ACTIONS = new Set([
   "files.edit",
   "files.mutate",
   "git.stage",
+  "git.branch",
   "git.commit",
   "git.sync",
   "git.push"

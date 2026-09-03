@@ -255,6 +255,7 @@ async function runMcpSmoke(): Promise<void> {
         "files.read",
         "files.readBatch",
         "files.write",
+        "git.branch",
         "git.commit",
         "git.diff",
         "git.stage",
@@ -326,7 +327,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 95, "Full compatibility surface must expose all 95 remotely routable tools");
+    assert.equal(tools.length, 96, "Full compatibility surface must expose all 96 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -335,7 +336,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(coreList.response.status, 200);
     const coreTools = coreList.message.result?.tools as typeof tools;
-    assert.equal(coreTools.length, 25);
+    assert.equal(coreTools.length, 26);
     assert.equal(coreTools.every((tool) => isDefaultCoreMcpTool(tool.name)), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.discover"), true);
     assert.equal(coreTools.some((tool) => tool.name === "chatcockpit.tools.invoke"), true);
@@ -415,7 +416,7 @@ async function runMcpSmoke(): Promise<void> {
     );
     assert.equal(codexPackList.response.status, 200);
     const codexPackTools = codexPackList.message.result?.tools as typeof tools;
-    assert.equal(codexPackTools.length, 36);
+    assert.equal(codexPackTools.length, 37);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.thread.turn.start"), true);
     assert.equal(codexPackTools.some((tool) => tool.name === "chatcockpit.codex.turn.start"), false);
 
@@ -441,8 +442,8 @@ async function runMcpSmoke(): Promise<void> {
         };
       };
     };
-    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 25);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 95);
+    assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 26);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 96);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
@@ -903,6 +904,8 @@ async function runMcpSmoke(): Promise<void> {
     assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.idempotentHint, true);
     assert.equal(toolByName.get("chatcockpit.git.push")?.annotations.openWorldHint, true);
+    assert.equal(toolByName.get("chatcockpit.git.branch")?.annotations.destructiveHint, true);
+    assert.equal(toolByName.get("chatcockpit.git.branch")?.annotations.idempotentHint, true);
     assert.equal(toolByName.get("chatcockpit.git.commit")?.annotations.destructiveHint, false);
     assert.equal(toolByName.get("chatcockpit.lease.acquire")?.annotations.destructiveHint, true);
     for (const name of [

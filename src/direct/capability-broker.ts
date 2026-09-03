@@ -13,6 +13,7 @@ export type DirectCapabilityId =
   | "git.status"
   | "git.diff"
   | "git.stage"
+  | "git.branch"
   | "git.sync"
   | "git.push"
   | "git.commit"
