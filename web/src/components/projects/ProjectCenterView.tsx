@@ -24,14 +24,15 @@ import {
   SearchOutlined,
   SettingOutlined
 } from "@ant-design/icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   attachProjectRoot,
   createProject,
   fetchProductActions,
   fetchProjectDiscovery,
-  fetchProjects
+  fetchProjects,
+  reconcileNativeProjects
 } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import {
@@ -127,6 +128,7 @@ export function ProjectCenterView({
   const [attachCandidate, setAttachCandidate] = useState<ProjectRootDiscoveryCandidate | null>(null);
   const [attachLoading, setAttachLoading] = useState(false);
   const [discoveryLocationsOpen, setDiscoveryLocationsOpen] = useState(false);
+  const nativeAssociationAttempted = useRef(false);
   const [addForm] = Form.useForm<AddProjectFormValues>();
   const [attachForm] = Form.useForm<AttachRootFormValues>();
   const protectedView = authRequired && !token?.trim();
@@ -141,18 +143,39 @@ export function ProjectCenterView({
     setLoading(true);
     setError(null);
     try {
-      const [response, actionResponse] = await Promise.all([
+      const [initialResponse, actionResponse] = await Promise.all([
         fetchProjects(),
         fetchProductActions().catch(() => null)
       ]);
-      setProjects(response.projects);
-      setConfigRevision(response.configRevision);
-      setProjectRootTargets(
-        actionResponse?.actions.find((action) => action.id === "project.root.manage")?.targets ?? []
+      const rootTargets =
+        actionResponse?.actions.find((action) => action.id === "project.root.manage")?.targets ?? [];
+      const discoveryTargets =
+        actionResponse?.actions.find((action) => action.id === "project.discovery")?.targets ?? [];
+      const nativeAssociationTargets =
+        actionResponse?.actions.find((action) => action.id === "project.native.associate")?.targets ?? [];
+      const localNativeAssociationAvailable = nativeAssociationTargets.some(
+        (target) => target.locality === "local" && target.availability === "available-local"
       );
-      setProjectDiscoveryTargets(
-        actionResponse?.actions.find((action) => action.id === "project.discovery")?.targets ?? []
-      );
+
+      setProjects(initialResponse.projects);
+      setConfigRevision(initialResponse.configRevision);
+      setProjectRootTargets(rootTargets);
+      setProjectDiscoveryTargets(discoveryTargets);
+
+      if (localNativeAssociationAvailable && !nativeAssociationAttempted.current) {
+        nativeAssociationAttempted.current = true;
+        void (async () => {
+          try {
+            const reconciled = await reconcileNativeProjects();
+            if (reconciled.created.length === 0) return;
+            const refreshed = await fetchProjects();
+            setProjects(refreshed.projects);
+            setConfigRevision(refreshed.configRevision);
+          } catch {
+            nativeAssociationAttempted.current = false;
+          }
+        })();
+      }
     } catch (loadError) {
       setProjects([]);
       setConfigRevision(null);

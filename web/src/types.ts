@@ -430,6 +430,7 @@ export interface OAuthGrantDeviceAccessMutationResponse extends OAuthGrantDevice
 export type ProductActionId =
   | "project.root.manage"
   | "project.discovery"
+  | "project.native.associate"
   | "runtime.lifecycle"
   | "workspace.read"
   | "capability.read";
@@ -911,6 +912,28 @@ export interface ProjectRootDiscoveryResponse {
   groups: ProjectRootDiscoveryGroup[];
   candidates: ProjectRootDiscoveryCandidate[];
   truncated: boolean;
+}
+
+export interface NativeProjectAssociationProjection {
+  sourceId: string;
+  groupId: string;
+  projectId: string;
+  projectSlug: string;
+  projectRootId: string;
+  workspaceId: string;
+  repoId: string;
+}
+
+export interface NativeProjectAssociationResponse {
+  ok: true;
+  configRevision: string;
+  created: NativeProjectAssociationProjection[];
+  reused: NativeProjectAssociationProjection[];
+  skipped: Array<{
+    sourceId: string;
+    groupId: string;
+    reason: "partial-registration" | "unsupported-root-shape" | "missing-native-project-evidence";
+  }>;
 }
 
 export type ProjectDevelopmentObservationStatus = "ready" | "degraded" | "not-required";
@@ -1902,6 +1925,7 @@ export interface OperationalActivityProjection {
   repoId: string | null;
   agentSessionId: string | null;
   authorizationGrantId: string | null;
+  actorType: "local-cli" | "local-ui" | "rest-api" | "gpt-actions" | "remote-mcp" | "runner" | null;
   traceId: string | null;
   workerInstanceId: string | null;
   runtime: OperationalActivityRuntimeProjection | null;
@@ -1982,6 +2006,120 @@ export interface OperationalActivityListResponse {
     waitingApproval: number;
     paused: number;
   };
+}
+
+export type ProjectExecutionProcessStatus =
+  | "starting"
+  | "running"
+  | "exited"
+  | "terminated"
+  | "failed"
+  | "stale";
+
+export interface ProjectExecutionTaskProjection {
+  id: string;
+  workspaceId: string;
+  title: string;
+  status: ContinuityTaskStatus;
+  priority: ContinuityTaskPriority;
+  activeSessionId: string | null;
+  updatedAt: string;
+}
+
+export interface ProjectExecutionProcessProjection {
+  id: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  executorId: string;
+  command: string;
+  status: ProjectExecutionProcessStatus;
+  exitCode: number | null;
+  startedAt: string;
+  completedAt: string | null;
+  revision: number;
+}
+
+export interface ProjectExecutionConnectionProjection {
+  id: string;
+  surface: string;
+  transportMode: "stateless-http" | "session-http";
+  transportSessionId: string | null;
+  activeRequests: number;
+  totalRequests: number;
+  lastMethod: string | null;
+  lastToolName: string | null;
+  connectedAt: string;
+  lastSeenAt: string;
+  state: "active" | "idle" | "stale";
+}
+
+export interface ProjectExecutionActivityProjection extends Omit<OperationalActivityProjection, "authorizationGrantId"> {
+  taskTitle: string | null;
+  connectionIds: string[];
+}
+
+export interface ProjectExecutionObservabilityResponse {
+  ok: true;
+  projectId: string;
+  generatedAt: string;
+  activities: ProjectExecutionActivityProjection[];
+  tasks: ProjectExecutionTaskProjection[];
+  processes: ProjectExecutionProcessProjection[];
+  connections: ProjectExecutionConnectionProjection[];
+  counts: {
+    activeActivities: number;
+    runningActivities: number;
+    waitingApproval: number;
+    activeTasks: number;
+    runningProcesses: number;
+    activeConnections: number;
+  };
+}
+
+export interface RuntimeExecutionProjectRef {
+  projectId: string | null;
+  projectSlug: string | null;
+  projectDisplayName: string | null;
+}
+
+export interface RuntimeExecutionActivityProjection
+  extends Omit<OperationalActivityProjection, "authorizationGrantId">, RuntimeExecutionProjectRef {}
+
+export interface RuntimeExecutionTaskProjection extends RuntimeExecutionProjectRef {
+  id: string;
+  workspaceId: string;
+  repoId: string;
+  title: string;
+  status: ContinuityTaskStatus;
+  priority: ContinuityTaskPriority;
+  activeSessionId: string | null;
+  updatedAt: string;
+}
+
+export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProjectRef {
+  id: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  executorId: string;
+  command: string;
+  status: ProjectExecutionProcessStatus;
+  exitCode: number | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export type RuntimeExecutionConnectionProjection = ProjectExecutionConnectionProjection;
+
+export interface RuntimeExecutionObservabilityResponse {
+  ok: true;
+  generatedAt: string;
+  activities: RuntimeExecutionActivityProjection[];
+  tasks: RuntimeExecutionTaskProjection[];
+  processes: RuntimeExecutionProcessProjection[];
+  connections: RuntimeExecutionConnectionProjection[];
+  counts: ProjectExecutionObservabilityResponse["counts"];
 }
 
 export interface DeviceTargetDescriptor {

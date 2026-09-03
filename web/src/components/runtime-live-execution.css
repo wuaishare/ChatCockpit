@@ -1,0 +1,59 @@
+.runtime-live-execution__metrics {
+  margin-bottom: 16px;
+}
+
+.runtime-live-execution__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.runtime-live-execution__grid > section {
+  min-width: 0;
+  border: 1px solid var(--ant-color-border-secondary, rgba(0, 0, 0, 0.06));
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.runtime-live-execution__section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.runtime-live-execution__command {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runtime-live-execution__task-strip {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ant-color-border-secondary, rgba(0, 0, 0, 0.06));
+}
+
+.runtime-live-execution__task-strip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-live-execution__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+}
+
+@media (max-width: 1100px) {
+  .runtime-live-execution__grid {
+    grid-template-columns: 1fr;
+  }
+}

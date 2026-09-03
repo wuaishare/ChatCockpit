@@ -4,6 +4,7 @@ export interface ActivityProvenanceRecordProjection {
   activityId: string;
   activityKind: "agent-session" | "job";
   authorizationGrantId: string | null;
+  actorType: OperationContext["actorType"];
   traceId: string;
   workerInstanceId: string | null;
   updatedAt: string;

@@ -69,6 +69,7 @@ export interface OperationalActivityProjection {
   repoId: string | null;
   agentSessionId: string | null;
   authorizationGrantId: string | null;
+  actorType: "local-cli" | "local-ui" | "rest-api" | "gpt-actions" | "remote-mcp" | "runner" | null;
   traceId: string | null;
   workerInstanceId: string | null;
   runtime: OperationalActivityRuntimeProjection | null;
@@ -385,6 +386,7 @@ export class OperationalActivityService {
       repoId: null,
       agentSessionId: null,
       authorizationGrantId: operation.authorizationGrantId,
+      actorType: operation.executedActor.actorType ?? operation.requestedActor.actorType,
       traceId: null,
       workerInstanceId: null,
       runtime: null,
@@ -440,6 +442,7 @@ export class OperationalActivityService {
       repoId: linkedJob ? repoId(linkedJob) : null,
       agentSessionId: session.id,
       authorizationGrantId: provenance?.authorizationGrantId ?? null,
+      actorType: provenance?.actorType ?? null,
       traceId: provenance?.traceId ?? null,
       workerInstanceId: provenance?.workerInstanceId ?? null,
       runtime: binding ? {
@@ -511,6 +514,7 @@ export class OperationalActivityService {
       repoId: repository,
       agentSessionId: null,
       authorizationGrantId: provenance?.authorizationGrantId ?? null,
+      actorType: provenance?.actorType ?? null,
       traceId: provenance?.traceId ?? null,
       workerInstanceId: provenance?.workerInstanceId ?? null,
       runtime: null,

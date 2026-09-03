@@ -17,6 +17,7 @@ import type {
 } from "../types";
 import { getOperationalStatusTone } from "../status-language";
 import { SectionCard } from "./SectionCard";
+import { RuntimeLiveExecutionPanel } from "./RuntimeLiveExecutionPanel";
 
 interface RuntimeViewProps {
   locale: LocaleCode;
@@ -164,6 +165,8 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
           </Descriptions.Item>
         </Descriptions>
       </SectionCard>
+
+      <RuntimeLiveExecutionPanel locale={locale} />
 
       <SectionCard
         title={copy.targetsTitle}

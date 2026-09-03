@@ -46,6 +46,11 @@ export interface RuntimeCopy {
   reasonForbidden: string;
   reasonNoPath: string;
   reasonApproval: string;
+  liveExecutionTitle: string;
+  liveExecutionDescription: string;
+  noLiveExecution: string;
+  noLiveExecutionDescription: string;
+  unknownProject: string;
 }
 
 const zhCN: RuntimeCopy = {
@@ -93,7 +98,12 @@ const zhCN: RuntimeCopy = {
   reasonNotImplemented: "目标尚未实现 Runtime 管理能力",
   reasonForbidden: "当前策略不允许",
   reasonNoPath: "当前没有合法执行路径",
-  reasonApproval: "需要审批"
+  reasonApproval: "需要审批",
+  liveExecutionTitle: "实时会话与执行",
+  liveExecutionDescription: "跨项目查看 MCP 连接、Task / Session、Runtime 活动与本机命令进程；每条执行保留 Project、Repo 与 Session provenance。",
+  noLiveExecution: "当前没有实时执行",
+  noLiveExecutionDescription: "新的 MCP 调用、Task / Session 或本机进程启动后会自动出现在这里。",
+  unknownProject: "未关联项目"
 };
 
 const enUS: RuntimeCopy = {
@@ -141,7 +151,12 @@ const enUS: RuntimeCopy = {
   reasonNotImplemented: "Target does not implement Runtime management yet",
   reasonForbidden: "Current policy forbids this action",
   reasonNoPath: "No legitimate execution path is available",
-  reasonApproval: "Approval required"
+  reasonApproval: "Approval required",
+  liveExecutionTitle: "Live sessions and execution",
+  liveExecutionDescription: "Observe MCP connections, Tasks / Sessions, Runtime activity, and local command processes across Projects with Project, Repo, and Session provenance.",
+  noLiveExecution: "No live execution",
+  noLiveExecutionDescription: "New MCP calls, Tasks / Sessions, and local processes will appear here automatically.",
+  unknownProject: "Unassociated project"
 };
 
 export function getRuntimeCopy(locale: LocaleCode): RuntimeCopy {

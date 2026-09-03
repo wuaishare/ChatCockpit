@@ -14,6 +14,10 @@ const api = read("web/src/api.ts");
 const types = read("web/src/types.ts");
 const center = read("web/src/components/projects/ProjectCenterView.tsx");
 const cockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
+const liveExecution = read("web/src/components/projects/ProjectLiveExecutionPanel.tsx");
+const runtimeView = read("web/src/components/RuntimeView.tsx");
+const runtimeLiveExecution = read("web/src/components/RuntimeLiveExecutionPanel.tsx");
+const runtimeCopy = read("web/src/i18n/runtime.ts");
 const copy = read("web/src/i18n/projects.ts");
 const theme = read("web/src/theme.ts");
 
@@ -62,6 +66,15 @@ assert.match(center, /action\.id === "project\.root\.manage"/);
 assert.match(center, /action\.id === "project\.discovery"/);
 assert.match(center, /localProjectAvailable/);
 assert.match(center, /localDiscoveryAvailable/);
+assert.match(center, /action\.id === "project\.native\.associate"/);
+assert.match(center, /reconcileNativeProjects/);
+assert.match(center, /localNativeAssociationAvailable/);
+assert.match(center, /setProjects\(initialResponse\.projects\)/);
+assert.match(center, /setConfigRevision\(initialResponse\.configRevision\)/);
+assert.match(
+  center,
+  /void \(async \(\) => \{[\s\S]*const reconciled = await reconcileNativeProjects\(\)/
+);
 assert.match(cockpit, /fetchProductActions/);
 assert.match(cockpit, /rootManagementAvailable/);
 assert.match(cockpit, /rootManagementHint/);
@@ -117,5 +130,34 @@ assert.match(cockpit, /attentionVisible/);
 assert.match(copy, /primaryRoot:\s*"主目录"/);
 assert.match(copy, /primaryRoot:\s*"Primary root"/);
 assert.doesNotMatch(copy, /primaryWorkspace|Primary workspace|主工作区/);
+
+// P1 execution observability is Project-scoped and machine-local for command detail.
+assert.match(api, /export async function fetchProjectExecutionObservability/);
+assert.match(api, /\/api\/projects\/\$\{encodeURIComponent\(projectId\)\}\/executions/);
+assert.match(types, /export interface ProjectExecutionObservabilityResponse/);
+assert.match(cockpit, /<ProjectLiveExecutionPanel locale=\{locale\} projectId=\{projectId\} \/>/);
+assert.match(liveExecution, /new EventSource\([\s\S]*\/executions\/stream/);
+assert.match(liveExecution, /copy\.liveActivities/);
+assert.match(liveExecution, /copy\.liveProcesses/);
+assert.match(liveExecution, /copy\.liveConnections/);
+assert.match(liveExecution, /process\.command/);
+assert.match(liveExecution, /connection\.transportMode === "stateless-http"/);
+assert.doesNotMatch(liveExecution, /authorizationGrantId|clientRegistrationId|privatePid|workdir|commandHash/);
+assert.match(copy, /liveExecution:\s*"实时执行"/);
+assert.match(copy, /liveExecution:\s*"Live execution"/);
+
+// Runtime is the global control tower; Project Cockpit remains the scoped drill-down.
+assert.match(api, /export async function fetchRuntimeExecutionObservability/);
+assert.match(api, /requestJson<RuntimeExecutionObservabilityResponse>\("\/api\/runtime\/executions"\)/);
+assert.match(types, /export interface RuntimeExecutionObservabilityResponse/);
+assert.match(runtimeView, /<RuntimeLiveExecutionPanel locale=\{locale\} \/>/);
+assert.match(runtimeLiveExecution, /new EventSource\("\/api\/runtime\/executions\/stream"/);
+assert.match(runtimeLiveExecution, /projectDisplayName \?\? runtimeCopy\.unknownProject/);
+assert.match(runtimeLiveExecution, /activity\.targetDeviceId/);
+assert.match(runtimeLiveExecution, /process\.command/);
+assert.match(runtimeLiveExecution, /connection\.lastToolName/);
+assert.doesNotMatch(runtimeLiveExecution, /authorizationGrantId|clientRegistrationId|privatePid|workdir|commandHash/);
+assert.match(runtimeCopy, /liveExecutionTitle:\s*"实时会话与执行"/);
+assert.match(runtimeCopy, /liveExecutionTitle:\s*"Live sessions and execution"/);
 
 process.stdout.write("VERIFY_PROJECT_UI_OK\n");

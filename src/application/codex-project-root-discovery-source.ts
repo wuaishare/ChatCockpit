@@ -6,7 +6,8 @@ import {
 import type { OperationContext } from "./operation-context.js";
 import type {
   ProjectRootDiscoveryObservationSet,
-  ProjectRootDiscoverySource
+  ProjectRootDiscoverySource,
+  ProjectRootDiscoverySourceRequest
 } from "./project-root-discovery-source.js";
 
 const MAX_PAGES = 4;
@@ -32,7 +33,10 @@ export class CodexProjectRootDiscoverySource implements ProjectRootDiscoverySour
     private readonly localState: CodexLocalProjectStateReading = new CodexLocalProjectStateReader()
   ) {}
 
-  async discover(context: OperationContext): Promise<ProjectRootDiscoveryObservationSet> {
+  async discover(
+    context: OperationContext,
+    input: ProjectRootDiscoverySourceRequest = {}
+  ): Promise<ProjectRootDiscoveryObservationSet> {
     const observations: ProjectRootDiscoveryObservationSet["observations"] = [];
     const local = this.localState.readProjectRoots();
     let inspectedContexts = local.inspectedContexts;
@@ -57,6 +61,10 @@ export class CodexProjectRootDiscoverySource implements ProjectRootDiscoverySour
             }
           : {})
       });
+    }
+
+    if (input.includeSessionHistory === false) {
+      return { observations, inspectedContexts, truncated: false };
     }
 
     try {

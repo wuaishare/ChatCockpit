@@ -8,6 +8,8 @@ import { z } from "zod";
 import type { ProjectService } from "../application/project-service.js";
 import type { ProjectDevelopmentRoutingService } from "../application/project-development-routing-service.js";
 import type { ProjectRootDiscoveryService } from "../application/project-root-discovery-service.js";
+import type { NativeProjectAssociationService } from "../application/native-project-association-service.js";
+import type { ProjectExecutionObservabilityService } from "../application/project-execution-observability-service.js";
 import {
   projectRegistryAttachRootSchema,
   projectRegistryAttachWorkspaceSchema,
@@ -101,7 +103,9 @@ export function registerProjectRegistryRoutes(
   app: FastifyInstance,
   projects: ProjectService,
   projectDevelopmentRouting?: ProjectDevelopmentRoutingService,
-  projectRootDiscovery?: ProjectRootDiscoveryService
+  projectRootDiscovery?: ProjectRootDiscoveryService,
+  nativeProjectAssociation?: NativeProjectAssociationService,
+  projectExecutionObservability?: ProjectExecutionObservabilityService
 ): void {
   if (projectRootDiscovery) {
     app.get("/api/projects/discovery", (request, reply) =>
@@ -109,6 +113,83 @@ export function registerProjectRegistryRoutes(
         ok: true,
         ...(await projectRootDiscovery.listCandidates(operationContextFromRequest(request)))
       }))
+    );
+  }
+
+  if (nativeProjectAssociation) {
+    app.post("/api/projects/discovery/reconcile-native", (request, reply) =>
+      machineLocalOwnerOnly(request, reply, async () => ({
+        ok: true,
+        ...(await nativeProjectAssociation.reconcile(operationContextFromRequest(request)))
+      }), true)
+    );
+  }
+
+  if (projectExecutionObservability) {
+    app.get<{ Params: { projectId: string } }>(
+      "/api/projects/:projectId/executions",
+      (request, reply) =>
+        machineLocalOwnerOnly(request, reply, () => ({
+          ok: true,
+          ...projectExecutionObservability.snapshot(
+            operationContextFromRequest(request),
+            request.params.projectId
+          )
+        }))
+    );
+
+    app.get<{ Params: { projectId: string } }>(
+      "/api/projects/:projectId/executions/stream",
+      (request, reply) => machineLocalOwnerOnly(request, reply, () => {
+        const baseContext = operationContextFromRequest(request);
+        const projectId = request.params.projectId;
+        const snapshot = () => projectExecutionObservability.snapshot(
+          { ...baseContext, now: new Date().toISOString() },
+          projectId
+        );
+        const first = snapshot();
+        reply.hijack();
+        reply.raw.writeHead(200, {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache, no-transform",
+          connection: "keep-alive",
+          "x-accel-buffering": "no"
+        });
+        let closed = false;
+        let lastComparable = JSON.stringify({ ...first, generatedAt: "" });
+        const write = (event: string, data: unknown): void => {
+          if (closed || reply.raw.destroyed || reply.raw.writableEnded) return;
+          reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        };
+        write("project.execution.snapshot", { ok: true, ...first });
+        const snapshotTimer = setInterval(() => {
+          if (closed) return;
+          try {
+            const next = snapshot();
+            const comparable = JSON.stringify({ ...next, generatedAt: "" });
+            if (comparable === lastComparable) return;
+            lastComparable = comparable;
+            write("project.execution.snapshot", { ok: true, ...next });
+          } catch (error) {
+            app.log.warn({ err: error, projectId }, "Project execution snapshot refresh failed");
+          }
+        }, 1_000);
+        const heartbeatTimer = setInterval(() => {
+          write("heartbeat", { at: new Date().toISOString() });
+        }, 15_000);
+        snapshotTimer.unref();
+        heartbeatTimer.unref();
+        const cleanup = (): void => {
+          if (closed) return;
+          closed = true;
+          clearInterval(snapshotTimer);
+          clearInterval(heartbeatTimer);
+        };
+        request.raw.once("close", cleanup);
+        reply.raw.once("close", cleanup);
+        reply.raw.once("error", cleanup);
+        return reply;
+      })
     );
   }
 

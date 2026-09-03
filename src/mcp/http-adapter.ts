@@ -8,6 +8,7 @@ import type {
 } from "fastify";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { MCP_TOOL_SURFACE_PACKS, type McpToolSurfacePack } from "./tool-surface.js";
+import { McpConnectionRegistry, type McpConnectionSurface } from "./connection-registry.js";
 
 import {
   MCP_AUTHORIZATION_GRANT_HEADER,
@@ -110,16 +111,52 @@ async function sendWebStandardResponse(
   return reply.send(stream);
 }
 
+function mcpRequestMetadata(body: unknown): { method: string | null; toolName: string | null } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { method: Array.isArray(body) ? "batch" : null, toolName: null };
+  }
+  const record = body as Record<string, unknown>;
+  const method = typeof record.method === "string" ? record.method.slice(0, 120) : null;
+  const params = record.params && typeof record.params === "object" && !Array.isArray(record.params)
+    ? record.params as Record<string, unknown>
+    : null;
+  const toolName = method === "tools/call" && typeof params?.name === "string"
+    ? params.name.slice(0, 120)
+    : null;
+  return { method, toolName };
+}
+
 export async function handleMcpHttpRequest(
   handler: McpHttpHandler,
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
+  observability?: { connections: McpConnectionRegistry; surface: McpConnectionSurface }
 ): Promise<unknown> {
   const webRequest = toWebStandardRequest(request);
-  const response = await handler.fetch(webRequest, {
-    parsedBody: request.body
-  });
-  return sendWebStandardResponse(reply, response);
+  const metadata = mcpRequestMetadata(request.body);
+  const auth = request.chatCockpitAuth;
+  const observation = observability && auth.kind === "mcp-oauth"
+    ? observability.connections.begin({
+        surface: observability.surface,
+        authorizationGrantId: auth.authorizationGrantId,
+        clientRegistrationId: auth.clientRegistrationId,
+        transportSessionId: firstHeaderValue(request.headers["mcp-session-id"]),
+        method: metadata.method,
+        toolName: metadata.toolName
+      })
+    : null;
+  try {
+    const response = await handler.fetch(webRequest, {
+      parsedBody: request.body
+    });
+    observation?.complete({
+      transportSessionId: response.headers.get("mcp-session-id")
+    });
+    return sendWebStandardResponse(reply, response);
+  } catch (error) {
+    observation?.fail();
+    throw error;
+  }
 }
 
 export interface McpHttpSurfaceHandlers {
@@ -130,22 +167,28 @@ export interface McpHttpSurfaceHandlers {
 
 export function registerMcpHttpRoutes(
   app: FastifyInstance,
-  handlers: McpHttpSurfaceHandlers
+  handlers: McpHttpSurfaceHandlers,
+  connections?: McpConnectionRegistry
 ): void {
-  const register = (url: string, handler: McpHttpHandler) => {
+  const register = (url: string, handler: McpHttpHandler, surface: McpConnectionSurface) => {
     app.route({
       method: ["GET", "POST", "DELETE"],
       url,
       handler: (request: FastifyRequest, reply: FastifyReply) =>
-        handleMcpHttpRequest(handler, request, reply)
+        handleMcpHttpRequest(
+          handler,
+          request,
+          reply,
+          connections ? { connections, surface } : undefined
+        )
     });
   };
 
-  register("/mcp", handlers.core);
-  register("/mcp/full", handlers.full);
-  register("/tokenpilot/mcp", handlers.full);
+  register("/mcp", handlers.core, "core");
+  register("/mcp/full", handlers.full, "full");
+  register("/tokenpilot/mcp", handlers.full, "full");
   for (const pack of MCP_TOOL_SURFACE_PACKS) {
-    register(`/mcp/packs/${pack}`, handlers.packs[pack]);
+    register(`/mcp/packs/${pack}`, handlers.packs[pack], `pack:${pack}`);
   }
 
   app.addHook("onClose", async () => {
