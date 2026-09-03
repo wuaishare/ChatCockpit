@@ -53,7 +53,7 @@ struct MainAppView: View {
     var body: some View {
         NavigationSplitView {
             List(MainAppSection.allCases) { section in
-                AccessibleSidebarButton(
+                SidebarNavigationButton(
                     title: section.title,
                     systemName: section.systemImage,
                     selected: activeSection == section
@@ -109,70 +109,23 @@ struct MainAppView: View {
     }
 }
 
-private struct AccessibleSidebarButton: NSViewRepresentable {
+private struct SidebarNavigationButton: View {
     let title: String
     let systemName: String
     let selected: Bool
     let action: () -> Void
 
-    final class Coordinator: NSObject {
-        var action: () -> Void
-
-        init(action: @escaping () -> Void) {
-            self.action = action
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemName)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
-
-        @objc func invoke() {
-            action()
-        }
-    }
-
-    final class PointerButton: NSButton {
-        override func resetCursorRects() {
-            super.resetCursorRects()
-            addCursorRect(bounds, cursor: isEnabled ? .pointingHand : .arrow)
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(action: action)
-    }
-
-    func makeNSView(context: Context) -> NSButton {
-        let button = PointerButton()
-        button.isBordered = false
-        button.imagePosition = .imageLeading
-        button.alignment = .left
-        button.focusRingType = .default
-        button.refusesFirstResponder = false
-        button.target = context.coordinator
-        button.action = #selector(Coordinator.invoke)
-        configure(button, coordinator: context.coordinator)
-        return button
-    }
-
-    func updateNSView(_ button: NSButton, context: Context) {
-        configure(button, coordinator: context.coordinator)
-    }
-
-    private func configure(_ button: NSButton, coordinator: Coordinator) {
-        coordinator.action = action
-        button.attributedTitle = NSAttributedString(
-            string: title,
-            attributes: [.foregroundColor: NSColor.labelColor]
-        )
-        button.image = NSImage(
-            systemSymbolName: systemName,
-            accessibilityDescription: nil
-        )
-        button.image?.isTemplate = true
-        button.contentTintColor = .labelColor
-        button.toolTip = title
-        button.setAccessibilityLabel(title)
-        button.setAccessibilityHelp(title)
-        button.setAccessibilityRole(.button)
-        button.setAccessibilitySelected(selected)
-        button.window?.invalidateCursorRects(for: button)
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .help(title)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

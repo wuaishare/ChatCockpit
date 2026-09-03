@@ -291,17 +291,17 @@ for (const section of ["overview", "projects", "work", "runtime", "resources", "
   assert.match(statusView, new RegExp(`case ${section}\\b`));
 }
 assert.match(statusView, /NavigationSplitView/);
-assert.match(statusView, /AccessibleSidebarButton\([\s\S]*selected: activeSection == section[\s\S]*selection = section/s);
+assert.match(statusView, /SidebarNavigationButton\([\s\S]*selected: activeSection == section[\s\S]*selection = section/s);
 assert.match(statusView, /activeSection == section[\s\S]*Color\.accentColor\.opacity\(0\.16\)/s);
-assert.match(statusView, /private struct AccessibleSidebarButton: NSViewRepresentable/);
-assert.match(statusView, /button\.attributedTitle = NSAttributedString\([\s\S]*NSColor\.labelColor/s);
-assert.match(statusView, /button\.image\?\.isTemplate = true/);
-assert.match(statusView, /button\.contentTintColor = \.labelColor/);
-assert.match(statusView, /final class PointerButton: NSButton/);
-assert.match(statusView, /button\.setAccessibilityLabel\(title\)/);
-assert.match(statusView, /button\.setAccessibilityHelp\(title\)/);
-assert.match(statusView, /button\.setAccessibilitySelected\(selected\)/);
-assert.match(statusView, /addCursorRect\(bounds, cursor: isEnabled \? \.pointingHand : \.arrow\)/);
+assert.match(statusView, /private struct SidebarNavigationButton: View/);
+assert.match(statusView, /Button\(action: action\)/);
+assert.match(statusView, /Label\(title, systemImage: systemName\)/);
+assert.match(statusView, /\.buttonStyle\(\.plain\)/);
+assert.match(statusView, /\.foregroundStyle\(\.primary\)/);
+assert.match(statusView, /\.help\(title\)/);
+assert.match(statusView, /\.accessibilityLabel\(title\)/);
+assert.match(statusView, /\.accessibilityAddTraits\(selected \? \.isSelected : \[\]\)/);
+assert.doesNotMatch(statusView, /AccessibleSidebarButton|NSViewRepresentable|final class PointerButton: NSButton/);
 assert.match(statusView, /SettingsView\(model: model, scope: \.runtime\)/);
 assert.match(statusView, /SettingsView\(model: model, scope: \.projects\)/);
 assert.match(statusView, /NativeSharedCockpitBridgeView\(model: model, destination: \.work\)/);
