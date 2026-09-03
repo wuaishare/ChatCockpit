@@ -18,6 +18,7 @@ import type {
   ContinuityProjectsResponse,
   ProjectRootDiscoveryResponse,
   ProjectExecutionObservabilityResponse,
+  RuntimeExecutionObservabilityResponse,
   ProjectRegistryDetailResponse,
   ProjectRegistryMutationResponse,
   ProjectRegistryResponse,
@@ -962,6 +963,10 @@ export async function fetchProjectExecutionObservability(
   return requestJson<ProjectExecutionObservabilityResponse>(
     `/api/projects/${encodeURIComponent(projectId)}/executions`
   );
+}
+
+export async function fetchRuntimeExecutionObservability(): Promise<RuntimeExecutionObservabilityResponse> {
+  return requestJson<RuntimeExecutionObservabilityResponse>("/api/runtime/executions");
 }
 
 export async function createProject(input: {

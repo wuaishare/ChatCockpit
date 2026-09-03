@@ -274,7 +274,7 @@ try {
   });
   assert.equal(projectsAfter.status, 200);
   const projectsAfterBody = (await projectsAfter.json()) as {
-    projects: Array<{ project: { id: string; slug: string }; workspaces: Array<{ repoId: string }> }>;
+    projects: Array<{ project: { id: string; slug: string }; workspaces: Array<{ id: string; repoId: string }> }>;
   };
   const materialized = projectsAfterBody.projects.find((entry) => entry.project.slug === "native-project");
   assert.ok(materialized);
@@ -319,6 +319,84 @@ try {
     runningProcesses: 0,
     activeConnections: 0
   });
+
+  const bearerRuntimeExecution = await fetch(`${server.baseUrl}/api/runtime/executions`, {
+    headers: { authorization: "Bearer test-token" }
+  });
+  assert.equal(bearerRuntimeExecution.status, 401);
+  assert.match(await bearerRuntimeExecution.text(), /OPERATOR_SESSION_REQUIRED/);
+
+  const runtimeExecution = await fetch(`${server.baseUrl}/api/runtime/executions`, {
+    headers: { cookie }
+  });
+  assert.equal(runtimeExecution.status, 200);
+  const runtimeExecutionBody = (await runtimeExecution.json()) as {
+    ok: true;
+    activities: unknown[];
+    tasks: unknown[];
+    processes: unknown[];
+    connections: unknown[];
+    counts: typeof executionBody.counts;
+  };
+  assert.deepEqual(runtimeExecutionBody.activities, []);
+  assert.deepEqual(runtimeExecutionBody.tasks, []);
+  assert.deepEqual(runtimeExecutionBody.processes, []);
+  assert.deepEqual(runtimeExecutionBody.connections, []);
+  assert.deepEqual(runtimeExecutionBody.counts, executionBody.counts);
+
+  const materializedWorkspace = materialized.workspaces[0]!;
+  const taskResponse = await fetch(`${server.baseUrl}/api/continuity/tasks`, {
+    method: "POST",
+    headers: {
+      cookie,
+      "content-type": "application/json",
+      "x-chatcockpit-csrf": loginBody.csrfToken
+    },
+    body: JSON.stringify({
+      projectId: materialized.project.id,
+      workspaceId: materializedWorkspace.id,
+      title: "Execution observability projection fixture",
+      goal: "Verify private OAuth provenance never leaks through execution APIs.",
+      idempotencyKey: "project-execution-observability-task-0001"
+    })
+  });
+  assert.equal(taskResponse.status, 200);
+  const taskBody = (await taskResponse.json()) as { task: { id: string; revision: number } };
+  const sessionResponse = await fetch(`${server.baseUrl}/api/continuity/sessions/start`, {
+    method: "POST",
+    headers: {
+      cookie,
+      "content-type": "application/json",
+      "x-chatcockpit-csrf": loginBody.csrfToken
+    },
+    body: JSON.stringify({
+      taskId: taskBody.task.id,
+      title: "Execution observability projection session",
+      mode: "chat-direct",
+      expectedTaskRevision: taskBody.task.revision,
+      idempotencyKey: "project-execution-observability-session-0001"
+    })
+  });
+  assert.equal(sessionResponse.status, 200);
+
+  const populatedProjectExecution = await fetch(
+    `${server.baseUrl}/api/projects/${encodeURIComponent(materialized.project.id)}/executions`,
+    { headers: { cookie } }
+  );
+  const populatedProjectBody = (await populatedProjectExecution.json()) as {
+    activities: Array<Record<string, unknown>>;
+  };
+  assert.ok(populatedProjectBody.activities.length > 0);
+  assert.equal("authorizationGrantId" in populatedProjectBody.activities[0]!, false);
+
+  const populatedRuntimeExecution = await fetch(`${server.baseUrl}/api/runtime/executions`, {
+    headers: { cookie }
+  });
+  const populatedRuntimeBody = (await populatedRuntimeExecution.json()) as {
+    activities: Array<Record<string, unknown>>;
+  };
+  assert.ok(populatedRuntimeBody.activities.length > 0);
+  assert.equal("authorizationGrantId" in populatedRuntimeBody.activities[0]!, false);
 
   const discoveryAfter = await fetch(`${server.baseUrl}/api/projects/discovery`, {
     headers: { cookie }

@@ -79,6 +79,7 @@ import { ProjectRootDiscoveryService } from "../application/project-root-discove
 import { CodexProjectRootDiscoverySource } from "../application/codex-project-root-discovery-source.js";
 import { NativeProjectAssociationService } from "../application/native-project-association-service.js";
 import { ProjectExecutionObservabilityService } from "../application/project-execution-observability-service.js";
+import { RuntimeExecutionObservabilityService } from "../application/runtime-execution-observability-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -204,6 +205,7 @@ import { OPERATOR_CSRF_HEADER } from "./operator-auth-context.js";
 import { registerOAuthGrantManagementRoutes } from "./oauth-grant-management-routes.js";
 import { registerOperationalActivityRoutes } from "./operational-activity-routes.js";
 import { registerRuntimeRoutes } from "./runtime-routes.js";
+import { registerRuntimeExecutionObservabilityRoutes } from "./runtime-execution-observability-routes.js";
 import { registerRecoveryRoutes } from "./recovery-routes.js";
 import { isResourceMutationExposureEnabled } from "./runtime-resource-mutation-policy.js";
 import { registerRuntimeResourceRoutes } from "./runtime-resource-routes.js";
@@ -809,6 +811,12 @@ export function buildServer(
     continuityServices.repositories,
     mcpConnections
   );
+  const runtimeExecutionObservability = new RuntimeExecutionObservabilityService(
+    continuityServices.projects,
+    operationalActivityService,
+    continuityServices.repositories,
+    mcpConnections
+  );
   const runtimeLifecycleService = new RuntimeLifecycleService(
     paths,
     continuityServices.repositories
@@ -1219,6 +1227,7 @@ export function buildServer(
     pollIntervalMs: options.activityStreamPollIntervalMs,
     heartbeatIntervalMs: options.activityStreamHeartbeatIntervalMs
   });
+  registerRuntimeExecutionObservabilityRoutes(app, runtimeExecutionObservability);
   registerRuntimeRoutes(
     app,
     runtimeService,

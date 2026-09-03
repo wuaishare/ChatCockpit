@@ -2054,7 +2054,7 @@ export interface ProjectExecutionConnectionProjection {
   state: "active" | "idle" | "stale";
 }
 
-export interface ProjectExecutionActivityProjection extends OperationalActivityProjection {
+export interface ProjectExecutionActivityProjection extends Omit<OperationalActivityProjection, "authorizationGrantId"> {
   taskTitle: string | null;
   connectionIds: string[];
 }
@@ -2075,6 +2075,51 @@ export interface ProjectExecutionObservabilityResponse {
     runningProcesses: number;
     activeConnections: number;
   };
+}
+
+export interface RuntimeExecutionProjectRef {
+  projectId: string | null;
+  projectSlug: string | null;
+  projectDisplayName: string | null;
+}
+
+export interface RuntimeExecutionActivityProjection
+  extends Omit<OperationalActivityProjection, "authorizationGrantId">, RuntimeExecutionProjectRef {}
+
+export interface RuntimeExecutionTaskProjection extends RuntimeExecutionProjectRef {
+  id: string;
+  workspaceId: string;
+  repoId: string;
+  title: string;
+  status: ContinuityTaskStatus;
+  priority: ContinuityTaskPriority;
+  activeSessionId: string | null;
+  updatedAt: string;
+}
+
+export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProjectRef {
+  id: string;
+  workspaceId: string | null;
+  repoId: string | null;
+  sessionId: string | null;
+  executorId: string;
+  command: string;
+  status: ProjectExecutionProcessStatus;
+  exitCode: number | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export type RuntimeExecutionConnectionProjection = ProjectExecutionConnectionProjection;
+
+export interface RuntimeExecutionObservabilityResponse {
+  ok: true;
+  generatedAt: string;
+  activities: RuntimeExecutionActivityProjection[];
+  tasks: RuntimeExecutionTaskProjection[];
+  processes: RuntimeExecutionProcessProjection[];
+  connections: RuntimeExecutionConnectionProjection[];
+  counts: ProjectExecutionObservabilityResponse["counts"];
 }
 
 export interface DeviceTargetDescriptor {

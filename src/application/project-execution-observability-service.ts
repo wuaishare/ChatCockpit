@@ -39,7 +39,7 @@ export interface ProjectExecutionProcessProjection {
   revision: number;
 }
 
-export interface ProjectExecutionActivityProjection extends OperationalActivityProjection {
+export interface ProjectExecutionActivityProjection extends Omit<OperationalActivityProjection, "authorizationGrantId"> {
   taskTitle: string | null;
   connectionIds: string[];
 }
@@ -130,13 +130,16 @@ export class ProjectExecutionObservabilityService {
       return safe;
     });
 
-    const activities = baseActivities.map((activity): ProjectExecutionActivityProjection => ({
-      ...activity,
-      taskTitle: activity.taskId ? taskTitles.get(activity.taskId) ?? null : null,
-      connectionIds: activity.authorizationGrantId
-        ? [...(connectionsByGrant.get(activity.authorizationGrantId) ?? [])]
-        : []
-    }));
+    const activities = baseActivities.map((activity): ProjectExecutionActivityProjection => {
+      const { authorizationGrantId, ...safeActivity } = activity;
+      return {
+        ...safeActivity,
+        taskTitle: activity.taskId ? taskTitles.get(activity.taskId) ?? null : null,
+        connectionIds: authorizationGrantId
+          ? [...(connectionsByGrant.get(authorizationGrantId) ?? [])]
+          : []
+      };
+    });
 
     const processes = project.workspaces
       .flatMap((workspace) => this.repositories.directProcessSessions.list({ workspaceId: workspace.id }))
