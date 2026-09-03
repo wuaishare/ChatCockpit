@@ -157,6 +157,65 @@ assert.equal(
   "available-targeted"
 );
 assert.equal(
+  target(remoteBrowser, "runtime.resource.mutate", LOCAL_DEVICE_TARGET_ID).availability,
+  "approval-required",
+  "Browser Resource mutation is a real local-runtime workflow but must remain approval-gated"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.resource.mutate", LOCAL_DEVICE_TARGET_ID).executionMode,
+  "local-runtime"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.resource.mutate", capableId).availability,
+  "unsupported",
+  "remote Resource mutation must remain unavailable until Device Agent exposes an explicit RPC"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.resource.mutate", capableId).reason,
+  "target-capability-not-implemented"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.intent", LOCAL_DEVICE_TARGET_ID).availability,
+  "available-local",
+  "Public Route intent and verification are Application workflows available to the authenticated Browser"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.intent", LOCAL_DEVICE_TARGET_ID).executionMode,
+  "local-runtime"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.cutover", LOCAL_DEVICE_TARGET_ID).availability,
+  "requires-local-host",
+  "canonical Public Route cutover remains a Machine Authority action"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.cutover", LOCAL_DEVICE_TARGET_ID).reason,
+  "machine-local-context-required"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.intent", capableId).availability,
+  "unsupported"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.cutover", capableId).availability,
+  "unsupported"
+);
+for (const actionId of [
+  "connectivity.provider.install",
+  "connectivity.provider.upgrade",
+  "connectivity.provider.uninstall"
+] as const) {
+  assert.equal(
+    target(remoteBrowser, actionId, capableId).availability,
+    "unsupported",
+    "remote Connectivity provider mutation must remain unavailable until Device Agent exposes an explicit RPC"
+  );
+  assert.equal(
+    target(remoteBrowser, actionId, capableId).reason,
+    "target-capability-not-implemented"
+  );
+}
+assert.equal(
   target(remoteBrowser, "runtime.lifecycle", readOnlyId).availability,
   "unsupported",
   "an explicit v5 capability set must not imply Runtime lifecycle support"
@@ -228,6 +287,21 @@ assert.equal(
   "requires-local-host",
   "machine-local HTTP context is not evidence that a native lifecycle bridge exists"
 );
+for (const actionId of [
+  "connectivity.provider.install",
+  "connectivity.provider.upgrade",
+  "connectivity.provider.uninstall"
+] as const) {
+  assert.equal(
+    target(loopbackBrowser, actionId, LOCAL_DEVICE_TARGET_ID).availability,
+    "requires-local-host",
+    "loopback Browser must not infer Connectivity provider machine authority without a typed native host executor"
+  );
+  assert.equal(
+    target(loopbackBrowser, actionId, LOCAL_DEVICE_TARGET_ID).reason,
+    "machine-local-context-required"
+  );
+}
 
 for (const action of remoteBrowser.actions) {
   for (const item of action.targets) {

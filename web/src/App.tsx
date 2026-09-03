@@ -17,6 +17,7 @@ import {
   fetchGptConfig,
   fetchHealth,
   fetchIntegrationStatus,
+  fetchProductActions,
   fetchOperatorSession,
   fetchOperatorStatus,
   fetchPasskeyAuthenticationOptions,
@@ -62,6 +63,7 @@ import type {
   HealthModel,
   IntegrationStatusResponse,
   JobSummary,
+  ProductActionsResponse,
   SetupStatusResponse
 } from "./types";
 import { countJobs, summarizeJob } from "./utils";
@@ -368,6 +370,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const [connectivityProviderStatus, setConnectivityProviderStatus] =
     useState<ConnectivityProviderPublicSnapshot | null>(null);
   const [connectivityProviderStatusError, setConnectivityProviderStatusError] = useState<string | null>(null);
+  const [productActions, setProductActions] = useState<ProductActionsResponse | null>(null);
+  const [productActionsError, setProductActionsError] = useState<string | null>(null);
   const [publicRouteCandidateStatus, setPublicRouteCandidateStatus] =
     useState<PublicRouteCandidateSnapshot | null>(null);
   const [publicRouteCandidateError, setPublicRouteCandidateError] = useState<string | null>(null);
@@ -632,6 +636,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       setIntegrationStatusError(null);
       setConnectivityProviderStatus(null);
       setConnectivityProviderStatusError(null);
+      setProductActions(null);
+      setProductActionsError(null);
       setPublicRouteCandidateStatus(null);
       setPublicRouteCandidateError(null);
       setPublicRouteCandidateMutating(false);
@@ -695,6 +701,14 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
       } catch (error) {
         setConnectivityProviderStatus(null);
         setConnectivityProviderStatusError(getErrorMessage(error));
+      }
+      try {
+        const actionResponse = await fetchProductActions();
+        setProductActions(actionResponse);
+        setProductActionsError(null);
+      } catch (error) {
+        setProductActions(null);
+        setProductActionsError(getErrorMessage(error));
       }
       try {
         const routeResponse = await fetchPublicRouteCandidate(token);
@@ -1518,6 +1532,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 exposed={health.exposed}
                 providerStatus={connectivityProviderStatus}
                 providerStatusError={connectivityProviderStatusError}
+                productActions={productActions}
+                productActionsError={productActionsError}
                 routeStatus={publicRouteCandidateStatus}
                 routeStatusError={publicRouteCandidateError}
                 routeMutating={publicRouteCandidateMutating}

@@ -11,6 +11,8 @@ import type {
   ConnectivityProviderPublicSnapshot,
   ConnectivityProviderPublicStatus,
   IntegrationStatusResponse,
+  ProductActionId,
+  ProductActionsResponse,
   PublicRouteBootstrapProofSnapshot,
   PublicRouteBootstrapVerificationReason,
   PublicRouteCandidateSnapshot,
@@ -27,6 +29,8 @@ interface PublicAccessViewProps {
   exposed: boolean;
   providerStatus: ConnectivityProviderPublicSnapshot | null;
   providerStatusError: string | null;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
   routeStatus: PublicRouteCandidateSnapshot | null;
   routeStatusError: string | null;
   routeMutating: boolean;
@@ -99,6 +103,58 @@ function providerActionLabel(
   return copy.actionUninstall;
 }
 
+const CONNECTIVITY_PROVIDER_PRODUCT_ACTION_IDS = {
+  install: "connectivity.provider.install",
+  upgrade: "connectivity.provider.upgrade",
+  uninstall: "connectivity.provider.uninstall"
+} as const satisfies Record<ConnectivityProviderMachineAction, ProductActionId>;
+
+function providerActionExecutionPath(
+  action: ConnectivityProviderMachineAction,
+  productActions: ProductActionsResponse | null,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  const actionId = CONNECTIVITY_PROVIDER_PRODUCT_ACTION_IDS[action];
+  const projection = productActions?.actions.find((candidate) => candidate.id === actionId);
+  if (!projection) return copy.providerTargetAvailabilityUnknown;
+
+  const availableTargets = projection.targets.filter(
+    (target) => target.availability === "available-local" || target.availability === "available-targeted"
+  );
+  if (availableTargets.length > 0) {
+    return `${copy.providerAvailableTargets}: ${availableTargets.map((target) => target.displayName).join(", ")}`;
+  }
+
+  const localTarget = projection.targets.find((target) => target.locality === "local");
+  const remoteNotImplemented = projection.targets.some(
+    (target) => target.locality === "remote" && target.reason === "target-capability-not-implemented"
+  );
+  if (localTarget?.availability === "requires-local-host") {
+    return remoteNotImplemented
+      ? `${copy.providerRequiresLocalHost} · ${copy.providerRemoteNotImplemented}`
+      : copy.providerRequiresLocalHost;
+  }
+  if (remoteNotImplemented) return copy.providerRemoteNotImplemented;
+  return copy.providerTargetAvailabilityUnknown;
+}
+
+function requiresLocalConnectivityHost(
+  providerStatus: ConnectivityProviderPublicSnapshot | null,
+  productActions: ProductActionsResponse | null
+): boolean {
+  return providerStatus?.providers.some((provider) =>
+    provider.actions.some((action) => {
+      if (!action.available) return false;
+      const actionId = CONNECTIVITY_PROVIDER_PRODUCT_ACTION_IDS[action.action];
+      return productActions?.actions
+        .find((candidate) => candidate.id === actionId)
+        ?.targets.some(
+          (target) => target.locality === "local" && target.availability === "requires-local-host"
+        ) === true;
+    })
+  ) ?? false;
+}
+
 const ROUTE_CANDIDATE_PROVIDER_SOURCES = new Set<PublicRouteCandidateSource>([
   "cloudflare-tunnel",
   "ngrok",
@@ -140,6 +196,8 @@ export function PublicAccessView({
   exposed,
   providerStatus,
   providerStatusError,
+  productActions,
+  productActionsError,
   routeStatus,
   routeStatusError,
   routeMutating,
@@ -306,6 +364,7 @@ export function PublicAccessView({
   const detectedProviderCount = providerStatus?.providers.filter(
     (provider) => provider.detection === "detected"
   ).length ?? 0;
+  const providerNeedsLocalHost = requiresLocalConnectivityHost(providerStatus, productActions);
 
   return (
     <div className="view-stack">
@@ -834,12 +893,20 @@ export function PublicAccessView({
         title={copy.providersTitle}
         description={copy.providersDescription}
       >
-        <div className="public-access-provider-bridge">
-          <Button href="chatcockpit://settings/connectivity">
-            {copy.openConnectivityInApp}
-          </Button>
-          <Text type="secondary">{copy.connectivityBridgeDescription}</Text>
-        </div>
+        {providerNeedsLocalHost || productActionsError ? (
+          <div className="public-access-provider-bridge">
+            {providerNeedsLocalHost ? (
+              <Button href="chatcockpit://settings/connectivity">
+                {copy.openConnectivityInApp}
+              </Button>
+            ) : null}
+            <Text type="secondary">
+              {productActionsError
+                ? copy.providerTargetAvailabilityUnknown
+                : copy.connectivityBridgeDescription}
+            </Text>
+          </div>
+        ) : null}
         {providerStatus ? (
           <Collapse
             className="public-access-provider-details"
@@ -856,9 +923,7 @@ export function PublicAccessView({
                 children: (
                   <div className="gpt-facts">
                     {providerStatus.providers.map((provider) => {
-                      const availableActions = provider.actions
-                        .filter((action) => action.available)
-                        .map((action) => providerActionLabel(action.action, copy));
+                      const availableActions = provider.actions.filter((action) => action.available);
                       return (
                         <div className="gpt-fact" key={provider.id}>
                           <span>{provider.displayName}</span>
@@ -870,11 +935,11 @@ export function PublicAccessView({
                               {provider.version ? <span>{provider.version}</span> : null}
                             </span>
                             <Text type="secondary">{providerCapabilitySummary(provider, copy)}</Text>
-                            {availableActions.length > 0 ? (
-                              <Text type="secondary">
-                                {copy.providerMachineActions}: {availableActions.join(" / ")} · {copy.providerUseAppCli}
+                            {availableActions.map((action) => (
+                              <Text type="secondary" key={action.action}>
+                                {copy.providerMachineActions}: {providerActionLabel(action.action, copy)} · {copy.providerExecutionPath}: {providerActionExecutionPath(action.action, productActions, copy)}
                               </Text>
-                            ) : null}
+                            ))}
                           </strong>
                         </div>
                       );

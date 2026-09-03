@@ -432,6 +432,12 @@ export type ProductActionId =
   | "project.discovery"
   | "project.native.associate"
   | "runtime.lifecycle"
+  | "runtime.resource.mutate"
+  | "connectivity.provider.install"
+  | "connectivity.provider.upgrade"
+  | "connectivity.provider.uninstall"
+  | "connectivity.route.intent"
+  | "connectivity.route.cutover"
   | "workspace.read"
   | "capability.read";
 

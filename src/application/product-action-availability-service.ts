@@ -11,6 +11,12 @@ export const PRODUCT_ACTION_IDS = [
   "project.discovery",
   "project.native.associate",
   "runtime.lifecycle",
+  "runtime.resource.mutate",
+  "connectivity.provider.install",
+  "connectivity.provider.upgrade",
+  "connectivity.provider.uninstall",
+  "connectivity.route.intent",
+  "connectivity.route.cutover",
   "workspace.read",
   "capability.read"
 ] as const;
@@ -208,6 +214,33 @@ export class ProductActionAvailabilityService {
         availability: "available-local",
         executionMode: "local-runtime",
         reason: "ready"
+      };
+    }
+
+    if (action === "runtime.resource.mutate") {
+      return {
+        ...targetBase(target),
+        availability: "approval-required",
+        executionMode: "local-runtime",
+        reason: "approval-required"
+      };
+    }
+
+    if (action === "connectivity.route.intent") {
+      return {
+        ...targetBase(target),
+        availability: "available-local",
+        executionMode: "local-runtime",
+        reason: "ready"
+      };
+    }
+
+    if (action === "connectivity.route.cutover") {
+      return {
+        ...targetBase(target),
+        availability: "requires-local-host",
+        executionMode: "none",
+        reason: "machine-local-context-required"
       };
     }
 

@@ -534,16 +534,16 @@ const zhCN: UiCopy = {
     localUnlockFailed: "本机免密登录链接已失效，请从 ChatCockpit App 重新打开本机控制台。"
   },
   dashboard: {
-    boundaryTitle: "Operator Workspace 边界",
+    boundaryTitle: "Host 能力与权限",
     boundaryDescription:
-      "Web Cockpit 负责作业、连续性、资源、审批与集成工作流；Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理。",
+      "Browser 与 Desktop 共享同一套 ChatCockpit 核心工作流；具体动作按 Host 能力、Authority 与执行目标解析，机器秘密与 Host-only 偏好继续保持本机。",
     healthCard: "健康状态",
     modeCard: "运行模式",
     runtimeBuildCard: "Runtime 构建",
     authCard: "鉴权状态",
     completedCard: "已完成作业",
-    summaryTitle: "Operator 工作台概览",
-    summaryDescription: "以只读方式投影机器运行态，并把 Operator 工作流留在 Web Cockpit。",
+    summaryTitle: "ChatCockpit 总览",
+    summaryDescription: "汇总运行时健康、工作进度与连接状态；核心工作流跨 Browser 与 Desktop 共享，动作可用性由 Host 能力、Authority 与目标共同决定。",
     healthLabel: "健康状态",
     authRequiredLabel: "需要鉴权",
     exposedLabel: "已暴露",
@@ -895,16 +895,16 @@ const enUS: UiCopy = {
     localUnlockFailed: "The local passwordless sign-in link expired. Open Local Cockpit again from the ChatCockpit App."
   },
   dashboard: {
-    boundaryTitle: "Operator Workspace boundary",
+    boundaryTitle: "Host capabilities and authority",
     boundaryDescription:
-      "Web Cockpit owns jobs, continuity, resources, approvals, and integration workflows. Runtime lifecycle, access policy, and machine secrets are managed in the ChatCockpit App.",
+      "Browser and Desktop share the same core ChatCockpit workflows. Action availability is resolved from host capability, authority, and execution target, while machine secrets and host-only preferences stay local.",
     healthCard: "Health",
     modeCard: "Mode",
     runtimeBuildCard: "Runtime build",
     authCard: "Auth",
     completedCard: "Jobs Completed",
-    summaryTitle: "Operator Workspace Overview",
-    summaryDescription: "Read-only machine runtime projection with operator workflows kept in Web Cockpit.",
+    summaryTitle: "ChatCockpit overview",
+    summaryDescription: "Review Runtime health, work progress, and connection state in one place. Core workflows are shared across Browser and Desktop, with action availability resolved from host capability, authority, and target.",
     healthLabel: "Health",
     authRequiredLabel: "Auth Required",
     exposedLabel: "Exposed",
