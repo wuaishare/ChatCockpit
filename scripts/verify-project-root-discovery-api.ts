@@ -131,8 +131,10 @@ fs.writeFileSync(
 );
 process.env.CODEX_HOME = codexHome;
 
+let privateThreadDiscoveryCalls = 0;
 const codexAdapter = {
   async listPrivateThreadLocations() {
+    privateThreadDiscoveryCalls += 1;
     return {
       data: [
         {
@@ -174,6 +176,7 @@ try {
     headers: { cookie }
   });
   assert.equal(response.status, 200);
+  assert.equal(privateThreadDiscoveryCalls, 1);
   const body = (await response.json()) as {
     ok: true;
     sources: Array<{ id: string; status: string }>;
@@ -243,6 +246,11 @@ try {
     }
   });
   assert.equal(reconcile.status, 200);
+  assert.equal(
+    privateThreadDiscoveryCalls,
+    1,
+    "native reconciliation must not enumerate Codex thread history"
+  );
   const reconcileBody = (await reconcile.json()) as {
     ok: true;
     created: Array<{ projectSlug: string; repoId: string; sourceId: string; groupId: string }>;
@@ -316,6 +324,7 @@ try {
     headers: { cookie }
   });
   assert.equal(discoveryAfter.status, 200);
+  assert.equal(privateThreadDiscoveryCalls, 2);
   const discoveryAfterBody = (await discoveryAfter.json()) as typeof body;
   const registeredNative = discoveryAfterBody.candidates.find(
     (candidate) => candidate.privatePath === fs.realpathSync.native(nativeProjectRepo)
@@ -334,6 +343,11 @@ try {
     }
   });
   assert.equal(replay.status, 200);
+  assert.equal(
+    privateThreadDiscoveryCalls,
+    2,
+    "idempotent native reconciliation must stay on the native catalog fast path"
+  );
   const replayBody = (await replay.json()) as typeof reconcileBody;
   assert.equal(replayBody.created.length, 0);
   assert.equal(replayBody.reused.length, 2);

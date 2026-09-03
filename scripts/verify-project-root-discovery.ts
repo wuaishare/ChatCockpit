@@ -388,6 +388,22 @@ try {
   );
   assert.equal(sourceResult.truncated, false);
 
+  const runtimePageBeforeNativeOnly = runtimePage;
+  const nativeOnlyResult = await nativeCodexSource.discover(context, {
+    includeSessionHistory: false
+  });
+  assert.equal(
+    runtimePage,
+    runtimePageBeforeNativeOnly,
+    "native-only Project association evidence must not enumerate Codex thread history"
+  );
+  assert.equal(nativeOnlyResult.inspectedContexts, localState.inspectedContexts);
+  assert.equal(nativeOnlyResult.observations.length, localState.roots.length);
+  assert.equal(
+    nativeOnlyResult.observations.some((entry) => entry.signalKind === "native-session-cwd"),
+    false
+  );
+
   process.stdout.write("VERIFY_PROJECT_ROOT_DISCOVERY_OK\n");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

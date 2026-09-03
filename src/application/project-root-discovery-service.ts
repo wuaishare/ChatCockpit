@@ -219,7 +219,7 @@ export class ProjectRootDiscoveryService {
 
   async listCandidates(
     context: OperationContext,
-    input: { sourceIds?: string[] } = {}
+    input: { sourceIds?: string[]; includeSessionHistory?: boolean } = {}
   ): Promise<ProjectRootDiscoveryResult> {
     const snapshot = this.configStore.snapshot();
     const registeredRootByPath = new Map(
@@ -255,7 +255,9 @@ export class ProjectRootDiscoveryService {
     const sourceResults = await Promise.all(
       selectedSources.map(async (source) => {
         try {
-          const result = await source.discover(context);
+          const result = await source.discover(context, {
+            includeSessionHistory: input.includeSessionHistory
+          });
           return {
             source,
             result,

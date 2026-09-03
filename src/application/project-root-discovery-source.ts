@@ -16,6 +16,10 @@ export interface ProjectRootDiscoveryObservation {
   };
 }
 
+export interface ProjectRootDiscoverySourceRequest {
+  includeSessionHistory?: boolean;
+}
+
 export interface ProjectRootDiscoveryObservationSet {
   observations: ProjectRootDiscoveryObservation[];
   inspectedContexts: number;
@@ -31,5 +35,8 @@ export interface ProjectRootDiscoveryObservationSet {
 export interface ProjectRootDiscoverySource {
   readonly id: string;
   readonly displayName: string;
-  discover(context: OperationContext): Promise<ProjectRootDiscoveryObservationSet>;
+  discover(
+    context: OperationContext,
+    input?: ProjectRootDiscoverySourceRequest
+  ): Promise<ProjectRootDiscoveryObservationSet>;
 }

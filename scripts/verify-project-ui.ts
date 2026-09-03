@@ -66,6 +66,12 @@ assert.match(center, /localDiscoveryAvailable/);
 assert.match(center, /action\.id === "project\.native\.associate"/);
 assert.match(center, /reconcileNativeProjects/);
 assert.match(center, /localNativeAssociationAvailable/);
+assert.match(center, /setProjects\(initialResponse\.projects\)/);
+assert.match(center, /setConfigRevision\(initialResponse\.configRevision\)/);
+assert.match(
+  center,
+  /void \(async \(\) => \{[\s\S]*const reconciled = await reconcileNativeProjects\(\)/
+);
 assert.match(cockpit, /fetchProductActions/);
 assert.match(cockpit, /rootManagementAvailable/);
 assert.match(cockpit, /rootManagementHint/);

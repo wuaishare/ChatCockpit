@@ -157,21 +157,25 @@ export function ProjectCenterView({
         (target) => target.locality === "local" && target.availability === "available-local"
       );
 
-      let response = initialResponse;
-      if (localNativeAssociationAvailable && !nativeAssociationAttempted.current) {
-        nativeAssociationAttempted.current = true;
-        try {
-          const reconciled = await reconcileNativeProjects();
-          if (reconciled.created.length > 0) response = await fetchProjects();
-        } catch {
-          nativeAssociationAttempted.current = false;
-        }
-      }
-
-      setProjects(response.projects);
-      setConfigRevision(response.configRevision);
+      setProjects(initialResponse.projects);
+      setConfigRevision(initialResponse.configRevision);
       setProjectRootTargets(rootTargets);
       setProjectDiscoveryTargets(discoveryTargets);
+
+      if (localNativeAssociationAvailable && !nativeAssociationAttempted.current) {
+        nativeAssociationAttempted.current = true;
+        void (async () => {
+          try {
+            const reconciled = await reconcileNativeProjects();
+            if (reconciled.created.length === 0) return;
+            const refreshed = await fetchProjects();
+            setProjects(refreshed.projects);
+            setConfigRevision(refreshed.configRevision);
+          } catch {
+            nativeAssociationAttempted.current = false;
+          }
+        })();
+      }
     } catch (loadError) {
       setProjects([]);
       setConfigRevision(null);

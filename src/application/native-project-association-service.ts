@@ -85,7 +85,8 @@ export class NativeProjectAssociationService {
 
   async reconcile(context: OperationContext): Promise<NativeProjectAssociationResult> {
     const discovery = await this.discovery.listCandidates(context, {
-      sourceIds: [...this.trustedSourceIds]
+      sourceIds: [...this.trustedSourceIds],
+      includeSessionHistory: false
     });
     const candidates = new Map(discovery.candidates.map((candidate) => [candidate.candidateId, candidate]));
     const created: NativeProjectAssociationProjection[] = [];
