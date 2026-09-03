@@ -21,6 +21,8 @@ import type {
   GitStatusResponse,
   GitStatusEntry,
   GitStageResponse,
+  GitBranchPayload,
+  GitBranchResponse,
   GitSyncPayload,
   GitSyncResponse,
   GitPushPayload,
@@ -171,7 +173,7 @@ function gitHead(repoRoot: string, runner: GovernedGitCommandRunner): string {
   return gitRevision(repoRoot, "HEAD", runner);
 }
 
-function gitBranch(repoRoot: string, runner: GovernedGitCommandRunner): string | null {
+function gitCurrentBranch(repoRoot: string, runner: GovernedGitCommandRunner): string | null {
   const result = runner.run({
     repoRoot,
     args: governedGitArgs(["symbolic-ref", "--quiet", "--short", "HEAD"]),
@@ -333,13 +335,12 @@ function assertValidUpstreamMergeRef(
   }
 }
 
-function gitUpstreamRemote(
+function resolveGovernedGitRemote(
   repoRoot: string,
-  branch: string,
+  remote: string,
+  mergeRef: string,
   runner: GovernedGitCommandRunner
 ): GovernedGitUpstream {
-  const remote = runGitText(repoRoot, ["config", "--get", `branch.${branch}.remote`], 5_000, runner);
-  const mergeRef = runGitText(repoRoot, ["config", "--get", `branch.${branch}.merge`], 5_000, runner);
   if (
     !remote ||
     remote === "." ||
@@ -374,6 +375,36 @@ function gitUpstreamRemote(
   return { remote, mergeRef, trackingRef, fetchUrl };
 }
 
+function gitUpstreamRemote(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): GovernedGitUpstream {
+  const remote = runGitText(repoRoot, ["config", "--get", `branch.${branch}.remote`], 5_000, runner);
+  const mergeRef = runGitText(repoRoot, ["config", "--get", `branch.${branch}.merge`], 5_000, runner);
+  return resolveGovernedGitRemote(repoRoot, remote, mergeRef, runner);
+}
+
+function gitFirstPublishRemote(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): GovernedGitUpstream {
+  const remotes = runGitText(repoRoot, ["remote"], 5_000, runner)
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (remotes.length !== 1) {
+    throw new Error("Governed Git first publish requires exactly one configured remote");
+  }
+  return resolveGovernedGitRemote(
+    repoRoot,
+    remotes[0] ?? "",
+    `refs/heads/${branch}`,
+    runner
+  );
+}
+
 function gitPushUrl(
   repoRoot: string,
   upstream: GovernedGitUpstream,
@@ -400,6 +431,84 @@ function gitPushUrl(
     throw new Error("Governed Git push requires the push URL to match the configured upstream fetch URL");
   }
   return pushUrl;
+}
+
+function gitRemoteDefaultBranchRef(
+  repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): string {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["ls-remote", "--symref", upstream.fetchUrl, "HEAD"]),
+    timeoutMs: 30_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git first publish could not resolve the remote default branch safely");
+  }
+  const defaultRefs = result.stdout
+    .split(/\r?\n/)
+    .map((line) => /^ref:\s+(\S+)\s+HEAD$/.exec(line.trim())?.[1] ?? null)
+    .filter((value): value is string => Boolean(value));
+  if (defaultRefs.length !== 1) {
+    throw new Error("Governed Git first publish requires exactly one symbolic remote default branch");
+  }
+  const defaultRef = defaultRefs[0] ?? "";
+  assertValidUpstreamMergeRef(repoRoot, defaultRef, runner);
+  return defaultRef;
+}
+
+function gitRemoteBranchHead(
+  repoRoot: string,
+  upstream: GovernedGitUpstream,
+  runner: GovernedGitCommandRunner
+): string | null {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs([
+      "ls-remote",
+      "--exit-code",
+      "--refs",
+      upstream.fetchUrl,
+      upstream.mergeRef
+    ]),
+    timeoutMs: 30_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 2 && !result.stdout.trim()) return null;
+  if (result.status !== 0) {
+    throw new Error("Governed Git first publish could not inspect the remote branch safely");
+  }
+  const rows = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (rows.length !== 1) {
+    throw new Error("Governed Git first publish requires one exact same-name remote branch result");
+  }
+  const match = /^([0-9a-fA-F]{40,64})\s+(refs\/heads\/\S+)$/.exec(rows[0] ?? "");
+  if (!match || match[2] !== upstream.mergeRef) {
+    throw new Error("Governed Git first publish received an unexpected remote branch result");
+  }
+  return match[1] ?? null;
+}
+
+function assertRemoteDefaultAncestor(
+  repoRoot: string,
+  baselineHead: string,
+  head: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["merge-base", "--is-ancestor", baselineHead, head]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 1) {
+    throw new Error("Governed Git first publish requires the current branch to descend from the remote default branch");
+  }
+  if (result.status !== 0) {
+    throw new Error("Governed Git first publish could not verify remote ancestry safely");
+  }
 }
 
 function assertPushConfigurationSafe(
@@ -522,6 +631,63 @@ function assertGitWorktreeClean(
   if (status) {
     throw new Error("Governed Git remote mutation requires a completely clean worktree and index");
   }
+}
+
+function assertGitBranchWorktreeClean(
+  repoRoot: string,
+  runner: GovernedGitCommandRunner
+): void {
+  const status = runGitText(
+    repoRoot,
+    ["status", "--porcelain", "-uall"],
+    5_000,
+    runner
+  );
+  if (status) {
+    throw new Error("Governed Git branch mutation requires a completely clean worktree and index");
+  }
+}
+
+function assertValidLocalBranchName(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): string {
+  if (
+    !branch ||
+    branch !== branch.trim() ||
+    branch.startsWith("-") ||
+    branch.includes("\0") ||
+    branch.includes("@{")
+  ) {
+    throw new Error("Governed Git branch name is invalid");
+  }
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["check-ref-format", "--branch", branch]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status !== 0) {
+    throw new Error("Governed Git branch name is invalid");
+  }
+  return branch;
+}
+
+function localGitBranchExists(
+  repoRoot: string,
+  branch: string,
+  runner: GovernedGitCommandRunner
+): boolean {
+  const result = runner.run({
+    repoRoot,
+    args: governedGitArgs(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]),
+    timeoutMs: 5_000,
+    env: buildGovernedGitEnv()
+  });
+  if (result.status === 0) return true;
+  if (result.status === 1) return false;
+  throw new Error("Governed Git could not inspect local branch state safely");
 }
 
 function gitChangedPathsBetween(
@@ -745,6 +911,137 @@ export function gitStage(
   };
 }
 
+export function gitBranch(
+  paths: TokenPilotPaths,
+  payload: GitBranchPayload,
+  runner: GovernedGitCommandRunner = defaultGovernedGitCommandRunner
+): GitBranchResponse {
+  const repoRoot = assertRepoAllowed(paths, payload.repoId);
+  assertGitRepositoryRoot(repoRoot, runner);
+  const targetBranch = assertValidLocalBranchName(repoRoot, payload.branch, runner);
+  const branchBefore = gitCurrentBranch(repoRoot, runner);
+  const headBefore = gitHead(repoRoot, runner);
+
+  if (!branchBefore) {
+    throw new Error("Governed Git branch mutation requires an attached current branch");
+  }
+  if (
+    payload.expectedCurrentBranch !== undefined &&
+    payload.expectedCurrentBranch !== branchBefore
+  ) {
+    throw new Error("Governed Git branch mutation detected current-branch drift");
+  }
+
+  if (payload.action === "create") {
+    assertGitBranchWorktreeClean(repoRoot, runner);
+    if (localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch create refuses an existing local branch");
+    }
+    runGitText(repoRoot, ["switch", "-c", targetBranch], 10_000, runner);
+    const branchAfter = gitCurrentBranch(repoRoot, runner);
+    const headAfter = gitHead(repoRoot, runner);
+    if (branchAfter !== targetBranch || headAfter !== headBefore) {
+      throw new Error("Governed Git branch create produced an unexpected repository state");
+    }
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      targetBranch,
+      branchBefore,
+      branchAfter,
+      headBefore,
+      headAfter,
+      changed: true,
+      paths: [],
+      state: "created-and-switched"
+    };
+  }
+
+  if (payload.action === "switch") {
+    if (targetBranch === branchBefore) {
+      return {
+        ok: true,
+        repoId: payload.repoId,
+        action: payload.action,
+        targetBranch,
+        branchBefore,
+        branchAfter: branchBefore,
+        headBefore,
+        headAfter: headBefore,
+        changed: false,
+        paths: [],
+        state: "already-current"
+      };
+    }
+    assertGitBranchWorktreeClean(repoRoot, runner);
+    if (!localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch switch requires an existing local branch");
+    }
+    const targetHead = gitRevision(repoRoot, `refs/heads/${targetBranch}`, runner);
+    const changedPaths = assertFastForwardPathsPublicSafe(
+      repoRoot,
+      headBefore,
+      targetHead,
+      runner
+    );
+    assertNoExternalCheckoutFilters(repoRoot, changedPaths, runner);
+    runGitText(repoRoot, ["switch", "--no-guess", targetBranch], 15_000, runner);
+    const branchAfter = gitCurrentBranch(repoRoot, runner);
+    const headAfter = gitHead(repoRoot, runner);
+    if (branchAfter !== targetBranch || headAfter !== targetHead) {
+      throw new Error("Governed Git branch switch produced an unexpected repository state");
+    }
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      targetBranch,
+      branchBefore,
+      branchAfter,
+      headBefore,
+      headAfter,
+      changed: true,
+      paths: changedPaths,
+      state: "switched"
+    };
+  }
+
+  if (payload.action === "delete") {
+    assertGitBranchWorktreeClean(repoRoot, runner);
+    if (targetBranch === branchBefore) {
+      throw new Error("Governed Git branch delete refuses the current branch");
+    }
+    if (!localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch delete requires an existing local branch");
+    }
+    runGitText(repoRoot, ["branch", "-d", "--", targetBranch], 10_000, runner);
+    if (localGitBranchExists(repoRoot, targetBranch, runner)) {
+      throw new Error("Governed Git branch delete did not remove the requested local branch");
+    }
+    const branchAfter = gitCurrentBranch(repoRoot, runner);
+    const headAfter = gitHead(repoRoot, runner);
+    if (branchAfter !== branchBefore || headAfter !== headBefore) {
+      throw new Error("Governed Git branch delete changed the current checkout unexpectedly");
+    }
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      action: payload.action,
+      targetBranch,
+      branchBefore,
+      branchAfter,
+      headBefore,
+      headAfter,
+      changed: true,
+      paths: [],
+      state: "deleted"
+    };
+  }
+
+  throw new Error(`Unsupported governed Git branch action: ${String(payload.action)}`);
+}
+
 export function gitSync(
   paths: TokenPilotPaths,
   payload: GitSyncPayload,
@@ -753,7 +1050,7 @@ export function gitSync(
   const repoRoot = assertRepoAllowed(paths, payload.repoId);
   assertGitRepositoryRoot(repoRoot, runner);
   const headBefore = gitHead(repoRoot, runner);
-  const branch = gitBranch(repoRoot, runner);
+  const branch = gitCurrentBranch(repoRoot, runner);
 
   if (payload.action === "worktree-prune") {
     runGitText(
@@ -883,10 +1180,177 @@ export function gitPush(
   assertGitWorktreeClean(repoRoot, runner);
   assertPushHistoryComplete(repoRoot, runner);
 
-  const branch = gitBranch(repoRoot, runner);
+  const branch = gitCurrentBranch(repoRoot, runner);
   if (!branch) {
     throw new Error("Governed Git push requires an attached branch");
   }
+
+  if (payload.publishCurrentBranch === true) {
+    const configuredRemote = runOptionalGitConfig(
+      repoRoot,
+      ["config", "--get", `branch.${branch}.remote`],
+      runner
+    );
+    const configuredMerge = runOptionalGitConfig(
+      repoRoot,
+      ["config", "--get", `branch.${branch}.merge`],
+      runner
+    );
+    if (configuredRemote.length > 1 || configuredMerge.length > 1) {
+      throw new Error("Governed Git first publish refuses ambiguous branch upstream configuration");
+    }
+    const hasConfiguredRemote = configuredRemote.length === 1;
+    const hasConfiguredMerge = configuredMerge.length === 1;
+    if (hasConfiguredRemote !== hasConfiguredMerge) {
+      throw new Error("Governed Git first publish refuses a partially configured branch upstream");
+    }
+
+    const canonicalUpstream = gitFirstPublishRemote(repoRoot, branch, runner);
+    const recoveredUpstream = hasConfiguredRemote
+      ? resolveGovernedGitRemote(
+          repoRoot,
+          configuredRemote[0] ?? "",
+          configuredMerge[0] ?? "",
+          runner
+        )
+      : null;
+    if (
+      recoveredUpstream &&
+      (
+        recoveredUpstream.remote !== canonicalUpstream.remote ||
+        recoveredUpstream.mergeRef !== canonicalUpstream.mergeRef ||
+        recoveredUpstream.fetchUrl !== canonicalUpstream.fetchUrl
+      )
+    ) {
+      throw new Error("Governed Git first publish retry requires the canonical same-name upstream");
+    }
+
+    const upstream = recoveredUpstream ?? canonicalUpstream;
+    const pushUrl = gitPushUrl(repoRoot, upstream, runner);
+    assertPushConfigurationSafe(repoRoot, upstream, runner);
+
+    const head = gitHead(repoRoot, runner);
+    if (!/^[0-9a-fA-F]{40,64}$/.test(head)) {
+      throw new Error("Governed Git first publish could not resolve an immutable HEAD object id safely");
+    }
+    const defaultRef = gitRemoteDefaultBranchRef(repoRoot, upstream, runner);
+    const baselineHead = fetchExactUpstreamToFetchHead(
+      repoRoot,
+      { ...upstream, mergeRef: defaultRef },
+      runner
+    );
+    if (!/^[0-9a-fA-F]{40,64}$/.test(baselineHead)) {
+      throw new Error("Governed Git first publish could not resolve the remote default branch object id safely");
+    }
+    if (gitHead(repoRoot, runner) !== head) {
+      throw new Error("Governed Git first publish refuses a HEAD that changed during remote baseline verification");
+    }
+    assertRemoteDefaultAncestor(repoRoot, baselineHead, head, runner);
+    const comparison = gitAheadBehindRevision(repoRoot, "FETCH_HEAD", runner);
+    if (comparison.behind > 0) {
+      throw new Error("Governed Git first publish refuses history that is behind the remote default branch");
+    }
+
+    const outgoing = assertOutgoingCommitPathsSafe(
+      repoRoot,
+      baselineHead,
+      head,
+      runner
+    );
+    if (gitHead(repoRoot, runner) !== head) {
+      throw new Error("Governed Git first publish refuses a HEAD that changed during publication preparation");
+    }
+
+    const existingRemoteHead = gitRemoteBranchHead(repoRoot, upstream, runner);
+    if (recoveredUpstream && existingRemoteHead !== head) {
+      throw new Error("Governed Git first publish retry requires the same-name remote branch at the exact current HEAD");
+    }
+    if (!recoveredUpstream && existingRemoteHead !== null && existingRemoteHead !== head) {
+      throw new Error("Governed Git first publish refuses an existing same-name remote branch at a different commit");
+    }
+
+    let pushed = false;
+    if (!recoveredUpstream && existingRemoteHead === null) {
+      runGitText(
+        repoRoot,
+        [
+          "-c",
+          "push.followTags=false",
+          "-c",
+          "push.gpgSign=false",
+          "-c",
+          "push.recurseSubmodules=no",
+          "push",
+          "--porcelain",
+          "--no-verify",
+          "--recurse-submodules=no",
+          `--force-with-lease=${upstream.mergeRef}:`,
+          pushUrl,
+          `${head}:${upstream.mergeRef}`
+        ],
+        120_000,
+        runner
+      );
+      pushed = true;
+    }
+
+    if (gitHead(repoRoot, runner) !== head || gitCurrentBranch(repoRoot, runner) !== branch) {
+      throw new Error("Governed Git first publish refuses local branch drift after remote publication");
+    }
+
+    runGitText(
+      repoRoot,
+      [
+        "fetch",
+        "--no-recurse-submodules",
+        "--no-tags",
+        upstream.fetchUrl,
+        `${upstream.mergeRef}:${upstream.trackingRef}`
+      ],
+      60_000,
+      runner
+    );
+    if (gitRevision(repoRoot, upstream.trackingRef, runner) !== head) {
+      throw new Error("Governed Git first publish could not verify the published remote-tracking commit");
+    }
+
+    if (!recoveredUpstream) {
+      runGitText(
+        repoRoot,
+        ["branch", `--set-upstream-to=${upstream.remote}/${branch}`, "--", branch],
+        5_000,
+        runner
+      );
+    }
+    const configured = gitUpstreamRemote(repoRoot, branch, runner);
+    if (
+      configured.remote !== upstream.remote ||
+      configured.mergeRef !== upstream.mergeRef ||
+      configured.fetchUrl !== upstream.fetchUrl
+    ) {
+      throw new Error("Governed Git first publish did not establish the expected same-name upstream");
+    }
+    if (gitHead(repoRoot, runner) !== head || gitCurrentBranch(repoRoot, runner) !== branch) {
+      throw new Error("Governed Git first publish refuses local branch drift during upstream setup");
+    }
+
+    return {
+      ok: true,
+      repoId: payload.repoId,
+      branch,
+      upstreamRemote: upstream.remote,
+      head,
+      upstreamBefore: null,
+      aheadBefore: comparison.ahead,
+      behindBefore: comparison.behind,
+      pushed,
+      paths: outgoing.paths,
+      pathCount: outgoing.pathCount,
+      pathsTruncated: outgoing.pathsTruncated,
+      state: "published"
+    };
+  }
+
   const upstream = gitUpstreamRemote(repoRoot, branch, runner);
   const pushUrl = gitPushUrl(repoRoot, upstream, runner);
   assertPushConfigurationSafe(repoRoot, upstream, runner);

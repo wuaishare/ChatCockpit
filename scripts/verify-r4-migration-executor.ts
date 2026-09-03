@@ -9,6 +9,7 @@ import {
   ContinuityDatabase,
   LATEST_CONTINUITY_SCHEMA_VERSION
 } from "../src/continuity/database.js";
+import { USER_CONFIG_SCHEMA_VERSION } from "../src/core/user-config-schema.js";
 import { migrateChatCockpitTargetContinuityDatabase } from "../src/migration/chatcockpit-target-continuity.js";
 import {
   backupR4SqliteDatabaseForMigration,
@@ -276,7 +277,7 @@ try {
     defaultRepoId: string;
     repoMappings: Record<string, { path: string }>;
   };
-  assert.equal(stagedConfig.schemaVersion, 1);
+  assert.equal(stagedConfig.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
   assert.equal(stagedConfig.defaultRepoId, "primary");
   assert.equal("tokenpilot" in stagedConfig.repoMappings, false);
 
@@ -448,7 +449,7 @@ try {
     snapshotRoot: currentCompatibleFixture.snapshotRoot,
     stagingRoot: currentCompatibleFixture.stagingRoot
   });
-  assert.equal(currentCompatibleResult.legacyContinuitySourceContract, "v21-compatible");
+  assert.equal(currentCompatibleResult.legacyContinuitySourceContract, "v22-compatible");
   assert.equal(
     currentCompatibleResult.targetContinuitySchemaVersion,
     LATEST_CONTINUITY_SCHEMA_VERSION

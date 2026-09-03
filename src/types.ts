@@ -584,6 +584,31 @@ export interface GitStageResponse {
   error?: string;
 }
 
+export type GitBranchAction = "create" | "switch" | "delete";
+
+export interface GitBranchPayload extends DirectExecutorPreference {
+  repoId: string;
+  sessionId?: string;
+  action: GitBranchAction;
+  branch: string;
+  expectedCurrentBranch?: string;
+}
+
+export interface GitBranchResponse {
+  ok: boolean;
+  repoId: string;
+  action: GitBranchAction;
+  targetBranch: string;
+  branchBefore: string | null;
+  branchAfter: string | null;
+  headBefore: string;
+  headAfter: string;
+  changed: boolean;
+  paths: string[];
+  state: "created-and-switched" | "switched" | "already-current" | "deleted";
+  error?: string;
+}
+
 export type GitSyncAction = "fetch" | "fast-forward" | "worktree-prune";
 
 export interface GitSyncPayload extends DirectExecutorPreference {
@@ -612,6 +637,7 @@ export interface GitSyncResponse {
 export interface GitPushPayload extends DirectExecutorPreference {
   repoId: string;
   sessionId?: string;
+  publishCurrentBranch?: boolean;
 }
 
 export interface GitPushResponse {
@@ -620,14 +646,14 @@ export interface GitPushResponse {
   branch: string;
   upstreamRemote: string;
   head: string;
-  upstreamBefore: string;
+  upstreamBefore: string | null;
   aheadBefore: number;
   behindBefore: number;
   pushed: boolean;
   paths: string[];
   pathCount: number;
   pathsTruncated: boolean;
-  state: "pushed" | "up-to-date";
+  state: "pushed" | "up-to-date" | "published";
   error?: string;
 }
 

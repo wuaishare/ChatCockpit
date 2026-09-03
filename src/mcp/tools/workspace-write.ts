@@ -7,6 +7,7 @@ import {
   fileEditToolOutputSchema,
   fileMutateToolOutputSchema,
   fileWriteToolOutputSchema,
+  gitBranchToolOutputSchema,
   gitCommitToolOutputSchema,
   gitPushToolOutputSchema,
   gitStageToolOutputSchema,
@@ -125,6 +126,7 @@ export function buildWorkspaceWriteTools(
     fileEditSchema,
     fileMutateSchema,
     fileWriteSchema,
+    gitBranchSchema,
     gitCommitSchema,
     gitPushSchema,
     gitStageSchema,
@@ -153,6 +155,9 @@ export function buildWorkspaceWriteTools(
     z.object({ idempotencyKey: idempotencyKeySchema })
   );
   const gitStageMcpSchema = gitStageSchema.extend({
+    idempotencyKey: idempotencyKeySchema
+  });
+  const gitBranchMcpSchema = gitBranchSchema.extend({
     idempotencyKey: idempotencyKeySchema
   });
   const gitSyncMcpSchema = gitSyncSchema.and(
@@ -446,6 +451,36 @@ export function buildWorkspaceWriteTools(
       }
     }),
     defineMcpTool({
+      name: toolName("git.branch"),
+      title: "Create, switch, or delete a governed local branch",
+      description:
+        "Perform one governed local branch lifecycle action. create starts a new local branch at the exact current HEAD and switches to it; switch accepts only an existing local branch and validates all checkout paths and filter attributes before changing the worktree; delete refuses the current branch and uses merge-safe git branch -d only, never force deletion. All mutations require a clean worktree/index, an attached current branch, optional expected-current-branch drift protection, workspace writer authority, and an idempotency key. Remote branch DWIM, arbitrary revisions, caller-supplied Git options and shell execution are not exposed.",
+      inputSchema: gitBranchMcpSchema,
+      outputSchema: gitBranchToolOutputSchema,
+      annotations: destructiveMutationAnnotations,
+      handler: async (context, input) => {
+        const { idempotencyKey, ...payload } = input;
+        const execution = await services.idempotency.execute(
+          toolName("git.branch"),
+          idempotencyKey,
+          payload,
+          async () => {
+            const value = await services.chatDirect.gitBranch(context, payload);
+            return mutationValue(
+              value as unknown as Record<string, unknown>,
+              value.execution.changedPaths,
+              gitEvidenceHints
+            );
+          }
+        );
+        return withIdempotency(
+          execution.value,
+          idempotencyKey,
+          execution.replayed
+        );
+      }
+    }),
+    defineMcpTool({
       name: toolName("git.sync"),
       title: "Synchronize repository with configured upstream",
       description:
@@ -496,9 +531,9 @@ export function buildWorkspaceWriteTools(
     }),
     defineMcpTool({
       name: toolName("git.push"),
-      title: "Push current committed HEAD to configured upstream",
+      title: "Push or first-publish current committed HEAD",
       description:
-        "Push only the exact current committed HEAD object to the current attached branch's configured upstream branch. The operation requires a completely clean worktree/index and complete non-shallow, non-grafted history; resolves exactly one validated upstream HTTPS/SSH URL; requires the push URL to match that fetch URL; fetches only the configured upstream branch with tags and repository remote.fetch refspecs ignored into FETCH_HEAD; refuses HEAD drift, behind or diverged history, unsafe credential helpers and push configuration, and any non-commit-safe outgoing path before pushing. All outgoing paths are audited, while at most 500 are returned together with pathCount and pathsTruncated metadata. The final push uses the immutable HEAD object id and validated refs/heads target and never accepts caller-supplied remotes, refspecs, branches, tags, delete, force, or arbitrary Git options. Hooks, signing, follow-tags, push options, custom receive-pack, mirror semantics, submodule recursion, replacement refs, unsafe TLS overrides, and dangerous inherited Git process settings are disabled or refused. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
+        "Push only the exact current committed HEAD object through governed Git. By default the current attached branch must already have one configured upstream. With publishCurrentBranch=true, the branch must have no upstream: ChatCockpit requires exactly one safe configured remote, resolves its symbolic default branch without assuming a branch name, requires that default history to be an ancestor of the immutable current HEAD, audits every outgoing path, and publishes only to the same-name refs/heads target. A server-generated empty force-with-lease precondition is used only to atomically require a missing remote branch; callers still cannot supply remotes, refspecs, branches, force, delete, tags, or arbitrary Git options. If the same-name remote already points to the exact audited HEAD, first-publish mode may recover by establishing the standard tracking upstream without rewriting the remote. All modes require a completely clean worktree/index and complete non-shallow, non-grafted history; validate HTTPS/SSH fetch and push URLs, credential helpers and push configuration; refuse HEAD drift and unsafe paths; disable hooks, signing, follow-tags, push options, custom receive-pack, mirror semantics, submodule recursion, replacement refs, unsafe TLS overrides, and dangerous inherited Git process settings. OAuth MCP callers receive bounded workspace writer authority automatically; callers using an explicit chat-direct session must own its active writer lease. An idempotency key is always required.",
       inputSchema: gitPushMcpSchema,
       outputSchema: gitPushToolOutputSchema,
       annotations: openWorldReversibleMutationAnnotations,

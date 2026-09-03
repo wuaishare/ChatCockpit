@@ -95,20 +95,32 @@ if (provenance.buildId !== null) assert.match(provenance.buildId, /^\d{10}(?:\d{
 if (provenance.revision !== null) assert.match(provenance.revision, /^[a-f0-9]{7,40}$/i);
 if (provenance.builtAt !== null) assert.equal(Number.isNaN(Date.parse(provenance.builtAt)), false);
 if (provenance.sourceDirty !== null) assert.equal(typeof provenance.sourceDirty, "boolean");
-assert.match(provenance.backendSha256 ?? "", /^[a-f0-9]{64}$/);
-assert.match(provenance.webSha256 ?? "", /^[a-f0-9]{64}$/);
 
 const expectedCertifiedRevision =
   process.env.CHATCOCKPIT_EXPECTED_BUILD_REVISION?.trim().toLowerCase() || currentGitRevision();
 if (requireClean) assert.ok(expectedCertifiedRevision, "certified build requires an expected revision");
-const integrity = verifyRuntimeBuildIntegrity(repoRoot, {
-  requireCleanSource: requireClean,
-  expectedRevision: requireClean ? expectedCertifiedRevision : null
-});
-assert.equal(integrity.ok, true, `current build integrity failed: ${integrity.code}`);
-assert.equal(integrity.code, "ok");
-assert.equal(verifyWebBuildGeneration(repoRoot).ok, true);
-assert.equal(verifyWebBuildIntegrity(repoRoot).ok, true);
+
+const hasPersistedRuntimeProvenance = fs.existsSync(
+  path.join(repoRoot, "dist", "build-provenance.json")
+);
+if (requireClean || hasPersistedRuntimeProvenance) {
+  assert.match(provenance.backendSha256 ?? "", /^[a-f0-9]{64}$/);
+  assert.match(provenance.webSha256 ?? "", /^[a-f0-9]{64}$/);
+  const integrity = verifyRuntimeBuildIntegrity(repoRoot, {
+    requireCleanSource: requireClean,
+    expectedRevision: requireClean ? expectedCertifiedRevision : null
+  });
+  assert.equal(integrity.ok, true, `current build integrity failed: ${integrity.code}`);
+  assert.equal(integrity.code, "ok");
+  assert.equal(verifyWebBuildGeneration(repoRoot).ok, true);
+  assert.equal(verifyWebBuildIntegrity(repoRoot).ok, true);
+} else {
+  assert.equal(provenance.backendSha256, null);
+  assert.equal(provenance.webSha256, null);
+  assert.equal(verifyRuntimeBuildIntegrity(repoRoot).code, "provenance-unavailable");
+  assert.equal(verifyWebBuildGeneration(repoRoot).code, "provenance-unavailable");
+  assert.equal(verifyWebBuildIntegrity(repoRoot).code, "provenance-unavailable");
+}
 
 const health = buildHealthStatusSnapshot();
 assert.deepEqual(health.build, {

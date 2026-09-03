@@ -355,6 +355,12 @@ try {
   fs.rmSync(invalidTimeoutRoot, { recursive: true, force: true });
 }
 
+if (process.platform !== "darwin") {
+  process.stdout.write(`VERIFY_MACOS_LOCAL_SERVICES_NATIVE_FIXTURE_SKIPPED platform=${process.platform}\n`);
+  process.stdout.write("VERIFY_MACOS_LOCAL_SERVICES_OK\n");
+  process.exit(0);
+}
+
 const fallbackRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-macos-health-fallback-"));
 try {
   const binDir = path.join(fallbackRoot, "bin");

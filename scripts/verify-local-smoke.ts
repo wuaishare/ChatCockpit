@@ -1268,7 +1268,7 @@ async function verifyPublicSafeGitBoundaries(): Promise<void> {
 
     const guardedCommit = gitCommit(paths, "primary", "should not commit unsafe staged path");
     assert.equal(guardedCommit.ok, false);
-    assert.match(guardedCommit.error ?? "", /public-unsafe paths are staged/);
+    assert.match(guardedCommit.error ?? "", /non-commit-safe paths/);
 
     const cached = spawnSync("git", ["diff", "--cached", "--name-only"], {
       cwd: paths.repoRoot,

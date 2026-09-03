@@ -81,7 +81,7 @@ try {
     : fs.realpathSync.native("/tmp");
   const canonicalTmpGlob = `${slashTmpRoot.replace(/\/$/u, "")}/**`;
   const canonicalTmpPattern = new RegExp(
-    canonicalTmpGlob.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    `"${canonicalTmpGlob.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*=`
   );
   const scratchInsideCanonicalTmp = (() => {
     const relative = path.relative(slashTmpRoot, scratchMatch[1]);

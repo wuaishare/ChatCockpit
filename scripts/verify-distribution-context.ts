@@ -8,6 +8,7 @@ import {
   buildSourceDistributionContext
 } from "../src/core/distribution-context.js";
 import { loadUserConfigForPaths } from "../src/core/config.js";
+import { USER_CONFIG_SCHEMA_VERSION } from "../src/core/user-config-schema.js";
 import { buildPaths } from "../src/core/paths.js";
 
 function canonical(value: string): string {
@@ -56,7 +57,7 @@ const originalConfigPath = process.env.CHATCOCKPIT_CONFIG_PATH;
 const packagedEnvOverride = path.join(tempRoot, "packaged-env-override.json");
 process.env.CHATCOCKPIT_CONFIG_PATH = packagedEnvOverride;
 const packagedConfig = loadUserConfigForPaths(packagedPaths);
-assert.equal(packagedConfig.schemaVersion, 1);
+assert.equal(packagedConfig.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
 assert.equal(packagedConfig.defaultRepoId, "primary");
 assert.equal(fs.existsSync(packagedEnvOverride), false);
 assert.equal(packagedConfig.repoMappings.primary?.path, canonical(workspaceRoot));
@@ -80,7 +81,7 @@ const sourcePaths = buildPaths(source);
 const sourceDynamicConfigPath = path.join(tempRoot, "source-dynamic-config.json");
 process.env.CHATCOCKPIT_CONFIG_PATH = sourceDynamicConfigPath;
 const sourceConfig = loadUserConfigForPaths(sourcePaths);
-assert.equal(sourceConfig.schemaVersion, 1);
+assert.equal(sourceConfig.schemaVersion, USER_CONFIG_SCHEMA_VERSION);
 assert.equal(sourceConfig.defaultRepoId, "primary");
 assert.equal(fs.existsSync(sourceDynamicConfigPath), true);
 assert.equal(sourceConfig.repoMappings.primary?.path, canonical(sourceRoot));

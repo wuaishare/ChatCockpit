@@ -30,6 +30,7 @@ import type {
   FileReadPayload,
   FileWritePayload,
   GitCommitPayload,
+  GitBranchPayload,
   GitPushPayload,
   GitStagePayload,
   GitSyncPayload,
@@ -1123,6 +1124,24 @@ export class ChatDirectService {
     try {
       const selection = this.select("git.stage", "write", payload.executorId);
       const value = this.git.stage(context, payload);
+      return {
+        ...value,
+        execution: selectionMetadata(selection, value.paths)
+      };
+    } finally {
+      this.releaseMutationAuthority(context, authority);
+    }
+  }
+
+  async gitBranch(context: OperationContext, payload: GitBranchPayload) {
+    const authority = this.acquireMutationAuthority(
+      context,
+      payload.repoId,
+      payload.sessionId
+    );
+    try {
+      const selection = this.select("git.branch", "write", payload.executorId);
+      const value = this.git.branch(context, payload);
       return {
         ...value,
         execution: selectionMetadata(selection, value.paths)

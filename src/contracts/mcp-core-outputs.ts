@@ -214,6 +214,22 @@ export const gitStageToolOutputSchema = z.object({
   execution: chatDirectExecutionSchema
 }).merge(mutationEnvelopeSchema);
 
+export const gitBranchToolOutputSchema = z.object({
+  ok: z.boolean(),
+  repoId: z.string().min(1),
+  action: z.enum(["create", "switch", "delete"]),
+  targetBranch: z.string().min(1),
+  branchBefore: z.string().nullable(),
+  branchAfter: z.string().nullable(),
+  headBefore: z.string(),
+  headAfter: z.string(),
+  changed: z.boolean(),
+  paths: z.array(z.string().max(1024)).max(500),
+  state: z.enum(["created-and-switched", "switched", "already-current", "deleted"]),
+  error: z.string().optional(),
+  execution: chatDirectExecutionSchema
+}).merge(mutationEnvelopeSchema);
+
 export const gitSyncToolOutputSchema = z.object({
   ok: z.boolean(),
   repoId: z.string().min(1),
@@ -237,14 +253,14 @@ export const gitPushToolOutputSchema = z.object({
   branch: z.string(),
   upstreamRemote: z.string(),
   head: z.string(),
-  upstreamBefore: z.string(),
+  upstreamBefore: z.string().nullable(),
   aheadBefore: z.number().int().nonnegative(),
   behindBefore: z.number().int().nonnegative(),
   pushed: z.boolean(),
   paths: z.array(z.string().max(1024)).max(500),
   pathCount: z.number().int().nonnegative(),
   pathsTruncated: z.boolean(),
-  state: z.enum(["pushed", "up-to-date"]),
+  state: z.enum(["pushed", "up-to-date", "published"]),
   error: z.string().optional(),
   execution: chatDirectExecutionSchema
 }).merge(mutationEnvelopeSchema);
