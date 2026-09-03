@@ -575,10 +575,13 @@ async function main(): Promise<void> {
         }>;
       };
       const device = body.devices.find((item) => item.id === deviceId);
-      return device?.presence === "online" && device.management.remoteRead === true && device.management.runtimeLifecycle === true
+      const expectedRuntimeLifecycle = process.platform === "darwin";
+      return device?.presence === "online" &&
+        device.management.remoteRead === true &&
+        device.management.runtimeLifecycle === expectedRuntimeLifecycle
         ? device
         : null;
-    }, "v3 runtime lifecycle readiness");
+    }, "device management readiness");
 
     const registrationResponse = await fetch(`${baseUrl}/oauth/register`, {
       method: "POST",
@@ -889,6 +892,7 @@ async function main(): Promise<void> {
     assert.equal(ownerRemoteBeforePause.presence, "online");
     assert.equal(ownerRemoteBeforePause.executionPolicy, "active");
     assert.equal(ownerRemoteBeforePause.management.remoteRead, true);
+    assert.equal(ownerRemoteBeforePause.management.runtimeLifecycle, process.platform === "darwin");
 
     const pauseRemote = await fetch(
       `${baseUrl}/api/devices/${encodeURIComponent(deviceId)}/pause`,
