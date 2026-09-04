@@ -99,6 +99,10 @@ try {
   assert.equal(health.result.state, "ready");
   assert.equal(health.result.ownedProcessCount, 0);
 
+  const terminals = await client.request<{ terminals: unknown[] }>("terminal.list", {});
+  assert.equal(terminals.supervisorGeneration, "generation-daemon-test");
+  assert.deepEqual(terminals.result.terminals, []);
+
   await new Promise((resolve) => setTimeout(resolve, 45));
   const heartbeat = JSON.parse(
     fs.readFileSync(paths.processSupervisorStatusPath, "utf8")

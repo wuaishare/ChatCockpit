@@ -84,6 +84,7 @@ import { NativeProjectAssociationService } from "../application/native-project-a
 import { ProjectExecutionObservabilityService } from "../application/project-execution-observability-service.js";
 import { RuntimeExecutionObservabilityService } from "../application/runtime-execution-observability-service.js";
 import { RuntimeManagedProcessControlService } from "../application/runtime-managed-process-control-service.js";
+import { RuntimeSessionTerminalService } from "../application/runtime-session-terminal-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -828,6 +829,10 @@ export function buildServer(
     continuityServices.repositories,
     chatDirect
   );
+  const runtimeSessionTerminal = RuntimeSessionTerminalService.forPaths(
+    continuityServices.repositories,
+    paths
+  );
   const runtimeExecutionObservability = new RuntimeExecutionObservabilityService(
     continuityServices.projects,
     operationalActivityService,
@@ -1248,7 +1253,8 @@ export function buildServer(
   registerRuntimeExecutionObservabilityRoutes(
     app,
     runtimeExecutionObservability,
-    runtimeManagedProcessControl
+    runtimeManagedProcessControl,
+    runtimeSessionTerminal
   );
   registerRuntimeRoutes(
     app,

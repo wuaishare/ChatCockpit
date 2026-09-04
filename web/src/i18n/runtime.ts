@@ -65,6 +65,8 @@ export interface RuntimeCopy {
   processResizeFailed: string;
   processPty: string;
   processStream: string;
+  processConsoleTitle: string;
+  processConsoleDescription: string;
   sessionConsoleTitle: string;
   sessionConsoleDescription: string;
   sessionConsoleDevice: string;
@@ -143,8 +145,10 @@ const zhCN: RuntimeCopy = {
   processResizeFailed: "终端尺寸同步失败，可安全重试。",
   processPty: "PTY",
   processStream: "输出流",
+  processConsoleTitle: "命令与进程",
+  processConsoleDescription: "按会话聚合受管命令的实时与保留输出；这里用于观察一次性命令/进程，不再冒充持久 PTY 终端。",
   sessionConsoleTitle: "会话终端",
-  sessionConsoleDescription: "一个开发会话对应一张持续存在的终端监控卡；同一会话后续启动的命令会继续追加到同一张卡中。",
+  sessionConsoleDescription: "每个活跃开发会话可拥有一个由独立 Process Supervisor 持有的真实 PTY；4318 控制台关闭或重启后可重新附着到同一终端并继续读取 scrollback、输入与尺寸状态。",
   sessionConsoleDevice: "设备",
   sessionConsoleSession: "会话",
   sessionConsoleExecutor: "执行器",
@@ -221,8 +225,10 @@ const enUS: RuntimeCopy = {
   processResizeFailed: "Terminal resize failed. It is safe to retry.",
   processPty: "PTY",
   processStream: "Stream",
+  processConsoleTitle: "Commands and processes",
+  processConsoleDescription: "Observe live and retained output from managed one-shot commands grouped by session. This is process observability, not a persistent PTY terminal.",
   sessionConsoleTitle: "Session terminals",
-  sessionConsoleDescription: "Each development session keeps one continuous terminal card. Commands started later in the same session append to the same card.",
+  sessionConsoleDescription: "Each active development session can own a real PTY held by the independent Process Supervisor. The same terminal can be reattached after the 4318 control plane closes or restarts, retaining scrollback, input, and terminal size state.",
   sessionConsoleDevice: "Device",
   sessionConsoleSession: "Session",
   sessionConsoleExecutor: "Executor",

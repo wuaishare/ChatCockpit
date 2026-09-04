@@ -65,6 +65,7 @@ required("app/openapi/chatcockpit.openapi.yaml");
 required("app/node_modules");
 required("app/scripts/macos-manage-local-server.sh");
 required("app/scripts/macos-manage-device-agent.sh");
+required("app/scripts/ensure-node-pty-runtime.mjs");
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as PayloadManifest;
 assert.equal(manifest.schemaVersion, 1);
@@ -75,13 +76,28 @@ assert.match(manifest.runtimeId, /node24\.18\.1-darwin-(arm64|x64)$/);
 assert.equal(manifest.runtimeId.endsWith(manifest.architecture), true);
 assert.equal(manifest.payload.layoutVersion, 1);
 
+const nodePtyPrebuildRoot = `app/node_modules/node-pty/prebuilds/darwin-${manifest.architecture}`;
+const nodePtyNativePath = required(`${nodePtyPrebuildRoot}/pty.node`);
+const nodePtySpawnHelperPath = required(`${nodePtyPrebuildRoot}/spawn-helper`);
+fs.accessSync(nodePtySpawnHelperPath, fs.constants.X_OK);
+assert.notEqual(
+  fs.statSync(nodePtySpawnHelperPath).mode & 0o111,
+  0,
+  "node-pty spawn-helper must be executable in the packaged runtime"
+);
+
 const fileResult = spawnSync("file", [nodePath], { encoding: "utf8" });
 assert.equal(fileResult.status, 0, fileResult.stderr);
 const fileOutput = `${fileResult.stdout}\n${fileResult.stderr}`;
+const ptyFileResult = spawnSync("file", [nodePtyNativePath], { encoding: "utf8" });
+assert.equal(ptyFileResult.status, 0, ptyFileResult.stderr);
+const ptyFileOutput = `${ptyFileResult.stdout}\n${ptyFileResult.stderr}`;
 if (manifest.architecture === "arm64") {
   assert.match(fileOutput, /arm64|arm64e/i);
+  assert.match(ptyFileOutput, /arm64|arm64e/i);
 } else {
   assert.match(fileOutput, /x86_64/i);
+  assert.match(ptyFileOutput, /x86_64/i);
 }
 
 const allFiles = walkFiles(payloadRoot);
@@ -141,7 +157,10 @@ for (const requiredHashPath of [
   "app/web/dist/build-provenance.json",
   "app/openapi/chatcockpit.openapi.yaml",
   "app/scripts/macos-manage-local-server.sh",
-  "app/scripts/macos-manage-device-agent.sh"
+  "app/scripts/macos-manage-device-agent.sh",
+  "app/scripts/ensure-node-pty-runtime.mjs",
+  `${nodePtyPrebuildRoot}/pty.node`,
+  `${nodePtyPrebuildRoot}/spawn-helper`
 ]) {
   assert.ok(manifest.payload.files[requiredHashPath], `Manifest missing critical hash: ${requiredHashPath}`);
 }

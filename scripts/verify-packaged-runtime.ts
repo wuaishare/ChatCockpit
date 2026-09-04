@@ -117,6 +117,35 @@ const noSystemNpm = spawnSync("npm", ["--version"], {
 });
 assert.notEqual(noSystemNpm.status, 0, "System npm unexpectedly resolved through isolated PATH");
 
+const packagedPtySmoke = spawnSync(
+  nodeBin,
+  [
+    "-e",
+    [
+      "const pty=require('node-pty')",
+      "const shell=process.platform==='darwin'?'/bin/zsh':'/bin/sh'",
+      "const term=pty.spawn(shell,[],{name:'xterm-256color',cols:80,rows:24,cwd:process.cwd(),env:process.env})",
+      "let out=''",
+      "const timer=setTimeout(()=>{term.kill();process.exit(2)},5000)",
+      "term.onData(d=>{out+=d})",
+      "term.onExit(({exitCode})=>{clearTimeout(timer);if(exitCode!==0||!out.includes('__PACKAGED_PTY_OK__'))process.exit(3);console.log('PACKAGED_PTY_OK')})",
+      "term.write(\"printf '__PACKAGED_PTY_OK__\\\\n'; exit\"+String.fromCharCode(13))"
+    ].join(";"),
+  ],
+  {
+    cwd: installRoot,
+    encoding: "utf8",
+    timeout: 8_000,
+    env: { ...process.env, PATH: emptyPath, HOME: homeRoot }
+  }
+);
+assert.equal(
+  packagedPtySmoke.status,
+  0,
+  `Packaged node-pty smoke failed\n${packagedPtySmoke.stdout}\n${packagedPtySmoke.stderr}`
+);
+assert.match(packagedPtySmoke.stdout, /PACKAGED_PTY_OK/);
+
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();

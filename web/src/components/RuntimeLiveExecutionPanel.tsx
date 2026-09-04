@@ -24,6 +24,7 @@ import type {
   RuntimeExecutionObservabilityResponse,
   RuntimeExecutionProcessProjection
 } from "../types";
+import { PersistentSessionTerminalCard } from "./PersistentSessionTerminalCard";
 import { SectionCard } from "./SectionCard";
 import "./runtime-live-execution.css";
 
@@ -113,7 +114,7 @@ function connectionLabel(locale: LocaleCode, connection: RuntimeExecutionConnect
   return copy.connectionStale;
 }
 
-function SessionTerminalCard({
+function ManagedProcessConsoleCard({
   locale,
   group,
   outputByProcess,
@@ -563,7 +564,15 @@ export function RuntimeLiveExecutionPanel({
     () => (snapshot?.tasks ?? []).filter((task) => !TERMINAL_TASK.has(task.status)).slice(0, 8),
     [snapshot]
   );
-  const sessionConsoles = useMemo(() => {
+  const terminalTargets = useMemo(() => {
+    const bySession = new Map<string, RuntimeExecutionObservabilityResponse["tasks"][number]>();
+    for (const task of tasks) {
+      if (!task.activeSessionId || bySession.has(task.activeSessionId)) continue;
+      bySession.set(task.activeSessionId, task);
+    }
+    return [...bySession.values()].slice(0, 6);
+  }, [tasks]);
+  const processConsoles = useMemo(() => {
     const groups = new Map<string, SessionConsoleGroup>();
     for (const process of snapshot?.processes ?? []) {
       const current = groups.get(process.consoleSessionId);
@@ -611,7 +620,7 @@ export function RuntimeLiveExecutionPanel({
     }
   }, [snapshot, terminatingProcessId]);
   const connections = useMemo(() => (snapshot?.connections ?? []).slice(0, 12), [snapshot]);
-  const hasExecution = activities.length > 0 || tasks.length > 0 || sessionConsoles.length > 0 || connections.length > 0;
+  const hasExecution = activities.length > 0 || tasks.length > 0 || terminalTargets.length > 0 || processConsoles.length > 0 || connections.length > 0;
 
   const streamLabel = streamState === "live"
     ? projectCopy.live
@@ -664,7 +673,7 @@ export function RuntimeLiveExecutionPanel({
         />
       ) : null}
 
-      {sessionConsoles.length > 0 ? (
+      {terminalTargets.length > 0 ? (
         <section className="runtime-live-execution__sessions">
           <div className="runtime-live-execution__sessions-heading">
             <div>
@@ -674,9 +683,31 @@ export function RuntimeLiveExecutionPanel({
               <p>{runtimeCopy.sessionConsoleDescription}</p>
             </div>
           </div>
+          <div className="runtime-live-execution__terminal-stack">
+            {terminalTargets.map((task) => (
+              <PersistentSessionTerminalCard
+                key={task.activeSessionId ?? task.id}
+                locale={locale}
+                task={task}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {processConsoles.length > 0 ? (
+        <section className="runtime-live-execution__sessions">
+          <div className="runtime-live-execution__sessions-heading">
+            <div>
+              <div className="runtime-live-execution__section-title">
+                <CodeOutlined /> {runtimeCopy.processConsoleTitle}
+              </div>
+              <p>{runtimeCopy.processConsoleDescription}</p>
+            </div>
+          </div>
           <div className="runtime-live-execution__session-grid">
-            {sessionConsoles.map((group) => (
-              <SessionTerminalCard
+            {processConsoles.map((group) => (
+              <ManagedProcessConsoleCard
                 key={group.id}
                 locale={locale}
                 group={group}

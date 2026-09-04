@@ -17,6 +17,7 @@ const cockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
 const liveExecution = read("web/src/components/projects/ProjectLiveExecutionPanel.tsx");
 const runtimeView = read("web/src/components/RuntimeView.tsx");
 const runtimeLiveExecution = read("web/src/components/RuntimeLiveExecutionPanel.tsx");
+const persistentTerminal = read("web/src/components/PersistentSessionTerminalCard.tsx");
 const runtimeCopy = read("web/src/i18n/runtime.ts");
 const copy = read("web/src/i18n/projects.ts");
 const theme = read("web/src/theme.ts");
@@ -153,18 +154,34 @@ assert.match(api, /export async function inputRuntimeManagedProcess/);
 assert.match(api, /\/api\/runtime\/executions\/processes\/\$\{encodeURIComponent\(input\.processId\)\}\/input/);
 assert.match(api, /export async function resizeRuntimeManagedProcess/);
 assert.match(api, /\/api\/runtime\/executions\/processes\/\$\{encodeURIComponent\(input\.processId\)\}\/resize/);
+assert.match(api, /export async function fetchRuntimeSessionTerminals/);
+assert.match(api, /\/api\/runtime\/executions\/terminals\$\{query\}/);
+assert.match(api, /export async function startRuntimeSessionTerminal/);
+assert.match(api, /export async function readRuntimeSessionTerminal/);
+assert.match(api, /export async function inputRuntimeSessionTerminal/);
+assert.match(api, /export async function resizeRuntimeSessionTerminal/);
+assert.match(api, /export async function terminateRuntimeSessionTerminal/);
+assert.match(api, /\/api\/runtime\/executions\/terminals\/\$\{encodeURIComponent\(input\.terminalId\)\}\/output/);
 assert.match(types, /export interface RuntimeExecutionObservabilityResponse/);
 assert.match(types, /controls:\s*\{[\s\S]*input: boolean;[\s\S]*resize: boolean;[\s\S]*terminate: boolean;/);
 assert.match(types, /terminal:\s*\{[\s\S]*tty: boolean;[\s\S]*rows: number \| null;[\s\S]*cols: number \| null;/);
+assert.match(types, /export interface RuntimeSessionTerminalProjection/);
+assert.match(types, /terminalId:\s*string/);
+assert.match(types, /processRevision:\s*number/);
+assert.match(types, /supervisorGeneration:\s*string/);
+assert.match(types, /scrollbackTruncated:\s*boolean/);
+assert.doesNotMatch(types.match(/export interface RuntimeSessionTerminalProjection[\s\S]*?\n\}/)?.[0] ?? "", /cwd|writerLeaseId|privatePath|commandHash/);
 assert.match(
   runtimeView,
   /<RuntimeLiveExecutionPanel[\s\S]*locale=\{locale\}[\s\S]*processTerminateAvailable=\{processTerminateAvailable\}[\s\S]*\/>/
 );
+
+// Generic managed-process observability remains distinct from the real persistent PTY surface.
 assert.match(runtimeLiveExecution, /new EventSource\("\/api\/runtime\/executions\/stream"/);
 assert.match(runtimeLiveExecution, /source\.addEventListener\("runtime\.process\.output"/);
 assert.match(runtimeLiveExecution, /consoleSessionId/);
 assert.match(runtimeLiveExecution, /seenOutputSequences/);
-assert.match(runtimeLiveExecution, /SessionTerminalCard/);
+assert.match(runtimeLiveExecution, /ManagedProcessConsoleCard/);
 assert.match(runtimeLiveExecution, /processKeepsSessionConsoleLive/);
 assert.match(runtimeLiveExecution, /process\.sessionStatus/);
 assert.match(runtimeLiveExecution, /new ResizeObserver/);
@@ -177,11 +194,39 @@ assert.match(runtimeLiveExecution, /resizeRuntimeManagedProcess/);
 assert.match(runtimeLiveExecution, /processInputPlaceholder/);
 assert.match(runtimeLiveExecution, /processInputClose/);
 assert.match(runtimeLiveExecution, /processResize/);
+assert.match(runtimeLiveExecution, /processConsoleTitle/);
+assert.match(runtimeLiveExecution, /processConsoleDescription/);
+assert.match(runtimeLiveExecution, /terminalTargets/);
+assert.match(runtimeLiveExecution, /PersistentSessionTerminalCard/);
 assert.match(runtimeLiveExecution, /projectDisplayName \?\? runtimeCopy\.unknownProject/);
 assert.match(runtimeLiveExecution, /activity\.targetDeviceId/);
 assert.match(runtimeLiveExecution, /process\.command/);
 assert.match(runtimeLiveExecution, /connection\.lastToolName/);
 assert.doesNotMatch(runtimeLiveExecution, /authorizationGrantId|clientRegistrationId|privatePid|workdir|commandHash/);
+
+// Session Terminal is a real xterm frontend attached to Process Supervisor-owned PTY state.
+assert.match(persistentTerminal, /from "@xterm\/xterm"/);
+assert.match(persistentTerminal, /from "@xterm\/addon-fit"/);
+assert.match(persistentTerminal, /new Terminal\(/);
+assert.match(persistentTerminal, /new ResizeObserver/);
+assert.match(persistentTerminal, /instance\.onData/);
+assert.match(persistentTerminal, /instance\.onResize/);
+assert.match(persistentTerminal, /fetchRuntimeSessionTerminals/);
+assert.match(persistentTerminal, /startRuntimeSessionTerminal/);
+assert.match(persistentTerminal, /readRuntimeSessionTerminal/);
+assert.match(persistentTerminal, /inputRuntimeSessionTerminal/);
+assert.match(persistentTerminal, /resizeRuntimeSessionTerminal/);
+assert.match(persistentTerminal, /terminateRuntimeSessionTerminal/);
+assert.match(persistentTerminal, /cursorRef/);
+assert.match(persistentTerminal, /cursorTruncated/);
+assert.match(persistentTerminal, /inputRetryRef/);
+assert.match(persistentTerminal, /idempotencyKey:\s*batch\.idempotencyKey/);
+assert.match(persistentTerminal, /inputFlushTimerRef\.current = null;[\s\S]*void flushInput\(\)/);
+assert.match(persistentTerminal, /terminalProjection\?\.terminalId/);
+assert.match(persistentTerminal, /supervisorGeneration/);
+assert.doesNotMatch(persistentTerminal, /cwd|writerLeaseId|privatePath|commandHash|authorizationGrantId|clientRegistrationId/);
+assert.match(runtimeCopy, /processConsoleTitle:\s*"命令与进程"/);
+assert.match(runtimeCopy, /sessionConsoleTitle:\s*"会话终端"/);
 assert.match(runtimeCopy, /liveExecutionTitle:\s*"实时会话与执行"/);
 assert.match(runtimeCopy, /liveExecutionTitle:\s*"Live sessions and execution"/);
 

@@ -272,6 +272,192 @@
   gap: 5px;
 }
 
+.runtime-live-execution__terminal-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.runtime-persistent-terminal {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tp-line-strong) 76%, transparent);
+  border-radius: 12px;
+  background: rgb(15 17 21);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 11%);
+}
+
+.runtime-persistent-terminal.is-live {
+  border-color: color-mix(in srgb, var(--tp-accent) 42%, rgb(61 66 76));
+}
+
+.runtime-persistent-terminal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 9px 11px 9px 13px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(255 255 255 / 2%));
+}
+
+.runtime-persistent-terminal__identity {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.runtime-persistent-terminal__pulse {
+  flex: 0 0 auto;
+  inline-size: 7px;
+  block-size: 7px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgb(105 112 124);
+}
+
+.runtime-persistent-terminal__pulse.is-live {
+  background: color-mix(in srgb, var(--tp-accent) 82%, white);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tp-accent) 14%, transparent);
+}
+
+.runtime-persistent-terminal__identity-copy {
+  min-width: 0;
+}
+
+.runtime-persistent-terminal__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  color: rgb(239 242 247);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.runtime-persistent-terminal__title-row strong {
+  flex: 0 1 auto;
+  max-width: 36%;
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-persistent-terminal__title-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(171 179 191);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-persistent-terminal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  margin-top: 3px;
+  color: rgb(120 128 142);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.runtime-persistent-terminal__meta code {
+  color: rgb(158 166 180);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: inherit;
+}
+
+.runtime-persistent-terminal__header .ant-tag {
+  margin-inline-end: 0;
+}
+
+.runtime-persistent-terminal__shell {
+  min-width: 0;
+}
+
+.runtime-persistent-terminal__xterm {
+  min-height: 310px;
+  height: min(42vh, 430px);
+  padding: 9px 10px 3px;
+  overflow: hidden;
+  background: rgb(15 17 21);
+}
+
+.runtime-persistent-terminal__xterm .xterm {
+  height: 100%;
+}
+
+.runtime-persistent-terminal__xterm .xterm-viewport {
+  overscroll-behavior: contain;
+}
+
+.runtime-persistent-terminal__statusbar {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 11px;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  background: rgb(255 255 255 / 2%);
+  color: rgb(104 112 126);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.runtime-persistent-terminal__warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgb(214 178 116);
+}
+
+.runtime-persistent-terminal__empty {
+  display: flex;
+  min-height: 150px;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  padding: 24px;
+  color: rgb(151 159 173);
+  text-align: left;
+}
+
+.runtime-persistent-terminal__empty-icon {
+  flex: 0 0 auto;
+  color: rgb(104 113 128);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.08em;
+}
+
+.runtime-persistent-terminal__empty strong {
+  display: block;
+  color: rgb(209 215 224);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.runtime-persistent-terminal__empty p {
+  max-width: 72ch;
+  margin: 4px 0 0;
+  color: rgb(119 127 141);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.runtime-persistent-terminal__error {
+  padding: 6px 11px;
+  border-top: 1px solid rgb(239 143 150 / 18%);
+  background: rgb(239 143 150 / 6%);
+  color: rgb(229 164 170);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
 .runtime-live-execution__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

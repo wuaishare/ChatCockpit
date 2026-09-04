@@ -10,6 +10,7 @@ import type {
 import type { OperationContext } from "./operation-context.js";
 import type { ProjectService } from "./project-service.js";
 import type { RuntimeManagedProcessControlService } from "./runtime-managed-process-control-service.js";
+import { CHATCOCKPIT_NATIVE_PTY_EXECUTOR_ID } from "../process-supervisor/native-session-terminal.js";
 
 export interface RuntimeExecutionProjectRef {
   projectId: string | null;
@@ -174,6 +175,7 @@ export class RuntimeExecutionObservabilityService {
     const tasks = allTasks.slice(0, 100);
 
     const allProcesses = this.repositories.directProcessSessions.list()
+      .filter((process) => process.executorId !== CHATCOCKPIT_NATIVE_PTY_EXECUTOR_ID)
       .map((process): RuntimeExecutionProcessProjection => {
         const capabilities = this.processControl.capabilities(process.id, context);
         let sessionStatus: SessionStatus | null = null;
