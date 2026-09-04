@@ -172,6 +172,12 @@ try {
     assert.match(JSON.stringify(currentList.inputSchema), /"default":"tokenpilot"/);
     assert.match(JSON.stringify(targetList.inputSchema), /"default":"primary"/);
 
+    const targetPush = target.tools.find((tool) => tool.name === "chatcockpit.git.push");
+    assert.ok(targetPush?.inputSchema);
+    assert.match(JSON.stringify(targetPush.inputSchema), /"publishCurrentBranch"/);
+    assert.match(targetPush.title ?? "", /first-publish/i);
+    assert.match(targetPush.description ?? "", /publishCurrentBranch=true/);
+
     const fullSurface = await postMcp(
       target.app,
       {
