@@ -15,9 +15,11 @@ import type {
   OAuthAuthorizationGrantStatus,
   OAuthAuthorizationGrantSummary,
   OAuthDeviceAccessLevel,
-  OAuthGrantDeviceAccessList
+  OAuthGrantDeviceAccessList,
+  ProductActionsResponse
 } from "../types";
 import type { LocaleCode } from "../i18n";
+import { hasLocalProductActionPath } from "../product-action-availability";
 import { getIntegrationsCopy } from "../i18n/integrations";
 import type { OperationalStatusTone } from "../status-language";
 import { SectionCard } from "./SectionCard";
@@ -29,6 +31,8 @@ interface IntegrationsViewProps {
   status: IntegrationStatusResponse;
   config: GptConfigModel | null;
   configError: string | null;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
   onRefresh?: () => Promise<void> | void;
 }
 
@@ -37,6 +41,8 @@ export function IntegrationsView({
   status,
   config,
   configError,
+  productActions,
+  productActionsError,
   onRefresh
 }: IntegrationsViewProps) {
   const copy = getIntegrationsCopy(locale);
@@ -52,6 +58,14 @@ export function IntegrationsView({
       : "warning";
   const compatibilityInstructions = config?.instructions ?? "";
   const schemaImportUrl = config?.schemaImportUrl ?? status.openapiUrl;
+  const canRevokeOAuthGrant = hasLocalProductActionPath(
+    productActions,
+    "integration.oauth.grant.revoke"
+  );
+  const canManageOAuthDeviceAccess = hasLocalProductActionPath(
+    productActions,
+    "integration.oauth.device-access.manage"
+  );
   const [grants, setGrants] = useState<OAuthAuthorizationGrantSummary[]>([]);
   const [grantFilter, setGrantFilter] = useState<OAuthGrantFilter>("active");
   const [grantsEnabled, setGrantsEnabled] = useState(true);
@@ -92,7 +106,7 @@ export function IntegrationsView({
   }, []);
 
   const revokeGrant = async (grantId: string) => {
-    if (revokingGrantId) return;
+    if (!canRevokeOAuthGrant || revokingGrantId) return;
     setRevokingGrantId(grantId);
     setGrantError(null);
     try {
@@ -159,7 +173,7 @@ export function IntegrationsView({
     accessLevel: OAuthDeviceAccessLevel
   ) => {
     const key = `${grantId}:${deviceId}`;
-    if (mutatingDeviceAccessKey) return;
+    if (!canManageOAuthDeviceAccess || mutatingDeviceAccessKey) return;
     setMutatingDeviceAccessKey(key);
     setDeviceAccessErrorByGrant((current) => ({ ...current, [grantId]: null }));
     try {
@@ -200,7 +214,7 @@ export function IntegrationsView({
 
   const removeDeviceAccess = async (grantId: string, deviceId: string) => {
     const key = `${grantId}:${deviceId}`;
-    if (mutatingDeviceAccessKey) return;
+    if (!canManageOAuthDeviceAccess || mutatingDeviceAccessKey) return;
     setMutatingDeviceAccessKey(key);
     setDeviceAccessErrorByGrant((current) => ({ ...current, [grantId]: null }));
     try {
@@ -329,6 +343,11 @@ export function IntegrationsView({
         description={copy.authorizationGrantsDescription}
         extra={<Tag color={grantError ? "warning" : undefined}>{grantError ? copy.needsAttention : grants.length}</Tag>}
       >
+        {!canRevokeOAuthGrant || !canManageOAuthDeviceAccess ? (
+          <div className="section-note section-note--warning">
+            {productActionsError || copy.actionAvailabilityUnknown}
+          </div>
+        ) : null}
         {grantError ? (
           <div className="section-note section-note--warning">{grantError}</div>
         ) : grantsLoading ? (
@@ -375,13 +394,13 @@ export function IntegrationsView({
                         okText={copy.revokeGrantConfirm}
                         cancelText={copy.revokeGrantCancel}
                         okButtonProps={{ danger: true }}
-                        disabled={grant.status === "revoked"}
+                        disabled={!canRevokeOAuthGrant || grant.status === "revoked"}
                         onConfirm={() => revokeGrant(grant.id)}
                       >
                         <Button
                           danger
                           size="small"
-                          disabled={grant.status === "revoked"}
+                          disabled={!canRevokeOAuthGrant || grant.status === "revoked"}
                           loading={revokingGrantId === grant.id}
                         >
                           {copy.revokeGrant}
@@ -432,8 +451,14 @@ export function IntegrationsView({
                                 ? copy.deviceAccessRevoked
                                 : copy.deviceAccessMissing;
                             const statusColor: OperationalStatusTone = device.status === "available" ? "success" : "warning";
-                            const canSetLevel = !deviceAccessByGrant[grant.id].grantRevoked && device.status === "available";
-                            const canRemove = !deviceAccessByGrant[grant.id].grantRevoked && device.granted;
+                            const canSetLevel =
+                              canManageOAuthDeviceAccess &&
+                              !deviceAccessByGrant[grant.id].grantRevoked &&
+                              device.status === "available";
+                            const canRemove =
+                              canManageOAuthDeviceAccess &&
+                              !deviceAccessByGrant[grant.id].grantRevoked &&
+                              device.granted;
                             return (
                               <div className="oauth-device-access__row" key={device.deviceId}>
                                 <div className="oauth-device-access__identity">

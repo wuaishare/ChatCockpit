@@ -223,6 +223,7 @@ export interface ContinuityCopy {
   childSessionTitle: string;
   operationComplete: string;
   operationFailed: string;
+  actionAvailabilityUnknown: string;
   submitReview: string;
   completeTask: string;
   completionReady: string;
@@ -270,6 +271,7 @@ export interface ContinuityCopy {
   recoveryTargetThread: string;
   recoveryTargetMode: string;
   recoveryExecute: string;
+  recoveryActionAvailabilityUnknown: string;
   recoveryApplied: string;
   recoveryAttempt: string;
   recoveryResultBinding: string;
@@ -537,6 +539,7 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   childSessionTitle: "子会话标题",
   operationComplete: "操作已完成",
   operationFailed: "操作失败",
+  actionAvailabilityUnknown: "Continuity 的部分写入执行路径暂不可判断。为避免绕过统一权限边界，对应的任务流转、Handoff、开发文档或 Codex 写操作会按各自可用性暂时停用，请刷新后重试。",
   submitReview: "提交审查",
   completeTask: "完成任务",
   completionReady: "满足完成条件",
@@ -584,6 +587,7 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   recoveryTargetThread: "目标 Codex Thread",
   recoveryTargetMode: "交接目标模式",
   recoveryExecute: "执行恢复",
+  recoveryActionAvailabilityUnknown: "Runtime Recovery 执行路径暂不可判断，请刷新后重试。",
   recoveryApplied: "恢复动作已由服务端确认完成。",
   recoveryAttempt: "Recovery Attempt",
   recoveryResultBinding: "结果 Binding",
@@ -851,6 +855,7 @@ export const enUSContinuityCopy: ContinuityCopy = {
   childSessionTitle: "Child session title",
   operationComplete: "Operation completed",
   operationFailed: "Operation failed",
+  actionAvailabilityUnknown: "Some Continuity write execution paths are currently unknown. The corresponding task-transition, handoff, development-document, or Codex write actions are disabled individually rather than bypassing the shared authority contract. Refresh and try again.",
   submitReview: "Submit review",
   completeTask: "Complete task",
   completionReady: "Completion requirements satisfied",
@@ -898,6 +903,7 @@ export const enUSContinuityCopy: ContinuityCopy = {
   recoveryTargetThread: "Target Codex thread",
   recoveryTargetMode: "Handoff target mode",
   recoveryExecute: "Execute recovery",
+  recoveryActionAvailabilityUnknown: "The Runtime Recovery execution path is currently unknown. Refresh and try again.",
   recoveryApplied: "The server confirmed the recovery action completed.",
   recoveryAttempt: "Recovery Attempt",
   recoveryResultBinding: "Result binding",

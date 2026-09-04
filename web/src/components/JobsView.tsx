@@ -7,7 +7,14 @@ import {
   ReloadOutlined,
   StopOutlined
 } from "@ant-design/icons";
-import type { ArtifactPreviewState, JobArtifactSummary, JobProcessState, JobSummary } from "../types";
+import type {
+  ArtifactPreviewState,
+  JobArtifactSummary,
+  JobProcessState,
+  JobSummary,
+  ProductActionsResponse
+} from "../types";
+import { hasLocalProductActionPath } from "../product-action-availability";
 import { formatDateTime, safePathList, safeText } from "../utils";
 import { SectionCard } from "./SectionCard";
 import { StateNotice } from "./StateNotice";
@@ -34,6 +41,8 @@ interface JobsViewProps {
   error: string | null;
   controlLoading: boolean;
   controlMessage: string | null;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
   onSelectJob: (jobId: string) => void;
   onSelectArtifact: (artifactKey: string) => void;
   onLoadMoreArtifact: () => void;
@@ -182,6 +191,8 @@ export function JobsView({
   error,
   controlLoading,
   controlMessage,
+  productActions,
+  productActionsError,
   onSelectJob,
   onSelectArtifact,
   onLoadMoreArtifact,
@@ -285,6 +296,7 @@ export function JobsView({
   }
 
   const details = detailEntries(selectedJob, locale);
+  const canControlJobs = hasLocalProductActionPath(productActions, "job.control");
   const selectedProcessState = selectedJob?.process?.state ?? null;
   const canPause = selectedProcessState === "running";
   const canResume = selectedProcessState === "paused";
@@ -356,6 +368,7 @@ export function JobsView({
             danger
             icon={<StopOutlined />}
             loading={controlLoading}
+            disabled={!canControlJobs}
             onClick={onTerminateAll}
           >
             {copy.jobs.controlTerminateAll}
@@ -412,7 +425,7 @@ export function JobsView({
                   size="small"
                   icon={<PauseCircleOutlined />}
                   onClick={() => onControlJob("pause")}
-                  disabled={controlLoading || !canPause}
+                  disabled={controlLoading || !canControlJobs || !canPause}
                 >
                   {copy.jobs.controlPause}
                 </Button>
@@ -421,7 +434,7 @@ export function JobsView({
                   icon={<PlayCircleOutlined />}
                   onClick={() => onControlJob("resume")}
                   loading={controlLoading}
-                  disabled={controlLoading || !canResume}
+                  disabled={controlLoading || !canControlJobs || !canResume}
                 >
                   {copy.jobs.controlResume}
                 </Button>
@@ -430,12 +443,18 @@ export function JobsView({
                   danger
                   icon={<StopOutlined />}
                   onClick={() => onControlJob("terminate")}
-                  disabled={controlLoading || !canTerminate}
+                  disabled={controlLoading || !canControlJobs || !canTerminate}
                 >
                   {copy.jobs.controlTerminate}
                 </Button>
               </div>
-              {controlMessage ? <span className="job-detail__control-message">{controlMessage}</span> : null}
+              {!canControlJobs ? (
+                <span className="job-detail__control-message">
+                  {productActionsError || copy.jobs.controlAvailabilityUnknown}
+                </span>
+              ) : controlMessage ? (
+                <span className="job-detail__control-message">{controlMessage}</span>
+              ) : null}
             </div>
 
             <Descriptions column={2} size="small" className="job-detail__descriptions">

@@ -80,6 +80,7 @@ export interface IntegrationsCopy {
   grantLoadFailed: string;
   grantApiVersionMismatch: string;
   grantRevokeFailed: string;
+  actionAvailabilityUnknown: string;
   deviceAccessManage: string;
   deviceAccessHide: string;
   deviceAccessTitle: string;
@@ -189,6 +190,7 @@ const zhCN: IntegrationsCopy = {
   grantLoadFailed: "无法读取 OAuth 授权关系",
   grantApiVersionMismatch: "OAuth 授权管理接口暂不可用。当前 Web 与 Control Plane 版本可能未同步，请更新或重启 ChatCockpit 服务。",
   grantRevokeFailed: "撤销 OAuth 授权失败",
+  actionAvailabilityUnknown: "OAuth 管理执行路径暂不可判断。为避免绕过统一权限边界，撤销授权与设备权限变更已暂时停用，请刷新后重试。",
   deviceAccessManage: "管理设备权限",
   deviceAccessHide: "收起设备权限",
   deviceAccessTitle: "设备访问权限",
@@ -298,6 +300,7 @@ const enUS: IntegrationsCopy = {
   grantLoadFailed: "Unable to load OAuth authorizations",
   grantApiVersionMismatch: "The OAuth authorization management API is unavailable. The Web UI and Control Plane may be on different versions; update or restart ChatCockpit.",
   grantRevokeFailed: "Unable to revoke OAuth authorization",
+  actionAvailabilityUnknown: "The OAuth-management execution path is currently unknown. Authorization revocation and device-access mutations are disabled rather than bypassing the shared authority contract. Refresh and try again.",
   deviceAccessManage: "Manage device access",
   deviceAccessHide: "Hide device access",
   deviceAccessTitle: "Device access",

@@ -3,7 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
+const app = fs.readFileSync(path.join(root, "web", "src", "App.tsx"), "utf8");
 const api = fs.readFileSync(path.join(root, "web", "src", "api.ts"), "utf8");
+const productActionAvailability = fs.readFileSync(
+  path.join(root, "web", "src", "product-action-availability.ts"),
+  "utf8"
+);
 const view = fs.readFileSync(
   path.join(root, "web", "src", "components", "IntegrationsView.tsx"),
   "utf8"
@@ -23,6 +28,8 @@ assert.match(api, /\/devices\/\$\{encodeURIComponent\(deviceId\)\}\/revoke/);
 assert.match(api, /postBodyJson<OAuthGrantDeviceAccessMutationResponse>/);
 assert.match(api, /accessLevel: OAuthDeviceAccessLevel/);
 assert.match(api, /\{ accessLevel \}/);
+assert.match(productActionAvailability, /export function hasLocalProductActionPath/);
+assert.match(app, /<IntegrationsView[\s\S]*productActions=\{productActions\}[\s\S]*productActionsError=\{productActionsError\}/);
 
 assert.match(types, /OAuthGrantDeviceAccessStatus = "available" \| "revoked" \| "missing"/);
 assert.match(types, /OAuthDeviceAccessLevel =[^;]+"read-only"[^;]+"project-write"[^;]+"project-exec"[^;]+"full-access"/s);
@@ -31,6 +38,13 @@ assert.match(types, /effective: boolean/);
 assert.match(types, /accessLevel: OAuthDeviceAccessLevel \| null/);
 assert.match(types, /effectiveAccessLevel: OAuthDeviceAccessLevel \| null/);
 
+assert.match(view, /productActions:\s*ProductActionsResponse \| null/);
+assert.match(view, /productActionsError:\s*string \| null/);
+assert.match(view, /hasLocalProductActionPath\(\s*productActions,\s*"integration\.oauth\.grant\.revoke"/s);
+assert.match(view, /hasLocalProductActionPath\(\s*productActions,\s*"integration\.oauth\.device-access\.manage"/s);
+assert.match(view, /!canRevokeOAuthGrant \|\| revokingGrantId/);
+assert.match(view, /!canManageOAuthDeviceAccess \|\| mutatingDeviceAccessKey/);
+assert.match(view, /productActionsError \|\| copy\.actionAvailabilityUnknown/);
 assert.match(view, /copy\.deviceAccessManage/);
 assert.match(view, /toggleDeviceAccess\(grant\.id\)/);
 assert.match(view, /deviceAccessByGrant\[grant\.id\]\.devices\.map/);
@@ -57,6 +71,8 @@ assert.doesNotMatch(view, /grantAll|allowAll|authorizeAll|selectAllDevices/i);
 
 assert.match(copy, /新加入的远程设备不会自动继承权限/);
 assert.match(copy, /Newly enrolled remote devices inherit nothing/);
+assert.match(copy, /OAuth 管理执行路径暂不可判断/);
+assert.match(copy, /OAuth-management execution path is currently unknown/);
 assert.match(copy, /deviceAccessEffective: "当前有效"/);
 assert.match(copy, /deviceAccessEffective: "Effective now"/);
 assert.match(copy, /deviceAccessLevelProjectWrite: "项目写入"/);

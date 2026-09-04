@@ -23,6 +23,7 @@ import {
   executeRuntimeRecovery
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { hasLocalProductActionPath } from "../../product-action-availability";
 import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
@@ -33,7 +34,8 @@ import type {
   RuntimeRecoveryAction,
   RuntimeRecoveryAssessResponse,
   RuntimeRecoveryClassification,
-  RuntimeRecoveryExecuteResponse
+  RuntimeRecoveryExecuteResponse,
+  ProductActionsResponse
 } from "../../types";
 import { StateNotice } from "../StateNotice";
 
@@ -41,6 +43,8 @@ interface RuntimeRecoverySectionProps {
   locale: LocaleCode;
   token: string | null;
   snapshot: ContinuityWorkspaceSnapshot;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
   onRefreshSnapshot: () => Promise<void> | void;
 }
 
@@ -147,10 +151,14 @@ export function RuntimeRecoverySection({
   locale,
   token,
   snapshot,
+  productActions,
+  productActionsError,
   onRefreshSnapshot
 }: RuntimeRecoverySectionProps) {
   const copy = getUiCopy(locale).continuity;
   const { message } = AntApp.useApp();
+  const canAssessRecovery = hasLocalProductActionPath(productActions, "runtime.recovery.assess");
+  const canExecuteRecovery = hasLocalProductActionPath(productActions, "runtime.recovery.execute");
   const taskOptions = useMemo(
     () =>
       snapshot.tasks.map((projection) => ({
@@ -236,7 +244,7 @@ export function RuntimeRecoverySection({
   }
 
   async function assess(): Promise<void> {
-    if (!taskId || !sessionId) return;
+    if (!canAssessRecovery || !taskId || !sessionId) return;
     setAssessing(true);
     setExecution(null);
     setTargetThreadId(null);
@@ -264,7 +272,7 @@ export function RuntimeRecoverySection({
   }
 
   async function execute(action: RuntimeRecoveryAction): Promise<void> {
-    if (!assessment || assessment.attempt.status !== "prepared") return;
+    if (!canExecuteRecovery || !assessment || assessment.attempt.status !== "prepared") return;
     if (action === "bind-existing-codex-thread" && !targetThreadId) return;
     if (action === "continue-via-handoff" && !targetMode) return;
     setExecuting(action);
@@ -322,6 +330,13 @@ export function RuntimeRecoverySection({
         icon={<SafetyCertificateOutlined />}
         message={copy.recoveryAuthoritativeNotice}
       />
+      {!canAssessRecovery || !canExecuteRecovery ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={productActionsError || copy.recoveryActionAvailabilityUnknown}
+        />
+      ) : null}
 
       <section className="continuity-recovery__controls" aria-label={copy.sections.recovery.title}>
         <div className="continuity-recovery__field">
@@ -368,7 +383,7 @@ export function RuntimeRecoverySection({
           type="primary"
           icon={assessment ? <ReloadOutlined /> : <SyncOutlined />}
           loading={assessing}
-          disabled={!taskId || !sessionId || Boolean(executing)}
+          disabled={!canAssessRecovery || !taskId || !sessionId || Boolean(executing)}
           onClick={() => void assess()}
         >
           {assessment ? copy.recoveryReassess : copy.recoveryAssess}
@@ -408,7 +423,7 @@ export function RuntimeRecoverySection({
           title={copy.recoveryNoAssessment}
           description={copy.recoveryNoAssessmentDescription}
           retryLabel={copy.recoveryAssess}
-          onRetry={() => void assess()}
+          onRetry={canAssessRecovery ? () => void assess() : undefined}
         />
       ) : (
         <>
@@ -597,6 +612,7 @@ export function RuntimeRecoverySection({
                           type={action === "resume-bound-codex" ? "primary" : "default"}
                           loading={executing === action}
                           disabled={
+                            !canExecuteRecovery ||
                             !assessmentPrepared ||
                             Boolean(executing && executing !== action) ||
                             needsThread ||

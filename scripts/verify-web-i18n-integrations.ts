@@ -83,8 +83,15 @@ assert.match(dashboard, /integrationStatus\?\.localCockpitUrl/);
 assert.match(dashboard, /integrationStatus\?\.publicCockpitUrl/);
 assert.match(dashboard, /className="summary-entry-link"/);
 assert.match(dashboard, /target="_blank"/);
-assert.match(i18n, /Operator Workspace 边界/);
-assert.match(i18n, /Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理/);
+assert.match(i18n, /Host 能力与权限/);
+assert.match(i18n, /Browser 与 Desktop 共享同一套 ChatCockpit 核心工作流/);
+assert.match(i18n, /机器秘密与 Host-only 偏好继续保持本机/);
+assert.match(i18n, /Host capabilities and authority/);
+assert.match(i18n, /Browser and Desktop share the same core ChatCockpit workflows/);
+assert.doesNotMatch(
+  i18n,
+  /Operator Workspace 边界|Operator Workspace boundary|Operator 工作台概览|Operator Workspace Overview|以只读方式投影机器运行态，并把 Operator 工作流留在 Web Cockpit|Read-only machine runtime projection with operator workflows kept in Web Cockpit|Web Cockpit 负责作业、连续性、资源、审批与集成工作流|Web Cockpit owns jobs, continuity, resources, approvals, and integration workflows|Runtime 生命周期、访问策略和机器秘密由 ChatCockpit App 管理|Runtime lifecycle, access policy, and machine secrets are managed in the ChatCockpit App/
+);
 assert.match(i18n, /在 ChatCockpit App → 运行环境中启动或诊断 Runtime 服务/);
 assert.match(i18n, /在 ChatCockpit App → 项目中授权或修复执行工作区/);
 assert.doesNotMatch(i18n, /Run npm run init|Run npm run start:local|运行 npm run init|运行 npm run start:local|CHATCOCKPIT_REPO_ROOT|~\/\.chatcockpit\/config\.json/);

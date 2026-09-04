@@ -11,6 +11,25 @@ export const PRODUCT_ACTION_IDS = [
   "project.discovery",
   "project.native.associate",
   "runtime.lifecycle",
+  "runtime.resource.mutate",
+  "runtime.recovery.assess",
+  "runtime.recovery.execute",
+  "runtime.codex.thread.resume",
+  "job.control",
+  "continuity.task.transition",
+  "continuity.handoff.manage",
+  "continuity.document.mutate",
+  "continuity.codex-thread.import",
+  "device.enrollment.decide",
+  "device.execution-policy.manage",
+  "device.revoke",
+  "integration.oauth.grant.revoke",
+  "integration.oauth.device-access.manage",
+  "connectivity.provider.install",
+  "connectivity.provider.upgrade",
+  "connectivity.provider.uninstall",
+  "connectivity.route.intent",
+  "connectivity.route.cutover",
   "workspace.read",
   "capability.read"
 ] as const;
@@ -208,6 +227,56 @@ export class ProductActionAvailabilityService {
         availability: "available-local",
         executionMode: "local-runtime",
         reason: "ready"
+      };
+    }
+
+    if (action === "runtime.resource.mutate") {
+      return {
+        ...targetBase(target),
+        availability: "approval-required",
+        executionMode: "local-runtime",
+        reason: "approval-required"
+      };
+    }
+
+    if (
+      action === "runtime.recovery.assess" ||
+      action === "runtime.recovery.execute" ||
+      action === "runtime.codex.thread.resume" ||
+      action === "job.control" ||
+      action === "continuity.task.transition" ||
+      action === "continuity.handoff.manage" ||
+      action === "continuity.document.mutate" ||
+      action === "continuity.codex-thread.import" ||
+      action === "device.enrollment.decide" ||
+      action === "device.execution-policy.manage" ||
+      action === "device.revoke" ||
+      action === "integration.oauth.grant.revoke" ||
+      action === "integration.oauth.device-access.manage"
+    ) {
+      return {
+        ...targetBase(target),
+        availability: "available-local",
+        executionMode: "local-runtime",
+        reason: "ready"
+      };
+    }
+
+    if (action === "connectivity.route.intent") {
+      return {
+        ...targetBase(target),
+        availability: "available-local",
+        executionMode: "local-runtime",
+        reason: "ready"
+      };
+    }
+
+    if (action === "connectivity.route.cutover") {
+      return {
+        ...targetBase(target),
+        availability: "requires-local-host",
+        executionMode: "none",
+        reason: "machine-local-context-required"
       };
     }
 

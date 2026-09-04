@@ -39,6 +39,9 @@ interface CodexThreadImportDrawerProps {
   token: string | null;
   workspaceId: string;
   workspaceLabel: string;
+  importAvailable: boolean;
+  resumeAvailable: boolean;
+  availabilityError: string | null;
   open: boolean;
   onClose: () => void;
   onComplete: () => Promise<void> | void;
@@ -93,6 +96,9 @@ export function CodexThreadImportDrawer({
   token,
   workspaceId,
   workspaceLabel,
+  importAvailable,
+  resumeAvailable,
+  availabilityError,
   open,
   onClose,
   onComplete,
@@ -162,7 +168,7 @@ export function CodexThreadImportDrawer({
   }
 
   async function resumeNative(): Promise<void> {
-    if (!thread) return;
+    if (!resumeAvailable || !thread) return;
     setResuming(true);
     setNativeWriterBusy(false);
     try {
@@ -191,7 +197,7 @@ export function CodexThreadImportDrawer({
   }
 
   async function prepareTransfer(): Promise<void> {
-    if (!thread) return;
+    if (!importAvailable || !thread) return;
     setPreparingTransfer(true);
     setAssessment(null);
     try {
@@ -212,7 +218,7 @@ export function CodexThreadImportDrawer({
   }
 
   async function executeTransfer(): Promise<void> {
-    if (!assessment) return;
+    if (!importAvailable || !assessment) return;
     setExecuting(true);
     try {
       const response = await executeCodexThreadImport(
@@ -262,6 +268,13 @@ export function CodexThreadImportDrawer({
         <Text as="p" type="secondary" className="codex-thread-import__description">
           {copy.importCodexThreadDescription}
         </Text>
+        {!importAvailable || !resumeAvailable ? (
+          <Alert
+            type="warning"
+            showIcon
+            message={availabilityError || copy.actionAvailabilityUnknown}
+          />
+        ) : null}
 
         {!thread && !execution ? (
           <Form form={form} layout="vertical" onFinish={inspect}>
@@ -344,7 +357,7 @@ export function CodexThreadImportDrawer({
               <Button
                 type={transferPreferred ? "default" : "primary"}
                 loading={resuming}
-                disabled={nativeResumed}
+                disabled={!resumeAvailable || nativeResumed}
                 onClick={() => void resumeNative()}
               >
                 {copy.resumeNativeCodex}
@@ -364,6 +377,7 @@ export function CodexThreadImportDrawer({
                   type={transferPreferred ? "primary" : "default"}
                   icon={<ArrowRightOutlined />}
                   loading={preparingTransfer}
+                  disabled={!importAvailable}
                   onClick={() => void prepareTransfer()}
                 >
                   {copy.executeChatDirectHandoff}
@@ -381,6 +395,7 @@ export function CodexThreadImportDrawer({
                     type="primary"
                     icon={<ArrowRightOutlined />}
                     loading={executing}
+                    disabled={!importAvailable}
                     onClick={() => void executeTransfer()}
                   >
                     {copy.executeChatDirectHandoff}

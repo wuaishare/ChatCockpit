@@ -356,11 +356,26 @@ const developmentDocumentsSource = fs.readFileSync(
   ),
   "utf8"
 );
+const codexThreadImportSource = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "web/src/components/continuity/CodexThreadImportDrawer.tsx"
+  ),
+  "utf8"
+);
 const runtimeRecoverySource = fs.readFileSync(
   path.join(
     repoRoot,
     "web/src/components/continuity/RuntimeRecoverySection.tsx"
   ),
+  "utf8"
+);
+const jobsSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/JobsView.tsx"),
+  "utf8"
+);
+const productActionAvailabilitySource = fs.readFileSync(
+  path.join(repoRoot, "web/src/product-action-availability.ts"),
   "utf8"
 );
 const resourceCenterSource = fs.readFileSync(
@@ -447,6 +462,18 @@ assert.match(dashboardSource, /const hasAnyJobs = jobsDataState === "ready"/);
 assert.match(dashboardSource, /jobsDataState === "unavailable"/);
 assert.match(dashboardSource, /copy\.dashboard\.unavailableStateTitle/);
 assert.match(dashboardSource, /<strong>--<\/strong>/);
+assert.match(productActionAvailabilitySource, /export function hasLocalProductActionPath/);
+assert.match(productActionAvailabilitySource, /target\.locality === "local"/);
+assert.match(productActionAvailabilitySource, /target\.availability === "available-local"/);
+assert.match(productActionAvailabilitySource, /target\.executionMode === "local-runtime"/);
+assert.match(jobsSource, /productActions:\s*ProductActionsResponse \| null/);
+assert.match(jobsSource, /productActionsError:\s*string \| null/);
+assert.match(jobsSource, /hasLocalProductActionPath\(productActions, "job\.control"\)/);
+assert.match(jobsSource, /disabled=\{!canControlJobs\}/);
+assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canPause/);
+assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canResume/);
+assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canTerminate/);
+assert.match(jobsSource, /controlAvailabilityUnknown/);
 assert.doesNotMatch(dashboardSource, /jobsProtected/);
 assert.doesNotMatch(dashboardSource, /const hasAnyJobs = counts\.total > 0/);
 assert.match(appSource, /<AppUtilityPopover/);
@@ -481,8 +508,32 @@ assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
 assert.match(apiSource, /\/api\/recovery\/assess/);
 assert.match(apiSource, /\/api\/recovery\/execute/);
+assert.match(appSource, /productActions=\{productActions\}/);
+assert.match(appSource, /productActionsError=\{productActionsError\}/);
+assert.match(continuitySource, /productActions:\s*ProductActionsResponse \| null/);
+assert.match(continuitySource, /productActionsError:\s*string \| null/);
+assert.match(workspaceContinuitySource, /productActions=\{productActions\}/);
+assert.match(workspaceContinuitySource, /productActionsError=\{productActionsError\}/);
+for (const actionId of [
+  "continuity.task.transition",
+  "continuity.handoff.manage",
+  "continuity.document.mutate",
+  "continuity.codex-thread.import",
+  "runtime.codex.thread.resume"
+]) {
+  assert.equal(
+    workspaceContinuitySource.includes(`hasLocalProductActionPath(productActions, "${actionId}")`),
+    true
+  );
+}
+assert.match(workspaceContinuitySource, /productActionsError \|\| copy\.actionAvailabilityUnknown/);
 assert.match(runtimeRecoverySource, /assessRuntimeRecovery/);
 assert.match(runtimeRecoverySource, /executeRuntimeRecovery/);
+assert.match(runtimeRecoverySource, /hasLocalProductActionPath\(productActions, "runtime\.recovery\.assess"\)/);
+assert.match(runtimeRecoverySource, /hasLocalProductActionPath\(productActions, "runtime\.recovery\.execute"\)/);
+assert.match(runtimeRecoverySource, /!canAssessRecovery/);
+assert.match(runtimeRecoverySource, /!canExecuteRecovery/);
+assert.match(runtimeRecoverySource, /recoveryActionAvailabilityUnknown/);
 assert.match(runtimeRecoverySource, /assessment\.assessment\.availableActions/);
 assert.match(runtimeRecoverySource, /assessment\.assessment\.blockers/);
 assert.match(runtimeRecoverySource, /classificationLabel\(assessment\.assessment\.classification, locale\)/);
@@ -586,6 +637,30 @@ for (const operation of [
   assert.match(apiSource, new RegExp(operation));
   assert.match(developmentDocumentsSource, new RegExp(operation));
 }
+assert.match(workspaceContinuitySource, /if \(!canManageHandoffs\) return/);
+assert.match(workspaceContinuitySource, /if \(!canTransitionTasks\) return/);
+assert.match(workspaceContinuitySource, /mutationAvailable=\{canTransitionTasks\}/);
+assert.match(workspaceContinuitySource, /mutationAvailable=\{canManageHandoffs\}/);
+assert.match(workspaceContinuitySectionsSource, /mutationAvailable &&/);
+assert.match(workspaceContinuitySectionsSource, /disabled=\{!mutationAvailable\}/);
+assert.match(developmentDocumentsSource, /mutationAvailable:\s*boolean/);
+assert.match(developmentDocumentsSource, /availabilityError:\s*string \| null/);
+assert.match(developmentDocumentsSource, /if \(!mutationAvailable\) return/);
+assert.match(developmentDocumentsSource, /if \(!mutationAvailable \|\| !detail\) return/);
+assert.match(developmentDocumentsSource, /message=\{availabilityError \|\| copy\.actionAvailabilityUnknown\}/);
+assert.match(developmentDocumentsSource, /disabled=\{!mutationAvailable\}/);
+assert.match(developmentDocumentsSource, /okButtonProps=\{\{ disabled: !mutationAvailable \}\}/);
+assert.match(codexThreadImportSource, /importAvailable:\s*boolean/);
+assert.match(codexThreadImportSource, /resumeAvailable:\s*boolean/);
+assert.match(codexThreadImportSource, /availabilityError:\s*string \| null/);
+assert.match(codexThreadImportSource, /if \(!resumeAvailable \|\| !thread\) return/);
+assert.match(codexThreadImportSource, /if \(!importAvailable \|\| !thread\) return/);
+assert.match(codexThreadImportSource, /if \(!importAvailable \|\| !assessment\) return/);
+assert.match(codexThreadImportSource, /disabled=\{!resumeAvailable \|\| nativeResumed\}/);
+assert.match(codexThreadImportSource, /disabled=\{!importAvailable\}/);
+assert.match(codexThreadImportSource, /message=\{availabilityError \|\| copy\.actionAvailabilityUnknown\}/);
+assert.match(continuityCopySource, /Continuity 的部分写入执行路径暂不可判断/);
+assert.match(continuityCopySource, /Some Continuity write execution paths are currently unknown/);
 assert.match(continuitySource, /fetchContinuityProjects/);
 assert.match(continuitySource, /fetchWorkspaceContinuitySnapshot/);
 assert.match(continuitySource, /WorkspaceContinuityPanel/);

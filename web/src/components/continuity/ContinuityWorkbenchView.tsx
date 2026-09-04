@@ -24,7 +24,8 @@ import type {
   ApiProblem,
   ContinuityProjectProjection,
   ContinuitySectionKey,
-  ContinuityWorkspaceSnapshot
+  ContinuityWorkspaceSnapshot,
+  ProductActionsResponse
 } from "../../types";
 import { StateNotice } from "../StateNotice";
 import { WorkspaceContinuityPanel } from "./WorkspaceContinuityPanel";
@@ -33,6 +34,8 @@ interface ContinuityWorkbenchViewProps {
   locale: LocaleCode;
   token: string | null;
   authRequired: boolean;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
   activeSection: ContinuitySectionKey;
   onSectionChange: (section: ContinuitySectionKey) => void;
   onOpenProjects: () => void;
@@ -61,6 +64,8 @@ export function ContinuityWorkbenchView({
   locale,
   token,
   authRequired,
+  productActions,
+  productActionsError,
   activeSection,
   onSectionChange,
   onOpenProjects
@@ -295,6 +300,8 @@ export function ContinuityWorkbenchView({
               locale={locale}
               token={token}
               snapshot={snapshot}
+              productActions={productActions}
+              productActionsError={productActionsError}
               activeSection={activeSection}
               onRefresh={loadSnapshot}
               onSectionChange={onSectionChange}

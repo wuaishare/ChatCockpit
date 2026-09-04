@@ -17,9 +17,14 @@ import type {
   DeviceRuntimeConditions,
   DeviceRuntimeLifecycleAction,
   ManagedDeviceSummary,
-  ProductActionTargetAvailability
+  ProductActionTargetAvailability,
+  ProductActionsResponse
 } from "../types";
 import type { LocaleCode } from "../i18n";
+import {
+  hasLocalProductActionPath,
+  productActionTargets
+} from "../product-action-availability";
 import { getDevicesCopy } from "../i18n/devices";
 import { getDeviceOnboardingCopy } from "../i18n/device-onboarding";
 import { DeviceOnboardingModal } from "./DeviceOnboardingModal";
@@ -51,14 +56,24 @@ export function DevicesView({ locale }: DevicesViewProps) {
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
   const [runtimeByDevice, setRuntimeByDevice] = useState<Record<string, DeviceRuntimeConditions | null>>({});
   const [runtimeLoading, setRuntimeLoading] = useState<Record<string, boolean>>({});
-  const [runtimeLifecycleTargets, setRuntimeLifecycleTargets] = useState<ProductActionTargetAvailability[]>([]);
-  const [workspaceReadTargets, setWorkspaceReadTargets] = useState<ProductActionTargetAvailability[]>([]);
+  const [productActions, setProductActions] = useState<ProductActionsResponse | null>(null);
   const [runtimeActionKey, setRuntimeActionKey] = useState<string | null>(null);
 
   const remoteDevices = useMemo(
     () => devices.filter((device) => device.locality === "remote"),
     [devices]
   );
+  const runtimeLifecycleTargets = useMemo(
+    () => productActionTargets(productActions, "runtime.lifecycle"),
+    [productActions]
+  );
+  const workspaceReadTargets = useMemo(
+    () => productActionTargets(productActions, "workspace.read"),
+    [productActions]
+  );
+  const canDecideEnrollment = hasLocalProductActionPath(productActions, "device.enrollment.decide");
+  const canManageExecutionPolicy = hasLocalProductActionPath(productActions, "device.execution-policy.manage");
+  const canRevokeDevice = hasLocalProductActionPath(productActions, "device.revoke");
 
   const formatTime = (value: string | null) => value
     ? new Intl.DateTimeFormat(locale, {
@@ -78,14 +93,8 @@ export function DevicesView({ locale }: DevicesViewProps) {
       ]);
       setDevices(deviceResponse.devices);
       setRequests(requestResponse.enrollmentRequests);
-      const nextRuntimeTargets = actionResponse?.actions.find(
-        (action) => action.id === "runtime.lifecycle"
-      )?.targets ?? [];
-      const nextWorkspaceReadTargets = actionResponse?.actions.find(
-        (action) => action.id === "workspace.read"
-      )?.targets ?? [];
-      setRuntimeLifecycleTargets(nextRuntimeTargets);
-      setWorkspaceReadTargets(nextWorkspaceReadTargets);
+      const nextRuntimeTargets = productActionTargets(actionResponse, "runtime.lifecycle");
+      setProductActions(actionResponse);
       const runtimeCandidates = deviceResponse.devices.filter((device) =>
         device.locality === "remote" &&
         device.trust === "paired" &&
@@ -120,7 +129,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
   }, []);
 
   const decide = async (requestId: string, decision: "approve" | "deny") => {
-    if (decisionKey) return;
+    if (!canDecideEnrollment || decisionKey) return;
     setDecisionKey(`${requestId}:${decision}`);
     setError(null);
     try {
@@ -137,7 +146,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
     device: ManagedDeviceSummary,
     action: "pause" | "resume"
   ) => {
-    if (policyActionKey) return;
+    if (!canManageExecutionPolicy || policyActionKey) return;
     setPolicyActionKey(`${device.id}:${action}`);
     setError(null);
     try {
@@ -183,7 +192,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
   };
 
   const revoke = async (deviceId: string) => {
-    if (revokingDeviceId) return;
+    if (!canRevokeDevice || revokingDeviceId) return;
     setRevokingDeviceId(deviceId);
     setError(null);
     try {
@@ -289,6 +298,9 @@ export function DevicesView({ locale }: DevicesViewProps) {
         }
       >
         {error ? <div className="section-note section-note--warning">{error}</div> : null}
+        {!productActions && !loading ? (
+          <div className="section-note section-note--warning">{copy.actionAvailabilityUnknown}</div>
+        ) : null}
         {loading && devices.length === 0 ? (
           <div className="device-list__loading"><Spin size="small" /> <span>{copy.loading}</span></div>
         ) : (
@@ -364,12 +376,13 @@ export function DevicesView({ locale }: DevicesViewProps) {
                     </div>
                   </div>
 
-                  {(device.locality === "local" || device.trust !== "revoked") && runtimeTarget ? (
+                  {device.locality === "remote" && device.trust !== "revoked" ? (
                     <div className="device-card__actions">
                       {device.locality === "remote" && device.executionPolicy === "paused" ? (
                         <Button
                           size="small"
                           loading={policyActionKey === `${device.id}:resume`}
+                          disabled={!canManageExecutionPolicy || Boolean(policyActionKey)}
                           onClick={() => void updateExecutionPolicy(device, "resume")}
                         >
                           {policyActionKey === `${device.id}:resume` ? copy.resuming : copy.resume}
@@ -382,7 +395,11 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           cancelText={copy.cancel}
                           onConfirm={() => void updateExecutionPolicy(device, "pause")}
                         >
-                          <Button size="small" loading={policyActionKey === `${device.id}:pause`}>
+                          <Button
+                            size="small"
+                            loading={policyActionKey === `${device.id}:pause`}
+                            disabled={!canManageExecutionPolicy || Boolean(policyActionKey)}
+                          >
                             {policyActionKey === `${device.id}:pause` ? copy.pausing : copy.pause}
                           </Button>
                         </Popconfirm>
@@ -433,7 +450,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           </Button>
                         </Popconfirm>
                       ) : null}
-                      {runtimeActionUnavailable ? (
+                      {runtimeActionUnavailable && runtimeTarget ? (
                         <>
                           <Button size="small" disabled>{copy.manageRuntime}</Button>
                           <span className="device-card__action-hint">{runtimeActionHint(runtimeTarget)}</span>
@@ -448,7 +465,12 @@ export function DevicesView({ locale }: DevicesViewProps) {
                           okButtonProps={{ danger: true }}
                           onConfirm={() => void revoke(device.id)}
                         >
-                          <Button danger size="small" loading={revokingDeviceId === device.id}>
+                          <Button
+                            danger
+                            size="small"
+                            loading={revokingDeviceId === device.id}
+                            disabled={!canRevokeDevice || Boolean(revokingDeviceId)}
+                          >
                             {revokingDeviceId === device.id ? copy.revoking : copy.revoke}
                           </Button>
                         </Popconfirm>
@@ -529,7 +551,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                       danger
                       size="small"
                       loading={decisionKey === `${request.id}:deny`}
-                      disabled={Boolean(decisionKey) && decisionKey !== `${request.id}:deny`}
+                      disabled={!canDecideEnrollment || (Boolean(decisionKey) && decisionKey !== `${request.id}:deny`)}
                     >
                       {decisionKey === `${request.id}:deny` ? copy.denying : copy.deny}
                     </Button>
@@ -545,7 +567,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
                       type="primary"
                       size="small"
                       loading={decisionKey === `${request.id}:approve`}
-                      disabled={Boolean(decisionKey) && decisionKey !== `${request.id}:approve`}
+                      disabled={!canDecideEnrollment || (Boolean(decisionKey) && decisionKey !== `${request.id}:approve`)}
                     >
                       {decisionKey === `${request.id}:approve` ? copy.approving : copy.approve}
                     </Button>

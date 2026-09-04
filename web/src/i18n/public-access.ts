@@ -60,10 +60,14 @@ export interface PublicAccessCopy {
   providerExternalUnmanaged: string;
   providerObserveOnly: string;
   providerMachineActions: string;
-  providerUseAppCli: string;
   providerHomebrewRequired: string;
   providerNoMachineAction: string;
   providerStatusUnavailable: string;
+  providerExecutionPath: string;
+  providerRequiresLocalHost: string;
+  providerAvailableTargets: string;
+  providerRemoteNotImplemented: string;
+  providerTargetAvailabilityUnknown: string;
   openConnectivityInApp: string;
   connectivityBridgeDescription: string;
   routeIntentTitle: string;
@@ -179,7 +183,7 @@ const zhCN: PublicAccessCopy = {
   manualSetupDescription: "需要调整监听器或本机接入组件时，请在 ChatCockpit App / CLI 完成本机配置，再回到这里验证公网地址、HTTPS、MCP 与 OAuth 状态。",
   machineBoundary: "本页不会安装接入组件、写入 Provider 密钥、启动隧道或替你切换公网路由。",
   providersTitle: "本机接入组件",
-  providersDescription: "接入组件属于机器侧辅助设置。日常只需关注上面的公网工作流；需要安装、升级或排查 Tunnel 组件时再展开详情或前往 ChatCockpit App。",
+  providersDescription: "接入组件属于机器侧辅助设置。需要安装、升级或排查 Tunnel 组件时先查看动作的合法执行目标；只有需要本机 Host 时才继续到 ChatCockpit App。",
   providerDetailsTitle: "查看组件状态",
   providerDetected: "已检测",
   providerNotDetected: "未检测到",
@@ -188,12 +192,16 @@ const zhCN: PublicAccessCopy = {
   providerExternalUnmanaged: "外部环境 · 未接管",
   providerObserveOnly: "仅观察 · 尚无机器 Adapter",
   providerMachineActions: "可用机器操作",
-  providerUseAppCli: "请在 ChatCockpit App / CLI 执行",
   providerHomebrewRequired: "需要先在此 Mac 安装 Homebrew；ChatCockpit 不会自动安装 Homebrew",
   providerNoMachineAction: "当前没有可用的 ChatCockpit 机器操作",
   providerStatusUnavailable: "暂时无法读取本机连接组件状态；这不会改变当前 Runtime 公网接入结果。",
+  providerExecutionPath: "执行路径",
+  providerRequiresLocalHost: "需要本机 Host",
+  providerAvailableTargets: "可执行目标",
+  providerRemoteNotImplemented: "远程设备执行暂未实现",
+  providerTargetAvailabilityUnknown: "目标可用性暂不可判断",
   openConnectivityInApp: "在 ChatCockpit App 中打开",
-  connectivityBridgeDescription: "只导航到 App 的「访问与安全 → 接入组件」区域；不会自动执行安装、升级、卸载或启动 Tunnel。",
+  connectivityBridgeDescription: "当前动作需要本机 Host 时，可打开 App 的「访问与安全 → 接入组件」区域继续；这里不会自动执行安装、升级、卸载或启动 Tunnel。",
   routeIntentTitle: "候选公网 Route",
   routeIntentDescription: "暂存候选 HTTPS origin 时不会改写 Runtime 公网基址。已有 canonical 时使用公网 DNS、TLS、Runtime Health 与 OAuth identity 验证 replacement Route；首次公网接入时改用 machine-local challenge 的 Bootstrap Identity Proof。",
   currentCanonicalRoute: "当前 canonical",
@@ -333,7 +341,7 @@ const enUS: PublicAccessCopy = {
   manualSetupDescription: "When the listener or a machine-side connector needs changes, configure it in ChatCockpit App / CLI, then return here to verify the public URL, HTTPS, MCP, and OAuth state.",
   machineBoundary: "This page does not install connectors, write provider secrets, start tunnels, or switch public routes for you.",
   providersTitle: "Machine connectors",
-  providersDescription: "Connectors are auxiliary machine-side settings. Focus on the public route workflow above during normal use; expand details or open the ChatCockpit App only when installing, upgrading, or diagnosing a Tunnel component.",
+  providersDescription: "Connectors are auxiliary machine-side settings. When installing, upgrading, or diagnosing a Tunnel component, inspect the action's valid execution targets first and continue in the ChatCockpit App only when a local host is required.",
   providerDetailsTitle: "View connector status",
   providerDetected: "Detected",
   providerNotDetected: "Not detected",
@@ -342,12 +350,16 @@ const enUS: PublicAccessCopy = {
   providerExternalUnmanaged: "External environment · unmanaged",
   providerObserveOnly: "Observe only · no machine adapter yet",
   providerMachineActions: "Machine actions available",
-  providerUseAppCli: "Run them in the ChatCockpit App / CLI",
   providerHomebrewRequired: "Homebrew must already be installed on this Mac; ChatCockpit does not install Homebrew automatically",
   providerNoMachineAction: "No ChatCockpit machine action is currently available",
   providerStatusUnavailable: "Machine connector status is temporarily unavailable. The current Runtime public connectivity result is unchanged.",
+  providerExecutionPath: "Execution path",
+  providerRequiresLocalHost: "Requires a local host",
+  providerAvailableTargets: "Available targets",
+  providerRemoteNotImplemented: "Remote-device execution is not implemented yet",
+  providerTargetAvailabilityUnknown: "Target availability is currently unknown",
   openConnectivityInApp: "Open in ChatCockpit App",
-  connectivityBridgeDescription: "This only navigates to Access & Security → Connectivity Providers in the App. It never auto-runs install, upgrade, uninstall, or Tunnel startup.",
+  connectivityBridgeDescription: "When the current action requires a local host, open Access & Security → Connectivity Providers in the App to continue. This page never auto-runs install, upgrade, uninstall, or Tunnel startup.",
   routeIntentTitle: "Candidate Public Route",
   routeIntentDescription: "Staging a candidate HTTPS origin never rewrites the Runtime public base URL. With an existing canonical, replacement verification checks public DNS, TLS, Runtime Health, and OAuth identity; first-public setup instead uses a machine-local challenge Bootstrap Identity Proof.",
   currentCanonicalRoute: "Current canonical",
