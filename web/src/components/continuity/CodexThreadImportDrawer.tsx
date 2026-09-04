@@ -156,7 +156,7 @@ export function CodexThreadImportDrawer({
         fetchCodexRuntimeAccountStatus(token)
       ]);
       if (threadResponse.thread.workspaceId !== workspaceId) {
-        throw new Error("The Codex Thread does not belong to the selected ChatCockpit workspace");
+        throw new Error("The Codex Thread does not belong to the selected execution workspace");
       }
       setThread(threadResponse.thread);
       setAccount(accountResponse.account);

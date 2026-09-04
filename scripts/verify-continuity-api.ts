@@ -209,6 +209,7 @@ async function runContinuityApiVerification(): Promise<void> {
       "completeContinuityTask",
       "getContinuityTask",
       "startContinuitySession",
+      "finishContinuitySession",
       "getContinuitySession",
       "acquireContinuityLease",
       "releaseContinuityLease",
@@ -235,6 +236,10 @@ async function runContinuityApiVerification(): Promise<void> {
     assert.match(
       openapiText,
       /ContinuitySessionStartPayload:[\s\S]*expectedTaskRevision:[\s\S]*idempotencyKey:/
+    );
+    assert.match(
+      openapiText,
+      /ContinuitySessionFinishPayload:[\s\S]*outcome:[\s\S]*expectedRevision:[\s\S]*idempotencyKey:/
     );
     assert.match(
       openapiText,
@@ -989,6 +994,64 @@ async function runContinuityApiVerification(): Promise<void> {
     assert.equal(restForked.task.activeSessionId, restForked.session.id);
     assert.equal(restForked.session.taskId, restForked.task.id);
     assert.equal(restForked.session.mode, "codex-session");
+
+    const finishTask = await rest<typeof restTask>(
+      "POST",
+      "/api/continuity/tasks",
+      {
+        projectId: project.id,
+        workspaceId: workspace.id,
+        title: "Session finish parity task",
+        goal: "Verify a development session can end without completing its resumable task",
+        priority: "normal",
+        idempotencyKey: "continuity-task-session-finish-0001"
+      }
+    );
+    const finishSession = await rest<typeof restSession>(
+      "POST",
+      "/api/continuity/sessions/start",
+      {
+        taskId: finishTask.task.id,
+        title: "Session finish parity session",
+        mode: "chat-direct",
+        expectedTaskRevision: finishTask.task.revision,
+        idempotencyKey: "continuity-session-finish-source-0001"
+      }
+    );
+    const finishInput = {
+      sessionId: finishSession.session.id,
+      outcome: "completed" as const,
+      expectedRevision: finishSession.session.revision,
+      idempotencyKey: "continuity-session-finish-0001"
+    };
+    const restFinished = await rest<{
+      ok: true;
+      session: {
+        id: string;
+        status: string;
+        endedAt: string | null;
+        revision: number;
+      };
+      task: {
+        id: string;
+        status: string;
+        activeSessionId: string | null;
+        revision: number;
+      };
+      replayed: boolean;
+    }>("POST", "/api/continuity/sessions/finish", finishInput);
+    const mcpFinished = await mcp<typeof restFinished>(
+      "chatcockpit.session.finish",
+      finishInput
+    );
+    assert.equal(restFinished.replayed, false);
+    assert.equal(mcpFinished.replayed, true);
+    assert.deepEqual(mcpFinished.session, restFinished.session);
+    assert.deepEqual(mcpFinished.task, restFinished.task);
+    assert.equal(restFinished.session.status, "completed");
+    assert.ok(restFinished.session.endedAt);
+    assert.equal(restFinished.task.status, "in-progress");
+    assert.equal(restFinished.task.activeSessionId, null);
 
     const decisionSnapshot = await rest<typeof restSnapshot>(
       "GET",

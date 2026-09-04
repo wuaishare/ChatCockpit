@@ -3371,6 +3371,25 @@ components:
           maxLength: 128
           pattern: '^[A-Za-z0-9._:-]+$'
       required: [taskId, title, mode, expectedTaskRevision, idempotencyKey]
+    ContinuitySessionFinishPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+        outcome:
+          type: string
+          enum: [completed, failed]
+          default: completed
+        expectedRevision:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+      required: [sessionId, expectedRevision, idempotencyKey]
     ContinuityLeaseAcquirePayload:
       type: object
       additionalProperties: false
@@ -9972,6 +9991,26 @@ paths:
       responses:
         "200":
           description: Started or replayed session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuityMutationResponse'
+  /api/continuity/sessions/finish:
+    post:
+      operationId: finishContinuitySession
+      summary: Finish development session
+      description: Finishes a development session only after its writer lease, managed processes, active runtime run, pending runtime approvals, and outstanding Chat Direct approvals are clear; the task remains resumable and is unbound from the finished session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinuitySessionFinishPayload'
+      responses:
+        "200":
+          description: Finished or replayed development session
           content:
             application/json:
               schema:

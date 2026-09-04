@@ -43,6 +43,7 @@ import {
   leaseReleaseSchema,
   projectGetSchema,
   projectListSchema,
+  sessionFinishSchema,
   sessionGetSchema,
   sessionStartSchema,
   taskCompleteSchema,
@@ -685,6 +686,24 @@ export function registerContinuityRoutes(
         return {
           ok: true,
           ...services.sessions.start(operationContextFromRequest(request), input)
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    }
+  );
+
+  registerAliases(
+    app,
+    "POST",
+    "/api/continuity/sessions/finish",
+    (request, reply) => {
+      const input = parseOrReply(sessionFinishSchema, request.body, reply);
+      if (!input) return;
+      try {
+        return {
+          ok: true,
+          ...services.sessions.finish(operationContextFromRequest(request), input)
         };
       } catch (error) {
         return sendUnknownApiError(reply, error);

@@ -1,4 +1,4 @@
-import type { SessionStartInput } from "../contracts/continuity.js";
+import type { SessionFinishInput, SessionStartInput } from "../contracts/continuity.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type {
   DevelopmentSessionRecord,
@@ -16,6 +16,12 @@ export interface SessionStartResult {
   session: DevelopmentSessionRecord;
   task: TaskRecord;
   executionPolicy: TaskExecutionPolicyAssessment;
+  replayed: boolean;
+}
+
+export interface SessionFinishResult {
+  session: DevelopmentSessionRecord;
+  task: TaskRecord;
   replayed: boolean;
 }
 
@@ -81,6 +87,173 @@ export class SessionService {
           task: updatedTask,
           executionPolicy: policyAssessment
         };
+      }
+    );
+    return {
+      ...execution.value,
+      replayed: execution.replayed
+    };
+  }
+
+  finish(context: OperationContext, input: SessionFinishInput): SessionFinishResult {
+    const { idempotencyKey, expectedRevision, ...payload } = input;
+    const execution = this.repositories.idempotency.execute(
+      "session.finish",
+      idempotencyKey,
+      { ...payload, expectedRevision },
+      () => {
+        let session = this.repositories.sessions.get(payload.sessionId);
+        if (session.revision !== expectedRevision) {
+          throw new ServiceError(
+            "REVISION_CONFLICT",
+            `Development session ${session.id} revision does not match`,
+            {
+              details: {
+                expectedRevision,
+                actualRevision: session.revision
+              }
+            }
+          );
+        }
+        if (["completed", "failed"].includes(session.status)) {
+          throw new ServiceError(
+            "CONTINUITY_RELATION_INVALID",
+            "Completed or failed development sessions cannot be finished again"
+          );
+        }
+
+        this.repositories.leases.reconcileExpired(context.now);
+        const activeLease = this.repositories.leases.getActive(session.workspaceId);
+        if (activeLease?.sessionId === session.id) {
+          throw new ServiceError(
+            "CONTINUITY_RELATION_INVALID",
+            "Release the session workspace writer lease before finishing the development session",
+            {
+              details: {
+                leaseId: activeLease.id,
+                sessionId: session.id,
+                holderId: activeLease.holderId,
+                expiresAt: activeLease.expiresAt
+              }
+            }
+          );
+        }
+
+        const activeProcessCount = this.repositories.directProcessSessions.countActive({
+          sessionId: session.id
+        });
+        if (activeProcessCount > 0) {
+          throw new ServiceError(
+            "CONTINUITY_RELATION_INVALID",
+            "Stop all active managed processes before finishing the development session",
+            {
+              details: {
+                sessionId: session.id,
+                activeProcessCount
+              }
+            }
+          );
+        }
+
+        const activeRun = this.repositories.runtimeRuns.getActiveBySession(session.id);
+        if (activeRun) {
+          throw new ServiceError(
+            "CONTINUITY_RELATION_INVALID",
+            "Finish the active runtime run before finishing the development session",
+            {
+              details: {
+                sessionId: session.id,
+                runId: activeRun.id,
+                runStatus: activeRun.status
+              }
+            }
+          );
+        }
+
+        const pendingRuntimeApprovals = this.repositories.runtimeApprovals.listPending(
+          session.id
+        );
+        if (pendingRuntimeApprovals.length > 0) {
+          throw new ServiceError(
+            "CONTINUITY_RELATION_INVALID",
+            "Resolve pending runtime approvals before finishing the development session",
+            {
+              details: {
+                sessionId: session.id,
+                approvalIds: pendingRuntimeApprovals.map((approval) => approval.id)
+              }
+            }
+          );
+        }
+
+        const outstandingDirectApprovals = {
+          commands: this.repositories.directCommandApprovals.countOutstandingForSession(
+            session.id,
+            context.now
+          ),
+          mutations: this.repositories.directMutationApprovals.countOutstandingForSession(
+            session.id,
+            context.now
+          ),
+          processes: this.repositories.directProcessApprovals.countOutstandingForSession(
+            session.id,
+            context.now
+          )
+        };
+        const outstandingDirectApprovalCount =
+          outstandingDirectApprovals.commands +
+          outstandingDirectApprovals.mutations +
+          outstandingDirectApprovals.processes;
+        if (outstandingDirectApprovalCount > 0) {
+          throw new ServiceError(
+            "CONTINUITY_RELATION_INVALID",
+            "Resolve outstanding Chat Direct approvals before finishing the development session",
+            {
+              details: {
+                sessionId: session.id,
+                outstandingApprovalCount: outstandingDirectApprovalCount,
+                outstandingApprovals: outstandingDirectApprovals
+              }
+            }
+          );
+        }
+
+        if (session.activeRuntimeBindingId) {
+          const binding = this.repositories.runtimeBindings.get(
+            session.activeRuntimeBindingId
+          );
+          if (binding.status === "active") {
+            this.repositories.runtimeBindings.release(
+              binding.id,
+              binding.revision,
+              context.now
+            );
+          }
+          session = this.repositories.sessions.bindRuntime(
+            session.id,
+            null,
+            session.revision,
+            context.now
+          );
+        }
+
+        session = this.repositories.sessions.updateStatus(
+          session.id,
+          payload.outcome,
+          session.revision,
+          { now: context.now, endedAt: context.now }
+        );
+
+        let task = this.repositories.tasks.get(session.taskId);
+        if (task.activeSessionId === session.id) {
+          task = this.repositories.tasks.bindSession(
+            task.id,
+            null,
+            task.revision,
+            context.now
+          );
+        }
+        return { session, task };
       }
     );
     return {

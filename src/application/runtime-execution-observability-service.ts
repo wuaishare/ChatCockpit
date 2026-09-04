@@ -1,5 +1,6 @@
 import type { DirectProcessScope, DirectProcessStatus, TaskPriority, TaskStatus } from "../continuity/types.js";
 import { isChatDirectManagedProcessId } from "../core/managed-workspace-process.js";
+import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type { McpConnectionProjection, McpConnectionRegistry } from "../mcp/connection-registry.js";
 import type {
@@ -32,6 +33,8 @@ export interface RuntimeExecutionTaskProjection extends RuntimeExecutionProjectR
 export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProjectRef {
   id: string;
   scope: DirectProcessScope;
+  deviceId: string;
+  consoleSessionId: string;
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;
@@ -165,6 +168,8 @@ export class RuntimeExecutionObservabilityService {
       .map((process): RuntimeExecutionProcessProjection => ({
         id: process.id,
         scope: process.scope,
+        deviceId: LOCAL_DEVICE_TARGET_ID,
+        consoleSessionId: process.sessionId ?? `process:${process.id}`,
         workspaceId: process.workspaceId,
         repoId: process.repoId,
         sessionId: process.sessionId,

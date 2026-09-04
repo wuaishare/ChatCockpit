@@ -314,7 +314,9 @@ for (const section of ["overview", "projects", "work", "runtime", "resources", "
 assert.doesNotMatch(statusView, /NavigationSplitView/);
 assert.doesNotMatch(statusView, /SidebarNavigationButton/);
 assert.match(statusView, /if activeSection == \.thisMac/);
-assert.match(statusView, /SharedCockpitView\([\s\S]*destination: activeSection\.cockpitDestination/s);
+assert.match(statusView, /SharedCockpitView\([\s\S]*destination: activeSection == \.thisMac \? nil : activeSection\.cockpitDestination/s);
+assert.match(statusView, /\.opacity\(activeSection == \.thisMac \? 0 : 1\)/);
+assert.match(statusView, /\.allowsHitTesting\(activeSection != \.thisMac\)/);
 assert.match(statusView, /onOpenThisMac: \{ selection = \.thisMac \}/);
 assert.match(statusView, /ToolbarItem\(placement: \.primaryAction\)/);
 assert.match(statusView, /selection = \.overview/);
@@ -510,7 +512,7 @@ assert.match(appModel, /guard operatorSecurityStatus\.configured else \{[\s\S]*r
 assert.match(statusView, /struct MainAppView: View/);
 assert.match(statusView, /if activeSection == \.thisMac/);
 assert.match(statusView, /SharedCockpitView\(/);
-assert.match(statusView, /destination: activeSection\.cockpitDestination/);
+assert.match(statusView, /destination: activeSection == \.thisMac \? nil : activeSection\.cockpitDestination/);
 assert.match(statusView, /case \.overview: return nil/);
 assert.match(statusView, /case \.connections: return \.integrations/);
 assert.doesNotMatch(statusView, /NavigationSplitView/);

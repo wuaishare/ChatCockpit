@@ -24,8 +24,42 @@ import "./runtime-live-execution.css";
 
 type StreamState = "connecting" | "live" | "reconnecting" | "offline";
 
+type ProcessOutputChunk = {
+  sequence: number;
+  stream: "stdout" | "stderr";
+  content: string;
+  capReached: boolean;
+};
+
+type ProcessOutputEvent = {
+  ok: true;
+  deviceId: string;
+  consoleSessionId: string;
+  command: string;
+  processId: string;
+  sessionId: string | null;
+  state: "running" | "completed" | "terminated" | "failed";
+  exitCode: number | null;
+  errorCode: string | null;
+  chunks: ProcessOutputChunk[];
+  nextCursor: number;
+  retained: true;
+};
+
+type SessionConsoleGroup = {
+  id: string;
+  deviceId: string;
+  sessionId: string | null;
+  projectDisplayName: string | null;
+  repoId: string | null;
+  processes: RuntimeExecutionProcessProjection[];
+  lastStartedAt: string;
+  active: boolean;
+};
+
 const TERMINAL_ACTIVITY = new Set(["completed", "failed", "interrupted", "terminated", "stale"]);
 const TERMINAL_TASK = new Set(["completed", "cancelled"]);
+
 function compactId(value: string | null): string {
   if (!value) return "—";
   if (value.length <= 22) return value;
@@ -59,6 +93,127 @@ function connectionLabel(locale: LocaleCode, connection: RuntimeExecutionConnect
   if (connection.state === "idle") return copy.connectionIdle;
   return copy.connectionStale;
 }
+
+function SessionTerminalCard({
+  locale,
+  group,
+  outputByProcess,
+  processTerminateAvailable,
+  terminatingProcessId,
+  onTerminate
+}: {
+  locale: LocaleCode;
+  group: SessionConsoleGroup;
+  outputByProcess: Record<string, ProcessOutputChunk[]>;
+  processTerminateAvailable: boolean;
+  terminatingProcessId: string | null;
+  onTerminate: (process: RuntimeExecutionProcessProjection) => void;
+}) {
+  const runtimeCopy = getRuntimeCopy(locale);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const outputRevision = group.processes.reduce(
+    (total, process) => total + (outputByProcess[process.id]?.length ?? 0),
+    0
+  );
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    if (distanceFromBottom < 96 || outputRevision <= 1) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+  }, [outputRevision]);
+
+  return (
+    <article className={`runtime-session-terminal${group.active ? " is-live" : ""}`}>
+      <header className="runtime-session-terminal__header">
+        <div className="runtime-session-terminal__identity">
+          <span className={`runtime-session-terminal__pulse${group.active ? " is-live" : ""}`} aria-hidden="true" />
+          <div>
+            <div className="runtime-session-terminal__title">
+              {group.projectDisplayName ?? runtimeCopy.unknownProject}
+            </div>
+            <div className="runtime-session-terminal__meta">
+              <span>{runtimeCopy.sessionConsoleDevice}: <code>{group.deviceId === "local-device" ? runtimeCopy.local : compactId(group.deviceId)}</code></span>
+              <span>{runtimeCopy.sessionConsoleSession}: <code>{group.sessionId ? compactId(group.sessionId) : runtimeCopy.sessionConsoleAdHoc}</code></span>
+              {group.repoId ? <span><code>{group.repoId}</code></span> : null}
+            </div>
+          </div>
+        </div>
+        <Tag color={group.active ? "processing" : "default"}>
+          {group.active ? runtimeCopy.sessionConsoleLive : runtimeCopy.sessionConsoleRecent}
+        </Tag>
+      </header>
+
+      <div ref={viewportRef} className="runtime-session-terminal__viewport">
+        {group.processes.map((process) => {
+          const chunks = outputByProcess[process.id] ?? [];
+          const active = process.status === "starting" || process.status === "running";
+          const canTerminate = active && process.controls.terminate;
+          return (
+            <section key={process.id} className="runtime-session-terminal__process">
+              <div className="runtime-session-terminal__command-row">
+                <span className="runtime-session-terminal__prompt" aria-hidden="true">$</span>
+                <code className="runtime-session-terminal__command">{process.command}</code>
+                <Tag color={process.status === "running" ? "processing" : "default"}>
+                  {processLabel(locale, process)}
+                </Tag>
+                <span className="runtime-session-terminal__executor">
+                  {runtimeCopy.sessionConsoleExecutor}: {process.executorId}
+                </span>
+                {canTerminate ? (
+                  <Popconfirm
+                    title={runtimeCopy.processTerminateTitle}
+                    description={runtimeCopy.processTerminateDescription}
+                    okText={runtimeCopy.processTerminate}
+                    cancelText={runtimeCopy.cancel}
+                    okButtonProps={{ danger: true }}
+                    disabled={!processTerminateAvailable || terminatingProcessId === process.id}
+                    onConfirm={() => onTerminate(process)}
+                  >
+                    <Button
+                      size="small"
+                      danger
+                      type="text"
+                      icon={<StopOutlined />}
+                      loading={terminatingProcessId === process.id}
+                      disabled={!processTerminateAvailable || terminatingProcessId === process.id}
+                      title={
+                        processTerminateAvailable
+                          ? runtimeCopy.processTerminate
+                          : runtimeCopy.processControlUnavailable
+                      }
+                    >
+                      {runtimeCopy.processTerminate}
+                    </Button>
+                  </Popconfirm>
+                ) : null}
+              </div>
+              <div className="runtime-session-terminal__output">
+                {chunks.length > 0 ? chunks.map((chunk) => (
+                  <span
+                    key={`${process.id}:${chunk.sequence}`}
+                    className={`runtime-session-terminal__chunk is-${chunk.stream}`}
+                  >
+                    {chunk.content}
+                  </span>
+                )) : (
+                  <span className="runtime-session-terminal__empty">
+                    {active
+                      ? runtimeCopy.sessionConsoleWaitingOutput
+                      : runtimeCopy.sessionConsoleOutputUnavailable}
+                  </span>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
 export function RuntimeLiveExecutionPanel({
   locale,
   processTerminateAvailable
@@ -74,6 +229,8 @@ export function RuntimeLiveExecutionPanel({
   const [streamState, setStreamState] = useState<StreamState>("connecting");
   const [terminatingProcessId, setTerminatingProcessId] = useState<string | null>(null);
   const [processControlError, setProcessControlError] = useState<string | null>(null);
+  const [processOutputs, setProcessOutputs] = useState<Record<string, ProcessOutputChunk[]>>({});
+  const seenOutputSequences = useRef(new Map<string, Set<number>>());
   const terminateKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
@@ -134,12 +291,37 @@ export function RuntimeLiveExecutionPanel({
         setStreamState("reconnecting");
       }
     };
+    const onProcessOutput = (event: MessageEvent<string>) => {
+      try {
+        const next = JSON.parse(event.data) as ProcessOutputEvent;
+        if (next?.ok !== true || !next.processId || !Array.isArray(next.chunks)) return;
+        let seen = seenOutputSequences.current.get(next.processId);
+        if (!seen) {
+          seen = new Set<number>();
+          seenOutputSequences.current.set(next.processId, seen);
+        }
+        const fresh = next.chunks.filter((chunk) => {
+          if (seen!.has(chunk.sequence)) return false;
+          seen!.add(chunk.sequence);
+          return true;
+        });
+        if (fresh.length === 0) return;
+        setProcessOutputs((current) => ({
+          ...current,
+          [next.processId]: [...(current[next.processId] ?? []), ...fresh].slice(-1200)
+        }));
+      } catch {
+        // A malformed output event must not tear down the authoritative snapshot stream.
+      }
+    };
     source.addEventListener("runtime.execution.snapshot", onSnapshot as EventListener);
+    source.addEventListener("runtime.process.output", onProcessOutput as EventListener);
     source.onopen = () => setStreamState("live");
     source.onerror = () =>
       setStreamState(source.readyState === EventSource.CLOSED ? "offline" : "reconnecting");
     return () => {
       source.removeEventListener("runtime.execution.snapshot", onSnapshot as EventListener);
+      source.removeEventListener("runtime.process.output", onProcessOutput as EventListener);
       source.close();
     };
   }, [load]);
@@ -152,26 +334,62 @@ export function RuntimeLiveExecutionPanel({
     () => (snapshot?.tasks ?? []).filter((task) => !TERMINAL_TASK.has(task.status)).slice(0, 8),
     [snapshot]
   );
-  const processes = useMemo(
-    () => (snapshot?.processes ?? []).filter((process) => process.status === "starting" || process.status === "running").slice(0, 12),
-    [snapshot]
-  );
+  const sessionConsoles = useMemo(() => {
+    const groups = new Map<string, SessionConsoleGroup>();
+    for (const process of snapshot?.processes ?? []) {
+      const current = groups.get(process.consoleSessionId);
+      if (current) {
+        current.processes.push(process);
+        if (process.startedAt > current.lastStartedAt) current.lastStartedAt = process.startedAt;
+        if (process.status === "starting" || process.status === "running") current.active = true;
+        if (!current.projectDisplayName && process.projectDisplayName) {
+          current.projectDisplayName = process.projectDisplayName;
+        }
+        if (!current.repoId && process.repoId) current.repoId = process.repoId;
+      } else {
+        groups.set(process.consoleSessionId, {
+          id: process.consoleSessionId,
+          deviceId: process.deviceId,
+          sessionId: process.sessionId,
+          projectDisplayName: process.projectDisplayName,
+          repoId: process.repoId,
+          processes: [process],
+          lastStartedAt: process.startedAt,
+          active: process.status === "starting" || process.status === "running"
+        });
+      }
+    }
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        processes: group.processes.sort((left, right) => left.startedAt.localeCompare(right.startedAt))
+      }))
+      .sort((left, right) => {
+        if (left.active !== right.active) return left.active ? -1 : 1;
+        return right.lastStartedAt.localeCompare(left.lastStartedAt);
+      })
+      .slice(0, 10);
+  }, [snapshot]);
   useEffect(() => {
     if (
       terminatingProcessId &&
-      !processes.some((process) => process.id === terminatingProcessId)
+      !(snapshot?.processes ?? []).some(
+        (process) => process.id === terminatingProcessId &&
+          (process.status === "starting" || process.status === "running")
+      )
     ) {
       setTerminatingProcessId(null);
     }
-  }, [processes, terminatingProcessId]);
+  }, [snapshot, terminatingProcessId]);
   const connections = useMemo(() => (snapshot?.connections ?? []).slice(0, 12), [snapshot]);
-  const hasExecution = activities.length > 0 || tasks.length > 0 || processes.length > 0 || connections.length > 0;
+  const hasExecution = activities.length > 0 || tasks.length > 0 || sessionConsoles.length > 0 || connections.length > 0;
 
   const streamLabel = streamState === "live"
     ? projectCopy.live
     : streamState === "offline"
       ? projectCopy.offline
       : projectCopy.reconnecting;
+
   return (
     <SectionCard
       title={runtimeCopy.liveExecutionTitle}
@@ -216,7 +434,34 @@ export function RuntimeLiveExecutionPanel({
           description={`${runtimeCopy.noLiveExecution} · ${runtimeCopy.noLiveExecutionDescription}`}
         />
       ) : null}
-      {hasExecution ? (
+
+      {sessionConsoles.length > 0 ? (
+        <section className="runtime-live-execution__sessions">
+          <div className="runtime-live-execution__sessions-heading">
+            <div>
+              <div className="runtime-live-execution__section-title">
+                <CodeOutlined /> {runtimeCopy.sessionConsoleTitle}
+              </div>
+              <p>{runtimeCopy.sessionConsoleDescription}</p>
+            </div>
+          </div>
+          <div className="runtime-live-execution__session-grid">
+            {sessionConsoles.map((group) => (
+              <SessionTerminalCard
+                key={group.id}
+                locale={locale}
+                group={group}
+                outputByProcess={processOutputs}
+                processTerminateAvailable={processTerminateAvailable}
+                terminatingProcessId={terminatingProcessId}
+                onTerminate={(process) => void terminateProcess(process)}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {activities.length > 0 || connections.length > 0 ? (
         <div className="runtime-live-execution__grid">
           <section>
             <div className="runtime-live-execution__section-title">
@@ -263,70 +508,6 @@ export function RuntimeLiveExecutionPanel({
             ) : null}
           </section>
 
-          <section>
-            <div className="runtime-live-execution__section-title">
-              <CodeOutlined /> {projectCopy.liveProcesses}
-            </div>
-            <List
-              size="small"
-              dataSource={processes}
-              locale={{ emptyText: "—" }}
-              renderItem={(process) => (
-                <List.Item
-                  actions={
-                    process.controls.terminate
-                      ? [
-                          <Popconfirm
-                            key="terminate"
-                            title={runtimeCopy.processTerminateTitle}
-                            description={runtimeCopy.processTerminateDescription}
-                            okText={runtimeCopy.processTerminate}
-                            cancelText={runtimeCopy.cancel}
-                            okButtonProps={{ danger: true }}
-                            disabled={!processTerminateAvailable || terminatingProcessId === process.id}
-                            onConfirm={() => void terminateProcess(process)}
-                          >
-                            <Button
-                              size="small"
-                              danger
-                              icon={<StopOutlined />}
-                              loading={terminatingProcessId === process.id}
-                              disabled={!processTerminateAvailable || terminatingProcessId === process.id}
-                              title={
-                                processTerminateAvailable
-                                  ? runtimeCopy.processTerminate
-                                  : runtimeCopy.processControlUnavailable
-                              }
-                            >
-                              {runtimeCopy.processTerminate}
-                            </Button>
-                          </Popconfirm>
-                        ]
-                      : undefined
-                  }
-                >
-                  <List.Item.Meta
-                    title={
-                      <Space wrap size={8}>
-                        <code className="runtime-live-execution__command">{process.command}</code>
-                        <Tag color={process.status === "running" ? "processing" : "default"}>
-                          {processLabel(locale, process)}
-                        </Tag>
-                      </Space>
-                    }
-                    description={
-                      <Space wrap size={8}>
-                        <span>{process.projectDisplayName ?? runtimeCopy.unknownProject}</span>
-                        <span>{projectCopy.executor}: {process.executorId}</span>
-                        {process.repoId ? <code>{process.repoId}</code> : null}
-                        {process.sessionId ? <code>session {compactId(process.sessionId)}</code> : null}
-                      </Space>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-          </section>
           <section>
             <div className="runtime-live-execution__section-title">
               <ApiOutlined /> {projectCopy.liveConnections}

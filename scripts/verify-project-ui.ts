@@ -155,6 +155,11 @@ assert.match(
   /<RuntimeLiveExecutionPanel[\s\S]*locale=\{locale\}[\s\S]*processTerminateAvailable=\{processTerminateAvailable\}[\s\S]*\/>/
 );
 assert.match(runtimeLiveExecution, /new EventSource\("\/api\/runtime\/executions\/stream"/);
+assert.match(runtimeLiveExecution, /source\.addEventListener\("runtime\.process\.output"/);
+assert.match(runtimeLiveExecution, /consoleSessionId/);
+assert.match(runtimeLiveExecution, /seenOutputSequences/);
+assert.match(runtimeLiveExecution, /SessionTerminalCard/);
+assert.match(runtimeLiveExecution, /runtime-session-terminal__viewport/);
 assert.match(runtimeLiveExecution, /projectDisplayName \?\? runtimeCopy\.unknownProject/);
 assert.match(runtimeLiveExecution, /activity\.targetDeviceId/);
 assert.match(runtimeLiveExecution, /process\.command/);
