@@ -15,6 +15,7 @@ export const PRODUCT_ACTION_IDS = [
   "runtime.recovery.assess",
   "runtime.recovery.execute",
   "runtime.codex.thread.resume",
+  "runtime.codex.turn.interrupt",
   "job.control",
   "continuity.task.transition",
   "continuity.handoff.manage",
@@ -243,6 +244,7 @@ export class ProductActionAvailabilityService {
       action === "runtime.recovery.assess" ||
       action === "runtime.recovery.execute" ||
       action === "runtime.codex.thread.resume" ||
+      action === "runtime.codex.turn.interrupt" ||
       action === "job.control" ||
       action === "continuity.task.transition" ||
       action === "continuity.handoff.manage" ||

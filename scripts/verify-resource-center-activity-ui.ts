@@ -16,6 +16,8 @@ for (const required of [
   "fetchOperationalActivities",
   "fetchExecutionTrajectory",
   "fetchContinuityCapsule",
+  "fetchProductActions",
+  "hasLocalProductActionPath",
   'new EventSource("/api/activities/stream", { withCredentials: true })',
   'source.addEventListener("activity.snapshot"',
   'source.addEventListener("activity.event"',
@@ -28,6 +30,10 @@ for (const required of [
   "activity.controls.pause",
   "activity.controls.resume",
   "activity.controls.terminate",
+  'hasLocalProductActionPath(productActions, "job.control")',
+  'hasLocalProductActionPath(productActions, "runtime.codex.turn.interrupt")',
+  "disabled={Boolean(controllingAction) || !canControlJobs}",
+  "disabled={interrupting || !canInterruptCodex}",
   "activity.runtime.runRevision",
   "activity.job?.processRevision",
   'activity.kind === "device-operation"',
@@ -82,6 +88,16 @@ for (const requiredControl of [
 ]) {
   assert.equal(panel.includes(requiredControl), true, `Activity Job controls must retain ${requiredControl}`);
 }
+assert.match(
+  panel,
+  /if \(!canControlJobs \|\| !job\?\.processRevision \|\| !activity\.controls\[action\]\) return;/,
+  "Activity Job control handlers must fail closed without a verified Product Action path"
+);
+assert.match(
+  panel,
+  /if \(!canInterruptCodex \|\| !activity\.controls\.interrupt/,
+  "Activity Codex interrupt handlers must fail closed without a verified Product Action path"
+);
 assert.match(
   api,
   /interruptCodexRuntimeTurn[\s\S]*?"\/api\/runtime\/codex\/turns\/interrupt"/,
@@ -144,6 +160,7 @@ for (const requiredCopy of [
   'activityTerminate: "终止作业"',
   'activityInterrupt: "中断运行"',
   'activityInterruptFailed: "中断运行失败，可安全重试。"',
+  'activityControlUnavailable: "当前没有可验证的本机执行路径；运行活动仍可正常查看。"',
   'activityTitle: "Operational Activity"',
   'activityLive: "Live"',
   'activityUnknownAuthority: "No grant bound"',
@@ -159,6 +176,7 @@ for (const requiredCopy of [
   'activityTerminate: "Terminate job"',
   'activityInterrupt: "Interrupt run"',
   'activityInterruptFailed: "Interrupt failed. It is safe to retry."',
+  'activityControlUnavailable: "No verified local execution path is available. Operational Activity remains readable."',
   'activityTimelineShow: "执行轨迹"',
   'activityTimelineTitle: "执行轨迹"',
   'activityCopyCapsule: "复制接力胶囊"',

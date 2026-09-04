@@ -178,6 +178,7 @@ for (const actionId of [
   "runtime.recovery.assess",
   "runtime.recovery.execute",
   "runtime.codex.thread.resume",
+  "runtime.codex.turn.interrupt",
   "job.control",
   "continuity.task.transition",
   "continuity.handoff.manage",
