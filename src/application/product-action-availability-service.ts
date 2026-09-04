@@ -15,6 +15,11 @@ export const PRODUCT_ACTION_IDS = [
   "runtime.recovery.assess",
   "runtime.recovery.execute",
   "job.control",
+  "device.enrollment.decide",
+  "device.execution-policy.manage",
+  "device.revoke",
+  "integration.oauth.grant.revoke",
+  "integration.oauth.device-access.manage",
   "connectivity.provider.install",
   "connectivity.provider.upgrade",
   "connectivity.provider.uninstall",
@@ -232,7 +237,12 @@ export class ProductActionAvailabilityService {
     if (
       action === "runtime.recovery.assess" ||
       action === "runtime.recovery.execute" ||
-      action === "job.control"
+      action === "job.control" ||
+      action === "device.enrollment.decide" ||
+      action === "device.execution-policy.manage" ||
+      action === "device.revoke" ||
+      action === "integration.oauth.grant.revoke" ||
+      action === "integration.oauth.device-access.manage"
     ) {
       return {
         ...targetBase(target),

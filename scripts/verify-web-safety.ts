@@ -367,6 +367,10 @@ const jobsSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/JobsView.tsx"),
   "utf8"
 );
+const productActionAvailabilitySource = fs.readFileSync(
+  path.join(repoRoot, "web/src/product-action-availability.ts"),
+  "utf8"
+);
 const resourceCenterSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/resources/ResourceCenterView.tsx"),
   "utf8"
@@ -451,11 +455,13 @@ assert.match(dashboardSource, /const hasAnyJobs = jobsDataState === "ready"/);
 assert.match(dashboardSource, /jobsDataState === "unavailable"/);
 assert.match(dashboardSource, /copy\.dashboard\.unavailableStateTitle/);
 assert.match(dashboardSource, /<strong>--<\/strong>/);
+assert.match(productActionAvailabilitySource, /export function hasLocalProductActionPath/);
+assert.match(productActionAvailabilitySource, /target\.locality === "local"/);
+assert.match(productActionAvailabilitySource, /target\.availability === "available-local"/);
+assert.match(productActionAvailabilitySource, /target\.executionMode === "local-runtime"/);
 assert.match(jobsSource, /productActions:\s*ProductActionsResponse \| null/);
 assert.match(jobsSource, /productActionsError:\s*string \| null/);
-assert.match(jobsSource, /action\.id === "job\.control"/);
-assert.match(jobsSource, /target\.availability === "available-local"/);
-assert.match(jobsSource, /target\.executionMode === "local-runtime"/);
+assert.match(jobsSource, /hasLocalProductActionPath\(productActions, "job\.control"\)/);
 assert.match(jobsSource, /disabled=\{!canControlJobs\}/);
 assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canPause/);
 assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canResume/);
@@ -503,9 +509,8 @@ assert.match(workspaceContinuitySource, /productActions=\{productActions\}/);
 assert.match(workspaceContinuitySource, /productActionsError=\{productActionsError\}/);
 assert.match(runtimeRecoverySource, /assessRuntimeRecovery/);
 assert.match(runtimeRecoverySource, /executeRuntimeRecovery/);
-assert.match(runtimeRecoverySource, /"runtime\.recovery\.assess"/);
-assert.match(runtimeRecoverySource, /"runtime\.recovery\.execute"/);
-assert.match(runtimeRecoverySource, /recoveryActionAvailable/);
+assert.match(runtimeRecoverySource, /hasLocalProductActionPath\(productActions, "runtime\.recovery\.assess"\)/);
+assert.match(runtimeRecoverySource, /hasLocalProductActionPath\(productActions, "runtime\.recovery\.execute"\)/);
 assert.match(runtimeRecoverySource, /!canAssessRecovery/);
 assert.match(runtimeRecoverySource, /!canExecuteRecovery/);
 assert.match(runtimeRecoverySource, /recoveryActionAvailabilityUnknown/);

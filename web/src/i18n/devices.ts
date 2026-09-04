@@ -7,6 +7,7 @@ export interface DevicesCopy {
   loading: string;
   loadFailed: string;
   apiVersionMismatch: string;
+  actionAvailabilityUnknown: string;
   localDevice: string;
   pairedDevice: string;
   local: string;
@@ -97,6 +98,7 @@ const zhCN: DevicesCopy = {
   loading: "正在读取设备状态…",
   loadFailed: "无法读取设备状态",
   apiVersionMismatch: "设备管理接口暂不可用。Web 与 Control Plane 版本可能未同步，请更新或重启 ChatCockpit。",
+  actionAvailabilityUnknown: "设备管理执行路径暂不可判断。为避免绕过统一权限边界，授权决策、执行策略与撤销操作已暂时停用，请刷新后重试。",
   localDevice: "当前设备",
   pairedDevice: "已授权设备",
   local: "本机",
@@ -187,6 +189,7 @@ const enUS: DevicesCopy = {
   loading: "Loading device status…",
   loadFailed: "Unable to load device status",
   apiVersionMismatch: "Device management is unavailable. The Web UI and Control Plane may be out of sync; update or restart ChatCockpit.",
+  actionAvailabilityUnknown: "The device-management execution path is currently unknown. Enrollment decisions, execution-policy changes, and device revocation are disabled rather than bypassing the shared authority contract. Refresh and try again.",
   localDevice: "This device",
   pairedDevice: "Authorized device",
   local: "Local",

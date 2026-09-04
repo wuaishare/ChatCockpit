@@ -177,7 +177,12 @@ assert.equal(
 for (const actionId of [
   "runtime.recovery.assess",
   "runtime.recovery.execute",
-  "job.control"
+  "job.control",
+  "device.enrollment.decide",
+  "device.execution-policy.manage",
+  "device.revoke",
+  "integration.oauth.grant.revoke",
+  "integration.oauth.device-access.manage"
 ] as const) {
   assert.equal(
     target(remoteBrowser, actionId, LOCAL_DEVICE_TARGET_ID).availability,

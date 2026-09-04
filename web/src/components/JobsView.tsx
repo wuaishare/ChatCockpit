@@ -14,6 +14,7 @@ import type {
   JobSummary,
   ProductActionsResponse
 } from "../types";
+import { hasLocalProductActionPath } from "../product-action-availability";
 import { formatDateTime, safePathList, safeText } from "../utils";
 import { SectionCard } from "./SectionCard";
 import { StateNotice } from "./StateNotice";
@@ -48,17 +49,6 @@ interface JobsViewProps {
   onControlJob: (action: "pause" | "resume" | "terminate") => void;
   onTerminateAll: () => void;
   onRefresh: () => void;
-}
-
-function jobControlAvailable(productActions: ProductActionsResponse | null): boolean {
-  return productActions?.actions
-    .find((action) => action.id === "job.control")
-    ?.targets.some(
-      (target) =>
-        target.locality === "local" &&
-        target.availability === "available-local" &&
-        target.executionMode === "local-runtime"
-    ) === true;
 }
 
 function renderStatus(status: JobSummary["status"], label: string) {
@@ -306,7 +296,7 @@ export function JobsView({
   }
 
   const details = detailEntries(selectedJob, locale);
-  const canControlJobs = jobControlAvailable(productActions);
+  const canControlJobs = hasLocalProductActionPath(productActions, "job.control");
   const selectedProcessState = selectedJob?.process?.state ?? null;
   const canPause = selectedProcessState === "running";
   const canResume = selectedProcessState === "paused";

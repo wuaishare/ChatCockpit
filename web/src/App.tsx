@@ -1588,6 +1588,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 status={integrationStatus}
                 config={gptConfig}
                 configError={gptConfigError}
+                productActions={productActions}
+                productActionsError={productActionsError}
                 onRefresh={loadHealth}
               />
             ) : (

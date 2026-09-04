@@ -23,6 +23,7 @@ import {
   executeRuntimeRecovery
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { hasLocalProductActionPath } from "../../product-action-availability";
 import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
 import type {
   ApiProblem,
@@ -59,20 +60,6 @@ function problemMessage(error: unknown, fallback: string): string {
     return String((error as ApiProblem).message || fallback);
   }
   return fallback;
-}
-
-function recoveryActionAvailable(
-  productActions: ProductActionsResponse | null,
-  actionId: "runtime.recovery.assess" | "runtime.recovery.execute"
-): boolean {
-  return productActions?.actions
-    .find((action) => action.id === actionId)
-    ?.targets.some(
-      (target) =>
-        target.locality === "local" &&
-        target.availability === "available-local" &&
-        target.executionMode === "local-runtime"
-    ) === true;
 }
 
 function availableSessions(
@@ -170,8 +157,8 @@ export function RuntimeRecoverySection({
 }: RuntimeRecoverySectionProps) {
   const copy = getUiCopy(locale).continuity;
   const { message } = AntApp.useApp();
-  const canAssessRecovery = recoveryActionAvailable(productActions, "runtime.recovery.assess");
-  const canExecuteRecovery = recoveryActionAvailable(productActions, "runtime.recovery.execute");
+  const canAssessRecovery = hasLocalProductActionPath(productActions, "runtime.recovery.assess");
+  const canExecuteRecovery = hasLocalProductActionPath(productActions, "runtime.recovery.execute");
   const taskOptions = useMemo(
     () =>
       snapshot.tasks.map((projection) => ({
