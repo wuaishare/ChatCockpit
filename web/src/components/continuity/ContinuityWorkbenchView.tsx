@@ -206,19 +206,15 @@ export function ContinuityWorkbenchView({
       </header>
 
       <div className="continuity-shell">
-        <aside className="continuity-nav panel" aria-label={copy.shellTitle}>
+        <nav className="continuity-nav panel" aria-label={copy.shellTitle}>
           <Menu
             className="continuity-nav__menu"
-            mode="inline"
+            mode="horizontal"
             selectedKeys={[activeSection]}
             items={menuItems}
             onClick={({ key }) => onSectionChange(key as ContinuitySectionKey)}
           />
-          <div className="continuity-nav__integrity">
-            <SafetyCertificateOutlined aria-hidden="true" />
-            <span>{copy.noFakeData}</span>
-          </div>
-        </aside>
+        </nav>
 
         <main className="continuity-content panel">
           <header className="continuity-content__header">

@@ -2121,6 +2121,8 @@ export interface RuntimeExecutionTaskProjection extends RuntimeExecutionProjectR
 export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProjectRef {
   id: string;
   scope: "workspace" | "host";
+  deviceId: string;
+  consoleSessionId: string;
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;

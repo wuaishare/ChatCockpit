@@ -4,6 +4,10 @@ import type { DirectProcessSessionRecord } from "../continuity/types.js";
 import type { ChatDirectService } from "./chat-direct-service.js";
 import type { OperationContext } from "./operation-context.js";
 import { ServiceError } from "./service-error.js";
+import type {
+  RuntimeStandaloneProcessChunk,
+  RuntimeStandaloneProcessSnapshot
+} from "../runtime/codex/runtime-adapter.js";
 
 const OPERATION_NAME = "runtime.managed-process.terminate.v1";
 
@@ -20,11 +24,65 @@ export interface RuntimeManagedProcessTerminateResult {
   replayed: boolean;
 }
 
+export interface RuntimeManagedProcessOutputInput {
+  processId: string;
+  cursor?: number;
+  limit?: number;
+}
+
+export interface RuntimeManagedProcessOutputResult {
+  processId: string;
+  sessionId: string | null;
+  state: RuntimeStandaloneProcessSnapshot["state"];
+  exitCode: number | null;
+  errorCode: string | null;
+  chunks: RuntimeStandaloneProcessChunk[];
+  nextCursor: number;
+  retained: true;
+}
+
 export class RuntimeManagedProcessControlService {
   constructor(
     private readonly repositories: ContinuityRepositories,
     private readonly chatDirect: ChatDirectService
   ) {}
+
+  async readOutput(
+    context: OperationContext,
+    input: RuntimeManagedProcessOutputInput
+  ): Promise<RuntimeManagedProcessOutputResult> {
+    if (context.actorType !== "local-ui") {
+      throw new ServiceError(
+        "RUNTIME_PROCESS_OUTPUT_FORBIDDEN",
+        "Runtime managed process output requires the local Operator control plane"
+      );
+    }
+    const process = this.repositories.directProcessSessions.get(input.processId);
+    if (
+      process.scope !== "workspace" ||
+      !isChatDirectManagedProcessId(process.id)
+    ) {
+      throw new ServiceError(
+        "RUNTIME_PROCESS_OUTPUT_UNSUPPORTED",
+        "This managed process is not owned by the Chat Direct workspace runtime"
+      );
+    }
+    const snapshot = await this.chatDirect.readManagedProcessByControlPlane(
+      process.id,
+      input.cursor ?? 0,
+      input.limit ?? 100
+    );
+    return {
+      processId: process.id,
+      sessionId: process.sessionId,
+      state: snapshot.state,
+      exitCode: snapshot.exitCode,
+      errorCode: snapshot.errorCode,
+      chunks: snapshot.chunks,
+      nextCursor: snapshot.nextCursor,
+      retained: true
+    };
+  }
 
   async terminate(
     context: OperationContext,

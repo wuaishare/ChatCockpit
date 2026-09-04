@@ -69,7 +69,7 @@ for (const section of [
   assert.match(macStatus, new RegExp(`case ${section}\\b`));
 }
 assert.match(macStatus, /SharedCockpitView\(/);
-assert.match(macStatus, /destination: activeSection\.cockpitDestination/);
+assert.match(macStatus, /destination: activeSection == \.thisMac \? nil : activeSection\.cockpitDestination/);
 assert.match(macStatus, /case \.overview: return nil/);
 assert.match(macStatus, /case \.work: return \.work/);
 assert.match(macStatus, /case \.resources: return \.resources/);

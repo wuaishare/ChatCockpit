@@ -19,8 +19,8 @@ struct SharedCockpitView: View {
     @State private var state: SharedCockpitState = .preparing
     @State private var attempt = 0
 
-    private var preparationID: String {
-        "\(attempt):\(destination?.rawValue ?? "overview")"
+    private var preparationID: Int {
+        attempt
     }
 
     var body: some View {
@@ -77,6 +77,9 @@ struct SharedCockpitView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: preparationID) {
             await prepare()
+        }
+        .onChange(of: destination?.rawValue) { _, _ in
+            navigateWithinEmbeddedSession()
         }
     }
 
@@ -138,6 +141,18 @@ struct SharedCockpitView: View {
         )
     }
 
+    private func navigateWithinEmbeddedSession() {
+        guard case let .web(currentURL, baseURL, _) = state,
+              let nextURL = DesktopCockpitSessionBuilder().directURL(
+                  baseURL: baseURL,
+                  destination: destination
+              ),
+              nextURL != currentURL else {
+            return
+        }
+        state = .web(nextURL, baseURL, isLoading: true)
+    }
+
     private func openInBrowser(baseURL: URL) {
         let safeURL = DesktopCockpitSessionBuilder().directURL(
             baseURL: baseURL,
@@ -149,8 +164,11 @@ struct SharedCockpitView: View {
     @MainActor
     private func prepare() async {
         state = .preparing
-        await model.refresh()
-        await model.refreshSecurity()
+        if model.snapshot.localCockpitURL == nil || model.operatorSecurityStatus == nil {
+            async let runtimeRefresh: Void = model.refresh()
+            async let securityRefresh: Void = model.refreshSecurity()
+            _ = await (runtimeRefresh, securityRefresh)
+        }
 
         let baseURL = model.snapshot.localCockpitURL
         switch await model.prepareEmbeddedCockpit(destination: destination) {

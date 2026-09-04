@@ -344,6 +344,20 @@ try {
   assert.deepEqual(runtimeExecutionBody.connections, []);
   assert.deepEqual(runtimeExecutionBody.counts, executionBody.counts);
 
+  const bearerProcessOutput = await fetch(
+    `${server.baseUrl}/api/runtime/executions/processes/missing-process/output`,
+    { headers: { authorization: "Bearer test-token" } }
+  );
+  assert.equal(bearerProcessOutput.status, 401);
+  assert.match(await bearerProcessOutput.text(), /OPERATOR_SESSION_REQUIRED/);
+
+  const missingProcessOutput = await fetch(
+    `${server.baseUrl}/api/runtime/executions/processes/missing-process/output?cursor=0&limit=100`,
+    { headers: { cookie } }
+  );
+  assert.equal(missingProcessOutput.status, 404);
+  assert.match(await missingProcessOutput.text(), /CONTINUITY_RECORD_NOT_FOUND/);
+
   const bearerProcessTerminate = await fetch(
     `${server.baseUrl}/api/runtime/executions/processes/missing-process/terminate`,
     {

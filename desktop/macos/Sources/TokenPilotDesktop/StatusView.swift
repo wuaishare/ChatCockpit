@@ -66,17 +66,20 @@ struct MainAppView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            SharedCockpitView(
+                model: model,
+                destination: activeSection == .thisMac ? nil : activeSection.cockpitDestination,
+                onOpenThisMac: { selection = .thisMac }
+            )
+            .opacity(activeSection == .thisMac ? 0 : 1)
+            .allowsHitTesting(activeSection != .thisMac)
+            .accessibilityHidden(activeSection == .thisMac)
+
             if activeSection == .thisMac {
                 NativeThisMacView(
                     model: model,
                     operationalSettingsFocus: $operationalSettingsFocus
-                )
-            } else {
-                SharedCockpitView(
-                    model: model,
-                    destination: activeSection.cockpitDestination,
-                    onOpenThisMac: { selection = .thisMac }
                 )
             }
         }

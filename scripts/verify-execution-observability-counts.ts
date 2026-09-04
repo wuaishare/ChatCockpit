@@ -30,7 +30,7 @@ const processes = Array.from({ length: 120 }, (_, index) => ({
   executorId: "executor_fixture",
   workspaceId: workspace.id,
   repoId: workspace.repoId,
-  sessionId: null,
+  sessionId: index < 2 ? "session_alpha" : index === 2 ? "session_beta" : null,
   writerLeaseId: null,
   hostAuthorityId: null,
   privatePid: null,
@@ -79,10 +79,19 @@ assert.equal(runtime.tasks.length, 100);
 assert.equal(runtime.processes.length, 100);
 assert.equal(runtime.counts.activeTasks, 120);
 assert.equal(runtime.counts.runningProcesses, 120);
-assert.equal(runtime.processes[0]?.scope, "workspace");
-assert.equal(runtime.processes[0]?.revision, 1);
-assert.equal(runtime.processes[0]?.controls.terminate, true);
-assert.equal(runtime.processes[1]?.controls.terminate, false);
+const controlledRuntimeProcess = runtime.processes.find((entry) => entry.id === "builtin_process_fixture_controlled");
+const alphaSibling = runtime.processes.find((entry) => entry.id === "process_1");
+const betaProcess = runtime.processes.find((entry) => entry.id === "process_2");
+const adHocProcess = runtime.processes.find((entry) => entry.id === "process_3");
+assert.equal(controlledRuntimeProcess?.scope, "workspace");
+assert.equal(controlledRuntimeProcess?.deviceId, "local-device");
+assert.equal(controlledRuntimeProcess?.consoleSessionId, "session_alpha");
+assert.equal(alphaSibling?.consoleSessionId, "session_alpha");
+assert.equal(betaProcess?.consoleSessionId, "session_beta");
+assert.equal(adHocProcess?.consoleSessionId, "process:process_3");
+assert.equal(controlledRuntimeProcess?.revision, 1);
+assert.equal(controlledRuntimeProcess?.controls.terminate, true);
+assert.equal(alphaSibling?.controls.terminate, false);
 
 const projectSnapshot = new ProjectExecutionObservabilityService(
   projects,

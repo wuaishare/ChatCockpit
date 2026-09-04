@@ -213,7 +213,8 @@ for (const section of ["overview", "projects", "work", "runtime", "resources", "
   assert.match(statusView, new RegExp(`case ${section}\\b`));
 }
 assert.match(statusView, /SharedCockpitView\(/);
-assert.match(statusView, /destination: activeSection\.cockpitDestination/);
+assert.match(statusView, /destination: activeSection == \.thisMac \? nil : activeSection\.cockpitDestination/);
+assert.match(statusView, /\.opacity\(activeSection == \.thisMac \? 0 : 1\)/);
 assert.match(statusView, /case \.overview: return nil/);
 assert.match(statusView, /case \.work: return \.work/);
 assert.match(statusView, /case \.resources: return \.resources/);

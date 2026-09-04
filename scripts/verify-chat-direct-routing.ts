@@ -1559,7 +1559,10 @@ async function verifyChatDirectRouting(): Promise<void> {
     const controllableManaged = await builtInManagedService.workspaceExec(context, {
       repoId: "primary",
       command: "node",
-      args: ["-e", "setInterval(() => {}, 1000)"],
+      args: [
+        "-e",
+        "process.stdout.write('CONTROL_TOWER_LIVE\\n'); process.stderr.write('CONTROL_TOWER_STDERR\\n'); setInterval(() => {}, 1000)"
+      ],
       allowBuiltinFallback: true,
       networkAccess: true
     });
@@ -1567,6 +1570,40 @@ async function verifyChatDirectRouting(): Promise<void> {
       controllableManaged.processId
     );
     assert.equal(controllableObservation.status, "running");
+    let controlTowerOutput = await runtimeManagedProcessControl.readOutput(
+      operatorContext,
+      { processId: controllableManaged.processId, cursor: 0, limit: 100 }
+    );
+    for (
+      let attempt = 0;
+      attempt < 100 && controlTowerOutput.chunks.length < 2;
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      controlTowerOutput = await runtimeManagedProcessControl.readOutput(
+        operatorContext,
+        { processId: controllableManaged.processId, cursor: 0, limit: 100 }
+      );
+    }
+    assert.equal(controlTowerOutput.state, "running");
+    assert.equal(controlTowerOutput.retained, true);
+    assert.match(
+      controlTowerOutput.chunks.map((chunk) => chunk.content).join(""),
+      /CONTROL_TOWER_LIVE/
+    );
+    assert.match(
+      controlTowerOutput.chunks.map((chunk) => chunk.content).join(""),
+      /CONTROL_TOWER_STDERR/
+    );
+    assert.ok(controlTowerOutput.nextCursor >= 2);
+    await assert.rejects(
+      () => runtimeManagedProcessControl.readOutput(context, {
+        processId: controllableManaged.processId,
+        cursor: 0,
+        limit: 100
+      }),
+      (error) => error instanceof ServiceError && error.code === "RUNTIME_PROCESS_OUTPUT_FORBIDDEN"
+    );
     const terminateInput = {
       processId: controllableManaged.processId,
       expectedRevision: controllableObservation.revision,

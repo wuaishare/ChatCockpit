@@ -55,6 +55,16 @@ export interface RuntimeCopy {
   processTerminateDescription: string;
   processTerminateFailed: string;
   processControlUnavailable: string;
+  sessionConsoleTitle: string;
+  sessionConsoleDescription: string;
+  sessionConsoleDevice: string;
+  sessionConsoleSession: string;
+  sessionConsoleExecutor: string;
+  sessionConsoleWaitingOutput: string;
+  sessionConsoleOutputUnavailable: string;
+  sessionConsoleAdHoc: string;
+  sessionConsoleLive: string;
+  sessionConsoleRecent: string;
   unknownProject: string;
 }
 
@@ -113,6 +123,16 @@ const zhCN: RuntimeCopy = {
   processTerminateDescription: "这会向该工作区受管进程请求终止；不会终止 Host Process 或其他会话中的进程。",
   processTerminateFailed: "进程终止请求失败，可安全重试。",
   processControlUnavailable: "当前没有可验证的本机进程控制路径。",
+  sessionConsoleTitle: "会话终端",
+  sessionConsoleDescription: "一个开发会话对应一张持续存在的终端监控卡；同一会话后续启动的命令会继续追加到同一张卡中。",
+  sessionConsoleDevice: "设备",
+  sessionConsoleSession: "会话",
+  sessionConsoleExecutor: "执行器",
+  sessionConsoleWaitingOutput: "等待进程输出…",
+  sessionConsoleOutputUnavailable: "当前没有可显示的保留输出；进程与会话元数据仍然保留。",
+  sessionConsoleAdHoc: "临时执行",
+  sessionConsoleLive: "实时",
+  sessionConsoleRecent: "最近",
   unknownProject: "未关联项目"
 };
 
@@ -171,6 +191,16 @@ const enUS: RuntimeCopy = {
   processTerminateDescription: "This requests termination of this workspace-managed process only. Host Processes and processes owned by other sessions are not controlled through this action.",
   processTerminateFailed: "Process termination request failed. It is safe to retry.",
   processControlUnavailable: "No verified local process-control path is available.",
+  sessionConsoleTitle: "Session terminals",
+  sessionConsoleDescription: "Each development session keeps one continuous terminal card. Commands started later in the same session append to the same card.",
+  sessionConsoleDevice: "Device",
+  sessionConsoleSession: "Session",
+  sessionConsoleExecutor: "Executor",
+  sessionConsoleWaitingOutput: "Waiting for process output…",
+  sessionConsoleOutputUnavailable: "No retained output is currently available. Process and session metadata remain available.",
+  sessionConsoleAdHoc: "Ad-hoc execution",
+  sessionConsoleLive: "Live",
+  sessionConsoleRecent: "Recent",
   unknownProject: "Unassociated project"
 };
 

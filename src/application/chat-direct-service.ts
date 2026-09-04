@@ -451,6 +451,32 @@ export class ChatDirectService {
     }
   }
 
+  async readManagedProcessByControlPlane(
+    processId: string,
+    cursor = 0,
+    limit = 100
+  ) {
+    const record = this.managedProcesses.get(processId);
+    if (!record) {
+      throw new ServiceError(
+        "WORKSPACE_PROCESS_NOT_FOUND",
+        "Managed workspace process output is outside the live retention window"
+      );
+    }
+    try {
+      const snapshot = await this.readManagedProcess(record, cursor, limit);
+      return {
+        ...snapshot,
+        chunks: snapshot.chunks.map((chunk) => ({
+          ...chunk,
+          content: publicSafeShellOutput(chunk.content, record.repoRoot)
+        }))
+      };
+    } catch (error) {
+      throw serviceError("WORKSPACE_PROCESS_READ_FAILED", error);
+    }
+  }
+
   private superviseManagedProcess(record: ManagedChatDirectProcess): void {
     const heartbeat = record.authority
       ? setInterval(() => {
