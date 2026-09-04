@@ -81,6 +81,7 @@ export function PersistentSessionTerminalCard({
   const pollTimerRef = useRef<number | null>(null);
   const startKeyRef = useRef<string | null>(null);
   const stopKeyRef = useRef<string | null>(null);
+  const focusAfterStartRef = useRef(false);
   const mountedRef = useRef(true);
 
   const [terminalProjection, setTerminalProjection] = useState<RuntimeSessionTerminalProjection | null>(null);
@@ -325,7 +326,13 @@ export function PersistentSessionTerminalCard({
       ? null
       : new ResizeObserver(() => fit());
     observer?.observe(host);
-    requestAnimationFrame(fit);
+    requestAnimationFrame(() => {
+      fit();
+      if (focusAfterStartRef.current) {
+        focusAfterStartRef.current = false;
+        instance.focus();
+      }
+    });
 
     return () => {
       observer?.disconnect();
@@ -414,6 +421,7 @@ export function PersistentSessionTerminalCard({
       });
       startKeyRef.current = null;
       cursorRef.current = 0;
+      focusAfterStartRef.current = true;
       updateProjection(response);
     } catch (caught) {
       startKeyRef.current = null;

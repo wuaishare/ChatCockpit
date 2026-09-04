@@ -476,16 +476,15 @@ async function main(): Promise<void> {
       Boolean,
       "xterm textarea after terminal start"
     );
-    const focused = await evaluate<boolean>(
+    await waitForBrowserValue<boolean>(
       cdp,
       `(() => {
         const textarea = document.querySelector('.runtime-persistent-terminal__xterm .xterm-helper-textarea');
-        if (!textarea) return false;
-        textarea.focus();
-        return document.activeElement === textarea;
-      })()`
+        return Boolean(textarea && document.activeElement === textarea);
+      })()`,
+      Boolean,
+      "xterm automatically focused after user start"
     );
-    assert.equal(focused, true);
 
     await cdp.send("Input.insertText", { text: `printf '${MARKER}\\n'` });
     await cdp.send("Input.dispatchKeyEvent", {
