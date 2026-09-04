@@ -15,10 +15,11 @@ import { Button, Empty, Popconfirm, Tag, Tooltip } from "antd";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UiText as Text } from "../UiText";
 
-import { controlJob, fetchContinuityCapsule, fetchExecutionTrajectory, fetchOperationalActivities, interruptCodexRuntimeTurn } from "../../api";
+import { controlJob, fetchContinuityCapsule, fetchExecutionTrajectory, fetchOperationalActivities, fetchProductActions, interruptCodexRuntimeTurn } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import type { ResourceCenterCopy } from "../../i18n/resources";
 import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
+import { hasLocalProductActionPath } from "../../product-action-availability";
 import type {
   ContinuityProjectProjection,
   OperationalActivityEventProjection,
@@ -26,6 +27,7 @@ import type {
   OperationalActivityListResponse,
   OperationalActivityProjection,
   OperationalActivityStatus,
+  ProductActionsResponse,
   TrajectoryEventProjection,
   TrajectoryResponse
 } from "../../types";
@@ -168,6 +170,8 @@ const ActivityCard = memo(function ActivityCard({
   workspaceLabel,
   interrupting,
   controllingAction,
+  canControlJobs,
+  canInterruptCodex,
   timeline,
   timelineExpanded,
   timelineLoading,
@@ -186,6 +190,8 @@ const ActivityCard = memo(function ActivityCard({
   workspaceLabel: string | null;
   interrupting: boolean;
   controllingAction: "pause" | "resume" | "terminate" | null;
+  canControlJobs: boolean;
+  canInterruptCodex: boolean;
   timeline: TrajectoryEventProjection[];
   timelineExpanded: boolean;
   timelineLoading: boolean;
@@ -225,7 +231,7 @@ const ActivityCard = memo(function ActivityCard({
             <Button
               size="small"
               loading={controllingAction === "pause"}
-              disabled={Boolean(controllingAction)}
+              disabled={Boolean(controllingAction) || !canControlJobs}
               onClick={() => onJobControl(activity, "pause")}
             >
               {copy.activityPause}
@@ -235,7 +241,7 @@ const ActivityCard = memo(function ActivityCard({
             <Button
               size="small"
               loading={controllingAction === "resume"}
-              disabled={Boolean(controllingAction)}
+              disabled={Boolean(controllingAction) || !canControlJobs}
               onClick={() => onJobControl(activity, "resume")}
             >
               {copy.activityResume}
@@ -254,7 +260,7 @@ const ActivityCard = memo(function ActivityCard({
                 size="small"
                 danger
                 loading={controllingAction === "terminate"}
-                disabled={Boolean(controllingAction)}
+                disabled={Boolean(controllingAction) || !canControlJobs}
               >
                 {copy.activityTerminate}
               </Button>
@@ -274,7 +280,7 @@ const ActivityCard = memo(function ActivityCard({
                 danger
                 icon={<StopOutlined />}
                 loading={interrupting}
-                disabled={interrupting}
+                disabled={interrupting || !canInterruptCodex}
               >
                 {copy.activityInterrupt}
               </Button>
@@ -392,6 +398,8 @@ export function OperationalActivityPanel({
   const [interruptError, setInterruptError] = useState<string | null>(null);
   const [controllingJob, setControllingJob] = useState<{ activityId: string; action: "pause" | "resume" | "terminate" } | null>(null);
   const [jobControlError, setJobControlError] = useState<string | null>(null);
+  const [productActions, setProductActions] = useState<ProductActionsResponse | null>(null);
+  const [productActionsError, setProductActionsError] = useState(false);
   const [expandedTimelineId, setExpandedTimelineId] = useState<string | null>(null);
   const [timelineByActivity, setTimelineByActivity] = useState<Record<string, TrajectoryEventProjection[]>>({});
   const [timelineLoadingId, setTimelineLoadingId] = useState<string | null>(null);
@@ -414,8 +422,22 @@ export function OperationalActivityPanel({
     }
   }, [token]);
 
+  const loadProductActions = useCallback(async () => {
+    try {
+      setProductActions(await fetchProductActions());
+      setProductActionsError(false);
+    } catch {
+      setProductActions(null);
+      setProductActionsError(true);
+    }
+  }, []);
+
+  const canControlJobs = hasLocalProductActionPath(productActions, "job.control");
+  const canInterruptCodex = hasLocalProductActionPath(productActions, "runtime.codex.turn.interrupt");
+
   useEffect(() => {
     void load();
+    void loadProductActions();
     const source = new EventSource("/api/activities/stream", { withCredentials: true });
     setStreamState("connecting");
     const onSnapshot = (event: MessageEvent<string>) => {
@@ -482,11 +504,11 @@ export function OperationalActivityPanel({
       source.removeEventListener("activity.event", onActivityEvent as EventListener);
       source.close();
     };
-  }, [load]);
+  }, [load, loadProductActions]);
 
   const interruptActivity = useCallback(async (activity: OperationalActivityProjection) => {
     const runtime = activity.runtime;
-    if (!activity.controls.interrupt || !runtime?.runId || !runtime.runRevision) return;
+    if (!canInterruptCodex || !activity.controls.interrupt || !runtime?.runId || !runtime.runRevision) return;
 
     let idempotencyKey = interruptKeys.current.get(runtime.runId);
     if (!idempotencyKey) {
@@ -517,14 +539,14 @@ export function OperationalActivityPanel({
     } finally {
       setInterruptingActivityId((current) => current === activity.id ? null : current);
     }
-  }, [copy.activityInterruptFailed, load, token]);
+  }, [canInterruptCodex, copy.activityInterruptFailed, load, token]);
 
   const controlActivityJob = useCallback(async (
     activity: OperationalActivityProjection,
     action: "pause" | "resume" | "terminate"
   ) => {
     const job = activity.job;
-    if (!job?.processRevision || !activity.controls[action]) return;
+    if (!canControlJobs || !job?.processRevision || !activity.controls[action]) return;
     const fingerprint = `${job.id}:${action}:${job.processRevision}`;
     let idempotencyKey = jobControlKeys.current.get(fingerprint);
     if (!idempotencyKey) {
@@ -551,7 +573,7 @@ export function OperationalActivityPanel({
     } finally {
       setControllingJob((current) => current?.activityId === activity.id && current.action === action ? null : current);
     }
-  }, [copy.activityJobControlFailed, load, token]);
+  }, [canControlJobs, copy.activityJobControlFailed, load, token]);
 
   const toggleTimeline = useCallback(async (activity: OperationalActivityProjection) => {
     if (expandedTimelineId === activity.id) {
@@ -645,7 +667,7 @@ export function OperationalActivityPanel({
             {copy.activityDescription}
           </Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
+        <Button icon={<ReloadOutlined />} onClick={() => { void load(); void loadProductActions(); }} loading={loading}>
           {copy.activityRefresh}
         </Button>
       </div>
@@ -657,6 +679,13 @@ export function OperationalActivityPanel({
         <div role="listitem"><span>{copy.activityPaused}</span><strong>{snapshot?.counts.paused ?? "—"}</strong></div>
         <div role="listitem"><span>{copy.activityTotal}</span><strong>{snapshot?.counts.total ?? "—"}</strong></div>
       </div>
+
+      {productActionsError ? (
+        <div className="resource-center__activity-inline-error">
+          <ThunderboltOutlined />
+          <span>{copy.activityControlUnavailable}</span>
+        </div>
+      ) : null}
 
       {interruptError || jobControlError || capsuleCopyError ? (
         <div className="resource-center__activity-inline-error">
@@ -694,6 +723,8 @@ export function OperationalActivityPanel({
               workspaceLabel={activity.workspaceId ? workspaceNames.get(activity.workspaceId) ?? null : null}
               interrupting={interruptingActivityId === activity.id}
               controllingAction={controllingJob?.activityId === activity.id ? controllingJob.action : null}
+              canControlJobs={canControlJobs}
+              canInterruptCodex={canInterruptCodex}
               timeline={timelineByActivity[activity.id] ?? []}
               timelineExpanded={expandedTimelineId === activity.id}
               timelineLoading={timelineLoadingId === activity.id}

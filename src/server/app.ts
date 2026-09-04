@@ -83,6 +83,7 @@ import { CodexProjectRootDiscoverySource } from "../application/codex-project-ro
 import { NativeProjectAssociationService } from "../application/native-project-association-service.js";
 import { ProjectExecutionObservabilityService } from "../application/project-execution-observability-service.js";
 import { RuntimeExecutionObservabilityService } from "../application/runtime-execution-observability-service.js";
+import { RuntimeManagedProcessControlService } from "../application/runtime-managed-process-control-service.js";
 import { RuntimeApprovalService } from "../application/runtime-approval-service.js";
 import { RuntimeBindingService } from "../application/runtime-binding-service.js";
 import { buildRuntimeRecoveryServices } from "../application/runtime-recovery-services.js";
@@ -829,6 +830,10 @@ export function buildServer(
     continuityServices.repositories,
     mcpConnections
   );
+  const runtimeManagedProcessControl = new RuntimeManagedProcessControlService(
+    continuityServices.repositories,
+    chatDirect
+  );
   const runtimeLifecycleService = new RuntimeLifecycleService(
     paths,
     continuityServices.repositories
@@ -1239,7 +1244,11 @@ export function buildServer(
     pollIntervalMs: options.activityStreamPollIntervalMs,
     heartbeatIntervalMs: options.activityStreamHeartbeatIntervalMs
   });
-  registerRuntimeExecutionObservabilityRoutes(app, runtimeExecutionObservability);
+  registerRuntimeExecutionObservabilityRoutes(
+    app,
+    runtimeExecutionObservability,
+    runtimeManagedProcessControl
+  );
   registerRuntimeRoutes(
     app,
     runtimeService,

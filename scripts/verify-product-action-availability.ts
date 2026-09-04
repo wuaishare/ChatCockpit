@@ -174,10 +174,25 @@ assert.equal(
   target(remoteBrowser, "runtime.resource.mutate", capableId).reason,
   "target-capability-not-implemented"
 );
+assert.equal(
+  target(remoteBrowser, "runtime.process.terminate", LOCAL_DEVICE_TARGET_ID).availability,
+  "requires-local-host",
+  "Runtime process termination must stay machine-local because it controls a process owned by this Control Plane"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.process.terminate", LOCAL_DEVICE_TARGET_ID).reason,
+  "machine-local-context-required"
+);
+assert.equal(
+  target(remoteBrowser, "runtime.process.terminate", capableId).availability,
+  "unsupported",
+  "remote Runtime process termination must not imply a Device RPC"
+);
 for (const actionId of [
   "runtime.recovery.assess",
   "runtime.recovery.execute",
   "runtime.codex.thread.resume",
+  "runtime.codex.turn.interrupt",
   "job.control",
   "continuity.task.transition",
   "continuity.handoff.manage",
@@ -320,6 +335,15 @@ assert.equal(
   target(loopbackBrowser, "runtime.lifecycle", LOCAL_DEVICE_TARGET_ID).availability,
   "requires-local-host",
   "machine-local HTTP context is not evidence that a native lifecycle bridge exists"
+);
+assert.equal(
+  target(loopbackBrowser, "runtime.process.terminate", LOCAL_DEVICE_TARGET_ID).availability,
+  "available-local",
+  "machine-local Owner context provides the real Runtime process-control execution path"
+);
+assert.equal(
+  target(loopbackBrowser, "runtime.process.terminate", LOCAL_DEVICE_TARGET_ID).executionMode,
+  "local-runtime"
 );
 for (const actionId of [
   "connectivity.provider.install",

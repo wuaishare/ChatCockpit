@@ -21,7 +21,7 @@ const tasks = Array.from({ length: 120 }, (_, index) => ({
   updatedAt: now
 }));
 const processes = Array.from({ length: 120 }, (_, index) => ({
-  id: `process_${index}`,
+  id: index === 0 ? "builtin_process_fixture_controlled" : `process_${index}`,
   scope: "workspace" as const,
   rootId: "root_fixture",
   workdir: "/fixture",
@@ -79,6 +79,10 @@ assert.equal(runtime.tasks.length, 100);
 assert.equal(runtime.processes.length, 100);
 assert.equal(runtime.counts.activeTasks, 120);
 assert.equal(runtime.counts.runningProcesses, 120);
+assert.equal(runtime.processes[0]?.scope, "workspace");
+assert.equal(runtime.processes[0]?.revision, 1);
+assert.equal(runtime.processes[0]?.controls.terminate, true);
+assert.equal(runtime.processes[1]?.controls.terminate, false);
 
 const projectSnapshot = new ProjectExecutionObservabilityService(
   projects,

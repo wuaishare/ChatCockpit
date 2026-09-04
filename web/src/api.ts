@@ -19,6 +19,7 @@ import type {
   ProjectRootDiscoveryResponse,
   ProjectExecutionObservabilityResponse,
   RuntimeExecutionObservabilityResponse,
+  RuntimeManagedProcessTerminateResponse,
   ProjectRegistryDetailResponse,
   ProjectRegistryMutationResponse,
   ProjectRegistryResponse,
@@ -967,6 +968,20 @@ export async function fetchProjectExecutionObservability(
 
 export async function fetchRuntimeExecutionObservability(): Promise<RuntimeExecutionObservabilityResponse> {
   return requestJson<RuntimeExecutionObservabilityResponse>("/api/runtime/executions");
+}
+
+export async function terminateRuntimeManagedProcess(input: {
+  processId: string;
+  expectedRevision: number;
+  idempotencyKey: string;
+}): Promise<RuntimeManagedProcessTerminateResponse> {
+  return postBodyJson<RuntimeManagedProcessTerminateResponse>(
+    `/api/runtime/executions/processes/${encodeURIComponent(input.processId)}/terminate`,
+    {
+      expectedRevision: input.expectedRevision,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
 }
 
 export async function createProject(input: {

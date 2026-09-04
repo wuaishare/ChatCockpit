@@ -30,6 +30,7 @@ export interface ResourceCenterCopy {
   activityTerminateConfirm: string;
   activityTerminateCancel: string;
   activityJobControlFailed: string;
+  activityControlUnavailable: string;
   activityTimelineShow: string;
   activityTimelineHide: string;
   activityTimelineTitle: string;
@@ -239,6 +240,7 @@ const zhCN: ResourceCenterCopy = {
   activityTerminateConfirm: "确认终止",
   activityTerminateCancel: "取消",
   activityJobControlFailed: "作业控制失败，可安全重试。",
+  activityControlUnavailable: "当前没有可验证的本机执行路径；运行活动仍可正常查看。",
   activityTimelineShow: "执行轨迹",
   activityTimelineHide: "收起轨迹",
   activityTimelineTitle: "执行轨迹",
@@ -448,6 +450,7 @@ const enUS: ResourceCenterCopy = {
   activityTerminateConfirm: "Terminate",
   activityTerminateCancel: "Cancel",
   activityJobControlFailed: "Job control failed. It is safe to retry.",
+  activityControlUnavailable: "No verified local execution path is available. Operational Activity remains readable.",
   activityTimelineShow: "Execution trajectory",
   activityTimelineHide: "Hide trajectory",
   activityTimelineTitle: "Execution trajectory",

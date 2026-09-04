@@ -50,6 +50,11 @@ export interface RuntimeCopy {
   liveExecutionDescription: string;
   noLiveExecution: string;
   noLiveExecutionDescription: string;
+  processTerminate: string;
+  processTerminateTitle: string;
+  processTerminateDescription: string;
+  processTerminateFailed: string;
+  processControlUnavailable: string;
   unknownProject: string;
 }
 
@@ -103,6 +108,11 @@ const zhCN: RuntimeCopy = {
   liveExecutionDescription: "跨项目查看 MCP 连接、Task / Session、Runtime 活动与本机命令进程；每条执行保留 Project、Repo 与 Session provenance。",
   noLiveExecution: "当前没有实时执行",
   noLiveExecutionDescription: "新的 MCP 调用、Task / Session 或本机进程启动后会自动出现在这里。",
+  processTerminate: "终止进程",
+  processTerminateTitle: "终止这个受管进程？",
+  processTerminateDescription: "这会向该工作区受管进程请求终止；不会终止 Host Process 或其他会话中的进程。",
+  processTerminateFailed: "进程终止请求失败，可安全重试。",
+  processControlUnavailable: "当前没有可验证的本机进程控制路径。",
   unknownProject: "未关联项目"
 };
 
@@ -156,6 +166,11 @@ const enUS: RuntimeCopy = {
   liveExecutionDescription: "Observe MCP connections, Tasks / Sessions, Runtime activity, and local command processes across Projects with Project, Repo, and Session provenance.",
   noLiveExecution: "No live execution",
   noLiveExecutionDescription: "New MCP calls, Tasks / Sessions, and local processes will appear here automatically.",
+  processTerminate: "Terminate process",
+  processTerminateTitle: "Terminate this managed process?",
+  processTerminateDescription: "This requests termination of this workspace-managed process only. Host Processes and processes owned by other sessions are not controlled through this action.",
+  processTerminateFailed: "Process termination request failed. It is safe to retry.",
+  processControlUnavailable: "No verified local process-control path is available.",
   unknownProject: "Unassociated project"
 };
 

@@ -2,12 +2,13 @@ import {
   ApiOutlined,
   CodeOutlined,
   ReloadOutlined,
+  StopOutlined,
   ThunderboltOutlined
 } from "@ant-design/icons";
-import { Button, Descriptions, Empty, List, Space, Tag, Tooltip } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button, Descriptions, Empty, List, Popconfirm, Space, Tag, Tooltip } from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchRuntimeExecutionObservability } from "../api";
+import { fetchRuntimeExecutionObservability, terminateRuntimeManagedProcess } from "../api";
 import type { LocaleCode } from "../i18n";
 import { getProjectsCopy } from "../i18n/projects";
 import { getRuntimeCopy } from "../i18n/runtime";
@@ -58,13 +59,22 @@ function connectionLabel(locale: LocaleCode, connection: RuntimeExecutionConnect
   if (connection.state === "idle") return copy.connectionIdle;
   return copy.connectionStale;
 }
-export function RuntimeLiveExecutionPanel({ locale }: { locale: LocaleCode }) {
+export function RuntimeLiveExecutionPanel({
+  locale,
+  processTerminateAvailable
+}: {
+  locale: LocaleCode;
+  processTerminateAvailable: boolean;
+}) {
   const runtimeCopy = getRuntimeCopy(locale);
   const projectCopy = getProjectsCopy(locale);
   const [snapshot, setSnapshot] = useState<RuntimeExecutionObservabilityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [streamState, setStreamState] = useState<StreamState>("connecting");
+  const [terminatingProcessId, setTerminatingProcessId] = useState<string | null>(null);
+  const [processControlError, setProcessControlError] = useState<string | null>(null);
+  const terminateKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +87,38 @@ export function RuntimeLiveExecutionPanel({ locale }: { locale: LocaleCode }) {
       setLoading(false);
     }
   }, []);
+
+  const terminateProcess = useCallback(async (process: RuntimeExecutionProcessProjection) => {
+    if (!processTerminateAvailable || !process.controls.terminate) return;
+    let idempotencyKey = terminateKeys.current.get(process.id);
+    if (!idempotencyKey) {
+      idempotencyKey = `runtime.process.terminate.web:${crypto.randomUUID()}`;
+      terminateKeys.current.set(process.id, idempotencyKey);
+    }
+    setTerminatingProcessId(process.id);
+    setProcessControlError(null);
+    try {
+      await terminateRuntimeManagedProcess({
+        processId: process.id,
+        expectedRevision: process.revision,
+        idempotencyKey
+      });
+      terminateKeys.current.delete(process.id);
+      void load();
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : null;
+      if (code) terminateKeys.current.delete(process.id);
+      setProcessControlError(
+        code
+          ? `${runtimeCopy.processTerminateFailed} (${code})`
+          : runtimeCopy.processTerminateFailed
+      );
+      setTerminatingProcessId((current) => current === process.id ? null : current);
+    }
+  }, [load, processTerminateAvailable, runtimeCopy.processTerminateFailed]);
 
   useEffect(() => {
     void load();
@@ -114,6 +156,14 @@ export function RuntimeLiveExecutionPanel({ locale }: { locale: LocaleCode }) {
     () => (snapshot?.processes ?? []).filter((process) => process.status === "starting" || process.status === "running").slice(0, 12),
     [snapshot]
   );
+  useEffect(() => {
+    if (
+      terminatingProcessId &&
+      !processes.some((process) => process.id === terminatingProcessId)
+    ) {
+      setTerminatingProcessId(null);
+    }
+  }, [processes, terminatingProcessId]);
   const connections = useMemo(() => (snapshot?.connections ?? []).slice(0, 12), [snapshot]);
   const hasExecution = activities.length > 0 || tasks.length > 0 || processes.length > 0 || connections.length > 0;
 
@@ -149,6 +199,12 @@ export function RuntimeLiveExecutionPanel({ locale }: { locale: LocaleCode }) {
         <Descriptions.Item label={projectCopy.waitingApproval}>{snapshot?.counts.waitingApproval ?? "—"}</Descriptions.Item>
         <Descriptions.Item label={projectCopy.activeTasks}>{snapshot?.counts.activeTasks ?? "—"}</Descriptions.Item>
       </Descriptions>
+
+      {processControlError ? (
+        <div className="runtime-live-execution__notice">
+          <StopOutlined /> {processControlError}
+        </div>
+      ) : null}
 
       {loadError && !snapshot ? (
         <div className="runtime-live-execution__notice">
@@ -216,7 +272,39 @@ export function RuntimeLiveExecutionPanel({ locale }: { locale: LocaleCode }) {
               dataSource={processes}
               locale={{ emptyText: "—" }}
               renderItem={(process) => (
-                <List.Item>
+                <List.Item
+                  actions={
+                    process.controls.terminate
+                      ? [
+                          <Popconfirm
+                            key="terminate"
+                            title={runtimeCopy.processTerminateTitle}
+                            description={runtimeCopy.processTerminateDescription}
+                            okText={runtimeCopy.processTerminate}
+                            cancelText={runtimeCopy.cancel}
+                            okButtonProps={{ danger: true }}
+                            disabled={!processTerminateAvailable || terminatingProcessId === process.id}
+                            onConfirm={() => void terminateProcess(process)}
+                          >
+                            <Button
+                              size="small"
+                              danger
+                              icon={<StopOutlined />}
+                              loading={terminatingProcessId === process.id}
+                              disabled={!processTerminateAvailable || terminatingProcessId === process.id}
+                              title={
+                                processTerminateAvailable
+                                  ? runtimeCopy.processTerminate
+                                  : runtimeCopy.processControlUnavailable
+                              }
+                            >
+                              {runtimeCopy.processTerminate}
+                            </Button>
+                          </Popconfirm>
+                        ]
+                      : undefined
+                  }
+                >
                   <List.Item.Meta
                     title={
                       <Space wrap size={8}>

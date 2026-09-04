@@ -84,7 +84,9 @@ function canSafelyClearExternalFailure(error: unknown): boolean {
     "WRITER_LEASE_REQUIRED",
     "WRITER_LEASE_CONFLICT",
     "REVISION_CONFLICT",
-    "JOB_PROCESS_SIGNAL_FAILED"
+    "JOB_PROCESS_SIGNAL_FAILED",
+    "WORKSPACE_PROCESS_NOT_FOUND",
+    "WORKSPACE_PROCESS_TERMINATE_FAILED"
   ].includes(error.code);
 }
 
