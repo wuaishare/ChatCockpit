@@ -514,10 +514,50 @@
 }
 
 @media (max-width: 640px) {
+  .runtime-persistent-terminal__header,
   .runtime-session-terminal__header,
   .runtime-session-terminal__command-row {
     align-items: flex-start;
     flex-wrap: wrap;
+  }
+
+  .runtime-persistent-terminal__identity {
+    flex: 1 1 100%;
+  }
+
+  .runtime-persistent-terminal__title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .runtime-persistent-terminal__title-row strong {
+    max-width: 100%;
+  }
+
+  .runtime-persistent-terminal__title-row span {
+    max-width: 100%;
+  }
+
+  .runtime-persistent-terminal__header > .ant-space {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .runtime-persistent-terminal__xterm {
+    min-height: 240px;
+    height: min(48vh, 320px);
+    padding: 8px 7px 2px;
+  }
+
+  .runtime-persistent-terminal__statusbar {
+    flex-wrap: wrap;
+    gap: 3px 10px;
+  }
+
+  .runtime-persistent-terminal__empty {
+    justify-content: flex-start;
+    padding: 20px 16px;
   }
 
   .runtime-session-terminal__executor {

@@ -387,6 +387,12 @@ async function main(): Promise<void> {
     await cdp.send("Runtime.enable");
     await cdp.send("Page.enable");
     await cdp.send("Network.enable");
+    await cdp.send("Emulation.setDeviceMetricsOverride", {
+      width: 1440,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
     const cookieSet = await cdp.send<{ success: boolean }>("Network.setCookie", {
       name: cookie.name,
       value: cookie.value,
@@ -505,6 +511,64 @@ async function main(): Promise<void> {
       15_000
     );
     assert.match(terminalText, /__BROWSER_PTY_OK__/);
+
+    await cdp.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const narrowLayout = await evaluate<{
+      cardClientWidth: number;
+      cardScrollWidth: number;
+      headerClientWidth: number;
+      headerScrollWidth: number;
+      headerFlexWrap: string;
+      statusbarClientWidth: number;
+      statusbarScrollWidth: number;
+      statusbarFlexWrap: string;
+      xtermHeight: number;
+    }>(
+      cdp,
+      `(() => {
+        const card = document.querySelector('.runtime-persistent-terminal');
+        const header = document.querySelector('.runtime-persistent-terminal__header');
+        const statusbar = document.querySelector('.runtime-persistent-terminal__statusbar');
+        const xterm = document.querySelector('.runtime-persistent-terminal__xterm');
+        if (!card || !header || !statusbar || !xterm) throw new Error('Persistent terminal layout nodes are missing');
+        return {
+          cardClientWidth: card.clientWidth,
+          cardScrollWidth: card.scrollWidth,
+          headerClientWidth: header.clientWidth,
+          headerScrollWidth: header.scrollWidth,
+          headerFlexWrap: getComputedStyle(header).flexWrap,
+          statusbarClientWidth: statusbar.clientWidth,
+          statusbarScrollWidth: statusbar.scrollWidth,
+          statusbarFlexWrap: getComputedStyle(statusbar).flexWrap,
+          xtermHeight: xterm.getBoundingClientRect().height
+        };
+      })()`
+    );
+    assert.ok(narrowLayout.cardClientWidth > 0);
+    assert.ok(
+      narrowLayout.cardScrollWidth <= narrowLayout.cardClientWidth + 1,
+      `Persistent terminal must not overflow a 390px viewport: ${JSON.stringify(narrowLayout)}`
+    );
+    assert.ok(
+      narrowLayout.headerScrollWidth <= narrowLayout.headerClientWidth + 1,
+      `Persistent terminal header must not overflow a 390px viewport: ${JSON.stringify(narrowLayout)}`
+    );
+    assert.equal(narrowLayout.headerFlexWrap, "wrap");
+    assert.ok(
+      narrowLayout.statusbarScrollWidth <= narrowLayout.statusbarClientWidth + 1,
+      `Persistent terminal statusbar must not overflow a 390px viewport: ${JSON.stringify(narrowLayout)}`
+    );
+    assert.equal(narrowLayout.statusbarFlexWrap, "wrap");
+    assert.ok(
+      narrowLayout.xtermHeight >= 240 && narrowLayout.xtermHeight <= 322,
+      `Persistent terminal viewport must stay usable on narrow screens: ${JSON.stringify(narrowLayout)}`
+    );
 
     const listResponse = await fetch(
       `${server.baseUrl}/api/runtime/executions/terminals?sessionId=${encodeURIComponent(session.id)}`,
