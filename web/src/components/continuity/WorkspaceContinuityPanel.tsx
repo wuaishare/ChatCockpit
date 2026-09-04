@@ -18,7 +18,8 @@ import type {
   ContinuitySessionMode,
   ContinuitySessionRecord,
   ContinuityWorkspaceSnapshot,
-  ContinuityWorkspaceTaskProjection
+  ContinuityWorkspaceTaskProjection,
+  ProductActionsResponse
 } from "../../types";
 import { CodexThreadImportDrawer } from "./CodexThreadImportDrawer";
 import { DevelopmentDocumentsSection } from "./DevelopmentDocumentsSection";
@@ -37,6 +38,8 @@ interface WorkspaceContinuityPanelProps {
   locale: LocaleCode;
   token: string | null;
   snapshot: ContinuityWorkspaceSnapshot;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
   activeSection: ContinuitySectionKey;
   onRefresh: () => Promise<void> | void;
   onSectionChange: (section: ContinuitySectionKey) => void;
@@ -92,6 +95,8 @@ export function WorkspaceContinuityPanel({
   locale,
   token,
   snapshot,
+  productActions,
+  productActionsError,
   activeSection,
   onRefresh,
   onSectionChange
@@ -311,6 +316,8 @@ export function WorkspaceContinuityPanel({
           locale={locale}
           token={token}
           snapshot={snapshot}
+          productActions={productActions}
+          productActionsError={productActionsError}
           onRefreshSnapshot={onRefresh}
         />
       ) : null}

@@ -363,6 +363,10 @@ const runtimeRecoverySource = fs.readFileSync(
   ),
   "utf8"
 );
+const jobsSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/JobsView.tsx"),
+  "utf8"
+);
 const resourceCenterSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/resources/ResourceCenterView.tsx"),
   "utf8"
@@ -447,6 +451,16 @@ assert.match(dashboardSource, /const hasAnyJobs = jobsDataState === "ready"/);
 assert.match(dashboardSource, /jobsDataState === "unavailable"/);
 assert.match(dashboardSource, /copy\.dashboard\.unavailableStateTitle/);
 assert.match(dashboardSource, /<strong>--<\/strong>/);
+assert.match(jobsSource, /productActions:\s*ProductActionsResponse \| null/);
+assert.match(jobsSource, /productActionsError:\s*string \| null/);
+assert.match(jobsSource, /action\.id === "job\.control"/);
+assert.match(jobsSource, /target\.availability === "available-local"/);
+assert.match(jobsSource, /target\.executionMode === "local-runtime"/);
+assert.match(jobsSource, /disabled=\{!canControlJobs\}/);
+assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canPause/);
+assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canResume/);
+assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canTerminate/);
+assert.match(jobsSource, /controlAvailabilityUnknown/);
 assert.doesNotMatch(dashboardSource, /jobsProtected/);
 assert.doesNotMatch(dashboardSource, /const hasAnyJobs = counts\.total > 0/);
 assert.match(appSource, /<AppUtilityPopover/);
@@ -481,8 +495,20 @@ assert.match(apiSource, /\/api\/continuity\/projects\?status=active/);
 assert.match(apiSource, /\/api\/continuity\/workspaces\/.*\/snapshot/);
 assert.match(apiSource, /\/api\/recovery\/assess/);
 assert.match(apiSource, /\/api\/recovery\/execute/);
+assert.match(appSource, /productActions=\{productActions\}/);
+assert.match(appSource, /productActionsError=\{productActionsError\}/);
+assert.match(continuitySource, /productActions:\s*ProductActionsResponse \| null/);
+assert.match(continuitySource, /productActionsError:\s*string \| null/);
+assert.match(workspaceContinuitySource, /productActions=\{productActions\}/);
+assert.match(workspaceContinuitySource, /productActionsError=\{productActionsError\}/);
 assert.match(runtimeRecoverySource, /assessRuntimeRecovery/);
 assert.match(runtimeRecoverySource, /executeRuntimeRecovery/);
+assert.match(runtimeRecoverySource, /"runtime\.recovery\.assess"/);
+assert.match(runtimeRecoverySource, /"runtime\.recovery\.execute"/);
+assert.match(runtimeRecoverySource, /recoveryActionAvailable/);
+assert.match(runtimeRecoverySource, /!canAssessRecovery/);
+assert.match(runtimeRecoverySource, /!canExecuteRecovery/);
+assert.match(runtimeRecoverySource, /recoveryActionAvailabilityUnknown/);
 assert.match(runtimeRecoverySource, /assessment\.assessment\.availableActions/);
 assert.match(runtimeRecoverySource, /assessment\.assessment\.blockers/);
 assert.match(runtimeRecoverySource, /classificationLabel\(assessment\.assessment\.classification, locale\)/);

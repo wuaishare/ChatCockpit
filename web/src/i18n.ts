@@ -351,6 +351,7 @@ export interface UiCopy {
     artifactLoadMore: string;
     controlTitle: string;
     controlDescription: string;
+    controlAvailabilityUnknown: string;
     controlPause: string;
     controlResume: string;
     controlTerminate: string;
@@ -702,6 +703,7 @@ const zhCN: UiCopy = {
     artifactLoadMore: "继续加载",
     controlTitle: "作业控制",
     controlDescription: "对当前运行作业发出暂停、继续或终止信号。",
+    controlAvailabilityUnknown: "作业控制执行路径暂不可判断，请刷新后重试。",
     controlPause: "暂停",
     controlResume: "继续",
     controlTerminate: "终止",
@@ -1064,6 +1066,7 @@ const enUS: UiCopy = {
     artifactLoadMore: "Load more",
     controlTitle: "Job Controls",
     controlDescription: "Send pause, resume, or terminate signals to the selected running job.",
+    controlAvailabilityUnknown: "The Job control execution path is currently unknown. Refresh and try again.",
     controlPause: "Pause",
     controlResume: "Resume",
     controlTerminate: "Terminate",

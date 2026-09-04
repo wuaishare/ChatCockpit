@@ -12,6 +12,9 @@ export const PRODUCT_ACTION_IDS = [
   "project.native.associate",
   "runtime.lifecycle",
   "runtime.resource.mutate",
+  "runtime.recovery.assess",
+  "runtime.recovery.execute",
+  "job.control",
   "connectivity.provider.install",
   "connectivity.provider.upgrade",
   "connectivity.provider.uninstall",
@@ -223,6 +226,19 @@ export class ProductActionAvailabilityService {
         availability: "approval-required",
         executionMode: "local-runtime",
         reason: "approval-required"
+      };
+    }
+
+    if (
+      action === "runtime.recovery.assess" ||
+      action === "runtime.recovery.execute" ||
+      action === "job.control"
+    ) {
+      return {
+        ...targetBase(target),
+        availability: "available-local",
+        executionMode: "local-runtime",
+        reason: "ready"
       };
     }
 

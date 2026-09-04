@@ -270,6 +270,7 @@ export interface ContinuityCopy {
   recoveryTargetThread: string;
   recoveryTargetMode: string;
   recoveryExecute: string;
+  recoveryActionAvailabilityUnknown: string;
   recoveryApplied: string;
   recoveryAttempt: string;
   recoveryResultBinding: string;
@@ -584,6 +585,7 @@ export const zhCNContinuityCopy: ContinuityCopy = {
   recoveryTargetThread: "目标 Codex Thread",
   recoveryTargetMode: "交接目标模式",
   recoveryExecute: "执行恢复",
+  recoveryActionAvailabilityUnknown: "Runtime Recovery 执行路径暂不可判断，请刷新后重试。",
   recoveryApplied: "恢复动作已由服务端确认完成。",
   recoveryAttempt: "Recovery Attempt",
   recoveryResultBinding: "结果 Binding",
@@ -898,6 +900,7 @@ export const enUSContinuityCopy: ContinuityCopy = {
   recoveryTargetThread: "Target Codex thread",
   recoveryTargetMode: "Handoff target mode",
   recoveryExecute: "Execute recovery",
+  recoveryActionAvailabilityUnknown: "The Runtime Recovery execution path is currently unknown. Refresh and try again.",
   recoveryApplied: "The server confirmed the recovery action completed.",
   recoveryAttempt: "Recovery Attempt",
   recoveryResultBinding: "Result binding",

@@ -174,6 +174,30 @@ assert.equal(
   target(remoteBrowser, "runtime.resource.mutate", capableId).reason,
   "target-capability-not-implemented"
 );
+for (const actionId of [
+  "runtime.recovery.assess",
+  "runtime.recovery.execute",
+  "job.control"
+] as const) {
+  assert.equal(
+    target(remoteBrowser, actionId, LOCAL_DEVICE_TARGET_ID).availability,
+    "available-local",
+    `${actionId} is an authenticated Application Runtime workflow on the local ChatCockpit target`
+  );
+  assert.equal(
+    target(remoteBrowser, actionId, LOCAL_DEVICE_TARGET_ID).executionMode,
+    "local-runtime"
+  );
+  assert.equal(
+    target(remoteBrowser, actionId, capableId).availability,
+    "unsupported",
+    `${actionId} must not imply a remote Device RPC until that capability is explicitly implemented`
+  );
+  assert.equal(
+    target(remoteBrowser, actionId, capableId).reason,
+    "target-capability-not-implemented"
+  );
+}
 assert.equal(
   target(remoteBrowser, "connectivity.route.intent", LOCAL_DEVICE_TARGET_ID).availability,
   "available-local",

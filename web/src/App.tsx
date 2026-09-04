@@ -1419,6 +1419,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               locale={locale}
               token={token}
               authRequired={health.authRequired}
+              productActions={productActions}
+              productActionsError={productActionsError}
               activeSection={activeContinuitySection}
               onSectionChange={navigateContinuitySection}
               onOpenProjects={() => navigateView("projects")}
@@ -1497,6 +1499,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               error={jobsError}
               controlLoading={controlLoading}
               controlMessage={controlMessage}
+              productActions={productActions}
+              productActionsError={productActionsError}
               onRefresh={() => void loadJobs(token, health.authRequired, true)}
               onSelectJob={(jobId) => {
                 navigateView("jobs", jobId);
