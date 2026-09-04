@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Form, Input, Modal, Select } from "antd";
+import { Alert, App as AntApp, Button, Form, Input, Modal, Select } from "antd";
 import { ImportOutlined, SwapOutlined } from "@ant-design/icons";
 import { useMemo, useState } from "react";
 
@@ -11,6 +11,7 @@ import {
   submitContinuityTaskReview
 } from "../../api";
 import { getUiCopy, type LocaleCode } from "../../i18n";
+import { hasLocalProductActionPath } from "../../product-action-availability";
 import type {
   ApiProblem,
   ContinuityHandoffRecord,
@@ -103,6 +104,17 @@ export function WorkspaceContinuityPanel({
 }: WorkspaceContinuityPanelProps) {
   const copy = getUiCopy(locale).continuity;
   const { message } = AntApp.useApp();
+  const canTransitionTasks = hasLocalProductActionPath(productActions, "continuity.task.transition");
+  const canManageHandoffs = hasLocalProductActionPath(productActions, "continuity.handoff.manage");
+  const canMutateDocuments = hasLocalProductActionPath(productActions, "continuity.document.mutate");
+  const canImportCodexThread = hasLocalProductActionPath(productActions, "continuity.codex-thread.import");
+  const canResumeNativeCodexThread = hasLocalProductActionPath(productActions, "runtime.codex.thread.resume");
+  const continuityWritesAvailable =
+    canTransitionTasks &&
+    canManageHandoffs &&
+    canMutateDocuments &&
+    canImportCodexThread &&
+    canResumeNativeCodexThread;
   const [prepareOpen, setPrepareOpen] = useState(false);
   const [codexImportOpen, setCodexImportOpen] = useState(false);
   const [forkHandoff, setForkHandoff] = useState<ContinuityHandoffRecord | null>(null);
@@ -126,6 +138,7 @@ export function WorkspaceContinuityPanel({
     null;
 
   function openPrepare(): void {
+    if (!canManageHandoffs) return;
     const candidate = eligibleTasks[0];
     const session = candidate ? activeSessions(candidate, snapshot)[0] : null;
     if (!candidate || !session) return;
@@ -143,6 +156,7 @@ export function WorkspaceContinuityPanel({
   }
 
   async function submitPrepare(values: PrepareHandoffFormValues): Promise<void> {
+    if (!canManageHandoffs) return;
     const projection = snapshot.tasks.find(({ task }) => task.id === values.taskId);
     if (!projection) return;
     setMutating("prepare");
@@ -182,6 +196,7 @@ export function WorkspaceContinuityPanel({
     action: "accept" | "cancel",
     handoff: ContinuityHandoffRecord
   ): Promise<void> {
+    if (!canManageHandoffs) return;
     setMutating(`${action}:${handoff.id}`);
     try {
       const payload = {
@@ -207,6 +222,7 @@ export function WorkspaceContinuityPanel({
     action: "review" | "complete",
     projection: ContinuityWorkspaceTaskProjection
   ): Promise<void> {
+    if (!canTransitionTasks) return;
     const mutationKey = `${action}:${projection.task.id}`;
     setMutating(mutationKey);
     try {
@@ -230,6 +246,7 @@ export function WorkspaceContinuityPanel({
   }
 
   function openFork(handoff: ContinuityHandoffRecord): void {
+    if (!canManageHandoffs) return;
     const source = snapshot.tasks.find(({ task }) => task.id === handoff.taskId);
     const mode = handoff.toMode === "unassigned" ? "chat-direct" : handoff.toMode;
     forkForm.setFieldsValue({
@@ -241,7 +258,7 @@ export function WorkspaceContinuityPanel({
   }
 
   async function submitFork(values: ForkHandoffFormValues): Promise<void> {
-    if (!forkHandoff) return;
+    if (!canManageHandoffs || !forkHandoff) return;
     setMutating(`fork:${forkHandoff.id}`);
     try {
       await forkContinuityHandoff(
@@ -270,12 +287,19 @@ export function WorkspaceContinuityPanel({
     <div className="continuity-runtime">
       <WriterBanner locale={locale} snapshot={snapshot} />
       <GitSummary locale={locale} snapshot={snapshot} />
+      {!continuityWritesAvailable ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={productActionsError || copy.actionAvailabilityUnknown}
+        />
+      ) : null}
 
       <div className="continuity-runtime__actions">
         <Button
           type="primary"
           icon={<SwapOutlined />}
-          disabled={eligibleTasks.length === 0}
+          disabled={!canManageHandoffs || eligibleTasks.length === 0}
           onClick={openPrepare}
         >
           {copy.prepareHandoff}
@@ -296,6 +320,8 @@ export function WorkspaceContinuityPanel({
           locale={locale}
           token={token}
           snapshot={snapshot}
+          mutationAvailable={canMutateDocuments}
+          availabilityError={productActionsError}
           onRefreshSnapshot={onRefresh}
         />
       ) : null}
@@ -304,6 +330,7 @@ export function WorkspaceContinuityPanel({
           locale={locale}
           snapshot={snapshot}
           mutating={mutating}
+          mutationAvailable={canTransitionTasks}
           onSubmitReview={(projection) => void transitionTask("review", projection)}
           onComplete={(projection) => void transitionTask("complete", projection)}
         />
@@ -326,6 +353,7 @@ export function WorkspaceContinuityPanel({
           locale={locale}
           snapshot={snapshot}
           mutating={mutating}
+          mutationAvailable={canManageHandoffs}
           onAccept={(handoff) => void decide("accept", handoff)}
           onCancel={(handoff) => void decide("cancel", handoff)}
           onFork={openFork}
@@ -343,6 +371,9 @@ export function WorkspaceContinuityPanel({
         token={token}
         workspaceId={snapshot.workspace.id}
         workspaceLabel={`${snapshot.project.displayName} · ${snapshot.workspace.repoId}`}
+        importAvailable={canImportCodexThread}
+        resumeAvailable={canResumeNativeCodexThread}
+        availabilityError={productActionsError}
         open={codexImportOpen}
         onClose={() => setCodexImportOpen(false)}
         onComplete={onRefresh}
@@ -355,6 +386,7 @@ export function WorkspaceContinuityPanel({
         okText={copy.submitHandoff}
         cancelText={copy.cancelHandoff}
         confirmLoading={mutating === "prepare"}
+        okButtonProps={{ disabled: !canManageHandoffs }}
         onCancel={() => setPrepareOpen(false)}
         onOk={() => void prepareForm.submit()}
         destroyOnHidden
@@ -418,6 +450,7 @@ export function WorkspaceContinuityPanel({
         okText={copy.forkHandoff}
         cancelText={copy.cancelHandoff}
         confirmLoading={Boolean(forkHandoff && mutating === `fork:${forkHandoff.id}`)}
+        okButtonProps={{ disabled: !canManageHandoffs }}
         onCancel={() => setForkHandoff(null)}
         onOk={() => void forkForm.submit()}
         destroyOnHidden

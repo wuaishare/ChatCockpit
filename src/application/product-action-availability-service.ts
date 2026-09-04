@@ -14,7 +14,12 @@ export const PRODUCT_ACTION_IDS = [
   "runtime.resource.mutate",
   "runtime.recovery.assess",
   "runtime.recovery.execute",
+  "runtime.codex.thread.resume",
   "job.control",
+  "continuity.task.transition",
+  "continuity.handoff.manage",
+  "continuity.document.mutate",
+  "continuity.codex-thread.import",
   "device.enrollment.decide",
   "device.execution-policy.manage",
   "device.revoke",
@@ -237,7 +242,12 @@ export class ProductActionAvailabilityService {
     if (
       action === "runtime.recovery.assess" ||
       action === "runtime.recovery.execute" ||
+      action === "runtime.codex.thread.resume" ||
       action === "job.control" ||
+      action === "continuity.task.transition" ||
+      action === "continuity.handoff.manage" ||
+      action === "continuity.document.mutate" ||
+      action === "continuity.codex-thread.import" ||
       action === "device.enrollment.decide" ||
       action === "device.execution-policy.manage" ||
       action === "device.revoke" ||

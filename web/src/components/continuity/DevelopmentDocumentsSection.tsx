@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Form, Input, Modal, Select, Tag } from "antd";
+import { Alert, App as AntApp, Button, Form, Input, Modal, Select, Tag } from "antd";
 import { UiText as Text } from "../UiText";
 import {
   CheckCircleOutlined,
@@ -35,6 +35,8 @@ interface DevelopmentDocumentsSectionProps {
   locale: LocaleCode;
   token: string | null;
   snapshot: ContinuityWorkspaceSnapshot;
+  mutationAvailable: boolean;
+  availabilityError: string | null;
   onRefreshSnapshot: () => Promise<void> | void;
 }
 
@@ -76,6 +78,8 @@ export function DevelopmentDocumentsSection({
   locale,
   token,
   snapshot,
+  mutationAvailable,
+  availabilityError,
   onRefreshSnapshot
 }: DevelopmentDocumentsSectionProps) {
   const copy = getUiCopy(locale).continuity;
@@ -206,6 +210,7 @@ export function DevelopmentDocumentsSection({
   }
 
   async function submitCreate(values: CreateDocumentValues): Promise<void> {
+    if (!mutationAvailable) return;
     setMutating("create");
     try {
       const response = await createDevelopmentDocument(
@@ -232,7 +237,7 @@ export function DevelopmentDocumentsSection({
   }
 
   async function submitVersion(values: AppendVersionValues): Promise<void> {
-    if (!detail) return;
+    if (!mutationAvailable || !detail) return;
     setMutating(`version:${detail.document.id}`);
     try {
       const response = await appendDevelopmentDocumentVersion(
@@ -259,7 +264,7 @@ export function DevelopmentDocumentsSection({
   async function transitionDocument(
     status: ContinuityDevelopmentDocumentStatus
   ): Promise<void> {
-    if (!detail) return;
+    if (!mutationAvailable || !detail) return;
     setMutating(`status:${detail.document.id}`);
     try {
       const response = await updateDevelopmentDocumentStatus(
@@ -281,6 +286,7 @@ export function DevelopmentDocumentsSection({
   }
 
   async function submitBinding(values: BindDocumentsValues): Promise<void> {
+    if (!mutationAvailable) return;
     const projection = snapshot.tasks.find(({ task }) => task.id === values.taskId);
     if (!projection) return;
     setMutating(`bind:${projection.task.id}`);
@@ -305,7 +311,7 @@ export function DevelopmentDocumentsSection({
   }
 
   function openVersion(): void {
-    if (!detail) return;
+    if (!mutationAvailable || !detail) return;
     versionForm.setFieldsValue({
       contentMarkdown: detail.currentContent.contentMarkdown,
       changeSummary: ""
@@ -315,6 +321,13 @@ export function DevelopmentDocumentsSection({
 
   return (
     <section className="continuity-documents" aria-label={copy.sections.documents.title}>
+      {!mutationAvailable ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={availabilityError || copy.actionAvailabilityUnknown}
+        />
+      ) : null}
       <div className="continuity-documents__toolbar">
         <div>
           <strong>{copy.sections.documents.title}</strong>
@@ -323,6 +336,7 @@ export function DevelopmentDocumentsSection({
         <Button
           type="primary"
           icon={<FileAddOutlined />}
+          disabled={!mutationAvailable}
           onClick={() => {
             createForm.setFieldsValue({ kind: "spec", changeSummary: "" });
             setCreateOpen(true);
@@ -352,8 +366,8 @@ export function DevelopmentDocumentsSection({
           kind="empty"
           title={copy.noDocumentsTitle}
           description={copy.noDocumentsDescription}
-          retryLabel={copy.createDocument}
-          onRetry={() => setCreateOpen(true)}
+          retryLabel={mutationAvailable ? copy.createDocument : copy.refreshSnapshot}
+          onRetry={mutationAvailable ? () => setCreateOpen(true) : () => void loadDocuments()}
         />
       ) : (
         <div className="continuity-documents__workspace">
@@ -406,12 +420,17 @@ export function DevelopmentDocumentsSection({
                     <Text as="h3">{detail.document.title}</Text>
                   </div>
                   <div className="continuity-document-detail__actions">
-                    <Button icon={<PlusOutlined />} onClick={openVersion}>
+                    <Button
+                      icon={<PlusOutlined />}
+                      disabled={!mutationAvailable}
+                      onClick={openVersion}
+                    >
                       {copy.appendVersion}
                     </Button>
                     {detail.document.status === "draft" ? (
                       <Button
                         loading={mutating === `status:${detail.document.id}`}
+                        disabled={!mutationAvailable}
                         onClick={() => void transitionDocument("ready")}
                       >
                         {copy.markReady}
@@ -421,6 +440,7 @@ export function DevelopmentDocumentsSection({
                       <>
                         <Button
                           loading={mutating === `status:${detail.document.id}`}
+                          disabled={!mutationAvailable}
                           onClick={() => void transitionDocument("draft")}
                         >
                           {copy.returnDraft}
@@ -429,6 +449,7 @@ export function DevelopmentDocumentsSection({
                           type="primary"
                           icon={<CheckCircleOutlined />}
                           loading={mutating === `status:${detail.document.id}`}
+                          disabled={!mutationAvailable}
                           onClick={() => void transitionDocument("approved")}
                         >
                           {copy.approveDocument}
@@ -521,6 +542,7 @@ export function DevelopmentDocumentsSection({
               type="primary"
               icon={<LinkOutlined />}
               loading={Boolean(selectedTask && mutating === `bind:${selectedTask.task.id}`)}
+              disabled={!mutationAvailable}
             >
               {copy.saveBinding}
             </Button>
@@ -536,6 +558,7 @@ export function DevelopmentDocumentsSection({
         okText={copy.createDocument}
         cancelText={copy.cancelHandoff}
         confirmLoading={mutating === "create"}
+        okButtonProps={{ disabled: !mutationAvailable }}
         onCancel={() => setCreateOpen(false)}
         onOk={() => void createForm.submit()}
         destroyOnHidden
@@ -573,6 +596,7 @@ export function DevelopmentDocumentsSection({
         okText={copy.appendVersion}
         cancelText={copy.cancelHandoff}
         confirmLoading={Boolean(detail && mutating === `version:${detail.document.id}`)}
+        okButtonProps={{ disabled: !mutationAvailable }}
         onCancel={() => setVersionOpen(false)}
         onOk={() => void versionForm.submit()}
         destroyOnHidden

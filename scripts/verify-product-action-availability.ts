@@ -177,7 +177,12 @@ assert.equal(
 for (const actionId of [
   "runtime.recovery.assess",
   "runtime.recovery.execute",
+  "runtime.codex.thread.resume",
   "job.control",
+  "continuity.task.transition",
+  "continuity.handoff.manage",
+  "continuity.document.mutate",
+  "continuity.codex-thread.import",
   "device.enrollment.decide",
   "device.execution-policy.manage",
   "device.revoke",

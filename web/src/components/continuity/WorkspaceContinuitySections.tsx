@@ -130,12 +130,14 @@ export function TasksSection({
   locale,
   snapshot,
   mutating,
+  mutationAvailable,
   onSubmitReview,
   onComplete
 }: {
   locale: LocaleCode;
   snapshot: ContinuityWorkspaceSnapshot;
   mutating: string | null;
+  mutationAvailable: boolean;
   onSubmitReview: (projection: ContinuityWorkspaceTaskProjection) => void;
   onComplete: (projection: ContinuityWorkspaceTaskProjection) => void;
 }) {
@@ -155,9 +157,10 @@ export function TasksSection({
       {snapshot.tasks.map((projection) => {
         const { task, sessions, latestHandoff, evidence, completion } = projection;
         const canSubmitReview =
+          mutationAvailable &&
           ["in-progress", "blocked"].includes(task.status) &&
           evidence?.verificationState === "verified";
-        const canComplete = task.status === "review" && completion.eligible;
+        const canComplete = mutationAvailable && task.status === "review" && completion.eligible;
         return (
           <article className="continuity-entity-card" key={task.id}>
             <header>
@@ -347,6 +350,7 @@ export function HandoffsSection({
   locale,
   snapshot,
   mutating,
+  mutationAvailable,
   onAccept,
   onCancel,
   onFork
@@ -354,6 +358,7 @@ export function HandoffsSection({
   locale: LocaleCode;
   snapshot: ContinuityWorkspaceSnapshot;
   mutating: string | null;
+  mutationAvailable: boolean;
   onAccept: (handoff: ContinuityHandoffRecord) => void;
   onCancel: (handoff: ContinuityHandoffRecord) => void;
   onFork: (handoff: ContinuityHandoffRecord) => void;
@@ -405,23 +410,37 @@ export function HandoffsSection({
           </div>
           {handoff.status === "ready" ? (
             <div className="continuity-handoff-card__actions">
-              <Popconfirm title={copy.acceptHandoff} onConfirm={() => onAccept(handoff)}>
+              <Popconfirm
+                title={copy.acceptHandoff}
+                disabled={!mutationAvailable}
+                onConfirm={() => onAccept(handoff)}
+              >
                 <Button
                   type="primary"
                   icon={<CheckCircleOutlined />}
                   loading={mutating === `accept:${handoff.id}`}
+                  disabled={!mutationAvailable}
                 >
                   {copy.acceptHandoff}
                 </Button>
               </Popconfirm>
-              <Button icon={<ForkOutlined />} onClick={() => onFork(handoff)}>
+              <Button
+                icon={<ForkOutlined />}
+                disabled={!mutationAvailable}
+                onClick={() => onFork(handoff)}
+              >
                 {copy.forkHandoff}
               </Button>
-              <Popconfirm title={copy.cancelHandoff} onConfirm={() => onCancel(handoff)}>
+              <Popconfirm
+                title={copy.cancelHandoff}
+                disabled={!mutationAvailable}
+                onConfirm={() => onCancel(handoff)}
+              >
                 <Button
                   danger
                   icon={<CloseCircleOutlined />}
                   loading={mutating === `cancel:${handoff.id}`}
+                  disabled={!mutationAvailable}
                 >
                   {copy.cancelHandoff}
                 </Button>
