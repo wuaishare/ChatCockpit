@@ -86,6 +86,8 @@ function canSafelyClearExternalFailure(error: unknown): boolean {
     "REVISION_CONFLICT",
     "JOB_PROCESS_SIGNAL_FAILED",
     "WORKSPACE_PROCESS_NOT_FOUND",
+    "WORKSPACE_PROCESS_INPUT_FAILED",
+    "WORKSPACE_PROCESS_RESIZE_FAILED",
     "WORKSPACE_PROCESS_TERMINATE_FAILED"
   ].includes(error.code);
 }

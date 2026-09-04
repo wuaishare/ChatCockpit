@@ -194,20 +194,105 @@ private struct SharedCockpitWebView: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         let policy: DesktopEmbeddedNavigationPolicy
+        let baseURL: URL
         var requestedURL: URL
         var onLoadingChanged: (Bool) -> Void
         var onLoadFailed: () -> Void
 
         init(
             policy: DesktopEmbeddedNavigationPolicy,
+            baseURL: URL,
             requestedURL: URL,
             onLoadingChanged: @escaping (Bool) -> Void,
             onLoadFailed: @escaping () -> Void
         ) {
             self.policy = policy
+            self.baseURL = baseURL
             self.requestedURL = requestedURL
             self.onLoadingChanged = onLoadingChanged
             self.onLoadFailed = onLoadFailed
+        }
+
+        private func sameOrigin(_ left: URL, _ right: URL) -> Bool {
+            left.scheme?.lowercased() == right.scheme?.lowercased()
+                && left.host?.lowercased() == right.host?.lowercased()
+                && left.port == right.port
+        }
+
+        private func routeTarget(for url: URL) -> String? {
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+                return nil
+            }
+            var target = components.percentEncodedPath
+            if let query = components.percentEncodedQuery, !query.isEmpty {
+                target += "?\(query)"
+            }
+            if let fragment = components.percentEncodedFragment, !fragment.isEmpty {
+                target += "#\(fragment)"
+            }
+            return target.isEmpty ? "/" : target
+        }
+
+        private func originString(for url: URL) -> String? {
+            guard let scheme = url.scheme, let host = url.host else { return nil }
+            if let port = url.port {
+                return "\(scheme)://\(host):\(port)"
+            }
+            return "\(scheme)://\(host)"
+        }
+
+        private func canNavigateSameDocument(from currentURL: URL, to nextURL: URL) -> Bool {
+            guard sameOrigin(currentURL, baseURL), sameOrigin(nextURL, baseURL) else {
+                return false
+            }
+            let currentPath = currentURL.path.lowercased()
+            return !currentPath.hasSuffix("/login") && !currentPath.hasSuffix("/local-login")
+        }
+
+        func navigate(_ webView: WKWebView, to nextURL: URL) {
+            requestedURL = nextURL
+            guard webView.url != nextURL else {
+                onLoadingChanged(false)
+                return
+            }
+            guard let currentURL = webView.url,
+                  canNavigateSameDocument(from: currentURL, to: nextURL),
+                  let target = routeTarget(for: nextURL),
+                  let expectedOrigin = originString(for: baseURL) else {
+                webView.load(URLRequest(url: nextURL))
+                return
+            }
+
+            onLoadingChanged(true)
+            webView.callAsyncJavaScript(
+                """
+                if (window.location.origin !== expectedOrigin) {
+                    throw new Error("ChatCockpit embedded origin changed");
+                }
+                const current = window.location.pathname + window.location.search + window.location.hash;
+                if (current !== target) {
+                    window.history.pushState(null, "", target);
+                    window.dispatchEvent(new PopStateEvent("popstate"));
+                }
+                return window.location.pathname + window.location.search + window.location.hash;
+                """,
+                arguments: [
+                    "expectedOrigin": expectedOrigin,
+                    "target": target
+                ],
+                in: nil,
+                in: .page
+            ) { [weak webView, weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    switch result {
+                    case .success:
+                        self.onLoadingChanged(false)
+                    case .failure:
+                        webView?.load(URLRequest(url: nextURL))
+                    }
+                }
+            }
         }
 
         func webView(
@@ -260,6 +345,7 @@ private struct SharedCockpitWebView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             policy: DesktopEmbeddedNavigationPolicy(baseURL: baseURL)!,
+            baseURL: baseURL,
             requestedURL: requestedURL,
             onLoadingChanged: onLoadingChanged,
             onLoadFailed: onLoadFailed
@@ -282,9 +368,6 @@ private struct SharedCockpitWebView: NSViewRepresentable {
         context.coordinator.onLoadFailed = onLoadFailed
 
         guard context.coordinator.requestedURL != requestedURL else { return }
-        context.coordinator.requestedURL = requestedURL
-        if webView.url != requestedURL {
-            webView.load(URLRequest(url: requestedURL))
-        }
+        context.coordinator.navigate(webView, to: requestedURL)
     }
 }

@@ -149,7 +149,13 @@ assert.match(copy, /liveExecution:\s*"Live execution"/);
 // Runtime is the global control tower; Project Cockpit remains the scoped drill-down.
 assert.match(api, /export async function fetchRuntimeExecutionObservability/);
 assert.match(api, /requestJson<RuntimeExecutionObservabilityResponse>\("\/api\/runtime\/executions"\)/);
+assert.match(api, /export async function inputRuntimeManagedProcess/);
+assert.match(api, /\/api\/runtime\/executions\/processes\/\$\{encodeURIComponent\(input\.processId\)\}\/input/);
+assert.match(api, /export async function resizeRuntimeManagedProcess/);
+assert.match(api, /\/api\/runtime\/executions\/processes\/\$\{encodeURIComponent\(input\.processId\)\}\/resize/);
 assert.match(types, /export interface RuntimeExecutionObservabilityResponse/);
+assert.match(types, /controls:\s*\{[\s\S]*input: boolean;[\s\S]*resize: boolean;[\s\S]*terminate: boolean;/);
+assert.match(types, /terminal:\s*\{[\s\S]*tty: boolean;[\s\S]*rows: number \| null;[\s\S]*cols: number \| null;/);
 assert.match(
   runtimeView,
   /<RuntimeLiveExecutionPanel[\s\S]*locale=\{locale\}[\s\S]*processTerminateAvailable=\{processTerminateAvailable\}[\s\S]*\/>/
@@ -159,7 +165,18 @@ assert.match(runtimeLiveExecution, /source\.addEventListener\("runtime\.process\
 assert.match(runtimeLiveExecution, /consoleSessionId/);
 assert.match(runtimeLiveExecution, /seenOutputSequences/);
 assert.match(runtimeLiveExecution, /SessionTerminalCard/);
+assert.match(runtimeLiveExecution, /processKeepsSessionConsoleLive/);
+assert.match(runtimeLiveExecution, /process\.sessionStatus/);
+assert.match(runtimeLiveExecution, /new ResizeObserver/);
+assert.match(runtimeLiveExecution, /autoResizeSignatureRef/);
 assert.match(runtimeLiveExecution, /runtime-session-terminal__viewport/);
+assert.match(runtimeLiveExecution, /process\.controls\.input/);
+assert.match(runtimeLiveExecution, /process\.controls\.resize/);
+assert.match(runtimeLiveExecution, /inputRuntimeManagedProcess/);
+assert.match(runtimeLiveExecution, /resizeRuntimeManagedProcess/);
+assert.match(runtimeLiveExecution, /processInputPlaceholder/);
+assert.match(runtimeLiveExecution, /processInputClose/);
+assert.match(runtimeLiveExecution, /processResize/);
 assert.match(runtimeLiveExecution, /projectDisplayName \?\? runtimeCopy\.unknownProject/);
 assert.match(runtimeLiveExecution, /activity\.targetDeviceId/);
 assert.match(runtimeLiveExecution, /process\.command/);

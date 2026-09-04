@@ -200,7 +200,7 @@ class FakeStandaloneAdapter implements CodingRuntimeAdapter {
     terminalSize?: { rows: number; cols: number };
     networkAccess: boolean;
   }): Promise<RuntimeStandaloneProcessStartResult> {
-    const processId = `fake_process_${++this.managedProcessCounter}`;
+    const processId = `chatcockpit_fake_${++this.managedProcessCounter}`;
     this.calls.push({ method: "command/exec:managed", payload: { ...input, processId } });
     this.managedProcesses.set(processId, {
       processId,
@@ -754,7 +754,12 @@ async function verifyChatDirectRouting(): Promise<void> {
           search: "missing-alpha-edit-sentinel",
           replace: "never"
         }),
-      () => true
+      (error) => {
+        assert.ok(error instanceof ServiceError);
+        assert.equal(error.code, "FILES_EDIT_BLOCKED");
+        assert.match(error.hint ?? "", /search text not found in src\/fixture\.ts/);
+        return true;
+      }
     );
     assert.equal(repositories.coreWriterAuthorities.getActive(workspace.id), null);
 
@@ -1426,6 +1431,65 @@ async function verifyChatDirectRouting(): Promise<void> {
       (nativePtyCall.payload as { terminalSize?: { rows: number; cols: number } }).terminalSize,
       { rows: 32, cols: 120 }
     );
+    const nativeRuntimeControl = new RuntimeManagedProcessControlService(
+      repositories,
+      service
+    );
+    const nativeOperatorContext = buildOperationContext({
+      requestId: "verify-native-runtime-terminal-control",
+      actorType: "local-ui",
+      actorId: "operator-owner"
+    });
+    const nativePtyObservation = repositories.directProcessSessions.get(nativePty.processId);
+    assert.deepEqual(nativeRuntimeControl.capabilities(nativePty.processId), {
+      input: true,
+      resize: true,
+      terminate: true,
+      tty: true,
+      terminalSize: { rows: 32, cols: 120 }
+    });
+    const runtimeInput = {
+      processId: nativePty.processId,
+      expectedRevision: nativePtyObservation.revision,
+      input: "echo runtime-control\\n",
+      idempotencyKey: "runtime-process-input-native-0001"
+    };
+    const acceptedRuntimeInput = await nativeRuntimeControl.input(
+      nativeOperatorContext,
+      runtimeInput
+    );
+    assert.equal(acceptedRuntimeInput.accepted, true);
+    assert.equal(acceptedRuntimeInput.replayed, false);
+    const replayedRuntimeInput = await nativeRuntimeControl.input(
+      nativeOperatorContext,
+      runtimeInput
+    );
+    assert.equal(replayedRuntimeInput.replayed, true);
+    const runtimeResize = {
+      processId: nativePty.processId,
+      expectedRevision: nativePtyObservation.revision,
+      rows: 44,
+      cols: 144,
+      idempotencyKey: "runtime-process-resize-native-0001"
+    };
+    const resizedRuntimePty = await nativeRuntimeControl.resize(
+      nativeOperatorContext,
+      runtimeResize
+    );
+    assert.equal(resizedRuntimePty.resized, true);
+    assert.equal(resizedRuntimePty.replayed, false);
+    assert.deepEqual(nativeRuntimeControl.capabilities(nativePty.processId), {
+      input: true,
+      resize: true,
+      terminate: true,
+      tty: true,
+      terminalSize: { rows: 44, cols: 144 }
+    });
+    const replayedRuntimeResize = await nativeRuntimeControl.resize(
+      nativeOperatorContext,
+      runtimeResize
+    );
+    assert.equal(replayedRuntimeResize.replayed, true);
     const resizedPty = await service.workspaceProcessResize(context, {
       repoId: "primary",
       processId: nativePty.processId,
@@ -1433,6 +1497,13 @@ async function verifyChatDirectRouting(): Promise<void> {
       cols: 160
     });
     assert.equal(resizedPty.resized, true);
+    assert.deepEqual(nativeRuntimeControl.capabilities(nativePty.processId), {
+      input: true,
+      resize: true,
+      terminate: true,
+      tty: true,
+      terminalSize: { rows: 48, cols: 160 }
+    });
     assert.ok(
       adapter.calls.some(
         (call) =>
@@ -1448,6 +1519,24 @@ async function verifyChatDirectRouting(): Promise<void> {
       input: "pwd\n"
     });
     assert.equal(ptyInput.accepted, true);
+    const closedRuntimeInput = await nativeRuntimeControl.input(
+      nativeOperatorContext,
+      {
+        processId: nativePty.processId,
+        expectedRevision: nativePtyObservation.revision,
+        input: "",
+        closeStdin: true,
+        idempotencyKey: "runtime-process-input-close-native-0001"
+      }
+    );
+    assert.equal(closedRuntimeInput.stdinClosed, true);
+    assert.deepEqual(nativeRuntimeControl.capabilities(nativePty.processId), {
+      input: false,
+      resize: true,
+      terminate: true,
+      tty: true,
+      terminalSize: { rows: 48, cols: 160 }
+    });
     adapter.completeManagedProcess(nativePty.processId, "pty-finished");
     await new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -1846,6 +1935,23 @@ async function verifyChatDirectRouting(): Promise<void> {
       expiresAt: "2099-01-01T00:00:00.000Z",
       now: "2026-08-06T04:31:00.000Z"
     });
+    const sessionPty = await service.workspaceExec(context, {
+      repoId: "primary",
+      sessionId: session.id,
+      command: "bash",
+      args: ["-i"],
+      tty: true,
+      terminalSize: { rows: 28, cols: 96 },
+      networkAccess: false
+    });
+    const sessionPtyObservation = repositories.directProcessSessions.get(sessionPty.processId);
+    assert.deepEqual(nativeRuntimeControl.capabilities(sessionPty.processId), {
+      input: true,
+      resize: true,
+      terminate: true,
+      tty: true,
+      terminalSize: { rows: 28, cols: 96 }
+    });
     const sessionManaged = await service.workspaceExec(context, {
       repoId: "primary",
       sessionId: session.id,
@@ -1859,6 +1965,39 @@ async function verifyChatDirectRouting(): Promise<void> {
       expectedRevision: sessionManagedLease.revision,
       now: "2026-08-06T04:32:00.000Z"
     });
+    assert.equal(
+      nativeRuntimeControl.capabilities(sessionPty.processId, nativeOperatorContext).input,
+      false
+    );
+    await assert.rejects(
+      () => nativeRuntimeControl.input(nativeOperatorContext, {
+        processId: sessionPty.processId,
+        expectedRevision: sessionPtyObservation.revision,
+        input: "echo should-not-run\\n",
+        idempotencyKey: "runtime-process-input-released-lease-0001"
+      }),
+      (error) => error instanceof ServiceError && error.code === "WRITER_LEASE_REQUIRED"
+    );
+    const resizedWithoutWriterLease = await nativeRuntimeControl.resize(
+      nativeOperatorContext,
+      {
+        processId: sessionPty.processId,
+        expectedRevision: sessionPtyObservation.revision,
+        rows: 30,
+        cols: 100,
+        idempotencyKey: "runtime-process-resize-released-lease-0001"
+      }
+    );
+    assert.equal(resizedWithoutWriterLease.resized, true);
+    const terminatedWithoutWriterLease = await nativeRuntimeControl.terminate(
+      nativeOperatorContext,
+      {
+        processId: sessionPty.processId,
+        expectedRevision: sessionPtyObservation.revision,
+        idempotencyKey: "runtime-process-terminate-released-lease-0001"
+      }
+    );
+    assert.equal(terminatedWithoutWriterLease.terminationRequested, true);
     await new Promise((resolve) => setTimeout(resolve, 1_100));
     const terminatedSessionManaged = await service.workspaceProcessRead(context, {
       repoId: "primary",
