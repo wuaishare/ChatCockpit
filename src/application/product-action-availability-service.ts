@@ -16,6 +16,7 @@ export const PRODUCT_ACTION_IDS = [
   "runtime.recovery.execute",
   "runtime.codex.thread.resume",
   "runtime.codex.turn.interrupt",
+  "runtime.process.terminate",
   "job.control",
   "continuity.task.transition",
   "continuity.handoff.manage",
@@ -238,6 +239,22 @@ export class ProductActionAvailabilityService {
         executionMode: "local-runtime",
         reason: "approval-required"
       };
+    }
+
+    if (action === "runtime.process.terminate") {
+      return machineLocalRequest
+        ? {
+            ...targetBase(target),
+            availability: "available-local",
+            executionMode: "local-runtime",
+            reason: "ready"
+          }
+        : {
+            ...targetBase(target),
+            availability: "requires-local-host",
+            executionMode: "none",
+            reason: "machine-local-context-required"
+          };
     }
 
     if (

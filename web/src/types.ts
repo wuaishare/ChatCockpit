@@ -437,6 +437,7 @@ export type ProductActionId =
   | "runtime.recovery.execute"
   | "runtime.codex.thread.resume"
   | "runtime.codex.turn.interrupt"
+  | "runtime.process.terminate"
   | "job.control"
   | "continuity.task.transition"
   | "continuity.handoff.manage"
@@ -2119,6 +2120,7 @@ export interface RuntimeExecutionTaskProjection extends RuntimeExecutionProjectR
 
 export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProjectRef {
   id: string;
+  scope: "workspace" | "host";
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;
@@ -2128,6 +2130,10 @@ export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProje
   exitCode: number | null;
   startedAt: string;
   completedAt: string | null;
+  revision: number;
+  controls: {
+    terminate: boolean;
+  };
 }
 
 export type RuntimeExecutionConnectionProjection = ProjectExecutionConnectionProjection;
@@ -2140,6 +2146,14 @@ export interface RuntimeExecutionObservabilityResponse {
   processes: RuntimeExecutionProcessProjection[];
   connections: RuntimeExecutionConnectionProjection[];
   counts: ProjectExecutionObservabilityResponse["counts"];
+}
+
+export interface RuntimeManagedProcessTerminateResponse {
+  ok: true;
+  processId: string;
+  expectedRevision: number;
+  terminationRequested: true;
+  replayed: boolean;
 }
 
 export interface DeviceTargetDescriptor {

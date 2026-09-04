@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { BuiltinManagedProcessSupervisor } from "../core/builtin-managed-process.js";
+import { isChatDirectManagedProcessId } from "../core/managed-workspace-process.js";
 import {
   buildTextPreviewFromBuffer,
   resolveReadableRepoFileTarget
@@ -126,17 +127,6 @@ const CORE_WRITER_AUTHORITY_TTL_MS = 120_000;
 const MANAGED_PROCESS_WRITER_AUTHORITY_TTL_MS = 10 * 60_000;
 const MANAGED_PROCESS_LEASE_GUARD_INTERVAL_MS = 1_000;
 const MANAGED_PROCESS_RECORD_RETENTION_MS = 30 * 60_000;
-const CHAT_DIRECT_MANAGED_PROCESS_ID_PREFIXES = [
-  "chatcockpit_",
-  "builtin_process_"
-] as const;
-
-function isChatDirectManagedProcessId(processId: string): boolean {
-  return CHAT_DIRECT_MANAGED_PROCESS_ID_PREFIXES.some((prefix) =>
-    processId.startsWith(prefix)
-  );
-}
-
 export function reconcileInterruptedChatDirectProcesses(
   repositories: ContinuityRepositories,
   now = new Date().toISOString()
@@ -444,6 +434,21 @@ export class ChatDirectService {
     return record.backend === "builtin-direct"
       ? this.builtinManagedProcesses.terminate(record.processId)
       : this.runtime.terminateStandaloneProcess(record.processId);
+  }
+
+  async terminateManagedProcessByControlPlane(processId: string): Promise<void> {
+    const record = this.managedProcesses.get(processId);
+    if (!record) {
+      throw new ServiceError(
+        "WORKSPACE_PROCESS_NOT_FOUND",
+        "Managed workspace process is unavailable"
+      );
+    }
+    try {
+      await this.terminateManagedProcess(record);
+    } catch (error) {
+      throw serviceError("WORKSPACE_PROCESS_TERMINATE_FAILED", error);
+    }
   }
 
   private superviseManagedProcess(record: ManagedChatDirectProcess): void {

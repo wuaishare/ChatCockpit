@@ -1,4 +1,5 @@
-import type { DirectProcessStatus, TaskPriority, TaskStatus } from "../continuity/types.js";
+import type { DirectProcessScope, DirectProcessStatus, TaskPriority, TaskStatus } from "../continuity/types.js";
+import { isChatDirectManagedProcessId } from "../core/managed-workspace-process.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type { McpConnectionProjection, McpConnectionRegistry } from "../mcp/connection-registry.js";
 import type {
@@ -30,6 +31,7 @@ export interface RuntimeExecutionTaskProjection extends RuntimeExecutionProjectR
 }
 export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProjectRef {
   id: string;
+  scope: DirectProcessScope;
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;
@@ -39,6 +41,10 @@ export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProje
   exitCode: number | null;
   startedAt: string;
   completedAt: string | null;
+  revision: number;
+  controls: {
+    terminate: boolean;
+  };
 }
 
 export interface RuntimeExecutionConnectionProjection
@@ -158,6 +164,7 @@ export class RuntimeExecutionObservabilityService {
     const allProcesses = this.repositories.directProcessSessions.list()
       .map((process): RuntimeExecutionProcessProjection => ({
         id: process.id,
+        scope: process.scope,
         workspaceId: process.workspaceId,
         repoId: process.repoId,
         sessionId: process.sessionId,
@@ -167,6 +174,13 @@ export class RuntimeExecutionObservabilityService {
         exitCode: process.exitCode,
         startedAt: process.startedAt,
         completedAt: process.completedAt,
+        revision: process.revision,
+        controls: {
+          terminate:
+            process.scope === "workspace" &&
+            (process.status === "starting" || process.status === "running") &&
+            isChatDirectManagedProcessId(process.id)
+        },
         ...projectRef(resolveProject(process))
       }))
       .sort((left, right) => {

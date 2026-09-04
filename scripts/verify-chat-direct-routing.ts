@@ -10,6 +10,7 @@ import {
 } from "../src/application/chat-direct-service.ts";
 import { buildOperationContext } from "../src/application/operation-context.ts";
 import { RuntimeRouter } from "../src/application/runtime-router.ts";
+import { RuntimeManagedProcessControlService } from "../src/application/runtime-managed-process-control-service.ts";
 import { ServiceError } from "../src/application/service-error.ts";
 import { ensureWorkspaceDirs } from "../src/core/paths.ts";
 import { buildFixturePaths as buildPaths } from "./test-support/fixture-paths.ts";
@@ -1545,6 +1546,154 @@ async function verifyChatDirectRouting(): Promise<void> {
     const completedBuiltInManagedObservation = repositories.directProcessSessions.get(builtInManaged.processId);
     assert.equal(completedBuiltInManagedObservation.status, "exited");
     assert.equal(completedBuiltInManagedObservation.exitCode, 0);
+
+    const runtimeManagedProcessControl = new RuntimeManagedProcessControlService(
+      repositories,
+      builtInManagedService
+    );
+    const operatorContext = buildOperationContext({
+      requestId: "verify-runtime-managed-process-control",
+      actorType: "local-ui",
+      actorId: "operator-owner"
+    });
+    const controllableManaged = await builtInManagedService.workspaceExec(context, {
+      repoId: "primary",
+      command: "node",
+      args: ["-e", "setInterval(() => {}, 1000)"],
+      allowBuiltinFallback: true,
+      networkAccess: true
+    });
+    const controllableObservation = repositories.directProcessSessions.get(
+      controllableManaged.processId
+    );
+    assert.equal(controllableObservation.status, "running");
+    const terminateInput = {
+      processId: controllableManaged.processId,
+      expectedRevision: controllableObservation.revision,
+      idempotencyKey: "runtime-process-terminate-0001"
+    };
+    const termination = await runtimeManagedProcessControl.terminate(
+      operatorContext,
+      terminateInput
+    );
+    assert.equal(termination.terminationRequested, true);
+    assert.equal(termination.replayed, false);
+    const terminationReplay = await runtimeManagedProcessControl.terminate(
+      operatorContext,
+      terminateInput
+    );
+    assert.equal(terminationReplay.terminationRequested, true);
+    assert.equal(terminationReplay.replayed, true);
+    let controllableSnapshot = await builtInManagedService.workspaceProcessRead(
+      context,
+      { repoId: "primary", processId: controllableManaged.processId }
+    );
+    for (let attempt = 0; attempt < 100 && controllableSnapshot.state === "running"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      controllableSnapshot = await builtInManagedService.workspaceProcessRead(
+        context,
+        { repoId: "primary", processId: controllableManaged.processId }
+      );
+    }
+    assert.equal(controllableSnapshot.state, "terminated");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const terminatedControllableObservation = repositories.directProcessSessions.get(
+      controllableManaged.processId
+    );
+    assert.equal(terminatedControllableObservation.status, "terminated");
+    let controlAuthority = repositories.coreWriterAuthorities.getActive(workspace.id);
+    for (let attempt = 0; attempt < 100 && controlAuthority; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      controlAuthority = repositories.coreWriterAuthorities.getActive(workspace.id);
+    }
+    assert.equal(
+      controlAuthority,
+      null,
+      "Runtime control termination must release the managed process Core Writer Authority"
+    );
+    await assert.rejects(
+      () => runtimeManagedProcessControl.terminate(operatorContext, {
+        processId: controllableManaged.processId,
+        expectedRevision: terminatedControllableObservation.revision,
+        idempotencyKey: "runtime-process-terminate-terminal-0001"
+      }),
+      (error) => error instanceof ServiceError && error.code === "RUNTIME_PROCESS_NOT_ACTIVE"
+    );
+    await assert.rejects(
+      () => runtimeManagedProcessControl.terminate(context, {
+        processId: controllableManaged.processId,
+        expectedRevision: terminatedControllableObservation.revision,
+        idempotencyKey: "runtime-process-terminate-remote-0001"
+      }),
+      (error) => error instanceof ServiceError && error.code === "RUNTIME_PROCESS_CONTROL_FORBIDDEN"
+    );
+
+    const driftManaged = await builtInManagedService.workspaceExec(context, {
+      repoId: "primary",
+      command: "node",
+      args: ["-e", "setInterval(() => {}, 1000)"],
+      allowBuiltinFallback: true,
+      networkAccess: true
+    });
+    const driftObservation = repositories.directProcessSessions.get(driftManaged.processId);
+    await assert.rejects(
+      () => runtimeManagedProcessControl.terminate(operatorContext, {
+        processId: driftManaged.processId,
+        expectedRevision: driftObservation.revision + 1,
+        idempotencyKey: "runtime-process-terminate-drift-0001"
+      }),
+      (error) => error instanceof ServiceError && error.code === "REVISION_CONFLICT"
+    );
+    await builtInManagedService.workspaceProcessTerminate(context, {
+      repoId: "primary",
+      processId: driftManaged.processId
+    });
+    let driftSnapshot = await builtInManagedService.workspaceProcessRead(
+      context,
+      { repoId: "primary", processId: driftManaged.processId }
+    );
+    for (let attempt = 0; attempt < 100 && driftSnapshot.state === "running"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      driftSnapshot = await builtInManagedService.workspaceProcessRead(
+        context,
+        { repoId: "primary", processId: driftManaged.processId }
+      );
+    }
+    assert.equal(driftSnapshot.state, "terminated");
+    let driftAuthority = repositories.coreWriterAuthorities.getActive(workspace.id);
+    for (let attempt = 0; attempt < 100 && driftAuthority; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      driftAuthority = repositories.coreWriterAuthorities.getActive(workspace.id);
+    }
+    assert.equal(
+      driftAuthority,
+      null,
+      "Revision-drift cleanup must release the managed process Core Writer Authority"
+    );
+    const unsupportedObservation = repositories.directProcessSessions.createStarting({
+      id: "host_process_runtime_control_unsupported",
+      scope: "workspace",
+      rootId: "primary",
+      workdir: ".",
+      command: "unsupported process",
+      commandHash: "runtime-control-unsupported",
+      executorId: "host-direct",
+      workspaceId: workspace.id,
+      repoId: "primary"
+    });
+    await assert.rejects(
+      () => runtimeManagedProcessControl.terminate(operatorContext, {
+        processId: unsupportedObservation.id,
+        expectedRevision: unsupportedObservation.revision,
+        idempotencyKey: "runtime-process-terminate-unsupported-0001"
+      }),
+      (error) => error instanceof ServiceError && error.code === "RUNTIME_PROCESS_CONTROL_UNSUPPORTED"
+    );
+    repositories.directProcessSessions.complete({
+      id: unsupportedObservation.id,
+      status: "terminated",
+      expectedRevision: unsupportedObservation.revision
+    });
 
     await assert.rejects(
       () => service.workspaceExec(context, {

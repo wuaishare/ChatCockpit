@@ -344,6 +344,58 @@ try {
   assert.deepEqual(runtimeExecutionBody.connections, []);
   assert.deepEqual(runtimeExecutionBody.counts, executionBody.counts);
 
+  const bearerProcessTerminate = await fetch(
+    `${server.baseUrl}/api/runtime/executions/processes/missing-process/terminate`,
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        expectedRevision: 1,
+        idempotencyKey: "runtime-process-terminate-api-bearer-0001"
+      })
+    }
+  );
+  assert.equal(bearerProcessTerminate.status, 401);
+  assert.match(await bearerProcessTerminate.text(), /OPERATOR_SESSION_REQUIRED/);
+
+  const missingProcessTerminateCsrf = await fetch(
+    `${server.baseUrl}/api/runtime/executions/processes/missing-process/terminate`,
+    {
+      method: "POST",
+      headers: {
+        cookie,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        expectedRevision: 1,
+        idempotencyKey: "runtime-process-terminate-api-csrf-0001"
+      })
+    }
+  );
+  assert.equal(missingProcessTerminateCsrf.status, 403);
+  assert.match(await missingProcessTerminateCsrf.text(), /CSRF_REQUIRED/);
+
+  const missingProcessTerminate = await fetch(
+    `${server.baseUrl}/api/runtime/executions/processes/missing-process/terminate`,
+    {
+      method: "POST",
+      headers: {
+        cookie,
+        "content-type": "application/json",
+        "x-chatcockpit-csrf": loginBody.csrfToken
+      },
+      body: JSON.stringify({
+        expectedRevision: 1,
+        idempotencyKey: "runtime-process-terminate-api-missing-0001"
+      })
+    }
+  );
+  assert.equal(missingProcessTerminate.status, 404);
+  assert.match(await missingProcessTerminate.text(), /CONTINUITY_RECORD_NOT_FOUND/);
+
   const materializedWorkspace = materialized.workspaces[0]!;
   const taskResponse = await fetch(`${server.baseUrl}/api/continuity/tasks`, {
     method: "POST",

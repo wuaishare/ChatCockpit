@@ -16,6 +16,7 @@ import type {
   ProductActionTargetAvailability
 } from "../types";
 import { getOperationalStatusTone } from "../status-language";
+import { hasLocalProductActionPath } from "../product-action-availability";
 import { SectionCard } from "./SectionCard";
 import { RuntimeLiveExecutionPanel } from "./RuntimeLiveExecutionPanel";
 
@@ -32,6 +33,7 @@ function errorMessage(error: unknown, fallback: string): string {
 export function RuntimeView({ locale, health }: RuntimeViewProps) {
   const copy = getRuntimeCopy(locale);
   const [targets, setTargets] = useState<ProductActionTargetAvailability[]>([]);
+  const [processTerminateAvailable, setProcessTerminateAvailable] = useState(false);
   const [conditionsByDevice, setConditionsByDevice] = useState<Record<string, DeviceRuntimeConditions | null>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,9 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
       const projection = await fetchProductActions();
       const runtimeTargets = projection.actions.find((action) => action.id === "runtime.lifecycle")?.targets ?? [];
       setTargets(runtimeTargets);
+      setProcessTerminateAvailable(
+        hasLocalProductActionPath(projection, "runtime.process.terminate")
+      );
 
       const inspectableTargets = runtimeTargets.filter(
         (target) =>
@@ -64,6 +69,7 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
       setConditionsByDevice(Object.fromEntries(entries));
     } catch (loadError) {
       setTargets([]);
+      setProcessTerminateAvailable(false);
       setConditionsByDevice({});
       setError(errorMessage(loadError, copy.loadFailed));
     } finally {
@@ -166,7 +172,10 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
         </Descriptions>
       </SectionCard>
 
-      <RuntimeLiveExecutionPanel locale={locale} />
+      <RuntimeLiveExecutionPanel
+        locale={locale}
+        processTerminateAvailable={processTerminateAvailable}
+      />
 
       <SectionCard
         title={copy.targetsTitle}

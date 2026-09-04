@@ -150,7 +150,10 @@ assert.match(copy, /liveExecution:\s*"Live execution"/);
 assert.match(api, /export async function fetchRuntimeExecutionObservability/);
 assert.match(api, /requestJson<RuntimeExecutionObservabilityResponse>\("\/api\/runtime\/executions"\)/);
 assert.match(types, /export interface RuntimeExecutionObservabilityResponse/);
-assert.match(runtimeView, /<RuntimeLiveExecutionPanel locale=\{locale\} \/>/);
+assert.match(
+  runtimeView,
+  /<RuntimeLiveExecutionPanel[\s\S]*locale=\{locale\}[\s\S]*processTerminateAvailable=\{processTerminateAvailable\}[\s\S]*\/>/
+);
 assert.match(runtimeLiveExecution, /new EventSource\("\/api\/runtime\/executions\/stream"/);
 assert.match(runtimeLiveExecution, /projectDisplayName \?\? runtimeCopy\.unknownProject/);
 assert.match(runtimeLiveExecution, /activity\.targetDeviceId/);

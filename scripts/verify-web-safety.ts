@@ -374,6 +374,18 @@ const jobsSource = fs.readFileSync(
   path.join(repoRoot, "web/src/components/JobsView.tsx"),
   "utf8"
 );
+const runtimeViewSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/RuntimeView.tsx"),
+  "utf8"
+);
+const runtimeLiveExecutionSource = fs.readFileSync(
+  path.join(repoRoot, "web/src/components/RuntimeLiveExecutionPanel.tsx"),
+  "utf8"
+);
+const runtimeCopySource = fs.readFileSync(
+  path.join(repoRoot, "web/src/i18n/runtime.ts"),
+  "utf8"
+);
 const productActionAvailabilitySource = fs.readFileSync(
   path.join(repoRoot, "web/src/product-action-availability.ts"),
   "utf8"
@@ -474,6 +486,15 @@ assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canPause/);
 assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canResume/);
 assert.match(jobsSource, /controlLoading \|\| !canControlJobs \|\| !canTerminate/);
 assert.match(jobsSource, /controlAvailabilityUnknown/);
+assert.match(runtimeViewSource, /hasLocalProductActionPath\(projection, "runtime\.process\.terminate"\)/);
+assert.match(runtimeViewSource, /processTerminateAvailable=\{processTerminateAvailable\}/);
+assert.match(runtimeLiveExecutionSource, /process\.controls\.terminate/);
+assert.match(runtimeLiveExecutionSource, /if \(!processTerminateAvailable \|\| !process\.controls\.terminate\) return;/);
+assert.match(runtimeLiveExecutionSource, /terminateRuntimeManagedProcess/);
+assert.match(runtimeLiveExecutionSource, /expectedRevision: process\.revision/);
+assert.match(runtimeLiveExecutionSource, /disabled=\{!processTerminateAvailable \|\| terminatingProcessId === process\.id\}/);
+assert.match(runtimeCopySource, /processControlUnavailable/);
+assert.doesNotMatch(runtimeLiveExecutionSource, /startsWith\("(?:chatcockpit_|builtin_process_)"\)/);
 assert.doesNotMatch(dashboardSource, /jobsProtected/);
 assert.doesNotMatch(dashboardSource, /const hasAnyJobs = counts\.total > 0/);
 assert.match(appSource, /<AppUtilityPopover/);
