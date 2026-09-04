@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   fetchRuntimeExecutionObservability,
+  fetchRuntimeSessionTerminals,
   inputRuntimeManagedProcess,
   resizeRuntimeManagedProcess,
   terminateRuntimeManagedProcess
@@ -22,7 +23,8 @@ import type {
   OperationalActivityProjection,
   RuntimeExecutionConnectionProjection,
   RuntimeExecutionObservabilityResponse,
-  RuntimeExecutionProcessProjection
+  RuntimeExecutionProcessProjection,
+  RuntimeSessionTerminalProjection
 } from "../types";
 import { PersistentSessionTerminalCard } from "./PersistentSessionTerminalCard";
 import { SectionCard } from "./SectionCard";
@@ -68,6 +70,13 @@ type SessionConsoleGroup = {
   processes: RuntimeExecutionProcessProjection[];
   lastStartedAt: string;
   active: boolean;
+};
+
+type SessionTerminalTarget = {
+  sessionId: string;
+  projectDisplayName: string | null;
+  repoId: string | null;
+  title: string;
 };
 
 const TERMINAL_ACTIVITY = new Set(["completed", "failed", "interrupted", "terminated", "stale"]);
@@ -362,22 +371,59 @@ export function RuntimeLiveExecutionPanel({
   const [processControlBusy, setProcessControlBusy] = useState<ProcessControlBusyMap>({});
   const [processControlError, setProcessControlError] = useState<string | null>(null);
   const [processOutputs, setProcessOutputs] = useState<Record<string, ProcessOutputChunk[]>>({});
+  const [sessionTerminals, setSessionTerminals] = useState<RuntimeSessionTerminalProjection[]>([]);
   const seenOutputSequences = useRef(new Map<string, Set<number>>());
   const terminateKeys = useRef(new Map<string, string>());
   const inputKeys = useRef(new Map<string, { signature: string; key: string }>());
   const resizeKeys = useRef(new Map<string, { signature: string; key: string }>());
+  const terminalInventoryInFlightRef = useRef<Promise<void> | null>(null);
+  const terminalInventoryLastStartedAtRef = useRef(0);
+
+  const reconcileSessionTerminal = useCallback((next: RuntimeSessionTerminalProjection) => {
+    setSessionTerminals((current) => {
+      const withoutCurrent = current.filter((terminal) => terminal.terminalId !== next.terminalId);
+      return [next, ...withoutCurrent].sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+    });
+  }, []);
+
+  const refreshSessionTerminals = useCallback(async (force = false) => {
+    if (terminalInventoryInFlightRef.current) {
+      await terminalInventoryInFlightRef.current;
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - terminalInventoryLastStartedAtRef.current < 1000) return;
+    terminalInventoryLastStartedAtRef.current = now;
+    const request = (async () => {
+      try {
+        const response = await fetchRuntimeSessionTerminals();
+        setSessionTerminals(response.terminals);
+      } catch {
+        // Terminal inventory is supplemental to the main Runtime snapshot; a transient read failure must not blank the control tower.
+      }
+    })();
+    terminalInventoryInFlightRef.current = request;
+    try {
+      await request;
+    } finally {
+      if (terminalInventoryInFlightRef.current === request) {
+        terminalInventoryInFlightRef.current = null;
+      }
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setSnapshot(await fetchRuntimeExecutionObservability());
       setLoadError(false);
+      await refreshSessionTerminals(true);
     } catch {
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshSessionTerminals]);
 
   const terminateProcess = useCallback(async (process: RuntimeExecutionProcessProjection) => {
     if (!processTerminateAvailable || !process.controls.terminate) return;
@@ -517,6 +563,7 @@ export function RuntimeLiveExecutionPanel({
         setSnapshot(next);
         setLoadError(false);
         setStreamState("live");
+        void refreshSessionTerminals();
       } catch {
         setStreamState("reconnecting");
       }
@@ -554,7 +601,7 @@ export function RuntimeLiveExecutionPanel({
       source.removeEventListener("runtime.process.output", onProcessOutput as EventListener);
       source.close();
     };
-  }, [load]);
+  }, [load, refreshSessionTerminals]);
 
   const activities = useMemo(
     () => (snapshot?.activities ?? []).filter((activity) => !TERMINAL_ACTIVITY.has(activity.status)).slice(0, 12),
@@ -565,13 +612,37 @@ export function RuntimeLiveExecutionPanel({
     [snapshot]
   );
   const terminalTargets = useMemo(() => {
-    const bySession = new Map<string, RuntimeExecutionObservabilityResponse["tasks"][number]>();
-    for (const task of tasks) {
-      if (!task.activeSessionId || bySession.has(task.activeSessionId)) continue;
-      bySession.set(task.activeSessionId, task);
+    const bySession = new Map<string, SessionTerminalTarget>();
+    const allTasks = snapshot?.tasks ?? [];
+    const allProcesses = snapshot?.processes ?? [];
+
+    for (const task of allTasks) {
+      if (TERMINAL_TASK.has(task.status) || !task.activeSessionId || bySession.has(task.activeSessionId)) continue;
+      bySession.set(task.activeSessionId, {
+        sessionId: task.activeSessionId,
+        projectDisplayName: task.projectDisplayName,
+        repoId: task.repoId,
+        title: task.title
+      });
     }
-    return [...bySession.values()].slice(0, 6);
-  }, [tasks]);
+
+    for (const terminal of sessionTerminals) {
+      if (terminal.state !== "running" || bySession.has(terminal.sessionId)) continue;
+      const historicalTask = allTasks.find((task) => task.activeSessionId === terminal.sessionId);
+      const relatedProcess = allProcesses.find((process) => process.sessionId === terminal.sessionId);
+      bySession.set(terminal.sessionId, {
+        sessionId: terminal.sessionId,
+        projectDisplayName:
+          historicalTask?.projectDisplayName ?? relatedProcess?.projectDisplayName ?? terminal.repoId,
+        repoId: historicalTask?.repoId ?? relatedProcess?.repoId ?? terminal.repoId,
+        title:
+          historicalTask?.title ??
+          (locale === "zh-CN" ? "仍在运行的持久会话终端" : "Persistent session terminal still running")
+      });
+    }
+
+    return [...bySession.values()];
+  }, [locale, sessionTerminals, snapshot]);
   const processConsoles = useMemo(() => {
     const groups = new Map<string, SessionConsoleGroup>();
     for (const process of snapshot?.processes ?? []) {
@@ -684,11 +755,15 @@ export function RuntimeLiveExecutionPanel({
             </div>
           </div>
           <div className="runtime-live-execution__terminal-stack">
-            {terminalTargets.map((task) => (
+            {terminalTargets.map((target) => (
               <PersistentSessionTerminalCard
-                key={task.activeSessionId ?? task.id}
+                key={target.sessionId}
                 locale={locale}
-                task={task}
+                sessionId={target.sessionId}
+                projectDisplayName={target.projectDisplayName}
+                repoId={target.repoId}
+                title={target.title}
+                onTerminalChanged={reconcileSessionTerminal}
               />
             ))}
           </div>

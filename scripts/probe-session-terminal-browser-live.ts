@@ -511,6 +511,82 @@ async function main(): Promise<void> {
     );
     assert.match(terminalText, /__BROWSER_PTY_OK__/);
 
+    const runningTerminalListResponse = await fetch(
+      `${server.baseUrl}/api/runtime/executions/terminals?sessionId=${encodeURIComponent(session.id)}`,
+      { headers: { cookie: cookie.pair } }
+    );
+    assert.equal(runningTerminalListResponse.status, 200);
+    const runningTerminalList = await runningTerminalListResponse.json() as {
+      terminals: Array<{ terminalId: string; state: string }>;
+    };
+    const runningTerminalBeforeCompletion = runningTerminalList.terminals.find(
+      (terminal) => terminal.state === "running"
+    );
+    assert.ok(runningTerminalBeforeCompletion, "Expected a running PTY before completing the task");
+
+    const completionDatabase = new ContinuityDatabase({
+      path: path.join(paths.runtimeDir, "continuity.sqlite")
+    });
+    const completionRepositories = buildContinuityRepositories(completionDatabase);
+    const taskBeforeCompletion = completionRepositories.tasks.get(task.id);
+    completionRepositories.tasks.updateStatus(
+      task.id,
+      "completed",
+      taskBeforeCompletion.revision,
+      new Date().toISOString()
+    );
+    completionDatabase.close();
+
+    const completedSnapshotResponse = await fetch(`${server.baseUrl}/api/runtime/executions`, {
+      headers: { cookie: cookie.pair }
+    });
+    assert.equal(completedSnapshotResponse.status, 200);
+    const completedSnapshot = await completedSnapshotResponse.json() as {
+      tasks: Array<{ id: string; status: string }>;
+    };
+    assert.equal(completedSnapshot.tasks.find((entry) => entry.id === task.id)?.status, "completed");
+
+    await cdp.send("Page.reload", { ignoreCache: true });
+    await waitForBrowserValue<boolean>(
+      cdp,
+      `location.pathname === '/ui/runtime' && Boolean(document.querySelector('#root')?.childElementCount)`,
+      Boolean,
+      "Runtime page remounted after task completion"
+    );
+    await waitForBrowserValue<boolean>(
+      cdp,
+      `Boolean(document.querySelector('.runtime-persistent-terminal__xterm .xterm-helper-textarea'))`,
+      Boolean,
+      "running PTY remains visible after task completion"
+    );
+    await waitForBrowserValue<string>(
+      cdp,
+      `document.querySelector('.runtime-persistent-terminal__meta')?.textContent || ''`,
+      (value) => value.includes(runningTerminalBeforeCompletion.terminalId.slice(0, 12)),
+      "same PTY identity remains attached after task completion"
+    );
+    const retainedOutputResponse = await fetch(
+      `${server.baseUrl}/api/runtime/executions/terminals/${encodeURIComponent(runningTerminalBeforeCompletion.terminalId)}/output?cursor=0&limit=200`,
+      { headers: { cookie: cookie.pair } }
+    );
+    assert.equal(retainedOutputResponse.status, 200);
+    const retainedOutput = await retainedOutputResponse.json() as {
+      chunks: Array<{ content: string }>;
+    };
+    assert.match(
+      retainedOutput.chunks.map((chunk) => chunk.content).join(""),
+      /__BROWSER_PTY_OK__/,
+      "Supervisor scrollback must retain browser PTY output after task completion"
+    );
+    const reattachStoleFocus = await evaluate<boolean>(
+      cdp,
+      `(() => {
+        const textarea = document.querySelector('.runtime-persistent-terminal__xterm .xterm-helper-textarea');
+        return Boolean(textarea && document.activeElement === textarea);
+      })()`
+    );
+    assert.equal(reattachStoleFocus, false, "Reattaching an existing PTY must not steal browser focus");
+
     await cdp.send("Emulation.setDeviceMetricsOverride", {
       width: 390,
       height: 844,

@@ -18,10 +18,7 @@ import {
 } from "../api";
 import type { LocaleCode } from "../i18n";
 import { getRuntimeCopy } from "../i18n/runtime";
-import type {
-  RuntimeExecutionTaskProjection,
-  RuntimeSessionTerminalProjection
-} from "../types";
+import type { RuntimeSessionTerminalProjection } from "../types";
 import "@xterm/xterm/css/xterm.css";
 
 function compactId(value: string): string {
@@ -56,13 +53,20 @@ function errorCode(error: unknown): string | null {
 
 export function PersistentSessionTerminalCard({
   locale,
-  task
+  sessionId,
+  projectDisplayName,
+  repoId,
+  title,
+  onTerminalChanged
 }: {
   locale: LocaleCode;
-  task: RuntimeExecutionTaskProjection;
+  sessionId: string;
+  projectDisplayName: string | null;
+  repoId: string | null;
+  title: string;
+  onTerminalChanged?: (terminal: RuntimeSessionTerminalProjection) => void;
 }) {
   const runtimeCopy = getRuntimeCopy(locale);
-  const sessionId = task.activeSessionId;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalInstanceRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -122,6 +126,7 @@ export function PersistentSessionTerminalCard({
       const selected = running ?? response.terminals[0] ?? null;
       terminalProjectionRef.current = selected;
       setTerminalProjection(selected);
+      if (selected) onTerminalChanged?.(selected);
     } catch (caught) {
       setError(
         errorMessage(
@@ -133,7 +138,7 @@ export function PersistentSessionTerminalCard({
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [locale, sessionId]);
+  }, [locale, onTerminalChanged, sessionId]);
 
   useEffect(() => {
     void loadExisting();
@@ -372,7 +377,9 @@ export function PersistentSessionTerminalCard({
           terminalInstanceRef.current?.write(chunk.content);
         }
         cursorRef.current = response.nextCursor;
+        const stateChanged = response.state !== current.state;
         updateProjection(response);
+        if (stateChanged) onTerminalChanged?.(response);
         setError(null);
         const delay = response.state === "running"
           ? response.chunks.length > 0 ? 60 : document.hidden ? 900 : 180
@@ -401,7 +408,7 @@ export function PersistentSessionTerminalCard({
         pollTimerRef.current = null;
       }
     };
-  }, [locale, terminalProjection?.terminalId, updateProjection]);
+  }, [locale, onTerminalChanged, terminalProjection?.terminalId, updateProjection]);
 
   const startTerminal = useCallback(async () => {
     if (!sessionId || starting) return;
@@ -423,6 +430,7 @@ export function PersistentSessionTerminalCard({
       cursorRef.current = 0;
       focusAfterStartRef.current = true;
       updateProjection(response);
+      onTerminalChanged?.(response);
     } catch (caught) {
       startKeyRef.current = null;
       setError(
@@ -435,7 +443,7 @@ export function PersistentSessionTerminalCard({
     } finally {
       if (mountedRef.current) setStarting(false);
     }
-  }, [locale, sessionId, starting, updateProjection]);
+  }, [locale, onTerminalChanged, sessionId, starting, updateProjection]);
 
   const stopTerminal = useCallback(async () => {
     const current = terminalProjectionRef.current;
@@ -453,6 +461,7 @@ export function PersistentSessionTerminalCard({
       });
       stopKeyRef.current = null;
       updateProjection(response);
+      onTerminalChanged?.(response);
     } catch (caught) {
       stopKeyRef.current = null;
       setError(
@@ -465,7 +474,7 @@ export function PersistentSessionTerminalCard({
     } finally {
       if (mountedRef.current) setStopping(false);
     }
-  }, [locale, stopping, updateProjection]);
+  }, [locale, onTerminalChanged, stopping, updateProjection]);
 
   const metadata = useMemo(() => {
     if (!terminalProjection) return null;
@@ -479,12 +488,12 @@ export function PersistentSessionTerminalCard({
           <span className={`runtime-persistent-terminal__pulse${terminalIsRunning ? " is-live" : ""}`} aria-hidden="true" />
           <div className="runtime-persistent-terminal__identity-copy">
             <div className="runtime-persistent-terminal__title-row">
-              <strong>{task.projectDisplayName ?? runtimeCopy.unknownProject}</strong>
-              <span>{task.title}</span>
+              <strong>{projectDisplayName ?? runtimeCopy.unknownProject}</strong>
+              <span>{title}</span>
             </div>
             <div className="runtime-persistent-terminal__meta">
               {sessionId ? <code>session {compactId(sessionId)}</code> : null}
-              {task.repoId ? <code>{task.repoId}</code> : null}
+              {repoId ? <code>{repoId}</code> : null}
               {terminalProjection ? <code>{compactId(terminalProjection.terminalId)}</code> : null}
               {metadata ? <span>{metadata}</span> : null}
             </div>
