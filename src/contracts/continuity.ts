@@ -64,6 +64,13 @@ export const sessionGetSchema = z.object({
   sessionId: identifierSchema
 });
 
+export const sessionFinishSchema = z.object({
+  sessionId: identifierSchema,
+  outcome: z.enum(["completed", "failed"]).default("completed"),
+  expectedRevision: revisionSchema,
+  idempotencyKey: idempotencyKeySchema
+});
+
 export const leaseAcquireSchema = z.object({
   sessionId: identifierSchema,
   holderId: identifierSchema,
@@ -158,6 +165,7 @@ export type TaskSubmitReviewInput = z.infer<typeof taskSubmitReviewSchema>;
 export type TaskCompleteInput = z.infer<typeof taskCompleteSchema>;
 export type SessionStartInput = z.infer<typeof sessionStartSchema>;
 export type SessionGetInput = z.infer<typeof sessionGetSchema>;
+export type SessionFinishInput = z.infer<typeof sessionFinishSchema>;
 export type LeaseAcquireInput = z.infer<typeof leaseAcquireSchema>;
 export type LeaseReleaseInput = z.infer<typeof leaseReleaseSchema>;
 export type HandoffPrepareInput = z.infer<typeof handoffPrepareSchema>;

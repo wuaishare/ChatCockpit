@@ -34,6 +34,7 @@ import {
   leaseReleaseSchema,
   projectGetSchema,
   projectListSchema,
+  sessionFinishSchema,
   sessionGetSchema,
   sessionStartSchema,
   taskCompleteSchema,
@@ -326,6 +327,18 @@ export function buildContinuityMcpTools(
       handler: (context, input) => ({
         ok: true,
         ...services.sessions.start(context, input)
+      })
+    }),
+    defineMcpTool({
+      name: "chatcockpit.session.finish",
+      title: "Finish development session",
+      description:
+        "Finish a development session only after its writer lease, managed processes, active runtime run, pending runtime approvals, and outstanding Chat Direct approvals are clear; the task remains resumable and is unbound from the finished session.",
+      inputSchema: sessionFinishSchema,
+      annotations: idempotentMutationAnnotations,
+      handler: (context, input) => ({
+        ok: true,
+        ...services.sessions.finish(context, input)
       })
     }),
     defineMcpTool({

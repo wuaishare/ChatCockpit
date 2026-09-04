@@ -144,6 +144,17 @@ export class DirectMutationApprovalRepository {
     return Number(row.count);
   }
 
+  countOutstandingForSession(sessionId: string, now: string): number {
+    const row = this.database.sqlite
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM direct_mutation_approvals
+        WHERE session_id = ? AND status IN ('pending', 'approved') AND expires_at > ?
+      `)
+      .get(sessionId, now) as { count: number };
+    return Number(row.count);
+  }
+
   listPending(now: string, limit = 50): DirectMutationApprovalRecord[] {
     const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
     const rows = this.database.sqlite

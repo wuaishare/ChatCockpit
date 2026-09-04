@@ -309,6 +309,7 @@ async function runMcpSmoke(): Promise<void> {
         "codex.turn.start",
         "continuity.capsule",
         "continuity.importedContext.read",
+        "session.finish",
         "session.get",
         "session.start",
         "shell.run",
@@ -327,7 +328,7 @@ async function runMcpSmoke(): Promise<void> {
         "workspace.snapshot"
       ].sort()
     );
-    assert.equal(tools.length, 96, "Full compatibility surface must expose all 96 remotely routable tools");
+    assert.equal(tools.length, 97, "Full compatibility surface must expose all 97 remotely routable tools");
 
     const coreList = await postMcp(
       baseUrl,
@@ -443,7 +444,7 @@ async function runMcpSmoke(): Promise<void> {
       };
     };
     assert.equal(discoverResult.structuredContent.surface.defaultCoreCount, 26);
-    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 96);
+    assert.equal(discoverResult.structuredContent.surface.fullToolCount, 97);
     assert.equal(discoverResult.structuredContent.surface.selectedPack.id, "codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.endpointPath, "/mcp/packs/codex-native");
     assert.equal(discoverResult.structuredContent.surface.selectedPack.toolSuffixes.length, 11);
