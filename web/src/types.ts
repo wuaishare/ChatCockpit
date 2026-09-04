@@ -2126,6 +2126,7 @@ export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProje
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;
+  sessionStatus: "idle" | "running" | "waiting-approval" | "handoff-ready" | "completed" | "failed" | null;
   executorId: string;
   command: string;
   status: ProjectExecutionProcessStatus;
@@ -2134,7 +2135,14 @@ export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProje
   completedAt: string | null;
   revision: number;
   controls: {
+    input: boolean;
+    resize: boolean;
     terminate: boolean;
+  };
+  terminal: {
+    tty: boolean;
+    rows: number | null;
+    cols: number | null;
   };
 }
 
@@ -2148,6 +2156,25 @@ export interface RuntimeExecutionObservabilityResponse {
   processes: RuntimeExecutionProcessProjection[];
   connections: RuntimeExecutionConnectionProjection[];
   counts: ProjectExecutionObservabilityResponse["counts"];
+}
+
+export interface RuntimeManagedProcessInputResponse {
+  ok: true;
+  processId: string;
+  expectedRevision: number;
+  accepted: true;
+  stdinClosed: boolean;
+  replayed: boolean;
+}
+
+export interface RuntimeManagedProcessResizeResponse {
+  ok: true;
+  processId: string;
+  expectedRevision: number;
+  resized: true;
+  rows: number;
+  cols: number;
+  replayed: boolean;
 }
 
 export interface RuntimeManagedProcessTerminateResponse {

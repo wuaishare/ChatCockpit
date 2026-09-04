@@ -55,6 +55,16 @@ export interface RuntimeCopy {
   processTerminateDescription: string;
   processTerminateFailed: string;
   processControlUnavailable: string;
+  processInputPlaceholder: string;
+  processInputSend: string;
+  processInputFailed: string;
+  processInputClose: string;
+  processInputCloseTitle: string;
+  processInputCloseDescription: string;
+  processResize: string;
+  processResizeFailed: string;
+  processPty: string;
+  processStream: string;
   sessionConsoleTitle: string;
   sessionConsoleDescription: string;
   sessionConsoleDevice: string;
@@ -123,6 +133,16 @@ const zhCN: RuntimeCopy = {
   processTerminateDescription: "这会向该工作区受管进程请求终止；不会终止 Host Process 或其他会话中的进程。",
   processTerminateFailed: "进程终止请求失败，可安全重试。",
   processControlUnavailable: "当前没有可验证的本机进程控制路径。",
+  processInputPlaceholder: "向当前进程输入内容，回车发送",
+  processInputSend: "发送",
+  processInputFailed: "进程输入发送失败；内容已保留，可安全重试。",
+  processInputClose: "EOF",
+  processInputCloseTitle: "关闭这个进程的标准输入？",
+  processInputCloseDescription: "这相当于关闭当前进程的 stdin；部分命令会因此结束。",
+  processResize: "适配终端",
+  processResizeFailed: "终端尺寸同步失败，可安全重试。",
+  processPty: "PTY",
+  processStream: "输出流",
   sessionConsoleTitle: "会话终端",
   sessionConsoleDescription: "一个开发会话对应一张持续存在的终端监控卡；同一会话后续启动的命令会继续追加到同一张卡中。",
   sessionConsoleDevice: "设备",
@@ -191,6 +211,16 @@ const enUS: RuntimeCopy = {
   processTerminateDescription: "This requests termination of this workspace-managed process only. Host Processes and processes owned by other sessions are not controlled through this action.",
   processTerminateFailed: "Process termination request failed. It is safe to retry.",
   processControlUnavailable: "No verified local process-control path is available.",
+  processInputPlaceholder: "Type process input and press Enter to send",
+  processInputSend: "Send",
+  processInputFailed: "Process input failed. The draft is preserved and can be retried safely.",
+  processInputClose: "EOF",
+  processInputCloseTitle: "Close stdin for this process?",
+  processInputCloseDescription: "This closes the current process stdin. Some commands will exit as a result.",
+  processResize: "Fit terminal",
+  processResizeFailed: "Terminal resize failed. It is safe to retry.",
+  processPty: "PTY",
+  processStream: "Stream",
   sessionConsoleTitle: "Session terminals",
   sessionConsoleDescription: "Each development session keeps one continuous terminal card. Commands started later in the same session append to the same card.",
   sessionConsoleDevice: "Device",

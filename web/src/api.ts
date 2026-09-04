@@ -19,6 +19,8 @@ import type {
   ProjectRootDiscoveryResponse,
   ProjectExecutionObservabilityResponse,
   RuntimeExecutionObservabilityResponse,
+  RuntimeManagedProcessInputResponse,
+  RuntimeManagedProcessResizeResponse,
   RuntimeManagedProcessTerminateResponse,
   ProjectRegistryDetailResponse,
   ProjectRegistryMutationResponse,
@@ -968,6 +970,42 @@ export async function fetchProjectExecutionObservability(
 
 export async function fetchRuntimeExecutionObservability(): Promise<RuntimeExecutionObservabilityResponse> {
   return requestJson<RuntimeExecutionObservabilityResponse>("/api/runtime/executions");
+}
+
+export async function inputRuntimeManagedProcess(input: {
+  processId: string;
+  expectedRevision: number;
+  value: string;
+  closeStdin?: boolean;
+  idempotencyKey: string;
+}): Promise<RuntimeManagedProcessInputResponse> {
+  return postBodyJson<RuntimeManagedProcessInputResponse>(
+    `/api/runtime/executions/processes/${encodeURIComponent(input.processId)}/input`,
+    {
+      expectedRevision: input.expectedRevision,
+      input: input.value,
+      closeStdin: input.closeStdin === true,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function resizeRuntimeManagedProcess(input: {
+  processId: string;
+  expectedRevision: number;
+  rows: number;
+  cols: number;
+  idempotencyKey: string;
+}): Promise<RuntimeManagedProcessResizeResponse> {
+  return postBodyJson<RuntimeManagedProcessResizeResponse>(
+    `/api/runtime/executions/processes/${encodeURIComponent(input.processId)}/resize`,
+    {
+      expectedRevision: input.expectedRevision,
+      rows: input.rows,
+      cols: input.cols,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
 }
 
 export async function terminateRuntimeManagedProcess(input: {

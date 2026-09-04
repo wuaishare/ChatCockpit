@@ -59,6 +59,12 @@ const activities = {
 
 const repositories = {
   tasks: { listByProject: () => tasks },
+  sessions: {
+    get: (sessionId: string) => ({
+      id: sessionId,
+      status: sessionId === "session_beta" ? "completed" : "running"
+    })
+  },
   directProcessSessions: {
     list: (filter?: { workspaceId?: string }) =>
       filter?.workspaceId
@@ -68,12 +74,30 @@ const repositories = {
 } as unknown as ContinuityRepositories;
 
 const connections = { list: () => [] } as unknown as McpConnectionRegistry;
+const processControl = {
+  capabilities: (processId: string) => processId === "builtin_process_fixture_controlled"
+    ? {
+        input: true,
+        resize: true,
+        terminate: true,
+        tty: true,
+        terminalSize: { rows: 32, cols: 120 }
+      }
+    : {
+        input: false,
+        resize: false,
+        terminate: false,
+        tty: false,
+        terminalSize: null
+      }
+};
 const context = { now } as OperationContext;
 const runtime = new RuntimeExecutionObservabilityService(
   projects,
   activities,
   repositories,
-  connections
+  connections,
+  processControl
 ).snapshot(context);
 assert.equal(runtime.tasks.length, 100);
 assert.equal(runtime.processes.length, 100);
@@ -86,11 +110,22 @@ const adHocProcess = runtime.processes.find((entry) => entry.id === "process_3")
 assert.equal(controlledRuntimeProcess?.scope, "workspace");
 assert.equal(controlledRuntimeProcess?.deviceId, "local-device");
 assert.equal(controlledRuntimeProcess?.consoleSessionId, "session_alpha");
+assert.equal(controlledRuntimeProcess?.sessionStatus, "running");
 assert.equal(alphaSibling?.consoleSessionId, "session_alpha");
+assert.equal(alphaSibling?.sessionStatus, "running");
 assert.equal(betaProcess?.consoleSessionId, "session_beta");
+assert.equal(betaProcess?.sessionStatus, "completed");
 assert.equal(adHocProcess?.consoleSessionId, "process:process_3");
+assert.equal(adHocProcess?.sessionStatus, null);
 assert.equal(controlledRuntimeProcess?.revision, 1);
+assert.equal(controlledRuntimeProcess?.controls.input, true);
+assert.equal(controlledRuntimeProcess?.controls.resize, true);
 assert.equal(controlledRuntimeProcess?.controls.terminate, true);
+assert.equal(controlledRuntimeProcess?.terminal.tty, true);
+assert.equal(controlledRuntimeProcess?.terminal.rows, 32);
+assert.equal(controlledRuntimeProcess?.terminal.cols, 120);
+assert.equal(alphaSibling?.controls.input, false);
+assert.equal(alphaSibling?.controls.resize, false);
 assert.equal(alphaSibling?.controls.terminate, false);
 
 const projectSnapshot = new ProjectExecutionObservabilityService(

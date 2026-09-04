@@ -358,6 +358,72 @@ try {
   assert.equal(missingProcessOutput.status, 404);
   assert.match(await missingProcessOutput.text(), /CONTINUITY_RECORD_NOT_FOUND/);
 
+  for (const control of [
+    {
+      action: "input",
+      body: {
+        expectedRevision: 1,
+        input: "pwd\n",
+        idempotencyKey: "runtime-process-input-api-auth-0001"
+      }
+    },
+    {
+      action: "resize",
+      body: {
+        expectedRevision: 1,
+        rows: 40,
+        cols: 120,
+        idempotencyKey: "runtime-process-resize-api-auth-0001"
+      }
+    }
+  ] as const) {
+    const bearerControl = await fetch(
+      `${server.baseUrl}/api/runtime/executions/processes/missing-process/${control.action}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(control.body)
+      }
+    );
+    assert.equal(bearerControl.status, 401);
+    assert.match(await bearerControl.text(), /OPERATOR_SESSION_REQUIRED/);
+
+    const missingCsrf = await fetch(
+      `${server.baseUrl}/api/runtime/executions/processes/missing-process/${control.action}`,
+      {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(control.body)
+      }
+    );
+    assert.equal(missingCsrf.status, 403);
+    assert.match(await missingCsrf.text(), /CSRF_REQUIRED/);
+
+    const missingControl = await fetch(
+      `${server.baseUrl}/api/runtime/executions/processes/missing-process/${control.action}`,
+      {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-chatcockpit-csrf": loginBody.csrfToken
+        },
+        body: JSON.stringify({
+          ...control.body,
+          idempotencyKey: `${control.body.idempotencyKey}-missing`
+        })
+      }
+    );
+    assert.equal(missingControl.status, 404);
+    assert.match(await missingControl.text(), /CONTINUITY_RECORD_NOT_FOUND/);
+  }
+
   const bearerProcessTerminate = await fetch(
     `${server.baseUrl}/api/runtime/executions/processes/missing-process/terminate`,
     {

@@ -162,6 +162,9 @@ interface ManagedChatDirectProcess {
   continuityLease: WriterLeaseRecord | null;
   selection: DirectExecutorSelection;
   access: DirectCapabilityAccess;
+  allowStdin: boolean;
+  tty: boolean;
+  terminalSize: { rows: number; cols: number } | null;
   compatibilityMode: string | null;
 }
 
@@ -434,6 +437,114 @@ export class ChatDirectService {
     return record.backend === "builtin-direct"
       ? this.builtinManagedProcesses.terminate(record.processId)
       : this.runtime.terminateStandaloneProcess(record.processId);
+  }
+
+  private assertManagedProcessWriterLease(
+    context: OperationContext,
+    record: ManagedChatDirectProcess
+  ): void {
+    if (record.access !== "write" || !record.sessionId) return;
+    const originalLease = record.continuityLease;
+    if (!originalLease) {
+      throw new ServiceError(
+        "WRITER_LEASE_REQUIRED",
+        "The managed process no longer owns its original workspace writer lease"
+      );
+    }
+    const authority = assertChatDirectWriterLease(
+      this.repositories,
+      context,
+      record.repoId,
+      record.sessionId
+    );
+    if (authority.lease.id !== originalLease.id) {
+      throw new ServiceError(
+        "WRITER_LEASE_CONFLICT",
+        "The managed process cannot resume mutation under a replacement writer lease",
+        {
+          details: {
+            processId: record.processId,
+            originalLeaseId: originalLease.id,
+            activeLeaseId: authority.lease.id,
+            sessionId: record.sessionId
+          }
+        }
+      );
+    }
+    record.continuityLease = authority.lease;
+  }
+
+  managedProcessCapabilitiesByControlPlane(
+    processId: string,
+    context?: OperationContext
+  ) {
+    const record = this.managedProcesses.get(processId);
+    if (!record) {
+      return {
+        input: false,
+        resize: false,
+        terminate: false,
+        tty: false,
+        terminalSize: null
+      } as const;
+    }
+    let input = record.allowStdin;
+    if (input && context && record.access === "write" && record.sessionId) {
+      try {
+        this.assertManagedProcessWriterLease(context, record);
+      } catch {
+        input = false;
+      }
+    }
+    return {
+      input,
+      resize: record.backend === "codex-standalone" && record.tty,
+      terminate: true,
+      tty: record.tty,
+      terminalSize: record.terminalSize
+    };
+  }
+
+  async inputManagedProcessByControlPlane(
+    context: OperationContext,
+    processId: string,
+    input: string,
+    closeStdin = false
+  ): Promise<void> {
+    const record = this.managedProcesses.get(processId);
+    if (!record) {
+      throw new ServiceError(
+        "WORKSPACE_PROCESS_NOT_FOUND",
+        "Managed workspace process is unavailable"
+      );
+    }
+    this.assertManagedProcessWriterLease(context, record);
+    try {
+      await this.inputManagedProcess(record, input, closeStdin);
+      if (closeStdin) record.allowStdin = false;
+    } catch (error) {
+      throw serviceError("WORKSPACE_PROCESS_INPUT_FAILED", error);
+    }
+  }
+
+  async resizeManagedProcessByControlPlane(
+    processId: string,
+    rows: number,
+    cols: number
+  ): Promise<void> {
+    const record = this.managedProcesses.get(processId);
+    if (!record) {
+      throw new ServiceError(
+        "WORKSPACE_PROCESS_NOT_FOUND",
+        "Managed workspace process is unavailable"
+      );
+    }
+    try {
+      await this.resizeManagedProcess(record, rows, cols);
+      record.terminalSize = { rows, cols };
+    } catch (error) {
+      throw serviceError("WORKSPACE_PROCESS_RESIZE_FAILED", error);
+    }
   }
 
   async terminateManagedProcessByControlPlane(processId: string): Promise<void> {
@@ -1079,6 +1190,11 @@ export class ChatDirectService {
         continuityLease,
         selection,
         access,
+        allowStdin: payload.allowStdin === true || payload.tty === true,
+        tty: payload.tty === true,
+        terminalSize: payload.tty === true && payload.terminalSize
+          ? payload.terminalSize
+          : null,
         compatibilityMode: started.compatibilityMode ?? null
       };
       this.managedProcesses.set(started.processId, record);
@@ -1152,19 +1268,13 @@ export class ChatDirectService {
       payload.processId,
       payload.sessionId
     );
-    if (record.access === "write" && record.sessionId) {
-      assertChatDirectWriterLease(
-        this.repositories,
-        context,
-        payload.repoId,
-        record.sessionId
-      );
-    }
+    this.assertManagedProcessWriterLease(context, record);
     await this.inputManagedProcess(
       record,
       payload.input,
       payload.closeStdin === true
     );
+    if (payload.closeStdin === true) record.allowStdin = false;
     return {
       ok: true as const,
       repoId: payload.repoId,
@@ -1198,6 +1308,7 @@ export class ChatDirectService {
       );
     }
     await this.resizeManagedProcess(record, payload.rows, payload.cols);
+    record.terminalSize = { rows: payload.rows, cols: payload.cols };
     return {
       ok: true as const,
       repoId: payload.repoId,

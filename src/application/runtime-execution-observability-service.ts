@@ -1,5 +1,4 @@
-import type { DirectProcessScope, DirectProcessStatus, TaskPriority, TaskStatus } from "../continuity/types.js";
-import { isChatDirectManagedProcessId } from "../core/managed-workspace-process.js";
+import type { DirectProcessScope, DirectProcessStatus, SessionStatus, TaskPriority, TaskStatus } from "../continuity/types.js";
 import { LOCAL_DEVICE_TARGET_ID } from "../devices/local-device.js";
 import type { ContinuityRepositories } from "../continuity/repositories/index.js";
 import type { McpConnectionProjection, McpConnectionRegistry } from "../mcp/connection-registry.js";
@@ -10,6 +9,7 @@ import type {
 } from "./operational-activity-service.js";
 import type { OperationContext } from "./operation-context.js";
 import type { ProjectService } from "./project-service.js";
+import type { RuntimeManagedProcessControlService } from "./runtime-managed-process-control-service.js";
 
 export interface RuntimeExecutionProjectRef {
   projectId: string | null;
@@ -38,6 +38,7 @@ export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProje
   workspaceId: string | null;
   repoId: string | null;
   sessionId: string | null;
+  sessionStatus: SessionStatus | null;
   executorId: string;
   command: string;
   status: DirectProcessStatus;
@@ -46,7 +47,14 @@ export interface RuntimeExecutionProcessProjection extends RuntimeExecutionProje
   completedAt: string | null;
   revision: number;
   controls: {
+    input: boolean;
+    resize: boolean;
     terminate: boolean;
+  };
+  terminal: {
+    tty: boolean;
+    rows: number | null;
+    cols: number | null;
   };
 }
 
@@ -104,7 +112,8 @@ export class RuntimeExecutionObservabilityService {
     private readonly projects: ProjectService,
     private readonly activities: OperationalActivityService,
     private readonly repositories: ContinuityRepositories,
-    private readonly connections: McpConnectionRegistry
+    private readonly connections: McpConnectionRegistry,
+    private readonly processControl: Pick<RuntimeManagedProcessControlService, "capabilities">
   ) {}
   snapshot(context: OperationContext): RuntimeExecutionObservabilitySnapshot {
     const registry = this.projects.registry(context);
@@ -165,29 +174,45 @@ export class RuntimeExecutionObservabilityService {
     const tasks = allTasks.slice(0, 100);
 
     const allProcesses = this.repositories.directProcessSessions.list()
-      .map((process): RuntimeExecutionProcessProjection => ({
-        id: process.id,
-        scope: process.scope,
-        deviceId: LOCAL_DEVICE_TARGET_ID,
-        consoleSessionId: process.sessionId ?? `process:${process.id}`,
-        workspaceId: process.workspaceId,
-        repoId: process.repoId,
-        sessionId: process.sessionId,
-        executorId: process.executorId,
-        command: boundedCommand(process.command),
-        status: process.status,
-        exitCode: process.exitCode,
-        startedAt: process.startedAt,
-        completedAt: process.completedAt,
-        revision: process.revision,
-        controls: {
-          terminate:
-            process.scope === "workspace" &&
-            (process.status === "starting" || process.status === "running") &&
-            isChatDirectManagedProcessId(process.id)
-        },
-        ...projectRef(resolveProject(process))
-      }))
+      .map((process): RuntimeExecutionProcessProjection => {
+        const capabilities = this.processControl.capabilities(process.id, context);
+        let sessionStatus: SessionStatus | null = null;
+        if (process.sessionId) {
+          try {
+            sessionStatus = this.repositories.sessions.get(process.sessionId).status;
+          } catch {
+            sessionStatus = null;
+          }
+        }
+        return {
+          id: process.id,
+          scope: process.scope,
+          deviceId: LOCAL_DEVICE_TARGET_ID,
+          consoleSessionId: process.sessionId ?? `process:${process.id}`,
+          workspaceId: process.workspaceId,
+          repoId: process.repoId,
+          sessionId: process.sessionId,
+          sessionStatus,
+          executorId: process.executorId,
+          command: boundedCommand(process.command),
+          status: process.status,
+          exitCode: process.exitCode,
+          startedAt: process.startedAt,
+          completedAt: process.completedAt,
+          revision: process.revision,
+          controls: {
+            input: capabilities.input,
+            resize: capabilities.resize,
+            terminate: capabilities.terminate
+          },
+          terminal: {
+            tty: capabilities.tty,
+            rows: capabilities.terminalSize?.rows ?? null,
+            cols: capabilities.terminalSize?.cols ?? null
+          },
+          ...projectRef(resolveProject(process))
+        };
+      })
       .sort((left, right) => {
         const leftActive = left.status === "starting" || left.status === "running";
         const rightActive = right.status === "starting" || right.status === "running";

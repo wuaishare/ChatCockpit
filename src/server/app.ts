@@ -824,15 +824,16 @@ export function buildServer(
     continuityServices.repositories,
     mcpConnections
   );
+  const runtimeManagedProcessControl = new RuntimeManagedProcessControlService(
+    continuityServices.repositories,
+    chatDirect
+  );
   const runtimeExecutionObservability = new RuntimeExecutionObservabilityService(
     continuityServices.projects,
     operationalActivityService,
     continuityServices.repositories,
-    mcpConnections
-  );
-  const runtimeManagedProcessControl = new RuntimeManagedProcessControlService(
-    continuityServices.repositories,
-    chatDirect
+    mcpConnections,
+    runtimeManagedProcessControl
   );
   const runtimeLifecycleService = new RuntimeLifecycleService(
     paths,

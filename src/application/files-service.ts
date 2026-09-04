@@ -17,10 +17,14 @@ import type {
 import type { OperationContext } from "./operation-context.js";
 import { wrapServiceOperationError } from "./service-error.js";
 
+const DEFAULT_FILE_OPERATION_HINT =
+  "Check repoId, relative path, file type, and workspace policy before retrying.";
+
 function runFileOperation<T>(
   code: string,
   message: string,
-  operation: () => T
+  operation: () => T,
+  hintForError?: (error: unknown) => string | null
 ): T {
   try {
     return operation();
@@ -29,9 +33,21 @@ function runFileOperation<T>(
       code,
       error,
       message,
-      "Check repoId, relative path, file type, and workspace policy before retrying."
+      hintForError?.(error) ?? DEFAULT_FILE_OPERATION_HINT
     );
   }
+}
+
+function safeFileEditHint(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  if (
+    error.message === "search text must not be empty" ||
+    error.message.startsWith("search text not found in ") ||
+    error.message.startsWith("search text is not unique in ")
+  ) {
+    return error.message;
+  }
+  return null;
 }
 
 export class FilesService {
@@ -65,7 +81,8 @@ export class FilesService {
     return runFileOperation(
       "FILES_EDIT_BLOCKED",
       "File edit was blocked or could not be completed.",
-      () => editRepoFile(this.paths, payload)
+      () => editRepoFile(this.paths, payload),
+      safeFileEditHint
     );
   }
 

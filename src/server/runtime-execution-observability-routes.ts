@@ -14,6 +14,24 @@ const terminateManagedProcessSchema = z.object({
   idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/)
 });
 
+const inputManagedProcessSchema = z.object({
+  processId: z.string().min(1).max(200),
+  expectedRevision: z.number().int().positive(),
+  input: z.string().max(32_768).default(""),
+  closeStdin: z.boolean().optional(),
+  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/)
+}).refine((value) => value.input.length > 0 || value.closeStdin === true, {
+  message: "Managed process input requires input text or closeStdin=true"
+});
+
+const resizeManagedProcessSchema = z.object({
+  processId: z.string().min(1).max(200),
+  expectedRevision: z.number().int().positive(),
+  rows: z.number().int().min(1).max(500),
+  cols: z.number().int().min(1).max(1_000),
+  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/)
+});
+
 const managedProcessOutputSchema = z.object({
   processId: z.string().min(1).max(200),
   cursor: z.coerce.number().int().nonnegative().optional(),
@@ -99,6 +117,50 @@ export function registerRuntimeExecutionObservabilityRoutes(
         return {
           ok: true,
           ...(await processControl.readOutput(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.post("/api/runtime/executions/processes/:processId/input", (request, reply) =>
+    machineLocalOwnerMutationOnly(request, reply, async () => {
+      const parsed = inputManagedProcessSchema.safeParse({
+        ...(request.params as Record<string, unknown>),
+        ...(request.body as Record<string, unknown>)
+      });
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await processControl.input(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.post("/api/runtime/executions/processes/:processId/resize", (request, reply) =>
+    machineLocalOwnerMutationOnly(request, reply, async () => {
+      const parsed = resizeManagedProcessSchema.safeParse({
+        ...(request.params as Record<string, unknown>),
+        ...(request.body as Record<string, unknown>)
+      });
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await processControl.resize(
             operationContextFromRequest(request),
             parsed.data
           ))

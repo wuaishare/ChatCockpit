@@ -8,7 +8,12 @@ import {
 import { Button, Descriptions, Empty, List, Popconfirm, Space, Tag, Tooltip } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchRuntimeExecutionObservability, terminateRuntimeManagedProcess } from "../api";
+import {
+  fetchRuntimeExecutionObservability,
+  inputRuntimeManagedProcess,
+  resizeRuntimeManagedProcess,
+  terminateRuntimeManagedProcess
+} from "../api";
 import type { LocaleCode } from "../i18n";
 import { getProjectsCopy } from "../i18n/projects";
 import { getRuntimeCopy } from "../i18n/runtime";
@@ -46,6 +51,13 @@ type ProcessOutputEvent = {
   retained: true;
 };
 
+type ProcessControlAction = "input" | "resize";
+type ProcessControlBusyMap = Record<string, boolean>;
+
+function processControlBusyKey(processId: string, action: ProcessControlAction): string {
+  return `${processId}:${action}`;
+}
+
 type SessionConsoleGroup = {
   id: string;
   deviceId: string;
@@ -59,6 +71,13 @@ type SessionConsoleGroup = {
 
 const TERMINAL_ACTIVITY = new Set(["completed", "failed", "interrupted", "terminated", "stale"]);
 const TERMINAL_TASK = new Set(["completed", "cancelled"]);
+
+function processKeepsSessionConsoleLive(process: RuntimeExecutionProcessProjection): boolean {
+  if (process.sessionId && process.sessionStatus) {
+    return process.sessionStatus !== "completed" && process.sessionStatus !== "failed";
+  }
+  return process.status === "starting" || process.status === "running";
+}
 
 function compactId(value: string | null): string {
   if (!value) return "—";
@@ -100,6 +119,9 @@ function SessionTerminalCard({
   outputByProcess,
   processTerminateAvailable,
   terminatingProcessId,
+  processControlBusy,
+  onInput,
+  onResize,
   onTerminate
 }: {
   locale: LocaleCode;
@@ -107,10 +129,23 @@ function SessionTerminalCard({
   outputByProcess: Record<string, ProcessOutputChunk[]>;
   processTerminateAvailable: boolean;
   terminatingProcessId: string | null;
+  processControlBusy: ProcessControlBusyMap;
+  onInput: (
+    process: RuntimeExecutionProcessProjection,
+    input: string,
+    closeStdin: boolean
+  ) => Promise<boolean>;
+  onResize: (
+    process: RuntimeExecutionProcessProjection,
+    rows: number,
+    cols: number
+  ) => Promise<void>;
   onTerminate: (process: RuntimeExecutionProcessProjection) => void;
 }) {
   const runtimeCopy = getRuntimeCopy(locale);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const autoResizeSignatureRef = useRef<string | null>(null);
+  const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
   const outputRevision = group.processes.reduce(
     (total, process) => total + (outputByProcess[process.id]?.length ?? 0),
     0
@@ -124,6 +159,41 @@ function SessionTerminalCard({
       viewport.scrollTop = viewport.scrollHeight;
     }
   }, [outputRevision]);
+
+  const autoResizeTarget = [...group.processes]
+    .reverse()
+    .find((process) =>
+      (process.status === "starting" || process.status === "running") && process.controls.resize
+    );
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !autoResizeTarget || typeof ResizeObserver === "undefined") return;
+    let timer: number | null = null;
+    const syncSize = (width: number, height: number) => {
+      const cols = Math.max(40, Math.min(240, Math.floor((width - 24) / 7.4)));
+      const rows = Math.max(12, Math.min(80, Math.floor((height - 20) / 18)));
+      const signature = `${autoResizeTarget.id}:${rows}x${cols}`;
+      if (autoResizeSignatureRef.current === signature) return;
+      autoResizeSignatureRef.current = signature;
+      void onResize(autoResizeTarget, rows, cols);
+    };
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        syncSize(entry.contentRect.width, entry.contentRect.height);
+      }, 120);
+    });
+    observer.observe(viewport);
+    const rect = viewport.getBoundingClientRect();
+    syncSize(rect.width, rect.height);
+    return () => {
+      observer.disconnect();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [autoResizeTarget?.id, onResize]);
 
   return (
     <article className={`runtime-session-terminal${group.active ? " is-live" : ""}`}>
@@ -150,7 +220,13 @@ function SessionTerminalCard({
         {group.processes.map((process) => {
           const chunks = outputByProcess[process.id] ?? [];
           const active = process.status === "starting" || process.status === "running";
+          const canInput = active && process.controls.input;
           const canTerminate = active && process.controls.terminate;
+          const inputBusy = processControlBusy[processControlBusyKey(process.id, "input")] === true;
+          const draft = inputDrafts[process.id] ?? "";
+          const terminalSize = process.terminal.rows && process.terminal.cols
+            ? `${process.terminal.cols}×${process.terminal.rows}`
+            : null;
           return (
             <section key={process.id} className="runtime-session-terminal__process">
               <div className="runtime-session-terminal__command-row">
@@ -158,6 +234,10 @@ function SessionTerminalCard({
                 <code className="runtime-session-terminal__command">{process.command}</code>
                 <Tag color={process.status === "running" ? "processing" : "default"}>
                   {processLabel(locale, process)}
+                </Tag>
+                <Tag color={process.terminal.tty ? "blue" : "default"}>
+                  {process.terminal.tty ? runtimeCopy.processPty : runtimeCopy.processStream}
+                  {terminalSize ? ` ${terminalSize}` : ""}
                 </Tag>
                 <span className="runtime-session-terminal__executor">
                   {runtimeCopy.sessionConsoleExecutor}: {process.executorId}
@@ -206,6 +286,56 @@ function SessionTerminalCard({
                   </span>
                 )}
               </div>
+              {canInput ? (
+                <div className="runtime-session-terminal__controls">
+                  {canInput ? (
+                    <form
+                      className="runtime-session-terminal__input-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const value = draft;
+                        if (!value || inputBusy) return;
+                        void onInput(process, `${value}\n`, false).then((accepted) => {
+                          if (!accepted) return;
+                          setInputDrafts((current) => ({ ...current, [process.id]: "" }));
+                        });
+                      }}
+                    >
+                      <span className="runtime-session-terminal__input-prompt" aria-hidden="true">›</span>
+                      <input
+                        aria-label={runtimeCopy.processInputPlaceholder}
+                        value={draft}
+                        disabled={inputBusy}
+                        placeholder={runtimeCopy.processInputPlaceholder}
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setInputDrafts((current) => ({ ...current, [process.id]: value }));
+                        }}
+                      />
+                      <button type="submit" disabled={!draft || inputBusy}>
+                        {runtimeCopy.processInputSend}
+                      </button>
+                    </form>
+                  ) : null}
+                  <div className="runtime-session-terminal__control-actions">
+                    {canInput ? (
+                      <Popconfirm
+                        title={runtimeCopy.processInputCloseTitle}
+                        description={runtimeCopy.processInputCloseDescription}
+                        okText={runtimeCopy.processInputClose}
+                        cancelText={runtimeCopy.cancel}
+                        onConfirm={() => void onInput(process, "", true)}
+                      >
+                        <button type="button" disabled={inputBusy}>
+                          {runtimeCopy.processInputClose}
+                        </button>
+                      </Popconfirm>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </section>
           );
         })}
@@ -228,10 +358,13 @@ export function RuntimeLiveExecutionPanel({
   const [loadError, setLoadError] = useState(false);
   const [streamState, setStreamState] = useState<StreamState>("connecting");
   const [terminatingProcessId, setTerminatingProcessId] = useState<string | null>(null);
+  const [processControlBusy, setProcessControlBusy] = useState<ProcessControlBusyMap>({});
   const [processControlError, setProcessControlError] = useState<string | null>(null);
   const [processOutputs, setProcessOutputs] = useState<Record<string, ProcessOutputChunk[]>>({});
   const seenOutputSequences = useRef(new Map<string, Set<number>>());
   const terminateKeys = useRef(new Map<string, string>());
+  const inputKeys = useRef(new Map<string, { signature: string; key: string }>());
+  const resizeKeys = useRef(new Map<string, { signature: string; key: string }>());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -276,6 +409,102 @@ export function RuntimeLiveExecutionPanel({
       setTerminatingProcessId((current) => current === process.id ? null : current);
     }
   }, [load, processTerminateAvailable, runtimeCopy.processTerminateFailed]);
+
+  const sendProcessInput = useCallback(async (
+    process: RuntimeExecutionProcessProjection,
+    value: string,
+    closeStdin: boolean
+  ): Promise<boolean> => {
+    if (!process.controls.input) return false;
+    const signature = JSON.stringify([value, closeStdin]);
+    let pending = inputKeys.current.get(process.id);
+    if (!pending || pending.signature !== signature) {
+      pending = {
+        signature,
+        key: `runtime.process.input.web:${crypto.randomUUID()}`
+      };
+      inputKeys.current.set(process.id, pending);
+    }
+    const busyKey = processControlBusyKey(process.id, "input");
+    setProcessControlBusy((current) => ({ ...current, [busyKey]: true }));
+    setProcessControlError(null);
+    try {
+      await inputRuntimeManagedProcess({
+        processId: process.id,
+        expectedRevision: process.revision,
+        value,
+        closeStdin,
+        idempotencyKey: pending.key
+      });
+      inputKeys.current.delete(process.id);
+      void load();
+      return true;
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : null;
+      if (code) inputKeys.current.delete(process.id);
+      setProcessControlError(
+        code ? `${runtimeCopy.processInputFailed} (${code})` : runtimeCopy.processInputFailed
+      );
+      return false;
+    } finally {
+      setProcessControlBusy((current) => {
+        if (!current[busyKey]) return current;
+        const next = { ...current };
+        delete next[busyKey];
+        return next;
+      });
+    }
+  }, [load, runtimeCopy.processInputFailed]);
+
+  const resizeProcess = useCallback(async (
+    process: RuntimeExecutionProcessProjection,
+    rows: number,
+    cols: number
+  ): Promise<void> => {
+    if (!process.controls.resize) return;
+    const signature = `${rows}x${cols}`;
+    let pending = resizeKeys.current.get(process.id);
+    if (!pending || pending.signature !== signature) {
+      pending = {
+        signature,
+        key: `runtime.process.resize.web:${crypto.randomUUID()}`
+      };
+      resizeKeys.current.set(process.id, pending);
+    }
+    const busyKey = processControlBusyKey(process.id, "resize");
+    setProcessControlBusy((current) => ({ ...current, [busyKey]: true }));
+    setProcessControlError(null);
+    try {
+      await resizeRuntimeManagedProcess({
+        processId: process.id,
+        expectedRevision: process.revision,
+        rows,
+        cols,
+        idempotencyKey: pending.key
+      });
+      resizeKeys.current.delete(process.id);
+      void load();
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : null;
+      if (code) resizeKeys.current.delete(process.id);
+      setProcessControlError(
+        code ? `${runtimeCopy.processResizeFailed} (${code})` : runtimeCopy.processResizeFailed
+      );
+    } finally {
+      setProcessControlBusy((current) => {
+        if (!current[busyKey]) return current;
+        const next = { ...current };
+        delete next[busyKey];
+        return next;
+      });
+    }
+  }, [load, runtimeCopy.processResizeFailed]);
 
   useEffect(() => {
     void load();
@@ -341,7 +570,7 @@ export function RuntimeLiveExecutionPanel({
       if (current) {
         current.processes.push(process);
         if (process.startedAt > current.lastStartedAt) current.lastStartedAt = process.startedAt;
-        if (process.status === "starting" || process.status === "running") current.active = true;
+        if (processKeepsSessionConsoleLive(process)) current.active = true;
         if (!current.projectDisplayName && process.projectDisplayName) {
           current.projectDisplayName = process.projectDisplayName;
         }
@@ -355,7 +584,7 @@ export function RuntimeLiveExecutionPanel({
           repoId: process.repoId,
           processes: [process],
           lastStartedAt: process.startedAt,
-          active: process.status === "starting" || process.status === "running"
+          active: processKeepsSessionConsoleLive(process)
         });
       }
     }
@@ -454,6 +683,9 @@ export function RuntimeLiveExecutionPanel({
                 outputByProcess={processOutputs}
                 processTerminateAvailable={processTerminateAvailable}
                 terminatingProcessId={terminatingProcessId}
+                processControlBusy={processControlBusy}
+                onInput={sendProcessInput}
+                onResize={resizeProcess}
                 onTerminate={(process) => void terminateProcess(process)}
               />
             ))}
