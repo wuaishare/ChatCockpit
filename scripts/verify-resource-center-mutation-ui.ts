@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import {
+  isLocalProductActionExecutionPath,
+  isProductActionTargetExecutionPath,
+  isProductActionTargetAvailable
+} from "../web/src/product-action-availability.ts";
+import {
   eligibleMutationsForResource,
   isDestructiveMutation,
   mutationApprovalState,
   mutationOperationMatchesResourceState
 } from "../web/src/components/resources/resource-mutation-model.ts";
 import type {
+  ProductActionTargetAvailability,
   RuntimeResourceDescriptor,
   RuntimeResourceInventoryResponse,
   RuntimeResourceMutationApproval
@@ -155,6 +161,53 @@ assert.equal(
 assert.equal(isDestructiveMutation("plugin.uninstall"), true);
 assert.equal(isDestructiveMutation("plugin.install"), false);
 
+const approvalRequiredLocalTarget = {
+  deviceId: "local-device",
+  displayName: "This device",
+  locality: "local",
+  platform: "darwin",
+  architecture: "arm64",
+  presence: "online",
+  availability: "approval-required",
+  executionMode: "local-runtime",
+  reason: "approval-required"
+} satisfies ProductActionTargetAvailability;
+const unsupportedRemoteTarget = {
+  deviceId: "remote-device",
+  displayName: "Remote device",
+  locality: "remote",
+  platform: "darwin",
+  architecture: "arm64",
+  presence: "online",
+  availability: "unsupported",
+  executionMode: "none",
+  reason: "target-capability-not-implemented"
+} satisfies ProductActionTargetAvailability;
+
+assert.equal(
+  isProductActionTargetAvailable(approvalRequiredLocalTarget),
+  false,
+  "approval-required must not be reclassified as immediately available"
+);
+assert.equal(
+  isProductActionTargetExecutionPath(approvalRequiredLocalTarget),
+  true,
+  "approval-required local-runtime is a legitimate governed execution path"
+);
+assert.equal(
+  isLocalProductActionExecutionPath(approvalRequiredLocalTarget),
+  true
+);
+assert.equal(
+  isProductActionTargetExecutionPath(unsupportedRemoteTarget),
+  false,
+  "unimplemented remote Resource RPC must remain fail-closed"
+);
+assert.equal(
+  isLocalProductActionExecutionPath(unsupportedRemoteTarget),
+  false
+);
+
 const approval = {
   id: "approval_ui_fixture",
   operation: "plugin.install",
@@ -232,6 +285,10 @@ const cssSource = fs.readFileSync(
 for (const requiredOperation of [
   "useResourceMutationWorkflow",
   "eligibleMutationsForResource",
+  "productActionTargets",
+  "runtime.resource.mutate",
+  "isLocalProductActionExecutionPath",
+  "mutationExecutionPathAvailable",
   "mutationWritesEnabled",
   "prepareMutation",
   "ResourceMutationActivity",
@@ -297,15 +354,47 @@ assert.equal(
 );
 
 assert.equal(
+  workflowSource.includes("!mutationExecutionPathAvailable"),
+  true,
+  "Resource mutation must fail closed when Product Action resolution has no governed local execution path"
+);
+assert.equal(
+  workflowSource.indexOf("!mutationExecutionPathAvailable") <
+    workflowSource.indexOf("!inventory.mutationWritesEnabled"),
+  true,
+  "Product Action target resolution must be evaluated before deployment mutation exposure"
+);
+assert.equal(
   workflowSource.includes("!inventory.mutationWritesEnabled"),
   true,
   "Exposure-disabled deployments must be rejected by the workflow before request"
 );
 assert.equal(
-  resourceCenterSource.includes("mutationWritesEnabled") &&
+  resourceCenterSource.includes("mutationExecutionPathAvailable") &&
+    resourceCenterSource.includes("mutationWritesEnabled") &&
     resourceCenterSource.includes("disabled={mutationDisabled}"),
   true,
-  "Exposure-disabled deployments must visibly disable mutation actions"
+  "Mutation actions must visibly combine target resolution with deployment exposure"
+);
+assert.equal(
+  resourceCenterSource.includes("onRefreshProductActions()"),
+  true,
+  "Resource inventory refresh must also refresh Product Action target projection instead of leaving device availability stale"
+);
+assert.equal(
+  resourceCenterSource.includes("target-capability-not-implemented"),
+  true,
+  "Resource Center must preserve the explicit remote-not-implemented recovery reason"
+);
+assert.equal(
+  resourceCenterSource.includes("target-capability-not-attested"),
+  true,
+  "Resource Center must not collapse current capability non-attestation into upgrade-required"
+);
+assert.equal(
+  resourceCenterSource.includes("device-agent-update-required"),
+  true,
+  "Legacy protocol gaps must retain their bounded Agent-update recovery reason"
 );
 assert.equal(
   resourceCenterSource.includes("if (mutationBusy || profileId === selectedProfileId) return"),
@@ -346,6 +435,12 @@ assert.equal(
   cssSource.includes("@media (max-width: 650px)"),
   true,
   "Mutation UI must retain narrow-view responsive rules"
+);
+assert.equal(
+  cssSource.includes(".resource-center__mutation-target") &&
+    cssSource.includes("grid-template-columns: minmax(0, 1fr)"),
+  true,
+  "Mutation target rows must collapse safely on narrow views"
 );
 assert.equal(
   cssSource.includes("resource-center__mutation-activity-item"),

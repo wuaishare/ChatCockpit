@@ -680,6 +680,17 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
     }
   }
 
+  async function loadProductActions(): Promise<void> {
+    try {
+      const actionResponse = await fetchProductActions();
+      setProductActions(actionResponse);
+      setProductActionsError(null);
+    } catch (error) {
+      setProductActions(null);
+      setProductActionsError(getErrorMessage(error));
+    }
+  }
+
   async function loadHealth() {
     setHealthLoading(true);
     setHealthError(null);
@@ -712,14 +723,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
         setConnectivityProviderStatus(null);
         setConnectivityProviderStatusError(getErrorMessage(error));
       }
-      try {
-        const actionResponse = await fetchProductActions();
-        setProductActions(actionResponse);
-        setProductActionsError(null);
-      } catch (error) {
-        setProductActions(null);
-        setProductActionsError(getErrorMessage(error));
-      }
+      await loadProductActions();
       try {
         const routeResponse = await fetchPublicRouteCandidate(token);
         setPublicRouteCandidateStatus(routeResponse);
@@ -1467,6 +1471,9 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
               locale={locale}
               token={token}
               authRequired={health.authRequired}
+              productActions={productActions}
+              productActionsError={productActionsError}
+              onRefreshProductActions={loadProductActions}
             />
           </Suspense>
         ) : null}

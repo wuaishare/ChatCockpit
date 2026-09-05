@@ -6,6 +6,7 @@
 .resource-center__profiles,
 .resource-center__management,
 .resource-center__snapshot,
+.resource-center__mutation-targets,
 .resource-center__inventory,
 .resource-center__empty {
   padding: 16px;
@@ -253,6 +254,46 @@
   overflow-wrap: anywhere;
 }
 
+.resource-center__mutation-target-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.resource-center__mutation-target {
+  display: grid;
+  grid-template-columns: minmax(170px, .75fr) auto minmax(240px, 1.4fr);
+  align-items: center;
+  gap: 10px 14px;
+  min-width: 0;
+  padding: 11px 12px;
+  background: var(--tp-surface-soft);
+  border: 1px solid var(--tp-line);
+  border-radius: var(--tp-radius-md);
+}
+
+.resource-center__mutation-target-identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.resource-center__mutation-target-identity strong,
+.resource-center__mutation-target-identity span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-center__mutation-target > span:last-child {
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.resource-center__mutation-target-warning {
+  margin-top: 10px;
+}
+
 .resource-center__inventory {
   min-width: 0;
 }
@@ -443,6 +484,22 @@
 }
 
 @media (max-width: 650px) {
+  .resource-center__mutation-target {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .resource-center__mutation-target .ant-tag {
+    justify-self: start;
+  }
+
+  .resource-center__mutation-target-identity strong,
+  .resource-center__mutation-target-identity span {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .resource-center__hero,
   .resource-center__section-header {
     align-items: stretch;

@@ -17,6 +17,23 @@ export function isProductActionTargetAvailable(
   return target.availability === "available-local" || target.availability === "available-targeted";
 }
 
+export function isProductActionTargetExecutionPath(
+  target: ProductActionTargetAvailability
+): boolean {
+  return target.executionMode !== "none" && (
+    isProductActionTargetAvailable(target) ||
+    target.availability === "approval-required"
+  );
+}
+
+export function isLocalProductActionExecutionPath(
+  target: ProductActionTargetAvailability
+): boolean {
+  return target.locality === "local" &&
+    target.executionMode === "local-runtime" &&
+    isProductActionTargetExecutionPath(target);
+}
+
 export function isLocalProductActionPath(
   target: ProductActionTargetAvailability
 ): boolean {

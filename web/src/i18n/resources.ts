@@ -199,6 +199,22 @@ export interface ResourceCenterCopy {
   requestedState: string;
   approvalExpires: string;
   authoritativeRefreshRequired: string;
+  mutationExecutionTargets: string;
+  mutationExecutionTargetsDescription: string;
+  mutationTargetLocal: string;
+  mutationTargetRemote: string;
+  mutationTargetReady: string;
+  mutationTargetRequiresLocalHost: string;
+  mutationTargetApprovalRequired: string;
+  mutationTargetOffline: string;
+  mutationTargetAgentUpdate: string;
+  mutationTargetNotAttested: string;
+  mutationTargetNotImplemented: string;
+  mutationTargetForbidden: string;
+  mutationTargetNoPath: string;
+  mutationTargetProjectionUnavailable: string;
+  mutationTargetProjectionFailed: string;
+  mutationTargetExecutionUnavailable: string;
   mutationExposureDisabled: string;
   mutationEligible: string;
   mutationUnavailable: string;
@@ -409,6 +425,22 @@ const zhCN: ResourceCenterCopy = {
   requestedState: "请求状态",
   approvalExpires: "审批过期时间",
   authoritativeRefreshRequired: "只有执行证据为已验证，且 authoritative refresh 重新读取到请求状态后，ChatCockpit 才会显示变更成功。",
+  mutationExecutionTargets: "Resource 变更执行目标",
+  mutationExecutionTargetsDescription: "Product Action 先决定在哪个设备上存在合法执行路径；随后才检查部署写入开关、具体 Resource eligibility 与审批。",
+  mutationTargetLocal: "本机",
+  mutationTargetRemote: "远程设备",
+  mutationTargetReady: "目标已提供可验证的 Resource 变更执行路径。",
+  mutationTargetRequiresLocalHost: "当前请求上下文缺少目标机器的本机 Host 执行能力。",
+  mutationTargetApprovalRequired: "目标支持 Resource 变更，但执行前必须经过受治理审批。",
+  mutationTargetOffline: "目标设备当前离线。",
+  mutationTargetAgentUpdate: "旧版 Device Agent 协议无法表达所需能力，需要升级目标设备上的 Agent。",
+  mutationTargetNotAttested: "目标设备当前没有签名证明 Resource 变更能力；这不等同于离线或必须升级。",
+  mutationTargetNotImplemented: "目标设备在线，但当前 Device Agent 尚未实现 Resource 变更 RPC。",
+  mutationTargetForbidden: "当前 Authority / Policy 不允许在该目标执行 Resource 变更。",
+  mutationTargetNoPath: "当前没有合法的 Resource 变更执行路径。",
+  mutationTargetProjectionUnavailable: "暂时无法确认 runtime.resource.mutate 的执行目标；为避免误操作，Resource 写入保持禁用。",
+  mutationTargetProjectionFailed: "Resource 变更执行目标读取失败",
+  mutationTargetExecutionUnavailable: "当前没有可验证的 Resource 变更执行路径。",
   mutationExposureDisabled: "此部署未开启 Resource 写入能力。读取与审计仍可使用；如需变更，请由运维人员显式开启 CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED。",
   mutationEligible: "可受治理变更",
   mutationUnavailable: "当前不可变更",
@@ -619,6 +651,22 @@ const enUS: ResourceCenterCopy = {
   requestedState: "Requested state",
   approvalExpires: "Approval expires",
   authoritativeRefreshRequired: "ChatCockpit reports success only when the execution is verified and a fresh authoritative inventory confirms the requested state.",
+  mutationExecutionTargets: "Resource mutation execution targets",
+  mutationExecutionTargetsDescription: "Product Action resolution decides which device has a legitimate execution path before deployment exposure, per-resource eligibility, and approval are evaluated.",
+  mutationTargetLocal: "This device",
+  mutationTargetRemote: "Remote device",
+  mutationTargetReady: "This target provides a verifiable Resource mutation execution path.",
+  mutationTargetRequiresLocalHost: "The current request context does not have the target machine's local Host execution capability.",
+  mutationTargetApprovalRequired: "This target supports Resource mutation, but governed approval is required before execution.",
+  mutationTargetOffline: "The target device is currently offline.",
+  mutationTargetAgentUpdate: "The legacy Device Agent protocol cannot express the required capability; update the Agent on the target device.",
+  mutationTargetNotAttested: "The target device has not signed an attestation for Resource mutation capability. This does not imply that it is offline or must be upgraded.",
+  mutationTargetNotImplemented: "The target device is online, but the current Device Agent does not implement Resource mutation RPC.",
+  mutationTargetForbidden: "Current Authority / Policy does not permit Resource mutation on this target.",
+  mutationTargetNoPath: "No valid Resource mutation execution path is currently available.",
+  mutationTargetProjectionUnavailable: "ChatCockpit cannot currently confirm a runtime.resource.mutate execution target, so Resource writes remain disabled to fail closed.",
+  mutationTargetProjectionFailed: "Resource mutation target projection failed",
+  mutationTargetExecutionUnavailable: "No verifiable Resource mutation execution path is currently available.",
   mutationExposureDisabled: "Resource writes are disabled for this deployment. Read and audit remain available; an operator must explicitly enable CHATCOCKPIT_RESOURCE_MUTATIONS_EXPOSED before mutations can run.",
   mutationEligible: "Eligible for governed change",
   mutationUnavailable: "Mutation unavailable",

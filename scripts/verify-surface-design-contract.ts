@@ -23,6 +23,8 @@ const actionAvailabilityService = read("src/application/product-action-availabil
 const actionAvailabilityRoutes = read("src/server/product-action-availability-routes.ts");
 const projectCenter = read("web/src/components/projects/ProjectCenterView.tsx");
 const projectCockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
+const resourceCenter = read("web/src/components/resources/ResourceCenterView.tsx");
+const productActionAvailability = read("web/src/product-action-availability.ts");
 const webDesignSystem = read("docs/architecture/web-ui-design-system.md");
 const macosDeployment = read("docs/deployment/macos-desktop.md");
 const nativeStatus = read("desktop/macos/Sources/TokenPilotDesktop/NativeStatusComponents.swift");
@@ -190,6 +192,7 @@ assert.match(adr006, /Operator audience/);
 assert.match(actionAvailabilityService, /"project\.root\.manage"/);
 assert.match(actionAvailabilityService, /"project\.discovery"/);
 assert.match(actionAvailabilityService, /"runtime\.lifecycle"/);
+assert.match(actionAvailabilityService, /"runtime\.resource\.mutate"/);
 assert.match(actionAvailabilityService, /"available-targeted"/);
 assert.match(actionAvailabilityService, /"requires-local-host"/);
 assert.match(actionAvailabilityService, /"approval-required"/);
@@ -210,6 +213,19 @@ assert.match(projectCockpit, /fetchProductActions/);
 assert.match(projectCockpit, /rootManagementAvailable/);
 assert.match(projectCockpit, /root\.pathVisibility === "machine-local-owner"/);
 assert.doesNotMatch(projectCockpit, /<code className="project-root-row__path">\{root\.privatePath\}<\/code>/);
+
+assert.match(productActionAvailability, /isProductActionTargetExecutionPath/);
+assert.match(productActionAvailability, /target\.availability === "approval-required"/);
+assert.match(productActionAvailability, /isLocalProductActionExecutionPath/);
+assert.match(resourceCenter, /productActionTargets\(productActions, "runtime\.resource\.mutate"\)/);
+assert.match(resourceCenter, /isLocalProductActionExecutionPath\(localResourceMutationTarget\)/);
+assert.match(resourceCenter, /mutationExecutionPathAvailable/);
+assert.match(resourceCenter, /mutationWritesEnabled/);
+assert.match(resourceCenter, /target-capability-not-implemented/);
+assert.match(resourceCenter, /target-capability-not-attested/);
+assert.match(resourceCenter, /device-agent-update-required/);
+assert.match(resourceCenter, /onRefreshProductActions\(\)/);
+assert.match(webApp, /<ResourceCenterView[\s\S]*productActions=\{productActions\}[\s\S]*productActionsError=\{productActionsError\}[\s\S]*onRefreshProductActions=\{loadProductActions\}/);
 
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
 for (const section of ["overview", "projects", "work", "runtime", "resources", "devices", "connections", "thisMac"]) {

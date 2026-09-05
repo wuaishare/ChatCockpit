@@ -26,6 +26,7 @@ interface ResourceMutationWorkflowOptions {
   inventory: RuntimeResourceInventoryResponse | null;
   selectedProfileId: string | null;
   selectedWorkspaceId: string | null;
+  mutationExecutionPathAvailable: boolean;
   setInventory: Dispatch<SetStateAction<RuntimeResourceInventoryResponse | null>>;
 }
 
@@ -51,6 +52,7 @@ export function useResourceMutationWorkflow({
   inventory,
   selectedProfileId,
   selectedWorkspaceId,
+  mutationExecutionPathAvailable,
   setInventory
 }: ResourceMutationWorkflowOptions) {
   const { message } = AntApp.useApp();
@@ -111,6 +113,10 @@ export function useResourceMutationWorkflow({
     operation: RuntimeResourceMutationOperation
   ): Promise<void> {
     if (!inventory || !selectedProfileId || !selectedWorkspaceId) return;
+    if (!mutationExecutionPathAvailable) {
+      message.warning(copy.mutationTargetExecutionUnavailable);
+      return;
+    }
     if (!inventory.mutationWritesEnabled) {
       message.warning(copy.mutationExposureDisabled);
       return;
