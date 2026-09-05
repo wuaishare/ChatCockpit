@@ -246,8 +246,18 @@ assert.equal(
   "unsupported"
 );
 assert.equal(
+  target(remoteBrowser, "connectivity.route.intent", capableId).reason,
+  "target-capability-not-implemented",
+  "remote Route Intent must remain fail-closed until Device Agent exposes an explicit control-plane RPC"
+);
+assert.equal(
   target(remoteBrowser, "connectivity.route.cutover", capableId).availability,
   "unsupported"
+);
+assert.equal(
+  target(remoteBrowser, "connectivity.route.cutover", capableId).reason,
+  "target-capability-not-implemented",
+  "remote Route cutover must not be implied by a generic Device Agent capability set"
 );
 for (const actionId of [
   "connectivity.provider.install",
@@ -344,6 +354,24 @@ assert.equal(
 assert.equal(
   target(loopbackBrowser, "runtime.process.terminate", LOCAL_DEVICE_TARGET_ID).executionMode,
   "local-runtime"
+);
+assert.equal(
+  target(loopbackBrowser, "connectivity.route.intent", LOCAL_DEVICE_TARGET_ID).availability,
+  "available-local",
+  "Route Intent remains a local Application Runtime workflow in machine-local Owner context"
+);
+assert.equal(
+  target(loopbackBrowser, "connectivity.route.intent", LOCAL_DEVICE_TARGET_ID).executionMode,
+  "local-runtime"
+);
+assert.equal(
+  target(loopbackBrowser, "connectivity.route.cutover", LOCAL_DEVICE_TARGET_ID).availability,
+  "requires-local-host",
+  "loopback HTTP context must not be mistaken for Public Route Machine Authority"
+);
+assert.equal(
+  target(loopbackBrowser, "connectivity.route.cutover", LOCAL_DEVICE_TARGET_ID).reason,
+  "machine-local-context-required"
 );
 for (const actionId of [
   "connectivity.provider.install",
